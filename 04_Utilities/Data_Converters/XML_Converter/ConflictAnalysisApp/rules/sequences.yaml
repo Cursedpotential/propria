@@ -1,0 +1,26 @@
+# sequences.yaml — multi-message patterns
+
+reactive_abuse_cycle:
+  description: "Provocation -> emotional reaction -> 'gotcha' framing"
+  steps:
+    - { tag_in: [character_assassination, substance_weaponization, infidelity_betrayal], who: any }
+    - { sentiment: negative, intensity_min: 0.6, who: other, within_minutes: 120 }
+    - { tag_in: [reactive_abuse_gotcha], who: same, within_minutes: 120 }
+  require_order: true
+  score: 5
+
+stonewalling_block_window:
+  description: "Conflict phrase followed by prolonged silence"
+  steps:
+    - { tag_in: [stonewalling_blocking, coercive_control], who: any }
+    - { silence_minutes_min: 1440 }
+  require_order: true
+  score: 3
+
+alcohol_child_risk_window:
+  description: "Alcohol mention near child exchange/drive context"
+  steps:
+    - { tag_in: [alcohol_risk_child], who: any }
+    - { cooccur_terms: ["drive","driving","car","pickup","drop off","drop-off","exchange"], within_minutes: 180 }
+  require_order: false
+  score: 4

@@ -1,0 +1,42 @@
+COMPREHENSIVE EXTRACTION MISSION - TraceIQ Complete Code Extraction
+
+BASE DIRECTORY: C:\Users\matts\AI workspace
+
+YOUR MISSION: Extract EVERY SINGLE piece of SQL, schema definition, table structure, helper function, and code from ALL TraceIQ-related files. DO NOT summarize, DO NOT skip, DO NOT sample - EXTRACT EVERYTHING.
+
+Read these files and provide COMPLETE extraction (use @ syntax to read files):
+
+CRITICAL FILES - EXTRACT COMPLETELY:
+1. Folder/reference/TraceIQ_Refined/schema.sql
+2. Folder/reference/TraceIQ_Refined/ingest_pass1.py
+3. Folder/reference/TraceIQ_Refined/logic_parser.py
+4. Folder/reference/TraceIQ_Refined/processing_directives.md
+5. Folder/reference/TraceIQ_Refined/TraceIQ-Deployment-CLAUDE.md
+6. Folder/reference/TraceIQ_Refined/TraceIQ_Analysis_Report.md
+7. Folder/TraceIQ_MASTER_Schema_Complete (2).md
+8. Folder/TRACEIQ TIMELINE PROCESSOR - COMPLETE TECHNICAL SP.md
+9. TraceIQ_Complete/New folder/traceiq/schema_complete.sql
+10. TraceIQ_Complete/app.py
+11. TraceIQ_Complete/dev chats/TraceIQ_MASTER_Schema_Complete (1).md
+12. TraceIQ_Final/app.py
+
+For EACH file, provide:
+FILE: [path]
+TYPE: [SQL/Python/Markdown]
+COMPLETE CONTENT: [paste everything - no summaries]
+
+Then create:
+TABLE COMPARISON showing every table found, where it exists, differences, and which version is most complete.
+
+EXTRACTION CHECKLIST:
+- Every CREATE TABLE statement
+- Every index definition
+- Every trigger
+- Every function/procedure
+- Every helper function in Python
+- Every class and method
+- All configuration
+- All comments explaining intent
+
+OUTPUT FORMAT:
+Massive document with 100% of code extracted.

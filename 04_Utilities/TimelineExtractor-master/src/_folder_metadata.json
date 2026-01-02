@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "CaptureDate.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\src\\CaptureDate.py",
+    "last_modified": "2024-07-30T15:40:25",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import datetime as DT import logging import os import piexif import re from typing import List, Optional, Tuple import xml.etree.ElementTree as ET def GetFromPictureFile(FilePath: str) -> Optional[DT....",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\src",
+    "group_base_name": "capturedate"
+  },
+  {
+    "filename": "extract.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\src\\extract.py",
+    "last_modified": "2024-07-30T15:40:25",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import argparse import datetime as DT import logging from typing import List, Optional import xml.etree.ElementTree as ET import CaptureDate import LocationHistory def OutputLocationHistory(History: E...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\src",
+    "group_base_name": "extract"
+  },
+  {
+    "filename": "LocationHistory.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\src\\LocationHistory.py",
+    "last_modified": "2024-07-30T15:40:25",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import datetime as DT import re import requests from typing import List import xml.etree.ElementTree as ET import logging def ElementsAreEqual(Element1: ET.Element, Element2: ET.Element) -> bool: \"\"\" ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\src",
+    "group_base_name": "locationhistory"
+  }
+]

@@ -1,0 +1,100 @@
+# AGENT_PROMPT.md — Timeline ETL Build (P1→P4.5 + Resolver + Enrichment + Exports)
+
+Owner: Salem
+
+## Scope
+Implement a modular, streaming ETL to: parse timeline exports (P1), sort & geokeys (P2), link/anchor/mint IDs (P3), guardrails (P4), master concat, API orders (P4.5), resolve geocodes (cache→prompt→live), pre-human enrichment, and exports (human CSV year-partitions in Eastern 12‑hour + Kepler GeoJSON). No row drops.
+
+## Event Types (preserve all)
+`visit | activity | trip | timeline_path | point`
+
+## IDs
+- P1: `event_uuid = sha256("ingest|{event_type}|{start_time}|{end_time}|{point_time}|{start_latlng}|{end_latlng}|{point_latlng}|{place_id}")`.
+- P3: Human IDs: non-point → `YYMMDDHHMMi`; points → `<parent>.NNN`. Points carry `parent_event_uuid`.
+
+## P1 — Parse (STREAMING)
+- Plugin system. Implement `plugins/parsing/salem_v1.py` (stream JSON via `ijson`, NDJSON linewise, CSV chunked).
+- Emit rows for all event types, exploding child points; normalize times to UTC+offset; normalize lat/lng strings (strip degree symbols).
+- Keep `semantic_type_raw` + `semantic_type_clean`. Pass through `place_id` when present.
+- Suggested metrics: `duration_sec`, `duration_hhmm`, `total_points`, `path_distance_meters`, `gap_to_prev_sec`, `parse_anomaly`.
+- Outputs: `working_data/<source>/p1.csv`, `p1_stats.json`, `p1_audit.csv`.
+
+## P2 — Sort & Geokeys
+- Sort by first non-null of `[start_time, point_time, end_time]` (UTC).
+- Compute R3/R4 rounding + geohash8/9 for any `start_/end_/point_latlng`.
+
+### 9b) Precision estimation (add in P2)
+Use `engines/common/precision.py` (provided). For each row (for any `*_latlng` you maintain):
+- If geohash available → derive cell size by **geohash length**; adjust lon by cos(latitude).
+- Else → derive meters from **decimal places** of lat/lng.
+Populate:
+- `precision_method` ∈ {`geohash_len`,`latlng_decimals`}
+- `precision_m_lat_est`, `precision_m_lon_est`, `precision_m_est = max(lat,lon)`  
+Policy: precision ≠ accuracy. Use as clustering/quality bucket only.
+
+## P3 — Link, Anchor, Custom IDs
+- Link points→paths by provisional key; sort points by `point_time`.
+- Anchoring (±5 min around first/last **point_time**):
+  1) Prefer **activity/trip** over visit if they disagree.
+  2) If prev/next activities present →
+     - `start_time = prev_activity.end_time`, `end_time = next_activity.start_time`
+     - coords from those anchors if available else first/last point.
+     - `path_time_source='activity_vehicle'`.
+  3) Else visits (`visit_visit`), else mixed (`activity+points_last` / `points_first+activity`), else fallback to points (`points_first_last`, set `path_time_fallback=1`).
+- Set: `start_time`, `end_time`, `start_latlng`, `end_latlng`, `path_time_source`, `path_time_fallback`.
+- Mint human IDs as above; points set `parent_event_uuid`.
+
+## P4 — Guardrails
+- Enforce allowed `event_type`; never drop rows; set `link_anomaly` if coercing.
+
+## Master
+- Concat all `working_data/*/p4.csv` → `output_data/master_machine.csv` (UTC+offset).
+
+## P4.5 — API Orders
+- `geo_requests/google_placeid_requests.json` from unique `place_id`s.
+- `geo_requests/radar_latlng_requests.json` from unique `start_latlng/end_latlng` (non-points), clustered (R4 + 20 m).
+
+## Resolver (interactive, streaming, crash-safe)
+- Cache → prompt → live. Batch flush every 50 (`RESOLVER_BATCH_SIZE`); write cache JSON before CSV; update `state/resolver_progress.json`; log to `output_data/logs/resolver.log`.
+- Cache layout:
+  - Google: `raw_api/google/place_details/<place_id>.json`
+  - Radar : `raw_api/radar/reverse_geocode/<lat>_<lng>.json`
+- CSV outputs: `output_data/api_csv/google_results.csv`, `output_data/api_csv/radar_results.csv`
+- Completeness rules: Google needs `place_id,name,formatted_address,types`; Radar needs `addresses[0]` or `address` with `formattedAddress` or `street+city` (track `layer` coverage).
+
+## Pre-human Enrichment (provided analyzer)
+- Durations (event + point-steps), distances, overnight (22:00–08:00 span-aware), party/bar flag, place_name/type, street+city (components-first), maps links, flattened `api_meta_google/radar`. Writes back to `master_machine.csv` for export.
+
+## Exports
+- Human CSV → `output_data/human/human_YYYY.csv` with:
+  - time: `date_local`, `weekday_local`, `start_time_et_12h`, `end_time_et_12h` (Eastern 12‑hr)
+  - place: `place_name`, `place_type_primary`, `street_short`, `city_short`, `google_address`, `radar_address`
+  - movement: `event_duration_s`, `point_step_duration_s`, `point_step_distance_m`, `overnight_flag`
+  - flags: `party_or_bar_flag`, `problematic_flag`, `custom_label`
+  - links: `maps_link_start`, `maps_link_end`, `maps_link_point`, `google_place_url`
+  - provenance: `event_type`, `semantic_type_clean`, `subtype`, `custom_id`, `parent_event_uuid`, `path_time_source`, `start_latlng`, `end_latlng`, `point_latlng`
+  - metadata: `api_meta_google`, `api_meta_radar`
+- Kepler GeoJSON → yearly points/endpoints.
+
+## Folder Paths (must match)
+- Inputs: `source/timeline/<source>/`
+- Working: `working_data/<source>/p1..p4.csv`
+- Master: `output_data/master_machine.csv`
+- Orders: `geo_requests/*`
+- Cache: `raw_api/google/place_details/*.json`, `raw_api/radar/reverse_geocode/*.json`
+- Resolver CSVs: `output_data/api_csv/*.csv`
+- Human: `output_data/human/human_YYYY.csv`
+- Logs/State: `output_data/logs/resolver.log`, `state/resolver_progress.json`
+
+## CLI
+1) P1→P4→Master  
+2) P4.5 orders  
+3) Resolver (`--interactive` or `--yes`)  
+4) Enrichment handler  
+5) Exports
+
+## Acceptance
+- Anchoring uses activity over visit if conflict; provenance fields filled.
+- IDs minted per spec; points have `parent_event_uuid` + `<parent>.NNN`.
+- API orders non-empty; resolver CSVs written; checkpoint/log present.
+- Human CSVs per year, Eastern 12‑hour, with addresses/links/flags/metadata.

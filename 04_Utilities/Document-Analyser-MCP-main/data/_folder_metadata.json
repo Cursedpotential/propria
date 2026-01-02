@@ -1,0 +1,22 @@
+[
+  {
+    "filename": "sample_documents.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\data\\sample_documents.py",
+    "last_modified": "2025-07-04T23:23:21",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\"Sample documents with metadata for the document analyzer.\"\"\" from datetime import datetime from typing import Dict, List, Any SAMPLE_DOCUMENTS: List[Dict[str, Any]] = [ { \"id...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\data",
+    "group_base_name": "sample_documents"
+  },
+  {
+    "filename": "__init__.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\data\\__init__.py",
+    "last_modified": "2025-07-04T23:23:21",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\"Sample data module.\"\"\" from .sample_documents import SAMPLE_DOCUMENTS __all__ = [\"SAMPLE_DOCUMENTS\"]",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\data",
+    "group_base_name": "__init__"
+  }
+]

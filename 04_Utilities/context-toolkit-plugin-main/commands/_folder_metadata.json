@@ -1,0 +1,62 @@
+[
+  {
+    "filename": "add-to-context.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands\\add-to-context.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "--- description: Add new contextual information to the repository's context pool --- I would like to add new contextual information to this repository. The context data is gathered in CONTEXT.md (or i...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands",
+    "group_base_name": "add-to-context"
+  },
+  {
+    "filename": "chunk-repo-context.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands\\chunk-repo-context.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "--- description: Split CONTEXT.md into organized chunks in context-data/ directory --- This repository currently uses a single CONTEXT.md file for storing project context. As projects grow, a single c...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands",
+    "group_base_name": "chunk-repo-context"
+  },
+  {
+    "filename": "claude-to-context.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands\\claude-to-context.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "--- description: Extract information from CLAUDE.md and incorporate into CONTEXT.md --- This repository contains CLAUDE.md which provides structured instructions and context for Claude Code. I would l...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands",
+    "group_base_name": "claude-to-context"
+  },
+  {
+    "filename": "context-to-claude.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands\\context-to-claude.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "--- description: Convert CONTEXT.md (human scratchpad) to CLAUDE.md (agent briefing) --- This repository contains a file called CONTEXT.md (or context.md) which provides detailed, human-friendly descr...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands",
+    "group_base_name": "context-to-claude"
+  },
+  {
+    "filename": "manual-context-update.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands\\manual-context-update.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "--- description: Manually edit and synchronize CONTEXT.md and CLAUDE.md --- I would like to make manual updates to the context files in this repository. This command provides a guided workflow for mak...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands",
+    "group_base_name": "manual-context-update"
+  },
+  {
+    "filename": "remove-from-context.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands\\remove-from-context.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "--- description: Remove outdated or incorrect information from the context pool --- I would like to remove information from this repository's context pool. The context data is stored in CONTEXT.md (or...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\commands",
+    "group_base_name": "remove-from-context"
+  }
+]

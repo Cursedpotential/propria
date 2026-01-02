@@ -1,0 +1,132 @@
+[
+  {
+    "filename": "AdvancedReportDisplay.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\AdvancedReportDisplay.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "advancedreportdisplay"
+  },
+  {
+    "filename": "AnalysisReportDisplay.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\AnalysisReportDisplay.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "analysisreportdisplay"
+  },
+  {
+    "filename": "CaseDataViewer.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\CaseDataViewer.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React, { useMemo } from 'react'; import { StagedVideo } from '../types'; import { transformToDbSchema } from '../utils/dataTransformer'; interface CaseDataViewerProps { stagedVideos: StagedVide...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "casedataviewer"
+  },
+  {
+    "filename": "DataSync.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\DataSync.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React, { useState, useEffect } from 'react'; import { createClient, SupabaseClient } from '@supabase/supabase-js'; import { StagedVideo } from '../types'; import { transformToDbSchema } from '....",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "datasync"
+  },
+  {
+    "filename": "EditableSpeaker.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\EditableSpeaker.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React, { useState, useEffect } from 'react'; interface EditableSpeakerProps { originalSpeaker: string; speakerMap: Record<string, string>; onUpdate?: (originalName: string, newName: string) => ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "editablespeaker"
+  },
+  {
+    "filename": "FileDropzone.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\FileDropzone.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React, { useState, useCallback } from 'react'; import { UploadIcon } from './icons/UploadIcon'; interface FileDropzoneProps { onFilesSelect: (files: File[]) => void; } export const FileDropzone...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "filedropzone"
+  },
+  {
+    "filename": "GraphExport.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\GraphExport.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React, { useState } from 'react'; import { StagedVideo } from '../types'; import { generateCypherScript } from '../utils/dataTransformer'; interface GraphExportProps { stagedVideos: StagedVideo...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "graphexport"
+  },
+  {
+    "filename": "Header.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\Header.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React from 'react'; import { BrainIcon } from './icons/BrainIcon'; export const Header: React.FC = () => { return ( <header className=\"bg-slate-800/80 backdrop-blur-sm sticky top-0 z-20 border-...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "header"
+  },
+  {
+    "filename": "Loader.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\Loader.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React from 'react'; import { LoadingPhase } from '../types'; interface LoaderProps { phase: LoadingPhase; } const phaseMessages: Record<LoadingPhase, string> = { idle: 'Waiting to start...', in...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "loader"
+  },
+  {
+    "filename": "ReviewAndVerify.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\ReviewAndVerify.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React, { useState, useMemo, useRef } from 'react'; import { StagedVideo, AppSettings } from '../types'; import { EditableSpeaker } from './EditableSpeaker'; import { useVideoAnalysis } from '.....",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "reviewandverify"
+  },
+  {
+    "filename": "Settings.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\Settings.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React from 'react'; import { AppSettings } from '../types'; import { InfoIcon } from './icons/InfoIcon'; interface SettingsProps { settings: AppSettings; setSettings: React.Dispatch<React.SetSt...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "settings"
+  },
+  {
+    "filename": "TranscriptDisplay.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\TranscriptDisplay.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React from 'react'; import { TranscriptEntry } from '../types'; import { EditableSpeaker } from './EditableSpeaker'; interface TranscriptDisplayProps { transcript: TranscriptEntry[]; speakerMap...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "transcriptdisplay"
+  },
+  {
+    "filename": "VideoProcessor.tsx",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components\\VideoProcessor.tsx",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import React, { useCallback, useState } from 'react'; import { StagedVideo, VideoStatus, AnalysisReport, AppSettings } from '../types'; import { useVideoAnalysis } from '../hooks/useVideoAnalysis'; im...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\forensic-video-analyzer\\components",
+    "group_base_name": "videoprocessor"
+  }
+]

@@ -1,0 +1,28 @@
+# Pandoc ChunkedHTML Writer Manual
+
+## Overview
+The `chunkedhtml` writer produces a ZIP archive or directory containing multiple linked HTML files. Each file represents a section of the source document.
+
+## Key Features
+- **Structure**: Each section becomes an HTML file.
+- **Navigation**: Links are automatically rewritten. Next/Prev/Up links are added.
+- **Assets**: Local images are included in the output.
+- **Sitemap**: A `sitemap.json` is generated.
+
+## Options & Variables
+- `toc`: Set to `true` to include Table of Contents on *every* page (default: only top page).
+- `--split-level=N`: (Option) Split into files at header level N (default 1).
+- `--number-sections`: Auto-number sections.
+- `--toc-depth=N`: Depth of the Table of Contents.
+
+## Templates
+- Filenames can be customized with variables in `chunk-template`:
+  - `%n`: Chunk number (001, 002...)
+  - `%s`: Section number (1.1, 1.2...)
+  - `%h`: Heading text
+  - `%i`: Section identifier
+  Example: `section-%s.html`
+
+## Usage
+`pandoc input.md -t chunkedhtml -o output_dir`
+(If output path has no extension, it creates a directory.)

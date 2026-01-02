@@ -1,0 +1,27 @@
+{
+  "name": "context-toolkit",
+  "description": "A comprehensive toolkit implementing the CONTEXT.md workflow system for managing human-authored context and agent-ready briefings, bridging natural expression and AI-optimized formats.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Daniel Rosehill",
+    "email": "public@danielrosehill.com",
+    "url": "https://danielrosehill.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danielrosehill/context-toolkit-plugin"
+  },
+  "commands": [
+    "./commands/add-to-context.md",
+    "./commands/chunk-repo-context.md",
+    "./commands/claude-to-context.md",
+    "./commands/context-to-claude.md",
+    "./commands/manual-context-update.md",
+    "./commands/remove-from-context.md"
+  ],
+  "keywords": [
+    "development",
+    "context-toolkit"
+  ]
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "CLAUDE.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\examples\\web-app\\CLAUDE.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Reading Tracker Web Application ## Project Overview A web application for tracking personal reading habits with focus on simplicity, privacy, and meaningful analytics. Target audience: casual to mod...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\examples\\web-app",
+    "group_base_name": "claude"
+  },
+  {
+    "filename": "CONTEXT.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\examples\\web-app\\CONTEXT.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Reading Tracker Web App - Context ## Project Vision I'm building a web application that helps users track their reading habits. The idea came from my personal frustration with existing book tracking...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\examples\\web-app",
+    "group_base_name": "context"
+  },
+  {
+    "filename": "README.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\examples\\web-app\\README.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Web App Example - Reading Tracker This example demonstrates the CONTEXT.md workflow for a web application project. ## What This Example Shows ### CONTEXT.md Characteristics - **Conversational tone**...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\examples\\web-app",
+    "group_base_name": "readme"
+  }
+]

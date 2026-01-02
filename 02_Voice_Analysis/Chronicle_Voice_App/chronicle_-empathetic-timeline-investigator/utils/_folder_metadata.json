@@ -1,0 +1,22 @@
+[
+  {
+    "filename": "audio.ts",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\chronicle_-empathetic-timeline-investigator\\utils\\audio.ts",
+    "last_modified": "2025-12-25T04:52:26",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "export function decode(base64: string): Uint8Array { const binaryString = atob(base64); const len = binaryString.length; const bytes = new Uint8Array(len); for (let i = 0; i < len; i++) { bytes[i] = b...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\chronicle_-empathetic-timeline-investigator\\utils",
+    "group_base_name": "audio"
+  },
+  {
+    "filename": "supabase.ts",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\chronicle_-empathetic-timeline-investigator\\utils\\supabase.ts",
+    "last_modified": "2025-12-25T04:52:26",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import { createClient } from '@supabase/supabase-js'; // Credentials provided by user. // NOTE: We use the ANON key (public), not the SERVICE_ROLE key (admin/secret). const supabaseUrl = process.env.S...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Context analysis extraction apps\\chronicle_-empathetic-timeline-investigator\\utils",
+    "group_base_name": "supabase"
+  }
+]

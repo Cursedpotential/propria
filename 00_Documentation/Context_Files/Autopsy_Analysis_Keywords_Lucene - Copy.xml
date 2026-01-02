@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<keyword_lists>
+ <!--
+   SLEUTH KIT AUTOPSY - LUCENE REGEX COMPATIBLE
+   Fixed by Opus - Lucene regex rules:
+   - NO \s \d \b \n \t (use explicit chars)
+   - Use .* for substring matching (Lucene anchors by default)
+   - Supported: . * + ? | () []
+   - Character classes: [a-z] [0-9] [abc]
+   - Escape special chars with backslash when literal
+ -->
+
+ <!-- GASLIGHTING PATTERNS -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Gaslighting">
+  <keyword literal="false" whole="false">.*i never said that.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re imagining.*</keyword>
+  <keyword literal="false" whole="false">.*you are imagining.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re paranoid.*</keyword>
+  <keyword literal="false" whole="false">.*that never happened.*</keyword>
+  <keyword literal="false" whole="false">.*no one will believe.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re crazy.*</keyword>
+  <keyword literal="false" whole="false">.*you are crazy.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re just high.*</keyword>
+  <keyword literal="false" whole="false">.*just kidding.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re overreacting.*</keyword>
+  <keyword literal="false" whole="false">.*the drugs talking.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re being dramatic.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re twisting my words.*</keyword>
+  <keyword literal="false" whole="false">.*you have issues.*</keyword>
+  <keyword literal="false" whole="false">.*didn.?t say that.*</keyword>
+  <keyword literal="false" whole="false">.*did not say that.*</keyword>
+ </keyword_list>
+
+ <!-- BLAME SHIFTING -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Blame_Shifting">
+  <keyword literal="false" whole="false">.*this is your fault.*</keyword>
+  <keyword literal="false" whole="false">.*that.?s your fault.*</keyword>
+  <keyword literal="false" whole="false">.*you made me.*</keyword>
+  <keyword literal="false" whole="false">.*because of you.*</keyword>
+  <keyword literal="false" whole="false">.*you started this.*</keyword>
+  <keyword literal="false" whole="false">.*you always do this.*</keyword>
+  <keyword literal="false" whole="false">.*if you hadn.?t.*</keyword>
+  <keyword literal="false" whole="false">.*if you didn.?t.*</keyword>
+  <keyword literal="false" whole="false">.*look what you made me do.*</keyword>
+ </keyword_list>
+
+ <!-- MINIMIZING -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Minimizing">
+  <keyword literal="false" whole="false">.*not a big deal.*</keyword>
+  <keyword literal="false" whole="false">.*isn.?t a big deal.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re too sensitive.*</keyword>
+  <keyword literal="false" whole="false">.*calm down.*</keyword>
+  <keyword literal="false" whole="false">.*get over it.*</keyword>
+  <keyword literal="false" whole="false">.*stop making a scene.*</keyword>
+  <keyword literal="false" whole="false">.*was just a joke.*</keyword>
+  <keyword literal="false" whole="false">.*stop worrying.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re being dramatic.*</keyword>
+ </keyword_list>
+
+ <!-- CIRCULAR ARGUMENTS -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Circular_Arguments">
+  <keyword literal="false" whole="false">.*what.?s the point.*</keyword>
+  <keyword literal="false" whole="false">.*that.?s not the point.*</keyword>
+  <keyword literal="false" whole="false">.*you keep changing.*</keyword>
+  <keyword literal="false" whole="false">.*you know what i mean.*</keyword>
+  <keyword literal="false" whole="false">.*we.?re not in high school.*</keyword>
+ </keyword_list>
+
+ <!-- ALCOHOL INDICATORS -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Alcohol">
+  <keyword literal="false" whole="false">.*(drunk|wasted|buzzed|tipsy|hammered|plastered).*</keyword>
+  <keyword literal="false" whole="false">.*(vodka|tequila|whiskey|fireball|liquor).*</keyword>
+  <keyword literal="false" whole="false">.*hung.?over.*</keyword>
+  <keyword literal="false" whole="false">.*i only had one.*</keyword>
+  <keyword literal="false" whole="false">.*i.?m fine to drive.*</keyword>
+  <keyword literal="false" whole="false">.*i am fine to drive.*</keyword>
+  <keyword literal="false" whole="false">.*i can handle it.*</keyword>
+ </keyword_list>
+
+ <!-- SUBSTANCE WEAPONIZATION -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Substance_Weaponization">
+  <keyword literal="false" whole="false">.*(crackhead|crack head).*</keyword>
+  <keyword literal="false" whole="false">.*(tweaker|tweakin).*</keyword>
+  <keyword literal="false" whole="false">.*(addict|junkie).*</keyword>
+  <keyword literal="false" whole="false">.*you.?re just high.*</keyword>
+  <keyword literal="false" whole="false">.*are you on something.*</keyword>
+  <keyword literal="false" whole="false">.*the drugs talking.*</keyword>
+  <keyword literal="false" whole="false">.*no one will believe a (tweaker|crackhead|junkie).*</keyword>
+ </keyword_list>
+
+ <!-- ADDERALL CONTROL -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Adderall_Control">
+  <keyword literal="false" whole="false">.*(adderall|addy|aderall).*</keyword>
+  <keyword literal="false" whole="false">.*how many did you take.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re taking too many.*</keyword>
+  <keyword literal="false" whole="false">.*holding onto them.*</keyword>
+  <keyword literal="false" whole="false">.*can.?t control yourself.*</keyword>
+  <keyword literal="false" whole="false">.*your turn.*pills.*</keyword>
+  <keyword literal="false" whole="false">.*pills.*your turn.*</keyword>
+ </keyword_list>
+
+ <!-- INFIDELITY -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Infidelity">
+  <keyword literal="false" whole="false">.*(huckleberry|huck.?s|hucks).*</keyword>
+  <keyword literal="false" whole="false">.*(cheating|cheated|affair).*</keyword>
+  <keyword literal="false" whole="false">.*slept with.*</keyword>
+  <keyword literal="false" whole="false">.*seeing someone.*</keyword>
+  <keyword literal="false" whole="false">.*he.?s just a friend.*</keyword>
+  <keyword literal="false" whole="false">.*she.?s just a friend.*</keyword>
+  <keyword literal="false" whole="false">.*we just work together.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re being jealous.*</keyword>
+  <keyword literal="false" whole="false">.*why don.?t you trust me.*</keyword>
+ </keyword_list>
+
+ <!-- SOCIAL MEDIA DECEPTION -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Social_Media_Deception">
+  <keyword literal="false" whole="false">.*i don.?t (even )?use snapchat.*</keyword>
+  <keyword literal="false" whole="false">.*i don.?t (even )?use snap.*</keyword>
+  <keyword literal="false" whole="false">.*i never use snapchat.*</keyword>
+  <keyword literal="false" whole="false">.*i never send (pictures|pics|nudes).*</keyword>
+  <keyword literal="false" whole="false">.*you can check my phone.*</keyword>
+  <keyword literal="false" whole="false">.*i don.?t have (snapchat|instagram|tiktok).*</keyword>
+ </keyword_list>
+
+ <!-- FINANCIAL WEAPONIZATION -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Financial_Weaponization">
+  <keyword literal="false" whole="false">.*you don.?t do anything.*</keyword>
+  <keyword literal="false" whole="false">.*i.?m the one who works.*</keyword>
+  <keyword literal="false" whole="false">.*what do i get out of this.*</keyword>
+  <keyword literal="false" whole="false">.*your responsibility to provide.*</keyword>
+ </keyword_list>
+
+ <!-- LOVE BOMBING -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Love_Bombing">
+  <keyword literal="false" whole="false">.*can.?t live without you.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re the only one.*</keyword>
+  <keyword literal="false" whole="false">.*i.?ve never felt this way.*</keyword>
+  <keyword literal="false" whole="false">.*give you everything.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re my soulmate.*</keyword>
+  <keyword literal="false" whole="false">.*only one who understands.*</keyword>
+ </keyword_list>
+
+ <!-- SEXUAL SHAMING -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Sexual_Shaming">
+  <keyword literal="false" whole="false">.*(slut|whore|pervert).*</keyword>
+  <keyword literal="false" whole="false">.*no wonder everyone leaves you.*</keyword>
+  <keyword literal="false" whole="false">.*no wonder they leave you.*</keyword>
+  <keyword literal="false" whole="false">.*to think i ever did.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re just like.*</keyword>
+ </keyword_list>
+
+ <!-- CHARACTER ASSASSINATION -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Character_Assassination">
+  <keyword literal="false" whole="false">.*bitch made.*</keyword>
+  <keyword literal="false" whole="false">.*piece of shit.*</keyword>
+  <keyword literal="false" whole="false">.*good for nothing.*</keyword>
+  <keyword literal="false" whole="false">.*ain.?t shit.*</keyword>
+  <keyword literal="false" whole="false">.*(faggot|fagot|fag).*</keyword>
+  <keyword literal="false" whole="false">.*(psycho|loser|pathetic|unstable).*</keyword>
+ </keyword_list>
+
+ <!-- STONEWALLING -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Stonewalling">
+  <keyword literal="false" whole="false">.*i.?m done.*</keyword>
+  <keyword literal="false" whole="false">.*i can.?t talk to you.*</keyword>
+  <keyword literal="false" whole="false">.*don.?t contact me.*</keyword>
+  <keyword literal="false" whole="false">.*this conversation is over.*</keyword>
+ </keyword_list>
+
+ <!-- REACTIVE ABUSE -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Reactive_Abuse">
+  <keyword literal="false" whole="false">.*see.? you.?re losing it.*</keyword>
+  <keyword literal="false" whole="false">.*this is what i have to deal with.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re the crazy one.*</keyword>
+  <keyword literal="false" whole="false">.*i.?m going to record this.*</keyword>
+  <keyword literal="false" whole="false">.*gonna record this.*</keyword>
+  <keyword literal="false" whole="false">.*you.?re having an episode.*</keyword>
+ </keyword_list>
+
+ <!-- PARENTAL ALIENATION -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Parental_Alienation">
+  <keyword literal="false" whole="false">.*doesn.?t want to see you.*</keyword>
+  <keyword literal="false" whole="false">.*don.?t want to see you.*</keyword>
+  <keyword literal="false" whole="false">.*have to protect the (children|kids).*</keyword>
+  <keyword literal="false" whole="false">.*can.?t handle (his|her|their) autism.*</keyword>
+  <keyword literal="false" whole="false">.*interfering with medical care.*</keyword>
+ </keyword_list>
+
+ <!-- FEIGNING INCOMPETENCE -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Feigning_Incompetence">
+  <keyword literal="false" whole="false">.*don.?t know how.*</keyword>
+  <keyword literal="false" whole="false">.*don.?t understand.*</keyword>
+  <keyword literal="false" whole="false">.*can.?t remember.*</keyword>
+  <keyword literal="false" whole="false">.*i.?m not smart like you.*</keyword>
+  <keyword literal="false" whole="false">.*i.?m bad at this.*</keyword>
+  <keyword literal="false" whole="false">.*i never graduated.*</keyword>
+  <keyword literal="false" whole="false">.*just tell me what to do.*</keyword>
+ </keyword_list>
+
+ <!-- ============================================ -->
+ <!-- EXACT MATCH LISTS - Most Reliable -->
+ <!-- ============================================ -->
+
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Critical_Phrases_Exact">
+  <keyword literal="true" whole="false">i never said that</keyword>
+  <keyword literal="true" whole="false">you're crazy</keyword>
+  <keyword literal="true" whole="false">you are crazy</keyword>
+  <keyword literal="true" whole="false">that never happened</keyword>
+  <keyword literal="true" whole="false">no one will believe</keyword>
+  <keyword literal="true" whole="false">you're just high</keyword>
+  <keyword literal="true" whole="false">look what you made me do</keyword>
+  <keyword literal="true" whole="false">you're the crazy one</keyword>
+  <keyword literal="true" whole="false">this is your fault</keyword>
+  <keyword literal="true" whole="false">you made me do this</keyword>
+  <keyword literal="true" whole="false">the drugs talking</keyword>
+  <keyword literal="true" whole="false">you're overreacting</keyword>
+  <keyword literal="true" whole="false">you're being dramatic</keyword>
+  <keyword literal="true" whole="false">i'm going to record this</keyword>
+  <keyword literal="true" whole="false">gonna record this</keyword>
+ </keyword_list>
+
+ <!-- SIMPLE KEYWORDS - Single Words -->
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Keywords_Alcohol">
+  <keyword literal="true" whole="true">drunk</keyword>
+  <keyword literal="true" whole="true">wasted</keyword>
+  <keyword literal="true" whole="true">buzzed</keyword>
+  <keyword literal="true" whole="true">tipsy</keyword>
+  <keyword literal="true" whole="true">hungover</keyword>
+  <keyword literal="true" whole="true">vodka</keyword>
+  <keyword literal="true" whole="true">tequila</keyword>
+  <keyword literal="true" whole="true">fireball</keyword>
+  <keyword literal="true" whole="true">hammered</keyword>
+  <keyword literal="true" whole="true">plastered</keyword>
+ </keyword_list>
+
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Keywords_Substance">
+  <keyword literal="true" whole="true">crackhead</keyword>
+  <keyword literal="true" whole="true">tweaker</keyword>
+  <keyword literal="true" whole="true">junkie</keyword>
+  <keyword literal="true" whole="true">addict</keyword>
+  <keyword literal="true" whole="true">adderall</keyword>
+  <keyword literal="true" whole="true">addy</keyword>
+  <keyword literal="true" whole="true">pills</keyword>
+  <keyword literal="true" whole="true">script</keyword>
+ </keyword_list>
+
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Keywords_Social">
+  <keyword literal="true" whole="true">snapchat</keyword>
+  <keyword literal="true" whole="true">snap</keyword>
+  <keyword literal="true" whole="true">instagram</keyword>
+  <keyword literal="true" whole="true">tiktok</keyword>
+  <keyword literal="true" whole="true">nudes</keyword>
+  <keyword literal="true" whole="true">pics</keyword>
+  <keyword literal="true" whole="true">selfie</keyword>
+  <keyword literal="true" whole="true">selfies</keyword>
+ </keyword_list>
+
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Keywords_Location">
+  <keyword literal="true" whole="false">huckleberry</keyword>
+  <keyword literal="true" whole="false">huck's</keyword>
+  <keyword literal="true" whole="false">hucks</keyword>
+  <keyword literal="true" whole="false">huckleberry junction</keyword>
+ </keyword_list>
+
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Keywords_Abuse">
+  <keyword literal="true" whole="true">psycho</keyword>
+  <keyword literal="true" whole="true">loser</keyword>
+  <keyword literal="true" whole="true">pathetic</keyword>
+  <keyword literal="true" whole="true">unstable</keyword>
+  <keyword literal="true" whole="true">crazy</keyword>
+  <keyword literal="true" whole="true">insane</keyword>
+  <keyword literal="true" whole="true">paranoid</keyword>
+ </keyword_list>
+
+ <keyword_list created="2025-12-18 00:00:00" modified="2025-12-18 00:00:00" name="Keywords_Infidelity">
+  <keyword literal="true" whole="true">cheating</keyword>
+  <keyword literal="true" whole="true">cheated</keyword>
+  <keyword literal="true" whole="true">affair</keyword>
+  <keyword literal="true" whole="true">faithful</keyword>
+  <keyword literal="true" whole="true">loyal</keyword>
+  <keyword literal="true" whole="true">jealous</keyword>
+ </keyword_list>
+
+</keyword_lists>

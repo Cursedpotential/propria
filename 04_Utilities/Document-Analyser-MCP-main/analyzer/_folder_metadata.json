@@ -1,0 +1,22 @@
+[
+  {
+    "filename": "document_analyzer.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\analyzer\\document_analyzer.py",
+    "last_modified": "2025-07-04T23:23:21",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\"Document analysis module for sentiment, keywords, and readability.\"\"\" import re import string from typing import Dict, List, Any, Tuple from collections import Counter from d...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\analyzer",
+    "group_base_name": "document_analyzer"
+  },
+  {
+    "filename": "__init__.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\analyzer\\__init__.py",
+    "last_modified": "2025-07-04T23:23:21",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\"Document analysis module.\"\"\" from .document_analyzer import DocumentAnalyzer __all__ = [\"DocumentAnalyzer\"]",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\analyzer",
+    "group_base_name": "__init__"
+  }
+]

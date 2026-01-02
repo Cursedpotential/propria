@@ -1,0 +1,16 @@
+inspiration
+
+# Python virtual environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment variables
+.env.local
+
+# Metrics - ignore generated graphs but track CSV data
+.metrics/*.png

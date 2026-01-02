@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Context Cruncher - Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .intro {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border-left: 4px solid #667eea;
+        }
+
+        .intro h2 {
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+
+        .demo-section {
+            margin-bottom: 3rem;
+        }
+
+        .demo-section h2 {
+            color: #333;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .column {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .column h3 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .output-box {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .markdown-output {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.8;
+        }
+
+        .markdown-output h2 {
+            color: #333;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.4rem;
+        }
+
+        .markdown-output h3 {
+            color: #555;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .markdown-output ul {
+            margin-left: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .markdown-output li {
+            margin-bottom: 0.5rem;
+        }
+
+        .markdown-output hr {
+            margin: 2rem 0;
+            border: none;
+            border-top: 1px solid #ddd;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+
+        .cta {
+            text-align: center;
+            padding: 2rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 2rem;
+        }
+
+        .cta h3 {
+            color: #333;
+            margin-bottom: 1rem;
+        }
+
+        .cta a {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .cta a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            background: #f8f9fa;
+            margin: 0;
+            padding: 0 2rem;
+        }
+
+        .tab {
+            padding: 1rem 2rem;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .columns {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .content {
+                padding: 1rem;
+            }
+
+            .tabs {
+                flex-direction: column;
+                padding: 0;
+            }
+
+            .tab {
+                padding: 0.75rem 1rem;
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Context Cruncher Demo</h1>
+            <p>See how audio becomes structured context data</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab(event, 'overview')">Overview</button>
+            <button class="tab" onclick="switchTab(event, 'demo')">Demo Results</button>
+            <button class="tab" onclick="switchTab(event, 'features')">Features</button>
+        </div>
+
+        <div class="content">
+            <div id="overview" class="tab-content active">
+                <div class="intro">
+                <h2>What is Context Cruncher?</h2>
+                <p>
+                    Context Cruncher transforms casual voice recordings into clean, structured context data
+                    that AI systems can use for more personalized results. Using Gemini AI's multimodal capabilities,
+                    it processes audio directly - understanding, cleaning, and organizing your spoken words into
+                    useful context data.
+                </p>
+                <p style="margin-top: 1rem;">
+                    Below is a real example using a voice recording about movie preferences. Notice how the raw,
+                    conversational audio has been transformed into organized, third-person context data ready
+                    for AI applications.
+                </p>
+                </div>
+
+                <div class="cta">
+                    <h3>Ready to try it yourself?</h3>
+                    <p style="margin-bottom: 1.5rem;">Process your own audio and create structured context data</p>
+                    <a href="https://huggingface.co/spaces/danielrosehill/Context-Cruncher" target="_blank">Launch Context Cruncher</a>
+                </div>
+            </div>
+
+            <div id="demo" class="tab-content">
+                <h2>Demo Results</h2>
+                <p>
+                    This demo processes the example audio file (<code>movie-prefs.opus</code>) included in the repository.
+                    The audio contains casual thoughts about entertainment preferences, and Context Cruncher has
+                    extracted structured context data from it.
+                </p>
+
+                <div class="columns">
+                    <div class="column">
+                        <h3>Markdown Output</h3>
+                        <span class="badge">Human-Readable</span>
+                        <div class="output-box markdown-output">
+                            <h2>User's Entertainment Preferences - Israel-Based, Tired Parent</h2>
+
+                            <h3>Entertainment Preferences</h3>
+
+                            <h4>General</h4>
+
+                            <ul>
+                                <li>the user prefers to watch content that is either based on a true story or is credible</li>
+                                <li>the user is not a fan of science fiction</li>
+                                <li>the user enjoys content with intriguing stories</li>
+                                <li>the user occasionally enjoys horror movies</li>
+                                <li>the user likes thoughtful content</li>
+                                <li>the user is not a fan of alarmist commentary about technology, but is interested in themes surrounding the parameters of privacy</li>
+                                <li>the user prefers movies that take their time rather than overload with special effects and violence</li>
+                                <li>the user does not enjoy World War movies or historical movies that depict wars, battles, and conquests</li>
+                                <li>the user likes comedy movies, but not rom-coms</li>
+                                <li>the user likes obscure travel content</li>
+                                <li>the user is interested in technology, artificial intelligence, cybersecurity, politics, hacking, surveillance, and intelligence</li>
+                            </ul>
+
+                            <h4>Formats and Platforms</h4>
+
+                            <ul>
+                                <li>the user enjoys Netflix documentary series, especially offbeat documentaries</li>
+                                <li>the user appreciates the content produced by Vice</li>
+                            </ul>
+
+                            <h4>Specific Movies and Genres</h4>
+
+                            <ul>
+                                <li>the user enjoys the genre of the absurd (e.g., Waiting for Godot)</li>
+                                <li>the user liked the movies "Get Out", "The Matrix", "That Guy" (potentially "Vanilla Sky"), and "Limitless"</li>
+                                <li>the user is interested in movies that explore the question of reality, such as "Inception"</li>
+                            </ul>
+
+                            <h4>Content Preferences Related to Israel</h4>
+
+                            <ul>
+                                <li>the user lives in Israel and follows geopolitical content</li>
+                                <li>the user prefers content that explores conflict with less emphasis on the military aspect, focusing instead on personal narratives and interpersonal connections across divides</li>
+                                <li>the user finds shows like "Fauda" too real and conflict-heavy</li>
+                                <li>the user is a new parent and tired, making it difficult to navigate the geo-specific content restrictions imposed by streaming providers in Israel</li>
+                            </ul>
+
+                            <h4>Recommendation Preferences</h4>
+
+                            <ul>
+                                <li>the user is interested in recommendations of recently released content</li>
+                                <li>the user wants recommendations that take into account the user's geographic location in Israel, and exclude content that is difficult to access there</li>
+                            </ul>
+
+                            <hr>
+
+                            <p><em>Captured on: 2025-10-26 21:25:43</em></p>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <h3>JSON Output</h3>
+                        <span class="badge">Machine-Readable</span>
+                        <div class="output-box">{
+  "human_readable_name": "User's Entertainment Preferences - Israel-Based, Tired Parent",
+  "snake_case_filename": "user_entertainment_preferences_israel_tired_parent",
+  "context_data": "## Entertainment Preferences\n\n### General\n\n- the user prefers to watch content that is either based on a true story or is credible\n- the user is not a fan of science fiction\n- the user enjoys content with intriguing stories\n- the user occasionally enjoys horror movies\n- the user likes thoughtful content\n- the user is not a fan of alarmist commentary about technology, but is interested in themes surrounding the parameters of privacy\n- the user prefers movies that take their time rather than overload with special effects and violence\n- the user does not enjoy World War movies or historical movies that depict wars, battles, and conquests\n- the user likes comedy movies, but not rom-coms\n- the user likes obscure travel content\n- the user is interested in technology, artificial intelligence, cybersecurity, politics, hacking, surveillance, and intelligence\n\n### Formats and Platforms\n\n- the user enjoys Netflix documentary series, especially offbeat documentaries\n- the user appreciates the content produced by Vice\n\n### Specific Movies and Genres\n\n- the user enjoys the genre of the absurd (e.g., Waiting for Godot)\n- the user liked the movies \"Get Out\", \"The Matrix\", \"That Guy\" (potentially \"Vanilla Sky\"), and \"Limitless\"\n- the user is interested in movies that explore the question of reality, such as \"Inception\"\n\n### Content Preferences Related to Israel\n\n- the user lives in Israel and follows geopolitical content\n- the user prefers content that explores conflict with less emphasis on the military aspect, focusing instead on personal narratives and interpersonal connections across divides\n- the user finds shows like \"Fauda\" too real and conflict-heavy\n- the user is a new parent and tired, making it difficult to navigate the geo-specific content restrictions imposed by streaming providers in Israel\n\n### Recommendation Preferences\n\n- the user is interested in recommendations of recently released content\n- the user wants recommendations that take into account the user's geographic location in Israel, and exclude content that is difficult to access there\n",
+  "captured_on": "2025-10-26T21:25:43.200350"
+}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="features" class="tab-content">
+                <h2>Key Features Demonstrated</h2>
+                <div class="columns">
+                    <div class="column">
+                        <h3>Intelligent Cleaning</h3>
+                        <p>Removes filler words, tangents, and irrelevant information while preserving all meaningful context.</p>
+                    </div>
+                    <div class="column">
+                        <h3>Structured Organization</h3>
+                        <p>Automatically organizes information into logical categories and hierarchies.</p>
+                    </div>
+                    <div class="column">
+                        <h3>Third-Person Conversion</h3>
+                        <p>Transforms first-person narratives into third-person context data about "the user".</p>
+                    </div>
+                    <div class="column">
+                        <h3>Multiple Formats</h3>
+                        <p>Outputs both human-readable Markdown and machine-readable JSON formats.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(event, tabName) {
+            // Hide all tab contents
+            const tabContents = document.getElementsByClassName('tab-content');
+            for (let content of tabContents) {
+                content.classList.remove('active');
+            }
+
+            // Remove active class from all tabs
+            const tabs = document.getElementsByClassName('tab');
+            for (let tab of tabs) {
+                tab.classList.remove('active');
+            }
+
+            // Show the selected tab content
+            document.getElementById(tabName).classList.add('active');
+
+            // Add active class to the clicked tab
+            event.currentTarget.classList.add('active');
+        }
+    </script>
+</body>
+</html>

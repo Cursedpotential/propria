@@ -1,0 +1,20 @@
+aiodebug>=2.3.0
+asyncio>=3.4.3
+aiofiles>=23.1.0
+json_tricks>=3.17.1
+tenacity>=8.2.2
+openai_async>=0.0.3
+pympler>=1.0.1
+spacy>=3.5.4
+pygal>=3.0.0
+pdfkit>=1.0.0
+cryptography>=41.0.2
+rapidfuzz>=3.1.1
+fuzzysearch>=0.7.3
+tiktoken>=0.4.0
+ncls>=0.0.68
+# these language models cannot be downloaded via pip install and need to be downloaded manually using the commands provided in install_steps.txt
+# en-core-web-sm>=3.5.0
+# en-core-web-md>=3.5.0
+# en-core-web-lg>=3.5.0
+# en-core-web-trf>=3.5.0

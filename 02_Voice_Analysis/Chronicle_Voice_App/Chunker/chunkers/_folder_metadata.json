@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "base.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\chunkers\\base.py",
+    "last_modified": "2025-12-06T00:38:38.051621",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from abc import ABC, abstractmethod from typing import List, Dict class BaseChunker(ABC): @abstractmethod def chunk(self, sections: List[str], chunk_size: int, overlap: int = 0) -> List[Dict[str, any]...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\chunkers",
+    "group_base_name": "base"
+  },
+  {
+    "filename": "smart.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\chunkers\\smart.py",
+    "last_modified": "2025-12-06T00:42:39.190320",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from .base import BaseChunker from typing import List, Dict from utils.metadata import extract_label class SmartChunker(BaseChunker): def chunk(self, sections: List[str], chunk_size: int, overlap: int...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\chunkers",
+    "group_base_name": "smart"
+  },
+  {
+    "filename": "__init__.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\chunkers\\__init__.py",
+    "last_modified": "2025-12-06T00:38:38.263524",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from .base import BaseChunker from .smart import SmartChunker DEFAULT_CHUNKER = SmartChunker()",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\chunkers",
+    "group_base_name": "__init__"
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "useLocalStorage.ts",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\Video_Analyzer_App\\hooks\\useLocalStorage.ts",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import { useState, useEffect } from 'react'; export function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] { const [storedValue, setStoredValue] = useS...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\Video_Analyzer_App\\hooks",
+    "group_base_name": "uselocalstorage"
+  },
+  {
+    "filename": "usePdfExport.ts",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\Video_Analyzer_App\\hooks\\usePdfExport.ts",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import { useState, useCallback } from 'react'; import jsPDF from 'jspdf'; import html2canvas from 'html2canvas'; export const usePdfExport = (elementId: string, fileNamePrefix: string) => { const [isE...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\Video_Analyzer_App\\hooks",
+    "group_base_name": "usepdfexport"
+  },
+  {
+    "filename": "useVideoAnalysis.ts",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\Video_Analyzer_App\\hooks\\useVideoAnalysis.ts",
+    "last_modified": "2025-12-24T23:54:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import { useState, useCallback } from 'react'; import { GoogleGenAI, Type } from '@google/genai'; import { AnalysisReport, LoadingPhase, StagedVideo, ForensicAnalysis, AppSettings } from '../types'; i...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\Video_Analyzer_App\\hooks",
+    "group_base_name": "usevideoanalysis"
+  }
+]

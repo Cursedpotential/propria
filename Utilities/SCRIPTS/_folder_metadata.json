@@ -1,0 +1,392 @@
+[
+  {
+    "filename": "analyze_triggers.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\analyze_triggers.py",
+    "last_modified": "2025-12-06T18:08:22.036814",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" Analyze skill trigger quality across all installed marketplaces. Checks for anti-patterns documented in writing-when-clauses.md \"\"\" import os import re from pathlib import P...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "analyze_triggers"
+  },
+  {
+    "filename": "batch_json_splitter.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\batch_json_splitter.py",
+    "last_modified": "2025-12-16T06:36:54.437381",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Batch JSON Splitter Process multiple JSON files at once with the same settings. Usage: python batch_json_splitter.py <directory> [--chunk-size MB] [--pattern PATTERN] \"\"\" import argparse import su...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "batch_json_splitter"
+  },
+  {
+    "filename": "chatgpt_parser.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\chatgpt_parser.py",
+    "last_modified": "2025-12-20T14:24:26.671855",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" ChatGPT JSON Parser - Sprint 1 Parses ChatGPT export files and extracts conversations, entities, and artifacts. \"\"\" from pathlib import Path import json import hashlib impor...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "chatgpt_parser"
+  },
+  {
+    "filename": "chunk_file_tool.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\chunk_file_tool.py",
+    "last_modified": "2025-12-16T19:41:46.647142",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" Large File Chunker Tool This tool streams large files and creates chunks based on specified bracket pairs, ensuring clean separation of topics in the data. \"\"\" import os imp...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "chunk_file_tool"
+  },
+  {
+    "filename": "clean_markdown_converter.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\clean_markdown_converter.py",
+    "last_modified": "2025-12-16T20:04:33.440483",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Clean Markdown Converter - No escape sequences, proper formatting. Creates clean markdown suitable for any PDF converter. Usage: python clean_markdown_converter.py <chunks_directory> \"\"\" import re...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "clean_markdown_converter"
+  },
+  {
+    "filename": "compare_nltk_vs_agent.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\compare_nltk_vs_agent.py",
+    "last_modified": "2025-12-20T14:13:09.900168",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Direct Comparison: NLTK vs LLM Agent Tests accuracy of sentiment detection and conversation turn tagging \"\"\" import json import nltk from nltk.sentiment import SentimentIntensityAnalyzer import re...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "compare_nltk_vs_agent"
+  },
+  {
+    "filename": "conversation_splitter.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\conversation_splitter.py",
+    "last_modified": "2025-12-16T06:39:27.554821",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Conversation JSON Splitter Specialized splitter for conversation export files with nested structure. Splits by number of conversations rather than file size. Usage: python conversation_splitter.py...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "conversation_splitter"
+  },
+  {
+    "filename": "conversation_to_docx.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\conversation_to_docx.py",
+    "last_modified": "2025-12-16T06:44:45.281736",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Convert conversation chunks to clean DOCX format. Handles broken JSON, strips brackets, creates Word documents. Usage: python conversation_to_docx.py <chunks_directory> \"\"\" import re import sys im...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "conversation_to_docx"
+  },
+  {
+    "filename": "convert_to_pdf.ps1",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\convert_to_pdf.ps1",
+    "last_modified": "2025-12-16T19:53:27.954513",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "$ErrorActionPreference = 'Stop' $docxDir = Join-Path $PSScriptRoot \"perplexity_chats_docx\" $pdfDir = Join-Path $PSScriptRoot \"perplexity_chats_pdf\" New-Item -ItemType Directory -Force -Path $pdfDir | ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "convert_to_pdf"
+  },
+  {
+    "filename": "db_query_tool.js",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\db_query_tool.js",
+    "last_modified": "2025-12-26T23:24:37.136702",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "require('dotenv').config({ override: true }); const { Pool } = require('pg'); const pool = new Pool({ host: process.env.DB_HOST, port: parseInt(process.env.DB_PORT || '6543'), database: process.env.DB...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "db_query_tool"
+  },
+  {
+    "filename": "docx_to_pdf.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\docx_to_pdf.py",
+    "last_modified": "2025-12-16T19:34:57.058239",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Convert DOCX files to PDF. Usage: python docx_to_pdf.py <docx_directory> \"\"\" import sys import argparse from pathlib import Path from docx2pdf import convert # Fix Windows console encoding if sys....",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "docx_to_pdf"
+  },
+  {
+    "filename": "file_analyzer.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\file_analyzer.py",
+    "last_modified": "2025-12-22T00:43:29.052361",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import os import sys import argparse import hashlib import logging import json from datetime import datetime import difflib import heapq import re import math from collections import Counter # Set up ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "file_analyzer"
+  },
+  {
+    "filename": "fix_triggers.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\fix_triggers.py",
+    "last_modified": "2025-12-06T18:22:12.101805",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\"Fix trigger anti-patterns in skill descriptions\"\"\" import re from pathlib import Path fixes = { # Emotional/vague patterns to fix 'seems unnecessary': 'appears unnecessary', ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "fix_triggers"
+  },
+  {
+    "filename": "improved_md_to_pdf.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\improved_md_to_pdf.py",
+    "last_modified": "2025-12-16T20:31:03.003046",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Improved Markdown to PDF using markdown-it-py + reportlab. Better markdown parsing than standard library. Usage: python improved_md_to_pdf.py <markdown_directory> \"\"\" import re import sys import a...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "improved_md_to_pdf"
+  },
+  {
+    "filename": "json_merger.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\json_merger.py",
+    "last_modified": "2025-12-16T06:35:36.710779",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" JSON Chunk Merger Merges JSON chunks created by json_splitter.py back into a single file. Memory-efficient streaming merge. Usage: python json_merger.py <chunks_directory> [--output FILE] \"\"\" impo...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "json_merger"
+  },
+  {
+    "filename": "json_splitter.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\json_splitter.py",
+    "last_modified": "2025-12-16T06:38:26.468053",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Memory-Efficient JSON File Splitter Splits large JSON files into smaller chunks while ensuring clean bracket separation. Supports both JSON arrays and objects. Chunks are saved to a subfolder. Usa...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "json_splitter"
+  },
+  {
+    "filename": "json_to_markdown.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\json_to_markdown.py",
+    "last_modified": "2025-12-16T06:42:04.976111",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Convert JSON conversation chunks to clean Markdown format. Usage: python json_to_markdown.py <chunks_directory> [--output-prefix NAME] \"\"\" import json import sys import argparse from pathlib impor...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "json_to_markdown"
+  },
+  {
+    "filename": "lightweight_md_to_pdf.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\lightweight_md_to_pdf.py",
+    "last_modified": "2025-12-16T20:12:53.697054",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Lightweight Markdown to PDF - Pure Python, no external services. Uses reportlab for PDF generation - works offline, no Docker needed. Usage: python lightweight_md_to_pdf.py <markdown_directory> \"\"...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "lightweight_md_to_pdf"
+  },
+  {
+    "filename": "markdown_to_pdf.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\markdown_to_pdf.py",
+    "last_modified": "2025-12-16T20:07:03.866762",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Markdown to PDF converter using standard libraries. Uses markdown + weasyprint for professional PDF output. Usage: python markdown_to_pdf.py <markdown_directory> \"\"\" import sys import argparse fro...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "markdown_to_pdf"
+  },
+  {
+    "filename": "nltk_vs_agent_comparison.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\nltk_vs_agent_comparison.py",
+    "last_modified": "2025-12-20T14:05:20.242693",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" NLTK Preprocessing vs Agent Comparison This script demonstrates: 1. What NLTK can do locally (0 tokens) to preprocess conversations 2. How to use agent with preprocessed data for final analysis 3....",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "nltk_vs_agent_comparison"
+  },
+  {
+    "filename": "organize_downloads_smart.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\organize_downloads_smart.py",
+    "last_modified": "2025-12-22T01:44:56.539235",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import os import shutil import re import sys from pathlib import Path # Fix unicode printing on Windows sys.stdout.reconfigure(encoding='utf-8') # Base Directory BASE_DIR = r\"C:\\Users\\matts\\Downloads\"...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "organize_downloads_smart"
+  },
+  {
+    "filename": "output_schemas.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\output_schemas.py",
+    "last_modified": "2025-12-20T14:27:39.386041",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" Output Schema Definitions and Validators Defines the expected structure for parser output files and provides validation functions. \"\"\" from typing import Dict, Any, List, Op...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "output_schemas"
+  },
+  {
+    "filename": "pandoc_converter.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\pandoc_converter.py",
+    "last_modified": "2025-12-16T20:31:55.804573",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Universal Pandoc Converter - One tool to rule them all. Handles MD, DOCX, HTML \u2192 PDF and vice versa. Usage: python pandoc_converter.py <input_directory> [--format pdf] \"\"\" import sys import subpro...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "pandoc_converter"
+  },
+  {
+    "filename": "pandoc_toolkit.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\pandoc_toolkit.py",
+    "last_modified": "2025-12-16T22:08:17.055873",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" Pandoc Toolkit - Complete CLI with all the options you need. Fancy menus, chunking, Lua filters, the works. Usage: python pandoc_toolkit.py \"\"\" import sys import subprocess ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "pandoc_toolkit"
+  },
+  {
+    "filename": "process_real_session.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\process_real_session.py",
+    "last_modified": "2025-12-20T14:10:09.772263",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Process Real Claude Code Session with NLTK Preprocessing Compares token usage between sending full session vs. NLTK-preprocessed data \"\"\" import json import nltk from nltk.sentiment import Sentime...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "process_real_session"
+  },
+  {
+    "filename": "robust_conversation_extractor.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\robust_conversation_extractor.py",
+    "last_modified": "2025-12-16T06:42:41.649776",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Robust conversation extractor - handles broken JSON with fuzzy pattern matching. Doesn't trust brackets, uses text patterns instead. Usage: python robust_conversation_extractor.py <chunks_director...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "robust_conversation_extractor"
+  },
+  {
+    "filename": "server.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\server.py",
+    "last_modified": "2025-12-27T08:11:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Salem MCP Gateway Server # Runs on VPS, coordinates MCP tools, contains context/token usage # Claude Desktop points here instead of running MCPs locally from fastmcp import FastMCP from typing impor...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "server"
+  },
+  {
+    "filename": "simple_json_splitter.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\simple_json_splitter.py",
+    "last_modified": "2025-12-16T06:40:08.456060",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Simple JSON Splitter - Split at bracket+comma boundaries Super simple streaming splitter that splits whenever it finds: }, or ], and the chunk has reached the target size. Usage: python simple_jso...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "simple_json_splitter"
+  },
+  {
+    "filename": "simple_md_to_pdf.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\simple_md_to_pdf.py",
+    "last_modified": "2025-12-16T20:10:17.061228",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Simple Markdown to PDF converter using pandoc. Lightweight backup - no Docker, no services, just pandoc. Usage: python simple_md_to_pdf.py <markdown_directory> \"\"\" import sys import subprocess imp...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "simple_md_to_pdf"
+  },
+  {
+    "filename": "ssh_cmd.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\ssh_cmd.py",
+    "last_modified": "2025-12-25T14:39:16.143483",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import subprocess import sys cmd = sys.argv[1] if len(sys.argv) > 1 else \"hostname\" result = subprocess.run( [\"ssh\", \"-o\", \"StrictHostKeyChecking=no\", \"root@172.233.222.234\", cmd], capture_output=True...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "ssh_cmd"
+  },
+  {
+    "filename": "supabase_api_tool.js",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\supabase_api_tool.js",
+    "last_modified": "2025-12-27T02:36:11.098552",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "require('dotenv').config({ override: true }); const { createClient } = require('@supabase/supabase-js'); // Config const SUPABASE_URL = process.env.SUPABASE_URL; const SUPABASE_KEY = process.env.SUPAB...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "supabase_api_tool"
+  },
+  {
+    "filename": "test_api.js",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\test_api.js",
+    "last_modified": "2025-12-27T02:38:39.752851",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "async function test() { try { console.log(\"Testing API...\"); const response = await fetch('http://localhost:3001/api/ask-agent', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "test_api"
+  },
+  {
+    "filename": "test_chatgpt_parser.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\test_chatgpt_parser.py",
+    "last_modified": "2025-12-20T14:26:13.093204",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" Test script for ChatGPT Parser Creates a sample ChatGPT export and validates parser output \"\"\" import json import sys from pathlib import Path from datetime import datetime ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "test_chatgpt_parser"
+  },
+  {
+    "filename": "test_json_splitter.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\test_json_splitter.py",
+    "last_modified": "2025-12-16T06:36:03.370225",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\" Test script for JSON splitter - creates sample data and demonstrates usage. This script: 1. Generates a sample large JSON file 2. Splits it using json_splitter.py 3. Merges it back using json_merg...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "test_json_splitter"
+  },
+  {
+    "filename": "test_payload.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\test_payload.json",
+    "last_modified": "2025-12-27T02:37:48.620747",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{\"agent\": \"gemini-cli\", \"prompt\": \"Hello\"}",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "test_payload"
+  },
+  {
+    "filename": "test_supabase.js",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\test_supabase.js",
+    "last_modified": "2025-12-26T22:34:35.007709",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "const { Client } = require('pg'); const client = new Client({ connectionString: 'postgresql://postgres.oflqpddqaecotsdsxbzp:%40%40Kailah2020%21%23@aws-0-us-east-2.pooler.supabase.com:5432/postgres', s...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "test_supabase"
+  },
+  {
+    "filename": "unzip_and_organize.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\unzip_and_organize.py",
+    "last_modified": "2025-12-22T02:04:04.318779",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import os import shutil import re import sys import zipfile import tarfile from pathlib import Path # Fix unicode printing sys.stdout.reconfigure(encoding='utf-8') BASE_DIR = r\"C:\\Users\\matts\\Download...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "unzip_and_organize"
+  },
+  {
+    "filename": "zep-mcp-server.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\zep-mcp-server.py",
+    "last_modified": "2025-12-13T01:53:33.266934",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "zep-mcp-server"
+  },
+  {
+    "filename": "zep_salem_ontology_v3_final.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\zep_salem_ontology_v3_final.py",
+    "last_modified": "2025-12-11T21:38:56.962000",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from zep_cloud.external_clients.ontology import ( EntityModel, EntityText, EdgeModel, EntityBoolean, EntityNumber, EntityEdgeSourceTarget ) from pydantic import Field # ===============================...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS",
+    "group_base_name": "zep_salem_ontology_v3_final"
+  }
+]

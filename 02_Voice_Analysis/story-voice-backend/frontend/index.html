@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Story Capture</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; display: flex; flex-direction: column; }
+    .header { padding: 1rem; background: #161b22; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 1.2rem; color: #58a6ff; }
+    .status { font-size: 0.85rem; color: #8b949e; }
+    .status.connected { color: #3fb950; }
+    .status.error { color: #f85149; }
+    .status.recording { color: #f0883e; }
+    .main { flex: 1; display: flex; flex-direction: column; padding: 1rem; gap: 1rem; max-width: 900px; margin: 0 auto; width: 100%; }
+    .transcript-box { flex: 1; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; overflow-y: auto; font-size: 0.95rem; line-height: 1.6; min-height: 300px; }
+    .user { color: #79c0ff; }
+    .ai { color: #a5d6ff; }
+    .system { color: #8b949e; font-style: italic; }
+    .turn { margin-bottom: 1rem; }
+    .turn-label { font-weight: 600; margin-bottom: 0.25rem; }
+    .controls { display: flex; gap: 1rem; align-items: center; justify-content: center; padding: 1rem; background: #161b22; border-radius: 8px; }
+    button { padding: 0.75rem 1.5rem; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: #238636; color: white; }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-primary:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+    .btn-danger { background: #da3633; color: white; }
+    .btn-danger:hover { background: #f85149; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+    .btn-secondary:hover { background: #30363d; }
+    .visualizer { height: 60px; background: #0d1117; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 3px; }
+    .bar { width: 4px; background: #58a6ff; border-radius: 2px; height: 4px; }
+    .auth-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 1.5rem; padding: 2rem; }
+    .auth-screen h1 { font-size: 2rem; color: #58a6ff; }
+    .auth-screen p { color: #8b949e; text-align: center; max-width: 400px; }
+    .hidden { display: none !important; }
+    .session-info { font-size: 0.8rem; color: #8b949e; text-align: center; }
+    .export-panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .processing { opacity: 0.6; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="auth-screen" class="auth-screen">
+    <h1>Story Capture</h1>
+    <p>A safe space to tell your story. Voice-first, empathetic, pattern-aware.</p>
+    <button id="auth-btn" class="btn-primary">Sign in with Google</button>
+    <p class="session-info">Gemini 2.5 Flash (voice) • Gemini 3 Pro (analysis)</p>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="header">
+      <h1>Story Capture</h1>
+      <div>
+        <span id="status" class="status">Ready</span>
+        <button id="signout-btn" class="btn-secondary" style="margin-left:1rem;padding:0.5rem 1rem;font-size:0.85rem;">Sign Out</button>
+      </div>
+    </div>
+    <div class="main">
+      <div class="visualizer" id="visualizer"></div>
+      <div class="transcript-box" id="transcript">
+        <div class="turn system"><p>Ready when you are. Just start talking.</p></div>
+      </div>
+      <div class="controls">
+        <button id="start-btn" class="btn-primary">Start Session</button>
+        <button id="stop-btn" class="btn-danger hidden">End Session</button>
+      </div>
+      <div class="export-panel">
+        <button id="export-md" class="btn-secondary">Export Markdown</button>
+        <button id="export-raw" class="btn-secondary">Export Raw JSON</button>
+        <button id="process-btn" class="btn-secondary">Analyze & Save</button>
+      </div>
+      <div class="session-info">
+        Session: <span id="session-id">-</span> | Turns: <span id="turn-count">0</span> | Duration: <span id="duration">00:00</span>
+      </div>
+    </div>
+  </div>
+
+<script>
+const CONFIG = {
+  GOOGLE_CLIENT_ID: 'YOUR_CLIENT_ID.apps.googleusercontent.com',
+  BACKEND_URL: 'https://YOUR_SPACE.hf.space',
+  SYSTEM_INSTRUCTION: `You are an empathetic forensic interviewer helping someone document their personal history.
+
+PERSONA:
+- Warm, patient, non-judgmental
+- Methodical but gentle in probing
+- Pattern-aware: notice inconsistencies, gaps, recurring themes
+- NEVER insert conclusions or judgments
+
+BEHAVIOR:
+- Ask clarifying questions: dates, names, sequence
+- Notice patterns neutrally: "You mentioned X before Y, can you help me understand?"
+- Validate without leading: "That sounds difficult"
+- Track: people, dates, locations, behaviors
+
+DO NOT:
+- Summarize unless asked
+- Offer legal advice
+- Use clinical terms unless they do
+- Rush or redirect
+- Add interpretations
+
+Brief responses. Let them talk.`
+};
+
+let state = { token: null, sessionId: crypto.randomUUID(), isRecording: false, transcript: [], startTime: null, recognition: null };
+
+const $ = id => document.getElementById(id);
+
+// Visualizer bars
+for (let i = 0; i < 32; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  $('visualizer').appendChild(bar);
+}
+const bars = $('visualizer').querySelectorAll('.bar');
+
+function setStatus(t, cls='') { $('status').textContent = t; $('status').className = 'status ' + cls; }
+
+function addTurn(role, text) {
+  const div = document.createElement('div');
+  div.className = 'turn';
+  div.innerHTML = `<div class="turn-label ${role}">${role==='user'?'You':'AI'}:</div><p>${text.replace(/</g,'&lt;')}</p>`;
+  $('transcript').appendChild(div);
+  $('transcript').scrollTop = $('transcript').scrollHeight;
+  state.transcript.push({ role, text, ts: Date.now() });
+  $('turn-count').textContent = state.transcript.length;
+}
+
+// OAuth
+function initAuth() {
+  const stored = localStorage.getItem('story_token');
+  if (stored) {
+    const d = JSON.parse(stored);
+    if (d.expiry > Date.now()) { state.token = d.token; showApp(); return; }
+  }
+  if (window.location.hash.includes('access_token')) {
+    const p = new URLSearchParams(window.location.hash.slice(1));
+    state.token = p.get('access_token');
+    localStorage.setItem('story_token', JSON.stringify({ token: state.token, expiry: Date.now() + parseInt(p.get('expires_in')) * 1000 }));
+    window.location.hash = '';
+    showApp();
+  }
+}
+
+function startOAuth() {
+  const redir = window.location.origin + window.location.pathname;
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(CONFIG.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redir)}&response_type=token&scope=${encodeURIComponent('https://www.googleapis.com/auth/generative-language')}&prompt=consent`;
+}
+
+function signOut() { localStorage.removeItem('story_token'); location.reload(); }
+function showApp() { $('auth-screen').classList.add('hidden'); $('app').classList.remove('hidden'); $('session-id').textContent = state.sessionId.slice(0,8); }
+
+// Session
+async function startSession() {
+  setStatus('Starting...', '');
+  $('start-btn').disabled = true;
+  
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ctx = new AudioContext();
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 64;
+    source.connect(analyser);
+    
+    state.isRecording = true;
+    state.startTime = Date.now();
+    state.stream = stream;
+    state.ctx = ctx;
+    
+    $('start-btn').classList.add('hidden');
+    $('stop-btn').classList.remove('hidden');
+    setStatus('Recording', 'recording');
+    
+    // Visualizer
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    function animate() {
+      if (!state.isRecording) return;
+      analyser.getByteFrequencyData(data);
+      bars.forEach((b, i) => b.style.height = Math.max(4, (data[i]||0)/4) + 'px');
+      requestAnimationFrame(animate);
+    }
+    animate();
+    
+    // Duration
+    state.durInterval = setInterval(() => {
+      const s = Math.floor((Date.now() - state.startTime) / 1000);
+      $('duration').textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+    }, 1000);
+    
+    // Speech recognition
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recog = new SR();
+    recog.continuous = true;
+    recog.interimResults = true;
+    recog.lang = 'en-US';
+    
+    let pending = '';
+    let timeout;
+    
+    recog.onresult = async (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) pending += e.results[i][0].transcript + ' ';
+      }
+      clearTimeout(timeout);
+      timeout = setTimeout(async () => {
+        if (pending.trim()) {
+          const text = pending.trim();
+          pending = '';
+          addTurn('user', text);
+          const resp = await getResponse(text);
+          if (resp) { addTurn('ai', resp); speak(resp); }
+        }
+      }, 1500);
+    };
+    
+    recog.onend = () => { if (state.isRecording) recog.start(); };
+    recog.start();
+    state.recognition = recog;
+    
+  } catch (err) {
+    console.error(err);
+    setStatus('Error: ' + err.message, 'error');
+    $('start-btn').disabled = false;
+  }
+}
+
+async function getResponse(text) {
+  const contents = state.transcript.map(t => ({ role: t.role === 'user' ? 'user' : 'model', parts: [{ text: t.text }] }));
+  contents.push({ role: 'user', parts: [{ text }] });
+  
+  try {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${state.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: { parts: [{ text: CONFIG.SYSTEM_INSTRUCTION }] },
+        generationConfig: { maxOutputTokens: 256, temperature: 0.7 }
+      })
+    });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  } catch (err) {
+    console.error(err);
+    return '';
+  }
+}
+
+function speak(text) {
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.95;
+  speechSynthesis.speak(u);
+}
+
+function stopSession() {
+  state.isRecording = false;
+  state.recognition?.stop();
+  state.stream?.getTracks().forEach(t => t.stop());
+  state.ctx?.close();
+  clearInterval(state.durInterval);
+  bars.forEach(b => b.style.height = '4px');
+  $('stop-btn').classList.add('hidden');
+  $('start-btn').classList.remove('hidden');
+  $('start-btn').disabled = false;
+  setStatus('Session ended', '');
+}
+
+// Export
+function exportMd() {
+  let md = `# Story Session ${state.sessionId.slice(0,8)}\n${new Date().toISOString()}\n\n`;
+  state.transcript.forEach(t => md += `**${t.role==='user'?'Me':'AI'}:** ${t.text}\n\n`);
+  dl(`session-${state.sessionId.slice(0,8)}.md`, md);
+}
+
+function exportRaw() {
+  dl(`session-${state.sessionId.slice(0,8)}.json`, JSON.stringify({ id: state.sessionId, ts: new Date().toISOString(), transcript: state.transcript }, null, 2));
+}
+
+async function process() {
+  if (!state.transcript.length) return alert('No transcript');
+  setStatus('Analyzing with Gemini 3 Pro...', '');
+  $('process-btn').classList.add('processing');
+  
+  try {
+    const res = await fetch(`${CONFIG.BACKEND_URL}/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: state.sessionId, transcript: state.transcript, token: state.token })
+    });
+    if (!res.ok) throw new Error('Backend error');
+    setStatus('Saved!', 'connected');
+    alert('Processed and saved!');
+  } catch (err) {
+    console.error(err);
+    setStatus('Failed', 'error');
+  }
+  $('process-btn').classList.remove('processing');
+}
+
+function dl(name, content) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content]));
+  a.download = name;
+  a.click();
+}
+
+$('auth-btn').onclick = startOAuth;
+$('signout-btn').onclick = signOut;
+$('start-btn').onclick = startSession;
+$('stop-btn').onclick = stopSession;
+$('export-md').onclick = exportMd;
+$('export-raw').onclick = exportRaw;
+$('process-btn').onclick = process;
+
+initAuth();
+</script>
+</body>
+</html>

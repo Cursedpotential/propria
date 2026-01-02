@@ -1,0 +1,62 @@
+[
+  {
+    "filename": ".gitignore",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main\\.gitignore",
+    "last_modified": "2023-10-22T18:48:02",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "dataset",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main",
+    "group_base_name": ".gitignore"
+  },
+  {
+    "filename": "api.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main\\api.py",
+    "last_modified": "2023-10-22T18:48:02",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#API made with Flask #Importing Libraries import os os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' import numpy as np from flask import Flask, request, jsonify import pickle import tensorflow as tf import t...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main",
+    "group_base_name": "api"
+  },
+  {
+    "filename": "app.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main\\app.py",
+    "last_modified": "2023-10-22T18:48:02",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import streamlit as st import tensorflow as tf import tensorflow_hub as hub import pickle from tensorflow.keras.layers import TextVectorization import numpy as np from PIL import Image import requests...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main",
+    "group_base_name": "app"
+  },
+  {
+    "filename": "nlp_toxicity.ipynb",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main\\nlp_toxicity.ipynb",
+    "last_modified": "2023-10-22T18:48:02",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{ \"cells\": [ { \"cell_type\": \"markdown\", \"metadata\": {}, \"source\": [ \"Importing the Modules Needed\" ] }, { \"cell_type\": \"code\", \"execution_count\": 1, \"metadata\": { \"tags\": [] }, \"outputs\": [], \"source\"...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main",
+    "group_base_name": "nlp_toxicity"
+  },
+  {
+    "filename": "README.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main\\README.md",
+    "last_modified": "2023-10-22T18:48:02",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# NLP Toxicity Analyzer with TensorFlow, LSTM and Streamlit ![](./assets/prev-1.gif) ## NLP Toxicity Analyzer with TensorFlow, LSTM, and Streamlit The NLP Model was trained with Toxic and not Toxis Ph...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main",
+    "group_base_name": "readme"
+  },
+  {
+    "filename": "requirements.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main\\requirements.txt",
+    "last_modified": "2023-10-22T18:48:02",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "streamlit pandas numpy matplotlib missingno scikit-learn Pillow requests flask tensorflow-hub tensorflow pickle",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main",
+    "group_base_name": "requirements"
+  }
+]

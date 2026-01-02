@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: traceiq-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: traceiq
+      POSTGRES_PASSWORD: forensic123
+      POSTGRES_DB: traceiq
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U traceiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  traceiq-app:
+    image: python:3.11-slim
+    container_name: traceiq-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    working_dir: /app
+    command: bash -c "pip install -q flask psycopg2-binary ijson && python app.py"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: traceiq
+      DB_USER: traceiq
+      DB_PASSWORD: forensic123
+    volumes:
+      - ./uploads:/app/uploads
+      - ./schemas:/app/schemas
+      - ./logs:/app/logs
+      - ./app.py:/app/app.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

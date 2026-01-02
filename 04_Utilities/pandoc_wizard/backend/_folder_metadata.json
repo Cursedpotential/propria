@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "manual_chunkedhtml.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\backend\\manual_chunkedhtml.txt",
+    "last_modified": "2025-12-16T23:17:14.184258",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Pandoc ChunkedHTML Writer Manual ## Overview The `chunkedhtml` writer produces a ZIP archive or directory containing multiple linked HTML files. Each file represents a section of the source document...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\backend",
+    "group_base_name": "manual_chunkedhtml"
+  },
+  {
+    "filename": "requirements.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\backend\\requirements.txt",
+    "last_modified": "2025-12-16T23:08:12.654089",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "questionary rich",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\backend",
+    "group_base_name": "requirements"
+  },
+  {
+    "filename": "server.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\backend\\server.py",
+    "last_modified": "2025-12-16T23:39:39.397581",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import os import subprocess from fastapi import FastAPI, HTTPException from fastapi.middleware.cors import CORSMiddleware from pydantic import BaseModel from typing import List, Optional app = FastAPI...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\backend",
+    "group_base_name": "server"
+  }
+]

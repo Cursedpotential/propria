@@ -1,0 +1,12 @@
+{
+  "name": "Snapchat Messages",
+  "description": "Snapchat message export HTML format",
+  "file_pattern": "chat_*.html",
+  "selectors": {
+    "container": "div.message",
+    "sender": ".sender-name",
+    "content": ".message-text",
+    "timestamp": ".timestamp"
+  },
+  "output_format": "**{sender}** ({timestamp})\\n{content}\\n"
+}

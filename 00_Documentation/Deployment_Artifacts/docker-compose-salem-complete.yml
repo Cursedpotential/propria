@@ -1,0 +1,547 @@
+# Salem Processing Stack v3.2 - COMPLETE
+# All services included. No Traefik (Coolify handles routing).
+# R2 Mount: /mnt/r2 (set up rclone on host before deploying)
+
+services:
+  # ===========================================
+  # FERRETDB - MongoDB wire protocol -> Supabase
+  # Required for LibreChat
+  # ===========================================
+  ferretdb:
+    image: ghcr.io/ferretdb/ferretdb:latest
+    container_name: salem-ferretdb
+    restart: unless-stopped
+    environment:
+      FERRETDB_POSTGRESQL_URL: ${SUPABASE_DB_URL}
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=false"
+
+  # ===========================================
+  # DRAGONFLY - Redis replacement (cache/queues)
+  # ===========================================
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: salem-dragonfly
+    restart: unless-stopped
+    ulimits:
+      memlock: -1
+    volumes:
+      - dragonfly_data:/data
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=false"
+
+  # ===========================================
+  # LLM GATEWAY (LiteLLM)
+  # Routes to: OpenRouter, Anthropic, OpenAI, Ollama
+  # ===========================================
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: salem-litellm
+    restart: unless-stopped
+    environment:
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - DATABASE_URL=${SUPABASE_DB_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OLLAMA_API_BASE=http://ollama:11434
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    expose:
+      - "4000"
+    depends_on:
+      - ollama
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.litellm.rule=Host(`llm.mitechconsult.com`)"
+      - "traefik.http.routers.litellm.entrypoints=https"
+      - "traefik.http.routers.litellm.tls=true"
+      - "traefik.http.routers.litellm.tls.certresolver=letsencrypt"
+      - "traefik.http.services.litellm.loadbalancer.server.port=4000"
+
+  # ===========================================
+  # LOCAL LLM (Ollama)
+  # ===========================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: salem-ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+    volumes:
+      - ollama_data:/root/.ollama
+    expose:
+      - "11434"
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ollama.rule=Host(`ollama.mitechconsult.com`)"
+      - "traefik.http.routers.ollama.entrypoints=https"
+      - "traefik.http.routers.ollama.tls=true"
+      - "traefik.http.routers.ollama.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ollama.loadbalancer.server.port=11434"
+
+  # ===========================================
+  # MCP GATEWAY (FastMCP)
+  # Coordinates MCPs on VPS, not local Windows
+  # ===========================================
+  fastmcp:
+    image: python:3.11-slim
+    container_name: salem-fastmcp
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      - MCP_SERVER_HOST=0.0.0.0
+      - MCP_SERVER_PORT=8080
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USER=${NEO4J_USER}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - QDRANT_URL=${QDRANT_URL}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY}
+      - R2_SECRET_KEY=${R2_SECRET_KEY}
+      - R2_BUCKET=${R2_BUCKET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./fastmcp:/app
+      - /mnt/r2:/mnt/r2
+    command: >
+      bash -c "pip install fastmcp uvicorn httpx supabase neo4j qdrant-client boto3 &&
+               python -m uvicorn server:app --host 0.0.0.0 --port 8080"
+    expose:
+      - "8080"
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fastmcp.rule=Host(`mcp.mitechconsult.com`)"
+      - "traefik.http.routers.fastmcp.entrypoints=https"
+      - "traefik.http.routers.fastmcp.tls=true"
+      - "traefik.http.routers.fastmcp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fastmcp.loadbalancer.server.port=8080"
+
+  # ===========================================
+  # ADMIN UI (Directus)
+  # Visual DB browser + R2 file management
+  # ===========================================
+  directus:
+    image: directus/directus:latest
+    container_name: salem-directus
+    restart: unless-stopped
+    environment:
+      KEY: ${DIRECTUS_KEY}
+      SECRET: ${DIRECTUS_SECRET}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
+      DB_CLIENT: pg
+      DB_HOST: ${SUPABASE_HOST}
+      DB_PORT: 5432
+      DB_DATABASE: postgres
+      DB_USER: ${SUPABASE_USER}
+      DB_PASSWORD: ${SUPABASE_PASSWORD}
+      DB_SSL: "true"
+      STORAGE_LOCATIONS: "r2"
+      STORAGE_R2_DRIVER: "s3"
+      STORAGE_R2_KEY: ${R2_ACCESS_KEY}
+      STORAGE_R2_SECRET: ${R2_SECRET_KEY}
+      STORAGE_R2_BUCKET: ${R2_BUCKET}
+      STORAGE_R2_ENDPOINT: ${R2_ENDPOINT}
+      STORAGE_R2_REGION: auto
+    volumes:
+      - directus_uploads:/directus/uploads
+      - directus_extensions:/directus/extensions
+    expose:
+      - "8055"
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.directus.rule=Host(`admin.mitechconsult.com`)"
+      - "traefik.http.routers.directus.entrypoints=https"
+      - "traefik.http.routers.directus.tls=true"
+      - "traefik.http.routers.directus.tls.certresolver=letsencrypt"
+      - "traefik.http.services.directus.loadbalancer.server.port=8055"
+
+  # ===========================================
+  # WORKFLOW AUTOMATION (N8N)
+  # ===========================================
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: salem-n8n
+    restart: unless-stopped
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=${SUPABASE_HOST}
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=postgres
+      - DB_POSTGRESDB_USER=${SUPABASE_USER}
+      - DB_POSTGRESDB_PASSWORD=${SUPABASE_PASSWORD}
+      - DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://n8n.mitechconsult.com
+      - GENERIC_TIMEZONE=America/Detroit
+      - TZ=America/Detroit
+      - N8N_COMMUNITY_PACKAGES_ENABLED=true
+      - QUEUE_BULL_REDIS_HOST=dragonfly
+      - QUEUE_BULL_REDIS_PORT=6379
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - /mnt/r2:/mnt/r2
+    expose:
+      - "5678"
+    depends_on:
+      - dragonfly
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.mitechconsult.com`)"
+      - "traefik.http.routers.n8n.entrypoints=https"
+      - "traefik.http.routers.n8n.tls=true"
+      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+
+  # ===========================================
+  # DOCUMENT PROCESSING (Unstructured)
+  # ===========================================
+  unstructured:
+    image: quay.io/unstructured-io/unstructured-api:latest
+    container_name: salem-unstructured
+    restart: unless-stopped
+    volumes:
+      - /mnt/r2:/mnt/r2
+    expose:
+      - "8000"
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.unstructured.rule=Host(`unstructured.mitechconsult.com`)"
+      - "traefik.http.routers.unstructured.entrypoints=https"
+      - "traefik.http.routers.unstructured.tls=true"
+      - "traefik.http.routers.unstructured.tls.certresolver=letsencrypt"
+      - "traefik.http.services.unstructured.loadbalancer.server.port=8000"
+
+  # ===========================================
+  # PDF PROCESSING (Stirling PDF)
+  # ===========================================
+  stirling-pdf:
+    image: frooodle/s-pdf:latest
+    container_name: salem-stirling
+    restart: unless-stopped
+    environment:
+      - DOCKER_ENABLE_SECURITY=false
+      - INSTALL_BOOK_AND_ADVANCED_HTML_OPS=true
+      - LANGS=en_US
+    volumes:
+      - stirling_data:/usr/share/tessdata
+      - stirling_config:/configs
+      - /mnt/r2:/mnt/r2
+    expose:
+      - "8080"
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.stirling.rule=Host(`pdf.mitechconsult.com`)"
+      - "traefik.http.routers.stirling.entrypoints=https"
+      - "traefik.http.routers.stirling.tls=true"
+      - "traefik.http.routers.stirling.tls.certresolver=letsencrypt"
+      - "traefik.http.services.stirling.loadbalancer.server.port=8080"
+
+  # ===========================================
+  # HEADLESS BROWSER (Browserless)
+  # For N8N web scraping workflows
+  # ===========================================
+  browserless:
+    image: browserless/chrome:latest
+    container_name: salem-browserless
+    restart: unless-stopped
+    environment:
+      - TOKEN=${BROWSERLESS_TOKEN}
+      - CONCURRENT=5
+      - QUEUED=10
+      - TIMEOUT=60000
+    expose:
+      - "3000"
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.browserless.rule=Host(`browser.mitechconsult.com`)"
+      - "traefik.http.routers.browserless.entrypoints=https"
+      - "traefik.http.routers.browserless.tls=true"
+      - "traefik.http.routers.browserless.tls.certresolver=letsencrypt"
+      - "traefik.http.services.browserless.loadbalancer.server.port=3000"
+
+  # ===========================================
+  # PRIVACY SEARCH (SearXNG)
+  # ===========================================
+  searxng:
+    image: searxng/searxng:latest
+    container_name: salem-searxng
+    restart: unless-stopped
+    environment:
+      - SEARXNG_BASE_URL=https://search.mitechconsult.com
+    volumes:
+      - searxng_data:/etc/searxng
+    expose:
+      - "8080"
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.searxng.rule=Host(`search.mitechconsult.com`)"
+      - "traefik.http.routers.searxng.entrypoints=https"
+      - "traefik.http.routers.searxng.tls=true"
+      - "traefik.http.routers.searxng.tls.certresolver=letsencrypt"
+      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
+
+  # ===========================================
+  # AI MEMORY (Mem0)
+  # ===========================================
+  mem0:
+    image: mem0ai/mem0:latest
+    container_name: salem-mem0
+    restart: unless-stopped
+    environment:
+      - MEM0_API_KEY=${MEM0_API_KEY}
+      - QDRANT_URL=${QDRANT_URL}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - mem0_data:/app/data
+    expose:
+      - "8000"
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mem0.rule=Host(`mem0.mitechconsult.com`)"
+      - "traefik.http.routers.mem0.entrypoints=https"
+      - "traefik.http.routers.mem0.tls=true"
+      - "traefik.http.routers.mem0.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mem0.loadbalancer.server.port=8000"
+
+  # ===========================================
+  # KNOWLEDGE GRAPH API (Graphiti)
+  # Connects to Neo4j Aura
+  # ===========================================
+  graphiti:
+    image: zepai/graphiti:latest
+    container_name: salem-graphiti
+    restart: unless-stopped
+    environment:
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - /mnt/r2:/mnt/r2:ro
+    expose:
+      - "8000"
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.graphiti.rule=Host(`graphiti.mitechconsult.com`)"
+      - "traefik.http.routers.graphiti.entrypoints=https"
+      - "traefik.http.routers.graphiti.tls=true"
+      - "traefik.http.routers.graphiti.tls.certresolver=letsencrypt"
+      - "traefik.http.services.graphiti.loadbalancer.server.port=8000"
+
+  # ===========================================
+  # CHAT INTERFACES (all three)
+  # ===========================================
+  
+  # Open WebUI
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: salem-openwebui
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=${SUPABASE_DB_URL}
+      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
+      - OPENAI_API_BASE_URL=http://litellm:4000/v1
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}
+      - WEBUI_AUTH=true
+      - ENABLE_SIGNUP=false
+    volumes:
+      - openwebui_data:/app/backend/data
+      - /mnt/r2:/mnt/r2:ro
+    expose:
+      - "8080"
+    depends_on:
+      - litellm
+      - ollama
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.openwebui.rule=Host(`chat.mitechconsult.com`)"
+      - "traefik.http.routers.openwebui.entrypoints=https"
+      - "traefik.http.routers.openwebui.tls=true"
+      - "traefik.http.routers.openwebui.tls.certresolver=letsencrypt"
+      - "traefik.http.services.openwebui.loadbalancer.server.port=8080"
+
+  # LobeChat
+  lobechat:
+    image: lobehub/lobe-chat:latest
+    container_name: salem-lobechat
+    restart: unless-stopped
+    environment:
+      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
+      - OPENAI_PROXY_URL=http://litellm:4000/v1
+      - ACCESS_CODE=${LOBECHAT_ACCESS_CODE}
+    volumes:
+      - lobechat_data:/app/data
+    expose:
+      - "3210"
+    depends_on:
+      - litellm
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.lobechat.rule=Host(`lobe.mitechconsult.com`)"
+      - "traefik.http.routers.lobechat.entrypoints=https"
+      - "traefik.http.routers.lobechat.tls=true"
+      - "traefik.http.routers.lobechat.tls.certresolver=letsencrypt"
+      - "traefik.http.services.lobechat.loadbalancer.server.port=3210"
+
+  # LibreChat (uses FerretDB -> Supabase)
+  librechat:
+    image: ghcr.io/danny-avila/librechat:latest
+    container_name: salem-librechat
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://ferretdb:27017/librechat
+      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
+      - OPENAI_REVERSE_PROXY=http://litellm:4000/v1
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - librechat_data:/app/data
+      - /mnt/r2:/mnt/r2:ro
+    expose:
+      - "3080"
+    depends_on:
+      - ferretdb
+      - litellm
+    networks:
+      - salem-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.librechat.rule=Host(`libre.mitechconsult.com`)"
+      - "traefik.http.routers.librechat.entrypoints=https"
+      - "traefik.http.routers.librechat.tls=true"
+      - "traefik.http.routers.librechat.tls.certresolver=letsencrypt"
+      - "traefik.http.services.librechat.loadbalancer.server.port=3080"
+
+volumes:
+  dragonfly_data:
+  ollama_data:
+  directus_uploads:
+  directus_extensions:
+  n8n_data:
+  stirling_data:
+  stirling_config:
+  searxng_data:
+  mem0_data:
+  openwebui_data:
+  lobechat_data:
+  librechat_data:
+
+networks:
+  salem-net:
+    name: salem-network
+
+# ===========================================
+# SUBDOMAIN MAP (17 services)
+# ===========================================
+# llm.mitechconsult.com         → LiteLLM (unified gateway)
+# ollama.mitechconsult.com      → Ollama (local LLM)
+# mcp.mitechconsult.com         → FastMCP (MCP coordinator)
+# admin.mitechconsult.com       → Directus (DB admin + files)
+# n8n.mitechconsult.com         → N8N (workflows)
+# unstructured.mitechconsult.com → Unstructured (doc parsing)
+# pdf.mitechconsult.com         → Stirling PDF
+# browser.mitechconsult.com     → Browserless (headless Chrome)
+# search.mitechconsult.com      → SearXNG (privacy search)
+# mem0.mitechconsult.com        → Mem0 (AI memory)
+# graphiti.mitechconsult.com    → Graphiti (knowledge graph)
+# chat.mitechconsult.com        → Open WebUI
+# lobe.mitechconsult.com        → LobeChat
+# libre.mitechconsult.com       → LibreChat
+# ===========================================
+
+# ===========================================
+# ENVIRONMENT VARIABLES NEEDED
+# ===========================================
+# SUPABASE_DB_URL=postgresql://postgres.xxx:PASSWORD@aws-0-us-east-2.pooler.supabase.com:5432/postgres
+# SUPABASE_HOST=aws-0-us-east-2.pooler.supabase.com  (or direct IPv6 host)
+# SUPABASE_USER=postgres.xxx
+# SUPABASE_PASSWORD=<password>
+# SUPABASE_URL=https://xxx.supabase.co
+# SUPABASE_KEY=<anon_key>
+#
+# NEO4J_URI=neo4j+s://xxx.databases.neo4j.io
+# NEO4J_USER=neo4j
+# NEO4J_PASSWORD=<password>
+#
+# QDRANT_URL=https://xxx.qdrant.io:6333
+# QDRANT_API_KEY=<api_key>
+#
+# R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+# R2_ACCESS_KEY=<key>
+# R2_SECRET_KEY=<secret>
+# R2_BUCKET=salem-legal-evidence
+#
+# OPENAI_API_KEY=sk-xxx
+# ANTHROPIC_API_KEY=sk-ant-xxx
+# OPENROUTER_API_KEY=sk-or-xxx
+#
+# LITELLM_MASTER_KEY=<random_key>
+# MEM0_API_KEY=<mem0_key>
+# WEBUI_SECRET_KEY=<random>
+# LOBECHAT_ACCESS_CODE=<code>
+# BROWSERLESS_TOKEN=<token>
+#
+# DIRECTUS_KEY=<uuid>
+# DIRECTUS_SECRET=<secret>
+# DIRECTUS_ADMIN_EMAIL=matt@mitechconsult.com
+# DIRECTUS_ADMIN_PASSWORD=<password>
+# ===========================================
+
+# ===========================================
+# HOST SETUP (run on VPS before deploying):
+# ===========================================
+# 1. Install rclone & mount R2:
+#    curl https://rclone.org/install.sh | bash
+#    mkdir -p /mnt/r2
+#    rclone config create r2 s3 provider=Cloudflare \
+#      access_key_id=YOUR_KEY secret_access_key=YOUR_SECRET \
+#      endpoint=https://ACCOUNT_ID.r2.cloudflarestorage.com
+#    rclone mount r2:salem-legal-evidence /mnt/r2 --daemon --allow-other --vfs-cache-mode full
+#
+# 2. Create fastmcp directory with server.py
+#    mkdir -p ./fastmcp
+#    # Copy server.py into this directory
+#
+# 3. Create litellm_config.yaml
+#    # Copy the config file
+# ===========================================

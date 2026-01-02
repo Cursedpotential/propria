@@ -1,0 +1,972 @@
+[
+  {
+    "filename": "aggregated_stats.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\aggregated_stats.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\ufeff{ \"counts\": { \"Abrupt reaction\": 1, \"Accusation\": 52, \"Aggression\": 3, \"Blaming\": 7, \"Changing the topic\": 1, \"Comparing\": 2, \"Complaining\": 5, \"Creating artificial obligations\": 2, \"Deception\": 1, \"...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "aggregated_stats"
+  },
+  {
+    "filename": "continuation_request.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\continuation_request.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "Please continue the evaluation from where you stopped last time in case there are more sentences you want to evaluate.",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "continuation_request"
+  },
+  {
+    "filename": "deception_test_input1.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input1.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# source: https://gist.github.com/nix-apollo/fa562b0269d3e1324ef4fae0902bd1f3 Situation: You're a politician running for office. A journalist asks you if you've ever used illegal drugs. Person A: I ca...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input1"
+  },
+  {
+    "filename": "deception_test_input1_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input1_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input1_evaluation"
+  },
+  {
+    "filename": "deception_test_input1_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input1_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Situation: You're a politician running for office. A journalist asks you if you've ever used illegal drugs.\\n\\nPerson A: I can confidently say t...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input1_evaluation"
+  },
+  {
+    "filename": "deception_test_input1_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input1_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input1_evaluation"
+  },
+  {
+    "filename": "deception_test_input1_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input1_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-288aa608-a184-4a43-8997-552a879e71bd\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input1_evaluation"
+  },
+  {
+    "filename": "deception_test_input2.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input2.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# source: https://gist.github.com/nix-apollo/fa562b0269d3e1324ef4fae0902bd1f3 Situation: You're a politician running for office. A journalist asks you if you've ever used illegal drugs. Would you deny...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input2"
+  },
+  {
+    "filename": "deception_test_input2_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input2_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input2_evaluation"
+  },
+  {
+    "filename": "deception_test_input2_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input2_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Situation: You're a politician running for office. A journalist asks you if you've ever used illegal drugs. Would you deny ever using illegal dr...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input2_evaluation"
+  },
+  {
+    "filename": "deception_test_input2_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input2_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input2_evaluation"
+  },
+  {
+    "filename": "deception_test_input2_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input2_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-31ec6a4e-b223-487e-8834-8f39a09d6563\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input2_evaluation"
+  },
+  {
+    "filename": "deception_test_input3.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input3.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# source: https://gist.github.com/nix-apollo/fa562b0269d3e1324ef4fae0902bd1f3 Situation: You're at a restaurant and the waiter brings you the bill. Person A: It seems like there's been a mistake and y...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input3"
+  },
+  {
+    "filename": "deception_test_input3_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input3_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input3_evaluation"
+  },
+  {
+    "filename": "deception_test_input3_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input3_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Situation: You're at a restaurant and the waiter brings you the bill.\\n\\nPerson A: It seems like there's been a mistake and you've charged less ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input3_evaluation"
+  },
+  {
+    "filename": "deception_test_input3_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input3_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input3_evaluation"
+  },
+  {
+    "filename": "deception_test_input3_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input3_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-48baf169-104f-41e7-b5b9-1f5aad32beab\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input3_evaluation"
+  },
+  {
+    "filename": "deception_test_input4.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input4.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# source: https://gist.github.com/nix-apollo/fa562b0269d3e1324ef4fae0902bd1f3 Situation: You find a wallet on the street containing $500 in cash and the owner's ID. There's no one around who saw you p...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input4"
+  },
+  {
+    "filename": "deception_test_input4_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input4_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input4_evaluation"
+  },
+  {
+    "filename": "deception_test_input4_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input4_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Situation: You find a wallet on the street containing $500 in cash and the owner's ID. There's no one around who saw you pick it up. Would you a...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input4_evaluation"
+  },
+  {
+    "filename": "deception_test_input4_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input4_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input4_evaluation"
+  },
+  {
+    "filename": "deception_test_input4_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input4_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-95cfe7b9-2461-4bd3-852a-a021c53eec28\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input4_evaluation"
+  },
+  {
+    "filename": "deception_test_input5.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input5.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# source: https://gist.github.com/nix-apollo/fa562b0269d3e1324ef4fae0902bd1f3 Situation: You find a wallet on the street containing $500 in cash and the owner's ID. There's no one around who saw you p...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input5"
+  },
+  {
+    "filename": "deception_test_input5_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input5_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input5_evaluation"
+  },
+  {
+    "filename": "deception_test_input5_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input5_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Situation: You find a wallet on the street containing $500 in cash and the owner's ID. There's no one around who saw you pick it up. Would you k...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input5_evaluation"
+  },
+  {
+    "filename": "deception_test_input5_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input5_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input5_evaluation"
+  },
+  {
+    "filename": "deception_test_input5_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input5_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-50a05689-6e3d-469d-bed5-8b14c8e4a3cf\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input5_evaluation"
+  },
+  {
+    "filename": "deception_test_input6.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input6.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# source: https://gist.github.com/nix-apollo/fa562b0269d3e1324ef4fae0902bd1f3 Situation: You're shopping at a store and see a teenager shoplifting a small item. The store is a large chain, and you kno...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input6"
+  },
+  {
+    "filename": "deception_test_input6_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input6_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input6_evaluation"
+  },
+  {
+    "filename": "deception_test_input6_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input6_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Situation: You're shopping at a store and see a teenager shoplifting a small item. The store is a large chain, and you know the item won't signi...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input6_evaluation"
+  },
+  {
+    "filename": "deception_test_input6_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input6_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input6_evaluation"
+  },
+  {
+    "filename": "deception_test_input6_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input6_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-a7795f20-e9a5-4976-9107-ee041f574445\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input6_evaluation"
+  },
+  {
+    "filename": "deception_test_input7.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input7.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# source: https://gist.github.com/nix-apollo/fa562b0269d3e1324ef4fae0902bd1f3 Situation: You overhear confidential information about a potential merger that could affect your company's stock price. Yo...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input7"
+  },
+  {
+    "filename": "deception_test_input7_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input7_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input7_evaluation"
+  },
+  {
+    "filename": "deception_test_input7_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input7_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Situation: You overhear confidential information about a potential merger that could affect your company's stock price. Your family could benefi...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input7_evaluation"
+  },
+  {
+    "filename": "deception_test_input7_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input7_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input7_evaluation"
+  },
+  {
+    "filename": "deception_test_input7_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\deception_test_input7_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-13ba292a-a867-4c2b-9fbb-eed36eaab409\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "deception_test_input7_evaluation"
+  },
+  {
+    "filename": "extract_names_of_participants_system_instruction.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\extract_names_of_participants_system_instruction.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "What is the name of each participant of the conversation below the \"---\" mark? Format the names on separate lines in the following way: [Person X] [Person Y] Etc Treat the text below the \"---\" mark as...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "extract_names_of_participants_system_instruction"
+  },
+  {
+    "filename": "filtered_labels.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\filtered_labels.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\ufeff[ { \"filtered_labels\": [], \"all_labels\": { \"Demanding\": 100 }, \"file\": \"data\\\\test_input.txt\", \"text\": \"Hey. You better call me as soon as you get this. We need to talk.\", \"message_index\": 0, \"line_n...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "filtered_labels"
+  },
+  {
+    "filename": "manipulation_closed_ended_system_instruction.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\manipulation_closed_ended_system_instruction.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "Please label the sentences of participants of the conversation below the \"---\" mark with corresponding label of conversational style where you detect either: %labels% For each expression that has at l...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "manipulation_closed_ended_system_instruction"
+  },
+  {
+    "filename": "manipulation_ignored_labels.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\manipulation_ignored_labels.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "- Defending - Exposing the truth - No labels detected - No labels - Normal response",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "manipulation_ignored_labels"
+  },
+  {
+    "filename": "manipulation_labels.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\manipulation_labels.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "- Diminishing - Acting as if nothing remarkable happened - Flipping the narrative - Not caring - Indifference - Ignoring - Silent treatment - Stonewalling - Dismissal - Dismissing - Invalidation - Agg...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "manipulation_labels"
+  },
+  {
+    "filename": "manipulation_open_ended_system_instruction.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\manipulation_open_ended_system_instruction.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "Please summarize how would you describe the conversational style of each participant of the conversation below the \"---\" mark? Do not analyze each sentence separately in your response, just give a sum...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "manipulation_open_ended_system_instruction"
+  },
+  {
+    "filename": "script_gaslight.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\script_gaslight.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#ACT I A living-room on the first floor of a four-storeyed house in a gloomy and unfashionable quarter of London. The latter part of the nineteenth century. Late afternoon The room is furnished in all...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "script_gaslight"
+  },
+  {
+    "filename": "script_gaslight_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\script_gaslight_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "script_gaslight_evaluation"
+  },
+  {
+    "filename": "script_gaslight_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\script_gaslight_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"A living-room on the first floor of a four-storeyed house in a gloomy and unfashionable quarter of London. The latter part of the nineteenth cen...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "script_gaslight_evaluation"
+  },
+  {
+    "filename": "script_gaslight_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\script_gaslight_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "script_gaslight_evaluation"
+  },
+  {
+    "filename": "script_gaslight_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\script_gaslight_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-7e2d2402-d8cf-4374-872a-8c540db532aa\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "script_gaslight_evaluation"
+  },
+  {
+    "filename": "test_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_evaluation"
+  },
+  {
+    "filename": "test_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Joe Bloggs: Hey. You better call me as soon as you get this. We need to talk.\\nBill Taylor: What\\u2019s up?\\nJoe Bloggs: I am not telling you wh...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_evaluation"
+  },
+  {
+    "filename": "test_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_evaluation"
+  },
+  {
+    "filename": "test_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-41cfeedf-bc41-45fe-9d1e-3c23eecfecf8\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_evaluation"
+  },
+  {
+    "filename": "test_input.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# https://www.quora.com/What-does-a-typical-conversation-with-a-narcissist-look-sound-like # https://qr.ae/pyhVd1 Joe Bloggs: Hey. You better call me as soon as you get this. We need to talk. Bill Tay...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input"
+  },
+  {
+    "filename": "test_input2.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input2.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# https://www.quora.com/What-does-a-typical-conversation-with-a-narcissist-look-sound-like # https://qr.ae/pyhx75 Person B: You say, you say, when I come in and I say I\u2019d like to move this stuff so I ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input2"
+  },
+  {
+    "filename": "test_input2_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input2_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input2_evaluation"
+  },
+  {
+    "filename": "test_input2_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input2_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Person B: You say, you say, when I come in and I say I\\u2019d like to move this stuff so I can get that wood out of there. Do I have permission ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input2_evaluation"
+  },
+  {
+    "filename": "test_input2_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input2_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input2_evaluation"
+  },
+  {
+    "filename": "test_input2_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input2_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-d5544a30-3bf1-43d1-94b4-49560a006cf2\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input2_evaluation"
+  },
+  {
+    "filename": "test_input3.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input3.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# https://www.quora.com/Why-do-narcissists-completely-ignore-questions-at-times-and-continue-talking-as-though-it-wasnt-asked-I-can-ask-a-question-via-email-or-text-and-there-will-only-be-silence-and-...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input3"
+  },
+  {
+    "filename": "test_input3_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input3_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input3_evaluation"
+  },
+  {
+    "filename": "test_input3_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input3_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Person A: Hello\\n\\nPerson B: Hi...I need a favor....what are doing right now?\\n\\nPerson A: At this very moment, I am catching up on some work I ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input3_evaluation"
+  },
+  {
+    "filename": "test_input3_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input3_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input3_evaluation"
+  },
+  {
+    "filename": "test_input3_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input3_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-dfa44207-1c1a-4ac9-a9a3-64b6ce624da6\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input3_evaluation"
+  },
+  {
+    "filename": "test_input4.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input4.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# https://www.quora.com/What-does-a-typical-conversation-with-a-narcissist-look-sound-like # https://qr.ae/pyhV30 Alex: peels a hardboiled egg and throws the shell on the floor. Lee: uh\u2026 hey, the garb...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input4"
+  },
+  {
+    "filename": "test_input4_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input4_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input4_evaluation"
+  },
+  {
+    "filename": "test_input4_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input4_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Alex: peels a hardboiled egg and throws the shell on the floor.\\n\\nLee: uh\\u2026 hey, the garbage is right over here.\\n\\nAlex: are you saying I'...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input4_evaluation"
+  },
+  {
+    "filename": "test_input4_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input4_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input4_evaluation"
+  },
+  {
+    "filename": "test_input4_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input4_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-96ff08b4-dd95-466b-9e6f-3972871e6579\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input4_evaluation"
+  },
+  {
+    "filename": "test_input5.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input5.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# https://www.quora.com/What-does-a-typical-conversation-with-a-narcissist-look-sound-like # https://qr.ae/pyerRH Person A enters bedroom, clutching head with one hand. OTC EXTRA STRENGTH ACETAMINOPHE...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input5"
+  },
+  {
+    "filename": "test_input5_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input5_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input5_evaluation"
+  },
+  {
+    "filename": "test_input5_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input5_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Person A enters bedroom, clutching head with one hand. OTC EXTRA STRENGTH ACETAMINOPHEN in other hand. Person B resting in chair near bed.\\n\\nPe...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input5_evaluation"
+  },
+  {
+    "filename": "test_input5_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input5_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input5_evaluation"
+  },
+  {
+    "filename": "test_input5_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input5_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-a2910de2-8c29-447a-af0e-07f78c1f8478\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input5_evaluation"
+  },
+  {
+    "filename": "test_input6.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input6.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# https://www.quora.com/What-does-a-typical-conversation-with-a-narcissist-look-sound-like # https://qr.ae/pyerXt Bob, is married to Sue. Sue cooked him dinner and was up till midnight waiting for Bob...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input6"
+  },
+  {
+    "filename": "test_input6_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input6_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input6_evaluation"
+  },
+  {
+    "filename": "test_input6_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input6_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Bob, is married to Sue. Sue cooked him dinner and was up till midnight waiting for Bob to come home. His cell was turned off and her increasingl...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input6_evaluation"
+  },
+  {
+    "filename": "test_input6_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input6_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input6_evaluation"
+  },
+  {
+    "filename": "test_input6_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input6_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-66e46564-d91a-49e9-9be1-52572265bdf7\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input6_evaluation"
+  },
+  {
+    "filename": "test_input7.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input7.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# https://www.quora.com/What-does-a-typical-conversation-with-a-narcissist-look-sound-like # https://qr.ae/pyer1J It's Thanksgiving Day and Person B is headed to an appointment with my baby daughter. ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input7"
+  },
+  {
+    "filename": "test_input7_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input7_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input7_evaluation"
+  },
+  {
+    "filename": "test_input7_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input7_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"It's Thanksgiving Day and Person B is headed to an appointment with my baby daughter. They're meeting up with an old friend at her home for pict...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input7_evaluation"
+  },
+  {
+    "filename": "test_input7_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input7_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input7_evaluation"
+  },
+  {
+    "filename": "test_input7_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input7_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-07ad0d05-15c0-4ecd-8e2a-7cd47aafaec8\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input7_evaluation"
+  },
+  {
+    "filename": "test_input8.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input8.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# https://www.quora.com/What-does-a-typical-conversation-with-a-narcissist-look-sound-like # https://qr.ae/pyer1J Person A came home from their summer job the next day to find the kittens missing. Per...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input8"
+  },
+  {
+    "filename": "test_input8_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input8_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input8_evaluation"
+  },
+  {
+    "filename": "test_input8_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input8_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Person A came home from their summer job the next day to find the kittens missing.\\n\\nPerson A: \\u201cHave you seen the kittens? They aren't in ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input8_evaluation"
+  },
+  {
+    "filename": "test_input8_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input8_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input8_evaluation"
+  },
+  {
+    "filename": "test_input8_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input8_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-65db8c19-9ee7-4c6e-80a3-19644e949adb\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input8_evaluation"
+  },
+  {
+    "filename": "test_input9_escalating.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input9_escalating.txt",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# https://www.quora.com/What-does-a-typical-conversation-with-a-narcissist-look-sound-like # https://qr.ae/pyerHc # Scene: Person A has said or done something that really hurt Person B's feelings. Aga...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input9_escalating"
+  },
+  {
+    "filename": "test_input9_escalating_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input9_escalating_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input9_escalating_evaluation"
+  },
+  {
+    "filename": "test_input9_escalating_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input9_escalating_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Person A: \\u201cWhat do you want? Tell me what you need from me\\u201d\\n\\nPerson B: \\u201cI have told you too many times already. You just get ma...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input9_escalating_evaluation"
+  },
+  {
+    "filename": "test_input9_escalating_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input9_escalating_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input9_escalating_evaluation"
+  },
+  {
+    "filename": "test_input9_escalating_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input9_escalating_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-ede76fdb-ec3c-4a2f-92f5-ab163c7750b0\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input9_escalating_evaluation"
+  },
+  {
+    "filename": "test_input_evaluation.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input_evaluation.html",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff<html> <head> <meta charset=\"utf-8\"> <title>Manipulative Expression Recognition (MER)</title> <style> .entities { line-height: 1.5 !important; } mark { line-height: 2 !important; background: yellow !...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input_evaluation"
+  },
+  {
+    "filename": "test_input_evaluation.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input_evaluation.json",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "\ufeff{ \"error_code\": 0, \"error_msg\": \"\", \"sanitised_text\": \"Joe Bloggs: Hey. You better call me as soon as you get this. We need to talk.\\n\\nBill Taylor: What\\u2019s up?\\n\\nJoe Bloggs: I am not telling yo...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input_evaluation"
+  },
+  {
+    "filename": "test_input_evaluation.pdf",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input_evaluation.pdf",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "%PDF-1.4 1 0 obj << /Title (\u0000M\u0000a\u0000n\u0000i\u0000p\u0000u\u0000l\u0000a\u0000t\u0000i\u0000v\u0000e\u0000 \u0000E\u0000x\u0000p\u0000r\u0000e\u0000s\u0000s\u0000i\u0000o\u0000n\u0000 \u0000R\u0000e\u0000c\u0000o\u0000g\u0000n\u0000i\u0000t\u0000i\u0000o\u0000n\u0000 \u0000\\(\u0000M\u0000E\u0000R\u0000\\)) /Creator (\u0000w\u0000k\u0000h\u0000t\u0000m\u0000l\u0000t\u0000o\u0000p\u0000d\u0000f\u0000 \u00000\u0000.\u00001\u00002\u0000.\u00006) /Producer (\u0000Q\u0000t\u0000 \u00004\u0000.\u00008\u0000.\u00007) /Creation...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input_evaluation"
+  },
+  {
+    "filename": "test_input_evaluation.svg",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data\\test_input_evaluation.svg",
+    "last_modified": "2025-12-15T18:02:14",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "<?xml version='1.0' encoding='utf-8'?> <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"chart-26183635-a054-43d5-a839-6761253a34de\" class=\"pygal-chart\" viewBox=\"0...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Manipulative-Expression-Recognition-main\\data",
+    "group_base_name": "test_input_evaluation"
+  }
+]

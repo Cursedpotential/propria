@@ -1,0 +1,4 @@
+# stopwords_custom.yaml — optional false-positive dampeners
+- "figure it out"
+- "lol"
+- "okay"

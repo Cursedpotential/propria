@@ -1,0 +1,82 @@
+[
+  {
+    "filename": "fix_json_manually.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils\\fix_json_manually.py",
+    "last_modified": "2025-08-25T01:41:13",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" Manually fix the malformed JSON by reading line by line \"\"\" from pathlib import Path def fix_json(): cache_path = Path(__file__).parent.parent / \"import\" / \"raw_api_response...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils",
+    "group_base_name": "fix_json_manually"
+  },
+  {
+    "filename": "fix_place_cache.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils\\fix_place_cache.py",
+    "last_modified": "2025-08-25T01:41:23",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" Fix malformed JSON in place_id_db.json \"\"\" import json import re from pathlib import Path def fix_place_id_cache(): cache_path = Path(__file__).parent.parent / \"import\" / \"r...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils",
+    "group_base_name": "fix_place_cache"
+  },
+  {
+    "filename": "logging_config.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils\\logging_config.py",
+    "last_modified": "2025-08-25T01:39:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" Centralized logging configuration for the Timeline Processor project. This module provides enhanced logging setup with: 1. Automatic logs directory creation 2. Both file and...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils",
+    "group_base_name": "logging_config"
+  },
+  {
+    "filename": "overnight_analyzer.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils\\overnight_analyzer.py",
+    "last_modified": "2025-08-25T01:40:06",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" ANALYSIS MODULE: Overnight Stay Detector \"\"\" import pandas as pd from pathlib import Path import logging import sys import sqlite3 from datetime import time, timedelta loggi...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils",
+    "group_base_name": "overnight_analyzer"
+  },
+  {
+    "filename": "schedule_analyzer.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils\\schedule_analyzer.py",
+    "last_modified": "2025-08-25T01:40:17",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" ANALYSIS MODULE: Schedule Adherence Analyzer (Placeholder) \"\"\" import logging import sys from pathlib import Path logging.basicConfig(level=logging.INFO, format='%(asctime)s...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils",
+    "group_base_name": "schedule_analyzer"
+  },
+  {
+    "filename": "test_db_connection.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils\\test_db_connection.py",
+    "last_modified": "2025-08-25T01:40:54",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 import sqlite3 import sys print(\"1. Testing database connection...\") try: conn = sqlite3.connect('./locations.db') print(\"\u2713 Connected to database\") cursor = conn.cursor() print(...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils",
+    "group_base_name": "test_db_connection"
+  },
+  {
+    "filename": "utils_io.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils\\utils_io.py",
+    "last_modified": "2025-08-25T11:02:07",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 import sys, os, re, csv, json, gzip, hashlib, math from datetime import datetime, timezone from typing import Iterator, Dict, Any, Optional ET_TZ = \"America/Detroit\" # used only...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils",
+    "group_base_name": "utils_io"
+  },
+  {
+    "filename": "validate_timeline_data.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils\\validate_timeline_data.py",
+    "last_modified": "2025-08-25T01:41:31",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\" Validates timeline data for integrity issues like duplicate IDs, missing data, and inconsistent formats. \"\"\" import pandas as pd from pathlib import Path import logging impo...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_SCRIPTS\\utils",
+    "group_base_name": "validate_timeline_data"
+  }
+]

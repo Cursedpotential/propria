@@ -1,0 +1,42 @@
+[
+  {
+    "filename": "facebook_messages.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\schemas\\facebook_messages.json",
+    "last_modified": "2025-12-06T00:40:47.243973",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{ \"name\": \"Facebook Messages\", \"description\": \"Facebook message export HTML format\", \"file_pattern\": \"message_*.html\", \"selectors\": { \"container\": \"div._a6-g\", \"sender\": \"._a6-h\", \"content\": \"._a6-p\",...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\schemas",
+    "group_base_name": "facebook_messages"
+  },
+  {
+    "filename": "generic_html.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\schemas\\generic_html.json",
+    "last_modified": "2025-12-06T00:40:47.501363",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{ \"name\": \"Generic HTML\", \"description\": \"Generic HTML document with standard tags\", \"file_pattern\": \"*.html\", \"selectors\": { \"container\": \"div, section, article, p\" }, \"output_format\": \"{content}\\\\n\"...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\schemas",
+    "group_base_name": "generic_html"
+  },
+  {
+    "filename": "snapchat_messages.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\schemas\\snapchat_messages.json",
+    "last_modified": "2025-12-06T00:40:47.364151",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{ \"name\": \"Snapchat Messages\", \"description\": \"Snapchat message export HTML format\", \"file_pattern\": \"chat_*.html\", \"selectors\": { \"container\": \"div.message\", \"sender\": \".sender-name\", \"content\": \".me...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\schemas",
+    "group_base_name": "snapchat_messages"
+  },
+  {
+    "filename": "__init__.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\schemas\\__init__.py",
+    "last_modified": "2025-12-06T00:40:47.129852",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import json from pathlib import Path from typing import Dict SCHEMAS_DIR = Path(__file__).parent def load_schema(name: str) -> Dict: schema_path = SCHEMAS_DIR / f\"{name}.json\" if schema_path.exists():...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\schemas",
+    "group_base_name": "__init__"
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "filename": "CHANGELOG.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\CHANGELOG.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Changelog All notable changes to the CONTEXT.md Toolkit plugin will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adhe...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main",
+    "group_base_name": "changelog"
+  },
+  {
+    "filename": "LICENSE",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\LICENSE",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "MIT License Copyright (c) 2025 Daniel Rosehill Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to dea...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main",
+    "group_base_name": "license"
+  },
+  {
+    "filename": "README.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\README.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "## Context Toolkit Plugin This Claude Code plugin is part of my public marketplace. **To install the marketplace:** ```bash /plugin marketplace add https://github.com/danielrosehill/Claude-Code-Plugin...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main",
+    "group_base_name": "readme"
+  },
+  {
+    "filename": "USAGE.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\USAGE.md",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# CONTEXT.md Toolkit - Usage Guide This guide provides detailed usage instructions and examples for the CONTEXT.md Toolkit plugin. ## Quick Start ### 1. Install the Plugin ```bash /plugin install dani...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main",
+    "group_base_name": "usage"
+  }
+]
