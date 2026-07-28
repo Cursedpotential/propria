@@ -1,2 +1,4 @@
 .claude/settings.local.json
 .serena/project.local.yml
+.memsearch/.capture.pid
+.memsearch/*.db
