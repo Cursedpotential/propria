@@ -86,3 +86,13 @@ drive-*.json
 # Context files that may contain secrets
 **/context/context.txt
 BUILD_GUIDE.md
+
+# Workspace-local data and nested-repository boundaries
+.claude/memories/project_memory.json
+Timeline.json
+Timeline.json.html
+Timeline.zip
+TraceIQ_Backups/
+TraceIQ_Evidence/
+traaceiq_mess/
+traceiq-rebuild/
