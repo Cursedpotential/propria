@@ -1,19 +1,17 @@
 # TraceIQ Outer Repository — Agent Entry Point
 
-> _Byline: Codex · GPT-5 · 2026-08-27._
+> _Byline: Codex · GPT-5 · 2026-08-27; reconciliation resolved 2026-08-29._
 
 This file governs `E:\AI_Workspace\Projects\traceIQ`. Before any Git action, run
 `git rev-parse --show-toplevel` from the target file's directory and require that it equals this
 directory. Stage only an explicit file allowlist; never use broad staging.
 
-## Reconciliation hold
+## Reconciled boundary
 
-This checkout is not reconciled with its remote history. Read
-`REPOSITORY_RECONCILIATION.md` before changing repository state. Until that hold is explicitly
-cleared, do not checkout or restore paths, stage deletions, reset, clean, stash, delete, move, or
-bulk-copy repository content. The owner-authorized additive governance files named in
-`REPOSITORY_RECONCILIATION.md` may be committed with an exact allowlist; no reported deletion or
-pre-existing content change may enter that commit.
+The former tracked-missing/untracked collision hold was resolved on 2026-08-29. Read
+`REPOSITORY_RECONCILIATION.md` for proof. The child checkout is clean and pushed; the workspace
+router represents it as one raw Gitlink. Local dumps, evidence files, timelines, tool memory, and
+`traceiq-rebuild/` remain physically present but are intentionally ignored by this repository.
 
 ## Nested repository boundary
 
@@ -27,5 +25,5 @@ the nested repository, its files, or a pointer to it from this outer repository.
 - Read `AGENT_MEMORY.md` as a context router, not as authority over current files or Git state.
 - Do not place secrets, credentials, private evidence content, or copied evidence text in agent
   instructions, memory routers, commit messages, or status documents.
-- Preserve all existing data. Nothing is deleted or quarantined while the reconciliation hold is
-  active.
+- Preserve all existing data. Never hard-delete; approved removals go to this repository's
+  `to_be_deleted/` boundary and only the owner permanently deletes there.

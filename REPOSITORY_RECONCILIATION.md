@@ -1,8 +1,8 @@
-# TraceIQ Repository Reconciliation Hold
+# TraceIQ Repository Reconciliation Resolution
 
-> _Byline: Codex · GPT-5 · 2026-08-27._
+> _Byline: Codex · GPT-5 · 2026-08-27; resolved by Codex · GPT-5 · 2026-08-29._
 
-**Status: FAIL-CLOSED HOLD — NOT RECONCILED**
+**Status: RESOLVED — CHILD CLEAN/PUSHED; PARENT RAW GITLINK VERIFIED**
 
 ## Verified boundary
 
@@ -11,36 +11,24 @@
 - `traceiq-rebuild/` is an independent nested repository and is outside this repository's commit
   scope.
 
-## Observed condition
+## Resolution evidence
 
-The restored outer worktree reports a very large set of tracked paths as deleted while also
-containing substantial untracked material. No conclusion has been made about whether those paths
-were intentionally relocated, are recoverable equivalents, or represent divergent generations.
-The status must not be normalized mechanically.
+- The worktree contained 2,088 missing tracked paths and 9,487 untracked paths with zero exact
+  path collisions.
+- The missing tracked paths were restored additively from the existing child `HEAD`; no present
+  file was overwritten or deleted.
+- Local-only tool state, timelines, backups, evidence JSON, debris, and the nested rebuild were
+  explicitly ignored in child commit `d670b3de3f92f7547e876a7f1193573c01c70f4d`, pushed to
+  `origin/main`.
+- Fourteen formerly parent-owned local data files were SHA-256 manifested and remain physically
+  present. The workspace parent replaced 15 mixed entries with one raw Gitlink in parent commit
+  `9cfde017`.
+- Full hashes and isolated-index proof are retained at
+  `../repository-boundary-receipts/TRACEIQ-CONVERSION-2026-08-29.md` from the `Projects/` directory.
 
-## Hold rules
+## Continuing rules
 
-Until an owner-approved reconciliation plan clears this hold:
-
-- Do not run checkout, restore, reset, clean, stash, or deletion commands.
-- Do not stage or commit any reported deletion.
-- Do not use `git add .`, `git add -A`, wildcard staging, or bulk path staging.
-- Do not move, rename, overwrite, or bulk-copy tracked or untracked material.
-- Do not absorb, stage, or rewrite the history of `traceiq-rebuild/`.
-- Do not infer equivalence from matching filenames; use content hashes and provenance in a later
-  read-only inventory.
-
-Read-only inspection is allowed. The owner-authorized additive governance set (`AGENTS.md`,
-`AGENT_MEMORY.md`, `CLAUDE.md`, and this hold document) may be staged and committed by exact
-allowlist. No reported deletion or other pre-existing worktree change may enter that commit.
-
-## Required reconciliation before release
-
-1. Capture an owner-reviewed inventory of tracked-missing, present-untracked, ignored, and nested
-   repository paths without exposing evidence contents.
-2. Classify each path by custody, provenance, sensitivity, and intended repository ownership.
-3. Hash-compare candidate equivalents and document conflicts without overwriting either side.
-4. Obtain an explicit owner decision for restoration, archival, migration, or intentional removal.
-5. Stage only the approved allowlist and verify the staged diff from this exact Git root.
-6. Update this document with the resulting commit identifiers and remove the hold only after the
-   live worktree and remote relationship are reverified.
+- Commit outer TraceIQ source only from this root with an explicit allowlist.
+- Do not commit ignored private data or the nested repository.
+- Never reset, clean, stash, overwrite, or hard-delete unrelated work.
+- Work in `traceiq-rebuild/` only from its own repository root and instructions.

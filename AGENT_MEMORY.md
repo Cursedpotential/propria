@@ -1,7 +1,7 @@
 ---
 scope: E:/AI_Workspace/Projects/traceIQ
 status: current
-verified_at: 2026-08-27
+verified_at: 2026-08-29
 superseded_by: null
 authority:
   - AGENTS.md
@@ -14,9 +14,10 @@ contains_secrets: false
 
 # TraceIQ Outer Memory Router
 
-> _Byline: Codex · GPT-5 · 2026-08-27._
+> _Byline: Codex · GPT-5 · 2026-08-27; reconciliation resolved 2026-08-29._
 
-- Current Git safety and reconciliation status: `REPOSITORY_RECONCILIATION.md`.
+- The former reconciliation hold is resolved; current proof and representation are recorded in
+  `REPOSITORY_RECONCILIATION.md`.
 - Rebuilt application code and its product authority: `traceiq-rebuild/AGENTS.md`, loaded only
   after entering that separate repository.
 - Local `.claude/`, `.remember/`, `.memsearch/`, and similar tool state is supporting context only;
@@ -27,7 +28,7 @@ contains_secrets: false
 
 <!-- freshness
 watches_hash: c9d6198
-last_verified: 2026-08-27
+last_verified: 2026-08-29
 watches:
   - AGENTS.md
   - REPOSITORY_RECONCILIATION.md
