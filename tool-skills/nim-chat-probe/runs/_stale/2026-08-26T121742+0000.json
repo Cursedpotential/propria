@@ -1,0 +1,145 @@
+{
+ "ts": "2026-08-26T12:17:42+00:00",
+ "base": "https://integrate.api.nvidia.com/v1",
+ "tests": [
+  "chat",
+  "tools",
+  "vision"
+ ],
+ "total_listed": 83,
+ "results": {
+  "google/gemma-4-31b-it": {
+   "chat": {
+    "ok": false,
+    "secs": 90.14,
+    "status": -1,
+    "detail": "The read operation timed out"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true
+  },
+  "meta/llama-guard-4-12b": {
+   "chat": {
+    "ok": false,
+    "secs": 90.12,
+    "status": -1,
+    "detail": "The read operation timed out"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true
+  },
+  "mistralai/mistral-nemotron": {
+   "chat": {
+    "ok": false,
+    "secs": 90.12,
+    "status": -1,
+    "detail": "The read operation timed out"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true
+  },
+  "nvidia/ai-synthetic-video-detector": {
+   "chat": {
+    "ok": false,
+    "secs": 0.32,
+    "status": 500,
+    "detail": "Internal error while making inference request"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true
+  },
+  "nvidia/llama-3.1-nemoguard-8b-topic-control": {
+   "chat": {
+    "ok": false,
+    "secs": 90.13,
+    "status": -1,
+    "detail": "The read operation timed out"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true
+  },
+  "nvidia/nemotron-parse": {
+   "chat": {
+    "ok": false,
+    "secs": 0.29,
+    "status": 400,
+    "detail": "Content cannot be a plain string. The model does not support text input. Content cannot be a plain string. The model does not support text input."
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true
+  },
+  "openai/gpt-oss-120b": {
+   "chat": {
+    "ok": false,
+    "secs": 90.13,
+    "status": -1,
+    "detail": "The read operation timed out"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true
+  }
+ }
+}

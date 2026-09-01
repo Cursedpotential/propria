@@ -1,0 +1,103 @@
+{
+ "ts": "2026-08-26T12:12:14+00:00",
+ "base": "https://integrate.api.nvidia.com/v1",
+ "total_listed": 83,
+ "results": {
+  "nvidia/embed-qa-4": {
+   "ok": false,
+   "status": 404,
+   "detail": "Function '09c64e32-2b65-4892-a285-2f585408d118': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'",
+   "secs": 0.2,
+   "listed": true,
+   "mode": null
+  },
+  "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1": {
+   "ok": false,
+   "status": 404,
+   "detail": "Function '6cb5bc77-9adc-48ac-85e2-c0ebceda934f': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'",
+   "secs": 0.17,
+   "listed": true,
+   "mode": null
+  },
+  "nvidia/llama-3.2-nv-embedqa-1b-v1": {
+   "ok": false,
+   "status": 404,
+   "detail": "Function 'b51e8011-e772-4c9a-8b02-618e99ae4467': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'",
+   "secs": 0.2,
+   "listed": true,
+   "mode": null
+  },
+  "nvidia/llama-nemotron-embed-vl-1b-v2": {
+   "ok": true,
+   "n": 4,
+   "dim": 2048,
+   "secs": 0.63,
+   "listed": true,
+   "mode": "asymmetric(input_type required)"
+  },
+  "nvidia/nemotron-3-embed-1b": {
+   "ok": true,
+   "n": 4,
+   "dim": 2048,
+   "secs": 0.43,
+   "listed": true,
+   "mode": "symmetric"
+  },
+  "nvidia/nv-embedqa-mistral-7b-v2": {
+   "ok": false,
+   "status": 404,
+   "detail": "Function '6caf65cf-1c3a-4823-89a5-21b821640d99': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'",
+   "secs": 0.28,
+   "listed": true,
+   "mode": null
+  },
+  "nvidia/nvclip": {
+   "ok": false,
+   "status": 404,
+   "detail": "Function '3072eebf-b0f0-4318-a5b8-5a45cd035b95': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'",
+   "secs": 0.36,
+   "listed": true,
+   "mode": null
+  },
+  "snowflake/arctic-embed-l": {
+   "ok": false,
+   "status": 404,
+   "detail": "Function '1528a0ad-205a-46ac-a783-94e2372586a9': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'",
+   "secs": 0.23,
+   "listed": true,
+   "mode": null
+  },
+  "nvidia/nv-embed-v1": {
+   "ok": false,
+   "status": 410,
+   "detail": "The model 'nvidia/nv-embed-v1' has reached its end of life on 2026-08-25T09:00:00Z and is no longer available.",
+   "secs": 0.44,
+   "listed": false,
+   "mode": null
+  },
+  "baai/bge-m3": {
+   "ok": false,
+   "status": 410,
+   "detail": "The model 'baai/bge-m3' has reached its end of life on 2026-08-25T09:00:00Z and is no longer available.",
+   "secs": 0.17,
+   "listed": false,
+   "mode": null
+  },
+  "nvidia/nv-embedqa-e5-v5": {
+   "ok": false,
+   "status": 410,
+   "detail": "The model 'nvidia/nv-embedqa-e5-v5' has reached its end of life on 2026-08-25T09:00:00Z and is no longer available.",
+   "secs": 0.17,
+   "listed": false,
+   "mode": null
+  },
+  "nvidia/llama-3.2-nv-embedqa-1b-v2": {
+   "ok": false,
+   "status": 410,
+   "detail": "The model 'nvidia/llama-3.2-nv-embedqa-1b-v2' has reached its end of life on 2026-05-18T00:00:00Z and is no longer available.",
+   "secs": 0.19,
+   "listed": false,
+   "mode": null
+  }
+ }
+}

@@ -1,0 +1,841 @@
+{
+ "ts": "2026-08-26T12:23:54+00:00",
+ "base": "https://openrouter.ai/api/v1",
+ "tests": [
+  "chat",
+  "tools",
+  "vision"
+ ],
+ "total_listed": 417,
+ "total_free": 21,
+ "results": {
+  "cohere/north-mini-code:free": {
+   "chat": {
+    "ok": true,
+    "secs": 0.49,
+    "usage": {
+     "prompt": 8,
+     "completion": 16,
+     "total": 24
+    },
+    "reply": "The user asks: \"Reply with exactly the w",
+    "reasoning": true,
+    "provider": "Cohere"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 0.78,
+    "usage": {
+     "prompt": 38,
+     "completion": 64,
+     "total": 102
+    },
+    "name": "get_weather",
+    "args": "{\"city\": \"Paris\"}"
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.59,
+    "status": 404,
+    "detail": "No endpoints found that support image input"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text"
+    ],
+    "tools": true,
+    "context": 256000
+   }
+  },
+  "dots-studio/dots-3-note-preview:free": {
+   "chat": {
+    "ok": true,
+    "secs": 1.23,
+    "usage": {
+     "prompt": 19,
+     "completion": 16,
+     "total": 35
+    },
+    "reply": "The user wants me to reply with exactly ",
+    "reasoning": true,
+    "provider": "AtlasCloud"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 1.92,
+    "usage": {
+     "prompt": 178,
+     "completion": 58,
+     "total": 236
+    },
+    "name": "get_weather",
+    "args": "{\"city\": \"Paris\"}"
+   },
+   "vision": {
+    "ok": true,
+    "secs": 1.47,
+    "usage": {
+     "prompt": 26,
+     "completion": 32,
+     "total": 58
+    },
+    "reply": ""
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "image"
+    ],
+    "tools": true,
+    "context": 512000
+   }
+  },
+  "google/gemma-4-26b-a4b-it:free": {
+   "chat": {
+    "ok": true,
+    "secs": 1.16,
+    "usage": {
+     "prompt": 9,
+     "completion": 2,
+     "total": 11
+    },
+    "reply": "PONG",
+    "reasoning": false,
+    "provider": "Google AI Studio"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 1.36,
+    "usage": {
+     "prompt": 58,
+     "completion": 16,
+     "total": 74
+    },
+    "name": "get_weather",
+    "args": "{\"city\":\"Paris\"}"
+   },
+   "vision": {
+    "ok": true,
+    "secs": 1.94,
+    "usage": {
+     "prompt": 268,
+     "completion": 1,
+     "total": 269
+    },
+    "reply": "Red"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "image",
+     "text",
+     "video"
+    ],
+    "tools": true,
+    "context": 262144
+   }
+  },
+  "google/gemma-4-31b-it:free": {
+   "chat": {
+    "ok": true,
+    "secs": 1.12,
+    "usage": {
+     "prompt": 9,
+     "completion": 2,
+     "total": 11
+    },
+    "reply": "PONG",
+    "reasoning": false,
+    "provider": "Google AI Studio"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 1.52,
+    "usage": {
+     "prompt": 58,
+     "completion": 16,
+     "total": 74
+    },
+    "name": "get_weather",
+    "args": "{\"city\":\"Paris\"}"
+   },
+   "vision": {
+    "ok": true,
+    "secs": 1.01,
+    "usage": {
+     "prompt": 268,
+     "completion": 1,
+     "total": 269
+    },
+    "reply": "Red"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "image",
+     "text",
+     "video"
+    ],
+    "tools": true,
+    "context": 262144
+   }
+  },
+  "google/lyria-3-clip-preview": {
+   "chat": {
+    "ok": false,
+    "secs": 0.51,
+    "status": 402,
+    "detail": "Insufficient credits. Add more using https://openrouter.ai/settings/credits"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "image"
+    ],
+    "tools": false,
+    "context": 1048576
+   }
+  },
+  "google/lyria-3-pro-preview": {
+   "chat": {
+    "ok": false,
+    "secs": 0.17,
+    "status": 402,
+    "detail": "Insufficient credits. Add more using https://openrouter.ai/settings/credits"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "image"
+    ],
+    "tools": false,
+    "context": 1048576
+   }
+  },
+  "liquid/lfm-2.5-2.6b:free": {
+   "chat": {
+    "ok": true,
+    "secs": 0.88,
+    "usage": {
+     "prompt": 18,
+     "completion": 16,
+     "total": 34
+    },
+    "reply": "The user wants me to reply with exactly ",
+    "reasoning": true,
+    "provider": "Liquid"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 1.04,
+    "usage": {
+     "prompt": 88,
+     "completion": 58,
+     "total": 146
+    },
+    "name": "get_weather",
+    "args": "{\"city\": \"Paris\"}"
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.23,
+    "status": 404,
+    "detail": "No endpoints found that support image input"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text"
+    ],
+    "tools": true,
+    "context": 65536
+   }
+  },
+  "minimax/minimax-m2.7:free": {
+   "chat": {
+    "ok": true,
+    "secs": 1.72,
+    "usage": {
+     "prompt": 49,
+     "completion": 16,
+     "total": 65
+    },
+    "reply": "The user says: \"Reply with exactly the w",
+    "reasoning": true,
+    "provider": "GMICloud"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 3.97,
+    "usage": {
+     "prompt": 202,
+     "completion": 52,
+     "total": 254
+    },
+    "name": "get_weather",
+    "args": "{\"city\": \"Paris\"}"
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.24,
+    "status": 404,
+    "detail": "No endpoints found that support image input"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text"
+    ],
+    "tools": true,
+    "context": 196608
+   }
+  },
+  "minimax/minimax-m3:free": {
+   "chat": {
+    "ok": true,
+    "secs": 19.75,
+    "usage": {
+     "prompt": 171,
+     "completion": 2,
+     "total": 173
+    },
+    "reply": "PONG",
+    "reasoning": false,
+    "provider": "GMICloud"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 1.86,
+    "usage": {
+     "prompt": 402,
+     "completion": 36,
+     "total": 438
+    },
+    "name": "get_weather",
+    "args": "{\"city\": \"Paris\"}"
+   },
+   "vision": {
+    "ok": true,
+    "secs": 10.42,
+    "usage": {
+     "prompt": 210,
+     "completion": 1,
+     "total": 211
+    },
+    "reply": "Black"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "image",
+     "video"
+    ],
+    "tools": true,
+    "context": 1048576
+   }
+  },
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+   "chat": {
+    "ok": true,
+    "secs": 0.85,
+    "usage": {
+     "prompt": 24,
+     "completion": 61,
+     "total": 85
+    },
+    "reply": "PONG",
+    "reasoning": true,
+    "provider": "Nvidia"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 2.45,
+    "usage": {
+     "prompt": 281,
+     "completion": 110,
+     "total": 391
+    },
+    "name": "get_weather",
+    "args": "{\"city\":\"Paris\"}"
+   },
+   "vision": {
+    "ok": true,
+    "secs": 7.99,
+    "usage": {
+     "prompt": 284,
+     "completion": 96,
+     "total": 380
+    },
+    "reply": "Red"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "audio",
+     "image",
+     "video"
+    ],
+    "tools": true,
+    "context": 256000
+   }
+  },
+  "nvidia/nemotron-3-super-120b-a12b:free": {
+   "chat": {
+    "ok": true,
+    "secs": 0.56,
+    "usage": {
+     "prompt": 24,
+     "completion": 16,
+     "total": 40
+    },
+    "reply": "The user asks: \"Reply with exactly the w",
+    "reasoning": true,
+    "provider": "Nvidia"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 1.04,
+    "usage": {
+     "prompt": 281,
+     "completion": 79,
+     "total": 360
+    },
+    "name": "get_weather",
+    "args": "{\"city\":\"Paris\"}"
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.19,
+    "status": 404,
+    "detail": "No endpoints found that support image input"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text"
+    ],
+    "tools": true,
+    "context": 262144
+   }
+  },
+  "nvidia/nemotron-3-ultra-550b-a55b:free": {
+   "chat": {
+    "ok": true,
+    "secs": 2.86,
+    "usage": {
+     "prompt": 24,
+     "completion": 16,
+     "total": 40
+    },
+    "reply": "P",
+    "reasoning": true,
+    "provider": "Nvidia"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "secs": 0.44,
+    "status": 200,
+    "detail": "Upstream error from Nvidia: Service temporarily overloaded"
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.18,
+    "status": 404,
+    "detail": "No endpoints found that support image input"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text"
+    ],
+    "tools": true,
+    "context": 1000000
+   }
+  },
+  "nvidia/nemotron-3.5-content-safety:free": {
+   "chat": {
+    "ok": true,
+    "secs": 0.48,
+    "usage": {
+     "prompt": 470,
+     "completion": 16,
+     "total": 486
+    },
+    "reply": "We need to determine safety of user inpu",
+    "reasoning": true,
+    "provider": "Nvidia"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "secs": 0.19,
+    "status": 404,
+    "detail": "No endpoints found that support tool use. Try disabling \"get_weather\". To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/pr"
+   },
+   "vision": {
+    "ok": true,
+    "secs": 0.79,
+    "usage": {
+     "prompt": 730,
+     "completion": 32,
+     "total": 762
+    },
+    "reply": ""
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "image"
+    ],
+    "tools": false,
+    "context": 128000
+   }
+  },
+  "nvidia/nemotron-3.5-lightning:free": {
+   "chat": {
+    "ok": true,
+    "secs": 0.71,
+    "usage": {
+     "prompt": 24,
+     "completion": 16,
+     "total": 40
+    },
+    "reply": "Here's a thinking process:\n\n1.  **Analyz",
+    "reasoning": true,
+    "provider": "Nvidia"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 1.29,
+    "usage": {
+     "prompt": 281,
+     "completion": 38,
+     "total": 319
+    },
+    "name": "get_weather",
+    "args": "{\"city\":\"Paris\"}"
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.21,
+    "status": 404,
+    "detail": "No endpoints found that support image input"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text"
+    ],
+    "tools": true,
+    "context": 1000000
+   }
+  },
+  "openrouter/free": {
+   "chat": {
+    "ok": true,
+    "secs": 1.06,
+    "usage": {
+     "prompt": 9,
+     "completion": 2,
+     "total": 11
+    },
+    "reply": "PONG",
+    "reasoning": false,
+    "provider": "Google AI Studio"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 1.49,
+    "usage": {
+     "prompt": 58,
+     "completion": 16,
+     "total": 74
+    },
+    "name": "get_weather",
+    "args": "{\"city\":\"Paris\"}"
+   },
+   "vision": {
+    "ok": true,
+    "secs": 1.77,
+    "usage": {
+     "prompt": 268,
+     "completion": 1,
+     "total": 269
+    },
+    "reply": "Red"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "image"
+    ],
+    "tools": true,
+    "context": 200000
+   }
+  },
+  "poolside/laguna-s-2.1:free": {
+   "chat": {
+    "ok": true,
+    "secs": 13.38,
+    "usage": {
+     "prompt": 51,
+     "completion": 3,
+     "total": 54
+    },
+    "reply": "PONG",
+    "reasoning": false,
+    "provider": "Poolside"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 14.79,
+    "usage": {
+     "prompt": 145,
+     "completion": 22,
+     "total": 167
+    },
+    "name": "get_weather",
+    "args": "{\"city\": \"Paris\"}"
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.17,
+    "status": 404,
+    "detail": "No endpoints found that support image input"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text"
+    ],
+    "tools": true,
+    "context": 262144
+   }
+  },
+  "poolside/laguna-xs-2.1:free": {
+   "chat": {
+    "ok": true,
+    "secs": 0.65,
+    "usage": {
+     "prompt": 51,
+     "completion": 16,
+     "total": 67
+    },
+    "reply": "Okay, the user wants me to reply with ex",
+    "reasoning": true,
+    "provider": "Poolside"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "secs": 25.56,
+    "status": 429,
+    "detail": "Provider returned error"
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.2,
+    "status": 404,
+    "detail": "No endpoints found that support image input"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text"
+    ],
+    "tools": true,
+    "context": 262144
+   }
+  },
+  "stealth/ox-alpha": {
+   "chat": {
+    "ok": true,
+    "secs": 6.43,
+    "usage": {
+     "prompt": 95,
+     "completion": 16,
+     "total": 111
+    },
+    "reply": "The user wants me to reply with exactly ",
+    "reasoning": true,
+    "provider": "Stealth"
+   },
+   "tools": {
+    "ok": true,
+    "called": true,
+    "secs": 6.36,
+    "usage": {
+     "prompt": 243,
+     "completion": 34,
+     "total": 277
+    },
+    "name": "get_weather",
+    "args": "{\"city\":\"Paris\"}"
+   },
+   "vision": {
+    "ok": true,
+    "secs": 34.87,
+    "usage": {
+     "prompt": 114,
+     "completion": 31,
+     "total": 145
+    },
+    "reply": "Red"
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "image",
+     "video"
+    ],
+    "tools": true,
+    "context": 1048576
+   }
+  },
+  "thinkingmachines/inkling-small:free": {
+   "chat": {
+    "ok": false,
+    "secs": 0.2,
+    "status": 403,
+    "detail": "thinkingmachines/inkling-small:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "image",
+     "audio"
+    ],
+    "tools": true,
+    "context": 1048576
+   }
+  },
+  "thinkingmachines/inkling:free": {
+   "chat": {
+    "ok": false,
+    "secs": 0.25,
+    "status": 403,
+    "detail": "thinkingmachines/inkling:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/ap"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text",
+     "image",
+     "audio"
+    ],
+    "tools": true,
+    "context": 1048576
+   }
+  },
+  "z-ai/glm-5.2:free": {
+   "chat": {
+    "ok": false,
+    "secs": 26.53,
+    "status": 429,
+    "detail": "Provider returned error"
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true,
+   "free": true,
+   "claims": {
+    "input": [
+     "text"
+    ],
+    "tools": true,
+    "context": 256000
+   }
+  }
+ }
+}
