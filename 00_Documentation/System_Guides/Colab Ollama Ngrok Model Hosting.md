@@ -1,4 +1,7 @@
 
+> _Naming (D-140, 2026-09-05; applied 2026-09-06): this product is **vestigia** (formerly traceIQ / TraceIQ - Latin: footprints, tracks). Working copy: `probata/modules/vestigia/` (directory rename from `modules/traceIQ/` lands with the workspace directory-rename step; old name kept as a junction). GitHub repo name unchanged pending its own decision. Canon: `probata/docs/NAMING.md`. Historical text below is left verbatim; both names remain valid in recall stores (D-142)._
+
+
 | User Prompt: |
 |-------------|
 | I thought we were going to go with quadrant and keep that on the VPS and then just move our. Actual data in. Time scale stuff to the supper base. Did you just ask me what the fuck the goal was? We've been talking about this for two hours. |
