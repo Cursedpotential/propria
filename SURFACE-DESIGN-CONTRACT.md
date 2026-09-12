@@ -324,6 +324,10 @@ design contract. Shared meaning is the integration seam.
 
 ## Adoption and verification gates
 
+Implementation ownership, sequencing, and evidence status are tracked in the
+[Surface Design Adoption Register](docs/SURFACE-DESIGN-ADOPTION-REGISTER-2026-09-12.md).
+An adoption lane is not in progress until that register names an explicit repository-scoped task.
+
 1. **Owner visual direction:** SATISFIED FOR INITIAL ADOPTION — the owner accepted the
    Carbon-Linen-Seal sample on 2026-09-12 and clarified that the approved Probata General/Advanced
    mockups remain the structural donors. Cross-surface rendered comparison is still required before

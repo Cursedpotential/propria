@@ -1,0 +1,60 @@
+# Surface Design Adoption Register
+
+> _Byline: Codex · GPT-5 · 2026-09-12_
+
+**Status:** OPEN — the shared contract/package is verified and imported; product adoption is not assigned.
+
+**Contract:** [`../SURFACE-DESIGN-CONTRACT.md`](../SURFACE-DESIGN-CONTRACT.md)
+
+**Canonical package:** [`../resources/design/`](../resources/design/)
+
+This register prevents the verified shared package from being mistaken for completed product adoption or being lost when the design-contract task closes. A row changes state only with the evidence named in its acceptance gate. Chat status, an active process, a generated sample, or a local build is not completion.
+
+## Dependency order
+
+1. Keep the imported package and contract durable on the Propria remote.
+2. Assign one implementation owner per independently owned product lane.
+3. Vendor a pinned package copy into each product repository; never add a relative runtime dependency on the Propria router directory.
+4. Implement and verify product-local adoption. Probata, Consignatio, advocatio Legal Workdesk, and Family Court Console may proceed in parallel after assignment.
+5. Perform one cross-surface rendered reconciliation after all intended product lanes provide verified candidates.
+6. Deploy and live-prove each product independently. Do not turn a cross-surface design review into a bundled release.
+
+## Work register
+
+| ID | Product lane | Exact surface boundary | Assignee | State | Earliest start | Acceptance gate |
+|---|---|---|---|---|---|---|
+| SDA-00 | Propria shared contract | `SURFACE-DESIGN-CONTRACT.md` and `resources/design/` | Propria migration owner | VERIFIED | complete | Imported manifest state; canonical target exists; compatibility junction resolves to it; 14-file hash parity; `npm.cmd run verify`; remote commit contains the package and contract. |
+| SDA-01 | Probata | General/primary **Evidence Operations Desk**; Advanced/gated **Modular Service Cockpit** | **UNASSIGNED** | READY FOR ASSIGNMENT | now | Pinned vendored package with source commit; token adapter; no replacement of approved structural mockups; General/Advanced independent of theme; Advanced remains gated until routed; lint, build, smoke, Storybook, keyboard/focus/contrast/reflow checks; authenticated live route and receipt proof after deployment. |
+| SDA-02 | Consignatio Intake | Two-pane filesystem reconstruction with adjacent chat and shared selection context; evidence-candidate review remains stage two | **UNASSIGNED** | READY FOR ASSIGNMENT | now | Pinned vendored package; product-local adapter; existing Xplorer split/selection/preview/chat preserved; tests for selection-to-chat context, focus, resizers, reflow and degraded states; native click-through and live selection-to-chat proof; independent deployment receipt. |
+| SDA-03 | advocatio | **advocatio Legal Workdesk** | **UNASSIGNED** | READY FOR ASSIGNMENT | now | Pinned vendored package; legal typography and confidential states preserved; source currency, STOP/review, privacy, two-clock chronology, versioned `LegalSourcePackage`, staleness/revocation, draft/review/release and filing-readiness semantics tested; no evidence mutation; authenticated live-flow proof after independent deployment. |
+| SDA-04 | Family Court Console | Separate from the advocatio Legal Workdesk | **UNASSIGNED** | READY FOR ASSIGNMENT | now | Pinned vendored package; product identity remains separate; theme/token mapping, keyboard/focus/contrast/reflow checks, bounded unavailable/retry states, and independent deployment/live-route proof. |
+| SDA-05 | Cross-surface reconciliation | Shared shell geometry, semantic colors, focus, context strip, cards/buttons/badges, result/provenance anatomy and bounded failure states | **UNASSIGNED successor to Consolidate design contracts** | BLOCKED | after selected SDA-01..04 implementations pass local gates | Rendered comparison of actual product candidates in light/dark themes and applicable experience tiers; product names and authority boundaries correct; accessibility checks; unresolved differences recorded rather than hidden. |
+| SDA-06 | Per-product release | Each adopted product independently | Each assigned product owner | BLOCKED | after its implementation and SDA-05 review | Exact revision deployed; direct route and shell route reachable; authentication and context scope verified; source/status freshness visible; governed receipts/read-back verified; rollback boundary recorded. |
+
+## Assignment rule
+
+An assignee is a named task or owner with explicit repository scope. Change **UNASSIGNED** only when that task exists and has accepted the lane. Process existence, an idle historical task, or a suggestion that a task “could” do it is not assignment.
+
+Every assignment update records the task title/ID, repository, accepted file boundary, start date, and latest evidence. If work stops or is superseded, preserve the prior entry and add the successor; do not silently erase history.
+
+## Shared implementation requirements
+
+- `tokens.json` is the only editable token source. Do not hand-edit generated `tokens.css`.
+- Run `npm.cmd run build:tokens` after token changes and `npm.cmd run verify` before accepting package parity.
+- Centrally adjustable tokens do not authorize a shared runtime or framework migration.
+- Shared design language does not merge product authority, data ownership, authentication, deployments, or release semantics.
+- Contract/package verification is not adoption. Adoption is not browser parity. Browser parity is not deployment. Deployment is not authenticated live-workflow proof.
+- Preserve unrelated dirty work. Stage and commit only the implementing lane's explicit allowlist.
+- Never permanently delete files. Quarantine removals under the owning repository's `to_be_deleted/` directory for owner-only deletion.
+
+## Cross-product authority boundaries
+
+- Probata/PostgreSQL remains canonical for evidence, custody, governed review decisions, projection generations and receipts.
+- The advocatio Legal Workdesk consumes issuer-verified, manifest-hashed, version-pinned `LegalSourcePackage` references and cannot write evidence.
+- Family Court Console remains separate from the advocatio Legal Workdesk.
+- Consignatio Intake prepares and organizes source material; its shared technology does not make it the evidence or legal-work authority.
+- Browser identifiers are navigation hints, never authorization. Every eventual cross-surface launch requires audience-bound, expiring, single-use exchange and authoritative server-side scope validation.
+
+## Current next action
+
+Assign SDA-01, SDA-02, SDA-03 and SDA-04 to explicit repository-scoped implementation tasks. Until that happens, their honest state is **READY FOR ASSIGNMENT**, not “in progress,” and there is no defensible delivery date beyond the dependency order in this register.
