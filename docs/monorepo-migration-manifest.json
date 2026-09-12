@@ -1,0 +1,51 @@
+{
+  "schema": "propria-monorepo-migration-v1",
+  "root": "E:/AI_Workspace/Projects/Propria",
+  "owner_decision_date": "2026-09-12",
+  "target_directories": ["projects", "resources", "docs", "tools"],
+  "sources": [
+    {
+      "id": "consignatio",
+      "source": "Consignatio",
+      "target": "projects/consignatio",
+      "state": "source",
+      "ownership": "owned",
+      "git_head": "fa4f249",
+      "dirty": true
+    },
+    {
+      "id": "probata",
+      "source": "Probata/probata",
+      "target": "projects/probata",
+      "state": "source",
+      "ownership": "owned",
+      "git_head": "99941cc",
+      "dirty": true,
+      "divergence": {"behind": 12, "ahead": 3}
+    },
+    {
+      "id": "fl-mcp",
+      "source": "FL-MCP",
+      "target": "projects/fl-mcp",
+      "state": "classification_required",
+      "ownership": "unverified"
+    },
+    {
+      "id": "design-contract",
+      "source": "design-contract",
+      "target": "resources/design",
+      "state": "source",
+      "ownership": "owned"
+    }
+  ],
+  "prohibited_content": [
+    "secrets",
+    "corpus_bytes",
+    "databases",
+    "generated_indexes",
+    "caches",
+    "model_artifacts",
+    "worktrees",
+    "cloud_mount_contents"
+  ]
+}

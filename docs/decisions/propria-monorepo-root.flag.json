@@ -1,0 +1,13 @@
+{
+  "subject": "note:propria_monorepo_root_20260912",
+  "title": "Propria is the monorepo root",
+  "summary": "Owner decision: E:/AI_Workspace/Projects/Propria is the real monorepo root. Owned applications and product modules converge under projects; shared reusable source converges under resources. This supersedes only prior repository-topology statements that Propria was not a repository. Existing dirty and nested repositories remain protected migration sources until history, local work, paths, builds and hashes are verified. Corpora, databases, secrets, caches, generated indexes, worktrees and runtime state stay out of Git.",
+  "priority": "critical",
+  "authority": "owner_decision",
+  "status": "active",
+  "domains": ["probata", "consignatio", "intake", "docs", "infra"],
+  "source_ref": "E:/AI_Workspace/Projects/Propria/docs/decisions/2026-09-12-propria-monorepo-root.md",
+  "rationale": "The owner corrected the former conceptual-router layout and explicitly designated Propria as the top of the monorepo with resources and projects inside. A staged import prevents loss of dirty, divergent and nested repository state.",
+  "actor": "Codex GPT-5",
+  "expected_revision": 0
+}

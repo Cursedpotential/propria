@@ -1,0 +1,214 @@
+# =========================
+# Propria monorepo root ignore policy
+# Source belongs under projects/ and resources/. Data/runtime state does not.
+# =========================
+
+# =========================
+# Python (global)
+# =========================
+__pycache__/
+*.py[codz]
+*$py.class
+*.pyc
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Type checking / linting
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+.cache
+
+# Package-manager lockfiles are source and should be committed by their projects.
+
+# =========================
+# Virtual envs + secrets
+# =========================
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.local
+.env.production
+.env.*.local
+.envrc
+
+# =========================
+# Jupyter / notebooks
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# IDEs / editors
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# =========================
+# OS cruft
+# =========================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =========================
+# Project-specific: dev-resources archives & parts bins (READ-ONLY REFERENCE)
+# =========================
+# All of dev-resources/ is read-only reference material from old repos
+# Never track, build on, or commit anything from here
+dev-resources/
+
+# Parts bin alpha codebase (reference only)
+Agno-MCP-Platform-agno - alpha/
+
+# =========================
+# Project-specific: Agno-MCP-Platform (active build)
+# =========================
+# Database / data files
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+
+# Local data directories
+probata/data/
+Agno-MCP-Platform/data/
+probata/tmp/
+Agno-MCP-Platform/tmp/
+probata/.data/
+Agno-MCP-Platform/.data/
+
+# Agno/osgrep/memsearch caches
+Agno-MCP-Platform/.osgrep/
+Agno-MCP-Platform/.memsearch/
+Agno-MCP-Platform/.remember/
+
+# Local Claude Code config
+Agno-MCP-Platform/.claude/
+
+# =========================
+# Build / CI artifacts
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Docker
+# =========================
+.docker/
+
+# =========================
+# Checksum files (thousands of noise files)
+# =========================
+*.xxh3
+
+# =========================
+# Temporary / generated files
+# =========================
+*.tmp
+*.temp
+tmp/
+temp/
+*.bak
+*.backup
+
+# =========================
+# OS-specific
+# =========================
+# Windows
+$RECYCLE.BIN/
+System Volume Information/
+
+# Linux/macOS
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =========================
+# Editor temp files
+# =========================
+*.sublime-workspace
+*.sublime-project
+.vs/
+*.code-workspace
+
+# =========================
+# Language-specific (optional per subdir)
+# =========================
+# Node (if any sub-project uses it)
+node_modules/
+npm-debug.log*
+.yarn/
+.pnp
+.pnp.js
+
+# Rust (if any)
+target/
+
+# Go (if any)
+vendor/
+# Recall plugin auto-generated context
+.claude/recall-context.md
+
+# Local infrastructure secrets / access (NEVER commit, NEVER ingest)
+Secrets/
+.Secrets/
+
+# Machine-local agent and indexing state
+/.claude/
+/.memory/
+/.memsearch/
+/.remember/
+/.reconciliation/
+/_db-snapshots/
+/_worktrees/
+/cc_index.log
+/cc_index.mjs
+/cc_probe.mjs
+
+# Local databases, scan projects, patches, and one-off audit exports at the root
+/*.ssdb
+/*.dupeguru
+/*.patch
+/*.sql
+/_changed_lines.txt
+/_owner-turns-*.csv
+
+# Pre-monorepo root artifacts awaiting explicit classification. They are
+# preserved in place and listed by the migration inventory; ignore is not deletion.
+/*.html
+/COMPACT-SUMMARY-*.md
+/DOC_PATCH_REPORT-*.md
+/NAMING.md.lnk
+
+# Transitional source repositories. Remove each fence only through its verified
+# import step in docs/monorepo-migration-manifest.json.
+/Consignatio/
+/Probata/
+/FL-MCP/
+/Legal-desktop/
+/design-contract/
