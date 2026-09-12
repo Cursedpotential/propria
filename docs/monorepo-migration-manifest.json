@@ -8,14 +8,30 @@
       "id": "consignatio",
       "source": "Consignatio",
       "target": "projects/consignatio",
-      "state": "history_imported_overlay_pending",
+      "state": "working_overlay_imported_cutover_pending",
       "ownership": "owned",
       "git_head": "fa4f249",
       "git_tree": "45dffef2308ff9a3ace79f0a6810585307d64bb2",
       "root_import_commit": "9a5ed62743b9ea125b17740dbae671c83083733c",
       "dirty": true,
       "source_preserved": true,
-      "source_status_paths_after_import": 85
+      "source_status_paths_after_import": 85,
+      "source_status_paths_precommit_recheck": 53,
+      "concurrent_source_activity_observed": true,
+      "source_tracked_modifications": 16,
+      "source_untracked_paths": 69,
+      "overlay_copied_files": 78,
+      "overlay_copied_bytes": 1179373,
+      "overlay_manifest_sha256": "3404a0d0d48f2b08f589a96fa7d79f47b435305422e41d9462131ee30016eb6e",
+      "overlay_excluded_runtime_files": 3,
+      "overlay_manually_reconciled_instruction_files": 1,
+      "validation": {
+        "intake_backend_pytest_passed": 107,
+        "r2_b2_unittest_passed": 12,
+        "intake_frontend_tests_passed": 19,
+        "intake_frontend_build": "passed"
+      },
+      "receipt": "docs/CONSIGNATIO-OVERLAY-MIGRATION-2026-09-12.md"
     },
     {
       "id": "probata",

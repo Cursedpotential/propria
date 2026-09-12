@@ -1,0 +1,18 @@
+{
+  "subject": "note:consignatio_overlay_migration_20260912",
+  "title": "Consignatio working overlay imported without cutover",
+  "summary": "Verified finding 2026-09-12: Consignatio committed history is present under E:/AI_Workspace/Projects/Propria/projects/consignatio and the reviewed working overlay has been copied into that canonical subtree. Seventy-eight files totaling 1,179,373 bytes were copied byte-for-byte; ordered manifest SHA-256 is 3404a0d0d48f2b08f589a96fa7d79f47b435305422e41d9462131ee30016eb6e. One Intake instruction file was manually reconciled to preserve the CCC, Intake, and Docstore isolation boundary. The runtime version file, a generated compact summary, and the corpus-transfer approval marker were excluded. Validation from the canonical path passed 107 backend tests, 12 R2-to-B2 migration tests, 19 frontend tests, and the production frontend build under a 2 GiB Node heap ceiling. The migration did not modify or clean the original Consignatio repository. During validation its dirty-path count changed concurrently from 85 to 53 while HEAD remained fa4f249, so it remains in place as a recovery copy and cutover is still pending. This does not authorize a corpus scan, transfer, service change, deployment, or retirement of the source path.",
+  "priority": "high",
+  "authority": "verified_finding",
+  "status": "active",
+  "domains": [
+    "consignatio",
+    "intake",
+    "docs",
+    "infra"
+  ],
+  "source_ref": "E:/AI_Workspace/Projects/Propria/docs/CONSIGNATIO-OVERLAY-MIGRATION-2026-09-12.md",
+  "rationale": "Records the exact migration scope, content proof, validation results, exclusions, and remaining cutover boundary after querying Docstore for related current decisions.",
+  "actor": "codex-consignatio-overlay-migration",
+  "expected_revision": 1
+}

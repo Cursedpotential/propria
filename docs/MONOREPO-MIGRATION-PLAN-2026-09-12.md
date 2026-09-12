@@ -44,7 +44,7 @@ The 2026-09-12 inventory found:
 
 | Source root | Branch/HEAD | Tracked changes | Untracked paths | Divergence |
 |---|---:|---:|---:|---|
-| `Consignatio/` | `main` / `fa4f249` | 16 | 68 | equal to `origin/main` |
+| `Consignatio/` | `main` / `fa4f249` | 16 | 69 | equal to `origin/main` |
 | `Probata/probata/` | `main` / `99941cc` | 579 | 1,153 | behind 12, ahead 3 |
 | `Probata/probata/modules/vestigia-geodata_processor/` | `main` / `e1a4acd` | 2,085 | 953 | equal to recorded upstream |
 | `.../traceiq-rebuild/` | `ui-scaffold` / `0144af8` | 22 | 13 | equal to recorded upstream |
@@ -112,8 +112,17 @@ Progress, 2026-09-12: Consignatio’s seven-commit history at `fa4f249` was
 imported unsquashed under `projects/consignatio/`. The imported subtree tree hash
 `45dffef2308ff9a3ace79f0a6810585307d64bb2` exactly matched the source HEAD tree.
 The original source remains in place with 85 dirty/untracked paths observed after
-the import; none of that overlay was copied or modified. Canonical routing files
-inside the imported subtree now point to the Propria root.
+the import. A reviewed overlay subsequently copied 78 files byte-for-byte into the
+canonical subtree; the ordered copied-file manifest is
+`3404a0d0d48f2b08f589a96fa7d79f47b435305422e41d9462131ee30016eb6e`.
+One Intake routing file was reconciled manually. Three runtime/generated files,
+including the corpus-transfer approval marker, were excluded. Canonical-path
+validation passed 107 backend tests, 12 migration-tool tests, 19 frontend tests,
+and the production frontend build. The source remains untouched as the recovery
+copy by this migration, but its dirty-path count changed concurrently from 85 to
+53 while the source HEAD remained `fa4f249`; final cutover therefore remains
+pending. The detailed receipt is
+`docs/CONSIGNATIO-OVERLAY-MIGRATION-2026-09-12.md`.
 
 ### Phase 4 — Shared resources and dependency policy
 

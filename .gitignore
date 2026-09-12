@@ -192,6 +192,11 @@ Secrets/
 
 # Owner-controlled quarantine is preserved locally and never versioned.
 **/to_be_deleted/
+**/COMPACT-SUMMARY-*.md
+
+# Runtime authorization and local state are never source artifacts.
+/projects/consignatio/version
+/projects/consignatio/casebible/r2-b2-migration-codex/operator-controls/*.approved
 
 # Local databases, scan projects, patches, and one-off audit exports at the root
 /*.ssdb
