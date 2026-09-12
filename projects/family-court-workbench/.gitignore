@@ -1,0 +1,14 @@
+# Byline: Claude Code · Sonnet 5 · 2026-09-07
+node_modules/
+dist/
+dist-ssr/
+*.local
+src/routeTree.gen.ts
+src-tauri/target/
+src-tauri/gen/
+storybook-static/
+coverage/
+.vite/
+*.tsbuildinfo
+.env
+.env.local

@@ -1,0 +1,91 @@
+/* Byline: Claude Code · Sonnet 5 · 2026-09-07 */
+/* Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — full-height, readable workspace. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./tokens.css";
+
+/*
+ * Tailwind v4 CSS-first theme: map the design tokens (tokens.css) into
+ * Tailwind's `@theme` so `bg-surface`, `text-accent`, `border-warn`, etc.
+ * are available as utilities without a tailwind.config.js. Keep every
+ * color reference pointing at the CSS variable (never a hardcoded hex)
+ * so dark/light theming and the "no bright colors" palette stay the
+ * single source of truth in tokens.css.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-inset: var(--bg-inset);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-on-accent: var(--text-on-accent);
+  --color-text-disabled: var(--text-disabled);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-border: var(--accent-border);
+  --color-accent-text: var(--accent-text);
+
+  --color-good: var(--good);
+  --color-good-fill: var(--good-fill);
+  --color-good-border: var(--good-border);
+  --color-good-text: var(--good-text);
+
+  --color-warn: var(--warn);
+  --color-warn-fill: var(--warn-fill);
+  --color-warn-border: var(--warn-border);
+  --color-warn-text: var(--warn-text);
+
+  --color-critical: var(--critical);
+  --color-critical-fill: var(--critical-fill);
+  --color-critical-border: var(--critical-border);
+  --color-critical-text: var(--critical-text);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--accent-fill);
+  color: var(--text-primary);
+}
+
+/* Thin, unobtrusive scrollbars — no default OS chrome distracting from data density. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}

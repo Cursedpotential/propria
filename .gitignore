@@ -190,6 +190,9 @@ Secrets/
 /cc_index.mjs
 /cc_probe.mjs
 
+# Owner-controlled quarantine is preserved locally and never versioned.
+**/to_be_deleted/
+
 # Local databases, scan projects, patches, and one-off audit exports at the root
 /*.ssdb
 /*.dupeguru

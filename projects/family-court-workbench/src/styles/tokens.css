@@ -1,0 +1,151 @@
+/*
+ * Byline: Claude Code · Sonnet 5 · 2026-09-07
+ * Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — readable Nerd Font type system.
+ *
+ * Design tokens for the Family Court Console desktop app.
+ *
+ * Owner design directive (2026-09-07 13:18-13:20, verbatim intent):
+ *   "clean but feature filled, dark mode, NO neon, not super rounded and
+ *   comical either" + addendum (13:20): "no bright ass colors" — the accent
+ *   and every semantic color stay DESATURATED and MID-LUMINANCE. No pure
+ *   saturated hues, no high-chroma badges/chips, no neon, no glow, no
+ *   gradients. Status is communicated primarily through muted fills + a 1px
+ *   border + font-weight, NEVER through a loud color alone.
+ *
+ * Palette rationale (all colors chosen at low chroma, mid lightness so they
+ * read as "graphite with a hint of tint," not as UI candy):
+ *   --accent   #5b7a99  steel blue   (owner-specified exact value)
+ *   --good     #4f7d5c  muted sage   (owner-specified exact value)
+ *   --warn     #a9853a  muted ochre  (owner-specified exact value)
+ *   --critical #a4524a  muted brick  (owner-specified exact value)
+ *
+ * Dark is the default (this app is dark-first per owner directive); the
+ * light theme is an explicit opt-in via `[data-theme="light"]` on <html>.
+ * Radius is capped at 4-6px everywhere — never pill-shaped, never fully
+ * rounded ("not super rounded and comical"). Borders are always 1px
+ * hairlines, never glows or shadows-as-borders.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- Surfaces (neutral slate/graphite, slight cool bias) ---- */
+  --bg: #131519;
+  --bg-inset: #0d0f12;
+  --surface: #191c21;
+  --surface-raised: #20242b;
+  --surface-hover: #262b33;
+  --surface-selected: #2a3038;
+  --border: rgba(230, 232, 235, 0.09);
+  --border-strong: rgba(230, 232, 235, 0.16);
+
+  /* ---- Text ---- */
+  --text-primary: #e6e8eb;
+  --text-secondary: #b3b9c2;
+  --text-tertiary: #8d96a2;
+  --text-on-accent: #eef2f6;
+  --text-disabled: #4b5058;
+
+  /* ---- Accent: ONE restrained accent, never saturated ---- */
+  --accent: #5b7a99;
+  --accent-strong: #6f8bab;
+  --accent-fill: rgba(91, 122, 153, 0.16);
+  --accent-border: rgba(91, 122, 153, 0.4);
+  --accent-text: #a9c0d6;
+
+  /* ---- Semantic: desaturated, mid-luminance — never bright ---- */
+  --good: #4f7d5c;
+  --good-fill: rgba(79, 125, 92, 0.16);
+  --good-border: rgba(79, 125, 92, 0.42);
+  --good-text: #9cc2a6;
+
+  --warn: #a9853a;
+  --warn-fill: rgba(169, 133, 58, 0.16);
+  --warn-border: rgba(169, 133, 58, 0.42);
+  --warn-text: #d8bd82;
+
+  --critical: #a4524a;
+  --critical-fill: rgba(164, 82, 74, 0.16);
+  --critical-border: rgba(164, 82, 74, 0.42);
+  --critical-text: #dba49e;
+
+  /* ---- Shape ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 6px; /* deliberately capped — never larger than 6px anywhere */
+
+  /* ---- Type ---- */
+  --font-body: "CaskaydiaCove Nerd Font Propo", "CaskaydiaCove Nerd Font", "JetBrainsMono Nerd Font", "Segoe UI", sans-serif;
+  --font-mono: "CaskaydiaCove Nerd Font Mono", "JetBrainsMono Nerd Font", "Cascadia Code", "Consolas", ui-monospace, monospace;
+  --font-size-body: 14px;
+  --line-height-body: 1.55;
+
+  /* ---- Motion (kept minimal — no bouncy/comical easing) ---- */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 100ms;
+  --duration-base: 160ms;
+}
+
+/*
+ * Light theme — same desaturated formula, tokens re-derived for contrast on
+ * a light ground. Still no bright/saturated hues; the accent and semantic
+ * colors are deepened slightly (not brightened) to hold contrast on white.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f4f5f6;
+  --bg-inset: #eceeef;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #eef0f2;
+  --surface-selected: #e7eaed;
+  --border: rgba(20, 22, 26, 0.1);
+  --border-strong: rgba(20, 22, 26, 0.18);
+
+  --text-primary: #1a1d22;
+  --text-secondary: #4d5662;
+  --text-tertiary: #68727e;
+  --text-on-accent: #f4f7fa;
+  --text-disabled: #a7adb6;
+
+  --accent: #3f5b78;
+  --accent-strong: #34506d;
+  --accent-fill: rgba(63, 91, 120, 0.1);
+  --accent-border: rgba(63, 91, 120, 0.35);
+  --accent-text: #34506d;
+
+  --good: #3c6247;
+  --good-fill: rgba(60, 98, 71, 0.1);
+  --good-border: rgba(60, 98, 71, 0.35);
+  --good-text: #345a3d;
+
+  --warn: #8a6a28;
+  --warn-fill: rgba(138, 106, 40, 0.12);
+  --warn-border: rgba(138, 106, 40, 0.38);
+  --warn-text: #77591f;
+
+  --critical: #833f38;
+  --critical-fill: rgba(131, 63, 56, 0.1);
+  --critical-border: rgba(131, 63, 56, 0.35);
+  --critical-text: #73362f;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-body);
+  font-weight: 400;
+  line-height: var(--line-height-body);
+  letter-spacing: -0.005em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Digits align everywhere they matter: ids, hashes, dates, money. */
+.tabular-nums,
+.font-mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}

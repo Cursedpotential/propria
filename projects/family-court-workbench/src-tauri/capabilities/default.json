@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capability for the Family Court Console main window — opener (for docket source links) and core window/app basics only. No filesystem, no shell-exec, no network plugin: the webview talks to nothing but the loopback sidecar via fetch().",
+  "windows": ["main"],
+  "permissions": ["core:default", "opener:default"]
+}

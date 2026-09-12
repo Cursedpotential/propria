@@ -24,7 +24,7 @@ Propria/
 │   │   ├── repair-tool-kit/
 │   │   └── casebible/          # source/config only; corpus bytes remain external
 │   ├── probata/
-│   └── fl-mcp/
+│   └── family-court-workbench/
 ├── resources/
 │   ├── design/
 │   ├── libraries/
@@ -93,6 +93,13 @@ or represented as a dependency manifest.
 Start with the clean, smallest owned repository. Perform each import in an isolated
 root worktree, verify commit ancestry and tree hashes, then merge the reviewed root
 commit. Do not start with Probata or vestigia while they remain heavily dirty.
+
+Progress, 2026-09-12: the former `FL-MCP/` directory was verified to be the
+Propria-owned Family Court Workbench rather than a shared MCP layer. Its 96 source
+files moved to `projects/family-court-workbench/`; 26,679 generated/dependency files
+remain present but ignored. A compatibility junction preserves the old path. The
+source had no `.git` history to import. From the canonical path, 14 sidecar tests
+and 8 UI tests passed under a 2 GiB Node heap ceiling.
 
 ### Phase 3 — Reconcile dirty primary products
 

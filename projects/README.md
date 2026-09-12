@@ -7,7 +7,7 @@ modules. The intended first-level layout is:
 |---|---|---|
 | `projects/consignatio/` | `Consignatio/` | Vault, filesystem recovery, Intake, deduplication and corpus preparation |
 | `projects/probata/` | `Probata/probata/` | Evidence custody, proffer, analysis and platform operations |
-| `projects/fl-mcp/` | `FL-MCP/` | Shared/local MCP desktop surface pending ownership review |
+| `projects/family-court-workbench/` | `FL-MCP/` | Local Tauri workbench for the family-court-toolkit plugin |
 
 Intake remains part of Consignatio at
 `projects/consignatio/Intake/`; it is not a sibling evidence platform. Project

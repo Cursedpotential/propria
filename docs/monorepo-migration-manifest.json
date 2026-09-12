@@ -24,11 +24,15 @@
       "divergence": {"behind": 12, "ahead": 3}
     },
     {
-      "id": "fl-mcp",
+      "id": "family-court-workbench",
       "source": "FL-MCP",
-      "target": "projects/fl-mcp",
-      "state": "classification_required",
-      "ownership": "unverified"
+      "target": "projects/family-court-workbench",
+      "state": "imported",
+      "ownership": "owned",
+      "compatibility_path": "FL-MCP",
+      "compatibility_type": "junction",
+      "verified_source_file_count": 96,
+      "excluded_generated_file_count": 26679
     },
     {
       "id": "design-contract",
