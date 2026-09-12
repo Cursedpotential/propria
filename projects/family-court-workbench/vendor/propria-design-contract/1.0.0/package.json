@@ -1,0 +1,32 @@
+{
+  "name": "@propria/design-contract",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portable semantic color, typography, density, and product adapter contract for Propria surfaces.",
+  "type": "module",
+  "propria:byline": "Codex · GPT-5 · 2026-09-12",
+  "files": [
+    "tokens.css",
+    "theme.css",
+    "tokens.json",
+    "build.mjs",
+    "adapters",
+    "examples",
+    "README.md",
+    "CALLABILITY.md",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    "./tokens.css": "./tokens.css",
+    "./theme.css": "./theme.css",
+    "./tokens.json": "./tokens.json",
+    "./adapters/intake.css": "./adapters/intake.css",
+    "./adapters/probata.css": "./adapters/probata.css",
+    "./adapters/advocatio.css": "./adapters/advocatio.css",
+    "./adapters/portal.css": "./adapters/portal.css"
+  },
+  "scripts": {
+    "build:tokens": "node build.mjs",
+    "verify": "node build.mjs --check && node verify.mjs"
+  }
+}

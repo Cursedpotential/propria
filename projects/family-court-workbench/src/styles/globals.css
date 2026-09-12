@@ -1,7 +1,9 @@
 /* Byline: Claude Code · Sonnet 5 · 2026-09-07 */
-/* Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — full-height, readable workspace. */
+/* Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — vendored Carbon-Linen-Seal adoption. */
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "../../vendor/propria-design-contract/1.0.0/tokens.css";
+@import "../../vendor/propria-design-contract/1.0.0/theme.css";
 @import "./tokens.css";
 
 /*
@@ -49,16 +51,23 @@
   --color-critical-border: var(--critical-border);
   --color-critical-text: var(--critical-text);
 
+  --color-focus: var(--pr-focus);
+
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
 
   --font-sans: var(--font-body);
-  --font-mono: var(--font-mono);
+  --font-mono: var(--font-data);
 }
 
 * {
   border-color: var(--border);
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--pr-focus);
+  outline-offset: 2px;
 }
 
 html,
@@ -88,4 +97,10 @@ textarea {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
+}
+
+@media (forced-colors: active) {
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline-color: Highlight;
+  }
 }

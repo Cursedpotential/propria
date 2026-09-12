@@ -1,16 +1,14 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
+// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — shared compact-status geometry.
 //
-// Status chip. Owner rule (2026-09-07 addendum, "no bright ass colors"):
-// status is communicated via a MUTED fill + 1px border + font-weight, never
-// a loud/saturated color block. Every variant here maps to a desaturated,
-// mid-luminance token pair from tokens.css — there is no "success green" /
-// "danger red" full-saturation escape hatch anywhere in this component.
+// Status chip. Every tone maps to a labelled semantic state; color is
+// reinforcement, never the only carrier of authority or outcome.
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-[var(--radius-sm)] border px-1.5 py-0.5 text-xs font-medium leading-none",
+  "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold leading-none",
   {
     variants: {
       tone: {

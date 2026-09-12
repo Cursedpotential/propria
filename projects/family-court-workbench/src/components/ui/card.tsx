@@ -1,10 +1,10 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
-// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — readable card type scale.
+// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — shared surface hierarchy and readable type scale.
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-[var(--radius-md)] border border-border bg-surface", className)} {...props} />;
+  return <div className={cn("rounded-[var(--radius-md)] border border-border bg-surface [box-shadow:var(--pr-shadow-panel)]", className)} {...props} />;
 }
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

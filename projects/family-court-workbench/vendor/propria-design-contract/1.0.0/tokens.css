@@ -1,0 +1,84 @@
+/* Propria shared semantic tokens | contract 1.0.0 | 2026-09-12 | Byline: Codex · GPT-5
+   GENERATED FROM tokens.json. Do not hand-edit this file. */
+
+:root,
+[data-pr-theme="light"],
+:root.theme-light {
+  color-scheme: light;
+  --pr-canvas: #f3f0e8;
+  --pr-surface: #fffdf8;
+  --pr-surface-muted: #e7e1d5;
+  --pr-ink: #171a1c;
+  --pr-ink-muted: #5d625f;
+  --pr-border: #c6beb0;
+  --pr-border-strong: #81786a;
+  --pr-shell: #171c19;
+  --pr-shell-surface: #232b27;
+  --pr-shell-text: #f4f0e8;
+  --pr-action: #9f303b;
+  --pr-action-text: #ffffff;
+  --pr-action-hover: #7b222d;
+  --pr-action-soft: #f3e1e5;
+  --pr-focus: #7d5200;
+  --pr-positive: #247047;
+  --pr-caution: #9a5a12;
+  --pr-destructive: #b42318;
+  --pr-information: #376f72;
+  --pr-font-ui: "Instrument Sans", "Segoe UI", sans-serif;
+  --pr-font-data: "IBM Plex Mono", "Cascadia Code", monospace;
+  --pr-font-document: "Source Serif 4", "Playfair Display", Georgia, serif;
+  --pr-radius-control: 4px;
+  --pr-radius-panel: 6px;
+  --pr-radius-dialog: 8px;
+  --pr-shadow-panel: 0 8px 24px rgb(23 26 28 / 10%);
+  --pr-shadow-dialog: 0 20px 60px rgb(23 26 28 / 24%);
+}
+
+[data-pr-theme="dark"],
+:root.theme-dark,
+html.dark {
+  color-scheme: dark;
+  --pr-canvas: #161a18;
+  --pr-surface: #202622;
+  --pr-surface-muted: #2a312c;
+  --pr-ink: #f5f1e8;
+  --pr-ink-muted: #b8b1a5;
+  --pr-border: #49534d;
+  --pr-border-strong: #717c74;
+  --pr-shell: #101412;
+  --pr-shell-surface: #1b211d;
+  --pr-shell-text: #f5f1e8;
+  --pr-action: #f27479;
+  --pr-action-text: #211011;
+  --pr-action-hover: #ff9a9f;
+  --pr-action-soft: #4a252b;
+  --pr-focus: #f0b45a;
+  --pr-positive: #6cc392;
+  --pr-caution: #e6b55d;
+  --pr-destructive: #ff8377;
+  --pr-information: #82bdc0;
+  --pr-shadow-panel: 0 10px 28px rgb(0 0 0 / 28%);
+  --pr-shadow-dialog: 0 24px 72px rgb(0 0 0 / 44%);
+}
+
+/* Experience tier is independent of light/dark theme. These values tune density and composition,
+   never authority. General mirrors the Evidence Operations Desk; Advanced mirrors the Modular
+   Service Cockpit. */
+:root,
+[data-pr-experience="general"] {
+  --pr-layout-gap: 16px;
+  --pr-panel-padding: 16px;
+  --pr-data-row-height: 40px;
+  --pr-control-min-height: 36px;
+  --pr-context-strip-min-height: 48px;
+  --pr-label-size: 12px;
+}
+
+[data-pr-experience="advanced"] {
+  --pr-layout-gap: 10px;
+  --pr-panel-padding: 12px;
+  --pr-data-row-height: 36px;
+  --pr-control-min-height: 36px;
+  --pr-context-strip-min-height: 64px;
+  --pr-label-size: 11px;
+}

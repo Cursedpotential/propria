@@ -1,5 +1,5 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
-// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — host-aligned, readable Glide themes.
+// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — resolved Carbon-Linen-Seal Glide themes.
 //
 // Glide Data Grid over docket entries (filings/drafts/orders/upcoming
 // court_events — see mcp-app/src/store.ts's `caseDocket`). Row click opens a
@@ -30,63 +30,41 @@ function inForceLabel(entry: DocketEntry): string {
   return val === undefined || val === null ? "—" : val ? "yes" : "no";
 }
 
+function contractToken(name: string, fallback: string): string {
+  if (typeof document === "undefined") return fallback;
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
 export function DocketGrid({ entries }: { entries: DocketEntry[] }) {
   const [selected, setSelected] = React.useState<DocketEntry | null>(null);
   const { theme } = useTheme();
 
   const gridTheme = React.useMemo<Partial<Theme>>(
-    () =>
-      theme === "dark"
-        ? {
-            accentColor: "#7697b8",
-            accentFg: "#111820",
-            accentLight: "rgba(118, 151, 184, 0.18)",
-            textDark: "#f0f1ef",
-            textMedium: "#b1b8bd",
-            textLight: "#8b959c",
-            textHeader: "#d9dfe2",
-            textHeaderSelected: "#f0f1ef",
-            bgCell: "#242e36",
-            bgCellMedium: "#2c373f",
-            bgHeader: "#202b33",
-            bgHeaderHasFocus: "#314050",
-            bgHeaderHovered: "#2c3944",
-            bgSearchResult: "#313a66",
-            borderColor: "#43505a",
-            horizontalBorderColor: "#36434c",
-            headerBottomBorderColor: "#62707a",
-            linkColor: "#a9c0d6",
-            fontFamily: '"CaskaydiaCove Nerd Font Propo", "CaskaydiaCove Nerd Font", "JetBrainsMono Nerd Font", "Segoe UI", sans-serif',
-            baseFontStyle: "14px",
-            headerFontStyle: "600 13px",
-            lineHeight: 1.55,
-            roundingRadius: 4,
-          }
-        : {
-            accentColor: "#4051b9",
-            accentFg: "#ffffff",
-            accentLight: "#e9ecfb",
-            textDark: "#1d2228",
-            textMedium: "#687078",
-            textLight: "#8a9096",
-            textHeader: "#d9dfe2",
-            textHeaderSelected: "#ffffff",
-            bgCell: "#fffefb",
-            bgCellMedium: "#ebe8e0",
-            bgHeader: "#202b33",
-            bgHeaderHasFocus: "#314050",
-            bgHeaderHovered: "#2c3944",
-            bgSearchResult: "#e9ecfb",
-            borderColor: "#d5d1c9",
-            horizontalBorderColor: "#e2ded6",
-            headerBottomBorderColor: "#3d4952",
-            linkColor: "#2f3d9c",
-            fontFamily: '"CaskaydiaCove Nerd Font Propo", "CaskaydiaCove Nerd Font", "JetBrainsMono Nerd Font", "Segoe UI", sans-serif',
-            baseFontStyle: "14px",
-            headerFontStyle: "600 13px",
-            lineHeight: 1.55,
-            roundingRadius: 4,
-          },
+    () => ({
+      accentColor: contractToken("--pr-action", theme === "dark" ? "#f27479" : "#9f303b"),
+      accentFg: contractToken("--pr-action-text", theme === "dark" ? "#211011" : "#ffffff"),
+      accentLight: contractToken("--pr-action-soft", theme === "dark" ? "#4a252b" : "#f3e1e5"),
+      textDark: contractToken("--pr-ink", theme === "dark" ? "#f5f1e8" : "#171a1c"),
+      textMedium: contractToken("--pr-ink-muted", theme === "dark" ? "#b8b1a5" : "#5d625f"),
+      textLight: contractToken("--pr-ink-muted", theme === "dark" ? "#b8b1a5" : "#5d625f"),
+      textHeader: contractToken("--pr-shell-text", theme === "dark" ? "#f5f1e8" : "#f4f0e8"),
+      textHeaderSelected: contractToken("--pr-shell-text", theme === "dark" ? "#f5f1e8" : "#f4f0e8"),
+      bgCell: contractToken("--pr-surface", theme === "dark" ? "#202622" : "#fffdf8"),
+      bgCellMedium: contractToken("--pr-surface-muted", theme === "dark" ? "#2a312c" : "#e7e1d5"),
+      bgHeader: contractToken("--pr-shell-surface", theme === "dark" ? "#1b211d" : "#232b27"),
+      bgHeaderHasFocus: contractToken("--pr-action-soft", theme === "dark" ? "#4a252b" : "#f3e1e5"),
+      bgHeaderHovered: contractToken("--pr-border-strong", theme === "dark" ? "#717c74" : "#81786a"),
+      bgSearchResult: contractToken("--pr-action-soft", theme === "dark" ? "#4a252b" : "#f3e1e5"),
+      borderColor: contractToken("--pr-border", theme === "dark" ? "#49534d" : "#c6beb0"),
+      horizontalBorderColor: contractToken("--pr-border", theme === "dark" ? "#49534d" : "#c6beb0"),
+      headerBottomBorderColor: contractToken("--pr-border-strong", theme === "dark" ? "#717c74" : "#81786a"),
+      linkColor: contractToken("--pr-information", theme === "dark" ? "#82bdc0" : "#376f72"),
+      fontFamily: contractToken("--pr-font-ui", '"Instrument Sans", "Segoe UI", sans-serif'),
+      baseFontStyle: "14px",
+      headerFontStyle: "600 13px",
+      lineHeight: 1.55,
+      roundingRadius: 4,
+    }),
     [theme],
   );
 

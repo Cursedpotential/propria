@@ -5,6 +5,8 @@
   "type": "module",
   "description": "Local desktop work surface (Tauri) for the family-court-toolkit plugin — case status, docket, timeline, memos, evidence, evals, reference and a Claude chat pane driven by the Agent SDK against the plugin's embedded SurrealDB case store.",
   "scripts": {
+    "design:build": "npm --prefix vendor/propria-design-contract/1.0.0 run build:tokens",
+    "design:verify": "npm --prefix vendor/propria-design-contract/1.0.0 run verify",
     "dev": "concurrently -k -n sidecar,vite -c yellow,cyan \"node sidecar/server.mjs\" \"vite\"",
     "dev:sidecar": "node sidecar/server.mjs",
     "build": "vite build && tsc -b",

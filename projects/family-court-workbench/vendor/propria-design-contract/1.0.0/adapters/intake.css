@@ -1,0 +1,24 @@
+/* Consignatio Intake variable adapter | Propria contract 1.0.0 | 2026-09-12
+   Byline: Codex · GPT-5. Load after tokens.css and before product overrides. */
+
+:root {
+  --workspace: var(--pr-canvas);
+  --surface: var(--pr-surface);
+  --ink: var(--pr-ink);
+  --muted: var(--pr-ink-muted);
+  --soft-fill: var(--pr-surface-muted);
+  --border: var(--pr-border);
+  --border-strong: var(--pr-border-strong);
+  --nav: var(--pr-shell);
+  --sidebar: var(--pr-shell-surface);
+  --sidebar-active: var(--pr-action-soft);
+  --shell-text: var(--pr-shell-text);
+  --shell-bright: var(--pr-shell-text);
+  --indigo: var(--pr-action);
+  --focus: var(--pr-focus);
+  --success: var(--pr-positive);
+  --warning: var(--pr-caution);
+  --destructive: var(--pr-destructive);
+  --font-ui: var(--pr-font-ui);
+  --font-mono: var(--pr-font-data);
+}

@@ -27,7 +27,7 @@ export const AllTonesDarkAndLight: Story = {
   render: () => (
     <div className="flex flex-col gap-3">
       {(["dark", "light"] as const).map((theme) => (
-        <div key={theme} data-theme={theme} className="flex items-center gap-2 rounded-md bg-bg p-4">
+        <div key={theme} data-theme={theme} data-pr-theme={theme} className="flex items-center gap-2 rounded-md bg-bg p-4">
           <Badge tone="neutral">neutral</Badge>
           <Badge tone="accent">accent</Badge>
           <Badge tone="good">good</Badge>

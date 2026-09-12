@@ -12,8 +12,8 @@ describe("Badge", () => {
   it.each(["neutral", "accent", "good", "warn", "critical"] as const)("applies the %s tone's token classes, never a bare bright color utility", (tone) => {
     render(<Badge tone={tone}>x</Badge>);
     const el = screen.getByText("x");
-    // Owner rule: status is fill + border + weight from the desaturated
-    // token set — never a Tailwind stock color like bg-red-500/bg-green-500.
+    // Shared contract rule: statuses use semantic tokens, never a stock color
+    // utility whose meaning can drift between products.
     expect(el.className).not.toMatch(/-(red|green|yellow|blue|orange|pink|purple|lime|emerald|cyan)-\d/);
   });
 });

@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
+// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — reflow-safe Carbon-Linen-Seal header.
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Moon, Search, Sun } from "lucide-react";
@@ -23,8 +24,8 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
-      <form onSubmit={onSearch} className="flex max-w-md flex-1 items-center gap-2">
+    <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 border-b border-border bg-surface px-3 py-2">
+      <form onSubmit={onSearch} className="flex min-w-56 max-w-md flex-1 items-center gap-2 max-[520px]:min-w-full">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-text-tertiary" aria-hidden />
           <Input

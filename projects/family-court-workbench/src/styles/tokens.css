@@ -1,6 +1,6 @@
 /*
  * Byline: Claude Code · Sonnet 5 · 2026-09-07
- * Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — readable Nerd Font type system.
+ * Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — Family Court adapter for the vendored Propria contract.
  *
  * Design tokens for the Family Court Console desktop app.
  *
@@ -12,12 +12,9 @@
  *   gradients. Status is communicated primarily through muted fills + a 1px
  *   border + font-weight, NEVER through a loud color alone.
  *
- * Palette rationale (all colors chosen at low chroma, mid lightness so they
- * read as "graphite with a hint of tint," not as UI candy):
- *   --accent   #5b7a99  steel blue   (owner-specified exact value)
- *   --good     #4f7d5c  muted sage   (owner-specified exact value)
- *   --warn     #a9853a  muted ochre  (owner-specified exact value)
- *   --critical #a4524a  muted brick  (owner-specified exact value)
+ * Carbon-Linen-Seal values come only from the pinned contract's generated
+ * `tokens.css`. This file is a compatibility adapter for established local
+ * names so the React components do not create a second semantic palette.
  *
  * Dark is the default (this app is dark-first per owner directive); the
  * light theme is an explicit opt-in via `[data-theme="light"]` on <html>.
@@ -30,53 +27,53 @@
   color-scheme: dark;
 
   /* ---- Surfaces (neutral slate/graphite, slight cool bias) ---- */
-  --bg: #131519;
-  --bg-inset: #0d0f12;
-  --surface: #191c21;
-  --surface-raised: #20242b;
-  --surface-hover: #262b33;
-  --surface-selected: #2a3038;
-  --border: rgba(230, 232, 235, 0.09);
-  --border-strong: rgba(230, 232, 235, 0.16);
+  --bg: var(--pr-canvas);
+  --bg-inset: var(--pr-surface-muted);
+  --surface: var(--pr-surface);
+  --surface-raised: var(--pr-surface-muted);
+  --surface-hover: color-mix(in srgb, var(--pr-surface-muted) 82%, var(--pr-ink) 18%);
+  --surface-selected: var(--pr-action-soft);
+  --border: var(--pr-border);
+  --border-strong: var(--pr-border-strong);
 
   /* ---- Text ---- */
-  --text-primary: #e6e8eb;
-  --text-secondary: #b3b9c2;
-  --text-tertiary: #8d96a2;
-  --text-on-accent: #eef2f6;
-  --text-disabled: #4b5058;
+  --text-primary: var(--pr-ink);
+  --text-secondary: var(--pr-ink-muted);
+  --text-tertiary: color-mix(in srgb, var(--pr-ink-muted) 88%, var(--pr-canvas));
+  --text-on-accent: var(--pr-action-text);
+  --text-disabled: color-mix(in srgb, var(--pr-ink-muted) 62%, var(--pr-canvas));
 
   /* ---- Accent: ONE restrained accent, never saturated ---- */
-  --accent: #5b7a99;
-  --accent-strong: #6f8bab;
-  --accent-fill: rgba(91, 122, 153, 0.16);
-  --accent-border: rgba(91, 122, 153, 0.4);
-  --accent-text: #a9c0d6;
+  --accent: var(--pr-action);
+  --accent-strong: var(--pr-action-hover);
+  --accent-fill: var(--pr-action-soft);
+  --accent-border: var(--pr-action);
+  --accent-text: var(--pr-action);
 
   /* ---- Semantic: desaturated, mid-luminance — never bright ---- */
-  --good: #4f7d5c;
-  --good-fill: rgba(79, 125, 92, 0.16);
-  --good-border: rgba(79, 125, 92, 0.42);
-  --good-text: #9cc2a6;
+  --good: var(--pr-positive);
+  --good-fill: color-mix(in srgb, var(--pr-positive) 14%, transparent);
+  --good-border: color-mix(in srgb, var(--pr-positive) 62%, var(--pr-border));
+  --good-text: var(--pr-positive);
 
-  --warn: #a9853a;
-  --warn-fill: rgba(169, 133, 58, 0.16);
-  --warn-border: rgba(169, 133, 58, 0.42);
-  --warn-text: #d8bd82;
+  --warn: var(--pr-caution);
+  --warn-fill: color-mix(in srgb, var(--pr-caution) 14%, transparent);
+  --warn-border: color-mix(in srgb, var(--pr-caution) 62%, var(--pr-border));
+  --warn-text: var(--pr-caution);
 
-  --critical: #a4524a;
-  --critical-fill: rgba(164, 82, 74, 0.16);
-  --critical-border: rgba(164, 82, 74, 0.42);
-  --critical-text: #dba49e;
+  --critical: var(--pr-destructive);
+  --critical-fill: color-mix(in srgb, var(--pr-destructive) 14%, transparent);
+  --critical-border: color-mix(in srgb, var(--pr-destructive) 62%, var(--pr-border));
+  --critical-text: var(--pr-destructive);
 
   /* ---- Shape ---- */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 6px; /* deliberately capped — never larger than 6px anywhere */
+  --radius-sm: var(--pr-radius-control);
+  --radius-md: var(--pr-radius-panel);
+  --radius-lg: var(--pr-radius-dialog);
 
   /* ---- Type ---- */
-  --font-body: "CaskaydiaCove Nerd Font Propo", "CaskaydiaCove Nerd Font", "JetBrainsMono Nerd Font", "Segoe UI", sans-serif;
-  --font-mono: "CaskaydiaCove Nerd Font Mono", "JetBrainsMono Nerd Font", "Cascadia Code", "Consolas", ui-monospace, monospace;
+  --font-body: var(--pr-font-ui);
+  --font-data: var(--pr-font-data);
   --font-size-body: 14px;
   --line-height-body: 1.55;
 
@@ -87,48 +84,47 @@
 }
 
 /*
- * Light theme — same desaturated formula, tokens re-derived for contrast on
- * a light ground. Still no bright/saturated hues; the accent and semantic
- * colors are deepened slightly (not brightened) to hold contrast on white.
+ * Light compatibility selector. The same semantic aliases resolve through
+ * the active `--pr-*` theme values; theme never changes their meaning.
  */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f4f5f6;
-  --bg-inset: #eceeef;
-  --surface: #ffffff;
-  --surface-raised: #ffffff;
-  --surface-hover: #eef0f2;
-  --surface-selected: #e7eaed;
-  --border: rgba(20, 22, 26, 0.1);
-  --border-strong: rgba(20, 22, 26, 0.18);
+  --bg: var(--pr-canvas);
+  --bg-inset: var(--pr-surface-muted);
+  --surface: var(--pr-surface);
+  --surface-raised: var(--pr-surface-muted);
+  --surface-hover: color-mix(in srgb, var(--pr-surface-muted) 82%, var(--pr-ink) 18%);
+  --surface-selected: var(--pr-action-soft);
+  --border: var(--pr-border);
+  --border-strong: var(--pr-border-strong);
 
-  --text-primary: #1a1d22;
-  --text-secondary: #4d5662;
-  --text-tertiary: #68727e;
-  --text-on-accent: #f4f7fa;
-  --text-disabled: #a7adb6;
+  --text-primary: var(--pr-ink);
+  --text-secondary: var(--pr-ink-muted);
+  --text-tertiary: color-mix(in srgb, var(--pr-ink-muted) 88%, var(--pr-canvas));
+  --text-on-accent: var(--pr-action-text);
+  --text-disabled: color-mix(in srgb, var(--pr-ink-muted) 62%, var(--pr-canvas));
 
-  --accent: #3f5b78;
-  --accent-strong: #34506d;
-  --accent-fill: rgba(63, 91, 120, 0.1);
-  --accent-border: rgba(63, 91, 120, 0.35);
-  --accent-text: #34506d;
+  --accent: var(--pr-action);
+  --accent-strong: var(--pr-action-hover);
+  --accent-fill: var(--pr-action-soft);
+  --accent-border: var(--pr-action);
+  --accent-text: var(--pr-action);
 
-  --good: #3c6247;
-  --good-fill: rgba(60, 98, 71, 0.1);
-  --good-border: rgba(60, 98, 71, 0.35);
-  --good-text: #345a3d;
+  --good: var(--pr-positive);
+  --good-fill: color-mix(in srgb, var(--pr-positive) 14%, transparent);
+  --good-border: color-mix(in srgb, var(--pr-positive) 62%, var(--pr-border));
+  --good-text: var(--pr-positive);
 
-  --warn: #8a6a28;
-  --warn-fill: rgba(138, 106, 40, 0.12);
-  --warn-border: rgba(138, 106, 40, 0.38);
-  --warn-text: #77591f;
+  --warn: var(--pr-caution);
+  --warn-fill: color-mix(in srgb, var(--pr-caution) 14%, transparent);
+  --warn-border: color-mix(in srgb, var(--pr-caution) 62%, var(--pr-border));
+  --warn-text: var(--pr-caution);
 
-  --critical: #833f38;
-  --critical-fill: rgba(131, 63, 56, 0.1);
-  --critical-border: rgba(131, 63, 56, 0.35);
-  --critical-text: #73362f;
+  --critical: var(--pr-destructive);
+  --critical-fill: color-mix(in srgb, var(--pr-destructive) 14%, transparent);
+  --critical-border: color-mix(in srgb, var(--pr-destructive) 62%, var(--pr-border));
+  --critical-text: var(--pr-destructive);
 }
 
 body {
