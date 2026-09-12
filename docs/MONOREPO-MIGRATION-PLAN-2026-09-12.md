@@ -107,6 +107,11 @@ Move the design contract and genuinely shared libraries into `resources/` only
 after finding every consumer. Replace old paths atomically with code/config/doc
 updates. Retain third-party license and provenance files.
 
+Progress, 2026-09-12: the 14-file shared design contract moved to
+`resources/design/` after a bounded consumer search. A compatibility junction at
+`design-contract/` preserves old local callers; root documentation now uses the
+canonical path. No content was deleted.
+
 ### Phase 5 — Cutover
 
 Update root and project `AGENTS.md`, `CLAUDE.md`, development commands, CI, Coolify

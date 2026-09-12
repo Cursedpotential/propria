@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en" data-pr-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Probata two-surface token sample</title>
+  <link rel="stylesheet" href="../tokens.css">
+  <link rel="stylesheet" href="../theme.css">
+  <style>
+    /* Byline: Codex · GPT-5 · 2026-09-12. Token sample; original Probata mockups remain canonical. */
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body { padding: 24px; }
+    button { font: inherit; cursor: pointer; }
+    .review { width: min(1480px, 100%); margin: auto; }
+    .review-head, .surface-label { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+    .review-head { margin-bottom: 30px; }
+    .review-head h1 { margin: 0; font: 650 clamp(28px, 4vw, 48px)/1 var(--pr-font-document); }
+    .review-head p { max-width: 750px; margin: 8px 0 0; color: var(--pr-ink-muted); }
+    .theme-buttons { display: flex; gap: 8px; }
+    .quiet-button { min-height: 36px; padding: 7px 11px; color: var(--pr-ink); border: 1px solid var(--pr-border-strong); border-radius: var(--pr-radius-control); background: var(--pr-surface); }
+    .quiet-button:focus-visible { outline: 3px solid var(--pr-focus); outline-offset: 2px; }
+    .surface-label { margin: 30px 0 10px; }
+    .surface-label h2 { margin: 0; font-size: 18px; }
+    .surface-label span { color: var(--pr-ink-muted); font: 12px var(--pr-font-data); }
+
+    .desk, .cockpit { overflow: hidden; border: 1px solid var(--pr-border-strong); border-radius: var(--pr-radius-panel); box-shadow: var(--pr-shadow-dialog); }
+    .desk { display: grid; grid-template-rows: 58px minmax(420px, 1fr); }
+    .desk-top { display: grid; grid-template-columns: 220px 1fr auto; align-items: center; color: var(--pr-shell-text); border-bottom: 3px solid var(--pr-action); background: var(--pr-shell); }
+    .brand { padding: 0 16px; font-weight: 800; letter-spacing: .04em; }
+    .top-context { padding: 9px 16px; border-left: 1px solid var(--pr-border-strong); }
+    .top-context small, .module small, .jacket small { display: block; color: var(--pr-ink-muted); font: 10px var(--pr-font-data); }
+    .top-context small { color: var(--pr-shell-text); opacity: .68; }
+    .desk-top .pr-status { margin-right: 14px; color: var(--pr-shell-text); }
+    .desk-body { display: grid; grid-template-columns: 200px minmax(430px, 1fr) 330px; min-height: 0; }
+    .desk-nav { padding: 14px 10px; color: var(--pr-shell-text); background: var(--pr-shell-surface); }
+    .desk-nav button { width: 100%; min-height: 36px; margin-bottom: 5px; padding: 8px 10px; color: inherit; border: 0; border-left: 3px solid transparent; background: transparent; text-align: left; }
+    .desk-nav button.active { border-left-color: var(--pr-action); background: var(--pr-action-soft); color: var(--pr-ink); }
+    .desk-main { min-width: 0; padding: var(--pr-panel-padding); background: var(--pr-canvas); }
+    .desk-main h3, .jacket h3 { margin: 0 0 4px; }
+    .desk-main > p { margin: 0 0 16px; color: var(--pr-ink-muted); }
+    .table { overflow: hidden; border: 1px solid var(--pr-border); background: var(--pr-surface); }
+    .row { display: grid; grid-template-columns: 38px 1.7fr .85fr .8fr; min-height: var(--pr-data-row-height); align-items: center; border-top: 1px solid var(--pr-border); }
+    .row:first-child { border-top: 0; }
+    .row > span { min-width: 0; padding: 8px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row.head { color: var(--pr-ink-muted); background: var(--pr-surface-muted); font-size: 11px; font-weight: 800; }
+    .row.selected { background: var(--pr-action-soft); box-shadow: inset 3px 0 var(--pr-action); }
+    .jacket { padding: var(--pr-panel-padding); border-left: 1px solid var(--pr-border-strong); background: var(--pr-surface); }
+    .chain { display: grid; gap: 8px; margin-top: 16px; }
+    .chain div { padding: 9px 10px; border-left: 3px solid var(--pr-information); background: var(--pr-surface-muted); }
+    .chain div:nth-child(3) { border-left-color: var(--pr-caution); }
+    .chain div:nth-child(4) { border-left-color: var(--pr-positive); }
+
+    .cockpit { color: var(--pr-ink); background: var(--pr-canvas); }
+    .cockpit-top { display: flex; min-height: 52px; align-items: center; gap: 20px; padding: 0 16px; color: var(--pr-shell-text); background: var(--pr-shell); }
+    .presets { display: flex; gap: 4px; }
+    .presets span { padding: 9px 8px; border-bottom: 2px solid transparent; font-size: 11px; opacity: .68; }
+    .presets span.active { border-bottom-color: var(--pr-focus); opacity: 1; }
+    .context-spine { display: grid; grid-template-columns: repeat(6, minmax(100px, 1fr)); min-height: var(--pr-context-strip-min-height); border-bottom: 1px solid var(--pr-border-strong); background: var(--pr-surface); }
+    .scope { min-width: 0; padding: 10px 12px; border-right: 1px solid var(--pr-border); }
+    .scope:last-child { border-right: 0; }
+    .scope span { display: block; color: var(--pr-ink-muted); font: 9px var(--pr-font-data); text-transform: uppercase; }
+    .scope strong { display: block; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+    .cockpit-body { display: grid; grid-template-columns: 54px 1fr; }
+    .rail { display: grid; align-content: start; gap: 7px; padding: 10px 8px; color: var(--pr-shell-text); background: var(--pr-shell-surface); }
+    .rail span { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--pr-border-strong); font: 10px var(--pr-font-data); }
+    .modules { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: var(--pr-layout-gap); padding: var(--pr-panel-padding); }
+    .module { min-height: 145px; padding: var(--pr-panel-padding); border: 1px solid var(--pr-border); border-top: 2px solid var(--pr-information); background: var(--pr-surface); }
+    .module:nth-child(2), .module:nth-child(5) { border-top-color: var(--pr-focus); }
+    .module:nth-child(3) { border-top-color: var(--pr-destructive); }
+    .module:nth-child(4) { border-top-color: var(--pr-action); }
+    .module:nth-child(6) { border-top-color: var(--pr-positive); }
+    .module h3 { margin: 5px 0 10px; font-size: 13px; }
+    .metric { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; border: 1px solid var(--pr-border); background: var(--pr-border); }
+    .metric span { padding: 8px; background: var(--pr-surface-muted); font: 11px var(--pr-font-data); }
+    .boundary { margin-top: 10px; color: var(--pr-ink-muted); font-size: 11px; }
+
+    .legal-alignment { display: grid; grid-template-columns: 220px 1fr 310px; min-height: 300px; }
+    .legal-nav { padding: 16px 12px; color: var(--pr-shell-text); background: var(--pr-shell); }
+    .legal-nav h3 { margin: 0 8px 18px; }
+    .legal-nav div { min-height: 36px; padding: 9px 8px; border-left: 3px solid transparent; }
+    .legal-nav .active { border-left-color: var(--pr-action); background: var(--pr-shell-surface); }
+    .legal-document { padding: 24px; background: var(--pr-surface); }
+    .legal-document h3 { margin: 0; font: 650 28px var(--pr-font-document); }
+    .legal-document p { max-width: 68ch; line-height: 1.65; }
+    .legal-inspector { padding: 16px; border-left: 1px solid var(--pr-border); background: var(--pr-surface-muted); }
+    .legal-state { margin: 12px 0; padding: 10px; border-left: 3px solid var(--pr-caution); background: var(--pr-surface); }
+
+    @media (max-width: 980px) {
+      body { padding: 12px; }
+      .desk-body { grid-template-columns: 58px minmax(0, 1fr); }
+      .jacket { grid-column: 1 / -1; border-top: 1px solid var(--pr-border-strong); border-left: 0; }
+      .context-spine { grid-template-columns: repeat(3, 1fr); }
+      .modules { grid-template-columns: 1fr 1fr; }
+      .legal-alignment { grid-template-columns: 150px 1fr; }
+      .legal-inspector { grid-column: 1 / -1; border-top: 1px solid var(--pr-border); border-left: 0; }
+    }
+    @media (max-width: 680px) {
+      .review-head { align-items: start; flex-direction: column; }
+      .desk-top { grid-template-columns: 1fr auto; }
+      .top-context { display: none; }
+      .desk-body, .legal-alignment { grid-template-columns: 1fr; }
+      .desk-nav { display: flex; overflow-x: auto; }
+      .desk-nav button { width: auto; min-width: max-content; }
+      .row { grid-template-columns: 32px 1fr .8fr; }
+      .row > :last-child { display: none; }
+      .context-spine, .modules { grid-template-columns: 1fr; }
+      .cockpit-body { grid-template-columns: 1fr; }
+      .rail { grid-auto-flow: column; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body class="pr-app">
+  <main class="review">
+    <header class="review-head">
+      <div>
+        <h1>One visual language, bounded workspaces</h1>
+        <p>The original Probata General and Advanced structures remain intact. Legal aligns through the same shell, components, states, and tokens while keeping legal authority and document semantics distinct.</p>
+      </div>
+      <div class="theme-buttons" aria-label="Theme preview">
+        <button class="quiet-button" type="button" data-theme="light">Light</button>
+        <button class="quiet-button" type="button" data-theme="dark">Dark</button>
+      </div>
+    </header>
+
+    <div class="surface-label"><h2>Probata General · Evidence Operations Desk</h2><span>daily evidence work</span></div>
+    <section class="desk" data-pr-experience="general" aria-label="General Evidence Operations Desk sample">
+      <header class="desk-top"><div class="brand">INDICIA PROBATA</div><div class="top-context"><small>Matter / court case</small><strong>Primary matter · Primary proceeding</strong></div><span class="pr-status">Verified</span></header>
+      <div class="desk-body">
+        <nav class="desk-nav" aria-label="General work"><button class="active">Evidence desk</button><button>Intake</button><button>Review</button><button>Chronology</button><button>Receipts</button></nav>
+        <div class="desk-main"><h3>Evidence review</h3><p>Dense daily operation with custody state always visible.</p><div class="table" role="table"><div class="row head"><span></span><span>Source</span><span>State</span><span>Updated</span></div><div class="row selected"><span>✓</span><span>Exhibit 12 · message export</span><span>Pending review</span><span class="pr-data">14:32</span></div><div class="row"><span></span><span>School attendance record</span><span>Accepted</span><span class="pr-data">13:48</span></div><div class="row"><span></span><span>Call log · provider export</span><span>Parsed</span><span class="pr-data">12:05</span></div><div class="row"><span></span><span>Photograph metadata</span><span>Needs context</span><span class="pr-data">09:18</span></div></div></div>
+        <aside class="jacket"><small>Persistent inspector</small><h3>Custody jacket</h3><div class="chain"><div>Canonical source<br><small class="pr-data">sha256 · source version 4</small></div><div>Normalized record<br><small>parser receipt attached</small></div><div>Evidence proposal<br><small>human decision required</small></div><div>Verified status<br><small>scope and revision pinned</small></div></div></aside>
+      </div>
+    </section>
+
+    <div class="surface-label"><h2>Probata Advanced · Modular Service Cockpit</h2><span>deep forensic tools · gated</span></div>
+    <section class="cockpit" data-pr-experience="advanced" aria-label="Advanced Modular Service Cockpit sample">
+      <header class="cockpit-top"><strong>INDICIA PROBATA</strong><div class="presets"><span class="active">Investigation</span><span>Chronology</span><span>Custody</span><span>Automation</span></div></header>
+      <div class="context-spine"><div class="scope"><span>Matter</span><strong>Primary matter</strong></div><div class="scope"><span>Court case</span><strong>Primary proceeding</strong></div><div class="scope"><span>Partition</span><strong class="pr-data">matter:primary</strong></div><div class="scope"><span>Horizon</span><strong class="pr-data">2026-09-12</strong></div><div class="scope"><span>Run</span><strong class="pr-data">run_8fd2</strong></div><div class="scope"><span>Authority</span><strong>Proposal only</strong></div></div>
+      <div class="cockpit-body"><nav class="rail"><span>TS</span><span>GR</span><span>WF</span><span>DB</span></nav><div class="modules">
+        <article class="module"><small>Governed service</small><h3>Timesketch chronology</h3><div class="metric"><span>84 events</span><span>7 gaps</span><span>3 flags</span></div><p class="boundary">Standalone projection · source pins retained</p></article>
+        <article class="module"><small>Extraction</small><h3>Semantica proposals</h3><div class="metric"><span>19 claims</span><span>4 pending</span><span>0 accepted</span></div><p class="boundary">Candidates until human review</p></article>
+        <article class="module"><small>Custody</small><h3>Evidence integrity</h3><div class="metric"><span>42 hashes</span><span>2 stale</span><span>1 alert</span></div><p class="boundary">PostgreSQL receipts are canonical</p></article>
+        <article class="module"><small>Relationship view</small><h3>Graph projection</h3><div class="metric"><span>31 nodes</span><span>56 links</span><span>2 unknown</span></div><p class="boundary">Projection is not source authority</p></article>
+        <article class="module"><small>Workflow</small><h3>Temporal and n8n</h3><div class="metric"><span>6 active</span><span>1 blocked</span><span>9 complete</span></div><p class="boundary">Durable run IDs remain visible</p></article>
+        <article class="module"><small>Legal handoff</small><h3>Legal Workdesk package</h3><div class="metric"><span>v12 pinned</span><span>3 drafts</span><span>1 stale</span></div><p class="boundary">Versioned source package · no evidence writes</p></article>
+      </div></div>
+    </section>
+
+    <div class="surface-label"><h2>advocatio Legal Workdesk · same chassis, quieter document workspace</h2><span>separate authority</span></div>
+    <section class="pr-surface legal-alignment" data-pr-experience="general" aria-label="Aligned legal workspace sample">
+      <nav class="legal-nav"><h3>ADVOCATIO<br><small>Legal Workdesk</small></h3><div class="active">Matter brief</div><div>Research</div><div>Drafts</div><div>Review</div><div>Release</div></nav>
+      <article class="legal-document"><span class="pr-status" data-pr-status="caution">Attorney review required</span><h3>Motion response · working draft</h3><p>The reading surface uses the same geometry, contrast, focus, and semantic state system as Probata. Document typography and longer measure distinguish legal writing without creating another visual brand.</p><p>Every factual assertion remains bound to a versioned source package. A new evidence revision marks dependent work stale; it does not silently update or re-approve the draft.</p></article>
+      <aside class="legal-inspector"><small class="pr-data">LEGAL SOURCE PACKAGE</small><h3>Package v12</h3><div class="legal-state"><strong>Stale dependency</strong><br><small>One source has a newer accepted revision.</small></div><div class="chain"><div>Manifest hash<br><small class="pr-data">8c41…e72a</small></div><div>Authority posture<br><small>Verified primary + conflict noted</small></div></div></aside>
+    </section>
+  </main>
+  <script>
+    document.querySelectorAll("[data-theme]").forEach((button) => {
+      button.addEventListener("click", () => { document.documentElement.dataset.prTheme = button.dataset.theme; });
+    });
+  </script>
+</body>
+</html>
