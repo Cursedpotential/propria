@@ -6,7 +6,7 @@
 
 **Contract:** [`../SURFACE-DESIGN-CONTRACT.md`](../SURFACE-DESIGN-CONTRACT.md)
 
-**Canonical package:** [`../resources/design/`](../resources/design/)
+**Canonical package:** [`../resources/design/`](../resources/design/) at pinned source commit `c6da141`
 
 This register prevents the verified shared package from being mistaken for completed product adoption or being lost when the design-contract task closes. A row changes state only with the evidence named in its acceptance gate. Chat status, an active process, a generated sample, or a local build is not completion.
 
@@ -24,7 +24,7 @@ This register prevents the verified shared package from being mistaken for compl
 | ID | Product lane | Exact surface boundary | Assignee | State | Earliest start | Acceptance gate |
 |---|---|---|---|---|---|---|
 | SDA-00 | Propria shared contract | `SURFACE-DESIGN-CONTRACT.md` and `resources/design/` | Propria migration owner | VERIFIED | complete | Imported manifest state; canonical target exists; compatibility junction resolves to it; 15-file package is tracked, including authoritative `tokens.json`; `npm.cmd run verify`; remote commit contains the package and contract. |
-| SDA-01 | Probata | General/primary **Evidence Operations Desk**; Advanced/gated **Modular Service Cockpit** | `Rename important component` (`01a0960d-eb7a-7d91-a28b-338f88e2d5ae`) | IN PROGRESS | 2026-09-12 | Pinned vendored package with source commit; token adapter; no replacement of approved structural mockups; General/Advanced independent of theme; Advanced remains gated until routed; lint, build, smoke, Storybook, keyboard/focus/contrast/reflow checks; authenticated live route and receipt proof after deployment. |
+| SDA-01 | Probata | General/primary **Evidence Operations Desk**; Advanced/gated **Modular Service Cockpit** | `Rename important component` (`01a0960d-eb7a-7d91-a28b-338f88e2d5ae`) | IN PROGRESS — FUNCTIONAL RECOVERY PRECEDES VISUAL ADOPTION | 2026-09-12 | Prove one executable vertical slice before styling around failures: explicit TEST DATA/REAL MATTERS selector and selected matter; source filter/selection; useful preview and reliable Back; custody; intended parser; normalized records; Go chunk Activity; PostgreSQL persistence; actual record/chunk/database read-back; durable receipt. Scope switches must clear or refresh every matter-bound selection, preview, record, chunk, receipt and action. Then adopt the pinned package without replacing approved structural mockups; keep General/Advanced independent of theme and Advanced gated; run lint/build/smoke/Storybook/accessibility and authenticated live proof. |
 | SDA-02 | Consignatio Intake | Two-pane filesystem reconstruction with adjacent chat and shared selection context; evidence-candidate review remains stage two | `Add Intake and Probata preview` (`01a09620-155b-7b01-8ab3-da15cfd419a9`) | ASSIGNED — WAITING FOR CURRENT HEARTBEAT TO EXIT | 2026-09-12 | Pinned vendored package; product-local adapter; existing Xplorer split/selection/preview/chat preserved; tests for selection-to-chat context, focus, resizers, reflow and degraded states; native click-through and live selection-to-chat proof; independent deployment receipt. |
 | SDA-03 | advocatio | **advocatio Legal Workdesk** | `Consolidate design contracts` (`01a09663-e9bb-72c2-bfce-c0714cba8d66`) | IN PROGRESS | 2026-09-12 | Pinned vendored package; legal typography and confidential states preserved; source currency, STOP/review, privacy, two-clock chronology, versioned `LegalSourcePackage`, staleness/revocation, draft/review/release and filing-readiness semantics tested; no evidence mutation; authenticated live-flow proof after independent deployment. |
 | SDA-04 | Family Court Console | Separate from the advocatio Legal Workdesk | `Fix family court dark mode` (`01a09653-64ee-7c33-b6e7-bd3236b618af`) | IN PROGRESS | 2026-09-12 | Pinned vendored package; product identity remains separate; theme/token mapping, keyboard/focus/contrast/reflow checks, bounded unavailable/retry states, and independent deployment/live-route proof. |
@@ -46,6 +46,12 @@ Every assignment update records the task title/ID, repository, accepted file bou
 - Contract/package verification is not adoption. Adoption is not browser parity. Browser parity is not deployment. Deployment is not authenticated live-workflow proof.
 - Preserve unrelated dirty work. Stage and commit only the implementing lane's explicit allowlist.
 - Never permanently delete files. Quarantine removals under the owning repository's `to_be_deleted/` directory for owner-only deletion.
+
+## Active Probata functional blocker
+
+SDA-01 cannot honestly begin as a paint-only exercise. Live verification on 2026-09-12 found an HTTP-healthy shell with an empty tool catalog, no monitored-actions capability route, failed recent ingest runs, and no executable Atomic Tools path. Active contracts disagree about allowed ingest lanes, while the Proffer path still produces non-empty Python chunks for a store that intentionally rejects them because chunking moved to the Go Temporal Activity.
+
+The required Matter Selector is a safety boundary, not a preference. It must explicitly distinguish **TEST DATA** from **REAL MATTERS**, keep the active mode and selected matter unmistakable, prevent test data from being mistaken for or written into a real matter, and invalidate all matter-bound UI and action state when scope changes. SDA-01 remains in functional recovery until the full selected-matter-to-persisted-readback slice passes process-level tests and live acceptance proof.
 
 ## Cross-product authority boundaries
 
