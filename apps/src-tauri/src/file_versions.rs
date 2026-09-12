@@ -36,18 +36,14 @@ impl Default for VersioningConfig {
 }
 
 fn config_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = app_handle
-        .path()
-        .app_data_dir()
+    let dir = crate::runtime_paths::app_data_dir(app_handle)
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create app data dir: {}", e))?;
     Ok(dir.join("versioning_config.json"))
 }
 
 fn versions_base_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = app_handle
-        .path()
-        .app_data_dir()
+    let dir = crate::runtime_paths::app_data_dir(app_handle)
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     let versions_dir = dir.join("versions");
     fs::create_dir_all(&versions_dir)

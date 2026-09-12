@@ -255,7 +255,7 @@ impl AIPipeline {
 
 /// Path to the on-disk AI index file.
 fn ai_index_path() -> PathBuf {
-    let base = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
+    let base = crate::runtime_paths::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
     base.join("xplorer").join("ai_index.json")
 }
 
@@ -295,7 +295,7 @@ pub(super) fn load_ai_index() -> HashMap<String, AIIndexEntry> {
 
 /// Path to the on-disk embeddings file.
 fn embeddings_path() -> PathBuf {
-    let base = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
+    let base = crate::runtime_paths::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
     base.join("xplorer").join("vector_embeddings.json")
 }
 

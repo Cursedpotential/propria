@@ -14,6 +14,7 @@ export { transport, listenToEvent, convertAssetUrl, isTauri, getApiUrl } from '.
 // ── Services (namespaced re-exports) ──────────────────────────────────────────
 export * as FileSystem from './services/file-system';
 export * as Search from './services/search';
+export * as FilesystemIndex from './services/filesystem-index';
 export * as Storage from './services/storage';
 export * as AI from './services/ai';
 export * as Compression from './services/compression';

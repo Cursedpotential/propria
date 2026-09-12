@@ -15,11 +15,10 @@ import { handleTemplateSlashCommand } from './chat-action-templates';
 import {
   type FileContext,
   getXplorerState,
-  readFileForAIContext,
-  readMultipleFilesForAIContext,
+  buildSelectionManifest,
+  type SelectionEntry,
   IMAGE_EXTENSIONS,
 } from './chat-context-helpers';
-import { isCompareIntent, compareFiles as performFileComparison } from './chat-file-compare';
 import { buildMarketplaceSuggestionText } from './chat-extension-awareness';
 import type { RuntimeChatMessage } from './ChatMessageBubble';
 
@@ -232,10 +231,8 @@ export const useSaveCodeAsFile = (
 // Drag & drop handler helpers
 // ---------------------------------------------------------------------------
 
-export const buildDroppedFiles = (
-  e: React.DragEvent,
-): Array<{ name: string; path: string; is_dir: boolean }> => {
-  let files: Array<{ name: string; path: string; is_dir: boolean }> = [];
+export const buildDroppedFiles = (e: React.DragEvent): SelectionEntry[] => {
+  let files: SelectionEntry[] = [];
 
   // Xplorer internal drag format
   const xplorerData = e.dataTransfer.getData('application/xplorer-files');
@@ -243,11 +240,15 @@ export const buildDroppedFiles = (
     try {
       const parsed: unknown = JSON.parse(xplorerData);
       if (Array.isArray(parsed)) {
-        files = parsed.map((f: { name?: string; path?: string; is_dir?: boolean }) => ({
-          name: String(f.name ?? basename(String(f.path ?? ''))),
-          path: String(f.path ?? ''),
-          is_dir: Boolean(f.is_dir),
-        }));
+        files = parsed
+          .filter((f) => f !== null && typeof f === 'object')
+          .map((f: { name?: string; path?: string; is_dir?: boolean; size?: number }) => ({
+            name: String(f.name ?? basename(String(f.path ?? ''))),
+            path: String(f.path ?? ''),
+            is_dir: Boolean(f.is_dir),
+            metadata_known: typeof f.is_dir === 'boolean',
+            size: f.size,
+          }));
       }
     } catch {
       // Invalid JSON
@@ -263,7 +264,12 @@ export const buildDroppedFiles = (
         .map((p) => p.trim())
         .filter((p) => p.startsWith('/') || /^[A-Z]:\\/i.test(p));
       if (paths.length > 0) {
-        files = paths.map((p) => ({ name: basename(p), path: p, is_dir: false }));
+        files = paths.map((p) => ({
+          name: basename(p),
+          path: p,
+          is_dir: false,
+          metadata_known: false,
+        }));
       }
     }
   }
@@ -273,7 +279,7 @@ export const buildDroppedFiles = (
     for (let i = 0; i < e.dataTransfer.files.length; i++) {
       const file = e.dataTransfer.files[i];
       const filePath = (file as unknown as { path?: string }).path ?? file.name;
-      files.push({ name: file.name, path: filePath, is_dir: false });
+      files.push({ name: file.name, path: filePath, is_dir: false, size: file.size });
     }
   }
 
@@ -291,46 +297,18 @@ export interface FileReadResult {
 }
 
 /**
- * Read files to build AI context: text content, images, and optional
- * file comparison data.
+ * Discuss the complete selection without reading content or guessing intent.
+ * Explicit bounded content loading is a separate operation, not a send side effect.
  */
 export const buildFileContext = async (
-  filesToRead: Array<{ name: string; path: string; is_dir: boolean }>,
-  userText: string,
+  filesToRead: SelectionEntry[],
+  _userText: string,
 ): Promise<FileReadResult> => {
-  let compareContext: string | null = null;
-  const imageContexts: Array<{ name: string; path: string; dataUrl: string }> = [];
-
-  // Detect file comparison intent when exactly 2 files
-  if (
-    filesToRead.length === 2 &&
-    !filesToRead[0].is_dir &&
-    !filesToRead[1].is_dir &&
-    isCompareIntent(userText, 2)
-  ) {
-    const compResult = await performFileComparison(filesToRead[0].path, filesToRead[1].path);
-    if (compResult.success) {
-      compareContext = compResult.contextForAI;
-    }
-  }
-
-  const fileContexts =
-    filesToRead.length === 1 && !filesToRead[0].is_dir
-      ? [await readFileForAIContext(filesToRead[0])]
-      : await readMultipleFilesForAIContext(filesToRead);
-
-  // Build image thumbnail data for the user message
-  for (const fc of fileContexts) {
-    if (fc.imageBase64 && fc.imageMimeType) {
-      imageContexts.push({
-        name: fc.name,
-        path: fc.path,
-        dataUrl: `data:${fc.imageMimeType};base64,${fc.imageBase64}`,
-      });
-    }
-  }
-
-  return { fileContexts, compareContext, imageContexts };
+  return {
+    fileContexts: buildSelectionManifest(filesToRead),
+    compareContext: null,
+    imageContexts: [],
+  };
 };
 
 /**

@@ -33,6 +33,7 @@ const SplitContainer = ({ node, groups, activeGroupId, path }: SplitContainerPro
   if (node.type === 'leaf') {
     const group = groups[node.groupId];
     if (!group) return null;
+    const paneSelection = selection.panes?.[group.id] ?? selection;
 
     return (
       <EditorGroupPane
@@ -41,10 +42,11 @@ const SplitContainer = ({ node, groups, activeGroupId, path }: SplitContainerPro
         canClose={totalGroups > 1}
         totalGroups={totalGroups}
         sharedActions={splitActions.sharedActions}
-        selectedFiles={selection.selectedFiles}
-        setSelectedFiles={selection.setSelectedFiles}
-        selectedFile={selection.selectedFile}
-        setSelectedFile={selection.setSelectedFile}
+        selectedFiles={paneSelection.selectedFiles}
+        setSelectedFiles={paneSelection.setSelectedFiles}
+        selectedFile={paneSelection.selectedFile}
+        setSelectedFile={paneSelection.setSelectedFile}
+        preservePaneSelection={Boolean(selection.panes)}
         viewMode={viewSort.viewMode}
         setViewMode={viewSort.setViewMode}
         sortBy={viewSort.sortBy}

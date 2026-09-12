@@ -52,17 +52,20 @@ struct LlmSearchResponse {
 
 #[tauri::command]
 pub async fn set_tokenizer_settings(settings: TokenizerSettings) -> Result<(), String> {
+    crate::runtime_paths::require_legacy_search()?;
     get_search_engine().set_settings(settings);
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_tokenizer_settings() -> Result<TokenizerSettings, String> {
+    crate::runtime_paths::require_legacy_search()?;
     Ok(get_search_engine().get_settings())
 }
 
 #[tauri::command]
 pub async fn rebuild_token_index() -> Result<(), String> {
+    crate::runtime_paths::require_legacy_search()?;
     let engine = get_search_engine();
     if engine.is_indexing() {
         return Err("Indexing is already in progress".to_string());
@@ -76,6 +79,7 @@ pub async fn search_tokens(
     query: String,
     limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         Ok(get_search_engine().search(&query, limit.unwrap_or(DEFAULT_SEARCH_LIMIT)))
     })
@@ -89,6 +93,7 @@ pub async fn natural_language_search(
     language: Option<String>,
     limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         Ok(get_search_engine().natural_language_search(
             &query,
@@ -102,6 +107,7 @@ pub async fn natural_language_search(
 
 #[tauri::command]
 pub async fn get_tokenizer_stats() -> Result<Option<TokenizerStats>, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || Ok(get_search_engine().get_stats()))
         .await
         .map_err(|e| e.to_string())?
@@ -109,6 +115,7 @@ pub async fn get_tokenizer_stats() -> Result<Option<TokenizerStats>, String> {
 
 #[tauri::command]
 pub async fn is_tokenizer_indexing() -> Result<bool, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || Ok(get_search_engine().is_indexing()))
         .await
         .map_err(|e| e.to_string())?
@@ -116,6 +123,7 @@ pub async fn is_tokenizer_indexing() -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn get_file_tokens(file_path: String) -> Result<Option<FileToken>, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || Ok(get_search_engine().get_file_tokens(&file_path)))
         .await
         .map_err(|e| e.to_string())?
@@ -123,6 +131,7 @@ pub async fn get_file_tokens(file_path: String) -> Result<Option<FileToken>, Str
 
 #[tauri::command]
 pub async fn add_path_to_tokenizer(path: String) -> Result<(), String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         get_search_engine().add_path(path);
         Ok(())
@@ -136,6 +145,7 @@ pub async fn get_file_recommendations(
     file_path: String,
     limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         Ok(get_search_engine()
             .get_file_recommendations(&file_path, limit.unwrap_or(DEFAULT_RECOMMENDATION_LIMIT)))
@@ -149,6 +159,7 @@ pub async fn parse_search_query(
     query: String,
     _language: Option<String>,
 ) -> Result<CompatStructuredQuery, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         Ok(get_search_engine().parse_search_query(&query, _language.as_deref()))
     })
@@ -162,6 +173,7 @@ pub async fn enhanced_search(
     language: Option<String>,
     limit: Option<usize>,
 ) -> Result<EnhancedSearchResult, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         Ok(get_search_engine().enhanced_search(
             &query,
@@ -177,6 +189,7 @@ pub async fn enhanced_search(
 
 #[tauri::command]
 pub async fn index_directory(path: String, max_depth: Option<u32>) -> Result<(), String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         get_search_engine().index_directory(&path, max_depth);
         Ok(())
@@ -187,6 +200,7 @@ pub async fn index_directory(path: String, max_depth: Option<u32>) -> Result<(),
 
 #[tauri::command]
 pub async fn set_search_context(path: String) -> Result<(), String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         get_search_engine().set_context_path(&path);
         Ok(())
@@ -197,6 +211,7 @@ pub async fn set_search_context(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn add_whitelisted_path(path: String) -> Result<(), String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         let engine = get_search_engine();
         let mut settings = engine.get_settings();
@@ -230,6 +245,7 @@ pub async fn ai_search(
     model: Option<String>,
     limit: Option<usize>,
 ) -> Result<AISearchResult, String> {
+    crate::runtime_paths::require_legacy_search()?;
     let lim = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
 
     // Step 1: BM25F pre-filter to get top candidates.
@@ -314,6 +330,7 @@ pub async fn ai_search(
 
 #[tauri::command]
 pub async fn get_ai_index_status() -> Result<AIIndexStatus, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || Ok(get_ai_pipeline().get_status()))
         .await
         .map_err(|e| e.to_string())?
@@ -326,6 +343,7 @@ pub async fn trigger_ai_indexing(
     api_key: Option<String>,
     model: Option<String>,
 ) -> Result<(), String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         let pipeline = get_ai_pipeline();
         pipeline.queue_files(paths);
@@ -353,6 +371,7 @@ pub async fn trigger_ai_indexing(
 
 #[tauri::command]
 pub async fn get_ai_index_entry(path: String) -> Result<Option<AIIndexEntry>, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || Ok(get_ai_pipeline().get_entry(&path)))
         .await
         .map_err(|e| e.to_string())?
@@ -363,6 +382,7 @@ pub async fn semantic_search(
     query: String,
     limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
+    crate::runtime_paths::require_legacy_search()?;
     let lim = limit.unwrap_or(DEFAULT_SEMANTIC_SEARCH_LIMIT);
     // Load embeddings from disk and search
     let embeddings = super::hybrid::load_embeddings_from_disk();
@@ -396,6 +416,7 @@ pub async fn find_similar_files(
     file_path: String,
     limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
+    crate::runtime_paths::require_legacy_search()?;
     tokio::task::spawn_blocking(move || {
         let lim = limit.unwrap_or(DEFAULT_RECOMMENDATION_LIMIT);
         let embeddings = super::hybrid::load_embeddings_from_disk();
@@ -448,6 +469,7 @@ pub async fn hybrid_search(
     recent_files: Option<Vec<String>>,
     limit: Option<usize>,
 ) -> Result<Vec<SearchResult>, String> {
+    crate::runtime_paths::require_legacy_search()?;
     let lim = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
     let engine = get_search_engine();
 
@@ -560,6 +582,7 @@ pub async fn smart_search(
     api_key: Option<String>,
     model: Option<String>,
 ) -> Result<SmartSearchResult, String> {
+    crate::runtime_paths::require_legacy_search()?;
     let generation = SMART_SEARCH_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let lim = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
     let trimmed_query = query.trim().to_string();

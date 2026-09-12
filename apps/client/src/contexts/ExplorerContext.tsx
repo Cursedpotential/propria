@@ -4,10 +4,12 @@ import type { FileCollection } from '@/lib/collections';
 import type { SharedPaneActions } from '@/components/split-view/EditorGroupPane';
 import type { PaneSyncMode } from '@/hooks/use-pane-sync';
 import type { SortField } from '@/lib/utils';
+import type { PaneSelection } from '@/hooks/use-pane-selection';
 
 // ── Selection ────────────────────────────────────────────────────────────────
 
 export interface SelectionContextValue {
+  panes?: Record<string, PaneSelection>;
   selectedFiles: Set<string>;
   setSelectedFiles: React.Dispatch<React.SetStateAction<Set<string>>>;
   selectedFile: FileEntry | null;

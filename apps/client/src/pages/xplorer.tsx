@@ -27,6 +27,7 @@ import { useSplitLayout } from '@/hooks/use-split-layout';
 import { useCrossTabSelection } from '@/hooks/use-cross-tab-selection';
 import { applyCollectionToFiles } from '@/lib/collections';
 import { usePaneSync } from '@/hooks/use-pane-sync';
+import { usePaneSelection } from '@/hooks/use-pane-selection';
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -50,8 +51,17 @@ const ExplorerUnified = () => {
   const pathHistory = activeGroup.pathHistory;
   const historyIndex = activeGroup.historyIndex;
 
-  // Per-pane selection
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [legacySelectedFiles, setLegacySelectedFiles] = useState<Set<string>>(new Set());
+  const [legacySelectedFile, setLegacySelectedFile] = useState<FileEntry | null>(null);
+  const allPaneSelections = usePaneSelection(layoutState.groups);
+  const paneSelections = import.meta.env.VITE_INTAKE_MODE === '1' ? allPaneSelections : undefined;
+  const { selectedFiles, setSelectedFiles, selectedFile, setSelectedFile } =
+    paneSelections?.[activeGroup.id] ?? {
+      selectedFiles: legacySelectedFiles,
+      setSelectedFiles: setLegacySelectedFiles,
+      selectedFile: legacySelectedFile,
+      setSelectedFile: setLegacySelectedFile,
+    };
 
   // ── Layout state ────────────────────────────────────────────────────────────
   const layout = useLayoutState();
@@ -74,9 +84,6 @@ const ExplorerUnified = () => {
   ) {
     (window as unknown as Record<string, unknown>).__setFileConflict__ = setFileConflict;
   }
-
-  // Selected file for preview
-  const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
 
   // ── Dependent hooks ───────────────────────────────────────────────────────
   const { changes: fileChanges, dismissChanges: dismissFileChanges } =
@@ -120,7 +127,7 @@ const ExplorerUnified = () => {
 
   const handleGDriveFileSelect = useCallback((file: FileEntry) => {
     setSelectedFiles(new Set([file.path]));
-  }, []);
+  }, [setSelectedFiles]);
 
   // ── File operations ───────────────────────────────────────────────────────
   const fileOps = useFileOperations({
@@ -332,6 +339,7 @@ const ExplorerUnified = () => {
       files={files}
       filteredFiles={filteredFiles}
       selectedFiles={selectedFiles}
+      paneSelections={paneSelections}
       setSelectedFiles={setSelectedFiles}
       selectedFile={selectedFile}
       setSelectedFile={setSelectedFile}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import RightSidebar from '@/components/panels/RightSidebar';
@@ -10,6 +10,14 @@ const renderWithSuspense = (ui: React.ReactElement) => {
 };
 
 // Mock sub-components
+vi.mock('@/components/panels/StandaloneChatPanel', () => ({
+  default: ({ active }: { active: boolean }) => {
+    const [draft, setDraft] = React.useState('');
+    return <div data-testid="chat-panel" data-active={String(active)}>
+      <input aria-label="Chat draft" value={draft} onChange={(event) => setDraft(event.target.value)} />
+    </div>;
+  },
+}));
 vi.mock('@/components/panels/PreviewPanel', () => ({
   default: ({ selectedFile }: { selectedFile?: { name: string } | null }) => (
     <div data-testid="preview-panel">
@@ -78,6 +86,7 @@ vi.mock('@/lib/tauri-api', () => ({
 }));
 
 describe('RightSidebar', () => {
+  let heightSpy: MockInstance | undefined;
   const mockSetRightSidebarCollapsed = vi.fn();
   const mockApplyTheme = vi.fn();
   const mockNavigateToPath = vi.fn();
@@ -101,8 +110,72 @@ describe('RightSidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
+  afterEach(() => { vi.unstubAllEnvs(); heightSpy?.mockRestore(); heightSpy = undefined; });
+
+  describe('Intake preview and chat split', () => {
+    it('shows both panels, retains chat draft, updates preview selection and resizes', async () => {
+      vi.stubEnv('VITE_INTAKE_MODE', '1');
+      heightSpy = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600);
+      const props = { ...defaultProps, rightPanelTab: 'chat', selectedFile: { name: 'first.txt', path: 'E:\\first.txt', is_dir: false, size: 12 } };
+      const { rerender } = render(<RightSidebar {...props} />);
+      const input = await screen.findByRole('textbox', { name: 'Chat draft' });
+      fireEvent.change(input, { target: { value: 'Keep this conversation' } });
+      fireEvent.click(screen.getByRole('button', { name: 'previewChat' }));
+      expect(await screen.findByText('Preview: first.txt')).toBeVisible();
+      expect(screen.getByTestId('chat-panel')).toBeVisible();
+      expect(screen.getByTestId('chat-panel')).toHaveAttribute('data-active', 'true');
+      const separator = screen.getByRole('separator');
+      expect(separator).toHaveAttribute('aria-valuenow', '40');
+      fireEvent.mouseDown(separator.firstElementChild!, { clientY: 100 });
+      fireEvent.mouseMove(document, { clientY: 160 });
+      fireEvent.mouseUp(document);
+      expect(separator).toHaveAttribute('aria-valuenow', '50');
+      fireEvent.keyDown(separator, { key: 'ArrowDown' });
+      expect(separator).toHaveAttribute('aria-valuenow', '54');
+      rerender(<RightSidebar {...props} selectedFile={{ ...props.selectedFile, name: 'second.txt', path: 'E:\\second.txt' }} />);
+      expect(await screen.findByText('Preview: second.txt')).toBeVisible();
+      expect(screen.getByRole('textbox', { name: 'Chat draft' })).toHaveValue('Keep this conversation');
+      fireEvent.click(screen.getByRole('button', { name: 'previewChat' }));
+      expect(screen.queryByTestId('preview-panel')).toBeNull();
+      expect(screen.getByRole('textbox', { name: 'Chat draft' })).toHaveValue('Keep this conversation');
+    });
+
+    it('falls back to the active tab in a short window', async () => {
+      vi.stubEnv('VITE_INTAKE_MODE', '1');
+      heightSpy = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300);
+      render(<RightSidebar {...defaultProps} rightPanelTab="chat" />);
+      await screen.findByTestId('chat-panel');
+      fireEvent.click(screen.getByRole('button', { name: 'previewChat' }));
+      expect(screen.getByRole('status')).toHaveTextContent('shortWindow');
+      expect(screen.queryByRole('separator')).toBeNull();
+      expect(screen.getByTestId('chat-panel')).toBeVisible();
+    });
+
+    it('does not add the split control in legacy Xplorer mode', () => {
+      vi.stubEnv('VITE_INTAKE_MODE', '0');
+      render(<RightSidebar {...defaultProps} />);
+      expect(screen.queryByRole('button', { name: 'previewChat' })).toBeNull();
+    });
+  });
 
   describe('Collapsed state', () => {
+    it('does not mount chat until opened, then retains draft through preview and collapse', async () => {
+      const { rerender } = renderWithSuspense(<RightSidebar {...defaultProps} />);
+      expect(screen.queryByTestId('chat-panel')).toBeNull();
+      rerender(<RightSidebar {...defaultProps} rightPanelTab="chat" />);
+      const input = await screen.findByRole('textbox', { name: 'Chat draft' });
+      fireEvent.change(input, { target: { value: 'These exports belong together' } });
+      rerender(<RightSidebar {...defaultProps} rightPanelTab="preview" />);
+      expect(screen.getByTestId('chat-panel')).not.toBeVisible();
+      expect(screen.getByTestId('chat-panel')).toHaveAttribute('data-active', 'false');
+      rerender(<RightSidebar {...defaultProps} rightPanelTab="chat" />);
+      expect(screen.getByRole('textbox', { name: 'Chat draft' })).toHaveValue('These exports belong together');
+      rerender(<RightSidebar {...defaultProps} rightPanelTab="chat" rightSidebarCollapsed />);
+      expect(screen.getByTestId('chat-panel')).not.toBeVisible();
+      rerender(<RightSidebar {...defaultProps} rightPanelTab="chat" />);
+      expect(screen.getByRole('textbox', { name: 'Chat draft' })).toHaveValue('These exports belong together');
+    });
+
     it('returns null when collapsed', () => {
       const { container } = render(<RightSidebar {...defaultProps} rightSidebarCollapsed={true} />);
       expect(container.firstChild).toBeNull();

@@ -12,6 +12,8 @@ interface UpdateStatus {
 }
 
 const useUpdater = () => {
+  // Intake is a separate fork: upstream Xplorer releases must never replace it.
+  const updatesDisabled = import.meta.env.VITE_INTAKE_MODE === '1';
   const [status, setStatus] = useState<UpdateStatus>({
     available: false,
     downloading: false,
@@ -19,6 +21,7 @@ const useUpdater = () => {
   });
 
   const checkForUpdate = useCallback(async () => {
+    if (updatesDisabled) return null;
     try {
       const update = await check();
       if (update) {
@@ -39,9 +42,10 @@ const useUpdater = () => {
       }));
     }
     return null;
-  }, []);
+  }, [updatesDisabled]);
 
   const installUpdate = useCallback(async () => {
+    if (updatesDisabled) return;
     try {
       const update = await check();
       if (!update) return;
@@ -72,7 +76,7 @@ const useUpdater = () => {
         error: err instanceof Error ? err.message : String(err),
       }));
     }
-  }, []);
+  }, [updatesDisabled]);
 
   const dismissUpdate = useCallback(() => {
     setStatus({
@@ -83,13 +87,14 @@ const useUpdater = () => {
   }, []);
 
   useEffect(() => {
+    if (updatesDisabled) return;
     const timer = setTimeout(() => checkForUpdate(), 5000);
     const interval = setInterval(() => checkForUpdate(), 4 * 60 * 60 * 1000);
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [checkForUpdate]);
+  }, [checkForUpdate, updatesDisabled]);
 
   return { status, checkForUpdate, installUpdate, dismissUpdate };
 };

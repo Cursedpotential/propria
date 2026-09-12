@@ -1,0 +1,6 @@
+{
+  "provider": "openai",
+  "custom_host": "https://ollama.com/v1",
+  "api_key": "$OLLAMA_API_KEY",
+  "override_params": { "model": "nemotron-3-super" }
+}

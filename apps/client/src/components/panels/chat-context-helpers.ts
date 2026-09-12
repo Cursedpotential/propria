@@ -39,7 +39,7 @@ export const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 's
 
 export interface XplorerState {
   currentPath?: string;
-  selectedFiles?: Array<{ name: string; path: string; is_dir: boolean }>;
+  selectedFiles?: SelectionEntry[];
   editorSelection?: {
     text: string;
     filePath: string;
@@ -47,6 +47,30 @@ export interface XplorerState {
     endLine: number;
   } | null;
 }
+
+/** Snapshot metadata only. False metadata_known means is_dir is not authoritative. */
+export interface SelectionEntry {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  metadata_known?: boolean;
+  size?: number;
+}
+
+/** Never stats or opens paths: selection must not hydrate mounted/cloud files. */
+export const selectionEntryType = (file: SelectionEntry): string => {
+  if (file.metadata_known === false) return 'unknown';
+  return file.is_dir ? 'directory' : 'file';
+};
+
+export const buildSelectionManifest = (files: SelectionEntry[]): FileContext[] =>
+  files.map((file) => ({
+    name: file.name,
+    path: file.path,
+    file_type: selectionEntryType(file),
+    size: Number.isSafeInteger(file.size) && (file.size ?? -1) >= 0 ? file.size : undefined,
+    metadataOnly: true,
+  }));
 
 export const getXplorerState = (): XplorerState | undefined =>
   (window as unknown as { __xplorer_state__?: XplorerState }).__xplorer_state__;
@@ -60,6 +84,8 @@ export interface FileContext {
   path: string;
   file_type: string;
   content?: string;
+  size?: number;
+  metadataOnly?: boolean;
   /** Base64-encoded image data (data URL) for vision-capable models. */
   imageBase64?: string;
   /** MIME type of the image (e.g. "image/png"). */

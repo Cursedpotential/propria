@@ -13,7 +13,7 @@ use super::compat_types::TokenizerSettings;
 // ===== Persistence helpers ==================================================
 
 fn data_dir() -> PathBuf {
-    let dir = dirs::data_local_dir()
+    let dir = crate::runtime_paths::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("xplorer");
     fs::create_dir_all(&dir).ok();

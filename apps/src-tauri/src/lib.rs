@@ -1,5 +1,7 @@
 pub mod error;
 pub mod utils;
+pub mod runtime_paths;
+pub mod filesystem_index;
 
 pub mod agent;
 pub mod agent_sessions;

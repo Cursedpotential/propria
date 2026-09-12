@@ -111,8 +111,11 @@ fn unique_file_path(directory: &Path, stem: &str) -> PathBuf {
 /// creating it if it does not already exist.
 #[tauri::command]
 pub async fn get_chats_directory() -> Result<String, String> {
-    let docs_dir = dirs::document_dir()
-        .ok_or_else(|| "Could not determine Documents directory".to_string())?;
+    let docs_dir = if crate::runtime_paths::intake_mode() {
+        crate::runtime_paths::runtime_root()?.join("documents")
+    } else {
+        dirs::document_dir().ok_or_else(|| "Could not determine Documents directory".to_string())?
+    };
     let chats_dir = docs_dir.join("Xplorer Chats");
 
     std::fs::create_dir_all(&chats_dir)

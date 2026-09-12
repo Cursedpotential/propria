@@ -29,8 +29,28 @@ use xplorer::sync;
 use tracing::warn;
 
 fn main() {
+    if let Err(error) = xplorer::runtime_paths::validate_startup() {
+        eprintln!("Cannot start Intake: {error}");
+        std::process::exit(1);
+    }
+    let context = tauri::generate_context!();
+    if xplorer::runtime_paths::intake_mode()
+        != (context.config().identifier == "com.propria.intake.dev")
+    {
+        eprintln!("Intake mode and Tauri configuration must match; use the isolated Intake launcher/config.");
+        std::process::exit(1);
+    }
+    let _runtime_lock = match xplorer::runtime_paths::acquire_instance_lock() {
+        Ok(lock) => lock,
+        Err(error) => {
+            eprintln!("Cannot start Intake: {error}");
+            std::process::exit(1);
+        }
+    };
     // Load environment variables from .env file
-    dotenvy::dotenv().ok();
+    if !xplorer::runtime_paths::intake_mode() {
+        dotenvy::dotenv().ok();
+    }
 
     // Initialize structured logging
     tracing_subscriber::fmt()
@@ -49,24 +69,43 @@ fn main() {
         return;
     }
 
-    tauri::Builder::default()
+    // This development fork must never install an upstream Xplorer replacement.
+    // Keep updater commands absent from Intake, not merely hidden in its UI.
+    let builder = tauri::Builder::default();
+    let builder = if xplorer::runtime_paths::intake_mode() {
+        builder
+    } else {
+        builder.plugin(tauri_plugin_updater::Builder::new().build())
+    };
+
+    builder
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_drag::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            if xplorer::runtime_paths::intake_mode() {
+                let window_config =
+                    app.config().app.windows.first().ok_or_else(|| {
+                        std::io::Error::other("Missing Intake window configuration")
+                    })?;
+                tauri::WebviewWindowBuilder::from_config(app, window_config)?
+                    .data_directory(
+                        xplorer::runtime_paths::runtime_root()
+                            .map_err(std::io::Error::other)?
+                            .join("webview"),
+                    )
+                    .build()?;
+            }
             // Initialize progress manager
             let progress_manager =
                 operations::ProgressManager::new().with_app_handle(app.handle().clone());
             app.manage(std::sync::Arc::new(progress_manager));
 
             // Initialize extension manager using app data directory
-            let app_data_dir = app
-                .path()
-                .app_data_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("./data"));
+            let app_data_dir =
+                xplorer::runtime_paths::app_data_dir(app).map_err(std::io::Error::other)?;
             std::fs::create_dir_all(&app_data_dir).unwrap_or_default();
 
             // Initialize shortcuts manager in app data dir (NOT source tree)
@@ -81,7 +120,7 @@ fn main() {
             // If a correctly-named copy already exists, remove the old-named duplicate.
             // Skip if the migration has already been completed (flag file present).
             let migration_flag = extensions_dir.join(".migration-v2-done");
-            if !migration_flag.exists() {
+            if !xplorer::runtime_paths::intake_mode() && !migration_flag.exists() {
                 if let Ok(entries) = std::fs::read_dir(&extensions_dir) {
                     let mut actions: Vec<(std::path::PathBuf, String)> = Vec::new(); // (old_path, manifest_id)
                     for entry in entries.flatten() {
@@ -187,10 +226,12 @@ fn main() {
 
             #[cfg(debug_assertions)]
             {
-                if let Some(window) = app.get_webview_window("main") {
-                    window.open_devtools();
-                } else {
-                    warn!("[Xplorer] could not find 'main' webview window to open devtools");
+                if !xplorer::runtime_paths::intake_mode() {
+                    if let Some(window) = app.get_webview_window("main") {
+                        window.open_devtools();
+                    } else {
+                        warn!("[Xplorer] could not find 'main' webview window to open devtools");
+                    }
                 }
             }
             // Auto-install CLI on first launch
@@ -298,6 +339,7 @@ fn main() {
             // AI operations
             ai::get_ai_models,
             ai::check_ollama_status,
+            xplorer::filesystem_index::filesystem_index_search,
             ai::chat_with_ai,
             ai::analyze_file_with_ai,
             ai::get_file_help,
@@ -640,6 +682,6 @@ fn main() {
                 let _ = pty::pty_kill_all();
             }
         })
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }

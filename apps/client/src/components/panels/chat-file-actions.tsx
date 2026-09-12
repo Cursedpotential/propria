@@ -12,6 +12,7 @@
 import { TauriAPI } from '@/lib/tauri-api';
 import { formatFileSize } from '@/lib/utils';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
+import { searchFilesystemIndex, formatFilesystemSearchForAgent } from '@/lib/filesystem-index';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,6 +61,8 @@ export interface FileAction {
   destination?: string;
   /** Search query for search_files */
   query?: string;
+  /** Combined-index search mode; no direct corpus reads. */
+  mode?: 'hybrid' | 'keyword';
   /** Shell command string for run_command */
   command?: string;
   /** Working directory for run_command (defaults to path) */
@@ -209,13 +212,22 @@ export const parseFileActions = (
         }
 
         // All other actions require "path"
-        if (!('path' in obj)) return null;
+        if (typeof obj.path !== 'string') return null;
+        if (
+          action === 'search_files' &&
+          obj.mode !== undefined &&
+          obj.mode !== 'hybrid' &&
+          obj.mode !== 'keyword'
+        ) {
+          return null;
+        }
         return {
           action: action as FileActionType,
           path: obj.path as string,
           content: typeof obj.content === 'string' ? obj.content : undefined,
           destination: typeof obj.destination === 'string' ? obj.destination : undefined,
           query: typeof obj.query === 'string' ? obj.query : undefined,
+          mode: obj.mode === 'hybrid' || obj.mode === 'keyword' ? obj.mode : undefined,
         };
       }
     } catch {
@@ -508,6 +520,11 @@ export const executeFileAction = async (action: FileAction): Promise<string | un
     }
     case 'search_files': {
       const searchQuery = action.query ?? action.path;
+      if (import.meta.env.VITE_INTAKE_MODE === '1') {
+        return formatFilesystemSearchForAgent(
+          await searchFilesystemIndex(searchQuery, action.mode ?? 'hybrid'),
+        );
+      }
       const searchPath = action.query ? action.path : dirname(action.path);
       const results = await TauriAPI.findFiles(searchQuery, searchPath);
       const MAX_RESULTS = 50;

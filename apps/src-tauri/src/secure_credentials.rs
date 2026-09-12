@@ -3,6 +3,14 @@ use tracing::{info, warn};
 
 const SERVICE_NAME: &str = "xplorer-file-manager";
 
+fn service_name() -> &'static str {
+    if crate::runtime_paths::intake_mode() {
+        "propria-intake-dev"
+    } else {
+        SERVICE_NAME
+    }
+}
+
 /// Store a secret in the OS keychain
 pub fn store_secret(key: &str, value: &str) -> Result<(), String> {
     if value.is_empty() {
@@ -10,7 +18,8 @@ pub fn store_secret(key: &str, value: &str) -> Result<(), String> {
         delete_secret(key).ok();
         return Ok(());
     }
-    let entry = Entry::new(SERVICE_NAME, key).map_err(|e| format!("Keyring init error: {}", e))?;
+    let entry =
+        Entry::new(service_name(), key).map_err(|e| format!("Keyring init error: {}", e))?;
     entry
         .set_password(value)
         .map_err(|e| format!("Failed to store secret '{}': {}", key, e))
@@ -18,7 +27,8 @@ pub fn store_secret(key: &str, value: &str) -> Result<(), String> {
 
 /// Retrieve a secret from the OS keychain
 pub fn get_secret(key: &str) -> Result<Option<String>, String> {
-    let entry = Entry::new(SERVICE_NAME, key).map_err(|e| format!("Keyring init error: {}", e))?;
+    let entry =
+        Entry::new(service_name(), key).map_err(|e| format!("Keyring init error: {}", e))?;
     match entry.get_password() {
         Ok(password) => Ok(Some(password)),
         Err(keyring::Error::NoEntry) => Ok(None),
@@ -28,7 +38,8 @@ pub fn get_secret(key: &str) -> Result<Option<String>, String> {
 
 /// Delete a secret from the OS keychain
 pub fn delete_secret(key: &str) -> Result<(), String> {
-    let entry = Entry::new(SERVICE_NAME, key).map_err(|e| format!("Keyring init error: {}", e))?;
+    let entry =
+        Entry::new(service_name(), key).map_err(|e| format!("Keyring init error: {}", e))?;
     match entry.delete_credential() {
         Ok(()) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()), // Already gone

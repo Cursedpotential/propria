@@ -316,7 +316,7 @@ pub fn search_embeddings(
 ///
 /// Returns an empty vec on any I/O or parse error (graceful degradation).
 pub fn load_embeddings_from_disk() -> Vec<EmbeddingEntry> {
-    let path = dirs::data_dir()
+    let path = crate::runtime_paths::data_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("xplorer")
         .join("vector_embeddings.json");

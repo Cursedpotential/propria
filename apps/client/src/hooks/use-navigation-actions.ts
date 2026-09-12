@@ -58,6 +58,7 @@ export const useNavigationActions = (deps: NavigationActionsDeps) => {
       }
 
       if (
+        import.meta.env.VITE_INTAKE_MODE !== '1' &&
         !newPath.startsWith('xplorer://') &&
         !newPath.startsWith('gdrive://') &&
         !newPath.startsWith('comparison://') &&

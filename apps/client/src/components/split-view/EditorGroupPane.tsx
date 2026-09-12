@@ -90,6 +90,7 @@ interface EditorGroupPaneProps {
   sharedActions: SharedPaneActions;
   /** Shared selection state from parent -- the pane is a controlled component. */
   selectedFiles: Set<string>;
+  preservePaneSelection?: boolean;
   setSelectedFiles: React.Dispatch<React.SetStateAction<Set<string>>>;
   /** Shared single-file selection from parent (for preview). */
   selectedFile: FileEntry | null;
@@ -137,6 +138,7 @@ const EditorGroupPane = ({
   totalGroups,
   sharedActions,
   selectedFiles,
+  preservePaneSelection = false,
   setSelectedFiles,
   selectedFile: _selectedFile,
   setSelectedFile,
@@ -331,13 +333,16 @@ const EditorGroupPane = ({
 
   // Clear selection when this pane navigates to a new path
   React.useEffect(() => {
-    if (!isActive) return;
+    if (preservePaneSelection || !isActive) return;
     setSelectedFiles(new Set());
     setSelectedFile(null);
-  }, [currentPath, isActive, setSelectedFiles, setSelectedFile]);
+  }, [currentPath, isActive, setSelectedFiles, setSelectedFile, preservePaneSelection]);
 
   // Track last-clicked index for shift-click range selection
   const lastClickedIndexRef = useRef<number>(-1);
+  useEffect(() => {
+    lastClickedIndexRef.current = -1;
+  }, [currentPath, group.activeTabId]);
   const sortedFilesRef = useRef(sortedFiles);
   sortedFilesRef.current = sortedFiles;
 

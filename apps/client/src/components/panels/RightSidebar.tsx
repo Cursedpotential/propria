@@ -5,6 +5,8 @@ import { extensionHost } from '@/lib/extension-host';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { FileEntry, FolderSizeInfo } from '@/lib/tauri-api';
 import { usePreviewHistory } from '@/hooks/use-preview-history';
+import { useTranslation } from 'react-i18next';
+import ResizeHandle from '@/components/ui/ResizeHandle';
 
 // Lazy-loaded panels -- only loaded when the user switches to their tab
 const PreviewPanel = React.lazy(() => import('./PreviewPanel'));
@@ -61,10 +63,30 @@ const RightSidebar = ({
   currentPath,
   navigateToPath,
 }: RightSidebarProps) => {
+  const { t } = useTranslation();
   const outerRef = useRef<HTMLDivElement>(null);
   const panelContentRef = useRef<HTMLDivElement>(null);
   const [measuredHeight, setMeasuredHeight] = useState<number>(0);
   const [compareDismissed, setCompareDismissed] = useState(false);
+  const [splitRequested, setSplitRequested] = useState(false);
+  const [previewRatio, setPreviewRatio] = useState(0.4);
+  const canCombine =
+    import.meta.env.VITE_INTAKE_MODE === '1' &&
+    (rightPanelTab === 'chat' || rightPanelTab === 'preview');
+  const tooShortToSplit = measuredHeight > 0 && measuredHeight < 360;
+  const splitVisible = canCombine && splitRequested && !tooShortToSplit && !rightSidebarCollapsed;
+  const chatActive = (rightPanelTab === 'chat' || splitVisible) && !rightSidebarCollapsed;
+  const [chatOpened, setChatOpened] = useState(chatActive);
+  useEffect(() => {
+    if (chatActive) setChatOpened(true);
+  }, [chatActive]);
+  const resizePreview = useCallback(
+    (delta: number) => {
+      const height = panelContentRef.current?.clientHeight || Math.max(measuredHeight - 80, 400);
+      setPreviewRatio((previous) => Math.max(0.2, Math.min(0.65, previous + delta / height)));
+    },
+    [measuredHeight],
+  );
 
   // ── Preview scrubber state ──────────────────────────────────────────────────
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -86,7 +108,7 @@ const RightSidebar = ({
   }, [selectedFiles, allFiles]);
 
   const multiSelected = selectedFileEntries.length > 1;
-  const isPreviewTab = rightPanelTab === 'preview';
+  const isPreviewTab = rightPanelTab === 'preview' || splitVisible;
 
   // Clamp previewIndex when selection changes
   useEffect(() => {
@@ -203,6 +225,7 @@ const RightSidebar = ({
 
   // Whether to show the original compare mode (only when NOT using scrubber compare)
   const showCompare =
+    !splitVisible &&
     rightPanelTab === 'preview' &&
     compareFiles !== null &&
     !compareDismissed &&
@@ -238,7 +261,7 @@ const RightSidebar = ({
     [navigateToPath],
   );
 
-  if (rightSidebarCollapsed) return null;
+  if (rightSidebarCollapsed && !chatOpened) return null;
 
   // Show scrubber navigation bar?
   const showScrubber = isPreviewTab && multiSelected && !showCompare;
@@ -269,6 +292,7 @@ const RightSidebar = ({
 
   // Get panel title for header
   const getTabTitle = () => {
+    if (splitVisible) return t('intakePanels.previewChat');
     if (showCompare) return 'Compare Files';
     if (scrubberCompareFiles) return 'Compare Files';
     if (rightPanelTab === 'preview') return 'File Preview';
@@ -287,7 +311,13 @@ const RightSidebar = ({
     <div
       ref={outerRef}
       className="bg-xp-surface border-xp-border border-l"
-      style={{ width: width ?? 320, flexShrink: 0, minHeight: 0, overflow: 'hidden' }}
+      style={{
+        width: width ?? 320,
+        flexShrink: 0,
+        minHeight: 0,
+        overflow: 'hidden',
+        display: rightSidebarCollapsed ? 'none' : undefined,
+      }}
     >
       {/* Inner container with explicit measured height -- bypasses WebView2 flex height bug */}
       <div
@@ -304,6 +334,17 @@ const RightSidebar = ({
           style={{ flexShrink: 0 }}
         >
           <h3 className="truncate text-sm font-medium">{getTabTitle()}</h3>
+          {canCombine && (
+            <button
+              type="button"
+              aria-pressed={splitRequested}
+              onClick={() => setSplitRequested((previous) => !previous)}
+              className="border-xp-border ml-2 rounded border px-2 py-1 text-xs"
+              title={t('intakePanels.splitHelp')}
+            >
+              {t('intakePanels.previewChat')}
+            </button>
+          )}
           <button
             onClick={() => setRightSidebarCollapsed(true)}
             className="hover:bg-xp-surface-light ml-2 flex-shrink-0 rounded p-1"
@@ -319,6 +360,12 @@ const RightSidebar = ({
           </button>
         </div>
 
+        {canCombine && splitRequested && tooShortToSplit && (
+          <p role="status" className="text-xp-text-muted px-3 py-1 text-xs">
+            {t('intakePanels.shortWindow')}
+          </p>
+        )}
+
         {/* Preview scrubber navigation bar (multi-select only) */}
         {showScrubber && (
           <PreviewNavigationBar
@@ -328,9 +375,9 @@ const RightSidebar = ({
             getHistory={getHistory}
             historyVersion={historyVersion}
             onHistorySelect={handleHistorySelect}
-            compareMode={scrubberCompareMode}
+            compareMode={!splitVisible && scrubberCompareMode}
             onCompareToggle={() => setScrubberCompareMode((v) => !v)}
-            showCompareToggle={selectedFileEntries.length >= 2 && previewIndex > 0}
+            showCompareToggle={!splitVisible && selectedFileEntries.length >= 2 && previewIndex > 0}
           />
         )}
 
@@ -354,7 +401,67 @@ const RightSidebar = ({
               </div>
             }
           >
+            {splitVisible && (
+              <div
+                key="combined-preview"
+                data-testid="combined-preview-slot"
+                style={{
+                  flex: `0 0 ${previewRatio * 100}%`,
+                  minHeight: 100,
+                  maxHeight: 'calc(100% - 124px)',
+                  overflow: 'auto',
+                }}
+              >
+                <ErrorBoundary>
+                  <PreviewPanel
+                    selectedFile={showScrubber ? effectivePreviewFile : selectedFile}
+                    formatFileSize={formatFileSize}
+                    formatDate={formatDate}
+                    getFolderSize={getFolderSize}
+                    isCalculatingSize={isCalculatingSize}
+                    currentPath={currentPath}
+                  />
+                </ErrorBoundary>
+              </div>
+            )}
+            {splitVisible && (
+              <div
+                role="separator"
+                aria-label={t('intakePanels.resize')}
+                aria-orientation="horizontal"
+                aria-valuenow={Math.round(previewRatio * 100)}
+                aria-valuemin={20}
+                aria-valuemax={65}
+                tabIndex={0}
+                className="flex-shrink-0"
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    resizePreview(event.key === 'ArrowUp' ? -24 : 24);
+                  }
+                }}
+              >
+                <ResizeHandle direction="vertical" onResize={resizePreview} />
+              </div>
+            )}
+            {(chatOpened || chatActive) && (
+              <div
+                key="retained-chat"
+                hidden={!chatActive}
+                style={{
+                  display: chatActive ? 'flex' : 'none',
+                  flexDirection: 'column',
+                  flex: '1 1 0%',
+                  minHeight: splitVisible ? 120 : 0,
+                }}
+              >
+                <ErrorBoundary>
+                  <StandaloneChatPanel active={chatActive} />
+                </ErrorBoundary>
+              </div>
+            )}
             {(() => {
+              if (rightSidebarCollapsed || rightPanelTab === 'chat' || splitVisible) return null;
               if (scrubberCompareFiles) {
                 return (
                   <ErrorBoundary>
@@ -417,13 +524,6 @@ const RightSidebar = ({
                 return (
                   <ErrorBoundary>
                     <ExtensionsPanel themes={themes} theme={theme} applyTheme={applyTheme} />
-                  </ErrorBoundary>
-                );
-              }
-              if (rightPanelTab === 'chat') {
-                return (
-                  <ErrorBoundary>
-                    <StandaloneChatPanel />
                   </ErrorBoundary>
                 );
               }

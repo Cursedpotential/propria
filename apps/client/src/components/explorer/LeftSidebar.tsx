@@ -7,6 +7,7 @@ import React, {
   useSyncExternalStore,
 } from 'react';
 import { FileEntry } from '@/lib/tauri-api';
+import IntakeFilesystemSearchPanel from './IntakeFilesystemSearchPanel';
 import SearchResultsPanel, {
   type SearchResultsPanelHandle,
 } from '@/components/explorer/SearchResultsPanel';
@@ -135,7 +136,10 @@ const LeftSidebar = forwardRef<LeftSidebarHandle, LeftSidebarProps>(function Lef
       )}
 
       {/* Search panel */}
-      {activeTabId === '__search__' && (
+      {activeTabId === '__search__' && import.meta.env.VITE_INTAKE_MODE === '1' && (
+        <IntakeFilesystemSearchPanel ref={searchPanelRef} navigateToPath={navigateToPath} />
+      )}
+      {activeTabId === '__search__' && import.meta.env.VITE_INTAKE_MODE !== '1' && (
         <SearchResultsPanel
           ref={searchPanelRef}
           basePath={currentPath}

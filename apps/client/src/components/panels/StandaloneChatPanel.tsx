@@ -47,6 +47,7 @@ import {
   IMAGE_EXTENSIONS,
 } from './use-chat-send';
 import { useAgentLoop } from './use-agent-loop';
+import { useChatContext } from './use-chat-context';
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded heavy components (reduces initial bundle)
@@ -86,11 +87,7 @@ const OVERSCAN_COUNT = 8;
 
 type ChatMessage = RuntimeChatMessage;
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
-const StandaloneChatPanel = () => {
+const StandaloneChatPanel = ({ active = true }: { active?: boolean }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -112,11 +109,7 @@ const StandaloneChatPanel = () => {
   >([]);
 
   // File context state -- updated from __xplorer_state__
-  const [currentPath, setCurrentPath] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<
-    Array<{ name: string; path: string; is_dir: boolean }>
-  >([]);
-  const [editorSelection, setEditorSelection] = useState<XplorerState['editorSelection']>(null);
+  const { currentPath, selectedFiles, editorSelection } = useChatContext(active);
   const [includeSelection, setIncludeSelection] = useState(true);
 
   // Workspace awareness state
@@ -131,7 +124,12 @@ const StandaloneChatPanel = () => {
     enabled: proactiveEnabled,
     toggleEnabled: toggleProactive,
     dismiss: dismissProactiveSuggestion,
-  } = useProactiveAgent(currentPath, workspaceCtx, messages.length > 0, isLoading);
+  } = useProactiveAgent(
+    active ? currentPath : '',
+    active ? workspaceCtx : null,
+    messages.length > 0,
+    isLoading,
+  );
 
   // Streaming text entries — built from assistant messages
   const streamingEntries = useMemo<StreamingEntry[]>(
@@ -155,6 +153,15 @@ const StandaloneChatPanel = () => {
 
   useEffect(() => {
     // Check AI service mode first, then fall back to agent settings
+    const intakeModel = import.meta.env.VITE_INTAKE_CHAT_MODEL;
+    if (
+      import.meta.env.VITE_INTAKE_MODE === '1' &&
+      typeof intakeModel === 'string' &&
+      intakeModel
+    ) {
+      setModel(intakeModel);
+      return;
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
       if (raw) {
@@ -191,28 +198,9 @@ const StandaloneChatPanel = () => {
       });
   }, []);
 
-  // Sync file context from __xplorer_state__
-  useEffect(() => {
-    const syncState = () => {
-      const xState = getXplorerState();
-      if (!xState) return;
-      setCurrentPath(xState.currentPath || '');
-      setSelectedFiles(xState.selectedFiles || []);
-      setEditorSelection(xState.editorSelection || null);
-    };
-    syncState();
-    const onStateChange = () => syncState();
-    window.addEventListener('xplorer-state-change', onStateChange);
-    const interval = setInterval(syncState, 1000);
-    return () => {
-      window.removeEventListener('xplorer-state-change', onStateChange);
-      clearInterval(interval);
-    };
-  }, []);
-
   // Detect workspace context when currentPath changes
   useEffect(() => {
-    if (!currentPath) {
+    if (!active || !currentPath || import.meta.env.VITE_INTAKE_MODE === '1') {
       setWorkspaceCtx(null);
       return;
     }
@@ -229,7 +217,7 @@ const StandaloneChatPanel = () => {
     return () => {
       cancelled = true;
     };
-  }, [currentPath]);
+  }, [currentPath, active]);
 
   // Auto-save conversation when messages change
   useEffect(() => {
@@ -573,6 +561,7 @@ const StandaloneChatPanel = () => {
   // Keyboard shortcuts (Ctrl+L clear, Escape cancel/close)
 
   useEffect(() => {
+    if (!active) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl+L or Cmd+L — clear chat
       if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
@@ -592,7 +581,7 @@ const StandaloneChatPanel = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [clearChat, isLoading, stopAgent]);
+  }, [clearChat, isLoading, stopAgent, active]);
 
   // Drag & drop handlers
 

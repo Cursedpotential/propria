@@ -123,7 +123,7 @@ static GDRIVE_POOL: LazyLock<GoogleDrivePool> = LazyLock::new(GoogleDrivePool::n
 // ---------------------------------------------------------------------------
 
 fn get_storage_path() -> Result<PathBuf, String> {
-    let dir = dirs::data_dir()
+    let dir = crate::runtime_paths::data_dir()
         .ok_or("Failed to get data directory")?
         .join("com.xplorer.app");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -238,7 +238,7 @@ pub struct GoogleDriveSettings {
 }
 
 fn gdrive_settings_path() -> Result<PathBuf, String> {
-    let dir = dirs::data_local_dir()
+    let dir = crate::runtime_paths::data_local_dir()
         .ok_or("Failed to get local data directory")?
         .join("xplorer");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;

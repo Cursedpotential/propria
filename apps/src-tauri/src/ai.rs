@@ -6,6 +6,9 @@ use std::sync::{Arc, LazyLock, Mutex};
 use tauri::command;
 use tracing::{info, warn};
 
+#[path = "ai_portkey.rs"]
+mod portkey;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
@@ -118,6 +121,25 @@ pub async fn get_ai_models() -> Result<Vec<AIModel>, String> {
         info!("Added OpenAI models to available models");
     }
 
+    // Intake never probes or advertises local inference.
+    if crate::runtime_paths::intake_mode() {
+        all_models.retain(|m| m.id.starts_with("claude-"));
+        if let Ok(model) = env::var("INTAKE_CHAT_MODEL") {
+            if !model.trim().is_empty() {
+                let is_portkey = model.starts_with("portkey:");
+                all_models.push(AIModel {
+                    id: if is_portkey || model.starts_with("openrouter:") { model.clone() } else { format!("openrouter:{}", model) },
+                    name: model,
+                    provider: if is_portkey { "portkey".into() } else { "openrouter".into() },
+                    available: if is_portkey {
+                        env::var("INTAKE_PORTKEY_URL").is_ok() && env::var("INTAKE_PORTKEY_CONFIG_FILE").is_ok()
+                    } else { env::var("OPENROUTER_API_KEY").is_ok() },
+                });
+            }
+        }
+        return Ok(all_models);
+    }
+
     // Try to get Ollama models
     let ollama = Ollama::default();
     match ollama.list_local_models().await {
@@ -162,6 +184,9 @@ pub async fn get_ai_models() -> Result<Vec<AIModel>, String> {
 
 #[command]
 pub async fn check_ollama_status() -> Result<bool, String> {
+    if crate::runtime_paths::intake_mode() {
+        return Ok(false);
+    }
     info!("Checking Ollama status...");
 
     let ollama = Ollama::default();
@@ -367,7 +392,18 @@ async fn chat_with_claude(
     }
 
     // Ensure the conversation ends with a user message (Claude API requirement).
-    let mut messages = messages;
+    let mut conversation = Vec::new();
+    for message in messages {
+        match message.role.as_str() {
+            "system" => {
+                system_message.push_str("\n\n");
+                system_message.push_str(&message.content);
+            }
+            "user" | "assistant" => conversation.push(message),
+            _ => return Err("Unsupported chat message role".into()),
+        }
+    }
+    let mut messages = conversation;
     if messages.last().map(|m| m.role.as_str()) != Some("user") {
         messages.push(ChatMessage {
             role: "user".to_string(),
@@ -471,7 +507,10 @@ async fn route_ai_request(
     file_context: Option<FileContext>,
 ) -> Result<String, String> {
     // Check if it's a Claude model
-    if model.starts_with("claude-") {
+    if let Some(portkey_model) = model.strip_prefix("portkey:") {
+        if portkey_model.trim().is_empty() { return Err("A Portkey model name is required".into()); }
+        portkey::chat(portkey_model, messages).await
+    } else if model.starts_with("claude-") {
         chat_with_claude(model, messages, file_context).await
     } else if model.starts_with("openrouter:") {
         // OpenRouter model — strip the "openrouter:" prefix
@@ -480,6 +519,8 @@ async fn route_ai_request(
             .unwrap_or(&model)
             .to_string();
         chat_with_openrouter(or_model, messages, file_context, None).await
+    } else if crate::runtime_paths::intake_mode() {
+        Err("Intake requires an explicit remote chat provider. Choose a configured portkey:, claude- or openrouter: model; local inference is disabled.".into())
     } else {
         // Use existing Ollama chat function
         chat_with_ollama(model, messages, file_context).await
@@ -530,10 +571,11 @@ async fn chat_with_openrouter(
     })];
 
     for msg in &messages {
-        let role = if msg.role == "user" {
-            "user"
-        } else {
-            "assistant"
+        let role = match msg.role.as_str() {
+            "system" => "system",
+            "user" => "user",
+            "assistant" => "assistant",
+            _ => return Err("Unsupported chat message role".into()),
         };
         api_messages.push(serde_json::json!({
             "role": role,
@@ -606,6 +648,9 @@ pub async fn search_rerank_with_ai(
     let sys_prompt = system_prompt.unwrap_or(
         "You are a file search relevance ranker. Return ONLY valid JSON arrays. No explanation.",
     );
+    if crate::runtime_paths::intake_mode() && provider == "ollama" {
+        return Err("Local inference is disabled in Intake; configure a remote reranker.".into());
+    }
     match provider {
         "claude" => {
             let key = api_key
@@ -831,15 +876,17 @@ pub async fn search_rerank_with_ai(
 /// Tries Ollama (local) first, then Claude, then OpenAI.
 /// Returns `Some((provider, api_key, model))` or `None` if nothing is available.
 pub async fn detect_best_provider() -> Option<(String, Option<String>, String)> {
-    // 1. Try Ollama (local, free)
-    let client = crate::search::ollama_client::get_client();
-    let available = tokio::task::spawn_blocking(move || client.is_available())
-        .await
-        .unwrap_or(false);
-    if available {
+    // 1. Legacy local discovery is never attempted by Intake.
+    if !crate::runtime_paths::intake_mode() {
         let client = crate::search::ollama_client::get_client();
-        if let Some(model) = client.detect_chat_model().await {
-            return Some(("ollama".into(), None, model));
+        let available = tokio::task::spawn_blocking(move || client.is_available())
+            .await
+            .unwrap_or(false);
+        if available {
+            let client = crate::search::ollama_client::get_client();
+            if let Some(model) = client.detect_chat_model().await {
+                return Some(("ollama".into(), None, model));
+            }
         }
     }
 
@@ -892,6 +939,9 @@ const DOCUMENT_EXTENSIONS: &[&str] = &[
 /// Uses vision for images, text extraction for documents, and metadata for other files.
 #[command]
 pub async fn suggest_filename(file_path: String) -> Result<Vec<String>, String> {
+    if crate::runtime_paths::intake_mode() {
+        return Err("Legacy local filename inference is disabled in Intake. Use selection-aware remote chat.".into());
+    }
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err(format!("File does not exist: {}", file_path));
@@ -1088,6 +1138,9 @@ pub async fn suggest_filename(file_path: String) -> Result<Vec<String>, String> 
 /// Returns Vec<(path, Vec<tag>)>.
 #[command]
 pub async fn auto_tag_files(file_paths: Vec<String>) -> Result<Vec<(String, Vec<String>)>, String> {
+    if crate::runtime_paths::intake_mode() {
+        return Err("Legacy local auto-tagging is disabled in Intake. Use selection-aware remote chat.".into());
+    }
     if file_paths.is_empty() {
         return Ok(Vec::new());
     }

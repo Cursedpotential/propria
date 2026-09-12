@@ -33,6 +33,7 @@ export interface PasteContext {
 
 export interface PasteResult {
   succeeded: number;
+  skipped?: number;
   errors: string[];
   isCut: boolean;
 }
@@ -67,6 +68,7 @@ export const executePaste = async (ctx: PasteContext): Promise<PasteResult> => {
     total > 1 ? rawToast({ title: `${verb}...`, description: `0 / ${total} items` }) : null;
 
   let succeeded = 0;
+  let skipped = 0;
   const errors: string[] = [];
   let applyToAllRes: ConflictResolution | null = null;
   const sep = detectSep(targetPath);
@@ -97,21 +99,21 @@ export const executePaste = async (ctx: PasteContext): Promise<PasteResult> => {
           resolution = result.resolution;
           if (result.applyToAll) applyToAllRes = resolution;
         }
-        if (!resolution) resolution = 'replace';
         if (resolution === 'skip') {
-          succeeded++;
+          skipped++;
           continue;
         }
-        if (resolution === 'keep-both') {
-          destination = await TauriAPI.getRenameDest(targetPath, file.name);
-        }
         if (resolution === 'replace') {
-          try {
-            await TauriAPI.removeFile(destination);
-          } catch {
-            // Destination may not exist anymore — continue
-          }
+          throw new Error(
+            'Replacing existing files is not supported safely yet. Choose Keep both or Skip.',
+          );
         }
+        if (resolution !== 'keep-both') {
+          throw new Error(
+            'Destination already exists. Choose Keep both or Skip before transferring this file.',
+          );
+        }
+        destination = await TauriAPI.getRenameDest(targetPath, file.name);
       }
 
       if (isCut) {
@@ -126,20 +128,21 @@ export const executePaste = async (ctx: PasteContext): Promise<PasteResult> => {
       const msg = `${file.name}: ${formatError(error)}`;
       errors.push(msg);
       console.error(`Paste failed for ${file.name}:`, error);
-    }
-    if (progressToast) {
-      progressToast.update({
-        id: progressToast.id,
-        title: `${verb}...`,
-        description: `${i + 1} / ${total} items`,
-      });
+    } finally {
+      if (progressToast) {
+        progressToast.update({
+          id: progressToast.id,
+          title: `${verb}...`,
+          description: `${i + 1} / ${total} items`,
+        });
+      }
     }
   }
 
   if (progressToast) progressToast.dismiss();
   emitFilesChanged();
 
-  return { succeeded, errors, isCut };
+  return { succeeded, skipped, errors, isCut };
 };
 
 // ── Toast helpers ────────────────────────────────────────────────────────────
@@ -154,15 +157,17 @@ export const showPasteResultToast = (
   }) => void,
 ): void => {
   const verbPast = result.isCut ? 'moved' : 'copied';
+  const transferTitle = result.isCut ? 'Moved' : 'Copied';
+  const skippedSummary = result.skipped ? `, ${result.skipped} skipped` : '';
   if (result.errors.length === 0) {
     toast({
-      title: result.isCut ? 'Moved' : 'Copied',
-      description: `${result.succeeded} item${result.succeeded > 1 ? 's' : ''} ${verbPast}`,
+      title: result.skipped ? 'Paste completed' : transferTitle,
+      description: `${result.succeeded} item${result.succeeded === 1 ? '' : 's'} ${verbPast}${skippedSummary}`,
     });
   } else {
     toast({
       title: 'Paste completed with errors',
-      description: `${result.succeeded} ${verbPast}, ${result.errors.length} failed: ${result.errors.slice(0, 3).join('; ')}${result.errors.length > 3 ? '...' : ''}`,
+      description: `${result.succeeded} ${verbPast}${skippedSummary}, ${result.errors.length} failed: ${result.errors.slice(0, 3).join('; ')}${result.errors.length > 3 ? '...' : ''}`,
       variant: 'destructive',
     });
   }

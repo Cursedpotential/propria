@@ -62,6 +62,7 @@ export const useNavigation = ({ currentPath, splitLayout, activeGroup }: UseNavi
       }
 
       if (
+        import.meta.env.VITE_INTAKE_MODE !== '1' &&
         !newPath.startsWith('xplorer://') &&
         !newPath.startsWith('comparison://') &&
         !extensionHost.isExtensionScheme(newPath)

@@ -88,6 +88,9 @@ impl SearchEngine {
     /// updates (only re-indexing new/modified files). Falls back to full rebuild
     /// if no cache exists or the cache is invalid.
     pub fn start(&self) {
+        if crate::runtime_paths::intake_mode() {
+            return;
+        }
         let settings = self.get_settings();
         if !settings.enabled || settings.whitelisted_paths.is_empty() {
             return;
@@ -161,6 +164,9 @@ impl SearchEngine {
 
     /// Trigger a full re-index from the current settings.
     pub fn rebuild_full_index(&self) {
+        if crate::runtime_paths::intake_mode() {
+            return;
+        }
         if self
             .is_indexing
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -858,6 +864,9 @@ impl SearchEngine {
     /// Index a single directory incrementally (no full rebuild).
     /// Skips directories already indexed. Used for auto-indexing on navigation.
     pub fn index_directory(&self, path: &str, max_depth: Option<u32>) {
+        if crate::runtime_paths::intake_mode() {
+            return;
+        }
         let path_str = path.to_string();
 
         // Check if already indexed.

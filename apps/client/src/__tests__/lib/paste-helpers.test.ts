@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Hoist mock variables so they are available inside vi.mock factory
-const { mockCheckConflicts, mockFileExists, mockMoveFile, mockCopy, mockGetRenameDest } =
+const { mockCheckConflicts, mockFileExists, mockMoveFile, mockCopy, mockGetRenameDest, mockRemoveFile } =
   vi.hoisted(() => ({
     mockCheckConflicts: vi.fn(() => Promise.resolve([])),
     mockFileExists: vi.fn(() => Promise.resolve(false)),
     mockMoveFile: vi.fn(() => Promise.resolve()),
     mockCopy: vi.fn(() => Promise.resolve()),
+    mockRemoveFile: vi.fn(() => Promise.resolve()),
     mockGetRenameDest: vi.fn((dir: string, name: string) => Promise.resolve(`${dir}/${name} (2)`)),
   }));
 
@@ -14,8 +15,9 @@ vi.mock('@/lib/tauri-api', () => ({
   TauriAPI: {
     checkConflicts: mockCheckConflicts,
     fileExists: mockFileExists,
-    moveFile: mockMoveFile,
-    copy: mockCopy,
+    moveWithProgress: mockMoveFile,
+    copyWithProgress: mockCopy,
+    removeFile: mockRemoveFile,
     getRenameDest: mockGetRenameDest,
     readDirectory: vi.fn(() => Promise.resolve([])),
     getFileIcon: vi.fn(() => ''),
@@ -138,7 +140,7 @@ describe('executePaste', () => {
     expect(result.errors[0]).toContain('Permission denied');
   });
 
-  it('calls resolveConflict when file exists at destination', async () => {
+  it('reports unsupported replacement without deleting or transferring either file', async () => {
     mockFileExists.mockResolvedValue(true);
 
     const resolveConflict = vi.fn().mockResolvedValue({
@@ -159,8 +161,11 @@ describe('executePaste', () => {
     const result = await executePaste(ctx);
 
     expect(resolveConflict).toHaveBeenCalledTimes(1);
-    expect(result.succeeded).toBe(1);
-    expect(mockCopy).toHaveBeenCalledTimes(1);
+    expect(result.succeeded).toBe(0);
+    expect(result.errors[0]).toContain('Replacing existing files is not supported');
+    expect(mockCopy).not.toHaveBeenCalled();
+    expect(mockMoveFile).not.toHaveBeenCalled();
+    expect(mockRemoveFile).not.toHaveBeenCalled();
   });
 
   it('skips file when conflict resolution is "skip"', async () => {
@@ -183,7 +188,9 @@ describe('executePaste', () => {
 
     const result = await executePaste(ctx);
 
-    expect(result.succeeded).toBe(1); // skipped counts as succeeded
+    expect(result.succeeded).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.errors).toEqual([]);
     expect(mockCopy).not.toHaveBeenCalled();
   });
 
@@ -256,11 +263,45 @@ describe('executePaste', () => {
     expect(mockGetRenameDest).toHaveBeenCalledWith('/dest', 'a.txt');
     expect(mockCopy).toHaveBeenCalledWith('/dest/a.txt', '/dest/a Copy.txt');
   });
+
+  it.each(['copy', 'cut'] as const)('preserves conflicting files without a resolver during %s', async (operation) => {
+    mockFileExists.mockResolvedValue(true);
+    const emitFileActivity = vi.fn();
+    const result = await executePaste({
+      files: [makeFile('a.txt')], operation, targetPath: '/dest',
+      emitFileActivity, emitFilesChanged: vi.fn(),
+    });
+    expect(result.succeeded).toBe(0);
+    expect(result.errors[0]).toContain('Destination already exists');
+    expect(mockCopy).not.toHaveBeenCalled();
+    expect(mockMoveFile).not.toHaveBeenCalled();
+    expect(mockRemoveFile).not.toHaveBeenCalled();
+    expect(emitFileActivity).not.toHaveBeenCalled();
+  });
+
+  it('does not transfer when the resolver returns an unsupported decision', async () => {
+    mockFileExists.mockResolvedValue(true);
+    const result = await executePaste({
+      files: [makeFile('a.txt')], operation: 'copy', targetPath: '/dest',
+      resolveConflict: vi.fn().mockResolvedValue({ resolution: 'unknown', applyToAll: false }),
+      emitFileActivity: vi.fn(), emitFilesChanged: vi.fn(),
+    });
+    expect(result.errors).toHaveLength(1);
+    expect(mockCopy).not.toHaveBeenCalled();
+    expect(mockRemoveFile).not.toHaveBeenCalled();
+  });
 });
 
 // ── showPasteResultToast ────────────────────────────────────────────────
 
 describe('showPasteResultToast', () => {
+  it('reports skipped files separately from completed transfers', () => {
+    const toast = vi.fn();
+    showPasteResultToast({ succeeded: 0, skipped: 2, errors: [], isCut: true }, toast);
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Paste completed', description: '0 items moved, 2 skipped',
+    }));
+  });
   it('shows success toast for copy', () => {
     const toast = vi.fn();
     const result: PasteResult = { succeeded: 3, errors: [], isCut: false };

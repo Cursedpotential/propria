@@ -2,6 +2,17 @@
 
 Tauri 2.x desktop file manager. React 18 + TypeScript frontend, Rust backend, pnpm monorepo.
 
+
+<!-- Byline: Codex · GPT-5 · 2026-08-27. -->
+@..\AGENTS.md
+@..\AGENT_MEMORY.md
+
+Activate /karpathy-guidelines   /think:tm-graph-thinking /think:tm-thinking-systems /hyperfocus:hyperfocus   --- NOT OPTIONAL
+/think:tm-thinking-socratic  THIS TYPE PF THOUGHT PROCESS NEEDS TO GUIDE YOUR DESIGN AND DECISION MAKING IN GENERAL, ITS DELIVERABLES ARE NECCISARY BUT APPLICATION OF ITS PRINCIPALS ARE! 
+consider a  /think:workflows IF ONE FITS THE TASK YOU MUST LOAD IT
+
+
+
 ## Project structure
 
 - `apps/client/` -- React frontend (Vite + TypeScript + Tailwind CSS)

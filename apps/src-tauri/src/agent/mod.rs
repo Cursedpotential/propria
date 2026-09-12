@@ -191,7 +191,7 @@ pub fn emit_event(app: &tauri::AppHandle, event: &AgentEvent) {
 }
 
 fn settings_path() -> std::path::PathBuf {
-    let dir = dirs::data_local_dir()
+    let dir = crate::runtime_paths::data_local_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("xplorer");
     std::fs::create_dir_all(&dir).ok();
@@ -258,7 +258,7 @@ fn save_settings(settings: &AgentSettings) -> Result<(), String> {
 }
 
 fn permissions_path() -> std::path::PathBuf {
-    let dir = dirs::data_local_dir()
+    let dir = crate::runtime_paths::data_local_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("xplorer");
     std::fs::create_dir_all(&dir).ok();
@@ -732,6 +732,10 @@ pub async fn agent_chat(
         || effective_model.starts_with("o3")
         || effective_model.starts_with("o4")
         || effective_model.starts_with("chatgpt-");
+
+    if crate::runtime_paths::intake_mode() && !is_claude && !is_openai {
+        return Err("Intake requires an explicitly configured remote agent model; local Ollama fallback is disabled.".into());
+    }
 
     if is_claude && settings.api_key.is_empty() {
         return Err("No API key configured. Set your Claude API key in Settings.".to_string());

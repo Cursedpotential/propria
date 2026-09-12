@@ -345,8 +345,19 @@ export const useChatActions = (
     ): Promise<{ readOnlyResults: string[]; hasRemainingPending: boolean }> => {
       const readOnlyResults: string[] = [];
       let hasRemainingPending = false;
+      let indexSearches = 0;
 
       for (const pa of pendingActions) {
+        if (import.meta.env.VITE_INTAKE_MODE === '1' && pa.action.action === 'search_files') {
+          indexSearches++;
+          if (indexSearches > 3) {
+            const message =
+              'Combined index search limit reached for this response (3); this search was not executed.';
+            updateActionStatus(msgIndex, pa.id, 'error', { error: message });
+            readOnlyResults.push(message);
+            continue;
+          }
+        }
         // run_command NEVER auto-executes -- always requires explicit user permission
         if (isAlwaysAskAction(pa.action.action)) {
           hasRemainingPending = true;

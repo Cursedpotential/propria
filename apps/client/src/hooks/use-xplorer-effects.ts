@@ -607,13 +607,25 @@ export const useXplorerEffects = (deps: XplorerEffectsDeps) => {
   }, []);
 
   // ── Sync selectedFiles to extension state ─────────────────────────────────
+  useWindowEvent('intake-select-search-paths', (event) => {
+    const detail: unknown = (event as CustomEvent<unknown>).detail;
+    if (!Array.isArray(detail) || detail.some((path) => typeof path !== 'string' || !path)) return;
+    setSelectedFiles((previous) => new Set([...previous, ...(detail as string[])]));
+  });
+
   useEffect(() => {
     const state = (window as unknown as WindowWithXplorer).__xplorer_state__;
     if (state) {
       const mapped = Array.from(selectedFiles).map((p) => {
         const entry = files?.find((f) => f.path === p);
         const name = p.split(/[/\\]/).pop() || p;
-        return { name: entry?.name || name, path: p, is_dir: entry?.is_dir ?? false };
+        return {
+          name: entry?.name || name,
+          path: p,
+          is_dir: entry?.is_dir ?? false,
+          metadata_known: entry !== undefined,
+          size: entry?.size,
+        };
       });
       state.selectedFiles = mapped;
       window.dispatchEvent(

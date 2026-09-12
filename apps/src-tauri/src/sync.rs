@@ -318,10 +318,7 @@ pub async fn set_last_sync_time(
     timestamp: String,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    use tauri::Manager;
-    let dir = app_handle
-        .path()
-        .app_data_dir()
+    let dir = crate::runtime_paths::app_data_dir(&app_handle)
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create app data dir: {}", e))?;
     let path = dir.join("last_sync.json");
@@ -335,10 +332,7 @@ pub async fn set_last_sync_time(
 /// Read the last sync timestamp from the app data directory.
 #[tauri::command]
 pub async fn get_last_sync_time(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
-    use tauri::Manager;
-    let dir = app_handle
-        .path()
-        .app_data_dir()
+    let dir = crate::runtime_paths::app_data_dir(&app_handle)
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     let path = dir.join("last_sync.json");
     if !path.exists() {
@@ -438,7 +432,7 @@ async fn run_sync_cycle(
 
 async fn get_all_tags_as_map(app_handle: &tauri::AppHandle) -> HashMap<String, Vec<FileTag>> {
     use tauri::Manager;
-    let dir = app_handle.path().app_data_dir().ok();
+    let dir = crate::runtime_paths::app_data_dir(app_handle).ok();
     let Some(dir) = dir else {
         return HashMap::new();
     };

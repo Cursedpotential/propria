@@ -38,6 +38,7 @@ import SplitContainer from '@/components/split-view/SplitContainer';
 import { DragDropProvider } from '@/contexts/DragDropContext';
 import { CrossTabSelectionProvider } from '@/contexts/CrossTabSelectionContext';
 import { ExplorerProvider, type ExplorerContextValue } from '@/contexts/ExplorerContext';
+import type { PaneSelection } from '@/hooks/use-pane-selection';
 
 const AgentLauncher = React.lazy(() => import('@/components/panels/AgentLauncher'));
 const AgentWorkspace = React.lazy(() => import('@/components/panels/agent-manager/AgentWorkspace'));
@@ -55,6 +56,7 @@ export interface MainLayoutProps {
   files: FileEntry[];
   filteredFiles: FileEntry[];
   selectedFiles: Set<string>;
+  paneSelections?: Record<string, PaneSelection>;
   setSelectedFiles: React.Dispatch<React.SetStateAction<Set<string>>>;
   selectedFile: FileEntry | null;
   setSelectedFile: React.Dispatch<React.SetStateAction<FileEntry | null>>;
@@ -212,6 +214,7 @@ const MainLayout = (props: MainLayoutProps) => {
     files,
     filteredFiles,
     selectedFiles,
+    paneSelections,
     setSelectedFiles,
     selectedFile,
     setSelectedFile,
@@ -372,6 +375,7 @@ const MainLayout = (props: MainLayoutProps) => {
   const explorerContextValue: ExplorerContextValue = React.useMemo(
     () => ({
       selection: {
+        panes: paneSelections,
         selectedFiles,
         setSelectedFiles,
         selectedFile,
@@ -430,6 +434,7 @@ const MainLayout = (props: MainLayoutProps) => {
     }),
     [
       selectedFiles,
+      paneSelections,
       setSelectedFiles,
       selectedFile,
       setSelectedFile,

@@ -1,4 +1,28 @@
 {
+  "intakePanels": {
+    "previewChat": "Preview + chat",
+    "splitHelp": "Show the selected file and conversation together. Drag the divider to resize.",
+    "shortWindow": "Not enough height for both panels. Use Preview or AI Chat, or enlarge the window.",
+    "resize": "Resize preview and chat"
+  },
+  "intakeSearch": {
+    "title": "Combined filesystem index",
+    "description": "CocoIndex → Weaviate. Searches indexed content, not a live scan. Keyword mode does not call an embedder.",
+    "query": "Find files, exports, or missing pieces",
+    "mode": "Search mode",
+    "hybrid": "Hybrid semantic + keyword",
+    "keyword": "Keyword",
+    "searching": "Searching…",
+    "search": "Search index",
+    "coverage": "Index coverage",
+    "unknown": "Unknown",
+    "unavailable": "Search unavailable",
+    "addSelection": "Add checked results to selection ({{count}})",
+    "noResults": "No indexed matches. This does not prove the files are missing.",
+    "score": "Search score",
+    "unmapped": "No filesystem mount mapping is available for this source path.",
+    "openLocation": "Open location"
+  },
   "common": {
     "ok": "确定",
     "cancel": "取消",

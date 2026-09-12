@@ -34,7 +34,7 @@ const POPULAR_MODELS: ReadonlyArray<ModelOption> = [
   { id: 'x-ai/grok-4', label: 'Grok 4', hint: 'xAI' },
 ];
 
-const stripPrefix = (model: string): string => model.replace(/^openrouter:/, '');
+const stripPrefix = (model: string): string => model.replace(/^(openrouter|portkey):/, '');
 
 const findLabel = (model: string): string => {
   const stripped = stripPrefix(model);
@@ -76,6 +76,11 @@ const ChatModelPicker = ({ currentModel, onModelChange }: ChatModelPickerProps) 
       const s = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
       s.aiServiceMode = 'cloud';
       s.aiCloudModel = modelId;
+      if (modelId.startsWith('portkey:')) {
+        s.aiServiceMode = 'custom';
+        s.aiCustomProvider = 'portkey';
+        s.aiCustomModel = modelId;
+      }
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(s));
       window.dispatchEvent(new CustomEvent('xplorer-settings-changed'));
     } catch (err) {
@@ -84,7 +89,7 @@ const ChatModelPicker = ({ currentModel, onModelChange }: ChatModelPickerProps) 
   };
 
   const handlePick = (modelId: string) => {
-    onModelChange(`openrouter:${modelId}`);
+    onModelChange(modelId.startsWith('portkey:') ? modelId : `openrouter:${modelId}`);
     persistModel(modelId);
     setIsOpen(false);
   };

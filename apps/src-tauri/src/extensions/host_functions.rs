@@ -408,7 +408,7 @@ fn do_file_exists(
 /// Get the extension-scoped storage directory.
 fn extension_storage_dir(extension_id: &str) -> Result<std::path::PathBuf, String> {
     let data_dir =
-        dirs::data_dir().ok_or_else(|| "Could not determine app data directory".to_string())?;
+        crate::runtime_paths::data_dir().ok_or_else(|| "Could not determine app data directory".to_string())?;
     let storage_dir = data_dir
         .join("com.xplorer.app")
         .join("extension_storage")
@@ -830,7 +830,7 @@ fn validate_read_path(path: &str, extension_id: &str) -> Result<(), String> {
 
     // 1) Always allow reads within the extension's own data directory.
     let data_dir =
-        dirs::data_dir().ok_or_else(|| "Could not determine app data directory".to_string())?;
+        crate::runtime_paths::data_dir().ok_or_else(|| "Could not determine app data directory".to_string())?;
     let ext_data_base = data_dir
         .join("com.xplorer.app")
         .join("extension_data")
@@ -924,7 +924,7 @@ fn validate_write_path(path: &str, extension_id: &str) -> Result<(), String> {
 
     // Extension write operations should be scoped to their own data directory.
     let data_dir =
-        dirs::data_dir().ok_or_else(|| "Could not determine app data directory".to_string())?;
+        crate::runtime_paths::data_dir().ok_or_else(|| "Could not determine app data directory".to_string())?;
     let allowed_base = data_dir
         .join("com.xplorer.app")
         .join("extension_data")

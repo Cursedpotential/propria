@@ -40,9 +40,7 @@ pub struct NoteSearchResult {
 }
 
 fn file_notes_path(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    let dir = app_handle
-        .path()
-        .app_data_dir()
+    let dir = crate::runtime_paths::app_data_dir(app_handle)
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create app data dir: {}", e))?;
     Ok(dir.join("file_notes.json"))
@@ -276,9 +274,7 @@ pub struct FileAnnotation {
 }
 
 fn file_annotations_path(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    let dir = app_handle
-        .path()
-        .app_data_dir()
+    let dir = crate::runtime_paths::app_data_dir(app_handle)
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create app data dir: {}", e))?;
     Ok(dir.join("file_annotations.json"))

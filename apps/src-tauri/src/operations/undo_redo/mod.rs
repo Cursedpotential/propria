@@ -256,7 +256,7 @@ pub static OPERATION_HISTORY: LazyLock<Mutex<OperationHistory>> =
 /// Located at <user data dir>/.xplorer_trash/
 #[allow(dead_code)]
 fn get_staging_dir() -> Result<PathBuf, String> {
-    let base = dirs::data_local_dir()
+    let base = crate::runtime_paths::data_local_dir()
         .or_else(dirs::home_dir)
         .ok_or_else(|| "Cannot determine user data directory".to_string())?;
     let staging = base.join(".xplorer_trash");

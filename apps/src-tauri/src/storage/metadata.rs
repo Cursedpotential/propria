@@ -26,9 +26,7 @@ pub struct CustomMetadataField {
 }
 
 fn file_metadata_path(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    let dir = app_handle
-        .path()
-        .app_data_dir()
+    let dir = crate::runtime_paths::app_data_dir(app_handle)
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create app data dir: {}", e))?;
     Ok(dir.join("file_metadata.json"))
