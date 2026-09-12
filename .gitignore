@@ -205,6 +205,7 @@ Secrets/
 # preserved in place and listed by the migration inventory; ignore is not deletion.
 /*.html
 /COMPACT-SUMMARY-*.md
+/docs/COMPACT-SUMMARY-*.md
 /DOC_PATCH_REPORT-*.md
 /NAMING.md.lnk
 
