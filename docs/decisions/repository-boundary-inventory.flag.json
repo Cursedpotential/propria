@@ -1,0 +1,13 @@
+{
+  "subject": "note:propria_repository_boundary_inventory_20260912",
+  "title": "Propria nested repository boundaries inventoried",
+  "summary": "Verified 2026-09-12: Propria is clean on its new private root remote. Consignatio is dirty with 16 tracked and 68 untracked paths. Probata is dirty with 579 tracked and 1,153 untracked paths and is 12 behind/3 ahead. Additional boundaries include the clean Intake desktop fork and build kit, clean Advocatio, dirty local custom modules, SBV as an existing raw gitlink, Timesketch as an ignored nested repository, heavily dirty Vestigia, dirty TraceIQ rebuild with linked worktrees, and the Consignatio repair-tool-kit linked worktree. The migration manifest records provisional treatment. No child repository, branch, worktree or corpus file was moved or changed by this inventory.",
+  "priority": "high",
+  "authority": "verified_finding",
+  "status": "active",
+  "domains": ["probata", "consignatio", "intake", "advocatio", "vestigia", "docs", "infra"],
+  "source_ref": "E:/AI_Workspace/Projects/Propria/docs/REPOSITORY-BOUNDARY-INVENTORY-2026-09-12.md",
+  "rationale": "The owner directed conversion from a conceptual suite/router to a real Propria monorepo. Exact nested boundaries and dirty-state risks must be visible before history-preserving imports.",
+  "actor": "Codex GPT-5",
+  "expected_revision": 0
+}

@@ -43,6 +43,86 @@
       "compatibility_path": "design-contract",
       "compatibility_type": "junction",
       "verified_file_count": 14
+    },
+    {
+      "id": "intake-desktop-fork",
+      "source": "Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
+      "target": "projects/consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
+      "state": "retained_external_pending_parent_import",
+      "ownership": "owned_fork_with_upstream",
+      "git_head": "6990b7ed",
+      "dirty": false,
+      "recommended_strategy": "retain private fork boundary during Consignatio import"
+    },
+    {
+      "id": "xplorer-copilot-buildkit",
+      "source": "Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
+      "target": "projects/consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
+      "state": "retained_external_pending_parent_import",
+      "ownership": "owned",
+      "git_head": "d0954e3",
+      "dirty": false,
+      "recommended_strategy": "decide subtree import after Consignatio history import"
+    },
+    {
+      "id": "advocatio-legal-workbench",
+      "source": "Probata/probata/modules/advocatio-legal_workbench",
+      "target": "projects/probata/modules/advocatio-legal_workbench",
+      "state": "retained_external_pending_parent_import",
+      "ownership": "owned",
+      "git_head": "a44132f",
+      "dirty": false,
+      "recommended_strategy": "preserve independent history until Probata reconciliation"
+    },
+    {
+      "id": "probata-custom-modules",
+      "source": "Probata/probata/modules/custom",
+      "target": "projects/probata/modules/custom",
+      "state": "source",
+      "ownership": "local_owned_unverified",
+      "git_head": "761847a",
+      "dirty": true,
+      "recommended_strategy": "inventory local-only content before import"
+    },
+    {
+      "id": "sbv",
+      "source": "Probata/probata/modules/forks/sbv",
+      "target": "projects/probata/modules/forks/sbv",
+      "state": "existing_gitlink",
+      "ownership": "fork_or_donor",
+      "git_head": "6927a23",
+      "dirty": true,
+      "recommended_strategy": "retain boundary until donor extraction is ruled"
+    },
+    {
+      "id": "timesketch",
+      "source": "Probata/probata/modules/forks/timesketch",
+      "target": "projects/probata/modules/forks/timesketch",
+      "state": "ignored_nested_repository",
+      "ownership": "fork_or_donor",
+      "git_head": "00eff7d",
+      "dirty": false,
+      "recommended_strategy": "retain external dependency boundary"
+    },
+    {
+      "id": "vestigia",
+      "source": "Probata/probata/modules/vestigia-geodata_processor",
+      "target": "projects/vestigia",
+      "state": "source",
+      "ownership": "owned",
+      "git_head": "e1a4acd",
+      "dirty": true,
+      "recommended_strategy": "reconcile independently before extracting from Probata"
+    },
+    {
+      "id": "traceiq-rebuild",
+      "source": "Probata/probata/modules/vestigia-geodata_processor/traceiq-rebuild",
+      "target": "projects/vestigia/traceiq-rebuild",
+      "state": "ignored_nested_repository",
+      "ownership": "owned",
+      "git_head": "0144af8",
+      "dirty": true,
+      "recommended_strategy": "preserve linked worktrees and reconcile before import"
     }
   ],
   "prohibited_content": [
