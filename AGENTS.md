@@ -1,6 +1,6 @@
 # Propria — Monorepo Root Contract
 
-<!-- Updated by: Codex | Date: 2026-09-12 | Rev: 2 | Platform: Codex / win32 | Changes: establish Propria as monorepo root | Context: explicit owner correction -->
+<!-- Updated by: Codex | Date: 2026-09-12 | Rev: 3 | Platform: Codex / win32 | Changes: establish universal Docstore use | Context: explicit owner clarification -->
 
 **Owner decision — 2026-09-12 (repository topology):**
 `E:\AI_Workspace\Projects\Propria` is the top of the Propria monorepo. Owned
@@ -20,6 +20,16 @@ See [the staged migration plan](docs/MONOREPO-MIGRATION-PLAN-2026-09-12.md).
 <!-- Updated by: Codex | Date: 2026-09-12 | Rev: 1 | Platform: Codex / win32 | Changes: record three-system boundary | Context: explicit owner clarification -->
 
 **Owner decision — 2026-09-12:** CCC means project-local CocoIndex Code indexes only. Intake is the multifaceted CocoIndex-based filesystem workstation, using Weaviate for advanced search and SurrealDB for relationships, with multimodal tools/libraries (OCR, STT, video transcription/processing, advanced SLM extraction/classification). Docstore is CocoIndex + SurrealDB for project documentation. Keep their apps, tracking state, locks, configuration and target ownership isolated; shared technology is not a shared runtime. This defines scope, not proof every feature is implemented.
+
+**Owner decision — 2026-09-12 (universal Docstore):** Probata hosts
+Docstore, but Docstore serves the entire Propria monorepo. All project
+documentation will be progressively registered and indexed there. Every agent and
+project must be able to use its first-class semantic search, bounded recall,
+resource retrieval, note/decision, revision, flag and freshness-verification
+tools. Before updating documentation or recording a note, query Docstore for
+related current decisions; write through its governed tools and read back the
+result. Source documents keep their owning repository and authority. Universal
+Docstore access does not merge Docstore with CCC or Intake.
 
 See [CCC / Intake / Docstore boundaries](SYSTEM-BOUNDARIES.md) for indexing eligibility, duplicate provenance and the human-agent organizing workflow.
 

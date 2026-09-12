@@ -8,7 +8,7 @@ docstore_subject: note:ccc_intake_docstore_boundaries
 
 # CCC, Intake and Docstore — owner-defined boundaries
 
-<!-- Updated by: Codex | Date: 2026-09-12 | Rev: 3 | Platform: Codex / win32 | Changes: record Dragonfly availability and cross-task approval check | Context: owner requires current approved-use coordination -->
+<!-- Updated by: Codex | Date: 2026-09-12 | Rev: 4 | Platform: Codex / win32 | Changes: establish Docstore as the universal Propria documentation memory and tool plane | Context: explicit owner clarification -->
 
 Authority: the owner's explicit clarification and instruction to record it on 2026-09-12. This is the shared boundary reference, not a new application or runtime. Local repositories repeat the essential definitions so their instructions remain useful independently.
 
@@ -16,7 +16,39 @@ Authority: the owner's explicit clarification and instruction to record it on 20
 |---|---|---|
 | CCC | Index and search each codebase | CocoIndex Code only; project-local development indexes |
 | Intake | Explore, search, reconstruct and organize files with a human and agent | Multifaceted CocoIndex application, Weaviate advanced search, SurrealDB filesystem/atomic-unit relationships, multiple tools/libraries and patterns from nearly all CocoIndex examples |
-| Docstore | Index, retrieve and manage project documentation | CocoIndex + SurrealDB; documentation tools, resources and Surrealist/Studio graph access |
+| Docstore | Search, recall, record and govern documentation for the entire Propria monorepo | Probata-hosted CocoIndex + SurrealDB service; universal documentation tools, resources, notes, decisions, revision history, flags and Surrealist/Studio graph access |
+
+## Docstore's universal scope
+
+Probata currently hosts Docstore, but Docstore is not limited to Probata's product
+documentation. It is the shared documentation semantic-search, recall, note and
+decision plane for **all Propria projects and agents**. Every project's documents
+will be registered and migrated into its indexed corpus over time while the source
+files retain their owning repository, path, provenance and authority.
+
+The universally available Docstore capability set must include:
+
+- semantic and structured documentation search;
+- bounded, context-efficient recall with source and revision provenance;
+- note and decision creation and revision-safe updates;
+- separate priority, authority and status flags, including approved-revision state;
+- document/resource retrieval and relationship/graph inspection;
+- index health, source freshness and CocoIndex CDC verification tools; and
+- clean result shaping for agent context, with full-detail drill-down retained.
+
+All agents must query Docstore for related current decisions before changing
+project documentation or recording a new note, then write through the governed
+note/decision tools and read the result back. A chat message or local file alone
+does not satisfy durable note persistence. Agent integrations must expose these
+capabilities as first-class discoverable tools, skills and resources rather than
+requiring knowledge of a private script path. Registration and federation may be
+implemented through the approved shared tool gateway, but must preserve Docstore's
+own application identity, credentials, tracking state, locks and write authority.
+
+Progressive migration into Docstore does not make Docstore the owner of each
+source document and does not merge product authority. CCC remains codebase-only
+development search. Intake remains filesystem reconstruction and organization.
+Neither CCC nor Intake is a substitute for universal project-document recall.
 
 ## Intake's workflow and eligibility
 
@@ -50,7 +82,7 @@ color decision.
 
 Do not share or silently repoint app/environment identity, tracking databases, worker locks, configuration/credentials or target tables/collections between these systems. Endpoint sharing, if explicitly designed, does not merge ownership. Human-facing command names must disambiguate the system; never run codebase ccc indexing as Docstore or Intake ingestion.
 
-Docstore retains its existing ProbataDocStore app and probata-docstore environment unless a separately verified migration changes them. Its current Markdown planning-helper limits do not limit Intake eligibility. Docstore does not acquire Intake's entire multimodal stack simply because both use CocoIndex.
+Docstore retains its existing ProbataDocStore app and probata-docstore environment unless a separately verified migration changes them. "Probata-hosted" identifies its implementation home, not its corpus boundary: the corpus is progressively project-wide. Its current Markdown planning-helper limits do not limit Intake eligibility. Docstore does not acquire Intake's entire multimodal stack simply because both use CocoIndex.
 
 Intake's filesystem relationship graph is also separate from downstream evidence-analysis data.
 

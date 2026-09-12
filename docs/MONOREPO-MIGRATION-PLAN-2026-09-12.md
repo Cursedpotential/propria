@@ -139,7 +139,11 @@ canonical path. No content was deleted.
 
 Update root and project `AGENTS.md`, `CLAUDE.md`, development commands, CI, Coolify
 watch paths, Tailscale service source paths, Docstore source roots, and agent tool
-configuration. Verify from a fresh clone before declaring the monorepo canonical.
+configuration. Register every project documentation root progressively with the
+Probata-hosted universal Docstore, and expose its search, recall, notes, decisions,
+flags, resources and freshness checks as first-class tools/skills/resources to all
+supported agents. Verify from a fresh clone before declaring the monorepo
+canonical.
 
 ### Phase 6 — Recovery-source retirement
 

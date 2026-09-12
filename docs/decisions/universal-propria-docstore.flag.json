@@ -1,0 +1,21 @@
+{
+  "subject": "note:universal_propria_docstore_20260912",
+  "title": "Docstore is the universal Propria documentation plane",
+  "summary": "Owner decision 2026-09-12: Probata hosts Docstore, but Docstore serves the entire Propria monorepo and all supported agents. All project documentation will be progressively registered and indexed there while source files retain their owning repository, path, provenance and authority. Its first-class universally discoverable capabilities must include semantic and structured search, bounded recall, resource retrieval, governed note and decision writes, revision-safe updates, separate priority/authority/status flags, approved-revision state, relationship and graph inspection, and source-freshness/CocoIndex CDC verification. Agents query Docstore for related current decisions before documentation updates, then write through governed tools and read the result back. Chat-only notes are not durable project memory. Universal access does not merge Docstore with project-local CCC code indexes or Intake's filesystem reconstruction index, and does not merge credentials, tracking state, worker locks, targets or write authority.",
+  "priority": "critical",
+  "authority": "owner_decision",
+  "status": "active",
+  "domains": [
+    "docs",
+    "probata",
+    "consignatio",
+    "intake",
+    "advocatio",
+    "workbench",
+    "infra"
+  ],
+  "source_ref": "E:/AI_Workspace/Projects/Propria/docs/decisions/2026-09-12-universal-propria-docstore.md",
+  "rationale": "The owner explicitly clarified that the Probata-hosted Docstore is for the entire Propria project, that its tools, recall and notes are universal, and that all documentation will be migrated into it over time.",
+  "actor": "codex-recording-owner-decision",
+  "expected_revision": 0
+}
