@@ -1,8 +1,17 @@
 # Consignatio — agent contract
 
-`E:\AI_Workspace\Projects\Propria\Consignatio` is an independent product repository inside the
-`E:\AI_Workspace` repository router. Product code, documentation, tests, and
-ordinary commits belong to this child repository, never to the parent router.
+<!-- Updated by: Codex | Date: 2026-09-12 | Rev: 2 | Platform: Codex / win32 | Changes: adapt imported history to Propria monorepo | Context: owner monorepo-root decision -->
+
+**Owner decision — 2026-09-12:** CCC means project-local CocoIndex Code indexes only. Intake is the multifaceted CocoIndex-based filesystem workstation, using Weaviate for advanced search and SurrealDB for relationships, with multimodal tools/libraries (OCR, STT, video transcription/processing, advanced SLM extraction/classification). Docstore is CocoIndex + SurrealDB for project documentation. Keep their apps, tracking state, locks, configuration and target ownership isolated; shared technology is not a shared runtime. This defines scope, not proof every feature is implemented.
+
+See [CCC / Intake / Docstore boundaries](../../SYSTEM-BOUNDARIES.md) for indexing eligibility, duplicate provenance and the human-agent organizing workflow.
+
+`E:\AI_Workspace\Projects\Propria\projects\consignatio` is the imported
+Consignatio project inside the Propria monorepo. Product code, documentation and
+tests commit from `E:\AI_Workspace\Projects\Propria` using an explicit path
+allowlist. The former `E:\AI_Workspace\Projects\Propria\Consignatio` checkout is
+a protected migration source while its dirty overlay is reconciled; do not
+commit new canonical work there after cutover is declared.
 
 ## Safety
 
@@ -23,7 +32,7 @@ ordinary commits belong to this child repository, never to the parent router.
 - Never stage evidence bytes, databases, generated indexes, exports, credentials,
   or machine-local configuration.
 - Before staging or committing, run `git rev-parse --show-toplevel` from the target
-  path and confirm it resolves to `E:/AI_Workspace/Projects/Propria/Consignatio`.
+  path and confirm it resolves to `E:/AI_Workspace/Projects/Propria`.
 - Stage only explicit, reviewed paths. Never use `git add .` or `git add -A`.
 - Never initiate host reboot, restart, shutdown, sleep, hibernation or logoff.
 - Do not hydrate cloud placeholders, scan a corpus, start recurring workers or

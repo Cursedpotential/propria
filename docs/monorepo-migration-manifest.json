@@ -8,10 +8,14 @@
       "id": "consignatio",
       "source": "Consignatio",
       "target": "projects/consignatio",
-      "state": "source",
+      "state": "history_imported_overlay_pending",
       "ownership": "owned",
       "git_head": "fa4f249",
-      "dirty": true
+      "git_tree": "45dffef2308ff9a3ace79f0a6810585307d64bb2",
+      "root_import_commit": "9a5ed62743b9ea125b17740dbae671c83083733c",
+      "dirty": true,
+      "source_preserved": true,
+      "source_status_paths_after_import": 85
     },
     {
       "id": "probata",

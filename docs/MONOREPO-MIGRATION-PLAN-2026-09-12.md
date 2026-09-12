@@ -108,6 +108,13 @@ state receipts, reconcile divergent branches in isolated worktrees, then import
 committed history and overlay reviewed local work. Run project-specific validation
 from the new path before marking a cutover.
 
+Progress, 2026-09-12: Consignatio’s seven-commit history at `fa4f249` was
+imported unsquashed under `projects/consignatio/`. The imported subtree tree hash
+`45dffef2308ff9a3ace79f0a6810585307d64bb2` exactly matched the source HEAD tree.
+The original source remains in place with 85 dirty/untracked paths observed after
+the import; none of that overlay was copied or modified. Canonical routing files
+inside the imported subtree now point to the Propria root.
+
 ### Phase 4 — Shared resources and dependency policy
 
 Move the design contract and genuinely shared libraries into `resources/` only

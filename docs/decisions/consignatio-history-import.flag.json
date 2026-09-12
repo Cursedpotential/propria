@@ -1,0 +1,13 @@
+{
+  "subject": "note:consignatio_history_import_20260912",
+  "title": "Consignatio committed history imported into Propria",
+  "summary": "Verified 2026-09-12: Consignatio's seven-commit main history at fa4f249 was imported unsquashed under projects/consignatio in Propria root commit 9a5ed627. The source HEAD tree and imported subtree both resolved to 45dffef2308ff9a3ace79f0a6810585307d64bb2. The preflight found 249 tracked files totaling 3,478,746 bytes and no tracked secret/corpus/archive/database/media path matches. The original Consignatio repository remains present and its dirty overlay was not copied or modified; 85 dirty/untracked paths were observed after import due to concurrent source activity. Imported routing instructions now point to the Propria root. This is a committed-history import, not dirty-overlay reconciliation or final cutover.",
+  "priority": "high",
+  "authority": "verified_finding",
+  "status": "active",
+  "domains": ["consignatio", "intake", "docs", "infra"],
+  "source_ref": "E:/AI_Workspace/Projects/Propria/docs/MONOREPO-MIGRATION-PLAN-2026-09-12.md",
+  "rationale": "This preserves and proves the clean committed base before any attempt to reconcile the independently changing local overlay.",
+  "actor": "Codex GPT-5",
+  "expected_revision": 0
+}

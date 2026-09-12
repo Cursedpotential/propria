@@ -1,5 +1,7 @@
 @AGENTS.md
 @AGENT_MEMORY.md
+@../../AGENTS.md
+@../../AGENT_MEMORY.md
 
 # Claude execution direction
 
