@@ -108,6 +108,14 @@ Git repository. The hashes and preserved originals make the change reviewable.
 - `git diff --check` passes in each changed Git repository.
 - Only explicit router/state paths were staged and committed.
 
+## Git publication
+
+- Propria router/state implementation: `36793b72328e414bce8a47c8a3b646c2f6d2f432`,
+  pushed to `origin/main`.
+- Independent Milvus root-route correction:
+  `0d66d35f404f799b3e3dd926a089eb067b8ea690`, pushed to that repository's
+  `origin/main`.
+
 ## Remaining integration boundary
 
 Probata's root instruction files are concurrently modified in a heavily dirty
