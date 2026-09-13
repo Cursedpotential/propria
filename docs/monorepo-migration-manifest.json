@@ -15,6 +15,8 @@
       "target_authority": "duplicate_overlay_only",
       "ownership": "owned",
       "git_head": "fa4f249",
+      "remote_main_head": "1db6e9dd07a1044db3204d9efa92d3fcedf28331",
+      "local_main_behind_remote": 2,
       "git_tree": "45dffef2308ff9a3ace79f0a6810585307d64bb2",
       "root_import_commit": "9a5ed62743b9ea125b17740dbae671c83083733c",
       "dirty": true,

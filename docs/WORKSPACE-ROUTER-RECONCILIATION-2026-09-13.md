@@ -46,9 +46,12 @@ committed in the owning repository separately.
 
 A post-publication ownership check verified that
 `E:/AI_Workspace/Projects/Propria/Consignatio` is an independent Git root on
-`main` at `fa4f249a5c9d69bb7964ea851e71e8cecbab08a9`, with remote
-`https://github.com/Cursedpotential/Consignatio.git`. The root and workspace
-routers now preserve that repository as canonical authority. The tracked
+`main` with remote `https://github.com/Cursedpotential/Consignatio.git`. Its
+dirty canonical checkout remains locally at
+`fa4f249a5c9d69bb7964ea851e71e8cecbab08a9`; after a safe fetch, `origin/main`
+is `1db6e9dd07a1044db3204d9efa92d3fcedf28331`, two commits ahead. The checkout
+was not pulled or altered because it has 52 status paths. The root and workspace
+routers preserve that repository as canonical authority. The tracked
 `projects/consignatio` tree is explicitly classified as a duplicate imported
 overlay pending reconciliation. No Consignatio product file was changed.
 
