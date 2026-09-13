@@ -20,7 +20,7 @@ import httpx
 ap = argparse.ArgumentParser()
 ap.add_argument("--dir", required=True); ap.add_argument("--model", default="nvidia/nvidia/nemotron-3-super-120b-a12b")
 ap.add_argument("--prompt-file", required=True); ap.add_argument("--title", default="delegated task")
-ap.add_argument("--session"); ap.add_argument("--timeout", type=int, default=3600); ap.add_argument("--url", default="http://100.91.190.107:4096")
+ap.add_argument("--session"); ap.add_argument("--variant", default="medium", help="reasoning effort variant (owner 2026-09-08: medium; beware provider limits)"); ap.add_argument("--timeout", type=int, default=3600); ap.add_argument("--url", default="http://100.91.190.107:4096")
 a = ap.parse_args()
 pw = next((m.group(1) for line in (Path.home() / ".secrets/opencode-server.env").read_text().splitlines() if (m := re.match(r"^\s*OPENCODE_SERVER_PASSWORD\s*=\s*(.+?)\s*$", line))), None)
 if not pw: sys.exit("no OPENCODE_SERVER_PASSWORD in ~/.secrets/opencode-server.env")
@@ -31,8 +31,12 @@ if not sid:
     sid = c.post("/session", json={"title": a.title}).json()["id"]
 print(f"session {sid} dir={a.dir} model={a.model}", file=sys.stderr)
 t0 = time.time()
-r = c.post(f"/session/{sid}/message", json={"model": {"providerID": provider, "modelID": model},
-                                            "parts": [{"type": "text", "text": Path(a.prompt_file).read_text(encoding="utf-8")}]})
+body = {"model": {"providerID": provider, "modelID": model},
+        "parts": [{"type": "text", "text": Path(a.prompt_file).read_text(encoding="utf-8")}]}
+if a.variant: body["variant"] = a.variant
+r = c.post(f"/session/{sid}/message", json=body)
+if r.status_code == 400 and a.variant:  # provider/model without variants: retry without it
+    body.pop("variant"); r = c.post(f"/session/{sid}/message", json=body)
 r.raise_for_status()
 msg = r.json()
 text = "\n".join(p.get("text", "") for p in msg.get("parts", []) if p.get("type") == "text")

@@ -1,3 +1,5 @@
+
+
 <!-- copilot-mem:managed -->
 # 🧠 Copilot Memory Protocol (managed by copilot-mem extension)
 

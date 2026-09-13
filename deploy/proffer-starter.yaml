@@ -28,8 +28,28 @@ services:
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-proffer-v1}
+      # STEP 2 OF THE TSNET CUTOVER DELETES THESE TWO LINES (and drops
+      # network_mode: host, which only exists to preserve the direct Tailscale
+      # socket peer for this host bind). The binary fails closed if
+      # REFERENCE_STARTER_ADDR is set while the tsnet listener is on
+      # (engine/tsnetlisten.GuardExclusiveBind).
       REFERENCE_STARTER_ADDR: 100.91.190.107:8091
       REFERENCE_STARTER_HEALTH_URL: http://100.91.190.107:8091/healthz
+      # --- tsnet identity (owner directive 2026-09-07; D-132/D-134/D-127) ----
+      # Default FALSE: modules/engine/** is a watch path for this Coolify app,
+      # so any push redeploys it; the flip is a deliberate per-service deploy
+      # act after host prep. Removal condition (D-127): delete the flag and the
+      # legacy branch once every service serves from tsnet.
+      # After the flip the starter is reached at
+      # https://proffer-starter.tilapia-skilift.ts.net — callers
+      # (N8N_PROFFER_* workflows, the Workbench's PROFFER_STARTER_URL) must be
+      # repointed there in the SAME step.
+      TSNET_LISTENER_ENABLED: ${PROFFER_STARTER_TSNET_LISTENER_ENABLED:-false}
+      TSNET_HOSTNAME: ${PROFFER_STARTER_TSNET_HOSTNAME:-proffer-starter}
+      TSNET_SERVICE: ${PROFFER_STARTER_TSNET_SERVICE:-svc:proffer-starter}
+      TSNET_TAGS: ${PROFFER_STARTER_TSNET_TAGS:-tag:docker}
+      TSNET_STATE_DIR: /data/tsnet
+      TSNET_AUTHKEY_FILE: /run/secrets/tsnet-authkey
       SOURCE_OBJECT_DIR: /data/proffer/source-objects
       PROFFER_UPLOAD_MAX_BYTES: ${PROFFER_UPLOAD_MAX_BYTES:?set}
       N8N_PROFFER_BASE_URL: ${N8N_PROFFER_BASE_URL:?set}
@@ -39,6 +59,15 @@ services:
       PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
     volumes:
       - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
+      # tsnet node state. MUST be persistent or the service re-registers as a
+      # new tailnet node on every deploy. Host prep (once, before the flip):
+      #   install -d -o 10001 -g 10001 -m 0700 /data/probata/tsnet/proffer-starter
+      #   install -d -o root -g 10001 -m 0750 /data/probata/secrets/proffer-starter
+      #   # write a tag:docker auth key, no trailing newline, then chown/chmod:
+      #   chown 10001:10001 /data/probata/secrets/proffer-starter/ts-authkey
+      #   chmod 0400        /data/probata/secrets/proffer-starter/ts-authkey
+      - /data/probata/tsnet/proffer-starter:/data/tsnet
+      - /data/probata/secrets/proffer-starter/ts-authkey:/run/secrets/tsnet-authkey:ro
       - /data/probata/secrets/proffer/preview-cursor-key:/run/secrets/proffer-preview-cursor-key:ro
       - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
       - /data/probata/secrets/n8n/proffer-auth:/run/secrets/n8n-proffer-auth:ro

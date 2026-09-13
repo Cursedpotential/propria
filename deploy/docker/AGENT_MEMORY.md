@@ -26,6 +26,10 @@ contains_secrets: false
 - Community and vendored tool images require observed output tests; an image merely starting is not
   proof that extraction, metadata, or OCR behavior is correct.
 - For n8n, also read `docker/n8n/AGENT_MEMORY.md`.
+- `postgres/` (image `agno-postgres:18-duckdb`): pg_duckdb community extensions are enabled at
+  image level (`duckdb.allow_community_extensions = on`, `deploy/docker/postgres/Dockerfile` CMD);
+  `webbed` is in use for `read_xml`/`read_html`. Byline: Claude Code · Sonnet 5 · 2026-09-06.
+  See `docs/reviews/2026-09-06-webbed-install.md`.
 
 <!-- freshness
 watches_hash: 3f06efe

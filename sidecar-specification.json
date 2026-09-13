@@ -1,0 +1,272 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Document Sidecar Metadata Specification",
+  "description": "Schema for sidecar files containing metadata for legal/case documents",
+  "type": "object",
+  "properties": {
+    "documentInfo": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "description": "Name of the associated document file"
+        },
+        "fileType": {
+          "type": "string",
+          "description": "File extension or type (e.g., .md, .docx, .pdf, .txt)"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "description": "File size in bytes"
+        },
+        "createdDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Document creation timestamp"
+        },
+        "modifiedDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last modification timestamp"
+        },
+        "contentHash": {
+          "type": "string",
+          "description": "SHA-256 hash of document content for change detection"
+        }
+      },
+      "required": ["fileName", "fileType"]
+    },
+    "classification": {
+      "type": "object",
+      "properties": {
+        "primaryCategory": {
+          "type": "string",
+          "enum": [
+            "legalStrategy",
+            "evidenceForensic",
+            "declarationAffidavit",
+            "relationshipGuidance",
+            "indexMapping",
+            "chatLog",
+            "other"
+          ],
+          "description": "Primary category of the document"
+        },
+        "subcategories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional descriptive tags or subcategories"
+        },
+        "sensitivityLevel": {
+          "type": "string",
+          "enum": ["public", "internal", "confidential", "sealed", "restricted"],
+          "description": "Handling requirements based on content sensitivity"
+        },
+        "caseRelevance": {
+          "type": "string",
+          "description": "Brief note on how this document relates to the legal case"
+        }
+      },
+      "required": ["primaryCategory", "sensitivityLevel"]
+    },
+    "contentMetadata": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Descriptive title of the document"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Brief summary of document content (1-3 sentences)"
+        },
+        "keyTopics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Key topics, concepts, or themes covered in the document"
+        },
+        "wordCount": {
+          "type": "integer",
+          "description": "Approximate number of words in the document"
+        },
+        "language": {
+          "type": "string",
+          "default": "en",
+          "description": "Language of the document content (ISO 639-1 code)"
+        }
+      },
+      "required": ["title", "summary"]
+    },
+    "relationships": {
+      "type": "object",
+      "properties": {
+        "relatedDocuments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "fileName": {
+                "type": "string",
+                "description": "Name of related document"
+              },
+              "relationshipType": {
+                "type": "string",
+                "enum": [
+                  "references",
+                  "isReferencedBy",
+                  "versionOf",
+                  "hasVersion",
+                  "partOf",
+                  "hasPart",
+                  "duplicateOf",
+                  "alternativeTo"
+                ],
+                "description": "Nature of relationship to this document"
+              },
+              "description": {
+                "type": "string",
+                "description": "Brief explanation of the relationship"
+              }
+            }
+          },
+          "description": "List of documents related to this one"
+        },
+        "supersedes": {
+          "type": "string",
+          "description": "Filename of document that this version replaces (if applicable)"
+        },
+        "supersededBy": {
+          "type": "string",
+          "description": "Filename of document that replaces this version (if applicable)"
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": "string",
+          "description": "Primary creator or author of the document"
+        },
+        "contributors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional contributors to the document"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "review", "final", "archived", "superseded"],
+          "description": "Current workflow status of the document"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version identifier (e.g., '1.0', 'v2.1', 'draft-3')"
+        },
+        "reviewRequired": {
+          "type": "boolean",
+          "description": "Whether the document requires review before finalization"
+        },
+        "reviewDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date when document was last reviewed"
+        },
+        "nextReviewDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Scheduled date for next review"
+        }
+      },
+      "required": ["status"]
+    },
+    "legalMetadata": {
+      "type": "object",
+      "properties": {
+        "caseName": {
+          "type": "string",
+          "description": "Official case name or title (if applicable)"
+        },
+        "caseNumber": {
+          "type": "string",
+          "description": "Official case number or docket number (if applicable)"
+        },
+        "jurisdiction": {
+          "type": "string",
+          "description": "Court jurisdiction (if applicable)"
+        },
+        "relevantParties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Names of parties or individuals referenced in document"
+        },
+        "legalTopics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Specific legal concepts, statutes, or case law referenced"
+        },
+        "evidenceType": {
+          "type": "string",
+          "enum": [
+            "testimonial",
+            "documentary",
+            "physical",
+            "digital",
+            "expert",
+            "circumstantial",
+            "character",
+            "hearsay",
+            "other"
+          ],
+          "description": "Type of evidence if document contains or relates to evidence"
+        },
+        "admissibilityNotes": {
+          "type": "string",
+          "description": "Notes on potential admissibility concerns or strengths"
+        }
+      }
+    },
+    "technicalMetadata": {
+      "type": "object",
+      "properties": {
+        "softwareUsed": {
+          "type": "string",
+          "description": "Software used to create or edit the document"
+        },
+        "formatVersion": {
+          "type": "string",
+          "description": "Specific format version if applicable (e.g., PDF/A-2, DOCX)"
+        },
+        "accessibilityFeatures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Accessibility features present in the document"
+        },
+        "languageTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Language processing tools used (AI, spellcheck, etc.)"
+        }
+      }
+    },
+    "customFields": {
+      "type": "object",
+      "description": "Additional user-defined metadata fields as key-value pairs",
+      "additionalProperties": true
+    }
+  },
+  "required": ["documentInfo", "classification", "contentMetadata", "workflow"]
+}

@@ -1,0 +1,29 @@
+        with _get_engine().begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO working.normalized_record "
+                    "(id, artifact_id, record_type, source, conversation_id, role, participants, "
+                    " content, occurred_at, knowledge_time, disclosure_tier, attrs, case_id, domain, "
+                    " source_record_key, source_content_sha256, sender, recipients, message_corpus) "
+                    "VALUES (CAST(:id AS uuid), :artifact_id, :record_type, :source, :conversation_id, :role, "
+                    " CAST(:participants AS jsonb), :content, :occurred_at, :knowledge_time, "
+                    " :disclosure_tier, CAST(:attrs AS jsonb), :case_id, :domain, :source_record_key, "
+                    " :source_content_sha256, :sender, CAST(:recipients AS jsonb), :message_corpus)"
+                ),
+                rows,
+            )
+            if chunk_rows:
+                conn.execute(
+                    text(
+                        "INSERT INTO working.normalized_record_chunk "
+                        "(normalized_record_id, chunker_id, chunk_index, content, content_sha256, "
+                        " source_content_sha256, char_start, char_end, token_count, attrs) "
+                        "VALUES (CAST(:normalized_record_id AS uuid), :chunker_id, :chunk_index, :content, "
+                        " :content_sha256, :source_content_sha256, :char_start, :char_end, :token_count, "
+                        " CAST(:attrs AS jsonb))"
+                    ),
+                    chunk_rows,
+                )
+            if projection_request is not None:
+                from server.evidence.message_projection import write_message_projections
+

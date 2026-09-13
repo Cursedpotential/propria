@@ -61,4 +61,11 @@ USER postgres
 
 # pg_stat_statements ships with core PG; it needs shared_preload_libraries.
 # pg_duckdb already requires its own preload, so chain both.
-CMD ["postgres", "-c", "shared_preload_libraries=pg_duckdb,pg_stat_statements"]
+#
+# duckdb.allow_community_extensions: enables installing DuckDB community
+# extensions (e.g. `webbed`, for read_xml/read_html) via pg_duckdb. This was
+# previously only set live via `ALTER SYSTEM` (lost on a data-volume rebuild
+# from this image) — baking it into the image CMD makes it survive a
+# redeploy. Do NOT also set duckdb.allow_unsigned_extensions.
+# Byline: Claude Code · Sonnet 5 · 2026-09-06
+CMD ["postgres", "-c", "shared_preload_libraries=pg_duckdb,pg_stat_statements", "-c", "duckdb.allow_community_extensions=on"]

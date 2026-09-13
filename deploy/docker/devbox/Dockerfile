@@ -32,12 +32,16 @@
 # tools we use" framing above: that governs the BASE IMAGE choice (Kasm core, not a bloated
 # desktop image) — it does not mean a minimal toolchain; the toolchain list below IS "exactly
 # the tools we use", just a long list of them.)
+# Byline: Claude Code · Fable 5.1 · 2026-09-08 17:45 (build 6 fix: HOME=/root during build, zstd for ollama, Homebrew via sudo+bash instead of `su -`)
 # Byline: Claude Code · Sonnet 5 · 2026-09-08 (fifth live build iteration: SurrealDB CLI install
 # path fixed twice, pinta dropped for lack of an apt candidate/PPA/Linux binary on Noble).
 FROM kasmweb/core-ubuntu-noble:1.17.0
 
 USER root
-ENV DEBIAN_FRONTEND=noninteractive
+# The Kasm base bakes ENV HOME=/home/kasm-user. Every root-run installer below (rustup, surreal, ollama,
+# mise, uv) reads $HOME, so left alone they scatter files into the user's home (build 2-5 failures on
+# 2026-09-08 traced to this). Build as a real root; hand HOME back to the desktop user at the end.
+ENV DEBIAN_FRONTEND=noninteractive HOME=/root
 
 # System tooling (xfce4-terminal explicit: core-ubuntu-noble is XFCE+KasmVNC only, don't assume a
 # terminal emulator ships — our desktop launchers below invoke it directly)
@@ -237,7 +241,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends kitty \
 
 # ollama (CPU-only box, no models baked — owner: official install script is enough; no systemd in
 # a container so it warns on the service unit, the /usr/local/bin/ollama binary is all we need)
-RUN curl -fsSL https://ollama.com/install.sh | sh || true
+# (build 6: the script aborted with "requires zstd" and `|| true` hid it — zstd is in the first apt layer now, and the
+# step is strict again; the installer only warns about the missing systemd unit)
+RUN curl -fsSL https://ollama.com/install.sh | sh && ollama --version
 
 # Playwright browsers under /opt so they survive being a root-owned build layer, not a user mount
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
@@ -253,10 +259,9 @@ RUN echo "kasm-user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/kasm-user && chmod 
 # /home/linuxbrew/.linuxbrew — a SEPARATE mapped volume (deploy/devbox.yaml) so brew packages
 # survive redeploys the same way /home/kasm-user does. /usr/local/bin/brew is a root-callable
 # wrapper so `brew ...` works from any shell regardless of the invoking user.
-RUN mkdir -p /home/linuxbrew && chown 1000:1000 /home/linuxbrew \
-    && su - kasm-user -c 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' \
-    && printf '#!/bin/sh\nexec sudo -u kasm-user -H /home/linuxbrew/.linuxbrew/bin/brew "$@"\n' > /usr/local/bin/brew \
-    && chmod +x /usr/local/bin/brew
+RUN mkdir -p /home/linuxbrew && chown 1000:1000 /home/linuxbrew     && curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o /tmp/brew-install.sh     && sudo -u kasm-user -H env NONINTERACTIVE=1 HOME=/home/kasm-user /bin/bash /tmp/brew-install.sh     && rm /tmp/brew-install.sh     && printf '#!/bin/sh
+exec sudo -u kasm-user -H /home/linuxbrew/.linuxbrew/bin/brew "$@"
+' > /usr/local/bin/brew     && chmod +x /usr/local/bin/brew     && /usr/local/bin/brew --version
 
 # Kasm startup hook: starts xrdp + syncthing beside the desktop session
 COPY deploy/docker/devbox/custom_startup.sh /dockerstartup/custom_startup.sh
@@ -275,6 +280,7 @@ RUN printf '[Desktop Entry]\nType=Application\nName=Synaptic Package Manager\nEx
 RUN mkdir -p /home/kasm-user/.local/state /home/kasm-user/.local/share /home/kasm-user/.config \
     && chown -R 1000:0 /home/kasm-user
 
+ENV HOME=/home/kasm-user
 USER 1000
 ENV PATH=/home/kasm-user/.local/bin:$PATH
 WORKDIR /home/kasm-user

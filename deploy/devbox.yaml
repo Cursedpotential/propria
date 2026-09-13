@@ -83,39 +83,10 @@ services:
     networks:
       - probata
 
-  # Tailscale sidecar (owner 2026-09-08 11:07 "tag it in docker and it just works"): its own tailnet identity `kasm`,
-  # tag:docker, shares the devbox network namespace, serves https://kasm.tilapia-skilift.ts.net (Kasm) and :8384
-  # (Syncthing UI) with real certs. State in /data/probata/tsnet/kasm; auth key file installed by the root session.
-  tailscale:
-    image: tailscale/tailscale:stable
-    container_name: devbox-tailscale
-    restart: unless-stopped
-    network_mode: "service:devbox"
-    depends_on:
-      - devbox
-    environment:
-      TS_HOSTNAME: kasm
-      TS_AUTHKEY: file:/run/secrets/ts-authkey
-      TS_EXTRA_ARGS: --advertise-tags=tag:docker
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_SERVE_CONFIG: /config/serve.json
-      TS_USERSPACE: "true"
-    volumes:
-      - /data/probata/tsnet/kasm:/var/lib/tailscale
-      - /data/probata/secrets/tsnet/authkey:/run/secrets/ts-authkey:ro
-      # CORRECTED TWICE 2026-09-08 (matches the identical fix for opencode-server.yaml / openlist.yaml):
-      # (1) a relative bind of deploy/docker/tailscale-serve/kasm.json became an EMPTY DIRECTORY on the
-      #     host, because Coolify's "up" phase runs against its own persistent
-      #     /data/coolify/applications/<uuid>/, which holds only the rendered docker-compose.yaml + .env,
-      #     not a repo checkout (verified live: `file` reported "directory"; the stray directory was
-      #     quarantined to /data/probata/to_be_deleted/devbox-coolify-empty-dir-artifact-20260908/).
-      # (2) Coolify's inline `content:` bind (the compose-spec long-form with a `content:` field) does
-      #     NOT work on this Coolify install either — it rendered the path but never wrote the file
-      #     (verified live 13:31). The actual fix is a plain bind to an ABSOLUTE host path, which bypasses
-      #     Coolify's relative-path resolution entirely: /data/probata/config/tailscale-serve/kasm.json
-      #     staged on ovh-files (hostname hard-coded to kasm.tilapia-skilift.ts.net; Coolify interpolates
-      #     `${...}` at its own render pass, before docker compose ever sees the file).
-      - /data/probata/config/tailscale-serve/kasm.json:/config/serve.json:ro
+  # Tailnet hostnames (kasm, syncthing): served by the HOST tailscaled as Tailscale Services (`tailscale serve
+  # --service=svc:kasm --https=443 https+insecure://100.91.190.107:6901`, svc:syncthing → :8384), the same way
+  # svc:files / svc:opencode / svc:workbench work. The tailscale/tailscale sidecar was RETIRED 2026-09-08 17:50
+  # (owner 13:41/13:47: use the feature, host serve, option 1).
 
 networks:
   probata:
