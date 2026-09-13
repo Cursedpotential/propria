@@ -12,9 +12,9 @@ The current boundary is:
 - `E:/AI_Workspace` and `E:/AI_Workspace/Projects` are unversioned filesystem
   routers.
 - `E:/AI_Workspace/Projects/Propria` is the canonical monorepo Git root.
-- `projects/consignatio` is the imported Consignatio/Intake overlay tracked by
-  Propria. The former `Consignatio` source remains protected while cutover is
-  pending.
+- `Consignatio` is the canonical independent Consignatio/Intake Git repository.
+  `projects/consignatio` is a duplicate imported overlay pending reconciliation
+  and is not active authority.
 - `Probata/probata` remains a separate, dirty child Git repository pending
   import.
 - new and relocated Propria-owned linked worktrees live under
@@ -41,6 +41,16 @@ Tracked Propria routers and state:
 The independent, clean Milvus repository also had its root assertion corrected in
 `E:/AI_Workspace/Projects/dev-resources/milvus-coolify/AGENTS.md`. That change is
 committed in the owning repository separately.
+
+## Canonical Consignatio authority correction
+
+A post-publication ownership check verified that
+`E:/AI_Workspace/Projects/Propria/Consignatio` is an independent Git root on
+`main` at `fa4f249a5c9d69bb7964ea851e71e8cecbab08a9`, with remote
+`https://github.com/Cursedpotential/Consignatio.git`. The root and workspace
+routers now preserve that repository as canonical authority. The tracked
+`projects/consignatio` tree is explicitly classified as a duplicate imported
+overlay pending reconciliation. No Consignatio product file was changed.
 
 ## Worktree reconciliation reflected in the manifest
 
@@ -91,9 +101,9 @@ may delete that quarantine material.
 |---|---|---|
 | `E:/AI_Workspace/AGENTS.md` | `7F1FD836F398A479CA362C6FE8F38B42EB030379FBFC1D4E89574B7C54915A5B` | `1A39499CF6C4265A8B48BB831CF2BD732CE64CAD90B97F85E0E8FD8BB540C262` |
 | `E:/AI_Workspace/AGENT_MEMORY.md` | `667505FAA6597E0ECB10231CC1D25F12DF76628EC9C6F04B7AB9DFAC63C37EE5` | `17957D63692D9D2854E3158C66F7915408B9F3E3AA4A2EB95A22B1B24944CF1D` |
-| `E:/AI_Workspace/Projects/AGENTS.md` | `2E7AAD46FD43EA8867AEEF522BAE85B73BB8FFCA2A0275FFD06CF8CC28D6E06B` | `880A29E9C8D59B389A058DC7C0EC352476DF8DF5196C2EC0A8E828C0FFD3B862` |
-| `E:/AI_Workspace/Projects/AGENT_MEMORY.md` | `15C33287C58C7B2EF77B0904B9BEF88416B4268AC97C9F354F9E8442B1B67C63` | `372EBE571F6A2130FECBEDDD2557C62F7273B149CBA60DD56036EE68137C8E6F` |
-| `E:/AI_Workspace/Projects/REPOSITORY_BOUNDARIES.md` | `37AD9FAF4B76B8CF17981974A00EF8C699653ED937BE5C3812F0C83F1C5F19AC` | `438B00A2C6A872F0692D1DB9AF6CAE7FA274B7010E61B6CDD2D496E0C4591CA4` |
+| `E:/AI_Workspace/Projects/AGENTS.md` | `2E7AAD46FD43EA8867AEEF522BAE85B73BB8FFCA2A0275FFD06CF8CC28D6E06B` | `F9D37EAAAEF7EAEEB93E88DC75B324207A9E2CE9EFEBF43C1F2A7CAA528913AA` |
+| `E:/AI_Workspace/Projects/AGENT_MEMORY.md` | `15C33287C58C7B2EF77B0904B9BEF88416B4268AC97C9F354F9E8442B1B67C63` | `B3BDD102FA57C409A31CEAA6D8D7E156E85856900CAA1354875061E59381467A` |
+| `E:/AI_Workspace/Projects/REPOSITORY_BOUNDARIES.md` | `37AD9FAF4B76B8CF17981974A00EF8C699653ED937BE5C3812F0C83F1C5F19AC` | `3E673A4B7D8E3A0ED4D97DEC1EC120EAB19ACD8F99E094517E8C27079EA7EF95` |
 
 These files cannot be committed because neither filesystem-router directory is a
 Git repository. The hashes and preserved originals make the change reviewable.

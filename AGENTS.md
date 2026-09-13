@@ -9,11 +9,12 @@ reference, and vendor-governance material converges under `resources/`. Large
 corpora, databases, caches, generated indexes, secrets, and runtime state are not
 monorepo source and must remain ignored or externally mounted with manifests.
 
-The existing child Git repositories are migration sources, not permission to
-flatten dirty trees in place. Preserve their histories and local-only work until
-the staged import is independently verified. An upstream fork may remain an
-explicit external dependency only when its update/provenance lifecycle requires
-that boundary; owned product code should converge into the root repository.
+Existing child Git repositories must retain their histories and local-only work
+until a staged import is independently verified. Consignatio remains an explicit
+independent canonical repository; its `projects/consignatio` import is a duplicate
+overlay pending reconciliation, not an authority transfer. An upstream fork may
+remain an explicit external dependency when its update/provenance lifecycle
+requires that boundary.
 
 See [the staged migration plan](docs/MONOREPO-MIGRATION-PLAN-2026-09-12.md).
 
@@ -51,7 +52,7 @@ and verified representation state.
 |---|---|---|---|
 | Evidence custody, ingestion, parsing, knowledge horizons, analysis, and operations — **Indicia Probata** | `Probata/probata/` | `Probata/probata/AGENTS.md` | verify inside `Probata/probata/` |
 | Legal research, strategy, drafting, review, and release preparation — **advocatio** | `Probata/probata/modules/advocatio-legal_workbench/` | descend through Probata's router | verify within selected module |
-| Vault, corpus preparation, search and Intake desktop | `projects/consignatio/` | `projects/consignatio/AGENTS.md`, `projects/consignatio/AGENT_MEMORY.md` | this Propria Git root; `Consignatio/` remains a protected migration source while cutover is pending |
+| Vault, corpus preparation, search and Intake desktop | `Consignatio/` | `Consignatio/AGENTS.md`, `Consignatio/AGENT_MEMORY.md` | independent canonical Git root at `Consignatio/`; `projects/consignatio/` is a duplicate overlay pending reconciliation |
 
 Current paths above were reconciled against the migration manifest on 2026-09-13.
 The retired workspace layout is historical evidence and is not a current route.

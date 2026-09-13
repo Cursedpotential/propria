@@ -7,7 +7,7 @@ authority:
   - Projects/Propria/AGENTS.md
   - Projects/Propria/docs/monorepo-migration-manifest.json
   - Projects/Propria/Probata/probata/AGENTS.md
-  - Projects/Propria/projects/consignatio/AGENTS.md
+  - Projects/Propria/Consignatio/AGENTS.md
 watches:
   - Projects/Propria/docs/monorepo-migration-manifest.json
   - Projects/Propria/docs/docstore-source-registry.json
@@ -22,9 +22,10 @@ contains_secrets: false
 
 Propria is now the intended monorepo root. The target top-level source layout is
 `projects/` plus `resources/`; runtime/data material stays outside versioned source.
-The present `Consignatio/`, `Probata/`, and nested Git roots are migration sources.
-Do not infer that a lane has crossed the boundary until the staged import is
-verified and recorded in `docs/monorepo-migration-manifest.json`.
+Consignatio remains the canonical independent Git repository at `Consignatio/`;
+the tracked `projects/consignatio/` tree is a duplicate imported overlay awaiting
+reconciliation. Probata and other nested Git roots retain their current boundaries
+until an independently verified import is recorded in the migration manifest.
 
 This decision supersedes the prior statement that Propria is only a router. It
 does not erase the old repository histories or authorize a dirty in-place move.
@@ -39,9 +40,9 @@ See [CCC / Intake / Docstore boundaries](SYSTEM-BOUNDARIES.md) for indexing elig
 
 This section supersedes historical paths and representation claims below.
 
-- Vault and Intake imported overlay: `projects/consignatio/AGENTS.md`,
-  `projects/consignatio/AGENT_MEMORY.md`. The former `Consignatio/` tree is a
-  protected migration source while cutover remains pending.
+- Vault and Intake: `Consignatio/AGENTS.md`, `Consignatio/AGENT_MEMORY.md`.
+  This independent Git repository is canonical. `projects/consignatio/` is a
+  duplicate overlay pending reconciliation and must not be treated as authority.
 - Probata: `Probata/probata/AGENTS.md`, `Probata/probata/AGENT_MEMORY.md`.
 - Legal/other Probata modules: descend through Probata's own current router.
 - Root governance and migration changes belong to the Propria root repository.
@@ -72,7 +73,7 @@ gitlink directory as the product source.
 |---|---|---|
 | Evidence, custody, ingestion, parsing, analysis, platform operations — **Indicia Probata** | `Probata/probata/` | `Probata/probata/` |
 | Strategy, legal research, drafting, review, release preparation — **advocatio** | `Probata/probata/modules/advocatio-legal_workbench/` | verify inside that child boundary |
-| Vault, corpus preparation, search and Intake desktop | `projects/consignatio/` | this Propria Git root; preserve `Consignatio/` as the recovery source pending cutover |
+| Vault, corpus preparation, search and Intake desktop | `Consignatio/` | independent canonical Git root at `Consignatio/`; do not author against the duplicate `projects/consignatio/` overlay |
 | Root governance and migration records | this directory | this Propria Git root with an explicit path allowlist |
 
 Never let an opened chat directory decide the commit root. Before staging, run
