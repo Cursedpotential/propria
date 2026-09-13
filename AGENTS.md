@@ -51,12 +51,11 @@ and verified representation state.
 |---|---|---|---|
 | Evidence custody, ingestion, parsing, knowledge horizons, analysis, and operations — **Indicia Probata** | `Probata/probata/` | `Probata/probata/AGENTS.md` | verify inside `Probata/probata/` |
 | Legal research, strategy, drafting, review, and release preparation — **advocatio** | `Probata/probata/modules/advocatio-legal_workbench/` | descend through Probata's router | verify within selected module |
-| Vault, corpus preparation, search and Intake desktop | `Consignatio/` | `Consignatio/AGENTS.md`, `Consignatio/AGENT_MEMORY.md` | `Consignatio/` |
+| Vault, corpus preparation, search and Intake desktop | `projects/consignatio/` | `projects/consignatio/AGENTS.md`, `projects/consignatio/AGENT_MEMORY.md` | this Propria Git root; `Consignatio/` remains a protected migration source while cutover is pending |
 
-Current paths above were checked after the owner relocation on 2026-09-10.
-The old `the-platform-workspace/` and root-level `casebible/` routes are historical.
+Current paths above were reconciled against the migration manifest on 2026-09-13.
+The retired workspace layout is historical evidence and is not a current route.
 The former `milvus-coolify/` path is absent here; do not recreate it from old routing.
-Historical naming amendments below are not current path-resolution instructions.
 
 The Evidence Platform is canonical for evidence. Legal Workspace consumes accepted,
 versioned `LegalSourcePackage` data and never becomes a second writable evidence store.
@@ -87,12 +86,8 @@ versioned `LegalSourcePackage` data and never becomes a second writable evidence
    `git worktree move`, after its owner is paused and its branch, dirty state, `.git` pointer, common
    directory, and representative hashes have been captured.
 
-Read `AGENT_MEMORY.md` for progressive routing. Historical
-`../REPOSITORY_BOUNDARIES.md` describes the former multi-repository representation;
-the dated monorepo migration plan governs the new transition.
+Read `AGENT_MEMORY.md` for progressive routing. The current workspace boundary
+map is `../REPOSITORY_BOUNDARIES.md`; the migration manifest governs each lane's
+transition state.
 
 > _Sprint mode was removed by owner order on 2026-08-25. Confirm and discuss before changing._
-
-> _Naming amendment: Claude Code · Fable 5.1 · 2026-09-06 — product canon D-137..D-150 (`probata/docs/NAMING.md`). Evidence Platform = **Indicia Probata** (`probata`, formerly `Agno-MCP-Platform`); Legal Workspace = **advocatio** (nested at `probata/modules/advocatio/`, formerly `modules/Legal-Workspace/`); TraceIQ = **vestigia** (nested at `probata/modules/vestigia/`, formerly `modules/traceIQ/`). The directory rename landed 2026-09-06; `Agno-MCP-Platform/` is now a junction to `probata/`. Old paths stay as junctions for a week; both names remain valid in recall stores (D-142)._
-
-> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-06 — directory renames D-137..D-142: `Agno-MCP-Platform/` → `probata/` (Indicia Probata), nested `modules/traceIQ/` → `modules/vestigia/`, `modules/Legal-Workspace/` → `modules/advocatio/`. Old paths remain as junctions for one week; recall stores keep both names (D-142)._

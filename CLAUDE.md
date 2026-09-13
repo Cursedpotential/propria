@@ -16,14 +16,12 @@ consider a  /think:workflows IF ONE FITS THE TASK YOU MUST LOAD IT
 **Local (desktop)**
 
 - **Probata repo, git root:** `E:\AI_Workspace\Projects\Propria\Probata\probata`. Commit only from here, staging by explicit path. Other sessions share this index and stage hundreds of their own files.
-- **Old path is gone:** `E:\AI_Workspace\Projects\the-platform-workspace\probata` no longer exists. Any doc, script, or memory that still names it is stale.
 - ~~**Start sessions in:** `E:\AI_Workspace\Projects\Propria\Probata`. Its auto-memory store is `C:\Users\matts\.claude\projects\E--AI-Workspace-Projects-Propria-Probata\memory` (191 memories, moved here 2026-09-10). A session started inside `Probata\probata` gets an empty store.~~ **Corrected 2026-09-10 (Claude Code · Opus 5): the owner moved the parent's memory folders into the repo.**
 - **Start sessions in:** `E:\AI_Workspace\Projects\Propria\Probata\probata`. Its auto-memory store is `C:\Users\matts\.claude\projects\E--AI-Workspace-Projects-Propria-Probata-probata\memory` (all 191 memories copied there 2026-09-10; the old `…-Propria-Probata` store is left in place, unwritten). `.claude\` and `.remember\` live inside the repo; the merge of the parent copies is logged in `probata\to_be_deleted\2026-09-10-dotfolder-merge\merge-log.txt`.
 - **memsearch (shared agent memory):** ONE folder for every agent and project, `C:\Users\matts\.memsearch\memory`, and ONE Milvus collection, `agent_session_memory_nemotron3`, pinned by `C:\Users\matts\.memsearch\.collection`. Claude gets it from `MEMSEARCH_DIR` in `~\.claude\settings.json`; Codex from `~\.codex\hooks\memsearch_codex_hook.py`. Codex's own memory store is imported under `memory\codex\<project>\`. Per-project `.memsearch\` folders are retired (left in place, no longer written). Both plugin copies carry a local patch that honors `.collection`; re-apply it after a memsearch plugin update.
-- **Worktrees:** `E:\AI_Workspace\Projects\Propria\Probata\probata-worktrees`.
+- **Worktrees:** `E:\AI_Workspace\Projects\Propria\_worktrees`. New Propria-owned linked worktrees belong here; relocate existing linked worktrees only with `git worktree move` after their owner is paused and state is captured.
 - **Running TODO:** `probata\docs\planning\<date>-TODO.md`. Current file is `2026-09-08-TODO.md`.
 - **Handoffs:** `probata\docs\handoffs\HANDOFF-<date>-<topic>.md`.
-- **Cross-project rulings of 2026-09-09:** agent dispatch rules and shared agent memory live in `C:\Users\matts\.claude\projects\e--AI-Workspace-casebible\memory`.
 - **Secrets:** `C:\Users\matts\.secrets`. Parse with a regex and never `source` these files.
 - **rclone:** the binary is the scoop shim `C:\Users\matts\scoop\shims\rclone.exe`, and the config is `C:\Users\matts\scoop\apps\rclone\current\rclone.conf`.
 

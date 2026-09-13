@@ -7,7 +7,7 @@ authority:
   - Projects/Propria/AGENTS.md
   - Projects/Propria/docs/monorepo-migration-manifest.json
   - Projects/Propria/Probata/probata/AGENTS.md
-  - Projects/Propria/Consignatio/AGENTS.md
+  - Projects/Propria/projects/consignatio/AGENTS.md
 watches:
   - Projects/Propria/docs/monorepo-migration-manifest.json
   - Projects/Propria/docs/docstore-source-registry.json
@@ -35,16 +35,19 @@ does not erase the old repository histories or authorize a dirty in-place move.
 
 See [CCC / Intake / Docstore boundaries](SYSTEM-BOUNDARIES.md) for indexing eligibility, duplicate provenance and the human-agent organizing workflow.
 
-## Transitional routing — 2026-09-10 paths pending monorepo import
+## Transitional routing — verified 2026-09-13
 
 This section supersedes historical paths and representation claims below.
 
-- Vault and Intake: `Consignatio/AGENTS.md`, `Consignatio/AGENT_MEMORY.md`.
+- Vault and Intake imported overlay: `projects/consignatio/AGENTS.md`,
+  `projects/consignatio/AGENT_MEMORY.md`. The former `Consignatio/` tree is a
+  protected migration source while cutover remains pending.
 - Probata: `Probata/probata/AGENTS.md`, `Probata/probata/AGENT_MEMORY.md`.
 - Legal/other Probata modules: descend through Probata's own current router.
 - Root governance and migration changes belong to the Propria root repository.
-- Product changes remain in their current child repository until its manifest
-  state changes from `source` to `imported`.
+- Follow each lane's exact manifest state. Imported lanes commit from this root;
+  source lanes remain in their child repository; a pending cutover keeps its
+  protected source available for reconciliation.
 
 Do not start all products or load their memories together. Do not infer current
 Git representation from the target layout; check the migration manifest and
@@ -69,7 +72,7 @@ gitlink directory as the product source.
 |---|---|---|
 | Evidence, custody, ingestion, parsing, analysis, platform operations — **Indicia Probata** | `Probata/probata/` | `Probata/probata/` |
 | Strategy, legal research, drafting, review, release preparation — **advocatio** | `Probata/probata/modules/advocatio-legal_workbench/` | verify inside that child boundary |
-| Vault, corpus preparation, search and Intake desktop | `Consignatio/` | `Consignatio/` |
+| Vault, corpus preparation, search and Intake desktop | `projects/consignatio/` | this Propria Git root; preserve `Consignatio/` as the recovery source pending cutover |
 | Root governance and migration records | this directory | this Propria Git root with an explicit path allowlist |
 
 Never let an opened chat directory decide the commit root. Before staging, run
@@ -83,7 +86,3 @@ The current transitional representation is recorded in
 
 The Evidence Platform is canonical for evidence. Legal Workspace consumes accepted
 `LegalSourcePackage` data and never becomes a second writable evidence store.
-
-> _Naming amendment: Claude Code · Fable 5.1 · 2026-09-06 — product canon D-137..D-150 (`probata/docs/NAMING.md`). Evidence Platform = **Indicia Probata** (`probata`, formerly `Agno-MCP-Platform`); Legal Workspace = **advocatio** (nested at `probata/modules/advocatio/`, formerly `modules/Legal-Workspace/`); TraceIQ = **vestigia** (nested at `probata/modules/vestigia/`, formerly `modules/traceIQ/`). The directory rename landed 2026-09-06; `Agno-MCP-Platform/` is now a junction to `probata/`. Old paths stay as junctions for a week; both names remain valid in recall stores (D-142)._
-
-> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-06 — directory renames D-137..D-142: `Agno-MCP-Platform/` → `probata/` (Indicia Probata), nested `modules/traceIQ/` → `modules/vestigia/`, `modules/Legal-Workspace/` → `modules/advocatio/`. Old paths remain as junctions for one week; recall stores keep both names (D-142)._

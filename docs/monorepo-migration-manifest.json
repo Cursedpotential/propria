@@ -48,9 +48,10 @@
       "linked_worktrees": [
         "Probata/probata",
         "C:/Users/matts/.codex/worktrees/41e3/probata",
-        "E:/AI_Workspace/Projects/_worktrees/probata-duckdb-live-test",
-        "E:/AI_Workspace/Projects/_worktrees/probata-tool-runtime-rename",
-        "Probata/probata/.claude/worktrees/docstore-recall-latency"
+        "E:/AI_Workspace/Projects/Propria/_worktrees/probata-docstore-recall-latency",
+        "E:/AI_Workspace/Projects/Propria/_worktrees/probata-duckdb-live-test",
+        "E:/AI_Workspace/Projects/Propria/_worktrees/probata-integration-20260913",
+        "E:/AI_Workspace/Projects/Propria/_worktrees/probata-tool-runtime-rename"
       ],
       "worktree_policy": "new Propria-owned worktrees use E:/AI_Workspace/Projects/Propria/_worktrees; existing linked worktrees move only after owner pause and Git-aware verification"
     },
