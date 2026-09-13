@@ -179,6 +179,7 @@ Secrets/
 .Secrets/
 
 # Machine-local agent and indexing state
+/.runtime/
 /.claude/
 /.cnf/
 /.memory/
