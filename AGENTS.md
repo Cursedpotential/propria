@@ -50,7 +50,7 @@ and verified representation state.
 | Work | Repository | Next instructions | Commit root |
 |---|---|---|---|
 | Evidence custody, ingestion, parsing, knowledge horizons, analysis, and operations — **Indicia Probata** | `Probata/probata/` | `Probata/probata/AGENTS.md` | verify inside `Probata/probata/` |
-| Legal research, strategy, drafting, review, and release preparation — **advocatio** | `Probata/probata/modules/advocatio/` | descend through Probata's router | verify within selected module |
+| Legal research, strategy, drafting, review, and release preparation — **advocatio** | `Probata/probata/modules/advocatio-legal_workbench/` | descend through Probata's router | verify within selected module |
 | Vault, corpus preparation, search and Intake desktop | `Consignatio/` | `Consignatio/AGENTS.md`, `Consignatio/AGENT_MEMORY.md` | `Consignatio/` |
 
 Current paths above were checked after the owner relocation on 2026-09-10.
@@ -81,6 +81,11 @@ versioned `LegalSourcePackage` data and never becomes a second writable evidence
 4. A dirty child or changed parent pointer is not authorization to stage that pointer.
 5. Never reset, clean, stash, overwrite, or hard-delete concurrent work. Quarantine files under the
    owning repository's `to_be_deleted/` directory; only the owner deletes from quarantine.
+6. Create Propria-owned migration worktrees under `E:\AI_Workspace\Projects\Propria\_worktrees\`.
+   That directory is machine-local and ignored. During the transition, a child repository may link
+   a worktree there without changing its Git boundary. Move an existing linked worktree only with
+   `git worktree move`, after its owner is paused and its branch, dirty state, `.git` pointer, common
+   directory, and representative hashes have been captured.
 
 Read `AGENT_MEMORY.md` for progressive routing. Historical
 `../REPOSITORY_BOUNDARIES.md` describes the former multi-repository representation;

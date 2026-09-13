@@ -1,17 +1,16 @@
 ---
 scope: E:/AI_Workspace/Projects/Propria
 status: current
-verified_at: 2026-09-12
+verified_at: 2026-09-13
 superseded_by: null
 authority:
-  - Projects/REPOSITORY_BOUNDARIES.md
-  - Projects/the-platform-workspace/AGENTS.md
-  - Projects/the-platform-workspace/probata/AGENTS.md (formerly Agno-MCP-Platform/)
-  - Projects/the-platform-workspace/probata/modules/advocatio/AGENTS.md (formerly Legal-Workspace/)
-  - Projects/the-platform-workspace/milvus-coolify/AGENTS.md
+  - Projects/Propria/AGENTS.md
+  - Projects/Propria/docs/monorepo-migration-manifest.json
+  - Projects/Propria/Probata/probata/AGENTS.md
+  - Projects/Propria/Consignatio/AGENTS.md
 watches:
-  - Projects/REPOSITORY_BOUNDARIES.md
-  - Projects/the-platform-workspace/AGENTS.md
+  - Projects/Propria/docs/monorepo-migration-manifest.json
+  - Projects/Propria/docs/docstore-source-registry.json
 contains_secrets: false
 ---
 
@@ -68,19 +67,19 @@ gitlink directory as the product source.
 
 | Work | Descend into | Commit from |
 |---|---|---|
-| Evidence, custody, ingestion, parsing, analysis, platform operations — **Indicia Probata** | `probata/` (formerly `Agno-MCP-Platform/`) | `probata/` |
-| Strategy, legal research, drafting, review, release preparation — **advocatio** | `probata/modules/advocatio/` (formerly `Legal-Workspace/`) | `probata/modules/advocatio/` |
-| Parked Milvus deployment definitions; owner-authorized reactivation only | `milvus-coolify/` | `milvus-coolify/` |
-| Workspace routing and cross-project references only | this directory | parent Git root with an explicit workspace-path allowlist |
+| Evidence, custody, ingestion, parsing, analysis, platform operations — **Indicia Probata** | `Probata/probata/` | `Probata/probata/` |
+| Strategy, legal research, drafting, review, release preparation — **advocatio** | `Probata/probata/modules/advocatio-legal_workbench/` | verify inside that child boundary |
+| Vault, corpus preparation, search and Intake desktop | `Consignatio/` | `Consignatio/` |
+| Root governance and migration records | this directory | this Propria Git root with an explicit path allowlist |
 
 Never let an opened chat directory decide the commit root. Before staging, run
 `git rev-parse --show-toplevel`, compare it with the target project's declared boundary above, and
 stage only explicit paths owned by that project. A parent gitlink changing because a child is dirty
 is not authorization to stage or commit the gitlink.
 
-The parent currently represents Evidence Platform and Milvus as raw gitlinks and Legal Workspace as
-an ignored independent child. That representation is documented in `../REPOSITORY_BOUNDARIES.md`;
-change it only through a separate parent-repository decision and commit.
+The current transitional representation is recorded in
+`docs/monorepo-migration-manifest.json`. Do not use the retired
+`the-platform-workspace` tree to resolve current paths.
 
 The Evidence Platform is canonical for evidence. Legal Workspace consumes accepted
 `LegalSourcePackage` data and never becomes a second writable evidence store.

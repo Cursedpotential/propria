@@ -2,6 +2,7 @@
   "schema": "propria-monorepo-migration-v1",
   "root": "E:/AI_Workspace/Projects/Propria",
   "owner_decision_date": "2026-09-12",
+  "last_verified_at": "2026-09-13",
   "target_directories": ["projects", "resources", "docs", "tools"],
   "sources": [
     {
@@ -39,9 +40,19 @@
       "target": "projects/probata",
       "state": "source",
       "ownership": "owned",
-      "git_head": "99941cc",
+      "git_head": "2a26edfcd31c319a3bff3e3c1247f070dab92bdf",
       "dirty": true,
-      "divergence": {"behind": 12, "ahead": 3}
+      "status_paths": 654,
+      "divergence": {"behind": 22, "ahead": 4},
+      "target_exists": false,
+      "linked_worktrees": [
+        "Probata/probata",
+        "C:/Users/matts/.codex/worktrees/41e3/probata",
+        "E:/AI_Workspace/Projects/_worktrees/probata-duckdb-live-test",
+        "E:/AI_Workspace/Projects/_worktrees/probata-tool-runtime-rename",
+        "Probata/probata/.claude/worktrees/docstore-recall-latency"
+      ],
+      "worktree_policy": "new Propria-owned worktrees use E:/AI_Workspace/Projects/Propria/_worktrees; existing linked worktrees move only after owner pause and Git-aware verification"
     },
     {
       "id": "family-court-workbench",

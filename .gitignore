@@ -180,6 +180,7 @@ Secrets/
 
 # Machine-local agent and indexing state
 /.claude/
+/.cnf/
 /.memory/
 /.memsearch/
 /.remember/

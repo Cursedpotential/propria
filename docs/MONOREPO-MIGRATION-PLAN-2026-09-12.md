@@ -70,6 +70,11 @@ controlled vendor, or external upstream dependency.
 8. Preserve source repositories as recovery copies until the owner accepts the
    final root and all required builds/tests pass. Any eventual retirement goes to
    `to_be_deleted/`; only the owner deletes it.
+9. Place new Propria migration worktrees under the ignored root-local
+   `_worktrees/` directory. Existing worktrees outside the root remain valid but
+   transitional. Relocate them only after their owners pause, using
+   `git worktree move` and post-move branch, status, pointer, common-directory and
+   representative-hash verification; never use a raw filesystem move.
 
 ## Phases
 
@@ -124,6 +129,15 @@ copy by this migration, but its dirty-path count changed concurrently from 85 to
 pending. The detailed receipt is
 `docs/CONSIGNATIO-OVERLAY-MIGRATION-2026-09-12.md`.
 
+Checkpoint, 2026-09-13: Probata remains an unimported, heavily dirty child
+repository. Its current `main` is `2a26edfcd31c319a3bff3e3c1247f070dab92bdf`,
+ahead 4 and behind 22 relative to its fetched upstream, with 654 status paths.
+Four additional linked worktrees are registered besides the primary checkout.
+Two active branch worktrees remain at the
+historical global `E:/AI_Workspace/Projects/_worktrees/` location; they must not
+be moved until their owners pause and the Git-aware relocation gate above is
+satisfied. This checkpoint does not authorize importing or flattening Probata.
+
 ### Phase 4 — Shared resources and dependency policy
 
 Move the design contract and genuinely shared libraries into `resources/` only
@@ -145,6 +159,37 @@ flags, resources and freshness checks as first-class tools/skills/resources to a
 supported agents. Verify from a fresh clone before declaring the monorepo
 canonical.
 
+#### Mandatory Docstore cutover gate
+
+The monorepo is **not cut over** until every item below has a receipt. A registry
+entry or an exposed MCP tool is not proof that its documents were ingested.
+
+1. `docs/docstore-source-registry.json` resolves every required source root from
+   a fresh Propria clone, with stable project IDs and canonical prefixes.
+2. The Probata Docstore worker image is built from the Propria root (or receives
+   an equivalent immutable source projection) so no registered project depends
+   on an undeclared host path.
+3. `DOCSTORE_PROJECT_REGISTRY` points at the versioned manifest and
+   `DOCSTORE_MULTI_ROOT_ENABLED=1` is set only after the image contains every
+   required root. Missing required roots must fail closed before CocoIndex runs.
+4. One bounded CocoIndex catch-up completes, followed by a no-change run. The
+   receipt records manifest hash, source counts, changed/unchanged counts, peak
+   memory, terminal status and the existing `ProbataDocStore` identity.
+5. At least one representative document per project passes
+   `docstore_verify_index`; document and chunk hashes/counts are non-zero and the
+   legacy Probata `docs/` IDs remain stable.
+6. The canonical `probata-docstore` plugin is validated and enabled for Claude;
+   the `probata-docstore` MCP is registered for Codex. A fresh agent session can
+   discover search, related-update, notes/flags, revision, CDC, graph, project
+   registry and Surrealist resources without invoking CCC.
+7. The same 21-tool/five-resource/four-template/one-prompt control surface is
+   served over authenticated or private-network Streamable HTTP and registered
+   in ContextForge with transport exactly `STREAMABLEHTTP`. A gateway
+   initialize, tools/list, resources/list and one real bounded read all pass.
+8. Only after items 1–7 pass may project entries move from
+   `pending-multi-root-cdc` to a verified ingestion state or old documentation
+   roots move to `to_be_deleted/`.
+
 ### Phase 6 — Recovery-source retirement
 
 After owner acceptance, move superseded source directories to the root
@@ -159,4 +204,6 @@ replacement commits, and rollback instructions.
 - Each project’s bounded tests/builds pass from its new directory.
 - Agent instructions resolve from the root without contradictory commit guidance.
 - Deployment/watch paths and Docstore indexing roots are explicitly updated and tested.
+- The mandatory Docstore cutover gate above has a current deployment and
+  end-to-end verification receipt; local catalogs and manifests alone do not satisfy it.
 - The old source directories remain recoverable until the owner approves quarantine.

@@ -1,0 +1,18 @@
+{
+  "subject": "note:probata_function_access_broken_20260912",
+  "title": "Probata function access is broken in the live Workbench",
+  "summary": "Verified live on 2026-09-12 at https://workbench.tilapia-skilift.ts.net. The Evidence Operations Desk and /intake load, including the fixed DEV placeholder matter and source browser. The function-access flow fails when the operator selects Atomic Tools, both inside /intake and at the direct /tools route: the UI reports 'Execution unavailable' and shows no catalog capabilities. Live endpoint checks establish two independent breaks. GET /api/tools returns HTTP 200 with an empty JSON array, so no configured MCP server or tool reaches the browser. GET /api/monitored-actions/capabilities returns HTTP 404, and repository-wide inspection finds no monitored-actions backend route. The current AtomicTools component requires that absent capability endpoint and submits to POST /api/monitored-actions; direct browser invocation is intentionally disabled. A legacy backend POST /api/tools/call still exists, but its ToolExplorer UI has zero current references and ToolForm requires the monitored-action adapter, so it is not a usable fallback. The deployed configuration defaults MCP_SERVERS to [], and Settings.mcp_servers_parsed also filters entries that are malformed or lack gateway=portkey unless diagnostic bypass is explicitly enabled. The live empty catalog therefore requires deployment configuration verification in addition to implementing the monitored-action API. Map-versus-territory delta: npm run build passes and the three atomic-tools contract tests pass, but those tests only assert source strings and explicitly require the browser direct-call path to be absent; they do not exercise a backend route or live tool. This is a fail-closed scaffold, not a functional vertical slice. No function was invoked, no product source was modified, and no deployment or configuration was changed during this diagnosis.",
+  "priority": "critical",
+  "authority": "verified_finding",
+  "status": "active",
+  "domains": [
+    "probata",
+    "workbench",
+    "infra",
+    "docs"
+  ],
+  "source_ref": "E:/AI_Workspace/Projects/Propria/Probata/probata/modules/workbench/web/src/components/tools/atomic-tools.tsx",
+  "rationale": "The owner reported that Probata and its function-access flow are broken. Live browser reproduction, direct endpoint probes, current source inspection, Git history, a successful frontend build, and the passing-but-static contract tests all converge on the same boundary failure. Record this separately from any visual design work so repair planning begins with the missing execution API and empty governed catalog.",
+  "actor": "codex-gpt5-live-flow-audit",
+  "expected_revision": 0
+}

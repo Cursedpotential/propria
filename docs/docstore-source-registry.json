@@ -1,0 +1,85 @@
+{
+  "schema": "propria-docstore-source-registry-v1",
+  "monorepo_root": "E:/AI_Workspace/Projects/Propria",
+  "last_path_verification": {
+    "verified_at": "2026-09-13",
+    "required_roots_resolved": true,
+    "scope": "local Propria checkout only",
+    "ingestion_proof": false,
+    "note": "Path resolution does not prove CocoIndex execution, CDC attribution, deployment identity, or indexed content."
+  },
+  "projects": [
+    {
+      "project_id": "propria",
+      "title": "Propria monorepo governance and shared documentation",
+      "source_root": ".",
+      "canonical_prefix": "propria",
+      "domains": ["docs", "infra"],
+      "included_patterns": ["AGENTS.md", "AGENT_MEMORY.md", "CLAUDE.md", "SYSTEM-BOUNDARIES.md", "RESULT-PRESENTATION-CONTRACT.md", "SURFACE-DESIGN-CONTRACT.md", "docs/**/*.md"],
+      "excluded_patterns": ["Probata/**", "Consignatio/**", "FL-MCP/**", "design-contract/**", "projects/**", "resources/**", "**/to_be_deleted/**", "**/COMPACT-SUMMARY-*.md"],
+      "registration_status": "active",
+      "ingestion_status": "pending-multi-root-cdc",
+      "required": true
+    },
+    {
+      "project_id": "probata",
+      "title": "Indicia Probata",
+      "source_root": "Probata/probata/docs",
+      "canonical_prefix": "docs",
+      "domains": ["probata", "proffer", "knowledge", "memory", "docs"],
+      "included_patterns": ["**/*.md"],
+      "excluded_patterns": ["private/**", "**/to_be_deleted/**"],
+      "registration_status": "active",
+      "ingestion_status": "current-full-source",
+      "required": true
+    },
+    {
+      "project_id": "consignatio",
+      "title": "Consignatio and Intake",
+      "source_root": "projects/consignatio",
+      "canonical_prefix": "consignatio",
+      "domains": ["consignatio", "intake", "docs"],
+      "included_patterns": ["**/*.md"],
+      "excluded_patterns": ["**/node_modules/**", "**/dist/**", "**/to_be_deleted/**", "**/COMPACT-SUMMARY-*.md"],
+      "registration_status": "active",
+      "ingestion_status": "pending-multi-root-cdc",
+      "required": true
+    },
+    {
+      "project_id": "family-court-workbench",
+      "title": "Family Court Workbench",
+      "source_root": "projects/family-court-workbench",
+      "canonical_prefix": "family-court-workbench",
+      "domains": ["workbench", "docs"],
+      "included_patterns": ["**/*.md"],
+      "excluded_patterns": ["**/node_modules/**", "**/dist/**", "**/to_be_deleted/**"],
+      "registration_status": "active",
+      "ingestion_status": "pending-multi-root-cdc",
+      "required": true
+    },
+    {
+      "project_id": "advocatio",
+      "title": "Advocatio legal workbench",
+      "source_root": "Probata/probata/modules/advocatio-legal_workbench",
+      "canonical_prefix": "advocatio",
+      "domains": ["advocatio", "docs"],
+      "included_patterns": ["**/*.md"],
+      "excluded_patterns": ["**/node_modules/**", "**/to_be_deleted/**", "**/_stale/**"],
+      "registration_status": "active",
+      "ingestion_status": "pending-multi-root-cdc",
+      "required": true
+    },
+    {
+      "project_id": "vestigia",
+      "title": "Vestigia geodata and TraceIQ",
+      "source_root": "Probata/probata/modules/vestigia-geodata_processor",
+      "canonical_prefix": "vestigia",
+      "domains": ["vestigia", "docs"],
+      "included_patterns": ["**/*.md"],
+      "excluded_patterns": ["**/node_modules/**", "**/to_be_deleted/**", "**/_stale/**"],
+      "registration_status": "active",
+      "ingestion_status": "pending-multi-root-cdc",
+      "required": true
+    }
+  ]
+}
