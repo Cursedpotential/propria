@@ -108,7 +108,8 @@ async fn file_metadata(engine: &Arc<Engine>, path: &str) -> Outcome {
         }
     }
     let real = real_path(engine, path).await?;
-    let mut v = crate::media::file_metadata(&real).await;
+    let hint = is_catalog(path).then(|| catalog::name_of(path.trim_end_matches('/')));
+    let mut v = crate::media::file_metadata(&real, hint.as_deref()).await;
     if let Value::Object(m) = &mut v {
         m.insert("resolved_path".into(), json!(real));
     }
@@ -299,7 +300,7 @@ pub async fn catalog_command(engine: &Arc<Engine>, name: &str, args: Map<String,
         // Git and folder-size caches have nothing to report for catalog entries (not a git work tree,
         // sizes come from the listing itself); tags are keyed by real paths.
         "get_cached_folder_sizes" | "get_file_tags_batch" => Ok(json!({})),
-        "find_git_repository" => Ok(Value::Null),
+        "find_git_repository" | "get_ai_index_entry" | "trigger_ai_indexing" => Ok(Value::Null),
         "get_git_status" => Ok(json!([])),
         // Harmless UI side effects on a virtual tree.
         "add_to_recent_folders" | "watch_directory" | "unwatch_directory" | "start_watching" | "stop_watching"

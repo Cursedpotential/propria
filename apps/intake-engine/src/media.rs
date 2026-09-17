@@ -96,9 +96,11 @@ pub async fn ffprobe(path: &Path) -> Result<Value, String> {
 }
 
 /// Everything the Metadata panel shows for one real file on the mount.
-pub async fn file_metadata(path: &Path) -> Value {
+/// `name_hint`: the name the file is shown under (catalog:// entries can resolve to a vault object
+/// whose key has a different extension, e.g. a JPEG stored under `*.supplemental-metadata.json`).
+pub async fn file_metadata(path: &Path, name_hint: Option<&str>) -> Value {
     let p = path.to_string_lossy().to_string();
-    let e = ext(path);
+    let e = name_hint.map(|n| ext(Path::new(n))).filter(|x| !x.is_empty()).unwrap_or_else(|| ext(path));
     let mut out = serde_json::Map::new();
 
     out.insert(

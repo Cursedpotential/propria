@@ -211,10 +211,12 @@ async fn asset(
             Err(e) => return text(StatusCode::BAD_REQUEST, e),
         }
     };
-    serve_file(path, &headers).await
+    // A catalog entry is served with the type of the name it is listed under, not the vault key's.
+    let hint = crate::catalog::is_catalog(&q.path).then(|| crate::catalog::name_of(q.path.trim_end_matches('/')));
+    serve_file(path, &headers, hint.as_deref()).await
 }
 
-pub async fn serve_file(path: PathBuf, headers: &HeaderMap) -> Response {
+pub async fn serve_file(path: PathBuf, headers: &HeaderMap, name_hint: Option<&str>) -> Response {
     let meta = match tokio::fs::metadata(&path).await {
         Ok(m) if m.is_file() => m,
         Ok(_) => return text(StatusCode::BAD_REQUEST, "asset path is not a file"),
@@ -225,7 +227,7 @@ pub async fn serve_file(path: PathBuf, headers: &HeaderMap) -> Response {
         Ok(f) => f,
         Err(e) => return text(StatusCode::FORBIDDEN, format!("cannot open asset: {e}")),
     };
-    let mime = mime_for(&path);
+    let mime = mime_for(name_hint.map(std::path::Path::new).unwrap_or(&path));
     let range = headers
         .get(header::RANGE)
         .and_then(|v| v.to_str().ok())
