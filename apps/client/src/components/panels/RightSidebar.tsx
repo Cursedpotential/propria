@@ -1,3 +1,5 @@
+// Byline: Claude Code · Sonnet 5 · 2026-09-14 -- pass live selection into the native
+// ReviewDockPanel (metadata) instead of the iframe it used to wrap.
 import React, { useRef, useState, useMemo, useLayoutEffect, useEffect, useCallback } from 'react';
 import ExtensionPanelHost from './ExtensionPanelHost';
 import PreviewNavigationBar from './PreviewNavigationBar';
@@ -16,6 +18,7 @@ const MarketplacePanel = React.lazy(() => import('./MarketplacePanel'));
 const PerformanceDashboard = React.lazy(() => import('./PerformanceDashboard'));
 const StandaloneChatPanel = React.lazy(() => import('./StandaloneChatPanel'));
 const AgentManagerPanel = React.lazy(() => import('./AgentManagerPanel'));
+const ReviewDockPanel = React.lazy(() => import('./ReviewDockPanel'));
 const ComparePreview = React.lazy(() => import('@/components/previews/ComparePreview'));
 
 interface Theme {
@@ -298,6 +301,7 @@ const RightSidebar = ({
     if (rightPanelTab === 'preview') return 'File Preview';
     if (rightPanelTab === 'tokenizer') return 'Content Search';
     if (rightPanelTab === 'chat') return 'AI Chat';
+    if (rightPanelTab === 'review') return 'Review & metadata';
     if (rightPanelTab === 'agent-manager') return 'Agent Manager';
     if (rightPanelTab === 'performance') return 'Performance';
     if (rightPanelTab === 'extensions') return 'Extensions';
@@ -506,6 +510,16 @@ const RightSidebar = ({
                 return (
                   <ErrorBoundary>
                     <TokenizerStatusPanel />
+                  </ErrorBoundary>
+                );
+              }
+              if (rightPanelTab === 'review') {
+                return (
+                  <ErrorBoundary>
+                    <ReviewDockPanel
+                      selectedFile={selectedFile}
+                      selectedFiles={extensionSelectedFiles}
+                    />
                   </ErrorBoundary>
                 );
               }

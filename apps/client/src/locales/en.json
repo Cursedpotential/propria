@@ -21,7 +21,13 @@
     "noResults": "No indexed matches. This does not prove the files are missing.",
     "score": "Search score",
     "unmapped": "No filesystem mount mapping is available for this source path.",
-    "openLocation": "Open location"
+    "openLocation": "Open location",
+    "rg": "Local content (rg)",
+    "rgNeedsFolder": "rg needs an open folder",
+    "provenance": "Engine, index/collection, source id, and score for this hit",
+    "cocoindex": "CocoIndex semantic (Parquet lake)",
+    "duckdb": "DuckDB SQL (lake)",
+    "duckdbSql": "SQL query over documents/chunks"
   },
   "common": {
     "ok": "OK",

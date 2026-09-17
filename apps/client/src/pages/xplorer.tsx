@@ -28,11 +28,14 @@ import { useCrossTabSelection } from '@/hooks/use-cross-tab-selection';
 import { applyCollectionToFiles } from '@/lib/collections';
 import { usePaneSync } from '@/hooks/use-pane-sync';
 import { usePaneSelection } from '@/hooks/use-pane-selection';
+import { useIntakeEmbedBridge } from '@/hooks/use-intake-embed-bridge';
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 const ExplorerUnified = () => {
   const { toast } = useToast();
+  // Intake co-workspace: broadcast selection to the parent shell when embedded (no-op standalone).
+  useIntakeEmbedBridge();
 
   // Refs
   const topBarRef = useRef<TopBarHandle>(null);
@@ -55,13 +58,14 @@ const ExplorerUnified = () => {
   const [legacySelectedFile, setLegacySelectedFile] = useState<FileEntry | null>(null);
   const allPaneSelections = usePaneSelection(layoutState.groups);
   const paneSelections = import.meta.env.VITE_INTAKE_MODE === '1' ? allPaneSelections : undefined;
-  const { selectedFiles, setSelectedFiles, selectedFile, setSelectedFile } =
-    paneSelections?.[activeGroup.id] ?? {
-      selectedFiles: legacySelectedFiles,
-      setSelectedFiles: setLegacySelectedFiles,
-      selectedFile: legacySelectedFile,
-      setSelectedFile: setLegacySelectedFile,
-    };
+  const { selectedFiles, setSelectedFiles, selectedFile, setSelectedFile } = paneSelections?.[
+    activeGroup.id
+  ] ?? {
+    selectedFiles: legacySelectedFiles,
+    setSelectedFiles: setLegacySelectedFiles,
+    selectedFile: legacySelectedFile,
+    setSelectedFile: setLegacySelectedFile,
+  };
 
   // ── Layout state ────────────────────────────────────────────────────────────
   const layout = useLayoutState();
@@ -125,9 +129,12 @@ const ExplorerUnified = () => {
     return applyCollectionToFiles(sortedFiles, dialogManager.activeCollectionFilter);
   }, [sortedFiles, dialogManager.activeCollectionFilter]);
 
-  const handleGDriveFileSelect = useCallback((file: FileEntry) => {
-    setSelectedFiles(new Set([file.path]));
-  }, [setSelectedFiles]);
+  const handleGDriveFileSelect = useCallback(
+    (file: FileEntry) => {
+      setSelectedFiles(new Set([file.path]));
+    },
+    [setSelectedFiles],
+  );
 
   // ── File operations ───────────────────────────────────────────────────────
   const fileOps = useFileOperations({

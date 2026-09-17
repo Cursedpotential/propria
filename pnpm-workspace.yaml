@@ -7,6 +7,18 @@ packages:
   - 'packages/cli'
   - 'packages/extensions/**'
 
+# Byline: Claude Code · Sonnet 5 · 2026-09-14 -- pnpm auto-inserted this block
+# (with placeholder "set this to true or false" values, invalid YAML booleans)
+# when `pnpm add` hit ERR_PNPM_IGNORED_BUILDS while adding ag-grid/glide-data-grid.
+# Set true for all five: each was already trusted via `onlyBuiltDependencies`
+# below before this change: this only satisfies pnpm's newer, separate consent gate for the same set.
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
+  sharp: true
+
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
   - esbuild

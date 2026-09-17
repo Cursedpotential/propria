@@ -10,8 +10,10 @@ import {
   ShoppingCart,
   Settings,
   Activity,
+  ClipboardList,
 } from 'lucide-react';
 import AgentStatusIndicator from '@/components/panels/agent-manager/AgentStatusIndicator';
+import { isTauri } from '@/lib/transport';
 
 interface VerticalExtensionsBarProps {
   rightPanelTab: string;
@@ -47,11 +49,34 @@ const VerticalExtensionsBar = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extRefreshKey]);
 
+  // Intake co-workspace: Review & metadata is docked here (not a second side-by-side
+  // app), and a browser build without a connected model/native backend gets one small
+  // flag on the affected control rather than an explanatory banner.
+  const intakeMode = import.meta.env.VITE_INTAKE_MODE === '1';
+  const browserBuild = !isTauri();
+
   // Core panels (always shown, part of the app core)
   const corePanels = [
     { id: 'preview', icon: <Eye size={18} />, label: 'File Preview' },
     { id: 'tokenizer', icon: <Search size={18} />, label: 'Content Search' },
-    { id: 'chat', icon: <MessageSquare size={18} />, label: 'AI Chat' },
+    {
+      id: 'chat',
+      icon: <MessageSquare size={18} />,
+      label: 'AI Chat',
+      flag: browserBuild ? 'Model not connected in this browser build' : undefined,
+    },
+    // Byline: Claude Code · Sonnet 5 · 2026-09-14 -- panel is now native and reads
+    // the real selection/backend catalog; the "example review set" flag it used
+    // to carry (when it iframed a separately-fed demo app) no longer applies.
+    ...(intakeMode
+      ? [
+          {
+            id: 'review',
+            icon: <ClipboardList size={18} />,
+            label: 'Review & metadata',
+          },
+        ]
+      : []),
     {
       id: 'agent-manager',
       icon: (
@@ -78,7 +103,7 @@ const VerticalExtensionsBar = ({
   };
 
   const btnClass = (id: string) =>
-    `w-10 h-10 mx-1 mb-1 rounded flex items-center justify-center text-lg transition-colors ${
+    `relative w-10 h-10 mx-1 mb-1 rounded flex items-center justify-center text-lg transition-colors ${
       rightPanelTab === id && !rightSidebarCollapsed
         ? 'bg-xp-blue text-white'
         : 'hover:bg-xp-surface-light'
@@ -91,14 +116,20 @@ const VerticalExtensionsBar = ({
     >
       <div className="flex flex-col py-2">
         {/* Core panels (always available) */}
-        {corePanels.map(({ id, icon, label }) => (
+        {corePanels.map(({ id, icon, label, flag }) => (
           <button
             key={id}
             onClick={() => handlePanelClick(id)}
             className={btnClass(id)}
-            title={label}
+            title={flag ? `${label} — ${flag}` : label}
           >
             {icon}
+            {flag && (
+              <span
+                aria-hidden="true"
+                className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber-500"
+              />
+            )}
           </button>
         ))}
 

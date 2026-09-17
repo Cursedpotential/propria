@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Switch, Route } from 'wouter';
+import { Switch, Route, Router as WouterRouter } from 'wouter';
 import { queryClient } from './lib/queryClient';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -16,22 +16,35 @@ import './styles/tokyo-night.css';
 // Lazy-loaded pages -- Settings is only needed when navigating to /settings
 const Settings = React.lazy(() => import('@/pages/settings'));
 
+/**
+ * Deployment base path for wouter's router, e.g. "/progress/intake/xplorer" when
+ * this build is served nested under the Intake co-workspace shell (the reverse
+ * proxy strips "/progress" server-side, but the browser's own
+ * window.location.pathname does not -- wouter needs the full prefix). Captured
+ * once at module load, before any client-side navigation changes the pathname.
+ * At the app's own root ("/") this resolves to "" (wouter's default), so
+ * standalone/native use is unaffected.
+ */
+const APP_BASE = typeof window !== 'undefined' ? window.location.pathname.replace(/\/$/, '') : '';
+
 const Router = () => {
   return (
-    <React.Suspense
-      fallback={
-        <div className="bg-xp-bg text-xp-text flex h-screen items-center justify-center text-sm">
-          Loading...
-        </div>
-      }
-    >
-      <Switch>
-        <Route path="/" component={ExplorerUnified} />
-        <Route path="/explorer" component={ExplorerUnified} />
-        <Route path="/settings" component={Settings} />
-        <Route component={NotFound} />
-      </Switch>
-    </React.Suspense>
+    <WouterRouter base={APP_BASE}>
+      <React.Suspense
+        fallback={
+          <div className="bg-xp-bg text-xp-text flex h-screen items-center justify-center text-sm">
+            Loading...
+          </div>
+        }
+      >
+        <Switch>
+          <Route path="/" component={ExplorerUnified} />
+          <Route path="/explorer" component={ExplorerUnified} />
+          <Route path="/settings" component={Settings} />
+          <Route component={NotFound} />
+        </Switch>
+      </React.Suspense>
+    </WouterRouter>
   );
 };
 

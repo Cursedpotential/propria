@@ -7,6 +7,7 @@ import React, {
   useSyncExternalStore,
 } from 'react';
 import { FileEntry } from '@/lib/tauri-api';
+// Byline: Claude Code · Sonnet · 2026-09-14 (activePaneRoot passthrough for the rg search method)
 import IntakeFilesystemSearchPanel from './IntakeFilesystemSearchPanel';
 import SearchResultsPanel, {
   type SearchResultsPanelHandle,
@@ -137,7 +138,11 @@ const LeftSidebar = forwardRef<LeftSidebarHandle, LeftSidebarProps>(function Lef
 
       {/* Search panel */}
       {activeTabId === '__search__' && import.meta.env.VITE_INTAKE_MODE === '1' && (
-        <IntakeFilesystemSearchPanel ref={searchPanelRef} navigateToPath={navigateToPath} />
+        <IntakeFilesystemSearchPanel
+          ref={searchPanelRef}
+          navigateToPath={navigateToPath}
+          activePaneRoot={currentPath}
+        />
       )}
       {activeTabId === '__search__' && import.meta.env.VITE_INTAKE_MODE !== '1' && (
         <SearchResultsPanel
