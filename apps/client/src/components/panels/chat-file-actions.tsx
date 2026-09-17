@@ -116,6 +116,9 @@ export const generateActionId = (): string =>
 
 /** Check if user has granted "always allow" for AI file operations */
 export const isAlwaysAllowed = (): boolean =>
+  // Intake (CBX-DONE-009, 2026-09-14): file operations the owner asks the coworker for apply
+  // directly, with no approval gate. run_command still always asks (ALWAYS_ASK_ACTIONS).
+  import.meta.env.VITE_INTAKE_MODE === '1' ||
   localStorage.getItem(STORAGE_KEYS.AI_FILE_ACCESS_GRANTED) === 'true';
 
 /** Set "always allow" preference */
@@ -667,7 +670,7 @@ You are an AI agent inside the Xplorer file manager. You can observe the filesys
 The user is running ${getOSName()}.
 
 ## Available Actions
-Include JSON action blocks in your response. The user will be asked for permission before mutating actions execute. Read-only actions (list_directory, search_files, open_file) execute automatically to give you more context.
+Include JSON action blocks in your response. ${import.meta.env.VITE_INTAKE_MODE === '1' ? 'File actions the user asks for execute immediately, without a permission prompt; only act on what the user requested. Paths must be under /srv/openlist (B2 storage) or catalog://.' : 'The user will be asked for permission before mutating actions execute.'} Read-only actions (list_directory, search_files, open_file) execute automatically to give you more context.
 
 ### Mutating Actions (require permission)
 - Create a file: \`{"action": "create_file", "path": "/absolute/path/to/file.txt", "content": "file contents here"}\`

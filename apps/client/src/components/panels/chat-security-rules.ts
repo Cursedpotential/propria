@@ -162,11 +162,32 @@ const getFileExtension = (path: string): string => {
  * Check whether an action is allowed by the current security rules.
  * Also performs rate-limit checking for mutating actions.
  */
+/** Mount root of the hosted engine's B2 storage (OpenList WebDAV -> rclone FUSE). */
+const INTAKE_STORAGE_ROOT = '/srv/openlist';
+
 export const checkSecurity = (
   actionType: string,
   path: string,
   extra?: { destination?: string },
 ): SecurityCheckResult => {
+  // Hosted Intake engine (Claude Code · Opus 5 · 2026-09-17, owner decision 6): the coworker is
+  // confined to the B2 storage mount and catalog://, whatever the user-editable rules say.
+  if (import.meta.env.VITE_INTAKE_MODE === '1') {
+    const inScope = (p: string) =>
+      p.startsWith('catalog://') ||
+      p === INTAKE_STORAGE_ROOT ||
+      p.startsWith(`${INTAKE_STORAGE_ROOT}/`);
+    for (const p of [path, extra?.destination].filter((v): v is string => Boolean(v))) {
+      if (!inScope(p) || p.split('/').includes('..')) {
+        return {
+          allowed: false,
+          reason: `Action blocked: "${p}" is outside the storage root (${INTAKE_STORAGE_ROOT}) and catalog://.`,
+          ruleName: 'intake-storage-root',
+        };
+      }
+    }
+  }
+
   const rules = loadSecurityRules();
 
   // If rules are disabled, allow everything
