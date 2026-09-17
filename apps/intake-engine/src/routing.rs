@@ -334,6 +334,11 @@ fn is_path_key(k: &str) -> bool {
 pub fn confine_args(engine: &Engine, args: &Map<String, Value>) -> Result<(), String> {
     fn check(engine: &Engine, key: &str, v: &str) -> Result<(), String> {
         if !v.starts_with('/') {
+            // Bare names ("report.pdf") and catalog:// are fine; a relative or foreign path would
+            // resolve against the engine's working directory, outside the storage root.
+            if v.contains('/') && !crate::catalog::is_catalog(v) {
+                return Err(format!("{key}: {v} must be an absolute path under the storage root or a catalog:// path"));
+            }
             return Ok(());
         }
         let p = Path::new(v);
