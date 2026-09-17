@@ -1,10 +1,11 @@
 # Byline: Claude Code · Opus 5 · 2026-09-17
-# Coolify application "intake-engine" on ovh-files (tailnet only).
-# B2 = the existing OpenList WebDAV -> rclone FUSE mount at /srv/openlist on the host.
+# Coolify application "intake-engine" on ovh-files (tailnet only). Build context = repo root.
+# B2 = the existing OpenList WebDAV -> rclone FUSE mount at /srv/openlist on the host (bind, rslave).
+# State lives on /data/probata/volumes/intake-engine. Catalog credentials are files, never env values.
 services:
   intake-engine:
     build:
-      context: ../..
+      context: .
       dockerfile: apps/intake-engine/Dockerfile
     restart: unless-stopped
     ports:
