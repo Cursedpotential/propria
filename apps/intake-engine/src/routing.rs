@@ -176,9 +176,7 @@ async fn transfer(engine: &Arc<Engine>, source: &str, dest: &str, is_move: bool)
         )),
         (true, false) if is_move => cat.relocate_out(source, Path::new(dest)).await.map(|_| Value::Null).map_err(bad),
         (true, false) => cat.copy_out(source, Path::new(dest)).await.map(|_| Value::Null).map_err(bad),
-        (false, true) => Err(bad(
-            "catalog:// records where files were found; a B2 file cannot be placed into that history. Move or copy it into a B2 folder instead.",
-        )),
+        (false, true) => cat.import_in(Path::new(source), dest, is_move).await.map(|_| Value::Null).map_err(bad),
         (false, false) => unreachable!(),
     }
 }

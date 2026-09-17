@@ -254,7 +254,7 @@ impl Catalog {
                     Some(cur.to_string())
                 }
             }
-            "mkdir" => {
+            "mkdir" | "import" => {
                 if op.to_rel.as_deref() == Some(cur) {
                     None
                 } else {
@@ -298,6 +298,23 @@ impl Catalog {
             }
         }
         Some(cur)
+    }
+
+    /// Files brought into catalog:// from B2 (`import` ops): (effective path, current B2 key).
+    fn imported_files(ops: &[OpRow]) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        for (i, op) in ops.iter().enumerate() {
+            if op.op != "import" {
+                continue;
+            }
+            let (Some(to), Some(key)) = (&op.to_rel, &op.vault_key_to) else { continue };
+            let later = &ops[i + 1..];
+            let (Some(eff), Some(cur)) = (Self::to_effective(later, to), Self::current_key(later, key)) else {
+                continue;
+            };
+            out.push((eff, cur));
+        }
+        out
     }
 
     /// Directories created by `mkdir` ops, as they are named now.
@@ -469,6 +486,35 @@ impl Catalog {
             }
             out.entry(eff.clone()).or_insert_with(|| Self::entry_for_dir(&eff, *bytes));
         }
+        for (eff, key) in Self::imported_files(&ops).into_iter().filter(|(e, _)| parent_of(e) == dir) {
+            let mount = self.b2_root.join(&key);
+            let meta = tokio::fs::metadata(&mount).await.ok();
+            let name = name_of(&eff);
+            let p = Path::new(&name);
+            out.insert(
+                eff.clone(),
+                CatalogEntry {
+                    name: name.clone(),
+                    path: path_of(&eff),
+                    is_dir: false,
+                    size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+                    modified: meta
+                        .as_ref()
+                        .and_then(|m| m.modified().ok())
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0),
+                    file_type: xplorer::file_lib::get_file_type(p, false),
+                    mime_type: xplorer::file_lib::get_mime_type(p),
+                    is_readonly: false,
+                    intake_flag: if meta.is_some() {
+                        None
+                    } else {
+                        Some("Added in Intake; its B2 object is missing".into())
+                    },
+                },
+            );
+        }
         for m in made.iter().filter(|m| parent_of(m) == dir) {
             out.entry(m.clone()).or_insert_with(|| Self::entry_for_dir(m, 0));
         }
@@ -495,6 +541,9 @@ impl Catalog {
     pub async fn resolve_file(&self, path: &str) -> Result<(PathBuf, String), String> {
         let rel = rel_of(path)?;
         let ops = self.overlay.read().await.clone();
+        if let Some((_, key)) = Self::imported_files(&ops).into_iter().find(|(e, _)| *e == rel) {
+            return Ok((self.b2_root.join(&key), key));
+        }
         let base = Self::to_base(&ops, &rel).ok_or_else(|| format!("{path} does not exist"))?;
         let rows = self.file_rows(std::slice::from_ref(&base)).await?;
         let row = rows
@@ -697,6 +746,46 @@ impl Catalog {
             OpRow { op: "relocate".into(), kind: "file".into(), from_rel: Some(from), to_rel: None, vault_key_from: Some(key), vault_key_to: self.key_of_mount(dest) },
             Some(dest.to_string_lossy().to_string()),
             json!({}),
+        )
+        .await
+    }
+
+    /// Bring a B2 file into catalog:// (copy or move). catalog:// entries must resolve to a real B2
+    /// object, so the object is placed under `intake-catalog-added/<catalog path>` in the bucket
+    /// (copied, or moved for a move) and an `import` row records the new entry.
+    pub async fn import_in(&self, src: &Path, to_path: &str, is_move: bool) -> Result<(), String> {
+        let to = rel_of(to_path)?;
+        if to.is_empty() || !to.contains('/') {
+            return Err("pick a folder inside catalog://<source>/ to add files to".into());
+        }
+        let meta = tokio::fs::metadata(src).await.map_err(|e| format!("{}: {e}", src.display()))?;
+        if meta.is_dir() {
+            return Err("adding a whole B2 folder to catalog:// is not supported; add its files".into());
+        }
+        if self.stat(to_path).await?.is_some() {
+            return Err(format!("{to_path} already exists"));
+        }
+        let parent = parent_of(&to);
+        if self.stat(&path_of(&parent)).await?.map(|e| e.is_dir) != Some(true) {
+            return Err(format!("catalog folder {} does not exist", path_of(&parent)));
+        }
+        let key = format!("intake-catalog-added/{to}");
+        let target = self.b2_root.join(&key);
+        if tokio::fs::metadata(&target).await.is_ok() {
+            return Err(format!("B2 already has {}", target.display()));
+        }
+        if let Some(dir) = target.parent() {
+            tokio::fs::create_dir_all(dir).await.map_err(|e| format!("create {}: {e}", dir.display()))?;
+        }
+        if is_move {
+            tokio::fs::rename(src, &target).await.map_err(|e| format!("B2 move failed: {e}"))?;
+        } else {
+            tokio::fs::copy(src, &target).await.map_err(|e| format!("B2 copy failed: {e}"))?;
+        }
+        self.append(
+            OpRow { op: "import".into(), kind: "file".into(), from_rel: None, to_rel: Some(to), vault_key_from: self.key_of_mount(src), vault_key_to: Some(key) },
+            Some(target.to_string_lossy().to_string()),
+            json!({"moved": is_move, "source": src, "bytes": meta.len()}),
         )
         .await
     }
