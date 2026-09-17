@@ -66,6 +66,19 @@ pub async fn engine_command(engine: &Arc<Engine>, name: &str, args: &Map<String,
             };
             file_metadata(engine, &path).await
         }
+        // Volumes a browser sees: the storage mount, the B2 bucket and catalog://, never the container root.
+        "list_drives" => {
+            let b2 = engine
+                .catalog
+                .as_ref()
+                .map(|c| c.b2_root.clone())
+                .unwrap_or_else(|| engine.mount_root.join("b2/salem-data"));
+            Ok(json!([
+                {"letter": "", "label": "B2 salem-data", "path": b2, "total_space": 0, "free_space": 0},
+                {"letter": "", "label": "Storage (OpenList)", "path": engine.mount_root, "total_space": 0, "free_space": 0},
+                {"letter": "", "label": "Catalog", "path": "catalog://", "total_space": 0, "free_space": 0},
+            ]))
+        }
         "intake_catalog_lookup" => {
             let Some(path) = s(args, "path", "path") else {
                 return Some(Err(bad("path is required")));
@@ -302,4 +315,51 @@ async fn donor_passthrough_or_null(engine: &Arc<Engine>, name: &str, args: Map<S
         return donor(engine, name, args).await;
     }
     Ok(Value::Null)
+}
+
+/// Argument keys that carry filesystem paths from the browser.
+fn is_path_key(k: &str) -> bool {
+    let k = k.to_ascii_lowercase();
+    ["path", "source", "destination", "dir", "folder", "target", "cwd", "root", "file"]
+        .iter()
+        .any(|w| k.contains(w))
+}
+
+/// Confine every absolute path a browser sends to the storage mount (or catalog://). The engine's
+/// own state volume and the container filesystem are not browsable (owner decision 3/6, 2026-09-17).
+pub fn confine_args(engine: &Engine, args: &Map<String, Value>) -> Result<(), String> {
+    fn check(engine: &Engine, key: &str, v: &str) -> Result<(), String> {
+        if !v.starts_with('/') {
+            return Ok(());
+        }
+        let p = Path::new(v);
+        if p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+            return Err(format!("{key}: '..' is not allowed in paths"));
+        }
+        if p.starts_with(&engine.mount_root) {
+            Ok(())
+        } else {
+            Err(format!(
+                "{key}: {v} is outside the storage root {} (the hosted engine only works on B2 storage and catalog://)",
+                engine.mount_root.display()
+            ))
+        }
+    }
+    for (k, v) in args {
+        if !is_path_key(k) {
+            continue;
+        }
+        match v {
+            Value::String(s) => check(engine, k, s)?,
+            Value::Array(a) => {
+                for x in a {
+                    if let Some(s) = x.as_str() {
+                        check(engine, k, s)?;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }

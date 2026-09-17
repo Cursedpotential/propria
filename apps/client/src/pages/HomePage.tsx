@@ -275,7 +275,14 @@ const Clock = () => {
   const greeting =
     hour < 12 ? t('home.goodMorning') : hour < 17 ? t('home.goodAfternoon') : t('home.goodEvening');
 
-  const locale = i18n.language || 'en';
+  // A POSIX-style tag such as "en-US@posix" is not a valid BCP 47 locale and throws in Intl.
+  const locale = (() => {
+    try {
+      return Intl.getCanonicalLocales(i18n.language || 'en')[0] ?? 'en';
+    } catch {
+      return 'en';
+    }
+  })();
 
   return (
     <div className="flex items-end justify-between">

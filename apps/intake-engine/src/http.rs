@@ -78,6 +78,7 @@ async fn command(
     let eng = engine.clone();
     let cmd = name.clone();
     let joined = tokio::spawn(async move {
+        crate::routing::confine_args(&eng, &args).map_err(|e| (403, e))?;
         if let Some(out) = crate::routing::engine_command(&eng, &cmd, &args).await {
             return out;
         }
