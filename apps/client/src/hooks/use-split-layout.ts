@@ -35,6 +35,19 @@ const loadLayout = (): SplitLayoutState => {
           // Migrate: backfill per-tab history for tabs that lack it
           for (const group of Object.values(typedParsed.groups)) {
             for (const tab of group.tabs) {
+              // Hosted Intake engine (Claude Code · Opus 5 · 2026-09-17): the retired OpenList bridge
+              // used paths relative to the OpenList root ("/b2/salem-data"); the engine serves the
+              // same tree at its mount root. Carry saved tabs over instead of opening empty folders.
+              if (import.meta.env.VITE_INTAKE_MODE === '1') {
+                const toMount = (p: string) =>
+                  p.startsWith('/') && !p.startsWith('/srv/openlist')
+                    ? `/srv/openlist${p === '/' ? '' : p}`
+                    : p;
+                tab.path = toMount(tab.path);
+                if (tab.pathHistory) tab.pathHistory = tab.pathHistory.map(toMount);
+                group.path = toMount(group.path);
+                group.pathHistory = (group.pathHistory ?? []).map(toMount);
+              }
               if (!tab.pathHistory) {
                 tab.pathHistory = [tab.path];
                 tab.historyIndex = 0;
