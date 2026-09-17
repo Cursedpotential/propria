@@ -145,6 +145,25 @@ fn pool(user_env: &str, pass_env: &str) -> Result<Pool, String> {
     Pool::builder(mgr).max_size(6).build().map_err(|e| e.to_string())
 }
 
+/// Move a file on the rclone/OpenList mount. A plain rename can fail with ENOENT for an object the
+/// FUSE layer has not looked up recently (seen live 2026-09-17 on files added by the engine), so
+/// look the source up and retry once, then fall back to copy + remove of the source.
+async fn move_on_mount(src: &Path, dst: &Path) -> std::io::Result<()> {
+    match tokio::fs::rename(src, dst).await {
+        Ok(()) => return Ok(()),
+        Err(e) => tracing::info!("rename {} -> {} failed ({e}); retrying after lookup", src.display(), dst.display()),
+    }
+    tokio::fs::metadata(src).await?;
+    if let Some(parent) = dst.parent() {
+        tokio::fs::metadata(parent).await?;
+    }
+    if tokio::fs::rename(src, dst).await.is_ok() {
+        return Ok(());
+    }
+    tokio::fs::copy(src, dst).await?;
+    tokio::fs::remove_file(src).await
+}
+
 impl Catalog {
     pub async fn connect() -> Result<Self, String> {
         let ro = pool("INTAKE_CATALOG_RO_USER", "INTAKE_CATALOG_RO_PASSWORD_FILE")?;
@@ -699,7 +718,7 @@ impl Catalog {
             if tokio::fs::metadata(&new_mount).await.is_ok() {
                 return Err(format!("B2 already has {}", new_mount.display()));
             }
-            tokio::fs::rename(&mount, &new_mount)
+            move_on_mount(&mount, &new_mount)
                 .await
                 .map_err(|e| format!("B2 rename failed: {e}"))?;
             let new_key = self.key_of_mount(&new_mount);
@@ -739,7 +758,7 @@ impl Catalog {
         if tokio::fs::metadata(dest).await.is_ok() {
             return Err(format!("{} already exists", dest.display()));
         }
-        tokio::fs::rename(&mount, dest)
+        move_on_mount(&mount, dest)
             .await
             .map_err(|e| format!("B2 move failed: {e}"))?;
         self.append(
@@ -778,7 +797,7 @@ impl Catalog {
             tokio::fs::create_dir_all(dir).await.map_err(|e| format!("create {}: {e}", dir.display()))?;
         }
         if is_move {
-            tokio::fs::rename(src, &target).await.map_err(|e| format!("B2 move failed: {e}"))?;
+            move_on_mount(src, &target).await.map_err(|e| format!("B2 move failed: {e}"))?;
         } else {
             tokio::fs::copy(src, &target).await.map_err(|e| format!("B2 copy failed: {e}"))?;
         }
