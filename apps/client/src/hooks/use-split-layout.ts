@@ -45,7 +45,7 @@ const loadLayout = (): SplitLayoutState => {
                     : p;
                 tab.path = toMount(tab.path);
                 if (tab.pathHistory) tab.pathHistory = tab.pathHistory.map(toMount);
-                group.path = toMount(group.path);
+                group.currentPath = toMount(group.currentPath);
                 group.pathHistory = (group.pathHistory ?? []).map(toMount);
               }
               if (!tab.pathHistory) {
