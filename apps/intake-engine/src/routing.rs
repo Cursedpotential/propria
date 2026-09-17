@@ -298,9 +298,14 @@ pub async fn catalog_command(engine: &Arc<Engine>, name: &str, args: Map<String,
             }
             Ok(Value::Array(conflicts))
         }
+        // Git and folder-size caches have nothing to report for catalog entries (not a git work tree,
+        // sizes come from the listing itself); tags are keyed by real paths.
+        "get_cached_folder_sizes" | "get_file_tags_batch" => Ok(json!({})),
+        "find_git_repository" => Ok(Value::Null),
+        "get_git_status" => Ok(json!([])),
         // Harmless UI side effects on a virtual tree.
         "add_to_recent_folders" | "watch_directory" | "unwatch_directory" | "start_watching" | "stop_watching"
-        | "set_search_context" | "add_whitelisted_path" | "index_directory" => donor_passthrough_or_null(engine, name, args).await,
+        | "set_search_context" | "add_whitelisted_path" | "index_directory" | "add_recent_file" => donor_passthrough_or_null(engine, name, args).await,
         _ => Err((
             501,
             format!(

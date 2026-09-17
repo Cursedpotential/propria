@@ -106,6 +106,11 @@ const SidebarFileTree = ({
   );
 
   const getRootPath = useCallback(() => {
+    // Hosted Intake engine (Claude Code · Opus 5 · 2026-09-17): the tree is rooted at the storage
+    // mount or catalog://; the server's own filesystem root is not browsable.
+    if (import.meta.env.VITE_INTAKE_MODE === '1') {
+      return currentPath.startsWith('catalog://') ? 'catalog://' : '/srv/openlist';
+    }
     if (currentPath.startsWith('xplorer://')) return ROOT_PATH;
     if (currentPath.startsWith('/')) return '/';
     const pathParts = currentPath.split(/[\\/]/).filter((p) => p);
