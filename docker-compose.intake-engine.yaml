@@ -12,11 +12,9 @@ services:
       - '100.91.190.107:8790:8790'
     volumes:
       - '/data/probata/volumes/intake-engine:/state'
-      - type: bind
-        source: /srv/openlist
-        target: /srv/openlist
-        bind:
-          propagation: rslave
+      # rslave so a remount of the host's rclone FUSE is seen without restarting the engine
+      # (Coolify dropped the long-syntax propagation on 2026-09-17; short syntax keeps it).
+      - '/srv/openlist:/srv/openlist:rslave'
       - '/data/probata/secrets/intake-engine:/run/secrets/intake-engine:ro'
     environment:
       INTAKE_PORTKEY_URL: 'http://100.72.169.40:8787'
