@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useWindowEvent } from '@/hooks/use-window-event';
 import { TauriAPI, type FileEntry } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
+import { isTauri } from '@/lib/transport';
 import { PATH_SEPARATOR } from '@/lib/constants';
 import { showInputToast } from '@/components/ui/Toast';
 import { formatError } from '@/lib/file-operation-helpers';
