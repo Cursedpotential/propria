@@ -22,6 +22,7 @@ import {
 import { createExtensionApi } from './extension-api-factory';
 import { STORAGE_KEYS } from './storage-keys';
 import { createSandboxedEnvironment, BLOCKED_GLOBALS } from './extension-sandbox-env';
+import { pinFunctionConstructor } from './extension-sandbox';
 import { registerSidebarTab, registerBottomTab } from './extension-registration-helpers';
 import {
   cleanupExtensionRegistrations,
@@ -158,11 +159,7 @@ class ExtensionHost {
   private hardenGlobals() {
     // Prevent Function constructor escape
     try {
-      Object.defineProperty(Function.prototype, 'constructor', {
-        value: Function.prototype.constructor,
-        writable: false,
-        configurable: false,
-      });
+      pinFunctionConstructor();
     } catch {
       console.warn('[ExtensionHost] Could not freeze Function.prototype.constructor');
     }

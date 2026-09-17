@@ -203,17 +203,38 @@ export const executeSandboxed = (
 // ─── Global Hardening ────────────────────────────────────────────────────────
 
 /**
+ * Pin Function.prototype.constructor (sandbox-escape hardening) without breaking libraries that
+ * assign `SomeFn.constructor = SomeFn` (pdf.js BaseException does). A non-writable data property
+ * makes that assignment throw in strict mode, which left every PDF preview stuck on "Loading PDF"
+ * (found live 2026-09-17, Claude Code · Opus 5). The accessor keeps the prototype value fixed and
+ * turns assignments on other objects into own properties, as a writable property would.
+ */
+export const pinFunctionConstructor = (): void => {
+  const original = Function.prototype.constructor;
+  Object.defineProperty(Function.prototype, 'constructor', {
+    get: () => original,
+    set(this: unknown, value: unknown) {
+      if (this === Function.prototype || this === null) return;
+      if (typeof this !== 'object' && typeof this !== 'function') return;
+      Object.defineProperty(this, 'constructor', {
+        value,
+        writable: true,
+        configurable: true,
+        enumerable: false,
+      });
+    },
+    configurable: false,
+  });
+};
+
+/**
  * Harden global prototypes to make sandbox escapes harder.
  * This is defense-in-depth only -- see the SECURITY TODO in executeSandboxed.
  */
 export const hardenGlobals = (): void => {
   // Prevent Function constructor escape
   try {
-    Object.defineProperty(Function.prototype, 'constructor', {
-      value: Function.prototype.constructor,
-      writable: false,
-      configurable: false,
-    });
+    pinFunctionConstructor();
   } catch {
     console.warn('[ExtensionHost] Could not freeze Function.prototype.constructor');
   }

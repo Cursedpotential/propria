@@ -246,8 +246,23 @@ export const DragDropProvider = ({ children }: { children: React.ReactNode }) =>
   // Escape = cancel. This is what lets files move/copy between split panes in the hosted app.
   useEffect(() => {
     if (isTauri() || !dragState.isDragging || dragState.dragSource !== 'internal') return;
-    const onMove = (e: MouseEvent) => handleOver(e.clientX, e.clientY);
-    const onUp = (e: MouseEvent) => handleDrop(stateRef.current.draggedPaths, e.clientX, e.clientY);
+    // Copy vs move follows the Ctrl/Cmd state carried by each pointer event, so a Ctrl held
+    // before the drag started still copies (a keydown alone never fires in that case).
+    const syncOperation = (e: MouseEvent) => {
+      const op = e.ctrlKey || e.metaKey ? 'copy' : 'move';
+      if (stateRef.current.operation !== op) {
+        stateRef.current = { ...stateRef.current, operation: op };
+        dispatch({ type: 'SET_OPERATION', op });
+      }
+    };
+    const onMove = (e: MouseEvent) => {
+      syncOperation(e);
+      handleOver(e.clientX, e.clientY);
+    };
+    const onUp = (e: MouseEvent) => {
+      syncOperation(e);
+      handleDrop(stateRef.current.draggedPaths, e.clientX, e.clientY);
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         clearHighlight();
@@ -257,7 +272,11 @@ export const DragDropProvider = ({ children }: { children: React.ReactNode }) =>
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     window.addEventListener('keydown', onKey);
+    // No text selection while a file is being dragged across panes.
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = 'none';
     return () => {
+      document.body.style.userSelect = prevUserSelect;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('keydown', onKey);
