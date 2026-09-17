@@ -1,0 +1,32 @@
+# Byline: Claude Code · Opus 5 · 2026-09-17
+# Coolify application "intake-engine" on ovh-files (tailnet only).
+# B2 = the existing OpenList WebDAV -> rclone FUSE mount at /srv/openlist on the host.
+services:
+  intake-engine:
+    build:
+      context: ../..
+      dockerfile: apps/intake-engine/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '100.91.190.107:8790:8790'
+    volumes:
+      - '/data/probata/volumes/intake-engine:/state'
+      - type: bind
+        source: /srv/openlist
+        target: /srv/openlist
+        bind:
+          propagation: rslave
+      - '/data/probata/secrets/intake-engine:/run/secrets/intake-engine:ro'
+    environment:
+      INTAKE_PORTKEY_URL: 'http://100.72.169.40:8787'
+      INTAKE_CHAT_MODEL: 'portkey:nemotron-3-super'
+      OLLAMA_API_KEY: '${OLLAMA_API_KEY}'
+      INTAKE_AGENT_ROOT: /srv/openlist
+      INTAKE_CATALOG_PG_HOST: 100.91.190.107
+      INTAKE_CATALOG_PG_PORT: '5475'
+      INTAKE_CATALOG_PG_DB: casebible
+      INTAKE_CATALOG_RO_USER: metabase_ro
+      INTAKE_CATALOG_RO_PASSWORD_FILE: /run/secrets/intake-engine/metabase-ro
+      INTAKE_CATALOG_OPS_USER: cb_agent
+      INTAKE_CATALOG_OPS_PASSWORD_FILE: /run/secrets/intake-engine/cb-agent
+      INTAKE_B2_ROOT: /srv/openlist/b2/salem-data

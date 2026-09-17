@@ -13,7 +13,6 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import AgentStatusIndicator from '@/components/panels/agent-manager/AgentStatusIndicator';
-import { isTauri } from '@/lib/transport';
 
 interface VerticalExtensionsBarProps {
   rightPanelTab: string;
@@ -49,34 +48,14 @@ const VerticalExtensionsBar = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extRefreshKey]);
 
-  // Intake co-workspace: Review & metadata is docked here (not a second side-by-side
-  // app), and a browser build without a connected model/native backend gets one small
-  // flag on the affected control rather than an explanatory banner.
-  const intakeMode = import.meta.env.VITE_INTAKE_MODE === '1';
-  const browserBuild = !isTauri();
-
-  // Core panels (always shown, part of the app core)
-  const corePanels = [
+  // Byline: Claude Code · Opus 5 · 2026-09-17 -- the hosted engine answers AI chat in the
+  // browser (Portkey), so the "Model not connected in this browser build" flag is gone; the
+  // native Metadata panel replaces the Review dock.
+  const corePanels: Array<{ id: string; icon: React.ReactNode; label: string; flag?: string }> = [
     { id: 'preview', icon: <Eye size={18} />, label: 'File Preview' },
     { id: 'tokenizer', icon: <Search size={18} />, label: 'Content Search' },
-    {
-      id: 'chat',
-      icon: <MessageSquare size={18} />,
-      label: 'AI Chat',
-      flag: browserBuild ? 'Model not connected in this browser build' : undefined,
-    },
-    // Byline: Claude Code · Sonnet 5 · 2026-09-14 -- panel is now native and reads
-    // the real selection/backend catalog; the "example review set" flag it used
-    // to carry (when it iframed a separately-fed demo app) no longer applies.
-    ...(intakeMode
-      ? [
-          {
-            id: 'review',
-            icon: <ClipboardList size={18} />,
-            label: 'Review & metadata',
-          },
-        ]
-      : []),
+    { id: 'chat', icon: <MessageSquare size={18} />, label: 'AI Chat' },
+    { id: 'metadata', icon: <ClipboardList size={18} />, label: 'Metadata' },
     {
       id: 'agent-manager',
       icon: (

@@ -46,6 +46,17 @@ pub fn validate_agent_path(path: &str) -> Result<(), String> {
 
     // Normalize the path before validation to collapse ".." etc.
     let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| normalize_path(path));
+    // Hosted Intake engine (Claude Code · Opus 5 · 2026-09-17): confine the coworker agent to the
+    // storage mount root. Unset on the desktop build, so desktop behaviour is unchanged.
+    if let Some(root) = std::env::var_os("INTAKE_AGENT_ROOT").filter(|r| !r.is_empty()) {
+        if !canonical.starts_with(std::path::Path::new(&root)) {
+            return Err(format!(
+                "Access denied: '{}' is outside the storage root {}",
+                path,
+                std::path::Path::new(&root).display()
+            ));
+        }
+    }
     let path_str = canonical.to_string_lossy().to_lowercase();
     #[cfg(target_os = "windows")]
     {

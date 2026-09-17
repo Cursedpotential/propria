@@ -118,8 +118,84 @@ export const DragDropProvider = ({ children }: { children: React.ReactNode }) =>
     [],
   );
 
+  // Hover handling shared by the Tauri (native DnD) and web (pointer) paths.
+  const handleOver = useCallback(
+    (x: number, y: number) => {
+      cursorRef.current.x = x;
+      cursorRef.current.y = y;
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (overlayRef.current) {
+          overlayRef.current.style.transform = `translate(${x + 16}px, ${y + 16}px)`;
+        }
+      });
+
+      const target = findDropTarget(x, y);
+      const targetPath = target?.path ?? null;
+      if (targetPath === lastHoverPathRef.current) return;
+      clearHighlight();
+      if (target) {
+        const { draggedPaths } = stateRef.current;
+        const valid = draggedPaths.length === 0 || validateDrop(draggedPaths, target.path).valid;
+        if (valid) {
+          target.element.setAttribute('data-drop-hover', 'true');
+          target.element.classList.add('xp-drop-folder-highlight');
+          // Spring-loaded folder: hovering a valid folder target for 500ms navigates into it.
+          const isFolder =
+            target.element.getAttribute('data-is-folder') === 'true' ||
+            target.element.closest('[data-is-folder="true"]') !== null;
+          if (isFolder) {
+            springTimerRef.current = setTimeout(() => {
+              springTimerRef.current = null;
+              window.dispatchEvent(
+                new CustomEvent('spring-load-folder', { detail: { path: target.path } }),
+              );
+            }, 500);
+          }
+        } else {
+          target.element.setAttribute('data-drop-invalid', 'true');
+        }
+        highlightedRef.current = target.element;
+      }
+      lastHoverPathRef.current = targetPath;
+      dispatch({ type: 'SET_HOVER', targetPath });
+    },
+    [findDropTarget, clearHighlight],
+  );
+
+  // Drop handling shared by both paths: copy (Ctrl / external) or move each dragged path.
+  const handleDrop = useCallback(
+    (paths: string[], x: number, y: number) => {
+      clearHighlight();
+      const target = paths.length > 0 ? findDropTarget(x, y) : null;
+      if (target && validateDrop(paths, target.path).valid) {
+        const op = stateRef.current.operation;
+        const external = stateRef.current.dragSource === 'external';
+        (async () => {
+          try {
+            for (const sourcePath of paths) {
+              const dest = buildDestinationPath(sourcePath, target.path);
+              if (op === 'copy' || external) {
+                await TauriAPI.copy(sourcePath, dest);
+              } else {
+                await TauriAPI.moveFile(sourcePath, dest);
+              }
+            }
+            window.dispatchEvent(new CustomEvent('files-changed'));
+          } catch (error) {
+            window.dispatchEvent(
+              new CustomEvent('drag-drop-error', { detail: { message: String(error) } }),
+            );
+          }
+        })();
+      }
+      dispatch({ type: 'END_DRAG' });
+    },
+    [findDropTarget, clearHighlight],
+  );
+
   // Listen for Tauri drag-drop events (handles BOTH external file drops AND
-  // internal startDrag loops). In web mode, native DnD is not available.
+  // internal startDrag loops).
   useEffect(() => {
     if (!isTauri()) return;
     let unlisten: (() => void) | null = null;
@@ -129,117 +205,23 @@ export const DragDropProvider = ({ children }: { children: React.ReactNode }) =>
       getCurrentWebview()
         .onDragDropEvent((event) => {
           const payload = event.payload;
-
+          const scale = window.devicePixelRatio || 1;
           if (payload.type === 'enter') {
-            // Files entering the window (from OS or from our own startDrag)
             const paths = (payload as { type: string; paths: string[] }).paths;
-            if (paths?.length > 0) {
-              if (!stateRef.current.isDragging) {
-                dispatch({ type: 'START_DRAG', paths, source: 'external', op: 'copy' });
-              }
+            if (paths?.length > 0 && !stateRef.current.isDragging) {
+              dispatch({ type: 'START_DRAG', paths, source: 'external', op: 'copy' });
             }
           } else if (payload.type === 'over') {
-            // Hovering — update cursor position and find drop target
             const pos = (payload as { type: string; position: { x: number; y: number } }).position;
-            if (pos) {
-              const scale = window.devicePixelRatio || 1;
-              const x = pos.x / scale;
-              const y = pos.y / scale;
-
-              // Update cursor ref (no React re-render)
-              cursorRef.current.x = x;
-              cursorRef.current.y = y;
-
-              // Move overlay via rAF (GPU-accelerated transform)
-              cancelAnimationFrame(rafIdRef.current);
-              rafIdRef.current = requestAnimationFrame(() => {
-                if (overlayRef.current) {
-                  overlayRef.current.style.transform = `translate(${x + 16}px, ${y + 16}px)`;
-                }
-              });
-
-              // Find drop target and update highlight only if target changed
-              const target = findDropTarget(x, y);
-              const targetPath = target?.path ?? null;
-
-              if (targetPath !== lastHoverPathRef.current) {
-                clearHighlight();
-
-                if (target) {
-                  const { draggedPaths } = stateRef.current;
-                  const valid =
-                    draggedPaths.length === 0 || validateDrop(draggedPaths, target.path).valid;
-                  if (valid) {
-                    target.element.setAttribute('data-drop-hover', 'true');
-                    target.element.classList.add('xp-drop-folder-highlight');
-
-                    // Spring-loaded folder: if hovering a valid folder drop
-                    // target for 500ms, navigate into it automatically.
-                    const isFolder =
-                      target.element.getAttribute('data-is-folder') === 'true' ||
-                      target.element.closest('[data-is-folder="true"]') !== null;
-                    if (isFolder) {
-                      springTimerRef.current = setTimeout(() => {
-                        springTimerRef.current = null;
-                        window.dispatchEvent(
-                          new CustomEvent('spring-load-folder', {
-                            detail: { path: target.path },
-                          }),
-                        );
-                      }, 500);
-                    }
-                  } else {
-                    target.element.setAttribute('data-drop-invalid', 'true');
-                  }
-                  highlightedRef.current = target.element;
-                }
-                lastHoverPathRef.current = targetPath;
-                dispatch({ type: 'SET_HOVER', targetPath });
-              }
-            }
+            if (pos) handleOver(pos.x / scale, pos.y / scale);
           } else if (payload.type === 'drop') {
-            // Files dropped
             const { paths, position } = payload as {
               type: string;
               paths: string[];
               position: { x: number; y: number };
             };
-            clearHighlight();
-
-            if (paths?.length > 0 && position) {
-              const scale = window.devicePixelRatio || 1;
-              const x = position.x / scale;
-              const y = position.y / scale;
-              const target = findDropTarget(x, y);
-
-              if (target) {
-                const validation = validateDrop(paths, target.path);
-                if (validation.valid) {
-                  const op = stateRef.current.operation;
-                  // Execute the drop
-                  (async () => {
-                    try {
-                      for (const sourcePath of paths) {
-                        const dest = buildDestinationPath(sourcePath, target.path);
-                        if (op === 'copy' || stateRef.current.dragSource === 'external') {
-                          await TauriAPI.copy(sourcePath, dest);
-                        } else {
-                          await TauriAPI.moveFile(sourcePath, dest);
-                        }
-                      }
-                      window.dispatchEvent(new CustomEvent('files-changed'));
-                    } catch (error) {
-                      window.dispatchEvent(
-                        new CustomEvent('drag-drop-error', {
-                          detail: { message: String(error) },
-                        }),
-                      );
-                    }
-                  })();
-                }
-              }
-            }
-            dispatch({ type: 'END_DRAG' });
+            if (position) handleDrop(paths ?? [], position.x / scale, position.y / scale);
+            else dispatch({ type: 'END_DRAG' });
           } else if (payload.type === 'leave') {
             clearHighlight();
             // Only end drag if it was external — internal startDrag returns to our window
@@ -257,7 +239,31 @@ export const DragDropProvider = ({ children }: { children: React.ReactNode }) =>
       unlisten?.();
       cancelAnimationFrame(rafIdRef.current);
     };
-  }, [findDropTarget, clearHighlight]);
+  }, [handleOver, handleDrop, clearHighlight]);
+
+  // Web mode (Claude Code · Opus 5 · 2026-09-17): no native DnD in a browser tab, so an internal
+  // drag started by useDraggable is tracked with pointer events: move = hover, release = drop,
+  // Escape = cancel. This is what lets files move/copy between split panes in the hosted app.
+  useEffect(() => {
+    if (isTauri() || !dragState.isDragging || dragState.dragSource !== 'internal') return;
+    const onMove = (e: MouseEvent) => handleOver(e.clientX, e.clientY);
+    const onUp = (e: MouseEvent) => handleDrop(stateRef.current.draggedPaths, e.clientX, e.clientY);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        clearHighlight();
+        dispatch({ type: 'END_DRAG' });
+      }
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('keydown', onKey);
+      cancelAnimationFrame(rafIdRef.current);
+    };
+  }, [dragState.isDragging, dragState.dragSource, handleOver, handleDrop, clearHighlight]);
 
   // Listen for Ctrl key press/release to toggle copy vs. move during drag
   useEffect(() => {

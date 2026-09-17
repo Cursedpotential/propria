@@ -3,6 +3,7 @@ import { startDrag } from '@crabnebula/tauri-plugin-drag';
 import { resolveResource } from '@tauri-apps/api/path';
 import type { FileEntry } from '@/lib/tauri-api';
 import { useDragDropContext } from '@/contexts/DragDropContext';
+import { isTauri } from '@/lib/transport';
 
 interface UseDraggableOptions {
   file: FileEntry;
@@ -61,6 +62,9 @@ export const useDraggable = ({ file, selectedFiles, allFiles }: UseDraggableOpti
 
       // Notify context this is an internal drag (default: move operation)
       startInternalDrag(pathsToDrag);
+
+      // Web mode: the DragDropContext tracks the pointer and performs the drop itself.
+      if (!isTauri()) return;
 
       // Start native Tauri drag — OS handles visuals + drop
       // When dropped back in our window, onDragDropEvent fires

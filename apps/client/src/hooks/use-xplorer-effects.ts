@@ -721,6 +721,8 @@ export const useXplorerEffects = (deps: XplorerEffectsDeps) => {
   // ── Listen for folder-opened event (from shell integration / "Open with Xplorer") ──
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    // Shell "Open with Xplorer" only exists on the desktop app.
+    if (!isTauri()) return undefined;
 
     import('@tauri-apps/api/event')
       .then(({ listen }) => {

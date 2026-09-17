@@ -1,0 +1,20 @@
+# Byline: Claude Code · Opus 5 · 2026-09-17
+# The Tauri surface the donor handlers touch (command, AppHandle, State, Emitter,
+# Listener, Manager, path resolver), implemented without a webview so the same
+# handler code runs inside the hosted Intake engine. Events go to a broadcast
+# channel that the HTTP layer exposes as SSE.
+[package]
+name = "tauri-headless"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "tauri"
+
+[dependencies]
+tauri-headless-macros = { path = "../tauri-headless-macros" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
+thiserror = "2"

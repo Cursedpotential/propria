@@ -62,7 +62,8 @@ export const useNavigationActions = (deps: NavigationActionsDeps) => {
         !newPath.startsWith('xplorer://') &&
         !newPath.startsWith('gdrive://') &&
         !newPath.startsWith('comparison://') &&
-        !newPath.startsWith('collection://')
+        !newPath.startsWith('collection://') &&
+        !newPath.startsWith('catalog://')
       ) {
         TauriAPI.setSearchContext(newPath).catch((err) =>
           console.error('Failed to set search context:', err),
@@ -88,6 +89,12 @@ export const useNavigationActions = (deps: NavigationActionsDeps) => {
     if (currentPath === 'xplorer://gdrive-manager') return;
     if (currentPath.startsWith('gdrive://')) return;
     if (currentPath.startsWith('collection://')) return;
+    if (currentPath.startsWith('catalog://')) {
+      const parts = currentPath.slice('catalog://'.length).split('/').filter(Boolean);
+      if (parts.length === 0) return;
+      navigateWithHistory(`catalog://${parts.slice(0, -1).join('/')}`);
+      return;
+    }
     if (currentPath.startsWith('/')) {
       const parts = currentPath.split('/').filter(Boolean);
       if (parts.length <= 1) return;

@@ -80,6 +80,17 @@ const splitParentAndPrefix = (inputPath: string): { parentDir: string; prefix: s
 
 const parseBreadcrumbSegments = (path: string): PathSegment[] => {
   if (!path) return [];
+  // catalog:// behaves like an ordinary filesystem (hosted Intake engine, 2026-09-17).
+  if (path.startsWith('catalog://')) {
+    const parts = path.slice('catalog://'.length).split('/').filter(Boolean);
+    const segs: PathSegment[] = [{ name: 'Catalog', fullPath: 'catalog://' }];
+    let acc = 'catalog://';
+    for (const part of parts) {
+      acc = acc.endsWith('//') ? `${acc}${part}` : `${acc}/${part}`;
+      segs.push({ name: part, fullPath: acc });
+    }
+    return segs;
+  }
   if (
     path.startsWith('xplorer://') ||
     path.startsWith('gdrive://') ||

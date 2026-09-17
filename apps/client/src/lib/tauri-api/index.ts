@@ -13,6 +13,7 @@ import * as agentSessions from './agent-sessions';
 import * as storage from './storage';
 import * as system from './system';
 import * as pty from './pty';
+import * as intakeEngine from './intake-engine';
 
 // Re-export all types so `import { FileEntry } from '@/lib/tauri-api'` keeps working
 export * from '../tauri-api-types';
@@ -27,12 +28,17 @@ export * from './agent-sessions';
 export * from './storage';
 export * from './system';
 export * from './pty';
+export * from './intake-engine';
 
 // ---------------------------------------------------------------------------
 // Backward-compatible static class
 // ---------------------------------------------------------------------------
 
 export class TauriAPI {
+  // ── Hosted Intake engine ────────────────────────────────────────────────
+  static getIntakeFileMetadata = intakeEngine.getIntakeFileMetadata;
+  static getIntakeCatalogLookup = intakeEngine.getIntakeCatalogLookup;
+
   // ── File system ─────────────────────────────────────────────────────────
   static readDirectory = fileSystem.readDirectory;
   static getFileProperties = fileSystem.getFileProperties;

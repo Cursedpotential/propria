@@ -4,7 +4,7 @@
  * so the Agent Manager can show real-time output and progress per agent.
  */
 import { useEffect, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { listenToEvent } from '@/lib/transport';
 
 export interface SessionEvent {
   id: string;
@@ -74,8 +74,8 @@ let globalListenerSetup = false;
 const setupGlobalListener = async () => {
   if (globalListenerSetup) return;
   globalListenerSetup = true;
-  await listen<AgentEventPayload>('agent-event', (event) => {
-    const payload = event.payload;
+  // transport.listenToEvent = Tauri listen on desktop, SSE /api/events/agent-event in the browser.
+  await listenToEvent<AgentEventPayload>('agent-event', (payload) => {
     if (!payload || !payload.session_id) return;
     const sid = payload.session_id;
 
