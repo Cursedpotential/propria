@@ -1,11 +1,16 @@
 {
   "subject": "note:family_court_workbench_relocation_20260912",
   "title": "Family Court Workbench imported as a Propria project",
-  "summary": "Verified 2026-09-12: root-level FL-MCP was the Propria-owned Family Court Workbench Tauri application, not a shared MCP service. It had no Git repository. Its 96 non-generated source/configuration files and existing local generated tree moved together to projects/family-court-workbench. The 26,679 dependency/build files remain ignored and are not intended for Git. FL-MCP is now a Windows junction to the canonical path for compatibility. No content was deleted. From the canonical path, 14 sidecar tests and 8 UI tests passed under a 2 GiB Node heap ceiling. External installed-launcher verification remains separate.",
+  "summary": "Verified 2026-09-12: root-level FL-MCP was the Propria-owned Family Court Workbench Tauri application, not a shared MCP service. It had no Git repository. Its 96 non-generated source/configuration files and existing local generated tree moved together to projects/family-court-workbench. The 26,679 dependency/build files remain ignored and are not intended for Git. FL-MCP is now a Windows junction to the canonical path for compatibility. No content was deleted. From the canonical path, 14 sidecar tests and 8 UI tests passed under a 2 GiB Node heap ceiling. External installed-launcher verification remains separate. SUPERSEDED 2026-09-18 (owner: Propria is the project): moved back to root FL-MCP/ with git mv; projects/ retired.",
   "priority": "normal",
   "authority": "verified_finding",
   "status": "active",
-  "domains": ["advocatio", "docs", "infra", "probata"],
+  "domains": [
+    "advocatio",
+    "docs",
+    "infra",
+    "probata"
+  ],
   "source_ref": "E:/AI_Workspace/Projects/Propria/docs/MONOREPO-MIGRATION-PLAN-2026-09-12.md",
   "rationale": "The owner designated Propria as the monorepo root. This application had no independent history and its actual package identity made projects/family-court-workbench the least ambiguous target.",
   "actor": "Codex GPT-5",
