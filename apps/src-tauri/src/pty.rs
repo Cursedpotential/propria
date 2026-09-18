@@ -53,7 +53,7 @@ pub async fn pty_spawn(
             })
             .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
-        let mut cmd = CommandBuilder::new(default_shell());
+        let mut cmd = shell_command();
         cmd.cwd(&cwd);
         cmd.env("TERM", "xterm-256color");
 
@@ -210,6 +210,32 @@ fn validate_session_id(session_id: &str) -> Result<(), String> {
         return Err("Invalid session ID format".to_string());
     }
     Ok(())
+}
+
+/// The shell a terminal tab runs.
+///
+/// Hosted Intake engine (Claude Code · Opus 5 · 2026-09-18, owner decision): when
+/// `INTAKE_PTY_USER` is set, the shell runs as that non-root user via `runuser`, with the
+/// engine's environment cleared (no model keys, no `INTAKE_*` secret paths) and only a
+/// minimal, secret-free environment set. Secrets under `/run/secrets` are root-only, so that
+/// user cannot read them; the storage mount and the state volume stay read-write.
+fn shell_command() -> CommandBuilder {
+    #[cfg(unix)]
+    if let Ok(user) = std::env::var("INTAKE_PTY_USER") {
+        let home = std::env::var("INTAKE_PTY_HOME").unwrap_or_else(|_| "/tmp".into());
+        let mut cmd = CommandBuilder::new("/usr/sbin/runuser");
+        cmd.args(["-u", user.as_str(), "--", "/bin/bash"]);
+        cmd.env_clear();
+        cmd.env("PATH", "/usr/local/bin:/usr/bin:/bin");
+        cmd.env("HOME", &home);
+        cmd.env("HISTFILE", format!("{home}/.bash_history"));
+        cmd.env("LANG", "C.UTF-8");
+        cmd.env("USER", &user);
+        cmd.env("LOGNAME", &user);
+        cmd.env("SHELL", "/bin/bash");
+        return cmd;
+    }
+    CommandBuilder::new(default_shell())
 }
 
 fn default_shell() -> &'static str {

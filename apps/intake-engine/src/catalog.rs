@@ -41,13 +41,25 @@ pub struct Catalog {
     overlay: RwLock<Vec<OpRow>>,
 }
 
+/// 1980-01-02 00:00 UTC. ZIP/Google Takeout write the DOS zero date (1980-01-01 00:00 local time)
+/// when a file has no date, so anything before this is "no recorded date", not a real time
+/// (Claude Code · Opus 5 · 2026-09-18).
+const DOS_ZERO_DATE_CUTOFF: i64 = 315_619_200;
+
+/// A catalog modtime as Unix seconds, or `None` when nothing real was recorded.
+pub fn recorded_time(t: Option<chrono::DateTime<chrono::Utc>>) -> Option<u64> {
+    t.map(|t| t.timestamp()).filter(|&ts| ts >= DOS_ZERO_DATE_CUTOFF).map(|ts| ts as u64)
+}
+
 #[derive(Serialize, Clone, Debug)]
 pub struct CatalogEntry {
     pub name: String,
     pub path: String,
     pub is_dir: bool,
     pub size: u64,
-    pub modified: u64,
+    /// Unix seconds of the recorded modification time; `None` (JSON null) when the source
+    /// recorded no real date. Never a placeholder.
+    pub modified: Option<u64>,
     pub file_type: String,
     pub mime_type: Option<String>,
     pub is_readonly: bool,
@@ -410,7 +422,7 @@ impl Catalog {
             path: path_of(eff),
             is_dir: false,
             size: row.size.max(0) as u64,
-            modified: row.modtime.map(|t| t.timestamp().max(0) as u64).unwrap_or(0),
+            modified: recorded_time(row.modtime),
             file_type: xplorer::file_lib::get_file_type(p, false),
             mime_type: xplorer::file_lib::get_mime_type(p),
             is_readonly: false,
@@ -424,7 +436,7 @@ impl Catalog {
             path: path_of(eff),
             is_dir: true,
             size: bytes.max(0) as u64,
-            modified: 0,
+            modified: None,
             file_type: "directory".into(),
             mime_type: None,
             is_readonly: false,
@@ -521,8 +533,7 @@ impl Catalog {
                         .as_ref()
                         .and_then(|m| m.modified().ok())
                         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0),
+                        .map(|d| d.as_secs()),
                     file_type: xplorer::file_lib::get_file_type(p, false),
                     mime_type: xplorer::file_lib::get_mime_type(p),
                     is_readonly: false,

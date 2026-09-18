@@ -52,6 +52,25 @@ fn browser_unavailable() -> HashMap<&'static str, &'static str> {
     ])
 }
 
+/// The web terminal's shell runs as the non-root `INTAKE_PTY_USER` (see the donor's `pty.rs`).
+/// Owner decision 2026-09-18: that user keeps read-write on the storage mount (FUSE with
+/// allow_other) and on the state volume, so grant it rw on /state, including files the engine
+/// creates later (default ACL), and give it a home there. Secrets stay root-only.
+/// (Claude Code · Opus 5 · 2026-09-18)
+fn prepare_terminal_user(state_root: &std::path::Path) {
+    let Ok(user) = std::env::var("INTAKE_PTY_USER") else { return };
+    let home = std::env::var("INTAKE_PTY_HOME").unwrap_or_else(|_| state_root.join("shell-home").display().to_string());
+    if let Err(e) = std::fs::create_dir_all(&home) {
+        tracing::warn!("terminal home {home}: {e}");
+    }
+    let acl = format!("u:{user}:rwX,d:u:{user}:rwX");
+    match std::process::Command::new("setfacl").args(["-R", "-m", &acl]).arg(state_root).status() {
+        Ok(s) if s.success() => tracing::info!("terminal user {user}: rw on {}", state_root.display()),
+        Ok(s) => tracing::warn!("setfacl on {} exited {s}; terminal user may lack write access", state_root.display()),
+        Err(e) => tracing::warn!("setfacl unavailable ({e}); terminal user may lack write access to state"),
+    }
+}
+
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
     tracing_subscriber::fmt()
@@ -72,6 +91,8 @@ async fn main() {
         eprintln!("intake-engine: {e}");
         std::process::exit(1);
     }
+
+    prepare_terminal_user(&state_root);
 
     let app = AppHandle::new(state_root.clone(), mount_root.clone());
 

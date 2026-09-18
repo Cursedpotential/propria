@@ -59,6 +59,9 @@ pub async fn engine_command(engine: &Arc<Engine>, name: &str, args: &Map<String,
             "catalog": engine.catalog.is_some(),
             "catalog_error": engine.catalog_error,
             "commands": engine.commands.len(),
+            // Content Search (filesystem_index_search) needs the Intake filesystem index service;
+            // the UI reads this instead of firing searches that can only fail (2026-09-18).
+            "filesystem_search": std::env::var("INTAKE_FILESYSTEM_API_URL").is_ok_and(|v| !v.trim().is_empty()),
         })),
         "intake_file_metadata" => {
             let Some(path) = s(args, "path", "path") else {
@@ -110,10 +113,31 @@ async fn file_metadata(engine: &Arc<Engine>, path: &str) -> Outcome {
     let real = real_path(engine, path).await?;
     let hint = is_catalog(path).then(|| catalog::name_of(path.trim_end_matches('/')));
     let mut v = crate::media::file_metadata(&real, hint.as_deref()).await;
+    if is_catalog(path) {
+        let recorded = catalog(engine)?.stat(path).await.map_err(bad)?.and_then(|e| e.modified);
+        if let Some(Value::Object(p)) = v.get_mut("properties") {
+            catalog_dates(p, recorded);
+        }
+    }
     if let Value::Object(m) = &mut v {
         m.insert("resolved_path".into(), json!(real));
     }
     Ok(v)
+}
+
+/// A catalog file's dates are the ones the catalog recorded for that occurrence, not the vault
+/// object's B2 upload time; unrecorded dates are null / "Unknown" (Claude Code · Opus 5 · 2026-09-18).
+fn catalog_dates(p: &mut Map<String, Value>, modified: Option<u64>) {
+    let formatted = modified
+        .and_then(|ts| chrono::DateTime::from_timestamp(ts as i64, 0))
+        .map(|t| t.format("%Y-%m-%d %H:%M UTC").to_string())
+        .unwrap_or_else(|| "Unknown".into());
+    p.insert("modified".into(), json!(modified));
+    p.insert("modified_formatted".into(), json!(formatted));
+    for k in ["created", "accessed"] {
+        p.insert(k.into(), Value::Null);
+        p.insert(format!("{k}_formatted"), json!("Unknown"));
+    }
 }
 
 async fn catalog_lookup(engine: &Arc<Engine>, path: &str) -> Outcome {
@@ -142,7 +166,8 @@ pub fn touches_catalog(args: &Map<String, Value>) -> bool {
 fn file_props(entry: &CatalogEntry) -> Value {
     json!({
         "name": entry.name, "path": entry.path, "size": entry.size, "is_dir": entry.is_dir,
-        "created": entry.modified, "modified": entry.modified, "accessed": entry.modified,
+        // Only the modification time is recorded; created/accessed are unknown, not copies of it.
+        "created": null, "modified": entry.modified, "accessed": null,
         "readonly": false, "hidden": entry.name.starts_with('.'),
         "file_type": entry.file_type, "mime_type": entry.mime_type,
     })
@@ -205,8 +230,8 @@ pub async fn catalog_command(engine: &Arc<Engine>, name: &str, args: Map<String,
                 let (bytes, _, _) = cat.dir_totals(&path).await.map_err(bad)?;
                 return Ok(json!({
                     "path": entry.path, "name": entry.name, "file_type": "Folder", "size": bytes,
-                    "size_formatted": format!("{bytes} bytes"), "created": 0, "modified": 0, "accessed": 0,
-                    "created_formatted": "", "modified_formatted": "", "accessed_formatted": "",
+                    "size_formatted": format!("{bytes} bytes"), "created": null, "modified": null, "accessed": null,
+                    "created_formatted": "Unknown", "modified_formatted": "Unknown", "accessed_formatted": "Unknown",
                     "permissions": {"readable": true, "writable": true, "executable": false, "mode": null},
                     "is_directory": true, "is_hidden": false, "is_readonly": false, "extension": null, "mime_type": null,
                     "attributes": {"archive": false, "compressed": false, "encrypted": false, "hidden": false, "system": false, "temporary": false}
@@ -216,6 +241,7 @@ pub async fn catalog_command(engine: &Arc<Engine>, name: &str, args: Map<String,
             if let Value::Object(m) = &mut v {
                 m.insert("path".into(), json!(entry.path));
                 m.insert("name".into(), json!(entry.name));
+                catalog_dates(m, entry.modified);
             }
             Ok(v)
         }

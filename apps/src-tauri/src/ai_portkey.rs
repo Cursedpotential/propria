@@ -53,7 +53,16 @@ pub async fn chat(model: &str, messages: Vec<ChatMessage>) -> Result<String, Str
     if bytes.len() > 64 * 1024 { return Err("Portkey config exceeds 64 KiB".into()); }
     let mut config: Value = serde_json::from_slice(&bytes).map_err(|_| "Invalid Portkey config JSON")?;
     if !config.is_object() { return Err("Portkey config must be a JSON object".into()); }
-    resolve_secrets(&mut config, &|name| std::env::var(name).ok())?;
+    // `$NAME` resolves from the environment, else from the file named by `NAME_FILE` (the hosted
+    // engine keeps model keys in root-only secret files, not its environment; 2026-09-18).
+    resolve_secrets(&mut config, &|name| {
+        std::env::var(name).ok().or_else(|| {
+            let file = std::env::var(format!("{name}_FILE")).ok()?;
+            let value = std::fs::read_to_string(file).ok()?;
+            let value = value.trim();
+            (!value.is_empty()).then(|| value.to_string())
+        })
+    })?;
     let config_header = serde_json::to_string(&config).map_err(|_| "Cannot encode Portkey config")?;
     let mut header = reqwest::header::HeaderValue::from_str(&config_header).map_err(|_| "Invalid Portkey config header")?;
     header.set_sensitive(true);
