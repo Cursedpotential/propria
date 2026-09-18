@@ -226,5 +226,3 @@ Secrets/
 # inclusion overrides the user-level `*token*.json` rule; generated tokens.css
 # remains derived from this tracked file.
 !/resources/design/tokens.json
-# Consignatio: independent canonical git repo, lives at projects/consignatio since 2026-09-18 (Consignatio/ is a junction to it)
-/projects/consignatio/
