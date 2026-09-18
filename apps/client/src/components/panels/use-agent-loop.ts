@@ -68,8 +68,10 @@ export const useAgentLoop = (deps: AgentLoopDeps) => {
     buildSystemPrompt,
   } = deps;
 
-  /** Max time (ms) for a single agent iteration before we bail out. */
-  const ITERATION_TIMEOUT_MS = 60_000;
+  /** Max time (ms) for a single agent iteration before we bail out. Hosted Intake falls back
+   * from Gemini to Kimi K3 on NVIDIA NIM, whose free queue answers in ~90 s, so 60 s cut the
+   * fallback off (2026-09-18, Claude Code · Opus 5). The engine's own limit is 175 s. */
+  const ITERATION_TIMEOUT_MS = 180_000;
 
   // -----------------------------------------------------------------------
   // Core agent loop
@@ -121,7 +123,7 @@ export const useAgentLoop = (deps: AgentLoopDeps) => {
             TauriAPI.chatWithAI(model || 'claude-sonnet-4-20250514', apiMsgs, primaryFileContext),
             new Promise<never>((_resolve, reject) =>
               setTimeout(
-                () => reject(new Error('Agent iteration timed out (60s)')),
+                () => reject(new Error('Agent iteration timed out (180s)')),
                 ITERATION_TIMEOUT_MS,
               ),
             ),

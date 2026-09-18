@@ -18,10 +18,13 @@ services:
       - '/data/probata/secrets/intake-engine:/run/secrets/intake-engine:ro'
     environment:
       INTAKE_PORTKEY_URL: 'http://100.72.169.40:8787'
-      INTAKE_CHAT_MODEL: 'portkey:nemotron-3-super'
-      # Model key is a root-only secret file, not an environment value (2026-09-18), so the
-      # web terminal (non-root, cleared env) and /proc/<pid>/environ never expose it.
-      OLLAMA_API_KEY_FILE: /run/secrets/intake-engine/ollama-api-key
+      # Chat model (2026-09-18 evening): Gemini 3.8 Flash primary, Kimi K3 (NVIDIA NIM) fallback;
+      # the routing lives in scripts/intake-portkey-chat.json. The label below is what the UI shows.
+      INTAKE_CHAT_MODEL: 'portkey:gemini-3.8-flash'
+      # Model keys are root-only secret files, not environment values (2026-09-18), so the
+      # web terminal (non-root, cleared env) and /proc/<pid>/environ never expose them.
+      GEMINI_API_KEY_FILE: /run/secrets/intake-engine/gemini-api-key
+      NVIDIA_API_KEY_FILE: /run/secrets/intake-engine/nvidia-api-key
       INTAKE_AGENT_ROOT: /srv/openlist
       INTAKE_CATALOG_PG_HOST: 100.91.190.107
       INTAKE_CATALOG_PG_PORT: '5475'

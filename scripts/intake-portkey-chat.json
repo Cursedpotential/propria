@@ -1,6 +1,19 @@
 {
-  "provider": "openai",
-  "custom_host": "https://ollama.com/v1",
-  "api_key": "$OLLAMA_API_KEY",
-  "override_params": { "model": "nemotron-3-super" }
+  "_comment": "Byline: Claude Code · Opus 5 · 2026-09-18. Hosted Intake chat: Gemini 3.8 Flash (Google AI free tier, OpenAI-compatible endpoint) first; on any error, 429 or a 45 s timeout Portkey falls back to Kimi K3 on NVIDIA NIM (free, slow queue ~90 s). Keys resolve from root-only secret files via NAME_FILE.",
+  "strategy": { "mode": "fallback" },
+  "targets": [
+    {
+      "provider": "openai",
+      "custom_host": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "api_key": "$GEMINI_API_KEY",
+      "override_params": { "model": "gemini-3.8-flash" },
+      "request_timeout": 45000
+    },
+    {
+      "provider": "openai",
+      "custom_host": "https://integrate.api.nvidia.com/v1",
+      "api_key": "$NVIDIA_API_KEY",
+      "override_params": { "model": "moonshotai/kimi-k3" }
+    }
+  ]
 }

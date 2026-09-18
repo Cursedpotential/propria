@@ -15,7 +15,7 @@ git ls-files -z --cached --others --exclude-standard -- . ':!apps/src-tauri' ':!
 MSYS_NO_PATHCONV=1 ssh -i ~/.ssh/ovh "$HOST" "docker run --rm --name intake-ui-build --cpus 4 --memory 8g \
   -v $REMOTE:/src -v intake-ui-pnpm-store:/pnpm-store -w /src \
   -e VITE_API_MODE=http -e VITE_API_URL=../storage -e VITE_INTAKE_MODE=1 \
-  -e VITE_INTAKE_CHAT_MODEL=portkey:nemotron-3-super -e CI=true -e HUSKY=0 \
+  -e VITE_INTAKE_CHAT_MODEL=portkey:gemini-3.8-flash -e CI=true -e HUSKY=0 \
   node:22-bookworm sh -c 'corepack enable && pnpm config set store-dir /pnpm-store && \
     pnpm install --frozen-lockfile --ignore-scripts 2>&1 | tail -n 15 && \
     npx vite build --base ./ --emptyOutDir 2>&1 | tail -n 25'"
