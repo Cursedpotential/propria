@@ -134,6 +134,30 @@ describe('parseFileActions', () => {
     expect(actions).toHaveLength(0);
   });
 
+  it('parses several actions in one fenced block, in order', () => {
+    const response = `Doing both:\n\`\`\`json\n{"action": "create_directory", "path": "/tmp/a/new"}\n{"action": "move_file", "path": "/tmp/a/f.csv", "destination": "/tmp/a/new/f.csv"}\n\`\`\``;
+    const { cleanText, actions } = parseFileActions(response);
+
+    expect(actions.map((a) => a.action)).toEqual(['create_directory', 'move_file']);
+    expect(actions[1].destination).toBe('/tmp/a/new/f.csv');
+    expect(cleanText).toBe('Doing both:');
+  });
+
+  it('parses consecutive bare action lines', () => {
+    const response = `{"action": "create_directory", "path": "/tmp/a/new"}\n{"action": "move_file", "path": "/tmp/a/f.csv", "destination": "/tmp/a/new/f.csv"}`;
+    const { actions } = parseFileActions(response);
+
+    expect(actions.map((a) => a.action)).toEqual(['create_directory', 'move_file']);
+  });
+
+  it('ignores braces inside JSON strings when splitting a block', () => {
+    const response = `\`\`\`json\n{"action": "create_file", "path": "/tmp/x.txt", "content": "a } b {"}\n{"action": "open_file", "path": "/tmp/x.txt"}\n\`\`\``;
+    const { actions } = parseFileActions(response);
+
+    expect(actions).toHaveLength(2);
+    expect(actions[0].content).toBe('a } b {');
+  });
+
   it('rejects open_extension without extension_id', () => {
     const response = `\`\`\`json\n{"action": "open_extension", "path": "/tmp/file.md"}\n\`\`\``;
     const { actions } = parseFileActions(response);

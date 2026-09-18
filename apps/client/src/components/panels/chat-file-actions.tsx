@@ -157,6 +157,37 @@ const ALL_ACTION_NAMES = [
 ].join('|');
 
 /**
+ * Split text holding one or more top-level JSON objects (e.g. one per line inside a single
+ * fenced block) into the object substrings. Braces inside JSON strings are ignored.
+ * Added 2026-09-18 (Claude Code · Opus 5): Gemini 3.8 Flash puts a multi-step plan
+ * ("create folder, then move file") in ONE fenced block, which JSON.parse rejected whole.
+ */
+const splitJsonObjects = (text: string): string[] => {
+  const objects: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      inString = true;
+    } else if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}' && depth > 0) {
+      depth--;
+      if (depth === 0 && start >= 0) objects.push(text.slice(start, i + 1));
+    }
+  }
+  return objects;
+};
+
+/**
  * Parse AI response text for file action JSON blocks.
  * Returns the text with action blocks removed, and the extracted actions.
  */
@@ -173,7 +204,8 @@ export const parseFileActions = (
   );
 
   const barePattern = new RegExp(
-    `(?:^|\\n)\\s*(\\{[\\s\\S]*?"action"\\s*:\\s*"(?:${ALL_ACTION_NAMES})"[\\s\\S]*?\\})(?:\\n|$)`,
+    // Lookahead, not a consumed newline, so consecutive one-per-line actions all match.
+    `(?:^|\\n)\\s*(\\{[\\s\\S]*?"action"\\s*:\\s*"(?:${ALL_ACTION_NAMES})"[\\s\\S]*?\\})(?=\\n|$)`,
     'g',
   );
 
@@ -242,9 +274,14 @@ export const parseFileActions = (
   // First pass: code-fenced JSON blocks
   let match: RegExpExecArray | null = actionPattern.exec(responseText);
   while (match !== null) {
-    const action = tryParseAction(match[1]);
-    if (action) {
-      actions.push(action);
+    const single = tryParseAction(match[1]);
+    const blockActions = single
+      ? [single]
+      : splitJsonObjects(match[1])
+          .map(tryParseAction)
+          .filter((a): a is FileAction => a !== null);
+    if (blockActions.length > 0) {
+      actions.push(...blockActions);
       cleanText = cleanText.replace(match[0], '');
     }
     match = actionPattern.exec(responseText);
