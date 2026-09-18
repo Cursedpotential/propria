@@ -21,6 +21,7 @@ import {
 } from './extension-host-types';
 import { createExtensionApi } from './extension-api-factory';
 import { STORAGE_KEYS } from './storage-keys';
+import { isTauri } from './transport';
 import { createSandboxedEnvironment, BLOCKED_GLOBALS } from './extension-sandbox-env';
 import { pinFunctionConstructor } from './extension-sandbox';
 import { registerSidebarTab, registerBottomTab } from './extension-registration-helpers';
@@ -138,6 +139,8 @@ class ExtensionHost {
    * When received, hot-reload the extension by unloading and re-loading it.
    */
   private initDevReloadListener(): void {
+    // The dev watcher is part of the Tauri desktop host; a browser (hosted Intake) has none.
+    if (!isTauri()) return;
     listen<{ path: string; id: string }>('extension-dev-reload', async (event) => {
       const { id } = event.payload;
       console.warn(`[ExtensionHost] Dev reload triggered for: ${id}`);
