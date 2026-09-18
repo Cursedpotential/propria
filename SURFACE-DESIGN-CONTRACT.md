@@ -103,7 +103,7 @@ as it. It can share
 this visual contract and later integrate through an explicitly clamped read-only adapter. Mixed-mode
 tools that can mutate a case store are not safe merely because they also provide a read operation.
 The current route and tool proof boundary is recorded in
-[resources/design/CALLABILITY.md](resources/design/CALLABILITY.md).
+[design-contract/CALLABILITY.md](design-contract/CALLABILITY.md).
 
 ## Non-negotiable experience boundaries
 
@@ -171,10 +171,10 @@ view uses plain labels and bounded excerpts.
 
 ## Semantic token contract
 
-Machine-readable values are in [resources/design/tokens.json](resources/design/tokens.json), portable
-CSS variables are in [resources/design/tokens.css](resources/design/tokens.css), and
-[resources/design/verify.mjs](resources/design/verify.mjs) checks token parity, package/adaptor presence
-and the contract's core contrast pairs. [The package README](resources/design/README.md) is the adoption
+Machine-readable values are in [design-contract/tokens.json](design-contract/tokens.json), portable
+CSS variables are in [design-contract/tokens.css](design-contract/tokens.css), and
+[design-contract/verify.mjs](design-contract/verify.mjs) checks token parity, package/adaptor presence
+and the contract's core contrast pairs. [The package README](design-contract/README.md) is the adoption
 guide. Products map their local variables through the supplied adapters to the `--pr-*` semantic
 names; they do not import another product's CSS or create a shared runtime dependency.
 
@@ -357,3 +357,5 @@ An adoption lane is not in progress until that register names an explicit reposi
 - This Codex session could start the local Intake and Probata Vite servers, but no browser surface was
   available to capture or inspect screenshots. The owner's direction acceptance is not a rendered
   cross-product verification claim.
+
+> _Corrected 2026-09-18 (Claude Code · Opus 5): the package lives at `design-contract/` again (owner: Propria is the project, no `resources/` folder); it was at ~~`resources/design/`~~ from 2026-09-12._

@@ -1,11 +1,17 @@
 {
   "subject": "note:propria_design_contract_relocation_20260912",
   "title": "Shared design contract moved under Propria resources",
-  "summary": "Verified 2026-09-12: the 14-file Propria design-contract package moved from the root-level design-contract directory to canonical resources/design. Root contract links and the monorepo manifest now use resources/design. A Windows junction remains at design-contract and targets resources/design for compatibility with active sessions and historical local paths. The package verifier was run from the canonical path. No content was deleted; this finding does not approve the proposed palette or claim application adoption.",
+  "summary": "Verified 2026-09-12: the 14-file Propria design-contract package moved from the root-level design-contract directory to canonical resources/design. Root contract links and the monorepo manifest now use resources/design. A Windows junction remains at design-contract and targets resources/design for compatibility with active sessions and historical local paths. The package verifier was run from the canonical path. No content was deleted; this finding does not approve the proposed palette or claim application adoption. SUPERSEDED 2026-09-18 (owner: Propria is the project): moved back to root design-contract/ with git mv; resources/ retired.",
   "priority": "normal",
   "authority": "verified_finding",
   "status": "active",
-  "domains": ["docs", "infra", "intake", "probata", "consignatio"],
+  "domains": [
+    "docs",
+    "infra",
+    "intake",
+    "probata",
+    "consignatio"
+  ],
   "source_ref": "E:/AI_Workspace/Projects/Propria/docs/MONOREPO-MIGRATION-PLAN-2026-09-12.md",
   "rationale": "This records the first verified physical move in the owner-directed Propria monorepo migration while keeping design approval distinct from repository topology.",
   "actor": "Codex GPT-5",
