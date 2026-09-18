@@ -82,7 +82,16 @@ async fn command(
         if let Some(out) = crate::routing::engine_command(&eng, &cmd, &args).await {
             return out;
         }
-        if crate::routing::touches_catalog(&args) {
+        // A terminal opened while the pane shows catalog:// (a virtual tree) starts at the storage
+        // root; terminal commands never go to the catalog handler (2026-09-18).
+        let mut args = args;
+        if cmd.starts_with("pty_") {
+            if let Some(Value::String(cwd)) = args.get("cwd") {
+                if crate::catalog::is_catalog(cwd) {
+                    args.insert("cwd".into(), Value::String(eng.mount_root.display().to_string()));
+                }
+            }
+        } else if crate::routing::touches_catalog(&args) {
             return crate::routing::catalog_command(&eng, &cmd, args).await;
         }
         let Some(f) = f else {
