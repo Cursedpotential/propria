@@ -3,7 +3,9 @@ import { twMerge } from 'tailwind-merge';
 import { FileEntry, FolderSizeInfo } from '@/lib/tauri-api';
 import React from 'react';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
-import i18n from '@/i18n';
+// The app's i18n.ts initializes this default instance; importing '@/i18n' here would
+// re-run that init for every utils consumer (it hangs the test runner).
+import i18next from 'i18next';
 import {
   FolderClosed,
   FolderOpen,
@@ -365,9 +367,10 @@ export const formatFolderSize = (
 // Date formatting utility. A missing date (null/0) is shown as "Unknown", never as a
 // placeholder date (Claude Code · Opus 5 · 2026-09-18).
 export const formatDate = (timestamp: number | null | undefined): string => {
-  if (!timestamp || !isFinite(timestamp)) return i18n.t('common.unknown');
+  if (!timestamp || !isFinite(timestamp))
+    {return i18next.t('common.unknown', { defaultValue: 'Unknown' });}
   const date = new Date(timestamp * 1000);
-  if (isNaN(date.getTime())) return i18n.t('common.unknown');
+  if (isNaN(date.getTime())) return i18next.t('common.unknown', { defaultValue: 'Unknown' });
   return date.toLocaleString();
 };
 
