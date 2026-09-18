@@ -21,7 +21,7 @@ export interface FileChangeSet {
 
 interface SnapshotEntry {
   size: number;
-  mtime: number;
+  mtime: number | null;
 }
 
 const MIN_AWAY_TIME = 300_000; // 5 minutes in ms
@@ -89,7 +89,7 @@ export const useFocusChangeTracker = (currentPath: string) => {
             name: entry.name,
             type: 'added',
             size: entry.size,
-            modifiedAt: entry.modified,
+            modifiedAt: entry.modified ?? undefined,
           });
         } else if (oldEntry.size !== entry.size || oldEntry.mtime !== entry.modified) {
           modified.push({
@@ -97,7 +97,7 @@ export const useFocusChangeTracker = (currentPath: string) => {
             name: entry.name,
             type: 'modified',
             size: entry.size,
-            modifiedAt: entry.modified,
+            modifiedAt: entry.modified ?? undefined,
           });
         }
       }

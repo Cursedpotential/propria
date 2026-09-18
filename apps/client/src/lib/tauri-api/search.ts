@@ -56,8 +56,10 @@ export const naturalLanguageSearch = async (
 ): Promise<SearchResult[]> =>
   await transport('natural_language_search', { query, language, limit });
 
+// Hosted Intake disables the legacy tokenizer index, so there are no stats to fetch
+// (Claude Code · Opus 5 · 2026-09-18).
 export const getTokenizerStats = async (): Promise<TokenIndex | null> =>
-  await transport('get_tokenizer_stats');
+  import.meta.env.VITE_INTAKE_MODE === '1' ? null : await transport('get_tokenizer_stats');
 
 export const isTokenizerIndexing = async (): Promise<boolean> =>
   await transport('is_tokenizer_indexing');

@@ -23,7 +23,7 @@ interface FileRowProps {
   getFileIcon: (file: FileEntry) => React.ReactNode;
   formatFileSize: (bytes: number) => string;
   formatFolderSize: (folderSizeInfo: FolderSizeInfo | null, isCalculating?: boolean) => string;
-  formatDate: (timestamp: number) => string;
+  formatDate: (timestamp: number | null) => string;
   onFileClick: (filePath: string, event: React.MouseEvent) => void;
   onFileDoubleClick: (filePath: string) => void;
   onFileRightClick: (filePath: string, event: React.MouseEvent) => void;

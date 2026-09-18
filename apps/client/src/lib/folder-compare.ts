@@ -13,7 +13,7 @@ export interface FolderFileInfo {
   name: string;
   path: string;
   size: number;
-  modifiedAt: number;
+  modifiedAt: number | null;
 }
 
 export interface DifferentFileInfo {
@@ -22,8 +22,8 @@ export interface DifferentFileInfo {
   rightPath: string;
   leftSize: number;
   rightSize: number;
-  leftModified: number;
-  rightModified: number;
+  leftModified: number | null;
+  rightModified: number | null;
 }
 
 export interface IdenticalFileInfo {

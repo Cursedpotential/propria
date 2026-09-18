@@ -9,7 +9,7 @@ export interface ViewComponentProps {
   getFileIcon: (file: FileEntry) => React.ReactNode;
   formatFileSize: (bytes: number) => string;
   formatFolderSize: (folderSizeInfo: FolderSizeInfo | null, isCalculating?: boolean) => string;
-  formatDate: (timestamp: number) => string;
+  formatDate: (timestamp: number | null) => string;
   handleFileClick: (file: FileEntry, event: React.MouseEvent) => void;
   handleFileDoubleClick: (file: FileEntry) => void;
   handleFileRightClick: (file: FileEntry, event: React.MouseEvent) => void;
@@ -39,7 +39,7 @@ export interface FileGridItemProps {
   getFileIcon: (file: FileEntry) => React.ReactNode;
   formatFileSize: (bytes: number) => string;
   formatFolderSize: (folderSizeInfo: FolderSizeInfo | null, isCalculating?: boolean) => string;
-  formatDate: (timestamp: number) => string;
+  formatDate: (timestamp: number | null) => string;
   onFileClick: (file: FileEntry, event: React.MouseEvent) => void;
   onFileDoubleClick: (file: FileEntry) => void;
   onFileRightClick: (file: FileEntry, event: React.MouseEvent) => void;

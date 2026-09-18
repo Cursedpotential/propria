@@ -15,7 +15,7 @@ const PREVIEW_DEBOUNCE_MS = 200;
 interface PreviewPanelProps {
   selectedFile: FileEntry | null;
   formatFileSize: (bytes: number) => string;
-  formatDate: (timestamp: number) => string;
+  formatDate: (timestamp: number | null) => string;
   getFolderSize?: (path: string) => FolderSizeInfo | null;
   isCalculatingSize?: (path: string) => boolean;
   currentPath?: string;

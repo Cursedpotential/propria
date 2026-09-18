@@ -26,7 +26,7 @@ type ResultRow =
       rightPath: null;
       leftSize: number;
       rightSize: null;
-      leftModified: number;
+      leftModified: number | null;
       rightModified: null;
     }
   | {
@@ -37,7 +37,7 @@ type ResultRow =
       leftSize: null;
       rightSize: number;
       leftModified: null;
-      rightModified: number;
+      rightModified: number | null;
     }
   | {
       status: 'different';
@@ -46,8 +46,8 @@ type ResultRow =
       rightPath: string;
       leftSize: number;
       rightSize: number;
-      leftModified: number;
-      rightModified: number;
+      leftModified: number | null;
+      rightModified: number | null;
     }
   | {
       status: 'identical';

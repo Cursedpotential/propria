@@ -38,7 +38,7 @@ interface RightSidebarProps {
   width?: number;
   selectedFile: FileEntry | null;
   formatFileSize: (bytes: number) => string;
-  formatDate: (timestamp: number) => string;
+  formatDate: (timestamp: number | null) => string;
   themes: Record<string, Theme>;
   theme: string;
   applyTheme: (themeKey: string) => void;

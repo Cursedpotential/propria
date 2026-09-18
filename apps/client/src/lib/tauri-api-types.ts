@@ -5,7 +5,8 @@ export interface FileEntry {
   path: string;
   is_dir: boolean;
   size: number;
-  modified: number;
+  /** Unix seconds. null when the source recorded no date (hosted catalog:// entries). */
+  modified: number | null;
   file_type: string;
   mime_type?: string;
   /** Whether the file/directory is read-only. */

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { TauriAPI, type FileEntry } from '@/lib/tauri-api';
 import { detectSep } from '@/lib/constants';
+import { compareDates } from '@/lib/utils';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ const sortFilesByStrategy = (files: FileEntry[], strategy: SortStrategy): FileEn
       sorted.sort((a, b) => a.name.localeCompare(b.name));
       break;
     case 'by-date':
-      sorted.sort((a, b) => a.modified - b.modified);
+      sorted.sort((a, b) => compareDates(a.modified, b.modified));
       break;
     case 'by-size':
       sorted.sort((a, b) => a.size - b.size);

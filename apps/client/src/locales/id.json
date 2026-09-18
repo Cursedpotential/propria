@@ -27,7 +27,8 @@
     "provenance": "Engine, index/collection, source id, and score for this hit",
     "cocoindex": "CocoIndex semantic (Parquet lake)",
     "duckdb": "DuckDB SQL (lake)",
-    "duckdbSql": "SQL query over documents/chunks"
+    "duckdbSql": "SQL query over documents/chunks",
+    "notConnected": "Indeks pencarian tidak terhubung: layanan indeks sistem file Intake belum di-deploy. Penjelajahan, pratinjau, dan operasi file tetap berfungsi."
   },
   "common": {
     "ok": "OK",
@@ -78,7 +79,8 @@
     "error": {
       "somethingWentWrong": "Something went wrong",
       "tryAgain": "Try again"
-    }
+    },
+    "unknown": "Tidak diketahui"
   },
   "updater": {
     "available": "Xplorer {{version}} tersedia",

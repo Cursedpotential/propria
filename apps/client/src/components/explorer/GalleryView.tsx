@@ -356,7 +356,9 @@ const GalleryView = ({
             <div className="truncate text-sm font-medium text-white">{displayFile.name}</div>
             <div className="text-xs text-white/70">
               {displayFile.is_dir ? 'Folder' : formatFileSize(displayFile.size)}
-              {displayFile.modified > 0 && <> &middot; {formatDate(displayFile.modified)}</>}
+              {displayFile.modified != null && displayFile.modified > 0 && (
+                <> &middot; {formatDate(displayFile.modified)}</>
+              )}
             </div>
             {(() => {
               if (aiDescription) {

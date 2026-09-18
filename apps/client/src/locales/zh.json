@@ -27,7 +27,8 @@
     "provenance": "Engine, index/collection, source id, and score for this hit",
     "cocoindex": "CocoIndex semantic (Parquet lake)",
     "duckdb": "DuckDB SQL (lake)",
-    "duckdbSql": "SQL query over documents/chunks"
+    "duckdbSql": "SQL query over documents/chunks",
+    "notConnected": "搜索索引未连接：Intake 文件系统索引服务尚未部署。浏览、预览和文件操作仍然可用。"
   },
   "common": {
     "ok": "确定",
@@ -78,7 +79,8 @@
     "error": {
       "somethingWentWrong": "Something went wrong",
       "tryAgain": "Try again"
-    }
+    },
+    "unknown": "未知"
   },
   "updater": {
     "available": "Xplorer {{version}} 已可用",

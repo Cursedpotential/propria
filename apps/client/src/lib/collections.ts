@@ -153,11 +153,11 @@ export const matchesFilter = (file: FileEntry, filter: CollectionFilter): boolea
         dateStr = d.toISOString().split('T')[0];
       }
       const ts = new Date(dateStr).getTime() / 1000;
-      return !isNaN(ts) && file.modified > ts;
+      return !isNaN(ts) && file.modified != null && file.modified > ts;
     }
     case 'modified_before': {
       const ts = new Date(filter.value).getTime() / 1000;
-      return !isNaN(ts) && file.modified < ts;
+      return !isNaN(ts) && file.modified != null && file.modified > 0 && file.modified < ts;
     }
     case 'name_contains':
       return file.name.toLowerCase().includes(filter.value.toLowerCase());

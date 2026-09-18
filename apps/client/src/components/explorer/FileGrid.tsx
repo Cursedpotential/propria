@@ -33,7 +33,7 @@ interface FileGridProps {
   getFileIcon: (file: FileEntry) => React.ReactNode;
   formatFileSize: (bytes: number) => string;
   formatFolderSize: (folderSizeInfo: FolderSizeInfo | null, isCalculating?: boolean) => string;
-  formatDate: (timestamp: number) => string;
+  formatDate: (timestamp: number | null) => string;
   handleFileClick: (file: FileEntry, event: React.MouseEvent) => void;
   handleFileDoubleClick: (file: FileEntry) => void;
   handleFileRightClick: (file: FileEntry, event: React.MouseEvent) => void;
@@ -100,7 +100,12 @@ const FileGrid = ({
   }, []);
 
   useEffect(() => {
-    if (!currentPath || currentPath.startsWith('xplorer://')) {
+    // Hosted Intake browses B2 and catalog://, never a git work tree (Claude Code · Opus 5 · 2026-09-18).
+    if (
+      !currentPath ||
+      currentPath.startsWith('xplorer://') ||
+      import.meta.env.VITE_INTAKE_MODE === '1'
+    ) {
       setGitStatusMap(new Map());
       return;
     }

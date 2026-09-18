@@ -59,6 +59,7 @@ export const SelectByDateDialog = ({
     to.setHours(23, 59, 59, 999);
 
     return files.filter((file) => {
+      if (file.modified == null || file.modified <= 0) return false;
       const fileDate = new Date(file.modified * 1000);
       return fileDate >= from && fileDate <= to;
     }).length;

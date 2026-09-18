@@ -68,6 +68,8 @@ export const selectByExtension = (files: FileEntry[], extensions: string[]): str
 export const selectByDateRange = (files: FileEntry[], dateFrom?: Date, dateTo?: Date): string[] => {
   return files
     .filter((file) => {
+      // An unknown date (null) is in no range.
+      if (file.modified == null || file.modified <= 0) return false;
       const fileDate = new Date(file.modified * 1000); // Convert Unix timestamp to Date
 
       if (dateFrom && fileDate < dateFrom) return false;
@@ -215,7 +217,10 @@ export const getFileDateRange = (
   oldest: Date;
   newest: Date;
 } => {
-  const dates = files.map((f) => f.modified * 1000);
+  const dates = files
+    .map((f) => f.modified)
+    .filter((m): m is number => m != null && m > 0)
+    .map((m) => m * 1000);
 
   if (dates.length === 0) {
     const now = new Date();

@@ -888,7 +888,7 @@ export interface ComparePreviewProps {
   rightFile: FileEntry;
   onDismiss: () => void;
   formatFileSize: (bytes: number) => string;
-  formatDate: (timestamp: number) => string;
+  formatDate: (timestamp: number | null) => string;
 }
 
 const ComparePreview = ({

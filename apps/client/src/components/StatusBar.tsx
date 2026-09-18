@@ -234,16 +234,19 @@ const StatusBar = ({ files, selectedFiles, currentPath, activeTab, vimState }: S
         const drives = await TauriAPI.listDrives();
         if (cancelled) return;
         const normalised = currentPath.replace(/\\/g, '/').toLowerCase();
-        let match = drives[0];
+        // Longest drive path containing the current path; no fallback to drives[0].
+        let match: (typeof drives)[number] | undefined;
         for (const d of drives) {
           const dp = d.path.replace(/\\/g, '/').toLowerCase();
-          if (normalised.startsWith(dp)) {
+          if (normalised.startsWith(dp) && (!match || dp.length > match.path.length)) {
             match = d;
-            break;
           }
         }
-        if (match && !cancelled) {
-          setFreeSpace(formatFileSize(match.free_space));
+        // A volume that reports no capacity (remote B2, catalog://) has no real free-space
+        // figure, so the readout is hidden instead of showing "0 B free"
+        // (Claude Code · Opus 5 · 2026-09-18).
+        if (!cancelled) {
+          setFreeSpace(match && match.total_space > 0 ? formatFileSize(match.free_space) : null);
         }
       } catch {
         if (!cancelled) setFreeSpace(null);

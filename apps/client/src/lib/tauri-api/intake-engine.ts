@@ -33,6 +33,18 @@ export interface IntakeCatalogLookup {
 
 export type IntakeFileMetadata = Record<string, unknown>;
 
+/** What the hosted engine is connected to (2026-09-18: `filesystem_search` gates Content Search). */
+export interface IntakeEngineInfo {
+  mount_root: string;
+  catalog: boolean;
+  catalog_error: string | null;
+  commands: number;
+  filesystem_search?: boolean;
+}
+
+export const getIntakeEngineInfo = async (): Promise<IntakeEngineInfo> =>
+  await transport('intake_engine_info');
+
 export const getIntakeFileMetadata = async (path: string): Promise<IntakeFileMetadata> =>
   await transport('intake_file_metadata', { path });
 

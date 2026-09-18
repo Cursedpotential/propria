@@ -251,6 +251,8 @@ export interface ExtensionUpdateInfo {
 export const checkForUpdates = async (
   installed: Array<{ manifest: { id: string; version?: string } }>,
 ): Promise<ExtensionUpdateInfo[]> => {
+  // Hosted Intake has no extension marketplace to ask (Claude Code · Opus 5 · 2026-09-18).
+  if (import.meta.env.VITE_INTAKE_MODE === '1') return [];
   try {
     const { TauriAPI: API } = await import('./tauri-api');
     const { MARKETPLACE_API_URL: marketplaceUrl } = await import('./constants');

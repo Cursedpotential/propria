@@ -27,7 +27,8 @@
     "provenance": "Engine, index/collection, source id, and score for this hit",
     "cocoindex": "CocoIndex semantic (Parquet lake)",
     "duckdb": "DuckDB SQL (lake)",
-    "duckdbSql": "SQL query over documents/chunks"
+    "duckdbSql": "SQL query over documents/chunks",
+    "notConnected": "検索インデックスが接続されていません：Intake ファイルシステムインデックスサービスはまだデプロイされていません。閲覧、プレビュー、ファイル操作は引き続き使用できます。"
   },
   "common": {
     "ok": "OK",
@@ -78,7 +79,8 @@
     "error": {
       "somethingWentWrong": "Something went wrong",
       "tryAgain": "Try again"
-    }
+    },
+    "unknown": "不明"
   },
   "updater": {
     "available": "Xplorer {{version}} が利用可能です",

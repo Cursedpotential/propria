@@ -3,6 +3,7 @@ import { twMerge } from 'tailwind-merge';
 import { FileEntry, FolderSizeInfo } from '@/lib/tauri-api';
 import React from 'react';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
+import i18n from '@/i18n';
 import {
   FolderClosed,
   FolderOpen,
@@ -361,12 +362,36 @@ export const formatFolderSize = (
   return `${sizeStr} (${itemCount} items)`;
 };
 
-// Date formatting utility
-export const formatDate = (timestamp: number): string => {
-  if (!timestamp || !isFinite(timestamp)) return '—';
+// Date formatting utility. A missing date (null/0) is shown as "Unknown", never as a
+// placeholder date (Claude Code · Opus 5 · 2026-09-18).
+export const formatDate = (timestamp: number | null | undefined): string => {
+  if (!timestamp || !isFinite(timestamp)) return i18n.t('common.unknown');
   const date = new Date(timestamp * 1000);
-  if (isNaN(date.getTime())) return '—';
+  if (isNaN(date.getTime())) return i18n.t('common.unknown');
   return date.toLocaleString();
+};
+
+/** True when a Unix-seconds timestamp is a real date (not null/0). */
+export const hasDate = (timestamp: number | null | undefined): timestamp is number =>
+  typeof timestamp === 'number' && timestamp > 0 && isFinite(timestamp);
+
+/**
+ * Ascending comparison of two optional timestamps. Unknown dates compare as larger than every
+ * known date, so they sit after known dates in ascending order (`unknownLast` keeps them last in
+ * descending order too, since the caller negates the result).
+ */
+export const compareDates = (
+  a: number | null | undefined,
+  b: number | null | undefined,
+  order: 'asc' | 'desc' = 'asc',
+): number => {
+  const ka = hasDate(a);
+  const kb = hasDate(b);
+  if (ka && kb) return a - b;
+  if (!ka && !kb) return 0;
+  // One side unknown: keep it last whichever way the caller orders.
+  const unknownLast = ka ? -1 : 1;
+  return order === 'desc' ? -unknownLast : unknownLast;
 };
 
 // Natural-sort collator: "file2" before "file10", case-insensitive
@@ -393,7 +418,7 @@ export const sortFiles = (
         break;
 
       case 'dateModified':
-        comparison = a.modified - b.modified;
+        comparison = compareDates(a.modified, b.modified, sortOrder);
         break;
 
       case 'size': {
@@ -406,9 +431,11 @@ export const sortFiles = (
       }
 
       case 'dateCreated': {
-        const aCreated = (a as FileEntry & { created?: number }).created ?? a.modified;
-        const bCreated = (b as FileEntry & { created?: number }).created ?? b.modified;
-        comparison = aCreated - bCreated || a.modified - b.modified;
+        const aCreated = (a as FileEntry & { created?: number | null }).created ?? a.modified;
+        const bCreated = (b as FileEntry & { created?: number | null }).created ?? b.modified;
+        comparison =
+          compareDates(aCreated, bCreated, sortOrder) ||
+          compareDates(a.modified, b.modified, sortOrder);
         break;
       }
 
@@ -449,7 +476,8 @@ export type DateGroup =
   | 'Last Week'
   | 'Earlier This Month'
   | 'Last Month'
-  | 'Older';
+  | 'Older'
+  | 'Unknown';
 
 const DATE_GROUP_ORDER: DateGroup[] = [
   'Today',
@@ -459,9 +487,11 @@ const DATE_GROUP_ORDER: DateGroup[] = [
   'Earlier This Month',
   'Last Month',
   'Older',
+  'Unknown',
 ];
 
-export const getDateGroup = (modifiedTimestamp: number): DateGroup => {
+export const getDateGroup = (modifiedTimestamp: number | null | undefined): DateGroup => {
+  if (!hasDate(modifiedTimestamp)) return 'Unknown';
   const now = new Date();
   const modified = new Date(modifiedTimestamp * 1000);
 
@@ -506,6 +536,7 @@ export const groupFilesByDate = (files: FileEntry[]): FileGroup[] => {
     'Earlier This Month': [],
     'Last Month': [],
     Older: [],
+    Unknown: [],
   };
 
   for (const file of files) {

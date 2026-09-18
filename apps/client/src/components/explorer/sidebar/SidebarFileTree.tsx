@@ -3,6 +3,7 @@ import { HardDrive, FolderTree, ChevronDown, ChevronRight } from 'lucide-react';
 import { FileEntry, TauriAPI } from '@/lib/tauri-api';
 import { PATH_SEPARATOR, ROOT_PATH } from '@/lib/constants';
 import { getFolderColorHex } from '@/lib/folder-colors';
+import { compareDates } from '@/lib/utils';
 import { useWindowEvent } from '@/hooks/use-window-event';
 import { useTranslation } from 'react-i18next';
 
@@ -56,7 +57,7 @@ const SidebarFileTree = ({
             comparison = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
             break;
           case 'dateModified':
-            comparison = a.modified - b.modified;
+            comparison = compareDates(a.modified, b.modified, sortOrder);
             break;
           case 'size':
             comparison = a.size - b.size;

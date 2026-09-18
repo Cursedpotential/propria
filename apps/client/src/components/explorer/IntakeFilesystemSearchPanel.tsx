@@ -1,6 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TauriAPI } from '@/lib/tauri-api';
+import { isTauri } from '@/lib/transport';
+import { getIntakeEngineInfo } from '@/lib/tauri-api/intake-engine';
 import {
   addSearchHitsToSelection,
   filesystemParentPath,
@@ -92,6 +94,28 @@ const IntakeFilesystemSearchPanel = forwardRef<IntakeSearchHandle, Props>(
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const rgAvailable = Boolean(activePaneRoot);
+    // Hosted Intake (browser + engine): ask the engine whether an index service is connected
+    // instead of sending searches that can only fail. The CocoIndex/DuckDB lake modes talk to a
+    // loopback backend that a hosted page cannot reach unless a URL was built in.
+    // (Claude Code · Opus 5 · 2026-09-18)
+    const hostedWeb = !isTauri();
+    const [fsIndexConnected, setFsIndexConnected] = useState<boolean | null>(
+      hostedWeb ? null : true,
+    );
+    useEffect(() => {
+      if (!hostedWeb) return;
+      let live = true;
+      getIntakeEngineInfo()
+        .then((info) => live && setFsIndexConnected(Boolean(info.filesystem_search)))
+        .catch(() => live && setFsIndexConnected(false));
+      return () => {
+        live = false;
+      };
+    }, [hostedWeb]);
+    const lakeReachable = !hostedWeb || Boolean(import.meta.env.VITE_INTAKE_BACKEND_API_URL);
+    const indexNotConnected =
+      ((mode === 'keyword' || mode === 'hybrid') && fsIndexConnected === false) ||
+      ((mode === 'cocoindex' || mode === 'duckdb') && !lakeReachable);
     useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
     useEffect(
       () => () => {
@@ -101,6 +125,7 @@ const IntakeFilesystemSearchPanel = forwardRef<IntakeSearchHandle, Props>(
     );
 
     const search = async () => {
+      if (indexNotConnected) return;
       const id = ++requestId.current;
       setLoading(true);
       setError(null);
@@ -184,12 +209,17 @@ const IntakeFilesystemSearchPanel = forwardRef<IntakeSearchHandle, Props>(
               {t('intakeSearch.rg')}
             </option>
           </select>
+          {indexNotConnected && (
+            <p role="status" className="text-xp-text-muted text-xs">
+              {t('intakeSearch.notConnected')}
+            </p>
+          )}
           {mode === 'rg' && !rgAvailable && (
             <p className="text-xp-text-muted text-xs">{t('intakeSearch.rgNeedsFolder')}</p>
           )}
           <button
             type="submit"
-            disabled={loading || !query.trim()}
+            disabled={loading || !query.trim() || indexNotConnected}
             className="border-xp-border rounded border p-2 text-sm disabled:opacity-50"
           >
             {loading ? t('intakeSearch.searching') : t('intakeSearch.search')}

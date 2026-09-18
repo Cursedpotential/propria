@@ -49,7 +49,7 @@ export interface DuplicateGroup {
   files: Array<{
     name: string;
     path: string;
-    modified: number;
+    modified: number | null;
   }>;
 }
 
@@ -400,7 +400,10 @@ const findDuplicatesFallback = async (
 
   // For each size group, compute partial hashes to confirm duplicates
   for (const [size, group] of candidateGroups) {
-    const hashMap = new Map<string, Array<{ name: string; path: string; modified: number }>>();
+    const hashMap = new Map<
+      string,
+      Array<{ name: string; path: string; modified: number | null }>
+    >();
 
     for (const file of group) {
       try {
