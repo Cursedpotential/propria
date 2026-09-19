@@ -1,7 +1,7 @@
 ---
 name: handoff
 description: Write a session handoff into the probata SurrealDB docs store (doc_type "handoff") instead of a loose file. Use before /compact, before /clear, at the end of a work session, when the PreCompact hook fires, or when the user says "handoff", "write a handoff", "save state for next session".
-allowed-tools: mcp__probata_docstore__docstore_handoff_write mcp__probata_docstore__docstore_get mcp__plugin_propria_docstore_control__docstore_handoff_write mcp__plugin_propria_docstore_control__docstore_get Read
+allowed-tools: mcp__plugin_propria-docstore_control__docstore_handoff_write mcp__plugin_propria-docstore_control__docstore_get Read
 ---
 
 # Handoff
@@ -11,6 +11,12 @@ retired for this store (design doc §2/§8 item 8). A handoff is a
 `document` row with `doc_type = "handoff"`, written through one function.
 
 ## Write it
+
+**Tags are required (owner 2026-09-14 21:06).** Put `<!-- tags: topic, ... -->`
+as the first line of `$body` (lanes, surfaces, systems, e.g. `docstore,
+multi-root, intake`), then after the write call
+`fn::docs_set_tags($id, $tags, $actor)` with the same list so the row is
+queryable via `fn::docs_tagged` immediately.
 
 Call `docstore_handoff_write` with `handoff: {title, body, domains}`. The
 dedicated tool invokes only `fn::handoff_write`, validates bounded typed input,

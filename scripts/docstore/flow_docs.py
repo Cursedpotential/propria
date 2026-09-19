@@ -22,6 +22,11 @@ and all three worked examples apply it the same way:
                               `await coco.map(process_chunk, chunks, ...)`;
                               process_chunk declares ONE row for ONE chunk
                               with its embedding. Never a list, never a bundle.
+                              (2026-09-14: coco.map now runs WITHIN a bounded
+                              chunk-group component, not directly under
+                              process_file -- see "CHUNK BATCHING" below. The
+                              one-row-per-chunk rule inside process_chunk is
+                              unchanged.)
   Pattern 3 (db -> db)        mount_each over a streamed source; the leaf
                               declares a single target row.
 
@@ -73,6 +78,81 @@ import cost (litellm alone is ~170 MB) and a full 489-document run peaks near
 1350 MB, so 1024 was below the floor rather than a safety margin. This is a workstation, not a server: a
 runaway ingest must die rather than swap the desktop to a standstill.
 
+CHUNK BATCHING (bounding SurrealDB transaction size). Until 2026-09-14,
+`process_file`/`process_project_file` handed EVERY chunk of a file to
+`await coco.map(process_chunk, chunks, ...)`. `coco.map` runs concurrently
+but mounts no new component ("No processing components are created -- this
+is pure concurrent execution ... within the current component",
+cocoindex/_internal/api.py), so every chunk row, embedding and `chunk_of`
+relation for the WHOLE file landed in process_file's own target-state batch.
+CocoIndex applies target-state changes "as a unit for each file ...
+atomically ... within a database transaction" (core_concepts.md) and the
+SurrealDB connector's tables "share a single transaction sink"
+(connectors/surrealdb.md); `_SharedRecordApplier._apply_actions`
+(cocoindex/connectors/surrealdb/_target.py) joins that whole batch into one
+`BEGIN ... COMMIT` query. A 2-3 MB document (1,000+ chunks x 2048-float
+embeddings) therefore produced one multi-megabyte transaction, which
+exceeded the SurrealDB Python SDK's 30 s RPC reply timeout, dropped the
+socket, and reconnected unauthenticated mid-transaction (run ad5a5ced,
+2026-09-14: 3 closes, 296 "Anonymous access not allowed" failures). Commit
+fc3a402 raised that SDK timeout to 600 s (DOCSTORE_SURREAL_RPC_TIMEOUT_S,
+below) as an immediate band-aid; it stays as defense in depth but does not
+bound the transaction itself.
+
+THE FIX: `process_chunk_group`, a new component, is mounted once per bounded
+GROUP of at most DOCSTORE_CHUNK_BATCH_ROWS chunks (default 64) via
+`coco.mount_each`, instead of one `coco.map` over every chunk. CocoIndex's
+processing-component docs state the tradeoff directly: "Fine-grained (more,
+smaller components): Each component syncs its target states as soon as it
+finishes, but target states owned by different components do not sync
+together as a unit" (docs/programming_guide/processing_component/), and
+confirm nesting a mount inside an already-mounted, memoized component is
+supported ("A memoized component may mount children", same page). So each
+group's chunk rows + embeddings + relations become their own transaction,
+bounding transaction size regardless of document length; WITHIN a group,
+chunks still run concurrently via `coco.map`, unchanged. Grouping is a pure
+function of chunk POSITION (see chunk_batching.group_for_batching), so chunk
+ids and CDC identity (`chunk:<slug(doc_id + "_c" + ordinal)>`) are unaffected
+-- only which transaction a chunk's write lands in changes. `process_file`'s
+and `process_project_file`'s memo `version` is bumped because their declared
+output SHAPE changed (chunks now live one mount level deeper, under a
+`process_chunk_group` subpath, where none existed before): per
+docs/programming_guide/function/, "Edits to a versioned function take effect
+only when you bump the number" and a same-version edit risks the old,
+now-incompatible memoized result being reused silently. The bump forces one
+full reprocess of every mapped document (~10 s per embed request; hours
+across ~1,235 docs).
+
+RE-EMBEDDING IS NOT AVOIDED BY THIS CHANGE, AND WAS NOT AVOIDED BEFORE IT
+EITHER -- be precise about what "memoized" covers here. `process_chunk`
+computes `embedding=await coco.use_context(EMBEDDER).embed(...)` to BUILD
+the `ChunkRow` before it ever calls `table.declare_record()`, so the NIM API
+call happens unconditionally, every time `process_chunk` runs, regardless of
+whether the resulting row differs from what is already stored. The
+connector's own record-level reconcile (`_RecordHandler.reconcile`,
+cocoindex/connectors/surrealdb/_target.py) does fingerprint the declared row
+and skip a redundant SurrealDB UPSERT when it already matches the stored
+tracking record -- but that check runs AFTER the embedding call, so it saves
+a database write, never the embedding cost. Only `process_file`'s own
+whole-file `memo=True` currently avoids re-embedding at all (by skipping the
+file's body, and therefore every `process_chunk` call inside it, entirely
+when the file's content_fingerprint is unchanged). This was true before this
+change and remains true after it: an edited file still re-embeds every one
+of its own chunks, just spread across multiple bounded transactions instead
+of one large one.
+
+CONSIDERED, NOT ADDED: `@coco.fn(memo=True)` on `process_chunk_group`, which
+would let CocoIndex skip re-running (and re-embedding) a group whose
+arguments are byte-identical to a prior run, independent of the containing
+file's own memo state. Left out because this change was authored and
+reviewed without running the flow against a live store (owner instruction,
+2026-09-14), and whether a `list[Chunk]` plus the file's `headings`/
+`ordinals` structures fingerprint correctly and STABLY under cocoindex
+1.0.21's generic (pickle-based) memo-key path was never exercised live. A
+wrong memo key fails SILENTLY -- a stale embedding or a wrongly-skipped
+group -- which is a worse failure mode than simply re-embedding, so this is
+a follow-up to verify live, not something to guess into a memoized path.
+
 Usage:
     "C:/Users/matts/.local/bin/python3.exe" flow_docs.py
     Full declared source only. DOCSTORE_ONLY_FILES is rejected: source filtering
@@ -101,6 +181,148 @@ import cocoindex as coco
 import ftfy
 import psutil
 from cocoindex.connectors import localfs, surrealdb
+
+# The SurrealDB Python SDK bounds every RPC reply at 30 s (`_RPC_RECV_TIMEOUT`, module
+# constant read at call time). The connector writes ONE file's chunk rows (2048-dim vectors)
+# in ONE transaction, so a 2-3 MB document exceeds 30 s on RocksDB; the SDK then drops the
+# socket, reconnects unauthenticated, and every later statement fails with "Anonymous
+# access not allowed" (run ad5a5ced, 2026-09-14: 3 closes, 296 anonymous failures).
+# Byline: Claude Code · Fable 5.1 · 2026-09-14.
+import surrealdb.connections.async_ws as _surreal_async_ws
+
+_surreal_async_ws._RPC_RECV_TIMEOUT = float(os.environ.get("DOCSTORE_SURREAL_RPC_TIMEOUT_S", "600"))
+
+
+# Raising the timeout above made the socket drop RARER; it did not make the
+# recovery CORRECT. When the socket does drop (a 2-3 MB document, a slow
+# RocksDB commit, a proxy hiccup), the SDK transparently reconnects but does
+# NOT replay the authentication or the namespace/database selection, so every
+# later statement on that connection fails "Anonymous access not allowed" and
+# the whole run dies - runs 17567c42/f745dac3/ad5a5ced/5a0b4213 (2026-09-15)
+# and c7421349/3d894018 (2026-09-16) all died exactly this way, always with a
+# WebSocket close as the FIRST error and anonymous failures after it.
+#
+# Fix (2026-09-16, Claude Code - Opus 5): remember the last successful signin()
+# and use() on the connection object and replay them after any reconnect, so a
+# dropped socket costs one round trip instead of the run. Deliberately
+# defensive - a different SDK version must degrade to the old behaviour, never
+# break worker startup.
+def _install_reauth_on_reconnect() -> str:
+    """Re-auth is hooked at the PUBLIC connect(), by socket identity.
+
+    Two earlier hook points were tried against the live store and rejected:
+      * _connect_locked - DEADLOCKS. _send() calls connect(), which holds a
+        non-reentrant asyncio.Lock around _connect_locked; replaying signin()
+        inside it re-enters that lock (signin -> _send -> connect) and the
+        process hangs forever instead of recovering.
+      * _send - NEVER SEES THE ERROR. "Anonymous access not allowed" is raised
+        while PARSING the reply (builders._check_response /
+        _statement_values), after _send has already returned successfully.
+    connect() is called at the top of every _send, and returns with the lock
+    released. Comparing the socket object identity against the one we last
+    authenticated detects a silent reconnect and lets us re-signin BEFORE the
+    statement goes out - so the caller never sees the anonymous failure at all.
+    """
+    cls = getattr(_surreal_async_ws, "AsyncWsSurrealConnection", None)
+    if cls is None or not all(hasattr(cls, m) for m in ("signin", "use", "connect")):
+        return "skipped: SDK shape not recognised"
+
+    orig_signin = cls.signin
+    orig_use = cls.use
+    orig_connect = cls.connect
+
+    async def signin(self, vars, session_id=None):
+        result = await orig_signin(self, vars, session_id=session_id)
+        # Store only what replay needs. Never logged, never printed.
+        self._docstore_auth = (vars, session_id)
+        self._docstore_sock = getattr(self, "socket", None)
+        return result
+
+    async def use(self, namespace, database, session_id=None):
+        result = await orig_use(self, namespace, database, session_id=session_id)
+        self._docstore_scope = (namespace, database, session_id)
+        return result
+
+    async def connect(self, url=None):
+        await orig_connect(self, url)
+        auth = getattr(self, "_docstore_auth", None)
+        # Nothing to replay before the first signin, and the replay's own
+        # signin/use call connect() again - guard against re-entry.
+        if auth is None or getattr(self, "_docstore_reauthing", False):
+            return
+        sock = getattr(self, "socket", None)
+        if sock is None or sock is getattr(self, "_docstore_sock", None):
+            return  # same socket: still authenticated
+        self._docstore_reauthing = True
+        try:
+            await orig_signin(self, auth[0], session_id=auth[1])
+            scope = getattr(self, "_docstore_scope", None)
+            if scope is not None:
+                await orig_use(self, scope[0], scope[1], session_id=scope[2])
+            self._docstore_sock = sock
+            print("docstore: surreal socket reconnected; auth and namespace replayed",
+                  flush=True)
+        except Exception as exc:
+            print(f"docstore: surreal reauth after reconnect FAILED: "
+                  f"{type(exc).__name__}", flush=True)
+        finally:
+            self._docstore_reauthing = False
+
+    cls.signin = signin
+    cls.use = use
+    cls.connect = connect
+    return "installed"
+
+
+_REAUTH_PATCH = _install_reauth_on_reconnect()
+
+
+# WEBSOCKET KEEPALIVE (fixed 2026-09-16, Claude Code - Opus 5).
+#
+# THE ACTUAL CAUSE of the "WebSocket connection closed" that killed every full
+# run on one file. The SDK opens its socket with
+#     websockets.connect(url, max_size=None, subprotocols=["cbor"])
+# and passes NO ping settings, so the `websockets` library defaults apply:
+# ping_interval=20, ping_timeout=20 (verified on websockets 17.0.1). The
+# library sends a ping every 20 s and, if the pong does not come back within
+# 20 s, CLOSES THE CONNECTION ITSELF. While a document's chunks are being
+# embedded (NIM is ~10 s per request) the server is committing a large
+# transaction and this process's event loop is saturated, so a pong is late
+# and the client hangs up on itself mid-transaction.
+#
+# That is why the failure was immovable: it is client-side, so it survived
+# pointing the worker straight at SurrealDB instead of the ts.net proxy
+# (67 s), restarting surreal-docs to free 10.8 GiB with swap 100% full (66 s),
+# and dropping DOCSTORE_CHUNK_BATCH_ROWS from 64 to 12 (68 s) - all measured.
+#
+# FIX: keep sending pings (they keep NAT/proxies from reaping an idle socket)
+# but stop treating a slow pong as a dead connection - ping_timeout=None. This
+# adds no retry and changes no write semantics; it only stops the client from
+# severing a healthy, busy connection. Both knobs are env-overridable.
+def _install_ws_keepalive() -> str:
+    ws_mod = getattr(_surreal_async_ws, "websockets", None)
+    if ws_mod is None or not hasattr(ws_mod, "connect"):
+        return "skipped: SDK does not expose websockets.connect"
+    orig_connect = ws_mod.connect
+
+    interval_raw = os.environ.get("DOCSTORE_WS_PING_INTERVAL_S", "20").strip()
+    timeout_raw = os.environ.get("DOCSTORE_WS_PING_TIMEOUT_S", "").strip()
+    interval = None if interval_raw.lower() in ("", "none", "0") else float(interval_raw)
+    # Default deliberately None: never kill a busy connection over a late pong.
+    timeout = None if timeout_raw.lower() in ("", "none", "0") else float(timeout_raw)
+
+    def connect(*args, **kwargs):
+        kwargs.setdefault("ping_interval", interval)
+        kwargs.setdefault("ping_timeout", timeout)
+        return orig_connect(*args, **kwargs)
+
+    ws_mod.connect = connect
+    return f"installed (ping_interval={interval}, ping_timeout={timeout})"
+
+
+_WS_KEEPALIVE_PATCH = _install_ws_keepalive()
+print(f"docstore: surreal reauth patch {_REAUTH_PATCH}; ws keepalive {_WS_KEEPALIVE_PATCH}",
+      flush=True)
 from cocoindex.connectors.surrealdb import SurrealType
 from cocoindex.ops.litellm import LiteLLMEmbedder
 from cocoindex.ops.text import RecursiveSplitter
@@ -108,6 +330,8 @@ from cocoindex.resources.chunk import Chunk
 from cocoindex.resources.file import FileLike, PatternFilePathMatcher
 from numpy.typing import NDArray
 from source_registry import SourceSpec, load_sources
+from cdc_verify import decode_markdown
+from chunk_batching import group_for_batching
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PROJECT_REGISTRY_PATH = (
@@ -160,6 +384,11 @@ CHUNK_SIZE = int(os.environ.get("DOCSTORE_CHUNK_SIZE", "1200"))
 CHUNK_OVERLAP = int(os.environ.get("DOCSTORE_CHUNK_OVERLAP", "150"))
 CHUNK_MIN_SIZE = int(os.environ.get("DOCSTORE_CHUNK_MIN_SIZE", "200"))
 
+# Chunk rows per bounded transaction (see CHUNK BATCHING above). One SurrealDB
+# BEGIN...COMMIT holds at most this many chunk rows + embeddings + chunk_of
+# relations, regardless of how many chunks the source document has.
+CHUNK_BATCH_ROWS = int(os.environ.get("DOCSTORE_CHUNK_BATCH_ROWS", "64"))
+
 # Must match 010_documents.surql: confidence float ASSERT 0..1 DEFAULT 0.5
 DEFAULT_CONFIDENCE = float(os.environ.get("DOCSTORE_CONFIDENCE", "0.5"))
 
@@ -184,7 +413,11 @@ VALID_DOMAINS = {"probata", "proffer", "consignatio", "advocatio", "vestigia",
 VALID_STATUSES = {"active", "proposed", "unverified", "superseded", "retracted"}
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
-_DATA_URI_RE = re.compile(r"data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+")
+# Payload is OPTIONAL and any MIME type counts (Claude Code · Fable 5.1 · 2026-09-14): a bare
+# "data:image/png;base64," example in prose survived the old "+" pattern and NIM answered 503
+# "image inputs require VLM serving" for every chunk holding it, with litellm retrying forever.
+_DATA_URI_RE = re.compile(r"data:[a-zA-Z0-9.+/-]+;base64,[A-Za-z0-9+/=]*")
+_DATA_PREFIX_RE = re.compile(r"^\s*data:", re.I)
 _NON_BMP_RE = re.compile(r"[𐀀-􏿿]")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.M)
 
@@ -344,9 +577,29 @@ _METAS, _MAPPING_FINGERPRINT = _load_mapping()
 
 
 # Path rules for documents that have no mapping row (Claude Code - Opus 5 - 2026-09-10).
-# First matching prefix wins; filename keywords decide for anything else.
+# First matching fragment wins; filename keywords decide for anything else.
+#
+# FIXED 2026-09-16 (Claude Code - Opus 5), two bugs that together misclassified
+# every decision outside the Probata repo as "reference":
+#   1. `docs/decisions/` was missing entirely - only `docs/adr/` was listed,
+#      even though the docstore skill tells authors to write decisions in
+#      `docs/decisions/` OR `docs/adr/`.
+#   2. matching used source_path.startswith(prefix). In the multi-root
+#      projection a path is prefixed with the project's canonical_prefix
+#      (`consignatio/docs/decisions/x.md`, `advocatio/docs/adr/y.md`), so
+#      startswith("docs/adr/") only ever matched the ONE project whose prefix
+#      is literally `docs` (probata). Every other repo fell through to the
+#      filename-keyword branch and became "reference" unless its filename
+#      happened to contain "DECISION".
+# The consequence was not cosmetic: fn::decision_amend looks up
+# `doc_type = "decision"` at the source_path, so it returned no_subject_record
+# for correctly-placed decision files and no supersedes edge was ever written.
+# Matching is now on a path SEGMENT anywhere in the path, so it is
+# project-prefix agnostic. 20 decision/ADR rows were reclassified by the first
+# run after this fix (verified live).
 _AUTO_RULES = (
     ("docs/adr/", "decision"),
+    ("docs/decisions/", "decision"),  # decisions skill writes here too (Fable 5.1, 2026-09-14)
     ("docs/handoffs/", "handoff"),
     ("docs/COMPACT-SUMMARY", "handoff"),
     ("docs/reviews/", "review"),
@@ -357,13 +610,20 @@ _AUTO_RULES = (
     ("docs/blueprint/", "blueprint"),
     ("docs/plans/", "blueprint"),
 )
+# `docs/planning/` deliberately stays OUT of _AUTO_RULES: it is the default for
+# that directory only AFTER the filename keywords have had their say, so
+# `docs/planning/2026-09-08-TODO.md` keeps doc_type "todo" rather than becoming
+# a blueprint. Same precedence as before this fix, now project-prefix agnostic.
+_PLANNING_FRAGMENT = "/docs/planning/"
 
 
 def _auto_meta(
     source_path: str, body: str, default_domains: tuple[str, ...] = ("docs",)
 ) -> DocMeta:
     name = source_path.rsplit("/", 1)[-1].upper()
-    doc_type = next((t for prefix, t in _AUTO_RULES if source_path.startswith(prefix)), None)
+    # Leading "/" so a fragment only ever matches at a segment boundary.
+    probe = "/" + source_path.replace("\\", "/").lstrip("/")
+    doc_type = next((t for frag, t in _AUTO_RULES if ("/" + frag) in probe), None)
     if doc_type is None:
         for keyword, kind in (("TODO", "todo"), ("DECISION", "decision"), ("HANDOFF", "handoff"),
                               ("INFRASTRUCTURE", "infrastructure")):
@@ -371,7 +631,7 @@ def _auto_meta(
                 doc_type = kind
                 break
         else:
-            doc_type = "blueprint" if source_path.startswith("docs/planning/") else "reference"
+            doc_type = "blueprint" if _PLANNING_FRAGMENT in probe else "reference"
     title = next((line[2:].strip() for line in body.splitlines() if line.startswith("# ")), "") or source_path
     return DocMeta(source_path, title[:300], doc_type, default_domains, "unverified")
 
@@ -382,13 +642,58 @@ def _auto_meta(
 
 
 def slug(text: str) -> str:
-    return _SLUG_RE.sub("_", text.lower()).strip("_")[:120]
+    """Stable record id from a source path. Ids longer than 120 chars keep a
+    120-char prefix plus a short digest of the full path: a plain cut let two
+    long multi-root paths share one id ("Target state already declared",
+    2026-09-14). No existing id was at the cap when this landed (verified live),
+    so no current id changes. Claude Code · Fable 5.1 · 2026-09-14."""
+    base = _SLUG_RE.sub("_", text.lower()).strip("_")
+    if len(base) <= 120:
+        return base
+    return base[:111] + "_" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
 
 
 def strip_data_uris(text: str) -> str:
     """NIM returns 503 'image inputs require VLM serving' for text holding a
     data: image URI."""
     return _DATA_URI_RE.sub("[data-uri-stripped]", text)
+
+
+def embed_safe(text: str) -> str:
+    """Never hand the embedder an input that starts with "data:" -- NIM parses that as a
+    data URI (an image) regardless of what follows. The stored chunk text is untouched."""
+    return _DATA_PREFIX_RE.sub("text: data:", text, count=1) if _DATA_PREFIX_RE.match(text) else text
+
+
+_TAG_TOKEN_RE = re.compile(r"[^a-z0-9]+")
+_FRONT_MATTER_RE = re.compile(r"\A﻿?---\r?\n(.*?)\r?\n---", re.S)
+_TAGS_COMMENT_RE = re.compile(r"<!--\s*tags:\s*([^>]*?)\s*-->", re.I)
+
+
+def extract_tags(body: str, limit: int = 32) -> list[str]:
+    """Author tags the pipeline carries into document.tags (owner 2026-09-14: 'tag or
+    label things so they pop up when searching or working on UI components').
+    Sources, both optional: YAML front matter `tags: [a, b]` or a dash list, and an
+    HTML comment `<!-- tags: a, b -->` anywhere in the body. Lower-kebab, de-duplicated."""
+    found: list[str] = []
+    fm = _FRONT_MATTER_RE.match(body)
+    if fm:
+        block = fm.group(1)
+        m = re.search(r"(?m)^tags:\s*\[(.*?)\]\s*$", block)
+        if m:
+            found += [t.strip().strip("'\"") for t in m.group(1).split(",")]
+        else:
+            m = re.search(r"(?m)^tags:\s*$((?:\r?\n\s*-\s*.*)+)", block)
+            if m:
+                found += [ln.split("-", 1)[1].strip().strip("'\"") for ln in m.group(1).splitlines() if "-" in ln]
+    for m in _TAGS_COMMENT_RE.finditer(body):
+        found += [t.strip() for t in m.group(1).split(",")]
+    out: list[str] = []
+    for raw in found:
+        tag = _TAG_TOKEN_RE.sub("-", raw.lower()).strip("-")
+        if tag and tag not in out:
+            out.append(tag)
+    return out[:limit]
 
 
 def fold_non_bmp(text: str) -> str:
@@ -635,7 +940,10 @@ async def process_chunk(
     ordinals: dict[int, int],
     table: surrealdb.TableTarget[ChunkRow],
     edge: surrealdb.RelationTarget[None],
+    project: str = "probata",
 ) -> None:
+    # `project` added 2026-09-14 (Claude Code · Fable 5.1): multi-root chunks were all
+    # stamped "probata", which breaks project-scoped recall for every other root.
     offset = chunk.start.char_offset
     ordinal = ordinals[offset]
     chunk_id = slug(f"{doc_id}_c{ordinal}")
@@ -648,10 +956,10 @@ async def process_chunk(
             text=chunk.text,
             token_est=token_estimate(chunk.text),
             doc_type=meta.doc_type,
-            project="probata",
+            project=project,
             status=meta.status,
             domains=list(meta.domains),
-            embedding=await coco.use_context(EMBEDDER).embed(chunk.text),
+            embedding=await coco.use_context(EMBEDDER).embed(embed_safe(chunk.text)),
         )
     )
 
@@ -663,11 +971,44 @@ async def process_chunk(
 
 
 # ---------------------------------------------------------------------------
+# Child component: one BOUNDED GROUP of chunks -> one mounted component ->
+# one SurrealDB transaction. See "CHUNK BATCHING" in the module docstring.
+# ---------------------------------------------------------------------------
+
+
+@coco.fn
+async def process_chunk_group(
+    chunk_group: list[Chunk],
+    doc_id: str,
+    meta: DocMeta,
+    headings: list[tuple[int, str]],
+    ordinals: dict[int, int],
+    table: surrealdb.TableTarget[ChunkRow],
+    edge: surrealdb.RelationTarget[None],
+    project: str = "probata",
+) -> None:
+    """One group of at most CHUNK_BATCH_ROWS chunks, mounted as its own
+    component via `coco.mount_each` in process_file/process_project_file.
+
+    Not memoized (plain `@coco.fn`): mounting bounds the TRANSACTION, it does
+    not by itself change what gets re-embedded. See "RE-EMBEDDING IS NOT
+    AVOIDED BY THIS CHANGE" in the module docstring for why per-group memo
+    was considered and deliberately left out. Chunks within the group still
+    run concurrently via `coco.map`, exactly as the whole file's chunks did
+    before this change -- only the SIZE of what gets flushed together
+    shrank, not the concurrency model.
+    """
+    await coco.map(
+        process_chunk, chunk_group, doc_id, meta, headings, ordinals, table, edge, project
+    )
+
+
+# ---------------------------------------------------------------------------
 # Per-file component (Patterns 1 and 2)
 # ---------------------------------------------------------------------------
 
 
-@coco.fn(memo=True, version=6)
+@coco.fn(memo=True, version=8)
 async def process_file(
     file: FileLike,
     mapping_fingerprint: str,
@@ -677,14 +1018,23 @@ async def process_file(
 ) -> None:
     """memo=True keys on the file resource (content_fingerprint) plus the
     mapping fingerprint, so a text edit or a metadata edit re-runs this file and
-    nothing else does."""
+    nothing else does.
+
+    version bumped 6 -> 7 (Claude Code · Sonnet 5 · 2026-09-14): chunk rows now
+    mount one child component per bounded group (CHUNK BATCHING, module
+    docstring) instead of being declared directly via `coco.map`, which
+    changes this function's declared output shape. See the module docstring
+    for the reprocessing cost this bump implies."""
     # file_path.path is relative to DOCS_BASE (see the ContextKey note above).
-    source_path = "docs/" + file.file_path.path.as_posix()
+    source_path = fold_non_bmp("docs/" + file.file_path.path.as_posix())
     meta = _METAS.get(source_path)
     if meta is None and source_path.startswith("docs/private/"):
         # docs/private is gitignored on purpose; it is never indexed.
         return
-    body = fold_non_bmp(await file.read_text(encoding="utf-8"))
+    body = fold_non_bmp(decode_markdown(await file.read()))
+    if not body.strip():
+        print(f"docstore: SKIP empty {file.file_path.path.as_posix()}", flush=True)
+        return
     if meta is None:
         # No mapping row -- typically a document written after the CSV was
         # generated. Skipping made every new handoff and TODO invisible to recall
@@ -704,14 +1054,16 @@ async def process_file(
             body=body,
             doc_type=meta.doc_type,
             project="probata",
-            tags=[],
+            tags=extract_tags(body),
             domains=list(meta.domains),
             status=meta.status,
             confidence=DEFAULT_CONFIDENCE,
         )
     )
 
-    clean = normalize_for_search(strip_data_uris(body))
+    # fold AFTER ftfy: fix_text repairs mojibake into real (non-BMP) emoji, which then
+    # reached chunk rows as surrogate pairs (2026-09-14 run, .remember logs).
+    clean = fold_non_bmp(normalize_for_search(strip_data_uris(body)))
     chunks = _splitter.split(
         clean,
         CHUNK_SIZE,
@@ -722,14 +1074,19 @@ async def process_file(
     headings = build_heading_index(clean)
     ordinals = {c.start.char_offset: i for i, c in enumerate(chunks)}
 
-    # map(): concurrent execution WITHIN this component, no child components,
-    # one small row declared per chunk (Pattern 2).
-    await coco.map(
-        process_chunk, chunks, doc_id, meta, headings, ordinals, chunk_table, chunk_edge
+    # CHUNK BATCHING (module docstring): one mounted child component per
+    # bounded group of chunks, so each group's writes flush in their own
+    # SurrealDB transaction instead of all of this file's chunks sharing one.
+    groups = group_for_batching(chunks, CHUNK_BATCH_ROWS)
+    group_handle = await coco.mount_each(
+        process_chunk_group,
+        enumerate(groups),
+        doc_id, meta, headings, ordinals, chunk_table, chunk_edge,
     )
+    await group_handle.ready()
 
 
-@coco.fn(memo=True, version=1)
+@coco.fn(memo=True, version=4)
 async def process_project_file(
     file: FileLike,
     project_id: str,
@@ -744,10 +1101,19 @@ async def process_project_file(
 
     The registry fingerprint invalidates metadata/source-membership changes.
     File content change detection remains owned by FileLike's fingerprint.
+
+    version bumped 2 -> 3 (Claude Code · Sonnet 5 · 2026-09-14): same CHUNK
+    BATCHING output-shape change as process_file (see module docstring).
     """
     del registry_fingerprint
-    source_path = canonical_prefix + file.file_path.path.as_posix()
-    body = fold_non_bmp(await file.read_text(encoding="utf-8"))
+    # Fold the PATH too (Claude Code · Fable 5.1 · 2026-09-14): a vestigia file named with
+    # an emoji hit the same surrogate-pair parse error in source_path that the body fold
+    # already prevents. Stable ids come from slug(), which strips non-alphanumerics anyway.
+    source_path = fold_non_bmp(canonical_prefix + file.file_path.path.as_posix())
+    body = fold_non_bmp(decode_markdown(await file.read()))
+    if not body.strip():
+        print(f"docstore: SKIP empty {file.file_path.path.as_posix()}", flush=True)
+        return
     meta = _METAS.get(source_path) or _auto_meta(source_path, body, default_domains)
     doc_id = slug(source_path)
     doc_table.declare_record(
@@ -755,17 +1121,19 @@ async def process_project_file(
             id=doc_id,
             source_path=source_path,
             content_hash=hashlib.sha256(body.encode("utf-8")).hexdigest(),
-            title=meta.title,
+            title=fold_non_bmp(meta.title),
             body=body,
             doc_type=meta.doc_type,
             project=project_id,
-            tags=[],
+            tags=extract_tags(body),
             domains=list(meta.domains),
             status=meta.status,
             confidence=DEFAULT_CONFIDENCE,
         )
     )
-    clean = normalize_for_search(strip_data_uris(body))
+    # fold AFTER ftfy: fix_text repairs mojibake into real (non-BMP) emoji, which then
+    # reached chunk rows as surrogate pairs (2026-09-14 run, .remember logs).
+    clean = fold_non_bmp(normalize_for_search(strip_data_uris(body)))
     chunks = _splitter.split(
         clean,
         CHUNK_SIZE,
@@ -775,9 +1143,14 @@ async def process_project_file(
     )
     headings = build_heading_index(clean)
     ordinals = {chunk.start.char_offset: index for index, chunk in enumerate(chunks)}
-    await coco.map(
-        process_chunk, chunks, doc_id, meta, headings, ordinals, chunk_table, chunk_edge
+    # CHUNK BATCHING (module docstring): see process_file's identical comment.
+    groups = group_for_batching(chunks, CHUNK_BATCH_ROWS)
+    group_handle = await coco.mount_each(
+        process_chunk_group,
+        enumerate(groups),
+        doc_id, meta, headings, ordinals, chunk_table, chunk_edge, project_id,
     )
+    await group_handle.ready()
 
 
 # ---------------------------------------------------------------------------
@@ -856,8 +1229,28 @@ async def app_main() -> None:
 
 
 async def _raise_component_error(exc: BaseException, ctx: coco.ExceptionContext) -> None:
-    print(f"docstore: component failed; error_type={type(exc).__name__}", file=sys.stderr, flush=True)
+    # Bounded diagnostics (Claude Code · Fable 5.1 · 2026-09-14): the type alone hid the
+    # 2026-09-14 multi-root failure. Message is truncated; no credentials are echoed.
+    message = _bounded_error_text(exc)
+    print(
+        f"docstore: component failed; error_type={type(exc).__name__}; "
+        f"path={getattr(ctx, 'stable_path', None)}; mount_kind={getattr(ctx, 'mount_kind', None)}; "
+        f"message={message}",
+        file=sys.stderr, flush=True,
+    )
     raise exc
+
+
+def _bounded_error_text(exc: BaseException, limit: int = 700) -> str:
+    text = " ".join(str(exc).split())
+    text = re.sub(r"(?i)(bearer|token|api[_-]?key|password|pass)\s*[=:]\s*\S+", r"=<redacted>", text)
+    if exc.__cause__ is not None:
+        text += " | cause: " + " ".join(str(exc.__cause__).split())[:200]
+    if len(text) > limit:
+        # Keep both ends: the head names the failing call, the tail carries the
+        # database/provider message that a traceback string buries last.
+        return text[: limit // 2] + " ... " + text[-(limit // 2):]
+    return text
 
 
 app = coco.App(
@@ -890,5 +1283,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(_run_checked())
     except Exception as exc:
-        print(f"docstore: execution failed; error_type={type(exc).__name__}; inspect retained worker log", file=sys.stderr)
+        print(f"docstore: execution failed; error_type={type(exc).__name__}; message={_bounded_error_text(exc)}; inspect retained worker log", file=sys.stderr)
         sys.exit(1)

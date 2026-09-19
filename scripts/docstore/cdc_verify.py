@@ -7,9 +7,9 @@ complete source; selection only narrows the caller's requested verification set.
 """
 from __future__ import annotations
 
-import fnmatch
 import hashlib
 import os
+import re
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +22,18 @@ class SourceDocument:
     project_id: str
     source_path: str
     content_hash: str
+
+
+def decode_markdown(raw: bytes) -> str:
+    """Decode a markdown source deterministically. Strict UTF-8 first; if that fails
+    the file is treated as Windows-1252 (the encoding of the six Family Court Console
+    sources that tripped the 2026-09-14 run), with replacement for anything left.
+    Valid UTF-8 files decode byte-identically to before, so their hashes do not change.
+    Shared by flow_docs, the CDC verifier and tags_backfill so hashes stay consistent."""
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("cp1252", errors="replace")
 
 
 def _fold_non_bmp(value: str) -> str:
@@ -38,13 +50,45 @@ def _fold_non_bmp(value: str) -> str:
     return "".join(folded)
 
 
+def _glob_re(pattern: str) -> "re.Pattern[str]":
+    """Mirror the flow's PatternFilePathMatcher: `**` spans directories, `*` and
+    `?` stay inside one path segment. fnmatch treated `**` as `*`, so
+    `docs/**/*.md` silently excluded `docs/X.md` from the expected set
+    (2026-09-14: eight Propria root docs reported as unexpected)."""
+    out, i = "^", 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out += "(?:.*/)?"; i += 3; continue
+        if pattern.startswith("**", i):
+            out += ".*"; i += 2; continue
+        ch = pattern[i]
+        out += "[^/]*" if ch == "*" else "[^/]" if ch == "?" else re.escape(ch)
+        i += 1
+    return re.compile(out + "$")
+
+
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slug(text: str) -> str:
+    """Mirror flow_docs.slug: the pipeline's record id for a source path."""
+    base = _SLUG_RE.sub("_", text.lower()).strip("_")
+    if len(base) <= 120:
+        return base
+    return base[:111] + "_" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
+
+
+def _is_pipeline_row(row: dict) -> bool:
+    """Only rows whose id is the slug of their source_path are pipeline
+    identities. Hand-registered rows (random ids) are never counted, whatever
+    their status; superseded pipeline rows (mapping CSV) still are."""
+    rid, path = row.get("rid"), row.get("source_path")
+    return isinstance(rid, str) and isinstance(path, str) and rid == _slug(path)
+
+
 def _matches(relative: str, source: SourceSpec) -> bool:
-    def match(pattern: str) -> bool:
-        return fnmatch.fnmatchcase(relative, pattern) or (
-            pattern.startswith("**/") and fnmatch.fnmatchcase(relative, pattern[3:])
-        )
-    included = any(match(pattern) for pattern in source.included_patterns)
-    excluded = any(match(pattern) for pattern in source.excluded_patterns)
+    included = any(_glob_re(pattern).match(relative) for pattern in source.included_patterns)
+    excluded = any(_glob_re(pattern).match(relative) for pattern in source.excluded_patterns)
     return included and not excluded
 
 
@@ -67,10 +111,15 @@ def snapshot_sources() -> tuple[tuple[SourceDocument, ...], str]:
             relative = path.relative_to(source.root).as_posix()
             if not _matches(relative, source):
                 continue
-            body = _fold_non_bmp(path.read_text(encoding="utf-8"))
+            # Decode the bytes exactly as the flow's FileLike does: no newline
+            # translation. Path.read_text() folded CRLF to LF and mismatched 58
+            # hashes on 2026-09-14. The path is folded like the body (emoji names).
+            body = _fold_non_bmp(decode_markdown(path.read_bytes()))
+            if not body.strip():
+                continue  # the flow skips empty files; keep the expected set identical
             rows.append(SourceDocument(
                 project_id=source.project_id,
-                source_path=source.canonical_prefix + relative,
+                source_path=_fold_non_bmp(source.canonical_prefix + relative),
                 content_hash=hashlib.sha256(body.encode("utf-8")).hexdigest(),
             ))
     rows.sort(key=lambda row: row.source_path)
@@ -89,7 +138,9 @@ async def verify_projection(expected: tuple[SourceDocument, ...]) -> dict:
 
     db = await sq.connect("docs", "probata", "docs")
     try:
-        result = await db.query("SELECT source_path, content_hash FROM document;")
+        # Hand-registered rows that were retracted/superseded keep their source_path;
+        # they are not pipeline identities and must not count as unexpected.
+        result = await db.query("SELECT record::id(id) AS rid, source_path, content_hash FROM document;")
     finally:
         await db.close()
     while isinstance(result, list) and len(result) == 1 and isinstance(result[0], list):
@@ -102,6 +153,7 @@ async def verify_projection(expected: tuple[SourceDocument, ...]) -> dict:
         for row in records if isinstance(row, dict)
         and isinstance(row.get("source_path"), str)
         and row["source_path"].startswith(prefixes)
+        and _is_pipeline_row(row)
     }
     missing = sorted(set(expected_by_path) - set(observed))
     unexpected = sorted(set(observed) - set(expected_by_path))
@@ -128,11 +180,12 @@ async def retire_unexpected_projection(expected: tuple[SourceDocument, ...]) -> 
     prefixes = tuple(sorted({row.source_path.split("/", 1)[0] + "/" for row in expected}))
     db = await sq.connect("docs", "probata", "docs")
     try:
-        result = await db.query("SELECT VALUE source_path FROM document;")
+        result = await db.query("SELECT record::id(id) AS rid, source_path FROM document;")
         while isinstance(result, list) and len(result) == 1 and isinstance(result[0], list):
             result = result[0]
-        observed = {str(path) for path in (result if isinstance(result, list) else [])
-                    if isinstance(path, str) and path.startswith(prefixes)}
+        observed = {str(row["source_path"]) for row in (result if isinstance(result, list) else [])
+                    if isinstance(row, dict) and isinstance(row.get("source_path"), str)
+                    and row["source_path"].startswith(prefixes) and _is_pipeline_row(row)}
         unexpected = sorted(observed - expected_paths)
         if len(unexpected) > 1000:
             raise RuntimeError("Unexpected projection retirement exceeds safety bound")
