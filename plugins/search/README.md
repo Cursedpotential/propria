@@ -14,15 +14,17 @@ Tree-sitter and DuckDB runtime. Existing Smart Explore commands remain available
 `index`, `indexes`, `search`, `outline`, `unfold`, `refs`, `lsp`, `imports`,
 `changed`, and safe `prune` quarantine.
 
-Runtime indexes live only at
-`E:\AI_Workspace\Projects\Propria\.runtime\search\smart-explore\indexes`.
-The Propria root ignores `.runtime`, and database/WAL files must never be staged.
-The plugin contains the engine; the runtime directory contains generated index
-state only. A one-off `--db` is available for isolated diagnostics and tests.
+Runtime routing has two ownership scopes. Propria paths use
+`E:\AI_Workspace\Projects\Propria\.runtime\search\smart-explore\indexes`;
+other repositories use `C:\Users\matts\.smart-explore\indexes`. The Propria
+root ignores `.runtime`, and database/WAL files must never be staged. The plugin
+contains the engine; runtime directories contain generated index state only. A
+one-off `--db` is available for isolated diagnostics and tests.
 
 Direct CCC commands are `semantic`, `ccc-index`, `ccc-status`, `ccc-doctor`, and
 `ccc-grep`. Reconciliation commands are `stores`, `recall`, `conflicts`,
 `decisions`, `reconcile run`, `reconcile repair`, `reconcile status`, and `export`.
+Graph inspection commands are `graph-query` and `graph-preview`.
 Every selectable-store response reports requested, available, queried, skipped,
 error, adapter identity, duration, result count, and normalized result provenance.
 
@@ -48,13 +50,17 @@ Docstore is connected only through the JSON-stdio command named by
 - `reconcile_run`
 - `reconcile_repair`
 - `reconcile_status`
+- `reconcile_graph_query`
+- `reconcile_graph_preview`
 - `reconcile_export`
 
 ## Tool graph
 
 ```mermaid
 graph TD
-  U[User or agent] --> MCP[Propria Search MCP]
+  P1[App 1: Probata and Proffer] --> U[User or agent]
+  P2[App 2: Xplorer plus Case Bible and Consignatio] --> U
+  U --> MCP[Propria Search MCP]
   MCP --> SE[Smart Explore structural DuckDB]
   MCP --> CCC[CCC semantic code index]
   MCP --> R[Selectable reconciliation]
@@ -71,6 +77,9 @@ graph TD
   A --> V[Tests, reindex, attribution validation]
   V -->|dirty| R
   V -->|clean| X[Export]
+  D --> DI[Docs index: CocoIndex and SurrealDB; code excluded]
+  SE --> CI[Code index: tree-sitter and DuckDB; docs excluded]
+  CCC --> CI
 ```
 
 CCC identity is the resolved project root plus its `.cocoindex_code/settings.yml`

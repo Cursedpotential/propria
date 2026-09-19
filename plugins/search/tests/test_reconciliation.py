@@ -30,6 +30,11 @@ class ReconciliationTests(unittest.TestCase):
    self.assertTrue(out['decisions']); self.assertTrue(out['contracts'])
    self.assertEqual(out['results'][0]['store'],'codex_memory')
    self.assertTrue(out['next_actions'])
+   packet=rec.persist_packet(out,td)
+   self.assertTrue(packet['actionable_backlog'])
+   args=type('Args',(),{'packet':packet['packet_path'],'limit':5})()
+   with patch('builtins.print') as output: smart_explore.cmd_graph_preview(args)
+   preview=json.loads(output.call_args.args[0]); self.assertGreater(preview['counts']['nodes'],0)
 
  def test_conflict_detection(self):
   rows=[{'title':'Final Contract','store':'ccc','content_hash':'a'}, {'title':'final-contract','store':'docstore','content_hash':'b'}]
@@ -37,7 +42,7 @@ class ReconciliationTests(unittest.TestCase):
 
  def test_mcp_catalog(self):
   names={x['name'] for x in mcp_server.TOOLS}
-  expected={'structural_search','semantic_code_search','code_index_refresh','code_index_status','code_index_doctor','structural_grep','selected_store_recall','conflict_discovery','decisions_final_contracts','reconcile_run','reconcile_repair','reconcile_status','reconcile_export','store_inventory'}
+  expected={'structural_search','semantic_code_search','code_index_refresh','code_index_status','code_index_doctor','structural_grep','selected_store_recall','conflict_discovery','decisions_final_contracts','reconcile_run','reconcile_repair','reconcile_status','reconcile_graph_query','reconcile_graph_preview','reconcile_export','store_inventory'}
   self.assertEqual(names,expected)
 
  def test_unavailable_selected_store_has_recovery_action(self):
@@ -54,8 +59,17 @@ class ReconciliationTests(unittest.TestCase):
   self.assertEqual(data['identity']['missing_credential_env'],['NVIDIA_NIM_API_KEY'])
   self.assertIn('rerun memsearch stats',data['next_action'])
 
+ def test_ccc_health_failure_is_visible(self):
+  with tempfile.TemporaryDirectory() as td, patch.object(rec.shutil,'which',return_value='ccc.exe'):
+   cfg=Path(td)/'.cocoindex_code';cfg.mkdir();(cfg/'settings.yml').write_text('include_patterns: []')
+   (cfg/'health.json').write_text(json.dumps({'state':'resource_exhausted','next_action':'bound CCC memory before refresh'}))
+   data=rec.inventory(td)['ccc']
+  self.assertFalse(data['available'])
+  self.assertEqual(data['identity']['health']['state'],'resource_exhausted')
+  self.assertIn('bound CCC memory',data['next_action'])
+
  def test_active_wal_is_reported_and_never_stale(self):
-  with tempfile.TemporaryDirectory() as td, patch.object(smart_explore,'PROPRIA_SMART_EXPLORE_RUNTIME',Path(td)):
+  with tempfile.TemporaryDirectory() as td, patch.object(smart_explore,'PROPRIA_SMART_EXPLORE_RUNTIME',Path(td)), patch.object(smart_explore,'USER_SMART_EXPLORE_HOME',Path(td)/'user'):
    indexes=Path(td)/'indexes'; indexes.mkdir()
    db=indexes/'active.duckdb'; db.write_bytes(b'not opened')
    db.with_suffix('.duckdb.wal').write_bytes(b'active')
@@ -66,12 +80,14 @@ class ReconciliationTests(unittest.TestCase):
 
  def test_runtime_store_is_under_propria(self):
   expected=Path(r'E:\AI_Workspace\Projects\Propria\.runtime\search\smart-explore\indexes')
-  with patch.dict(os.environ):
-   os.environ.pop('PROPRIA_SEARCH_RUNTIME',None)
-   self.assertEqual(smart_explore.central_store(),expected)
-   self.assertNotIn(str(Path.home()),str(smart_explore.central_store()))
-  with patch.dict(os.environ,{'PROPRIA_SEARCH_RUNTIME':r'E:\data\codex-smart-explore'}):
-   with self.assertRaises(RuntimeError): smart_explore.central_store()
+  self.assertEqual(smart_explore.central_store(Path(r'E:\AI_Workspace\Projects\Propria\Probata\probata')),expected)
+  self.assertEqual(smart_explore.central_store(Path(r'E:\another-repository')),Path.home()/'.smart-explore'/'indexes')
+
+ def test_propria_profile_cannot_drift(self):
+  with tempfile.TemporaryDirectory() as td, patch.object(smart_explore,'USER_SMART_EXPLORE_HOME',Path(td)):
+   profiles=Path(td)/'profiles';profiles.mkdir()
+   (profiles/'propria.json').write_text(json.dumps({'name':'propria','root':r'E:\wrong','index_store':r'E:\wrong'}))
+   with self.assertRaises(RuntimeError): smart_explore.runtime_profiles()
 
  def test_lock_retry_contract_has_bounded_default(self):
   self.assertEqual(os.environ.get('SMART_EXPLORE_LOCK_TIMEOUT','60'),'60')

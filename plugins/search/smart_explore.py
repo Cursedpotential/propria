@@ -25,10 +25,11 @@ Subcommands:
 Every subcommand accepts --json for machine-readable output and --db to
 target an explicit index file.
 
-Index location: the Propria runtime store
-E:/AI_Workspace/Projects/Propria/.runtime/search/smart-explore/indexes/
-<slug>-<hash>.duckdb, shared by every agent/CLI tool that indexes the same
-project path. Override a single index with --db for isolated diagnostics.
+Index location is ownership-scoped. Propria paths use
+E:/AI_Workspace/Projects/Propria/.runtime/search/smart-explore/indexes;
+all other paths use C:/Users/<user>/.smart-explore/indexes. Every agent/CLI tool
+shares the index for the same path. Override a single index with --db only for
+isolated diagnostics.
 
 > Byline: Claude Code · Opus 4.8 · 2026-06-21
 > Byline: Claude Code · Fable 5 · 2026-07-28 (cross-tool: central index store, moved to ~/.agents/skills)
@@ -534,20 +535,54 @@ def cmd_unfold(args):
         print()
 
 
+PROPRIA_ROOT = Path(r"E:\AI_Workspace\Projects\Propria")
 PROPRIA_SMART_EXPLORE_RUNTIME = Path(
     r"E:\AI_Workspace\Projects\Propria\.runtime\search\smart-explore"
 )
+USER_SMART_EXPLORE_HOME = Path.home() / ".smart-explore"
 
 
-def central_store() -> Path:
-    """Return the one machine-local runtime store used by Propria Search."""
-    configured = Path(os.environ.get("PROPRIA_SEARCH_RUNTIME", str(PROPRIA_SMART_EXPLORE_RUNTIME)))
-    if str(configured.resolve()).casefold() != str(PROPRIA_SMART_EXPLORE_RUNTIME.resolve()).casefold():
-        raise RuntimeError(
-            "PROPRIA_SEARCH_RUNTIME must resolve to "
-            f"{PROPRIA_SMART_EXPLORE_RUNTIME}; alternate shared runtime roots are unsupported"
-        )
-    return configured / "indexes"
+def path_is_under(root: Path, parent: Path) -> bool:
+    try:
+        root.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def runtime_profiles() -> list[dict]:
+    """Load routing-only profiles; engine source always remains in this plugin."""
+    profiles = [{"name": "propria", "root": PROPRIA_ROOT,
+                 "index_store": PROPRIA_SMART_EXPLORE_RUNTIME / "indexes"}]
+    profile_dir = USER_SMART_EXPLORE_HOME / "profiles"
+    for profile_file in sorted(profile_dir.glob("*.json")) if profile_dir.exists() else []:
+        try:
+            value = json.loads(profile_file.read_text(encoding="utf-8"))
+            candidate = {"name": value["name"], "root": Path(value["root"]),
+                         "index_store": Path(value["index_store"])}
+        except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"invalid Smart Explore profile {profile_file}: {exc}") from exc
+        if candidate["name"] == "propria":
+            expected = profiles[0]
+            if (candidate["root"].resolve() != expected["root"].resolve()
+                    or candidate["index_store"].resolve() != expected["index_store"].resolve()):
+                raise RuntimeError(f"Propria profile drift in {profile_file}")
+            continue
+        profiles.append(candidate)
+    return profiles
+
+
+def central_store(root: Path) -> Path:
+    """Route through the longest matching profile, then the platform-neutral home."""
+    matches = [p for p in runtime_profiles() if path_is_under(root, p["root"])]
+    if matches:
+        return max(matches, key=lambda p: len(str(p["root"].resolve())))["index_store"]
+    return USER_SMART_EXPLORE_HOME / "indexes"
+
+
+def central_stores() -> list[Path]:
+    stores = [p["index_store"] for p in runtime_profiles()] + [USER_SMART_EXPLORE_HOME / "indexes"]
+    return list(dict.fromkeys(stores))
 
 
 def db_for(root: Path, override: str | None) -> Path:
@@ -555,7 +590,7 @@ def db_for(root: Path, override: str | None) -> Path:
         return Path(override).resolve()
     slug = re.sub(r"[^A-Za-z0-9]+", "-", root.name).strip("-") or "root"
     digest = hashlib.sha256(str(root).lower().encode()).hexdigest()[:12]
-    return central_store() / f"{slug}-{digest}.duckdb"
+    return central_store(root) / f"{slug}-{digest}.duckdb"
 
 
 # ---------------------------------------------------------------------------
@@ -732,11 +767,11 @@ def cmd_lsp(args):
 
 
 def store_entries():
-    """Scan the central store; yield one info dict per index db."""
-    store = central_store()
-    dbs = sorted(store.glob("*.duckdb")) if store.exists() else []
-    for db in dbs:
-        entry = {"db": str(db), "name": db.name, "size_kb": db.stat().st_size // 1024,
+    """Scan the Propria and user-wide stores; yield one info dict per index."""
+    for store in central_stores():
+     dbs = sorted(store.glob("*.duckdb")) if store.exists() else []
+     for db in dbs:
+        entry = {"store": str(store), "db": str(db), "name": db.name, "size_kb": db.stat().st_size // 1024,
                  "updated": time.strftime("%Y-%m-%d %H:%M", time.localtime(db.stat().st_mtime))}
         wal = db.with_suffix(db.suffix + ".wal")
         if wal.exists():
@@ -767,15 +802,15 @@ def store_entries():
 
 
 def cmd_indexes(args):
-    """List every index in the central store with its project and stats."""
+    """List every index in the ownership-scoped runtime stores."""
     entries = list(store_entries())
     if args.json:
-        print(json.dumps({"store": str(central_store()), "indexes": entries}, indent=1))
+        print(json.dumps({"stores": [str(s) for s in central_stores()], "indexes": entries}, indent=1))
         return
     if not entries:
-        print(f"No indexes in {central_store()}")
+        print(f"No indexes in {', '.join(str(s) for s in central_stores())}")
         return
-    print(f"-- Indexes in {central_store()} --")
+    print(f"-- Indexes in {', '.join(str(s) for s in central_stores())} --")
     for e in entries:
         if e["error"]:
             print(f"  {e['name']}  ({e['size_kb']}K)  [unreadable: {e['error']}]")
@@ -982,10 +1017,10 @@ def cmd_prune(args):
             print(f"  {e['name']}  ({e['size_kb']}K)  [{why}]")
         return
     removed = []
-    quarantine = central_store() / "to_be_deleted" / time.strftime("prune-%Y%m%dT%H%M%SZ", time.gmtime())
-    quarantine.mkdir(parents=True, exist_ok=True)
     for e in stale:
         try:
+            quarantine = Path(e["store"]) / "to_be_deleted" / time.strftime("prune-%Y%m%dT%H%M%SZ", time.gmtime())
+            quarantine.mkdir(parents=True, exist_ok=True)
             shutil.move(e["db"], quarantine / e["name"])
             removed.append(e["name"])
         except OSError as err:
@@ -1098,6 +1133,31 @@ def cmd_export(args):
         print(text)
 
 
+def _packet_graph(packet_path):
+    packet = Path(packet_path).resolve()
+    payload = json.loads(packet.read_text(encoding="utf-8"))
+    return packet, payload, payload.get("graph", {"nodes": [], "edges": []})
+
+
+def cmd_graph_query(args):
+    packet, payload, graph = _packet_graph(args.packet)
+    nodes = graph.get("nodes", [])
+    if args.node_type: nodes = [n for n in nodes if n.get("type") == args.node_type]
+    if args.store: nodes = [n for n in nodes if n.get("store") == args.store or n.get("id") == f"store:{args.store}"]
+    if args.text:
+        needle = args.text.lower()
+        nodes = [n for n in nodes if needle in json.dumps(n, default=str).lower()]
+    nodes = nodes[:args.limit]; ids = {n.get("id") for n in nodes}
+    edges = [e for e in graph.get("edges", []) if e.get("from") in ids or e.get("to") in ids]
+    print(json.dumps({"operation":"reconcile_graph_query","packet":str(packet),"run_id":payload.get("run_id"),"nodes":nodes,"edges":edges,"next_actions":payload.get("next_actions",[])}, indent=1))
+
+
+def cmd_graph_preview(args):
+    packet, payload, graph = _packet_graph(args.packet)
+    nodes=graph.get("nodes",[]); edges=graph.get("edges",[])
+    print(json.dumps({"operation":"reconcile_graph_preview","packet":str(packet),"run_id":payload.get("run_id"),"attribution_clean":payload.get("attribution_clean"),"counts":{"nodes":len(nodes),"edges":len(edges),"conflicts":len(payload.get("conflicts",[])),"decisions":len(payload.get("decisions",[])),"contracts":len(payload.get("contracts",[]))},"nodes":nodes[:args.limit],"edges":edges[:args.limit],"actionable_backlog":payload.get("actionable_backlog",[]),"next_actions":payload.get("next_actions",[])}, indent=1))
+
+
 def main():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--db", help="explicit path to the index .duckdb file")
@@ -1193,6 +1253,12 @@ def main():
     repair = rp.add_parser("repair"); add_recall_options(repair); repair.add_argument("--output-dir")
     status = rp.add_parser("status"); status.add_argument("packet")
     p.set_defaults(func=cmd_reconcile)
+
+    p = sub.add_parser("graph-query", parents=[common], help="query nodes and incident edges in a reconciliation graph")
+    p.add_argument("packet"); p.add_argument("--node-type"); p.add_argument("--store"); p.add_argument("--text"); p.add_argument("--limit",type=int,default=50); p.set_defaults(func=cmd_graph_query)
+
+    p = sub.add_parser("graph-preview", parents=[common], help="preview graph counts, samples, and valid next actions")
+    p.add_argument("packet"); p.add_argument("--limit",type=int,default=10); p.set_defaults(func=cmd_graph_preview)
 
     p = sub.add_parser("export", parents=[common], help="export a persisted reconciliation packet")
     p.add_argument("packet"); p.add_argument("--format", choices=["json", "md"], default="md")

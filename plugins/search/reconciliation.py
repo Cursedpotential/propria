@@ -28,6 +28,13 @@ def _roots() -> dict[str,list[Path]]:
 def inventory(project_root: str|None=None) -> dict[str,dict[str,Any]]:
     root=str(Path(project_root or os.getcwd()).resolve()); roots=_roots(); se=Path(__file__).with_name("smart_explore.py").resolve()
     ccc=shutil.which("ccc"); doc_cmd=os.getenv("PROPRIA_DOCSTORE_ADAPTER")
+    ccc_settings=Path(root)/".cocoindex_code"/"settings.yml"
+    ccc_health_file=Path(root)/".cocoindex_code"/"health.json"
+    ccc_health={}
+    if ccc_health_file.is_file():
+      try: ccc_health=json.loads(ccc_health_file.read_text(encoding="utf-8"))
+      except (OSError,json.JSONDecodeError): ccc_health={"state":"invalid_health_record"}
+    ccc_ready=not ccc_health or ccc_health.get("state")=="ready"
     memsearch=shutil.which("memsearch"); mem_config=Path.home()/".memsearch"/"config.toml"
     mem_refs=[]
     if mem_config.is_file():
@@ -35,7 +42,7 @@ def inventory(project_root: str|None=None) -> dict[str,dict[str,Any]]:
     mem_missing=[name for name in mem_refs if not os.getenv(name)]
     data={
       "smart_explore":{"available":True,"adapter":"native","identity":{"engine":str(se),"project_root":root}},
-      "ccc":{"available":bool(ccc and (Path(root)/".cocoindex_code"/"settings.yml").exists()),"adapter":ccc,"identity":{"project_root":root,"settings":str(Path(root)/".cocoindex_code"/"settings.yml"),"index":str(Path(root)/".cocoindex_code"/"target_sqlite.db")}},
+      "ccc":{"available":bool(ccc and ccc_settings.exists() and ccc_ready),"adapter":ccc,"identity":{"project_root":root,"settings":str(ccc_settings),"index":str(Path(root)/".cocoindex_code"/"target_sqlite.db"),"health_file":str(ccc_health_file),"health":ccc_health or {"state":"unrecorded"}},"next_action":None if ccc_ready else ccc_health.get("next_action","repair CCC health and retry")},
       "docstore":{"available":bool(doc_cmd),"adapter":doc_cmd,"identity":{"transport":"json-stdio","command_config":"PROPRIA_DOCSTORE_ADAPTER"}},
     }
     for name in ("codex_memory","claude_memory","cnf","remember","memsearch"):
@@ -148,6 +155,7 @@ def recall(query:str, project_root:str|None=None, mode:str="auto", stores:list[s
       if run["requested"] and not run["available"]:
         if run["store"]=="docstore": next_actions.append("configure PROPRIA_DOCSTORE_ADAPTER and retry")
         elif run["store"]=="memsearch": next_actions.append(ident["memsearch"].get("next_action") or "repair memsearch health and retry")
+        elif run["store"]=="ccc": next_actions.append(ident["ccc"].get("next_action") or "repair CCC health and retry")
         else: next_actions.append(f"make the {run['store']} adapter available and retry")
       elif run["requested"] and run["error"]:
         next_actions.append(f"inspect the {run['store']} error and retry that selected store")
@@ -170,7 +178,10 @@ def persist_packet(packet:dict, output_dir:str|None=None)->dict:
     for store in STORE_NAMES:nodes.append({"id":f"store:{store}","type":"store","label":store})
     nodes.extend([{"id":"governance:decision","type":"classification","label":"governing decisions"},{"id":"governance:contract","type":"classification","label":"final contracts"},{"id":"governance:supersession","type":"classification","label":"supersession"}])
     packet["graph"]={"nodes":nodes,"edges":edges}
-    packet["actionable_backlog"]=[{"priority":"critical","item":"Resolve each provenance conflict before relying on completion claims"}] if packet["conflicts"] else []
+    backlog=[]
+    if packet["conflicts"]: backlog.append({"priority":"critical","item":"Resolve each provenance conflict before relying on completion claims"})
+    backlog.extend({"priority":"critical" if not packet["attribution_clean"] else "normal","item":item} for item in packet.get("next_actions",[]))
+    packet["actionable_backlog"]=backlog
     jp=root/f"{run_id}.json"; mp=root/f"{run_id}.md"; jp.write_text(json.dumps(packet,indent=2,default=str),encoding="utf-8")
     mp.write_text(f"# Reconciliation packet {run_id}\n\nQuery: {packet['query']}\n\nAttribution clean: **{packet['attribution_clean']}**\n\nStores: {', '.join(x['store'] for x in packet['store_runs'] if x['queried'])}\n\nConflicts: {len(packet['conflicts'])}\nDecisions: {len(packet['decisions'])}\nContracts: {len(packet['contracts'])}\n",encoding="utf-8")
     packet["packet_path"]=str(jp); packet["packet_markdown_path"]=str(mp); jp.write_text(json.dumps(packet,indent=2,default=str),encoding="utf-8")
