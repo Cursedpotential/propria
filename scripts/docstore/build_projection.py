@@ -89,6 +89,11 @@ def build_projection(registry_path: Path, out_dir: Path, container_root: str) ->
     # treats as current-full-source. "excluded" roots are dropped by load_sources
     # itself, before this ever sees them.
     sources, _ = load_sources(registry_path, Path("."), multi_root_enabled=True)
+    # 2026-09-19 (Claude Code · Opus 5): load_sources() resolves each root, which follows a
+    # Windows junction to its target. The container registry keeps the DECLARED source_root,
+    # so files must land there (Propria/docs/<link>), never at the junction's real path.
+    declared = {entry.get("project_id"): Path(str(entry.get("source_root")).replace("\\", "/"))
+                for entry in json.loads(registry_path.read_bytes()).get("projects", [])}
     out_dir.mkdir(parents=True, exist_ok=True)
 
     hash_index: dict[str, str] = {}
@@ -99,7 +104,7 @@ def build_projection(registry_path: Path, out_dir: Path, container_root: str) ->
     for source in sources:
         if not source.root.is_relative_to(monorepo_root):
             raise ValueError(f"{source.project_id}: source root escapes monorepo_root")
-        source_relative = source.root.relative_to(monorepo_root)
+        source_relative = declared[source.project_id]
         stats = {"files": 0, "kept": 0, "omitted_empty": 0, "omitted_dup": 0}
 
         for fs_path, relative in iter_source_files(source):
