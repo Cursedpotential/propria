@@ -56,6 +56,50 @@ fn check_root(engine: &Engine, raw: &str) -> Result<PathBuf, (u16, String)> {
     Ok(p)
 }
 
+/// Media and archive extensions: a text search can never match inside them, and on this mount every
+/// read is a B2 download, so they are skipped without being fetched.
+const BINARY_EXT: &[&str] = &[
+    "mp3", "m4a", "wav", "aac", "ogg", "opus", "flac", "amr", "mp4", "mkv", "mov", "avi", "webm", "wmv", "3gp",
+    "jpg", "jpeg", "png", "gif", "bmp", "tiff", "heic", "webp", "ico", "psd", "zip", "gz", "tgz", "bz2", "xz",
+    "7z", "rar", "tar", "pdf", "docx", "xlsx", "pptx", "odt", "ods", "exe", "dll", "so", "dylib", "db",
+    "sqlite", "sqlite3", "bin", "iso", "dmg", "apk", "jar", "class", "woff", "woff2", "ttf", "otf",
+];
+
+fn is_binary_ext(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .is_some_and(|e| BINARY_EXT.contains(&e.as_str()))
+}
+
+/// Read a file as text, sniffing the first 8 KB: a binary file costs 8 KB of B2 traffic, not its
+/// whole size. Returns the text and the bytes actually downloaded.
+fn read_text(path: &Path, remaining: u64) -> (Option<String>, u64) {
+    use std::io::Read;
+    let Ok(mut f) = std::fs::File::open(path) else { return (None, 0) };
+    let mut head = vec![0u8; 8192];
+    let n = match f.read(&mut head) {
+        Ok(n) => n,
+        Err(_) => return (None, 0),
+    };
+    head.truncate(n);
+    let read = n as u64;
+    if head.contains(&0) {
+        // A NUL byte in the first 8 KB: binary, and the rest is never downloaded.
+        return (None, read);
+    }
+    if n < 8192 {
+        return (String::from_utf8(head).ok(), read);
+    }
+    let mut rest = Vec::new();
+    if f.take(remaining.saturating_sub(read)).read_to_end(&mut rest).is_err() {
+        return (None, read);
+    }
+    let total = read + rest.len() as u64;
+    head.extend_from_slice(&rest);
+    (String::from_utf8(head).ok(), total)
+}
+
 struct Scan {
     matches: Vec<Value>,
     files_read: u64,
@@ -99,6 +143,10 @@ fn scan(root: &Path, query: &str, max_results: usize, mut progress: impl FnMut(&
             st.skipped_large += 1;
             continue;
         }
+        if is_binary_ext(entry.path()) {
+            st.skipped_binary += 1;
+            continue;
+        }
         if st.files_read >= MAX_FILES {
             st.stopped = Some(format!("file cap reached: {MAX_FILES} files read"));
             break;
@@ -112,17 +160,13 @@ fn scan(root: &Path, query: &str, max_results: usize, mut progress: impl FnMut(&
             progress(&st, &current, false);
             last = Instant::now();
         }
-        let Ok(bytes) = std::fs::read(entry.path()) else { continue };
-        st.files_read += 1;
-        st.bytes_read += bytes.len() as u64;
-        if bytes.iter().take(8192).any(|b| *b == 0) {
-            st.skipped_binary += 1;
-            continue;
-        }
-        let Ok(text) = String::from_utf8(bytes) else {
+        let (text, downloaded) = read_text(entry.path(), MAX_BYTES - st.bytes_read);
+        st.bytes_read += downloaded;
+        let Some(text) = text else {
             st.skipped_binary += 1;
             continue;
         };
+        st.files_read += 1;
         if let Some((i, line)) = text.lines().enumerate().find(|(_, l)| l.to_lowercase().contains(&needle)) {
             let content = if line.len() > 500 {
                 let mut end = 500;
