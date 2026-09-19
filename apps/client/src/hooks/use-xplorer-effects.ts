@@ -858,6 +858,8 @@ export const useXplorerEffects = (deps: XplorerEffectsDeps) => {
     [navigateWithHistory],
   );
 
+  const searchHitRef = useRef<string | null>(null);
+
   // ── Content Search hit → open its source (Claude Code · Opus 5 · 2026-09-18) ─
   // Shows the Metadata panel, navigates the active pane to the file's folder and selects the file
   // (same pending-select path as the command palette). The preview is not opened, so a large chat
@@ -877,20 +879,31 @@ export const useXplorerEffects = (deps: XplorerEffectsDeps) => {
         setSelectedFiles(new Set([file.path]));
         return;
       }
-      pendingSelectRef.current = path;
+      // Not pendingSelectRef: that ref is consumed by the first `files` change, which is still the
+      // previous folder while a B2 listing loads. This one waits for the file itself to appear.
+      searchHitRef.current = path;
       navigateWithHistory(parent);
     },
     [
       files,
       currentPath,
       navigateWithHistory,
-      pendingSelectRef,
       setSelectedFile,
       setSelectedFiles,
       setRightSidebarCollapsed,
       setRightPanelTab,
     ],
   );
+  useEffect(() => {
+    const target = searchHitRef.current;
+    if (!target) return;
+    const file = files.find((f) => f.path === target);
+    if (file) {
+      searchHitRef.current = null;
+      setSelectedFile(file);
+      setSelectedFiles(new Set([file.path]));
+    }
+  }, [files, setSelectedFile, setSelectedFiles]);
 
   // ── Command Palette commands ──────────────────────────────────────────────
   const builtinCommands = useCommandPaletteCommands({
