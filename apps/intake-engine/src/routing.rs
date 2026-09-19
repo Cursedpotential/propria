@@ -62,7 +62,21 @@ pub async fn engine_command(engine: &Arc<Engine>, name: &str, args: &Map<String,
             // Content Search (filesystem_index_search) needs the Intake filesystem index service;
             // the UI reads this instead of firing searches that can only fail (2026-09-18).
             "filesystem_search": std::env::var("INTAKE_FILESYSTEM_API_URL").is_ok_and(|v| !v.trim().is_empty()),
+            // Index-first Content Search over the chats index (PG FTS + Weaviate), 2026-09-18.
+            "chat_index": engine.catalog.is_some(),
+            "live_folder_search": {
+                "max_files": crate::live_search::MAX_FILES,
+                "max_bytes": crate::live_search::MAX_BYTES,
+                "max_file_bytes": crate::live_search::MAX_FILE_BYTES,
+                "progress_event": crate::live_search::PROGRESS_EVENT,
+            },
         })),
+        "intake_chat_index_info" => crate::chat_search::index_info(engine).await,
+        "intake_chat_search" => crate::chat_search::search(engine, args).await,
+        "intake_chat_event" => crate::chat_search::event(engine, args).await,
+        "intake_live_folder_search" => crate::live_search::live_folder_search(engine, args).await,
+        // Every caller of the donor's content grep gets the capped live scan (never the whole mount).
+        "grep_search" => crate::live_search::grep_search(engine, args).await,
         "intake_file_metadata" => {
             let Some(path) = s(args, "path", "path") else {
                 return Some(Err(bad("path is required")));

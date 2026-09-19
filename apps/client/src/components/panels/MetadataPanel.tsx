@@ -10,7 +10,13 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import React, { useState } from 'react';
-import { TauriAPI, type IntakeCatalogLookup, type IntakeFileMetadata } from '@/lib/tauri-api';
+import {
+  TauriAPI,
+  type ChatEventDetail,
+  type IntakeCatalogLookup,
+  type IntakeFileMetadata,
+} from '@/lib/tauri-api';
+import { setSelectedChatEvent, useSelectedChatEvent } from '@/lib/chat-event-selection';
 
 export interface MetadataPanelFile {
   name: string;
@@ -283,9 +289,88 @@ const Extracted = ({ meta }: { meta: IntakeFileMetadata }) => {
   );
 };
 
+/** The chats-index event opened from Content Search (Claude Code · Opus 5 · 2026-09-18). */
+const ChatEvent = ({ event }: { event: ChatEventDetail }) => (
+  <div className="space-y-2">
+    <Rows
+      rows={[
+        ['Date', event.date ?? '—'],
+        ['Time basis', [event.tz_status, event.ts_original].filter(Boolean).join(' · ') || '—'],
+        ['From', event.sender ?? '—'],
+        ['To', event.recipients ?? event.participants ?? '—'],
+        ['Conversation', event.conversation_title ?? '—'],
+        ['Format', [event.source_format, event.event_kind].filter(Boolean).join(' · ') || '—'],
+        [
+          'Tags',
+          event.tags.length
+            ? event.tags.map((t) => `${t.tag} (${t.confidence})`).join(', ')
+            : 'none',
+        ],
+        ['Copies', String(event.n_sources ?? '—')],
+        ['Vault key', event.vault_key ?? '—'],
+        ['Catalog path', event.catalog_rel ? `catalog://${event.catalog_rel}` : '—'],
+        ['Event id', event.dedup_key],
+      ]}
+    />
+    {event.attachments && <div className="break-all">Attachments: {event.attachments}</div>}
+    <pre className="bg-xp-surface-light max-h-72 overflow-auto whitespace-pre-wrap rounded p-2 text-[11px]">
+      {event.body ?? ''}
+    </pre>
+    {event.provenance.length > 0 && (
+      <div>
+        <div className="text-xp-text-muted mb-1">
+          Found in {event.provenance.length} source row{event.provenance.length === 1 ? '' : 's'}
+        </div>
+        <ul className="space-y-1">
+          {event.provenance.map((p, i) => (
+            <li key={i} className="border-xp-border break-all rounded border p-1">
+              {String(p.source_format ?? '')} · {String(p.extractor ?? '')} ·{' '}
+              {String(p.vault_key ?? '')}
+              {p.member_path ? ` › ${String(p.member_path)}` : ''}
+              {p.record_index != null ? ` #${String(p.record_index)}` : ''}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+    <p className="text-xp-text-muted">Source: {event.table} (chats index)</p>
+  </div>
+);
+
 const MetadataPanel = ({ selectedFile, selectedFiles }: MetadataPanelProps) => {
   const target = selectedFile ?? selectedFiles?.[0] ?? null;
   const path = target?.path ?? '';
+  const chat = useSelectedChatEvent();
+  const showChat = Boolean(chat) && (!target || target.path === chat?.sourcePath);
+  const chatEvent = useQuery({
+    queryKey: ['intake-chat-event', chat?.dedupKey],
+    queryFn: () => TauriAPI.getChatEvent(chat!.dedupKey),
+    enabled: showChat,
+    staleTime: 300_000,
+    retry: false,
+  });
+  const chatSection = showChat && (
+    <Section title="Chat event">
+      <div className="mb-2 flex justify-end">
+        <button
+          type="button"
+          className="text-xp-text-muted underline"
+          onClick={() => setSelectedChatEvent(null)}
+        >
+          Hide
+        </button>
+      </div>
+      {chatEvent.isLoading ? (
+        <p className="text-xp-text-muted">Loading the event…</p>
+      ) : chatEvent.error ? (
+        <ErrorLine
+          value={{ error: String((chatEvent.error as Error).message ?? chatEvent.error) }}
+        />
+      ) : (
+        chatEvent.data && <ChatEvent event={chatEvent.data} />
+      )}
+    </Section>
+  );
   const meta = useQuery({
     queryKey: ['intake-file-metadata', path],
     queryFn: () => TauriAPI.getIntakeFileMetadata(path),
@@ -302,6 +387,13 @@ const MetadataPanel = ({ selectedFile, selectedFiles }: MetadataPanelProps) => {
   });
 
   if (!target) {
+    if (chatSection) {
+      return (
+        <div className="h-full overflow-auto" data-testid="metadata-panel">
+          {chatSection}
+        </div>
+      );
+    }
     return <p className="text-xp-text-muted p-3 text-xs">Select a file to see its metadata.</p>;
   }
   const extra = (selectedFiles?.length ?? 0) > 1 ? selectedFiles!.length - 1 : 0;
@@ -317,6 +409,7 @@ const MetadataPanel = ({ selectedFile, selectedFiles }: MetadataPanelProps) => {
           </div>
         )}
       </div>
+      {chatSection}
       <Section title="Properties">
         {meta.isLoading ? (
           <p className="text-xp-text-muted">Reading…</p>

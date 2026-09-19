@@ -374,6 +374,10 @@ export const detectTsConfigInfo = async (dirPath: string): Promise<TsConfigInfo 
   if (!dirPath) return null;
 
   try {
+    // Only read a tsconfig.json that is listed: reading a missing one is a failed request (the
+    // hosted page logged a 422 for it on every load of a B2 folder). Claude Code · Opus 5 · 2026-09-18
+    const entries = await TauriAPI.readDirectory(dirPath);
+    if (!entries.some((e) => e.name === 'tsconfig.json')) return null;
     const content = await TauriAPI.readTextFile(`${dirPath}/tsconfig.json`);
     const parsed = JSON.parse(content) as Record<string, unknown>;
     const result: TsConfigInfo = {};

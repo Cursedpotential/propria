@@ -3,6 +3,7 @@ import { useWindowEvent } from '@/hooks/use-window-event';
 import { TauriAPI, type FileEntry } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { isTauri } from '@/lib/transport';
+import { OPEN_SEARCH_HIT_EVENT } from '@/lib/chat-event-selection';
 import { PATH_SEPARATOR } from '@/lib/constants';
 import { showInputToast } from '@/components/ui/Toast';
 import { formatError } from '@/lib/file-operation-helpers';
@@ -855,6 +856,40 @@ export const useXplorerEffects = (deps: XplorerEffectsDeps) => {
       if (path) navigateWithHistory(path);
     },
     [navigateWithHistory],
+  );
+
+  // ── Content Search hit → open its source (Claude Code · Opus 5 · 2026-09-18) ─
+  // Shows the Metadata panel, navigates the active pane to the file's folder and selects the file
+  // (same pending-select path as the command palette). The preview is not opened, so a large chat
+  // export is never read just because a hit was clicked.
+  useWindowEvent(
+    OPEN_SEARCH_HIT_EVENT,
+    (e: Event) => {
+      const path = (e as CustomEvent<{ path: string }>).detail?.path;
+      if (!path) return;
+      setRightSidebarCollapsed(false);
+      setRightPanelTab('metadata');
+      const cut = path.lastIndexOf('/');
+      const parent = cut > 0 ? path.slice(0, cut) : path;
+      const file = files.find((f) => f.path === path);
+      if (parent === currentPath && file) {
+        setSelectedFile(file);
+        setSelectedFiles(new Set([file.path]));
+        return;
+      }
+      pendingSelectRef.current = path;
+      navigateWithHistory(parent);
+    },
+    [
+      files,
+      currentPath,
+      navigateWithHistory,
+      pendingSelectRef,
+      setSelectedFile,
+      setSelectedFiles,
+      setRightSidebarCollapsed,
+      setRightPanelTab,
+    ],
   );
 
   // ── Command Palette commands ──────────────────────────────────────────────

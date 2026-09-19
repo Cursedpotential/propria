@@ -177,6 +177,11 @@ async fn move_on_mount(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 impl Catalog {
+    /// Read-only (metabase_ro) pool, shared with the chats index search (2026-09-18).
+    pub fn ro_pool(&self) -> &Pool {
+        &self.ro
+    }
+
     pub async fn connect() -> Result<Self, String> {
         let ro = pool("INTAKE_CATALOG_RO_USER", "INTAKE_CATALOG_RO_PASSWORD_FILE")?;
         let ops = pool("INTAKE_CATALOG_OPS_USER", "INTAKE_CATALOG_OPS_PASSWORD_FILE")?;

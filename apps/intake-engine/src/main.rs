@@ -4,8 +4,10 @@
 //! documented web-mode contract (`apps/web/content/docs/architecture/web-mode.mdx`).
 
 mod catalog;
+mod chat_search;
 mod donor_commands;
 mod http;
+mod live_search;
 mod media;
 mod routing;
 

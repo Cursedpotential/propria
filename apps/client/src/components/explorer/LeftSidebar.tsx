@@ -9,6 +9,9 @@ import React, {
 import { FileEntry } from '@/lib/tauri-api';
 // Byline: Claude Code · Sonnet · 2026-09-14 (activePaneRoot passthrough for the rg search method)
 import IntakeFilesystemSearchPanel from './IntakeFilesystemSearchPanel';
+// Byline: Claude Code · Opus 5 · 2026-09-18 (hosted Intake: index-first chats search + capped live folder search)
+import IntakeChatSearchPanel from './IntakeChatSearchPanel';
+import { isTauri } from '@/lib/transport';
 import SearchResultsPanel, {
   type SearchResultsPanelHandle,
 } from '@/components/explorer/SearchResultsPanel';
@@ -137,7 +140,14 @@ const LeftSidebar = forwardRef<LeftSidebarHandle, LeftSidebarProps>(function Lef
       )}
 
       {/* Search panel */}
-      {activeTabId === '__search__' && import.meta.env.VITE_INTAKE_MODE === '1' && (
+      {activeTabId === '__search__' && import.meta.env.VITE_INTAKE_MODE === '1' && !isTauri() && (
+        <IntakeChatSearchPanel
+          ref={searchPanelRef}
+          navigateToPath={navigateToPath}
+          activePaneRoot={currentPath}
+        />
+      )}
+      {activeTabId === '__search__' && import.meta.env.VITE_INTAKE_MODE === '1' && isTauri() && (
         <IntakeFilesystemSearchPanel
           ref={searchPanelRef}
           navigateToPath={navigateToPath}
