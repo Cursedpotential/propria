@@ -66,6 +66,8 @@ const IntakeChatSearchPanel = forwardRef<IntakeSearchHandle, Props>(
     const [from, setFrom] = useState('');
     const [to, setTo] = useState('');
     const [sourceFormat, setSourceFormat] = useState('all');
+    const [myWordsOnly, setMyWordsOnly] = useState(false);
+    const [topic, setTopic] = useState('all');
     const [result, setResult] = useState<ChatSearchResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -92,6 +94,8 @@ const IntakeChatSearchPanel = forwardRef<IntakeSearchHandle, Props>(
           from: from || undefined,
           to: to || undefined,
           sourceFormat: sourceFormat === 'all' ? undefined : sourceFormat,
+          speaker: myWordsOnly ? 'owner' : undefined,
+          topic: topic === 'all' ? undefined : topic,
           limit: 50,
         });
         if (id === requestId.current) setResult(response);
@@ -121,12 +125,11 @@ const IntakeChatSearchPanel = forwardRef<IntakeSearchHandle, Props>(
         <p role="status" className="text-xs" data-testid="chat-index-scope">
           {info.isError
             ? `${t('intakeChatSearch.indexUnavailable')}: ${String((info.error as Error)?.message ?? '')}`
-            : `${t('intakeChatSearch.searching')}: ${t('intakeChatSearch.chatsIndex')} (${fmt(scope?.events)} ${t('intakeChatSearch.events')})`}
+            : `${t('intakeChatSearch.searchingAll')} (${fmt(scope?.events)})`}
         </p>
         {scope && (
           <p className="text-xp-text-muted text-[11px]">
-            {scope.first} → {scope.last} · {t('intakeChatSearch.semanticOn')}{' '}
-            {fmt(scope.semantic_events)} · {t('intakeChatSearch.notFiles')}
+            {scope.first} → {scope.last} · {t('intakeChatSearch.notFiles')}
           </p>
         )}
         <form
@@ -141,6 +144,14 @@ const IntakeChatSearchPanel = forwardRef<IntakeSearchHandle, Props>(
             value={query}
             maxLength={500}
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              // Enter runs the search; the explorer's global key handling must not swallow it.
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                void search();
+              }
+            }}
             aria-label={t('intakeChatSearch.query')}
             placeholder={t('intakeChatSearch.query')}
             className="border-xp-border bg-xp-surface rounded border p-2 text-sm"
@@ -192,6 +203,32 @@ const IntakeChatSearchPanel = forwardRef<IntakeSearchHandle, Props>(
               />
             </label>
           </div>
+          {(scope?.speakers?.length ?? 0) > 0 && (
+            <label className="flex items-center gap-2 text-[11px]">
+              <input
+                type="checkbox"
+                checked={myWordsOnly}
+                onChange={(event) => setMyWordsOnly(event.target.checked)}
+                aria-label={t('intakeChatSearch.myWordsOnly')}
+              />
+              {t('intakeChatSearch.myWordsOnly')}
+            </label>
+          )}
+          {(scope?.topics?.length ?? 0) > 0 && (
+            <select
+              value={topic}
+              aria-label={t('intakeChatSearch.topic')}
+              onChange={(event) => setTopic(event.target.value)}
+              className="border-xp-border bg-xp-surface rounded border p-1 text-xs"
+            >
+              <option value="all">{t('intakeChatSearch.allTopics')}</option>
+              {(scope?.topics ?? []).map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             type="submit"
             disabled={loading || !query.trim() || info.isError}

@@ -43,6 +43,7 @@ export class TauriAPI {
   static getChatIndexInfo = intakeChatSearch.getChatIndexInfo;
   static searchChatIndex = intakeChatSearch.searchChatIndex;
   static getChatEvent = intakeChatSearch.getChatEvent;
+  static getChatTimeline = intakeChatSearch.getChatTimeline;
   static liveFolderSearch = intakeChatSearch.liveFolderSearch;
 
   // ── File system ─────────────────────────────────────────────────────────

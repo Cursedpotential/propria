@@ -15,6 +15,11 @@ import ResizeHandle from '@/components/ui/ResizeHandle';
 // Lazy-loaded panels -- only loaded when the user switches to their tab
 const PreviewPanel = React.lazy(() => import('./PreviewPanel'));
 const TokenizerStatusPanel = React.lazy(() => import('./TokenizerStatusPanel'));
+// Hosted Intake: the right rail's "Content Search" opens the one chats search, not the donor's
+// legacy tokenizer/AI-vision indexing screen (Claude Code · Opus 5 · 2026-09-18).
+const IntakeChatSearchPanel = React.lazy(
+  () => import('@/components/explorer/IntakeChatSearchPanel'),
+);
 const ExtensionsPanel = React.lazy(() => import('./ExtensionsPanel'));
 const MarketplacePanel = React.lazy(() => import('./MarketplacePanel'));
 const PerformanceDashboard = React.lazy(() => import('./PerformanceDashboard'));
@@ -511,7 +516,14 @@ const RightSidebar = ({
               if (rightPanelTab === 'tokenizer') {
                 return (
                   <ErrorBoundary>
-                    <TokenizerStatusPanel />
+                    {import.meta.env.VITE_INTAKE_MODE === '1' ? (
+                      <IntakeChatSearchPanel
+                        navigateToPath={navigateToPath ?? (() => {})}
+                        activePaneRoot={currentPath}
+                      />
+                    ) : (
+                      <TokenizerStatusPanel />
+                    )}
                   </ErrorBoundary>
                 );
               }

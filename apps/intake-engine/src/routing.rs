@@ -63,7 +63,8 @@ pub async fn engine_command(engine: &Arc<Engine>, name: &str, args: &Map<String,
             // the UI reads this instead of firing searches that can only fail (2026-09-18).
             "filesystem_search": std::env::var("INTAKE_FILESYSTEM_API_URL").is_ok_and(|v| !v.trim().is_empty()),
             // Index-first Content Search over the chats index (PG FTS + Weaviate), 2026-09-18.
-            "chat_index": engine.catalog.is_some(),
+            "chat_index": true,
+            "timeline": std::env::var("INTAKE_SURREAL_PASSWORD_FILE").is_ok(),
             "live_folder_search": {
                 "max_files": crate::live_search::MAX_FILES,
                 "max_bytes": crate::live_search::MAX_BYTES,
@@ -74,6 +75,8 @@ pub async fn engine_command(engine: &Arc<Engine>, name: &str, args: &Map<String,
         "intake_chat_index_info" => crate::chat_search::index_info(engine).await,
         "intake_chat_search" => crate::chat_search::search(engine, args).await,
         "intake_chat_event" => crate::chat_search::event(engine, args).await,
+        "intake_timeline" => crate::timeline::timeline(engine, args).await,
+        "intake_timeline_day_counts" => crate::timeline::day_counts(engine, args).await,
         "intake_live_folder_search" => crate::live_search::live_folder_search(engine, args).await,
         // Every caller of the donor's content grep gets the capped live scan (never the whole mount).
         "grep_search" => crate::live_search::grep_search(engine, args).await,

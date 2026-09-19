@@ -63,7 +63,12 @@
     "files": "ファイル",
     "liveMatches": "件の一致ファイル",
     "liveSkippedLarge": "件（20 MB 超）をスキップ",
-    "liveStopped": "停止"
+    "liveStopped": "停止",
+    "searchingAll": "すべてのチャットを検索",
+    "myWordsOnly": "自分の発言のみ",
+    "topic": "トピック",
+    "allTopics": "すべてのトピック",
+    "timelineNotLoaded": "タイムラインは未読み込みです"
   },
   "common": {
     "ok": "OK",

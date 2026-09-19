@@ -63,7 +63,12 @@
     "files": "files",
     "liveMatches": "matching files",
     "liveSkippedLarge": "skipped over 20 MB",
-    "liveStopped": "Stopped"
+    "liveStopped": "Stopped",
+    "searchingAll": "Searching all chats",
+    "myWordsOnly": "My words only",
+    "topic": "Topic",
+    "allTopics": "All topics",
+    "timelineNotLoaded": "Timeline not loaded yet"
   },
   "common": {
     "ok": "OK",

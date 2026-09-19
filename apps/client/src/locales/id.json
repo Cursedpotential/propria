@@ -63,7 +63,12 @@
     "files": "file",
     "liveMatches": "file cocok",
     "liveSkippedLarge": "dilewati (di atas 20 MB)",
-    "liveStopped": "Berhenti"
+    "liveStopped": "Berhenti",
+    "searchingAll": "Mencari semua obrolan",
+    "myWordsOnly": "Hanya kata-kata saya",
+    "topic": "Topik",
+    "allTopics": "Semua topik",
+    "timelineNotLoaded": "Linimasa belum dimuat"
   },
   "common": {
     "ok": "OK",

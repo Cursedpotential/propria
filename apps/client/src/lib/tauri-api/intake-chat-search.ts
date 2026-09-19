@@ -8,14 +8,18 @@ export type ChatPerson = 'all' | 'katrina' | 'daughter';
 export interface ChatIndexInfo {
   available: boolean;
   name: string;
-  events: number;
+  events: number | null;
   first: string | null;
   last: string | null;
-  katrina_events: number;
-  daughter_events: number;
+  katrina_events: number | null;
+  daughter_events: number | null;
   semantic_events: number | null;
+  staging_events: number | null;
   semantic_error: string | null;
   formats: { format: string | null; events: number }[];
+  /** Filters that only exist once the ingest has written those properties. */
+  speakers: string[];
+  topics: string[];
 }
 
 export interface ChatTag {
@@ -37,6 +41,9 @@ export interface ChatSearchHit {
   n_sources: number | null;
   tags: ChatTag[];
   snippet: string;
+  speaker?: string | null;
+  service?: string | null;
+  topics?: string | null;
   vault_key: string | null;
   source_path: string | null;
   catalog_path: string | null;
@@ -60,7 +67,19 @@ export interface ChatSearchParams {
   from?: string;
   to?: string;
   sourceFormat?: string;
+  /** "My words only" once the AI-chat ingest tags turns with a speaker. */
+  speaker?: string;
+  topic?: string;
   limit?: number;
+}
+
+export interface TimelineResult {
+  available: boolean;
+  reason?: string;
+  note?: string;
+  function?: string;
+  count?: number;
+  events?: Array<Record<string, unknown>>;
 }
 
 export interface ChatEventDetail {
@@ -128,6 +147,13 @@ export const getChatIndexInfo = async (): Promise<ChatIndexInfo> =>
 
 export const searchChatIndex = async (params: ChatSearchParams): Promise<ChatSearchResponse> =>
   await transport('intake_chat_search', { ...params });
+
+export const getChatTimeline = async (params: {
+  person?: ChatPerson;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<TimelineResult> => await transport('intake_timeline', { ...params });
 
 export const getChatEvent = async (dedupKey: string): Promise<ChatEventDetail> =>
   await transport('intake_chat_event', { dedupKey });

@@ -19,4 +19,5 @@ export type {
   LiveFolderMatch,
   LiveFolderProgress,
   LiveFolderSearchResult,
+  TimelineResult,
 } from './tauri-api/intake-chat-search';

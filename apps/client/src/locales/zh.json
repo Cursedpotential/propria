@@ -63,7 +63,12 @@
     "files": "个文件",
     "liveMatches": "个匹配文件",
     "liveSkippedLarge": "个超过 20 MB 已跳过",
-    "liveStopped": "已停止"
+    "liveStopped": "已停止",
+    "searchingAll": "搜索全部聊天",
+    "myWordsOnly": "仅我说的话",
+    "topic": "主题",
+    "allTopics": "所有主题",
+    "timelineNotLoaded": "时间线尚未加载"
   },
   "common": {
     "ok": "确定",

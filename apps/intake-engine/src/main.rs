@@ -10,6 +10,7 @@ mod http;
 mod live_search;
 mod media;
 mod routing;
+mod timeline;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
