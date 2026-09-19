@@ -1,25 +1,39 @@
 ---
 name: docs-write
-description: Register a new probata document or publish a new version of an existing one in the SurrealDB docs store (blueprint/infrastructure/decision/todo/handoff/review/reference, domains probata/proffer/consignatio/advocatio/vestigia/indagatio/intake/workbench/knowledge/memory/infra/docs). Use whenever a Write/Edit under docs/** just happened (the PostToolUse hook flags it as unregistered), or when content needs to enter the store for the first time. Only the docstore-librarian agent writes.
-allowed-tools: mcp__plugin_propria-docstore_docs__run mcp__plugin_propria-docstore_docs__list Read
+description: Publish a new version of an existing probata document in the SurrealDB docs store, or register a FILE-LESS note/decision/record (no file on disk). Domains probata/proffer/consignatio/advocatio/vestigia/indagatio/intake/workbench/knowledge/memory/infra/docs. Only the docstore-librarian agent writes.
+allowed-tools: mcp__plugin_propria_docstore_docs__run mcp__plugin_propria_docstore_docs__list Read
 ---
 
 # Docs write
 
-**Scope (owner 2026-09-14):** files under a Docstore registry root (Probata
-`docs/**`, Consignatio, Legal-desktop, family-court, vestigia, Propria root docs)
-are indexed by the CocoIndex pipeline. **Never hand-register those** with
-`fn::docs_register` — the `document.content_hash` UNIQUE index makes a hand row
-collide with the pipeline's own row and fail the run. This skill is for
-file-less notes and records only.
+**Read this before calling `fn::docs_register` (owner rule, reinforced
+2026-09-16).** A file under a registry root — Probata `docs/**`, Consignatio,
+Legal-desktop, family-court, vestigia, Propria root docs — is entered into
+the store by **writing the file itself** (with `tags:` front matter or a
+`<!-- tags: a, b -->` comment); the CocoIndex pipeline indexes it on its next
+run. **Never call `fn::docs_register`/`fn::docs_new_version` for a file the
+pipeline owns** — `document.content_hash` is `UNIQUE`, so a hand-written row
+collides with the pipeline's own row for that file and fails the run (see
+`docstore` skill's routing table). The PostToolUse hook flagging a just-
+written docs file as "unregistered" is a reminder that the pipeline hasn't
+run yet, not an instruction to hand-register it.
 
-**Tags are required when submitting (owner 2026-09-14 21:06).** For a file:
-front matter `tags: [topic, ...]` or `<!-- tags: topic, ... -->` in the body;
-the pipeline carries them into `document.tags`. For a file-less note: put the
-same comment in `$body` AND call `fn::docs_set_tags($id, $tags, $actor)` right
-after `fn::docs_register`. Query by tag with `fn::docs_tagged`.
+`fn::docs_register` in THIS skill is for **file-less** content only: a note,
+decision banner, or record that has no corresponding file on disk. If what
+you're registering has a `source_path` under a registry root, stop — write
+the file there instead and let CocoIndex index it.
 
-Definition of done for a file-less note is a **store record id with tags**.
+Definition of done for this skill is a **store record id**, not a saved
+file. A file on disk that never got registered through this path is a
+file-less note that still needs one — not a repo file waiting for a hand
+`docs_register` call.
+
+**Record-id arguments over MCP `run`:** every `$old_id`/`$new_id` below is a
+placeholder — when you substitute a real id, wrap it in the `$ql` sentinel:
+`{"$ql": "document:xyz"}`, never a bare `document:xyz` string. A bare string
+fails with `Failed to coerce argument ... Expected record<document> but
+found 'document:xyz'` (reproduced live 2026-09-16). See
+`references/functions.md` for the worked example.
 
 ## New document
 
@@ -70,3 +84,5 @@ refuse to `DELETE`, refuse to skip the duplicate-check by racing
 
 See `references/functions.md` for exact signatures, the ASSERT lists, and a
 worked example.
+
+**Tags remain required (owner 2026-09-14).** Include a tags comment in the body and set record tags with fn::docs_set_tags after writing file-less content.

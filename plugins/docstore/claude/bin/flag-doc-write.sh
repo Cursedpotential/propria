@@ -14,7 +14,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/_pybin.sh"
 PY="$(pybin)"
 
-INPUT="$(cat 2>/dev/null || true)"
+INPUT="$(timeout 5 cat 2>/dev/null || true)"
 FILE="$(printf '%s' "$INPUT" | "$PY" -c "
 import sys, json
 try:
