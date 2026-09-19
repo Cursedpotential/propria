@@ -245,9 +245,11 @@ const IntakeChatSearchPanel = forwardRef<IntakeSearchHandle, Props>(
         {result && (
           <>
             <p className="text-xp-text-muted text-[11px]" data-testid="chat-search-summary">
-              {result.hits.length} {t('intakeChatSearch.shown')} · {fmt(result.keyword_matches)}{' '}
-              {t('intakeChatSearch.keywordMatches')} · {result.semantic_mode} ·{' '}
-              {result.timings_ms.total} ms
+              {result.hits.length} {t('intakeChatSearch.shown')}
+              {typeof result.keyword_matches === 'number'
+                ? ` · ${fmt(result.keyword_matches)} ${t('intakeChatSearch.keywordMatches')}`
+                : ''}{' '}
+              · {result.timings_ms.total} ms
             </p>
             {result.notes.map((note) => (
               <p key={note} className="text-xp-text-muted text-[11px]">
