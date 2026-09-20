@@ -30,7 +30,8 @@ RUN apt-get update \
        /data/proffer/source-objects \
        /data/proffer/parser-bundles \
        /data/proffer/normalized-bundles \
-       /data/proffer/inventory-manifests \n       /data/proffer/derive-scratch
+       /data/proffer/inventory-manifests \
+       /data/proffer/derive-scratch
 
 COPY --from=builder /out/proffer-worker /usr/local/bin/proffer-worker
 # derive-sms (2026-09-20): SBV streams a large SMS XML into per-thread NDJSON + media beside the source.
