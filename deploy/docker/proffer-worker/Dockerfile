@@ -17,6 +17,8 @@ RUN CGO_ENABLED=1 go build \
     -ldflags="-s -w" \
     -o /out/proffer-worker \
     ./cmd/proffer-worker
+RUN CGO_ENABLED=1 go build -mod=vendor -tags fts5 -trimpath -ldflags="-s -w" \
+    -o /out/derive-sms ./cmd/derive-sms
 
 FROM debian:bookworm-slim
 
