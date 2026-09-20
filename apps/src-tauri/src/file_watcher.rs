@@ -107,17 +107,23 @@ fn generate_watcher_id() -> String {
     format!("watcher-{ts}-{r:08x}")
 }
 
-fn map_event_kind(kind: &notify::EventKind) -> &'static str {
+// Returns None for events that are not changes. On Linux (inotify) merely listing the
+// watched directory emits Access(Open/Close); reporting those as "file-modified" makes
+// the client refetch, which lists the directory again -- an endless ~1.3 s loop in the
+// hosted Intake engine (found live 2026-09-20). Windows never reports reads.
+// Byline: Claude Code · Fable 5.1 · 2026-09-20
+fn map_event_kind(kind: &notify::EventKind) -> Option<&'static str> {
     use notify::event::{ModifyKind, RenameMode};
     use notify::EventKind::*;
     match kind {
-        Create(_) => "file-created",
-        Remove(_) => "file-deleted",
-        Modify(ModifyKind::Name(RenameMode::Both)) => "file-renamed",
-        Modify(ModifyKind::Name(RenameMode::From)) => "file-deleted",
-        Modify(ModifyKind::Name(RenameMode::To)) => "file-created",
-        Modify(_) => "file-modified",
-        _ => "file-modified",
+        Access(_) => None,
+        Create(_) => Some("file-created"),
+        Remove(_) => Some("file-deleted"),
+        Modify(ModifyKind::Name(RenameMode::Both)) => Some("file-renamed"),
+        Modify(ModifyKind::Name(RenameMode::From)) => Some("file-deleted"),
+        Modify(ModifyKind::Name(RenameMode::To)) => Some("file-created"),
+        Modify(_) => Some("file-modified"),
+        _ => Some("file-modified"),
     }
 }
 
@@ -150,7 +156,9 @@ pub async fn watch_directory(
             Ok(events) => {
                 for event in events {
                     let DebouncedEvent { event: ev, .. } = &event;
-                    let event_type = map_event_kind(&ev.kind);
+                    let Some(event_type) = map_event_kind(&ev.kind) else {
+                        continue;
+                    };
                     for p in &ev.paths {
                         let payload = FileChangeEvent {
                             watcher_id: id_for_callback.clone(),
