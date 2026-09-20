@@ -73,6 +73,8 @@ func mountPreviewRoutes(existing, preview http.Handler) (http.Handler, error) {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("POST /reference-import/start", preview)
+	mux.Handle("GET /reference-import/operations", preview)
+	mux.Handle("GET /reference-import/operations/", preview)
 	mux.Handle("GET /reference-import/previews/", preview)
 	mux.Handle("POST /reference-import/previews/", preview)
 	mux.Handle("/", existing)
