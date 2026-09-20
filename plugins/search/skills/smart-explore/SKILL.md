@@ -93,4 +93,3 @@ substituted.
 
 Never stage DuckDB, SQLite, WAL, or other runtime state. Stale data may only be
 moved into the nearest owner-controlled to_be_deleted quarantine.
-
