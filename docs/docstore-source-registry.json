@@ -2,21 +2,65 @@
   "schema": "propria-docstore-source-registry-v1",
   "monorepo_root": "E:/AI_Workspace/Projects/Propria",
   "last_path_verification": {
-    "verified_at": "2026-09-13",
+    "verified_at": "2026-09-19",
     "required_roots_resolved": true,
     "scope": "local Propria checkout only",
     "ingestion_proof": false,
-    "note": "Path resolution does not prove CocoIndex execution, CDC attribution, deployment identity, or indexed content."
+    "note": "Roots are junctions under Propria/docs into modules/*. Path resolution does not prove CocoIndex execution, CDC attribution, deployment identity, or indexed content."
   },
+  "blocked_patterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/to_be_deleted/**",
+    "**/.claude/**",
+    "**/.memsearch/**",
+    "**/.remember/**",
+    "**/.cnf/**",
+    "**/.codex/**",
+    "**/.agents/**",
+    "**/.venv/**",
+    "**/.pytest_cache/**",
+    "**/vendor/**",
+    "**/_stale/**",
+    "**/_v1-superseded/**",
+    "**/runtime-codex/**",
+    "**/go-mod/**",
+    "**/cache/**",
+    "**/_intake/**",
+    "**/samples/**",
+    "**/exports/**",
+    "**/COMPACT-SUMMARY-*.md",
+    "COMPACT-SUMMARY-*.md",
+    ".*/**",
+    "**/.*/**"
+  ],
   "projects": [
     {
       "project_id": "propria",
-      "title": "Propria monorepo governance and shared documentation",
-      "source_root": ".",
-      "canonical_prefix": "propria",
-      "domains": ["docs", "infra"],
-      "included_patterns": ["AGENTS.md", "AGENT_MEMORY.md", "CLAUDE.md", "SYSTEM-BOUNDARIES.md", "RESULT-PRESENTATION-CONTRACT.md", "SURFACE-DESIGN-CONTRACT.md", "docs/**/*.md"],
-      "excluded_patterns": ["Probata/**", "Consignatio/**", "FL-MCP/**", "design-contract/**", "projects/**", "resources/**", "**/to_be_deleted/**", "**/COMPACT-SUMMARY-*.md"],
+      "title": "Propria shared documentation (Propria/docs itself)",
+      "source_root": "docs",
+      "canonical_prefix": "propria/docs",
+      "domains": [
+        "docs",
+        "infra"
+      ],
+      "included_patterns": [
+        "**/*.md"
+      ],
+      "excluded_patterns": [
+        "probata/**",
+        "consignatio/**",
+        "consignatio-intake/**",
+        "advocatio/**",
+        "vestigia/**",
+        "family-court/**",
+        ".docstore/**",
+        "**/to_be_deleted/**",
+        "**/.remember/**",
+        "**/.cnf/**",
+        "**/.codex/**",
+        "**/.agents/**"
+      ],
       "registration_status": "active",
       "ingestion_status": "pending-multi-root-cdc",
       "required": true
@@ -24,62 +68,147 @@
     {
       "project_id": "probata",
       "title": "Indicia Probata",
-      "source_root": "Probata/probata/docs",
+      "source_root": "docs/probata",
       "canonical_prefix": "docs",
-      "domains": ["probata", "proffer", "knowledge", "memory", "docs"],
-      "included_patterns": ["**/*.md"],
-      "excluded_patterns": ["private/**", "**/to_be_deleted/**"],
+      "domains": [
+        "probata",
+        "proffer",
+        "knowledge",
+        "memory",
+        "docs"
+      ],
+      "included_patterns": [
+        "**/*.md"
+      ],
+      "excluded_patterns": [
+        "private/**",
+        "**/to_be_deleted/**",
+        "**/.remember/**",
+        "**/.cnf/**",
+        "**/.codex/**",
+        "**/.agents/**"
+      ],
       "registration_status": "active",
       "ingestion_status": "current-full-source",
       "required": true
     },
     {
       "project_id": "consignatio",
-      "title": "Consignatio and Intake",
-      "source_root": "projects/consignatio",
-      "canonical_prefix": "consignatio",
-      "domains": ["consignatio", "intake", "docs"],
-      "included_patterns": ["**/*.md"],
-      "excluded_patterns": ["**/node_modules/**", "**/dist/**", "**/to_be_deleted/**", "**/COMPACT-SUMMARY-*.md"],
+      "title": "Consignatio",
+      "source_root": "docs/consignatio",
+      "canonical_prefix": "consignatio/docs",
+      "domains": [
+        "consignatio",
+        "docs"
+      ],
+      "included_patterns": [
+        "**/*.md"
+      ],
+      "excluded_patterns": [
+        "**/to_be_deleted/**",
+        "**/.remember/**",
+        "**/.cnf/**",
+        "**/.codex/**",
+        "**/.agents/**"
+      ],
       "registration_status": "active",
       "ingestion_status": "pending-multi-root-cdc",
       "required": true
     },
     {
-      "project_id": "family-court-workbench",
-      "title": "Family Court Workbench",
-      "source_root": "projects/family-court-workbench",
-      "canonical_prefix": "family-court-workbench",
-      "domains": ["workbench", "docs"],
-      "included_patterns": ["**/*.md"],
-      "excluded_patterns": ["**/node_modules/**", "**/dist/**", "**/to_be_deleted/**"],
+      "project_id": "consignatio-intake",
+      "title": "Consignatio Intake",
+      "source_root": "docs/consignatio-intake",
+      "canonical_prefix": "consignatio/Intake/docs",
+      "domains": [
+        "consignatio",
+        "intake",
+        "docs"
+      ],
+      "included_patterns": [
+        "**/*.md"
+      ],
+      "excluded_patterns": [
+        "**/to_be_deleted/**",
+        "**/.remember/**",
+        "**/.cnf/**",
+        "**/.codex/**",
+        "**/.agents/**"
+      ],
       "registration_status": "active",
       "ingestion_status": "pending-multi-root-cdc",
       "required": true
     },
     {
       "project_id": "advocatio",
-      "title": "Advocatio legal workbench",
-      "source_root": "Probata/probata/modules/advocatio-legal_workbench",
-      "canonical_prefix": "advocatio",
-      "domains": ["advocatio", "docs"],
-      "included_patterns": ["**/*.md"],
-      "excluded_patterns": ["**/node_modules/**", "**/to_be_deleted/**", "**/_stale/**"],
+      "title": "Advocatio legal workbench (Legal-desktop)",
+      "source_root": "docs/advocatio",
+      "canonical_prefix": "advocatio/docs",
+      "domains": [
+        "advocatio",
+        "docs"
+      ],
+      "included_patterns": [
+        "**/*.md"
+      ],
+      "excluded_patterns": [
+        "planning/original-context/**",
+        "**/to_be_deleted/**",
+        "**/.remember/**",
+        "**/.cnf/**",
+        "**/.codex/**",
+        "**/.agents/**"
+      ],
       "registration_status": "active",
       "ingestion_status": "pending-multi-root-cdc",
       "required": true
     },
     {
       "project_id": "vestigia",
-      "title": "Vestigia geodata and TraceIQ",
-      "source_root": "Probata/probata/modules/vestigia-geodata_processor",
-      "canonical_prefix": "vestigia",
-      "domains": ["vestigia", "docs"],
-      "included_patterns": ["**/*.md"],
-      "excluded_patterns": ["**/node_modules/**", "**/to_be_deleted/**", "**/_stale/**"],
+      "title": "Vestigia (formerly TraceIQ) rebuild",
+      "source_root": "docs/vestigia",
+      "canonical_prefix": "vestigia/traceiq-rebuild/docs",
+      "domains": [
+        "vestigia",
+        "docs"
+      ],
+      "included_patterns": [
+        "**/*.md"
+      ],
+      "excluded_patterns": [
+        "**/to_be_deleted/**",
+        "**/.remember/**",
+        "**/.cnf/**",
+        "**/.codex/**",
+        "**/.agents/**"
+      ],
+      "registration_status": "active",
+      "ingestion_status": "pending-multi-root-cdc",
+      "required": true
+    },
+    {
+      "project_id": "family-court-workbench",
+      "title": "Family Court Workbench (FL-MCP)",
+      "source_root": "docs/family-court",
+      "canonical_prefix": "family-court-workbench/docs",
+      "domains": [
+        "workbench",
+        "docs"
+      ],
+      "included_patterns": [
+        "**/*.md"
+      ],
+      "excluded_patterns": [
+        "**/to_be_deleted/**",
+        "**/.remember/**",
+        "**/.cnf/**",
+        "**/.codex/**",
+        "**/.agents/**"
+      ],
       "registration_status": "active",
       "ingestion_status": "pending-multi-root-cdc",
       "required": true
     }
-  ]
+  ],
+  "byline": "Claude Code · Opus 5 · 2026-09-19 — owner: Propria/docs is the one Docstore root for the entire project; each module docs folder is a junction under it. Prefixes keep the pre-move document IDs."
 }

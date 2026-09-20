@@ -2,24 +2,25 @@
   "schema": "propria-monorepo-migration-v1",
   "root": "E:/AI_Workspace/Projects/Propria",
   "owner_decision_date": "2026-09-12",
-  "last_verified_at": "2026-09-13",
-  "target_directories": ["projects", "resources", "docs", "tools"],
+  "last_verified_at": "2026-09-20",
+  "target_directories": [
+    "modules",
+    "docs",
+    "scripts",
+    "plugins",
+    "design-contract"
+  ],
   "sources": [
     {
       "id": "consignatio",
-      "source": "Consignatio",
-      "target": "projects/consignatio",
-      "state": "imported_overlay_duplicate_reconciliation_pending",
-      "canonical_authority": "Consignatio",
+      "source": "modules/Consignatio",
+      "target": "modules/Consignatio",
+      "state": "independent_repository_relocated",
+      "canonical_authority": "modules/Consignatio",
       "canonical_git_root": true,
-      "target_authority": "duplicate_overlay_only",
+      "target_authority": "none",
       "ownership": "owned",
-      "git_head": "fa4f249",
-      "remote_main_head": "1db6e9dd07a1044db3204d9efa92d3fcedf28331",
-      "local_main_behind_remote": 2,
-      "git_tree": "45dffef2308ff9a3ace79f0a6810585307d64bb2",
       "root_import_commit": "9a5ed62743b9ea125b17740dbae671c83083733c",
-      "dirty": true,
       "source_preserved": true,
       "source_status_paths_after_import": 85,
       "source_status_paths_precommit_recheck": 53,
@@ -37,129 +38,309 @@
         "intake_frontend_tests_passed": 19,
         "intake_frontend_build": "passed"
       },
-      "receipt": "docs/CONSIGNATIO-OVERLAY-MIGRATION-2026-09-12.md"
+      "receipt": "docs/CONSIGNATIO-OVERLAY-MIGRATION-2026-09-12.md",
+      "state_history": [
+        {
+          "state": "imported_overlay_duplicate_reconciliation_pending",
+          "until": "2026-09-18"
+        }
+      ],
+      "relocation": {
+        "overlay_quarantined_to": "Consignatio/to_be_deleted/2026-09-17-projects-consignatio-overlay-from-2026-09-12",
+        "overlay_history_commit": "ffc085b",
+        "note": "2026-09-18 10:46 moved into projects/consignatio, reversed 11:05 by owner order (\"Propria is the project\"); repo stays at Propria/Consignatio"
+      },
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Consignatio",
+          "target": null,
+          "state": "canonical_in_place_overlay_quarantined",
+          "git_head": "fa4f249",
+          "remote_main_head": "1db6e9dd07a1044db3204d9efa92d3fcedf28331",
+          "local_main_behind_remote": 2,
+          "git_tree": "45dffef2308ff9a3ace79f0a6810585307d64bb2",
+          "dirty": true
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/Consignatio",
+      "current_branch": "main"
     },
     {
       "id": "probata",
-      "source": "Probata/probata",
-      "target": "projects/probata",
-      "state": "source",
+      "source": "modules/Probata/probata",
+      "target": "modules/Probata/probata",
+      "state": "independent_repository_relocated",
       "ownership": "owned",
-      "git_head": "2a26edfcd31c319a3bff3e3c1247f070dab92bdf",
-      "dirty": true,
-      "status_paths": 654,
-      "divergence": {"behind": 22, "ahead": 4},
-      "target_exists": false,
-      "linked_worktrees": [
-        "Probata/probata",
-        "C:/Users/matts/.codex/worktrees/41e3/probata",
-        "E:/AI_Workspace/Projects/Propria/_worktrees/probata-docstore-recall-latency",
-        "E:/AI_Workspace/Projects/Propria/_worktrees/probata-duckdb-live-test",
-        "E:/AI_Workspace/Projects/Propria/_worktrees/probata-integration-20260913",
-        "E:/AI_Workspace/Projects/Propria/_worktrees/probata-tool-runtime-rename"
+      "worktree_policy": "new Propria-owned worktrees use E:/AI_Workspace/Projects/Propria/_worktrees; existing linked worktrees move only after owner pause and Git-aware verification",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Probata/probata",
+          "target": "projects/probata",
+          "state": "source",
+          "git_head": "2a26edfcd31c319a3bff3e3c1247f070dab92bdf",
+          "dirty": true,
+          "status_paths": 654,
+          "divergence": {
+            "behind": 22,
+            "ahead": 4
+          },
+          "target_exists": false,
+          "linked_worktrees": [
+            "Probata/probata",
+            "C:/Users/matts/.codex/worktrees/41e3/probata",
+            "E:/AI_Workspace/Projects/Propria/_worktrees/probata-docstore-recall-latency",
+            "E:/AI_Workspace/Projects/Propria/_worktrees/probata-duckdb-live-test",
+            "E:/AI_Workspace/Projects/Propria/_worktrees/probata-integration-20260913",
+            "E:/AI_Workspace/Projects/Propria/_worktrees/probata-tool-runtime-rename"
+          ]
+        }
       ],
-      "worktree_policy": "new Propria-owned worktrees use E:/AI_Workspace/Projects/Propria/_worktrees; existing linked worktrees move only after owner pause and Git-aware verification"
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/Probata/probata",
+      "current_branch": "main"
     },
     {
       "id": "family-court-workbench",
-      "source": "FL-MCP",
-      "target": "projects/family-court-workbench",
-      "state": "imported",
+      "source": "modules/FL-MCP",
+      "target": "modules/FL-MCP",
+      "state": "root_owned_relocated",
       "ownership": "owned",
-      "compatibility_path": "FL-MCP",
-      "compatibility_type": "junction",
-      "verified_source_file_count": 96,
-      "excluded_generated_file_count": 26679
+      "verified_source_file_count": 106,
+      "excluded_generated_file_count": 26679,
+      "state_history": [
+        {
+          "state": "imported",
+          "target": "projects/family-court-workbench",
+          "until": "2026-09-18"
+        }
+      ],
+      "note_2026_09_18": "owner: Propria is the project; projects/ folder retired; git mv projects/family-court-workbench -> FL-MCP",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "FL-MCP",
+          "target": "FL-MCP",
+          "state": "imported_at_propria_root",
+          "compatibility_path": "FL-MCP",
+          "compatibility_type": "junction"
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence."
     },
     {
       "id": "design-contract",
       "source": "design-contract",
-      "target": "resources/design",
-      "state": "imported",
+      "target": "design-contract",
+      "state": "canonical_at_propria_root",
       "ownership": "owned",
-      "compatibility_path": "design-contract",
-      "compatibility_type": "junction",
-      "verified_file_count": 15
+      "verified_file_count": 15,
+      "state_history": [
+        {
+          "state": "imported",
+          "target": "resources/design",
+          "until": "2026-09-18"
+        }
+      ],
+      "note_2026_09_18": "owner: Propria is the project; resources/ retired; git mv resources/design -> design-contract",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "design-contract",
+          "target": "design-contract",
+          "state": "canonical_at_propria_root",
+          "compatibility_type": "junction"
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence."
     },
     {
       "id": "intake-desktop-fork",
-      "source": "Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
-      "target": "projects/consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
-      "state": "retained_external_pending_parent_import",
+      "source": "modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
+      "target": "modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
+      "state": "independent_repository_relocated",
       "ownership": "owned_fork_with_upstream",
-      "git_head": "6990b7ed",
-      "dirty": false,
-      "recommended_strategy": "retain private fork boundary during Consignatio import"
+      "recommended_strategy": "retain private fork boundary during Consignatio import",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
+          "target": "projects/consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
+          "state": "retained_external_pending_parent_import",
+          "git_head": "6990b7ed",
+          "dirty": false
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
+      "current_branch": "feat/hosted-intake-engine"
     },
     {
       "id": "xplorer-copilot-buildkit",
-      "source": "Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
-      "target": "projects/consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
-      "state": "retained_external_pending_parent_import",
+      "source": "modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
+      "target": "modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
+      "state": "independent_repository_relocated",
       "ownership": "owned",
-      "git_head": "d0954e3",
-      "dirty": false,
-      "recommended_strategy": "decide subtree import after Consignatio history import"
+      "recommended_strategy": "decide subtree import after Consignatio history import",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
+          "target": "projects/consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
+          "state": "retained_external_pending_parent_import",
+          "git_head": "d0954e3",
+          "dirty": false
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
+      "current_branch": "main"
     },
     {
       "id": "advocatio-legal-workbench",
-      "source": "Probata/probata/modules/advocatio-legal_workbench",
-      "target": "projects/probata/modules/advocatio-legal_workbench",
-      "state": "retained_external_pending_parent_import",
+      "source": "modules/Legal-desktop",
+      "target": "modules/Legal-desktop",
+      "state": "independent_repository_relocated",
       "ownership": "owned",
-      "git_head": "a44132f",
-      "dirty": false,
-      "recommended_strategy": "preserve independent history until Probata reconciliation"
+      "recommended_strategy": "retain independent Git history at owner-designated Legal-desktop; original build kit is reference material",
+      "canonical_authority": "modules/Legal-desktop",
+      "canonical_git_root": true,
+      "previous_source": "Probata/probata/modules/advocatio-legal_workbench",
+      "build_kit": "modules/Legal-desktop/resources/build-kit",
+      "owner_decision_date": "2026-09-13",
+      "receipt": "modules/Legal-desktop/docs/RECONCILIATION-2026-09-13.md",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Legal-desktop",
+          "target": "Legal-desktop",
+          "state": "canonical_independent_relocated",
+          "git_head": "a44132f",
+          "dirty": true
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/Legal-desktop",
+      "current_branch": "master"
     },
     {
       "id": "probata-custom-modules",
-      "source": "Probata/probata/modules/custom",
-      "target": "projects/probata/modules/custom",
+      "source": "modules/Probata/probata/modules/custom",
+      "target": "modules/Probata/probata/modules/custom",
       "state": "source",
       "ownership": "local_owned_unverified",
-      "git_head": "761847a",
-      "dirty": true,
-      "recommended_strategy": "inventory local-only content before import"
+      "recommended_strategy": "inventory local-only content before import",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Probata/probata/modules/custom",
+          "target": "projects/probata/modules/custom",
+          "state": "source",
+          "git_head": "761847a",
+          "dirty": true
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/Probata/probata/modules/custom",
+      "current_branch": "master"
     },
     {
       "id": "sbv",
-      "source": "Probata/probata/modules/forks/sbv",
-      "target": "projects/probata/modules/forks/sbv",
+      "source": "modules/Probata/probata/modules/forks/sbv",
+      "target": "modules/Probata/probata/modules/forks/sbv",
       "state": "existing_gitlink",
       "ownership": "fork_or_donor",
-      "git_head": "6927a23",
-      "dirty": true,
-      "recommended_strategy": "retain boundary until donor extraction is ruled"
+      "recommended_strategy": "retain boundary until donor extraction is ruled",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Probata/probata/modules/forks/sbv",
+          "target": "projects/probata/modules/forks/sbv",
+          "state": "existing_gitlink",
+          "git_head": "6927a23",
+          "dirty": true
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/Probata/probata/modules/forks/sbv",
+      "current_branch": "platform-sync"
     },
     {
       "id": "timesketch",
-      "source": "Probata/probata/modules/forks/timesketch",
-      "target": "projects/probata/modules/forks/timesketch",
+      "source": "modules/Probata/probata/modules/forks/timesketch",
+      "target": "modules/Probata/probata/modules/forks/timesketch",
       "state": "ignored_nested_repository",
       "ownership": "fork_or_donor",
-      "git_head": "00eff7d",
-      "dirty": false,
-      "recommended_strategy": "retain external dependency boundary"
+      "recommended_strategy": "retain external dependency boundary",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Probata/probata/modules/forks/timesketch",
+          "target": "projects/probata/modules/forks/timesketch",
+          "state": "ignored_nested_repository",
+          "git_head": "00eff7d",
+          "dirty": false
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/Probata/probata/modules/forks/timesketch",
+      "current_branch": "master"
     },
     {
       "id": "vestigia",
-      "source": "Probata/probata/modules/vestigia-geodata_processor",
-      "target": "projects/vestigia",
-      "state": "source",
+      "source": "modules/vestigia-geodata_processor",
+      "target": "modules/vestigia-geodata_processor",
+      "state": "independent_repository_relocated",
       "ownership": "owned",
-      "git_head": "e1a4acd",
-      "dirty": true,
-      "recommended_strategy": "reconcile independently before extracting from Probata"
+      "recommended_strategy": "reconcile independently before extracting from Probata",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Probata/probata/modules/vestigia-geodata_processor",
+          "target": "projects/vestigia",
+          "state": "source",
+          "git_head": "e1a4acd",
+          "dirty": true
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/vestigia-geodata_processor",
+      "current_branch": "main"
     },
     {
       "id": "traceiq-rebuild",
-      "source": "Probata/probata/modules/vestigia-geodata_processor/traceiq-rebuild",
-      "target": "projects/vestigia/traceiq-rebuild",
-      "state": "ignored_nested_repository",
+      "source": "modules/vestigia-geodata_processor/traceiq-rebuild",
+      "target": "modules/vestigia-geodata_processor/traceiq-rebuild",
+      "state": "independent_repository_relocated",
       "ownership": "owned",
-      "git_head": "0144af8",
-      "dirty": true,
-      "recommended_strategy": "preserve linked worktrees and reconcile before import"
+      "recommended_strategy": "preserve linked worktrees and reconcile before import",
+      "historical_snapshots": [
+        {
+          "recorded_before": "2026-09-20",
+          "source": "Probata/probata/modules/vestigia-geodata_processor/traceiq-rebuild",
+          "target": "projects/vestigia/traceiq-rebuild",
+          "state": "ignored_nested_repository",
+          "git_head": "0144af8",
+          "dirty": true
+        }
+      ],
+      "path_exists": true,
+      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/vestigia-geodata_processor/traceiq-rebuild",
+      "current_branch": "master"
     }
   ],
   "prohibited_content": [
@@ -171,5 +352,17 @@
     "model_artifacts",
     "worktrees",
     "cloud_mount_contents"
-  ]
+  ],
+  "current_scope": "Source routing only; module histories independent; deployment-owned duplicate scripts/plugins require a separate verified migration.",
+  "shared_source": {
+    "paths": [
+      "scripts",
+      "plugins"
+    ],
+    "state": "preserved_root_source_snapshot",
+    "provenance": "Originally present in Probata; moved root files preserved independently. See reconciliation receipt.",
+    "runtime_cutover": false,
+    "module_deployment_copies_retained": true,
+    "canonical_sync": "pending comparison with integrated Probata source"
+  }
 }

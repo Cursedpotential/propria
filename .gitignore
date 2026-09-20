@@ -1,6 +1,6 @@
 # =========================
 # Propria monorepo root ignore policy
-# Source belongs under projects/ and resources/. Data/runtime state does not.
+# Product routes use modules/; shared root tools use scripts/ and plugins/.
 # =========================
 
 # =========================
@@ -226,3 +226,24 @@ Secrets/
 # inclusion overrides the user-level `*token*.json` rule; generated tokens.css
 # remains derived from this tracked file.
 !/design-contract/tokens.json
+
+# Docstore root links (2026-09-19, owner): Propria/docs is the one Docstore root; these are
+# Windows junctions into each module's own docs folder, which that module's repo tracks.
+/docs/probata
+/docs/consignatio
+/docs/consignatio-intake
+/docs/advocatio
+/docs/vestigia
+/docs/family-court
+
+# Independent repositories relocated under modules; retain their own histories.
+/modules/Consignatio/
+/modules/Probata/
+/modules/Legal-desktop/
+/modules/vestigia-geodata_processor/
+
+# Local Docstore databases and credential backups are never source.
+/docs/.docstore/
+# Preserve only the tracked placeholder in plugin runtime state.
+/plugins/docstore/claude/.state/*
+!/plugins/docstore/claude/.state/.gitkeep
