@@ -117,7 +117,7 @@ async def test_handoff_write_is_typed_and_read_back(config, monkeypatch):
     async def execute(_config, sql, parameters):
         calls.append((sql, parameters))
         return {
-            "written": {"id": "document:new_handoff", "superseded": "document:old_handoff"},
+            "written": {"id": "document:new_handoff", "superseded": ["document:old_handoff"]},
             "created": {
                 "id": "document:new_handoff",
                 "title": parameters["title"],
@@ -127,7 +127,7 @@ async def test_handoff_write_is_typed_and_read_back(config, monkeypatch):
                 "status": "active",
                 "source_path": "handoff://engine-recovery/synthetic",
             },
-            "previous": {"id": "document:old_handoff", "status": "superseded"},
+            "previous": [{"id": "document:old_handoff", "status": "superseded"}],
         }
 
     original = handoff_module.write_handoff
@@ -142,10 +142,12 @@ async def test_handoff_write_is_typed_and_read_back(config, monkeypatch):
             "title": "Engine recovery",
             "body": "STATUS: paused\nUNRESOLVED: live proof",
             "domains": ["workbench", "proffer"],
+            "supersedes": ["document:old_handoff"],
         }})).data
     assert result == {
         "id": "document:new_handoff",
-        "superseded": "document:old_handoff",
+        "superseded": ["document:old_handoff"],
+        "match": None,
         "doc_type": "handoff",
         "domains": ["proffer", "workbench"],
         "status": "active",
@@ -154,6 +156,7 @@ async def test_handoff_write_is_typed_and_read_back(config, monkeypatch):
     }
     assert "fn::handoff_write" in calls[0][0]
     assert calls[0][1]["domains"] == ["proffer", "workbench"]
+    assert calls[0][1]["supersedes_raw"] == ["document:old_handoff"]
     assert not requests
 
 
@@ -189,7 +192,7 @@ async def test_search_defaults_and_explicit_options(config):
     async with Client(server) as client:
         await client.call_tool("docstore_search", {"query": "index isolation", "domain": "intake"})
         assert dict(requests[-1].url.params) == {
-            "q": "index isolation", "domain": "intake", "kind": "doc", "status": "active", "k": "8", "rerank": "false"}
+            "q": "index isolation", "domain": "intake", "kind": "doc", "status": "all", "k": "8", "rerank": "false"}
         await client.call_tool("docstore_search", {"query": "index isolation", "domain": "intake",
             "kind": "adr", "status": "all", "limit": 3, "rerank": True})
     assert dict(requests[-1].url.params) == {

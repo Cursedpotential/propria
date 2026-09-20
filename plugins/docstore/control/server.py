@@ -27,6 +27,8 @@ READ = {"readOnlyHint": True, "destructiveHint": False,
 DOMAINS = Literal["probata", "proffer", "consignatio", "advocatio", "vestigia",
                   "indagatio", "intake", "workbench", "knowledge", "memory", "infra", "docs"]
 KINDS = Literal["doc", "adr", "decision", "handoff", "todo", "review", "blueprint", "reference", "infrastructure"]
+# Tool annotations are evaluated in module scope by FastMCP/Pydantic.
+SEARCH_STATUSES = Literal["all", "active", "unverified", "proposed", "superseded", "retracted"]
 RECONCILE_STORE = Literal["smart_explore", "ccc", "docstore", "codex_memory",
                           "claude_memory", "cnf", "remember", "memsearch"]
 
@@ -202,7 +204,6 @@ def build_server(config: Config, transport=None) -> FastMCP:
         return result
 
     # Owner 2026-09-14: status is a classification field; search sees every status by default.
-    SEARCH_STATUSES = Literal["all", "active", "unverified", "proposed", "superseded", "retracted"]
 
     async def semantic_search(query: str, domain: DOMAINS, limit: int, kind: KINDS,
                               status: SEARCH_STATUSES, rerank: bool) -> dict:
