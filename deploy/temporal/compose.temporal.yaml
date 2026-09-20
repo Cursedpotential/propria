@@ -60,7 +60,12 @@ services:
       # CREATEDB — without this flag auto-setup crash-loops on "permission denied to
       # create database" (found live 2026-08-24).
       SKIP_DB_CREATE: "true"
-      TEMPORAL_ADDRESS: 0.0.0.0:7233
+      # ~~TEMPORAL_ADDRESS: 0.0.0.0:7233~~ REMOVED 2026-09-20 (Claude Code · Fable 5.1):
+      # that variable is the address the image's auto-setup CLI DIALS, not a bind
+      # address. The server listens on the container's own IP, so the script's
+      # "until cluster health" loop got connection-refused once a second from
+      # 09-15 on (3,300 log lines/h) and never reached namespace/search-attribute
+      # setup. Unset, entrypoint.sh derives it from BIND_ON_IP (the real listener).
     ports:
       # gRPC frontend — tailnet-only; never 0.0.0.0 beyond the container bind above
       - "100.91.190.107:7233:7233"

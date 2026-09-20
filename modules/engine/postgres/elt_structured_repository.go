@@ -132,7 +132,9 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 		return nil, err
 	}
 	query := fmt.Sprintf(
-		`SELECT stored_bytes, native_fields, native_metadata FROM duckdb.query($%[1]s$%[2]s$%[1]s$) AS elt`,
+		// pg_duckdb returns one duckdb.row per result row: columns are reached by
+		// subscript on the alias, never by bare name ("column does not exist", live 2026-09-20).
+		`SELECT (elt['stored_bytes'])::text, (elt['native_fields'])::text, (elt['native_metadata'])::text FROM duckdb.query($%[1]s$%[2]s$%[1]s$) AS elt`,
 		eltDuckDBQuoteTag, innerSQL,
 	)
 	rows, err := session.Query(ctx, query)
@@ -160,7 +162,7 @@ func structuredELTRequiresWebbed(format activities.StructuredELTFormat) bool {
 func ensureWebbedLoaded(ctx context.Context, session structuredELTSession) error {
 	var loaded bool
 	if err := session.QueryRow(ctx, `
-		SELECT ready
+		SELECT (extension_status['ready'])::boolean
 		FROM duckdb.query($webbed_status$
 			SELECT count(*) > 0 AS ready FROM duckdb_functions() WHERE function_name = 'read_xml'
 		$webbed_status$) AS extension_status`).Scan(&loaded); err != nil {
