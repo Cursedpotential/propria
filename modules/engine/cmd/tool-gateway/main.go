@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -182,6 +183,21 @@ func buildResolver() (platformpostgres.ImmutableAcquisitionResolver, []string, e
 		schemes = append(schemes, "file", "upload")
 	}
 
+	// D-132: upload:// objects live on the host that accepted them (the Proffer
+	// starter). Off that host, fetch by digest and re-hash before trusting.
+	if origin := env("UPLOAD_ORIGIN_URL"); origin != "" && resolvers["upload"] == nil {
+		maxBytes, err := strconv.ParseInt(env("PROFFER_UPLOAD_MAX_BYTES"), 10, 64)
+		if err != nil || maxBytes <= 0 {
+			return nil, nil, errors.New("tool gateway: UPLOAD_ORIGIN_URL requires PROFFER_UPLOAD_MAX_BYTES (positive integer, same bound as the starter)")
+		}
+		remote, err := acquisition.NewRemoteUploadResolver(sealRoot, origin, maxBytes, &http.Client{Timeout: 10 * time.Minute})
+		if err != nil {
+			return nil, nil, err
+		}
+		resolvers["upload"] = remote
+		schemes = append(schemes, "upload")
+	}
+
 	// Cross-host source bytes travel via object storage.
 	if path := env("CASEBIBLE_R2_CONFIG_PATH"); path != "" {
 		cfg, err := acquisition.LoadObjectStorageConfigFile(path)
@@ -209,7 +225,7 @@ func buildResolver() (platformpostgres.ImmutableAcquisitionResolver, []string, e
 	}
 
 	if len(resolvers) == 0 {
-		return nil, nil, errors.New("tool gateway: no acquisition resolvers configured — set SOURCE_OBJECT_DIR and/or CASEBIBLE_R2_CONFIG_PATH / B2_CONFIG_PATH")
+		return nil, nil, errors.New("tool gateway: no acquisition resolvers configured — set SOURCE_OBJECT_DIR, UPLOAD_ORIGIN_URL and/or CASEBIBLE_R2_CONFIG_PATH / B2_CONFIG_PATH")
 	}
 	router, err := acquisition.NewSchemeRouter(resolvers)
 	if err != nil {

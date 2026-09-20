@@ -62,6 +62,41 @@ func TestStarterRoutesMountsTailnetAuthorizedUploadOnSharedRoot(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// D-132: a gateway on another host resolves upload:// by fetching the sealed
+// object from the starter; the route must be mounted and peer-checked.
+func TestStarterRoutesServeSealedUploadObjectsToTailnetPeersOnly(t *testing.T) {
+	root := t.TempDir()
+	ingress, err := acquisition.NewUploadIngress(acquisition.UploadIngressConfig{Root: root, MaxBytes: 1024})
+	require.NoError(t, err)
+	starter, err := platformtemporal.NewStarterHTTPHandler(uploadTestStarter{})
+	require.NoError(t, err)
+	routes, err := starterRoutes(starter.Routes(), ingress)
+	require.NoError(t, err)
+
+	upload := httptest.NewRequest(http.MethodPost, uploadIngressPath, bytes.NewBufferString("uploaded bytes"))
+	upload.RemoteAddr = "100.64.1.2:1234"
+	accepted := httptest.NewRecorder()
+	routes.ServeHTTP(accepted, upload)
+	require.Equal(t, http.StatusCreated, accepted.Code)
+	var response struct {
+		SHA256 string `json:"sha256"`
+	}
+	require.NoError(t, json.NewDecoder(accepted.Body).Decode(&response))
+
+	fetch := httptest.NewRequest(http.MethodGet, acquisition.UploadObjectPathPrefix+response.SHA256, nil)
+	fetch.RemoteAddr = "100.64.9.9:4321"
+	served := httptest.NewRecorder()
+	routes.ServeHTTP(served, fetch)
+	require.Equal(t, http.StatusOK, served.Code)
+	require.Equal(t, "uploaded bytes", served.Body.String())
+
+	outsider := httptest.NewRequest(http.MethodGet, acquisition.UploadObjectPathPrefix+response.SHA256, nil)
+	outsider.RemoteAddr = "192.0.2.1:4321"
+	denied := httptest.NewRecorder()
+	routes.ServeHTTP(denied, outsider)
+	require.Equal(t, http.StatusUnauthorized, denied.Code)
+}
+
 func TestStarterRoutesPreservesHealthAndProtectsUpload(t *testing.T) {
 	root := t.TempDir()
 	ingress, err := acquisition.NewUploadIngress(acquisition.UploadIngressConfig{

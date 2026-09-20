@@ -59,8 +59,14 @@ func starterRoutes(existing http.Handler, ingress *acquisition.UploadIngress) (h
 	if ingress == nil {
 		return nil, errors.New("starter routes require an upload ingress")
 	}
+	objects, err := ingress.ObjectHandler()
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("POST "+uploadIngressPath, ingress)
+	// D-132: a gateway on another host resolves upload:// by fetching the sealed object here.
+	mux.Handle("GET "+acquisition.UploadObjectPathPrefix+"{sha256}", objects)
 	mux.Handle("/", existing)
 	return mux, nil
 }

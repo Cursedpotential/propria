@@ -75,6 +75,12 @@ services:
 
       # Cross-host source bytes travel via object storage, never a shared disk.
       CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
+
+      # D-132: upload:// objects are sealed on the host that runs the Proffer starter.
+      # The gateway fetches them by SHA-256 over the tailnet and re-hashes before use.
+      # The byte bound must equal the starter's PROFFER_UPLOAD_MAX_BYTES.
+      UPLOAD_ORIGIN_URL: ${UPLOAD_ORIGIN_URL:-http://100.91.190.107:8091}
+      PROFFER_UPLOAD_MAX_BYTES: ${PROFFER_UPLOAD_MAX_BYTES:-209715200}
     volumes:
       - /data/probata/volumes/tool-gateway/materialize:/data/toolgw/materialize
       - /data/probata/volumes/tool-gateway/seal:/data/toolgw/seal
