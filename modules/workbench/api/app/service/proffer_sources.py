@@ -123,6 +123,7 @@ def _source_object(root_id: str, row: dict[str, Any]) -> ProfferSourceObject:
         key=key,
         name=key.rsplit("/", 1)[-1],
         source_ref=root.source_ref(key),
+        source_location=root.scheme,
         bucket=root.bucket,
         relative_parent="" if parent == "." else parent,
         extension=extension,
@@ -264,6 +265,7 @@ def browse_sources(
             ProfferSourceRoot(
                 root_id=item.root_id,
                 label=item.label,
+                source_location=item.scheme,
                 bucket=item.bucket,
                 root_ref=item.root_ref,
                 temporary=item.temporary,

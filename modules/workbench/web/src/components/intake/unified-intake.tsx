@@ -385,7 +385,7 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
     setPhase("ready");
     try {
       const activeRootId = sourceRootId || sources?.active_root_id;
-      if (!activeRootId) throw new Error("The selected source has no confirmed R2 source location.");
+      if (!activeRootId) throw new Error("The selected source has no confirmed source location.");
       const inspected = await inspectProfferSource(selected, mode, activeRootId);
       if (generation !== intakeGenerationRef.current) return;
       if (inspected.key !== selected.key) throw new Error("The inspected source did not match the selection.");

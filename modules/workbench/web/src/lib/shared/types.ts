@@ -966,7 +966,7 @@ export interface ProfferSourceObject {
   last_modified?: string | null;
   etag?: string | null;
   source_ref: string;
-  source_location: "r2";
+  source_location: string;
   bucket: string;
   relative_parent: string;
   extension: string;
@@ -985,7 +985,7 @@ export interface ProfferSourcePrefix {
 export interface ProfferSourceRoot {
   root_id: string;
   label: string;
-  source_location: "r2";
+  source_location: string;
   bucket: string;
   root_ref: string;
   temporary: boolean;
@@ -1026,7 +1026,7 @@ export interface ProfferSourceInspection {
   key: string;
   source_ref: string;
   active_root_id: string;
-  source_location: "r2";
+  source_location: string;
   bucket: string;
   name: string;
   byte_length: number;
