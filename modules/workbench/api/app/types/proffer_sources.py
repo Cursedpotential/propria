@@ -11,7 +11,8 @@ from app.types.matter_mode import MatterMode
 
 
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-SourceLocation = Literal["r2"]
+# The locator scheme of the configured object store (OBJECT_STORES_JSON), e.g. "b2" or "r2".
+SourceLocation = str
 SourceFileKind = Literal[
     "archive",
     "structured_data",

@@ -6,10 +6,8 @@ Byline: Codex · GPT-5 · 2026-08-28.
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime
 from typing import Annotated, Any, Literal
-from urllib.parse import unquote, urlsplit
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
@@ -28,6 +26,7 @@ from app.types.proffer_messages import (
     ProfferPreviewMessagesResponse,  # noqa: F401
     ProfferPreviewParticipant,  # noqa: F401
 )
+from app.types.source_roots import validate_authorized_source_ref  # noqa: F401  (re-exported)
 from app.types.proffer_sources import (
     ProfferSourceBrowserResponse,  # noqa: F401
     ProfferSourceObject,  # noqa: F401
@@ -59,34 +58,6 @@ ProfferOperationLifecycle = Literal[
     "unavailable",
 ]
 ProfferOperationWait = Literal["repair_decision", "preview_decision"]
-
-
-def validate_authorized_source_ref(value: str) -> str:
-    """Accept only opaque uploads or objects in the fixed read-only source bucket."""
-    parsed = urlsplit(value)
-    upload_digest = parsed.netloc.casefold()
-    if (
-        parsed.scheme == "upload"
-        and len(upload_digest) == 64
-        and all(character in "0123456789abcdef" for character in upload_digest)
-        and not parsed.path
-        and not parsed.query
-        and not parsed.fragment
-    ):
-        return value
-    if (
-        parsed.scheme == "r2"
-        and (
-            parsed.netloc in {"casebible-raw", "casebible-sorted", "casebible-quarantine"}
-            or (parsed.netloc == "nexus" and re.fullmatch(r"/workbench/staging/[0-9a-f]{64}/.+", unquote(parsed.path)))
-        )
-        and not parsed.query
-        and not parsed.fragment
-    ):
-        key = unquote(parsed.path.removeprefix("/"))
-        if key and not key.startswith("/") and "\\" not in key and ".." not in key.split("/"):
-            return value
-    raise ValueError("source_ref must be an upload reference or an allowlisted Case Bible R2 object")
 
 
 class ProfferStartRequest(BaseModel):

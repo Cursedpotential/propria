@@ -76,7 +76,7 @@ export function SourceExplorer({
       <header className="border-b px-5 py-4">
         <p className="platform-kicker mb-1">Default ingestion point</p>
         <h2 id="source-explorer-title" className="text-xl font-semibold">Import source</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Browse approved OpenList-backed R2 locations. Search and type filters run against the selected backing root.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Browse the configured source locations. Search and type filters run against the selected root.</p>
       </header>
 
       <div className="grid gap-4 border-b bg-card p-4 lg:grid-cols-[minmax(15rem,0.8fr)_minmax(20rem,1.2fr)]">
@@ -95,7 +95,7 @@ export function SourceExplorer({
           </select>
           {activeRootRecord && (
             <span className="grid gap-0.5 border bg-accent/20 p-2 font-normal text-muted-foreground">
-              <span>OpenList / R2 bucket <code className="text-foreground">{activeRootRecord.bucket}</code>{activeRootRecord.temporary ? " · temporary source" : ""}</span>
+              <span>{activeRootRecord.source_location.toUpperCase()} bucket <code className="text-foreground">{activeRootRecord.bucket}</code>{activeRootRecord.temporary ? " · temporary source" : ""}</span>
               <span className="break-all font-mono text-[10px]">{activeRootRecord.root_ref}</span>
             </span>
           )}

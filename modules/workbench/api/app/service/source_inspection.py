@@ -77,7 +77,7 @@ def _metadata(request: SourceInspectionRequest) -> tuple[str, dict]:
     try:
         root = get_source_root(request.root_id)
         key = validate_source_key(request.key)
-        if request.source_ref != f"r2://{root.bucket}/{key}":
+        if request.source_ref != root.source_ref(key):
             raise ValueError("source reference does not belong to the selected source root")
         head = head_source_object(root.root_id, key)
     except ValueError as error:

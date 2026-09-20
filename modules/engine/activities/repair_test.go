@@ -68,6 +68,10 @@ func TestAssessSourceRepairCallsExistingCapabilitiesAndReturnsOnlyRefs(t *testin
 	if result.Status != proffer.StatusNotApplicable {
 		t.Fatalf("clean assessment status=%q", result.Status)
 	}
+	// proffer.validateStageResult rejects a not_applicable result without a Reason.
+	if result.Reason == "" {
+		t.Fatal("clean assessment has no Reason; the workflow would reject it")
+	}
 }
 
 func TestAssessSourceRepairRequiresReviewWhenDetectorFlagsRepair(t *testing.T) {

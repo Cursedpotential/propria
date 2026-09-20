@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"tailscale.com/tsnet"
 
 	"github.com/Cursedpotential/probata/engine/acquisition"
+	"github.com/Cursedpotential/probata/engine/objectstores"
 	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 	"github.com/Cursedpotential/probata/engine/toolgateway"
@@ -182,34 +184,41 @@ func buildResolver() (platformpostgres.ImmutableAcquisitionResolver, []string, e
 		schemes = append(schemes, "file", "upload")
 	}
 
-	// Cross-host source bytes travel via object storage.
-	if path := env("CASEBIBLE_R2_CONFIG_PATH"); path != "" {
-		cfg, err := acquisition.LoadObjectStorageConfigFile(path)
-		if err != nil {
-			return nil, nil, fmt.Errorf("r2: %w", err)
+	// D-132: upload:// objects live on the host that accepted them (the Proffer
+	// starter). Off that host, fetch by digest and re-hash before trusting.
+	if origin := env("UPLOAD_ORIGIN_URL"); origin != "" && resolvers["upload"] == nil {
+		maxBytes, err := strconv.ParseInt(env("PROFFER_UPLOAD_MAX_BYTES"), 10, 64)
+		if err != nil || maxBytes <= 0 {
+			return nil, nil, errors.New("tool gateway: UPLOAD_ORIGIN_URL requires PROFFER_UPLOAD_MAX_BYTES (positive integer, same bound as the starter)")
 		}
-		r2, err := acquisition.NewCloudflareR2AcquisitionResolver(sealRoot, cfg)
+		remote, err := acquisition.NewRemoteUploadResolver(sealRoot, origin, maxBytes, &http.Client{Timeout: 10 * time.Minute})
 		if err != nil {
 			return nil, nil, err
 		}
-		resolvers["r2"] = r2
-		schemes = append(schemes, "r2")
+		resolvers["upload"] = remote
+		schemes = append(schemes, "upload")
 	}
-	if path := env("B2_CONFIG_PATH"); path != "" {
-		cfg, err := acquisition.LoadObjectStorageConfigFile(path)
-		if err != nil {
-			return nil, nil, fmt.Errorf("b2: %w", err)
-		}
-		b2, err := acquisition.NewBackblazeB2AcquisitionResolver(sealRoot, cfg)
-		if err != nil {
-			return nil, nil, err
-		}
-		resolvers["b2"] = b2
-		schemes = append(schemes, "b2")
+
+	// Cross-host source bytes travel via object storage. Stores are configuration
+	// (OBJECT_STORES_JSON): any S3-compatible provider, under the scheme it is given.
+	stores, err := objectstores.StoresFromEnv()
+	if err != nil {
+		return nil, nil, err
+	}
+	storeResolvers, err := acquisition.ObjectStoreResolvers(sealRoot, stores, map[string]string{
+		"r2": env("CASEBIBLE_R2_CONFIG_PATH"),
+		"b2": env("B2_CONFIG_PATH"),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	for scheme, resolver := range storeResolvers {
+		resolvers[scheme] = resolver
+		schemes = append(schemes, scheme)
 	}
 
 	if len(resolvers) == 0 {
-		return nil, nil, errors.New("tool gateway: no acquisition resolvers configured — set SOURCE_OBJECT_DIR and/or CASEBIBLE_R2_CONFIG_PATH / B2_CONFIG_PATH")
+		return nil, nil, errors.New("tool gateway: no acquisition resolvers configured — set SOURCE_OBJECT_DIR, UPLOAD_ORIGIN_URL and/or OBJECT_STORES_JSON")
 	}
 	router, err := acquisition.NewSchemeRouter(resolvers)
 	if err != nil {

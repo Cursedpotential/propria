@@ -75,10 +75,23 @@ services:
 
       # Cross-host source bytes travel via object storage, never a shared disk.
       CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
+      # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
+      # store: scheme -> credential file. Switching provider = a credential file + these two
+      # values, identical in every Proffer/Workbench service. The first root is the default.
+      # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
+      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json","r2":"/run/secrets/casebible-r2.json"}'
+      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Vault","url":"b2://salem-data/consignatio/vault/v1/"},{"id":"r2-sorted","label":"R2 / Case Bible Sorted","url":"r2://casebible-sorted/","temporary":true},{"id":"r2-raw","label":"R2 / Case Bible Raw","url":"r2://casebible-raw/","temporary":true},{"id":"r2-quarantine","label":"R2 / Case Bible Quarantine","url":"r2://casebible-quarantine/","temporary":true}]'
+
+      # D-132: upload:// objects are sealed on the host that runs the Proffer starter.
+      # The gateway fetches them by SHA-256 over the tailnet and re-hashes before use.
+      # The byte bound must equal the starter's PROFFER_UPLOAD_MAX_BYTES.
+      UPLOAD_ORIGIN_URL: ${UPLOAD_ORIGIN_URL:-http://100.91.190.107:8091}
+      PROFFER_UPLOAD_MAX_BYTES: ${PROFFER_UPLOAD_MAX_BYTES:-209715200}
     volumes:
       - /data/probata/volumes/tool-gateway/materialize:/data/toolgw/materialize
       - /data/probata/volumes/tool-gateway/seal:/data/toolgw/seal
       - /data/probata/volumes/tool-gateway/tsnet:/data/toolgw/tsnet
       - /data/probata/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
+      - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/tool-gateway/ts-authkey:/run/secrets/tool-gateway-ts-authkey:ro
       - /data/probata/secrets/tool-gateway/service-token:/run/secrets/tool-gateway-service-token:ro

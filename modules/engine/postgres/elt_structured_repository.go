@@ -17,6 +17,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Cursedpotential/probata/engine/objectstores"
 )
 
 // eltDuckDBQuoteTag is the dollar-quote tag wrapping the inner DuckDB SQL
@@ -221,6 +223,13 @@ func duckDBSourceURL(sourceKey string) (string, error) {
 	case strings.HasPrefix(trimmed, "s3://"), strings.HasPrefix(trimmed, "https://"):
 		return trimmed, nil
 	default:
+		// Any configured S3-compatible store (OBJECT_STORES_JSON) reads as s3://; the
+		// matching DuckDB secret is scoped to its bucket (scripts/duckdb_object_store_secrets.sh).
+		if scheme, rest, found := strings.Cut(trimmed, "://"); found {
+			if stores, err := objectstores.StoresFromEnv(); err == nil && stores.Has(scheme) {
+				return "s3://" + rest, nil
+			}
+		}
 		return "", fmt.Errorf("structured elt source locator %q is not PostgreSQL/DuckDB-readable", sourceKey)
 	}
 }

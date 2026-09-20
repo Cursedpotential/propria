@@ -10,6 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
+from app.repo.object_store_client import DEFAULT_SOURCE_ROOT_ID
 from app.service.proffer import (
     ProfferError,
     browse_sources,
@@ -78,7 +79,7 @@ def _decision_actor(request: Request) -> ProfferDecisionActor:
 @router.get("/sources", response_model=ProfferSourceBrowserResponse)
 def sources_endpoint(
     mode: Annotated[MatterMode, Query()],
-    root_id: Annotated[str, Query(min_length=1, max_length=64)] = "r2-sorted",
+    root_id: Annotated[str, Query(min_length=1, max_length=64)] = DEFAULT_SOURCE_ROOT_ID,
     prefix: Annotated[str, Query(max_length=1024)] = "",
     continuation_token: Annotated[str | None, Query(max_length=4096)] = None,
     filter: Annotated[str, Query(max_length=256)] = "",

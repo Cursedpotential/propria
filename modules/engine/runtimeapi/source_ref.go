@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/Cursedpotential/probata/engine/objectstores"
 )
 
 // devFixtureBucket / devFixturePrefix name the synthetic non-canonical R2 location a
@@ -37,6 +39,18 @@ func devFixtureSourcesEnabled() bool {
 	return false
 }
 
+func safeObjectKey(key string) bool {
+	if key == "" || strings.HasPrefix(key, "/") || strings.Contains(key, `\`) {
+		return false
+	}
+	for _, segment := range strings.Split(key, "/") {
+		if segment == ".." {
+			return false
+		}
+	}
+	return true
+}
+
 func validateAuthorizedSourceRef(value string) (string, string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(value))
 	if err != nil || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
@@ -47,6 +61,15 @@ func validateAuthorizedSourceRef(value string) (string, string, error) {
 		raw, decodeErr := hex.DecodeString(digest)
 		if decodeErr == nil && len(raw) == sha256.Size {
 			return "upload", digest, nil
+		}
+	}
+	// Configured roots (SOURCE_ROOTS_JSON) are production source authority for any
+	// configured object store; the fixed R2 rules below remain for existing data.
+	if roots, rootsErr := objectstores.RootsFromEnv(); rootsErr == nil && parsed.Host != "" {
+		if key, keyErr := url.PathUnescape(strings.TrimPrefix(parsed.EscapedPath(), "/")); keyErr == nil && safeObjectKey(key) {
+			if _, ok := roots.Match(parsed.Scheme, parsed.Host, key); ok {
+				return strings.ToLower(parsed.Scheme), key, nil
+			}
 		}
 	}
 	devMode := devFixtureSourcesEnabled()

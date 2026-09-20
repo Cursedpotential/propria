@@ -259,6 +259,21 @@ func (s *RepairActivityStore) LoadApprovedRepairDecision(ctx context.Context, so
 	return activities.RepairDecisionRecord{DecisionRef: decisionRef, ActorRef: proffer.Ref(actor), Approved: approved, ApplyRepair: apply, ToolID: tool, Payload: object}, nil
 }
 
+// repairDecisionPayload encodes a decision's tool payload for context.repair_decision,
+// whose checks require a JSON object and, for a non-applied decision, exactly '{}'.
+// json.Marshal of a nil map is "null", so the automatic clean decision (no payload)
+// violated repair_decision_check on every clean source (found live 2026-09-20).
+func repairDecisionPayload(toolPayload map[string]any) ([]byte, error) {
+	if len(toolPayload) == 0 {
+		return []byte(`{}`), nil
+	}
+	payload, err := json.Marshal(toolPayload)
+	if err != nil || len(payload) > 65536 {
+		return nil, errors.New("repair decision payload is invalid or exceeds limit")
+	}
+	return payload, nil
+}
+
 // PersistRepairDecision gives Workbench/Proffer one transactionally idempotent
 // write seam. n8n and Temporal receive only its returned decision registry.
 func (s *RepairActivityStore) PersistRepairDecision(ctx context.Context, spec proffer.RepairDecisionSpec) (proffer.Ref, error) {
@@ -273,9 +288,9 @@ func (s *RepairActivityStore) PersistRepairDecision(ctx context.Context, spec pr
 	if strings.TrimSpace(string(spec.ActorRef)) == "" || strings.TrimSpace(spec.IdempotencyKey) == "" {
 		return "", errors.New("repair decision requires actor and idempotency key")
 	}
-	payload, err := json.Marshal(spec.ToolPayload)
-	if err != nil || len(payload) > 65536 {
-		return "", errors.New("repair decision payload is invalid or exceeds limit")
+	payload, err := repairDecisionPayload(spec.ToolPayload)
+	if err != nil {
+		return "", err
 	}
 	if spec.ApplyRepair && (!spec.Approved || !allowedRepairTool(spec.ToolID)) {
 		return "", errors.New("applied repair decision requires approval and an allowed derived tool")
