@@ -51,11 +51,18 @@ services:
     # (/etc/docker/daemon.json default-address-pools 10.200.0.0/16 size 24).
     # No inbound listener exists, so nothing is published. Probed live from a
     # `probata` bridge container before the change: 100.91.190.107:7233 / :5678 /
-    # :5432 all connect. Keep TEMPORAL_HOST_PORT on the tailnet address:
-    # `temporal-server:7233` resolves on `probata` but refuses (Temporal binds
-    # its other interface), and n8n is not on `probata`.
+    # :5432 all connect.
+    # Service names (owner 2026-09-20 18:41 "fix it"): TEMPORAL_HOST_PORT is
+    # `temporal-server:7233` on `probata` (Temporal now binds every interface,
+    # deploy/temporal/compose.temporal.yaml BIND_ON_IP). n8n is a Coolify
+    # service on the `coolify` destination network, not `probata`, so the worker
+    # joins `coolify` as well and N8N_PROFFER_BASE_URL is
+    # `http://n8n-ddjgrmys36d9n8xwcwj0mml2:5678/webhook`. Use that full alias:
+    # the short name `n8n` falls through the ts.net search domain to the
+    # tailnet node instead of the container.
     networks:
       - probata
+      - coolify
     environment:
       PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
@@ -97,4 +104,6 @@ services:
 
 networks:
   probata:
+    external: true
+  coolify:
     external: true

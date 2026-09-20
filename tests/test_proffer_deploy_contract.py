@@ -81,8 +81,9 @@ def test_parser_and_worker_join_external_networks_and_only_starter_uses_host_net
     worker_compose = _compose(WORKER_DEPLOY)
     worker = worker_compose["services"]["proffer-worker"]
     assert "network_mode" not in worker
-    assert worker["networks"] == ["probata"]
-    assert worker_compose["networks"] == {"probata": {"external": True}}
+    # `probata` reaches temporal-server by name; `coolify` reaches the n8n Coolify service.
+    assert worker["networks"] == ["probata", "coolify"]
+    assert worker_compose["networks"] == {"probata": {"external": True}, "coolify": {"external": True}}
 
     starter_compose = _compose(STARTER_DEPLOY)
     starter = starter_compose["services"]["proffer-starter"]
