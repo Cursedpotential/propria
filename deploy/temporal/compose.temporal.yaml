@@ -66,6 +66,16 @@ services:
       # "until cluster health" loop got connection-refused once a second from
       # 09-15 on (3,300 log lines/h) and never reached namespace/search-attribute
       # setup. Unset, entrypoint.sh derives it from BIND_ON_IP (the real listener).
+      #
+      # BIND_ON_IP added 2026-09-20 (Claude Code · Fable 5.1; owner: "fix it"): unset,
+      # entrypoint.sh binds the FIRST address `getent hosts $(hostname)` returns. This
+      # container sits on three networks, and live it bound only the Coolify per-UUID one
+      # (192.168.112.3), so `temporal-server:7233` resolved on `probata` and refused —
+      # only the published tailnet port worked. 0.0.0.0 listens on every interface;
+      # entrypoint.sh then sets TEMPORAL_BROADCAST_ADDRESS from the hostname itself and
+      # derives TEMPORAL_ADDRESS=0.0.0.0:7233, which now dials a real listener. Exposure
+      # is unchanged: the only published port is pinned to the tailnet IP below.
+      BIND_ON_IP: 0.0.0.0
     ports:
       # gRPC frontend — tailnet-only; never 0.0.0.0 beyond the container bind above
       - "100.91.190.107:7233:7233"
