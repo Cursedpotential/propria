@@ -61,4 +61,8 @@ USER postgres
 
 # pg_stat_statements ships with core PG; it needs shared_preload_libraries.
 # pg_duckdb already requires its own preload, so chain both.
-CMD ["postgres", "-c", "shared_preload_libraries=pg_duckdb,pg_stat_statements"]
+# duckdb.postgres_role: without it only superusers may run DuckDB, and the
+# engine connects as platform_runtime (member of platform_duckdb — created by
+# scripts/duckdb_runtime_role.sql). Postmaster-context: needs a restart.
+# Claude Code · Fable 5.1 · 2026-09-20
+CMD ["postgres", "-c", "shared_preload_libraries=pg_duckdb,pg_stat_statements", "-c", "duckdb.postgres_role=platform_duckdb"]
