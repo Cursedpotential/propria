@@ -35,6 +35,7 @@
 # build post-restructure — build context set to repo root so
 # deploy/docker/proffer-worker/Dockerfile's `COPY modules/engine/`
 # resolves; dockerfile path made explicit and repo-root-relative)
+# Byline: Claude Code · Fable 5.1 · 2026-09-20 (host networking -> bridge + probata)
 
 services:
   proffer-worker:
@@ -43,9 +44,18 @@ services:
       dockerfile: deploy/docker/proffer-worker/Dockerfile
     image: ${PROFFER_WORKER_IMAGE:-platform-proffer-worker:latest}
     restart: unless-stopped
-    # No inbound listener exists. Host networking avoids consuming another
-    # exhausted Coolify bridge subnet and preserves direct Tailscale routing.
-    network_mode: host
+    # CORRECTED 2026-09-20 (owner: "not sure why they were different to begin
+    # with, fix it"): back on bridge + the shared `probata` network like every
+    # other app. Host networking (2026-08-30) was a workaround for Docker's
+    # exhausted default address pool; that is fixed on both hosts
+    # (/etc/docker/daemon.json default-address-pools 10.200.0.0/16 size 24).
+    # No inbound listener exists, so nothing is published. Probed live from a
+    # `probata` bridge container before the change: 100.91.190.107:7233 / :5678 /
+    # :5432 all connect. Keep TEMPORAL_HOST_PORT on the tailnet address:
+    # `temporal-server:7233` resolves on `probata` but refuses (Temporal binds
+    # its other interface), and n8n is not on `probata`.
+    networks:
+      - probata
     environment:
       PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
@@ -84,3 +94,7 @@ services:
       # the gateway and fails closed at startup without this file. Copied from ovh-app
       # /data/probata/secrets/tool-gateway/service-token on 2026-09-05.
       - /data/probata/secrets/tool-gateway/service-token:/run/secrets/tool-gateway-service-token:ro
+
+networks:
+  probata:
+    external: true

@@ -67,20 +67,28 @@ def test_parser_artifacts_use_a_protected_persistent_fail_closed_bind() -> None:
     )
 
 
-def test_parser_joins_only_verified_external_coolify_network_and_go_apps_use_host_networking() -> None:
-    # parser-activity-runtime publishes a port on the bridge; the worker and starter run
-    # network_mode: host (2026-08-30 direct-tailnet change) so neither declares networks.
+def test_parser_and_worker_join_external_networks_and_only_starter_uses_host_networking() -> None:
+    # parser-activity-runtime publishes a port on the bridge. The starter keeps
+    # network_mode: host because Docker's published-port NAT rewrites the Tailscale peer
+    # address its authorization check reads. The worker has no inbound listener; its host
+    # networking (2026-08-30) only dodged Docker's exhausted address pool, fixed 2026-09-20,
+    # so it is back on the shared external `probata` bridge like every other app.
     compose = _compose(PARSER_DEPLOY)
     service = next(iter(compose["services"].values()))
     assert service["networks"] == ["coolify"]
     assert compose["networks"] == {"coolify": {"external": True}}
 
-    for path, name in ((WORKER_DEPLOY, "proffer-worker"), (STARTER_DEPLOY, "proffer-starter")):
-        app_compose = _compose(path)
-        app = app_compose["services"][name]
-        assert app["network_mode"] == "host"
-        assert "networks" not in app
-        assert "networks" not in app_compose
+    worker_compose = _compose(WORKER_DEPLOY)
+    worker = worker_compose["services"]["proffer-worker"]
+    assert "network_mode" not in worker
+    assert worker["networks"] == ["probata"]
+    assert worker_compose["networks"] == {"probata": {"external": True}}
+
+    starter_compose = _compose(STARTER_DEPLOY)
+    starter = starter_compose["services"]["proffer-starter"]
+    assert starter["network_mode"] == "host"
+    assert "networks" not in starter
+    assert "networks" not in starter_compose
 
 
 def test_worker_and_starter_share_dedicated_nonlegacy_queue_default() -> None:
