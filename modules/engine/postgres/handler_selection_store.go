@@ -550,7 +550,11 @@ func (s *HandlerSelectionStore) LoadHandlerExecutionAuthorization(ctx context.Co
 	sourceID, sourceErr := uuid.Parse(string(req.SourceVersionRef))
 	recommendationID, recommendationErr := uuid.Parse(string(req.Refs["handler_recommendation"]))
 	decisionID, decisionErr := uuid.Parse(string(req.Refs["handler_decision"]))
-	validationID, validationErr := uuid.Parse(string(req.Refs["handler_validation"]))
+	// The handler_validation ref is the validation's activity receipt (ValidationReceipt),
+	// not its row id: the validation writer mints both and returns the receipt. Matching
+	// validation.id found no rows for every source (found live 2026-09-20);
+	// activity_receipt_id is UNIQUE on handler_selection_validation.
+	validationReceiptID, validationErr := uuid.Parse(string(req.Refs["handler_validation"]))
 	formatID, formatErr := uuid.Parse(string(req.Refs["detected_format"]))
 	signatureID, signatureErr := uuid.Parse(string(req.Refs["content_signature"]))
 	compatibilityID, compatibilityErr := uuid.Parse(string(req.Refs["handler_compatibility"]))
@@ -569,7 +573,7 @@ func (s *HandlerSelectionStore) LoadHandlerExecutionAuthorization(ctx context.Co
 		JOIN context.handler_detected_format format ON format.id=recommendation.detected_format_id
 		JOIN context.handler_content_signature signature ON signature.id=recommendation.content_signature_id
 		JOIN context.handler_compatibility compatibility ON compatibility.id=validation.compatibility_id
-		WHERE validation.id=$1 AND validation.source_version_id=$2
+		WHERE validation.activity_receipt_id=$1 AND validation.source_version_id=$2
 		  AND recommendation.id=$3 AND recommendation.source_version_id=$2
 		  AND decision.id=$4 AND decision.source_version_id=$2
 		  AND decision.recommendation_id=recommendation.id
@@ -578,7 +582,7 @@ func (s *HandlerSelectionStore) LoadHandlerExecutionAuthorization(ctx context.Co
 		  AND signature.id=$6 AND signature.source_version_id=$2
 		  AND signature.original_object_id=recommendation.original_object_id
 		  AND compatibility.id=$7 AND compatibility.detected_format_id=format.id`,
-		validationID, sourceID, recommendationID, decisionID, formatID, signatureID, compatibilityID).
+		validationReceiptID, sourceID, recommendationID, decisionID, formatID, signatureID, compatibilityID).
 		Scan(&declared, &authorization.DetectedFormat, &authorization.HandlerID, &authorization.HandlerVersion, &path)
 	if err != nil {
 		return activities.HandlerExecutionAuthorization{}, fmt.Errorf("load durable handler execution authorization: %w", err)
