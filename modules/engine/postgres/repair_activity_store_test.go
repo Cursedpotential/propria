@@ -3,6 +3,7 @@ package postgres
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Cursedpotential/probata/engine/activities"
@@ -69,5 +70,24 @@ func TestValidatePriorRepairAssessmentDiscardsChangedRetryContent(t *testing.T) 
 	}
 	if !result.ReviewRequired || result.ResultRef != proffer.Ref(assessmentID.String()) {
 		t.Fatalf("changed retry content replaced the persisted assessment: %+v", result)
+	}
+}
+
+// context.repair_decision requires tool_payload to be a JSON object, and exactly
+// '{}' for a non-applied decision; a nil map must never reach it as "null".
+func TestRepairDecisionPayloadIsAlwaysAnObject(t *testing.T) {
+	for name, in := range map[string]map[string]any{"nil": nil, "empty": {}} {
+		got, err := repairDecisionPayload(in)
+		if err != nil || string(got) != `{}` {
+			t.Fatalf("%s payload = %q, err=%v; want {}", name, got, err)
+		}
+	}
+	got, err := repairDecisionPayload(map[string]any{"mode": "derived"})
+	if err != nil || string(got) != `{"mode":"derived"}` {
+		t.Fatalf("payload = %q, err=%v", got, err)
+	}
+	oversized := map[string]any{"blob": strings.Repeat("x", 70_000)}
+	if _, err := repairDecisionPayload(oversized); err == nil {
+		t.Fatal("oversized payload was accepted")
 	}
 }
