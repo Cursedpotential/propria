@@ -247,12 +247,22 @@ func repairSuccess(stage stagegraph.StageID, result RepairPersistenceResult) (pr
 	return repairResult(stage, result, proffer.StatusSuccess)
 }
 
+// cleanAssessmentReason is the Reason the workflow's validateStageResult requires
+// on every not_applicable result. It was never set, so every clean source -- the
+// normal case -- failed here with "not_applicable result has an empty Reason"
+// (found live 2026-09-20).
+const cleanAssessmentReason = "source assessed clean; no repair review required"
+
 func repairAssessmentResult(result RepairPersistenceResult) (proffer.StageResult, error) {
-	status := proffer.StatusSuccess
-	if !result.ReviewRequired {
-		status = proffer.StatusNotApplicable
+	if result.ReviewRequired {
+		return repairResult(stagegraph.AssessSourceRepair, result, proffer.StatusSuccess)
 	}
-	return repairResult(stagegraph.AssessSourceRepair, result, status)
+	stageResult, err := repairResult(stagegraph.AssessSourceRepair, result, proffer.StatusNotApplicable)
+	if err != nil {
+		return proffer.StageResult{}, err
+	}
+	stageResult.Reason = cleanAssessmentReason
+	return stageResult, nil
 }
 
 func repairResult(stage stagegraph.StageID, result RepairPersistenceResult, status proffer.Status) (proffer.StageResult, error) {
