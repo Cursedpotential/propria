@@ -70,7 +70,7 @@ services:
       # values, identical in every Proffer/Workbench service. The first root is the default.
       # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
       OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json","r2":"/run/secrets/casebible-r2.json"}'
-      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Vault","url":"b2://salem-data/consignatio/vault/v1/"},{"id":"r2-sorted","label":"R2 / Case Bible Sorted","url":"r2://casebible-sorted/","temporary":true},{"id":"r2-raw","label":"R2 / Case Bible Raw","url":"r2://casebible-raw/","temporary":true},{"id":"r2-quarantine","label":"R2 / Case Bible Quarantine","url":"r2://casebible-quarantine/","temporary":true}]'
+      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Vault","url":"b2://salem-data/consignatio/vault/v1/"},{"id":"b2-bucket","label":"B2 / salem-data (whole bucket)","url":"b2://salem-data/"},{"id":"r2-sorted","label":"R2 / Case Bible Sorted","url":"r2://casebible-sorted/","temporary":true},{"id":"r2-raw","label":"R2 / Case Bible Raw","url":"r2://casebible-raw/","temporary":true},{"id":"r2-quarantine","label":"R2 / Case Bible Quarantine","url":"r2://casebible-quarantine/","temporary":true}]'
     volumes:
       - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
       - /data/probata/volumes/proffer/parser-bundles:/data/proffer/parser-bundles
