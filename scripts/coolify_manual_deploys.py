@@ -39,7 +39,7 @@ def _token() -> str:
             continue
         with open(path, encoding="utf-8", errors="replace") as handle:
             for line in handle:
-                match = re.match(r"^\s*(COOLIFY[A-Z_]*)\s*=\s*(.+?)\s*$", line)
+                match = re.match(r"^\s*(COOLIFY_API_TOKEN|COOLIFY_TOKEN)\s*=\s*(.+?)\s*$", line)
                 if match:
                     return match.group(2).strip("'\"")
     raise SystemExit("no Coolify token found under ~/.secrets")
