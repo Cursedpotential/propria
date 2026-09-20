@@ -99,22 +99,26 @@ func (s *fakeStructuredELTSession) QueryRow(_ context.Context, sql string, _ ...
 
 func (*fakeStructuredELTSession) Release() {}
 
-func TestEnsureWebbedLoadedUsesExplicitLoadAndDuckDBVerification(t *testing.T) {
+func TestEnsureWebbedLoadedVerifiesWithoutFilesystemCalls(t *testing.T) {
 	session := &fakeStructuredELTSession{status: webbedStatusRow{loaded: true}}
 	if err := ensureWebbedLoaded(context.Background(), session); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(session.execSQL, "duckdb.load_extension('webbed')") {
-		t.Fatalf("Webbed load was not explicit: %s", session.execSQL)
+	// A non-superuser session has LocalFileSystem disabled: neither an explicit
+	// load nor duckdb_extensions() may be issued.
+	if session.execSQL != "" {
+		t.Fatalf("no statement may be executed to load Webbed: %s", session.execSQL)
 	}
-	if !strings.Contains(session.queryRowSQL, "duckdb_extensions()") || !strings.Contains(session.queryRowSQL, "extension_name = 'webbed'") {
+	if strings.Contains(session.queryRowSQL, "duckdb_extensions()") || strings.Contains(session.queryRowSQL, "load_extension") {
+		t.Fatalf("readiness check touches the local filesystem: %s", session.queryRowSQL)
+	}
+	if !strings.Contains(session.queryRowSQL, "duckdb_functions()") || !strings.Contains(session.queryRowSQL, "function_name = 'read_xml'") {
 		t.Fatalf("Webbed readiness was not verified from DuckDB: %s", session.queryRowSQL)
 	}
 }
 
 func TestEnsureWebbedLoadedFailsClosed(t *testing.T) {
 	for name, session := range map[string]*fakeStructuredELTSession{
-		"load failure":   {execErr: errors.New("load denied")},
 		"verify failure": {status: webbedStatusRow{err: errors.New("status unavailable")}},
 		"not loaded":     {status: webbedStatusRow{loaded: false}},
 	} {

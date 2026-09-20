@@ -147,24 +147,27 @@ func structuredELTRequiresWebbed(format activities.StructuredELTFormat) bool {
 	return format == activities.StructuredELTFormatSMSXML
 }
 
-// ensureWebbedLoaded performs an explicit, idempotent load and then verifies
-// the extension from DuckDB itself. It intentionally runs on the exact same
-// leased PostgreSQL connection that will execute read_xml; a global autoload
-// flag cannot prove per-session readiness for a community extension.
+// ensureWebbedLoaded verifies, from DuckDB itself and on the exact leased
+// PostgreSQL connection that will execute read_xml, that the Webbed reader is
+// available. It deliberately does NOT call duckdb.load_extension or
+// duckdb_extensions(): the engine connects as a non-superuser, and pg_duckdb
+// disables LocalFileSystem for those roles, so both calls fail with
+// "File system LocalFileSystem has been disabled by configuration" (seen live
+// 2026-09-20). Webbed is registered once by a superuser
+// (scripts/duckdb_install_extensions.sql -> duckdb.extensions, autoload) and
+// pg_duckdb loads it at session start; duckdb_functions() is a catalog read
+// that needs no filesystem.
 func ensureWebbedLoaded(ctx context.Context, session structuredELTSession) error {
-	if _, err := session.Exec(ctx, `SELECT duckdb.load_extension('webbed')`); err != nil {
-		return fmt.Errorf("load DuckDB Webbed extension on extraction session: %w", err)
-	}
 	var loaded bool
 	if err := session.QueryRow(ctx, `
-		SELECT loaded
+		SELECT ready
 		FROM duckdb.query($webbed_status$
-			SELECT loaded FROM duckdb_extensions() WHERE extension_name = 'webbed'
+			SELECT count(*) > 0 AS ready FROM duckdb_functions() WHERE function_name = 'read_xml'
 		$webbed_status$) AS extension_status`).Scan(&loaded); err != nil {
 		return fmt.Errorf("verify DuckDB Webbed extension on extraction session: %w", err)
 	}
 	if !loaded {
-		return errors.New("DuckDB Webbed extension is installed but not loaded on extraction session")
+		return errors.New("DuckDB Webbed extension is not loaded on extraction session; run scripts/duckdb_install_extensions.sql as a superuser")
 	}
 	return nil
 }
