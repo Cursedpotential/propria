@@ -135,6 +135,17 @@ func ObjectStoreResolvers(root string, stores objectstores.Stores, legacy map[st
 	return resolvers, nil
 }
 
+// NewS3Client returns a path-style S3 client for one configured object store.
+// It exists for units that WRITE derived objects beside a source (for example
+// derive/smsthreads); acquisition itself stays read-only.
+func NewS3Client(cfg ObjectStorageConfig) (*s3.Client, error) {
+	if err := cfg.validate("object store"); err != nil {
+		return nil, err
+	}
+	cfg.UsePathStyle = true
+	return newS3Client(cfg), nil
+}
+
 func newS3Client(cfg ObjectStorageConfig) *s3.Client {
 	awsCfg := aws.Config{
 		Region: cfg.Region,

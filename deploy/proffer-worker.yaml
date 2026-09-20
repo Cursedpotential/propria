@@ -93,6 +93,8 @@ services:
       - /data/probata/volumes/proffer/parser-bundles:/data/proffer/parser-bundles
       - /data/probata/volumes/proffer/normalized-bundles:/data/proffer/normalized-bundles
       - /data/probata/volumes/proffer/inventory-manifests:/data/proffer/inventory-manifests
+      # scratch for derive-sms (per-thread NDJSON before publish); data volume, never /tmp
+      - /data/probata/volumes/proffer/derive-scratch:/data/proffer/derive-scratch
       - /data/probata/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
       - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/n8n/proffer-auth:/run/secrets/n8n-proffer-auth:ro
