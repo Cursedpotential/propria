@@ -17,6 +17,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/activities"
 	sbvadapter "github.com/Cursedpotential/probata/engine/adapters/sbv"
 	"github.com/Cursedpotential/probata/engine/normalize"
+	"github.com/Cursedpotential/probata/engine/objectstores"
 	"github.com/Cursedpotential/probata/engine/parser"
 	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/proffer"
@@ -187,16 +188,22 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		"file":   filesystemResolver,
 		"upload": uploadResolver,
 	}
-	if path := strings.TrimSpace(os.Getenv("CASEBIBLE_R2_CONFIG_PATH")); path != "" {
-		r2cfg, err := acquisition.LoadObjectStorageConfigFile(path)
-		if err != nil {
-			return Registrations{}, fmt.Errorf("r2 acquisition config: %w", err)
-		}
-		r2Resolver, err := acquisition.NewCloudflareR2AcquisitionResolver(cfg.SourceObjectDir, r2cfg)
-		if err != nil {
-			return Registrations{}, err
-		}
-		resolvers["r2"] = r2Resolver
+	// Object stores are configuration (OBJECT_STORES_JSON), not code: every
+	// S3-compatible store is registered under the scheme it is configured with.
+	// CASEBIBLE_R2_CONFIG_PATH is honoured only while OBJECT_STORES_JSON is unset.
+	stores, err := objectstores.StoresFromEnv()
+	if err != nil {
+		return Registrations{}, err
+	}
+	storeResolvers, err := acquisition.ObjectStoreResolvers(cfg.SourceObjectDir, stores, map[string]string{
+		"r2": os.Getenv("CASEBIBLE_R2_CONFIG_PATH"),
+		"b2": os.Getenv("B2_CONFIG_PATH"),
+	})
+	if err != nil {
+		return Registrations{}, fmt.Errorf("object store acquisition config: %w", err)
+	}
+	for scheme, resolver := range storeResolvers {
+		resolvers[scheme] = resolver
 	}
 	acquisitionResolver, err := acquisition.NewSchemeRouter(resolvers)
 	if err != nil {

@@ -122,7 +122,7 @@ def _source_object(root_id: str, row: dict[str, Any]) -> ProfferSourceObject:
     return ProfferSourceObject(
         key=key,
         name=key.rsplit("/", 1)[-1],
-        source_ref=f"r2://{root.bucket}/{key}",
+        source_ref=root.source_ref(key),
         bucket=root.bucket,
         relative_parent="" if parent == "." else parent,
         extension=extension,

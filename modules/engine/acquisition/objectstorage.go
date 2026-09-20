@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/objectstores"
 	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -91,6 +92,47 @@ func NewBackblazeB2AcquisitionResolver(root string, cfg ObjectStorageConfig) (pl
 		cfg.UsePathStyle = true
 	}
 	return newObjectStorageAcquisitionResolver(root, "b2", newS3Client(cfg))
+}
+
+// NewObjectStoreResolver resolves "<scheme>://<bucket>/<key>" against any
+// S3-compatible store. The scheme is whatever OBJECT_STORES_JSON calls the
+// store; R2 and B2 are not special. (Claude Code · Fable 5.1 · 2026-09-20)
+func NewObjectStoreResolver(root, scheme string, cfg ObjectStorageConfig) (platformpostgres.ImmutableAcquisitionResolver, error) {
+	if err := cfg.validate("object store " + scheme); err != nil {
+		return nil, err
+	}
+	if !cfg.UsePathStyle {
+		cfg.UsePathStyle = true
+	}
+	return newObjectStorageAcquisitionResolver(root, scheme, newS3Client(cfg))
+}
+
+// ObjectStoreResolvers builds one resolver per configured store, sealing into
+// root. legacy carries the pre-2026-09-20 per-provider variables
+// (scheme -> credential path) and is used only when stores is empty, so a
+// service whose compose file has not been updated keeps working.
+func ObjectStoreResolvers(root string, stores objectstores.Stores, legacy map[string]string) (map[string]platformpostgres.ImmutableAcquisitionResolver, error) {
+	if len(stores) == 0 {
+		stores = objectstores.Stores{}
+		for scheme, path := range legacy {
+			if strings.TrimSpace(path) != "" {
+				stores[scheme] = path
+			}
+		}
+	}
+	resolvers := make(map[string]platformpostgres.ImmutableAcquisitionResolver, len(stores))
+	for _, scheme := range stores.Schemes() {
+		cfg, err := LoadObjectStorageConfigFile(stores[scheme])
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", scheme, err)
+		}
+		resolver, err := NewObjectStoreResolver(root, scheme, cfg)
+		if err != nil {
+			return nil, err
+		}
+		resolvers[scheme] = resolver
+	}
+	return resolvers, nil
 }
 
 func newS3Client(cfg ObjectStorageConfig) *s3.Client {

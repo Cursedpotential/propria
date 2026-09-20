@@ -759,9 +759,39 @@ def test_start_accepts_only_upload_or_allowlisted_casebible_r2_scope() -> None:
         try:
             ProfferStartRequest(source_ref=forbidden, **common)
         except ValidationError as error:
-            assert "allowlisted Case Bible R2" in str(error)
+            assert "configured source root" in str(error)
         else:
             raise AssertionError(f"forbidden source scope accepted: {forbidden}")
+
+
+def test_start_accepts_any_configured_object_store_root(monkeypatch) -> None:
+    """Source authority is SOURCE_ROOTS_JSON, whatever S3-compatible provider it names."""
+    common = {
+        "request_id": "r1",
+        "matter_id": "00000000-0000-0000-0000-000000000001",
+        "court_case_id": "00000000-0000-0000-0000-000000000002",
+        "declared_format": "xml",
+        "parser_options_ref": "opts-1",
+        "matter_mode": "TEST",
+    }
+    monkeypatch.setenv(
+        "SOURCE_ROOTS_JSON",
+        '[{"id": "b2-vault", "label": "B2 / Vault", "url": "b2://salem-data/consignatio/vault/v1/"}]',
+    )
+    inside = "b2://salem-data/consignatio/vault/v1/Takeout/My%20Activity/sms.xml"
+    assert ProfferStartRequest(source_ref=inside, **common).source_ref == inside
+    for forbidden in (
+        "b2://salem-data/consignatio/intake/source.xml",
+        "b2://salem-data/consignatio/vault/v1/",
+        "b2://salem-data/consignatio/vault/v1/../../source.xml",
+        "b2://other-bucket/consignatio/vault/v1/source.xml",
+        "b2://salem-data/consignatio/vault/v1/source.xml?version=1",
+    ):
+        try:
+            ProfferStartRequest(source_ref=forbidden, **common)
+        except ValidationError:
+            continue
+        raise AssertionError(f"forbidden source scope accepted: {forbidden}")
 
 
 def test_preview_snapshot_requires_exact_requested_handle(monkeypatch) -> None:

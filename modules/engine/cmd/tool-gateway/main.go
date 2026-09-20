@@ -36,6 +36,7 @@ import (
 	"tailscale.com/tsnet"
 
 	"github.com/Cursedpotential/probata/engine/acquisition"
+	"github.com/Cursedpotential/probata/engine/objectstores"
 	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 	"github.com/Cursedpotential/probata/engine/toolgateway"
@@ -198,34 +199,26 @@ func buildResolver() (platformpostgres.ImmutableAcquisitionResolver, []string, e
 		schemes = append(schemes, "upload")
 	}
 
-	// Cross-host source bytes travel via object storage.
-	if path := env("CASEBIBLE_R2_CONFIG_PATH"); path != "" {
-		cfg, err := acquisition.LoadObjectStorageConfigFile(path)
-		if err != nil {
-			return nil, nil, fmt.Errorf("r2: %w", err)
-		}
-		r2, err := acquisition.NewCloudflareR2AcquisitionResolver(sealRoot, cfg)
-		if err != nil {
-			return nil, nil, err
-		}
-		resolvers["r2"] = r2
-		schemes = append(schemes, "r2")
+	// Cross-host source bytes travel via object storage. Stores are configuration
+	// (OBJECT_STORES_JSON): any S3-compatible provider, under the scheme it is given.
+	stores, err := objectstores.StoresFromEnv()
+	if err != nil {
+		return nil, nil, err
 	}
-	if path := env("B2_CONFIG_PATH"); path != "" {
-		cfg, err := acquisition.LoadObjectStorageConfigFile(path)
-		if err != nil {
-			return nil, nil, fmt.Errorf("b2: %w", err)
-		}
-		b2, err := acquisition.NewBackblazeB2AcquisitionResolver(sealRoot, cfg)
-		if err != nil {
-			return nil, nil, err
-		}
-		resolvers["b2"] = b2
-		schemes = append(schemes, "b2")
+	storeResolvers, err := acquisition.ObjectStoreResolvers(sealRoot, stores, map[string]string{
+		"r2": env("CASEBIBLE_R2_CONFIG_PATH"),
+		"b2": env("B2_CONFIG_PATH"),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	for scheme, resolver := range storeResolvers {
+		resolvers[scheme] = resolver
+		schemes = append(schemes, scheme)
 	}
 
 	if len(resolvers) == 0 {
-		return nil, nil, errors.New("tool gateway: no acquisition resolvers configured — set SOURCE_OBJECT_DIR, UPLOAD_ORIGIN_URL and/or CASEBIBLE_R2_CONFIG_PATH / B2_CONFIG_PATH")
+		return nil, nil, errors.New("tool gateway: no acquisition resolvers configured — set SOURCE_OBJECT_DIR, UPLOAD_ORIGIN_URL and/or OBJECT_STORES_JSON")
 	}
 	router, err := acquisition.NewSchemeRouter(resolvers)
 	if err != nil {

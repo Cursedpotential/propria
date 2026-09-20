@@ -1,5 +1,6 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19
 # Byline: Codex · GPT-5.6-Sol · 2026-08-30 (fixed source/staging buckets and runtime credentials)
+# Byline: Claude Code · Fable 5.1 · 2026-09-20 (object stores and source roots are configuration, not code)
 """S3-compatible object store repo layer for allowlisted Platform-owned R2 roots.
 
 Adapted from the donor kit's b2_client.py. All boto3 usage is confined to this
@@ -14,20 +15,18 @@ is read-only. Workbench staging writes remain fixed to ``nexus``.
 from __future__ import annotations
 
 import io
-import json
 import logging
 import mimetypes
 import re
-from dataclasses import dataclass
-from pathlib import Path
 from typing import IO
 
-import boto3
-from botocore.config import Config
+import boto3  # noqa: F401  (tests patch the SDK through this module; clients are built in object_store_factory)
 from botocore.exceptions import ClientError
 from functools import lru_cache
 
 from app.config import settings
+from app.repo import object_store_factory
+from app.types.source_roots import SourceRoot, configured_object_stores, configured_source_roots
 
 logger = logging.getLogger(__name__)
 
@@ -38,72 +37,34 @@ MAX_SOURCE_KEY_LENGTH = 1024
 _SAFE_SOURCE_KEY = re.compile(r"^[^\x00\r\n\\]+$")
 
 
-@dataclass(frozen=True)
-class SourceRoot:
-    root_id: str
-    label: str
-    bucket: str
-    root_ref: str
-    temporary: bool = True
-
-
-SOURCE_ROOTS: dict[str, SourceRoot] = {
-    "r2-raw": SourceRoot("r2-raw", "R2 / Case Bible Raw", "casebible-raw", "r2://casebible-raw/"),
-    "r2-sorted": SourceRoot(
-        "r2-sorted", "R2 / Case Bible Sorted", CASEBIBLE_SORTED_BUCKET, "r2://casebible-sorted/"
-    ),
-    "r2-quarantine": SourceRoot(
-        "r2-quarantine",
-        "R2 / Case Bible Quarantine",
-        "casebible-quarantine",
-        "r2://casebible-quarantine/",
-    ),
-}
-DEFAULT_SOURCE_ROOT_ID = "r2-sorted"
-
-
-@dataclass(frozen=True)
-class R2Config:
-    endpoint_url: str
-    region: str
-    access_key_id: str
-    secret_access_key: str
-    session_token: str | None = None
-
-
 def get_casebible_r2_config_path() -> str:
     """Return the runtime secret path; settings integration may replace this accessor."""
     return str(getattr(settings, "casebible_r2_config_path", "")).strip()
 
 
+SOURCE_ROOTS: dict[str, SourceRoot] = configured_source_roots()
+# The first configured root is the browser default. The fixed Case Bible Sorted
+# helpers below name their bucket explicitly and keep their own root id.
+DEFAULT_SOURCE_ROOT_ID = next(iter(SOURCE_ROOTS))
+CASEBIBLE_SORTED_ROOT_ID = "r2-sorted"
+
+
 @lru_cache(maxsize=1)
 def get_r2_client():
-    """Build the shared R2 client from the runtime-mounted credential document."""
-    config_path = get_casebible_r2_config_path()
-    if not config_path:
-        raise RuntimeError("Platform R2 configuration is unavailable")
-    try:
-        payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
-        raise RuntimeError("Platform R2 configuration could not be loaded") from error
-    allowed = {"endpoint_url", "region", "access_key_id", "secret_access_key", "session_token"}
-    if not isinstance(payload, dict) or set(payload) - allowed:
-        raise RuntimeError("Platform R2 configuration is invalid")
-    required = ("endpoint_url", "region", "access_key_id", "secret_access_key")
-    if any(not isinstance(payload.get(key), str) or not payload[key].strip() for key in required):
-        raise RuntimeError("Platform R2 configuration is invalid")
-    if payload.get("session_token") is not None and not isinstance(payload["session_token"], str):
-        raise RuntimeError("Platform R2 configuration is invalid")
-    config = R2Config(**payload)
-    return boto3.client(
-        "s3",
-        endpoint_url=config.endpoint_url,
-        region_name=config.region,
-        aws_access_key_id=config.access_key_id,
-        aws_secret_access_key=config.secret_access_key,
-        aws_session_token=config.session_token,
-        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
-    )
+    """The store fixed Workbench staging (``nexus``) and Case Bible Sorted live in."""
+    stores = configured_object_stores(legacy_r2_path=get_casebible_r2_config_path())
+    return object_store_factory.build_store_client(str(stores.get("r2", "")).strip(), "r2")
+
+
+@lru_cache(maxsize=8)
+def _other_store_client(scheme: str):
+    stores = configured_object_stores(legacy_r2_path=get_casebible_r2_config_path())
+    return object_store_factory.build_store_client(str(stores.get(scheme, "")).strip(), scheme)
+
+
+def get_store_client(scheme: str):
+    """The shared S3-compatible client for one configured object store."""
+    return get_r2_client() if scheme == "r2" else _other_store_client(scheme)
 
 
 def get_casebible_sorted_client():
@@ -151,7 +112,7 @@ def list_source_objects(
         validated_prefix += "/"
     request: dict[str, object] = {
         "Bucket": root.bucket,
-        "Prefix": validated_prefix,
+        "Prefix": root.key_prefix + validated_prefix,
         "MaxKeys": max_keys,
     }
     if delimiter is not None:
@@ -159,18 +120,38 @@ def list_source_objects(
     if continuation_token:
         request["ContinuationToken"] = continuation_token
     if start_after:
-        request["StartAfter"] = validate_source_key(start_after)
+        request["StartAfter"] = root.key_prefix + validate_source_key(start_after)
     try:
-        return get_r2_client().list_objects_v2(**request)
+        page = get_store_client(root.scheme).list_objects_v2(**request)
     except ClientError as error:
         raise RuntimeError(f"{root.label} source listing failed") from error
+    return _relative_page(root, page)
+
+
+def _relative_page(root: SourceRoot, page: dict) -> dict:
+    """Return the page with keys relative to the root's fixed prefix."""
+    if not root.key_prefix:
+        return page
+    cut = len(root.key_prefix)
+    relative = dict(page)
+    relative["Contents"] = [
+        {**row, "Key": str(row["Key"])[cut:]}
+        for row in page.get("Contents", [])
+        if str(row.get("Key", "")).startswith(root.key_prefix) and len(str(row["Key"])) > cut
+    ]
+    relative["CommonPrefixes"] = [
+        {**row, "Prefix": str(row["Prefix"])[cut:]}
+        for row in page.get("CommonPrefixes", [])
+        if str(row.get("Prefix", "")).startswith(root.key_prefix) and len(str(row["Prefix"])) > cut
+    ]
+    return relative
 
 
 def head_source_object(root_id: str, key: str) -> dict:
     root = get_source_root(root_id)
     validated = validate_source_key(key)
     try:
-        return get_r2_client().head_object(Bucket=root.bucket, Key=validated)
+        return get_store_client(root.scheme).head_object(Bucket=root.bucket, Key=root.key_prefix + validated)
     except ClientError as error:
         raise RuntimeError(f"{root.label} source inspection failed") from error
 
@@ -183,13 +164,13 @@ def open_source_object(
     byte_range: str | None = None,
 ) -> dict:
     root = get_source_root(root_id)
-    request: dict[str, str] = {"Bucket": root.bucket, "Key": validate_source_key(key)}
+    request: dict[str, str] = {"Bucket": root.bucket, "Key": root.key_prefix + validate_source_key(key)}
     if if_match:
         request["IfMatch"] = if_match
     if byte_range:
         request["Range"] = byte_range
     try:
-        return get_r2_client().get_object(**request)
+        return get_store_client(root.scheme).get_object(**request)
     except ClientError as error:
         raise RuntimeError(f"{root.label} source read failed") from error
 
@@ -199,7 +180,7 @@ def list_casebible_sorted_objects(
 ) -> dict:
     """List one delimiter-bounded page from the fixed Case Bible Sorted bucket."""
     return list_source_objects(
-        root_id=DEFAULT_SOURCE_ROOT_ID,
+        root_id=CASEBIBLE_SORTED_ROOT_ID,
         prefix=prefix,
         continuation_token=continuation_token,
         max_keys=max_keys,
@@ -216,7 +197,7 @@ def validate_casebible_sorted_key(key: str) -> str:
 
 def head_casebible_sorted_object(key: str) -> dict:
     """Read immutable-object coordinates from the fixed source bucket."""
-    return head_source_object(DEFAULT_SOURCE_ROOT_ID, validate_casebible_sorted_key(key))
+    return head_source_object(CASEBIBLE_SORTED_ROOT_ID, validate_casebible_sorted_key(key))
 
 
 def open_casebible_sorted_object(
@@ -227,7 +208,7 @@ def open_casebible_sorted_object(
 ) -> dict:
     """Open a source stream without allowing the caller to choose storage scope."""
     return open_source_object(
-        DEFAULT_SOURCE_ROOT_ID,
+        CASEBIBLE_SORTED_ROOT_ID,
         validate_casebible_sorted_key(key),
         if_match=if_match,
         byte_range=byte_range,

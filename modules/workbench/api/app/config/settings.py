@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # Buckets are fixed in the adapter: ``casebible-sorted`` for source reads
     # and ``nexus`` for new Workbench staging writes.
     casebible_r2_config_path: str = "/run/secrets/casebible-r2.json"
+    # Object stores and source roots are configuration: OBJECT_STORES_JSON and
+    # SOURCE_ROOTS_JSON, read by app.types.source_roots (shared with the Go engine).
     # Direct-tailnet Proffer starter boundary; blank values fail closed in the adapter.
     proffer_starter_url: str = ""
     # Explicit TEST/REAL matter identities for the Proffer intake surface.
