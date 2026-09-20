@@ -159,12 +159,24 @@ class _WorkbenchStaticFiles(StaticFiles):
             response = await super().get_response(path, scope)
         except StarletteHTTPException as error:
             if error.status_code == 404 and _allows_spa_fallback(request_path):
-                return FileResponse(Path(self.directory) / "index.html")  # type: ignore[arg-type]
+                return _cached(FileResponse(Path(self.directory) / "index.html"), request_path)  # type: ignore[arg-type]
             raise
         if response.status_code == 404 and _allows_spa_fallback(request_path):
-            return FileResponse(Path(self.directory) / "index.html")  # type: ignore[arg-type]
-        return response
+            return _cached(FileResponse(Path(self.directory) / "index.html"), request_path)  # type: ignore[arg-type]
+        return _cached(response, request_path)
 
+
+def _cached(response, request_path: str):
+    """Entry document always revalidates; content-hashed assets never change.
+
+    Without this the browser cached index.html heuristically, and after every
+    deploy it kept pointing at a deleted hashed bundle: a blank white page until
+    a hard refresh (found live 2026-09-20, Claude Code · Fable 5.1).
+    """
+    if response.status_code == 200:
+        hashed_asset = request_path.startswith("/assets/")
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable" if hashed_asset else "no-cache"
+    return response
 
 if _static_dir.is_dir():
     app.mount("/", _WorkbenchStaticFiles(directory=str(_static_dir), html=True), name="static")

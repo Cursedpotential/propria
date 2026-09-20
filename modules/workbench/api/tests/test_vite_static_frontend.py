@@ -33,6 +33,18 @@ def test_existing_asset_is_served_without_spa_fallback(tmp_path) -> None:
     assert response.text == "window.__workbench = true"
 
 
+def test_entry_document_always_revalidates_and_hashed_assets_are_immutable(tmp_path) -> None:
+    """A heuristically cached index.html points at a deleted bundle after every deploy (blank page).
+
+    Byline: Claude Code · Fable 5.1 · 2026-09-20.
+    """
+    client = _client(tmp_path)
+    for entry in ("/", "/intake", "/evidence/preview"):
+        assert client.get(entry).headers["cache-control"] == "no-cache", entry
+    assert client.get("/assets/app.js").headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert "cache-control" not in client.get("/assets/missing.js").headers
+
+
 def test_missing_asset_like_path_remains_not_found(tmp_path) -> None:
     response = _client(tmp_path).get("/assets/missing.js")
 
