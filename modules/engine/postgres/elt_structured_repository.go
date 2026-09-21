@@ -281,14 +281,35 @@ func structuredELTQuery(format activities.StructuredELTFormat, sourceURL string)
 			FROM source_rows`, url), nil
 	case activities.StructuredELTFormatNDJSON:
 		return fmt.Sprintf(`
+			-- read_json_objects keeps each line as written (no schema inference across
+			-- lines). A line shaped like derive/smsthreads output (source_pos + thread +
+			-- kind message) becomes a MESSAGE row, so SBV-derived thread chunks of a large
+			-- SMS backup normalize exactly like the sms_xml_v1 rows; every other line stays
+			-- a generic object. Normalization keys on native_fields shape, never on format.
+			-- Proven live on a real derived chunk as platform_runtime, 2026-09-20.
 			WITH source_rows AS (
-				SELECT to_json(row_value)::VARCHAR AS raw_json
-				FROM read_json_auto('%s', format='newline_delimited') AS row_value
+				SELECT json::VARCHAR AS raw_json, json AS doc
+				FROM read_json_objects('%s', format='newline_delimited')
+			), shaped AS (
+				SELECT *, (json_extract_string(doc, '$.source_pos') IS NOT NULL
+					AND json_extract_string(doc, '$.thread') IS NOT NULL
+					AND json_extract_string(doc, '$.kind') IN ('sms', 'mms', 'message')) AS is_thread_line
+				FROM source_rows
 			)
 			SELECT raw_json AS stored_bytes,
-				json_object('record_kind', 'object', 'body', raw_json)::VARCHAR AS native_fields,
-				json_object('duckdb_template', 'ndjson_v1', 'source_row', raw_json::JSON)::VARCHAR AS native_metadata
-			FROM source_rows`, url), nil
+				CASE WHEN is_thread_line THEN json_object(
+					'record_kind', 'message',
+					'body', coalesce(json_extract_string(doc, '$.content'), ''),
+					'sender', json_extract_string(doc, '$.sender'),
+					'recipients', coalesce(json_extract(doc, '$.recipients[*].identity'), json_array()),
+					'participants', coalesce(json_extract(doc, '$.participants'), json_array()),
+					'occurred_at', json_extract_string(doc, '$.occurred_at'),
+					'attachments', coalesce(json_extract(doc, '$.attachments'), json_array()))
+				ELSE json_object('record_kind', 'object', 'body', raw_json) END::VARCHAR AS native_fields,
+				json_object('duckdb_template', 'ndjson_v1',
+					'line_schema', CASE WHEN is_thread_line THEN 'smsthreads' ELSE 'generic' END,
+					'source_row', doc)::VARCHAR AS native_metadata
+			FROM shaped`, url), nil
 	case activities.StructuredELTFormatSMSXML:
 		return fmt.Sprintf(`
 			WITH source_rows AS (
