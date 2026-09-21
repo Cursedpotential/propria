@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
@@ -16,6 +17,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/acquisition"
 	"github.com/Cursedpotential/probata/engine/activities"
 	sbvadapter "github.com/Cursedpotential/probata/engine/adapters/sbv"
+	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/normalize"
 	"github.com/Cursedpotential/probata/engine/objectstores"
 	"github.com/Cursedpotential/probata/engine/parser"
@@ -39,6 +41,7 @@ type Registrations struct {
 	N8NFlows              platformtemporal.FlowActivities
 	Hash                  activities.HashActivities
 	StructuredELT         activities.StructuredELTActivities
+	DeriveSMSThreads      activities.DeriveSMSThreadsActivities
 	HandlerSelection      HandlerSelectionActivities
 	Raw                   activities.RawPipelineActivities
 	Normalized            activities.NormalizedPipelineActivities
@@ -72,6 +75,7 @@ func RegisterAll(registrar interface {
 	registrar.RegisterActivityWithOptions(registrations.N8N.SelectParser, activity.RegisterOptions{Name: string(stagegraph.SelectParser)})
 	registrar.RegisterActivityWithOptions(registrations.N8N.ExecuteParser, activity.RegisterOptions{Name: string(stagegraph.ExecuteParser)})
 	activities.RegisterStructuredELTActivities(registrar, registrations.StructuredELT)
+	activities.RegisterDeriveSMSThreadsActivity(registrar, registrations.DeriveSMSThreads)
 	if registrations.HandlerSelection.Recommend != nil || registrations.HandlerSelection.Validate != nil {
 		if registrations.HandlerSelection.Recommend == nil || registrations.HandlerSelection.Validate == nil {
 			panic("proffer worker: handler recommendation and validation activities must be registered together")
@@ -148,6 +152,44 @@ func Run(ctx context.Context, cfg Config) error {
 	<-ctx.Done()
 	temporalWorker.Stop()
 	return nil
+}
+
+// deriveScratchDir is where a streaming derivation keeps its per-thread files
+// before publishing them: a data volume, never the system temp directory. The
+// default is the mount deploy/proffer-worker.yaml already provides.
+func deriveScratchDir() string {
+	if configured := strings.TrimSpace(os.Getenv("DERIVE_SCRATCH_DIR")); configured != "" {
+		return configured
+	}
+	return "/data/proffer/derive-scratch"
+}
+
+// derivationStores opens one S3 client per configured object-store scheme, on
+// first use, from the same OBJECT_STORES_JSON the acquisition resolvers read.
+func derivationStores(stores objectstores.Stores) func(string) (smsthreads.ObjectStore, error) {
+	var mu sync.Mutex
+	opened := map[string]smsthreads.ObjectStore{}
+	return func(scheme string) (smsthreads.ObjectStore, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if store, ok := opened[scheme]; ok {
+			return store, nil
+		}
+		credentialFile, ok := stores[scheme]
+		if !ok {
+			return nil, fmt.Errorf("scheme %q is not a configured object store (configured: %v)", scheme, stores.Schemes())
+		}
+		cfg, err := acquisition.LoadObjectStorageConfigFile(credentialFile)
+		if err != nil {
+			return nil, err
+		}
+		client, err := acquisition.NewS3Client(cfg)
+		if err != nil {
+			return nil, err
+		}
+		opened[scheme] = smsthreads.S3Store{Client: client}
+		return opened[scheme], nil
+	}
 }
 
 // workerOptions bounds how much of the queue one worker takes at once.
@@ -306,6 +348,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		N8NFlows:              platformtemporal.FlowActivities{Client: n8nClient, Registry: flowRegistry},
 		Hash:                  activities.NewHashActivities(hashRepo),
 		StructuredELT:         activities.NewStructuredELTActivities(structuredELTRepo, parserStore, handlerSelectionStore),
+		DeriveSMSThreads: activities.DeriveSMSThreadsActivities{
+			Stores: derivationStores(stores), ScratchRoot: deriveScratchDir(),
+			Heartbeat: func(ctx context.Context, details ...interface{}) { activity.RecordHeartbeat(ctx, details...) },
+		},
 		HandlerSelection: HandlerSelectionActivities{
 			Recover: handlerSelectionStore.RecoverHandler,
 			Recommend: func(ctx context.Context, req proffer.StageRequest) (proffer.HandlerRecommendationResult, error) {

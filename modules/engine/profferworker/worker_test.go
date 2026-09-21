@@ -39,9 +39,9 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 		t.Fatalf("workflow registration count = %d, want 1", recorder.workflowCount)
 	}
 	const replayAliasCount = 3
-	const standaloneActivityCount = 5
+	const standaloneActivityCount = 6 // + derive_sms_threads_activity
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount || len(stagegraph.Stages) != 26 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 5 standalone activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 6 standalone activities", len(recorder.names))
 	}
 	registered := make(map[string]int, len(recorder.names))
 	for _, name := range recorder.names {
