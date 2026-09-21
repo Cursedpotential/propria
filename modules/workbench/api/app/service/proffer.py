@@ -42,6 +42,7 @@ from app.types.proffer import (
     ProfferStartResponse,
     ProfferUploadResponse,
 )
+from app.types.proffer_search import PreviewMessageFilter
 
 _SERVICE_TOKEN = re.compile(r"[A-Za-z0-9\-._~+/]+={0,}")
 _MIN_SERVICE_TOKEN_BYTES = 32
@@ -272,12 +273,15 @@ async def preview(preview_handle: str, *, mode: MatterMode) -> ProfferPreviewRes
 
 
 async def preview_messages(
-    preview_handle: str, *, mode: MatterMode, cursor: str | None, limit: int
+    preview_handle: str, *, mode: MatterMode, cursor: str | None, limit: int,
+    search: PreviewMessageFilter | None = None,
 ) -> ProfferPreviewMessagesResponse:
     await _require_mode(preview_handle, mode)
     params: dict[str, str | int] = {"limit": limit}
     if cursor:
         params["cursor"] = cursor
+    if search is not None:
+        params.update(search.as_query_params())
     response = await _request("GET", f"/reference-import/previews/{preview_handle}/messages", params=params)
     result = _validated(
         ProfferPreviewMessagesResponse,
