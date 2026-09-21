@@ -1,14 +1,14 @@
 ---
 title: Bulk intake — owner requirements and verified tooling
 date: 2026-09-20
-status: owner requirements recorded; design proposed; nothing built
+status: owner requirements recorded; build order step 1 built 2026-09-20 22:50 (not yet verified live); steps 2-6 not built
 domains: [probata, intake, consignatio, workbench]
 tags: [bulk-intake, archives, takeout, streaming, retry, units, parser-creation, rclone-archive, decision]
 ---
 
 # Bulk intake — owner requirements and verified tooling
 
-> _Byline: Claude Code · Fable 5.1 · 2026-09-20. Owner statements are quoted with their time (EDT). Everything under "Proposed" is a proposal awaiting the owner's go._
+> _Byline: Claude Code · Fable 5.1 · 2026-09-20. Owner statements are quoted with their time (EDT). Owner said "go" at 22:19; step 1 of the order below is built, the rest is not._
 
 ## Why
 
@@ -55,7 +55,7 @@ Archive patterns: **642 Google Takeout numbered parts = 1,330 GB** (each part is
 - **DuckDB `zipfs` community extension: not suitable for large members.** Its README: "The selected file will be read entirely into memory, not streamed."
 - tar/tgz/gz have no index: they can only be streamed front to back (5.8 GB + 34 GB of the corpus).
 
-## Proposed order (awaiting owner go)
+## Build order (owner go 2026-09-20 22:19)
 
 1. ~~Retry cap + non-retryable classification + options when several routes exist; concurrency cap.~~ **Built 2026-09-20 22:50, tests green:** `activities/permanent_failure.go` marks failures that cannot succeed (request shape, row validation, empty extraction, DuckDB `Invalid Input / Conversion / Parser / Binder / Catalog / Not implemented / Out of Range` errors) as Temporal non-retryable type `permanent_input_failure`; IO, HTTP, connection and timeout errors keep the stage's bounded retries. Applied to `execute_structured_elt_activity` first; the other Activities still need the same marks. The options screen already existed: a failed execution enters the handler-recovery hold (`proffer/workflow.go`, recommendation + alternatives + operator pick, 3 rounds) and now reaches it at once instead of after 5 attempts. Worker cap: `PROFFER_MAX_CONCURRENT_ACTIVITIES`, default 4 (Temporal's default was 1,000); zero, negative or non-numeric is a startup failure.
 2. Remove the whole-document XML read: route SMS XML through the streaming SBV path regardless of size.
