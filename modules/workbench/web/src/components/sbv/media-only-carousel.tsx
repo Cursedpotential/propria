@@ -37,11 +37,12 @@ interface MediaOnlyCarouselProps {
 
 export function MediaOnlyCarousel({ items, index, previewHandle, mode, onIndexChange, onClose }: MediaOnlyCarouselProps) {
   const current = items[index];
-  const [broken, setBroken] = useState(false);
-
-  useEffect(() => {
-    setBroken(false);
-  }, [index]);
+  // The failed item is tracked by index rather than reset from an effect, so
+  // moving to the next slide clears the error during render instead of
+  // triggering a cascading re-render.
+  const [brokenIndex, setBrokenIndex] = useState<number | null>(null);
+  const broken = brokenIndex === index;
+  const setBroken = () => setBrokenIndex(index);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -116,12 +117,11 @@ export function MediaOnlyCarousel({ items, index, previewHandle, mode, onIndexCh
       {showRealMedia ? (
         <div className="flex max-h-[90vh] max-w-[90vw] flex-col items-center gap-2" onClick={(event) => event.stopPropagation()}>
           {kind === "image" ? (
-            // eslint-disable-next-line jsx-a11y/alt-text -- alt supplied below via filename fallback
             <img
               src={url ?? undefined}
               alt={current.filename ?? "Attachment"}
               className="max-h-[85vh] max-w-full rounded-md object-contain"
-              onError={() => setBroken(true)}
+              onError={() => setBroken()}
             />
           ) : (
             <video
@@ -130,7 +130,7 @@ export function MediaOnlyCarousel({ items, index, previewHandle, mode, onIndexCh
               autoPlay
               playsInline
               className="max-h-[85vh] max-w-full rounded-md"
-              onError={() => setBroken(true)}
+              onError={() => setBroken()}
             />
           )}
           <p className="text-xs text-white/70">{current.filename ?? "Attachment"}</p>
