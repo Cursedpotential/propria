@@ -145,7 +145,7 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 		// derive_structured_text_activity returns a DeriveResult, not a bare
 		// StageResult, so it needs its own placeholder signature for the
 		// SDK's name-based dispatch. Byline: Claude Code · Opus 5 · 2026-09-20
-		if d.ID == stagegraph.DeriveStructuredText {
+		if d.ID == stagegraph.DeriveSMSThreads {
 			env.RegisterActivityWithOptions(placeholderDeriveActivity, activity.RegisterOptions{Name: string(d.ID)})
 			continue
 		}
@@ -947,63 +947,84 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 		reflect.TypeOf(""):               true,
 	}
 
-	// Widened 2026-09-20 (Claude Code · Opus 5) for the derive route: a
-	// derivation summary carries COUNTS and digests alongside its references.
-	// A count is not a payload — it cannot hold a file, a record, or metadata
-	// — so integers and booleans are admitted, and a slice is admitted when
-	// its element is itself a struct that passes this same check. The
-	// invariant being proven is unchanged: no field in this package can hold
-	// source bytes or a decoded record, because no such type appears here.
+	// The derive route needed exactly two relaxations, and they are named
+	// types, not a general loosening (a first pass on 2026-09-20 admitted any
+	// numeric field on any wire type and any struct-element slice; restored
+	// 2026-09-21 · Claude Code · Opus 5).
+	//
+	// 1. countBearing: ONLY a derivation summary may hold a number or a
+	//    boolean — record counts, byte counts, a chunk index, a reuse flag. A
+	//    count cannot hold a file, a record or a metadata payload, and no
+	//    other wire type in this package is allowed one at all, so a numeric
+	//    field appearing on StageRequest or WorkflowInput still fails here.
+	// 2. nestable: the ONLY struct types a wire type may embed, point at, or
+	//    hold a slice of. Anything else — including a new local struct — is a
+	//    failure until it is added here deliberately.
+	countBearing := map[reflect.Type]bool{
+		reflect.TypeOf(DeriveResult{}):    true,
+		reflect.TypeOf(DerivedChunkRef{}): true,
+	}
 	compactKind := map[reflect.Kind]bool{
-		reflect.Bool: true, reflect.Int: true, reflect.Int32: true, reflect.Int64: true,
-		reflect.Uint32: true, reflect.Uint64: true,
+		reflect.Bool: true, reflect.Int: true, reflect.Int64: true, reflect.Uint64: true,
+	}
+	nestable := map[reflect.Type]bool{
+		reflect.TypeOf(StageResult{}):     true,
+		reflect.TypeOf(DeriveResult{}):    true,
+		reflect.TypeOf(DerivedChunkRef{}): true,
 	}
 
-	var checkStruct func(t *testing.T, v interface{})
-	checkField := func(t *testing.T, owner, name string, ft reflect.Type) {
+	var checkStruct func(t *testing.T, rt reflect.Type)
+	checkField := func(t *testing.T, owner reflect.Type, name string, ft reflect.Type) {
 		switch ft.Kind() {
 		case reflect.Map:
 			if ft.Key().Kind() != reflect.String || !allowedScalar[ft.Elem()] {
-				t.Errorf("%s.%s has disallowed map type %s; wire-type maps may only be string-keyed refs", owner, name, ft)
+				t.Errorf("%s.%s has disallowed map type %s; wire-type maps may only be string-keyed refs", owner.Name(), name, ft)
 			}
 		case reflect.Slice:
-			elem := ft.Elem()
-			if elem == reflect.TypeOf(StageResult{}) {
+			if !nestable[ft.Elem()] {
+				t.Errorf("%s.%s has disallowed slice type %s; slices may only hold a named nestable wire struct", owner.Name(), name, ft)
 				return
 			}
-			if elem.Kind() == reflect.Struct {
-				checkStruct(t, reflect.New(elem).Elem().Interface())
-				return
-			}
-			t.Errorf("%s.%s has disallowed slice type %s; slices must hold StageResult or a compact struct", owner, name, ft)
+			checkStruct(t, ft.Elem())
 		case reflect.Ptr:
-			if ft.Elem().Kind() != reflect.Struct {
-				t.Errorf("%s.%s has disallowed pointer type %s", owner, name, ft)
+			if !nestable[ft.Elem()] {
+				t.Errorf("%s.%s has disallowed pointer type %s; pointers may only name a nestable wire struct", owner.Name(), name, ft)
 				return
 			}
-			checkStruct(t, reflect.New(ft.Elem()).Elem().Interface())
+			checkStruct(t, ft.Elem())
 		case reflect.Struct:
-			checkStruct(t, reflect.New(ft).Elem().Interface())
-		default:
-			if !allowedScalar[ft] && !compactKind[ft.Kind()] {
-				t.Errorf("%s.%s has disallowed type %s; wire types may only carry Ref/Status/ActivityName/string/count fields or compact collections of them", owner, name, ft)
+			if !nestable[ft] {
+				t.Errorf("%s.%s embeds disallowed struct type %s", owner.Name(), name, ft)
+				return
 			}
+			checkStruct(t, ft)
+		default:
+			if allowedScalar[ft] {
+				return
+			}
+			if countBearing[owner] && compactKind[ft.Kind()] {
+				return
+			}
+			t.Errorf("%s.%s has disallowed type %s; wire types may only carry Ref/Status/ActivityName/string fields, and only a derivation summary may carry counts", owner.Name(), name, ft)
 		}
 	}
-	checkStruct = func(t *testing.T, v interface{}) {
-		rt := reflect.TypeOf(v)
+	checkStruct = func(t *testing.T, rt reflect.Type) {
 		for i := 0; i < rt.NumField(); i++ {
 			f := rt.Field(i)
-			checkField(t, rt.Name(), f.Name, f.Type)
+			checkField(t, rt, f.Name, f.Type)
 		}
 	}
 
-	checkStruct(t, WorkflowInput{})
-	checkStruct(t, StageRequest{})
-	checkStruct(t, StageResult{})
-	checkStruct(t, WorkflowResult{})
-	checkStruct(t, DeriveResult{})
-	checkStruct(t, DerivedChunkRef{})
+	for _, wireType := range []reflect.Type{
+		reflect.TypeOf(WorkflowInput{}),
+		reflect.TypeOf(StageRequest{}),
+		reflect.TypeOf(StageResult{}),
+		reflect.TypeOf(WorkflowResult{}),
+		reflect.TypeOf(DeriveResult{}),
+		reflect.TypeOf(DerivedChunkRef{}),
+	} {
+		checkStruct(t, wireType)
+	}
 }
 
 // TestPersistRawGenerationReceivesDeclaredFormat proves

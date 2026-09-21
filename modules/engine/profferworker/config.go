@@ -218,16 +218,26 @@ func (c Config) temporalConfig() platformtemporal.Config {
 	}
 }
 
-// validateSharedPaths requires four explicit, non-overlapping absolute roots.
+// validateSharedPaths requires five explicit, non-overlapping absolute roots.
 // Coolify mounts these exact paths into both the parser runtime and this
 // worker; relative or nested roots would make stored file:// references
 // ambiguous across services and are rejected before Temporal polling begins.
+//
+// DERIVE_SCRATCH_DIR joined the set on 2026-09-21 (Claude Code · Opus 5). It
+// is its own bind mount in deploy/proffer-worker.yaml
+// (/data/probata/volumes/proffer/derive-scratch -> /data/proffer/derive-scratch)
+// and does not nest with the other four configured roots
+// (/data/proffer/{source-objects,parser-bundles,normalized-bundles,inventory-manifests}),
+// so adding it cannot fail the deployed configuration. Its contents are
+// deleted after every derivation, so a root that overlapped a bundle
+// directory would delete durable bundles.
 func validateSharedPaths(c Config) error {
 	paths := map[string]string{
 		"SOURCE_OBJECT_DIR":      c.SourceObjectDir,
 		"PARSER_BUNDLE_DIR":      c.ParserBundleDir,
 		"NORMALIZED_BUNDLE_DIR":  c.NormalizedBundleDir,
 		"INVENTORY_MANIFEST_DIR": c.InventoryManifestDir,
+		"DERIVE_SCRATCH_DIR":     c.DeriveScratchDir,
 	}
 	clean := make(map[string]string, len(paths))
 	for name, path := range paths {

@@ -154,15 +154,9 @@ func Run(ctx context.Context, cfg Config) error {
 	return nil
 }
 
-// deriveScratchDir is where a streaming derivation keeps its per-thread files
-// before publishing them: a data volume, never the system temp directory. The
-// default is the mount deploy/proffer-worker.yaml already provides.
-func deriveScratchDir() string {
-	if configured := strings.TrimSpace(os.Getenv("DERIVE_SCRATCH_DIR")); configured != "" {
-		return configured
-	}
-	return "/data/proffer/derive-scratch"
-}
+// DERIVE_SCRATCH_DIR is read by LoadConfig (config.go) into
+// Config.DeriveScratchDir, validated as an absolute path there and created by
+// prepareSharedPaths, so the worker no longer reads the variable here.
 
 // derivationStores opens one S3 client per configured object-store scheme, on
 // first use, from the same OBJECT_STORES_JSON the acquisition resolvers read.
@@ -347,6 +341,18 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	// Where derived output lands is configuration (DERIVED_ROOTS_JSON), never
+	// code. Unset means every source falls back to beside-the-original; a
+	// malformed or unreachable value is a loud boot failure, never a silent
+	// fallback (owner, 2026-09-21).
+	// Byline: Claude Code · Opus 5 · 2026-09-21
+	derivedRoots, err := smsthreads.DerivedRootsFromEnv()
+	if err != nil {
+		return Registrations{}, err
+	}
+	if err := derivedRoots.RequireConfiguredSchemes(stores.Schemes()); err != nil {
+		return Registrations{}, err
+	}
 	return Registrations{
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation: activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
@@ -356,10 +362,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		N8NFlows:              platformtemporal.FlowActivities{Client: n8nClient, Registry: flowRegistry},
 		Hash:                  activities.NewHashActivities(hashRepo),
 		StructuredELT:         activities.NewStructuredELTActivities(structuredELTRepo, parserStore, handlerSelectionStore),
-		DeriveSMSThreads: activities.DeriveSMSThreadsActivities{
-			Stores: derivationStores(stores), ScratchRoot: deriveScratchDir(),
-			Heartbeat: func(ctx context.Context, details ...interface{}) { activity.RecordHeartbeat(ctx, details...) },
-		},
+		DeriveSMSThreads: activities.NewDeriveSMSThreadsActivities(
+			deriveStore, derivationStores(stores), deriveStore,
+			derivedRoots, cfg.DeriveScratchDir, cfg.DeriveMaxChunkBytes,
+		),
 		HandlerSelection: HandlerSelectionActivities{
 			Recover: handlerSelectionStore.RecoverHandler,
 			Recommend: func(ctx context.Context, req proffer.StageRequest) (proffer.HandlerRecommendationResult, error) {

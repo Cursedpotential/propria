@@ -132,7 +132,7 @@ func (s *DeriveStore) PersistDerivedGeneration(ctx context.Context, spec activit
 	// The manifest object identifies the derivation exactly: same source, same
 	// content, same key. Its digest is the idempotency coordinate.
 	key := "derive-structured-text:" + spec.ManifestURI + ":" + spec.ManifestSHA256
-	executionID, err := parserEnsureExecution(ctx, tx, sourceID, spec.RequestID, string(stagegraph.DeriveStructuredText), key)
+	executionID, err := parserEnsureExecution(ctx, tx, sourceID, spec.RequestID, string(stagegraph.DeriveSMSThreads), key)
 	if err != nil {
 		return "", "", err
 	}

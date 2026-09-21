@@ -115,14 +115,14 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 	// retained original: it replaces extraction for its route rather than
 	// following parser selection, and it is never a mandatory ancestor of
 	// publish. Byline: Claude Code · Opus 5 · 2026-09-20
-	derive, ok := optional[DeriveStructuredText]
+	derive, ok := optional[DeriveSMSThreads]
 	if !ok || derive.Responsibility != RespDerive {
 		t.Fatalf("optional stage = %+v, want atomic derive_structured_text_activity", derive)
 	}
 	if len(derive.DependsOn) != 1 || derive.DependsOn[0] != RetainOriginal {
 		t.Fatalf("derive stage dependencies = %v, want the retained original only", derive.DependsOn)
 	}
-	if requiredStages[DeriveStructuredText] {
+	if requiredStages[DeriveSMSThreads] {
 		t.Fatal("derive stage was made mandatory for the extraction path")
 	}
 }

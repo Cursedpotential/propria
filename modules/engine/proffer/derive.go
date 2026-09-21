@@ -45,7 +45,11 @@ type DeriveResult struct {
 	ManifestURI    string `json:"manifest_uri"`
 	ManifestSHA256 string `json:"manifest_sha256"`
 	DerivedPrefix  string `json:"derived_prefix"`
-	Schema         string `json:"schema"`
+	// ThreadsPrefix is the folder a batch import can be started on. The
+	// derive route deliberately does NOT start it (owner build order step 4):
+	// it returns the locator and a human decides.
+	ThreadsPrefix string `json:"threads_prefix"`
+	Schema        string `json:"schema"`
 
 	Records      uint64 `json:"records"`
 	Rejected     uint64 `json:"rejected"`

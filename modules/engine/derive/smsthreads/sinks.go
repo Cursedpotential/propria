@@ -168,8 +168,12 @@ func (w *threadWriter) closeAll() error {
 // <mms> element) is NOT copied: its bytes already live in the original, so the
 // locator names the source span and carries the digest of the staged bytes.
 type mediaSink struct {
-	ctx       context.Context
+	ctx context.Context
+	// opts carries the SOURCE coordinate; target is where derived objects are
+	// published, which is a separate vault directory unless no configured
+	// derived root matched.
 	opts      Options
+	target    DerivedLocation
 	prefix    string
 	staging   string
 	sourceURI string
@@ -205,7 +209,7 @@ func (s *mediaSink) Store(ctx context.Context, artifact parseonly.Artifact) (par
 	}
 	s.refs++
 	key := s.prefix + "media/" + digest + mediaExtension(artifact.OriginalName, artifact.MIME)
-	uri := fmt.Sprintf("%s://%s/%s", s.opts.Scheme, s.opts.Bucket, key)
+	uri := fmt.Sprintf("%s://%s/%s", s.target.Scheme, s.target.Bucket, key)
 	if !s.seen[key] {
 		if _, err := file.Seek(0, io.SeekStart); err != nil {
 			return parseonly.ArtifactLocator{}, err
@@ -214,13 +218,13 @@ func (s *mediaSink) Store(ctx context.Context, artifact parseonly.Artifact) (par
 		if contentType == "" {
 			contentType = "application/octet-stream"
 		}
-		if err := s.opts.Store.Put(ctx, s.opts.Bucket, key, file, size, contentType); err != nil {
+		if err := s.opts.Store.Put(ctx, s.target.Bucket, key, file, size, contentType); err != nil {
 			return parseonly.ArtifactLocator{}, fmt.Errorf("smsthreads: publish media %s: %w", key, err)
 		}
 		s.seen[key] = true
 		s.bytes += size
 	}
-	return parseonly.ArtifactLocator{StorageClass: s.opts.Scheme, URI: uri, ContentHash: digest}, nil
+	return parseonly.ArtifactLocator{StorageClass: s.target.Scheme, URI: uri, ContentHash: digest}, nil
 }
 
 func (s *mediaSink) CompleteAttempt(context.Context, string, string) error { return nil }

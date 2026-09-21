@@ -296,11 +296,11 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 			preview.setCheckpoint("parser_execution", CheckpointRunning, "", "deriving structured text beside the original")
 			derived, deriveErr := r.execDerive(ctx, activeFormat, deriveRefs)
 			if deriveErr != nil {
-				preview.setCheckpoint("parser_execution", CheckpointFailed, r.receiptRef(stagegraph.DeriveStructuredText), deriveErr.Error())
+				preview.setCheckpoint("parser_execution", CheckpointFailed, r.receiptRef(stagegraph.DeriveSMSThreads), deriveErr.Error())
 				r.operation.Reason = deriveErr.Error()
 				return r.result(""), deriveErr
 			}
-			preview.setCheckpoint("parser_execution", CheckpointCompleted, r.receiptRef(stagegraph.DeriveStructuredText), "")
+			preview.setCheckpoint("parser_execution", CheckpointCompleted, r.receiptRef(stagegraph.DeriveSMSThreads), "")
 			preview.Phase = PhaseApproved
 			return r.deriveResult(derived), nil
 		}
@@ -890,7 +890,7 @@ func structuredELTEligible(declaredFormat string) bool {
 //
 // Byline: Claude Code · Opus 5 · 2026-09-20
 func (r *run) execDerive(ctx workflow.Context, declaredFormat string, refs map[string]Ref) (DeriveResult, error) {
-	id := stagegraph.DeriveStructuredText
+	id := stagegraph.DeriveSMSThreads
 	r.markStageStarted(id)
 	req := StageRequest{
 		RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,

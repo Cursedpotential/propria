@@ -60,10 +60,17 @@ func run(source, scratch string, validate bool, maxChunk int64) error {
 	if err != nil {
 		return err
 	}
+	// Placement is configuration (DERIVED_ROOTS_JSON), so the CLI resolves it
+	// exactly as the Activity does and the two can never disagree.
+	// Byline: Claude Code · Opus 5 · 2026-09-21
+	roots, err := smsthreads.DerivedRootsFromEnv()
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if validate {
-		report, err := smsthreads.Validate(ctx, smsthreads.S3Store{Client: client}, scheme, bucket, key, maxChunk)
+		report, err := smsthreads.Validate(ctx, smsthreads.S3Store{Client: client}, roots, scheme, bucket, key, maxChunk)
 		if err != nil {
 			return err
 		}
@@ -75,16 +82,24 @@ func run(source, scratch string, validate bool, maxChunk int64) error {
 		}
 		return nil
 	}
-	manifest, err := smsthreads.Derive(ctx, smsthreads.Options{
-		Store: smsthreads.S3Store{Client: client}, Scheme: scheme, Bucket: bucket, Key: key, ScratchRoot: scratch, MaxChunk: maxChunk,
+	manifest, location, err := smsthreads.Derive(ctx, smsthreads.Options{
+		Store: smsthreads.S3Store{Client: client}, Scheme: scheme, Bucket: bucket, Key: key,
+		ScratchRoot: scratch, MaxChunk: maxChunk, DerivedRoots: roots,
 	})
 	if err != nil {
 		return err
 	}
 	summary := map[string]any{
 		"source": manifest.Source, "source_sha256": manifest.SourceSHA256, "source_bytes": manifest.SourceBytes,
-		"derived_prefix": manifest.DerivedPrefix, "records": manifest.Records, "rejected": manifest.Rejected,
+		"derived_prefix": manifest.DerivedPrefix, "derived_root_mapped": location.Mapped,
+		"threads_prefix": location.URI() + smsthreads.ThreadsDir,
+		"records":        manifest.Records, "rejected": manifest.Rejected,
 		"threads": len(manifest.Threads), "media_objects": manifest.MediaObjects, "media_bytes": manifest.MediaBytes,
+	}
+	if !location.Mapped {
+		fmt.Fprintf(os.Stderr,
+			"derive-sms: no %s pair matched %s; published beside the original at %s\n",
+			smsthreads.DerivedRootsEnv, manifest.Source, location.URI())
 	}
 	return json.NewEncoder(os.Stdout).Encode(summary)
 }

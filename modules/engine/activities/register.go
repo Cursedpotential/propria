@@ -5,6 +5,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
+	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/normalize"
 	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
@@ -222,20 +223,22 @@ func NewStructuredELTActivities(rows StructuredELTRowRepository, store ParserAct
 	}
 }
 
-// NewDeriveActivities binds the derive unit to Temporal heartbeats and attempt
-// numbers. Scratch is a data-volume path the worker already mounts.
+// NewDeriveSMSThreadsActivities binds the derive unit to Temporal heartbeats
+// and attempt numbers. Scratch is a data-volume path the worker already
+// mounts; roots is the configured derived-vault mapping.
 //
-// Byline: Claude Code · Opus 5 · 2026-09-20
-func NewDeriveActivities(
+// Byline: Claude Code · Opus 5 · 2026-09-21
+func NewDeriveSMSThreadsActivities(
 	locators DeriveSourceLocatorStore,
-	stores DeriveObjectStores,
+	stores func(scheme string) (smsthreads.ObjectStore, error),
 	receipts DeriveReceiptStore,
+	roots smsthreads.DerivedRoots,
 	scratchRoot string,
 	maxChunk int64,
-) DeriveActivities {
-	return DeriveActivities{
+) DeriveSMSThreadsActivities {
+	return DeriveSMSThreadsActivities{
 		Locators: locators, Stores: stores, Receipts: receipts,
-		ScratchRoot: scratchRoot, MaxChunk: maxChunk,
+		DerivedRoots: roots, ScratchRoot: scratchRoot, MaxChunk: maxChunk,
 		Heartbeat: func(ctx context.Context, progress Progress) {
 			activity.RecordHeartbeat(ctx, progress)
 		},
@@ -243,13 +246,6 @@ func NewDeriveActivities(
 			return activity.GetInfo(ctx).Attempt
 		},
 	}
-}
-
-// RegisterDeriveActivities registers the derivation boundary under its exact
-// stage graph identity. It is a separate Activity, never an alias of
-// execute_parser_activity.
-func RegisterDeriveActivities(registrar ActivityRegistrar, activities DeriveActivities) {
-	registrar.RegisterActivityWithOptions(activities.DeriveStructuredText, activity.RegisterOptions{Name: string(stagegraph.DeriveStructuredText)})
 }
 
 // RegisterStructuredELTActivities registers the paired select/execute DuckDB
@@ -261,8 +257,9 @@ func RegisterStructuredELTActivities(registrar ActivityRegistrar, activities Str
 	registrar.RegisterActivityWithOptions(activities.ExecuteStructuredELT, activity.RegisterOptions{Name: ExecuteStructuredELTActivityName})
 }
 
-// RegisterDeriveSMSThreadsActivity installs the standalone streaming
-// derivation Activity (derive_sms_threads.go) under its exact name.
+// RegisterDeriveSMSThreadsActivity installs the streaming derivation Activity
+// (derive_sms_threads.go) under its exact stage-graph identity. It is a
+// separate Activity, never an alias of execute_parser_activity.
 func RegisterDeriveSMSThreadsActivity(registrar ActivityRegistrar, activities DeriveSMSThreadsActivities) {
 	registrar.RegisterActivityWithOptions(activities.DeriveSMSThreads, activity.RegisterOptions{Name: DeriveSMSThreadsActivityName})
 }

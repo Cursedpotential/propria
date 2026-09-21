@@ -50,7 +50,7 @@ func mockDeriveRoute(env *testsuite.TestWorkflowEnvironment, derived DeriveResul
 	for _, id := range stagesBeforeExtraction {
 		env.OnActivity(string(id), mock.Anything, mock.Anything).Return(stageStub(id), nil).Once()
 	}
-	env.OnActivity(string(stagegraph.DeriveStructuredText), mock.Anything, mock.Anything).
+	env.OnActivity(string(stagegraph.DeriveSMSThreads), mock.Anything, mock.Anything).
 		Return(derived, deriveErr).Once()
 }
 
@@ -109,7 +109,7 @@ func TestDeriveRouteEndsAfterDerivingStructuredText(t *testing.T) {
 			t.Errorf("derive route scheduled %q; it has no parser bundle to persist", forbidden)
 		}
 	}
-	if !order.contains(string(stagegraph.DeriveStructuredText)) {
+	if !order.contains(string(stagegraph.DeriveSMSThreads)) {
 		t.Fatal("derive route never scheduled derive_structured_text_activity")
 	}
 

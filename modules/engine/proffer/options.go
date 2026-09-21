@@ -171,7 +171,7 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Minute,
 		RetryPolicy:         retryPolicy(5*time.Second, 3),
 	},
-	stagegraph.DeriveStructuredText: {
+	stagegraph.DeriveSMSThreads: {
 		// Streams a multi-gigabyte source once and publishes hundreds of
 		// derived objects. A proven live run was 584 MB in 4m27s, so the
 		// bound is sized for a multi-gigabyte backup with headroom, and the
