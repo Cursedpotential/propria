@@ -950,31 +950,59 @@ func (h *PreviewHTTPHandler) messages(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = value
 	}
+	filter, err := parseMessageFilter(r.URL.Query())
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	// The cursor scope carries a digest of the active filter, so a cursor minted
+	// under one filter is rejected under any other instead of silently paging a
+	// different result set.
+	scope := filter.CursorScope()
 	offset := 0
 	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		value, err := h.decodeCursor(handle, raw)
-		if err != nil {
-			previewError(w, 422, err)
+		value, decodeErr := h.decodeScopedCursor(handle, scope, raw)
+		if decodeErr != nil {
+			previewError(w, http.StatusUnprocessableEntity, decodeErr)
 			return
 		}
 		offset = value
 	}
-	page, err := h.store.Page(r.Context(), handle, offset, limit)
+	var page PreviewPage
+	if search, ok := h.store.(previewmodel.MessageSearchStore); ok {
+		page, err = search.SearchPage(r.Context(), handle, filter, offset, limit)
+	} else if filter.IsZero() {
+		// A store without search serves the unfiltered thread and no totals.
+		page, err = h.store.Page(r.Context(), handle, offset, limit)
+		page.TotalMatches, page.TotalMessages = -1, -1
+	} else {
+		previewError(w, http.StatusNotImplemented, errors.New("message search is not available from this preview store"))
+		return
+	}
 	if err != nil {
 		h.storeError(w, err)
 		return
 	}
 	var next *string
 	if page.NextOffset != nil {
-		encoded := h.encodeCursor(handle, *page.NextOffset)
+		encoded := h.encodeScopedCursor(handle, scope, *page.NextOffset)
 		next = &encoded
+	}
+	// Lists go out as [] never null: the BFF rejects a whole page on a null list.
+	if page.Messages == nil {
+		page.Messages = []PreviewMessage{}
+	}
+	if page.Participants == nil {
+		page.Participants = []PreviewParticipant{}
 	}
 	previewJSON(w, 200, struct {
 		PreviewHandle string               `json:"preview_handle"`
 		Participants  []PreviewParticipant `json:"participants"`
 		Messages      []PreviewMessage     `json:"messages"`
+		TotalMatches  int64                `json:"total_matches"`
+		TotalMessages int64                `json:"total_messages"`
 		NextCursor    *string              `json:"next_cursor,omitempty"`
-	}{handle, page.Participants, page.Messages, next})
+	}{handle, page.Participants, page.Messages, page.TotalMatches, page.TotalMessages, next})
 }
 
 func (h *PreviewHTTPHandler) content(w http.ResponseWriter, r *http.Request) {

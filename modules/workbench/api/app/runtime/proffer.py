@@ -46,6 +46,7 @@ from app.types.proffer import (
     ProfferStartResponse,
     ProfferUploadResponse,
 )
+from app.runtime.proffer_search_params import MessageSearchFilter
 from app.types.proffer_flags import (
     ProfferPotentialPromotionFlag,
     ProfferPotentialPromotionFlagList,
@@ -232,9 +233,12 @@ async def preview_messages_endpoint(
     mode: Annotated[MatterMode, Query()],
     cursor: Annotated[str | None, Query(max_length=512)] = None,
     limit: Annotated[int, Query(ge=1, le=250)] = 100,
+    search: MessageSearchFilter = None,  # noqa: RUF013 - FastAPI dependency default
 ):
     try:
-        return await preview_messages(preview_handle, mode=mode, cursor=cursor, limit=limit)
+        return await preview_messages(
+            preview_handle, mode=mode, cursor=cursor, limit=limit, search=search
+        )
     except ProfferError as error:
         raise _translate(error) from None
 

@@ -185,17 +185,27 @@ func (s *ProfferPreviewStore) PublishWorkflowPreview(ctx context.Context, reques
 	if err := rows.Err(); err != nil {
 		return binding, err
 	}
+	// The message projection is message-only by construction. A generation may
+	// legitimately normalize zero messages (a call-log backup normalizes to
+	// record_type='call'), so publication is gated on records of ANY kind and
+	// the non-message records reach the operator through the content endpoint.
+	if err := s.db.QueryRow(ctx, `SELECT count(*) FROM context.normalized_record_identity WHERE normalized_generation_id=$1::uuid`, normalizedID).Scan(&snapshot.NormalizedRecordCount); err != nil {
+		return binding, fmt.Errorf("count normalized records: %w", err)
+	}
 	participants := make([]previewmodel.Participant, 0, len(participantsByID))
 	for _, p := range participantsByID {
 		participants = append(participants, p)
 	}
 	sort.Slice(participants, func(i, j int) bool { return participants[i].ParticipantID < participants[j].ParticipantID })
+	// RecordCount is inside the digest so two message-free generations of
+	// different sizes do not collapse to the same preview digest.
 	digestInput, _ := json.Marshal(struct {
 		Parser       *previewmodel.Parser
 		Receipts     []previewmodel.Receipt
 		Participants []previewmodel.Participant
 		Messages     []previewmodel.Message
-	}{snapshot.Parser, snapshot.Receipts, participants, messages})
+		RecordCount  int
+	}{snapshot.Parser, snapshot.Receipts, participants, messages, snapshot.NormalizedRecordCount})
 	previewDigest := sha256.Sum256(digestInput)
 	snapshot.PreviewDigest = hex.EncodeToString(previewDigest[:])
 	count := len(messages)
@@ -491,101 +501,10 @@ func (s *ProfferPreviewStore) Snapshot(ctx context.Context, handle string) (prev
 	return snapshot, nil
 }
 
+// Page is the unfiltered window. It delegates to SearchPage with the zero
+// filter so the filtered and unfiltered reads can never diverge.
 func (s *ProfferPreviewStore) Page(ctx context.Context, handle string, offset, limit int) (previewmodel.Page, error) {
-	if offset < 0 || limit < 1 || limit > 250 {
-		return previewmodel.Page{}, errors.New("preview page bounds are invalid")
-	}
-	var seq int64
-	if err := s.db.QueryRow(ctx, `SELECT snapshot_seq FROM context.proffer_preview_snapshot WHERE preview_handle = $1 ORDER BY snapshot_seq DESC LIMIT 1`, handle).Scan(&seq); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			if _, bindingErr := s.Binding(ctx, handle); errors.Is(bindingErr, previewmodel.ErrNotFound) {
-				return previewmodel.Page{}, bindingErr
-			}
-			return previewmodel.Page{}, previewmodel.ErrNotReady
-		}
-		return previewmodel.Page{}, err
-	}
-	page := previewmodel.Page{}
-	participantRows, err := s.db.Query(ctx, `SELECT participant_id, display_name, canonical_address FROM context.proffer_preview_participant WHERE preview_handle = $1 AND snapshot_seq = $2 ORDER BY participant_id`, handle, seq)
-	if err != nil {
-		return page, err
-	}
-	for participantRows.Next() {
-		var participant previewmodel.Participant
-		if err := participantRows.Scan(&participant.ParticipantID, &participant.DisplayName, &participant.CanonicalAddress); err != nil {
-			participantRows.Close()
-			return page, err
-		}
-		page.Participants = append(page.Participants, participant)
-	}
-	if err := participantRows.Err(); err != nil {
-		participantRows.Close()
-		return page, err
-	}
-	participantRows.Close()
-
-	messageRows, err := s.db.Query(ctx, `
-		SELECT message_id, ordinal, sent_at, sender_participant_id, body,
-		       participant_ids, source_locator_ref
-		FROM context.proffer_preview_message
-		WHERE preview_handle = $1 AND snapshot_seq = $2
-		ORDER BY ordinal, message_id OFFSET $3 LIMIT $4`, handle, seq, offset, limit+1)
-	if err != nil {
-		return page, err
-	}
-	for messageRows.Next() {
-		var message previewmodel.Message
-		if err := messageRows.Scan(&message.MessageID, &message.Ordinal, &message.SentAt,
-			&message.SenderParticipantID, &message.Body, &message.ParticipantIDs,
-			&message.SourceLocatorRef); err != nil {
-			messageRows.Close()
-			return page, err
-		}
-		page.Messages = append(page.Messages, message)
-	}
-	if err := messageRows.Err(); err != nil {
-		messageRows.Close()
-		return page, err
-	}
-	messageRows.Close()
-	if len(page.Messages) > limit {
-		next := offset + limit
-		page.NextOffset = &next
-		page.Messages = page.Messages[:limit]
-	}
-	if len(page.Messages) == 0 {
-		return page, nil
-	}
-	messageIDs := make([]string, len(page.Messages))
-	byID := make(map[string]*previewmodel.Message, len(page.Messages))
-	for index := range page.Messages {
-		messageIDs[index] = page.Messages[index].MessageID
-		byID[messageIDs[index]] = &page.Messages[index]
-	}
-	attachmentRows, err := s.db.Query(ctx, `
-		SELECT message_id, attachment_id, filename, media_type, byte_length,
-		       CASE WHEN sha256 IS NULL THEN NULL ELSE encode(sha256, 'hex') END,
-		       source_locator_ref
-		FROM context.proffer_preview_attachment
-		WHERE preview_handle = $1 AND snapshot_seq = $2 AND message_id = ANY($3::text[])
-		ORDER BY message_id, attachment_id`, handle, seq, messageIDs)
-	if err != nil {
-		return page, err
-	}
-	defer attachmentRows.Close()
-	for attachmentRows.Next() {
-		var messageID string
-		var attachment previewmodel.Attachment
-		if err := attachmentRows.Scan(&messageID, &attachment.AttachmentID, &attachment.Filename,
-			&attachment.MediaType, &attachment.ByteLength, &attachment.SHA256,
-			&attachment.SourceLocatorRef); err != nil {
-			return page, err
-		}
-		if message := byID[messageID]; message != nil {
-			message.Attachments = append(message.Attachments, attachment)
-		}
-	}
-	return page, attachmentRows.Err()
+	return s.SearchPage(ctx, handle, previewmodel.MessageFilter{}, offset, limit)
 }
 
 // Content resolves the generic D-158 operator projection from existing

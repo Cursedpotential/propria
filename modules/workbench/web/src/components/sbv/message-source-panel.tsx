@@ -1,14 +1,20 @@
 // Byline: Claude Code · Opus 5 · 2026-09-20 (provenance for the selected message; follows selection)
+// Byline: Claude Code · Opus 5 · 2026-09-20 (borrows SBV's media preview into the dense/default Table
+// mode's detail panel per owner ruling — "borrow" SBV's media/carousel/vCard behavior, not the
+// bubble layout, so it now renders next to every attachment listed here instead of raw fields only)
 "use client";
 
 import { FileText, ShieldCheck } from "lucide-react";
 
+import { AttachmentPreview } from "@/components/sbv/attachment-preview";
 import type { PreviewMessageRow } from "@/hooks/use-preview-messages";
-import type { ProfferPackageProjection } from "@/lib/shared/types";
+import type { MatterMode, ProfferPackageProjection } from "@/lib/shared/types";
 
 interface MessageSourcePanelProps {
   row: PreviewMessageRow | null;
   packageProjection: ProfferPackageProjection | null;
+  previewHandle: string;
+  mode: MatterMode;
 }
 
 function byteLabel(value: number | null | undefined) {
@@ -27,7 +33,7 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function MessageSourcePanel({ row, packageProjection }: MessageSourcePanelProps) {
+export function MessageSourcePanel({ row, packageProjection, previewHandle, mode }: MessageSourcePanelProps) {
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="message-source-panel">
       <header className="border-b px-4 py-3">
@@ -63,6 +69,9 @@ export function MessageSourcePanel({ row, packageProjection }: MessageSourcePane
                     <div className="flex items-start gap-1.5">
                       <FileText className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <span className="min-w-0 break-all text-xs font-medium">{attachment.filename ?? "Unnamed attachment"}</span>
+                    </div>
+                    <div className="mt-2">
+                      <AttachmentPreview attachment={attachment} previewHandle={previewHandle} mode={mode} />
                     </div>
                     <dl className="mt-2 space-y-1.5">
                       <Field label="Media type" value={attachment.media_type ?? "not reported"} />
