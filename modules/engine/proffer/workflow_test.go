@@ -937,26 +937,54 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 		reflect.TypeOf(""):               true,
 	}
 
+	// Widened 2026-09-20 (Claude Code · Opus 5) for the derive route: a
+	// derivation summary carries COUNTS and digests alongside its references.
+	// A count is not a payload — it cannot hold a file, a record, or metadata
+	// — so integers and booleans are admitted, and a slice is admitted when
+	// its element is itself a struct that passes this same check. The
+	// invariant being proven is unchanged: no field in this package can hold
+	// source bytes or a decoded record, because no such type appears here.
+	compactKind := map[reflect.Kind]bool{
+		reflect.Bool: true, reflect.Int: true, reflect.Int32: true, reflect.Int64: true,
+		reflect.Uint32: true, reflect.Uint64: true,
+	}
+
 	var checkStruct func(t *testing.T, v interface{})
+	checkField := func(t *testing.T, owner, name string, ft reflect.Type) {
+		switch ft.Kind() {
+		case reflect.Map:
+			if ft.Key().Kind() != reflect.String || !allowedScalar[ft.Elem()] {
+				t.Errorf("%s.%s has disallowed map type %s; wire-type maps may only be string-keyed refs", owner, name, ft)
+			}
+		case reflect.Slice:
+			elem := ft.Elem()
+			if elem == reflect.TypeOf(StageResult{}) {
+				return
+			}
+			if elem.Kind() == reflect.Struct {
+				checkStruct(t, reflect.New(elem).Elem().Interface())
+				return
+			}
+			t.Errorf("%s.%s has disallowed slice type %s; slices must hold StageResult or a compact struct", owner, name, ft)
+		case reflect.Ptr:
+			if ft.Elem().Kind() != reflect.Struct {
+				t.Errorf("%s.%s has disallowed pointer type %s", owner, name, ft)
+				return
+			}
+			checkStruct(t, reflect.New(ft.Elem()).Elem().Interface())
+		case reflect.Struct:
+			checkStruct(t, reflect.New(ft).Elem().Interface())
+		default:
+			if !allowedScalar[ft] && !compactKind[ft.Kind()] {
+				t.Errorf("%s.%s has disallowed type %s; wire types may only carry Ref/Status/ActivityName/string/count fields or compact collections of them", owner, name, ft)
+			}
+		}
+	}
 	checkStruct = func(t *testing.T, v interface{}) {
 		rt := reflect.TypeOf(v)
 		for i := 0; i < rt.NumField(); i++ {
 			f := rt.Field(i)
-			ft := f.Type
-			switch ft.Kind() {
-			case reflect.Map:
-				if ft.Key().Kind() != reflect.String || !allowedScalar[ft.Elem()] {
-					t.Errorf("%s.%s has disallowed map type %s; wire-type maps may only be string-keyed refs", rt.Name(), f.Name, ft)
-				}
-			case reflect.Slice:
-				if ft.Elem() != reflect.TypeOf(StageResult{}) {
-					t.Errorf("%s.%s has disallowed slice type %s; the only allowed slice is []StageResult", rt.Name(), f.Name, ft)
-				}
-			default:
-				if !allowedScalar[ft] {
-					t.Errorf("%s.%s has disallowed type %s; wire types may only carry Ref/Status/ActivityName/string fields or compact collections of them", rt.Name(), f.Name, ft)
-				}
-			}
+			checkField(t, rt.Name(), f.Name, f.Type)
 		}
 	}
 
@@ -964,6 +992,8 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 	checkStruct(t, StageRequest{})
 	checkStruct(t, StageResult{})
 	checkStruct(t, WorkflowResult{})
+	checkStruct(t, DeriveResult{})
+	checkStruct(t, DerivedChunkRef{})
 }
 
 // TestPersistRawGenerationReceivesDeclaredFormat proves

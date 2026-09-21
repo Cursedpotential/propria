@@ -90,11 +90,18 @@ func TestEveryRequiredStageAppearsExactlyOnce(t *testing.T) {
 }
 
 func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t *testing.T) {
-	if len(OptionalStages) != 1 {
-		t.Fatalf("optional stage count = %d, want exactly the D-158 non-messaging chunk stage", len(OptionalStages))
+	optional := make(map[StageID]Descriptor, len(OptionalStages))
+	for _, stage := range OptionalStages {
+		if _, duplicate := optional[stage.ID]; duplicate {
+			t.Fatalf("optional stage %q registered twice", stage.ID)
+		}
+		optional[stage.ID] = stage
 	}
-	d := OptionalStages[0]
-	if d.ID != ChunkDocument || d.Responsibility != RespChunk {
+	if len(optional) != 2 {
+		t.Fatalf("optional stage count = %d, want the D-158 chunk stage and the derive stage", len(optional))
+	}
+	d, ok := optional[ChunkDocument]
+	if !ok || d.Responsibility != RespChunk {
 		t.Fatalf("optional stage = %+v, want atomic chunk_document_activity", d)
 	}
 	if len(d.DependsOn) != 1 || d.DependsOn[0] != VerifyNormalizedGeneration {
@@ -102,6 +109,21 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 	}
 	if requiredStages[ChunkDocument] {
 		t.Fatal("non-messaging chunk stage was made mandatory for the messaging path")
+	}
+
+	// The derive stage is its own atomic Activity depending only on the
+	// retained original: it replaces extraction for its route rather than
+	// following parser selection, and it is never a mandatory ancestor of
+	// publish. Byline: Claude Code · Opus 5 · 2026-09-20
+	derive, ok := optional[DeriveStructuredText]
+	if !ok || derive.Responsibility != RespDerive {
+		t.Fatalf("optional stage = %+v, want atomic derive_structured_text_activity", derive)
+	}
+	if len(derive.DependsOn) != 1 || derive.DependsOn[0] != RetainOriginal {
+		t.Fatalf("derive stage dependencies = %v, want the retained original only", derive.DependsOn)
+	}
+	if requiredStages[DeriveStructuredText] {
+		t.Fatal("derive stage was made mandatory for the extraction path")
 	}
 }
 

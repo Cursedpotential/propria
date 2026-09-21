@@ -63,6 +63,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	if registered[activities.SelectStructuredELTActivityName] != 1 {
 		t.Errorf("standalone structured ELT activity %q registered %d times", activities.SelectStructuredELTActivityName, registered[activities.SelectStructuredELTActivityName])
 	}
+	// The derive route's Activity is a standalone optional-stage body: a new
+	// capability gets its own Activity, never a widened existing one.
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	if registered[string(stagegraph.DeriveSMSThreads)] != 1 {
+		t.Errorf("derive activity %q registered %d times", stagegraph.DeriveSMSThreads, registered[string(stagegraph.DeriveSMSThreads)])
+	}
 	if registered[proffer.RecommendHandlerActivityName] != 1 || registered[proffer.ValidateHandlerSelectionActivityName] != 1 {
 		t.Errorf("handler recommendation/validation activities were not registered exactly once: %#v", registered)
 	}

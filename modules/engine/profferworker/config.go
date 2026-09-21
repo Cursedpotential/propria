@@ -19,6 +19,10 @@ import (
 
 const legacyEvidenceTaskQueue = "evidence-pipeline"
 
+// defaultDeriveScratchDir matches the volume the deployed worker already
+// mounts; DERIVE_SCRATCH_DIR overrides it.
+const defaultDeriveScratchDir = "/data/proffer/derive-scratch"
+
 // Config contains only production worker settings. Secrets are held in
 // memory and are never included in validation errors or log fields.
 type Config struct {
@@ -32,6 +36,14 @@ type Config struct {
 	ParserBundleDir      string
 	NormalizedBundleDir  string
 	InventoryManifestDir string
+	// DeriveScratchDir stages one derivation's chunk files before they are
+	// published. It must be on a data volume, never a system temp dir: a
+	// multi-gigabyte backup writes hundreds of megabytes here.
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	DeriveScratchDir string
+	// DeriveMaxChunkBytes caps one published thread chunk. Zero uses the
+	// derive unit's own default (64 MiB).
+	DeriveMaxChunkBytes int64
 
 	// PlatformToolsBaseURL addresses the TOOL GATEWAY, not platform-tools
 	// directly (D-132): the gateway is the only sanctioned path from an
@@ -87,6 +99,21 @@ func LoadConfig() (Config, error) {
 		N8NFlowBindingsFile:  firstEnvironment("N8N_FLOW_BINDINGS_FILE"),
 		SelectHTTPTimeout:    35 * time.Second,
 		ExecuteHTTPTimeout:   31 * time.Minute,
+	}
+	cfg.DeriveScratchDir = firstEnvironment("DERIVE_SCRATCH_DIR")
+	if cfg.DeriveScratchDir == "" {
+		cfg.DeriveScratchDir = defaultDeriveScratchDir
+	}
+	if !absoluteRuntimePath(cfg.DeriveScratchDir) {
+		problems = append(problems, "DERIVE_SCRATCH_DIR must be an absolute path")
+	}
+	if raw := strings.TrimSpace(os.Getenv("DERIVE_MAX_CHUNK_BYTES")); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value <= 0 {
+			problems = append(problems, "DERIVE_MAX_CHUNK_BYTES must be a positive integer")
+		} else {
+			cfg.DeriveMaxChunkBytes = value
+		}
 	}
 	cfg.DatabaseURLFile = firstEnvironment("PLATFORM_DATABASE_URL_FILE")
 	if cfg.DatabaseURLFile == "" {

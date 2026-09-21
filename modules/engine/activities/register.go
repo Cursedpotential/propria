@@ -222,6 +222,36 @@ func NewStructuredELTActivities(rows StructuredELTRowRepository, store ParserAct
 	}
 }
 
+// NewDeriveActivities binds the derive unit to Temporal heartbeats and attempt
+// numbers. Scratch is a data-volume path the worker already mounts.
+//
+// Byline: Claude Code · Opus 5 · 2026-09-20
+func NewDeriveActivities(
+	locators DeriveSourceLocatorStore,
+	stores DeriveObjectStores,
+	receipts DeriveReceiptStore,
+	scratchRoot string,
+	maxChunk int64,
+) DeriveActivities {
+	return DeriveActivities{
+		Locators: locators, Stores: stores, Receipts: receipts,
+		ScratchRoot: scratchRoot, MaxChunk: maxChunk,
+		Heartbeat: func(ctx context.Context, progress Progress) {
+			activity.RecordHeartbeat(ctx, progress)
+		},
+		Attempt: func(ctx context.Context) int32 {
+			return activity.GetInfo(ctx).Attempt
+		},
+	}
+}
+
+// RegisterDeriveActivities registers the derivation boundary under its exact
+// stage graph identity. It is a separate Activity, never an alias of
+// execute_parser_activity.
+func RegisterDeriveActivities(registrar ActivityRegistrar, activities DeriveActivities) {
+	registrar.RegisterActivityWithOptions(activities.DeriveStructuredText, activity.RegisterOptions{Name: string(stagegraph.DeriveStructuredText)})
+}
+
 // RegisterStructuredELTActivities registers the paired select/execute DuckDB
 // implementation under distinct Temporal names. Proffer routes both names
 // together for exact eligible formats, avoiding decoder registration

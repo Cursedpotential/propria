@@ -46,11 +46,54 @@ const (
 	DerivedSuffix   = ".derived"
 	ManifestName    = "manifest.json"
 	SchemaVersion   = "smsthreads/v2" // v2: numbered, size-capped chunks per thread
-	defaultMaxChunk = 64 << 20
-	defaultMaxOpen  = 64
-	contentTypeJSON = "application/json"
-	contentTypeND   = "application/x-ndjson"
+	defaultMaxChunk      = 64 << 20
+	defaultMaxOpen       = 64
+	defaultProgressEvery = 500
+	contentTypeJSON      = "application/json"
+	contentTypeND        = "application/x-ndjson"
 )
+
+// ErrAlreadyDerived reports that a finished derivation is already published at
+// <key>.derived/manifest.json. Callers that want the existing result instead
+// set Options.ReuseExisting rather than inspecting an error string.
+var ErrAlreadyDerived = errors.New("smsthreads: a finished derivation already exists and is never overwritten")
+
+// LoadManifest reads one published manifest object.
+func LoadManifest(ctx context.Context, store ObjectStore, bucket, key string) (Manifest, error) {
+	manifest, _, err := LoadManifestWithDigest(ctx, store, bucket, key)
+	return manifest, err
+}
+
+// LoadManifestWithDigest reads one published manifest object and returns the
+// sha256 of the exact bytes served. A manifest cannot carry its own digest,
+// so a caller that needs one — a Temporal Activity recording a durable
+// reference — reads it back and hashes what the store actually returned.
+func LoadManifestWithDigest(ctx context.Context, store ObjectStore, bucket, key string) (Manifest, string, error) {
+	body, err := store.Open(ctx, bucket, key)
+	if err != nil {
+		return Manifest{}, "", fmt.Errorf("smsthreads: open manifest %s: %w", key, err)
+	}
+	defer body.Close()
+	hash := sha256.New()
+	var manifest Manifest
+	if err := json.NewDecoder(io.TeeReader(body, hash)).Decode(&manifest); err != nil {
+		return Manifest{}, "", fmt.Errorf("smsthreads: decode manifest %s: %w", key, err)
+	}
+	// The JSON decoder may stop at the closing brace; drain so the digest
+	// covers every byte the store served.
+	if _, err := io.Copy(hash, body); err != nil {
+		return Manifest{}, "", fmt.Errorf("smsthreads: drain manifest %s: %w", key, err)
+	}
+	if manifest.Schema == "" || manifest.Source == "" {
+		return Manifest{}, "", fmt.Errorf("smsthreads: manifest %s is missing its schema or source", key)
+	}
+	return manifest, hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// ManifestKey is where Derive publishes the manifest for one source key.
+func ManifestKey(sourceKey string) string {
+	return sourceKey + DerivedSuffix + "/" + ManifestName
+}
 
 // Options names one source object and where scratch files may live. Scratch
 // must be on a data volume, never the system temp dir.
@@ -62,6 +105,33 @@ type Options struct {
 	MaxOpen     int
 	MaxChunk    int64 // bytes per thread chunk file; a thread rolls over at a line boundary
 	Now         func() time.Time
+
+	// ReuseExisting makes a finished derivation a success instead of an
+	// error: the published manifest is loaded and returned unchanged. A
+	// retried Temporal Activity sets this so a second identical call is safe
+	// without the caller string-matching an error message. The original and
+	// the derived objects are still never overwritten.
+	ReuseExisting bool
+
+	// Progress, when set, is called while the source streams so a caller can
+	// report liveness (a Temporal heartbeat, a CLI line). It is deliberately
+	// caller-agnostic: this unit knows nothing about Temporal, n8n, or HTTP.
+	// It is called from the decode goroutine, so it must not block for long.
+	Progress func(Progress)
+	// ProgressEvery is how many decoded records pass between Progress calls.
+	// Zero means defaultProgressEvery.
+	ProgressEvery uint64
+}
+
+// Progress is one liveness sample taken while the source streams.
+type Progress struct {
+	Phase        string `json:"phase"` // "decoding" or "publishing"
+	SourceBytes  int64  `json:"source_bytes"`
+	Records      uint64 `json:"records"`
+	Rejected     uint64 `json:"rejected"`
+	MediaObjects uint64 `json:"media_objects"`
+	// PublishedObjects counts derived objects put during the publish phase.
+	PublishedObjects uint64 `json:"published_objects"`
 }
 
 type ThreadFile struct {
@@ -160,11 +230,17 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
+	if opts.ProgressEvery == 0 {
+		opts.ProgressEvery = defaultProgressEvery
+	}
 	prefix := opts.Key + DerivedSuffix + "/"
 	if done, err := opts.Store.Exists(ctx, opts.Bucket, prefix+ManifestName); err != nil {
 		return Manifest{}, fmt.Errorf("smsthreads: check existing manifest: %w", err)
 	} else if done {
-		return Manifest{}, fmt.Errorf("smsthreads: %s%s already exists; a finished derivation is never overwritten", prefix, ManifestName)
+		if !opts.ReuseExisting {
+			return Manifest{}, fmt.Errorf("%w: %s%s", ErrAlreadyDerived, prefix, ManifestName)
+		}
+		return LoadManifest(ctx, opts.Store, opts.Bucket, prefix+ManifestName)
 	}
 	scratch, err := os.MkdirTemp(opts.ScratchRoot, "smsthreads-")
 	if err != nil {
@@ -190,9 +266,21 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 	defer threads.closeAll()
 
 	var records, rejected uint64
+	report := func(phase string, published uint64) {
+		if opts.Progress == nil {
+			return
+		}
+		opts.Progress(Progress{
+			Phase: phase, SourceBytes: counted.count, Records: records, Rejected: rejected,
+			MediaObjects: uint64(len(media.seen)), PublishedObjects: published,
+		})
+	}
 	emit := func(emitCtx context.Context, record parseonly.Record) error {
 		if err := emitCtx.Err(); err != nil {
 			return err
+		}
+		if (records+rejected)%opts.ProgressEvery == 0 {
+			report("decoding", 0)
 		}
 		line := toLine(record)
 		if record.Status == parseonly.StatusRejected {
@@ -227,9 +315,12 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 		Records: records, Rejected: rejected,
 		MediaObjects: uint64(len(media.seen)), MediaBytes: media.bytes, MediaRefs: media.refs,
 	}
+	var published uint64
 	for _, name := range threads.names() {
 		entry := threads.files[name]
 		for index, chunk := range entry.chunks {
+			published++
+			report("publishing", published)
 			key := prefix + "threads/" + filepath.Base(chunk.path)
 			if name == "rejects" {
 				key = prefix + "rejects/" + filepath.Base(chunk.path)

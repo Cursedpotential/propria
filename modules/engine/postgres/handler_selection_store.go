@@ -102,7 +102,7 @@ func (s *HandlerSelectionStore) RecommendHandler(ctx context.Context, req proffe
 		return proffer.HandlerRecommendationResult{}, err
 	}
 	var decoderCapability parser.Capability
-	if _, templateErr := activities.StructuredELTFormatForDeclaredFormat(detected); templateErr != nil {
+	if _, templateErr := activities.StructuredELTFormatForDeclaredFormat(detected); templateErr != nil && !activities.DeriveEligibleFormat(detected) {
 		if s.parsers == nil {
 			return proffer.HandlerRecommendationResult{}, errors.New("handler recommendation requires the registered parser capability set")
 		}
@@ -303,6 +303,19 @@ func chatGPTConversationSignature(first map[string]json.RawMessage) bool {
 
 func handlerCandidatesForDetectedFormat(detected string, decoder parser.Capability) []proffer.HandlerCandidate {
 	candidates := make([]proffer.HandlerCandidate, 0, 2)
+	// Signature-based routing: one registry entry per signature, no ladder.
+	// A signature that must be derived before anything can read it resolves
+	// to the derive route and to nothing else — the DuckDB sms_xml_v1
+	// template is NOT offered as an alternative, because it fails on every
+	// real backup (no streaming XML reader, 16 MB cap).
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	if activities.DeriveEligibleFormat(detected) {
+		return append(candidates, proffer.HandlerCandidate{
+			HandlerID: activities.DeriveHandlerID, HandlerVersion: activities.DeriveHandlerVersion,
+			ExecutionPath: proffer.HandlerPathDerive, CompatibilityRef: proffer.Ref(uuid.NewString()),
+			Reason: "retained source must be streamed and republished as structured text beside the original before any extractor can read it",
+		})
+	}
 	if _, formatErr := activities.StructuredELTFormatForDeclaredFormat(detected); formatErr == nil {
 		return append(candidates, proffer.HandlerCandidate{
 			HandlerID: activities.StructuredELTParserID, HandlerVersion: activities.StructuredELTParserVersion,

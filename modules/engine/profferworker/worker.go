@@ -339,6 +339,14 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	// The derive route streams from, and republishes into, the source's own
+	// object store — the same OBJECT_STORES_JSON configuration the
+	// acquisition resolvers above use. No provider is named in code.
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	deriveStore, err := platformpostgres.NewDeriveStore(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
 	return Registrations{
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation: activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
@@ -399,6 +407,7 @@ func prepareSharedPaths(cfg Config) error {
 		"PARSER_BUNDLE_DIR":      cfg.ParserBundleDir,
 		"NORMALIZED_BUNDLE_DIR":  cfg.NormalizedBundleDir,
 		"INVENTORY_MANIFEST_DIR": cfg.InventoryManifestDir,
+		"DERIVE_SCRATCH_DIR":     cfg.DeriveScratchDir,
 	} {
 		if err := os.MkdirAll(path, 0o750); err != nil {
 			return fmt.Errorf("proffer worker: create %s: %w", name, err)

@@ -227,4 +227,12 @@ type WorkflowResult struct {
 	// the order its result was recorded. A failed run's Stages ends at the
 	// first failure; no descendant or seal/publish receipt follows it.
 	Stages []StageResult
+	// Derived is set, and PublicationRef empty, only on the derive route: a
+	// source no in-place extractor can read is republished as structured
+	// text beside the original and this run ends there. Each derived chunk
+	// is ingested by its own successor Proffer run, so this run has no raw
+	// generation to seal or publish.
+	//
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	Derived *DeriveResult `json:"derived,omitempty"`
 }
