@@ -1021,6 +1021,21 @@ func (h *PreviewHTTPHandler) content(w http.ResponseWriter, r *http.Request) {
 		encoded := h.encodeScopedCursor(handle, "chunks", *page.NextChunkOffset)
 		nextChunk = &encoded
 	}
+	// Lists go out as [] never null: the BFF rejects a whole page on a null list
+	// (live 2026-09-20: a source with no attachments and no chunk generation yet
+	// made the Review surface show "invalid preview content page" and no data).
+	if page.Records == nil {
+		page.Records = []previewmodel.Record{}
+	}
+	if page.Attachments == nil {
+		page.Attachments = []previewmodel.PackageAttachment{}
+	}
+	if page.Chunks == nil {
+		page.Chunks = []previewmodel.ContentChunk{}
+	}
+	if page.Attempt.Receipts == nil {
+		page.Attempt.Receipts = []previewmodel.Receipt{}
+	}
 	previewJSON(w, http.StatusOK, struct {
 		PreviewHandle    string                           `json:"preview_handle"`
 		Package          previewmodel.Package             `json:"package"`
