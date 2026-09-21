@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     # --- Object store: runtime credentials; fixed buckets live in the repo adapter ---
     object_store_prefix: str = "workbench/staging"
 
+    # --- Proffer decoded-media resolution ---
+    # Current default for app.service.proffer_media_prefix.derived_media_prefix:
+    # decoded media lives beside the source object at "<base>.derived/media/".
+    # This is the ONE tunable pair for that layout; see the function's docstring
+    # for the planned move to a separate top-level vault directory.
+    proffer_derived_media_suffix: str = ".derived"
+    proffer_derived_media_dirname: str = "media"
+
     # --- LanceDB local whole-file staging store (no S3, no AWS env vars) ---
     lancedb_path: str = "/data/lancedb"
 
