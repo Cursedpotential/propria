@@ -125,7 +125,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
 
   return (
     <section
-      className="platform-panel flex h-[41rem] min-h-0 flex-col overflow-hidden"
+      className="platform-panel flex h-[calc(100vh-25rem)] min-h-[22rem] flex-col overflow-hidden"
       aria-label="Message browser"
       data-testid="message-browser"
     >

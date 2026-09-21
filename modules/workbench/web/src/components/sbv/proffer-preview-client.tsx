@@ -514,7 +514,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
         <section className="platform-panel flex items-center justify-center p-6 text-sm text-muted-foreground" aria-label="Review loading"><Loader2 className="mr-2 size-4 animate-spin motion-reduce:animate-none" /> Loading the {mode} review workspace…</section>
       ) : (
         <>
-          {eventError && <p className="border border-[#ead5a9] bg-[#fff4dd] p-3 text-sm text-[#684b18]" role="status">{eventError}</p>}
+          {eventError && <p className="truncate border border-[#ead5a9] bg-[#fff4dd] px-2 py-1 text-xs text-[#684b18]" role="status" title={eventError}>{eventError}</p>}
           {!decisionEligible && awaitingDecision && <p className="border border-[#ead5a9] bg-[#fff4dd] p-3 text-xs text-[#684b18]" role="status">Approval remains locked until this exact attempt has normalized records, source locators, and every required completed receipt.</p>}
           <ProfferOperatorPreview
             key={`${mode}:${previewHandle}`}
