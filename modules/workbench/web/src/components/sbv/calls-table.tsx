@@ -1,105 +1,24 @@
-// Byline: Claude Code · Opus 5 · 2026-09-20 (calls projection table for the Review surface)
+// Ported from modules/forks/sbv/frontend/src/components/Calls.jsx
+// MIT, Copyright (c) 2025 lowcarbdev
+// Supersedes this file's prior Glide Data Grid implementation (Claude Code · Opus 5 ·
+// 2026-09-20) with SBV's own card-list layout: an icon + name/number on the left,
+// a direction/disposition badge and timestamp on the right, and a duration line
+// underneath for answered calls. Adapted: Bootstrap classes and inline hex colors
+// replaced with this app's shadcn tokens; SBV fetched its own `${API_BASE}/calls`
+// page with an IntersectionObserver-driven infinite scroll — this component is fed
+// already-parsed rows by its caller (`content.records` via `parseCallRecords`,
+// wired to the existing "Load more records" button in proffer-operator-preview.tsx),
+// so no fetching or intersection-observer bookkeeping lives here. The
+// `parseCallRecord`/`parseCallRecords` pure parsing helpers are this app's own
+// (not from SBV, whose Calls.jsx reads a different call-record shape) and are kept
+// unchanged, exported, and unit-testable.
+// Byline: Claude Code · Opus 5 · 2026-09-20
 "use client";
 
-import {
-  CompactSelection,
-  DataEditor,
-  GridCellKind,
-  type GridCell,
-  type GridColumn,
-  type GridSelection,
-  type Item,
-  type Theme,
-} from "@glideapps/glide-data-grid";
-import { useCallback, useMemo, useState } from "react";
+import { Phone, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOff, PhoneOutgoing } from "lucide-react";
 
-import { useTheme } from "@/components/layout/theme-provider";
+import { Badge } from "@/components/ui/badge";
 import type { ProfferGenericRecord } from "@/lib/shared/types";
-
-import "@glideapps/glide-data-grid/dist/index.css";
-
-const COLUMNS: GridColumn[] = [
-  { title: "When", id: "when", width: 190 },
-  { title: "Direction", id: "direction", width: 120 },
-  { title: "Number", id: "number", width: 160 },
-  { title: "Duration", id: "duration", width: 100 },
-  { title: "Disposition", id: "disposition", width: 140, grow: 1 },
-];
-
-function cssVariable(element: HTMLElement, name: string, fallback: string) {
-  const value = getComputedStyle(element).getPropertyValue(name).trim();
-  return value || fallback;
-}
-
-/** Used only when a custom property is missing; mirrors `src/app/globals.css`. */
-const FALLBACK_PALETTE = {
-  light: {
-    primary: "#4051b9",
-    accent: "#e9ecfb",
-    foreground: "#1d2228",
-    mutedForeground: "#687078",
-    card: "#fffefb",
-    muted: "#ebe8e0",
-    border: "#d5d1c9",
-  },
-  dark: {
-    primary: "#8591f0",
-    accent: "#313a66",
-    foreground: "#f0f1ef",
-    mutedForeground: "#b1b8bd",
-    card: "#242e36",
-    muted: "#2c373f",
-    border: "#43505a",
-  },
-} as const;
-
-/**
- * Glide paints to a canvas, so it cannot inherit the surface tokens through CSS.
- * The palette is read back from the live custom properties whenever the resolved
- * light/dark theme changes, which keeps the grid inside the existing design system.
- * (Same pattern as `message-browser-grid.tsx` — kept in sync deliberately.)
- */
-function useGridTheme(host: HTMLElement | null): Partial<Theme> | undefined {
-  const { resolvedTheme } = useTheme();
-
-  const fallback = FALLBACK_PALETTE[resolvedTheme === "dark" ? "dark" : "light"];
-
-  return useMemo(() => {
-    if (!host) return undefined;
-    return {
-      accentColor: cssVariable(host, "--primary", fallback.primary),
-      accentLight: cssVariable(host, "--accent", fallback.accent),
-      textDark: cssVariable(host, "--foreground", fallback.foreground),
-      textMedium: cssVariable(host, "--muted-foreground", fallback.mutedForeground),
-      textLight: cssVariable(host, "--muted-foreground", fallback.mutedForeground),
-      textHeader: cssVariable(host, "--foreground", fallback.foreground),
-      bgCell: cssVariable(host, "--card", fallback.card),
-      bgCellMedium: cssVariable(host, "--muted", fallback.muted),
-      bgHeader: cssVariable(host, "--muted", fallback.muted),
-      bgHeaderHasFocus: cssVariable(host, "--accent", fallback.accent),
-      bgHeaderHovered: cssVariable(host, "--accent", fallback.accent),
-      borderColor: cssVariable(host, "--border", fallback.border),
-      horizontalBorderColor: cssVariable(host, "--border", fallback.border),
-      fontFamily: cssVariable(host, "--font-sans", "system-ui, sans-serif"),
-      baseFontStyle: "13px",
-      headerFontStyle: "600 12px",
-    };
-  }, [fallback, host]);
-}
-
-export type CallDirection = "incoming" | "outgoing" | "unknown";
-
-/** One row of the Calls table, parsed defensively from a `call` record's payload. */
-export interface CallRow {
-  recordId: string;
-  ordinal: number;
-  whenLabel: string;
-  direction: CallDirection;
-  missed: boolean;
-  number: string;
-  durationLabel: string;
-  disposition: string;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -123,8 +42,22 @@ function formatDuration(durationSeconds: unknown): string {
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
+export type CallDirection = "incoming" | "outgoing" | "unknown";
+
 function normalizeDirection(direction: unknown): CallDirection {
   return direction === "incoming" || direction === "outgoing" ? direction : "unknown";
+}
+
+/** One row of the Calls view, parsed defensively from a `call` record's payload. */
+export interface CallRow {
+  recordId: string;
+  ordinal: number;
+  whenLabel: string;
+  direction: CallDirection;
+  missed: boolean;
+  number: string;
+  durationLabel: string;
+  disposition: string;
 }
 
 /**
@@ -170,64 +103,19 @@ export function parseCallRecords(records: ProfferGenericRecord[]): CallRow[] {
   return rows;
 }
 
-function directionLabel(row: CallRow): string {
-  const base = row.direction === "incoming" ? "Incoming" : row.direction === "outgoing" ? "Outgoing" : "Unknown";
-  return row.missed ? `${base} (missed)` : base;
+function directionMeta(row: CallRow) {
+  if (row.missed) return { label: "Missed", Icon: PhoneMissed, tone: "text-destructive" };
+  if (row.direction === "incoming") return { label: "Incoming", Icon: PhoneIncoming, tone: "text-emerald-600 dark:text-emerald-400" };
+  if (row.direction === "outgoing") return { label: "Outgoing", Icon: PhoneOutgoing, tone: "text-primary" };
+  return { label: "Call", Icon: Phone, tone: "text-muted-foreground" };
 }
 
 interface CallsTableProps {
   rows: CallRow[];
 }
 
+/** SBV-styled call history list: one card per call, icon + number + direction badge + duration. */
 export function CallsTable({ rows }: CallsTableProps) {
-  const [host, setHost] = useState<HTMLDivElement | null>(null);
-  const theme = useGridTheme(host);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-
-  const getCellContent = useCallback(
-    ([column, row]: Item): GridCell => {
-      const entry = rows[row];
-      const text = (() => {
-        if (!entry) return "";
-        if (column === 0) return entry.whenLabel;
-        if (column === 1) return directionLabel(entry);
-        if (column === 2) return entry.number;
-        if (column === 3) return entry.durationLabel;
-        return entry.disposition;
-      })();
-      return {
-        kind: GridCellKind.Text,
-        data: text,
-        displayData: text,
-        allowOverlay: false,
-        readonly: true,
-      };
-    },
-    [rows],
-  );
-
-  const selection = useMemo<GridSelection>(
-    () => ({
-      columns: CompactSelection.empty(),
-      rows: CompactSelection.empty(),
-      current:
-        selectedIndex >= 0 && selectedIndex < rows.length
-          ? {
-              cell: [0, selectedIndex] as Item,
-              range: { x: 0, y: selectedIndex, width: COLUMNS.length, height: 1 },
-              rangeStack: [],
-            }
-          : undefined,
-    }),
-    [rows.length, selectedIndex],
-  );
-
-  const handleSelectionChange = useCallback((next: GridSelection) => {
-    const cell = next.current?.cell;
-    if (!cell) return;
-    setSelectedIndex(cell[1]);
-  }, []);
-
   if (!rows.length) {
     return (
       <div className="border p-6 text-center text-sm text-muted-foreground" data-testid="calls-table-empty">
@@ -237,25 +125,33 @@ export function CallsTable({ rows }: CallsTableProps) {
   }
 
   return (
-    <div ref={setHost} className="h-[28rem] min-h-0 w-full" data-testid="calls-table">
-      {theme && (
-        <DataEditor
-          width="100%"
-          height="100%"
-          columns={COLUMNS}
-          rows={rows.length}
-          rowHeight={30}
-          headerHeight={32}
-          theme={theme}
-          getCellContent={getCellContent}
-          gridSelection={selection}
-          onGridSelectionChange={handleSelectionChange}
-          rangeSelect="cell"
-          rowMarkers="number"
-          smoothScrollY
-          keybindings={{ search: false }}
-        />
-      )}
+    <div className="space-y-2" data-testid="calls-table">
+      {rows.map((row) => {
+        const { label, Icon, tone } = directionMeta(row);
+        return (
+          <div
+            key={row.recordId}
+            className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2.5 shadow-sm"
+            data-testid="calls-table-row"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div className={`shrink-0 rounded-full bg-muted p-2 ${tone}`}>
+                {row.missed ? <PhoneOff className="size-4" /> : row.direction === "unknown" ? <PhoneCall className="size-4" /> : <Icon className="size-4" />}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{row.number}</p>
+                <p className="text-xs text-muted-foreground">Duration: {row.durationLabel}</p>
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <Badge variant={row.missed ? "destructive" : "outline"} className="text-[11px]">
+                {label}{row.disposition !== "—" ? ` · ${row.disposition}` : ""}
+              </Badge>
+              <p className="mt-1 text-xs text-muted-foreground">{row.whenLabel}</p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

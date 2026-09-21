@@ -1,16 +1,17 @@
 "use client";
 
-import { AlertTriangle, Check, CircleDot, Database, ExternalLink, Flag, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, CircleDot, Database, ExternalLink, Flag, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AtomicTools } from "@/components/tools/atomic-tools";
 import { CallsTable, parseCallRecords } from "@/components/sbv/calls-table";
 import { MessageBrowser } from "@/components/sbv/message-browser";
-import { PlatformMessageViewer } from "@/components/sbv/platform-message-viewer";
+import { MessageThreadView } from "@/components/sbv/message-thread-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { usePreviewMessageRows } from "@/hooks/use-preview-messages";
 import { AppLink } from "@/lib/router-compat";
 import { checkpointLabel } from "@/lib/proffer-context-checkpoints";
 import type {
@@ -43,6 +44,26 @@ const TABS: Array<{ id: ReviewTab; label: string }> = [
   { id: "warnings", label: "Warnings" },
   { id: "attempts", label: "Attempts / runs" },
 ];
+
+// Owner ruling 2026-09-20 (Control surfaces decisions, relayed mid-task, "for now —
+// keep it easy to change"): extra tabs collapse into a "More" menu instead of a
+// second scrolling tab row. Messages/Calls/Overview/Source records stay always
+// visible as the primary path; everything else moves under "More".
+const PRIMARY_TAB_IDS = new Set<ReviewTab>(["messages", "calls", "overview", "records"]);
+
+function tabAvailability(
+  id: ReviewTab,
+  content: ProfferContentResponse | null,
+  snapshot: ProfferOperatorSnapshot,
+): { status: "available" | "pending" | "unavailable" } {
+  const durableContentAvailable = Boolean(content && (
+    id === "messages" || id === "calls" || id === "overview" || id === "records" || id === "files" || id === "lineage" || id === "warnings" || id === "attempts" ||
+    (id === "chunks" && content.chunk_generation)
+  ));
+  const surfaceKey = id === "relationships" ? "graph" : id === "attempts" ? "workflow" : id;
+  const projected = surfaceKey in snapshot.surfaces ? snapshot.surfaces[surfaceKey as keyof typeof snapshot.surfaces] : undefined;
+  return durableContentAvailable ? { status: "available" as const } : projected ?? { status: "unavailable" as const };
+}
 
 function Availability({ value, label }: { value: ProfferOperatorAvailability; label: string }) {
   return (
@@ -164,13 +185,19 @@ export function ProfferOperatorPreview({
   // Overview for every source: `smoke/proffer-operator-surface.contract.test.mjs`
   // pins that default, and changing it is an owner decision, not a side effect here.
   const messagingSource = messages.length > 0;
+  const fallbackMessagePages = useMemo(() => [{ messages, participants }], [messages, participants]);
+  const { rows: fallbackMessageRows, participants: fallbackParticipantMap } = usePreviewMessageRows(fallbackMessagePages);
   const callRows = useMemo(() => parseCallRecords(content?.records ?? []), [content]);
   const callsSource = callRows.length > 0;
   const [tab, setTab] = useState<ReviewTab>("overview");
+  const [moreOpen, setMoreOpen] = useState(false);
   const visibleTabs = useMemo(
     () => TABS.filter((entry) => (entry.id !== "messages" || messagingSource) && (entry.id !== "calls" || callsSource)),
     [callsSource, messagingSource],
   );
+  const primaryTabs = useMemo(() => visibleTabs.filter((entry) => PRIMARY_TAB_IDS.has(entry.id)), [visibleTabs]);
+  const moreTabs = useMemo(() => visibleTabs.filter((entry) => !PRIMARY_TAB_IDS.has(entry.id)), [visibleTabs]);
+  const activeMoreTab = moreTabs.find((entry) => entry.id === tab);
   const [reason, setReason] = useState("");
   const candidates = useMemo(() => preview.recommended_handler
     ? [preview.recommended_handler, ...(preview.alternative_handlers ?? [])]
@@ -209,21 +236,59 @@ export function ProfferOperatorPreview({
         </dl>
       </section>
 
-      <nav className="flex gap-1 overflow-x-auto border bg-card px-2 pt-2" role="tablist" aria-label="Context review views">
-        {visibleTabs.map(({ id, label }) => {
-          const durableContentAvailable = Boolean(content && (
-            id === "messages" || id === "calls" || id === "overview" || id === "records" || id === "files" || id === "lineage" || id === "warnings" || id === "attempts" ||
-            (id === "chunks" && content.chunk_generation)
-          ));
-          const surfaceKey = id === "relationships" ? "graph" : id === "attempts" ? "workflow" : id;
-          const projected = surfaceKey in snapshot.surfaces ? snapshot.surfaces[surfaceKey as keyof typeof snapshot.surfaces] : undefined;
-          const state = durableContentAvailable ? { status: "available" as const } : projected ?? { status: "unavailable" as const };
+      <nav className="relative flex items-center gap-1 overflow-x-auto border bg-card px-2 pt-2" role="tablist" aria-label="Context review views">
+        {primaryTabs.map(({ id, label }) => {
+          const state = tabAvailability(id, content, snapshot);
           return (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={cn("flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-xs font-semibold", tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => { setTab(id); setMoreOpen(false); }} className={cn("flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-xs font-semibold", tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
               {label}<span className={cn("size-1.5 rounded-full", state.status === "available" ? "bg-[#2f9d67]" : state.status === "pending" ? "bg-[#c69027]" : "bg-muted-foreground/50")} />
             </button>
           );
         })}
+        {moreTabs.length > 0 && (
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              aria-haspopup="true"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((value) => !value)}
+              className={cn(
+                "flex items-center gap-1 border-b-2 px-3 py-2 text-xs font-semibold",
+                activeMoreTab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+              data-testid="review-more-menu-trigger"
+            >
+              {activeMoreTab ? activeMoreTab.label : "More"} <ChevronDown className="size-3" />
+            </button>
+            {moreOpen && (
+              <div
+                role="menu"
+                className="absolute left-0 top-full z-10 mt-1 min-w-48 border bg-card py-1 shadow-md"
+                data-testid="review-more-menu"
+              >
+                {moreTabs.map(({ id, label }) => {
+                  const state = tabAvailability(id, content, snapshot);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={tab === id}
+                      onClick={() => { setTab(id); setMoreOpen(false); }}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
+                        tab === id ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
+                      )}
+                    >
+                      {label}
+                      <span className={cn("size-1.5 shrink-0 rounded-full", state.status === "available" ? "bg-[#2f9d67]" : state.status === "pending" ? "bg-[#c69027]" : "bg-muted-foreground/50")} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
 
       <section className="min-h-[31rem] border bg-card p-4" role="tabpanel">
@@ -316,10 +381,10 @@ export function ProfferOperatorPreview({
         {tab === "records" && (content ? <div className="space-y-3">
           <header><p className="platform-kicker">Authoritative normalized projection</p><h2 className="mt-1 text-xl font-semibold">All record types</h2><p className="mt-1 text-xs text-muted-foreground">Payloads below are the exact persisted normalized_payload objects. Messages are one record type within this view.</p></header>
           {flagError && <p className="border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive" role="alert">Later-review annotations unavailable: {flagError}</p>}
-          <ol className="divide-y border">{content.records.map((record) => <li key={record.record_id} className="p-4"><div className="flex flex-wrap justify-between gap-2"><strong>#{record.ordinal} · {record.record_type}</strong><span className="text-xs text-muted-foreground">{record.occurred_at ?? "No occurrence time"}</span></div><p className="mt-2 break-all font-mono text-[10px] text-muted-foreground">{record.record_id} · {record.source_locator_ref}</p><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap border bg-muted/30 p-3 text-xs">{JSON.stringify(record.payload, null, 2)}</pre><PotentialPromotionControl scope="record" targetId={record.record_id} attemptId={attemptId} flags={potentialFlags} pending={flagPendingTarget === `record:${record.record_id}`} onFlag={onFlagPotentialPromotion} /></li>)}</ol>
+          <ol className="divide-y border">{content.records.map((record) => <li key={record.record_id} className="p-4"><div className="flex flex-wrap justify-between gap-2"><strong>#{record.ordinal} · {record.record_type}</strong><span className="text-xs text-muted-foreground">{record.occurred_at ?? "No occurrence time"}</span></div><p className="mt-2 break-all font-mono text-[10px] text-muted-foreground">{record.record_id} · {record.source_locator_ref}</p><details className="mt-3"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">Raw JSON</summary><pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap border bg-muted/30 p-3 text-xs">{JSON.stringify(record.payload, null, 2)}</pre></details><PotentialPromotionControl scope="record" targetId={record.record_id} attemptId={attemptId} flags={potentialFlags} pending={flagPendingTarget === `record:${record.record_id}`} onFlag={onFlagPotentialPromotion} /></li>)}</ol>
           {!content.records.length && <p className="border p-6 text-center text-sm text-muted-foreground">No normalized records are projected for this attempt.</p>}
           {content.next_record_cursor && <Button variant="outline" disabled={contentLoading} onClick={() => onLoadMoreContent(content.next_record_cursor ?? undefined, undefined)}>Load more records</Button>}
-        </div> : <PlatformMessageViewer key={snapshot.preview_handle} messages={messages} participants={participants} loading={messagesLoading || contentLoading} error={contentError ?? messageError} previewHandle={snapshot.preview_handle} hasMore={hasMore} onLoadMore={onLoadMore} />)}
+        </div> : <MessageThreadView key={snapshot.preview_handle} rows={fallbackMessageRows} participants={fallbackParticipantMap} loading={messagesLoading || contentLoading} error={contentError ?? messageError} previewHandle={snapshot.preview_handle} mode={snapshot.matter_mode} hasMore={hasMore} fetching={messagesLoading} onLoadMore={onLoadMore} />)}
 
         {tab === "chunks" && (content?.chunk_generation ? <div className="space-y-4">
           <header><p className="platform-kicker">Exact pre-publication chunks</p><h2 className="mt-1 text-xl font-semibold">Sealed chunk generation {content.chunk_generation.generation_ordinal}</h2><p className="mt-1 text-xs text-muted-foreground">These chunks remain Context candidates until the exact attempt is approved for its configured destination.</p></header>
@@ -334,7 +399,7 @@ export function ProfferOperatorPreview({
 
         {tab === "files" && <div className="space-y-4">
           <header><p className="platform-kicker">Retained source package</p><h2 className="mt-1 text-xl font-semibold">Attachments and files</h2><p className="mt-1 text-xs text-muted-foreground">Every row below is returned by the current package projection.</p></header>
-          {content?.attachments.length ? <ol className="divide-y border">{content.attachments.map((attachment) => <li key={attachment.object_ref} className="grid gap-2 p-4 text-xs md:grid-cols-[minmax(0,1fr)_12rem]"><div><strong className="break-all">{attachment.object_ref}</strong><pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap text-[10px] text-muted-foreground">{JSON.stringify(attachment.member_locator, null, 2)}</pre></div><div className="space-y-1 text-muted-foreground"><p>{attachment.byte_length.toLocaleString()} bytes</p><p>{attachment.storage_class}</p><p className="break-all font-mono text-[10px]">SHA-256 {attachment.sha256}</p></div></li>)}</ol> : <UnavailablePanel title="Attachments and files" availability={contentError ? { status: "unavailable", reason: contentError } : snapshot.package.attachments} action="No attachment rows were returned for this attempt." />}
+          {content?.attachments.length ? <ol className="divide-y border">{content.attachments.map((attachment) => <li key={attachment.object_ref} className="grid gap-2 p-4 text-xs md:grid-cols-[minmax(0,1fr)_12rem]"><div><strong className="break-all">{attachment.object_ref}</strong><details className="mt-2"><summary className="cursor-pointer text-[10px] font-medium text-muted-foreground">Raw JSON</summary><pre className="mt-1 max-h-44 overflow-auto whitespace-pre-wrap text-[10px] text-muted-foreground">{JSON.stringify(attachment.member_locator, null, 2)}</pre></details></div><div className="space-y-1 text-muted-foreground"><p>{attachment.byte_length.toLocaleString()} bytes</p><p>{attachment.storage_class}</p><p className="break-all font-mono text-[10px]">SHA-256 {attachment.sha256}</p></div></li>)}</ol> : <UnavailablePanel title="Attachments and files" availability={contentError ? { status: "unavailable", reason: contentError } : snapshot.package.attachments} action="No attachment rows were returned for this attempt." />}
         </div>}
 
         {tab === "lineage" && <div className="space-y-4">

@@ -4,12 +4,14 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { getProfferPreviewMessages } from "@/lib/api-client";
+import { getProfferPreviewMessages, type ProfferPreviewMessageFilters } from "@/lib/api-client";
 import type {
   MatterMode,
   ProfferPreviewMessage,
   ProfferPreviewParticipant,
 } from "@/lib/shared/types";
+
+export type { ProfferPreviewMessageFilters };
 
 /** Page size for one cursor request against the governed messages endpoint. */
 export const MESSAGE_PAGE_SIZE = 200;
@@ -40,15 +42,54 @@ function timeLabel(sentAt: string | null | undefined) {
   return Number.isNaN(parsed.getTime()) ? sentAt : parsed.toLocaleString();
 }
 
-export function useProfferPreviewMessages(previewHandle: string, mode: MatterMode, enabled = true) {
+const EMPTY_FILTERS: ProfferPreviewMessageFilters = {};
+
+/**
+ * Fetches message rows for one preview attempt. `filters` is part of the query key: a
+ * cursor is bound to the filter that minted it, so changing any filter value restarts
+ * paging from the first page rather than reusing a stale cursor (the server 422s on that).
+ */
+export function useProfferPreviewMessages(
+  previewHandle: string,
+  mode: MatterMode,
+  filters: ProfferPreviewMessageFilters = EMPTY_FILTERS,
+  enabled = true,
+) {
   return useInfiniteQuery({
-    queryKey: ["proffer", "preview-messages", mode, previewHandle] as const,
+    queryKey: [
+      "proffer",
+      "preview-messages",
+      mode,
+      previewHandle,
+      filters.q ?? "",
+      filters.hasAttachments ?? false,
+      filters.sender ?? "",
+      filters.from ?? "",
+      filters.to ?? "",
+    ] as const,
     enabled: Boolean(previewHandle) && enabled,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
-      getProfferPreviewMessages(previewHandle, mode, pageParam, MESSAGE_PAGE_SIZE, signal),
+      getProfferPreviewMessages(previewHandle, mode, pageParam, MESSAGE_PAGE_SIZE, signal, filters),
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
   });
+}
+
+/** Reads the server-reported match/total counts off the most recent loaded page.
+ * `-1` (or a missing field, on an older engine) means "unavailable" and callers should
+ * fall back to the count of rows actually loaded in this browser session. */
+export function usePreviewMessageTotals(
+  pages: Array<{ total_matches?: number | null; total_messages?: number | null }> | undefined,
+) {
+  return useMemo(() => {
+    const last = pages && pages.length > 0 ? pages[pages.length - 1] : undefined;
+    const totalMatches = last?.total_matches;
+    const totalMessages = last?.total_messages;
+    return {
+      totalMatches: totalMatches !== undefined && totalMatches !== null && totalMatches >= 0 ? totalMatches : null,
+      totalMessages: totalMessages !== undefined && totalMessages !== null && totalMessages >= 0 ? totalMessages : null,
+    };
+  }, [pages]);
 }
 
 /**
@@ -89,20 +130,3 @@ export function usePreviewMessageRows(
   }, [pages]);
 }
 
-/** Client-side narrowing over the rows already loaded in this browser session. */
-export function filterLoadedRows(
-  rows: PreviewMessageRow[],
-  query: string,
-  attachmentsOnly: boolean,
-) {
-  const needle = query.trim().toLowerCase();
-  if (!needle && !attachmentsOnly) return rows;
-  return rows.filter((row) => {
-    if (attachmentsOnly && row.attachmentCount === 0) return false;
-    if (!needle) return true;
-    const attachmentNames = row.message.attachments.map((item) => item.filename ?? "").join(" ");
-    return `${row.bodyLine} ${row.senderName} ${row.senderAddress ?? ""} ${attachmentNames}`
-      .toLowerCase()
-      .includes(needle);
-  });
-}

@@ -5,7 +5,17 @@ import test from "node:test";
 
 const preview = readFileSync(new URL("../src/components/sbv/proffer-preview-client.tsx", import.meta.url), "utf8");
 const operatorPreview = readFileSync(new URL("../src/components/sbv/proffer-operator-preview.tsx", import.meta.url), "utf8");
-const viewer = readFileSync(new URL("../src/components/sbv/platform-message-viewer.tsx", import.meta.url), "utf8");
+// `platform-message-viewer.tsx` (Codex · GPT-5.6 · 2026-08-29) was superseded by the
+// fuller SBV port (Claude Code · Opus 5 · 2026-09-20): message-thread-view.tsx is now
+// the reader, fed by message-bubble.tsx / attachment-preview.tsx / use-preview-messages.ts.
+const viewer = [
+  "../src/components/sbv/message-thread-view.tsx",
+  "../src/components/sbv/message-bubble.tsx",
+  "../src/components/sbv/attachment-preview.tsx",
+  "../src/hooks/use-preview-messages.ts",
+]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+  .join("\n");
 const page = readFileSync(new URL("../src/app/evidence/preview/page.tsx", import.meta.url), "utf8");
 const client = readFileSync(new URL("../src/lib/api-client.ts", import.meta.url), "utf8");
 const intake = readFileSync(new URL("../src/components/intake/unified-intake.tsx", import.meta.url), "utf8");
