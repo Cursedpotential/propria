@@ -4,6 +4,7 @@ import { AlertTriangle, Check, CircleDot, Database, ExternalLink, Flag, RefreshC
 import { useMemo, useState } from "react";
 
 import { AtomicTools } from "@/components/tools/atomic-tools";
+import { MessageBrowser } from "@/components/sbv/message-browser";
 import { PlatformMessageViewer } from "@/components/sbv/platform-message-viewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,10 @@ import type {
 } from "@/lib/shared/types";
 import { cn } from "@/lib/utils";
 
-type ReviewTab = "overview" | "records" | "chunks" | "entities" | "relationships" | "graph" | "files" | "lineage" | "warnings" | "attempts";
+type ReviewTab = "messages" | "overview" | "records" | "chunks" | "entities" | "relationships" | "graph" | "files" | "lineage" | "warnings" | "attempts";
 
 const TABS: Array<{ id: ReviewTab; label: string }> = [
+  { id: "messages", label: "Messages" },
   { id: "overview", label: "Overview" },
   { id: "records", label: "Source records" },
   { id: "chunks", label: "Chunks" },
@@ -156,7 +158,15 @@ export function ProfferOperatorPreview({
   actionPending: boolean;
   decisionReady: boolean;
 }) {
+  // The Messages view is offered only for a messaging source. The landing tab stays
+  // Overview for every source: `smoke/proffer-operator-surface.contract.test.mjs`
+  // pins that default, and changing it is an owner decision, not a side effect here.
+  const messagingSource = messages.length > 0;
   const [tab, setTab] = useState<ReviewTab>("overview");
+  const visibleTabs = useMemo(
+    () => TABS.filter((entry) => entry.id !== "messages" || messagingSource),
+    [messagingSource],
+  );
   const [reason, setReason] = useState("");
   const candidates = useMemo(() => preview.recommended_handler
     ? [preview.recommended_handler, ...(preview.alternative_handlers ?? [])]
@@ -196,9 +206,9 @@ export function ProfferOperatorPreview({
       </section>
 
       <nav className="flex gap-1 overflow-x-auto border bg-card px-2 pt-2" role="tablist" aria-label="Context review views">
-        {TABS.map(({ id, label }) => {
+        {visibleTabs.map(({ id, label }) => {
           const durableContentAvailable = Boolean(content && (
-            id === "overview" || id === "records" || id === "files" || id === "lineage" || id === "warnings" || id === "attempts" ||
+            id === "messages" || id === "overview" || id === "records" || id === "files" || id === "lineage" || id === "warnings" || id === "attempts" ||
             (id === "chunks" && content.chunk_generation)
           ));
           const surfaceKey = id === "relationships" ? "graph" : id === "attempts" ? "workflow" : id;
@@ -213,6 +223,15 @@ export function ProfferOperatorPreview({
       </nav>
 
       <section className="min-h-[31rem] border bg-card p-4" role="tabpanel">
+        {tab === "messages" && (
+          <MessageBrowser
+            key={`${snapshot.matter_mode}:${snapshot.preview_handle}`}
+            previewHandle={snapshot.preview_handle}
+            mode={snapshot.matter_mode}
+            packageProjection={content?.package ?? null}
+          />
+        )}
+
         {tab === "overview" && <div className="space-y-5">
           <header><p className="platform-kicker">Context extraction package</p><h2 className="mt-1 text-xl font-semibold">Source, parser, package, and destination</h2></header>
           {content && <section className="border-l-4 border-l-primary bg-accent/30 p-4 text-xs">

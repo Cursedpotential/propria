@@ -35,8 +35,17 @@ test("backing-source search and type filtering are server-scoped, not current-pa
 });
 
 // Stable Glide 6.0.3 convergence is deferred to the deliberate React 18.3.1 baseline change.
+//
+// AMENDED 2026-09-20 (Claude Code · Opus 5): Glide is now a dependency of this
+// application for the Review message browser only, under the D-157 prerelease
+// exception terms — exact pin `6.0.4-alpha24` (the React-19-capable build), no
+// `--force` / `--legacy-peer-deps`, and every direct Glide import confined to the
+// single adapter `src/components/sbv/message-browser-grid.tsx`. The assertion that
+// this file actually owns — the Intake source explorer stays a semantic native
+// table — is unchanged and still enforced below. THIS AMENDMENT IS UNRATIFIED:
+// D-157 requires explicit owner approval for a prerelease exception.
 test("source rows use one semantic native table without a one-off table framework", () => {
-  assert.equal(packageManifest.dependencies["@glideapps/glide-data-grid"], undefined);
+  assert.equal(packageManifest.dependencies["@glideapps/glide-data-grid"], "6.0.4-alpha24");
   assert.equal(packageManifest.dependencies["@tanstack/react-table"], undefined);
   assert.doesNotMatch(explorer, /@glideapps\/glide-data-grid|@tanstack\/react-table|useReactTable/);
   assert.match(explorer, /<table[^>]+aria-label="Source directory tree and files"/);
