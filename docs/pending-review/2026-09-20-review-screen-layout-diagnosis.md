@@ -1,7 +1,7 @@
 ---
 title: Review screen layout — measured diagnosis and one-viewport proposal
 date: 2026-09-20
-status: proposal awaiting owner; nothing built
+status: DIRECTION APPROVED by owner 2026-09-20 23:48 EDT; build belongs to the Review/message-browser lane; not built by this session
 domains: [probata, workbench]
 tags: [workbench, review, layout, density, design, pending-review]
 ---
@@ -50,3 +50,32 @@ One viewport, no page scroll:
 ## Coordination
 
 Branch `feat/review-message-browser` (another session) is building the message browser and was merged toward `main` on 2026-09-20. This layout must be agreed with that lane, not built beside it.
+
+## Owner decision — 2026-09-20 23:48 EDT
+
+- On the one-viewport layout: "THAT WOULD BE MUCH BETTER".
+- "AND THE STRAIGHT SBV PORTED VIEW AS OPTIONAL" — the SBV viewer's conversation view is an optional view of the same messages, not the default and not a separate app (auto-memory `work-surface-is-probata-workbench`: never deploy SBV as the surface).
+- "BUT BORROW FROM IT" — the default view takes SBV's good parts.
+
+### What SBV's viewer has (`modules/forks/sbv/frontend/src/components/`, inventory 23:50)
+
+| SBV component | Lines | Borrow into |
+|---|---:|---|
+| `ConversationList.jsx` | 170 | left rail: threads with last message, time, count |
+| `MessageThread.jsx` | 826 | the optional conversation view; its scroll-to-message, search highlight, lazy media and inline audio/video also serve the dense grid's detail pane |
+| `MediaGrid.jsx` + `MediaCarousel.jsx` | 395 | a per-thread media tab — also where a missing payload shows as an empty slot with its flag |
+| `Search.jsx` + `DateFilter.jsx` | 278 | toolbar: cross-thread search, jump to date |
+| `PrintView.jsx` | 401 | court-ready print/export of a thread |
+| `Calls.jsx`, `Activity.jsx`, `VCardPreview.jsx` | 716+ | calls log view, activity over time, contact cards |
+
+### Already on `main` from the message-browser lane (same night)
+
+`3d61972` three-panel message browser (`web/src/components/sbv/message-browser*.tsx`, `message-detail-panel.tsx`, `message-source-panel.tsx`), `f0fefd8` Messages mounted as the Review view for messaging sources, `967fd8d` Sources and proposals as a compact filterable one-line list. `feat/review-message-browser` has nothing ahead of `main`. The live page measured above at 23:45 did not show these yet (Workbench not redeployed, or the measured resource is not a messaging source — not checked).
+
+### Still open against the approved layout
+
+1. Actions + checkpoints + exception flags in a sticky top strip (today: "Next valid actions" at the bottom).
+2. "Context extraction package", repair, storage destination and tools collapsed into a right rail; `unavailable` as a small flag, no paragraph.
+3. Empty tool catalog takes no space.
+4. A view switch on the centre pane: grid (default) · conversation (SBV-ported) · media.
+5. Missing-payload flag per message and per thread (engine now emits `attachment_references` kind `mms_part_without_payload`).
