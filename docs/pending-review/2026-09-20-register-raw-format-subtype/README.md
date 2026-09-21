@@ -10,4 +10,4 @@ tags: [probata, sql, proffer, receipt]
 - **Change:** that one trigger block removed; nothing else. `raw_subtype_append_only` (-> `context.forbid_mutation()`, which exists) stays.
 - **Files:** `previous_definition_20260920.sql` (live text before), `new_definition_20260920.sql` (applied); the same edit is in `sql/bootstrap/schema_snapshot_20260907.sql`.
 - **Proof before apply:** inside `BEGIN ... ROLLBACK`: function replaced, `register_raw_format_subtype('ndjson')` returned `context.raw_ndjson` with 1 trigger, rollback left no table.
-- **Owed at promotion time:** the 27 guards (open-generation gates, append-only and hash-manifest guards) come back together, not one at a time.
+- ~~**Owed at promotion time:** the 27 guards come back together, not one at a time.~~ **Owner ruling 2026-09-20 21:39: the guards are for the PROMOTION side only, not intake.** They are never restored into the intake path (`context.raw_*`, `register_raw_format_subtype`, the proffer stages); they are designed with promotion, on promotion's own tables.
