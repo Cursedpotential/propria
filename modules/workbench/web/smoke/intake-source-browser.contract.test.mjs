@@ -42,8 +42,9 @@ test("backing-source search and type filtering are server-scoped, not current-pa
 // `--force` / `--legacy-peer-deps`, and every direct Glide import confined to the
 // single adapter `src/components/sbv/message-browser-grid.tsx`. The assertion that
 // this file actually owns — the Intake source explorer stays a semantic native
-// table — is unchanged and still enforced below. THIS AMENDMENT IS UNRATIFIED:
-// D-157 requires explicit owner approval for a prerelease exception.
+// table — is unchanged and still enforced below. RATIFIED by the owner
+// 2026-09-20 22:45 EDT: the alpha24 prerelease exception ("already did") and this
+// amended assertion ("k"). Claude Code · Fable 5.1.
 test("source rows use one semantic native table without a one-off table framework", () => {
   assert.equal(packageManifest.dependencies["@glideapps/glide-data-grid"], "6.0.4-alpha24");
   assert.equal(packageManifest.dependencies["@tanstack/react-table"], undefined);
