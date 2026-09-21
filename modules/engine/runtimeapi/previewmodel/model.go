@@ -115,6 +115,40 @@ type Message struct {
 	Attachments         []Attachment `json:"attachments"`
 	SourceLocatorRef    string       `json:"source_locator_ref"`
 }
+
+// MarshalJSON keeps list fields as [] when empty. A nil Go slice encodes as JSON
+// null, and the Workbench BFF (pydantic, extra-strict lists) then rejects the
+// WHOLE page: every message without an attachment made the Review surface answer
+// "Proffer starter returned an invalid preview message page" and show no data
+// (first real preview, live 2026-09-20).
+func (m Message) MarshalJSON() ([]byte, error) {
+	type wire Message
+	out := wire(m)
+	if out.ParticipantIDs == nil {
+		out.ParticipantIDs = []string{}
+	}
+	if out.Attachments == nil {
+		out.Attachments = []Attachment{}
+	}
+	return json.Marshal(out)
+}
+
+// MarshalJSON: same rule as Message — records, attachments and chunks are lists.
+func (p ContentPage) MarshalJSON() ([]byte, error) {
+	type wire ContentPage
+	out := wire(p)
+	if out.Records == nil {
+		out.Records = []Record{}
+	}
+	if out.Attachments == nil {
+		out.Attachments = []PackageAttachment{}
+	}
+	if out.Chunks == nil {
+		out.Chunks = []ContentChunk{}
+	}
+	return json.Marshal(out)
+}
+
 type Event struct {
 	EventID       int64     `json:"event_id"`
 	EventType     string    `json:"event_type"`
