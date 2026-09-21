@@ -302,7 +302,7 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 		       COALESCE(decision.selection_ref, ''),
 		       COALESCE(decision.parser_options_ref, binding.parser_options_ref),
 		       COALESCE(snapshot.source_version_id, version.id), snapshot.raw_generation_id,
-		       snapshot.normalized_generation_id, binding.created_at
+		       snapshot.normalized_generation_id, binding.created_at, version.matter_id
 		FROM context.proffer_preview_binding binding
 		LEFT JOIN context.source_version version ON version.workflow_id = binding.workflow_id
 		LEFT JOIN LATERAL (
@@ -320,7 +320,7 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 		WHERE binding.preview_handle = $1`, handle).Scan(
 		&binding.Handle, &binding.RequestID, &binding.SourceRef, &binding.WorkflowID, &binding.RunID,
 		&binding.SelectionRef, &binding.ParserOptionsRef, &sourceVersion, &rawGeneration, &normalizedGeneration,
-		&binding.CreatedAt)
+		&binding.CreatedAt, &binding.MatterID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return previewmodel.Binding{}, previewmodel.ErrNotFound
 	}
@@ -358,7 +358,7 @@ func (s *ProfferPreviewStore) ListBindings(ctx context.Context, cursor *previewm
 	rows, err := s.db.Query(ctx, `
 		SELECT binding.preview_handle, binding.request_id, binding.source_ref,
 		       binding.workflow_id, binding.run_id, binding.parser_options_ref,
-		       version.id, binding.created_at
+		       version.id, binding.created_at, version.matter_id
 		FROM context.proffer_preview_binding binding
 		LEFT JOIN context.source_version version ON version.workflow_id = binding.workflow_id
 		WHERE NOT $1::boolean OR (binding.created_at, binding.preview_handle) < ($2::timestamptz, $3::text)
@@ -374,7 +374,7 @@ func (s *ProfferPreviewStore) ListBindings(ctx context.Context, cursor *previewm
 		var sourceVersion *uuid.UUID
 		if err := rows.Scan(&binding.Handle, &binding.RequestID, &binding.SourceRef,
 			&binding.WorkflowID, &binding.RunID, &binding.ParserOptionsRef,
-			&sourceVersion, &binding.CreatedAt); err != nil {
+			&sourceVersion, &binding.CreatedAt, &binding.MatterID); err != nil {
 			return previewmodel.BindingPage{}, fmt.Errorf("scan preview binding: %w", err)
 		}
 		if sourceVersion != nil {

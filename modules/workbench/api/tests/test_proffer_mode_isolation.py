@@ -131,12 +131,30 @@ def test_start_body_query_and_exact_test_scope_are_enforced_before_upstream(monk
     assert "matter_id does not belong to TEST" in matter_error.value.detail
 
 
-def test_unknown_handle_fails_closed_after_process_binding_loss() -> None:
+def test_unknown_handle_fails_closed_when_the_matter_cannot_be_proven(monkeypatch) -> None:
+    """After a BFF restart the binding is gone; with no durable matter it still refuses."""
+
+    async def operation_without_matter(method, path, **kwargs):
+        assert path.endswith(f"/operations/{PREVIEW_HANDLE}")
+        return httpx.Response(200, json={"preview_handle": PREVIEW_HANDLE})
+
+    monkeypatch.setattr(proffer, "_request", operation_without_matter)
     with pytest.raises(proffer.ProfferError) as captured:
         asyncio.run(proffer.preview(PREVIEW_HANDLE, mode="TEST"))
 
     assert captured.value.status_code == 409
     assert "no active TEST/REAL binding" in captured.value.detail
+
+
+def test_binding_lost_on_restart_is_recovered_from_the_durable_matter(monkeypatch) -> None:
+    """The engine returns the run's matter id; the configured TEST matter proves TEST."""
+    from app.service import matter_mode, preview_mode_recovery
+
+    test_matter = matter_mode.configured_matter_id("TEST")
+    assert preview_mode_recovery.rebind(PREVIEW_HANDLE, test_matter) == "TEST"
+    matter_mode.require_preview_mode(PREVIEW_HANDLE, "TEST")
+    with pytest.raises(matter_mode.MatterModeError):
+        matter_mode.require_preview_mode(PREVIEW_HANDLE, "REAL")
 
 
 def test_generic_content_projection_preserves_exact_chunks_and_mode(monkeypatch) -> None:
@@ -169,38 +187,56 @@ def test_generic_content_projection_preserves_exact_chunks_and_mode(monkeypatch)
                 },
                 "attempts_complete": False,
                 "attempts_reason": "complete history is unavailable",
-                "records": [{
-                    "record_id": "record-1", "ordinal": 0, "record_type": "document",
-                    "payload": {"title": "Exact record"},
-                    "source_locator_ref": "context.normalized_record_identity/record-1",
-                }],
+                "records": [
+                    {
+                        "record_id": "record-1",
+                        "ordinal": 0,
+                        "record_type": "document",
+                        "payload": {"title": "Exact record"},
+                        "source_locator_ref": "context.normalized_record_identity/record-1",
+                    }
+                ],
                 "attachments": [],
                 "chunk_generation": {
-                    "generation_ref": "generation-1", "generation_ordinal": 1, "status": "sealed",
-                    "policy_id": "document", "policy_version": "1", "chunker_id": "offsets",
-                    "chunker_version": "1", "schema_version": "1", "source_view": "original",
-                    "source_sha256": "a" * 64, "receipt_ref": "receipt-1",
+                    "generation_ref": "generation-1",
+                    "generation_ordinal": 1,
+                    "status": "sealed",
+                    "policy_id": "document",
+                    "policy_version": "1",
+                    "chunker_id": "offsets",
+                    "chunker_version": "1",
+                    "schema_version": "1",
+                    "source_view": "original",
+                    "source_sha256": "a" * 64,
+                    "receipt_ref": "receipt-1",
                 },
-                "chunks": [{
-                    "chunk_ref": "chunk-1", "index": 0, "content": "Exact chunk",
-                    "sha256": "b" * 64, "derivation_mode": "verbatim_span",
-                    "locator_ref": "locator-1", "byte_start": 0, "byte_end": 11,
-                }],
+                "chunks": [
+                    {
+                        "chunk_ref": "chunk-1",
+                        "index": 0,
+                        "content": "Exact chunk",
+                        "sha256": "b" * 64,
+                        "derivation_mode": "verbatim_span",
+                        "locator_ref": "locator-1",
+                        "byte_start": 0,
+                        "byte_end": 11,
+                    }
+                ],
             },
         )
 
     monkeypatch.setattr(proffer, "_request", fake_request)
-    result = asyncio.run(proffer.preview_content(
-        PREVIEW_HANDLE, mode="TEST", record_cursor="records-next", chunk_cursor=None, limit=25
-    ))
+    result = asyncio.run(
+        proffer.preview_content(PREVIEW_HANDLE, mode="TEST", record_cursor="records-next", chunk_cursor=None, limit=25)
+    )
 
     assert result.matter_mode == "TEST"
     assert result.records[0].payload == {"title": "Exact record"}
     assert result.chunks[0].content == "Exact chunk"
     with pytest.raises(proffer.ProfferError, match="different matter mode"):
-        asyncio.run(proffer.preview_content(
-            PREVIEW_HANDLE, mode="REAL", record_cursor=None, chunk_cursor=None, limit=25
-        ))
+        asyncio.run(
+            proffer.preview_content(PREVIEW_HANDLE, mode="REAL", record_cursor=None, chunk_cursor=None, limit=25)
+        )
 
 
 def test_handler_choice_is_flat_actor_bound_and_mode_correlated(monkeypatch) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from datetime import datetime
 from typing import Annotated, Literal
 
@@ -34,6 +36,7 @@ class ProfferOperationSummary(BaseModel):
     terminal: bool
     reason: BoundedReason = ""
     source_version_ref: NonBlank | None = None
+    matter_id: UUID | None = None  # durable scope; lets the BFF re-derive TEST/REAL after a restart
     completed_stage_count: Annotated[int, Field(ge=0)]
 
 

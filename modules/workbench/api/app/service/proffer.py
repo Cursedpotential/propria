@@ -11,16 +11,17 @@ import re
 import stat
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import httpx
 from pydantic import ValidationError
 
 from app.config import settings
+from app.service import preview_mode_recovery
 from app.service.matter_mode import (
     MatterModeError,
     bind_preview_mode,
     configured_matter_id,
-    require_preview_mode,
     require_scope,
 )
 from app.service.proffer_errors import ProfferError
@@ -144,6 +145,21 @@ async def start(request: ProfferStartRequest, *, mode: MatterMode) -> ProfferSta
     return result
 
 
+async def _operation_matter_id(preview_handle: str) -> UUID | None:
+    response = await _request("GET", f"/reference-import/operations/{preview_handle}")
+    raw = _json_payload(response, "operation detail")
+    value = raw.get("matter_id") if isinstance(raw, dict) else None
+    return UUID(value) if isinstance(value, str) else None
+
+
+async def _require_mode(preview_handle: str, mode: MatterMode) -> None:
+    """Mode check that survives a BFF restart (see preview_mode_recovery)."""
+    try:
+        await preview_mode_recovery.require(preview_handle, mode, _operation_matter_id)
+    except MatterModeError as error:
+        raise ProfferError(error.detail, error.status_code) from None
+
+
 def _validated(model, payload: Any, label: str):
     try:
         return model.model_validate(payload)
@@ -166,7 +182,7 @@ async def decide(
     *,
     mode: MatterMode,
 ) -> ProfferDecisionResponse:
-    _mode_call(require_preview_mode, preview_handle, mode)
+    await _require_mode(preview_handle, mode)
     response = await _request(
         "POST",
         f"/reference-import/previews/{preview_handle}/decision",
@@ -221,7 +237,7 @@ async def decide_repair(
     *,
     mode: MatterMode,
 ) -> ProfferRepairDecisionResponse:
-    _mode_call(require_preview_mode, preview_handle, mode)
+    await _require_mode(preview_handle, mode)
     response = await _request(
         "POST",
         f"/reference-import/previews/{preview_handle}/repair-decision",
@@ -243,7 +259,7 @@ async def decide_repair(
 
 
 async def preview(preview_handle: str, *, mode: MatterMode) -> ProfferPreviewResponse:
-    _mode_call(require_preview_mode, preview_handle, mode)
+    await _require_mode(preview_handle, mode)
     response = await _request("GET", f"/reference-import/previews/{preview_handle}")
     result = _validated(
         ProfferPreviewResponse,
@@ -258,7 +274,7 @@ async def preview(preview_handle: str, *, mode: MatterMode) -> ProfferPreviewRes
 async def preview_messages(
     preview_handle: str, *, mode: MatterMode, cursor: str | None, limit: int
 ) -> ProfferPreviewMessagesResponse:
-    _mode_call(require_preview_mode, preview_handle, mode)
+    await _require_mode(preview_handle, mode)
     params: dict[str, str | int] = {"limit": limit}
     if cursor:
         params["cursor"] = cursor
@@ -282,7 +298,7 @@ async def preview_content(
     limit: int,
 ) -> ProfferContentResponse:
     """Read exact retained-package, generic-record, and pre-publication chunk data."""
-    _mode_call(require_preview_mode, preview_handle, mode)
+    await _require_mode(preview_handle, mode)
     params: dict[str, str | int] = {"limit": limit}
     if record_cursor:
         params["record_cursor"] = record_cursor
