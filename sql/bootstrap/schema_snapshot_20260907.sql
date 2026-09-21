@@ -1640,6 +1640,14 @@ BEGIN
     -- left out of this snapshot. The leftover made every first registration of a raw
     -- format fail ("function ... does not exist"), so no raw generation could ever
     -- be persisted. The gate returns with the custody guards at promotion time.
+    --
+    -- Grants ADDED 2026-09-20: this SECURITY DEFINER function creates the table as its
+    -- owner, so the engine role (member of context_import_writer) could register a
+    -- subtype and then not insert into it ("permission denied for table raw_ndjson").
+    -- Same grants as the sibling context.raw_record_identity.
+    EXECUTE format('GRANT SELECT, INSERT ON TABLE context.%I TO context_import_writer', v_table_name);
+    EXECUTE format('GRANT SELECT ON TABLE context.%I TO context_reader', v_table_name);
+    EXECUTE format('GRANT ALL ON TABLE context.%I TO platform_app', v_table_name);
     RETURN v_relation;
 END;
 $_$;

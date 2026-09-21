@@ -126,6 +126,10 @@ BEGIN
         );
     END IF;
     -- raw_subtype_open_generation_gate removed 2026-09-20: its guard function is not part of the D-152 database.
+    -- Grants added 2026-09-20: SECURITY DEFINER creates the table as its owner; the engine role must be able to insert.
+    EXECUTE format('GRANT SELECT, INSERT ON TABLE context.%I TO context_import_writer', v_table_name);
+    EXECUTE format('GRANT SELECT ON TABLE context.%I TO context_reader', v_table_name);
+    EXECUTE format('GRANT ALL ON TABLE context.%I TO platform_app', v_table_name);
     RETURN v_relation;
 END;
 $function$;
