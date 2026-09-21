@@ -113,9 +113,18 @@ def _parse_range(header: str | None, size: int) -> tuple[int, int] | None:
 
 async def resolve_media(preview_handle: str, sha256: str, *, mode: MatterMode) -> ResolvedMedia:
     """Resolve `sha256` to one object, refusing anything outside the run's own prefix."""
-    sha256 = _validate_sha256(sha256)
     await _require_mode(preview_handle, mode)
     run = await operation(preview_handle)
+    return resolve_source_media(run.source_ref, sha256)
+
+
+def resolve_source_media(source_ref: str, sha256: str) -> ResolvedMedia:
+    """Resolve `sha256` beside one source, refusing anything outside that source's own prefix.
+
+    Shared by the run-bound route and the decoded-source viewer (which has no
+    run yet: SBV has decoded the backup, the ingest has not started).
+    """
+    sha256 = _validate_sha256(sha256)
 
     # in_configured_root() unquotes internally for its own "../" traversal check
     # (so an encoded traversal can't sneak past it); it is given the literal
@@ -123,9 +132,9 @@ async def resolve_media(preview_handle: str, sha256: str, *, mode: MatterMode) -
     # the root prefixes it compares against are early path segments where a
     # later "%" cannot change the containment outcome. Fetch the literal,
     # validate the decoded — do not "fix" this into a matched unquote/no-op pair.
-    if not in_configured_root(run.source_ref):
-        raise ProfferError("this run's source is outside a configured source root", 403)
-    scheme, bucket, source_key = _split_source_ref(run.source_ref)
+    if not in_configured_root(source_ref):
+        raise ProfferError("this source is outside a configured source root", 403)
+    scheme, bucket, source_key = _split_source_ref(source_ref)
 
     media_prefix = derived_media_prefix(source_key)
     if not in_configured_root(f"{scheme}://{bucket}/{media_prefix}"):  # same literal-key note as above
@@ -165,7 +174,10 @@ async def resolve_media(preview_handle: str, sha256: str, *, mode: MatterMode) -
 async def stream_preview_media(
     preview_handle: str, sha256: str, *, mode: MatterMode, range_header: str | None
 ) -> MediaStreamResult:
-    media = await resolve_media(preview_handle, sha256, mode=mode)
+    return stream_resolved_media(await resolve_media(preview_handle, sha256, mode=mode), range_header)
+
+
+def stream_resolved_media(media: ResolvedMedia, range_header: str | None) -> MediaStreamResult:
     byte_range = _parse_range(range_header, media.size)
     s3_range = f"bytes={byte_range[0]}-{byte_range[1]}" if byte_range else None
     try:

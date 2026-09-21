@@ -57,12 +57,19 @@ from __future__ import annotations
 from app.config import settings
 
 
-def derived_media_prefix(source_key: str) -> str:
-    """Map a source object key to its decoded-media prefix (bucket-relative)."""
+def derived_base_prefix(source_key: str) -> str:
+    """Map a source object key to the prefix holding ALL of its decoded output.
+
+    That prefix holds `manifest.json`, the thread files and the media folder.
+    Added 2026-09-21 (Claude Code · Fable 5.1) for the decoded-source viewer.
+    """
     marker = f"{settings.proffer_derived_media_suffix}/"
-    dirname = settings.proffer_derived_media_dirname
     marker_index = source_key.rfind(marker)
     if marker_index >= 0:
-        base_with_marker = source_key[: marker_index + len(marker)]
-        return f"{base_with_marker}{dirname}/"
-    return f"{source_key}{marker}{dirname}/"
+        return source_key[: marker_index + len(marker)]
+    return f"{source_key}{marker}"
+
+
+def derived_media_prefix(source_key: str) -> str:
+    """Map a source object key to its decoded-media prefix (bucket-relative)."""
+    return f"{derived_base_prefix(source_key)}{settings.proffer_derived_media_dirname}/"
