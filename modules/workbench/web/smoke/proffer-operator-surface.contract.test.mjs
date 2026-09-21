@@ -7,7 +7,16 @@ const surface = readFileSync(new URL("../src/components/sbv/proffer-operator-pre
 const review = readFileSync(new URL("../src/components/sbv/proffer-preview-client.tsx", import.meta.url), "utf8");
 // The resource list moved into its own compact component (2026-09-20); its contract text lives there.
 const resourceList = readFileSync(new URL("../src/components/sbv/review-resource-list.tsx", import.meta.url), "utf8");
-const viewer = readFileSync(new URL("../src/components/sbv/platform-message-viewer.tsx", import.meta.url), "utf8");
+// `platform-message-viewer.tsx` (Codex · GPT-5.6 · 2026-08-29) was superseded by the
+// fuller SBV port (Claude Code · Opus 5 · 2026-09-20): message-thread-view.tsx is now
+// the reader, fed by message-bubble.tsx / attachment-preview.tsx.
+const viewer = [
+  "../src/components/sbv/message-thread-view.tsx",
+  "../src/components/sbv/message-bubble.tsx",
+  "../src/components/sbv/attachment-preview.tsx",
+]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+  .join("\n");
 const flow = readFileSync(new URL("../src/components/intake/context-flow-rail.tsx", import.meta.url), "utf8");
 const navigation = readFileSync(new URL("../src/surfaces/primary/navigation.ts", import.meta.url), "utf8");
 const sidebar = readFileSync(new URL("../src/components/layout/app-sidebar.tsx", import.meta.url), "utf8");
@@ -53,7 +62,10 @@ test("the Review workspace exposes every required operator view", () => {
     "Attempts / runs",
   ]) assert.match(surface, new RegExp(`label: "${label.replaceAll("/", "\\/")}"`));
   assert.match(surface, /aria-label="Context review views"/);
-  assert.match(surface, /useState<ReviewTab>\("overview"\)/);
+  // Owner ruling 2026-09-20 23:48 (docs/pending-review/2026-09-20-review-screen-layout-diagnosis.md):
+  // a messaging source lands on Messages, a calls-only source on Calls, anything else on Overview;
+  // a tab the operator picked always wins.
+  assert.match(surface, /pickedTab \?\? \(messagingSource \? "messages" : callsSource \? "calls" : "overview"\)/);
 });
 
 test("available source records, chunks, files, and lineage use returned API data", () => {

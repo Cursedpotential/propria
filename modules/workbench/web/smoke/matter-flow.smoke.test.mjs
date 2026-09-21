@@ -281,6 +281,17 @@ function createFixtureServer({ advancedEvidenceAvailable = true, newRunFixture =
         return json(response, 200, []);
       }
 
+      // The Intake page mounts the catalog discovery panel (2026-09-20). In this flow the
+      // catalog is not configured, which is a truthful, renderable state.
+      if (request.method === "GET" && url.pathname === "/api/intake/discovery/capabilities") {
+        return json(response, 200, {
+          backend: "unconfigured", catalog_configured: false, index_configured: false, availability_verified: false,
+          modes: { filename_substring: false, filename_prefix: false, contents: false, hybrid: false },
+          tree: false, graph: false, coverage: "none",
+          filters: { parent: false, file_type: false, atomic_unit: false },
+          zip_contents: false, bulk_intake: false, atomic_unit_catalog: false, limitations: ["catalog not configured"],
+        });
+      }
       if (request.method === "GET" && url.pathname === "/api/matters") {
         assert.equal(url.searchParams.get("limit"), "50");
         assert.equal(url.searchParams.get("offset"), "0");

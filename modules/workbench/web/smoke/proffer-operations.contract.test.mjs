@@ -64,6 +64,8 @@ test("the ledger distinguishes loading error empty and filtered-empty states", (
 
 test("selected source tabs remain mounted while the intake phase changes", () => {
   assert.match(intake, /const selectedSource = file \?\? remote/);
-  assert.match(intake, /\{\(\["source", "metadata", "parser"\] as const\)\.map/);
+  // AMENDED 2026-09-21 (Claude Code · Fable 5.1): message backups gain a leading
+  // "messages" tab (SBV's decoded view). The three original tabs stay in both lists.
+  assert.match(intake, /\["messages", "source", "metadata", "parser"\] : \["source", "metadata", "parser"\]\) as PreviewTab\[\]\)\.map/);
   assert.doesNotMatch(intake, /phase === "starting"[^\n]*\?[^\n]*Source preview/);
 });

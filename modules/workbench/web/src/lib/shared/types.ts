@@ -1368,6 +1368,10 @@ export interface ProfferPreviewMessagesResponse {
   participants: ProfferPreviewParticipant[];
   messages: ProfferPreviewMessage[];
   next_cursor?: string | null;
+  /** Count of messages matching the active filter; `-1` or absent means the engine did not report it. */
+  total_matches?: number | null;
+  /** Count of all messages in this preview, ignoring the active filter; `-1` or absent means unreported. */
+  total_messages?: number | null;
 }
 
 export interface ProfferPackageProjection {

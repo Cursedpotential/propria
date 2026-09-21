@@ -803,15 +803,35 @@ export function decideProffer(
   });
 }
 
+/** Server-side filters for `getProfferPreviewMessages`. A cursor is bound to the exact
+ * filter that minted it, so any change here must restart paging from the first page. */
+export interface ProfferPreviewMessageFilters {
+  /** Case-insensitive body substring match, max 200 chars. */
+  q?: string;
+  hasAttachments?: boolean;
+  /** Participant id to restrict results to a single sender. */
+  sender?: string;
+  /** RFC3339 lower bound (inclusive), by `sent_at`. */
+  from?: string;
+  /** RFC3339 upper bound (inclusive), by `sent_at`. */
+  to?: string;
+}
+
 export function getProfferPreviewMessages(
   previewHandle: string,
   mode: MatterMode,
   cursor?: string,
   limit = 100,
   signal?: AbortSignal,
+  filters?: ProfferPreviewMessageFilters,
 ) {
   const query = new URLSearchParams({ limit: String(limit), mode });
   if (cursor) query.set("cursor", cursor);
+  if (filters?.q) query.set("q", filters.q.slice(0, 200));
+  if (filters?.hasAttachments) query.set("has_attachments", "true");
+  if (filters?.sender) query.set("sender", filters.sender);
+  if (filters?.from) query.set("from", filters.from);
+  if (filters?.to) query.set("to", filters.to);
   return apiFetch<ProfferPreviewMessagesResponse>(
     `/api/proffer/previews/${encodeURIComponent(previewHandle)}/messages?${query.toString()}`,
     { signal },
@@ -819,6 +839,24 @@ export function getProfferPreviewMessages(
     if (response.matter_mode !== mode) throw new ApiError("The preview messages did not confirm the active TEST/REAL mode", 502);
     return response;
   });
+}
+
+const SHA256_HEX = /^[0-9a-f]{64}$/i;
+
+/**
+ * Builds the same-origin URL for one attachment's post-ingest derived media,
+ * streamed from `<key>.derived/media/<sha256><ext>` in B2 by the engine.
+ * Contract relayed 2026-09-20 (Control surfaces decisions): `GET
+ * /api/proffer/previews/{handle}/media/{sha256}`, content-type resolved
+ * server-side from the manifest/extension. Returns `null` for a malformed
+ * sha256 so callers never point a media element at an unvalidated path —
+ * this endpoint is for POST-ingest derived media only; it has no bearing on
+ * unprocessed source preview (see attachment-preview.tsx for that gap).
+ */
+export function getProfferPreviewMediaUrl(previewHandle: string, mode: MatterMode, sha256: string): string | null {
+  if (!SHA256_HEX.test(sha256)) return null;
+  const query = new URLSearchParams({ mode });
+  return `${API_BASE}/api/proffer/previews/${encodeURIComponent(previewHandle)}/media/${sha256.toLowerCase()}?${query.toString()}`;
 }
 
 export function getProfferPreviewContent(

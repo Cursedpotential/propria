@@ -112,7 +112,7 @@ export function ReviewResourceList({ resources, loading, selectedHandle, onSelec
       {visible.length === 0 ? (
         <p className="px-4 py-4 text-xs text-muted-foreground">No runs match this filter.</p>
       ) : (
-        <ul className="max-h-56 divide-y overflow-y-auto" aria-label="Sources and proposals">
+        <ul className="max-h-56 divide-y overflow-y-auto lg:max-h-[calc(100vh-15rem)]" aria-label="Sources and proposals">
           {visible.map((resource) => {
             const { name, context } = resourceName(resource.source_ref);
             const selected = resource.preview_handle === selectedHandle;

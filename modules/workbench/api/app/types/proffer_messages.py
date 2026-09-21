@@ -60,6 +60,12 @@ class ProfferPreviewMessagesResponse(BaseModel):
     messages: Annotated[list[ProfferPreviewMessage], Field(max_length=250)]
     next_cursor: OpaqueCursor | None = None
     matter_mode: MatterMode
+    # Totals for the active filter and for the whole thread, so the operator
+    # surface can say "12 of 927" instead of a page-local number. Optional: a
+    # preview store without server-side search reports -1, and an older engine
+    # omits them entirely.
+    total_matches: int | None = None
+    total_messages: int | None = None
 
 
 class ProfferPreviewEvent(BaseModel):

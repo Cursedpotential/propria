@@ -459,13 +459,15 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1680px] space-y-4 p-4 md:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Button asChild variant="outline" size="sm" className="mb-4"><AppLink data-testid="back-to-proffer-intake" href="/intake"><ChevronLeft className="size-4" /> Back to intake</AppLink></Button>
-          <p className="platform-kicker">Unified operator surface · bounded client</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Context Review workspace</h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+    // One-viewport Review (owner ruling 2026-09-20 23:48): a one-line header, the sources list as
+    // a left rail, and the selected source's strip, checkpoints and views beside it.
+    <div className="mx-auto w-full max-w-[1680px] space-y-2 p-2 md:p-3">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button asChild variant="outline" size="sm"><AppLink data-testid="back-to-proffer-intake" href="/intake"><ChevronLeft className="size-4" /> Back to intake</AppLink></Button>
+          <h1 className="truncate text-base font-semibold tracking-tight" title="Select a source proposal, inspect every available context artifact, and control the exact processing attempt.">Context Review workspace</h1>
+          <p className="sr-only">Unified operator surface · bounded client</p>
+          <p className="sr-only">
             Select a source proposal, inspect every available context artifact, and control the exact processing attempt.
           </p>
         </div>
@@ -475,8 +477,9 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
         </div>
       </header>
 
-      <section className="platform-panel overflow-hidden" aria-labelledby="review-resources-heading">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+      <div className="grid gap-2 lg:grid-cols-[19rem_minmax(0,1fr)] lg:items-start">
+      <section className="platform-panel overflow-hidden lg:sticky lg:top-0" aria-labelledby="review-resources-heading">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
           <div>
             <h2 id="review-resources-heading" className="text-sm font-semibold">Sources and proposals</h2>
           </div>
@@ -491,6 +494,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
         <ReviewResourceList resources={resources} loading={resourcesLoading} selectedHandle={previewHandle} onSelect={selectResource} />
       </section>
 
+      <div className="min-w-0 space-y-2">
       {previewHandle && <ContextFlowRail
         started
         phase={preview?.phase}
@@ -500,17 +504,17 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
       />}
 
       {!previewHandle ? (
-        <div className="platform-panel rounded-md px-5 py-14 text-center">
+        <div className="platform-panel rounded-md px-5 py-8 text-center">
           <CircleDot className="mx-auto size-9 text-muted-foreground" />
-          <p className="mt-3 text-sm font-medium">Choose a source proposal above or start intake.</p>
+          <p className="mt-3 text-sm font-medium">Choose a source proposal or start intake.</p>
         </div>
       ) : snapshotError ? (
         <div className="platform-panel border-destructive/50 p-5 text-sm text-destructive" role="alert">{snapshotError}</div>
       ) : !preview || !operatorSnapshot ? (
-        <section className="platform-panel flex min-h-[34rem] items-center justify-center p-6 text-sm text-muted-foreground" aria-label="Review loading"><Loader2 className="mr-2 size-4 animate-spin motion-reduce:animate-none" /> Loading the {mode} review workspace…</section>
+        <section className="platform-panel flex items-center justify-center p-6 text-sm text-muted-foreground" aria-label="Review loading"><Loader2 className="mr-2 size-4 animate-spin motion-reduce:animate-none" /> Loading the {mode} review workspace…</section>
       ) : (
         <>
-          {eventError && <p className="border border-[#ead5a9] bg-[#fff4dd] p-3 text-sm text-[#684b18]" role="status">{eventError}</p>}
+          {eventError && <p className="truncate border border-[#ead5a9] bg-[#fff4dd] px-2 py-1 text-xs text-[#684b18]" role="status" title={eventError}>{eventError}</p>}
           {!decisionEligible && awaitingDecision && <p className="border border-[#ead5a9] bg-[#fff4dd] p-3 text-xs text-[#684b18]" role="status">Approval remains locked until this exact attempt has normalized records, source locators, and every required completed receipt.</p>}
           <ProfferOperatorPreview
             key={`${mode}:${previewHandle}`}
@@ -541,6 +545,8 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
           />
         </>
       )}
+      </div>
+      </div>
     </div>
   );
 }
