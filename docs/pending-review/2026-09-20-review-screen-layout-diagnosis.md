@@ -1,7 +1,7 @@
 ---
 title: Review screen layout — measured diagnosis and one-viewport proposal
 date: 2026-09-20
-status: DIRECTION APPROVED by owner 2026-09-20 23:48 EDT; build belongs to the Review/message-browser lane; not built by this session
+status: BUILT AND VERIFIED LIVE 2026-09-21 02:45 EDT (owner 00:01: this session takes it); items 4-media and 5 still open
 domains: [probata, workbench]
 tags: [workbench, review, layout, density, design, pending-review]
 ---
@@ -79,3 +79,28 @@ Branch `feat/review-message-browser` (another session) is building the message b
 3. Empty tool catalog takes no space.
 4. A view switch on the centre pane: grid (default) · conversation (SBV-ported) · media.
 5. Missing-payload flag per message and per thread (engine now emits `attachment_references` kind `mms_part_without_payload`).
+
+## Built and measured live — 2026-09-21 (Claude Code · Fable 5.1)
+
+Owner 00:01: "B: I take them … i think its done" (the other lane). Its finished branch `feat/preview-search-and-calls` (SBV front-end port, server-side search, calls table, calls-only publish) was unmerged and undeployed; merged first (`f94acef`), then the layout was built on top.
+
+Same resource, same 1280×720 viewport, `main.platform-workspace`:
+
+| Step | Commit | Page height | Screens |
+|---|---|---:|---:|
+| Before | — | 3,615 px | 5.0 |
+| Sticky actions, compact rows, folded sections, Messages default, one-line checkpoints | `afddee1`-era | 1,574 px | 2.2 |
+| Sources as a left rail, one-line header | `c16f42e` | 1,081 px | 1.5 |
+| Browser sized to the window, one-row checkpoints, one-line event notice | latest | **728 px** | **1.01** |
+
+Live facts after the last deploy: lands on **Messages**; search totals read "927 of 927"; actions strip at 270 px (was 3,538); checkpoints 48 px (was 145); page header 42 px (was 181); the merged branch already provides the **Conversation / Table** switch, filters (has attachments, date range) and server-side search. Checks each step: `tsc`, lint 0 errors, build, smoke 69/69.
+
+### Still open
+
+- **Media view** in the centre switch (grid · conversation · **media**). Attachments now publish (`b80d884`, other lane, verified live 01:56).
+- **Missing-photo flag** per message and thread: the engine emits `attachment_references` kind `mms_part_without_payload`; the preview projection and the grid do not carry it yet.
+- Package / repair / storage / tools live in the **Overview tab** (folded, compact rows), not a right rail. Moving them to a rail is a further step if the owner still wants it after using this.
+- The live page shows "The Proffer preview event stream is unavailable" — the event stream is not connecting. Now a one-line notice; the cause is not investigated.
+- At 1280×720 the scroll region still overflows by 133 px; on a 1080-high window it fits.
+- `workbench/api` `test_file_size_limits` fails on `main` (runtime/proffer.py 363 lines, service/proffer.py 345; cap 300) — predates this work.
+- npm's cache on this desktop is on `C:` (`AppData/Local/npm-cache`); `npm ci` for this checkout used it.
