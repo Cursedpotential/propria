@@ -1,11 +1,12 @@
 // Byline: Codex · GPT-5.6 · 2026-09-12 (hydrate deep-linked preview mode and handle atomically)
 "use client";
 
-import { ChevronLeft, CircleDot, FileText, Loader2, RefreshCw } from "lucide-react";
+import { ChevronLeft, CircleDot, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ProfferOperatorPreview } from "@/components/sbv/proffer-operator-preview";
+import { ReviewResourceList } from "@/components/sbv/review-resource-list";
 import { ContextFlowRail } from "@/components/intake/context-flow-rail";
 import { MatterModeSelector } from "@/components/intake/matter-mode-selector";
 import { Badge } from "@/components/ui/badge";
@@ -44,11 +45,6 @@ function initialHandle(mode: "TEST" | "REAL") {
   const query = new URLSearchParams(window.location.search);
   if (query.get("mode") !== mode) return "";
   return (query.get("resource") ?? query.get("preview_handle") ?? query.get("attempt"))?.trim() ?? "";
-}
-
-function createdAt(value: string) {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
 }
 
 export function ProfferPreviewClient() {
@@ -483,7 +479,6 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
         <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
           <div>
             <h2 id="review-resources-heading" className="text-sm font-semibold">Sources and proposals</h2>
-            <p className="mt-1 text-xs text-muted-foreground">The current URL resource is selected automatically; otherwise the newest available proposal opens.</p>
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm"><AppLink href={`/intake?mode=${mode}`}>Start intake</AppLink></Button>
@@ -493,37 +488,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
           </div>
         </header>
         {resourcesError && <div className="border-b border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert"><strong>Resource list unavailable.</strong> {resourcesError}</div>}
-        {resourcesLoading && resources.length === 0 ? (
-          <div className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin motion-reduce:animate-none" /> Loading available sources and proposals…</div>
-        ) : resources.length ? (
-          <div className="grid max-h-64 divide-y overflow-y-auto lg:grid-cols-2 lg:divide-x lg:divide-y-0 xl:grid-cols-3">
-            {resources.map((resource) => (
-              <button
-                key={resource.preview_handle}
-                type="button"
-                aria-pressed={previewHandle === resource.preview_handle}
-                onClick={() => selectResource(resource.preview_handle)}
-                className={`grid min-h-24 grid-cols-[auto_minmax(0,1fr)] gap-3 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${previewHandle === resource.preview_handle ? "bg-accent" : "bg-card hover:bg-accent/40"}`}
-              >
-                <FileText className="mt-0.5 size-4 text-primary" />
-                <span className="min-w-0">
-                  <strong className="block truncate text-sm" title={resource.source_ref}>{resource.source_ref}</strong>
-                  <span className="mt-1 block text-xs capitalize text-muted-foreground">{resource.lifecycle.replaceAll("_", " ")} · {resource.completed_stage_count} stages</span>
-                  <span className="mt-1 block text-[11px] font-semibold text-foreground">{resource.representation_state === "committed_readback" ? "Committed readback" : "Precommit proposal"}</span>
-                  <span className="mt-1 block text-[11px] capitalize text-muted-foreground">Content {resource.content_status}{resource.chunk_count !== null && resource.chunk_count !== undefined ? ` · ${resource.chunk_count} chunks` : ""}</span>
-                  <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{resource.representation_detail}</span>
-                  <span className="mt-1 block text-[11px] text-muted-foreground">{createdAt(resource.created_at)}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="px-5 py-10 text-center">
-            <CircleDot className="mx-auto size-5 text-muted-foreground" />
-            <p className="mt-3 text-sm font-semibold">No context proposals are available</p>
-            <p className="mt-1 text-xs text-muted-foreground">Start intake to select source material and create the first reviewable attempt.</p>
-          </div>
-        )}
+        <ReviewResourceList resources={resources} loading={resourcesLoading} selectedHandle={previewHandle} onSelect={selectResource} />
       </section>
 
       {previewHandle && <ContextFlowRail

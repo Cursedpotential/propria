@@ -5,6 +5,8 @@ import test from "node:test";
 
 const surface = readFileSync(new URL("../src/components/sbv/proffer-operator-preview.tsx", import.meta.url), "utf8");
 const review = readFileSync(new URL("../src/components/sbv/proffer-preview-client.tsx", import.meta.url), "utf8");
+// The resource list moved into its own compact component (2026-09-20); its contract text lives there.
+const resourceList = readFileSync(new URL("../src/components/sbv/review-resource-list.tsx", import.meta.url), "utf8");
 // `platform-message-viewer.tsx` (Codex · GPT-5.6 · 2026-08-29) was superseded by the
 // fuller SBV port (Claude Code · Opus 5 · 2026-09-20): message-thread-view.tsx is now
 // the reader, fed by message-bubble.tsx / attachment-preview.tsx.
@@ -39,8 +41,8 @@ test("direct Review entry uses a resource list instead of manual opaque-handle p
   assert.match(review, /query\.get\("preview_handle"\)/);
   assert.match(review, /query\.get\("attempt"\)/);
   assert.match(review, /Start intake/);
-  assert.match(review, /Committed readback/);
-  assert.match(review, /resource\.representation_detail/);
+  assert.match(resourceList, /Committed readback/);
+  assert.match(resourceList, /resource\.representation_detail/);
   assert.match(client, /\/api\/proffer\/proposal-resources/);
   assert.match(client, /context_review_resources/);
   assert.doesNotMatch(review, /draftHandle|proffer-preview-handle|Attach to an import|Enter the preview handle/);
