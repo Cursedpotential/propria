@@ -106,8 +106,11 @@ func placeholderHandlerValidation(_ context.Context, _ StageRequest) (HandlerSel
 
 func handlerCandidate(path HandlerExecutionPath) HandlerCandidate {
 	id := "sbv_whatsapp"
-	if path == HandlerPathDuckDB {
+	switch path {
+	case HandlerPathDuckDB:
 		id = "duckdb_structured_elt"
+	case HandlerPathDerive:
+		id = "smsthreads_derive"
 	}
 	return HandlerCandidate{
 		HandlerID: id, HandlerVersion: "1.0.0", ExecutionPath: path,
@@ -139,6 +142,13 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 		env.RegisterActivityWithOptions(placeholderActivity, activity.RegisterOptions{Name: string(d.ID)})
 	}
 	for _, d := range stagegraph.OptionalStages {
+		// derive_structured_text_activity returns a DeriveResult, not a bare
+		// StageResult, so it needs its own placeholder signature for the
+		// SDK's name-based dispatch. Byline: Claude Code · Opus 5 · 2026-09-20
+		if d.ID == stagegraph.DeriveStructuredText {
+			env.RegisterActivityWithOptions(placeholderDeriveActivity, activity.RegisterOptions{Name: string(d.ID)})
+			continue
+		}
 		env.RegisterActivityWithOptions(placeholderActivity, activity.RegisterOptions{Name: string(d.ID)})
 	}
 	env.RegisterActivityWithOptions(placeholderHandlerRecommendation, activity.RegisterOptions{Name: RecommendHandlerActivityName})
