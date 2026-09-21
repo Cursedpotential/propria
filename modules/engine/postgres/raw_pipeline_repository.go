@@ -772,6 +772,7 @@ func priorReconciliationOutcome(ctx context.Context, tx pgx.Tx, executionID uuid
 		outcome.Ref = proffer.Ref(ref.RefID)
 	case "not_applicable":
 		outcome.Status = proffer.StatusNotApplicable
+		outcome.Ref = proffer.Ref(ref.RefID) // same id the first attempt returns; see writeReconciliation
 		outcome.Reason = fmt.Sprintf("%s previously determined not applicable", noun)
 	case "failed":
 		outcome.Status = proffer.StatusFailed
@@ -829,7 +830,14 @@ func (r *RawPipelineRepository) writeReconciliation(
 		outcome.Status = proffer.StatusSuccess
 		outcome.Ref = proffer.Ref(reconciliationID.String())
 	case "not_applicable":
+		// A not-applicable reconciliation still wrote its own reconciliation_receipt
+		// row, and verify_raw_coverage_against_source resolves that row by id. Without
+		// a Ref the workflow fell back to the ACTIVITY receipt id, which is a
+		// different table ("resolve byte_coverage reconciliation receipt: no rows",
+		// seen live 2026-09-20 on the first DuckDB source to get this far: a DuckDB
+		// row stream has no byte ranges, so byte coverage is always not_applicable).
 		outcome.Status = proffer.StatusNotApplicable
+		outcome.Ref = proffer.Ref(reconciliationID.String())
 		outcome.Reason = reason
 	default:
 		outcome.Status = proffer.StatusFailed
