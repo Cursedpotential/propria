@@ -26,6 +26,7 @@ from app.service.proffer import (
     start,
     validated_preview_events,
 )
+from app.runtime.proffer_media import router as _media_router
 from app.service.proffer_flags import create_potential_promotion_flag, list_potential_promotion_flags
 from app.service.proffer_operations import list_operations, operation
 from app.service.proffer_operator import operator_snapshot
@@ -60,6 +61,7 @@ from app.types.proffer_operations import (
 from app.types.proffer_operator import ProfferOperatorSnapshot
 
 router = APIRouter(prefix="/api/proffer", tags=["proffer"])
+router.include_router(_media_router)  # GET .../media/{sha256}: see app/runtime/proffer_media.py
 
 
 def _translate(error: ProfferError) -> HTTPException:
