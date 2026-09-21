@@ -324,3 +324,13 @@ Source: docs/HANDOFF-2026-08-02-sbv-chatminer-parser-gap-review.md (phases + acc
    feat/stream-repair-layer — landed in part via PR #18's governed repair
    slice, item 1 above; item 2's generic writer is still the gate for
    adopting `server/tools/repair/` beyond SBV).
+
+## Derive route: unapplied execution_path schema change (2026-09-20)
+
+_Byline: Claude Code · Opus 5 · 2026-09-20._
+
+| Item | Observed state | Remaining work / hold |
+|---|---|---|
+| `context.handler_compatibility.execution_path` does not admit `'derive'` | The CHECK on the live database reads `('decoder','duckdb')` — verified read-only on 2026-09-20 as `platform_runtime` against `platform` on ovh-files. `sql/bootstrap/schema_snapshot_20260907.sql` has been widened to `('decoder','duckdb','derive')`, and `scripts/2026-09-20-derive-execution-path.sql` is the idempotent equivalent for a live database. **Neither has been applied.** | **BLOCKER, owner action.** Until the script is applied (or the database is rebuilt from the snapshot), `recommend_handler_activity` fails on the INSERT into `context.handler_compatibility` for every `smsbackuprestore_xml` source, because routing now emits the `derive` path. Apply it before starting any SMS-XML run. |
+| `derive_structured_text_activity` has no live receipt | The Activity, stage, routing, worker wiring and tests are committed on `feat/derive-sms-activity`. Nothing was deployed and no workflow was started. The underlying unit was live-proven standalone on 2026-09-20 (584 MB backup → 12,389 records, 132 chunks, 564 media objects, 4m27s, ~80 MB memory), but the Activity boundary around it has only been proven against an in-memory object store. | Deploy, apply the schema change, run one real `smsbackuprestore_xml` source end to end, and record the receipt. |
+| Derived chunks are not yet ingested automatically | The derive route ENDS the parent run with the derived manifest reference and bounded chunk references. Each chunk must currently be submitted as its own `ndjson` Proffer run by hand. | Implement the child-workflow fan-out (no `ExecuteChildWorkflow` exists anywhere in `modules/engine` today, so it is a new pattern and a separate design decision), or an explicit operator action in the Workbench that submits the manifest's chunks. |
