@@ -296,6 +296,12 @@ func (a StructuredELTActivities) SelectStructuredELT(ctx context.Context, req pr
 // decoder implementation; PersistRawGeneration and every later gate remain
 // unchanged.
 func (a StructuredELTActivities) ExecuteStructuredELT(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
+	result, err := a.executeStructuredELT(ctx, req)
+	// A failure that cannot succeed on a retry stops here (permanent_failure.go).
+	return result, stopRetryingPermanent(err)
+}
+
+func (a StructuredELTActivities) executeStructuredELT(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validateExecute(); err != nil {
 		return proffer.StageResult{}, err
 	}
@@ -303,14 +309,14 @@ func (a StructuredELTActivities) ExecuteStructuredELT(ctx context.Context, req p
 		return proffer.StageResult{}, err
 	}
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
-		return proffer.StageResult{}, errors.New("execute structured elt requires request and source version references")
+		return proffer.StageResult{}, permanent(errors.New("execute structured elt requires request and source version references"))
 	}
 	selectionRef, err := requiredParserRef(req, "parser_selection")
 	if err != nil {
-		return proffer.StageResult{}, err
+		return proffer.StageResult{}, permanent(err)
 	}
 	if _, err := requiredParserRef(req, "original"); err != nil {
-		return proffer.StageResult{}, err
+		return proffer.StageResult{}, permanent(err)
 	}
 	format, err := a.authorizedFormat(ctx, req)
 	if err != nil {
@@ -318,24 +324,24 @@ func (a StructuredELTActivities) ExecuteStructuredELT(ctx context.Context, req p
 	}
 	templateID, err := StructuredELTTemplateForFormat(format)
 	if err != nil {
-		return proffer.StageResult{}, err
+		return proffer.StageResult{}, permanent(err)
 	}
 	selection, err := a.Store.LoadParserSelection(ctx, selectionRef)
 	if err != nil {
 		return proffer.StageResult{}, fmt.Errorf("load persisted structured-ELT selection %q: %w", selectionRef, err)
 	}
 	if err := validatePersistedSelection(req, selection); err != nil {
-		return proffer.StageResult{}, err
+		return proffer.StageResult{}, permanent(err)
 	}
 	if selection.ParserID != StructuredELTParserID || selection.ParserVersion != StructuredELTParserVersion {
-		return proffer.StageResult{}, errors.New("persisted parser selection is not the pinned DuckDB structured-ELT implementation")
+		return proffer.StageResult{}, permanent(errors.New("persisted parser selection is not the pinned DuckDB structured-ELT implementation"))
 	}
 	input, err := a.Store.ResolveParserInput(ctx, req, selection)
 	if err != nil {
 		return proffer.StageResult{}, fmt.Errorf("resolve structured-ELT input: %w", err)
 	}
 	if err := validateResolvedInput(req, selection, input); err != nil {
-		return proffer.StageResult{}, err
+		return proffer.StageResult{}, permanent(err)
 	}
 	writer, err := a.Store.OpenParserBundleWriter(ctx, req, selection, input)
 	if err != nil {
@@ -371,7 +377,7 @@ func (a StructuredELTActivities) ExecuteStructuredELT(ctx context.Context, req p
 			return proffer.StageResult{}, fmt.Errorf("read DuckDB structured row %d: %w", ordinal, nextErr)
 		}
 		if err := row.validate(templateID); err != nil {
-			return proffer.StageResult{}, fmt.Errorf("DuckDB structured row %d: %w", ordinal, err)
+			return proffer.StageResult{}, permanent(fmt.Errorf("DuckDB structured row %d: %w", ordinal, err))
 		}
 		status := row.RecordStatus
 		if status == "" {
@@ -385,7 +391,7 @@ func (a StructuredELTActivities) ExecuteStructuredELT(ctx context.Context, req p
 			NativeMetadata: append(json.RawMessage(nil), row.NativeMetadata...),
 		}
 		if err := envelope.Validate(parser.FormatID(req.DeclaredFormat)); err != nil {
-			return proffer.StageResult{}, fmt.Errorf("validate DuckDB structured row %d: %w", ordinal, err)
+			return proffer.StageResult{}, permanent(fmt.Errorf("validate DuckDB structured row %d: %w", ordinal, err))
 		}
 		if err := writer.Emit(ctx, envelope); err != nil {
 			return proffer.StageResult{}, fmt.Errorf("emit DuckDB structured row %d: %w", ordinal, err)
@@ -394,7 +400,7 @@ func (a StructuredELTActivities) ExecuteStructuredELT(ctx context.Context, req p
 		ordinal++
 	}
 	if ordinal == 0 {
-		return proffer.StageResult{}, errors.New("DuckDB structured extraction produced no records")
+		return proffer.StageResult{}, permanent(errors.New("DuckDB structured extraction produced no records"))
 	}
 	bundleResult, err := writer.Finalize(ctx, accounting)
 	if err != nil {
