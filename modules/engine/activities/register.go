@@ -230,3 +230,9 @@ func RegisterStructuredELTActivities(registrar ActivityRegistrar, activities Str
 	registrar.RegisterActivityWithOptions(activities.SelectStructuredELT, activity.RegisterOptions{Name: SelectStructuredELTActivityName})
 	registrar.RegisterActivityWithOptions(activities.ExecuteStructuredELT, activity.RegisterOptions{Name: ExecuteStructuredELTActivityName})
 }
+
+// RegisterDeriveSMSThreadsActivity installs the standalone streaming
+// derivation Activity (derive_sms_threads.go) under its exact name.
+func RegisterDeriveSMSThreadsActivity(registrar ActivityRegistrar, activities DeriveSMSThreadsActivities) {
+	registrar.RegisterActivityWithOptions(activities.DeriveSMSThreads, activity.RegisterOptions{Name: DeriveSMSThreadsActivityName})
+}

@@ -161,3 +161,27 @@ func TestValidateSharedPathsRejectsRelativeAndNestedRoots(t *testing.T) {
 		t.Fatal("nested shared path accepted")
 	}
 }
+
+// Without a cap Temporal runs up to 1,000 Activities at once per worker. A
+// batch fan-out over a shared PostgreSQL needs a small explicit ceiling that an
+// operator can raise without a code change (owner 2026-09-20).
+func TestLoadConfigCapsConcurrentActivities(t *testing.T) {
+	setWorkerEnvironment(t)
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.MaxConcurrentActivities != defaultMaxConcurrentActivities || defaultMaxConcurrentActivities < 1 {
+		t.Fatalf("default cap = %d", cfg.MaxConcurrentActivities)
+	}
+	t.Setenv("PROFFER_MAX_CONCURRENT_ACTIVITIES", "12")
+	if cfg, err = LoadConfig(); err != nil || cfg.MaxConcurrentActivities != 12 {
+		t.Fatalf("configured cap = %d, err = %v", cfg.MaxConcurrentActivities, err)
+	}
+	for _, invalid := range []string{"0", "-3", "many"} {
+		t.Setenv("PROFFER_MAX_CONCURRENT_ACTIVITIES", invalid)
+		if _, err := LoadConfig(); err == nil {
+			t.Fatalf("cap %q must be rejected, never treated as unlimited", invalid)
+		}
+	}
+}

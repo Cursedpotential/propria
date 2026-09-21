@@ -33,6 +33,11 @@ func (a PreviewProjectionActivity) Publish(ctx context.Context, request proffer.
 		return proffer.StageResult{}, errors.New("preview projection activity refuses unknown receipt refs")
 	}
 	binding, err := a.Store.PublishWorkflowPreview(ctx, request)
+	if errors.Is(err, previewmodel.ErrInvalidPreview) {
+		// e.g. a calls-only backup has no normalized message to preview:
+		// identical on every attempt, so it stops instead of retrying.
+		return proffer.StageResult{}, stopRetryingPermanent(permanent(err))
+	}
 	if err != nil {
 		return proffer.StageResult{}, err
 	}
