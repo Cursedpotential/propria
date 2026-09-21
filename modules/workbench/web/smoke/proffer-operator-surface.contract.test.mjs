@@ -62,7 +62,10 @@ test("the Review workspace exposes every required operator view", () => {
     "Attempts / runs",
   ]) assert.match(surface, new RegExp(`label: "${label.replaceAll("/", "\\/")}"`));
   assert.match(surface, /aria-label="Context review views"/);
-  assert.match(surface, /useState<ReviewTab>\("overview"\)/);
+  // Owner ruling 2026-09-20 23:48 (docs/pending-review/2026-09-20-review-screen-layout-diagnosis.md):
+  // a messaging source lands on Messages, a calls-only source on Calls, anything else on Overview;
+  // a tab the operator picked always wins.
+  assert.match(surface, /pickedTab \?\? \(messagingSource \? "messages" : callsSource \? "calls" : "overview"\)/);
 });
 
 test("available source records, chunks, files, and lineage use returned API data", () => {

@@ -67,14 +67,12 @@ function tabAvailability(
 
 function Availability({ value, label }: { value: ProfferOperatorAvailability; label: string }) {
   return (
-    <div className="border bg-card p-3 text-xs">
-      <div className="flex items-center justify-between gap-3">
-        <strong>{label}</strong>
-        <Badge variant={value.status === "available" ? "default" : "outline"}>{value.status}</Badge>
-      </div>
-      {value.ref && <p className="mt-2 break-all font-mono text-[10px] text-muted-foreground">{value.ref}</p>}
-      {value.count !== null && value.count !== undefined && <p className="mt-2">{value.count.toLocaleString()} reported</p>}
-      {value.reason && <p className="mt-2 leading-5 text-muted-foreground">{value.reason}</p>}
+    <div className="flex min-w-0 items-center gap-2 border-b bg-card px-2 py-1 text-xs" title={value.reason ?? undefined}>
+      <strong className="shrink-0 font-medium">{label}</strong>
+      <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground">
+        {value.ref ?? (value.count !== null && value.count !== undefined ? `${value.count.toLocaleString()} reported` : "")}
+      </span>
+      <Badge variant={value.status === "available" ? "default" : "outline"} className="shrink-0">{value.status === "unavailable" ? "n/a" : value.status}</Badge>
     </div>
   );
 }
@@ -181,15 +179,16 @@ export function ProfferOperatorPreview({
   actionPending: boolean;
   decisionReady: boolean;
 }) {
-  // The Messages view is offered only for a messaging source. The landing tab stays
-  // Overview for every source: `smoke/proffer-operator-surface.contract.test.mjs`
-  // pins that default, and changing it is an owner decision, not a side effect here.
+  // The Messages view is offered only for a messaging source, and is where such a source
+  // lands (owner ruling 2026-09-20 23:48; pinned by
+  // `smoke/proffer-operator-surface.contract.test.mjs`). A picked tab always wins.
   const messagingSource = messages.length > 0;
   const fallbackMessagePages = useMemo(() => [{ messages, participants }], [messages, participants]);
   const { rows: fallbackMessageRows, participants: fallbackParticipantMap } = usePreviewMessageRows(fallbackMessagePages);
   const callRows = useMemo(() => parseCallRecords(content?.records ?? []), [content]);
   const callsSource = callRows.length > 0;
-  const [tab, setTab] = useState<ReviewTab>("overview");
+  const [pickedTab, setTab] = useState<ReviewTab | null>(null);
+  const tab: ReviewTab = pickedTab ?? (messagingSource ? "messages" : callsSource ? "calls" : "overview");
   const [moreOpen, setMoreOpen] = useState(false);
   const visibleTabs = useMemo(
     () => TABS.filter((entry) => (entry.id !== "messages" || messagingSource) && (entry.id !== "calls" || callsSource)),
@@ -219,21 +218,28 @@ export function ProfferOperatorPreview({
   };
 
   return (
-    <div className="space-y-4">
-      <section className={cn("border-2 p-4", modeTone)} aria-label={`${snapshot.matter_mode} destination`}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em]">{snapshot.matter_mode} operation destination</p>
-            <h2 className="mt-1 text-lg font-semibold">{snapshot.matter_mode === "REAL" ? "Real matter" : "Development test matter"}</h2>
-          </div>
+    <div className="space-y-2">
+      <details className={cn("border px-3 py-1.5", modeTone)} aria-label={`${snapshot.matter_mode} destination`}>
+        <summary className="flex cursor-pointer flex-wrap items-center gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-[0.18em]">{snapshot.matter_mode} operation destination</span>
+          <h2 className="text-sm font-semibold">{snapshot.matter_mode === "REAL" ? "Real matter" : "Development test matter"}</h2>
           <Badge variant="outline" className="border-current text-current">{snapshot.lifecycle.replaceAll("_", " ")}</Badge>
-        </div>
-        <dl className="mt-4 grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-4">
+        </summary>
+        <dl className="mt-2 grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-4">
           <div><dt className="opacity-70">Matter</dt><dd className="mt-1 break-all font-mono text-[10px]">{snapshot.matter_id}</dd></div>
           <div><dt className="opacity-70">Court case</dt><dd className="mt-1 break-all font-mono text-[10px]">{snapshot.court_case_id}</dd></div>
           <div><dt className="opacity-70">Attempt resource</dt><dd className="mt-1 break-all font-mono text-[10px]">{snapshot.preview_handle}</dd></div>
           <div><dt className="opacity-70">Request</dt><dd className="mt-1 break-all font-mono text-[10px]">{snapshot.request_id}</dd></div>
         </dl>
+      </details>
+
+      <section className="sticky top-0 z-20 border bg-card px-3 py-2 shadow-sm" aria-label="Next valid actions">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="platform-rule-title">Next valid actions</p><p className="mt-1 text-xs text-muted-foreground">Only actions backed by the current state and API contract appear here.</p></div><Button variant="outline" size="sm" onClick={onRefresh} disabled={actionPending}><RefreshCw className="size-3.5" /> Refresh</Button></div>
+        {snapshot.reason && <p className="mt-3 border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert"><AlertTriangle className="mr-2 inline size-4" />{snapshot.reason}</p>}
+        {actionNames.has("select_handler") && <div className="mt-4 space-y-3"><Label htmlFor="operator-handler">Compatible handler</Label><select id="operator-handler" className="h-10 w-full border bg-background px-3 text-sm" value={selectedHandlerKey} onChange={(event) => setSelectedHandlerKey(event.target.value)}><option value="">Choose an exact registered handler</option>{candidates.map((candidate) => {const key = `${candidate.handler_id}:${candidate.handler_version}:${candidate.execution_path}:${candidate.compatibility_ref}`; return <option key={key} value={key}>{candidate.handler_id} · {candidate.handler_version} · {candidate.execution_path}</option>;})}</select><Button disabled={!selectedHandler || actionPending} onClick={() => selectedHandler && onSelectHandler(selectedHandler)}><Check className="size-4" /> Record handler and continue</Button></div>}
+        {actionNames.has("retain_original") && <div className="mt-4"><Button disabled={actionPending} onClick={onRetainOriginal}><ShieldCheck className="size-4" /> Retain sealed original and continue</Button></div>}
+        {(actionNames.has("approve_preview") || actionNames.has("reject_preview")) && <div className="mt-4 space-y-3"><Label htmlFor="operator-decision-reason">Reason for rejection</Label><Input id="operator-decision-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required only for rejection"/><div className="flex flex-wrap gap-2">{actionNames.has("approve_preview") && <Button disabled={actionPending || !decisionReady} onClick={onApprove}><Check className="size-4" /> Approve this attempt</Button>}{actionNames.has("reject_preview") && <Button variant="destructive" disabled={actionPending || !decisionReady || !reason.trim()} onClick={() => onReject(reason.trim())}><X className="size-4" /> Reject with reason</Button>}</div></div>}
+        {actionNames.has("restart_new_operation") && <div className="mt-4"><Button asChild><AppLink href={`/intake?mode=${snapshot.matter_mode}`}><CircleDot className="size-4" /> Start a new import <ExternalLink className="size-3.5" /></AppLink></Button><p className="mt-2 text-xs text-muted-foreground">This creates a new request identity and does not misrepresent the failed operation as resumed.</p></div>}
       </section>
 
       <nav className="relative flex items-center gap-1 overflow-x-auto border bg-card px-2 pt-2" role="tablist" aria-label="Context review views">
@@ -291,7 +297,7 @@ export function ProfferOperatorPreview({
         )}
       </nav>
 
-      <section className="min-h-[31rem] border bg-card p-4" role="tabpanel">
+      <section className="border bg-card p-3" role="tabpanel">
         {tab === "messages" && (
           <MessageBrowser
             key={`${snapshot.matter_mode}:${snapshot.preview_handle}`}
@@ -320,8 +326,8 @@ export function ProfferOperatorPreview({
           </div>
         )}
 
-        {tab === "overview" && <div className="space-y-5">
-          <header><p className="platform-kicker">Context extraction package</p><h2 className="mt-1 text-xl font-semibold">Source, parser, package, and destination</h2></header>
+        {tab === "overview" && <div className="space-y-3">
+          <header className="flex flex-wrap items-baseline gap-2"><p className="platform-kicker">Context extraction package</p><h2 className="text-sm font-semibold">Source, parser, package, and destination</h2></header>
           {content && <section className="border-l-4 border-l-primary bg-accent/30 p-4 text-xs">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div><strong>Retained source version</strong><p className="mt-1 break-all font-mono text-[10px]">{content.package.source_version_ref}</p></div>
@@ -332,7 +338,7 @@ export function ProfferOperatorPreview({
             <p className="mt-3 text-muted-foreground">{content.package.metadata_count} metadata records · {content.package.attachment_count} retained attachments · {content.package.original_bytes?.toLocaleString() ?? "unknown"} bytes · {content.package.storage_class ?? "storage class unavailable"}</p>
           </section>}
           {contentError && <p className="border border-[#ead5a9] bg-[#fff4dd] p-3 text-xs text-[#684b18]" role="status">Package projection unavailable: {contentError}</p>}
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid border-x border-t md:grid-cols-2">
             <Availability label="Original source reference" value={snapshot.package.original} />
             <Availability label="Original fingerprint" value={snapshot.package.original_fingerprint} />
             <Availability label="Package identity" value={snapshot.package.package_identity} />
@@ -346,13 +352,15 @@ export function ProfferOperatorPreview({
             <div className="bg-card p-3"><dt className="text-muted-foreground">Raw generation</dt><dd className="mt-1 break-all font-mono text-[10px]">{preview.correlation.raw_generation_id}</dd></div>
             <div className="bg-card p-3"><dt className="text-muted-foreground">Normalized generation</dt><dd className="mt-1 break-all font-mono text-[10px]">{preview.correlation.normalized_generation_id}</dd></div>
           </dl>}
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid border-x border-t md:grid-cols-2">
             <Availability label="Intake classification" value={snapshot.authority_state.intake_classification} />
             <Availability label="Context acceptance state" value={snapshot.authority_state.context_status} />
           </div>
-          <section className="space-y-3">
-            <header><p className="platform-rule-title">Source repair and preprocessing</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Repair assessment belongs before signature routing and handler selection. A detector or tool failure is an operational error, not proof that the source is damaged.</p></header>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <details className="border">
+            <summary className="cursor-pointer px-3 py-2 text-xs font-semibold">Source repair and preprocessing</summary>
+            <div className="space-y-3 p-3">
+            <header><p className="mt-1 text-xs leading-5 text-muted-foreground">Repair assessment belongs before signature routing and handler selection. A detector or tool failure is an operational error, not proof that the source is damaged.</p></header>
+            <div className="grid border-x border-t md:grid-cols-2">
               <Availability label="Assessment report" value={snapshot.repair_state.assessment_report} />
               <Availability label="Affected members / pages" value={snapshot.repair_state.affected_units} />
               <Availability label="Engine / profile / version / hash" value={snapshot.repair_state.engine_profile} />
@@ -360,22 +368,29 @@ export function ProfferOperatorPreview({
               <Availability label="Durable decision receipt" value={snapshot.repair_state.decision_receipt} />
             </div>
             <p className="border-l-4 border-l-[#c69027] bg-[#fff4dd] p-3 text-xs leading-5 text-[#684b18] dark:bg-[#43351f] dark:text-[#ffe0a6]">{snapshot.repair_state.reentry_rule}</p>
-          </section>
-          <section className="space-y-3">
-            <header><p className="platform-rule-title">D-158 context storage destination</p><p className="mt-1 text-xs leading-5 text-muted-foreground">The destination depends on the package source type and must be visible before publication.</p></header>
-            <div className="grid gap-3 md:grid-cols-2">
+            </div>
+          </details>
+          <details className="border">
+            <summary className="cursor-pointer px-3 py-2 text-xs font-semibold">D-158 context storage destination</summary>
+            <div className="space-y-3 p-3">
+            <header><p className="mt-1 text-xs leading-5 text-muted-foreground">The destination depends on the package source type and must be visible before publication.</p></header>
+            <div className="grid border-x border-t md:grid-cols-2">
               <Availability label="Messaging / non-messaging classification" value={snapshot.storage_state.source_type} />
               <Availability label="Selected context target" value={snapshot.storage_state.context_target} />
               <Availability label="PostgreSQL control-plane state" value={snapshot.storage_state.postgres_control_state} />
               <Availability label="Governed searchable projection" value={snapshot.storage_state.searchable_projection} />
             </div>
             <p className="border p-3 text-xs leading-5 text-muted-foreground">{snapshot.storage_state.rule}</p>
-          </section>
+            </div>
+          </details>
           <div className="border-l-4 border-l-primary bg-accent/40 p-4 text-sm"><ShieldCheck className="mr-2 inline size-4" />This workspace does not publish anything until the current attempt exposes an explicit valid action and the operator records that decision.</div>
-          <section className="space-y-4">
+          <details className="border">
+            <summary className="cursor-pointer px-3 py-2 text-xs font-semibold">Go-managed structured extraction and tools</summary>
+            <div className="space-y-4 p-3">
             <div className="border-l-4 border-l-primary bg-accent/40 p-4"><div className="flex items-center gap-2"><Database className="size-4" /><strong>Go-managed structured extraction</strong></div><p className="mt-2 text-xs leading-5 text-muted-foreground">DuckDB is the primary ELT path for compatible structured sources. Go owns selection, bounded references, Temporal correlation, receipt validation, retries, and repair decisions. Only governed DuckDB tools from the monitored catalog appear here.</p>{snapshot.parser_execution_path && <p className="mt-2 text-xs">Selected path for this operation: <strong>{snapshot.parser_execution_path}</strong></p>}</div>
             <AtomicTools embedded initialSearch="duckdb" requiredToolTerm="duckdb" />
-          </section>
+            </div>
+          </details>
         </div>}
 
         {tab === "records" && (content ? <div className="space-y-3">
@@ -434,18 +449,10 @@ export function ProfferOperatorPreview({
         </div>}
       </section>
 
-      <section className="border bg-card p-4" aria-label="Next valid actions">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="platform-rule-title">Next valid actions</p><p className="mt-1 text-xs text-muted-foreground">Only actions backed by the current state and API contract appear here.</p></div><Button variant="outline" size="sm" onClick={onRefresh} disabled={actionPending}><RefreshCw className="size-3.5" /> Refresh</Button></div>
-        {snapshot.reason && <p className="mt-3 border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert"><AlertTriangle className="mr-2 inline size-4" />{snapshot.reason}</p>}
-        {actionNames.has("select_handler") && <div className="mt-4 space-y-3"><Label htmlFor="operator-handler">Compatible handler</Label><select id="operator-handler" className="h-10 w-full border bg-background px-3 text-sm" value={selectedHandlerKey} onChange={(event) => setSelectedHandlerKey(event.target.value)}><option value="">Choose an exact registered handler</option>{candidates.map((candidate) => {const key = `${candidate.handler_id}:${candidate.handler_version}:${candidate.execution_path}:${candidate.compatibility_ref}`; return <option key={key} value={key}>{candidate.handler_id} · {candidate.handler_version} · {candidate.execution_path}</option>;})}</select><Button disabled={!selectedHandler || actionPending} onClick={() => selectedHandler && onSelectHandler(selectedHandler)}><Check className="size-4" /> Record handler and continue</Button></div>}
-        {actionNames.has("retain_original") && <div className="mt-4"><Button disabled={actionPending} onClick={onRetainOriginal}><ShieldCheck className="size-4" /> Retain sealed original and continue</Button></div>}
-        {(actionNames.has("approve_preview") || actionNames.has("reject_preview")) && <div className="mt-4 space-y-3"><Label htmlFor="operator-decision-reason">Reason for rejection</Label><Input id="operator-decision-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required only for rejection"/><div className="flex flex-wrap gap-2">{actionNames.has("approve_preview") && <Button disabled={actionPending || !decisionReady} onClick={onApprove}><Check className="size-4" /> Approve this attempt</Button>}{actionNames.has("reject_preview") && <Button variant="destructive" disabled={actionPending || !decisionReady || !reason.trim()} onClick={() => onReject(reason.trim())}><X className="size-4" /> Reject with reason</Button>}</div></div>}
-        {actionNames.has("restart_new_operation") && <div className="mt-4"><Button asChild><AppLink href={`/intake?mode=${snapshot.matter_mode}`}><CircleDot className="size-4" /> Start a new import <ExternalLink className="size-3.5" /></AppLink></Button><p className="mt-2 text-xs text-muted-foreground">This creates a new request identity and does not misrepresent the failed operation as resumed.</p></div>}
-      </section>
     </div>
   );
 }
 
 function UnavailablePanel({ title, availability, action }: { title: string; availability: ProfferOperatorAvailability; action?: string }) {
-  return <div className="grid min-h-[18rem] place-content-center text-center"><CircleDot className="mx-auto size-7 text-muted-foreground"/><h2 className="mt-3 text-lg font-semibold">{title}</h2><Badge variant="outline" className="mx-auto mt-2">{availability.status}</Badge><p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">{availability.reason}</p>{action && <p className="mx-auto mt-2 max-w-xl text-xs leading-5 text-muted-foreground">{action}</p>}</div>;
+  return <div className="grid place-content-center py-6 text-center"><CircleDot className="mx-auto size-7 text-muted-foreground"/><h2 className="mt-3 text-lg font-semibold">{title}</h2><Badge variant="outline" className="mx-auto mt-2">{availability.status}</Badge><p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">{availability.reason}</p>{action && <p className="mx-auto mt-2 max-w-xl text-xs leading-5 text-muted-foreground">{action}</p>}</div>;
 }
