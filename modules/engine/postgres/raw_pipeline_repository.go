@@ -1259,7 +1259,11 @@ func recomputeRawGenerationFromBytes(ctx context.Context, tx pgx.Tx, rawGenerati
 		       CASE WHEN object.storage_class = 'inline'
 		            AND raw.byte_offset >= 0 AND raw.byte_length >= 0
 		            AND raw.byte_offset + raw.byte_length <= octet_length(object.inline_bytes)
-		            THEN substring(object.inline_bytes FROM raw.byte_offset + 1 FOR raw.byte_length)
+		            -- substring(bytea ...) exists only for integer arguments; the columns are
+		            -- bigint, and the planner rejects the call even when this branch never runs
+		            -- ("function pg_catalog.substring(bytea, bigint, bigint) does not exist",
+		            -- live 2026-09-20). Inline objects are far below 2 GiB, so the cast is exact.
+		            THEN substring(object.inline_bytes FROM (raw.byte_offset + 1)::integer FOR raw.byte_length::integer)
 		       END,
 		       COALESCE(raw.byte_offset, 0), COALESCE(raw.byte_length, 0)
 		FROM context.raw_record_identity raw
