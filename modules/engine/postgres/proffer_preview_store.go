@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 )
@@ -46,6 +47,77 @@ type normalizedPreviewPayload struct {
 type previewAttachmentMetadata struct {
 	AttachmentOrdinal int64          `json:"attachment_ordinal"`
 	NativeMetadata    map[string]any `json:"native_metadata"`
+}
+
+// previewStructuredAttachment is the attachment shape the structured-text route
+// writes into the subtype table's native_fields (derive/smsthreads.LineAttachment
+// carried through the ndjson template). The decoder route writes the
+// previewAttachmentMetadata shape into native_metadata instead. Until 2026-09-21
+// only the decoder shape was read, so no thread-file run ever published an
+// attachment (live: 379 raw records with attachments, 0 preview attachment rows).
+type previewStructuredAttachment struct {
+	Ordinal int64  `json:"ordinal"`
+	Name    string `json:"name"`
+	MIME    string `json:"mime"`
+	SHA256  string `json:"sha256"`
+	Bytes   *int64 `json:"bytes"`
+}
+
+func (a previewStructuredAttachment) project(rawRecordID uuid.UUID) previewmodel.Attachment {
+	projected := previewmodel.Attachment{
+		AttachmentID:     fmt.Sprintf("%s:%d", rawRecordID, a.Ordinal),
+		SourceLocatorRef: "context.raw_record_identity/" + rawRecordID.String() + "/attachment/" + fmt.Sprint(a.Ordinal),
+	}
+	if a.Name != "" {
+		name := a.Name
+		projected.Filename = &name
+	}
+	if a.MIME != "" {
+		mime := a.MIME
+		projected.MediaType = &mime
+	}
+	if previewmodel.ValidDigest(a.SHA256) {
+		digest := a.SHA256
+		projected.SHA256 = &digest
+	}
+	if a.Bytes != nil && *a.Bytes >= 0 {
+		size := *a.Bytes
+		projected.ByteLength = &size
+	}
+	return projected
+}
+
+// previewAttachmentQuery reads a normalized record's attachments from both
+// places a route may have put them. The subtype relation exists only once its
+// format has been registered, so its absence falls back to the identity table.
+func (s *ProfferPreviewStore) previewAttachmentQuery(ctx context.Context, rawGenerationID uuid.UUID) (string, error) {
+	const identityOnly = `SELECT raw.id, COALESCE(raw.native_metadata->'attachments','[]'::jsonb), '[]'::jsonb
+		FROM context.normalization_lineage lineage
+		JOIN context.raw_record_identity raw ON raw.id=lineage.raw_record_id
+		WHERE lineage.normalized_record_id=$1::uuid ORDER BY raw.record_ordinal`
+	var formatID string
+	if err := s.db.QueryRow(ctx, `SELECT format_id FROM context.raw_generation WHERE id=$1::uuid`, rawGenerationID).Scan(&formatID); err != nil {
+		return "", fmt.Errorf("resolve raw generation format: %w", err)
+	}
+	if err := parser.FormatID(formatID).Validate(); err != nil {
+		return "", fmt.Errorf("raw generation format: %w", err)
+	}
+	subtype := pgx.Identifier{"context", "raw_" + formatID}.Sanitize()
+	var registered bool
+	if err := s.db.QueryRow(ctx, `SELECT to_regclass($1::text) IS NOT NULL`, subtype).Scan(&registered); err != nil {
+		return "", fmt.Errorf("resolve raw subtype relation: %w", err)
+	}
+	if !registered {
+		return identityOnly, nil
+	}
+	return fmt.Sprintf(`SELECT raw.id,
+		       COALESCE(subtype.native_metadata->'attachments', raw.native_metadata->'attachments', '[]'::jsonb),
+		       CASE WHEN jsonb_typeof(subtype.native_fields->'attachments') = 'array'
+		            THEN subtype.native_fields->'attachments' ELSE '[]'::jsonb END
+		FROM context.normalization_lineage lineage
+		JOIN context.raw_record_identity raw ON raw.id=lineage.raw_record_id
+		LEFT JOIN %s subtype ON subtype.raw_record_id = raw.id
+		WHERE lineage.normalized_record_id=$1::uuid ORDER BY raw.record_ordinal`, subtype), nil
 }
 
 // PublishWorkflowPreview resolves reference-only workflow coordinates into a
@@ -105,6 +177,10 @@ func (s *ProfferPreviewStore) PublishWorkflowPreview(ctx context.Context, reques
 		}
 		snapshot.Receipts = append(snapshot.Receipts, previewmodel.Receipt{ReceiptType: kind, ReceiptRef: string(ref), Status: "completed", RecordedAt: recorded})
 	}
+	attachmentQuery, err := s.previewAttachmentQuery(ctx, rawID)
+	if err != nil {
+		return binding, err
+	}
 	rows, err := s.db.Query(ctx, `SELECT id, record_ordinal, occurred_at, normalized_payload FROM context.normalized_record_identity WHERE normalized_generation_id=$1::uuid AND record_type='message' ORDER BY record_ordinal`, normalizedID)
 	if err != nil {
 		return binding, err
@@ -140,14 +216,14 @@ func (s *ProfferPreviewStore) PublishWorkflowPreview(ctx context.Context, reques
 				message.SenderParticipantID = &id
 			}
 		}
-		attachmentRows, queryErr := s.db.Query(ctx, `SELECT raw.id, COALESCE(raw.native_metadata->'attachments','[]'::jsonb) FROM context.normalization_lineage lineage JOIN context.raw_record_identity raw ON raw.id=lineage.raw_record_id WHERE lineage.normalized_record_id=$1::uuid ORDER BY raw.record_ordinal`, recordID)
+		attachmentRows, queryErr := s.db.Query(ctx, attachmentQuery, recordID)
 		if queryErr != nil {
 			return binding, queryErr
 		}
 		for attachmentRows.Next() {
 			var rawRecordID uuid.UUID
-			var attachmentJSON []byte
-			if err := attachmentRows.Scan(&rawRecordID, &attachmentJSON); err != nil {
+			var attachmentJSON, structuredJSON []byte
+			if err := attachmentRows.Scan(&rawRecordID, &attachmentJSON, &structuredJSON); err != nil {
 				attachmentRows.Close()
 				return binding, err
 			}
@@ -155,6 +231,17 @@ func (s *ProfferPreviewStore) PublishWorkflowPreview(ctx context.Context, reques
 			if err := json.Unmarshal(attachmentJSON, &metadata); err != nil {
 				attachmentRows.Close()
 				return binding, err
+			}
+			// One route fills one shape; reading both would double-count a record.
+			if len(metadata) == 0 {
+				var structured []previewStructuredAttachment
+				if err := json.Unmarshal(structuredJSON, &structured); err != nil {
+					attachmentRows.Close()
+					return binding, err
+				}
+				for _, attachment := range structured {
+					message.Attachments = append(message.Attachments, attachment.project(rawRecordID))
+				}
 			}
 			for _, attachment := range metadata {
 				id := fmt.Sprintf("%s:%d", rawRecordID, attachment.AttachmentOrdinal)
