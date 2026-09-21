@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/Cursedpotential/probata/engine/activities"
@@ -145,6 +147,24 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 	return &structuredELTRows{rows: rows, release: session.Release}, nil
 }
 
+// defaultXMLMaximumFileSize raises Webbed's 16 MB read_xml default (owner
+// 2026-09-20: "still raise the limit"). The DuckDB 1.4.3 build of Webbed has no
+// streaming mode, so read_xml holds the whole document in memory inside the
+// shared PostgreSQL: keep this modest. Full-size SMS backups (500 MB and up)
+// never come here; derive/smsthreads turns them into NDJSON first.
+const defaultXMLMaximumFileSize = 256 << 20
+
+// xmlMaximumFileSize is configuration (DUCKDB_XML_MAX_BYTES), not a constant
+// baked into the template.
+func xmlMaximumFileSize() int64 {
+	if raw := strings.TrimSpace(os.Getenv("DUCKDB_XML_MAX_BYTES")); raw != "" {
+		if value, err := strconv.ParseInt(raw, 10, 64); err == nil && value > 0 {
+			return value
+		}
+	}
+	return defaultXMLMaximumFileSize
+}
+
 func structuredELTRequiresWebbed(format activities.StructuredELTFormat) bool {
 	return format == activities.StructuredELTFormatSMSXML
 }
@@ -273,10 +293,10 @@ func structuredELTQuery(format activities.StructuredELTFormat, sourceURL string)
 		return fmt.Sprintf(`
 			WITH source_rows AS (
 				SELECT 'sms' AS source_kind, to_json(row_value)::JSON AS source_row
-				FROM read_xml('%[1]s', record_element := 'sms', all_varchar := true) AS row_value
+				FROM read_xml('%[1]s', record_element := 'sms', all_varchar := true, maximum_file_size := %[2]d) AS row_value
 				UNION ALL
 				SELECT 'mms' AS source_kind, to_json(row_value)::JSON AS source_row
-				FROM read_xml('%[1]s', record_element := 'mms', all_varchar := true) AS row_value
+				FROM read_xml('%[1]s', record_element := 'mms', all_varchar := true, maximum_file_size := %[2]d) AS row_value
 			), projected AS (
 				SELECT *,
 					coalesce(
@@ -324,7 +344,7 @@ func structuredELTQuery(format activities.StructuredELTFormat, sourceURL string)
 					'date_ms', date_ms, 'source_row', source_row
 				)::VARCHAR AS native_metadata
 			FROM timestamped
-			ORDER BY try_cast(date_ms AS BIGINT), source_kind`, url), nil
+			ORDER BY try_cast(date_ms AS BIGINT), source_kind`, url, xmlMaximumFileSize()), nil
 	case activities.StructuredELTFormatChatGPTJSON:
 		return fmt.Sprintf(`
 			WITH source_document AS (

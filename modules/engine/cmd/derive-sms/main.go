@@ -29,14 +29,16 @@ import (
 func main() {
 	source := flag.String("source", "", "object URI, e.g. b2://bucket/key.xml")
 	scratch := flag.String("scratch", "", "absolute scratch directory on a data volume")
+	validate := flag.Bool("validate", false, "check a published derivation against its manifest instead of deriving")
+	maxChunk := flag.Int64("max-chunk", 0, "bytes per thread chunk (0 = default 64 MiB)")
 	flag.Parse()
-	if err := run(*source, *scratch); err != nil {
+	if err := run(*source, *scratch, *validate, *maxChunk); err != nil {
 		fmt.Fprintln(os.Stderr, "derive-sms:", err)
 		os.Exit(1)
 	}
 }
 
-func run(source, scratch string) error {
+func run(source, scratch string, validate bool, maxChunk int64) error {
 	scheme, rest, found := strings.Cut(source, "://")
 	bucket, key, hasKey := strings.Cut(rest, "/")
 	if !found || !hasKey || bucket == "" || key == "" {
@@ -60,8 +62,21 @@ func run(source, scratch string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if validate {
+		report, err := smsthreads.Validate(ctx, smsthreads.S3Store{Client: client}, scheme, bucket, key, maxChunk)
+		if err != nil {
+			return err
+		}
+		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+			return err
+		}
+		if !report.OK {
+			return fmt.Errorf("derivation failed validation: %d problems, %d oversize chunks", len(report.Problems), len(report.OversizeChunks))
+		}
+		return nil
+	}
 	manifest, err := smsthreads.Derive(ctx, smsthreads.Options{
-		Store: smsthreads.S3Store{Client: client}, Scheme: scheme, Bucket: bucket, Key: key, ScratchRoot: scratch,
+		Store: smsthreads.S3Store{Client: client}, Scheme: scheme, Bucket: bucket, Key: key, ScratchRoot: scratch, MaxChunk: maxChunk,
 	})
 	if err != nil {
 		return err

@@ -9,6 +9,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -17,7 +19,11 @@ import (
 type memoryStore struct{ objects map[string][]byte }
 
 func (m *memoryStore) Open(_ context.Context, bucket, key string) (io.ReadCloser, error) {
-	return io.NopCloser(bytes.NewReader(m.objects[bucket+"/"+key])), nil
+	data, ok := m.objects[bucket+"/"+key]
+	if !ok {
+		return nil, errors.New("no such object: " + key)
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
 func (m *memoryStore) Put(_ context.Context, bucket, key string, body io.ReadSeeker, _ int64, _ string) error {
@@ -123,5 +129,44 @@ func TestNormalizePartyJoinsNumberSpellings(t *testing.T) {
 	}
 	if got := normalizeParty("Verizon@vtext.com"); got != "verizon@vtext.com" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestChunksRollOverAndValidateCatchesTampering(t *testing.T) {
+	source := sampleBackup([]byte("png-bytes"))
+	store := &memoryStore{objects: map[string][]byte{"bkt/vault/sms-test.xml": []byte(source)}}
+	manifest, err := Derive(context.Background(), Options{
+		Store: store, Scheme: "b2", Bucket: "bkt", Key: "vault/sms-test.xml", ScratchRoot: t.TempDir(), MaxChunk: 300,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chunksByThread := map[string]int{}
+	for _, file := range manifest.Threads {
+		chunksByThread[file.Thread]++
+		if !strings.HasSuffix(file.Key, fmt.Sprintf(".%04d.ndjson", file.Chunk)) {
+			t.Fatalf("chunk %d has key %s", file.Chunk, file.Key)
+		}
+	}
+	rolled := false
+	for _, count := range chunksByThread {
+		rolled = rolled || count > 1
+	}
+	if !rolled {
+		t.Fatalf("no thread rolled over at a 300-byte cap: %+v", chunksByThread)
+	}
+	report, err := Validate(context.Background(), store, "b2", "bkt", "vault/sms-test.xml", 0)
+	if err != nil || !report.OK || report.Records != 4 || report.MediaObjects != 1 {
+		t.Fatalf("clean derivation must validate: %+v err=%v", report, err)
+	}
+	strict, _ := Validate(context.Background(), store, "b2", "bkt", "vault/sms-test.xml", 10)
+	if strict.OK || len(strict.OversizeChunks) == 0 {
+		t.Fatalf("a 10-byte cap must flag oversize chunks: %+v", strict)
+	}
+	victim := "bkt/" + manifest.Threads[0].Key
+	store.objects[victim] = append(store.objects[victim], []byte("not json\n")...)
+	tampered, _ := Validate(context.Background(), store, "b2", "bkt", "vault/sms-test.xml", 0)
+	if tampered.OK || len(tampered.Problems) == 0 {
+		t.Fatal("a tampered chunk must fail validation")
 	}
 }

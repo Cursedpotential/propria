@@ -20,28 +20,38 @@ import (
 	"github.com/lowcarbdev/sbv/pkg/parseonly"
 )
 
-// threadWriter appends NDJSON lines to one scratch file per thread. A backup
-// can hold thousands of threads, so only MaxOpen files stay open; the least
-// recently used one is flushed and closed, then reopened in append mode.
+// threadWriter appends NDJSON lines to scratch files, one thread at a time and
+// one size-capped CHUNK at a time (owner 2026-09-20: "save in chunks, likely by
+// thread" · "chunks as needed"). A thread that outgrows maxChunk rolls over to
+// <thread>.0002.ndjson, always at a line boundary. A backup can hold thousands
+// of threads, so only maxOpen files stay open; the least recently used one is
+// flushed and closed, then reopened in append mode.
 type threadWriter struct {
-	root    string
-	maxOpen int
-	files   map[string]*threadEntry
-	tick    uint64
+	root     string
+	maxOpen  int
+	maxChunk int64
+	files    map[string]*threadEntry
+	tick     uint64
+}
+
+type chunkState struct {
+	path        string
+	records     uint64
+	bytes       int64
+	first, last *time.Time
 }
 
 type threadEntry struct {
-	path         string
+	name         string
 	participants []string
-	records      uint64
-	first, last  *time.Time
+	chunks       []*chunkState
 	file         *os.File
 	buffer       *bufio.Writer
 	used         uint64
 }
 
-func newThreadWriter(root string, maxOpen int) *threadWriter {
-	return &threadWriter{root: root, maxOpen: maxOpen, files: map[string]*threadEntry{}}
+func newThreadWriter(root string, maxOpen int, maxChunk int64) *threadWriter {
+	return &threadWriter{root: root, maxOpen: maxOpen, maxChunk: maxChunk, files: map[string]*threadEntry{}}
 }
 
 func (w *threadWriter) names() []string {
@@ -54,19 +64,32 @@ func (w *threadWriter) names() []string {
 }
 
 func (w *threadWriter) write(name string, participants []string, line Line, occurred *time.Time) error {
+	encoded, err := json.Marshal(line)
+	if err != nil {
+		return fmt.Errorf("smsthreads: encode %s: %w", line.SourcePos, err)
+	}
+	encoded = append(encoded, '\n')
 	entry, ok := w.files[name]
 	if !ok {
 		if err := os.MkdirAll(w.root, 0o700); err != nil {
 			return err
 		}
-		entry = &threadEntry{path: filepath.Join(w.root, name+".ndjson"), participants: participants}
+		entry = &threadEntry{name: name, participants: participants}
 		w.files[name] = entry
+	}
+	current := entry.current()
+	if current == nil || (current.records > 0 && current.bytes+int64(len(encoded)) > w.maxChunk) {
+		if err := entry.close(); err != nil {
+			return err
+		}
+		current = &chunkState{path: filepath.Join(w.root, fmt.Sprintf("%s.%04d.ndjson", name, len(entry.chunks)+1))}
+		entry.chunks = append(entry.chunks, current)
 	}
 	if entry.file == nil {
 		if err := w.evict(); err != nil {
 			return err
 		}
-		file, err := os.OpenFile(entry.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		file, err := os.OpenFile(current.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 		if err != nil {
 			return err
 		}
@@ -74,25 +97,29 @@ func (w *threadWriter) write(name string, participants []string, line Line, occu
 	}
 	w.tick++
 	entry.used = w.tick
-	encoded, err := json.Marshal(line)
-	if err != nil {
-		return fmt.Errorf("smsthreads: encode %s: %w", line.SourcePos, err)
-	}
-	if _, err := entry.buffer.Write(append(encoded, '\n')); err != nil {
+	if _, err := entry.buffer.Write(encoded); err != nil {
 		return err
 	}
-	entry.records++
+	current.records++
+	current.bytes += int64(len(encoded))
 	if occurred != nil {
-		if entry.first == nil || occurred.Before(*entry.first) {
+		if current.first == nil || occurred.Before(*current.first) {
 			value := *occurred
-			entry.first = &value
+			current.first = &value
 		}
-		if entry.last == nil || occurred.After(*entry.last) {
+		if current.last == nil || occurred.After(*current.last) {
 			value := *occurred
-			entry.last = &value
+			current.last = &value
 		}
 	}
 	return nil
+}
+
+func (e *threadEntry) current() *chunkState {
+	if len(e.chunks) == 0 {
+		return nil
+	}
+	return e.chunks[len(e.chunks)-1]
 }
 
 func (w *threadWriter) evict() error {

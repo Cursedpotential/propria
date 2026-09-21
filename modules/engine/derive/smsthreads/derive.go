@@ -12,9 +12,9 @@
 // over 16 MB and has no streaming mode. SBV's parse-only importer streams one
 // <sms>/<mms>/<call> at a time, so this unit reads the XML once and writes:
 //
-//	<key>.derived/threads/<thread>.ndjson   one JSON line per record, by thread
+//	<key>.derived/threads/<thread>.NNNN.ndjson  one JSON line per record, by thread, size-capped chunks
 //	<key>.derived/media/<sha256><ext>       each decoded MMS attachment, once
-//	<key>.derived/rejects.ndjson            records the decoder refused
+//	<key>.derived/rejects/rejects.NNNN.ndjson   records the decoder refused
 //	<key>.derived/manifest.json             hashes, counts, provenance (written LAST)
 //
 // DuckDB then extracts from the NDJSON with its native streaming JSON reader.
@@ -45,7 +45,8 @@ import (
 const (
 	DerivedSuffix   = ".derived"
 	ManifestName    = "manifest.json"
-	SchemaVersion   = "smsthreads/v1"
+	SchemaVersion   = "smsthreads/v2" // v2: numbered, size-capped chunks per thread
+	defaultMaxChunk = 64 << 20
 	defaultMaxOpen  = 64
 	contentTypeJSON = "application/json"
 	contentTypeND   = "application/x-ndjson"
@@ -59,11 +60,13 @@ type Options struct {
 	Bucket, Key string
 	ScratchRoot string
 	MaxOpen     int
+	MaxChunk    int64 // bytes per thread chunk file; a thread rolls over at a line boundary
 	Now         func() time.Time
 }
 
 type ThreadFile struct {
 	Thread       string   `json:"thread"`
+	Chunk        int      `json:"chunk,omitempty"`
 	Participants []string `json:"participants"`
 	Key          string   `json:"key"`
 	Records      uint64   `json:"records"`
@@ -87,7 +90,28 @@ type Manifest struct {
 	MediaBytes    int64        `json:"media_bytes"`
 	MediaRefs     uint64       `json:"media_references"`
 	Threads       []ThreadFile `json:"threads"`
-	Rejects       *ThreadFile  `json:"rejects,omitempty"`
+	Rejects       RejectFiles  `json:"rejects,omitempty"`
+}
+
+// RejectFiles reads both manifest shapes: v1 published one object, v2 a list.
+type RejectFiles []ThreadFile
+
+func (r *RejectFiles) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if strings.HasPrefix(trimmed, "{") {
+		var one ThreadFile
+		if err := json.Unmarshal(data, &one); err != nil {
+			return err
+		}
+		*r = RejectFiles{one}
+		return nil
+	}
+	var many []ThreadFile
+	if err := json.Unmarshal(data, &many); err != nil {
+		return err
+	}
+	*r = many
+	return nil
 }
 
 // Line is one NDJSON record. Attachment URIs point at the media objects beside
@@ -130,6 +154,9 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 	if opts.MaxOpen <= 0 {
 		opts.MaxOpen = defaultMaxOpen
 	}
+	if opts.MaxChunk <= 0 {
+		opts.MaxChunk = defaultMaxChunk
+	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
@@ -159,7 +186,7 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 	}
 	sourceURI := fmt.Sprintf("%s://%s/%s", opts.Scheme, opts.Bucket, opts.Key)
 	media := &mediaSink{ctx: ctx, opts: opts, prefix: prefix, staging: filepath.Join(scratch, "staging"), sourceURI: sourceURI, seen: map[string]bool{}}
-	threads := newThreadWriter(filepath.Join(scratch, "threads"), opts.MaxOpen)
+	threads := newThreadWriter(filepath.Join(scratch, "threads"), opts.MaxOpen, opts.MaxChunk)
 	defer threads.closeAll()
 
 	var records, rejected uint64
@@ -202,21 +229,23 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 	}
 	for _, name := range threads.names() {
 		entry := threads.files[name]
-		key := prefix + "threads/" + name + ".ndjson"
-		if name == "rejects" {
-			key = prefix + "rejects.ndjson"
+		for index, chunk := range entry.chunks {
+			key := prefix + "threads/" + filepath.Base(chunk.path)
+			if name == "rejects" {
+				key = prefix + "rejects/" + filepath.Base(chunk.path)
+			}
+			file, err := publishFile(ctx, opts, chunk.path, key, contentTypeND)
+			if err != nil {
+				return Manifest{}, err
+			}
+			file.Thread, file.Chunk, file.Participants, file.Records = name, index+1, entry.participants, chunk.records
+			file.First, file.Last = formatTime(chunk.first), formatTime(chunk.last)
+			if name == "rejects" {
+				manifest.Rejects = append(manifest.Rejects, file)
+				continue
+			}
+			manifest.Threads = append(manifest.Threads, file)
 		}
-		file, err := publishFile(ctx, opts, entry.path, key, contentTypeND)
-		if err != nil {
-			return Manifest{}, err
-		}
-		file.Thread, file.Participants, file.Records = name, entry.participants, entry.records
-		file.First, file.Last = formatTime(entry.first), formatTime(entry.last)
-		if name == "rejects" {
-			manifest.Rejects = &file
-			continue
-		}
-		manifest.Threads = append(manifest.Threads, file)
 	}
 	body, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
@@ -333,7 +362,9 @@ func recipientIdentities(values []parseonly.Recipient) []string {
 // a file-name-safe lower-case form for short codes, e-mail senders and names.
 func normalizeParty(value string) string {
 	value = strings.TrimSpace(strings.ToLower(value))
-	if value == "" || value == "null" || value == "insert-address-token" {
+	// "self" is the decoder's name for the phone's owner: present in every
+	// thread, so it says nothing about WHICH thread (seen live 2026-09-20).
+	if value == "" || value == "null" || value == "insert-address-token" || value == "self" {
 		return ""
 	}
 	digits, other := 0, 0
