@@ -131,7 +131,7 @@ export function ReviewResourceList({ resources, loading, selectedHandle, onSelec
                     {context && <span className="block truncate text-[11px] text-muted-foreground">{context}</span>}
                   </span>
                   <span className="whitespace-nowrap text-right text-[11px] capitalize text-muted-foreground">
-                    {resource.lifecycle.replaceAll("_", " ")} · {resource.completed_stage_count} stages
+                    {resource.lifecycle.replaceAll("_", " ")} · {resource.completed_stage_count} stages · {resource.representation_state === "committed_readback" ? "Committed readback" : "Precommit proposal"}
                     <span className="block normal-case">{when(resource.created_at)}</span>
                   </span>
                 </button>
