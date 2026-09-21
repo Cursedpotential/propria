@@ -248,6 +248,18 @@ func NewDeriveSMSThreadsActivities(
 	}
 }
 
+// RegisterBatchImportActivities installs the four batch-by-folder Activities
+// under their exact names. They are standalone: the batch workflow is the
+// only caller, and none of them belongs to the 26-stage graph.
+//
+// Byline: Claude Code · Opus 5 · 2026-09-21
+func RegisterBatchImportActivities(registrar ActivityRegistrar, batch BatchImportActivities) {
+	registrar.RegisterActivityWithOptions(batch.ListBatchFolder, activity.RegisterOptions{Name: ListBatchFolderActivityName})
+	registrar.RegisterActivityWithOptions(batch.BindImportOperation, activity.RegisterOptions{Name: BindImportOperationActivityName})
+	registrar.RegisterActivityWithOptions(batch.ReadImportOperation, activity.RegisterOptions{Name: ReadImportOperationActivityName})
+	registrar.RegisterActivityWithOptions(batch.FindImportBindings, activity.RegisterOptions{Name: FindImportBindingsActivityName})
+}
+
 // RegisterStructuredELTActivities registers the paired select/execute DuckDB
 // implementation under distinct Temporal names. Proffer routes both names
 // together for exact eligible formats, avoiding decoder registration

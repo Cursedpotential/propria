@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/workflow"
 
 	"github.com/Cursedpotential/probata/engine/activities"
 	"github.com/Cursedpotential/probata/engine/proffer"
@@ -16,10 +17,16 @@ import (
 
 type registrationRecorder struct {
 	workflowCount int
+	workflowNames []string
 	names         []string
 }
 
 func (r *registrationRecorder) RegisterWorkflow(interface{}) { r.workflowCount++ }
+
+func (r *registrationRecorder) RegisterWorkflowWithOptions(_ interface{}, options workflow.RegisterOptions) {
+	r.workflowCount++
+	r.workflowNames = append(r.workflowNames, options.Name)
+}
 
 func (r *registrationRecorder) RegisterActivityWithOptions(_ interface{}, options activity.RegisterOptions) {
 	r.names = append(r.names, options.Name)
@@ -35,13 +42,36 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 			return proffer.HandlerSelectionValidationResult{}, nil
 		},
 	}})
-	if recorder.workflowCount != 1 {
-		t.Fatalf("workflow registration count = %d, want 1", recorder.workflowCount)
+	// Two workflows: the per-source ProfferWorkflow and the batch-by-folder
+	// workflow that starts one child run per object.
+	// Byline: Claude Code · Opus 5 · 2026-09-21
+	if recorder.workflowCount != 2 {
+		t.Fatalf("workflow registration count = %d, want 2", recorder.workflowCount)
+	}
+	if len(recorder.workflowNames) != 1 || recorder.workflowNames[0] != proffer.BatchWorkflowName {
+		t.Fatalf("named workflow registrations = %v, want just %q", recorder.workflowNames, proffer.BatchWorkflowName)
 	}
 	const replayAliasCount = 3
-	const standaloneActivityCount = 6 // + derive_sms_threads_activity
-	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount || len(stagegraph.Stages) != 26 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 6 standalone activities", len(recorder.names))
+	// 6 = 2 structured-ELT + derive_sms_threads + 3 handler/flow standalones,
+	// plus the 4 batch-by-folder Activities.
+	const standaloneActivityCount = 6
+	const batchActivityCount = 4
+	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount || len(stagegraph.Stages) != 26 {
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 6 standalone + 4 batch activities", len(recorder.names))
+	}
+	for _, name := range []string{
+		activities.ListBatchFolderActivityName, activities.BindImportOperationActivityName,
+		activities.ReadImportOperationActivityName, activities.FindImportBindingsActivityName,
+	} {
+		found := 0
+		for _, registered := range recorder.names {
+			if registered == name {
+				found++
+			}
+		}
+		if found != 1 {
+			t.Errorf("batch activity %q registered %d times", name, found)
+		}
 	}
 	registered := make(map[string]int, len(recorder.names))
 	for _, name := range recorder.names {

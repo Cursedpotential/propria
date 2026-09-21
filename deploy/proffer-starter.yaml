@@ -42,6 +42,11 @@ services:
       N8N_PROFFER_AUTH_VALUE_FILE: /run/secrets/n8n-proffer-auth
       PROFFER_PREVIEW_CURSOR_KEY_FILE: /run/secrets/proffer-preview-cursor-key
       PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
+      # How many items of one folder batch may run at once. One at a time is
+      # the owner's instruction (2026-09-20 23:52) and the fallback for any
+      # unreadable or out-of-range value; a request may ask for fewer or more
+      # up to 16. Byline: Claude Code · Opus 5 · 2026-09-21
+      PROFFER_BATCH_MAX_IN_FLIGHT: ${PROFFER_BATCH_MAX_IN_FLIGHT:-1}
     volumes:
       - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
       - /data/probata/secrets/proffer/preview-cursor-key:/run/secrets/proffer-preview-cursor-key:ro

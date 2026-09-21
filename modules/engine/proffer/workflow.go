@@ -1129,6 +1129,7 @@ func (r *run) deriveResult(derived DeriveResult) WorkflowResult {
 	r.operation.DeriveManifestRef = derived.Result.Ref
 	r.operation.DeriveManifestURI = derived.ManifestURI
 	r.operation.DerivedChunkCount = derived.ChunkCount
+	r.operation.DerivedThreadsPrefix = derived.ThreadsPrefix
 	return WorkflowResult{
 		SourceVersionRef: r.sourceVersionRef,
 		Status:           StatusSuccess,

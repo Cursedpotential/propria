@@ -121,6 +121,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Batch-by-folder intake shares this service's Temporal client and task
+	// queue. Byline: Claude Code · Opus 5 · 2026-09-21
+	batchStarter, err := platformtemporal.NewBatchStarter(c, cfg.TemporalTaskQueue)
+	if err != nil {
+		return err
+	}
+	if err := previewHandler.UseBatchWorkflow(batchStarter); err != nil {
+		return err
+	}
 	routes, err = mountPreviewRoutes(routes, previewHandler.Routes())
 	if err != nil {
 		return err
