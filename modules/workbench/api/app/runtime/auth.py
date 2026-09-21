@@ -8,7 +8,9 @@ Byline: Codex · GPT-5 · 2026-08-29 (strict trusted-proxy + Authentik identity 
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
+from email.header import decode_header
 from collections.abc import Awaitable, Callable
 
 from app.config import settings
@@ -19,6 +21,8 @@ _AUTHENTIK_UID_HEADER = "x-authentik-uid"
 _AUTHENTIK_USERNAME_HEADER = "x-authentik-username"
 _TRAEFIK_CLIENT_IP_HEADER = "x-real-ip"
 _TAILSCALE_LOGIN_HEADER = "tailscale-user-login"
+_TAILSCALE_CAPABILITIES_HEADER = "tailscale-app-capabilities"
+_MAX_CAPABILITIES_HEADER_LEN = 8192
 _MAX_HEADER_VALUE_LEN = 256
 _CTRL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -53,6 +57,39 @@ def _validate_identity_header(value: str | None) -> str | None:
     return stripped
 
 
+def _tailscale_device_principal(value: str | None) -> str | None:
+    """Read an explicit device grant supplied by Serve, never a client claim.
+
+    Caller must first verify the socket peer is the exact Serve proxy. Serve
+    strips incoming capability headers and builds this header from tailnet
+    grants. The principal identifies the authorized device tag, not a human.
+    """
+    capability = settings.tailscale_device_capability.strip()
+    if not capability or not value or len(value) > _MAX_CAPABILITIES_HEADER_LEN:
+        return None
+    try:
+        parts = decode_header(value)
+        decoded = "".join(
+            part.decode(charset or "ascii", errors="strict") if isinstance(part, bytes) else part
+            for part, charset in parts
+        )
+        if len(decoded) > _MAX_CAPABILITIES_HEADER_LEN:
+            return None
+        document = json.loads(decoded)
+        grants = document.get(capability) if isinstance(document, dict) else None
+        if not isinstance(grants, list):
+            return None
+        for grant in grants:
+            if not isinstance(grant, dict) or grant.get("access") is not True:
+                continue
+            principal = grant.get("principal")
+            if isinstance(principal, str) and re.fullmatch(r"tag:[a-z0-9][a-z0-9-]{0,62}", principal):
+                return principal
+    except (ValueError, UnicodeError, LookupError):
+        return None
+    return None
+
+
 async def authentication_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
@@ -80,10 +117,18 @@ async def authentication_middleware(
     if settings.tailnet_auth_bypass_enabled:
         serve_cidrs = settings.trusted_tailscale_serve_proxy_cidrs_parsed
         login = _validate_identity_header(request.headers.get(_TAILSCALE_LOGIN_HEADER))
-        if client_ip and serve_cidrs and _ip_in_cidrs(client_ip, serve_cidrs) and login:
-            request.state.principal = login
-            request.state.subject_uid = f"tailscale:{login}"
-            return await call_next(request)
+        if client_ip and serve_cidrs and _ip_in_cidrs(client_ip, serve_cidrs):
+            if login:
+                request.state.principal = login
+                request.state.subject_uid = f"tailscale:{login}"
+                return await call_next(request)
+            device = _tailscale_device_principal(
+                request.headers.get(_TAILSCALE_CAPABILITIES_HEADER)
+            )
+            if device:
+                request.state.principal = device
+                request.state.subject_uid = f"tailscale-device:{device}"
+                return await call_next(request)
 
     # Trusted proxy CIDR check (fail-closed)
     trusted_cidrs = settings.trusted_auth_proxy_cidrs_parsed

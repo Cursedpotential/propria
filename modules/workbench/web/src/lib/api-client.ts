@@ -1134,3 +1134,28 @@ export function uploadFile(
     xhr.send(formData);
   });
 }
+
+// Byline: Codex · 2026-09-20. Read-only pre-ingest catalog discovery.
+export function getDiscoveryCapabilities(signal?: AbortSignal) {
+  return apiFetch<import("./discovery-types").DiscoveryCapabilities>("/api/intake/discovery/capabilities", { signal });
+}
+export function listDiscoveryTree(parent = "", cursor?: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ parent, limit: "100" });
+  if (cursor) query.set("cursor", cursor);
+  return apiFetch<import("./discovery-types").DiscoveryPage>(`/api/intake/discovery/tree?${query}`, { signal });
+}
+export function searchDiscovery(q: string, parent = "", mode = "filename_substring", cursor?: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ q, parent, mode, limit: "100" });
+  if (cursor) query.set("cursor", cursor);
+  return apiFetch<import("./discovery-types").DiscoveryPage>(`/api/intake/discovery/search?${query}`, { signal });
+}
+
+export function listDiscoveryUnits(unitType: string, afterId = -1, signal?: AbortSignal) {
+  const query = new URLSearchParams({ unit_type: unitType, after_id: String(afterId), limit: "100" });
+  return apiFetch<import("./discovery-types").DiscoveryUnits>(`/api/intake/discovery/units?${query}`, { signal });
+}
+export function getDiscoveryUnitMembers(unitId: number, signal?: AbortSignal, cursor?: string) {
+  const query = new URLSearchParams({ limit: "100" });
+  if (cursor) query.set("cursor", cursor);
+  return apiFetch<import("./discovery-types").DiscoveryUnitMembers>(`/api/intake/discovery/units/${unitId}/members?${query}`, { signal });
+}

@@ -1,3 +1,4 @@
+// Byline: Codex · 2026-09-20. Explicit search submission and truthful listing feedback.
 "use client";
 
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, FolderOpen, Loader2, Search, X } from "lucide-react";
@@ -35,6 +36,9 @@ export function SourceExplorer({
   prefix,
   query,
   fileTypes,
+  appliedQuery,
+  appliedFileTypes,
+  onSearch,
   onRootChange,
   onPrefixChange,
   onQueryChange,
@@ -49,6 +53,9 @@ export function SourceExplorer({
   prefix: string;
   query: string;
   fileTypes: string[];
+  appliedQuery: string;
+  appliedFileTypes: string[];
+  onSearch: () => void;
   onRootChange: (rootId: string) => void;
   onPrefixChange: (prefix: string) => void;
   onQueryChange: (query: string) => void;
@@ -62,6 +69,8 @@ export function SourceExplorer({
   const activeRootRecord = response?.available_roots.find((root) => root.root_id === activeRoot) ?? null;
   const availableFileTypes = response?.available_file_types ?? [];
   const parts = breadcrumbParts(prefix);
+  const pendingChanges = query.trim() !== appliedQuery || [...fileTypes].sort().join(",") !== [...appliedFileTypes].sort().join(",");
+  const searching = Boolean(appliedQuery || appliedFileTypes.length);
   const toggleDetails = (sourceRef: string) => {
     setExpandedSourceRefs((current) => {
       const next = new Set(current);
@@ -76,10 +85,10 @@ export function SourceExplorer({
       <header className="border-b px-5 py-4">
         <p className="platform-kicker mb-1">Default ingestion point</p>
         <h2 id="source-explorer-title" className="text-xl font-semibold">Import source</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Browse the configured source locations. Search and type filters run against the selected root.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Browse folders, or search file names and paths across the selected source location. File contents and files inside ZIPs are not searched here.</p>
       </header>
 
-      <div className="grid gap-4 border-b bg-card p-4 lg:grid-cols-[minmax(15rem,0.8fr)_minmax(20rem,1.2fr)]">
+      <form onSubmit={(event) => { event.preventDefault(); if (!loading) onSearch(); }} className="grid gap-4 border-b bg-card p-4 lg:grid-cols-[minmax(15rem,0.8fr)_minmax(20rem,1.2fr)]">
         <label className="grid gap-1.5 text-xs font-semibold">
           Source location
           <select
@@ -102,7 +111,7 @@ export function SourceExplorer({
         </label>
 
         <label className="grid gap-1.5 text-xs font-semibold">
-          Search the full source location
+          Search file names and paths
           <span className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <input
@@ -110,7 +119,7 @@ export function SourceExplorer({
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
               placeholder="Search names and paths in this R2 root"
-              aria-label="Search the full source location"
+              aria-label="Search file names and paths"
             />
             {query && (
               <button type="button" className="absolute right-1 top-1 grid h-8 w-8 place-items-center text-muted-foreground hover:text-foreground" onClick={() => onQueryChange("")} aria-label="Clear source search">
@@ -140,7 +149,16 @@ export function SourceExplorer({
             {(query || fileTypes.length > 0) && <Button type="button" variant="outline" size="sm" onClick={() => { onQueryChange(""); onFileTypesChange([]); }}>Clear filters</Button>}
           </div>
         </fieldset>
-      </div>
+        <div className="flex flex-wrap items-center gap-3 lg:col-span-2">
+          <Button type="submit" disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            {loading ? (searching ? "Searching…" : "Loading…") : "Search"}
+          </Button>
+          <span className="text-xs text-muted-foreground" role="status" aria-live="polite">
+            {pendingChanges ? "Filters changed. Press Search or Enter to apply them together; displayed results use the previous search." : "Choose file types and enter a name or path, then press Search or Enter."}
+          </span>
+        </div>
+      </form>
 
       <nav className="flex min-h-12 flex-wrap items-center gap-1 border-b px-4 py-2 text-xs" aria-label="Source directory path">
         {prefix && <Button type="button" variant="outline" size="sm" onClick={() => onPrefixChange(parentPrefix(prefix))}><ChevronLeft className="h-4 w-4" /> Back</Button>}
@@ -153,24 +171,27 @@ export function SourceExplorer({
         ))}
       </nav>
 
-      {response && (query || fileTypes.length > 0) && (
+      {response && searching && !loading && (
         <div className="border-b bg-accent/30 px-4 py-2 text-xs text-muted-foreground" role="status">
+          <span className="block font-medium text-foreground">Results for {response.filter ? `“${response.filter}”` : "all file names"} · {appliedFileTypes.length ? appliedFileTypes.join(", ") : "all file types"}</span>
           {response.search_complete
-            ? `Backing-source search complete after scanning ${response.scanned_count.toLocaleString()} entries.`
-            : `Search is incomplete after scanning ${response.scanned_count.toLocaleString()} entries.`}
-          {response.scan_limit_reached && " The backing-source scan limit was reached; narrow the search before relying on absence."}
+            ? `Search complete. Last request scanned ${response.scanned_count.toLocaleString()} entries.`
+            : response.scan_limit_reached
+              ? `Scan limit reached after ${response.scanned_count.toLocaleString()} entries. This does not establish that other matches are absent.`
+              : `More results may be available. Last request scanned ${response.scanned_count.toLocaleString()} entries.`}
+          {!response.search_complete && response.continuation_token && " Continue search to check more entries."}
         </div>
       )}
 
-      <div className="min-h-[280px] overflow-x-auto">
-        {loading && !response ? (
-          <div className="flex items-center gap-2 p-5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading approved R2 source locations</div>
+      <div className="min-h-[280px] overflow-x-auto" aria-busy={loading}>
+        {loading ? (
+          <div className="flex items-center gap-2 p-5 text-sm text-muted-foreground" role="status" aria-live="polite"><Loader2 className="h-4 w-4 animate-spin" /> {searching ? "Searching file names and paths — please wait." : "Loading folders and files — please wait."}</div>
         ) : error ? (
           <div className="p-5 text-sm text-destructive" role="alert">{error}</div>
         ) : rows.length === 0 ? (
           <div className="px-5 py-14 text-center text-sm text-muted-foreground">
-            <strong className="block text-foreground">No sources matched this backing-source view.</strong>
-            <span className="mt-1 block">Clear filters, go back a folder, or choose another approved source location.</span>
+            <strong className="block text-foreground">{response?.is_truncated ? "No matches in this batch yet." : "No sources matched this backing-source view."}</strong>
+            <span className="mt-1 block">{response?.is_truncated ? "Continue search to check the next batch of entries." : "Clear filters, go back a folder, or choose another approved source location."}</span>
           </div>
         ) : (
           <table className="w-full min-w-[860px] border-collapse text-left text-xs" aria-label="Source directory tree and files">
@@ -201,10 +222,10 @@ export function SourceExplorer({
       </div>
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t bg-card px-4 py-3 text-xs text-muted-foreground">
-        <span>{response ? `${response.objects.length} files and ${response.prefixes.length} folders returned` : "Waiting for source index"}</span>
+        <span>{response ? `${response.objects.length} files and ${response.prefixes.length} folders returned` : "Waiting for source listing"}</span>
         <div className="flex items-center gap-3">
           {loading && response && <span className="flex items-center gap-1"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Refreshing</span>}
-          {response?.is_truncated && <Button variant="outline" size="sm" onClick={onLoadMore} disabled={loading}>Load more</Button>}
+          {response?.is_truncated && <Button variant="outline" size="sm" onClick={onLoadMore} disabled={loading || pendingChanges}>{searching ? "Continue search" : "Load more"}</Button>}
         </div>
       </footer>
     </section>

@@ -140,6 +140,9 @@ class Settings(BaseSettings):
     # Exact local proxy addresses used by Tailscale Serve's direct loopback
     # mapping. Every entry must be a single-host /32 or /128 network.
     trusted_tailscale_serve_proxy_cidrs: str = ""
+    # Explicit Serve app-capability grant for tagged devices. Empty disables
+    # device access. Never trust this header outside the exact Serve peer.
+    tailscale_device_capability: str = ""
 
     # --- App ---
     app_port: int = 8020

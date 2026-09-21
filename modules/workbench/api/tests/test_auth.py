@@ -8,7 +8,10 @@ Byline: Codex · GPT-5 · 2026-08-29 (strict trusted-proxy + Authentik identity 
 from __future__ import annotations
 
 import ipaddress
+import json
 from unittest.mock import patch
+
+import pytest
 
 from app.config import Settings
 from app.runtime import auth
@@ -25,6 +28,7 @@ def _client(
     tailnet_bypass: bool = False,
     tailnet_cidrs: str = "100.64.0.0/10",
     serve_proxy_cidrs: str = "",
+    device_capability: str = "",
 ) -> TestClient:
     """Create an isolated auth client without mutating global settings."""
     configured_settings = Settings(_env_file=None)
@@ -32,6 +36,7 @@ def _client(
         object.__setattr__(configured_settings, "trusted_auth_proxy_cidrs", cidrs)
     object.__setattr__(configured_settings, "tailnet_auth_bypass_enabled", tailnet_bypass)
     object.__setattr__(configured_settings, "tailnet_auth_bypass_cidrs", tailnet_cidrs)
+    object.__setattr__(configured_settings, "tailscale_device_capability", device_capability)
     object.__setattr__(
         configured_settings,
         "trusted_tailscale_serve_proxy_cidrs",
@@ -153,6 +158,59 @@ class TestFeatureGatedTailnetBypass:
             headers={"Tailscale-User-Login": "owner@example.com"},
         )
         assert response.status_code == 403
+
+
+class TestTailnetDeviceCapabilities:
+    capability = "propria.mitechconsult.com/cap/workbench"
+
+    def client(self, host="172.17.0.1", enabled=True, capability=None):
+        return _client(
+            host, "172.18.0.4/32", tailnet_bypass=enabled,
+            serve_proxy_cidrs="172.17.0.1/32",
+            device_capability=self.capability if capability is None else capability,
+        )
+
+    def header(self):
+        return json.dumps({self.capability: [{"access": True, "principal": "tag:docker"}]})
+
+    def test_authorized_device_from_serve_is_accepted(self):
+        response = self.client().get("/principal", headers={"Tailscale-App-Capabilities": self.header()})
+        assert response.status_code == 200
+        assert response.json() == {"principal": "tag:docker", "subject_uid": "tailscale-device:tag:docker"}
+
+    @pytest.mark.parametrize("host", ["172.17.0.2", "100.72.169.40", "192.0.2.1", "172.18.0.4"])
+    def test_spoofed_capability_outside_serve_is_rejected(self, host):
+        assert self.client(host).get("/principal", headers={"Tailscale-App-Capabilities": self.header()}).status_code == 403
+
+    @pytest.mark.parametrize("enabled,capability", [(False, None), (True, ""), (True, "other/cap")])
+    def test_missing_authorization_configuration_fails_closed(self, enabled, capability):
+        assert self.client(enabled=enabled, capability=capability).get(
+            "/principal", headers={"Tailscale-App-Capabilities": self.header()}
+        ).status_code == 403
+
+    @pytest.mark.parametrize("grant", [None, {}, "yes", [], [{"access": "true", "principal": "tag:docker"}],
+                                      [{"access": True}], [{"access": True, "principal": "owner@example.com"}],
+                                      [{"access": False, "principal": "tag:docker"}]])
+    def test_malformed_grants_rejected(self, grant):
+        assert self.client().get("/principal", headers={
+            "Tailscale-App-Capabilities": json.dumps({self.capability: grant})
+        }).status_code == 403
+
+    @pytest.mark.parametrize("value", ["broken json", "[]", "x" * 8193, '"text"'])
+    def test_invalid_header_rejected(self, value):
+        assert self.client().get("/principal", headers={"Tailscale-App-Capabilities": value}).status_code == 403
+
+    def test_rfc2047_capability_supported(self):
+        import base64
+        encoded = base64.b64encode(self.header().encode()).decode()
+        assert self.client().get("/principal", headers={
+            "Tailscale-App-Capabilities": f"=?utf-8?b?{encoded}?="
+        }).status_code == 200
+
+    def test_user_identity_remains_supported(self):
+        response = self.client().get("/principal", headers={"Tailscale-User-Login": "owner@example.com"})
+        assert response.status_code == 200
+        assert response.json()["subject_uid"] == "tailscale:owner@example.com"
 
 
 class TestHealthExactness:

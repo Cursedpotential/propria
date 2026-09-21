@@ -9,9 +9,9 @@ const types = readFileSync(new URL("../src/lib/shared/types.ts", import.meta.url
 const explorer = readFileSync(new URL("../src/components/intake/source-explorer.tsx", import.meta.url), "utf8");
 const packageManifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
-test("OpenList-backed R2 browser is the default and local upload is secondary", () => {
+test("source browser is the default and local upload is secondary", () => {
   assert.match(explorer, /Default ingestion point/);
-  assert.match(explorer, /OpenList-backed R2 locations/);
+  assert.match(explorer, /Browse folders, or search file names and paths/);
   assert.match(intake, /Or add a source from this device/);
   assert.ok(intake.indexOf("SourceExplorer") < intake.indexOf("Choose local file"));
 });

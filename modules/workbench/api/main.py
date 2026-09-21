@@ -29,6 +29,7 @@ from app.runtime import (
     files,
     health,
     inspect,
+    intake_discovery,
     knowledge,
     metrics,
     proffer,
@@ -110,6 +111,7 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=metrics.timing_middleware)
 app.add_middleware(BaseHTTPMiddleware, dispatch=authentication_middleware)
 
 app.include_router(health.router)
+app.include_router(intake_discovery.router)
 app.include_router(upload.router)
 app.include_router(proffer.router)
 app.include_router(proffer_resources.router)

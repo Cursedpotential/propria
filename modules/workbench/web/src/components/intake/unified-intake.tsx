@@ -25,6 +25,7 @@ import { ContextFlowRail } from "@/components/intake/context-flow-rail";
 import { MatterModeSelector } from "@/components/intake/matter-mode-selector";
 import { ParserSelectionPanel } from "@/components/intake/parser-selection-panel";
 import { SourceExplorer } from "@/components/intake/source-explorer";
+import { DiscoveryExplorer } from "@/components/intake/discovery-explorer";
 import { Button } from "@/components/ui/button";
 import {
   ApiError,
@@ -190,6 +191,8 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
   const [sourcePrefix, setSourcePrefix] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [sourceFileTypes, setSourceFileTypes] = useState<string[]>([]);
+  // Byline: Codex · 2026-09-20. Draft filters apply together on explicit submission.
+  const [sourceSearch, setSourceSearch] = useState({ query: "", fileTypes: [] as string[], revision: 0 });
   const [sourcesLoading, setSourcesLoading] = useState(true);
   const [sourcesError, setSourcesError] = useState<string | null>(null);
   const [digest, setDigest] = useState("");
@@ -229,7 +232,7 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
     const timer = setTimeout(() => {
       setSourcesLoading(true);
       setSourcesError(null);
-      listProfferSources({ mode, rootId: sourceRootId || undefined, prefix: sourcePrefix, filter: sourceFilter, fileTypes: sourceFileTypes, pageSize: 100 })
+      listProfferSources({ mode, rootId: sourceRootId || undefined, prefix: sourcePrefix, filter: sourceSearch.query, fileTypes: sourceSearch.fileTypes, pageSize: 100 })
         .then((response) => {
           if (!cancelled) {
             setSources(response);
@@ -242,12 +245,12 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
         .finally(() => {
           if (!cancelled) setSourcesLoading(false);
         });
-    }, sourceFilter ? 250 : 0);
+    }, 0);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [sourcePrefix, sourceFilter, sourceFileTypes, sourceRootId, mode]);
+  }, [sourcePrefix, sourceSearch, sourceRootId, mode]);
 
   useEffect(() => {
     if (!run?.preview_handle) return;
@@ -284,6 +287,7 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
   const selectedParser = runtimeParserCandidates.find((candidate) => parserCandidateKey(candidate) === selectedHandlerKey) ?? null;
 
   function changeSourcePrefix(nextPrefix: string) {
+    if (nextPrefix === sourcePrefix) return;
     setSourcesLoading(true);
     setSourcePrefix(nextPrefix);
   }
@@ -293,13 +297,16 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
     setSourcePrefix("");
     setSourceFilter("");
     setSourceFileTypes([]);
+    setSourceSearch((current) => ({ query: "", fileTypes: [], revision: current.revision + 1 }));
     setSources(null);
     setSourcesLoading(true);
   }
 
-  function changeSourceFilter(nextFilter: string) {
+  function submitSourceSearch() {
     setSourcesLoading(true);
-    setSourceFilter(nextFilter);
+    setSourcesError(null);
+    setSourcePrefix("");
+    setSourceSearch((current) => ({ query: sourceFilter.trim(), fileTypes: [...sourceFileTypes], revision: current.revision + 1 }));
   }
 
   function replaceLocalImagePreview(selected: File | null) {
@@ -401,16 +408,17 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
   }
 
   async function loadMoreSources() {
-    if (!sources?.continuation_token) return;
+    if (sourcesLoading || !sources?.continuation_token) return;
     const generation = intakeGenerationRef.current;
     setSourcesLoading(true);
+    setSourcesError(null);
     try {
       const next = await listProfferSources({
         mode,
         rootId: sourceRootId || undefined,
         prefix: sourcePrefix,
-        filter: sourceFilter,
-        fileTypes: sourceFileTypes,
+        filter: sourceSearch.query,
+        fileTypes: sourceSearch.fileTypes,
         continuationToken: sources.continuation_token,
         pageSize: sources.page_size,
       });
@@ -687,7 +695,7 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
 
           {!file && !remote && !staged ? (
             <div className="space-y-4">
-              <SourceExplorer
+              <DiscoveryExplorer directStorage={<SourceExplorer
                 response={sources}
                 loading={sourcesLoading}
                 error={sourcesError}
@@ -697,11 +705,14 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
                 fileTypes={sourceFileTypes}
                 onRootChange={changeSourceRoot}
                 onPrefixChange={changeSourcePrefix}
-                onQueryChange={changeSourceFilter}
+                appliedQuery={sourceSearch.query}
+                appliedFileTypes={sourceSearch.fileTypes}
+                onSearch={submitSourceSearch}
+                onQueryChange={setSourceFilter}
                 onFileTypesChange={setSourceFileTypes}
                 onSelect={(source) => void selectRemote(source)}
                 onLoadMore={() => void loadMoreSources()}
-              />
+              />} />
               <div className="platform-panel mx-auto max-w-[1180px] px-5 py-4 text-sm">
                 <span className="text-muted-foreground">Or add a source from this device: </span>
                 <label className="cursor-pointer font-semibold text-primary hover:underline"><Upload className="mr-1 inline h-4 w-4" />Choose local file<input accept={LOCAL_FILE_ACCEPT} className="sr-only" type="file" onChange={(event) => void selectFile(event.target.files?.[0] ?? null)} /></label>

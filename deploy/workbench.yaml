@@ -58,6 +58,9 @@ services:
       TAILNET_AUTH_BYPASS_ENABLED: ${WORKBENCH_TAILNET_AUTH_BYPASS_ENABLED:-false}
       TAILNET_AUTH_BYPASS_CIDRS: ${WORKBENCH_TAILNET_AUTH_BYPASS_CIDRS:-100.64.0.0/10}
       TRUSTED_TAILSCALE_SERVE_PROXY_CIDRS: ${WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS:-127.0.0.1/32,172.17.0.1/32}
+      # Serve strips client capability headers. Enable only with an explicit
+      # tailnet app grant and --accept-app-caps on svc:workbench.
+      TAILSCALE_DEVICE_CAPABILITY: ${WORKBENCH_TAILSCALE_DEVICE_CAPABILITY:-}
       # Same-host service traffic stays on the shared private Coolify network.
       # PLATFORM_API_URL remains overridable for a future cross-host Tailscale
       # Service cutover without changing Workbench application code.
@@ -117,6 +120,13 @@ services:
       OPENCODE_WORKSPACE_DIR: ${OPENCODE_WORKSPACE_DIR:-/workspace/copilot}
       COPILOT_PRESETS_PATH: ${COPILOT_PRESETS_PATH:-/data/copilot/presets.json}
       CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
+      # Byline: Codex, 2026-09-20. Read the existing pre-ingest catalog.
+      INTAKE_DISCOVERY_PG_HOST: ${INTAKE_DISCOVERY_PG_HOST:-100.91.190.107}
+      INTAKE_DISCOVERY_PG_PORT: ${INTAKE_DISCOVERY_PG_PORT:-5475}
+      INTAKE_DISCOVERY_PG_DATABASE: casebible
+      INTAKE_DISCOVERY_PG_USER: metabase_ro
+      INTAKE_DISCOVERY_PG_PASSWORD_FILE: /run/secrets/intake-catalog-readonly
+      INTAKE_DISCOVERY_INDEX_URL: ${INTAKE_DISCOVERY_INDEX_URL:-}
       # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
       # store: scheme -> credential file. Switching provider = a credential file + these two
       # values, identical in every Proffer/Workbench service. The first root is the default.
@@ -135,6 +145,7 @@ services:
       - /data/probata/secrets/platform/api-bearer:/run/secrets/platform-api-bearer:ro
       - /data/probata/secrets/platform/evidence-operator-security-key:/run/secrets/evidence-operator-security-key:ro
       - /data/probata/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
+      - /data/probata/secrets/progress-board/metabase-ro:/run/secrets/intake-catalog-readonly:ro
       - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
     ports:
