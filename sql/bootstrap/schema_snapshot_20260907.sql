@@ -1634,19 +1634,12 @@ BEGIN
             v_table_name
         );
     END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger
-        WHERE tgrelid = v_relation
-          AND tgname = 'raw_subtype_open_generation_gate'
-          AND NOT tgisinternal
-    ) THEN
-        EXECUTE format(
-            'CREATE TRIGGER raw_subtype_open_generation_gate
-             BEFORE INSERT ON context.%I
-             FOR EACH ROW EXECUTE FUNCTION context.guard_raw_subtype_insert()',
-            v_table_name
-        );
-    END IF;
+    -- raw_subtype_open_generation_gate REMOVED 2026-09-20 (Claude Code · Fable 5.1):
+    -- it called context.guard_raw_subtype_insert(), one of the 27 custody guard
+    -- functions the D-152 rebuild (2026-09-07, "get the database rebuilt without it")
+    -- left out of this snapshot. The leftover made every first registration of a raw
+    -- format fail ("function ... does not exist"), so no raw generation could ever
+    -- be persisted. The gate returns with the custody guards at promotion time.
     RETURN v_relation;
 END;
 $_$;
