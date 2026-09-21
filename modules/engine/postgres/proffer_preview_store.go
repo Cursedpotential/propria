@@ -51,6 +51,13 @@ type previewAttachmentMetadata struct {
 // PublishWorkflowPreview resolves reference-only workflow coordinates into a
 // complete normalized projection, then delegates the atomic append to
 // PublishProjection. Raw/normalized bytes never enter the Activity payload.
+// previewHandleLockNote: writers for one preview handle serialize on a
+// transaction-scoped ADVISORY lock keyed by the handle, not on a row lock.
+// SELECT ... FOR UPDATE needs the UPDATE privilege, and the engine role holds
+// only INSERT and SELECT on these append-only tables by design, so the row lock
+// failed with "permission denied for table proffer_preview_binding" on the first
+// run ever to reach publish_preview (live 2026-09-20).
+
 func (s *ProfferPreviewStore) PublishWorkflowPreview(ctx context.Context, request proffer.PreviewPublicationRequest) (previewmodel.Binding, error) {
 	binding, err := s.bindingByRequest(ctx, request.RequestID)
 	if err != nil {
@@ -791,7 +798,7 @@ func (s *ProfferPreviewStore) RecordDecision(ctx context.Context, handle string,
 		return err
 	}
 	rollback := func() { cleanup, cancel := boundedCleanup(ctx); defer cancel(); _ = tx.Rollback(cleanup) }
-	if err := tx.QueryRow(ctx, `SELECT 1 FROM context.proffer_preview_binding WHERE preview_handle = $1 FOR UPDATE`, handle).Scan(new(int)); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtextextended($1, 0))) AS lock, context.proffer_preview_binding WHERE preview_handle = $1`, handle).Scan(new(int)); err != nil {
 		rollback()
 		if errors.Is(err, pgx.ErrNoRows) {
 			return previewmodel.ErrNotFound
@@ -913,7 +920,7 @@ func (s *ProfferPreviewStore) PublishProjection(ctx context.Context, handle stri
 	rollback := func() { cleanup, cancel := boundedCleanup(ctx); defer cancel(); _ = tx.Rollback(cleanup) }
 	var requestID string
 	var seq int64
-	if err := tx.QueryRow(ctx, `SELECT request_id FROM context.proffer_preview_binding WHERE preview_handle = $1 FOR UPDATE`, handle).Scan(&requestID); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT request_id FROM (SELECT pg_advisory_xact_lock(hashtextextended($1, 0))) AS lock, context.proffer_preview_binding WHERE preview_handle = $1`, handle).Scan(&requestID); err != nil {
 		rollback()
 		if errors.Is(err, pgx.ErrNoRows) {
 			return previewmodel.ErrNotFound
