@@ -853,18 +853,18 @@ func (s *ProfferPreviewStore) RecordDecision(ctx context.Context, handle string,
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO context.proffer_preview_receipt
 			    (preview_handle, snapshot_seq, receipt_type, receipt_ref, status, digest, recorded_at)
-			SELECT preview_handle, $2, receipt_type, receipt_ref, status, digest, recorded_at
+			SELECT preview_handle, $2::bigint, receipt_type, receipt_ref, status, digest, recorded_at
 			FROM context.proffer_preview_receipt
-			WHERE preview_handle = $1 AND snapshot_seq = $2 - 1`, handle, successorSeq); err != nil {
+			WHERE preview_handle = $1 AND snapshot_seq = $2::bigint - 1`, handle, successorSeq); err != nil {
 			rollback()
 			return fmt.Errorf("copy preview decision receipts: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO context.proffer_preview_participant
 			    (preview_handle, snapshot_seq, participant_id, display_name, canonical_address)
-			SELECT preview_handle, $2, participant_id, display_name, canonical_address
+			SELECT preview_handle, $2::bigint, participant_id, display_name, canonical_address
 			FROM context.proffer_preview_participant
-			WHERE preview_handle = $1 AND snapshot_seq = $2 - 1`, handle, successorSeq); err != nil {
+			WHERE preview_handle = $1 AND snapshot_seq = $2::bigint - 1`, handle, successorSeq); err != nil {
 			rollback()
 			return fmt.Errorf("copy preview decision participants: %w", err)
 		}
@@ -872,10 +872,10 @@ func (s *ProfferPreviewStore) RecordDecision(ctx context.Context, handle string,
 			INSERT INTO context.proffer_preview_message
 			    (preview_handle, snapshot_seq, message_id, ordinal, sent_at,
 			     sender_participant_id, body, participant_ids, source_locator_ref)
-			SELECT preview_handle, $2, message_id, ordinal, sent_at,
+			SELECT preview_handle, $2::bigint, message_id, ordinal, sent_at,
 			       sender_participant_id, body, participant_ids, source_locator_ref
 			FROM context.proffer_preview_message
-			WHERE preview_handle = $1 AND snapshot_seq = $2 - 1`, handle, successorSeq); err != nil {
+			WHERE preview_handle = $1 AND snapshot_seq = $2::bigint - 1`, handle, successorSeq); err != nil {
 			rollback()
 			return fmt.Errorf("copy preview decision messages: %w", err)
 		}
@@ -883,10 +883,10 @@ func (s *ProfferPreviewStore) RecordDecision(ctx context.Context, handle string,
 			INSERT INTO context.proffer_preview_attachment
 			    (preview_handle, snapshot_seq, message_id, attachment_id, filename,
 			     media_type, byte_length, sha256, source_locator_ref)
-			SELECT preview_handle, $2, message_id, attachment_id, filename,
+			SELECT preview_handle, $2::bigint, message_id, attachment_id, filename,
 			       media_type, byte_length, sha256, source_locator_ref
 			FROM context.proffer_preview_attachment
-			WHERE preview_handle = $1 AND snapshot_seq = $2 - 1`, handle, successorSeq); err != nil {
+			WHERE preview_handle = $1 AND snapshot_seq = $2::bigint - 1`, handle, successorSeq); err != nil {
 			rollback()
 			return fmt.Errorf("copy preview decision attachments: %w", err)
 		}
