@@ -2,14 +2,26 @@
 
 Byline: Claude Code · Sonnet 5 · 2026-09-21.
 
-Owner ruling (2026-09-21): derived output is moving OUT from beside the
-original object (today's layout) to a separate top-level vault directory
-whose inner path mirrors the source tree. The new directory's name has not
-been chosen and will be configuration, not code. This module exists so that
-move touches exactly one function; every caller already treats its return
-value as an opaque bucket-relative prefix ending in "/".
+Where this output lives is CONFIGURATION, not code (owner, 2026-09-21 00:05:
+"its not built yet make it configurable"). Corrected 2026-09-21 02:10
+(Claude Code · Fable 5.1): an earlier version of this note said the output
+"is moving to a separate top-level vault directory mirroring the source
+tree". That was superseded the same night and must not be relied on:
 
-Current (pre-move) layout, verified live 2026-09-21 against
+  - the final vault is not built; its top-level names never appear in code;
+  - `DerivedKnowledge/messaging/` is the READABLE Markdown conversation layer,
+    not the home of SBV's machine output;
+  - thread files and decoded media are source-associated processing
+    artifacts; their location is whatever configuration says, and with
+    nothing configured it is beside the original (today's layout).
+
+This module exists so that a change of location touches exactly one function;
+every caller treats its return value as an opaque bucket-relative prefix
+ending in "/". When the engine's `DERIVED_ROOTS_JSON` source->derived pairs
+are switched on, this function must apply the same pairs (longest source
+prefix wins, legacy beside-the-original location still found).
+
+Current layout, verified live 2026-09-21 against
 `context.proffer_preview_binding.source_ref` rows:
 
     source key (original XML):
