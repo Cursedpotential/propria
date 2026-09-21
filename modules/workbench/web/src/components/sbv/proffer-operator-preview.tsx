@@ -4,6 +4,7 @@ import { AlertTriangle, Check, CircleDot, Database, ExternalLink, Flag, RefreshC
 import { useMemo, useState } from "react";
 
 import { AtomicTools } from "@/components/tools/atomic-tools";
+import { CallsTable, parseCallRecords } from "@/components/sbv/calls-table";
 import { MessageBrowser } from "@/components/sbv/message-browser";
 import { PlatformMessageViewer } from "@/components/sbv/platform-message-viewer";
 import { Badge } from "@/components/ui/badge";
@@ -26,10 +27,11 @@ import type {
 } from "@/lib/shared/types";
 import { cn } from "@/lib/utils";
 
-type ReviewTab = "messages" | "overview" | "records" | "chunks" | "entities" | "relationships" | "graph" | "files" | "lineage" | "warnings" | "attempts";
+type ReviewTab = "messages" | "calls" | "overview" | "records" | "chunks" | "entities" | "relationships" | "graph" | "files" | "lineage" | "warnings" | "attempts";
 
 const TABS: Array<{ id: ReviewTab; label: string }> = [
   { id: "messages", label: "Messages" },
+  { id: "calls", label: "Calls" },
   { id: "overview", label: "Overview" },
   { id: "records", label: "Source records" },
   { id: "chunks", label: "Chunks" },
@@ -162,10 +164,12 @@ export function ProfferOperatorPreview({
   // Overview for every source: `smoke/proffer-operator-surface.contract.test.mjs`
   // pins that default, and changing it is an owner decision, not a side effect here.
   const messagingSource = messages.length > 0;
+  const callRows = useMemo(() => parseCallRecords(content?.records ?? []), [content]);
+  const callsSource = callRows.length > 0;
   const [tab, setTab] = useState<ReviewTab>("overview");
   const visibleTabs = useMemo(
-    () => TABS.filter((entry) => entry.id !== "messages" || messagingSource),
-    [messagingSource],
+    () => TABS.filter((entry) => (entry.id !== "messages" || messagingSource) && (entry.id !== "calls" || callsSource)),
+    [callsSource, messagingSource],
   );
   const [reason, setReason] = useState("");
   const candidates = useMemo(() => preview.recommended_handler
@@ -208,7 +212,7 @@ export function ProfferOperatorPreview({
       <nav className="flex gap-1 overflow-x-auto border bg-card px-2 pt-2" role="tablist" aria-label="Context review views">
         {visibleTabs.map(({ id, label }) => {
           const durableContentAvailable = Boolean(content && (
-            id === "messages" || id === "overview" || id === "records" || id === "files" || id === "lineage" || id === "warnings" || id === "attempts" ||
+            id === "messages" || id === "calls" || id === "overview" || id === "records" || id === "files" || id === "lineage" || id === "warnings" || id === "attempts" ||
             (id === "chunks" && content.chunk_generation)
           ));
           const surfaceKey = id === "relationships" ? "graph" : id === "attempts" ? "workflow" : id;
@@ -230,6 +234,25 @@ export function ProfferOperatorPreview({
             mode={snapshot.matter_mode}
             packageProjection={content?.package ?? null}
           />
+        )}
+
+        {tab === "calls" && (
+          <div className="space-y-3">
+            <header>
+              <p className="platform-kicker">Authoritative normalized projection</p>
+              <h2 className="mt-1 text-xl font-semibold">Calls</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Call records from this attempt&apos;s content projection. Missed and answered calls,
+                direction, and duration are parsed from the persisted normalized payload.
+              </p>
+            </header>
+            <CallsTable rows={callRows} />
+            {content?.next_record_cursor && (
+              <Button variant="outline" disabled={contentLoading} onClick={() => onLoadMoreContent(content.next_record_cursor ?? undefined, undefined)}>
+                Load more records
+              </Button>
+            )}
+          </div>
         )}
 
         {tab === "overview" && <div className="space-y-5">
