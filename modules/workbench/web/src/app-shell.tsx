@@ -1,4 +1,6 @@
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30
+// Byline: Claude Code · Opus 5 · 2026-09-20 (TanStack Query host for cursor-paged operator reads)
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Outlet } from "@tanstack/react-router";
 
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -11,9 +13,11 @@ import { FixedCaseProvider } from "@/lib/fixed-case-context";
 import { NewRunDialogProvider } from "@/lib/new-run-dialog-context";
 import { NewRunDialog } from "@/components/runs/new-run-dialog";
 import { RefreshProvider } from "@/lib/refresh-context";
+import { queryClient } from "@/lib/query-client";
 
 export function AppShell() {
   return (
+    <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <RefreshProvider>
         <FixedCaseProvider>
@@ -44,5 +48,6 @@ export function AppShell() {
         </FixedCaseProvider>
       </RefreshProvider>
     </ThemeProvider>
+    </QueryClientProvider>
   );
 }
