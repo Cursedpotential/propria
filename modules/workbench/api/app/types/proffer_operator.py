@@ -140,7 +140,7 @@ class ProfferOperatorSnapshot(BaseModel):
     reason: BoundedReason = ""
     terminal: bool
     parser_handler: NonBlank | None = None
-    parser_execution_path: Literal["decoder", "duckdb"] | None = None
+    parser_execution_path: Literal["decoder", "duckdb", "derive"] | None = None
     contracts: Annotated[list[OperatorContractIdentity], Field(min_length=3, max_length=8)]
     package: OperatorPackageState
     authority_state: OperatorAuthorityState

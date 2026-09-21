@@ -22,7 +22,7 @@ class ProfferHandlerSelectionDecisionRequest(BaseModel):
     recommendation_ref: NonBlank
     handler_id: NonBlank
     handler_version: NonBlank
-    execution_path: Literal["decoder", "duckdb"]
+    execution_path: Literal["decoder", "duckdb", "derive"]
     compatibility_ref: NonBlank
 
 
@@ -40,6 +40,6 @@ class ProfferHandlerCandidate(BaseModel):
 
     handler_id: NonBlank
     handler_version: NonBlank
-    execution_path: Literal["decoder", "duckdb"]
+    execution_path: Literal["decoder", "duckdb", "derive"]
     compatibility_ref: NonBlank
     reason: NonBlank

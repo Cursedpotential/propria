@@ -1015,7 +1015,7 @@ export interface ProfferSourceBrowserResponse {
 export interface ProfferParserCandidate {
   handler_id: string;
   handler_version: string;
-  execution_path: "decoder" | "duckdb";
+  execution_path: "decoder" | "duckdb" | "derive";
   compatibility_ref: string;
   reason: string;
 }
@@ -1092,7 +1092,7 @@ export interface ProfferHandlerSelectionDecisionRequest {
   recommendation_ref: string;
   handler_id: string;
   handler_version: string;
-  execution_path: "decoder" | "duckdb";
+  execution_path: "decoder" | "duckdb" | "derive";
   compatibility_ref: string;
 }
 
@@ -1207,7 +1207,7 @@ export interface ProfferOperatorSnapshot {
   reason: string;
   terminal: boolean;
   parser_handler?: string | null;
-  parser_execution_path?: "decoder" | "duckdb" | null;
+  parser_execution_path?: "decoder" | "duckdb" | "derive" | null;
   contracts: Array<{ contract: string; version: string; authority: string }>;
   package: {
     original: ProfferOperatorAvailability;
