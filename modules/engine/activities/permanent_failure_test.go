@@ -4,9 +4,12 @@ package activities
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"go.temporal.io/sdk/temporal"
+
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 )
 
 func nonRetryable(err error) bool {
@@ -57,5 +60,22 @@ func TestExecuteStructuredELTKeepsRetryingTransientFailures(t *testing.T) {
 		if err == nil || nonRetryable(err) {
 			t.Fatalf("transient failure was marked permanent: %v", err)
 		}
+	}
+}
+
+// Seen live 2026-09-20 on a calls-only backup: publish_preview_activity retried
+// "preview requires at least one normalized message" three times.
+func TestPreviewPublicationStopsRetryingAnInvalidPreviewModel(t *testing.T) {
+	invalid := previewmodel.Validate("handle", previewmodel.Snapshot{}, nil, nil)
+	if !errors.Is(invalid, previewmodel.ErrInvalidPreview) {
+		t.Fatalf("model validation is not recognisable: %v", invalid)
+	}
+	store := &previewPublisherStub{err: fmt.Errorf("publish preview: %w", invalid)}
+	if _, err := (PreviewProjectionActivity{Store: store}).Publish(context.Background(), validPreviewPublicationRequest()); !nonRetryable(err) {
+		t.Fatalf("an invalid preview model stayed retryable: %v", err)
+	}
+	store.err = errors.New("failed to connect to the preview database")
+	if _, err := (PreviewProjectionActivity{Store: store}).Publish(context.Background(), validPreviewPublicationRequest()); err == nil || nonRetryable(err) {
+		t.Fatalf("a storage failure was marked permanent: %v", err)
 	}
 }

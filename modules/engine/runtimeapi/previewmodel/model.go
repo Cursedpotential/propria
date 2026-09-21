@@ -19,6 +19,9 @@ var (
 	ErrNotFound = errors.New("proffer preview handle not found")
 	ErrNotReady = errors.New("proffer preview projection not ready")
 	ErrEventGap = errors.New("proffer preview event replay gap")
+	// ErrInvalidPreview wraps every Validate failure: the same generation
+	// fails the same way on every attempt, so callers must not retry it.
+	ErrInvalidPreview = errors.New("invalid preview model")
 )
 
 type Binding struct {
@@ -283,6 +286,13 @@ type Store interface {
 var ReceiptTypes = []string{"raw_source_verification", "parser_selection", "parser_execution", "normalization", "storage", "completeness"}
 
 func Validate(handle string, snapshot Snapshot, participants []Participant, messages []Message) error {
+	if err := validate(handle, snapshot, participants, messages); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidPreview, err)
+	}
+	return nil
+}
+
+func validate(handle string, snapshot Snapshot, participants []Participant, messages []Message) error {
 	if snapshot.PreviewHandle != handle || !ValidDigest(snapshot.PreviewDigest) {
 		return errors.New("preview snapshot correlation or digest is invalid")
 	}
