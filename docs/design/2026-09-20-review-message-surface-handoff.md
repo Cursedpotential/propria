@@ -141,7 +141,9 @@ All motion is removed under `prefers-reduced-motion` (`motion-reduce:` utilities
 - Ported SBV files keep a header: origin path + "MIT, Copyright (c) 2025 lowcarbdev"; SBV is listed in `modules/workbench/web/THIRD_PARTY_NOTICES.md`.
 - Contracts to update with the change: `smoke/proffer-operator-surface.contract.test.mjs` (landing view, the supersession of `platform-message-viewer.tsx`).
 
-## Owner decisions (2026-09-20 23:28–23:31 EDT)
+## Owner decisions (2026-09-20 23:28–23:48 EDT)
+
+0. **23:48, supersedes "ThreadView is the default" above:** the page is one viewport (sticky top strip, left rail of sources, centre messages, right rail collapsed) per `docs/pending-review/2026-09-20-review-screen-layout-diagnosis.md`. The default centre view is dense rows on the Glide browser, borrowing SBV's good parts; the straight SBV bubble view is an **optional** view of the same messages.
 
 1. Thread opens on the **oldest** message and reads forward in time. Paging appends the next page near the bottom; `Home` = oldest, `End` = newest.
 2. Extra tabs go in the `More ▾` menu ("more for now" — keep it cheap to change).
