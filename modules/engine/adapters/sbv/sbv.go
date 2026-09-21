@@ -23,6 +23,12 @@ const adapterVersion = "1.4.0"
 const (
 	formatWorkbenchSMSExportXML parser.FormatID = "sms_export_xml"
 	formatLegacySMSXML          parser.FormatID = "sms_xml"
+	// formatCallsBackupXML is the content signature of an SMS Backup & Restore CALL
+	// log (<calls> root). SBV's SMS XML importer decodes <call> records natively
+	// (sms_xml_importer.go: root "<calls", record "call" -> KindCall); the adapter
+	// simply never declared the signature, so detection found the format and the
+	// recommender answered "no parser adapter declares format" (live 2026-09-20).
+	formatCallsBackupXML parser.FormatID = "callsbackuprestore_xml"
 )
 
 // ObjectOpener resolves the immutable object URI in ParserInput. The parser
@@ -112,7 +118,7 @@ func (a *Adapter) Capability() parser.Capability {
 		// These labels describe the same SMS Backup & Restore XML grammar. The
 		// generic Workbench JSON/Markdown/HTML/DOCX labels are deliberately not
 		// aliases: each is ambiguous or unsupported by this fixed decoder.
-		formats = append(formats, formatWorkbenchSMSExportXML, formatLegacySMSXML)
+		formats = append(formats, formatWorkbenchSMSExportXML, formatLegacySMSXML, formatCallsBackupXML)
 	}
 	quality := make(map[parser.FormatID]parser.Quality, len(formats))
 	for _, format := range formats {
@@ -233,7 +239,7 @@ func (a *Adapter) accepts(format parser.FormatID) bool {
 		return true
 	}
 	return a.format == parseonly.FormatSMSBackupXML &&
-		(format == formatWorkbenchSMSExportXML || format == formatLegacySMSXML)
+		(format == formatWorkbenchSMSExportXML || format == formatLegacySMSXML || format == formatCallsBackupXML)
 }
 
 func cloneLocator(source parser.Locator) *parser.Locator {
