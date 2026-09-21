@@ -1,7 +1,7 @@
 // Byline: Codex · GPT-5.6 · 2026-09-12 (hydrate deep-linked preview mode and handle atomically)
 "use client";
 
-import { ChevronLeft, CircleDot, FileText, Loader2, RefreshCw } from "lucide-react";
+import { ChevronLeft, CircleDot, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -45,11 +45,6 @@ function initialHandle(mode: "TEST" | "REAL") {
   const query = new URLSearchParams(window.location.search);
   if (query.get("mode") !== mode) return "";
   return (query.get("resource") ?? query.get("preview_handle") ?? query.get("attempt"))?.trim() ?? "";
-}
-
-function createdAt(value: string) {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
 }
 
 export function ProfferPreviewClient() {

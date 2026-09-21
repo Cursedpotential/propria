@@ -22,7 +22,7 @@ interface ReviewResourceListProps {
 }
 
 /** The part of a source ref a person recognises: the file, plus its parent when it is a derived chunk. */
-export function resourceName(sourceRef: string): { name: string; context: string } {
+function resourceName(sourceRef: string): { name: string; context: string } {
   const path = sourceRef.replace(/^[a-z0-9]+:\/\/[^/]+\//i, "");
   const segments = path.split("/").filter(Boolean);
   const name = segments.at(-1) ?? sourceRef;
@@ -34,7 +34,7 @@ export function resourceName(sourceRef: string): { name: string; context: string
 }
 
 function isFailed(resource: ProfferProposalResource) {
-  return resource.lifecycle === "failed" || resource.lifecycle === "cancelled";
+  return resource.lifecycle === "failed" || resource.lifecycle === "unavailable";
 }
 
 function when(value: string) {
@@ -47,7 +47,7 @@ function when(value: string) {
 const DOT: Record<string, string> = {
   completed: "bg-emerald-500",
   failed: "bg-destructive",
-  cancelled: "bg-destructive",
+  unavailable: "bg-destructive",
 };
 
 export function ReviewResourceList({ resources, loading, selectedHandle, onSelect }: ReviewResourceListProps) {
