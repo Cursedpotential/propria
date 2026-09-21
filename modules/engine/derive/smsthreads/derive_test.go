@@ -121,6 +121,47 @@ func TestDeriveWritesThreadsMediaAndManifestBesideSource(t *testing.T) {
 	}
 }
 
+// A part the backup names but carries no bytes for (data="", the shape of the 16
+// real gaps in sms-20251206203434.xml) must reach the derived line as a missing
+// reference — never as an empty media object. Owner requirement 2026-09-20.
+// Byline: Claude Code · Fable 5.1 · 2026-09-20.
+func TestDeriveReportsPartsWithoutPayload(t *testing.T) {
+	image := []byte("\x89PNG\r\n\x1a\nreal-bytes")
+	source := strings.Replace(sampleBackup(image),
+		`<part seq="1" ct="text/plain" name="null" text="see picture" />`,
+		`<part seq="1" ct="text/plain" name="null" text="see picture" />
+      <part seq="0" ct="image/heif" name="null" cid="&lt;image000000_11449.jpg&gt;" cl="image000000_11449.jpg" text="null" data="" />`, 1)
+	store := &memoryStore{objects: map[string][]byte{"bkt/vault/sms-gap.xml": []byte(source)}}
+	manifest, err := Derive(context.Background(), Options{
+		Store: store, Scheme: "b2", Bucket: "bkt", Key: "vault/sms-gap.xml", ScratchRoot: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Records != 4 || manifest.Rejected != 0 || manifest.MediaObjects != 1 {
+		t.Fatalf("records=%d rejected=%d media=%d", manifest.Records, manifest.Rejected, manifest.MediaObjects)
+	}
+	var found int
+	for _, thread := range manifest.Threads {
+		for _, raw := range bytes.Split(bytes.TrimSpace(store.objects["bkt/"+thread.Key]), []byte("\n")) {
+			var line Line
+			if err := json.Unmarshal(raw, &line); err != nil {
+				t.Fatal(err)
+			}
+			for _, ref := range line.AttachmentReferences {
+				if ref.Kind != "mms_part_without_payload" || ref.URIOriginal != "image000000_11449.jpg" ||
+					!ref.SourceReportedMissing || line.Content != "see picture" || len(line.Attachments) != 1 {
+					t.Fatalf("missing-payload reference = %+v on line %+v", ref, line)
+				}
+				found++
+			}
+		}
+	}
+	if found != 1 {
+		t.Fatalf("payload-less part reported %d times, want 1", found)
+	}
+}
+
 func TestNormalizePartyJoinsNumberSpellings(t *testing.T) {
 	for _, value := range []string{"+1 (810) 555-0101", "18105550101", "810-555-0101"} {
 		if got := normalizeParty(value); got != "8105550101" {

@@ -82,6 +82,40 @@ def test_attachment_only_mms_is_kept_and_identifiable(tmp_path):
     assert first["attrs"]["attachments"][0]["b64_sha256"] != second["attrs"]["attachments"][0]["b64_sha256"]
 
 
+def test_captioned_mms_keeps_its_attachment_manifest(tmp_path):
+    """A caption must not hide the photo it came with.
+
+    The attachment manifest was only built for body-less MMS, so a captioned
+    picture message normalized to plain text and its parts vanished — which also
+    hid any part whose payload is missing from the backup (owner requirement
+    2026-09-20: missing-payload checks on ingestion). Byline: Claude Code ·
+    Fable 5.1 · 2026-09-20.
+    """
+    xml = """<smses count="1">
+      <mms address="+15551234567" date="1756490841000" type="2">
+        <parts>
+          <part seq="-1" ct="application/smil" text="&lt;smil/&gt;"/>
+          <part seq="0" ct="text/plain" text="look at these"/>
+          <part seq="0" ct="image/jpeg" cl="kept.jpg" cid="&lt;kept.jpg&gt;" data="QUJDREVGRw=="/>
+          <part seq="0" ct="image/heif" cl="gone.jpg" cid="&lt;gone.jpg&gt;"/>
+          <part seq="0" ct="image/jpeg" cl="nulled.jpg" data="null"/>
+        </parts>
+      </mms>
+    </smses>"""
+    (rec,) = _run(tmp_path, "captioned.xml", xml)["records"]
+
+    assert rec["content"] == "look at these"
+    assert "body_present" not in rec["attrs"]
+    assert rec["attrs"]["attachment_count"] == 3
+    kept, gone, nulled = rec["attrs"]["attachments"]
+    assert kept["name"] == "kept.jpg" and kept["payload_present"] is True and kept["b64_sha256"]
+    assert gone["name"] == "gone.jpg" and gone["cid"] == "<gone.jpg>"
+    for missing in (gone, nulled):
+        assert missing["payload_present"] is False
+        assert missing["b64_len"] == 0 and missing["b64_sha256"] is None
+    assert all("data" not in a for a in rec["attrs"]["attachments"])
+
+
 def test_call_block_forensic_flags(tmp_path):
     xml = """<calls count="3">
       <call number="+15551234567" contact_name="Ex" date="1700000000000" type="3" duration="0"/>

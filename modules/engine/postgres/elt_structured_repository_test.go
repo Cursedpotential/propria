@@ -202,6 +202,8 @@ func TestStructuredELTQueriesUseFormatSpecificDuckDBReaders(t *testing.T) {
 			"'$.address'", "'$.date'", "'$.type'", "'$.body'",
 			"'$.parts.part[0].text'", "epoch_ms(", "'occurred_at'",
 		},
+		// payload-less MMS parts and failed decodes must survive normalization
+		activities.StructuredELTFormatNDJSON:       {"'$.attachments'", "'$.attachment_references'", "'$.attachment_failures'"},
 		activities.StructuredELTFormatChatGPTJSON:  {"read_text(", "json_each("},
 		activities.StructuredELTFormatIMessageText: {"read_text(", "regexp_split_to_array("},
 	}

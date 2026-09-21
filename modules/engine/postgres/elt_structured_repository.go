@@ -304,7 +304,12 @@ func structuredELTQuery(format activities.StructuredELTFormat, sourceURL string)
 					'recipients', coalesce(json_extract(doc, '$.recipients[*].identity'), json_array()),
 					'participants', coalesce(json_extract(doc, '$.participants'), json_array()),
 					'occurred_at', json_extract_string(doc, '$.occurred_at'),
-					'attachments', coalesce(json_extract(doc, '$.attachments'), json_array()))
+					'attachments', coalesce(json_extract(doc, '$.attachments'), json_array()),
+					-- Parts the backup names but carries no bytes for (SBV kind
+					-- mms_part_without_payload) and failed decodes: the missing-payload
+					-- check reads these, so they must survive normalization (2026-09-20).
+					'attachment_references', coalesce(json_extract(doc, '$.attachment_references'), json_array()),
+					'attachment_failures', coalesce(json_extract(doc, '$.attachment_failures'), json_array()))
 				ELSE json_object('record_kind', 'object', 'body', raw_json) END::VARCHAR AS native_fields,
 				json_object('duckdb_template', 'ndjson_v1',
 					'line_schema', CASE WHEN is_thread_line THEN 'smsthreads' ELSE 'generic' END,

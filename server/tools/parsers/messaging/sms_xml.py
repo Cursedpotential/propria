@@ -1,4 +1,5 @@
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (combined-change hygiene)
+# Byline amendment: Claude Code · Fable 5.1 · 2026-09-20 (captioned MMS keep their attachment manifest)
 """Atomic tool: "SMS Backup & Restore" XML  ->  NormalizedRecords.
 
 One format, one module, swappable (owner architecture: parsers are separate
@@ -100,10 +101,17 @@ def _attachment_parts(elem: Element | None) -> list[dict[str, Any]]:
         if not ct or ct in _NON_ATTACHMENT_CT:
             continue
         data = part.attrib.get("data") or ""
+        if data == "null":  # the exporter writes absent values as the literal "null"
+            data = ""
         out.append(
             {
                 "ct": ct,
                 "name": part.attrib.get("cl") or part.attrib.get("name") or "",
+                "cid": part.attrib.get("cid") or "",
+                # False = the backup names this part but carries no bytes for it. The
+                # missing-payload check reads this; it is an observation about THIS
+                # backup, never a claim that the attachment did not exist.
+                "payload_present": bool(data),
                 "b64_len": len(data),
                 # Digest of the BASE64 TEXT, deliberately not the decoded bytes:
                 # an INTRA-EXPORT dedup key only. Not a durable attachment
@@ -125,7 +133,10 @@ def _map_sms(
     channel: str = "sms",
 ) -> NormalizedRecord | None:
     text = (body or attrib.get("body") or attrib.get("text") or "").strip()
-    attachments: list[dict[str, Any]] = []
+    # Every MMS gets its attachment manifest, captioned or not. It used to be built
+    # only for body-less messages, so a captioned photo lost its parts — and with
+    # them any missing payload (fixed 2026-09-20, Claude Code · Fable 5.1).
+    attachments = _attachment_parts(elem)
     if not text or text == "null":
         # An MMS with no text body is still evidence — a photo, video, or voice note
         # sent with no caption. Returning None here silently DISCARDED 516 of 7,815
@@ -138,7 +149,6 @@ def _map_sms(
         # 636 MiB export (a sent MMS whose only text part is a newline). Keep it and
         # mark it empty rather than deciding, in a parser, that it did not happen.
         # Only a record with no timestamp and no counterparty is truly unusable.
-        attachments = _attachment_parts(elem)
         if not (attrib.get("date") or attrib.get("timestamp")) and not _has_counterparty(attrib):
             return None
         text = ""
@@ -155,12 +165,12 @@ def _map_sms(
         "address": attrib.get("address") or attrib.get("number") or "",
         "contact_name": attrib.get("contact_name") or "",
     }
+    if attachments:
+        attrs["attachments"] = attachments
+        attrs["attachment_count"] = len(attachments)
     if not text:
         attrs["body_present"] = False
-        if attachments:
-            attrs["attachments"] = attachments
-            attrs["attachment_count"] = len(attachments)
-        else:
+        if not attachments:
             attrs["empty_body"] = True
     return NormalizedRecord(
         record_type=RecordType.message,
