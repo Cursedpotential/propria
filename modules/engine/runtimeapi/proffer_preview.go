@@ -526,6 +526,9 @@ type OperationSummary struct {
 	Reason              string                     `json:"reason,omitempty"`
 	SourceVersionRef    proffer.Ref                `json:"source_version_ref,omitempty"`
 	CompletedStageCount int                        `json:"completed_stage_count"`
+	// MatterID lets the Workbench prove TEST/REAL ownership from durable state
+	// instead of process memory (every BFF restart used to orphan all runs).
+	MatterID *uuid.UUID `json:"matter_id,omitempty"`
 }
 
 type OperationDetail struct {
@@ -861,7 +864,7 @@ func (h *PreviewHTTPHandler) readOperationState(ctx context.Context, binding Pre
 		Service: "proffer", CreatedAt: binding.CreatedAt, Lifecycle: state.Lifecycle,
 		CurrentStage: state.CurrentStage, ActiveStages: state.ActiveStages, Wait: state.Wait,
 		Terminal: state.Terminal, Reason: state.Reason, SourceVersionRef: state.SourceVersionRef,
-		CompletedStageCount: state.CompletedStageCount,
+		CompletedStageCount: state.CompletedStageCount, MatterID: binding.MatterID,
 	}, state.Stages
 }
 

@@ -131,7 +131,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	defer temporalClient.Close()
 
-	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, worker.Options{})
+	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, workerOptions(cfg))
 	RegisterAll(temporalWorker, registrations)
 	if err := temporalWorker.Start(); err != nil {
 		return fmt.Errorf("proffer worker: start Temporal worker: %w", err)
@@ -139,6 +139,7 @@ func Run(ctx context.Context, cfg Config) error {
 	slog.Info(
 		"universal import worker started",
 		"task_queue", cfg.TemporalTaskQueue,
+		"max_concurrent_activities", cfg.MaxConcurrentActivities,
 		"namespace", cfg.TemporalNamespace,
 		"activity_count", len(stagegraph.Stages),
 		"n8n_flow_activity", platformtemporal.RunFlowActivityName,
@@ -147,6 +148,11 @@ func Run(ctx context.Context, cfg Config) error {
 	<-ctx.Done()
 	temporalWorker.Stop()
 	return nil
+}
+
+// workerOptions bounds how much of the queue one worker takes at once.
+func workerOptions(cfg Config) worker.Options {
+	return worker.Options{MaxConcurrentActivityExecutionSize: cfg.MaxConcurrentActivities}
 }
 
 func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformtemporal.FlowRegistry) (Registrations, error) {

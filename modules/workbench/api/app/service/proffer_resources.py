@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
-from app.service import matter_mode, proffer, proffer_operations
+from app.service import matter_mode, preview_mode_recovery, proffer, proffer_operations
 from app.types.matter_mode import MatterMode
 from app.types.proffer_operations import ProfferOperationLifecycle, ProfferOperationSummary
 from app.types.proffer_resources import ProfferProposalResource, ProfferProposalResourceCatalog
@@ -17,13 +17,18 @@ def _mode_coordinate(callable_, mode: MatterMode):
         raise proffer.ProfferError(error.detail, error.status_code) from None
 
 
-def _require_catalog_binding(preview_handle: str, mode: MatterMode) -> bool:
+def _require_catalog_binding(preview_handle: str, mode: MatterMode, matter_id=None) -> bool:
     try:
         matter_mode.require_preview_mode(preview_handle, mode)
         return True
     except matter_mode.MatterModeError as error:
         if "different matter mode" in error.detail:
             return False
+        # The in-memory binding is gone after a BFF restart: re-derive it from the
+        # run's durable matter id before refusing the whole catalog.
+        proven = preview_mode_recovery.rebind(preview_handle, matter_id)
+        if proven is not None:
+            return proven == mode
         raise proffer.ProfferError(
             "Proffer proposal catalog cannot prove TEST/REAL ownership for every listed operation; "
             "restart the import to create an active binding",
@@ -103,7 +108,7 @@ async def list_proposal_resources(
 
     resources: list[ProfferProposalResource] = []
     for operation in operations.items:
-        if _require_catalog_binding(operation.preview_handle, mode):
+        if _require_catalog_binding(operation.preview_handle, mode, operation.matter_id):
             resources.append(await _resource(operation, mode))
 
     return ProfferProposalResourceCatalog(

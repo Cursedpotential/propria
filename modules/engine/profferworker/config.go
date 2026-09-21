@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,7 +50,14 @@ type Config struct {
 	N8NFlowBindingsFile string
 	SelectHTTPTimeout   time.Duration
 	ExecuteHTTPTimeout  time.Duration
+
+	// MaxConcurrentActivities is this worker's ceiling on Activities running at
+	// once (PROFFER_MAX_CONCURRENT_ACTIVITIES). Temporal's own default is 1,000,
+	// which a batch fan-out would spend against the shared PostgreSQL.
+	MaxConcurrentActivities int
 }
+
+const defaultMaxConcurrentActivities = 4
 
 // LoadConfig reads the fail-closed worker environment contract. The worker
 // intentionally uses TEMPORAL_TASK_QUEUE too, so the separately deployed HTTP
@@ -127,6 +135,14 @@ func LoadConfig() (Config, error) {
 		problems = append(problems, err.Error())
 	} else {
 		cfg.ExecuteHTTPTimeout = timeout
+	}
+	cfg.MaxConcurrentActivities = defaultMaxConcurrentActivities
+	if raw := strings.TrimSpace(os.Getenv("PROFFER_MAX_CONCURRENT_ACTIVITIES")); raw != "" {
+		if value, err := strconv.Atoi(raw); err != nil || value < 1 {
+			problems = append(problems, "PROFFER_MAX_CONCURRENT_ACTIVITIES must be a positive integer")
+		} else {
+			cfg.MaxConcurrentActivities = value
+		}
 	}
 	if len(problems) > 0 {
 		return Config{}, fmt.Errorf("proffer worker: invalid configuration: %s", strings.Join(problems, "; "))

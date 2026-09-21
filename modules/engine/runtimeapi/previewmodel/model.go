@@ -33,6 +33,9 @@ type Binding struct {
 	RawGenerationID        uuid.UUID
 	NormalizedGenerationID uuid.UUID
 	CreatedAt              time.Time
+	// MatterID is the durable intake scope (context.source_version.matter_id). The
+	// Workbench derives TEST/REAL from it, so a BFF restart cannot orphan a run.
+	MatterID *uuid.UUID
 }
 
 // BindingCursor is a stable keyset coordinate over the append-only preview
