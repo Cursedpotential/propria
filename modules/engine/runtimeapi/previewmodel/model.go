@@ -94,6 +94,18 @@ type Snapshot struct {
 	Wait                proffer.OperationWait      `json:"wait,omitempty"`
 	Terminal            bool                       `json:"terminal"`
 	CompletedStageCount int                        `json:"completed_stage_count"`
+	// NormalizedRecordCount is a WRITE-TIME validation input only: the number of
+	// normalized records of EVERY kind in this generation. It has no column on
+	// context.proffer_preview_snapshot and is deliberately never serialized, so
+	// it is always zero on a snapshot read back from storage.
+	//
+	// It exists because a generation can legitimately contain zero messages —
+	// a call-log backup normalizes to record_type='call' and nothing else
+	// (live 2026-09-20: request vault-e2e-calls-20260920-2150, 609 call records,
+	// cleared 24 stages and then failed publish_preview_activity with
+	// "preview requires at least one normalized message"). A generation with
+	// zero records of ANY kind is still refused.
+	NormalizedRecordCount int `json:"-"`
 }
 type Participant struct {
 	ParticipantID    string  `json:"participant_id"`
@@ -166,6 +178,12 @@ type Page struct {
 	Participants []Participant
 	Messages     []Message
 	NextOffset   *int
+	// TotalMatches counts every message satisfying the active filter and
+	// TotalMessages counts the whole thread, so the operator sees "12 of 927"
+	// instead of a page-local number. Both are -1 when a store cannot supply
+	// them (unfiltered legacy Page path).
+	TotalMatches  int64
+	TotalMessages int64
 }
 
 // ContentProjection is a browser-safe read projection over the retained
@@ -305,8 +323,12 @@ func Validate(handle string, snapshot Snapshot, participants []Participant, mess
 		}
 		ids[participant.ParticipantID] = true
 	}
-	if len(messages) == 0 {
-		return errors.New("preview requires at least one normalized message")
+	// A preview must project SOMETHING. Messages are the richest projection, but
+	// a calls-only (or otherwise message-free) generation is publishable and
+	// reviewable through the content endpoint's records[]. Only a generation
+	// that normalized nothing at all is refused.
+	if len(messages) == 0 && snapshot.NormalizedRecordCount <= 0 {
+		return errors.New("preview requires at least one normalized record")
 	}
 	for _, message := range messages {
 		if strings.TrimSpace(message.MessageID) == "" || message.Ordinal < 0 || strings.TrimSpace(message.SourceLocatorRef) == "" || len(message.Body) > 1_000_000 {
