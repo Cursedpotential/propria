@@ -69,7 +69,7 @@ Type scale: body `text-sm` (14 px) for message text — not smaller; meta `text-
 | `ViewBar` | new | primary views as tabs; `More ▾` menu holds Overview, Chunks, Entities, Relationships, Graph, Lineage, Warnings, Attempts / runs. A view whose data is empty shows a muted count `0` in the menu. No views are deleted. |
 | `ThreadView` | **port of SBV `MessageThread.jsx`** (826 lines, MIT © 2025 lowcarbdev) | default view. Bubbles: outgoing right/`bg-primary`, incoming left/`bg-card` with border. Max bubble width `min(68ch, 72%)`. Consecutive messages from one sender within 5 min group under one timestamp. Day separator: centered `.platform-kicker` rule, sticky at top while scrolling that day. |
 | `ThreadSearch` + `DateFilter` | port of SBV `Search.jsx`, `DateFilter.jsx` | lives in the view bar, right side. Server-side (`q`, `from`, `to`, `has_attachments`, `sender`). Shows `12 of 927`. Enter / F3 next hit, Shift+Enter previous; hits highlighted with `bg-accent` and the thread scrolls the hit to center. |
-| `AttachmentStrip` | port of SBV `LazyMedia.jsx`/`MediaGrid.jsx` layout | under the bubble: thumbnail slot 96×96, name, type, size. Binary preview is **not wired** (no media endpoint): the slot shows the file-type icon and one small `not previewable yet` flag — no banner. |
+| `AttachmentStrip` | port of SBV `LazyMedia.jsx`/`MediaGrid.jsx` layout | under the bubble: thumbnail slot 96×96, name, type, size. ~~Binary preview is not wired~~ **Corrected 2026-09-20 23:31 (owner):** two modes — before processing SBV decodes the base64 part from the backup; after ingest the bytes stream from `<key>.derived/media/<sha256><ext>`. Click opens the SBV carousel. |
 | `CallsView` | port of SBV `Calls.jsx` | for call records: direction icon, number/name, local time, duration `1h 02m 03s`; missed calls `text-destructive`. |
 | `TableView` | shipped Glide browser (`message-browser*.tsx`) | the dense mode; same query, filters and selection as the thread. |
 | `RecordsView` | replaces the JSON cards | Glide grid: `#`, type, time, sender → recipients, body (single line), attachments. Raw JSON only inside the detail panel's `Raw` disclosure, collapsed by default, monospace, copy button. |
@@ -82,8 +82,8 @@ Type scale: body `text-sm` (14 px) for message text — not smaller; meta `text-
 |---|---|---|
 | Message bubble | hover | `ring-1 ring-border`; timestamp shows full local date-time in a tooltip |
 | Message bubble | selected (click, or ↑/↓) | `ring-2 ring-ring` + `bg-accent` tint on incoming, 2 px `ring-ring` on outgoing; detail panel updates; **no "Details" button exists anywhere** |
-| Thread | scroll near top | loads the previous page (cursor); keeps scroll position anchored to the first visible message (no jump) |
-| Thread | open | lands on the **newest** message, like a phone; `Home` jumps to oldest loaded, `End` to newest |
+| Thread | scroll near bottom | loads the next page (forward cursor); appended messages never move what is on screen |
+| Thread | open | lands on the **oldest** message and reads forward (owner 2026-09-20 23:28; ~~newest, like a phone~~); `Home` jumps to oldest, `End` to newest |
 | Search field | typing | 300 ms debounce; spinner inside the field; `Esc` clears and returns focus to the thread |
 | View tab | active | 2 px `border-primary` underline; others `text-muted-foreground` |
 | Run row | selected | `bg-accent`; list collapses |
@@ -141,8 +141,9 @@ All motion is removed under `prefers-reduced-motion` (`motion-reduce:` utilities
 - Ported SBV files keep a header: origin path + "MIT, Copyright (c) 2025 lowcarbdev"; SBV is listed in `modules/workbench/web/THIRD_PARTY_NOTICES.md`.
 - Contracts to update with the change: `smoke/proffer-operator-surface.contract.test.mjs` (landing view, the supersession of `platform-message-viewer.tsx`).
 
-## Open decisions for the owner
+## Owner decisions (2026-09-20 23:28–23:31 EDT)
 
-1. Thread opens on the **newest** message (phone behavior) — or the oldest, to read forward in time?
-2. `More ▾` grouping above — or a second, smaller tab row?
-3. After this surface: an extraction stage (entities, claim candidates) or an edit/correction API first?
+1. Thread opens on the **oldest** message and reads forward in time. Paging appends the next page near the bottom; `Home` = oldest, `End` = newest.
+2. Extra tabs go in the `More ▾` menu ("more for now" — keep it cheap to change).
+3. After this surface: the **extraction stage** (entities, claim candidates) comes first — there is nothing to add to or correct until it exists. The edit/correction API follows it.
+4. Media preview is wired in two modes, both rendered the SBV way: **before processing**, SBV decodes the base64 parts inside the backup; **after ingest**, media streams from the run's adjacent `<key>.derived/media/` folder and the thread reads the new `<key>.derived/threads/` chunks (`GET /api/proffer/previews/{handle}/media/{sha256}`).
