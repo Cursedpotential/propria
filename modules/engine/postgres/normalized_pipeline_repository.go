@@ -93,17 +93,17 @@ func (r *NormalizedPipelineRepository) ResolveNormalizerInput(ctx context.Contex
 	if err != nil {
 		return normalize.NormalizerInput{}, fmt.Errorf("raw generation reference %q: %w", rawGenerationRef, err)
 	}
-	var workflowID, declaredFormat, sourceStatus, provenanceClass, rawStatus string
+	var workflowID, declaredFormat, sourceStatus, provenanceClass, rawStatus, rawFormatID string
 	var rawSourceVersionID uuid.UUID
 	var acquiredAt time.Time
 	if err := r.db.QueryRow(ctx, `
 		SELECT version.workflow_id, version.declared_format, version.status, source.provenance_class,
-		       version.acquired_at, raw.status, raw.source_version_id
+		       version.acquired_at, raw.status, raw.source_version_id, raw.format_id
 		FROM context.source_version version
 		JOIN context.source source ON source.id = version.source_id
 		JOIN context.raw_generation raw ON raw.id = $2::uuid
 		WHERE version.id = $1::uuid`, sourceVersionID, rawGenerationID).Scan(
-		&workflowID, &declaredFormat, &sourceStatus, &provenanceClass, &acquiredAt, &rawStatus, &rawSourceVersionID); err != nil {
+		&workflowID, &declaredFormat, &sourceStatus, &provenanceClass, &acquiredAt, &rawStatus, &rawSourceVersionID, &rawFormatID); err != nil {
 		return normalize.NormalizerInput{}, fmt.Errorf("resolve normalizer input: %w", err)
 	}
 	if workflowID != req.RequestID {
@@ -118,11 +118,23 @@ func (r *NormalizedPipelineRepository) ResolveNormalizerInput(ctx context.Contex
 	if rawSourceVersionID != sourceVersionID {
 		return normalize.NormalizerInput{}, errors.New("raw generation belongs to a different source version")
 	}
-	rows, err := r.db.Query(ctx, `
-		SELECT record_ordinal, format_id, record_status, native_fields, native_metadata
-		FROM context.raw_record_identity
-		WHERE raw_generation_id = $1::uuid
-		ORDER BY record_ordinal`, rawGenerationID)
+	// native_fields lives in the per-format subtype table context.raw_<format_id>
+	// (context.register_raw_format_subtype), never on raw_record_identity: the old
+	// single-table read failed with "column native_fields does not exist" on the
+	// first generation ever to reach normalization (live 2026-09-20). Envelope and
+	// unparsed spans have no subtype row, hence the LEFT JOIN.
+	if err := parser.FormatID(rawFormatID).Validate(); err != nil {
+		return normalize.NormalizerInput{}, fmt.Errorf("raw generation format: %w", err)
+	}
+	subtype := pgx.Identifier{"context", "raw_" + rawFormatID}.Sanitize()
+	rows, err := r.db.Query(ctx, fmt.Sprintf(`
+		SELECT raw.record_ordinal, raw.format_id, raw.record_status,
+		       COALESCE(subtype.native_fields, '{}'::jsonb),
+		       COALESCE(subtype.native_metadata, raw.native_metadata, '{}'::jsonb)
+		FROM context.raw_record_identity raw
+		LEFT JOIN %s subtype ON subtype.raw_record_id = raw.id
+		WHERE raw.raw_generation_id = $1::uuid
+		ORDER BY raw.record_ordinal`, subtype), rawGenerationID)
 	if err != nil {
 		return normalize.NormalizerInput{}, fmt.Errorf("open raw records for normalize: %w", err)
 	}
