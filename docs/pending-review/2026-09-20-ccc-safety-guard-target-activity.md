@@ -37,18 +37,23 @@ tags: [ccc, cocoindex-code, tooling, watchdog, patch, pending-review]
 
 ## To apply (owner, or any session allowed to)
 
-```bash
-cd "$APPDATA/uv/tools/cocoindex-code/Lib/site-packages/cocoindex_code" && patch _safety_guard.py < "E:/AI_Workspace/Projects/Propria/modules/Probata/probata/docs/pending-review/2026-09-20-ccc-safety-guard-target-activity.patch"
+~~Bash commands using `&&`, `patch` and `<`~~ **Corrected 2026-09-20 20:20 EDT:** those were Git-Bash syntax and failed in
+the owner's PowerShell terminal (`&&` is not a separator in Windows PowerShell 5.1, `<` is not supported, `patch` is not on
+PATH). Nothing was applied by them. PowerShell, one command each — the full patched file sits beside this note
+(`…-target-activity.patched.py.txt`: the current guard plus 28 added lines, none removed):
+
+```powershell
+Copy-Item -LiteralPath "E:\AI_Workspace\Projects\Propria\modules\Probata\probata\docs\pending-review\2026-09-20-ccc-safety-guard-target-activity.patched.py.txt" -Destination "$env:APPDATA\uv\tools\cocoindex-code\Lib\site-packages\cocoindex_code\_safety_guard.py" -Force
 ```
 
-Then archive the two latch files and re-index:
+Then archive the two latch files (the `faults-archive` folder already exists) and re-index:
 
-```bash
-cd ~/.cocoindex_code && mkdir -p faults-archive && mv safety-fault.json safety-active.json faults-archive/
+```powershell
+Move-Item -Path "$env:USERPROFILE\.cocoindex_code\safety-fault.json","$env:USERPROFILE\.cocoindex_code\safety-active.json" -Destination "$env:USERPROFILE\.cocoindex_code\faults-archive\safety-latch-20260920T1903\" -Force
 ```
 
-```bash
-cd E:/AI_Workspace/Projects/Propria/modules/Probata/probata && ccc index
+```powershell
+Set-Location "E:\AI_Workspace\Projects\Propria\modules\Probata\probata"; ccc index
 ```
 
 A `uv tool upgrade cocoindex-code` overwrites this patch along with the rest of Codex's local guard.

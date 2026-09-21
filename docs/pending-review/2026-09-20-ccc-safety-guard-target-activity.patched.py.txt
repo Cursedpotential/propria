@@ -1,0 +1,265 @@
+"""CCC Windows fault containment. By Codex for Matthew Salem, 2026-09-20.
+
+Local patch: keep the job handle alive until process exit. Never operates on
+the host power state or unrelated processes. Faults require explicit review.
+"""
+from __future__ import annotations
+
+import ctypes as C
+from ctypes import wintypes as W
+import json
+import os
+from pathlib import Path
+import sys
+import threading
+import time
+
+GIB = 1024 ** 3
+SOFT_BYTES = 3 * GIB
+HARD_BYTES = 4 * GIB
+_guard = None
+
+
+def runtime_dir():
+    return Path(os.environ.get('COCOINDEX_CODE_RUNTIME_DIR', str(Path.home() / '.cocoindex_code')))
+
+
+def assert_no_fault():
+    path = runtime_dir() / 'safety-fault.json'
+    if path.exists():
+        raise RuntimeError(f'CCC stopped after a safety fault. Automatic retry is blocked. Review {path}; after correcting the cause, archive the fault record before retrying.')
+
+
+def assert_can_start():
+    assert_no_fault()
+    path = runtime_dir() / 'safety-active.json'
+    if path.exists():
+        raise RuntimeError(f'CCC has an active or uncleanly exited protected run: {path}. Automatic restart is blocked. Review process identity and archive this record only after the old run has ended and the cause is corrected.')
+
+
+def trip_memory_error(exc):
+    if isinstance(exc, MemoryError) and _guard is not None:
+        _guard.trip('allocation_failed', {})
+
+
+def assert_safe_root(root):
+    root = Path(root).resolve()
+    # Incident-specific aggregate root, in addition to universal unsafe roots.
+    if root == Path(root.anchor) or root == Path.home() or str(root).casefold().replace('\\', '/') in {'e:/ai_workspace', 'e:/ai/_workspace'}:
+        raise RuntimeError(f'CCC refuses aggregate/root indexing at {root}. Initialize and use the individual repository instead.')
+
+
+class Basic(C.Structure):
+    _fields_ = [('process_time', C.c_int64), ('job_time', C.c_int64), ('flags', W.DWORD),
+                ('min_ws', C.c_size_t), ('max_ws', C.c_size_t), ('active', W.DWORD),
+                ('affinity', C.c_size_t), ('priority', W.DWORD), ('scheduling', W.DWORD)]
+
+
+class IO(C.Structure):
+    _fields_ = [(n, C.c_uint64) for n in ('reads', 'writes', 'other', 'read_bytes', 'write_bytes', 'other_bytes')]
+
+
+class Extended(C.Structure):
+    _fields_ = [('basic', Basic), ('io', IO), ('process_memory', C.c_size_t),
+                ('job_memory', C.c_size_t), ('peak_process', C.c_size_t), ('peak_job', C.c_size_t)]
+
+
+class Memory(C.Structure):
+    _fields_ = [('cb', W.DWORD), ('faults', W.DWORD)] + [(n, C.c_size_t) for n in
+        ('peak_ws', 'ws', 'peak_paged', 'paged', 'peak_nonpaged', 'nonpaged', 'pagefile', 'peak_pagefile', 'private')]
+
+
+class Performance(C.Structure):
+    _fields_ = [('cb', W.DWORD)] + [(n, C.c_size_t) for n in
+        ('commit', 'limit', 'peak', 'physical', 'available', 'cache', 'kernel', 'paged', 'nonpaged', 'page_size')] + [
+        ('handles', W.DWORD), ('processes', W.DWORD), ('threads', W.DWORD)]
+
+
+class WindowsMemory:
+    def __init__(self, limit=HARD_BYTES):
+        self.k = C.WinDLL('kernel32', use_last_error=True)
+        self.p = C.WinDLL('psapi', use_last_error=True)
+        self.k.CreateJobObjectW.argtypes = [C.c_void_p, W.LPCWSTR]
+        self.k.CreateJobObjectW.restype = W.HANDLE
+        self.k.GetCurrentProcess.restype = W.HANDLE
+        self.k.SetInformationJobObject.argtypes = [W.HANDLE, C.c_int, C.c_void_p, W.DWORD]
+        self.k.SetInformationJobObject.restype = W.BOOL
+        self.k.AssignProcessToJobObject.argtypes = [W.HANDLE, W.HANDLE]
+        self.k.AssignProcessToJobObject.restype = W.BOOL
+        self.p.GetProcessMemoryInfo.argtypes = [W.HANDLE, C.c_void_p, W.DWORD]
+        self.p.GetProcessMemoryInfo.restype = W.BOOL
+        self.p.GetPerformanceInfo.argtypes = [C.c_void_p, W.DWORD]
+        self.p.GetPerformanceInfo.restype = W.BOOL
+        self.process = self.k.GetCurrentProcess()
+        self.job = self.k.CreateJobObjectW(None, None)
+        if not self.job:
+            raise C.WinError(C.get_last_error())
+        info = Extended()
+        info.basic.flags = 0x100 | 0x200  # Per-process AND aggregate child-process commit.
+        info.process_memory = limit
+        info.job_memory = limit
+        if not self.k.SetInformationJobObject(self.job, 9, C.byref(info), C.sizeof(info)):
+            raise C.WinError(C.get_last_error())
+        if not self.k.AssignProcessToJobObject(self.job, self.process):
+            raise C.WinError(C.get_last_error())
+
+    def sample(self):
+        m, p = Memory(), Performance()
+        m.cb, p.cb = C.sizeof(m), C.sizeof(p)
+        if not self.p.GetProcessMemoryInfo(self.process, C.byref(m), m.cb):
+            raise C.WinError(C.get_last_error())
+        if not self.p.GetPerformanceInfo(C.byref(p), p.cb):
+            raise C.WinError(C.get_last_error())
+        return {'private_bytes': m.private, 'available_bytes': p.available * p.page_size,
+                'commit_free_bytes': (p.limit - p.commit) * p.page_size}
+
+
+def fault_reason(sample, heartbeat_age=0):
+    if sample['private_bytes'] >= SOFT_BYTES:
+        return 'daemon_memory_limit'
+    if sample['commit_free_bytes'] < 2 * GIB:
+        return 'system_commit_pressure'
+    if sample['available_bytes'] < GIB:
+        return 'system_physical_memory_pressure'
+    if heartbeat_age > 120:
+        return 'daemon_event_loop_unresponsive'
+    return None
+
+
+class Guard:
+    def __init__(self, directory=None, monitor=None, exit_fn=os._exit):
+        self.directory = directory or runtime_dir()
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.fault_path = self.directory / 'safety-fault.json'
+        self.active_path = self.directory / 'safety-active.json'
+        self.exit_fn = exit_fn
+        self.shutdown = None
+        self.heartbeat = None
+        self.stopped = threading.Event()
+        self.faulted = False
+        self.jobs = {}
+        self.jobs_lock = threading.Lock()
+        if self.fault_path.exists() or self.active_path.exists():
+            raise RuntimeError(f'CCC safety latch exists in {self.directory}; review and archive it before recovery. No automatic restart.')
+        # Exclusive creation also prevents racing daemon startups.
+        with self.active_path.open('x', encoding='utf-8') as f:
+            json.dump({'author': 'Codex', 'pid': os.getpid(), 'started_at': time.time(), 'hard_limit_bytes': HARD_BYTES}, f)
+        try:
+            self.monitor = monitor or WindowsMemory()
+            reason = fault_reason(self.monitor.sample())
+            if reason:
+                raise RuntimeError(reason)
+        except Exception as exc:
+            self.record_fault('guard_startup_failed', {'error_type': type(exc).__name__, 'detail': str(exc)})
+            raise
+        self.thread = threading.Thread(target=self.watch, name='ccc-safety-watchdog', daemon=True)
+        self.thread.start()
+
+    def record_fault(self, reason, sample):
+        self.faulted = True
+        payload = {'author': 'Codex', 'pid': os.getpid(), 'at': time.time(), 'reason': reason, 'sample': sample,
+                   'automatic_retry': False, 'soft_limit_bytes': SOFT_BYTES, 'hard_limit_bytes': HARD_BYTES}
+        # Keep fault history; never overwrite an existing incident.
+        try:
+            with self.fault_path.open('x', encoding='utf-8') as f:
+                json.dump(payload, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+        except FileExistsError:
+            pass
+
+    def trip(self, reason, sample):
+        try:
+            self.record_fault(reason, sample)
+        finally:
+            # Arm forced daemon-only exit FIRST, even if requesting cleanup fails.
+            timer = threading.Timer(5, self.exit_fn, args=(70,))
+            timer.daemon = True
+            timer.start()
+            if self.shutdown is not None:
+                try:
+                    self.shutdown('safety_fault:' + reason)
+                except Exception:
+                    pass
+
+    def watch(self):
+        while not self.stopped.wait(1):
+            try:
+                sample = self.monitor.sample()
+                age = 0 if self.heartbeat is None else time.monotonic() - self.heartbeat
+                reason = fault_reason(sample, age)
+                if reason is None:
+                    # Patch 2026-09-20 (Claude Code - Fable 5.1): the per-file counters in
+                    # job_progress stand still while cocoindex applies the target (one long
+                    # SQLite transaction; the journal grew 114 -> 250 MB with every counter
+                    # frozen), so a healthy re-index was killed at 300 s twice today. Bytes
+                    # still being written to the project's index count as progress.
+                    self._refresh_from_target_activity()
+                    with self.jobs_lock:
+                        stalled = [key for key, value in self.jobs.items() if time.monotonic() - value[0] > 300]
+                    if stalled:
+                        reason = 'index_progress_stalled'
+                        sample['stalled_projects'] = stalled
+            except Exception as exc:
+                sample, reason = {'error_type': type(exc).__name__}, 'memory_monitor_failed'
+            if reason:
+                self.trip(reason, sample)
+                return
+
+    def _refresh_from_target_activity(self):
+        with self.jobs_lock:
+            keys = list(self.jobs)
+        signatures = getattr(self, '_target_signatures', None)
+        if signatures is None:
+            signatures = self._target_signatures = {}
+        for key in keys:
+            base = Path(key) / '.cocoindex_code'
+            signature = []
+            for name in ('target_sqlite.db', 'target_sqlite.db-journal', 'target_sqlite.db-wal'):
+                try:
+                    st = (base / name).stat()
+                    signature.append((name, st.st_size, st.st_mtime_ns))
+                except OSError:
+                    signature.append((name, None, None))
+            signature = tuple(signature)
+            if signatures.get(key) != signature:
+                signatures[key] = signature
+                with self.jobs_lock:
+                    if key in self.jobs:
+                        self.jobs[key] = (time.monotonic(), self.jobs[key][1])
+
+    def job_progress(self, key, progress):
+        with self.jobs_lock:
+            previous = self.jobs.get(key)
+            if previous is None or previous[1] != progress:
+                self.jobs[key] = (time.monotonic(), progress)
+
+    def job_finished(self, key):
+        with self.jobs_lock:
+            self.jobs.pop(key, None)
+
+    def bind(self, loop, shutdown):
+        self.shutdown = lambda reason: loop.call_soon_threadsafe(shutdown, reason)
+        def pulse():
+            self.heartbeat = time.monotonic()
+            if not self.stopped.is_set():
+                loop.call_later(1, pulse)
+        pulse()
+
+    def finish(self, reason):
+        if self.faulted or reason not in {'stop_request', 'signal', 'idle_timeout'}:
+            # Leave active marker: hard death/unknown exit cannot silently retry.
+            return
+        self.stopped.set()
+        self.thread.join(timeout=2)
+        history = self.directory / 'safety-history'
+        history.mkdir(exist_ok=True)
+        self.active_path.rename(history / f'{time.time_ns()}-clean-exit.json')
+
+
+def install():
+    global _guard
+    if sys.platform == 'win32' and _guard is None:
+        assert_no_fault()
+        _guard = Guard()
+    return _guard
