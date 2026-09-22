@@ -136,7 +136,13 @@ services:
       - traefik.http.routers.authentik-workbench-outpost.tls.certresolver=letsencrypt
       - traefik.http.routers.authentik-workbench-outpost.service=authentik
     networks:
-      - probata
+      probata: {}
+      # Fixed address on the hand-made edge network shared only with coolify-proxy
+      # (10.201.0.2). TRAEFIK_PROXY_CIDR and the forward-auth URL in
+      # /data/coolify/proxy/dynamic/propria-public-portal.yaml point at these two
+      # addresses, so a proxy restart or redeploy no longer moves them (2026-09-21).
+      propria-edge:
+        ipv4_address: 10.201.0.3
 
   authentik-worker:
     <<: *authentik-image
@@ -159,4 +165,6 @@ services:
 
 networks:
   probata:
+    external: true
+  propria-edge:
     external: true
