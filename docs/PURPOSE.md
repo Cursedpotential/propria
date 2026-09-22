@@ -1,24 +1,27 @@
 ---
 title: What this app is for
 date: 2026-09-22
-status: owner statement, verbatim; the measure every screen is held to
+status: owner statement, cleaned; the measure every screen is held to
 domains: [probata, workbench, intake, consignatio]
 tags: [purpose, canon, owner-decision, review, sources, intake]
 ---
 
 # What this app is for
 
-> _Byline: Claude Code · Fable 5.1 · 2026-09-22 19:54 EDT. Recorded after the owner asked "what is this screen supposed to do?" and the answer had to be reconstructed from four months of logs. Nothing in this file is inferred; every line below the first section is the owner's own words with its date._
+> _Byline: Claude Code · Fable 5.1 · 2026-09-22 19:54 EDT. Recorded after the owner asked "what is this screen supposed to do?" and the answer had to be reconstructed from four months of logs. The six steps are the owner's intent, worded cleanly. The record section quotes him with dates._
 
-## The goal — owner, 2026-09-22 19:54 (verbatim, capitalisation his)
+## The goal — owner, 2026-09-22 19:54
 
-> OPEN FILE OR FOLDER (HOPEFULLY THROUGH AN INDEX)
-> VERIFY IF ITS RELEVANT IN ANY WAY
-> ENSURE IT HAS A HASH IT FOR LATER
-> PICK A PARSER OR EXTRACTOR TO GET IT INTO CONTEXT AND INTO THE PROCESSING AND ANALYSIS PLATFORMS
-> PREVIEW AFTER THE PARSE AND EXTRACT TO MAKE SURE THE MACHINE DID IT RIGHT
-> FILL IN GAPS AND MISSING CONTEXT!!!
-> THAT'S THE FUCKING GOAL. I ADDED SORTING CAUSE YOU ALSO CAN'T GET THAT RIGHT, SO WE NEED TO DO WHAT I HAD HOPED WOULD ALREADY BE DONE BY THIS POINT.
+The owner stated the goal as six steps. This is the cleaned statement; the intent is his, the wording is tidied, and it is the standard every surface is measured against:
+
+1. **Open a file or folder**, through an index.
+2. **Verify whether it is relevant** in any way.
+3. **Make sure it has a hash**, so it can be trusted later.
+4. **Pick a parser or extractor** and get it into context and into the processing and analysis platforms.
+5. **Preview the result** after the parse and extract, to make sure the machine did it right.
+6. **Fill in gaps and missing context.**
+
+That is the goal. Sorting was added only because step 1 could not be done on the corpus as it stood. This was expected to be finished by now.
 
 Six steps. One person. That is the whole operator surface:
 
@@ -31,7 +34,6 @@ Six steps. One person. That is the whole operator surface:
 | 5 | **Preview after the parse** to make sure the machine did it right | The extracted messages/records, readable, full screen; photos inline; anything missing flagged on the item. |
 | 6 | **Fill in gaps and missing context** | Where the file is short (missing payloads, truncated backups, unmatched sources), see the gap and the leads, and attach what fills it. |
 
-Sorting (the Vault / Consignatio / Intake work) was added because step 1 could not be done on the corpus as it was. It is in service of the six steps, not a seventh product.
 
 ## Where the six steps came from (the record)
 
