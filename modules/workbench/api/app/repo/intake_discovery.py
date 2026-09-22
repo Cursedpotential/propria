@@ -141,15 +141,54 @@ def units_for_roots(roots: list[str]) -> dict:
 
 
 def units_for_member_keys(keys: list[str]) -> dict:
-    """Which of these object keys are recorded members of a unit."""
+    """Which of these VAULT object keys are recorded members of a unit.
+
+    Verified live 2026-09-22 against the catalog: `atomic_unit_members.key`
+    holds the raw-dedupe B2 key, not the vault key the browser lists, and every
+    one of the 128,834 member rows joins `intake_catalog_fs.b2_key_recorded`.
+    The catalog row then carries `vault_key`, which IS what the Sources listing
+    shows — so the member mark is that two-step join, not a direct compare.
+    `vault_key` is indexed; one page of keys measured ~36 ms.
+    """
     wanted = [value for value in keys if value][:400]
     if not wanted:
         return {"backend": "casebible_atomic_units", "items": []}
-    rows = _query("""SELECT m.key, m.unit_id, u.unit_type, u.unit_root
+    rows = _query("""SELECT c.vault_key AS key, m.unit_id, u.unit_type, u.unit_root
         FROM raw_duck.atomic_unit_members m
+        JOIN raw_duck.intake_catalog_fs_20260917 c ON c.b2_key_recorded = m.key
         JOIN raw_duck.atomic_units u ON u.unit_id = m.unit_id
-        WHERE m.key = ANY(%s) LIMIT 800""", (wanted,))
+        WHERE c.vault_key = ANY(%s) LIMIT 800""", (wanted,))
     return {"backend": "casebible_atomic_units", "items": rows, "source_links_verified": False}
+
+
+def units_under_prefix(prefix: str) -> dict:
+    """How many recorded units the files under ONE vault folder belong to.
+
+    Byline: Claude Code · Opus 5 · 2026-09-22. `atomic_units.unit_root` is an
+    ORIGINAL source path (`gdrive/salem85/Cube ACR`), so no vault folder ever
+    equals it — verified live: 0 of 608 units are rooted under
+    `consignatio/vault/`. A vault folder is therefore a unit only in the
+    derived sense that everything under it belongs to one recorded unit, which
+    is what this answers. One prefix per call: measured ~0.8 s, and the 4 s
+    statement timeout bounds it.
+    """
+    root = normalize_parent(prefix)
+    if not root:
+        raise DiscoveryError("A folder is required for a unit lookup", 422)
+    pattern = root.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%"
+    rows = _query("""SELECT u.unit_id, u.unit_type, u.unit_root, u.member_count,
+        u.total_bytes, u.members_without_sha1, u.parent_unit_id, u.source, u.export_root, u.service
+        FROM raw_duck.intake_catalog_fs_20260917 c
+        JOIN raw_duck.atomic_unit_members m ON m.key = c.b2_key_recorded
+        JOIN raw_duck.atomic_units u ON u.unit_id = m.unit_id
+        WHERE c.vault_key LIKE %s ESCAPE '\\'
+        GROUP BY u.unit_id, u.unit_type, u.unit_root, u.member_count, u.total_bytes,
+                 u.members_without_sha1, u.parent_unit_id, u.source, u.export_root, u.service
+        ORDER BY u.unit_id LIMIT 6""", (pattern,))
+    return {"backend": "casebible_atomic_units", "prefix": root, "units": rows,
+            "single_unit": rows[0] if len(rows) == 1 else None,
+            "units_truncated": len(rows) >= 6, "source_links_verified": False,
+            "basis": "catalog membership of the files under this folder"}
 
 
 def catalog_by_vault_key(vault_key: str) -> dict:

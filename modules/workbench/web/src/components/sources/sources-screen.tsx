@@ -31,6 +31,7 @@ import {
   getDecodedExists,
   getDiscoveryCapabilities,
   getProfferBatch,
+  getUnitsUnderPrefix,
   inspectProfferSource,
   listProfferProposalResources,
   listProfferSources,
@@ -199,6 +200,16 @@ function SourcesScreenMode() {
     retry: false,
   });
 
+  // A vault folder never equals a catalog `unit_root` (those are ORIGINAL
+  // source paths — verified live 2026-09-22), so a folder's unit is derived
+  // from the catalog membership of the files under it, one folder at a time.
+  const folderUnitsQuery = useQuery({
+    queryKey: ["sources", "folder-units", selectedFolder],
+    queryFn: ({ signal }) => getUnitsUnderPrefix(selectedFolder!, signal),
+    enabled: Boolean(selectedFolder),
+    retry: false,
+  });
+
   const batchQuery = useQuery({
     queryKey: ["sources", "batch", batchIdent, mode],
     queryFn: ({ signal }) => getProfferBatch(batchIdent!, mode, signal),
@@ -245,7 +256,11 @@ function SourcesScreenMode() {
     ? {
         kind: "folder",
         prefix: selectedFolder,
-        unit: findUnit(unitsQuery.data?.units ?? [], selectedFolder),
+        unit:
+          findUnit(unitsQuery.data?.units ?? [], selectedFolder) ??
+          folderUnitsQuery.data?.single_unit ??
+          null,
+        unitsUnder: folderUnitsQuery.data?.units.length ?? 0,
         mark: marks.find((mark) => mark.unit_root === selectedFolder.replace(/\/$/, "")) ?? null,
       }
     : selectedObject

@@ -108,6 +108,7 @@ import type {
   ProfferBatchStatus,
   DecodedExistsResponse,
   CatalogUnitLookup,
+  CatalogUnitsUnderPrefix,
   CatalogProvenance,
   SourceUnitKind,
   SourceUnitMark,
@@ -1299,4 +1300,10 @@ export function getDiscoveryNeighbors(table: string, key: string, signal?: Abort
     `/api/intake/discovery/neighbors/${encodeURIComponent(table)}/${encodeURIComponent(key)}?${query.toString()}`,
     { signal },
   );
+}
+
+/** Which recorded catalog units the files under ONE vault folder belong to. */
+export function getUnitsUnderPrefix(prefix: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ prefix });
+  return apiFetch<CatalogUnitsUnderPrefix>(`/api/intake/discovery/units/under-prefix?${query.toString()}`, { signal });
 }

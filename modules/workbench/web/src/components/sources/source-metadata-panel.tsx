@@ -39,6 +39,8 @@ export interface FolderSelection {
   prefix: string;
   unit: CatalogUnit | null;
   mark: SourceUnitMark | null;
+  /** How many recorded units the files under this folder belong to. */
+  unitsUnder: number;
 }
 
 export interface FileSelection {
@@ -186,7 +188,8 @@ function FolderDetail({
               hand-marked · {selection.mark.unit_type.replaceAll("_", " ")}
             </span>
           )}
-          {!unit && !selection.mark && <Flag>not a unit</Flag>}
+          {selection.unitsUnder > 1 && <Flag>files from {selection.unitsUnder} units</Flag>}
+          {!unit && !selection.mark && selection.unitsUnder === 0 && <Flag>not a unit</Flag>}
         </div>
       </header>
 

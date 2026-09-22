@@ -2008,3 +2008,17 @@ export interface CatalogProvenance {
   items_truncated: boolean;
   freshness: { catalog_snapshot: string; checked_at_is_source_update: boolean };
 }
+
+/** `GET /api/intake/discovery/units/under-prefix` — folder-level unit membership.
+ *  A vault folder never equals a catalog `unit_root` (those are ORIGINAL source
+ *  paths), so a folder is a unit only in the derived sense that everything under
+ *  it belongs to one recorded unit. Verified live 2026-09-22. */
+export interface CatalogUnitsUnderPrefix {
+  backend: string;
+  prefix: string;
+  units: CatalogUnitLookup["units"];
+  single_unit: CatalogUnitLookup["units"][number] | null;
+  units_truncated: boolean;
+  source_links_verified: boolean;
+  basis: string;
+}
