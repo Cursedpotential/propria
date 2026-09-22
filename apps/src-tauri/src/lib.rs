@@ -20,6 +20,7 @@ pub mod google_drive;
 pub mod mcp_host;
 pub mod mcp_server;
 pub mod operations;
+pub mod organizer_agent;
 pub mod pty;
 pub mod search;
 pub mod secure_credentials;

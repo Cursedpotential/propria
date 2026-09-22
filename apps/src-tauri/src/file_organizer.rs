@@ -1,11 +1,18 @@
+//! Byline (Intake amendment): Claude Code · Opus 5 · 2026-09-22 — `analyze_directory`
+//! asks the engine's configured model for suggestions, given the listing, the catalog
+//! facts the engine gathered and the owner's rules file. The three fixed rules below
+//! stay as the instant fallback whenever the model cannot answer.
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::{LazyLock, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
 
 use crate::duplicate_finder::{DuplicateFinder, DuplicateGroup};
+use crate::organizer_agent::{self, FolderInput, FALLBACK_LABEL};
 
 // Extension category mappings
 const IMAGE_EXTENSIONS: &[&str] = &[
@@ -95,6 +102,16 @@ pub struct OrganizationAnalysis {
     pub insights: DirectoryInsights,
     pub is_project: bool,
     pub project_type: Option<String>,
+    /// Where the suggestions came from: `model:<name>` or `fallback`. Additive — the
+    /// panel ignores it; it is what makes a live run verifiable without reading logs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggestion_source: Option<String>,
+    /// Why the fallback fired, when it did. Never carries a file name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggestion_note: Option<String>,
+    /// Milliseconds spent producing the suggestions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggestion_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,7 +127,7 @@ pub struct PlannedMove {
     pub reason: String,
 }
 
-fn categorize_extension(ext: &str) -> &'static str {
+pub(crate) fn categorize_extension(ext: &str) -> &'static str {
     let ext_lower = ext.to_lowercase();
     let ext_str = ext_lower.as_str();
     if IMAGE_EXTENSIONS.contains(&ext_str) {
@@ -162,6 +179,53 @@ fn scan_directory_files(dir_path: &Path) -> Result<Vec<FileInfo>, String> {
         }
     }
     Ok(files)
+}
+
+/// Subdirectory names, sent to the model as context. An existing folder is context,
+/// never material: nothing here can ever appear in a suggestion's `files_to_move`.
+fn scan_directory_subdirs(dir_path: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(dir_path) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .flatten()
+        .filter(|e| e.metadata().map(|m| m.is_dir()).unwrap_or(false))
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .collect();
+    names.sort();
+    names
+}
+
+/// The suggestions the last `analyze_directory` returned for a directory.
+///
+/// `preview_organization` receives indices into the list the panel is showing. Once
+/// suggestions can come from the model, recomputing the fixed rules here would index
+/// into a different list and move the wrong files, so the analyzed list is kept and
+/// reused. Bounded; the engine is one process and this is ordinary UI state.
+static LAST_SUGGESTIONS: LazyLock<Mutex<Vec<(String, Vec<FolderSuggestion>)>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
+const REMEMBERED_DIRECTORIES: usize = 16;
+
+/// Newest entry last; the oldest directories fall off the front.
+fn insert_bounded(
+    cache: &mut Vec<(String, Vec<FolderSuggestion>)>,
+    path: &str,
+    suggestions: &[FolderSuggestion],
+) {
+    cache.retain(|(p, _)| p != path);
+    cache.push((path.to_string(), suggestions.to_vec()));
+    let overflow = cache.len().saturating_sub(REMEMBERED_DIRECTORIES);
+    cache.drain(..overflow);
+}
+
+fn remember_suggestions(path: &str, suggestions: &[FolderSuggestion]) {
+    let mut cache = LAST_SUGGESTIONS.lock().unwrap_or_else(|e| e.into_inner());
+    insert_bounded(&mut cache, path, suggestions);
+}
+
+fn remembered_suggestions(path: &str) -> Option<Vec<FolderSuggestion>> {
+    let cache = LAST_SUGGESTIONS.lock().unwrap_or_else(|e| e.into_inner());
+    cache.iter().find(|(p, _)| p == path).map(|(_, s)| s.clone())
 }
 
 fn build_categories(files: &[FileInfo]) -> Vec<FileCategory> {
@@ -664,8 +728,30 @@ async fn build_duplicate_summary(dir_path: &str) -> Option<DuplicateCleanupRec> 
     }
 }
 
+/// The three fixed rules, labelled so the owner can see the model did not answer.
+///
+/// A code project is still left alone on this path: the model is the thing that can
+/// weigh the hint, and it is not the thing answering here.
+fn fallback_suggestions(dir_path: &Path, files: &[FileInfo], is_project: bool) -> Vec<FolderSuggestion> {
+    if is_project {
+        return Vec::new();
+    }
+    let mut suggestions = build_suggestions(dir_path, files);
+    for suggestion in &mut suggestions {
+        suggestion.reason = format!("{} — {}", FALLBACK_LABEL, suggestion.reason);
+    }
+    suggestions
+}
+
+/// Analyze one directory. Suggestions come from the engine's configured model, given
+/// the listing (names, sizes, dates, types — never contents), the catalog facts the
+/// engine gathered for those files, and the owner's rules file. The project-directory
+/// check is one of the model's inputs, not a switch that turns the feature off.
 #[command]
-pub async fn analyze_directory(path: String) -> Result<OrganizationAnalysis, String> {
+pub async fn analyze_directory(
+    path: String,
+    catalog_facts: Option<serde_json::Value>,
+) -> Result<OrganizationAnalysis, String> {
     let dir_path = Path::new(&path);
     if !dir_path.is_dir() {
         return Err("Path is not a directory".to_string());
@@ -681,12 +767,33 @@ pub async fn analyze_directory(path: String) -> Result<OrganizationAnalysis, Str
 
     let files = scan_directory_files(dir_path)?;
     let categories = build_categories(&files);
-    // Don't suggest reorganizing project directories — it would break the project structure
-    let suggestions = if is_project {
-        Vec::new()
-    } else {
-        build_suggestions(dir_path, &files)
+    let subdirs = scan_directory_subdirs(dir_path);
+
+    let started = std::time::Instant::now();
+    let input = FolderInput {
+        dir_path,
+        files: &files,
+        subdirs: &subdirs,
+        is_project,
+        project_type: project_type.as_deref(),
+        catalog_facts: catalog_facts.as_ref(),
     };
+    let (suggestions, suggestion_source, suggestion_note) = match organizer_agent::suggest(&input).await {
+        Ok((suggestions, model)) => (suggestions, format!("model:{model}"), None),
+        Err(reason) => {
+            tracing::warn!(target: "intake_organizer", "falling back to the fixed rules: {reason}");
+            (
+                fallback_suggestions(dir_path, &files, is_project),
+                "fallback".to_string(),
+                Some(reason),
+            )
+        }
+    };
+    let suggestion_ms = started.elapsed().as_millis() as u64;
+
+    // The panel sends indices into exactly this list; preview must use it, not a recompute.
+    remember_suggestions(&path, &suggestions);
+
     let insights = build_insights(&files);
     let duplicate_summary = build_duplicate_summary(&path).await;
 
@@ -697,6 +804,9 @@ pub async fn analyze_directory(path: String) -> Result<OrganizationAnalysis, Str
         insights,
         is_project,
         project_type,
+        suggestion_source: Some(suggestion_source),
+        suggestion_note,
+        suggestion_ms: Some(suggestion_ms),
     })
 }
 
@@ -710,20 +820,27 @@ pub async fn preview_organization(
         return Err("Path is not a directory".to_string());
     }
 
-    // Respect the same project detection as analyze_directory
-    let (is_project, _) = detect_project_directory(dir_path);
-    let is_project =
-        is_project || is_source_code_subdirectory(dir_path) || parent_is_project(dir_path);
+    // The indices belong to the list `analyze_directory` returned for this directory.
+    // Fall back to recomputing the fixed rules only when nothing was analyzed here.
+    let suggestions = match remembered_suggestions(&path) {
+        Some(suggestions) => suggestions,
+        None => {
+            // Respect the same project detection as analyze_directory
+            let (is_project, _) = detect_project_directory(dir_path);
+            let is_project =
+                is_project || is_source_code_subdirectory(dir_path) || parent_is_project(dir_path);
 
-    if is_project {
-        return Ok(OrganizationPlan {
-            moves: Vec::new(),
-            creates: Vec::new(),
-        });
-    }
+            if is_project {
+                return Ok(OrganizationPlan {
+                    moves: Vec::new(),
+                    creates: Vec::new(),
+                });
+            }
 
-    let files = scan_directory_files(dir_path)?;
-    let suggestions = build_suggestions(dir_path, &files);
+            let files = scan_directory_files(dir_path)?;
+            build_suggestions(dir_path, &files)
+        }
+    };
 
     let mut moves = Vec::new();
     let mut creates = Vec::new();
@@ -1146,5 +1263,117 @@ mod tests {
     #[test]
     fn no_prefix_without_separator() {
         assert_eq!(extract_prefix("document.pdf"), None);
+    }
+
+    // -----------------------------------------------------------------------
+    // fallback path (Intake, 2026-09-22)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn fallback_labels_every_fixed_rule_reason() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        for name in &[
+            "app.ts", "main.ts", "lib.ts", "photo1.jpg", "photo2.png", "photo3.gif", "doc.pdf",
+        ] {
+            touch(dir, name);
+        }
+        let files = scan_directory_files(dir).unwrap();
+        let suggestions = fallback_suggestions(dir, &files, false);
+        assert!(!suggestions.is_empty(), "the fixed rules still produce suggestions");
+        for s in &suggestions {
+            assert!(
+                s.reason.starts_with(FALLBACK_LABEL),
+                "reason should be labelled as a fallback, got {:?}",
+                s.reason
+            );
+        }
+    }
+
+    #[test]
+    fn fallback_stays_out_of_a_code_project() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        touch(dir, "package.json");
+        for name in &["photo1.jpg", "photo2.png", "photo3.gif"] {
+            touch(dir, name);
+        }
+        let files = scan_directory_files(dir).unwrap();
+        assert!(fallback_suggestions(dir, &files, true).is_empty());
+    }
+
+    #[test]
+    fn subdirectories_are_listed_as_context_and_never_as_files() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        fs::create_dir(dir.join("Takeout")).unwrap();
+        fs::create_dir(dir.join(".obsidian")).unwrap();
+        touch(dir, "notes.txt");
+
+        let subdirs = scan_directory_subdirs(dir);
+        assert_eq!(subdirs, vec![".obsidian".to_string(), "Takeout".to_string()]);
+        let files = scan_directory_files(dir).unwrap();
+        assert_eq!(files.len(), 1, "directories never appear in the file listing");
+        assert_eq!(files[0].name, "notes.txt");
+    }
+
+    // -----------------------------------------------------------------------
+    // preview uses the analyzed list, not a recompute
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn preview_plans_moves_from_the_remembered_suggestions() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        touch(dir, "a.pdf");
+        touch(dir, "b.pdf");
+        let path = dir.to_string_lossy().to_string();
+
+        // What the model would have returned — nothing the fixed rules would produce.
+        let remembered = vec![FolderSuggestion {
+            suggested_name: "Statements".to_string(),
+            target_path: dir.join("Statements").to_string_lossy().to_string(),
+            files_to_move: vec![
+                dir.join("a.pdf").to_string_lossy().to_string(),
+                dir.join("b.pdf").to_string_lossy().to_string(),
+            ],
+            reason: "Two statements from the same account.".to_string(),
+            category: "agent".to_string(),
+        }];
+        remember_suggestions(&path, &remembered);
+
+        let plan = preview_organization(path, vec![0]).await.unwrap();
+        assert_eq!(plan.creates.len(), 1);
+        assert!(plan.creates[0].ends_with("Statements"));
+        assert_eq!(plan.moves.len(), 2);
+        assert!(plan.moves.iter().all(|m| m.to.contains("Statements")));
+        assert!(plan.moves[0].reason.contains("same account"));
+    }
+
+    #[test]
+    fn the_remembered_list_is_bounded_and_drops_the_oldest() {
+        let mut cache = Vec::new();
+        for i in 0..(REMEMBERED_DIRECTORIES + 6) {
+            insert_bounded(&mut cache, &format!("/dir/{i}"), &[]);
+        }
+        assert_eq!(cache.len(), REMEMBERED_DIRECTORIES);
+        assert!(cache.iter().all(|(p, _)| p != "/dir/0"));
+        assert_eq!(cache.last().unwrap().0, format!("/dir/{}", REMEMBERED_DIRECTORIES + 5));
+    }
+
+    #[test]
+    fn re_analyzing_a_directory_replaces_its_remembered_list() {
+        let mut cache = Vec::new();
+        let one = vec![FolderSuggestion {
+            suggested_name: "A".into(),
+            target_path: "/dir/A".into(),
+            files_to_move: vec!["/dir/x".into()],
+            reason: "first".into(),
+            category: "agent".into(),
+        }];
+        insert_bounded(&mut cache, "/dir", &one);
+        insert_bounded(&mut cache, "/dir", &[]);
+        assert_eq!(cache.len(), 1);
+        assert!(cache[0].1.is_empty());
     }
 }

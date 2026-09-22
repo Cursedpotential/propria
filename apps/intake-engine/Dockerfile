@@ -35,6 +35,8 @@ RUN apt-get update \
 RUN useradd --uid 1500 --user-group --no-create-home --shell /bin/bash intake-shell
 COPY --from=builder /intake-engine /usr/local/bin/intake-engine
 COPY scripts/intake-portkey-chat.json /app/config/intake-portkey-chat.json
+# The owner's organizing rules, loaded as the Smart Suggestions instructions (2026-09-22).
+COPY scripts/intake-organizer-rules.md /app/config/intake-organizer-rules.md
 ENV INTAKE_ENGINE_BIND=0.0.0.0:8790 \
     INTAKE_ENGINE_STATE=/state \
     INTAKE_MOUNT_ROOT=/srv/openlist \
@@ -45,6 +47,7 @@ ENV INTAKE_ENGINE_BIND=0.0.0.0:8790 \
     XDG_STATE_HOME=/state/xdg/state \
     HISTFILE=/state/xdg/bash_history \
     INTAKE_PORTKEY_CONFIG_FILE=/app/config/intake-portkey-chat.json \
+    INTAKE_ORGANIZER_RULES_FILE=/app/config/intake-organizer-rules.md \
     INTAKE_PTY_USER=intake-shell \
     INTAKE_PTY_HOME=/state/shell-home
 EXPOSE 8790

@@ -676,6 +676,72 @@ impl Catalog {
         }))
     }
 
+    /// What the catalog knows about a folder's files, keyed by file name, for the
+    /// Smart Suggestions prompt (Claude Code · Opus 5 · 2026-09-22).
+    ///
+    /// One grouped query over the read-only pool, never one lookup per file. Names the
+    /// caller could not map to a B2 object are simply absent. Read-only: this never
+    /// touches the ops pool or the overlay.
+    ///
+    /// Unlike `lookup_b2_path` this does not walk engine renames backwards, so a file
+    /// the engine itself renamed has no facts here yet. Missing facts are context the
+    /// model does without; they are never wrong facts.
+    pub async fn folder_facts(&self, files: &[(String, PathBuf)]) -> Result<Value, String> {
+        let mut key_to_name: HashMap<String, String> = HashMap::new();
+        for (name, path) in files {
+            if let Some(key) = self.key_of_mount(path) {
+                key_to_name.entry(key).or_insert_with(|| name.clone());
+            }
+        }
+        if key_to_name.is_empty() {
+            return Ok(Value::Null);
+        }
+        let keys: Vec<String> = key_to_name.keys().cloned().collect();
+
+        let client = self.ro.get().await.map_err(|e| format!("catalog connection: {e}"))?;
+        let rows = client
+            .query(
+                &format!(
+                    "select vault_key, count(*)::bigint as occurrences, \
+                            count(distinct source)::bigint as sources, \
+                            (array_agg(distinct source))[1:4] as source_list, \
+                            (array_agg(path order by path))[1:3] as example_paths, \
+                            max(sha1) as sha1, max(size) as size \
+                     from {FS} where vault_key = any($1) group by vault_key"
+                ),
+                &[&keys],
+            )
+            .await
+            .map_err(|e| format!("catalog facts query: {e}"))?;
+
+        let mut facts = serde_json::Map::new();
+        for row in &rows {
+            let key: String = row.get(0);
+            let Some(name) = key_to_name.get(&key) else { continue };
+            facts.insert(
+                name.clone(),
+                json!({
+                    "copies": row.get::<_, i64>(1),
+                    "sources": row.get::<_, Option<Vec<String>>>(3).unwrap_or_default(),
+                    "source_count": row.get::<_, i64>(2),
+                    "recorded_paths": row.get::<_, Option<Vec<String>>>(4).unwrap_or_default(),
+                    "sha1": row.get::<_, Option<String>>(5),
+                    "recorded_size": row.get::<_, Option<i64>>(6),
+                }),
+            );
+        }
+        if facts.is_empty() {
+            return Ok(Value::Null);
+        }
+        Ok(json!({
+            "note": "what the catalog recorded for these files: how many occurrences it holds, which sources they came from and where they were originally found",
+            "table": FS,
+            "files_matched": facts.len(),
+            "files_looked_up": keys.len(),
+            "files": Value::Object(facts),
+        }))
+    }
+
     // ── writes ──────────────────────────────────────────────────────────
 
     async fn append(&self, op: OpRow, b2_path_to: Option<String>, detail: Value) -> Result<(), String> {

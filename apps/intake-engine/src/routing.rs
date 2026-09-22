@@ -105,8 +105,57 @@ pub async fn engine_command(engine: &Arc<Engine>, name: &str, args: &Map<String,
             };
             catalog_lookup(engine, &path).await
         }
+        // Smart Suggestions: the donor asks the model, and the model is only as good as
+        // what it is told, so the engine adds what the catalog knows about this folder's
+        // files before handing the call on (Claude Code · Opus 5 · 2026-09-22).
+        "analyze_directory" => {
+            let Some(path) = s(args, "path", "path") else {
+                return Some(Err(bad("path is required")));
+            };
+            if is_catalog(&path) {
+                // catalog:// keeps its existing answer; nothing here changes it.
+                return None;
+            }
+            analyze_directory(engine, &path, args.clone()).await
+        }
         _ => return None,
     })
+}
+
+/// Files directly inside `dir`, as (name, real path), bounded by the same cap the
+/// prompt's listing uses so the facts cover exactly the files the model will see.
+async fn folder_files(dir: &Path) -> std::io::Result<Vec<(String, PathBuf)>> {
+    let mut entries = tokio::fs::read_dir(dir).await?;
+    let mut out = Vec::new();
+    while let Some(entry) = entries.next_entry().await? {
+        if out.len() >= xplorer::organizer_agent::MAX_LISTING_ENTRIES {
+            break;
+        }
+        if entry.metadata().await.map(|m| m.is_file()).unwrap_or(false) {
+            out.push((entry.file_name().to_string_lossy().to_string(), entry.path()));
+        }
+    }
+    Ok(out)
+}
+
+/// Add `catalogFacts` to the donor's `analyze_directory` call when the catalog has
+/// anything to say about this folder. A catalog that is down, slow or silent is not
+/// an error: the analyze goes ahead without those facts.
+async fn analyze_directory(engine: &Arc<Engine>, path: &str, mut args: Map<String, Value>) -> Outcome {
+    if let Some(cat) = engine.catalog.as_deref() {
+        match folder_files(Path::new(path)).await {
+            Ok(files) if !files.is_empty() => match cat.folder_facts(&files).await {
+                Ok(Value::Null) => tracing::debug!("no catalog facts for {path}"),
+                Ok(facts) => {
+                    args.insert("catalogFacts".into(), facts);
+                }
+                Err(e) => tracing::warn!("catalog facts for {path}: {e}"),
+            },
+            Ok(_) => {}
+            Err(e) => tracing::warn!("listing {path} for catalog facts: {e}"),
+        }
+    }
+    donor(engine, "analyze_directory", args).await
 }
 
 async fn real_path(engine: &Arc<Engine>, path: &str) -> Result<PathBuf, (u16, String)> {
