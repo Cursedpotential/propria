@@ -10,10 +10,14 @@ from typing import Annotated
 from fastapi import APIRouter, Header, HTTPException, Path, Query
 from fastapi.responses import StreamingResponse
 
+from starlette.concurrency import run_in_threadpool
+
 from app.service.proffer import ProfferError
 from app.service.proffer_decoded import decoded_manifest, decoded_thread_page
+from app.service.proffer_decoded_exists import decoded_exists
 from app.service.proffer_media import resolve_source_media, stream_resolved_media
 from app.types.proffer_decoded import DecodedManifest, DecodedThreadPage
+from app.types.proffer_decoded_exists import DecodedExistsRequest, DecodedExistsResponse
 
 router = APIRouter(prefix="/decoded", tags=["proffer"])
 
@@ -29,6 +33,15 @@ def _translate(error: ProfferError) -> HTTPException:
 def decoded_manifest_endpoint(source_ref: SourceRef):
     try:
         return decoded_manifest(source_ref)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.post("/exists", response_model=DecodedExistsResponse)
+async def decoded_exists_endpoint(body: DecodedExistsRequest):
+    """Which of these sources already have a decode manifest? (HEAD, no body read.)"""
+    try:
+        return await run_in_threadpool(decoded_exists, body.source_refs)
     except ProfferError as error:
         raise _translate(error) from None
 

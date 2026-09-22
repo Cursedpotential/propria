@@ -45,6 +45,9 @@ const routeTree = rootRoute.addChildren([
   applicationRoute("repairs", () => import("@/app/repairs/page")),
   applicationRoute("runs", () => import("@/app/runs/page")),
   applicationRoute("schemas", () => import("@/app/schemas/page")),
+  // Sources replaces Intake as the front door (ratified 2026-09-22). /intake
+  // stays reachable as a deep link while Activity and Read land.
+  applicationRoute("sources", () => import("@/app/sources/page")),
   applicationRoute("surreal", () => import("@/app/surreal/page")),
   applicationRoute("tools", () => import("@/app/tools/page")),
 ]);

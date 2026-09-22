@@ -118,6 +118,11 @@ class Settings(BaseSettings):
     # in-code defaults — see app/service/copilot_presets.py) ---
     copilot_presets_path: str = "/data/copilot/presets.json"
 
+    # --- Hand-marked source units (Sources screen). The catalog's own
+    # raw_duck.atomic_units stays read-only; marks the owner makes by hand are
+    # Workbench-owned state in this data-volume file (2026-09-22). ---
+    source_unit_marks_path: str = "/data/sources/unit-marks.json"
+
     # --- Graphiti knowledge-graph memory (C4 Graph memory pane) ---
     # The tailnet "graphiti-hostfix" nginx sidecar (compose.data-graphiti.yaml)
     # — NOT graphiti-mcp directly. Read-only wiring only (search_memory_facts/

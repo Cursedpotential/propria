@@ -22,7 +22,6 @@ import {
 
 import { AtomicTools } from "@/components/tools/atomic-tools";
 import { ContextFlowRail } from "@/components/intake/context-flow-rail";
-import { MatterModeSelector } from "@/components/intake/matter-mode-selector";
 import { ParserSelectionPanel } from "@/components/intake/parser-selection-panel";
 import { SourceExplorer } from "@/components/intake/source-explorer";
 import { DiscoveryExplorer } from "@/components/intake/discovery-explorer";
@@ -634,8 +633,9 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
             <h1 className="text-xl font-semibold tracking-tight">Import source context</h1>
             <p className="mt-1 text-sm text-muted-foreground">Choose a source, inspect it, then start the context-only workflow for the fixed case.</p>
           </div>
+          {/* The Test / Live switch lives in the top bar and nowhere else
+              (owner 2026-09-22 09:08). Byline: Claude Code · Opus 5 · 2026-09-22. */}
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <MatterModeSelector />
             <div className="flex items-center gap-2 border bg-background px-3 py-2 text-xs text-muted-foreground">
               <ShieldCheck className="h-4 w-4" /> PostgreSQL authority preserved
             </div>

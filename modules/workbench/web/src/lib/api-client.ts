@@ -103,6 +103,16 @@ import type {
   ProfferSourceContextReceipt,
   ProfferHandlerSelectionDecisionRequest,
   ProfferHandlerSelectionDecisionResponse,
+  ProfferBatchStartRequest,
+  ProfferBatchStartResponse,
+  ProfferBatchStatus,
+  DecodedExistsResponse,
+  CatalogUnitLookup,
+  CatalogProvenance,
+  SourceUnitKind,
+  SourceUnitMark,
+  SourceUnitMarkList,
+  SourceUnitProposal,
   MatterMode,
 } from "./shared/types";
 
@@ -629,6 +639,7 @@ export function listProfferSources(params: {
   continuationToken?: string;
   filter?: string;
   pageSize?: number;
+  signal?: AbortSignal;
 }) {
   const query = new URLSearchParams();
   query.set("mode", params.mode);
@@ -640,7 +651,7 @@ export function listProfferSources(params: {
   if (params.filter) query.set("filter", params.filter);
   if (params.pageSize) query.set("page_size", String(params.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
-  return apiFetch<ProfferSourceBrowserResponse>(`/api/proffer/sources${suffix}`).then((response) => {
+  return apiFetch<ProfferSourceBrowserResponse>(`/api/proffer/sources${suffix}`, { signal: params.signal }).then((response) => {
     if (response.matter_mode !== params.mode) throw new ApiError("The source browser did not confirm the active TEST/REAL mode", 502);
     if (params.rootId && response.active_root_id !== params.rootId) throw new ApiError("The source browser returned a different source location", 502);
     if ((params.filter?.trim() ?? "") && (response.filter !== params.filter?.trim() || !response.filter_applied || response.filter_scope !== "root")) {
@@ -650,10 +661,11 @@ export function listProfferSources(params: {
   });
 }
 
-export function inspectProfferSource(source: ProfferSourceObject, mode: MatterMode, rootId: string) {
+export function inspectProfferSource(source: ProfferSourceObject, mode: MatterMode, rootId: string, signal?: AbortSignal) {
   const query = new URLSearchParams({ mode, root_id: rootId });
   return apiFetch<ProfferSourceInspection>(`/api/proffer/source-inspection?${query.toString()}`, {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       key: source.key,
@@ -1196,4 +1208,95 @@ export function getDiscoveryUnitMembers(unitId: number, signal?: AbortSignal, cu
   const query = new URLSearchParams({ limit: "100" });
   if (cursor) query.set("cursor", cursor);
   return apiFetch<import("./discovery-types").DiscoveryUnitMembers>(`/api/intake/discovery/units/${unitId}/members?${query}`, { signal });
+}
+
+// Byline: Claude Code · Opus 5 · 2026-09-22. Sources screen: folder batches,
+// decode-state marks, catalog units and provenance, hand-marked units.
+
+/** Start one durable batch over one folder (engine POST /reference-import/start-batch). */
+export function startProfferBatch(payload: ProfferBatchStartRequest) {
+  const query = new URLSearchParams({ mode: payload.matter_mode });
+  return apiFetch<ProfferBatchStartResponse>(`/api/proffer/start-batch?${query.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then((response) => {
+    if (response.matter_mode !== payload.matter_mode || response.batch_id !== payload.batch_id) {
+      throw new ApiError("The started batch did not confirm this batch and Test/Live mode", 502);
+    }
+    return response;
+  });
+}
+
+/** Per-item status and counts for one running batch. */
+export function getProfferBatch(batchId: string, mode: MatterMode, signal?: AbortSignal) {
+  const query = new URLSearchParams({ mode });
+  return apiFetch<ProfferBatchStatus>(`/api/proffer/batches/${encodeURIComponent(batchId)}?${query.toString()}`, { signal }).then((response) => {
+    if (response.matter_mode !== mode || response.batch_id !== batchId) {
+      throw new ApiError("The batch status did not confirm this batch and Test/Live mode", 502);
+    }
+    return response;
+  });
+}
+
+/** Which of these sources already have a decode manifest. Never inferred from a name. */
+export function getDecodedExists(sourceRefs: string[], signal?: AbortSignal) {
+  return apiFetch<DecodedExistsResponse>("/api/proffer/decoded/exists", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source_refs: sourceRefs }),
+    signal,
+  });
+}
+
+/** Catalog units for one listed page: folders that are units, keys that are members. */
+export function lookupCatalogUnits(roots: string[], keys: string[], signal?: AbortSignal) {
+  return apiFetch<CatalogUnitLookup>("/api/intake/discovery/unit-lookup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ roots, keys }),
+    signal,
+  });
+}
+
+/** Catalog provenance for one vault object. */
+export function getCatalogProvenance(vaultKey: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ vault_key: vaultKey });
+  return apiFetch<CatalogProvenance>(`/api/intake/discovery/catalog/by-vault-key?${query.toString()}`, { signal });
+}
+
+export function listSourceUnitMarks(signal?: AbortSignal) {
+  return apiFetch<SourceUnitMarkList>("/api/sources/unit-marks", { signal });
+}
+
+export function recordSourceUnitMark(payload: {
+  unit_root: string;
+  unit_type: SourceUnitKind;
+  label?: string;
+  confirm?: boolean;
+}) {
+  return apiFetch<SourceUnitMark>("/api/sources/unit-marks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** What this folder looks like, from the names the browser just listed. */
+export function proposeSourceUnit(unitRoot: string, names: string[], signal?: AbortSignal) {
+  return apiFetch<SourceUnitProposal>("/api/sources/unit-proposal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ unit_root: unitRoot, names }),
+    signal,
+  });
+}
+
+/** Relationship neighbors for one indexed object (Intake's Surreal file graph). */
+export function getDiscoveryNeighbors(table: string, key: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ limit: "50" });
+  return apiFetch<{ [key: string]: unknown }>(
+    `/api/intake/discovery/neighbors/${encodeURIComponent(table)}/${encodeURIComponent(key)}?${query.toString()}`,
+    { signal },
+  );
 }
