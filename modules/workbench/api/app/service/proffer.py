@@ -5,7 +5,6 @@ Byline: Codex · GPT-5 · 2026-08-28.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import stat
@@ -183,24 +182,9 @@ async def decide(
     *,
     mode: MatterMode,
 ) -> ProfferDecisionResponse:
-    await _require_mode(preview_handle, mode)
-    response = await _request(
-        "POST",
-        f"/reference-import/previews/{preview_handle}/decision",
-        json=request.model_dump(mode="json"),
-        headers={
-            "X-authentik-uid": actor.subject_uid,
-            "X-authentik-username": actor.username,
-        },
-    )
-    result = _validated(
-        ProfferDecisionResponse,
-        _mode_payload(_json_payload(response, "decision response"), "decision response", mode),
-        "decision response",
-    )
-    if result.preview_handle != preview_handle:
-        raise ProfferError("Proffer decision response correlation failed", 502)
-    return result
+    from app.service.proffer_repair import decide as implementation
+
+    return await implementation(preview_handle, request, actor, mode=mode)
 
 
 async def decide_handler_selection(
@@ -220,15 +204,9 @@ def _repair_idempotency_key(
     request: ProfferRepairDecisionRequest,
     actor: ProfferDecisionActor,
 ) -> str:
-    """Bind repair retries to handle, immutable subject, and canonical choice."""
-    canonical = json.dumps(
-        request.model_dump(mode="json"),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-    digest = hashlib.sha256(f"{preview_handle}\x00{actor.subject_uid}\x00{canonical}".encode()).hexdigest()
-    return f"proffer-repair:{digest}"
+    from app.service.proffer_repair import repair_idempotency_key
+
+    return repair_idempotency_key(preview_handle, request, actor)
 
 
 async def decide_repair(
@@ -238,25 +216,9 @@ async def decide_repair(
     *,
     mode: MatterMode,
 ) -> ProfferRepairDecisionResponse:
-    await _require_mode(preview_handle, mode)
-    response = await _request(
-        "POST",
-        f"/reference-import/previews/{preview_handle}/repair-decision",
-        json=request.model_dump(mode="json"),
-        headers={
-            "X-authentik-uid": actor.subject_uid,
-            "X-authentik-username": actor.username,
-            "Idempotency-Key": _repair_idempotency_key(preview_handle, request, actor),
-        },
-    )
-    result = _validated(
-        ProfferRepairDecisionResponse,
-        _mode_payload(_json_payload(response, "repair decision response"), "repair decision response", mode),
-        "repair decision response",
-    )
-    if result.preview_handle != preview_handle:
-        raise ProfferError("Proffer repair decision response correlation failed", 502)
-    return result
+    from app.service.proffer_repair import decide_repair as implementation
+
+    return await implementation(preview_handle, request, actor, mode=mode)
 
 
 async def preview(preview_handle: str, *, mode: MatterMode) -> ProfferPreviewResponse:
@@ -273,24 +235,16 @@ async def preview(preview_handle: str, *, mode: MatterMode) -> ProfferPreviewRes
 
 
 async def preview_messages(
-    preview_handle: str, *, mode: MatterMode, cursor: str | None, limit: int,
+    preview_handle: str,
+    *,
+    mode: MatterMode,
+    cursor: str | None,
+    limit: int,
     search: PreviewMessageFilter | None = None,
 ) -> ProfferPreviewMessagesResponse:
-    await _require_mode(preview_handle, mode)
-    params: dict[str, str | int] = {"limit": limit}
-    if cursor:
-        params["cursor"] = cursor
-    if search is not None:
-        params.update(search.as_query_params())
-    response = await _request("GET", f"/reference-import/previews/{preview_handle}/messages", params=params)
-    result = _validated(
-        ProfferPreviewMessagesResponse,
-        _mode_payload(_json_payload(response, "preview message page"), "preview message page", mode),
-        "preview message page",
-    )
-    if result.preview_handle != preview_handle:
-        raise ProfferError("Proffer preview message correlation failed", 502)
-    return result
+    from app.service.proffer_message_page import preview_messages as implementation
+
+    return await implementation(preview_handle, mode=mode, cursor=cursor, limit=limit, search=search)
 
 
 async def preview_content(

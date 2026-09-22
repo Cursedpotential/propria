@@ -7,25 +7,22 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Path, Query, Request
 
 from app.repo.object_store_client import DEFAULT_SOURCE_ROOT_ID
 from app.service.proffer import (
     ProfferError,
     browse_sources,
-    complete_upload_response,
     decide,
     decide_handler_selection,
     decide_repair,
-    open_preview_event_stream,
-    open_upload_stream,
     preview,
     preview_content,
     preview_messages,
     start,
-    validated_preview_events,
 )
+from app.runtime.proffer_events import router as _events_router
+from app.runtime.proffer_upload import router as _upload_router
 from app.runtime.proffer_media import router as _media_router
 from app.service.proffer_flags import create_potential_promotion_flag, list_potential_promotion_flags
 from app.service.proffer_operations import list_operations, operation
@@ -45,7 +42,6 @@ from app.types.proffer import (
     ProfferSourceBrowserResponse,
     ProfferStartRequest,
     ProfferStartResponse,
-    ProfferUploadResponse,
 )
 from app.runtime.proffer_search_params import MessageSearchFilter
 from app.types.proffer_flags import (
@@ -62,6 +58,8 @@ from app.types.proffer_operator import ProfferOperatorSnapshot
 
 router = APIRouter(prefix="/api/proffer", tags=["proffer"])
 router.include_router(_media_router)  # GET .../media/{sha256}: see app/runtime/proffer_media.py
+router.include_router(_events_router)  # GET .../events: see app/runtime/proffer_events.py
+router.include_router(_upload_router)  # POST /upload, /staged/{id}/acquisition: see app/runtime/proffer_upload.py
 
 
 def _translate(error: ProfferError) -> HTTPException:
@@ -109,33 +107,6 @@ def sources_endpoint(
 async def start_endpoint(body: ProfferStartRequest, mode: Annotated[MatterMode, Query()]):
     try:
         return await start(body, mode=mode)
-    except ProfferError as error:
-        raise _translate(error) from None
-
-
-@router.post("/upload", response_model=ProfferUploadResponse, status_code=201)
-async def upload_endpoint(request: Request, mode: Annotated[MatterMode, Query()]):
-    try:
-        client, response = await open_upload_stream(
-            request.stream(),
-            mode=mode,
-            content_type=request.headers.get("content-type"),
-            content_length=request.headers.get("content-length"),
-        )
-        return await complete_upload_response(client, response, mode=mode)
-    except ProfferError as error:
-        raise _translate(error) from None
-
-
-@router.post("/staged/{staged_id}/acquisition", response_model=ProfferUploadResponse, status_code=201)
-async def staged_acquisition_endpoint(
-    staged_id: Annotated[str, Path(pattern=r"^[a-f0-9]{64}$")],
-    mode: Annotated[MatterMode, Query()],
-):
-    from app.service.proffer_staged import acquire_staged
-
-    try:
-        return await acquire_staged(staged_id, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None
 
@@ -238,9 +209,7 @@ async def preview_messages_endpoint(
     search: MessageSearchFilter = None,  # noqa: RUF013 - FastAPI dependency default
 ):
     try:
-        return await preview_messages(
-            preview_handle, mode=mode, cursor=cursor, limit=limit, search=search
-        )
+        return await preview_messages(preview_handle, mode=mode, cursor=cursor, limit=limit, search=search)
     except ProfferError as error:
         raise _translate(error) from None
 
@@ -285,9 +254,7 @@ async def potential_promotion_flags_endpoint(
             chunk_cursor=None,
             limit=1,
         )
-        return ProfferPotentialPromotionFlagList(
-            flags=list_potential_promotion_flags(preview_handle, mode)
-        )
+        return ProfferPotentialPromotionFlagList(flags=list_potential_promotion_flags(preview_handle, mode))
     except ProfferError as error:
         raise _translate(error) from None
 
@@ -324,42 +291,3 @@ async def create_potential_promotion_flag_endpoint(
         return create_potential_promotion_flag(preview_handle, mode, body, actor)
     except ProfferError as error:
         raise _translate(error) from None
-
-
-@router.get("/previews/{preview_handle}/events")
-async def preview_events_endpoint(
-    preview_handle: PreviewHandle,
-    mode: Annotated[MatterMode, Query()],
-    last_event_id_header: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
-):
-    last_event_id: int | None = None
-    if last_event_id_header is not None:
-        try:
-            last_event_id = int(last_event_id_header)
-        except ValueError:
-            raise HTTPException(status_code=422, detail="Last-Event-ID must be a non-negative integer") from None
-        if last_event_id < 0:
-            raise HTTPException(status_code=422, detail="Last-Event-ID must be a non-negative integer")
-    try:
-        client, response = await open_preview_event_stream(preview_handle, mode=mode, last_event_id=last_event_id)
-    except ProfferError as error:
-        raise _translate(error) from None
-
-    async def body():
-        try:
-            async for event in validated_preview_events(
-                response,
-                preview_handle=preview_handle,
-                mode=mode,
-                last_event_id=last_event_id,
-            ):
-                yield event
-        finally:
-            await response.aclose()
-            await client.aclose()
-
-    return StreamingResponse(
-        body(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
