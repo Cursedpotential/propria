@@ -27,6 +27,12 @@ const (
 	handlerSelectionVersion        = workflow.Version(1)
 	contextChunkGenerationChangeID = "proffer-non-messaging-context-chunk-generation-v1"
 	contextChunkGenerationVersion  = workflow.Version(1)
+	// The derive route. Histories recorded before it replay unchanged: an old
+	// run never saw a HandlerPathDerive candidate, so the branch below cannot
+	// be taken on replay even after the version marker resolves.
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	deriveStructuredTextChangeID = "proffer-derive-structured-text-route-v1"
+	deriveStructuredTextVersion  = workflow.Version(1)
 	// SelectStructuredELTActivityName and ExecuteStructuredELTActivityName are
 	// the implementation-specific Temporal names for DuckDB execution of the
 	// logical SelectParser and ExecuteParser stages. The Activity package
@@ -96,6 +102,7 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	previewCheckpoints := workflow.GetVersion(ctx, previewCheckpointsChangeID, workflow.DefaultVersion, previewCheckpointsVersion) != workflow.DefaultVersion
 	handlerSelection := workflow.GetVersion(ctx, handlerSelectionChangeID, workflow.DefaultVersion, handlerSelectionVersion)
 	contextChunkGeneration := workflow.GetVersion(ctx, contextChunkGenerationChangeID, workflow.DefaultVersion, contextChunkGenerationVersion)
+	deriveRoute := workflow.GetVersion(ctx, deriveStructuredTextChangeID, workflow.DefaultVersion, deriveStructuredTextVersion)
 	if contextChunkGeneration != workflow.DefaultVersion && contextChunkingInput != nil {
 		if err := contextChunkingInput.validate(); err != nil {
 			r.operation.Reason = err.Error()
@@ -271,6 +278,32 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		selectionRefs["detected_format"] = recommendation.DetectedFormatRef
 		selectionRefs["content_signature"] = recommendation.SignatureRef
 		selectionRefs["handler_compatibility"] = validation.Chosen.CompatibilityRef
+
+		// The derive route terminates this run. A source whose signature no
+		// in-place extractor can read (a multi-gigabyte SMS Backup & Restore
+		// XML) is republished as memory-safe structured text beside the
+		// original; each derived chunk is then ingested by its own successor
+		// Proffer run declaring "ndjson". Nothing here produces a parser
+		// bundle, so there is no raw generation to seal or publish and the
+		// remaining stages are deliberately not scheduled.
+		if deriveRoute != workflow.DefaultVersion && validation.Chosen.ExecutionPath == HandlerPathDerive {
+			deriveRefs := map[string]Ref{"original": activeOriginalRef, "acquisition": in.SourceRef}
+			for name, ref := range selectionRefs {
+				if ref != "" {
+					deriveRefs[name] = ref
+				}
+			}
+			preview.setCheckpoint("parser_execution", CheckpointRunning, "", "deriving structured text beside the original")
+			derived, deriveErr := r.execDerive(ctx, activeFormat, deriveRefs)
+			if deriveErr != nil {
+				preview.setCheckpoint("parser_execution", CheckpointFailed, r.receiptRef(stagegraph.DeriveSMSThreads), deriveErr.Error())
+				r.operation.Reason = deriveErr.Error()
+				return r.result(""), deriveErr
+			}
+			preview.setCheckpoint("parser_execution", CheckpointCompleted, r.receiptRef(stagegraph.DeriveSMSThreads), "")
+			preview.Phase = PhaseApproved
+			return r.deriveResult(derived), nil
+		}
 	}
 
 	// Stage 7: select_parser_activity joins the fan-out; it needs the
@@ -849,6 +882,44 @@ func structuredELTEligible(declaredFormat string) bool {
 	}
 }
 
+// execDerive runs derive_structured_text_activity. It is its own exec path,
+// not r.exec, because the stage returns a compact derivation summary as well
+// as the ordinary StageResult; every field of that summary is a reference or
+// a count. The StageResult half is recorded and validated exactly like every
+// other stage's, so a malformed or business-failed derive fails closed here.
+//
+// Byline: Claude Code · Opus 5 · 2026-09-20
+func (r *run) execDerive(ctx workflow.Context, declaredFormat string, refs map[string]Ref) (DeriveResult, error) {
+	id := stagegraph.DeriveSMSThreads
+	r.markStageStarted(id)
+	req := StageRequest{
+		RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
+		SourceVersionRef: r.sourceVersionRef, DeclaredFormat: declaredFormat, Refs: refs,
+	}
+	actCtx := workflow.WithActivityOptions(ctx, optionsFor(id))
+	var derived DeriveResult
+	future := workflow.ExecuteActivity(actCtx, string(id), req)
+	get := func(gctx workflow.Context, out interface{}) error {
+		if err := future.Get(gctx, &derived); err != nil {
+			return err
+		}
+		result, ok := out.(*StageResult)
+		if !ok {
+			return errors.New("proffer: derive result must settle into a StageResult")
+		}
+		*result = derived.Result
+		return nil
+	}
+	if _, err := r.settle(id, get, ctx); err != nil {
+		return DeriveResult{}, err
+	}
+	if err := validateDeriveResult(derived); err != nil {
+		return DeriveResult{}, fmt.Errorf("proffer: stage %q returned an unusable derivation: %w", id, err)
+	}
+	derived.BoundChunks()
+	return derived, nil
+}
+
 func (r *run) execPreview(ctx workflow.Context, request PreviewPublicationRequest) (Ref, error) {
 	id := stagegraph.PublishPreview
 	r.markStageStarted(id)
@@ -1039,6 +1110,31 @@ func (r *run) result(publicationRef Ref) WorkflowResult {
 		PublicationRef:   publicationRef,
 		Status:           status,
 		Stages:           r.results,
+	}
+}
+
+// deriveResult is the derive route's terminal WorkflowResult. PublicationRef
+// stays empty on purpose: this run published derived objects, not a sealed
+// generation, and claiming a publication reference it does not have would be
+// the exact kind of false receipt the stage contract exists to prevent.
+//
+// Byline: Claude Code · Opus 5 · 2026-09-20
+func (r *run) deriveResult(derived DeriveResult) WorkflowResult {
+	r.operation.ActiveStages = []ActivityName{}
+	r.operation.CurrentStage = ""
+	r.operation.Wait = ""
+	r.operation.Terminal = true
+	r.operation.Lifecycle = OperationCompleted
+	r.operation.Reason = ""
+	r.operation.DeriveManifestRef = derived.Result.Ref
+	r.operation.DeriveManifestURI = derived.ManifestURI
+	r.operation.DerivedChunkCount = derived.ChunkCount
+	r.operation.DerivedThreadsPrefix = derived.ThreadsPrefix
+	return WorkflowResult{
+		SourceVersionRef: r.sourceVersionRef,
+		Status:           StatusSuccess,
+		Stages:           r.results,
+		Derived:          &derived,
 	}
 }
 

@@ -171,6 +171,17 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Minute,
 		RetryPolicy:         retryPolicy(5*time.Second, 3),
 	},
+	stagegraph.DeriveSMSThreads: {
+		// Streams a multi-gigabyte source once and publishes hundreds of
+		// derived objects. A proven live run was 584 MB in 4m27s, so the
+		// bound is sized for a multi-gigabyte backup with headroom, and the
+		// heartbeat is what actually detects a stall. Retries are low: the
+		// Activity is idempotent (a finished manifest is reused), but a
+		// failure part-way through is usually a bad source, not bad luck.
+		StartToCloseTimeout: 4 * time.Hour,
+		HeartbeatTimeout:    2 * time.Minute,
+		RetryPolicy:         retryPolicy(15*time.Second, 3),
+	},
 	stagegraph.PublishPreview: {
 		StartToCloseTimeout: 5 * time.Minute,
 		RetryPolicy:         retryPolicy(2*time.Second, 5),

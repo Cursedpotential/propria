@@ -16,10 +16,16 @@ const header = source("../src/components/layout/header.tsx");
 const matterWorkspace = source("../src/components/matters/matter-workspace.tsx");
 const types = source("../src/lib/shared/types.ts");
 
-test("TEST and REAL are explicit global modes", () => {
+// AMENDED 2026-09-22 (Claude Code · Opus 5): the wire values are unchanged —
+// TEST/REAL on every request and every durable record — but the VISIBLE labels
+// are now Test / Live (owner 2026-09-22 09:08: the non-test side is "Live"; he
+// hates "REAL"). The assertion below therefore pins the label map instead of
+// the raw `{mode}` interpolation, and still pins the wire values.
+test("TEST and REAL are explicit global modes, labelled Test / Live", () => {
   assert.match(types, /type MatterMode = "TEST" \| "REAL"/);
   assert.match(selector, /const MODES: MatterMode\[\] = \["TEST", "REAL"\]/);
-  assert.match(selector, /\{mode\} mode active/);
+  assert.match(selector, /MODE_LABEL: Record<MatterMode, string> = \{ TEST: "Test", REAL: "Live" \}/);
+  assert.match(selector, /\{MODE_LABEL\[mode\]\} mode active/);
   assert.match(header, /<MatterModeSelector compact/);
 });
 

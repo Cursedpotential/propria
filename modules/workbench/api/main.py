@@ -33,6 +33,7 @@ from app.runtime import (
     knowledge,
     metrics,
     proffer,
+    proffer_batch,
     proffer_resources,
     promote,
     repairs,
@@ -40,6 +41,7 @@ from app.runtime import (
     runs,
     sentiment,
     source_inspection,
+    source_unit_marks,
     tools,
     upload,
 )
@@ -114,8 +116,10 @@ app.include_router(health.router)
 app.include_router(intake_discovery.router)
 app.include_router(upload.router)
 app.include_router(proffer.router)
+app.include_router(proffer_batch.router)
 app.include_router(proffer_resources.router)
 app.include_router(source_inspection.router)
+app.include_router(source_unit_marks.router)
 app.include_router(files.router)
 app.include_router(promote.router)
 app.include_router(documents.router)

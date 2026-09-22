@@ -13,6 +13,7 @@ import (
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
 
 	"github.com/Cursedpotential/probata/engine/acquisition"
 	"github.com/Cursedpotential/probata/engine/activities"
@@ -47,6 +48,11 @@ type Registrations struct {
 	Normalized            activities.NormalizedPipelineActivities
 	Repair                activities.RepairActivities
 	Preview               activities.PreviewProjectionActivity
+	// BatchImport serves the batch-by-folder workflow. Its fields are nil in a
+	// worker built without a Temporal client (RegisterAll still registers the
+	// Activities; they fail closed when called unwired).
+	// Byline: Claude Code · Opus 5 · 2026-09-21
+	BatchImport activities.BatchImportActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -65,8 +71,11 @@ type HandlerSelectionActivities struct {
 func RegisterAll(registrar interface {
 	activities.ActivityRegistrar
 	RegisterWorkflow(interface{})
+	RegisterWorkflowWithOptions(interface{}, workflow.RegisterOptions)
 }, registrations Registrations) {
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
+	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
+	activities.RegisterBatchImportActivities(registrar, registrations.BatchImport)
 	activities.RegisterSourceLifecycleActivities(registrar, registrations.Lifecycle)
 	activities.RegisterFilesystemMetadataActivity(registrar, registrations.FilesystemObservation)
 	activities.RegisterHashActivities(registrar, registrations.Hash)
@@ -125,15 +134,19 @@ func Run(ctx context.Context, cfg Config) error {
 		return err
 	}
 
-	registrations, err := buildRegistrations(pool, cfg, flowRegistry)
-	if err != nil {
-		return err
-	}
+	// The Temporal client is dialed BEFORE the registrations are built: the
+	// batch-by-folder Activities read a run's durable lifecycle through it.
+	// Byline: Claude Code · Opus 5 · 2026-09-21
 	temporalClient, err := client.Dial(client.Options{HostPort: cfg.TemporalHostPort, Namespace: cfg.TemporalNamespace})
 	if err != nil {
 		return fmt.Errorf("proffer worker: connect to Temporal: %w", err)
 	}
 	defer temporalClient.Close()
+
+	registrations, err := buildRegistrations(pool, cfg, flowRegistry, temporalClient)
+	if err != nil {
+		return err
+	}
 
 	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, workerOptions(cfg))
 	RegisterAll(temporalWorker, registrations)
@@ -154,15 +167,9 @@ func Run(ctx context.Context, cfg Config) error {
 	return nil
 }
 
-// deriveScratchDir is where a streaming derivation keeps its per-thread files
-// before publishing them: a data volume, never the system temp directory. The
-// default is the mount deploy/proffer-worker.yaml already provides.
-func deriveScratchDir() string {
-	if configured := strings.TrimSpace(os.Getenv("DERIVE_SCRATCH_DIR")); configured != "" {
-		return configured
-	}
-	return "/data/proffer/derive-scratch"
-}
+// DERIVE_SCRATCH_DIR is read by LoadConfig (config.go) into
+// Config.DeriveScratchDir, validated as an absolute path there and created by
+// prepareSharedPaths, so the worker no longer reads the variable here.
 
 // derivationStores opens one S3 client per configured object-store scheme, on
 // first use, from the same OBJECT_STORES_JSON the acquisition resolvers read.
@@ -197,7 +204,43 @@ func workerOptions(cfg Config) worker.Options {
 	return worker.Options{MaxConcurrentActivityExecutionSize: cfg.MaxConcurrentActivities}
 }
 
-func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformtemporal.FlowRegistry) (Registrations, error) {
+// batchFolderLister adapts one configured object store per scheme into the
+// narrow listing seam the batch Activity takes.
+func batchFolderLister(stores objectstores.Stores) activities.BatchFolderLister {
+	var mu sync.Mutex
+	opened := map[string]acquisition.ObjectLister{}
+	return func(ctx context.Context, scheme, bucket, prefix, cursor string, limit int32) ([]string, string, error) {
+		mu.Lock()
+		lister, ok := opened[scheme]
+		if !ok {
+			credentialFile, configured := stores[scheme]
+			if !configured {
+				mu.Unlock()
+				return nil, "", fmt.Errorf("scheme %q is not a configured object store (configured: %v)", scheme, stores.Schemes())
+			}
+			storeCfg, err := acquisition.LoadObjectStorageConfigFile(credentialFile)
+			if err != nil {
+				mu.Unlock()
+				return nil, "", err
+			}
+			s3client, err := acquisition.NewS3Client(storeCfg)
+			if err != nil {
+				mu.Unlock()
+				return nil, "", err
+			}
+			lister = acquisition.S3Lister{Client: s3client}
+			opened[scheme] = lister
+		}
+		mu.Unlock()
+		page, err := lister.ListObjectsPage(ctx, bucket, prefix, cursor, limit)
+		if err != nil {
+			return nil, "", err
+		}
+		return page.Keys, page.NextCursor, nil
+	}
+}
+
+func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformtemporal.FlowRegistry, temporalClient client.Client) (Registrations, error) {
 	openObject, err := runtimeapi.NewRetainedObjectOpener(pool)
 	if err != nil {
 		return Registrations{}, err
@@ -339,6 +382,32 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	// The batch workflow reads each item's lifecycle through the same
+	// Temporal query the HTTP surface uses.
+	batchOperations, err := platformtemporal.NewWorkflowStarter(temporalClient, cfg.TemporalTaskQueue)
+	if err != nil {
+		return Registrations{}, err
+	}
+	// The derive route streams from, and republishes into, the source's own
+	// object store — the same OBJECT_STORES_JSON configuration the
+	// acquisition resolvers above use. No provider is named in code.
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	deriveStore, err := platformpostgres.NewDeriveStore(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
+	// Where derived output lands is configuration (DERIVED_ROOTS_JSON), never
+	// code. Unset means every source falls back to beside-the-original; a
+	// malformed or unreachable value is a loud boot failure, never a silent
+	// fallback (owner, 2026-09-21).
+	// Byline: Claude Code · Opus 5 · 2026-09-21
+	derivedRoots, err := smsthreads.DerivedRootsFromEnv()
+	if err != nil {
+		return Registrations{}, err
+	}
+	if err := derivedRoots.RequireConfiguredSchemes(stores.Schemes()); err != nil {
+		return Registrations{}, err
+	}
 	return Registrations{
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation: activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
@@ -348,10 +417,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		N8NFlows:              platformtemporal.FlowActivities{Client: n8nClient, Registry: flowRegistry},
 		Hash:                  activities.NewHashActivities(hashRepo),
 		StructuredELT:         activities.NewStructuredELTActivities(structuredELTRepo, parserStore, handlerSelectionStore),
-		DeriveSMSThreads: activities.DeriveSMSThreadsActivities{
-			Stores: derivationStores(stores), ScratchRoot: deriveScratchDir(),
-			Heartbeat: func(ctx context.Context, details ...interface{}) { activity.RecordHeartbeat(ctx, details...) },
-		},
+		DeriveSMSThreads: activities.NewDeriveSMSThreadsActivities(
+			deriveStore, derivationStores(stores), deriveStore,
+			derivedRoots, cfg.DeriveScratchDir, cfg.DeriveMaxChunkBytes,
+		),
 		HandlerSelection: HandlerSelectionActivities{
 			Recover: handlerSelectionStore.RecoverHandler,
 			Recommend: func(ctx context.Context, req proffer.StageRequest) (proffer.HandlerRecommendationResult, error) {
@@ -368,6 +437,9 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 				}
 				return handlerSelectionStore.ValidateHandlerSelection(ctx, req, attempt)
 			},
+		},
+		BatchImport: activities.BatchImportActivities{
+			Lister: batchFolderLister(stores), Bindings: previewStore, Operations: batchOperations,
 		},
 		Raw:        activities.NewRawPipelineActivities(rawRepo),
 		Normalized: activities.NewNormalizedPipelineActivities(normalizedRepo, normalize.GenericMessageNormalizer{}),
@@ -399,6 +471,7 @@ func prepareSharedPaths(cfg Config) error {
 		"PARSER_BUNDLE_DIR":      cfg.ParserBundleDir,
 		"NORMALIZED_BUNDLE_DIR":  cfg.NormalizedBundleDir,
 		"INVENTORY_MANIFEST_DIR": cfg.InventoryManifestDir,
+		"DERIVE_SCRATCH_DIR":     cfg.DeriveScratchDir,
 	} {
 		if err := os.MkdirAll(path, 0o750); err != nil {
 			return fmt.Errorf("proffer worker: create %s: %w", name, err)

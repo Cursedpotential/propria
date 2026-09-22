@@ -2,12 +2,50 @@
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
-from app.repo.intake_discovery import DiscoveryError, atomic_members, atomic_units, catalog_page
+from app.repo.intake_discovery import (
+    DiscoveryError,
+    atomic_members,
+    atomic_units,
+    catalog_by_vault_key,
+    catalog_page,
+    units_for_member_keys,
+    units_for_roots,
+)
 from app.service.intake_discovery import capabilities, neighbors, search_index
 
 router = APIRouter(prefix="/api/intake/discovery", tags=["intake-discovery"])
+
+
+class UnitLookupRequest(BaseModel):
+    """One page of folder prefixes and object keys, asked about together."""
+
+    model_config = ConfigDict(extra="forbid")
+    roots: list[str] = Field(default_factory=list, max_length=200)
+    keys: list[str] = Field(default_factory=list, max_length=400)
+
+
+@router.post("/unit-lookup")
+async def unit_lookup_endpoint(body: UnitLookupRequest):
+    """Which of these folders are catalog units, and which keys are members."""
+    try:
+        roots = await run_in_threadpool(units_for_roots, body.roots)
+        members = await run_in_threadpool(units_for_member_keys, body.keys)
+        return {"units": roots["items"], "members": members["items"],
+                "backend": "casebible_atomic_units", "source_links_verified": False}
+    except DiscoveryError as error:
+        raise HTTPException(error.status, error.message) from None
+
+
+@router.get("/catalog/by-vault-key")
+async def catalog_by_vault_key_endpoint(vault_key: str = Query(..., min_length=1, max_length=4096)):
+    """Catalog provenance for one vault object: original source, scope, path, occurrences."""
+    try:
+        return await run_in_threadpool(catalog_by_vault_key, vault_key)
+    except DiscoveryError as error:
+        raise HTTPException(error.status, error.message) from None
 
 
 @router.get("/units")

@@ -482,6 +482,46 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 	return binding, nil
 }
 
+// BindingsBySourceRef returns the most recent bindings for one exact source
+// locator, newest first. A batch uses it to skip an object whose earlier run
+// already completed, so re-running the same folder is safe.
+//
+// It is a plain SELECT on the existing append-only binding registry: no
+// schema change, and the engine role already holds SELECT on context.*.
+//
+// Byline: Claude Code · Opus 5 · 2026-09-21
+func (s *ProfferPreviewStore) BindingsBySourceRef(ctx context.Context, sourceRef proffer.Ref, limit int) ([]previewmodel.Binding, error) {
+	if strings.TrimSpace(string(sourceRef)) == "" {
+		return nil, errors.New("preview bindings by source require a source reference")
+	}
+	if limit < 1 || limit > 50 {
+		return nil, errors.New("preview bindings by source limit must be between 1 and 50")
+	}
+	rows, err := s.db.Query(ctx, `
+		SELECT preview_handle, request_id, source_ref, workflow_id, run_id, parser_options_ref, created_at
+		FROM context.proffer_preview_binding
+		WHERE source_ref = $1::text
+		ORDER BY created_at DESC, preview_handle DESC
+		LIMIT $2::integer`, string(sourceRef), limit)
+	if err != nil {
+		return nil, fmt.Errorf("list preview bindings by source: %w", err)
+	}
+	defer rows.Close()
+	bindings := make([]previewmodel.Binding, 0, limit)
+	for rows.Next() {
+		var binding previewmodel.Binding
+		if err := rows.Scan(&binding.Handle, &binding.RequestID, &binding.SourceRef,
+			&binding.WorkflowID, &binding.RunID, &binding.ParserOptionsRef, &binding.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan preview binding by source: %w", err)
+		}
+		bindings = append(bindings, binding)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate preview bindings by source: %w", err)
+	}
+	return bindings, nil
+}
+
 // ListBindings pages the append-only opaque-handle registry using a stable
 // (created_at, preview_handle) keyset. Temporal identities remain internal to
 // the returned Binding and are never serialized by the HTTP operation model.

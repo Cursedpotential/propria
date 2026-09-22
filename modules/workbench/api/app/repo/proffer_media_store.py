@@ -25,6 +25,47 @@ def list_media_objects(scheme: str, bucket: str, prefix: str, *, max_keys: int =
     return list(page.get("Contents", []))
 
 
+def object_exists(scheme: str, bucket: str, key: str) -> bool:
+    """HEAD one object. True when it exists, False when it does not.
+
+    Byline: Claude Code · Opus 5 · 2026-09-22 — the cheap half of "has this
+    source been decoded?", so the Sources list never reads a manifest body
+    just to learn that one exists.
+    """
+    try:
+        get_store_client(scheme).head_object(Bucket=bucket, Key=key)
+    except ClientError as error:
+        code = error.response.get("Error", {}).get("Code", "")
+        if code in ("404", "NoSuchKey", "NotFound"):
+            return False
+        raise RuntimeError("media head failed") from error
+    return True
+
+
+def read_small_object(scheme: str, bucket: str, key: str, *, max_bytes: int) -> bytes:
+    """Read one whole small object (a manifest). Refuses anything over `max_bytes`."""
+    response = open_media_object(scheme, bucket, key)
+    body = response["Body"]
+    try:
+        if int(response.get("ContentLength", 0)) > max_bytes:
+            raise ValueError("object is larger than the read limit")
+        data = body.read(max_bytes + 1)
+    finally:
+        body.close()
+    if len(data) > max_bytes:
+        raise ValueError("object is larger than the read limit")
+    return data
+
+
+def iter_object_lines(scheme: str, bucket: str, key: str):
+    """Stream one object line by line (NDJSON); the object is never held whole."""
+    body = open_media_object(scheme, bucket, key)["Body"]
+    try:
+        yield from body.iter_lines(chunk_size=256 * 1024)
+    finally:
+        body.close()
+
+
 def open_media_object(scheme: str, bucket: str, key: str, *, byte_range: str | None = None) -> dict:
     """Open a GetObject stream, optionally honouring a single S3 byte range."""
     request: dict[str, str] = {"Bucket": bucket, "Key": key}

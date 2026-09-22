@@ -1,11 +1,17 @@
 // Package smsthreads derives memory-safe structured text from one large SMS
-// Backup & Restore XML and publishes it BESIDE the original object.
+// Backup & Restore XML and publishes it under a configured derived prefix.
 //
 // Byline: Claude Code · Fable 5.1 · 2026-09-20
+// Byline: Claude Code · Opus 5 · 2026-09-21 (derived placement is configured)
 //
 // Owner ruling 2026-09-20 18:47-18:51: "have sbv extract it and split out media
 // and create structured text, save it back where it was, then use duckdb to
-// extract the text" · "save in chunks, likely by thread" · "next to original".
+// extract the text" · "save in chunks, likely by thread". The "next to
+// original" half of that ruling was SUPERSEDED at 23:51: output goes under a
+// separate derived root whose inner path mirrors the source tree, configured
+// through DERIVED_ROOTS_JSON (derivedroot.go). The layout below is what is
+// written under whichever prefix that resolves to, and <key>.derived/ is now
+// only the unconfigured fallback.
 //
 // Why: valid backups are 500 MB to multi-GB, mostly base64 MMS media. The
 // DuckDB XML reader available to pg_duckdb 1.1.1 (DuckDB 1.4.3) refuses files
@@ -43,14 +49,60 @@ import (
 )
 
 const (
-	DerivedSuffix   = ".derived"
-	ManifestName    = "manifest.json"
-	SchemaVersion   = "smsthreads/v2" // v2: numbered, size-capped chunks per thread
-	defaultMaxChunk = 64 << 20
-	defaultMaxOpen  = 64
-	contentTypeJSON = "application/json"
-	contentTypeND   = "application/x-ndjson"
+	DerivedSuffix = ".derived"
+	ManifestName  = "manifest.json"
+	// ThreadsDir and RejectsDir are the two chunk folders under a derived
+	// prefix. ThreadsDir is what a batch run is started on.
+	ThreadsDir           = "threads/"
+	RejectsDir           = "rejects/"
+	SchemaVersion        = "smsthreads/v2" // v2: numbered, size-capped chunks per thread
+	defaultMaxChunk      = 64 << 20
+	defaultMaxOpen       = 64
+	defaultProgressEvery = 500
+	contentTypeJSON      = "application/json"
+	contentTypeND        = "application/x-ndjson"
 )
+
+// ErrAlreadyDerived reports that a finished derivation is already published at
+// <key>.derived/manifest.json. Callers that want the existing result instead
+// set Options.ReuseExisting rather than inspecting an error string.
+var ErrAlreadyDerived = errors.New("smsthreads: a finished derivation already exists and is never overwritten")
+
+// Derived placement is configured, not coded: see derivedroot.go. The
+// <key>.derived/ layout described above is now only the fallback used when no
+// DERIVED_ROOTS_JSON pair matches the source (owner ruling 2026-09-20 23:51).
+
+// LoadManifest reads one published manifest object.
+func LoadManifest(ctx context.Context, store ObjectStore, bucket, key string) (Manifest, error) {
+	manifest, _, err := LoadManifestWithDigest(ctx, store, bucket, key)
+	return manifest, err
+}
+
+// LoadManifestWithDigest reads one published manifest object and returns the
+// sha256 of the exact bytes served. A manifest cannot carry its own digest,
+// so a caller that needs one — a Temporal Activity recording a durable
+// reference — reads it back and hashes what the store actually returned.
+func LoadManifestWithDigest(ctx context.Context, store ObjectStore, bucket, key string) (Manifest, string, error) {
+	body, err := store.Open(ctx, bucket, key)
+	if err != nil {
+		return Manifest{}, "", fmt.Errorf("smsthreads: open manifest %s: %w", key, err)
+	}
+	defer body.Close()
+	hash := sha256.New()
+	var manifest Manifest
+	if err := json.NewDecoder(io.TeeReader(body, hash)).Decode(&manifest); err != nil {
+		return Manifest{}, "", fmt.Errorf("smsthreads: decode manifest %s: %w", key, err)
+	}
+	// The JSON decoder may stop at the closing brace; drain so the digest
+	// covers every byte the store served.
+	if _, err := io.Copy(hash, body); err != nil {
+		return Manifest{}, "", fmt.Errorf("smsthreads: drain manifest %s: %w", key, err)
+	}
+	if manifest.Schema == "" || manifest.Source == "" {
+		return Manifest{}, "", fmt.Errorf("smsthreads: manifest %s is missing its schema or source", key)
+	}
+	return manifest, hex.EncodeToString(hash.Sum(nil)), nil
+}
 
 // Options names one source object and where scratch files may live. Scratch
 // must be on a data volume, never the system temp dir.
@@ -62,6 +114,37 @@ type Options struct {
 	MaxOpen     int
 	MaxChunk    int64 // bytes per thread chunk file; a thread rolls over at a line boundary
 	Now         func() time.Time
+
+	// DerivedRoots maps the source locator to the derived vault directory.
+	// Empty means every source falls back to <key>.derived/ beside itself.
+	DerivedRoots DerivedRoots
+
+	// ReuseExisting makes a finished derivation a success instead of an
+	// error: the published manifest is loaded and returned unchanged. A
+	// retried Temporal Activity sets this so a second identical call is safe
+	// without the caller string-matching an error message. The original and
+	// the derived objects are still never overwritten.
+	ReuseExisting bool
+
+	// Progress, when set, is called while the source streams so a caller can
+	// report liveness (a Temporal heartbeat, a CLI line). It is deliberately
+	// caller-agnostic: this unit knows nothing about Temporal, n8n, or HTTP.
+	// It is called from the decode goroutine, so it must not block for long.
+	Progress func(Progress)
+	// ProgressEvery is how many decoded records pass between Progress calls.
+	// Zero means defaultProgressEvery.
+	ProgressEvery uint64
+}
+
+// Progress is one liveness sample taken while the source streams.
+type Progress struct {
+	Phase        string `json:"phase"` // "decoding" or "publishing"
+	SourceBytes  int64  `json:"source_bytes"`
+	Records      uint64 `json:"records"`
+	Rejected     uint64 `json:"rejected"`
+	MediaObjects uint64 `json:"media_objects"`
+	// PublishedObjects counts derived objects put during the publish phase.
+	PublishedObjects uint64 `json:"published_objects"`
 }
 
 type ThreadFile struct {
@@ -143,13 +226,14 @@ type LineAttachment struct {
 	URI     string `json:"uri"`
 }
 
-// Derive streams the source once and publishes the derived objects.
-func Derive(ctx context.Context, opts Options) (Manifest, error) {
+// Derive streams the source once and publishes the derived objects. It
+// returns the manifest and the location it was published to.
+func Derive(ctx context.Context, opts Options) (Manifest, DerivedLocation, error) {
 	if opts.Store == nil || opts.Bucket == "" || opts.Key == "" || opts.Scheme == "" {
-		return Manifest{}, errors.New("smsthreads: store, scheme, bucket and key are required")
+		return Manifest{}, DerivedLocation{}, errors.New("smsthreads: store, scheme, bucket and key are required")
 	}
 	if !filepath.IsAbs(opts.ScratchRoot) && !strings.HasPrefix(opts.ScratchRoot, "/") {
-		return Manifest{}, errors.New("smsthreads: scratch root must be an absolute path on a data volume")
+		return Manifest{}, DerivedLocation{}, errors.New("smsthreads: scratch root must be an absolute path on a data volume")
 	}
 	if opts.MaxOpen <= 0 {
 		opts.MaxOpen = defaultMaxOpen
@@ -160,21 +244,32 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	prefix := opts.Key + DerivedSuffix + "/"
-	if done, err := opts.Store.Exists(ctx, opts.Bucket, prefix+ManifestName); err != nil {
-		return Manifest{}, fmt.Errorf("smsthreads: check existing manifest: %w", err)
-	} else if done {
-		return Manifest{}, fmt.Errorf("smsthreads: %s%s already exists; a finished derivation is never overwritten", prefix, ManifestName)
+	if opts.ProgressEvery == 0 {
+		opts.ProgressEvery = defaultProgressEvery
+	}
+	// A derivation published before DERIVED_ROOTS_JSON was switched on lives
+	// beside the original; it is reused in place rather than re-derived.
+	location, alreadyDerived, err := ResolvePublished(ctx, opts.Store, opts.DerivedRoots, opts.Scheme, opts.Bucket, opts.Key)
+	if err != nil {
+		return Manifest{}, location, err
+	}
+	prefix := location.Prefix
+	if alreadyDerived {
+		if !opts.ReuseExisting {
+			return Manifest{}, location, fmt.Errorf("%w: %s", ErrAlreadyDerived, location.ManifestKey())
+		}
+		manifest, loadErr := LoadManifest(ctx, opts.Store, location.Bucket, location.ManifestKey())
+		return manifest, location, loadErr
 	}
 	scratch, err := os.MkdirTemp(opts.ScratchRoot, "smsthreads-")
 	if err != nil {
-		return Manifest{}, fmt.Errorf("smsthreads: create scratch: %w", err)
+		return Manifest{}, location, fmt.Errorf("smsthreads: create scratch: %w", err)
 	}
 	defer os.RemoveAll(scratch)
 
 	source, err := opts.Store.Open(ctx, opts.Bucket, opts.Key)
 	if err != nil {
-		return Manifest{}, fmt.Errorf("smsthreads: open source: %w", err)
+		return Manifest{}, location, fmt.Errorf("smsthreads: open source: %w", err)
 	}
 	defer source.Close()
 	sourceHash := sha256.New()
@@ -182,17 +277,32 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 
 	importer, err := parseonly.New(parseonly.FormatSMSBackupXML)
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, location, err
 	}
 	sourceURI := fmt.Sprintf("%s://%s/%s", opts.Scheme, opts.Bucket, opts.Key)
-	media := &mediaSink{ctx: ctx, opts: opts, prefix: prefix, staging: filepath.Join(scratch, "staging"), sourceURI: sourceURI, seen: map[string]bool{}}
+	media := &mediaSink{
+		ctx: ctx, opts: opts, target: location, prefix: prefix,
+		staging: filepath.Join(scratch, "staging"), sourceURI: sourceURI, seen: map[string]bool{},
+	}
 	threads := newThreadWriter(filepath.Join(scratch, "threads"), opts.MaxOpen, opts.MaxChunk)
 	defer threads.closeAll()
 
 	var records, rejected uint64
+	report := func(phase string, published uint64) {
+		if opts.Progress == nil {
+			return
+		}
+		opts.Progress(Progress{
+			Phase: phase, SourceBytes: counted.count, Records: records, Rejected: rejected,
+			MediaObjects: uint64(len(media.seen)), PublishedObjects: published,
+		})
+	}
 	emit := func(emitCtx context.Context, record parseonly.Record) error {
 		if err := emitCtx.Err(); err != nil {
 			return err
+		}
+		if (records+rejected)%opts.ProgressEvery == 0 {
+			report("decoding", 0)
 		}
 		line := toLine(record)
 		if record.Status == parseonly.StatusRejected {
@@ -207,36 +317,39 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 		return threads.write(name, participants, line, record.OccurredAt)
 	}
 	if err := importer.ParseWithArtifacts(ctx, counted, sourceURI, media, emit); err != nil {
-		return Manifest{}, fmt.Errorf("smsthreads: %w", err)
+		return Manifest{}, location, fmt.Errorf("smsthreads: %w", err)
 	}
 	// The decoder may stop at the closing tag; drain so the digest covers the whole object.
 	if _, err := io.Copy(io.Discard, counted); err != nil {
-		return Manifest{}, fmt.Errorf("smsthreads: drain source: %w", err)
+		return Manifest{}, location, fmt.Errorf("smsthreads: drain source: %w", err)
 	}
 	if records == 0 && rejected == 0 {
-		return Manifest{}, errors.New("smsthreads: decoder emitted no records")
+		return Manifest{}, location, errors.New("smsthreads: decoder emitted no records")
 	}
 	if err := threads.closeAll(); err != nil {
-		return Manifest{}, err
+		return Manifest{}, location, err
 	}
 
 	manifest := Manifest{
 		Schema: SchemaVersion, Source: sourceURI, SourceSHA256: hex.EncodeToString(sourceHash.Sum(nil)),
-		SourceBytes: counted.count, DerivedPrefix: fmt.Sprintf("%s://%s/%s", opts.Scheme, opts.Bucket, prefix),
+		SourceBytes: counted.count, DerivedPrefix: location.URI(),
 		DerivedAt: opts.Now().UTC().Format(time.RFC3339), Decoder: "sbv/parseonly " + parseonly.FormatSMSBackupXML,
 		Records: records, Rejected: rejected,
 		MediaObjects: uint64(len(media.seen)), MediaBytes: media.bytes, MediaRefs: media.refs,
 	}
+	var published uint64
 	for _, name := range threads.names() {
 		entry := threads.files[name]
 		for index, chunk := range entry.chunks {
-			key := prefix + "threads/" + filepath.Base(chunk.path)
+			published++
+			report("publishing", published)
+			key := prefix + ThreadsDir + filepath.Base(chunk.path)
 			if name == "rejects" {
-				key = prefix + "rejects/" + filepath.Base(chunk.path)
+				key = prefix + RejectsDir + filepath.Base(chunk.path)
 			}
-			file, err := publishFile(ctx, opts, chunk.path, key, contentTypeND)
+			file, err := publishFile(ctx, opts.Store, location.Bucket, chunk.path, key, contentTypeND)
 			if err != nil {
-				return Manifest{}, err
+				return Manifest{}, location, err
 			}
 			file.Thread, file.Chunk, file.Participants, file.Records = name, index+1, entry.participants, chunk.records
 			file.First, file.Last = formatTime(chunk.first), formatTime(chunk.last)
@@ -249,16 +362,16 @@ func Derive(ctx context.Context, opts Options) (Manifest, error) {
 	}
 	body, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, location, err
 	}
 	manifestPath := filepath.Join(scratch, ManifestName)
 	if err := os.WriteFile(manifestPath, body, 0o600); err != nil {
-		return Manifest{}, err
+		return Manifest{}, location, err
 	}
-	if _, err := publishFile(ctx, opts, manifestPath, prefix+ManifestName, contentTypeJSON); err != nil {
-		return Manifest{}, err
+	if _, err := publishFile(ctx, opts.Store, location.Bucket, manifestPath, location.ManifestKey(), contentTypeJSON); err != nil {
+		return Manifest{}, location, err
 	}
-	return manifest, nil
+	return manifest, location, nil
 }
 
 func toLine(record parseonly.Record) Line {
@@ -284,7 +397,7 @@ func formatTime(value *time.Time) string {
 	return value.UTC().Format(time.RFC3339Nano)
 }
 
-func publishFile(ctx context.Context, opts Options, path, key, contentType string) (ThreadFile, error) {
+func publishFile(ctx context.Context, store ObjectStore, bucket, path, key, contentType string) (ThreadFile, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return ThreadFile{}, err
@@ -298,7 +411,7 @@ func publishFile(ctx context.Context, opts Options, path, key, contentType strin
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return ThreadFile{}, err
 	}
-	if err := opts.Store.Put(ctx, opts.Bucket, key, file, size, contentType); err != nil {
+	if err := store.Put(ctx, bucket, key, file, size, contentType); err != nil {
 		return ThreadFile{}, fmt.Errorf("smsthreads: publish %s: %w", key, err)
 	}
 	return ThreadFile{Key: key, Bytes: size, SHA256: hex.EncodeToString(hash.Sum(nil))}, nil

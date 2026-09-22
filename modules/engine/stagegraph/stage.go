@@ -65,6 +65,7 @@ const (
 	RespResolveRepair
 	RespProjectPreview
 	RespChunk
+	RespDerive
 )
 
 // Descriptor is the static, dependency-free description of one stage: its
@@ -84,6 +85,28 @@ type Descriptor struct {
 // PublishPreview, and its output is a sealed immutable chunk-generation Ref.
 const ChunkDocument StageID = "chunk_document_activity"
 
+// DeriveSMSThreads is the canon Activity name for streaming one oversized
+// source that no in-place extractor can read and publishing memory-safe
+// structured text into the configured derived vault directory (owner rulings
+// 2026-09-20: "have sbv extract it and split out media and create structured
+// text ... then use duckdb to extract the text" 18:47, and at 23:51 the
+// derived-root ruling that superseded "next to original").
+//
+// It is its own Activity, never a widening of execute_parser: it produces no
+// parser bundle, no raw generation, and no custody hash. Its single
+// side-effect is publishing derived objects to the source's own object store,
+// and its result is a reference to the derived manifest. The derived chunks
+// then re-enter the platform as ordinary `ndjson` sources, each through its
+// own Proffer run.
+//
+// Byline: Claude Code · Opus 5 · 2026-09-20
+//
+// The name is derive_sms_threads_activity: origin/main shipped that Activity
+// first (commit 2817d82) and a second, identically-scoped
+// derive_structured_text_activity was built on this branch before the
+// collision was found. One Activity survives; this is its name.
+const DeriveSMSThreads StageID = "derive_sms_threads_activity"
+
 // OptionalStages describes version-gated stages that are real members of a
 // specific route but not universal ancestors of PublishGeneration. Keeping
 // these separate preserves the base graph's strong "every listed stage runs"
@@ -95,5 +118,15 @@ var OptionalStages = []Descriptor{
 		Responsibility: RespChunk,
 		Result:         "sealed context chunk generation reference",
 		DependsOn:      []StageID{VerifyNormalizedGeneration},
+	},
+	{
+		ID:             DeriveSMSThreads,
+		Responsibility: RespDerive,
+		Result:         "derived structured-text manifest reference",
+		// It reads the retained original's own acquisition locator, so the
+		// retained object must exist. It deliberately does NOT depend on
+		// parser selection: it replaces extraction for this route rather
+		// than following it.
+		DependsOn: []StageID{RetainOriginal},
 	},
 }

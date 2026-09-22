@@ -19,6 +19,10 @@ import (
 
 const legacyEvidenceTaskQueue = "evidence-pipeline"
 
+// defaultDeriveScratchDir matches the volume the deployed worker already
+// mounts; DERIVE_SCRATCH_DIR overrides it.
+const defaultDeriveScratchDir = "/data/proffer/derive-scratch"
+
 // Config contains only production worker settings. Secrets are held in
 // memory and are never included in validation errors or log fields.
 type Config struct {
@@ -32,6 +36,14 @@ type Config struct {
 	ParserBundleDir      string
 	NormalizedBundleDir  string
 	InventoryManifestDir string
+	// DeriveScratchDir stages one derivation's chunk files before they are
+	// published. It must be on a data volume, never a system temp dir: a
+	// multi-gigabyte backup writes hundreds of megabytes here.
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	DeriveScratchDir string
+	// DeriveMaxChunkBytes caps one published thread chunk. Zero uses the
+	// derive unit's own default (64 MiB).
+	DeriveMaxChunkBytes int64
 
 	// PlatformToolsBaseURL addresses the TOOL GATEWAY, not platform-tools
 	// directly (D-132): the gateway is the only sanctioned path from an
@@ -87,6 +99,21 @@ func LoadConfig() (Config, error) {
 		N8NFlowBindingsFile:  firstEnvironment("N8N_FLOW_BINDINGS_FILE"),
 		SelectHTTPTimeout:    35 * time.Second,
 		ExecuteHTTPTimeout:   31 * time.Minute,
+	}
+	cfg.DeriveScratchDir = firstEnvironment("DERIVE_SCRATCH_DIR")
+	if cfg.DeriveScratchDir == "" {
+		cfg.DeriveScratchDir = defaultDeriveScratchDir
+	}
+	if !absoluteRuntimePath(cfg.DeriveScratchDir) {
+		problems = append(problems, "DERIVE_SCRATCH_DIR must be an absolute path")
+	}
+	if raw := strings.TrimSpace(os.Getenv("DERIVE_MAX_CHUNK_BYTES")); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value <= 0 {
+			problems = append(problems, "DERIVE_MAX_CHUNK_BYTES must be a positive integer")
+		} else {
+			cfg.DeriveMaxChunkBytes = value
+		}
 	}
 	cfg.DatabaseURLFile = firstEnvironment("PLATFORM_DATABASE_URL_FILE")
 	if cfg.DatabaseURLFile == "" {
@@ -191,16 +218,26 @@ func (c Config) temporalConfig() platformtemporal.Config {
 	}
 }
 
-// validateSharedPaths requires four explicit, non-overlapping absolute roots.
+// validateSharedPaths requires five explicit, non-overlapping absolute roots.
 // Coolify mounts these exact paths into both the parser runtime and this
 // worker; relative or nested roots would make stored file:// references
 // ambiguous across services and are rejected before Temporal polling begins.
+//
+// DERIVE_SCRATCH_DIR joined the set on 2026-09-21 (Claude Code · Opus 5). It
+// is its own bind mount in deploy/proffer-worker.yaml
+// (/data/probata/volumes/proffer/derive-scratch -> /data/proffer/derive-scratch)
+// and does not nest with the other four configured roots
+// (/data/proffer/{source-objects,parser-bundles,normalized-bundles,inventory-manifests}),
+// so adding it cannot fail the deployed configuration. Its contents are
+// deleted after every derivation, so a root that overlapped a bundle
+// directory would delete durable bundles.
 func validateSharedPaths(c Config) error {
 	paths := map[string]string{
 		"SOURCE_OBJECT_DIR":      c.SourceObjectDir,
 		"PARSER_BUNDLE_DIR":      c.ParserBundleDir,
 		"NORMALIZED_BUNDLE_DIR":  c.NormalizedBundleDir,
 		"INVENTORY_MANIFEST_DIR": c.InventoryManifestDir,
+		"DERIVE_SCRATCH_DIR":     c.DeriveScratchDir,
 	}
 	clean := make(map[string]string, len(paths))
 	for name, path := range paths {

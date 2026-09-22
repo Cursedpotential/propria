@@ -226,4 +226,14 @@ type OperationState struct {
 	ChunkReceiptRef         Ref                `json:"chunk_receipt_ref,omitempty"`
 	CompletedStageCount     int                `json:"completed_stage_count"`
 	Stages                  []OperationStage   `json:"stages"`
+	// The derive route's terminal summary. Empty on every other route.
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	DeriveManifestRef Ref    `json:"derive_manifest_ref,omitempty"`
+	DeriveManifestURI string `json:"derive_manifest_uri,omitempty"`
+	DerivedChunkCount int    `json:"derived_chunk_count,omitempty"`
+	// DerivedThreadsPrefix is the folder a batch import can be started on.
+	// The derive route deliberately does not auto-start it; it returns the
+	// locator and a human decides (owner build order step 4).
+	// Byline: Claude Code · Opus 5 · 2026-09-21
+	DerivedThreadsPrefix string `json:"derived_threads_prefix,omitempty"`
 }

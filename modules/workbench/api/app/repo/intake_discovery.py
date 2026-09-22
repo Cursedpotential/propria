@@ -120,6 +120,56 @@ def atomic_units(*, unit_type: str | None = None, after_id: int = -1, limit: int
             "notice": "Atomic-unit membership is recorded catalog metadata. Current vault object links require reconciliation before bulk intake."}
 
 
+def units_for_roots(roots: list[str]) -> dict:
+    """Units whose unit_root or export_root is one of these exact prefixes.
+
+    Byline: Claude Code · Opus 5 · 2026-09-22 — the folder rows on Sources ask
+    "is this folder a unit?" for one page of folders at a time. Read-only:
+    the catalog is never written from the Workbench.
+    """
+    wanted = [value.rstrip("/") for value in roots if value][:200]
+    if not wanted:
+        return {"backend": "casebible_atomic_units", "items": []}
+    rows = _query("""SELECT unit_id, unit_type, source, export_root, service, unit_root,
+        member_count, total_bytes, members_without_sha1, parent_unit_id
+        FROM raw_duck.atomic_units
+        WHERE rtrim(unit_root, '/') = ANY(%s) OR rtrim(export_root, '/') = ANY(%s)
+        ORDER BY unit_id LIMIT 400""", (wanted, wanted))
+    return {"backend": "casebible_atomic_units", "items": rows,
+            "source_links_verified": False,
+            "notice": "Atomic-unit membership is recorded catalog metadata, not a verified vault link."}
+
+
+def units_for_member_keys(keys: list[str]) -> dict:
+    """Which of these object keys are recorded members of a unit."""
+    wanted = [value for value in keys if value][:400]
+    if not wanted:
+        return {"backend": "casebible_atomic_units", "items": []}
+    rows = _query("""SELECT m.key, m.unit_id, u.unit_type, u.unit_root
+        FROM raw_duck.atomic_unit_members m
+        JOIN raw_duck.atomic_units u ON u.unit_id = m.unit_id
+        WHERE m.key = ANY(%s) LIMIT 800""", (wanted,))
+    return {"backend": "casebible_atomic_units", "items": rows, "source_links_verified": False}
+
+
+def catalog_by_vault_key(vault_key: str) -> dict:
+    """Catalog provenance for one vault object: where it came from, how often it occurs.
+
+    Byline: Claude Code · Opus 5 · 2026-09-22 — the metadata panel's
+    "catalog provenance" block. `vault_key` is matched exactly; nothing is
+    pattern-expanded, so a caller cannot widen the scan.
+    """
+    if len(vault_key) > 4096 or "\x00" in vault_key:
+        raise DiscoveryError("Invalid catalog vault key", 422)
+    rows = _query(f"""SELECT rel, parent, name, size, modtime AS modified_at, recorded_at,
+        source, scope FROM {CATALOG} WHERE vault_key = %s ORDER BY rel LIMIT 50""", (vault_key,))
+    total = _query(f"SELECT count(*) AS occurrences FROM {CATALOG} WHERE vault_key = %s", (vault_key,))
+    return {"backend": "casebible_preingest_catalog", "vault_key": vault_key,
+            "occurrences": int(total[0]["occurrences"]) if total else 0,
+            "items": rows, "items_truncated": len(rows) >= 50,
+            "freshness": {"catalog_snapshot": "2026-09-17", "checked_at_is_source_update": False}}
+
+
 def atomic_members(unit_id: int, limit: int = 100, cursor: str | None = None) -> dict:
     binding = {"unit_id": unit_id, "table": "raw_duck.atomic_unit_members"}
     last = cursor_decode(cursor, binding)

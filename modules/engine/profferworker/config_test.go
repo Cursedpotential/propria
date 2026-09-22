@@ -23,14 +23,17 @@ func setWorkerEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	values := map[string]string{
-		"TEMPORAL_HOST_PORT":              "temporal:7233",
-		"TEMPORAL_NAMESPACE":              "default",
-		"TEMPORAL_TASK_QUEUE":             "proffer-v1",
-		"PLATFORM_DATABASE_URL_FILE":      databaseURLFile,
-		"SOURCE_OBJECT_DIR":               filepath.Join(root, "source"),
-		"PARSER_BUNDLE_DIR":               filepath.Join(root, "parser"),
-		"NORMALIZED_BUNDLE_DIR":           filepath.Join(root, "normalized"),
-		"INVENTORY_MANIFEST_DIR":          filepath.Join(root, "inventory"),
+		"TEMPORAL_HOST_PORT":         "temporal:7233",
+		"TEMPORAL_NAMESPACE":         "default",
+		"TEMPORAL_TASK_QUEUE":        "proffer-v1",
+		"PLATFORM_DATABASE_URL_FILE": databaseURLFile,
+		"SOURCE_OBJECT_DIR":          filepath.Join(root, "source"),
+		"PARSER_BUNDLE_DIR":          filepath.Join(root, "parser"),
+		"NORMALIZED_BUNDLE_DIR":      filepath.Join(root, "normalized"),
+		"INVENTORY_MANIFEST_DIR":     filepath.Join(root, "inventory"),
+		// A fifth non-nested shared root since 2026-09-21; the deployed value
+		// is the /data/proffer/derive-scratch bind mount.
+		"DERIVE_SCRATCH_DIR":              filepath.Join(root, "derive-scratch"),
 		"PLATFORM_TOOLS_BASE_URL":         "https://platform-tools.example.test",
 		"TOOL_GATEWAY_SERVICE_TOKEN_FILE": gatewayTokenFile,
 		"N8N_PROFFER_BASE_URL":            "https://n8n.example.test/webhook/",

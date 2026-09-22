@@ -106,8 +106,11 @@ func placeholderHandlerValidation(_ context.Context, _ StageRequest) (HandlerSel
 
 func handlerCandidate(path HandlerExecutionPath) HandlerCandidate {
 	id := "sbv_whatsapp"
-	if path == HandlerPathDuckDB {
+	switch path {
+	case HandlerPathDuckDB:
 		id = "duckdb_structured_elt"
+	case HandlerPathDerive:
+		id = "smsthreads_derive"
 	}
 	return HandlerCandidate{
 		HandlerID: id, HandlerVersion: "1.0.0", ExecutionPath: path,
@@ -139,6 +142,13 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 		env.RegisterActivityWithOptions(placeholderActivity, activity.RegisterOptions{Name: string(d.ID)})
 	}
 	for _, d := range stagegraph.OptionalStages {
+		// derive_structured_text_activity returns a DeriveResult, not a bare
+		// StageResult, so it needs its own placeholder signature for the
+		// SDK's name-based dispatch. Byline: Claude Code · Opus 5 · 2026-09-20
+		if d.ID == stagegraph.DeriveSMSThreads {
+			env.RegisterActivityWithOptions(placeholderDeriveActivity, activity.RegisterOptions{Name: string(d.ID)})
+			continue
+		}
 		env.RegisterActivityWithOptions(placeholderActivity, activity.RegisterOptions{Name: string(d.ID)})
 	}
 	env.RegisterActivityWithOptions(placeholderHandlerRecommendation, activity.RegisterOptions{Name: RecommendHandlerActivityName})
@@ -937,33 +947,84 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 		reflect.TypeOf(""):               true,
 	}
 
-	var checkStruct func(t *testing.T, v interface{})
-	checkStruct = func(t *testing.T, v interface{}) {
-		rt := reflect.TypeOf(v)
+	// The derive route needed exactly two relaxations, and they are named
+	// types, not a general loosening (a first pass on 2026-09-20 admitted any
+	// numeric field on any wire type and any struct-element slice; restored
+	// 2026-09-21 · Claude Code · Opus 5).
+	//
+	// 1. countBearing: ONLY a derivation summary may hold a number or a
+	//    boolean — record counts, byte counts, a chunk index, a reuse flag. A
+	//    count cannot hold a file, a record or a metadata payload, and no
+	//    other wire type in this package is allowed one at all, so a numeric
+	//    field appearing on StageRequest or WorkflowInput still fails here.
+	// 2. nestable: the ONLY struct types a wire type may embed, point at, or
+	//    hold a slice of. Anything else — including a new local struct — is a
+	//    failure until it is added here deliberately.
+	countBearing := map[reflect.Type]bool{
+		reflect.TypeOf(DeriveResult{}):    true,
+		reflect.TypeOf(DerivedChunkRef{}): true,
+	}
+	compactKind := map[reflect.Kind]bool{
+		reflect.Bool: true, reflect.Int: true, reflect.Int64: true, reflect.Uint64: true,
+	}
+	nestable := map[reflect.Type]bool{
+		reflect.TypeOf(StageResult{}):     true,
+		reflect.TypeOf(DeriveResult{}):    true,
+		reflect.TypeOf(DerivedChunkRef{}): true,
+	}
+
+	var checkStruct func(t *testing.T, rt reflect.Type)
+	checkField := func(t *testing.T, owner reflect.Type, name string, ft reflect.Type) {
+		switch ft.Kind() {
+		case reflect.Map:
+			if ft.Key().Kind() != reflect.String || !allowedScalar[ft.Elem()] {
+				t.Errorf("%s.%s has disallowed map type %s; wire-type maps may only be string-keyed refs", owner.Name(), name, ft)
+			}
+		case reflect.Slice:
+			if !nestable[ft.Elem()] {
+				t.Errorf("%s.%s has disallowed slice type %s; slices may only hold a named nestable wire struct", owner.Name(), name, ft)
+				return
+			}
+			checkStruct(t, ft.Elem())
+		case reflect.Ptr:
+			if !nestable[ft.Elem()] {
+				t.Errorf("%s.%s has disallowed pointer type %s; pointers may only name a nestable wire struct", owner.Name(), name, ft)
+				return
+			}
+			checkStruct(t, ft.Elem())
+		case reflect.Struct:
+			if !nestable[ft] {
+				t.Errorf("%s.%s embeds disallowed struct type %s", owner.Name(), name, ft)
+				return
+			}
+			checkStruct(t, ft)
+		default:
+			if allowedScalar[ft] {
+				return
+			}
+			if countBearing[owner] && compactKind[ft.Kind()] {
+				return
+			}
+			t.Errorf("%s.%s has disallowed type %s; wire types may only carry Ref/Status/ActivityName/string fields, and only a derivation summary may carry counts", owner.Name(), name, ft)
+		}
+	}
+	checkStruct = func(t *testing.T, rt reflect.Type) {
 		for i := 0; i < rt.NumField(); i++ {
 			f := rt.Field(i)
-			ft := f.Type
-			switch ft.Kind() {
-			case reflect.Map:
-				if ft.Key().Kind() != reflect.String || !allowedScalar[ft.Elem()] {
-					t.Errorf("%s.%s has disallowed map type %s; wire-type maps may only be string-keyed refs", rt.Name(), f.Name, ft)
-				}
-			case reflect.Slice:
-				if ft.Elem() != reflect.TypeOf(StageResult{}) {
-					t.Errorf("%s.%s has disallowed slice type %s; the only allowed slice is []StageResult", rt.Name(), f.Name, ft)
-				}
-			default:
-				if !allowedScalar[ft] {
-					t.Errorf("%s.%s has disallowed type %s; wire types may only carry Ref/Status/ActivityName/string fields or compact collections of them", rt.Name(), f.Name, ft)
-				}
-			}
+			checkField(t, rt, f.Name, f.Type)
 		}
 	}
 
-	checkStruct(t, WorkflowInput{})
-	checkStruct(t, StageRequest{})
-	checkStruct(t, StageResult{})
-	checkStruct(t, WorkflowResult{})
+	for _, wireType := range []reflect.Type{
+		reflect.TypeOf(WorkflowInput{}),
+		reflect.TypeOf(StageRequest{}),
+		reflect.TypeOf(StageResult{}),
+		reflect.TypeOf(WorkflowResult{}),
+		reflect.TypeOf(DeriveResult{}),
+		reflect.TypeOf(DerivedChunkRef{}),
+	} {
+		checkStruct(t, wireType)
+	}
 }
 
 // TestPersistRawGenerationReceivesDeclaredFormat proves

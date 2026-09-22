@@ -22,8 +22,11 @@ function between(source, startMarker, endMarker) {
 }
 
 test("source inspection exposes the Source viewer, Metadata, and Parser tabs", () => {
-  assert.match(intake, /type PreviewTab = "source" \| "metadata" \| "parser";/);
-  assert.match(intake, /\(\["source", "metadata", "parser"\] as const\)\.map/);
+  // AMENDED 2026-09-21 (Claude Code · Fable 5.1; owner 2026-09-21: view a backup the way
+  // SBV shows it, before ingest): a "messages" tab leads for message backups only.
+  assert.match(intake, /type PreviewTab = "messages" \| "source" \| "metadata" \| "parser";/);
+  assert.match(intake, /\["messages", "source", "metadata", "parser"\] : \["source", "metadata", "parser"\]/);
+  assert.match(intake, /previewTab === "messages" && remote && <DecodedSourceViewer sourceRef=\{remote\.source_ref\} \/>/);
   assert.match(intake, /tab === "source" \? "Source viewer" : tab/);
   assert.match(intake, /aria-label="Source viewer"/);
   assert.match(intake, /aria-label="Source metadata"/);

@@ -37,13 +37,21 @@ const maxProblems = 50
 // the required fields and the thread its file claims; per-file and total record
 // counts match; every attachment URI names an existing media object; no chunk
 // exceeds maxChunk (0 = the writer's default).
-func Validate(ctx context.Context, store ObjectStore, scheme, bucket, key string, maxChunk int64) (Report, error) {
+// The derived objects are read from the SAME mapped location the writer
+// publishes to (derivedroot.go), so a validation run and a derive run can
+// never disagree about where the derivation lives.
+func Validate(ctx context.Context, store ObjectStore, roots DerivedRoots, scheme, bucket, key string, maxChunk int64) (Report, error) {
 	if maxChunk <= 0 {
 		maxChunk = defaultMaxChunk
 	}
-	prefix := key + DerivedSuffix + "/"
-	report := Report{Manifest: fmt.Sprintf("%s://%s/%s%s", scheme, bucket, prefix, ManifestName)}
-	body, err := readAll(ctx, store, bucket, prefix+ManifestName)
+	location, _, err := ResolvePublished(ctx, store, roots, scheme, bucket, key)
+	if err != nil {
+		return Report{}, err
+	}
+	prefix := location.Prefix
+	bucket = location.Bucket
+	report := Report{Manifest: location.URI() + ManifestName}
+	body, err := readAll(ctx, store, bucket, location.ManifestKey())
 	if err != nil {
 		return report, fmt.Errorf("smsthreads: read manifest: %w", err)
 	}
@@ -58,7 +66,7 @@ func Validate(ctx context.Context, store ObjectStore, scheme, bucket, key string
 		}
 	}
 	mediaSeen := map[string]bool{}
-	uriPrefix := fmt.Sprintf("%s://%s/", scheme, bucket)
+	uriPrefix := fmt.Sprintf("%s://%s/", location.Scheme, location.Bucket)
 	check := func(file ThreadFile, rejected bool) {
 		report.Files++
 		if file.Bytes > report.LargestChunk {

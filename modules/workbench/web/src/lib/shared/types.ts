@@ -1015,7 +1015,7 @@ export interface ProfferSourceBrowserResponse {
 export interface ProfferParserCandidate {
   handler_id: string;
   handler_version: string;
-  execution_path: "decoder" | "duckdb";
+  execution_path: "decoder" | "duckdb" | "derive";
   compatibility_ref: string;
   reason: string;
 }
@@ -1092,7 +1092,7 @@ export interface ProfferHandlerSelectionDecisionRequest {
   recommendation_ref: string;
   handler_id: string;
   handler_version: string;
-  execution_path: "decoder" | "duckdb";
+  execution_path: "decoder" | "duckdb" | "derive";
   compatibility_ref: string;
 }
 
@@ -1207,7 +1207,7 @@ export interface ProfferOperatorSnapshot {
   reason: string;
   terminal: boolean;
   parser_handler?: string | null;
-  parser_execution_path?: "decoder" | "duckdb" | null;
+  parser_execution_path?: "decoder" | "duckdb" | "derive" | null;
   contracts: Array<{ contract: string; version: string; authority: string }>;
   package: {
     original: ProfferOperatorAvailability;
@@ -1859,4 +1859,155 @@ export interface GraphitiEpisode {
 export interface GraphitiEpisodesResponse {
   episodes: GraphitiEpisode[];
   message?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Sources screen (Byline: Claude Code · Opus 5 · 2026-09-22)
+// Mirrors app/types/proffer_batch.py, app/types/proffer_decoded_exists.py and
+// app/types/source_unit_marks.py.
+// ---------------------------------------------------------------------------
+
+export type ProfferBatchItemStatus =
+  | "queued"
+  | "running"
+  | "waiting_on_gate"
+  | "done"
+  | "failed"
+  | "skipped";
+
+export interface ProfferBatchStartRequest {
+  batch_id: string;
+  matter_id: string;
+  court_case_id: string;
+  folder_ref: string;
+  declared_format: string;
+  parser_options_ref: string;
+  source_context_ref?: string | null;
+  max_in_flight?: number;
+  matter_mode: MatterMode;
+}
+
+export interface ProfferBatchStartResponse {
+  batch_id: string;
+  matter_mode: MatterMode;
+}
+
+export interface ProfferBatchCounts {
+  total: number;
+  queued: number;
+  running: number;
+  waiting_on_gate: number;
+  done: number;
+  failed: number;
+  skipped: number;
+}
+
+export interface ProfferBatchItem {
+  key: string;
+  source_ref: string;
+  request_id: string;
+  preview_handle: string;
+  status: ProfferBatchItemStatus;
+  reason: string;
+}
+
+export interface ProfferBatchStatus {
+  batch_id: string;
+  prefix: string;
+  terminal: boolean;
+  listing_truncated: boolean;
+  items_truncated: boolean;
+  counts: ProfferBatchCounts;
+  items: ProfferBatchItem[];
+  matter_mode: MatterMode;
+}
+
+export interface DecodedExistsItem {
+  source_ref: string;
+  decoded: boolean;
+  reason: string;
+}
+
+export interface DecodedExistsResponse {
+  items: DecodedExistsItem[];
+}
+
+export type SourceUnitKind =
+  | "takeout"
+  | "takeout_zip"
+  | "facebook"
+  | "snapchat"
+  | "cube_acr"
+  | "git_repo"
+  | "obsidian_vault"
+  | "other";
+
+export interface SourceUnitMark {
+  unit_root: string;
+  unit_type: SourceUnitKind;
+  label: string;
+  marked_at: string;
+  marked_by: string;
+  origin: "hand_marked";
+}
+
+export interface SourceUnitMarkList {
+  items: SourceUnitMark[];
+  storage: string;
+  catalog_units_are_read_only: true;
+}
+
+export interface TakeoutPartProposal {
+  stamp: string;
+  job: string;
+  parts_present: number[];
+  parts_missing: number[];
+  highest_part: number;
+}
+
+export interface SourceUnitProposal {
+  unit_root: string;
+  looks_like: SourceUnitKind | null;
+  basis: "observed_listing";
+  observed_count: number;
+  takeout_sets: TakeoutPartProposal[];
+  requires_confirmation: boolean;
+}
+
+/** `POST /api/intake/discovery/unit-lookup` — catalog units for one listed page. */
+export interface CatalogUnitLookup {
+  units: Array<{
+    unit_id: number;
+    unit_type: string;
+    source: string | null;
+    export_root: string | null;
+    service: string | null;
+    unit_root: string;
+    member_count: number;
+    total_bytes: number;
+    members_without_sha1: number;
+    parent_unit_id: number | null;
+  }>;
+  members: Array<{ key: string; unit_id: number; unit_type: string; unit_root: string }>;
+  backend: string;
+  source_links_verified: boolean;
+}
+
+/** `GET /api/intake/discovery/catalog/by-vault-key` — provenance for one object. */
+export interface CatalogProvenance {
+  backend: string;
+  vault_key: string;
+  occurrences: number;
+  items: Array<{
+    rel: string;
+    parent: string;
+    name: string;
+    size: number | null;
+    modified_at: string | null;
+    recorded_at: string | null;
+    source: string | null;
+    scope: string | null;
+  }>;
+  items_truncated: boolean;
+  freshness: { catalog_snapshot: string; checked_at_is_source_update: boolean };
 }

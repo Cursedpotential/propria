@@ -21,6 +21,7 @@ from app.service.proffer import (
     preview_messages,
     start,
 )
+from app.runtime.proffer_decoded import router as _decoded_router
 from app.runtime.proffer_events import router as _events_router
 from app.runtime.proffer_upload import router as _upload_router
 from app.runtime.proffer_media import router as _media_router
@@ -58,6 +59,7 @@ from app.types.proffer_operator import ProfferOperatorSnapshot
 
 router = APIRouter(prefix="/api/proffer", tags=["proffer"])
 router.include_router(_media_router)  # GET .../media/{sha256}: see app/runtime/proffer_media.py
+router.include_router(_decoded_router)  # GET /decoded/*: SBV output before an ingest run exists
 router.include_router(_events_router)  # GET .../events: see app/runtime/proffer_events.py
 router.include_router(_upload_router)  # POST /upload, /staged/{id}/acquisition: see app/runtime/proffer_upload.py
 

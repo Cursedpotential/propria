@@ -80,6 +80,17 @@ services:
       PARSER_BUNDLE_DIR: /data/proffer/parser-bundles
       NORMALIZED_BUNDLE_DIR: /data/proffer/normalized-bundles
       INVENTORY_MANIFEST_DIR: /data/proffer/inventory-manifests
+      DERIVE_SCRATCH_DIR: /data/proffer/derive-scratch
+      # Where a derivation's output goes. UNSET (today) means it is published
+      # beside the original exactly as before. Set it to a JSON list of
+      # {"source","derived"} locator-prefix pairs to move derived output under
+      # its own vault root, mirroring the source tree inside it; longest
+      # matching source prefix wins, and a derivation already published beside
+      # an original is still found and reused. A malformed value, or one naming
+      # a scheme absent from OBJECT_STORES_JSON, fails worker startup loudly.
+      # The target vault is not built yet (owner 2026-09-21), so no default.
+      # Literal on purpose: Compose ends a ${VAR:-default} at the first '}'.
+      DERIVED_ROOTS_JSON: ''
       PLATFORM_TOOLS_BASE_URL: ${PLATFORM_TOOLS_BASE_URL:?set}
       CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
       # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible

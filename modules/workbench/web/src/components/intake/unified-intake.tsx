@@ -22,10 +22,10 @@ import {
 
 import { AtomicTools } from "@/components/tools/atomic-tools";
 import { ContextFlowRail } from "@/components/intake/context-flow-rail";
-import { MatterModeSelector } from "@/components/intake/matter-mode-selector";
 import { ParserSelectionPanel } from "@/components/intake/parser-selection-panel";
 import { SourceExplorer } from "@/components/intake/source-explorer";
 import { DiscoveryExplorer } from "@/components/intake/discovery-explorer";
+import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
 import { Button } from "@/components/ui/button";
 import {
   ApiError,
@@ -57,7 +57,10 @@ import { profferContextFlowComplete } from "@/lib/proffer-context-checkpoints";
 import { cn } from "@/lib/utils";
 
 type IntakePhase = "choose" | "ready" | "starting" | "handler_review" | "repair_review" | "review" | "complete" | "error";
-type PreviewTab = "source" | "metadata" | "parser";
+type PreviewTab = "messages" | "source" | "metadata" | "parser";
+
+// Backups SBV decodes into conversations; their decoded view opens first (owner, 2026-09-21).
+const MESSAGE_BACKUP_NAME = /\.(xml|ndjson)$/i;
 type OperatorTab = "intake" | "atomic_tools";
 
 const LOCAL_FILE_ACCEPT = ".xml,.json,.txt,.csv,.md,.html,.htm,.pdf,.docx,.zip,.tar,.tgz,.gz,.7z,.rar,.png,.jpg,.jpeg,.gif,.webp,.avif,.tif,.tiff,.bmp";
@@ -384,7 +387,7 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
     setWorkflowEvents([]);
     setCheckpointStreamError(null);
     setError(null);
-    setPreviewTab("source");
+    setPreviewTab(MESSAGE_BACKUP_NAME.test(selected.name) ? "messages" : "source");
     setRepairChoice(null);
     setRepairDecisionRef(null);
     setSelectedHandlerKey("");
@@ -630,8 +633,9 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
             <h1 className="text-xl font-semibold tracking-tight">Import source context</h1>
             <p className="mt-1 text-sm text-muted-foreground">Choose a source, inspect it, then start the context-only workflow for the fixed case.</p>
           </div>
+          {/* The Test / Live switch lives in the top bar and nowhere else
+              (owner 2026-09-22 09:08). Byline: Claude Code · Opus 5 · 2026-09-22. */}
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <MatterModeSelector />
             <div className="flex items-center gap-2 border bg-background px-3 py-2 text-xs text-muted-foreground">
               <ShieldCheck className="h-4 w-4" /> PostgreSQL authority preserved
             </div>
@@ -732,7 +736,7 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
               </div>
 
               <div className="flex min-h-11 gap-5 border-b px-5" role="tablist" aria-label="Source inspection">
-                {(["source", "metadata", "parser"] as const).map((tab) => (
+                {((remote && MESSAGE_BACKUP_NAME.test(remote.name) ? ["messages", "source", "metadata", "parser"] : ["source", "metadata", "parser"]) as PreviewTab[]).map((tab) => (
                   <button
                     key={tab}
                     type="button"
@@ -741,12 +745,13 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
                     onClick={() => setPreviewTab(tab)}
                     className={`border-b-2 px-1 text-xs font-semibold capitalize ${previewTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
                   >
-                    {tab === "source" ? "Source viewer" : tab}
+                    {tab === "source" ? "Source viewer" : tab === "messages" ? "Messages" : tab}
                   </button>
                 ))}
               </div>
 
               <div className="min-h-[330px] border-b px-5 py-4">
+                {previewTab === "messages" && remote && <DecodedSourceViewer sourceRef={remote.source_ref} />}
                 {previewTab === "source" && (
                   <section aria-label="Source viewer">
                     <p className="platform-rule-title mb-3">Source viewer</p>

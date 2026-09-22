@@ -35,6 +35,18 @@ type HandlerExecutionPath string
 const (
 	HandlerPathDecoder HandlerExecutionPath = "decoder"
 	HandlerPathDuckDB  HandlerExecutionPath = "duckdb"
+	// HandlerPathDerive routes a signature no in-place extractor can read to
+	// derive_structured_text_activity, which republishes memory-safe
+	// structured text beside the original. It is a third path, not a DuckDB
+	// variant: nothing downstream of it is a parser bundle.
+	//
+	// ⚠ context.handler_compatibility.execution_path is CHECK-constrained to
+	// ('decoder','duckdb') on the live database (verified read-only
+	// 2026-09-20). Persisting this value requires the schema change in
+	// scripts/2026-09-20-derive-execution-path.sql, which is NOT applied.
+	//
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	HandlerPathDerive HandlerExecutionPath = "derive"
 )
 
 const maxCompatibleAlternatives = 3
@@ -118,7 +130,9 @@ func validateHandlerCandidate(candidate HandlerCandidate) error {
 	if strings.TrimSpace(candidate.HandlerID) == "" || strings.TrimSpace(candidate.HandlerVersion) == "" {
 		return errors.New("handler id and version are required")
 	}
-	if candidate.ExecutionPath != HandlerPathDecoder && candidate.ExecutionPath != HandlerPathDuckDB {
+	switch candidate.ExecutionPath {
+	case HandlerPathDecoder, HandlerPathDuckDB, HandlerPathDerive:
+	default:
 		return fmt.Errorf("unsupported execution path %q", candidate.ExecutionPath)
 	}
 	if candidate.CompatibilityRef == "" || strings.TrimSpace(candidate.Reason) == "" {

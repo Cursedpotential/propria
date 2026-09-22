@@ -507,6 +507,9 @@ type PreviewHTTPHandler struct {
 	cursorKey        []byte
 	serviceTokenPath string
 	sourceContext    sourcecontext.Validator
+	// batch is nil until UseBatchWorkflow is called; the batch routes then
+	// answer 503 instead of 404. Byline: Claude Code · Opus 5 · 2026-09-21
+	batch BatchWorkflowClient
 }
 
 // OperationSummary is the browser-safe identity and lifecycle of one Proffer
@@ -564,6 +567,8 @@ func NewPreviewHTTPHandler(workflow PreviewWorkflow, store PreviewStore, repairs
 func (h *PreviewHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /reference-import/start", h.auth(h.start))
+	mux.HandleFunc("POST /reference-import/start-batch", h.auth(h.startBatch))
+	mux.HandleFunc("GET /reference-import/batches/{batch_id}", h.auth(h.batchStatus))
 	mux.HandleFunc("GET /reference-import/operations", h.auth(h.operations))
 	mux.HandleFunc("GET /reference-import/operations/{preview_handle}", h.auth(h.operation))
 	mux.HandleFunc("GET /reference-import/previews/{preview_handle}", h.auth(h.snapshot))

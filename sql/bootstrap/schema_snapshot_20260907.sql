@@ -8200,7 +8200,7 @@ CREATE TABLE context.handler_compatibility (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT handler_compatibility_handler_id_check CHECK ((length(btrim(handler_id)) > 0)),
     CONSTRAINT handler_compatibility_handler_version_check CHECK ((length(btrim(handler_version)) > 0)),
-    CONSTRAINT handler_compatibility_execution_path_check CHECK ((execution_path = ANY (ARRAY['decoder'::text, 'duckdb'::text]))),
+    CONSTRAINT handler_compatibility_execution_path_check CHECK ((execution_path = ANY (ARRAY['decoder'::text, 'duckdb'::text, 'derive'::text]))),
     CONSTRAINT handler_compatibility_reason_check CHECK (((length(btrim(reason)) > 0) AND (octet_length(reason) <= 4000)))
 );
 

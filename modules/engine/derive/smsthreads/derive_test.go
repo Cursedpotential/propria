@@ -61,7 +61,7 @@ func TestDeriveWritesThreadsMediaAndManifestBesideSource(t *testing.T) {
 	image := []byte("\x89PNG\r\n\x1a\nnot-a-real-image-but-real-bytes")
 	source := sampleBackup(image)
 	store := &memoryStore{objects: map[string][]byte{"bkt/vault/sms-test.xml": []byte(source)}}
-	manifest, err := Derive(context.Background(), Options{
+	manifest, _, err := Derive(context.Background(), Options{
 		Store: store, Scheme: "b2", Bucket: "bkt", Key: "vault/sms-test.xml", ScratchRoot: t.TempDir(),
 	})
 	if err != nil {
@@ -114,7 +114,7 @@ func TestDeriveWritesThreadsMediaAndManifestBesideSource(t *testing.T) {
 	if !bytes.Equal(store.objects["bkt/vault/sms-test.xml"], []byte(source)) {
 		t.Fatal("the original object was modified")
 	}
-	if _, err := Derive(context.Background(), Options{
+	if _, _, err := Derive(context.Background(), Options{
 		Store: store, Scheme: "b2", Bucket: "bkt", Key: "vault/sms-test.xml", ScratchRoot: t.TempDir(),
 	}); err == nil {
 		t.Fatal("a finished derivation must never be overwritten")
@@ -132,7 +132,7 @@ func TestDeriveReportsPartsWithoutPayload(t *testing.T) {
 		`<part seq="1" ct="text/plain" name="null" text="see picture" />
       <part seq="0" ct="image/heif" name="null" cid="&lt;image000000_11449.jpg&gt;" cl="image000000_11449.jpg" text="null" data="" />`, 1)
 	store := &memoryStore{objects: map[string][]byte{"bkt/vault/sms-gap.xml": []byte(source)}}
-	manifest, err := Derive(context.Background(), Options{
+	manifest, _, err := Derive(context.Background(), Options{
 		Store: store, Scheme: "b2", Bucket: "bkt", Key: "vault/sms-gap.xml", ScratchRoot: t.TempDir(),
 	})
 	if err != nil {
@@ -176,7 +176,7 @@ func TestNormalizePartyJoinsNumberSpellings(t *testing.T) {
 func TestChunksRollOverAndValidateCatchesTampering(t *testing.T) {
 	source := sampleBackup([]byte("png-bytes"))
 	store := &memoryStore{objects: map[string][]byte{"bkt/vault/sms-test.xml": []byte(source)}}
-	manifest, err := Derive(context.Background(), Options{
+	manifest, _, err := Derive(context.Background(), Options{
 		Store: store, Scheme: "b2", Bucket: "bkt", Key: "vault/sms-test.xml", ScratchRoot: t.TempDir(), MaxChunk: 300,
 	})
 	if err != nil {
@@ -196,17 +196,17 @@ func TestChunksRollOverAndValidateCatchesTampering(t *testing.T) {
 	if !rolled {
 		t.Fatalf("no thread rolled over at a 300-byte cap: %+v", chunksByThread)
 	}
-	report, err := Validate(context.Background(), store, "b2", "bkt", "vault/sms-test.xml", 0)
+	report, err := Validate(context.Background(), store, nil, "b2", "bkt", "vault/sms-test.xml", 0)
 	if err != nil || !report.OK || report.Records != 4 || report.MediaObjects != 1 {
 		t.Fatalf("clean derivation must validate: %+v err=%v", report, err)
 	}
-	strict, _ := Validate(context.Background(), store, "b2", "bkt", "vault/sms-test.xml", 10)
+	strict, _ := Validate(context.Background(), store, nil, "b2", "bkt", "vault/sms-test.xml", 10)
 	if strict.OK || len(strict.OversizeChunks) == 0 {
 		t.Fatalf("a 10-byte cap must flag oversize chunks: %+v", strict)
 	}
 	victim := "bkt/" + manifest.Threads[0].Key
 	store.objects[victim] = append(store.objects[victim], []byte("not json\n")...)
-	tampered, _ := Validate(context.Background(), store, "b2", "bkt", "vault/sms-test.xml", 0)
+	tampered, _ := Validate(context.Background(), store, nil, "b2", "bkt", "vault/sms-test.xml", 0)
 	if tampered.OK || len(tampered.Problems) == 0 {
 		t.Fatal("a tampered chunk must fail validation")
 	}

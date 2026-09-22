@@ -5,6 +5,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
+	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/normalize"
 	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
@@ -222,6 +223,43 @@ func NewStructuredELTActivities(rows StructuredELTRowRepository, store ParserAct
 	}
 }
 
+// NewDeriveSMSThreadsActivities binds the derive unit to Temporal heartbeats
+// and attempt numbers. Scratch is a data-volume path the worker already
+// mounts; roots is the configured derived-vault mapping.
+//
+// Byline: Claude Code · Opus 5 · 2026-09-21
+func NewDeriveSMSThreadsActivities(
+	locators DeriveSourceLocatorStore,
+	stores func(scheme string) (smsthreads.ObjectStore, error),
+	receipts DeriveReceiptStore,
+	roots smsthreads.DerivedRoots,
+	scratchRoot string,
+	maxChunk int64,
+) DeriveSMSThreadsActivities {
+	return DeriveSMSThreadsActivities{
+		Locators: locators, Stores: stores, Receipts: receipts,
+		DerivedRoots: roots, ScratchRoot: scratchRoot, MaxChunk: maxChunk,
+		Heartbeat: func(ctx context.Context, progress Progress) {
+			activity.RecordHeartbeat(ctx, progress)
+		},
+		Attempt: func(ctx context.Context) int32 {
+			return activity.GetInfo(ctx).Attempt
+		},
+	}
+}
+
+// RegisterBatchImportActivities installs the four batch-by-folder Activities
+// under their exact names. They are standalone: the batch workflow is the
+// only caller, and none of them belongs to the 26-stage graph.
+//
+// Byline: Claude Code · Opus 5 · 2026-09-21
+func RegisterBatchImportActivities(registrar ActivityRegistrar, batch BatchImportActivities) {
+	registrar.RegisterActivityWithOptions(batch.ListBatchFolder, activity.RegisterOptions{Name: ListBatchFolderActivityName})
+	registrar.RegisterActivityWithOptions(batch.BindImportOperation, activity.RegisterOptions{Name: BindImportOperationActivityName})
+	registrar.RegisterActivityWithOptions(batch.ReadImportOperation, activity.RegisterOptions{Name: ReadImportOperationActivityName})
+	registrar.RegisterActivityWithOptions(batch.FindImportBindings, activity.RegisterOptions{Name: FindImportBindingsActivityName})
+}
+
 // RegisterStructuredELTActivities registers the paired select/execute DuckDB
 // implementation under distinct Temporal names. Proffer routes both names
 // together for exact eligible formats, avoiding decoder registration
@@ -231,8 +269,9 @@ func RegisterStructuredELTActivities(registrar ActivityRegistrar, activities Str
 	registrar.RegisterActivityWithOptions(activities.ExecuteStructuredELT, activity.RegisterOptions{Name: ExecuteStructuredELTActivityName})
 }
 
-// RegisterDeriveSMSThreadsActivity installs the standalone streaming
-// derivation Activity (derive_sms_threads.go) under its exact name.
+// RegisterDeriveSMSThreadsActivity installs the streaming derivation Activity
+// (derive_sms_threads.go) under its exact stage-graph identity. It is a
+// separate Activity, never an alias of execute_parser_activity.
 func RegisterDeriveSMSThreadsActivity(registrar ActivityRegistrar, activities DeriveSMSThreadsActivities) {
 	registrar.RegisterActivityWithOptions(activities.DeriveSMSThreads, activity.RegisterOptions{Name: DeriveSMSThreadsActivityName})
 }
