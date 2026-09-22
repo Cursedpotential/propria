@@ -2338,3 +2338,50 @@ Created 16 missing-payload rows with raw/UTC/New York timestamps and source meta
       live Weaviate with the synthetic fixture collection (right screenshot first by MaxSim; text lane unaffected);
       fixture collection removed. Code: `Intake/backend/src/casebible_index/image_search.py`, `api.py`.
       Probata: not wired — its search path still has to be read. _Claude Code · Fable 5.1_
+
+## 2026-09-22 — Smart Suggestions via the in-app agent (step 1)
+> _Byline: Claude Code · Opus 5 · 2026-09-22_
+
+Step 1 of `Intake/docs/PROPOSAL-2026-09-21-SMART-SUGGESTIONS-AGENT.md` is written and
+committed on `feat/hosted-intake-engine` in the Xplorer fork. **Not deployed** — the
+engine deploy is waiting on the owner's go.
+
+- **Rules file (tracked):** `scripts/intake-organizer-rules.md`, shipped to
+  `/app/config/intake-organizer-rules.md` and named by `INTAKE_ORGANIZER_RULES_FILE`
+  (same convention the Portkey config already uses). Seven rules: Takeouts are atomic;
+  folders are the unit of organization and are never renamed into one another
+  (`.obsidian` and friends move whole); chats ≠ message transcripts; dev-junk is never
+  reorganized into the owner's material; moving and grouping only, never deleting;
+  say nothing inside a code project; suggest little and say why in plain words.
+- **`analyze_directory` now asks the model.** New `apps/src-tauri/src/organizer_agent.rs`
+  builds the prompt from the listing (names, sizes, dates, types — never file contents),
+  the catalog facts and the rules file, calls the engine's configured model through the
+  existing `ai::chat_with_ai` → `ai_portkey.rs` path (Gemini primary, Kimi fallback),
+  and parses the reply back into the existing `FolderSuggestion` shape. One call per
+  analyze, listing capped at 400 entries plus per-type counts covering every file,
+  45 s budget.
+- **The fixed rules stay as the fallback**, with every reason prefixed `Fallback rule — `,
+  whenever the rules file, the model or the reply is unavailable.
+- **`is_project` became an input line, not a block.** The model is told the folder looks
+  like a code project and rule 6 tells it to stay out; the fallback still returns nothing
+  there. The "suggest anyway" control is step 2 and is not built.
+- **Catalog facts** come from the engine: `Catalog::folder_facts` runs one grouped query
+  over the read-only `metabase_ro` pool against `raw_duck.intake_catalog_fs_20260917`
+  (copies, sources, recorded original paths, sha1, recorded size), keyed by file name.
+  `routing.rs` intercepts `analyze_directory`, attaches them as `catalogFacts` and hands
+  the call to the donor. A catalog that is down or silent is not an error.
+- **Bug fixed on the way:** `preview_organization` recomputed the three fixed rules and
+  indexed into that list, so once suggestions came from the model the panel's indices
+  would have planned moves for the wrong files. The analyzed list for a directory is now
+  remembered (bounded, 16 directories) and preview uses it.
+- **Verification state, honestly:** the five changed Rust files parse (`rustfmt`), but
+  **nothing was compiled or tested locally** — this desktop has no Windows SDK
+  (`kernel32.lib` absent everywhere; registry has no `Windows Kits\Installed Roots`) and
+  no MinGW, so every `cargo check` fails at the build-script link step. The unit tests
+  written for prompt assembly, response parsing and the fallback path have therefore not
+  been run. The only compiler available for this code is the Coolify image build on
+  ovh-files, which is the deploy.
+- Files: `scripts/intake-organizer-rules.md`, `apps/src-tauri/src/organizer_agent.rs`,
+  `apps/src-tauri/src/file_organizer.rs`, `apps/src-tauri/src/lib.rs`,
+  `apps/intake-engine/src/catalog.rs`, `apps/intake-engine/src/routing.rs`,
+  `apps/intake-engine/Dockerfile`.
