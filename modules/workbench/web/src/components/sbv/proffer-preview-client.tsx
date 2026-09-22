@@ -297,12 +297,15 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
     let replayedEvents = 0;
     const source = createProfferPreviewEventSource(previewHandle, mode);
     const onEvent = (raw: MessageEvent<string>) => {
+      // Count what THIS stream delivered before any generation gate: the gate can be
+      // stale for the first URL-driven load, and a delivered event is proof the stream
+      // works whatever the page decides to do with it.
+      replayedEvents += 1;
       try {
         if (generation !== generationRef.current || activeHandleRef.current !== previewHandle) return;
         const event = JSON.parse(raw.data) as ProfferPreviewEvent;
         if (event.preview_handle !== previewHandle) throw new Error("Preview event correlation failed");
         if (event.matter_mode !== mode) throw new Error("Preview event crossed the active TEST/REAL boundary");
-        replayedEvents += 1;
         setEvents((current) => [...current.filter((item) => item.event_id !== event.event_id), event]
           .sort((left, right) => left.event_id - right.event_id)
           .slice(-100));
@@ -315,7 +318,6 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
     };
     source.addEventListener("proffer.preview", onEvent as EventListener);
     source.onerror = () => {
-      if (generation !== generationRef.current || activeHandleRef.current !== previewHandle) return;
       // The server replays the durable events and then ends the response. EventSource reports
       // every ended response as an error and reconnects with Last-Event-ID, so an end after a
       // replay is the normal case, not an outage (measured live 2026-09-21: HTTP 200, events
@@ -325,6 +327,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
         if (operationTerminalRef.current) source.close();
         return;
       }
+      if (generation !== generationRef.current || activeHandleRef.current !== previewHandle) return;
       setEventError("The Proffer preview event stream is unavailable");
     };
     const messageControllers = messageControllersRef.current;
