@@ -1,7 +1,7 @@
 ---
 title: Intake + Review — module rethink (what it is for, what goes, what stays)
 date: 2026-09-21
-status: PROPOSAL — owner has not ratified; nothing built from it
+status: RATIFIED 2026-09-22 09:09 — option A, using the Intake (Consignatio) CocoIndex search tooling; owner leaning toward C longer term; nothing built yet
 domains: [probata, workbench]
 tags: [workbench, intake, review, rethink, design, pending-review, jobs-to-be-done]
 ---
@@ -61,6 +61,14 @@ One person has ~2 TB of his own records in B2. He needs to **get them into a for
 - **A (default): rebuild around the three screens above**, reusing what works today — the B2 browser, the Messages viewer, the Glide message browser, search, media streaming, the batch engine. Roughly: Sources first (it is the front door and the most broken), then Read, then Activity.
 - **B: keep Intake and Review as pages, strip and re-order them** (hide the machinery, messages first, names readable, B2 default). Faster, but the one-file-at-a-time shape and the split between "pick" and "see progress" stay.
 - **C: make the Xplorer-based Intake the front door** and point Probata's Sources at it (owner direction 2026-09-16: Intake = one co-workspace on the Xplorer engine). Biggest change; the Probata pages shrink to Activity + Read.
+
+## Owner decision — 2026-09-22 09:09
+
+"at this point leaning into c but go a however needs to use the intake coco search tooling."
+
+- **Build A now**: Sources / Activity / Read in Probata's Workbench.
+- **Search does not get rebuilt in Probata.** Sources and Read call the Intake (Consignatio) CocoIndex search tooling — the same backend, index and endpoints the Xplorer-based Intake uses — so that when the owner moves to C (Xplorer Intake as the front door) nothing is thrown away. Concretely: Probata's Workbench API proxies to the Consignatio search service, it does not own an index; unit and metadata facts come from the catalog the same way.
+- **C stays the direction.** Every Sources feature is written so it can be lifted into the Xplorer client later: no Probata-only search contract, no duplicate catalog reads.
 
 ## Before building either way
 
