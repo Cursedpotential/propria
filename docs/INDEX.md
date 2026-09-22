@@ -25,6 +25,7 @@ deployed.
 
 | Need | Document | Authority |
 |---|---|---|
+- `docs/PURPOSE.md` — **what this app is for**: the owner's six steps (2026-09-22) and the dated record they came from. Read before touching any surface.
 | Product invariant and locked decisions | [PROJECT_CANON.md](PROJECT_CANON.md) | Durable canon |
 | Naming canon (product + component names) | [NAMING.md](NAMING.md) | Durable canon; D-137..D-141 |
 | Current forward order | [BUILD_PLAN.md](BUILD_PLAN.md) | Forward entry point |
