@@ -84,6 +84,8 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
   const flagControllerRef = useRef<AbortController | null>(null);
   const requestedCursorsRef = useRef(new Set<string>());
   const resourcesControllerRef = useRef<AbortController | null>(null);
+  // Whether the selected operation has finished; read by the event stream's error handler.
+  const operationTerminalRef = useRef(false);
 
   const activateHandle = useCallback((handle: string) => {
     generationRef.current += 1;
@@ -182,6 +184,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
       if (result.preview_handle !== handle) throw new Error("Preview snapshot correlation failed");
       setPreview(result);
       setOperatorSnapshot(operator);
+      operationTerminalRef.current = Boolean(operator.terminal);
       setSnapshotError(null);
     } catch (error) {
       if (generation !== generationRef.current || activeHandleRef.current !== handle) return;
@@ -290,6 +293,8 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
     const initialLoad = window.setTimeout(() => {
       void loadSnapshot();
     }, 0);
+    operationTerminalRef.current = false;
+    let replayedEvents = 0;
     const source = createProfferPreviewEventSource(previewHandle, mode);
     const onEvent = (raw: MessageEvent<string>) => {
       try {
@@ -297,6 +302,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
         const event = JSON.parse(raw.data) as ProfferPreviewEvent;
         if (event.preview_handle !== previewHandle) throw new Error("Preview event correlation failed");
         if (event.matter_mode !== mode) throw new Error("Preview event crossed the active TEST/REAL boundary");
+        replayedEvents += 1;
         setEvents((current) => [...current.filter((item) => item.event_id !== event.event_id), event]
           .sort((left, right) => left.event_id - right.event_id)
           .slice(-100));
@@ -309,9 +315,17 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
     };
     source.addEventListener("proffer.preview", onEvent as EventListener);
     source.onerror = () => {
-      if (generation === generationRef.current && activeHandleRef.current === previewHandle) {
-        setEventError("The Proffer preview event stream is unavailable");
+      if (generation !== generationRef.current || activeHandleRef.current !== previewHandle) return;
+      // The server replays the durable events and then ends the response. EventSource reports
+      // every ended response as an error and reconnects with Last-Event-ID, so an end after a
+      // replay is the normal case, not an outage (measured live 2026-09-21: HTTP 200, events
+      // delivered, response closed in 0.18 s). A finished operation has nothing further to
+      // stream, so its source is closed rather than left reconnecting every few seconds.
+      if (replayedEvents > 0) {
+        if (operationTerminalRef.current) source.close();
+        return;
       }
+      setEventError("The Proffer preview event stream is unavailable");
     };
     const messageControllers = messageControllersRef.current;
     const requestedCursors = requestedCursorsRef.current;
