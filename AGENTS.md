@@ -34,6 +34,23 @@ Repository-local memory follows the same path hierarchy: after reading applicabl
 never authority over current canon, ADRs, decisions, or verified handoffs. Format and
 precedence: `docs/agent-memory/README.md`.
 
+## THE GOAL — six steps, every surface is measured against them
+
+> _Owner ruling · 2026-09-22 19:54 (D-159). Full record: `docs/PURPOSE.md`. Binding on every surface, screen, API and workflow in this repository._
+
+1. **Open** a file or folder, through an index.
+2. **Verify** whether it is relevant.
+3. **Make sure it has a hash**, so it can be trusted later.
+4. **Pick a parser or extractor** and get it into context and the analysis platforms.
+5. **Preview** the result to make sure the machine did it right.
+6. **Fill in gaps** and missing context.
+
+Sorting exists only because step 1 could not be done on the corpus as it stood. Before adding
+anything to a surface, name which step it serves; if it serves none, it does not go on the surface.
+Sources owns steps 1–4. Review is steps 5–6 plus the accept/reject decision — the file's preview,
+full screen, nothing else. Run status, receipts, stores, lineage, attempts and tool catalogs are
+never primary content on an operator surface; they are a drawer, or their own screen.
+
 ## Project
 
 **Indicia Probata** (`probata`) — the evidence-record product under the **propria**
