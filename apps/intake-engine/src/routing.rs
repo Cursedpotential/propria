@@ -64,6 +64,12 @@ pub async fn engine_command(engine: &Arc<Engine>, name: &str, args: &Map<String,
             "filesystem_search": std::env::var("INTAKE_FILESYSTEM_API_URL").is_ok_and(|v| !v.trim().is_empty()),
             // Index-first Content Search over the chats index (PG FTS + Weaviate), 2026-09-18.
             "chat_index": true,
+            // Name search over the whole catalog and all of B2 (owner 2026-09-22 18:54 EDT).
+            "name_search": {
+                "available": engine.catalog.is_some(),
+                "scopes": crate::name_search::scopes(),
+                "scan_cap": crate::name_search::SCAN_CAP,
+            },
             "timeline": std::env::var("INTAKE_SURREAL_PASSWORD_FILE").is_ok(),
             "live_folder_search": {
                 "max_files": crate::live_search::MAX_FILES,
@@ -72,6 +78,8 @@ pub async fn engine_command(engine: &Arc<Engine>, name: &str, args: &Map<String,
                 "progress_event": crate::live_search::PROGRESS_EVENT,
             },
         })),
+        // The magnifying glass searches names everywhere, not just the open folder (2026-09-22).
+        "intake_search_names" => crate::name_search::search_names(engine, args).await,
         "intake_chat_index_info" => crate::chat_search::index_info(engine).await,
         "intake_chat_search" => crate::chat_search::search(engine, args).await,
         "intake_chat_event" => crate::chat_search::event(engine, args).await,

@@ -18,6 +18,8 @@ export const STORAGE_KEYS = {
 
   // Search
   SEARCH_SCOPE: 'xplorer:search-scope',
+  // Name search: the scope/kind/sort the owner last used (Claude Code · Opus 5 · 2026-09-22).
+  NAME_SEARCH_PREFS: 'xplorer:name-search-prefs',
   SEARCH_HISTORY: 'xplorer-search-history',
   COMMAND_HISTORY: 'xplorer:command-history',
   COMMAND_FAVORITES: 'xplorer:command-favorites',

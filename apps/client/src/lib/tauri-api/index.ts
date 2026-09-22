@@ -15,6 +15,7 @@ import * as system from './system';
 import * as pty from './pty';
 import * as intakeEngine from './intake-engine';
 import * as intakeChatSearch from './intake-chat-search';
+import * as intakeNameSearch from './intake-name-search';
 
 // Re-export all types so `import { FileEntry } from '@/lib/tauri-api'` keeps working
 export * from '../tauri-api-types';
@@ -31,6 +32,7 @@ export * from './system';
 export * from './pty';
 export * from './intake-engine';
 export * from './intake-chat-search';
+export * from './intake-name-search';
 
 // ---------------------------------------------------------------------------
 // Backward-compatible static class
@@ -45,6 +47,7 @@ export class TauriAPI {
   static getChatEvent = intakeChatSearch.getChatEvent;
   static getChatTimeline = intakeChatSearch.getChatTimeline;
   static liveFolderSearch = intakeChatSearch.liveFolderSearch;
+  static searchNames = intakeNameSearch.searchNames;
 
   // ── File system ─────────────────────────────────────────────────────────
   static readDirectory = fileSystem.readDirectory;

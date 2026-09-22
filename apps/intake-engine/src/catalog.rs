@@ -23,6 +23,10 @@ const FS: &str = "raw_duck.intake_catalog_fs_20260917";
 const DIRS: &str = "raw_duck.intake_catalog_dirs_20260917";
 const OPS: &str = "raw_duck.intake_fs_ops_20260917";
 
+/// The same two tables, for the modules that query them directly (name search, 2026-09-22).
+pub const FS_TABLE: &str = FS;
+pub const DIRS_TABLE: &str = DIRS;
+
 #[derive(Clone, Debug)]
 pub struct OpRow {
     pub op: String,
@@ -180,6 +184,22 @@ impl Catalog {
     /// Read-only (metabase_ro) pool, shared with the chats index search (2026-09-18).
     pub fn ro_pool(&self) -> &Pool {
         &self.ro
+    }
+
+    /// A copy of the write overlay, for callers that map many rows at once instead of listing one
+    /// directory (the name search across the whole catalog, 2026-09-22).
+    pub async fn overlay_ops(&self) -> Vec<OpRow> {
+        self.overlay.read().await.clone()
+    }
+
+    /// Where a base catalog path is now, after the overlay; `None` when the overlay removed it.
+    pub fn effective_path(ops: &[OpRow], base: &str) -> Option<String> {
+        Self::to_effective(ops, base)
+    }
+
+    /// The current B2 key of a vault object after the overlay; `None` when it was deleted.
+    pub fn effective_vault_key(ops: &[OpRow], key: &str) -> Option<String> {
+        Self::current_key(ops, key)
     }
 
     pub async fn connect() -> Result<Self, String> {

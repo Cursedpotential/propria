@@ -9,6 +9,7 @@ mod donor_commands;
 mod http;
 mod live_search;
 mod media;
+mod name_search;
 mod routing;
 mod timeline;
 

@@ -13,6 +13,8 @@ import {
 } from '@/lib/tauri-api';
 import { openSearchHit, setSelectedChatEvent } from '@/lib/chat-event-selection';
 import IntakeLiveFolderSearch from './IntakeLiveFolderSearch';
+// Name search across the whole catalog and all of B2 (Claude Code · Opus 5 · 2026-09-22).
+import IntakeNameSearch, { type IntakeNameSearchHandle } from './IntakeNameSearch';
 import type { IntakeSearchHandle } from './IntakeFilesystemSearchPanel';
 
 interface Props {
@@ -60,6 +62,7 @@ const IntakeChatSearchPanel = forwardRef<IntakeSearchHandle, Props>(
   ({ navigateToPath, activePaneRoot }, ref) => {
     const { t } = useTranslation();
     const inputRef = useRef<HTMLInputElement>(null);
+    const nameSearchRef = useRef<IntakeNameSearchHandle>(null);
     const requestId = useRef(0);
     const [query, setQuery] = useState('');
     const [person, setPerson] = useState<ChatPerson>('all');
@@ -72,7 +75,9 @@ const IntakeChatSearchPanel = forwardRef<IntakeSearchHandle, Props>(
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [openedKey, setOpenedKey] = useState<string | null>(null);
-    useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
+    // Ctrl+Shift+F lands on the name box: the magnifying glass is first of all "where is that
+    // folder?" (owner 2026-09-22). The chats query is still one tab away.
+    useImperativeHandle(ref, () => ({ focus: () => nameSearchRef.current?.focus() }));
 
     const info = useQuery({
       queryKey: ['intake-chat-index-info'],
@@ -121,7 +126,15 @@ const IntakeChatSearchPanel = forwardRef<IntakeSearchHandle, Props>(
         className="text-xp-text flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3"
         aria-label={t('intakeChatSearch.title')}
       >
-        <h2 className="text-sm font-semibold">{t('intakeChatSearch.title')}</h2>
+        {/* Names first: clicking the magnifying glass is asking "where is that folder?". */}
+        <IntakeNameSearch
+          ref={nameSearchRef}
+          navigateToPath={navigateToPath}
+          activePaneRoot={activePaneRoot}
+        />
+        <h2 className="border-xp-border border-t pt-3 text-sm font-semibold">
+          {t('intakeChatSearch.title')}
+        </h2>
         <p role="status" className="text-xs" data-testid="chat-index-scope">
           {info.isError
             ? `${t('intakeChatSearch.indexUnavailable')}: ${String((info.error as Error)?.message ?? '')}`

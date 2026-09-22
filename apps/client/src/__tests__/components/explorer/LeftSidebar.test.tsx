@@ -84,8 +84,12 @@ vi.mock('@/lib/tauri-api', () => ({
     getFileIcon: vi.fn(() => '📄'),
     formatFileSize: vi.fn(() => '1 KB'),
     formatDate: vi.fn(() => '2024-01-01'),
+    searchNames: vi.fn(() => Promise.resolve({ hits: [] })),
   },
   FileEntry: {},
+  // The search tab's name search reads these at module load (Claude Code · Opus 5 · 2026-09-22).
+  NAME_SEARCH_SCOPES: [{ id: 'everything', labelKey: 'intakeNameSearch.scopeEverything' }],
+  SCOPES_NEEDING_FOLDER: ['this_folder'],
 }));
 
 describe('LeftSidebar', () => {
