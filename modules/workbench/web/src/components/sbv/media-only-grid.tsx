@@ -29,7 +29,8 @@ export function MediaOnlyGrid({ rows, previewHandle, mode }: MediaOnlyGridProps)
     for (const row of rows) {
       for (const attachment of row.message.attachments) {
         const kind = attachmentKind(attachment.media_type);
-        if (kind === "image" || kind === "video") items.push(attachment);
+        // A missing photo keeps its slot in the grid, flagged, so a gap is visible as a gap.
+        if (kind === "image" || kind === "video" || attachment.payload_missing) items.push(attachment);
       }
     }
     return items;

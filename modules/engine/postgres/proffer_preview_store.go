@@ -87,11 +87,45 @@ func (a previewStructuredAttachment) project(rawRecordID uuid.UUID) previewmodel
 	return projected
 }
 
+// previewStructuredReference is a source-declared companion the structured-text
+// route carries in native_fields.attachment_references. Only the SBV kind for an
+// MMS part with no payload becomes a preview attachment.
+type previewStructuredReference struct {
+	Kind        string `json:"kind"`
+	URIOriginal string `json:"uri_original"`
+	DisplayText string `json:"display_text"`
+}
+
+const payloadlessPartReferenceKind = "mms_part_without_payload"
+
+func (r previewStructuredReference) project(rawRecordID uuid.UUID, ordinal int) (previewmodel.Attachment, bool) {
+	if r.Kind != payloadlessPartReferenceKind {
+		return previewmodel.Attachment{}, false
+	}
+	projected := previewmodel.Attachment{
+		AttachmentID: fmt.Sprintf("%s:ref:%d", rawRecordID, ordinal),
+		SourceLocatorRef: "context.raw_record_identity/" + rawRecordID.String() +
+			previewmodel.MissingPayloadLocatorSegment + fmt.Sprint(ordinal),
+	}
+	if r.URIOriginal != "" {
+		name := r.URIOriginal
+		projected.Filename = &name
+	}
+	// display_text is "ct=<content type> seq=<n>" (sbv sms_xml_importer.go).
+	for _, field := range strings.Fields(r.DisplayText) {
+		if value, found := strings.CutPrefix(field, "ct="); found && value != "" {
+			projected.MediaType = &value
+		}
+	}
+	projected.MarkPayload()
+	return projected, true
+}
+
 // previewAttachmentQuery reads a normalized record's attachments from both
 // places a route may have put them. The subtype relation exists only once its
 // format has been registered, so its absence falls back to the identity table.
 func (s *ProfferPreviewStore) previewAttachmentQuery(ctx context.Context, rawGenerationID uuid.UUID) (string, error) {
-	const identityOnly = `SELECT raw.id, COALESCE(raw.native_metadata->'attachments','[]'::jsonb), '[]'::jsonb
+	const identityOnly = `SELECT raw.id, COALESCE(raw.native_metadata->'attachments','[]'::jsonb), '[]'::jsonb, '[]'::jsonb
 		FROM context.normalization_lineage lineage
 		JOIN context.raw_record_identity raw ON raw.id=lineage.raw_record_id
 		WHERE lineage.normalized_record_id=$1::uuid ORDER BY raw.record_ordinal`
@@ -113,7 +147,9 @@ func (s *ProfferPreviewStore) previewAttachmentQuery(ctx context.Context, rawGen
 	return fmt.Sprintf(`SELECT raw.id,
 		       COALESCE(subtype.native_metadata->'attachments', raw.native_metadata->'attachments', '[]'::jsonb),
 		       CASE WHEN jsonb_typeof(subtype.native_fields->'attachments') = 'array'
-		            THEN subtype.native_fields->'attachments' ELSE '[]'::jsonb END
+		            THEN subtype.native_fields->'attachments' ELSE '[]'::jsonb END,
+		       CASE WHEN jsonb_typeof(subtype.native_fields->'attachment_references') = 'array'
+		            THEN subtype.native_fields->'attachment_references' ELSE '[]'::jsonb END
 		FROM context.normalization_lineage lineage
 		JOIN context.raw_record_identity raw ON raw.id=lineage.raw_record_id
 		LEFT JOIN %s subtype ON subtype.raw_record_id = raw.id
@@ -222,10 +258,20 @@ func (s *ProfferPreviewStore) PublishWorkflowPreview(ctx context.Context, reques
 		}
 		for attachmentRows.Next() {
 			var rawRecordID uuid.UUID
-			var attachmentJSON, structuredJSON []byte
-			if err := attachmentRows.Scan(&rawRecordID, &attachmentJSON, &structuredJSON); err != nil {
+			var attachmentJSON, structuredJSON, referencesJSON []byte
+			if err := attachmentRows.Scan(&rawRecordID, &attachmentJSON, &structuredJSON, &referencesJSON); err != nil {
 				attachmentRows.Close()
 				return binding, err
+			}
+			var references []previewStructuredReference
+			if err := json.Unmarshal(referencesJSON, &references); err != nil {
+				attachmentRows.Close()
+				return binding, err
+			}
+			for ordinal, reference := range references {
+				if projected, ok := reference.project(rawRecordID, ordinal); ok {
+					message.Attachments = append(message.Attachments, projected)
+				}
 			}
 			var metadata []previewAttachmentMetadata
 			if err := json.Unmarshal(attachmentJSON, &metadata); err != nil {

@@ -30,6 +30,8 @@ export interface PreviewMessageRow {
   timeLabel: string;
   bodyLine: string;
   attachmentCount: number;
+  /** Attachments this source names but carries no bytes for. */
+  missingPayloadCount: number;
 }
 
 function singleLine(body: string) {
@@ -123,6 +125,7 @@ export function usePreviewMessageRows(
           timeLabel: timeLabel(message.sent_at),
           bodyLine: singleLine(message.body) || "(no message body)",
           attachmentCount: message.attachments.length,
+          missingPayloadCount: message.attachments.filter((attachment) => attachment.payload_missing).length,
         };
       });
 

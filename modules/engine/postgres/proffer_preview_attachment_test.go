@@ -51,3 +51,26 @@ func TestStructuredAttachmentWithoutBytesKeepsFieldsAbsent(t *testing.T) {
 		t.Fatalf("name lost: %+v", got)
 	}
 }
+
+// The SBV decoder reports a part the backup names but carries no bytes for as an
+// attachment_reference of kind mms_part_without_payload. It reaches the preview
+// as an attachment with a reference locator and no size or digest, so the
+// surface can flag it; every other reference kind is left alone.
+func TestPayloadlessPartReferenceProjectsAsAMissingAttachment(t *testing.T) {
+	rawID := uuid.MustParse("11111111-2222-3333-4444-555555555555")
+	reference := previewStructuredReference{Kind: "mms_part_without_payload", URIOriginal: "image000000_11449.jpg", DisplayText: "ct=image/heif seq=0"}
+	projected, ok := reference.project(rawID, 0)
+	if !ok {
+		t.Fatal("a payload-less MMS part must project")
+	}
+	if projected.Filename == nil || *projected.Filename != "image000000_11449.jpg" ||
+		projected.MediaType == nil || *projected.MediaType != "image/heif" ||
+		projected.ByteLength != nil || projected.SHA256 != nil || !projected.PayloadMissing ||
+		projected.SourceLocatorRef != "context.raw_record_identity/"+rawID.String()+"/attachment-reference/0" ||
+		projected.AttachmentID != rawID.String()+":ref:0" {
+		t.Fatalf("unexpected projection: %+v", projected)
+	}
+	if _, ok := (previewStructuredReference{Kind: "html_link", URIOriginal: "x.jpg"}).project(rawID, 1); ok {
+		t.Fatal("other reference kinds are not attachments")
+	}
+}

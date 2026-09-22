@@ -130,6 +130,23 @@ export function AttachmentPreview({ attachment, previewHandle, mode, variant = "
   const url = attachment.sha256 ? getProfferPreviewMediaUrl(previewHandle, mode, attachment.sha256) : null;
   const isTile = variant === "tile";
 
+  // The backup names this part and carries no bytes for it: one small flag on the item,
+  // in the slot the photo would have taken.
+  if (attachment.payload_missing) {
+    return (
+      <div
+        className={isTile
+          ? "grid aspect-square w-full place-content-center rounded-md border border-dashed border-destructive/60 p-2 text-center"
+          : "rounded-md border border-dashed border-destructive/60 px-3 py-2"}
+        data-testid="attachment-payload-missing"
+        title={`${attachment.filename ?? "Attachment"} is named in this backup, but the backup holds no bytes for it.`}
+      >
+        <span className="block truncate text-xs font-medium">{attachment.filename ?? KIND_LABEL[kind]}</span>
+        <span className="block text-[11px] text-destructive">Missing from this backup</span>
+      </div>
+    );
+  }
+
   if (kind === "vcard" && !isTile) {
     return <VCardPreview attachment={attachment} previewHandle={previewHandle} mode={mode} />;
   }

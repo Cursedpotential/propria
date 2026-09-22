@@ -1349,6 +1349,9 @@ export interface ProfferPreviewAttachment {
   byte_length?: number | null;
   sha256?: string | null;
   source_locator_ref: string;
+  /** The source names this part but carries no bytes for it. An observation about this
+   * source, never a claim that the attachment did not exist. */
+  payload_missing?: boolean;
 }
 
 export interface ProfferPreviewMessage {

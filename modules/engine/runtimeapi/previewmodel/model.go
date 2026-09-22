@@ -122,7 +122,27 @@ type Attachment struct {
 	ByteLength       *int64  `json:"byte_length,omitempty"`
 	SHA256           *string `json:"sha256,omitempty"`
 	SourceLocatorRef string  `json:"source_locator_ref"`
+	// PayloadMissing is true when the source names this part but carries no bytes
+	// for it. It is an observation about THIS source, never a claim that the
+	// attachment did not exist. Derived on read by MarkPayload; not stored.
+	PayloadMissing bool `json:"payload_missing"`
 }
+
+// EmptyContentSHA256 is the SHA-256 of zero bytes. Sources derived before
+// 2026-09-20 recorded a payload-less MMS part as a zero-byte attachment.
+const EmptyContentSHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+// MissingPayloadLocatorSegment marks a locator that addresses a source-declared
+// part with no payload (SBV reference kind mms_part_without_payload).
+const MissingPayloadLocatorSegment = "/attachment-reference/"
+
+// MarkPayload sets PayloadMissing from what the row itself proves.
+func (a *Attachment) MarkPayload() {
+	a.PayloadMissing = strings.Contains(a.SourceLocatorRef, MissingPayloadLocatorSegment) ||
+		(a.ByteLength != nil && *a.ByteLength == 0) ||
+		(a.SHA256 != nil && *a.SHA256 == EmptyContentSHA256)
+}
+
 type Message struct {
 	MessageID           string       `json:"message_id"`
 	Ordinal             int64        `json:"ordinal"`

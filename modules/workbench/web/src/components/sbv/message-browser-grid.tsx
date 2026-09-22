@@ -26,7 +26,7 @@ const COLUMNS: GridColumn[] = [
   { title: "Sender", id: "sender", width: 160 },
   { title: "Direction", id: "direction", width: 96 },
   { title: "Message", id: "body", width: 620, grow: 1 },
-  { title: "Files", id: "attachments", width: 70 },
+  { title: "Files", id: "attachments", width: 110 },
 ];
 
 function cssVariable(element: HTMLElement, name: string, fallback: string) {
@@ -114,7 +114,10 @@ export function MessageBrowserGrid({
         if (column === 1) return entry.senderName;
         if (column === 2) return entry.direction === "out" ? "out" : "in";
         if (column === 3) return entry.bodyLine;
-        return entry.attachmentCount ? String(entry.attachmentCount) : "";
+        if (!entry.attachmentCount) return "";
+        return entry.missingPayloadCount
+          ? `${entry.attachmentCount} · ${entry.missingPayloadCount} missing`
+          : String(entry.attachmentCount);
       })();
       return {
         kind: GridCellKind.Text,

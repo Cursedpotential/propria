@@ -177,6 +177,7 @@ func (s *ProfferPreviewStore) hydrateAttachments(ctx context.Context, handle str
 			&attachment.SourceLocatorRef); err != nil {
 			return err
 		}
+		attachment.MarkPayload()
 		if message := byID[messageID]; message != nil {
 			message.Attachments = append(message.Attachments, attachment)
 		}

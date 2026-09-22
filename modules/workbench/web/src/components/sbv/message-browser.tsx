@@ -31,6 +31,7 @@ import { MessageBrowserGrid } from "@/components/sbv/message-browser-grid";
 import { MessageBrowserToolbar } from "@/components/sbv/message-browser-toolbar";
 import { MessageDetailPanel } from "@/components/sbv/message-detail-panel";
 import { MessageSourcePanel } from "@/components/sbv/message-source-panel";
+import { MediaOnlyGrid } from "@/components/sbv/media-only-grid";
 import { MessageThreadView } from "@/components/sbv/message-thread-view";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,7 +48,7 @@ interface MessageBrowserProps {
   packageProjection: ProfferPackageProjection | null;
 }
 
-type ViewMode = "thread" | "table";
+type ViewMode = "thread" | "table" | "media";
 
 const HANDLE_CLASS =
   "w-px bg-border transition-colors data-[resize-handle-state=drag]:bg-primary data-[resize-handle-state=hover]:bg-primary";
@@ -73,6 +74,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
 
   const query = useProfferPreviewMessages(previewHandle, mode, filters);
   const { rows, participants } = usePreviewMessageRows(query.data?.pages);
+  const missingPayloads = useMemo(() => rows.reduce((total, row) => total + row.missingPayloadCount, 0), [rows]);
   const { totalMatches, totalMessages } = usePreviewMessageTotals(query.data?.pages);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [loadingAll, setLoadingAll] = useState(false);
@@ -171,7 +173,28 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
             >
               Table
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-pressed={viewMode === "media"}
+              className={cn("h-7 px-3", viewMode === "media" && "bg-accent text-accent-foreground")}
+              onClick={() => setViewMode("media")}
+              data-testid="message-browser-mode-media"
+              title="Photos and videos in the loaded messages; a missing one keeps its slot"
+            >
+              Media
+            </Button>
           </div>
+          {missingPayloads > 0 && (
+            <span
+              className="rounded border border-destructive/60 px-2 py-0.5 text-[11px] text-destructive"
+              data-testid="message-browser-missing-payloads"
+              title="Attachments this backup names but carries no bytes for, in the messages loaded so far"
+            >
+              {missingPayloads} missing from this backup
+            </span>
+          )}
         </div>
       </header>
 
@@ -193,7 +216,11 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
         onLoadAll={() => void loadAll()}
       />
 
-      {viewMode === "thread" ? (
+      {viewMode === "media" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <MediaOnlyGrid rows={rows} previewHandle={previewHandle} mode={mode} />
+        </div>
+      ) : viewMode === "thread" ? (
         <MessageThreadView
           rows={rows}
           participants={participants}

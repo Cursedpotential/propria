@@ -37,6 +37,8 @@ class ProfferPreviewAttachment(BaseModel):
     byte_length: Annotated[int, Field(ge=0)] | None = None
     sha256: Sha256Digest | None = None
     source_locator_ref: NonBlank
+    # The source names this part but carries no bytes for it (engine-derived).
+    payload_missing: bool = False
 
 
 class ProfferPreviewMessage(BaseModel):
