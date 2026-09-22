@@ -60,6 +60,24 @@ func TestSealStreamComputesDigestAndPublishes(t *testing.T) {
 	require.Zero(t, info.Mode().Perm()&0o200, "sealed object must be read-only")
 }
 
+// A verified publish leaves nothing behind: the sealed object IS the copy. Keeping
+// the staging file as a "published" partial doubled every source on disk and
+// filled ovh-app's 50 GB root with three 1.3 GB partials of one backup
+// (live, 2026-09-22 22:33-22:46). Failed copies are still quarantined.
+func TestSealStreamLeavesNoPartialAfterPublish(t *testing.T) {
+	root := t.TempDir()
+	_, err := sealStream(context.Background(), root, bytes.NewReader([]byte("sealed bytes")))
+	require.NoError(t, err)
+	_, err = sealStream(context.Background(), root, bytes.NewReader([]byte("sealed bytes")))
+	require.NoError(t, err, "a second seal of identical content converges on the published object")
+	leftovers, err := filepath.Glob(filepath.Join(root, "quarantine", "*.acquisition.partial"))
+	require.NoError(t, err)
+	require.Empty(t, leftovers, "a verified publish must not quarantine its staging copy")
+	inflight, err := filepath.Glob(filepath.Join(root, "inflight", "*"))
+	require.NoError(t, err)
+	require.Empty(t, inflight)
+}
+
 func TestSealStreamRefusesEmptySource(t *testing.T) {
 	root := t.TempDir()
 	_, err := sealStream(context.Background(), root, bytes.NewReader(nil))

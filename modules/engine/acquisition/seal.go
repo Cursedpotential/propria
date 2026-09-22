@@ -135,6 +135,15 @@ func sealStream(ctx context.Context, root string, source io.Reader) (platformpos
 		}
 		return platformpostgres.ImmutableAcquisition{}, err
 	}
+	// The content-addressed object now holds the bytes (a fresh link, or a
+	// verified twin that won the race). The staging name is a duplicate of a
+	// hashed, published object: keeping it as a "published" partial doubled every
+	// source on disk (2026-09-22: three 1.3 GB partials of one backup filled the
+	// host). It goes before the chmod, which a hard link would share.
+	if err := discardStagingCopy(partialPath); err != nil {
+		return platformpostgres.ImmutableAcquisition{}, err
+	}
+	preserved = true
 	if err := os.Chmod(objectPath, 0o440); err != nil {
 		return platformpostgres.ImmutableAcquisition{}, fmt.Errorf("acquisition: make object read-only: %w", err)
 	}
@@ -146,10 +155,6 @@ func sealStream(ctx context.Context, root string, source io.Reader) (platformpos
 	if err := verifyObject(ctx, objectPath, digestBytes, byteLength); err != nil {
 		return platformpostgres.ImmutableAcquisition{}, err
 	}
-	if err := preservePartial(absolute, partialPath, "published"); err != nil {
-		return platformpostgres.ImmutableAcquisition{}, err
-	}
-	preserved = true
 
 	return platformpostgres.ImmutableAcquisition{
 		StorageClass:  storageClassSealed,
@@ -234,6 +239,17 @@ func verifyObject(ctx context.Context, path string, expectedDigest []byte, expec
 	}
 	if actualLength != expectedLength || !bytes.Equal(hash.Sum(nil), expectedDigest) {
 		return errors.New("acquisition: object digest or byte length does not match its address")
+	}
+	return nil
+}
+
+// discardStagingCopy drops the inflight staging file once its bytes have been
+// published under their digest and verified there. Only that path ever calls
+// it; every failure path preserves the partial through preservePartial instead.
+func discardStagingCopy(partialPath string) error {
+	remove := os.Remove
+	if err := remove(partialPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("acquisition: discard staging copy after publish: %w", err)
 	}
 	return nil
 }
