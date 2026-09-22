@@ -41,7 +41,12 @@ One person has ~2 TB of his own records in B2. He needs to **get them into a for
 
 ## Proposal
 
-**1. Sources (replaces Intake).** A file browser over B2, nothing else on the page. Folder tree left, files right. Every row carries one state mark: not processed · decoded · in context · failed. Select files or a folder → one button, **Process**. Format is detected, never declared. Clicking a file previews it on the right: the Messages view for a backup, the picture/PDF for anything else. The catalog search returns as a search mode once catalog entries resolve to B2 objects; until then it is not on the page.
+**1. Sources (replaces Intake).** A file browser over B2. Folder tree left, files centre, **metadata panel right** (owner 2026-09-22 09:00: "i need the meta data in view and someway to signify its a unit of some kind"). Every row carries one state mark: not processed · decoded · in context · failed. Select files or a folder → one button, **Process**. Format is detected, never declared.
+
+- **Metadata panel (always open, follows selection):** name, size, modified, sha256 (from the catalog when it has one, else "not hashed"), detected format, decode state and counts (messages / media / rejected once decoded), which runs touched it, and the catalog's provenance for it (original location, occurrence count). Below that, the preview: the Messages view for a backup, the picture / PDF / text for anything else.
+- **Units are marked in the tree and the list.** A folder that is a recognised unit (Takeout set, CubeACR folder, Obsidian vault, git repo, Snapchat export, a hand-marked folder — the catalog's `unit_type` and the bulk-intake unit registry, requirement 4) shows a unit badge with its kind on the folder row, and its member files show a small "part of <unit>" mark. Selecting the folder selects the unit; the metadata panel then shows the unit's own facts (kind, parts present / missing, total size, account for a Takeout). Marking a folder as a unit by hand happens from the same panel (requirement 4: "select dir from tree and mark as unit"; a Takeout unit stays a supervised proposal, requirement 7).
+
+The catalog search returns as a search mode once catalog entries resolve to B2 objects; until then it is not on the page.
 
 **2. Activity.** One line per run or batch: name (full file name), state, counts, time. A run only asks for a click when it has an exception — damaged file (repair choice), no parser, missing payloads. Clean files go through without a click (owner requirement 6, 2026-09-20). Batches show progress and "retry failed".
 
