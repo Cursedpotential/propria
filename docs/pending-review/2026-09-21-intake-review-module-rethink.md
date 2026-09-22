@@ -54,7 +54,7 @@ One person has ~2 TB of his own records in B2. He needs to **get them into a for
 
 **Moves out of the operator's way** (kept, one click away, under a per-run "Technical details" drawer): package identity and hashes, D-158 storage destination, repair/preprocessing detail, checkpoints, receipts, the Go tools catalog. The Atomic/Go tools page becomes a developer page, not a tab in the daily flow.
 
-**Shown once:** TEST/REAL (top bar only). **Removed:** caveat paragraphs (one small flag on the item instead — owner rule `one-flag-no-disclaimers`), the event-stream banner, empty boxes.
+**Shown once:** the mode switch, **Test / Live** (owner 2026-09-22 09:08: "live"; he hates "REAL"), top bar only. A finished Test run can be promoted to Live: its context is re-bound to the live matter with a receipt, never copied. **Removed:** caveat paragraphs (one small flag on the item instead — owner rule `one-flag-no-disclaimers`), the event-stream banner, empty boxes.
 
 ## Options for the owner
 
