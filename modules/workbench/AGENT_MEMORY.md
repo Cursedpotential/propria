@@ -18,6 +18,14 @@ contains_secrets: false
 
 > _Byline: Codex · GPT-5 · 2026-08-27._
 
+## The six steps — measure every surface against these first
+
+> _Owner, 2026-09-22 19:54. Full statement and record: `docs/PURPOSE.md`._
+
+1. Open a file or folder, through an index. 2. Verify whether it is relevant. 3. Make sure it has a hash. 4. Pick a parser or extractor and get it into context and the analysis platforms. 5. Preview the result to make sure the machine did it right. 6. Fill in gaps and missing context.
+
+Before adding anything to a surface, name which step it serves; if none, it does not go on the surface. Sources owns 1–4. Review is 5–6 plus the decision, full screen, nothing else. Run status, receipts, stores, lineage and tool catalogs are not primary content on either.
+
 ## Owner-approved product direction
 
 - The unified surface combines an everyday **Evidence Operations Desk** with a more advanced
