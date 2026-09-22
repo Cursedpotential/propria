@@ -70,6 +70,10 @@ One person has ~2 TB of his own records in B2. He needs to **get them into a for
 - **Search does not get rebuilt in Probata.** Sources and Read call the Intake (Consignatio) CocoIndex search tooling — the same backend, index and endpoints the Xplorer-based Intake uses — so that when the owner moves to C (Xplorer Intake as the front door) nothing is thrown away. Concretely: Probata's Workbench API proxies to the Consignatio search service, it does not own an index; unit and metadata facts come from the catalog the same way.
 - **C stays the direction.** Every Sources feature is written so it can be lifted into the Xplorer client later: no Probata-only search contract, no duplicate catalog reads.
 
+## Reference input — vector preview and navigation (owner, 2026-09-22 09:15)
+
+Owner pasted a ChatGPT assessment of `MrPeker/turbopuffer-gui` (MIT) — saved verbatim in `docs/transcripts/2026-09-22-chatgpt-turbopuffer-gui-vector-explorer.md`. Owner's own framing: "vector preview and navigation for probata and intake", "or / and / both an external advanced vector mgmt app". Where it lands in this plan: the **Read** screen's detail panel gets a "similar" action (Weaviate near-object on the selected record; no re-embedding), and Sources' metadata panel gets embedding status per file/unit. Borrow that repo's shape (document table + detail inspector + browse / keyword / vector / hybrid modes) — its data layer is Turbopuffer-specific and its Electron shell disables web security, so components only, never the app. A standalone management workbench and a 2D projection map are later items, after the index exists (it does not yet — see the 2026-09-22 09:14 findings).
+
 ## Before building either way
 
 Fix what is simply broken, regardless of option: run names readable; Review lands on messages; TEST/REAL once; B2 the default tab; reproduce and fix the Go tools lock-up (or take the panel off the page).
