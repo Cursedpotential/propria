@@ -91,6 +91,15 @@ type failOncePreviewStore struct {
 	failed bool
 }
 
+type failingContentTargetStore struct {
+	*MemoryPreviewStore
+	err error
+}
+
+func (s failingContentTargetStore) ContentTarget(context.Context, string, string, string) (string, bool, error) {
+	return "", false, s.err
+}
+
 func (s *failOncePreviewStore) Create(ctx context.Context, binding PreviewBinding) (PreviewBinding, error) {
 	if !s.failed {
 		s.failed = true
@@ -292,6 +301,16 @@ func TestPreviewContentTargetFindsOffPageRecordAndChunkOnCurrentAttempt(t *testi
 	require.Equal(t, http.StatusUnprocessableEntity, unsupported.Code)
 	other := servePreview(handler.Routes(), http.MethodGet, "/reference-import/previews/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/content-target?scope=record&target_id=record-300", nil)
 	require.Equal(t, http.StatusNotFound, other.Code)
+}
+
+func TestPreviewContentTargetDoesNotExposeStoreError(t *testing.T) {
+	handler, store, _ := previewTestHandler(t)
+	handle := startPreview(t, handler)
+	handler.store = failingContentTargetStore{MemoryPreviewStore: store, err: errors.New("database credentials in internal failure")}
+	response := servePreview(handler.Routes(), http.MethodGet, "/reference-import/previews/"+handle+"/content-target?scope=record&target_id=record-1", nil)
+	require.Equal(t, http.StatusServiceUnavailable, response.Code)
+	require.NotContains(t, response.Body.String(), "database credentials")
+	require.Contains(t, response.Body.String(), "exact preview content target is unavailable")
 }
 
 func TestMemoryPreviewDecisionsAppendImmutableCompleteSuccessors(t *testing.T) {

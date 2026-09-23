@@ -702,15 +702,7 @@ func (s *ProfferPreviewStore) ContentTarget(ctx context.Context, handle, scope, 
 				WHERE id=$1 AND normalized_generation_id=$2
 			)`, targetUUID, snapshot.Correlation.NormalizedGenerationID).Scan(&found)
 	case "chunk":
-		err = s.db.QueryRow(ctx, `
-			SELECT EXISTS (
-				SELECT 1 FROM working.content_chunk chunk
-				WHERE chunk.id=$1 AND chunk.generation_id=(
-					SELECT generation.id FROM working.content_chunk_generation generation
-					WHERE generation.source_version_id=$2 AND generation.status='sealed'
-					ORDER BY generation.generation_ordinal DESC LIMIT 1
-				)
-			)`, targetUUID, snapshot.Correlation.SourceVersionID).Scan(&found)
+		found, err = s.chunkTarget(ctx, targetUUID, snapshot.Correlation.SourceVersionID, snapshot.Correlation.NormalizedGenerationID)
 	default:
 		return "", false, errors.New("unsupported preview content target scope")
 	}
@@ -718,6 +710,22 @@ func (s *ProfferPreviewStore) ContentTarget(ctx context.Context, handle, scope, 
 		return "", false, fmt.Errorf("read exact preview content target: %w", err)
 	}
 	return attemptID, found, nil
+}
+
+func (s *ProfferPreviewStore) chunkTarget(ctx context.Context, targetID, sourceVersionID, normalizedGenerationID uuid.UUID) (bool, error) {
+	var found bool
+	err := s.db.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM working.content_chunk chunk
+				WHERE chunk.id=$1 AND chunk.generation_id=(
+					SELECT generation.id FROM working.content_chunk_generation generation
+					WHERE generation.source_version_id=$2
+					  AND generation.normalized_generation_id=$3
+					  AND generation.status='sealed'
+					ORDER BY generation.generation_ordinal DESC LIMIT 1
+				)
+			)`, targetID, sourceVersionID, normalizedGenerationID).Scan(&found)
+	return found, err
 }
 
 func (s *ProfferPreviewStore) Content(ctx context.Context, handle string, recordOffset, chunkOffset, limit int) (previewmodel.ContentPage, error) {
@@ -831,8 +839,10 @@ func (s *ProfferPreviewStore) Content(ctx context.Context, handle string, record
 		       generation.chunk_count, generation.activity_receipt_id::text, receipt.verification_result, generation.sealed_at
 		FROM working.content_chunk_generation generation
 		LEFT JOIN working.content_chunk_reassembly_receipt receipt ON receipt.generation_id=generation.id
-		WHERE generation.source_version_id=$1::uuid AND generation.status='sealed'
-		ORDER BY generation.generation_ordinal DESC LIMIT 1`, sourceID).Scan(
+		WHERE generation.source_version_id=$1::uuid
+		  AND generation.normalized_generation_id=$2::uuid
+		  AND generation.status='sealed'
+		ORDER BY generation.generation_ordinal DESC LIMIT 1`, sourceID, snapshot.Correlation.NormalizedGenerationID).Scan(
 		&generation.GenerationRef, &generation.GenerationOrdinal, &generation.Status,
 		&generation.PolicyID, &generation.PolicyVersion, &generation.ChunkerID, &generation.ChunkerVersion,
 		&generation.SchemaVersion, &generation.SourceView, &generation.SourceSHA256, &generation.ManifestSHA256,

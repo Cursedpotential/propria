@@ -1139,7 +1139,11 @@ func (h *PreviewHTTPHandler) contentTarget(w http.ResponseWriter, r *http.Reques
 	}
 	attemptID, found, err := store.ContentTarget(r.Context(), handle, scope, targetID)
 	if err != nil {
-		h.storeError(w, err)
+		if errors.Is(err, ErrPreviewNotFound) || errors.Is(err, ErrPreviewNotReady) {
+			h.storeError(w, err)
+		} else {
+			previewError(w, http.StatusServiceUnavailable, errors.New("exact preview content target is unavailable"))
+		}
 		return
 	}
 	previewJSON(w, http.StatusOK, struct {
