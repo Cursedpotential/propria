@@ -42,6 +42,6 @@ The actual outbox tables, Legal importer adapter, public-key verifier, current-s
 | Wheel build | passed | Packaging only; no application deployment. |
 | Build, deployed read-back, outage catch-up, legal adoption, restore | not run | Requires integration and D12 review. |
 
-**Negative cases exercised:** changed span/manifest, forged signature, wrong matter, wrong source or evidence version, unsupported locator, missing/revoked/superseded/unavailable package or evidence status, revocation between snapshot and acknowledgment, boolean version confusion, and tampered/out-of-order/noncanonical or disconnected first status event. A test rerun generates the same package and event identities.
+**Negative cases exercised:** changed span/manifest, forged signature, wrong matter, wrong source or evidence version, unsupported locator, missing/revoked/superseded/unavailable package or evidence status, revocation between snapshot and acknowledgment, boolean version confusion, and tampered/out-of-order/noncanonical or disconnected first status event. Positive tests verify both the first package-digest anchor and a later event chained from the first event digest. A test rerun generates the same package and event identities.
 
 **Rollback:** this branch adds one unreferenced contract module, one test file, and this receipt. An ordinary revert removes the contract without changing live state. The Legal importer remains fail-closed until an independently reviewed producer/consumer integration is deployed.

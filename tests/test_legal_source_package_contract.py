@@ -256,6 +256,22 @@ def test_status_event_is_immutable_chained_and_signed() -> None:
         expected_previous_digest=package.package_digest,
         verify_signature=_verify,
     )
+    later = assemble_status_event(
+        package,
+        sequence=2,
+        previous_digest=event.event_digest,
+        status="superseded",
+        reason="synthetic replacement",
+        effective_at=datetime(2026, 9, 23, 20, tzinfo=UTC),
+        sign=_sign,
+    )
+    verify_status_event(
+        later,
+        package=package,
+        expected_sequence=2,
+        expected_previous_digest=event.event_digest,
+        verify_signature=_verify,
+    )
     with pytest.raises(ValueError, match="sequence or chain mismatch"):
         verify_status_event(
             event,
