@@ -8,6 +8,8 @@ tags: [handoff, jev, typesafe, classifier, tier-1, evaluation, case-bible]
 
 > _Byline: saved by Claude Code · Opus 5.5 · 2026-09-23. Text below is the owner-supplied handoff, unedited._
 
+> **Owner decision, 2026-09-23 09:41 EDT (added by Claude Code · Opus 5.5):** TypeSafe has paused new sign-ups, so there is no `TYPESAFE_API_KEY`. The eval runs on **OpenRouter only**: Phase 4 keeps cells **A** (target only) and **B** (target + ≤5 prior); cells C and D and the provider-parity scoring are dropped. Fact check by the prep agent (docs/handoffs/JEV-EVAL-PREP-2026-09-23.md): `OPENROUTER_API_KEY` is present; `ANTHROPIC_API_KEY` is missing (Opus reference labels need a key, or must run inside Claude Code itself; this is for the owner to decide).
+
 > **Owner rule, 2026-09-23 09:30 EDT (added by Claude Code · Opus 5.5):** "Opus needs to do the classification and any reasoning work and validating the results." Reference labels, planning, scoring interpretation, disagreement analysis, the wording A/B and the final verdict are all done by Opus (`claude-opus-5-5`). Cheaper models (Sonnet subagents) may only gather facts: key presence, docs checks and data inventory.
 
 # HANDOFF: Jev Tier-1 Classifier Evaluation (Raw API, Real Messages)
