@@ -2,9 +2,10 @@ package activities
 
 // This file owns the source-observation Activities.  They inspect the
 // retained source and persist only source-level metadata or container
-// structure.  They deliberately do not parse records, normalize values,
-// calculate hashes, or make anything evidence.  The persistence interfaces
-// below are intentionally narrow: a production implementation must bind each
+// structure. They deliberately do not parse records, normalize values,
+// calculate custody hashes, or make anything evidence. A container adapter
+// may calculate a member digest for the intake inventory. The persistence
+// interfaces below are intentionally narrow: a production implementation must bind each
 // call to context.activity_execution and context.activity_receipt from
 // migration 0036, and must use short transactions while a stream is open.
 
@@ -157,6 +158,13 @@ type InventoryMember struct {
 	ParentRef  proffer.Ref
 	ByteOffset *int64
 	ByteLength int64
+	// The fields below describe a container member, not an accepted record or
+	// evidence hash. ByteLength remains the uncompressed member length; a ZIP
+	// compressed range is recorded separately because it is not that length.
+	Name                 string `json:"name,omitempty"`
+	SourceByteOffset     *int64 `json:"source_byte_offset,omitempty"`
+	CompressedByteLength int64  `json:"compressed_byte_length,omitempty"`
+	SHA256               string `json:"sha256,omitempty"`
 }
 
 func (m InventoryMember) validate(previous int64) error {
@@ -171,6 +179,12 @@ func (m InventoryMember) validate(previous int64) error {
 	}
 	if m.ByteOffset != nil && *m.ByteOffset < 0 {
 		return errors.New("inventory member byte offset cannot be negative")
+	}
+	if m.SourceByteOffset != nil && *m.SourceByteOffset < 0 {
+		return errors.New("inventory member compressed source offset cannot be negative")
+	}
+	if m.CompressedByteLength < 0 {
+		return errors.New("inventory member compressed byte length cannot be negative")
 	}
 	if m.ParentRef == m.MemberRef {
 		return errors.New("inventory member cannot be its own parent")
