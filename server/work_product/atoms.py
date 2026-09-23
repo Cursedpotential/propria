@@ -40,6 +40,13 @@ class SourceSpan(BaseModel):
     char_start: int = Field(ge=0)
     char_end: int = Field(gt=0)
 
+    @field_validator("turn_id")
+    @classmethod
+    def reject_blank_turn(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("turn ID must not be blank")
+        return value
+
     @model_validator(mode="after")
     def check_bounds(self) -> SourceSpan:
         if self.char_end <= self.char_start:
@@ -79,6 +86,11 @@ class MentionAtom(BaseModel):
             raise ValueError("atom fields must not be blank")
         return value
 
+    @field_validator("spans")
+    @classmethod
+    def canonicalize_spans(cls, spans: tuple[SourceSpan, ...]) -> tuple[SourceSpan, ...]:
+        return tuple(sorted(spans, key=lambda span: (span.turn_id, span.char_start, span.char_end)))
+
     @model_validator(mode="after")
     def reject_duplicate_spans(self) -> MentionAtom:
         if len(set(self.spans)) != len(self.spans):
@@ -93,12 +105,8 @@ class MentionAtom(BaseModel):
             "contract": "wp-mention-atom-v1",
             "source_occurrence_id": self.source_occurrence_id,
             "source_version_id": self.source_version_id,
-            "spans": sorted(
-                (span.model_dump(mode="json") for span in self.spans),
-                key=lambda span: (span["turn_id"], span["char_start"], span["char_end"]),
-            ),
+            "spans": [span.model_dump(mode="json") for span in self.spans],
             "mention_key": self.mention_key,
-            "record_class": self.record_class,
         }
         encoded = json.dumps(coordinates, sort_keys=True, separators=(",", ":")).encode()
         return "wp-atom-v1:" + sha256(encoded).hexdigest()
@@ -112,6 +120,13 @@ class AtomObservation(BaseModel):
     run_id: str = Field(min_length=1)
     window_id: str = Field(min_length=1)
     atom: MentionAtom
+
+    @field_validator("run_id", "window_id")
+    @classmethod
+    def reject_blank_coordinate(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("observation coordinate must not be blank")
+        return value
 
 
 class AtomAccounting(BaseModel):
@@ -134,6 +149,7 @@ class ObservationConflict(BaseModel):
     atom_id: str
     observation_coordinates: tuple[tuple[str, str], ...]
     statements: tuple[str, ...]
+    record_classes: tuple[RecordClass, ...]
     provenance_origin_ids: tuple[str, ...]
     observations: tuple[AtomObservation, ...]
 
@@ -162,29 +178,21 @@ def reconcile_observations(observations: tuple[AtomObservation, ...]) -> AtomRec
     atoms: list[AtomAccounting] = []
     conflicts: list[ObservationConflict] = []
     for atom_id, group in sorted(grouped.items()):
+        group.sort(key=lambda item: (item.run_id, item.window_id, item.atom.model_dump_json()))
         coordinates = tuple(sorted({(item.run_id, item.window_id) for item in group}))
         statements = tuple(sorted({item.atom.statement for item in group}))
+        record_classes = tuple(sorted({item.atom.record_class for item in group}))
         origins = tuple(sorted({item.atom.provenance_origin_id for item in group}))
         origin_classes = {item.atom.origin_class for item in group}
-        if len(statements) != 1 or len(origins) != 1 or len(origin_classes) != 1:
+        if any(len(values) != 1 for values in (statements, record_classes, origins, origin_classes)):
             conflicts.append(
                 ObservationConflict(
                     atom_id=atom_id,
                     observation_coordinates=coordinates,
                     statements=statements,
+                    record_classes=record_classes,
                     provenance_origin_ids=origins,
-                    observations=tuple(
-                        sorted(
-                            group,
-                            key=lambda item: (
-                                item.run_id,
-                                item.window_id,
-                                item.atom.statement,
-                                item.atom.provenance_origin_id,
-                                item.atom.origin_class,
-                            ),
-                        )
-                    ),
+                    observations=tuple(group),
                 )
             )
             continue

@@ -80,6 +80,16 @@ def test_source_version_and_occurrence_are_identity_boundaries() -> None:
     assert original.atom_id == atom(0, 8, statement="A different paraphrase.").atom_id
 
 
+def test_span_order_is_canonical_without_changing_exact_coordinates() -> None:
+    first = SourceSpan(turn_id="turn-16", char_start=0, char_end=8)
+    second = SourceSpan(turn_id="turn-17", char_start=11, char_end=19)
+    forward = atom(0, 8, spans=(first, second))
+    reverse = atom(0, 8, spans=(second, first))
+    assert forward.atom_id == reverse.atom_id
+    assert forward.spans == reverse.spans == (first, second)
+    assert forward.model_dump(mode="json") == reverse.model_dump(mode="json")
+
+
 def test_same_source_screenshot_and_summary_do_not_become_three_origins() -> None:
     original = atom(0, 8)
     screenshot = atom(0, 8, source_occurrence_id="screenshot", provenance_origin_id="origin-1")
@@ -108,6 +118,40 @@ def test_same_identity_disagreement_is_a_retained_conflict() -> None:
     assert {item.run_id for item in result.conflicts[0].observations} == {"run-1", "run-2"}
 
 
+def test_record_class_disagreement_is_one_explicit_retained_conflict() -> None:
+    event = atom(0, 8)
+    statement = atom(0, 8, record_class="STATEMENT")
+    assert event.atom_id == statement.atom_id
+    result = reconcile_observations(
+        (
+            observation(statement, "run-2", "window-1"),
+            observation(event, "run-1", "window-1"),
+        )
+    )
+    assert result.atoms == ()
+    assert len(result.conflicts) == 1
+    conflict = result.conflicts[0]
+    assert conflict.record_classes == ("EVENT", "STATEMENT")
+    assert tuple(item.atom.record_class for item in conflict.observations) == ("EVENT", "STATEMENT")
+    assert conflict.observation_coordinates == (("run-1", "window-1"), ("run-2", "window-1"))
+
+
+def test_reconciliation_is_identical_under_input_reversal() -> None:
+    first = SourceSpan(turn_id="turn-16", char_start=0, char_end=8)
+    second = SourceSpan(turn_id="turn-17", char_start=11, char_end=19)
+    inputs = (
+        observation(atom(0, 8, spans=(second, first)), "run-2", "window-2"),
+        observation(atom(0, 8, spans=(first, second)), "run-1", "window-1"),
+        observation(atom(20, 28, record_class="EVENT"), "run-3", "window-2"),
+        observation(atom(20, 28, record_class="STATEMENT"), "run-3", "window-1"),
+    )
+    forward = reconcile_observations(inputs)
+    reverse = reconcile_observations(tuple(reversed(inputs)))
+    assert forward.model_dump(mode="json") == reverse.model_dump(mode="json")
+    assert len(forward.atoms) == len(forward.conflicts) == 1
+    assert forward.atoms[0].atom.spans == (first, second)
+
+
 @pytest.mark.parametrize("start,end", [(-1, 2), (2, 2), (3, 2)])
 def test_invalid_source_offsets_fail_closed(start: int, end: int) -> None:
     with pytest.raises(ValidationError):
@@ -119,6 +163,17 @@ def test_missing_version_or_spans_fail_closed() -> None:
         atom(0, 8, source_version_id=" ")
     with pytest.raises(ValidationError):
         atom(0, 8, spans=())
+
+
+@pytest.mark.parametrize("field", ["turn_id", "run_id", "window_id"])
+def test_whitespace_only_coordinates_fail_closed(field: str) -> None:
+    with pytest.raises(ValidationError):
+        if field == "turn_id":
+            SourceSpan(turn_id=" \t ", char_start=0, char_end=8)
+        else:
+            observation(
+                atom(0, 8), " \t " if field == "run_id" else "run-1", " \t " if field == "window_id" else "window-1"
+            )
 
 
 def test_ai_origin_is_explicit_and_cannot_be_inferred_as_human() -> None:
