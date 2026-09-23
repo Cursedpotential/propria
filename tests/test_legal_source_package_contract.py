@@ -9,14 +9,18 @@ from __future__ import annotations
 import hashlib
 from dataclasses import replace
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 import pytest
 
 from server.contracts.legal_source_package import (
+    _DOMAIN,
     CanonicalItemReadback,
     CanonicalPackageReadback,
     LegalSourceItem,
+    _canonical,
+    _digest,
+    _status_payload,
     assemble_package,
     assemble_status_event,
     verify_package,
@@ -301,4 +305,45 @@ def test_status_event_is_immutable_chained_and_signed() -> None:
             reason="invalid ordering",
             effective_at=datetime(2026, 9, 23, 17, tzinfo=UTC),
             sign=_sign,
+        )
+
+
+def test_signed_first_status_event_cannot_start_from_unrelated_digest() -> None:
+    package = _package()
+    event = assemble_status_event(
+        package,
+        sequence=1,
+        previous_digest=package.package_digest,
+        status="revoked",
+        reason="synthetic correction",
+        effective_at=datetime(2026, 9, 23, 19, tzinfo=UTC),
+        sign=_sign,
+    )
+    unrelated = "sha256:" + "e" * 64
+    identity = _canonical(
+        {
+            "package_id": package.package_id,
+            "sequence": 1,
+            "previous_digest": unrelated,
+            "status": "revoked",
+        }
+    )
+    forged = replace(
+        event,
+        previous_digest=unrelated,
+        event_id=uuid5(NAMESPACE_URL, _DOMAIN.decode() + identity.decode()),
+    )
+    payload = _status_payload(forged)
+    forged = replace(
+        forged,
+        event_digest=_digest(payload),
+        signature_hex=_sign(_DOMAIN + b"status\n" + payload).hex(),
+    )
+    with pytest.raises(ValueError, match="first status event"):
+        verify_status_event(
+            forged,
+            package=package,
+            expected_sequence=1,
+            expected_previous_digest=unrelated,
+            verify_signature=_verify,
         )

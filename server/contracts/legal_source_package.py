@@ -448,6 +448,8 @@ def verify_status_event(
         raise ValueError("status event package mismatch")
     if event.sequence != expected_sequence or event.previous_digest != expected_previous_digest:
         raise ValueError("status event sequence or chain mismatch")
+    if event.sequence == 1 and event.previous_digest != package.package_digest:
+        raise ValueError("first status event must chain from the package digest")
     _hash(event.previous_digest, "previous_digest")
     _time(event.effective_at, "effective_at")
     if event.effective_at < package.issued_at:

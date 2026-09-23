@@ -34,7 +34,7 @@ The actual outbox tables, Legal importer adapter, public-key verifier, current-s
 
 | Check | Result | Limit |
 |---|---|---|
-| Synthetic producer/consumer contract tests | 16 passed | Test signer is deliberately synthetic; does not prove production Ed25519 key management or atomic network read-back/acknowledgment. |
+| Synthetic producer/consumer contract tests | 17 passed | Test signer is deliberately synthetic; does not prove production Ed25519 key management or atomic network read-back/acknowledgment. |
 | Adjacent case-management route/capability tests | 51 passed | Existing hard-disabled promotion behavior; no real evidence action. |
 | Focused Ruff | passed | Only the two new Python files. |
 | Python compilation | passed | Syntax/import only. |
@@ -42,6 +42,6 @@ The actual outbox tables, Legal importer adapter, public-key verifier, current-s
 | Wheel build | passed | Packaging only; no application deployment. |
 | Build, deployed read-back, outage catch-up, legal adoption, restore | not run | Requires integration and D12 review. |
 
-**Negative cases exercised:** changed span/manifest, forged signature, wrong matter, wrong source or evidence version, unsupported locator, missing/revoked/superseded/unavailable package or evidence status, revocation between snapshot and acknowledgment, boolean version confusion, and tampered/out-of-order/noncanonical status event. A test rerun generates the same package and event identities.
+**Negative cases exercised:** changed span/manifest, forged signature, wrong matter, wrong source or evidence version, unsupported locator, missing/revoked/superseded/unavailable package or evidence status, revocation between snapshot and acknowledgment, boolean version confusion, and tampered/out-of-order/noncanonical or disconnected first status event. A test rerun generates the same package and event identities.
 
 **Rollback:** this branch adds one unreferenced contract module, one test file, and this receipt. An ordinary revert removes the contract without changing live state. The Legal importer remains fail-closed until an independently reviewed producer/consumer integration is deployed.
