@@ -1,0 +1,27 @@
+# CloudBeaver (web DBeaver): the third PostgreSQL surface, side by side with pgAdmin and DbGate
+# (owner 2026-09-23 08:21 "all 3 for now"). Tailnet only.
+# Byline: Claude Code · Opus 5.5 · 2026-09-23.
+#
+# - Anonymous access is on (CLOUDBEAVER_APP_ANONYMOUS_ACCESS_ENABLED), so there's no login on the
+#   tailnet (owner rule 2026-09-23 08:06: Tailscale is the only barrier).
+# - The admin is bootstrapped as msalem, password in /data/probata/secrets/cloudbeaver/cloudbeaver.env
+#   (owner standing rule: owner admin on every service).
+# - Global connections probata-db (:5432) and casebible (:5475) are seeded in
+#   /data/probata/volumes/cloudbeaver/GlobalConfiguration/.dbeaver/data-sources.json by
+#   /data/probata/tools/prep_cloudbeaver.py. CloudBeaver encrypts the plaintext credentials and
+#   removes them from that file on first connect.
+# HTTPS name: svc:cloudbeaver → https://cloudbeaver.tilapia-skilift.ts.net
+services:
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    restart: unless-stopped
+    ports:
+      - "100.91.190.107:8978:8978"
+    env_file:
+      - /data/probata/secrets/cloudbeaver/cloudbeaver.env
+    environment:
+      CB_SERVER_NAME: Propria CloudBeaver
+      CB_SERVER_URL: https://cloudbeaver.tilapia-skilift.ts.net/
+      CLOUDBEAVER_APP_ANONYMOUS_ACCESS_ENABLED: "true"
+    volumes:
+      - /data/probata/volumes/cloudbeaver:/opt/cloudbeaver/workspace
