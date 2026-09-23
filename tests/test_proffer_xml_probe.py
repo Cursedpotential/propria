@@ -99,3 +99,47 @@ def test_xml_signature_beyond_probe_window_does_not_change_hint(
     service._parse(source, IngestRequest(staged_path=str(source), lane=IngestLane.context))
 
     assert observed == [None]
+
+
+@pytest.mark.parametrize(
+    ("filename", "payload", "expected_format", "expected_reads"),
+    [
+        ("empty.xml", b"", None, [4096]),
+        ("truncated.xml", b"<?xml version='1.0'?><sms", None, [4096]),
+        ("small.xml", b"<smses count='0'/>", "smsbackuprestore-xml", [4096]),
+        ("generic.xml", b"<?xml version='1.0'?><document/>", None, [4096]),
+        ("not-xml.txt", b"<smses count='0'/>", None, []),
+    ],
+)
+def test_xml_probe_short_and_non_xml_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    filename: str,
+    payload: bytes,
+    expected_format: str | None,
+    expected_reads: list[int],
+) -> None:
+    source = tmp_path / filename
+    source.write_bytes(payload)
+    original_open = Path.open
+    reads: list[int] = []
+
+    def guarded_open(path: Path, *args, **kwargs):
+        if path == source:
+            if not expected_reads:
+                pytest.fail("non-XML source was opened by the XML probe")
+            return _ReadGuard(original_open(path, *args, **kwargs), reads)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    observed: list[str | None] = []
+
+    def fake_parse(path, source_meta, *, engine, format):
+        observed.append(format)
+        return [NormalizedRecord(source="fixture", content="message")], "fixture", []
+
+    monkeypatch.setattr("server.analysis.chat_parse.parse_chat_export", fake_parse)
+    service._parse(source, IngestRequest(staged_path=str(source), lane=IngestLane.context))
+
+    assert observed == [expected_format]
+    assert reads == expected_reads
