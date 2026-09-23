@@ -14,8 +14,16 @@
 | 14:37–14:47 | **Phase 3 Opus labels** | 300/300 labelled + 30/30 repeat, 0 errors, 0 structural problems; `claude-opus-5-5`, prompt `a0dbb42296d7`, ~6–8 s/message at 4 in parallel. Claude Code also makes small Haiku housekeeping calls; every label is Opus. True counts: case_relevant 80, hostility 39, blame_shift 36, third_party 35, child_referenced 34, disparagement 29, financial 25, logistics 23, reframes 21, admission 13, wellbeing 10, legal 4, cooperation 4, **parenting_time_denial 0, info_gatekeeping 0**; 160 with no tag. Self-consistency on the repeat: 476/480 decisions identical (register 2, third_party 1, logistics 1) | `labels_opus.jsonl` sha256 `e0fe705c…74d9`; `labels_opus_repeat.jsonl` `56258c7e…c4`; `raw/opus/`, `raw/opus_repeat/` |
 | 14:48 | Opus-label report v1 | For owner review before any Jev run | `reports/opus_labels_report_v1.html` sha256 `27d0de93…0249` |
 | 15:15 | Owner review page | Owner 15:06: case_relevant "wrong entirely on every account"; asked for a page where he can type responses. Published a private claude.ai artifact **Opus Label Review** (`https://claude.ai/artifact/CWoTSa3hsUU4XrqQzmU3CD`, capability `db`). The owner flips labels, sets the register, comments, and writes tag definitions. Answers land in the artifact db (`reviews/m001..m300`, `notes/definitions`), read back with read_db | `scripts/jev_eval/review_page.py` |
+| 17:17 | **PAUSED by owner** | "We got to talk about both the categories [and] the way the whole thing is structured. I don't think individual messages is really the way to go … it was really inaccurate … it doesn't [seem to be] capturing the issues; the categories don't necessarily fit very well. We're going to have to have a talk when I get home from work." No Jev runs and no new building until that talk. | owner message 17:17 EDT |
 
 ## Open checkpoints
+
+**Agenda for the owner talk (evening 2026-09-23). Questions to settle, not proposals made:**
+1. **Unit of analysis.** Is it a single message, a stretch of conversation (an exchange or episode), a day, or an incident? The owner says single messages are not the way to go.
+2. **Categories.** What are the real issues the case needs surfaced? Build the list from the owner's own words, not the handoff's tags-v0.
+3. **What Tier-1 is for.** Is it a cheap filter to find where the issues are (recall first), or a labeller whose output is used directly?
+4. **What happens to what exists.** Sample v2, the Opus labels and the review page stay as evidence of what didn't work; the review page can still collect the owner's notes.
+
 - [x] Owner approved the Phase 2 sample and said go for Phase 3 (14:32).
 - [x] Phase 3 done; report v1 delivered 14:50.
 - [ ] **Owner reviews the Opus-label report** before any Jev comparison (owner 14:17).
