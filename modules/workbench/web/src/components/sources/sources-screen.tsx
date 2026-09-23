@@ -14,12 +14,13 @@
 // holds no derived copy of evidence and promotes nothing.
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, Play } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SourceMetadataPanel, type SourceSelection } from "@/components/sources/source-metadata-panel";
+import { mergeSourcePages, sourceContinuation } from "@/components/sources/source-pages";
 import { SourceRowsGrid, type SourceGridRow } from "@/components/sources/source-rows-grid";
 import { SourceSearch, modeAvailable, type SearchMode } from "@/components/sources/source-search";
 import { SourceTree } from "@/components/sources/source-tree";
@@ -89,21 +90,26 @@ function SourcesScreenMode() {
   const [processError, setProcessError] = useState<string | null>(null);
 
   // --- reads ---------------------------------------------------------------
-  const listingQuery = useQuery({
+  const listingQuery = useInfiniteQuery({
     queryKey: ["sources", "listing", mode, rootId, prefix, appliedFilter],
-    queryFn: ({ signal }) =>
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ signal, pageParam }) =>
       listProfferSources({
         mode,
         rootId: rootId || undefined,
         prefix: appliedFilter ? "" : prefix,
         filter: appliedFilter || undefined,
+        continuationToken: pageParam,
         pageSize: 200,
         signal,
       }),
+    getNextPageParam: (_lastPage, pages, _lastPageParam, pageParams) =>
+      sourceContinuation(pages, pageParams).token,
   });
-  const listing = listingQuery.data ?? null;
-  const objects = useMemo(() => listing?.objects ?? [], [listing]);
-  const prefixes = useMemo(() => listing?.prefixes ?? [], [listing]);
+  const pages = listingQuery.data?.pages;
+  const listing = pages?.[0] ?? null;
+  const { objects, prefixes } = useMemo(() => mergeSourcePages(pages ?? []), [pages]);
+  const continuation = sourceContinuation(pages ?? [], listingQuery.data?.pageParams ?? []);
 
   const runsQuery = useQuery({
     queryKey: ["sources", "runs", mode],
@@ -354,7 +360,11 @@ function SourcesScreenMode() {
     }
   }
 
-  const listingError = listingQuery.error ? errorText(listingQuery.error) : null;
+  const listingError = listingQuery.isError && !listingQuery.data ? errorText(listingQuery.error) : null;
+  const nextPageError = listingQuery.isFetchNextPageError ? errorText(listingQuery.error) : null;
+  const loadNextPage = () => {
+    if (continuation.token && !listingQuery.isFetchingNextPage) void listingQuery.fetchNextPage();
+  };
   const indexResults = indexQuery ? indexSearchQuery.data?.items ?? [] : null;
 
   return (
@@ -440,22 +450,49 @@ function SourcesScreenMode() {
                 }}
               />
             ) : rows.length ? (
-              <SourceRowsGrid
-                rows={rows}
-                selectedIndex={selectedIndex}
-                checkedRefs={checkedRefs}
-                onSelectIndex={(index) => {
-                  setSelectedRef(rows[index]?.sourceRef ?? null);
-                  setSelectedFolder(null);
-                  setHandlerOverride("");
-                }}
-                onToggleChecked={(refs) => setCheckedRefs(new Set(refs))}
-                onReachEnd={() => undefined}
-              />
+              <>
+                <div className="min-h-0 flex-1">
+                  <SourceRowsGrid
+                    rows={rows}
+                    selectedIndex={selectedIndex}
+                    checkedRefs={checkedRefs}
+                    onSelectIndex={(index) => {
+                      setSelectedRef(rows[index]?.sourceRef ?? null);
+                      setSelectedFolder(null);
+                      setHandlerOverride("");
+                    }}
+                    onToggleChecked={(refs) => setCheckedRefs(new Set(refs))}
+                    onReachEnd={() => { if (!nextPageError) loadNextPage(); }}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2 border-t px-3 py-1 text-[11px]" role="status">
+                  <span>
+                    {nextPageError || continuation.issue ||
+                      (listingQuery.isFetchingNextPage ? "Loading more files…" :
+                        continuation.complete ? `All ${rows.length} files in this location loaded.` :
+                          `${rows.length} files loaded; more available.`)}
+                  </span>
+                  {(continuation.token || continuation.issue) && (
+                    <Button size="sm" variant="outline" disabled={listingQuery.isFetchingNextPage}
+                      onClick={() => { if (continuation.issue) void listingQuery.refetch(); else loadNextPage(); }}>
+                      {continuation.issue ? "Refresh" : nextPageError ? "Retry" : "Load more"}
+                    </Button>
+                  )}
+                </div>
+              </>
             ) : (
-              <p className="px-3 py-4 text-xs text-muted-foreground">
-                {listingQuery.isPending ? "Loading files" : "No files here."}
-              </p>
+              <div className="space-y-2 px-3 py-4 text-xs text-muted-foreground">
+                <p>{listingQuery.isPending ? "Loading files" : "No files on this page."}</p>
+                {listingError && <Button size="sm" variant="outline" onClick={() => void listingQuery.refetch()}>Retry</Button>}
+                {continuation.token && (
+                  <Button size="sm" variant="outline" disabled={listingQuery.isFetchingNextPage}
+                    onClick={loadNextPage}>
+                    {listingQuery.isFetchingNextPage ? "Loading more files…" : nextPageError ? "Retry" : "Load more"}
+                  </Button>
+                )}
+                {(nextPageError || continuation.issue) && <p role="alert">{nextPageError || continuation.issue}</p>}
+                {continuation.issue && <Button size="sm" variant="outline" onClick={() => void listingQuery.refetch()}>Refresh</Button>}
+              </div>
             )}
           </div>
         </Panel>
