@@ -14,6 +14,8 @@ from uuid import UUID
 import pytest
 
 from server.contracts.legal_source_package import (
+    CanonicalItemReadback,
+    CanonicalPackageReadback,
     LegalSourceItem,
     assemble_package,
     assemble_status_event,
@@ -64,19 +66,25 @@ def _package():
     )
 
 
-def _accept(package, *, status="available", package_status="available", readback=None):
-    verify_package(
+REVISION = "sha256:" + "c" * 64
+
+
+def _accept(package, *, status="available", package_status="available", readback=None, acknowledge=None):
+    return verify_package(
         package,
         expected_issuer="indicia-probata",
         expected_matter_id=MATTER,
         verify_signature=_verify,
-        current_package=lambda *_: package_status,
-        current_status=lambda evidence_id, version: status if (evidence_id, version) == (EVIDENCE, 2) else None,
-        current_item=lambda evidence_id, version, assertion_id, assertion_version: (
-            (_item() if readback is None else readback)
-            if (evidence_id, version, assertion_id, assertion_version) == (EVIDENCE, 2, ASSERTION, 3)
-            else None
+        read_snapshot=lambda _: CanonicalPackageReadback(
+            revision=REVISION,
+            matter_id=package.matter_id,
+            package_id=package.package_id,
+            package_version=package.package_version,
+            package_digest=package.package_digest,
+            package_status=package_status,
+            items=(CanonicalItemReadback(item=_item() if readback is None else readback, status=status),),
         ),
+        acknowledge_if_current=(lambda *_: True) if acknowledge is None else acknowledge,
     )
 
 
@@ -84,7 +92,7 @@ def test_deterministic_package_identity_and_exact_readback() -> None:
     first = _package()
     assert _package() == first
     assert first.package_digest.startswith("sha256:")
-    _accept(first)
+    assert _accept(first) == REVISION
 
 
 @pytest.mark.parametrize("status", [None, "revoked", "superseded", "unavailable"])
@@ -107,9 +115,16 @@ def test_forged_scope_digest_signature_and_locator_fail() -> None:
             expected_issuer="indicia-probata",
             expected_matter_id=UUID(int=9),
             verify_signature=_verify,
-            current_package=lambda *_: "available",
-            current_status=lambda *_: "available",
-            current_item=lambda *_: _item(),
+            read_snapshot=lambda _: CanonicalPackageReadback(
+                revision=REVISION,
+                matter_id=package.matter_id,
+                package_id=package.package_id,
+                package_version=package.package_version,
+                package_digest=package.package_digest,
+                package_status="available",
+                items=(CanonicalItemReadback(item=_item(), status="available"),),
+            ),
+            acknowledge_if_current=lambda *_: True,
         )
     with pytest.raises(ValueError, match="digest mismatch"):
         _accept(replace(package, items=(replace(package.items[0], span_locator="source:message:wrong"),)))
@@ -125,6 +140,66 @@ def test_wrong_version_and_source_identity_fail_at_readback() -> None:
         _accept(package, readback=replace(_item(), source_version_id=UUID(int=11)))
     with pytest.raises(ValueError, match="readback mismatch"):
         _accept(package, readback=replace(_item(), evidence_version=3))
+
+
+def test_revocation_between_snapshot_and_acknowledgment_fails_closed() -> None:
+    state = {"revision": REVISION, "status": "available"}
+
+    def snapshot(package):
+        observed = CanonicalPackageReadback(
+            revision=state["revision"],
+            matter_id=MATTER,
+            package_id=package.package_id,
+            package_version=7,
+            package_digest=package.package_digest,
+            package_status=state["status"],
+            items=(CanonicalItemReadback(item=_item(), status="available"),),
+        )
+        state.update(revision="sha256:" + "d" * 64, status="revoked")
+        return observed
+
+    def acknowledge(_package, expected_revision):
+        return state["revision"] == expected_revision and state["status"] == "available"
+
+    with pytest.raises(ValueError, match="revision changed"):
+        verify_package(
+            _package(),
+            expected_issuer="indicia-probata",
+            expected_matter_id=MATTER,
+            verify_signature=_verify,
+            read_snapshot=snapshot,
+            acknowledge_if_current=acknowledge,
+        )
+
+
+def test_non_boolean_acknowledgment_cannot_establish_availability() -> None:
+    with pytest.raises(ValueError, match="revision changed"):
+        _accept(_package(), acknowledge=lambda *_: "accepted")
+
+
+def test_bool_versions_are_rejected_before_signing_or_readback() -> None:
+    with pytest.raises(ValueError, match="evidence_version"):
+        assemble_package(
+            issuer="indicia-probata",
+            issuer_key_id="test-key-1",
+            matter_id=MATTER,
+            package_version=7,
+            committed_at=datetime(2026, 9, 23, 18, tzinfo=UTC),
+            items=(replace(_item(), evidence_version=True),),
+            sign=_sign,
+        )
+    with pytest.raises(ValueError, match="package_version"):
+        assemble_package(
+            issuer="indicia-probata",
+            issuer_key_id="test-key-1",
+            matter_id=MATTER,
+            package_version=True,
+            committed_at=datetime(2026, 9, 23, 18, tzinfo=UTC),
+            items=(_item(),),
+            sign=_sign,
+        )
+    with pytest.raises(ValueError, match="readback mismatch"):
+        _accept(_package(), readback=replace(_item(), assertion_version=True))
 
 
 def test_invalid_issuer_inputs_and_unsupported_locators_do_not_sign() -> None:
@@ -192,4 +267,38 @@ def test_status_event_is_immutable_chained_and_signed() -> None:
             expected_sequence=1,
             expected_previous_digest=package.package_digest,
             verify_signature=_verify,
+        )
+    with pytest.raises(ValueError, match="identity mismatch"):
+        verify_status_event(
+            replace(event, event_id=UUID(int=10)),
+            package=package,
+            expected_sequence=1,
+            expected_previous_digest=package.package_digest,
+            verify_signature=_verify,
+        )
+    with pytest.raises(ValueError, match="status sequence"):
+        verify_status_event(
+            replace(event, sequence=True),
+            package=package,
+            expected_sequence=1,
+            expected_previous_digest=package.package_digest,
+            verify_signature=_verify,
+        )
+    with pytest.raises(ValueError, match="expected status sequence"):
+        verify_status_event(
+            event,
+            package=package,
+            expected_sequence=True,
+            expected_previous_digest=package.package_digest,
+            verify_signature=_verify,
+        )
+    with pytest.raises(ValueError, match="predate"):
+        assemble_status_event(
+            package,
+            sequence=1,
+            previous_digest=package.package_digest,
+            status="revoked",
+            reason="invalid ordering",
+            effective_at=datetime(2026, 9, 23, 17, tzinfo=UTC),
+            sign=_sign,
         )

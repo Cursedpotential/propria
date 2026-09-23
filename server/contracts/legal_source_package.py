@@ -27,8 +27,6 @@ _SPAN = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:[^\s?#]+\Z")
 PackageStatus = Literal["available", "revoked", "superseded", "unavailable"]
 Signer = Callable[[bytes], bytes]
 Verifier = Callable[[str, bytes, bytes], bool]
-CurrentStatus = Callable[[UUID, int], PackageStatus | None]
-CurrentPackage = Callable[[UUID, UUID, int, str], PackageStatus | None]
 
 
 def _uuid(value: UUID, name: str) -> None:
@@ -58,6 +56,11 @@ def _locator(value: str, name: str) -> None:
 def _time(value: datetime, name: str) -> None:
     if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{name} must be timezone-aware")
+
+
+def _positive_int(value: int, name: str) -> None:
+    if type(value) is not int or value < 1:
+        raise ValueError(f"{name} must be a positive integer")
 
 
 def _canonical(value: object) -> bytes:
@@ -106,16 +109,13 @@ class LegalSourceItem:
             "human_authorization_receipt_id",
         ):
             _uuid(getattr(self, name), name)
-        if self.evidence_version < 1 or self.assertion_version < 1:
-            raise ValueError("evidence and assertion versions must be positive")
+        _positive_int(self.evidence_version, "evidence_version")
+        _positive_int(self.assertion_version, "assertion_version")
         if _SPAN.fullmatch(self.span_locator) is None:
             raise ValueError("span_locator must be an exact, nonempty source span reference")
         _locator(self.source_locator, "source_locator")
         _hash(self.source_content_hash, "source_content_hash")
         _hash(self.content_hash, "content_hash")
-
-
-CurrentItem = Callable[[UUID, int, UUID, int], LegalSourceItem | None]
 
 
 @dataclass(frozen=True)
@@ -132,6 +132,29 @@ class LegalSourcePackage:
     items: tuple[LegalSourceItem, ...]
     package_digest: str
     signature_hex: str
+
+
+@dataclass(frozen=True)
+class CanonicalItemReadback:
+    item: LegalSourceItem
+    status: PackageStatus
+
+
+@dataclass(frozen=True)
+class CanonicalPackageReadback:
+    """One producer snapshot revision covering package and every exact item."""
+
+    revision: str
+    matter_id: UUID
+    package_id: UUID
+    package_version: int
+    package_digest: str
+    package_status: PackageStatus
+    items: tuple[CanonicalItemReadback, ...]
+
+
+ReadSnapshot = Callable[[LegalSourcePackage], CanonicalPackageReadback | None]
+ConditionalAcknowledge = Callable[[LegalSourcePackage, str], bool]
 
 
 @dataclass(frozen=True)
@@ -178,12 +201,13 @@ def _validate_shape(package: LegalSourcePackage) -> None:
     _text(package.issuer, "issuer")
     _text(package.issuer_key_id, "issuer_key_id")
     _time(package.issued_at, "issued_at")
-    if package.package_version < 1:
-        raise ValueError("package_version must be positive")
+    _positive_int(package.package_version, "package_version")
     if package.status not in {"available", "revoked", "superseded", "unavailable"}:
         raise ValueError("unsupported package status")
     if not package.items:
         raise ValueError("package must contain at least one item")
+    if type(package.items) is not tuple:
+        raise ValueError("package items must be an immutable tuple")
     identities: set[tuple[UUID, int, UUID, int]] = set()
     for item in package.items:
         item.validate()
@@ -275,15 +299,17 @@ def verify_package(
     expected_issuer: str,
     expected_matter_id: UUID,
     verify_signature: Verifier,
-    current_package: CurrentPackage,
-    current_status: CurrentStatus,
-    current_item: CurrentItem,
-) -> None:
+    read_snapshot: ReadSnapshot,
+    acknowledge_if_current: ConditionalAcknowledge,
+) -> str:
     """Fail closed on every import boundary; success means availability only.
 
     The verifier must resolve issuer_key_id to a trusted issuer public key. The
-    status callback must read the canonical producer's current evidence status;
-    an unavailable producer returns None and blocks the package.
+    The producer snapshot must atomically cover package and all item currentness.
+    The acknowledgment callback must compare that same producer revision and
+    durably record one consumer availability receipt before returning True. A
+    missing/changed revision or unavailable producer fails closed. Success is
+    availability at the acknowledged revision, not perpetual currentness.
     """
     _validate_shape(package)
     if package.issuer != expected_issuer or package.matter_id != expected_matter_id:
@@ -305,25 +331,39 @@ def verify_package(
     )
     if package.package_id != expected_id:
         raise ValueError("package identity mismatch")
-    if not verify_signature(package.issuer_key_id, _DOMAIN + payload, bytes.fromhex(package.signature_hex)):
+    if verify_signature(package.issuer_key_id, _DOMAIN + payload, bytes.fromhex(package.signature_hex)) is not True:
         raise ValueError("package issuer signature invalid")
     if package.status != "available":
         raise ValueError("package is not available")
+    snapshot = read_snapshot(package)
+    if type(snapshot) is not CanonicalPackageReadback:
+        raise ValueError("canonical producer snapshot unavailable")
+    _hash(snapshot.revision, "snapshot revision")
+    _uuid(snapshot.matter_id, "snapshot matter_id")
+    _uuid(snapshot.package_id, "snapshot package_id")
+    _positive_int(snapshot.package_version, "snapshot package_version")
+    _hash(snapshot.package_digest, "snapshot package_digest")
     if (
-        current_package(
-            package.matter_id,
-            package.package_id,
-            package.package_version,
-            package.package_digest,
-        )
-        != "available"
+        snapshot.matter_id != package.matter_id
+        or snapshot.package_id != package.package_id
+        or snapshot.package_version != package.package_version
+        or snapshot.package_digest != package.package_digest
     ):
+        raise ValueError("canonical producer package identity readback mismatch")
+    if snapshot.package_status != "available":
         raise ValueError("package current status unavailable, revoked, or superseded")
-    for item in package.items:
-        if current_status(item.evidence_id, item.evidence_version) != "available":
+    if type(snapshot.items) is not tuple or len(snapshot.items) != len(package.items):
+        raise ValueError("canonical producer item readback mismatch")
+    for item, current in zip(package.items, snapshot.items, strict=True):
+        if type(current) is not CanonicalItemReadback:
+            raise ValueError("canonical producer item readback mismatch")
+        if current.status != "available":
             raise ValueError("evidence version unavailable, revoked, or superseded")
-        if current_item(item.evidence_id, item.evidence_version, item.assertion_id, item.assertion_version) != item:
+        if type(current.item) is not LegalSourceItem or _canonical(asdict(current.item)) != _canonical(asdict(item)):
             raise ValueError("source, assertion, version, digest, or locator readback mismatch")
+    if acknowledge_if_current(package, snapshot.revision) is not True:
+        raise ValueError("canonical producer revision changed before durable acknowledgment")
+    return snapshot.revision
 
 
 def _status_payload(event: LegalPackageStatusEvent) -> bytes:
@@ -353,8 +393,7 @@ def assemble_status_event(
 ) -> LegalPackageStatusEvent:
     """Create one deterministic signed event for a committed status transition."""
     _validate_shape(package)
-    if sequence < 1:
-        raise ValueError("status sequence must be positive")
+    _positive_int(sequence, "status sequence")
     _hash(previous_digest, "previous_digest")
     if sequence == 1 and previous_digest != package.package_digest:
         raise ValueError("first status event must chain from the package digest")
@@ -362,6 +401,8 @@ def assemble_status_event(
         raise ValueError("status event must invalidate availability")
     _text(reason, "reason")
     _time(effective_at, "effective_at")
+    if effective_at < package.issued_at:
+        raise ValueError("status event cannot predate package issuance")
     identity = _canonical(
         {
             "package_id": package.package_id,
@@ -398,17 +439,37 @@ def verify_status_event(
     verify_signature: Verifier,
 ) -> None:
     """Check a chained transition before applying it to a durable consumer inbox."""
+    _validate_shape(package)
+    _uuid(event.event_id, "event_id")
+    _uuid(event.package_id, "status package_id")
+    _positive_int(event.sequence, "status sequence")
+    _positive_int(expected_sequence, "expected status sequence")
     if event.package_id != package.package_id or event.package_digest != package.package_digest:
         raise ValueError("status event package mismatch")
     if event.sequence != expected_sequence or event.previous_digest != expected_previous_digest:
         raise ValueError("status event sequence or chain mismatch")
     _hash(event.previous_digest, "previous_digest")
     _time(event.effective_at, "effective_at")
+    if event.effective_at < package.issued_at:
+        raise ValueError("status event cannot predate package issuance")
     _text(event.reason, "reason")
     if event.status not in {"revoked", "superseded", "unavailable"}:
         raise ValueError("status event cannot activate a package")
+    identity = _canonical(
+        {
+            "package_id": package.package_id,
+            "sequence": event.sequence,
+            "previous_digest": event.previous_digest,
+            "status": event.status,
+        }
+    )
+    if event.event_id != uuid5(NAMESPACE_URL, _DOMAIN.decode() + identity.decode()):
+        raise ValueError("status event identity mismatch")
     payload = _status_payload(event)
     if event.event_digest != _digest(payload):
         raise ValueError("status event digest mismatch")
-    if not verify_signature(package.issuer_key_id, _DOMAIN + b"status\n" + payload, bytes.fromhex(event.signature_hex)):
+    if (
+        verify_signature(package.issuer_key_id, _DOMAIN + b"status\n" + payload, bytes.fromhex(event.signature_hex))
+        is not True
+    ):
         raise ValueError("status event signature invalid")
