@@ -20,4 +20,6 @@ Provenance origin and AI origin remain explicit. Redelivery still increases deli
 
 The PR's pre-amendment GitHub `validate (3.12)` jobs failed at repo-wide Ruff format on `tests/test_authentik_deploy_contract.py` and `tests/test_docker_user_firewall_contract.py`. Those files are outside D06 ownership. Keep PR #32 draft/HOLD until that gate is resolved by its file owner and independent review accepts the bounded diff.
 
+After the remediation push, both new `validate (3.12)` jobs failed at `Format with ruff` (GitHub runs `35920130762` and `35920123305`). The same repo-wide command run locally on the new head reported exactly those two files and `322 files already formatted`. PR #32 was converted to draft. Its other queued/running jobs are not treated as release proof.
+
 No source bytes were reopened, model extraction was run, live system was tested, or merge/deploy was performed. D02 source-version/provenance resolution and span readback, governed run receipts, composite and interpretation identity, and full D06 acceptance remain open.
