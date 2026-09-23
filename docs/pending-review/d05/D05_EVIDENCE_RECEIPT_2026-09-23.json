@@ -1,0 +1,64 @@
+{
+  "$schema": "D12-evidence-receipt-v1",
+  "receipt_id": "D05-20260923-W08-exact-target-r1",
+  "byline": "Codex D05 · GPT-6 · 2026-09-23",
+  "status": "unit_tested_partial",
+  "proof_level": "UNIT_TESTED",
+  "candidate": {
+    "repository": "https://github.com/Cursedpotential/probata",
+    "base_commit": "382acf6a8f1f919b6f3abc02de40f946629d8461",
+    "commit": "a195c416d1aaf6be6886ad44539d5e6eba6be7ca",
+    "branch": "codex/d05-exact-review-targets-20260923",
+    "pull_request": "https://github.com/Cursedpotential/probata/pull/30",
+    "worktree": "E:/AI_Workspace/Projects/Propria/_worktrees/probata-d05-exact-review-targets",
+    "changed_files": [
+      "modules/engine/postgres/proffer_preview_store.go",
+      "modules/engine/runtimeapi/previewmodel/model.go",
+      "modules/engine/runtimeapi/proffer_preview.go",
+      "modules/engine/runtimeapi/proffer_preview_test.go",
+      "modules/workbench/api/app/runtime/proffer.py",
+      "modules/workbench/api/app/service/proffer.py",
+      "modules/workbench/api/tests/test_proffer_potential_promotion_flags.py"
+    ]
+  },
+  "assertions": [
+    {
+      "finding_ids": ["PB05"],
+      "work_item_ids": ["W08"],
+      "acceptance_ids": ["AC-F-PB05"],
+      "assertion": "Record and chunk flags resolve a target beyond page 250 against the authorized current preview attempt; unknown and stale attempt IDs fail before a flag write.",
+      "result": "passed_local_tests",
+      "limits": "PostgreSQL query and deployed BFF/Go exchange were not exercised against a live service."
+    },
+    {
+      "finding_ids": ["PB05"],
+      "work_item_ids": ["W08"],
+      "acceptance_ids": ["AC-F-PB05", "AC-W-W08"],
+      "assertion": "Entity annotation remains unavailable before submit because current preview content exposes no governed entity reader.",
+      "result": "open_explicitly_unavailable"
+    }
+  ],
+  "verification": [
+    {"command": "go test ./runtimeapi/... ./postgres/...", "workdir": "modules/engine", "result": "passed", "exit_code": 0},
+    {"command": "uv run --no-project --python <existing Probata uv-managed venv> python -m pytest -q modules/workbench/api/tests/test_proffer_potential_promotion_flags.py modules/workbench/api/tests/test_proffer_mode_isolation.py", "workdir": "Probata isolated worktree root", "result": "52 passed, 1 deprecation warning", "exit_code": 0},
+    {"command": "uv run --extra dev ruff check <three changed Workbench Python files>", "result": "passed", "exit_code": 0},
+    {"command": "git diff --cached --check", "result": "passed", "exit_code": 0},
+    {"command": "Official Gitleaks 8.30.0 dir scan of all nine PR files, --redact --report-format json", "result": "zero findings", "exit_code": 0, "release_zip_sha256": "54fe94f644b832dd08e8c3a5915efb3bfa862386d59fb27ca0792cb687a83573", "checksum_verified_against_official_release": true}
+  ],
+  "ci": {
+    "state": "hold",
+    "reason": "GitHub Validate ruff format gate fails on two untouched baseline files: tests/test_authentik_deploy_contract.py and tests/test_docker_user_firewall_contract.py. Both have an empty PR diff; the same format failure was reproduced locally.",
+    "merge": "not_performed",
+    "go_engine": "passed",
+    "codeql": "passed",
+    "live_integration": "skipped by GitHub workflow; not claimed"
+  },
+  "negative_cases": ["off-page target succeeds", "absent target denies", "stale attempt denies", "entity denies before write", "wrong preview handle denies", "uncorrelated upstream response denies"],
+  "independent_reviewer": "D12 pending",
+  "limitations": [
+    "No browser, native, live PostgreSQL, deployed service, sink readback, restore or release proof",
+    "No entity annotation until a governed frozen-proposal entity reader exists",
+    "No closure of the wider W08 correction and entity review acceptance"
+  ],
+  "sensitive_values_redacted": true
+}
