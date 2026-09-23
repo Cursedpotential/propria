@@ -19,6 +19,9 @@ _LOCATOR = re.compile(r"^[a-z][a-z0-9+.-]*://[^\s?#]+$")
 _DOMAINS = frozenset({"Vault", "CaseManagement", "KnowledgeBase", "Entities", "Code", "Triage", "Recovered", "Archive"})
 _KINDS = frozenset({"family_story", "investigation_timeline", "case_timeline", "claim_support_matrix", "source_map"})
 _AUDIENCES = frozenset({"private", "internal", "external"})
+_WINDOWS_RESERVED = frozenset({"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}) | frozenset(
+    f"{prefix}{number}" for prefix in ("COM", "LPT") for number in range(1, 10)
+)
 
 
 def _identifier(value: str, name: str) -> None:
@@ -40,11 +43,13 @@ def _path(value: str) -> str:
     """Return a canonical, route-relative POSIX path; reject encoded ambiguity."""
     if not isinstance(value, str) or not value or unquote(value) != value:
         raise ValueError("path must be unencoded and nonempty")
-    if "\\" in value or ":" in value or "?" in value or "#" in value or any(ord(ch) < 32 for ch in value):
+    if any(ch in value for ch in '\\:?#%<>|*"') or any(ord(ch) < 32 for ch in value):
         raise ValueError("path contains a forbidden character")
     parts = value.split("/")
     if value.startswith("/") or any(part in {"", ".", ".."} for part in parts):
         raise ValueError("path is not a canonical relative path")
+    if any(part.endswith((".", " ")) or part.split(".", 1)[0].upper() in _WINDOWS_RESERVED for part in parts):
+        raise ValueError("path has a Windows alias or reserved component")
     return value
 
 
@@ -87,6 +92,7 @@ class NarrativeEntry:
     time_basis: str
     review_state: str
     evidence_status: str
+    entry_available_from: datetime
 
     def __post_init__(self) -> None:
         _identifier(self.entry_id, "entry_id")
@@ -100,13 +106,21 @@ class NarrativeEntry:
             raise ValueError("entry needs distinct source IDs")
         for source_id in self.source_ids:
             _identifier(source_id, "source_id")
+        if self.source_ids != tuple(sorted(self.source_ids)):
+            raise ValueError("entry source IDs must be sorted")
         if self.relation not in {"supports", "contradicts", "qualifies", "context", "unverified"}:
             raise ValueError("invalid claim-source relation")
         if self.origin not in {"source", "extraction", "inference", "recollection", "hypothesis"}:
             raise ValueError("invalid entry origin")
         if self.privacy not in {"ordinary", "private_strategy"}:
             raise ValueError("invalid entry privacy")
-        if not self.time_text or self.time_precision not in {"exact", "approximate", "interval", "undated"}:
+        if (
+            type(self.time_text) is not str
+            or not 1 <= len(self.time_text) <= 512
+            or self.time_text != self.time_text.strip()
+            or any(ord(ch) < 32 for ch in self.time_text)
+            or self.time_precision not in {"exact", "approximate", "interval", "undated"}
+        ):
             raise ValueError("invalid time description")
         if self.time_basis not in {"event", "message", "source_created", "acquired", "unknown"}:
             raise ValueError("invalid time basis")
@@ -114,19 +128,29 @@ class NarrativeEntry:
             raise ValueError("invalid review state")
         if self.evidence_status not in {"not_promoted", "promoted", "revoked", "unknown"}:
             raise ValueError("invalid evidence status")
+        if self.time_precision == "undated" and (self.time_text != "undated" or self.time_basis != "unknown"):
+            raise ValueError("undated time must be explicit and unknown-basis")
+        if self.time_precision != "undated" and self.time_basis == "unknown":
+            raise ValueError("dated time needs a known basis")
+        _utc(self.entry_available_from, "entry_available_from")
 
 
 @dataclass(frozen=True)
 class PackageFile:
     path: str
     sha256: str
+    kind: str
     source_id: str | None = None
 
     def __post_init__(self) -> None:
         _path(self.path)
         _digest(self.sha256, "file sha256")
-        if self.source_id is not None:
+        if self.kind not in {"representation", "raw_source_copy"}:
+            raise ValueError("invalid package file kind")
+        if self.kind == "raw_source_copy":
             _identifier(self.source_id, "file source_id")
+        elif self.source_id is not None:
+            raise ValueError("representation cannot claim raw source identity")
 
 
 @dataclass(frozen=True)
@@ -254,8 +278,12 @@ def validate_manifest(manifest: ContextExportManifest, route: ApprovedRoute) -> 
     source_ids = [source.source_id for source in manifest.sources]
     if not source_ids or len(set(source_ids)) != len(source_ids):
         raise ValueError("sources must be nonempty and distinct")
+    if source_ids != sorted(source_ids):
+        raise ValueError("sources must be sorted by source ID")
     if not manifest.requested_entry_ids or len(set(manifest.requested_entry_ids)) != len(manifest.requested_entry_ids):
         raise ValueError("requested entries must be nonempty and distinct")
+    if manifest.requested_entry_ids != tuple(sorted(manifest.requested_entry_ids)):
+        raise ValueError("requested entry IDs must be sorted")
     for entry_id in manifest.requested_entry_ids:
         _identifier(entry_id, "requested_entry_id")
     if len({entry.entry_id for entry in manifest.entries}) != len(manifest.entries):
@@ -269,30 +297,49 @@ def validate_manifest(manifest: ContextExportManifest, route: ApprovedRoute) -> 
         raise ValueError("as-lived selection contains future source")
     if any(source.source_available_from > manifest.snapshot_at for source in manifest.sources):
         raise ValueError("selection contains source beyond snapshot")
-    for entry in manifest.entries:
-        if any(source_id not in source_by_id for source_id in entry.source_ids):
-            raise ValueError("entry has missing source")
-        if manifest.audience != "private" and entry.privacy == "private_strategy":
-            raise ValueError("private strategy cannot enter shared output")
+    if any(entry.entry_available_from > manifest.snapshot_at for entry in manifest.entries):
+        raise ValueError("entry was not available at snapshot")
+    if manifest.time_mode == "as_lived" and any(
+        entry.entry_available_from > manifest.as_lived_cutoff for entry in manifest.entries
+    ):
+        raise ValueError("as-lived selection contains future entry")
     excluded = set(manifest.excluded_source_ids)
     if len(excluded) != len(manifest.excluded_source_ids) or not excluded <= source_by_id.keys():
         raise ValueError("invalid excluded source list")
+    if manifest.excluded_source_ids != tuple(sorted(manifest.excluded_source_ids)):
+        raise ValueError("excluded source IDs must be sorted")
+    for entry in manifest.entries:
+        if any(source_id not in source_by_id for source_id in entry.source_ids):
+            raise ValueError("entry has missing source")
+        if any(source_id in excluded for source_id in entry.source_ids):
+            raise ValueError("entry cites excluded source")
+        if manifest.audience != "private" and entry.privacy == "private_strategy":
+            raise ValueError("private strategy cannot enter shared output")
     unavailable = {source.source_id for source in manifest.sources if source.status != "available"}
     if unavailable != excluded:
         raise ValueError("unavailable sources must be explicitly excluded")
     copies = set(manifest.requested_source_copies)
     if len(copies) != len(manifest.requested_source_copies) or not copies <= source_by_id.keys() - excluded:
         raise ValueError("invalid requested source copies")
+    if manifest.requested_source_copies != tuple(sorted(manifest.requested_source_copies)):
+        raise ValueError("requested source copies must be sorted")
     paths = [file.path for file in manifest.files]
     if not paths or len(set(paths)) != len(paths):
         raise ValueError("files must be nonempty and distinct")
+    if paths != sorted(paths) or len({path.casefold() for path in paths}) != len(paths):
+        raise ValueError("file paths must be sorted and case-insensitively distinct")
+    raw_source_ids = []
     for file in manifest.files:
-        if file.source_id is not None and file.source_id not in copies:
-            raise ValueError("unrequested source copy")
-    if {file.source_id for file in manifest.files if file.source_id is not None} != copies:
+        if file.kind == "raw_source_copy":
+            if file.source_id not in copies or file.sha256 != source_by_id[file.source_id].content_sha256:
+                raise ValueError("unrequested or digest-mismatched raw source copy")
+            raw_source_ids.append(file.source_id)
+    if len(set(raw_source_ids)) != len(raw_source_ids) or set(raw_source_ids) != copies:
         raise ValueError("requested source copy missing")
     if len(set(manifest.offline_links)) != len(manifest.offline_links):
         raise ValueError("duplicate offline link")
+    if manifest.offline_links != tuple(sorted(manifest.offline_links)):
+        raise ValueError("offline links must be sorted")
     for link in manifest.offline_links:
         if _path(link) not in paths:
             raise ValueError("offline link has no package member")
@@ -326,7 +373,10 @@ def validate_manifest(manifest: ContextExportManifest, route: ApprovedRoute) -> 
             {**source.__dict__, "source_available_from": source.source_available_from.astimezone(UTC).isoformat()}
             for source in manifest.sources
         ],
-        "entries": [entry.__dict__ for entry in manifest.entries],
+        "entries": [
+            {**entry.__dict__, "entry_available_from": entry.entry_available_from.astimezone(UTC).isoformat()}
+            for entry in manifest.entries
+        ],
         "requested_source_copies": manifest.requested_source_copies,
         "files": [file.__dict__ for file in manifest.files],
         "offline_links": manifest.offline_links,

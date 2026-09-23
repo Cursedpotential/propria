@@ -57,10 +57,11 @@ def fixture():
                 "event",
                 "unreviewed",
                 "not_promoted",
+                NOW,
             ),
         ),
         (),
-        (PackageFile("timeline.json", HASH),),
+        (PackageFile("timeline.json", HASH, "representation"),),
         ("timeline.json",),
         (),
     )
@@ -99,6 +100,28 @@ def test_exact_versions_time_mode_relations_and_digest_change():
         )
     with pytest.raises(ValueError):
         validate_manifest(replace(manifest, sources=list(manifest.sources)), route)
+    with pytest.raises(ValueError):
+        validate_manifest(
+            replace(manifest, entries=(replace(manifest.entries[0], entry_available_from=NOW + timedelta(days=1)),)),
+            route,
+        )
+    with pytest.raises(ValueError):
+        validate_manifest(
+            replace(
+                manifest,
+                entries=(
+                    replace(manifest.entries[0], origin="inference", entry_available_from=NOW + timedelta(hours=1)),
+                ),
+            ),
+            route,
+        )
+    assert validate_manifest(
+        replace(
+            manifest,
+            entries=(replace(manifest.entries[0], origin="inference", entry_available_from=NOW - timedelta(days=1)),),
+        ),
+        route,
+    )
 
 
 def test_route_binding_and_no_overwrite_or_unapproved_root():
@@ -121,21 +144,29 @@ def test_source_copy_is_explicit_and_offline_link_resolves():
     manifest, route = fixture()
     with pytest.raises(ValueError):
         validate_manifest(
-            replace(manifest, files=manifest.files + (PackageFile("source.bin", HASH, "source1"),)), route
+            replace(manifest, files=(PackageFile("source.bin", HASH, "raw_source_copy", "source1"),) + manifest.files),
+            route,
         )
     included = replace(
         manifest,
         requested_source_copies=("source1",),
-        files=manifest.files + (PackageFile("source.bin", HASH, "source1"),),
-        offline_links=("timeline.json", "source.bin"),
+        files=(PackageFile("source.bin", HASH, "raw_source_copy", "source1"),) + manifest.files,
+        offline_links=("source.bin", "timeline.json"),
     )
     assert validate_manifest(included, route)
+    with pytest.raises(ValueError):
+        validate_manifest(
+            replace(
+                included, files=(PackageFile("source.bin", "b" * 64, "raw_source_copy", "source1"),) + manifest.files
+            ),
+            route,
+        )
     with pytest.raises(ValueError):
         validate_manifest(replace(included, offline_links=("missing.bin",)), route)
     with pytest.raises(ValueError):
         validate_manifest(replace(included, offline_links=("../source.bin",)), route)
     with pytest.raises(ValueError):
-        PackageFile("%2e%2e/source.bin", HASH)
+        PackageFile("%2e%2e/source.bin", HASH, "representation")
 
 
 def test_private_strategy_and_release_fail_closed():
@@ -148,12 +179,68 @@ def test_private_strategy_and_release_fail_closed():
         validate_manifest(replace(manifest, release_state="released"), route)
 
 
+def test_time_text_typing_and_uncertainty_label():
+    manifest, route = fixture()
+    for bad in (True, 42, "", " too late", "x" * 513):
+        with pytest.raises(ValueError):
+            replace(manifest.entries[0], time_text=bad)
+    with pytest.raises(ValueError):
+        replace(manifest.entries[0], time_precision="undated")
+    undated = replace(manifest.entries[0], time_text="undated", time_precision="undated", time_basis="unknown")
+    assert validate_manifest(replace(manifest, entries=(undated,)), route)
+
+
+def test_windows_aliases_and_canonical_selection_order():
+    manifest, route = fixture()
+    for bad in (
+        "CON",
+        "AUX.txt",
+        "dir/Lpt9.log",
+        "timeline.json.",
+        "dir /item",
+        "dir/file ",
+        "x%252f..%252fkey",
+        "x%GG",
+        "C:/file",
+        "//server/share",
+    ):
+        with pytest.raises(ValueError):
+            PackageFile(bad, HASH, "representation")
+    with pytest.raises(ValueError):
+        validate_manifest(replace(manifest, offline_links=("timeline.json", "timeline.json")), route)
+    with pytest.raises(ValueError):
+        validate_manifest(
+            replace(manifest, files=(PackageFile("z.json", HASH, "representation"),) + manifest.files), route
+        )
+    second = SourceRef("source2", 1, "r2://bucket/other", HASH, "available", NOW)
+    with pytest.raises(ValueError):
+        validate_manifest(replace(manifest, sources=(second,) + manifest.sources), route)
+    with pytest.raises(ValueError):
+        replace(manifest.entries[0], source_ids=("source2", "source1"))
+    with pytest.raises(ValueError):
+        validate_manifest(
+            replace(
+                manifest,
+                files=(PackageFile("a.json", HASH, "representation"),) + manifest.files,
+                offline_links=("timeline.json", "a.json"),
+            ),
+            route,
+        )
+
+
 def test_unavailable_source_visibly_excluded_not_copied():
     manifest, route = fixture()
     missing = replace(manifest.sources[0], status="revoked")
     with pytest.raises(ValueError):
         validate_manifest(replace(manifest, sources=(missing,)), route)
     excluded = replace(manifest, sources=(missing,), excluded_source_ids=("source1",))
-    assert validate_manifest(excluded, route)
     with pytest.raises(ValueError):
-        validate_manifest(replace(excluded, requested_source_copies=("source1",)), route)
+        validate_manifest(excluded, route)
+    safe = replace(
+        excluded,
+        sources=(missing, SourceRef("source2", 1, "r2://bucket/other", HASH, "available", NOW)),
+        entries=(replace(manifest.entries[0], source_ids=("source2",)),),
+    )
+    assert validate_manifest(safe, route)
+    with pytest.raises(ValueError):
+        validate_manifest(replace(safe, requested_source_copies=("source1",)), route)
