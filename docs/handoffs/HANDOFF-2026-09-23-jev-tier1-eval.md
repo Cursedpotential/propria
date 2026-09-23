@@ -8,6 +8,10 @@ tags: [handoff, jev, typesafe, classifier, tier-1, evaluation, case-bible]
 
 > _Byline: saved by Claude Code · Opus 5.5 · 2026-09-23. Text below is the owner-supplied handoff, unedited._
 
+> **Owner decisions, 2026-09-23 14:15–14:17 EDT (added by Claude Code · Opus 5.5):**
+> - **Opus runs on the owner's long-lived Claude Code token, not an API key.** `CLAUDE_CODE_OAUTH_TOKEN` in `~/.secrets/anthropic.env` via the Claude Agent SDK (`claude-agent-sdk` 0.2.158, installed on the desktop Python 2026-09-23). Smoke test 14:16: `claude-opus-5-5` answered, subscription rate limit `allowed`. Labels use `output_format={type: json_schema}` and read `ResultMessage.structured_output`. The SDK exposes **no temperature setting**, so the handoff's "temperature 0" cannot be applied. Proposed substitute: log model + session id per label, and re-label a random 10% to measure Opus self-consistency.
+> - **New checkpoint after Phase 3:** before any Jev comparison (Phase 4+), the owner gets a report of Opus's classifications (every message, every tag, rationales) to review. Jev runs only after the owner accepts the Opus labels.
+
 > **Owner decision, 2026-09-23 09:41 EDT (added by Claude Code · Opus 5.5):** TypeSafe has paused new sign-ups, so there is no `TYPESAFE_API_KEY`. The eval runs on **OpenRouter only**: Phase 4 keeps cells **A** (target only) and **B** (target + ≤5 prior); cells C and D and the provider-parity scoring are dropped. Fact check by the prep agent (docs/handoffs/JEV-EVAL-PREP-2026-09-23.md): `OPENROUTER_API_KEY` is present; `ANTHROPIC_API_KEY` is missing (Opus reference labels need a key, or must run inside Claude Code itself; this is for the owner to decide).
 
 > **Owner rule, 2026-09-23 09:30 EDT (added by Claude Code · Opus 5.5):** "Opus needs to do the classification and any reasoning work and validating the results." Reference labels, planning, scoring interpretation, disagreement analysis, the wording A/B and the final verdict are all done by Opus (`claude-opus-5-5`). Cheaper models (Sonnet subagents) may only gather facts: key presence, docs checks and data inventory.
