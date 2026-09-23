@@ -118,7 +118,7 @@ services:
     healthcheck: *authentik-healthcheck
     labels:
       - traefik.enable=true
-      - traefik.docker.network=probata
+      - traefik.docker.network=propria-edge
       - traefik.http.routers.authentik.rule=Host(`auth.int.mitechconsult.com`)
       - traefik.http.routers.authentik.entrypoints=https
       - traefik.http.routers.authentik.tls=true
