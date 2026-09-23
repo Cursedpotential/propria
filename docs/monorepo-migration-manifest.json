@@ -2,7 +2,7 @@
   "schema": "propria-monorepo-migration-v1",
   "root": "E:/AI_Workspace/Projects/Propria",
   "owner_decision_date": "2026-09-12",
-  "last_verified_at": "2026-09-20",
+  "last_verified_at": "2026-09-23",
   "target_directories": [
     "modules",
     "docs",
@@ -186,9 +186,21 @@
       "id": "xplorer-copilot-buildkit",
       "source": "modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
       "target": "modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
-      "state": "independent_repository_relocated",
+      "state": "root_owned_history_imported",
       "ownership": "owned",
-      "recommended_strategy": "decide subtree import after Consignatio history import",
+      "recommended_strategy": "root-owned at the imported target; preserve the quarantined original until broader WS00 acceptance and source-retirement authorization",
+      "source_commit": "d0954e37c3864021fd559ced723d05c9750e9c9d",
+      "root_import_commit": "8266c0d8d3285489da35ff86ea55219f9931b987",
+      "full_history_preserved": true,
+      "target_tree_rows": 23,
+      "target_tree_sha256": "5658C1739040D6709A342AA11C8B048FF274FB44EB165D26D1014F0C2D0A83C4",
+      "history_scan": {
+        "tool": "gitleaks 8.30.0",
+        "scope": "full git history with default rules and 100 percent redaction",
+        "finding_count": 0,
+        "report_class": "local_ignored_reconciliation_receipt"
+      },
+      "original_repository_quarantined_to": "modules/Consignatio/to_be_deleted/2026-09-23-ws00-xplorer-buildkit-pre-root-import",
       "historical_snapshots": [
         {
           "recorded_before": "2026-09-20",
@@ -200,8 +212,8 @@
         }
       ],
       "path_exists": true,
-      "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
-      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit",
+      "verification_scope": "Full unsquashed source history is an ancestor of the root import commit; 23 source and target tree rows have identical mode/blob/path digest. No product runtime or deployment proof is implied.",
+      "current_git_root": "E:/AI_Workspace/Projects/Propria",
       "current_branch": "main"
     },
     {
@@ -353,7 +365,7 @@
     "worktrees",
     "cloud_mount_contents"
   ],
-  "current_scope": "Source routing only; module histories independent; deployment-owned duplicate scripts/plugins require a separate verified migration.",
+  "current_scope": "Transitional mixed topology: Xplorer build-kit history is root-owned; other independent module histories remain separately gated. Deployment-owned duplicate scripts/plugins require a separate verified migration.",
   "shared_source": {
     "paths": [
       "scripts",
