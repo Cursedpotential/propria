@@ -273,6 +273,30 @@ async def preview_content(
     return result
 
 
+async def preview_content_target(
+    preview_handle: str, *, mode: MatterMode, scope: str, target_id: str
+) -> tuple[str, bool]:
+    """Resolve one current-attempt record or chunk independently of page cursors."""
+    await _require_mode(preview_handle, mode)
+    if scope not in ("record", "chunk") or not target_id or len(target_id) > 512:
+        raise ProfferError("Preview content target is invalid or unsupported", 422)
+    response = await _request(
+        "GET",
+        f"/reference-import/previews/{preview_handle}/content-target",
+        params={"scope": scope, "target_id": target_id},
+    )
+    payload = _json_payload(response, "exact preview content target")
+    if (
+        not isinstance(payload, dict)
+        or payload.get("preview_handle") != preview_handle
+        or not isinstance(payload.get("attempt_id"), str)
+        or not payload["attempt_id"]
+        or type(payload.get("found")) is not bool
+    ):
+        raise ProfferError("Proffer starter returned an invalid exact preview content target", 502)
+    return payload["attempt_id"], payload["found"]
+
+
 async def open_preview_event_stream(preview_handle: str, *, mode: MatterMode, last_event_id: int | None):
     from app.service.proffer_streams import open_preview_event_stream as implementation
 

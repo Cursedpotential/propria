@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -248,6 +249,49 @@ func TestPreviewContentReturnsExactGenericRecordsAndScopedChunkCursor(t *testing
 	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
 	require.Contains(t, second.Body.String(), `"record_id":"record-2"`)
 	require.Contains(t, second.Body.String(), `"chunk_ref":"chunk-2"`)
+}
+
+func TestPreviewContentTargetFindsOffPageRecordAndChunkOnCurrentAttempt(t *testing.T) {
+	handler, store, _ := previewTestHandler(t)
+	handle := startPreview(t, handler)
+	putValidProjection(t, store, handle)
+	content := PreviewContentPage{
+		Package: previewmodel.Package{SourceVersionRef: "33333333-3333-3333-3333-333333333333", DeclaredFormat: "document", Status: "retained"},
+		Attempt: previewmodel.Attempt{ProjectionRef: "55555555-5555-5555-5555-555555555555", SourceVersionRef: "33333333-3333-3333-3333-333333333333", RawGenerationRef: "44444444-4444-4444-4444-444444444444", NormalizedGenerationRef: "55555555-5555-5555-5555-555555555555"},
+	}
+	for index := range 301 {
+		id := strconv.Itoa(index)
+		content.Records = append(content.Records, previewmodel.Record{
+			RecordID: "record-" + id, Ordinal: int64(index), RecordType: "document",
+			Payload: json.RawMessage(`{"title":"Exact"}`), SourceLocatorRef: "locator-" + id,
+		})
+		content.Chunks = append(content.Chunks, previewmodel.ContentChunk{
+			ChunkRef: "chunk-" + id, Index: int64(index), Content: "text",
+			SHA256: strings.Repeat("a", 64), LocatorRef: "locator-" + id,
+			ByteEnd: 4,
+		})
+	}
+	require.NoError(t, store.PutContent(handle, content))
+	for _, scope := range []string{"record", "chunk"} {
+		response := servePreview(handler.Routes(), http.MethodGet, "/reference-import/previews/"+handle+"/content-target?scope="+scope+"&target_id="+scope+"-300", nil)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		var result struct {
+			PreviewHandle string `json:"preview_handle"`
+			AttemptID     string `json:"attempt_id"`
+			Found         bool   `json:"found"`
+		}
+		require.NoError(t, json.NewDecoder(response.Body).Decode(&result))
+		require.Equal(t, handle, result.PreviewHandle)
+		require.Equal(t, content.Attempt.ProjectionRef, result.AttemptID)
+		require.True(t, result.Found)
+	}
+	absent := servePreview(handler.Routes(), http.MethodGet, "/reference-import/previews/"+handle+"/content-target?scope=record&target_id=absent", nil)
+	require.Equal(t, http.StatusOK, absent.Code)
+	require.Contains(t, absent.Body.String(), `"found":false`)
+	unsupported := servePreview(handler.Routes(), http.MethodGet, "/reference-import/previews/"+handle+"/content-target?scope=entity&target_id=entity-1", nil)
+	require.Equal(t, http.StatusUnprocessableEntity, unsupported.Code)
+	other := servePreview(handler.Routes(), http.MethodGet, "/reference-import/previews/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/content-target?scope=record&target_id=record-300", nil)
+	require.Equal(t, http.StatusNotFound, other.Code)
 }
 
 func TestMemoryPreviewDecisionsAppendImmutableCompleteSuccessors(t *testing.T) {

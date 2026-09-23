@@ -18,6 +18,7 @@ from app.service.proffer import (
     decide_repair,
     preview,
     preview_content,
+    preview_content_target,
     preview_messages,
     start,
 )
@@ -236,10 +237,6 @@ async def preview_content_endpoint(
         raise _translate(error) from None
 
 
-def _content_attempt_id(content: ProfferContentResponse) -> str:
-    return content.attempt.attempt_ref or content.attempt.projection_ref
-
-
 @router.get(
     "/previews/{preview_handle}/potential-promotion-flags",
     response_model=ProfferPotentialPromotionFlagList,
@@ -274,22 +271,16 @@ async def create_potential_promotion_flag_endpoint(
 ):
     actor = _decision_actor(request)
     try:
-        content = await preview_content(
+        attempt_id, found = await preview_content_target(
             preview_handle,
             mode=mode,
-            record_cursor=None,
-            chunk_cursor=None,
-            limit=250,
+            scope=body.scope,
+            target_id=body.target_id,
         )
-        if body.attempt_id != _content_attempt_id(content):
-            raise HTTPException(status_code=409, detail="flag attempt does not match the displayed preview attempt")
-        visible_ids = {
-            "record": {item.record_id for item in content.records},
-            "chunk": {item.chunk_ref for item in content.chunks},
-            "entity": set(),
-        }
-        if body.target_id not in visible_ids[body.scope]:
-            raise HTTPException(status_code=409, detail="flag target is not present in the displayed preview page")
+        if body.attempt_id != attempt_id:
+            raise HTTPException(status_code=409, detail="flag attempt does not match the current preview attempt")
+        if not found:
+            raise HTTPException(status_code=409, detail="flag target is not present in the current preview attempt")
         return create_potential_promotion_flag(preview_handle, mode, body, actor)
     except ProfferError as error:
         raise _translate(error) from None

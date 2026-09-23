@@ -683,6 +683,43 @@ func (s *ProfferPreviewStore) Page(ctx context.Context, handle string, offset, l
 // Content resolves the generic D-158 operator projection from existing
 // package, normalized-record, and content-chunk tables. It is read-only and
 // does not publish chunks, establish custody, or duplicate retained content.
+func (s *ProfferPreviewStore) ContentTarget(ctx context.Context, handle, scope, targetID string) (string, bool, error) {
+	snapshot, err := s.Snapshot(ctx, handle)
+	if err != nil {
+		return "", false, err
+	}
+	attemptID := snapshot.Correlation.NormalizedGenerationID.String()
+	targetUUID, err := uuid.Parse(targetID)
+	if err != nil {
+		return attemptID, false, nil
+	}
+	var found bool
+	switch scope {
+	case "record":
+		err = s.db.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM context.normalized_record_identity
+				WHERE id=$1 AND normalized_generation_id=$2
+			)`, targetUUID, snapshot.Correlation.NormalizedGenerationID).Scan(&found)
+	case "chunk":
+		err = s.db.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM working.content_chunk chunk
+				WHERE chunk.id=$1 AND chunk.generation_id=(
+					SELECT generation.id FROM working.content_chunk_generation generation
+					WHERE generation.source_version_id=$2 AND generation.status='sealed'
+					ORDER BY generation.generation_ordinal DESC LIMIT 1
+				)
+			)`, targetUUID, snapshot.Correlation.SourceVersionID).Scan(&found)
+	default:
+		return "", false, errors.New("unsupported preview content target scope")
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("read exact preview content target: %w", err)
+	}
+	return attemptID, found, nil
+}
+
 func (s *ProfferPreviewStore) Content(ctx context.Context, handle string, recordOffset, chunkOffset, limit int) (previewmodel.ContentPage, error) {
 	if recordOffset < 0 || chunkOffset < 0 || limit < 1 || limit > 250 {
 		return previewmodel.ContentPage{}, errors.New("preview content page bounds are invalid")

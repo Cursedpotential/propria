@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import asyncio
 
+import httpx
+import pytest
 from app.runtime import proffer as proffer_runtime
-from app.service import proffer_flags
+from app.service import proffer as proffer_service, proffer_flags
 from app.types.proffer import ProfferContentResponse, ProfferDecisionActor
 from app.types.proffer_flags import (
     ProfferPotentialPromotionFlag,
@@ -92,11 +95,12 @@ def _app() -> FastAPI:
     return app
 
 
-def test_flag_route_binds_visible_target_attempt_and_authenticated_actor(monkeypatch) -> None:
+def test_flag_route_binds_exact_off_page_target_attempt_and_authenticated_actor(monkeypatch) -> None:
     captured: dict = {}
 
-    async def content(*args, **kwargs):
-        return _content()
+    async def exact_target(*args, **kwargs):
+        captured["lookup"] = (args, kwargs)
+        return ATTEMPT_ID, True
 
     def create(preview_handle, mode, body, actor):
         captured.update(
@@ -119,14 +123,19 @@ def test_flag_route_binds_visible_target_attempt_and_authenticated_actor(monkeyp
             status="open",
         )
 
-    monkeypatch.setattr(proffer_runtime, "preview_content", content)
+    monkeypatch.setattr(proffer_runtime, "preview_content_target", exact_target)
+    monkeypatch.setattr(
+        proffer_runtime,
+        "preview_content",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("presentation page must not run")),
+    )
     monkeypatch.setattr(proffer_runtime, "create_potential_promotion_flag", create)
     response = TestClient(_app()).post(
         f"/api/proffer/previews/{PREVIEW_HANDLE}/potential-promotion-flags",
         params={"mode": "TEST"},
         json={
             "scope": "record",
-            "target_id": "record-1",
+            "target_id": "record-301",
             "attempt_id": ATTEMPT_ID,
             "reason": "Review this record later",
         },
@@ -138,13 +147,14 @@ def test_flag_route_binds_visible_target_attempt_and_authenticated_actor(monkeyp
         subject_uid="subject-1", username="operator"
     )
     assert captured["body"].attempt_id == ATTEMPT_ID
+    assert captured["lookup"][1] == {"mode": "TEST", "scope": "record", "target_id": "record-301"}
 
 
-def test_flag_route_rejects_stale_attempt_and_unseen_target_before_write(monkeypatch) -> None:
-    async def content(*args, **kwargs):
-        return _content()
+def test_flag_route_rejects_stale_attempt_and_absent_target_before_write(monkeypatch) -> None:
+    async def exact_target(*args, **kwargs):
+        return ATTEMPT_ID, kwargs["target_id"] == "chunk-1"
 
-    monkeypatch.setattr(proffer_runtime, "preview_content", content)
+    monkeypatch.setattr(proffer_runtime, "preview_content_target", exact_target)
     monkeypatch.setattr(
         proffer_runtime,
         "create_potential_promotion_flag",
@@ -173,6 +183,72 @@ def test_flag_route_rejects_stale_attempt_and_unseen_target_before_write(monkeyp
     assert "does not match" in stale.json()["detail"]
     assert unseen.status_code == 409
     assert "not present" in unseen.json()["detail"]
+
+
+def test_flag_route_rejects_entity_without_a_governed_reader(monkeypatch) -> None:
+    async def unsupported(*args, **kwargs):
+        raise proffer_runtime.ProfferError("Preview content target is invalid or unsupported", 422)
+
+    monkeypatch.setattr(proffer_runtime, "preview_content_target", unsupported)
+    monkeypatch.setattr(
+        proffer_runtime,
+        "create_potential_promotion_flag",
+        lambda *_: (_ for _ in ()).throw(AssertionError("flag store must not run")),
+    )
+    response = TestClient(_app()).post(
+        f"/api/proffer/previews/{PREVIEW_HANDLE}/potential-promotion-flags",
+        params={"mode": "TEST"},
+        json={
+            "scope": "entity",
+            "target_id": "entity-1",
+            "attempt_id": ATTEMPT_ID,
+            "reason": "Inspect this entity",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_exact_target_service_binds_mode_and_rejects_uncorrelated_response(monkeypatch) -> None:
+    calls = []
+
+    async def require_mode(handle, mode):
+        calls.append(("mode", handle, mode))
+
+    async def request(method, path, **kwargs):
+        calls.append(("request", method, path, kwargs["params"]))
+        return httpx.Response(
+            200, json={"preview_handle": PREVIEW_HANDLE, "attempt_id": ATTEMPT_ID, "found": True}
+        )
+
+    monkeypatch.setattr(proffer_service, "_require_mode", require_mode)
+    monkeypatch.setattr(proffer_service, "_request", request)
+    assert asyncio.run(
+        proffer_service.preview_content_target(
+            PREVIEW_HANDLE, mode="TEST", scope="record", target_id="record-301"
+        )
+    ) == (ATTEMPT_ID, True)
+    assert calls == [
+        ("mode", PREVIEW_HANDLE, "TEST"),
+        (
+            "request",
+            "GET",
+            f"/reference-import/previews/{PREVIEW_HANDLE}/content-target",
+            {"scope": "record", "target_id": "record-301"},
+        ),
+    ]
+
+    async def wrong_handle(*_args, **_kwargs):
+        return httpx.Response(
+            200, json={"preview_handle": "other", "attempt_id": ATTEMPT_ID, "found": True}
+        )
+
+    monkeypatch.setattr(proffer_service, "_request", wrong_handle)
+    with pytest.raises(proffer_service.ProfferError, match="invalid exact preview content target"):
+        asyncio.run(
+            proffer_service.preview_content_target(
+                PREVIEW_HANDLE, mode="TEST", scope="record", target_id="record-301"
+            )
+        )
 
 
 def test_flag_service_persists_governed_metadata_without_promoting(monkeypatch) -> None:
