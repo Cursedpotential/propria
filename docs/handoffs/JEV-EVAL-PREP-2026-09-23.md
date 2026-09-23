@@ -276,3 +276,23 @@ mix of `upload://<sha256-like-hash>` handles, `r2://nexus/proffer/test-fixtures/
 - `casebible` (raw_duck): `docker exec -e PGPASSWORD=<from metabase-ro file> fgz1n7useplhk0t91uk7k1aw psql -h 127.0.0.1 -p 5432 -U metabase_ro -d casebible -At -c "<SELECT ... LIMIT ...>"`
 - `platform` (working/context, on `probata-db-...`): container env var values read once via `docker exec ... env` and piped directly into `psql`, never echoed; `psql -h 127.0.0.1 -p 5432 -U <POSTGRES_USER> -d platform -At -c "<SELECT ...>"`
 - All queries were `SELECT`/`information_schema`/`pg_stat_user_tables` reads with `LIMIT` where rows (not aggregates) were returned. No `INSERT`/`UPDATE`/`DELETE`/`CREATE` statements were issued.
+
+## Addendum 2026-09-23 14:25 EDT: Katrina message pool (Claude Code · Opus 5.5)
+
+Owner 14:20–14:22: sample messages between the owner and Katrina. Her numbers were 810-268-9630 (until 2024) and 810-353-3592 (2024–2025); an 810-869 number (about 2018 to early 2019) is dropped by owner order. Pull Facebook too. The 2018–19 texts would be an iMessage export and are not in this table.
+
+Catalog `raw_duck.chat_events_20260918` (read-only queries on the casebible PG container):
+
+| Pool | Rows | Dates | Notes |
+|---|---:|---|---|
+| fb_messenger_json, title "Katrina Kinzel" | 67,377 | 2018-08-05 → 2025-08-16 | the largest pool |
+| sms_backup_xml, title "Katrina Kinzel", counterparty **810-295-9303** | 40,704 | 2021-02 → 2022-12 | a number the owner did not list; sender values "Katrina Kinzel" / "owner"; **owner to confirm this is her number** |
+| sms_backup_xml, 2024 backup where **810-268-9630 is the recipient on every thread** | 8,014 in thread "Matthew" (28,166 rows in that backup overall) | 2024 | 268-9630 looks like **the device's own number**, i.e. Katrina's phone. "Matthew" = the owner, and `sender='owner'` means Katrina in this backup. **Owner to confirm.** Direction must be computed per device, never from the literal `owner` label. |
+| sms_backup_xml, counterparty 810-353-3592 ("Katrina" / "Katrina Kinzel") | 4,259 | 2025-06-01 → 2026-01-27 | plus 489 calls |
+| whatsapp_txt "WhatsApp Chat - Katrina Kinzel" | 599 | timestamps not parsed | Jev can read it, but the date strata can't use it |
+| 810-869-5919 | (2,859 SMS) | 2024–2026 | contact "Jesse Baker"; **not Katrina**; excluded |
+
+Other facts:
+- `direction` is empty for every SMS row; only calls carry it. Sender is populated.
+- The table has earlier Katrina columns (`katrina_ref_type`: direct 114,801, name_mention 686, …); these are not reference labels.
+- SMS coverage by year: 2021 17,867 · 2022 23,150 · 2023 26 · 2024 28,166 · 2025 12,420 · 2026 23,866.
