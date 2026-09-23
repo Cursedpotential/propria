@@ -93,4 +93,91 @@ Byline: Codex · GPT-6 · 2026-09-23
 
 ## Deployment checkpoint
 
-Pending authorized push and Coolify deployment.
+Byline: Codex · GPT-6 · 2026-09-23
+
+- Preflight receipt committed as `56d60875ca4022ffe972d94a2cc0eedda7eadbf3`.
+  Normal push to `private/feat/hosted-intake-engine` succeeded.
+- Coolify deployment `jfo3e301kuvmvll2ncjwaptn` finished at that commit.
+  Image `sha256:08ac903924f1d12fc86475a0f5bbe534c34cfbbd4943af1e39012b6a3e4ef797`
+  initially reported healthy. Direct unauthenticated `/healthz` and
+  `/api/intake_search_names` returned HTTP 200; the latter found two shown of
+  4,121 `Takeout` folders in 1,730 ms without search-leg errors.
+- The published browser bundle is older: `intake-build/current.json` on
+  `ovh-app` points to release `2026-09-19T01-25-33-000Z`, source fingerprint
+  `c0ef74a2`. The staged UI artifact on `ovh-files` has the same September 19
+  timestamp. The new magnifying-glass UI from `34aa2ba7` therefore awaits a
+  fresh UI build and publication in Claude's separate surface lane.
+
+## Incident and correction plan — before code modification
+
+Byline: Codex · GPT-6 · 2026-09-23
+
+An unauthenticated live `analyze_directory` call on `/srv/openlist` exceeded
+the 65-second client timeout. Code inspection identified a recursive
+`build_duplicate_summary` call at the end of `analyze_directory`; it descends
+through the entire selected tree and can hash candidate duplicates. On the
+OpenList root this is an unintended corpus scan. The HTTP layer also detaches
+the task after client disconnect, so the client timeout did not cancel server
+work. Even `/healthz` briefly stopped answering. A call to
+`cancel_duplicate_scan` also timed out. No source operation or cleanup was
+requested by this diagnostic call.
+
+Coolify-managed restart `hce0huzs4vql7b1genoal935` finished. The old
+container and scan process are gone; the replacement container returned
+unauthenticated `/healthz` HTTP 200 and Coolify reported `running:healthy`.
+This incident supersedes the preflight's green release decision until a fix is
+built and verified. Do not run analysis on a corpus root again.
+
+Planned narrow code change: in hosted mode, remove the recursive duplicate
+summary from ordinary directory analysis; enforce a bounded direct-child
+entry/time check before Smart Suggestions; abort its detached request task on
+client disconnect or a finite overall timeout. Add focused tests for the entry
+bound and for both cancellation paths releasing task capacity. Preserve the
+desktop command's existing duplicate workflow and do not change the portal,
+credentials, database, or source objects.
+
+## Checkpoint — before correction
+
+- Child Git root and branch remain as above; HEAD `56d60875`, remote equal.
+- Tracked working tree was clean before this receipt update. Existing untracked
+  `to_be_deleted/` remains intact.
+- Back up the three source files and this receipt under a new isolated
+  `to_be_deleted/2026-09-23-hosted-analysis-bounds/` directory before editing
+  source. Only the owner may remove quarantined material.
+- Fix acceptance: Linux locked tests/build, isolated runtime health and bounded
+  fixture analysis, request-cancellation/timeout capacity tests, normal push,
+  Coolify redeploy, and live read-only health/name-search checks. Do not test
+  Smart Suggestions against a corpus root or modify the UI release pointer.
+
+## Bounded-analysis correction — verification before release
+
+Byline: Codex · GPT-6 · 2026-09-23
+
+- Changed only `apps/src-tauri/src/file_organizer.rs`,
+  `apps/intake-engine/src/routing.rs`, and `apps/intake-engine/src/http.rs`.
+  Hosted `analyze_directory` no longer invokes the recursive duplicate finder;
+  the desktop behavior is unchanged. Hosted Smart Suggestions rejects the
+  OpenList/B2 roots, allows at most 400 direct entries, and gives listing five
+  seconds. Its request task aborts on client disconnect or an overall 60-second
+  HTTP deadline. The explicit duplicate command remains separate.
+- Built the modified source in an isolated Linux Docker context on `ovh-files`.
+  `cargo build --release --bin intake-engine` passed with the donor's existing
+  ten warning class; final runtime image
+  `sha256:ebb62ad2fe15424465a3fcf0b8e438a7d2cc0b841d7a55e88bdd9758ec36b0e2`.
+  A Linux `cargo test --release --locked --bin intake-engine analysis_` run
+  passed all three focused tests: direct-entry cap, client disconnect releasing
+  capacity, and command timeout releasing capacity. A test-only unused-permit
+  warning was corrected after this run; the final runtime source compiled.
+- An isolated loopback container used tmpfs state and a synthetic two-file
+  `/srv/openlist/smoke` directory, with secret files mounted read-only. It
+  returned unauthenticated `/healthz` HTTP 200. A request to its storage root
+  returned HTTP 422 in 3 ms without starting analysis. Name search returned two
+  hits and no search-leg errors. The bounded two-file Smart Suggestions request
+  returned a model-backed result (`portkey:gemini-3.8-flash`), one suggestion,
+  `duplicate_summary=null`, in 12 seconds. A separate request deliberately
+  disconnected after one second; `/healthz` immediately remained HTTP 200.
+  The isolated container was stopped and retained, not deleted.
+- The live Coolify container was not involved in these tests and still reported
+  `running:healthy`, unauthenticated `/healthz` HTTP 200. This correction is
+  green for a normal branch push and Coolify-managed redeployment, subject to
+  exact-file diff and fresh fast-forward checks. It is not yet live acceptance.

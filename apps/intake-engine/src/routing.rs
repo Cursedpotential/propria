@@ -9,6 +9,7 @@ use crate::Engine;
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 pub type Outcome = Result<Value, (u16, String)>;
 
@@ -146,10 +147,51 @@ async fn folder_files(dir: &Path) -> std::io::Result<Vec<(String, PathBuf)>> {
     Ok(out)
 }
 
+// Byline: Codex · GPT-6 · 2026-09-23. A model prompt is about one selected
+// folder. Count its direct children before the donor's synchronous listing so a
+// huge FUSE directory cannot occupy the engine indefinitely.
+const ANALYZE_MAX_ENTRIES: usize = 400;
+const ANALYZE_LIST_TIMEOUT: Duration = Duration::from_secs(5);
+
+async fn check_analysis_entries(dir: &Path, max_entries: usize) -> Result<(), String> {
+    let mut entries = tokio::fs::read_dir(dir)
+        .await
+        .map_err(|e| format!("cannot list the selected folder: {e}"))?;
+    for seen in 0..=max_entries {
+        match entries.next_entry().await {
+            Ok(None) => return Ok(()),
+            Ok(Some(_)) if seen == max_entries => {
+                return Err(format!(
+                    "this folder has more than {max_entries} direct entries; select a smaller folder"
+                ));
+            }
+            Ok(Some(_)) => {}
+            Err(e) => return Err(format!("cannot list the selected folder: {e}")),
+        }
+    }
+    Ok(())
+}
+
+async fn check_analysis_scope(engine: &Engine, path: &Path) -> Result<(), (u16, String)> {
+    if path == engine.mount_root
+        || engine.catalog.as_ref().is_some_and(|cat| path == cat.b2_root)
+    {
+        return Err(bad("select a folder below the storage or B2 root for Smart Suggestions"));
+    }
+    tokio::time::timeout(
+        ANALYZE_LIST_TIMEOUT,
+        check_analysis_entries(path, ANALYZE_MAX_ENTRIES),
+    )
+    .await
+    .map_err(|_| (503, "the selected folder did not list within 5 seconds".into()))?
+    .map_err(bad)
+}
+
 /// Add `catalogFacts` to the donor's `analyze_directory` call when the catalog has
 /// anything to say about this folder. A catalog that is down, slow or silent is not
 /// an error: the analyze goes ahead without those facts.
 async fn analyze_directory(engine: &Arc<Engine>, path: &str, mut args: Map<String, Value>) -> Outcome {
+    check_analysis_scope(engine, Path::new(path)).await?;
     if let Some(cat) = engine.catalog.as_deref() {
         match folder_files(Path::new(path)).await {
             Ok(files) if !files.is_empty() => match cat.folder_facts(&files).await {
@@ -164,6 +206,32 @@ async fn analyze_directory(engine: &Arc<Engine>, path: &str, mut args: Map<Strin
         }
     }
     donor(engine, "analyze_directory", args).await
+}
+
+#[cfg(test)]
+mod analysis_bounds_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn direct_entry_limit_rejects_large_folder_without_descending() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join(format!("intake-analysis-{}-{nonce}", std::process::id()));
+        let child = root.join("child");
+        tokio::fs::create_dir_all(&child).await.unwrap();
+        for name in ["one", "two", "three"] {
+            tokio::fs::write(root.join(name), b"fixture").await.unwrap();
+        }
+        // A deep tree is out of scope: only the root's direct children count.
+        assert!(check_analysis_entries(&child, 1).await.is_ok());
+        assert!(check_analysis_entries(&root, 3).await.unwrap_err().contains("more than 3"));
+        // The test fixture is deliberately retained for inspection under the
+        // task's temporary directory; agent cleanup never permanently deletes.
+    }
 }
 
 async fn real_path(engine: &Arc<Engine>, path: &str) -> Result<PathBuf, (u16, String)> {

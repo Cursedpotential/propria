@@ -16,8 +16,28 @@ use serde_json::{Map, Value};
 use std::convert::Infallible;
 use std::path::{Component, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
+
+// Byline: Codex · GPT-6 · 2026-09-23. Dropping an Axum response future
+// normally detaches its spawned command task. Hosted folder analysis is
+// read-only and must instead stop on client disconnect or deadline.
+const ANALYZE_COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
+
+struct CommandTask<T> {
+    handle: JoinHandle<T>,
+    cancel_on_drop: bool,
+}
+
+impl<T> Drop for CommandTask<T> {
+    fn drop(&mut self) {
+        if self.cancel_on_drop {
+            self.handle.abort();
+        }
+    }
+}
 
 pub fn router(engine: Arc<Engine>) -> Router {
     Router::new()
@@ -77,7 +97,8 @@ async fn command(
     let started = std::time::Instant::now();
     let eng = engine.clone();
     let cmd = name.clone();
-    let joined = tokio::spawn(async move {
+    let bounded_analysis = name == "analyze_directory";
+    let mut task = CommandTask { handle: tokio::spawn(async move {
         crate::routing::confine_args(&eng, &args).map_err(|e| (403, e))?;
         if let Some(out) = crate::routing::engine_command(&eng, &cmd, &args).await {
             return out;
@@ -98,8 +119,15 @@ async fn command(
             return Err((501, format!("{cmd} is not a command of the hosted engine (no donor handler exists for it)")));
         };
         f(tauri::CommandCtx { app: eng.app.clone(), args }).await.map_err(|e| (422, e))
-    })
-    .await;
+    }), cancel_on_drop: bounded_analysis };
+    let joined = if bounded_analysis {
+        match tokio::time::timeout(ANALYZE_COMMAND_TIMEOUT, &mut task.handle).await {
+            Ok(result) => result,
+            Err(_) => return text(StatusCode::GATEWAY_TIMEOUT, "folder analysis exceeded 60 seconds"),
+        }
+    } else {
+        (&mut task.handle).await
+    };
     let elapsed = started.elapsed().as_millis();
     match joined {
         Ok(Ok(value)) => {
@@ -123,6 +151,52 @@ async fn command(
                 format!("{name} failed inside the engine: {join}"),
             )
         }
+    }
+}
+
+#[cfg(test)]
+mod analysis_cancellation_tests {
+    use super::*;
+    use std::future::pending;
+    use tokio::sync::{oneshot, Semaphore};
+
+    async fn occupied_task() -> (CommandTask<()>, Arc<Semaphore>) {
+        let capacity = Arc::new(Semaphore::new(1));
+        let worker_capacity = capacity.clone();
+        let (acquired, ready) = oneshot::channel();
+        let task = CommandTask {
+            handle: tokio::spawn(async move {
+                let _permit = worker_capacity.acquire().await.unwrap();
+                acquired.send(()).unwrap();
+                pending::<()>().await;
+            }),
+            cancel_on_drop: true,
+        };
+        ready.await.unwrap();
+        (task, capacity)
+    }
+
+    #[tokio::test]
+    async fn client_disconnect_releases_analysis_capacity() {
+        let (task, capacity) = occupied_task().await;
+        drop(task);
+        let _ = tokio::time::timeout(Duration::from_secs(1), capacity.acquire())
+            .await
+            .expect("canceled task must release its permit")
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn command_timeout_releases_analysis_capacity() {
+        let (mut task, capacity) = occupied_task().await;
+        assert!(tokio::time::timeout(Duration::from_millis(10), &mut task.handle)
+            .await
+            .is_err());
+        drop(task);
+        let _ = tokio::time::timeout(Duration::from_secs(1), capacity.acquire())
+            .await
+            .expect("timed-out task must release its permit")
+            .unwrap();
     }
 }
 

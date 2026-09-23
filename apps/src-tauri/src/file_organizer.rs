@@ -795,7 +795,15 @@ pub async fn analyze_directory(
     remember_suggestions(&path, &suggestions);
 
     let insights = build_insights(&files);
-    let duplicate_summary = build_duplicate_summary(&path).await;
+    // Byline: Codex · GPT-6 · 2026-09-23. Hosted Smart Suggestions must not turn
+    // a folder analysis into a recursive duplicate/hash scan of an OpenList tree.
+    // The desktop keeps its existing duplicate summary; the hosted engine offers
+    // duplicate discovery only through the separately invoked command.
+    let duplicate_summary = if std::env::var_os("XPLORER_INTAKE_MODE").is_some() {
+        None
+    } else {
+        build_duplicate_summary(&path).await
+    };
 
     Ok(OrganizationAnalysis {
         categories,
