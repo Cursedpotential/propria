@@ -144,6 +144,8 @@ services:
     restart: unless-stopped
     environment:
       MILVUS_ADDRESS: milvus:19530
+      MILVUS_TOKEN: ${MILVUS_ATTU_TOKEN:-}   # Milvus user:password, set in Coolify env; Attu connects without a form
+      ATTU_AUTH_MODE: none   # owner rule 2026-09-23: on the tailnet Tailscale is the only barrier (no app login)
       ATTU_DB_PATH: /data/attu.db
     volumes:
       - /data/probata/volumes/attu:/data
