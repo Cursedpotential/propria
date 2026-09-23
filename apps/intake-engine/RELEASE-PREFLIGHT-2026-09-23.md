@@ -181,3 +181,53 @@ Byline: Codex · GPT-6 · 2026-09-23
   `running:healthy`, unauthenticated `/healthz` HTTP 200. This correction is
   green for a normal branch push and Coolify-managed redeployment, subject to
   exact-file diff and fresh fast-forward checks. It is not yet live acceptance.
+
+## Planned change and checkpoint — deployment acceptance receipt
+
+Byline: Codex · GPT-6 · 2026-09-23
+
+Append the Coolify deployment and safe live acceptance evidence to this one
+Intake-owned receipt. Do not change application configuration, source objects,
+the portal/UI release pointer, or the quarantined backups. A separate exact
+backup of this receipt was made under
+`to_be_deleted/2026-09-23-hosted-analysis-bounds/` before this edit.
+
+Checkpoint: branch `feat/hosted-intake-engine` at `309a27f9`, the four-file
+bounded-analysis correction committed and pushed normally to `private` after
+confirming remote `56d60875` was an ancestor. The only remaining untracked
+path is the pre-existing/expanded `to_be_deleted/` quarantine. Isolated Linux
+build, three focused tests, and fixture runtime smoke passed as above. No
+corpus-root analysis was rerun.
+
+## Deployment and live engine acceptance
+
+Byline: Codex · GPT-6 · 2026-09-23
+
+- Coolify-managed deployment `l14471gjkum4l3n6hnrszwxc` finished for Intake
+  application `dbae59tufgs5zqvb7ym9fozk`. The replacement container
+  `intake-engine-dbae59tufgs5zqvb7ym9fozk-194919676807` ran the image tagged
+  with exact pushed commit `309a27f985426747cb9c163106b06d38da5bf62b`;
+  Docker image ID was
+  `sha256:cd5cfae8d6ed91e291e7d22135f6805ecb264ca71830d7ab9da06826bffa0b50`.
+  Coolify/Docker reported it healthy. No container owned by Coolify was
+  manually stopped, started, or replaced.
+- Direct Tailnet requests without an Intake bearer token or second app login:
+  `/healthz` HTTP 200 (about 1–2 ms); `/api/intake_search_names` HTTP 200 with
+  two `Takeout` folder hits and zero search-leg errors; the storage-root
+  `/api/analyze_directory` request returned HTTP 422 in 1 ms before analysis;
+  `/healthz` remained 200 afterward. This root request exercised only the
+  guard, never the corpus scan.
+- The read-only live `/srv/openlist/b2` subtree was confirmed to have exactly
+  two direct children before testing. Smart Suggestions there returned HTTP
+  200 from `model:portkey:gemini-3.8-flash` in about 9.4 seconds, with zero
+  suggestions for its no-file listing and `duplicate_summary=null`. The
+  separate synthetic two-PDF fixture returned one model-backed suggestion.
+  Afterward the new live container remained healthy, `/healthz` was HTTP 200,
+  and process inspection showed only `tini` and `intake-engine`.
+
+The engine/container release is accepted. Browser UI acceptance is separate:
+`ovh-app` still points `intake-build/current.json` at the September 19 bundle
+(`2026-09-19T01-25-33-000Z`, fingerprint `c0ef74a2`). Claude's portal/UI lane
+must publish a browser bundle built from at least `34aa2ba7` and verify the
+real Tailnet page, cross-folder search controls, Smart Suggestions display,
+and no second app login. Do not advance that pointer in the engine lane.
