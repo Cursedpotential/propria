@@ -46,6 +46,8 @@ func zipFixture(t *testing.T, content []byte, format string) (activities.MemberE
 	db.storageClass = "filesystem"
 	db.objectURI = fileURI(filename)
 	db.byteLength = int64(len(content))
+	digest := sha256.Sum256(content)
+	db.contentSHA256 = digest[:]
 	enumerator, err := NewZIPMemberEnumerator(db)
 	if err != nil {
 		t.Fatal(err)
@@ -96,13 +98,189 @@ func TestZIPMemberInventoryRejectsMalformedAndUnsupportedInputs(t *testing.T) {
 		{"unsupported archive", "archive", []byte("not a ZIP"), "invalid or unsupported ZIP"},
 		{"traversal", "zip", testZIP(t, struct{ name, body string }{"../escape", "x"}), "invalid ZIP member name"},
 		{"absolute", "zip", testZIP(t, struct{ name, body string }{"/escape", "x"}), "invalid ZIP member name"},
-		{"duplicate", "zip", testZIP(t, struct{ name, body string }{"same", "a"}, struct{ name, body string }{"same", "b"}), "duplicate ZIP member"},
+		{"duplicate", "zip", testZIP(t, struct{ name, body string }{"same", "a"}, struct{ name, body string }{"same", "b"}), "duplicate normalized ZIP member"},
+		{"normalized duplicate", "zip", testZIP(t, struct{ name, body string }{"same", "a"}, struct{ name, body string }{"same/", ""}), "duplicate normalized ZIP member"},
+		{"drive path", "zip", testZIP(t, struct{ name, body string }{"C:/escape", "x"}), "invalid ZIP member name"},
+		{"UNC path", "zip", testZIP(t, struct{ name, body string }{"\\\\server\\share", "x"}), "invalid ZIP member name"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			enumerator, input := zipFixture(t, tc.data, tc.format)
 			stream, err := enumerator.EnumerateMembers(context.Background(), input)
 			if stream != nil || err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("stream=%v err=%v; want %q", stream, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestZIPMemberInventoryRejectsChangedSourceAtSameLength(t *testing.T) {
+	content := testZIP(t, struct{ name, body string }{"one.txt", "original"})
+	filename := filepath.Join(t.TempDir(), "original.zip")
+	changed := append([]byte(nil), content...)
+	changed[len(changed)-1] ^= 1
+	if err := os.WriteFile(filename, changed, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	db := validObservationTestDB()
+	db.storageClass, db.objectURI, db.byteLength = "filesystem", fileURI(filename), int64(len(content))
+	digest := sha256.Sum256(content)
+	db.contentSHA256 = digest[:]
+	enumerator, err := NewZIPMemberEnumerator(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := validObservationInput()
+	input.DeclaredFormat = "zip"
+	if stream, err := enumerator.EnumerateMembers(context.Background(), input); stream != nil || err == nil || !strings.Contains(err.Error(), "content SHA-256 changed") {
+		t.Fatalf("same-length source replacement must fail, stream=%v err=%v", stream, err)
+	}
+}
+
+func TestZIPMemberInventoryRejectsSpecialModeAndEncryption(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		mode  os.FileMode
+		flags uint16
+		want  string
+	}{
+		{"symlink", os.ModeSymlink | 0o777, 0, "file mode"},
+		{"device", os.ModeDevice | 0o600, 0, "file mode"},
+		{"encrypted", 0o600, 1, "encrypted"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var buffer bytes.Buffer
+			writer := zip.NewWriter(&buffer)
+			header := &zip.FileHeader{Name: "member", Method: zip.Store}
+			header.SetMode(tc.mode)
+			entry, err := writer.CreateHeader(header)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := io.WriteString(entry, "body"); err != nil {
+				t.Fatal(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			content := buffer.Bytes()
+			if tc.flags != 0 {
+				central := bytes.Index(content, []byte{'P', 'K', 1, 2})
+				if central < 0 {
+					t.Fatal("test ZIP has no central directory")
+				}
+				binary.LittleEndian.PutUint16(content[central+8:], tc.flags)
+			}
+			enumerator, input := zipFixture(t, content, "zip")
+			if stream, err := enumerator.EnumerateMembers(context.Background(), input); stream != nil || err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("unsupported ZIP member accepted, stream=%v err=%v", stream, err)
+			}
+		})
+	}
+}
+
+func TestZIPMemberInventoryCancellationClosesStream(t *testing.T) {
+	content := testZIP(t, struct{ name, body string }{"one.txt", "body"})
+	enumerator, input := zipFixture(t, content, "zip")
+	stream, err := enumerator.EnumerateMembers(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := stream.Next(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected cancellation, got %v", err)
+	}
+	if err := stream.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.Close(); err != nil {
+		t.Fatalf("close must be idempotent: %v", err)
+	}
+}
+
+func TestZIPMemberInventoryUsesPhysicalOrderWhenCentralDirectoryIsReversed(t *testing.T) {
+	content := testZIP(t,
+		struct{ name, body string }{"first.txt", "first"},
+		struct{ name, body string }{"second.txt", "second"},
+	)
+	first := bytes.Index(content, []byte{'P', 'K', 1, 2})
+	if first < 0 {
+		t.Fatal("test ZIP has no central directory")
+	}
+	second := bytes.Index(content[first+4:], []byte{'P', 'K', 1, 2})
+	if second < 0 {
+		t.Fatal("test ZIP has no second central entry")
+	}
+	second += first + 4
+	end := bytes.Index(content[second+4:], []byte{'P', 'K', 5, 6})
+	if end < 0 {
+		t.Fatal("test ZIP has no end record")
+	}
+	end += second + 4
+	reversed := append([]byte(nil), content[:first]...)
+	reversed = append(reversed, content[second:end]...)
+	reversed = append(reversed, content[first:second]...)
+	reversed = append(reversed, content[end:]...)
+	enumerator, input := zipFixture(t, reversed, "zip")
+	stream, err := enumerator.EnumerateMembers(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	for _, want := range []string{"first.txt", "second.txt"} {
+		member, err := stream.Next(context.Background())
+		if err != nil || member.Name != want {
+			t.Fatalf("physical source order lost: member=%+v err=%v want=%s", member, err, want)
+		}
+	}
+}
+
+func TestZIPMemberInventoryRejectsCRCMismatch(t *testing.T) {
+	content := testZIP(t, struct{ name, body string }{"one.txt", "payload"})
+	central := bytes.Index(content, []byte{'P', 'K', 1, 2})
+	if central < 0 {
+		t.Fatal("test ZIP has no central directory")
+	}
+	content[central+16] ^= 1
+	enumerator, input := zipFixture(t, content, "zip")
+	stream, err := enumerator.EnumerateMembers(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	if _, err := stream.Next(context.Background()); !errors.Is(err, zip.ErrChecksum) {
+		t.Fatalf("CRC mismatch must fail before member is inventoried: %v", err)
+	}
+}
+
+func TestZIPMemberInventoryDistinguishesOOXMLFromGenericZIP(t *testing.T) {
+	plain := testZIP(t, struct{ name, body string }{"ordinary.txt", "body"})
+	enumerator, input := zipFixture(t, plain, "xlsx")
+	if stream, err := enumerator.EnumerateMembers(context.Background(), input); stream != nil || err == nil || !strings.Contains(err.Error(), "[Content_Types].xml") {
+		t.Fatalf("ordinary ZIP mislabeled XLSX must fail, stream=%v err=%v", stream, err)
+	}
+	for _, tc := range []struct {
+		format, mainPart string
+	}{
+		{"xlsx", "xl/workbook.xml"},
+		{"docx", "word/document.xml"},
+		{"pptx", "ppt/presentation.xml"},
+		{"ooxml", "word/document.xml"},
+	} {
+		t.Run(tc.format, func(t *testing.T) {
+			content := testZIP(t,
+				struct{ name, body string }{"[Content_Types].xml", "<Types/>"},
+				struct{ name, body string }{"_rels/.rels", "<Relationships/>"},
+				struct{ name, body string }{tc.mainPart, "<part/>"},
+			)
+			enumerator, input := zipFixture(t, content, tc.format)
+			stream, err := enumerator.EnumerateMembers(context.Background(), input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stream.Close()
+			if _, err := stream.Next(context.Background()); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

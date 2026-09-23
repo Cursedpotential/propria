@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -81,6 +82,29 @@ func (e zipMemberEnumerator) EnumerateMembers(ctx context.Context, input activit
 	if !stat.Mode().IsRegular() || stat.Size() != object.byteLength {
 		return nil, errors.New("retained ZIP is not a regular file or its byte length changed")
 	}
+	if len(object.contentSHA256) != sha256.Size {
+		return nil, errors.New("retained ZIP has no valid content SHA-256")
+	}
+	sourceHash := sha256.New()
+	buffer := make([]byte, 64*1024)
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		n, readErr := file.Read(buffer)
+		if n > 0 {
+			_, _ = sourceHash.Write(buffer[:n])
+		}
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return nil, fmt.Errorf("read retained ZIP for digest verification: %w", readErr)
+		}
+	}
+	if subtle.ConstantTimeCompare(sourceHash.Sum(nil), object.contentSHA256) != 1 {
+		return nil, errors.New("retained ZIP content SHA-256 changed")
+	}
 	archive, err := zip.NewReader(file, stat.Size())
 	if err != nil {
 		return nil, fmt.Errorf("invalid or unsupported ZIP structure: %w", err)
@@ -98,12 +122,17 @@ func (e zipMemberEnumerator) EnumerateMembers(ctx context.Context, input activit
 		if err := validZIPMemberName(member.Name); err != nil {
 			return nil, fmt.Errorf("invalid ZIP member name: %w", err)
 		}
-		if _, exists := seen[member.Name]; exists {
-			return nil, fmt.Errorf("duplicate ZIP member name %q", member.Name)
+		normalizedName := strings.TrimSuffix(member.Name, "/")
+		if _, exists := seen[normalizedName]; exists {
+			return nil, fmt.Errorf("duplicate normalized ZIP member name %q", normalizedName)
 		}
-		seen[member.Name] = struct{}{}
-		if member.Flags&1 != 0 || member.Mode()&os.ModeSymlink != 0 {
-			return nil, fmt.Errorf("unsupported encrypted or symlink ZIP member %q", member.Name)
+		seen[normalizedName] = struct{}{}
+		if member.Flags&1 != 0 {
+			return nil, fmt.Errorf("unsupported encrypted ZIP member %q", member.Name)
+		}
+		mode := member.Mode()
+		if (!mode.IsRegular() && !mode.IsDir()) || mode.IsDir() != strings.HasSuffix(member.Name, "/") {
+			return nil, fmt.Errorf("unsupported ZIP member file mode for %q", member.Name)
 		}
 		if member.UncompressedSize64 > uint64(zipMaxMemberBytes) || member.UncompressedSize64 > uint64(zipMaxExpandedBytes-total) {
 			return nil, fmt.Errorf("ZIP member expanded byte limit exceeded at %q", member.Name)
@@ -122,11 +151,22 @@ func (e zipMemberEnumerator) EnumerateMembers(ctx context.Context, input activit
 		total += int64(member.UncompressedSize64)
 		entries = append(entries, zipMemberEntry{file: member, offset: offset})
 	}
+	if format == "xlsx" || format == "docx" || format == "pptx" || format == "ooxml" {
+		if _, ok := seen["[Content_Types].xml"]; !ok {
+			return nil, errors.New("OOXML package is missing [Content_Types].xml")
+		}
+		if _, ok := seen["_rels/.rels"]; !ok {
+			return nil, errors.New("OOXML package is missing _rels/.rels")
+		}
+	}
 	// ZIP central-directory order can differ from on-disk order. The latter is
 	// the source order preserved by the inventory ordinal.
 	sort.Slice(entries, func(i, j int) bool { return entries[i].offset < entries[j].offset })
 	var previousEnd int64
 	for i, entry := range entries {
+		if i > 0 && entry.offset <= entries[i-1].offset {
+			return nil, errors.New("ZIP member compressed ranges share an offset")
+		}
 		if i > 0 && entry.offset < previousEnd {
 			return nil, errors.New("ZIP member compressed ranges overlap")
 		}
