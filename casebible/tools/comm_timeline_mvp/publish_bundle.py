@@ -16,6 +16,7 @@ Run inside devbox, detached, from the comm_timeline_mvp directory.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import time
@@ -48,6 +49,27 @@ def retire_old(client: httpx.Client, vault_key: str, dry: bool) -> int:
     return int(res.get("matches", 0))
 
 
+def published_count(client: httpx.Client, vault_key: str) -> int:
+    """Objects of this file already published by THIS run id (so a rerun resumes instead of re-embedding)."""
+    q = {"query": "{ Aggregate { %s(where:{operator:And, operands:[{path:[\"vault_key\"],operator:Equal,valueText:%s},"
+                  "{path:[\"ingest_run_id\"],operator:Equal,valueText:%s}]}) { meta { count } } } }"
+                  % (er.COLL, json.dumps(vault_key), json.dumps(er.RUN_ID))}
+    r = client.post(f"{er.WV}/v1/graphql", json=q, timeout=120)
+    r.raise_for_status()
+    return int(r.json()["data"]["Aggregate"][er.COLL][0]["meta"]["count"])
+
+
+def publish_retry(client: httpx.Client, rows: list[dict]) -> int:
+    """er.publish with retries: a dropped connection (Weaviate or NIM) must not end a long run (2026-09-24)."""
+    for attempt in range(5):
+        try:
+            return er.publish(client, rows)
+        except (httpx.TransportError, httpx.HTTPStatusError) as e:
+            print(f"  retry {attempt + 1}/5 after {type(e).__name__}: {str(e)[:120]}", flush=True)
+            time.sleep(15 * (attempt + 1))
+    return er.publish(client, rows)
+
+
 def main() -> int:
     b = duckdb.connect(str(BUNDLE / "proposal.duckdb"), read_only=True)
     b.execute("set TimeZone = 'UTC'")
@@ -64,21 +86,22 @@ def main() -> int:
     for i, (vk, n) in enumerate(files, 1):
         old = retire_old(client, vk, dry=True)
         pub = 0
+        old_done = old if MODE != "run" else 0
         if MODE == "run":
-            cur = b.execute(f"select {COLS} from proposed_records where vault_key = ? "
-                            "order by (katrina_conf = 'strong') desc, (daughter_conf is not null) desc, sort_ts_final",
-                            [vk])
-            cols = [d[0] for d in cur.description]
-            while batch := cur.fetchmany(er.BATCH):
-                pub += er.publish(client, [dict(zip(cols, x)) for x in batch])
-                time.sleep(er.PACE)
+            if published_count(client, vk) == n:
+                pub = n  # already fully published by this run id (resume after an interruption)
+            else:
+                cur = b.execute(f"select {COLS} from proposed_records where vault_key = ? "
+                                "order by (katrina_conf = 'strong') desc, (daughter_conf is not null) desc, sort_ts_final",
+                                [vk])
+                cols = [d[0] for d in cur.description]
+                while batch := cur.fetchmany(er.BATCH):
+                    pub += publish_retry(client, [dict(zip(cols, x)) for x in batch])
+                    time.sleep(er.PACE)
             if pub != n:
                 print(f"  WARNING published {pub} of {n} for {vk}; older objects kept", flush=True)
-                old_done = 0
-            else:
-                old_done = retire_old(client, vk, dry=False) if old else 0
-        else:
-            old_done = old
+            elif old:
+                old_done = retire_old(client, vk, dry=False)
         tot_pub += pub
         tot_old += old_done
         print(f"[{i}/{len(files)}] rows={n} published={pub} older_objects={old} retired={old_done if MODE == 'run' else 0} "

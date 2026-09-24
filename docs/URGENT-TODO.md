@@ -2564,3 +2564,36 @@ engine deploy is waiting on the owner's go.
 - **Portal:** "it needs to look better and flow naturally". No specific widget named: redesign the top of the homepage (already queued: section order and the FileFlows move).
 - **Cloud route:** yes. Expose catalog queries + extraction tools through ContextForge (MCP) so cloud sessions can do this work.
 - **devbox rebuild:** later, when idle.
+
+## 2026-09-24 13:20–14:30 EDT — publish, Jev scored, her other phone files, damaged backups salvaged
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-24._
+
+- **Weaviate publish** (`MsgEvents20260918`, `comm_timeline_mvp/publish_bundle.py`, one object per copy, uuid5 of the true-duplicate key). Older extractions of the same file are retired only after the file's new objects are all in. Her backup (a3): 28,179 published, 1,203 older retired. His side (a2): 629 of 631 files done, then Weaviate dropped the connection mid-file ("Server disconnected"). Nothing was lost; that file's older objects were kept. The publisher now retries dropped connections and resumes (skips files already fully published). Queued: a7 (her phone), a5, a6, then a2 resumes.
+  - Fixed on the way: `pytz` missing in devbox (installed + Dockerfile, Probata `4b5638f`); calls were published with `record_kind=message` (now `call`); a resume counter bug; a waiter that matched itself in `pgrep` (known trap).
+- **Jev run** sent (660 windows, $0.08). Loaded as label pass `bout-q-v1` beside Opus `bout-tone-v1` (645 bouts each; exporter Probata `scripts/jev_eval/export_jev_bout_labels.py` `3fa82c4`). Score (`msg_bout_jev_score_20260924.sql`):
+  - Main tone agrees with Opus on 56.6% (365/645). Jev rates tone harsher: where Opus says neutral it often says tense (78), and where Opus says tense it often says hostile (52).
+  - Jev catches every hostile bout Opus found (144/144) and 98% of conflict bouts, but flags about twice as many. It works as a cheap first screen, not as the final label.
+  - On the owner's 5 reviewed bouts, Jev said "tense" on b0274, the bout the owner marked as missed by Opus.
+  - Review page for the 280 disagreements: **Tone Disagreements** https://claude.ai/artifact/43oiFKgS8Ddgx3h9yAwTDz (db collection `conflicts`).
+- **Her phone has three files, not one** (owner 13:48 "I should have several XML files from her phone"). Each was proven hers by content: her own line in the MMS addressing, or "T-Mobile: Hi KATRINA".
+  - `Evidence/Call data/SMS Backup & Restore Data/sms-20250218025955.xml` (SMS Backup & Restore, 28,179 records).
+  - `Takeout/salemnma/Drive/sms_20250218024754.xml`: another app's `<allsms>` export, made 12 minutes earlier. 15,549 SMS, Dec 2023 → Jan 2025. It is not valid XML (the app does not escape quotes), so a new reader `elt/elt_allsms_xml_v1.sql` takes the attributes by fixed order.
+  - `Legal_Knowledge_Base_Obsidian1/Evidence/Messaging/SMS/sms-2024-11-24.xml`: 525 records, Jan 12 → Apr 24 2024.
+  - All three are extracted together as `a7-her-phone-all-20260924` (custodian Katrina), which supersedes a3. All of B2 and the Drive/OneDrive/local listings were searched. Every other SMS backup is Matt's phone, or a copy of one already in the vault.
+- **Corrected claim:** the 12 never-parsed "2026" SMS backups were not irrelevant. A file-name date is the backup date, not the message dates. They are Matt's phone: his line 810-353-5467 plus a second line **810-493-2840** (candidate), June 2025 → March 2026.
+- **Damaged backups salvaged, repair toolkit rule (A-15/R9).** Those 12 files stop mid-record (e.g. one declares 12,416 records but the object is 688,128 bytes). New `elt/elt_xml_sanitize_v2.sql` keeps every complete record up to the cut, closes the file, and reports `truncated_salvaged` with declared vs recovered counts. The fix is cataloged in `repair-tool-kit/TOOL-CATALOG.md`.
+  - `a5-unparsed-sms-20260924`: 13 files, 60,810 rows.
+  - `a6-xml-unnamed-20260924`: 51 unnamed/recovered XML files (e.g. `f96544768_sms_export.xml`, `$RLJ1ROT.xml`). 12 are message backups, 52,924 rows, all Matt's phone (2021–22 and 2025). 13 recovered-disk fragments still fail on binary noise or broken attachment lines. They are open to-dos, and one names `20240929_145206.jpg`, so it holds 2024 content.
+- **Cross-device result with all three of her files:**
+  - 20,599 messages are on both phones.
+  - Both of her exports, made by two different apps on 2025-02-18, hold no conversation with 9302 before 2024-06-27. The gap is on her phone itself.
+  - **116 messages Katrina wrote after 2024-06-27 are on Matt's phone but gone from hers**: Jul 1, Aug 2, Sep 51, Oct 51, Nov 11.
+  - Going the other way (her copies grouped, one row per message): 96 of hers and 2,309 of his are on her phone but in none of his exports.
+  - Both CSVs were re-sent to the owner.
+- **Owner request 13:50 (queued, Probata TODO `1c8f3a6`):** intake reuses prior extractions; the review screen shows bouts; the chunk method is selectable. Design questions go to the owner first.
+- [ ] **Owner:** confirm 810-493-2840 as his (his phone's own line on 2,145 MMS, Jul–Aug 2025).
+- [ ] **Owner:** R2 was re-enabled by the owner; a new R2 key is needed (save to `~/.secrets/cloudflare-r2.env`). Then wire it into Workbench and the ovh-files `r2:` remote and re-check the 3 R2 roots and `nexus`.
+- [ ] 13 recovered-disk XML fragments still fail (binary noise / broken attachment lines; several cut at exactly 256 MB). They need a line-level salvage that skips corrupt lines. Toolkit first.
+- [ ] `f850530928.xml` shows both 9302 and 9303 as the phone's own line. Investigate before relying on its `owner_line`.
+- [ ] Empty stray folders `E:/AI_Workspace/Projects/Probata/probata/scripts/jev_eval/`, left by a wrong write path and since moved. The owner deletes them (the guard blocks it).
