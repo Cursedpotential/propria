@@ -34,8 +34,11 @@ def load(d: pathlib.Path) -> dict:
 
 
 def slim(o: dict) -> dict:
-    return {"sum": o.get("summary", ""),
-            "p": [[p["category"], p["from_guide"], p["who"], p["message_is"], p["confidence"], p["note"], p["quote"], p.get("child_related", False)]
+    """v1-v2.1 observations have one `category`; v3 has `categories`, `what_happens` and a bout `topic`."""
+    return {"sum": ((o["topic"] + ". ") if o.get("topic") else "") + o.get("summary", ""),
+            "p": [[" + ".join(p.get("categories") or [p.get("category", "")]), p["from_guide"], p["who"], p["message_is"],
+                   p["confidence"], (p.get("what_happens", "") + " " + p["note"]).strip(), p["quote"],
+                   p.get("child_related", False)]
                   for p in o.get("patterns", [])],
             "new": [[c["name"], c["definition"]] for c in o.get("new_categories", [])]}
 
@@ -94,7 +97,7 @@ details.msgs summary { cursor:pointer; font-size:13px; color:var(--accent); }
 <div class="wrap">
   <header>
     <h1>Prompt Compare · Discovery</h1>
-    <p class="lede">The same bouts read by each prompt version. <b>v1 (test)</b> read behaviour, including provocation, reaction and blame. <b>v2</b> only records acts it can see in the chunk, without judging anyone. <b>v2.1</b> is v2 plus a child-related flag and a blocked-contact category. Pick the one that reads best; your picks decide the prompt for the full run.</p>
+    <p class="lede">The same bouts read by each prompt version. <b>v1 (test)</b> read behaviour, including provocation, reaction and blame. <b>v2</b> only records acts it can see in the chunk, without judging anyone. <b>v2.1</b> is v2 plus a child-related flag and a blocked-contact category. <b>v3</b> observes whole conversation groups inside the bout, not single messages. Pick the one that reads best; your picks decide the prompt for the full run.</p>
   </header>
   <div class="bar" role="search">
     <select id="f-show" aria-label="Show"><option value="some">Bouts with observations</option><option value="all">All bouts</option></select>
