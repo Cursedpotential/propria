@@ -5,7 +5,8 @@ plus a note. Answers are saved to the artifact's `db` (collection `bouts`, doc p
 with read_db. The output embeds case messages: it is built on the devbox or in a scratch path and never
 committed.
 
-Usage: python bout_review_page.py <bouts.jsonl> <raw/bout_tone dir> <out.html>
+Usage: python bout_review_page.py <bouts.jsonl> <raw/bout_tone dir> <out.html> [picks.json]
+picks.json (from pick_review_set.py) adds a "Start here" set that the page opens on.
 """
 
 import collections
@@ -15,6 +16,7 @@ import sys
 
 TONES = ["affectionate", "friendly", "neutral", "tense", "hostile", "distressed", "conciliatory"]
 bouts_path, tone_dir, out_path = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+picks = json.loads(pathlib.Path(sys.argv[4]).read_text(encoding="utf-8")) if len(sys.argv) > 4 else []
 bouts = [json.loads(x) for x in bouts_path.read_text(encoding="utf-8").split("\n") if x.strip()]
 tone = {}
 for p in tone_dir.glob("c2024-*.json"):
@@ -111,12 +113,15 @@ details.day .body { padding:0 14px 14px; display:grid; gap:12px; }
 .fb button.on.missed { background:var(--miss-bg); color:var(--miss); border-color:var(--miss); }
 .fb textarea { flex:1 1 280px; min-height:36px; }
 .none { color:var(--muted); font-size:13px; }
+.start h2 { font-size:17px; margin:0 0 2px; } .start ol { margin:0; padding-left:22px; display:grid; gap:4px; }
+.start a { color:var(--accent); font-weight:600; } .why { font-size:13px; font-weight:600; color:var(--accent); }
 </style>
 <div class="wrap">
   <header>
     <h1>Bout Review · 2024 Texts</h1>
     <p class="lede">Texts from Katrina's phone, __RANGE__, cut into bouts (a new bout after 30 minutes of silence, within a day). Opus marked the tone of each stretch and every point where it turned. For each bout, say whether Opus got it right.</p>
   </header>
+  <section class="panel start" id="start" hidden><h2>Start here</h2><p class="lede" style="margin:0 0 8px">One bout of each kind. Read one, mark it, stop whenever you like. Answers save as you go.</p><ol id="start-list"></ol></section>
   <section class="panel facts" id="facts"></section>
   <section class="panel">
     <div class="legend" id="legend"></div>
@@ -127,7 +132,7 @@ details.day .body { padding:0 14px 14px; display:grid; gap:12px; }
     <select id="f-tone" aria-label="Tone"><option value="">Any tone</option></select>
     <select id="f-shift" aria-label="Shifts"><option value="">Any bout</option><option value="abrupt">Has an abrupt shift</option><option value="any">Has any shift</option><option value="two">Both of you talking</option></select>
     <select id="f-month" aria-label="Month"><option value="">All months</option></select>
-    <select id="f-review" aria-label="Your review"><option value="">Any review state</option><option value="todo">Not reviewed</option><option value="right">Right</option><option value="wrong">Wrong</option><option value="missed">Missed a shift</option></select>
+    <select id="f-review" aria-label="Your review"><option value="start">Start here</option><option value="">Any review state</option><option value="todo">Not reviewed</option><option value="right">Right</option><option value="wrong">Wrong</option><option value="missed">Missed a shift</option></select>
     <span class="count" id="count"></span><span class="save" id="save-state">Connecting…</span>
   </div>
   <div id="days" class="wrap"></div>
@@ -136,6 +141,7 @@ details.day .body { padding:0 14px 14px; display:grid; gap:12px; }
 const DATA = __DATA__;
 const META = __META__;
 const TONES = __TONES__;
+const PICKS = Object.fromEntries(__PICKS__.map(p => [p.bout_id, p]));
 const $ = id => document.getElementById(id);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const tv = i => "var(--t" + i + ")";
@@ -178,6 +184,7 @@ function renderBout(b) {
   const head = el("div", "bhead");
   head.append(el("span", "mono", b.s + "–" + b.e), el("span", null, b.m.length + " messages · Matt " + nM + " · Katrina " + nK), el("span", "mono", b.id));
   card.append(head);
+  if (PICKS[b.id]) card.append(el("div", "why", "Start here: " + PICKS[b.id].why));
   if (b.sum) card.append(el("div", "bsum", b.sum));
   if (!b.ok) card.append(el("div", "none", "Opus has not labelled this bout yet."));
   const list = el("div", "msgs");
@@ -236,6 +243,7 @@ function matches(b) {
   if (sh === "any" && !b.sh.length) return false;
   if (sh === "two" && !(b.m.some(m => m[1] === 0) && b.m.some(m => m[1] === 1))) return false;
   const v = (reviews[b.id] || {}).verdict || "";
+  if (rv === "start") return !!PICKS[b.id];
   if (rv === "todo" && v) return false;
   if (rv && rv !== "todo" && v !== rv) return false;
   return true;
@@ -272,6 +280,15 @@ function init() {
   [...new Set(days.map(d => d.slice(0, 7)))].forEach(m => { const o = el("option", null, m); o.value = m; $("f-month").append(o); });
   const box = $("days"); for (const d of days) box.append(daySection(d));
   ["f-tone", "f-shift", "f-month", "f-review"].forEach(id => $(id).addEventListener("change", applyFilters));
+  const picks = Object.values(PICKS);
+  if (picks.length) {
+    $("start").hidden = false; $("f-review").value = "start";
+    for (const p of picks) {
+      const li = el("li"); const a = el("a", null, p.why); a.href = "#bout-" + p.bout_id;
+      a.addEventListener("click", e => { e.preventDefault(); const det = $("day-" + p.day); det.open = true; setTimeout(() => { const c = $("bout-" + p.bout_id); if (c) c.scrollIntoView({ behavior: "smooth", block: "start" }); }, 150); });
+      li.append(a, document.createTextNode(" · " + p.day + " · " + p.n_messages + " messages")); $("start-list").append(li);
+    }
+  } else { $("f-review").querySelector('option[value="start"]').remove(); }
   applyFilters(); connect();
 }
 async function connect() {
@@ -288,6 +305,6 @@ init();
 """
 
 page = (TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False)).replace("__RANGE__", f"{min(d['day'] for d in data)} to {max(d['day'] for d in data)}")
-        .replace("__META__", json.dumps(meta)).replace("__TONES__", json.dumps(TONES)))
+        .replace("__META__", json.dumps(meta)).replace("__PICKS__", json.dumps(picks)).replace("__TONES__", json.dumps(TONES)))
 out_path.write_text(page, encoding="utf-8")
 print(f"wrote {out_path}: {meta['bouts']} bouts, {meta['labelled']} labelled, {len(page)//1024} KB")
