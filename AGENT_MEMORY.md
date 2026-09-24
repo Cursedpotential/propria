@@ -19,6 +19,13 @@ contains_secrets: false
 
 # Repository Agent Memory
 
+> **Owner directive, 2026-09-24 07:18–07:19 (Claude Code · Opus 5.5).** Any processing that transforms data the way a
+> later stage would is kept and propagated, never redone. That covers extraction, normalization, sender/direction
+> fixes, deduplication, chunking and labels. Ad-hoc SQL over the catalog *is* extraction and normalization, and it
+> fills the context tables. Until the platform tables are populated, results stay in staging tables in the catalog
+> (owner: "keep it in a temp table for the moment"), with the target table recorded beside them. First register:
+> `docs/handoffs/JEV-EVAL-OPTIONS-2026-09-23.md` § "Propagation register".
+
 > _Byline: Codex · GPT-5 · 2026-08-27; navigation verification refreshed 2026-08-29._
 > _Byline: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep D-137..D-141; no UIW/proffer rows existed in this router. See `docs/NAMING.md`._
 
