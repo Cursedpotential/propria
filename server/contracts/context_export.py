@@ -148,6 +148,8 @@ class PackageFile:
         if self.kind not in {"representation", "raw_source_copy"}:
             raise ValueError("invalid package file kind")
         if self.kind == "raw_source_copy":
+            if self.source_id is None:
+                raise ValueError("raw source copy needs a source ID")
             _identifier(self.source_id, "file source_id")
         elif self.source_id is not None:
             raise ValueError("representation cannot claim raw source identity")
@@ -220,7 +222,10 @@ def validate_manifest(manifest: ContextExportManifest, route: ApprovedRoute) -> 
     if manifest.version == 1 and manifest.predecessor_digest is not None:
         raise ValueError("first version has no predecessor")
     if manifest.version > 1:
-        _digest(manifest.predecessor_digest, "predecessor_digest")
+        predecessor_digest = manifest.predecessor_digest
+        if predecessor_digest is None:
+            raise ValueError("later version needs a predecessor digest")
+        _digest(predecessor_digest, "predecessor_digest")
     for name in (
         "case_id",
         "creator_id",
@@ -236,11 +241,14 @@ def validate_manifest(manifest: ContextExportManifest, route: ApprovedRoute) -> 
     _utc(manifest.snapshot_at, "snapshot_at")
     if manifest.time_mode not in {"as_lived", "hindsight"}:
         raise ValueError("invalid time mode")
+    cutoff = manifest.as_lived_cutoff
     if manifest.time_mode == "as_lived":
-        _utc(manifest.as_lived_cutoff, "as_lived_cutoff")
-        if manifest.as_lived_cutoff > manifest.snapshot_at:
+        if cutoff is None:
+            raise ValueError("as-lived mode needs a cutoff")
+        _utc(cutoff, "as_lived_cutoff")
+        if cutoff > manifest.snapshot_at:
             raise ValueError("cutoff exceeds snapshot")
-    elif manifest.as_lived_cutoff is not None:
+    elif cutoff is not None:
         raise ValueError("hindsight must not carry as-lived cutoff")
     _version(manifest.route_map_version, "route_map_version")
     if (manifest.route_id, manifest.route_map_version, manifest.output_kind, manifest.case_id) != (
@@ -291,17 +299,13 @@ def validate_manifest(manifest: ContextExportManifest, route: ApprovedRoute) -> 
     if set(manifest.requested_entry_ids) != {entry.entry_id for entry in manifest.entries}:
         raise ValueError("selected entries not represented exactly")
     source_by_id = {source.source_id: source for source in manifest.sources}
-    if manifest.time_mode == "as_lived" and any(
-        source.source_available_from > manifest.as_lived_cutoff for source in manifest.sources
-    ):
+    if cutoff is not None and any(source.source_available_from > cutoff for source in manifest.sources):
         raise ValueError("as-lived selection contains future source")
     if any(source.source_available_from > manifest.snapshot_at for source in manifest.sources):
         raise ValueError("selection contains source beyond snapshot")
     if any(entry.entry_available_from > manifest.snapshot_at for entry in manifest.entries):
         raise ValueError("entry was not available at snapshot")
-    if manifest.time_mode == "as_lived" and any(
-        entry.entry_available_from > manifest.as_lived_cutoff for entry in manifest.entries
-    ):
+    if cutoff is not None and any(entry.entry_available_from > cutoff for entry in manifest.entries):
         raise ValueError("as-lived selection contains future entry")
     excluded = set(manifest.excluded_source_ids)
     if len(excluded) != len(manifest.excluded_source_ids) or not excluded <= source_by_id.keys():

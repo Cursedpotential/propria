@@ -88,7 +88,18 @@ def test_exact_versions_time_mode_relations_and_digest_change():
         with pytest.raises(ValueError):
             validate_manifest(replace(manifest, version=bad), route)
     with pytest.raises(ValueError):
+        validate_manifest(replace(manifest, version=2, destination="KnowledgeBase/matter1/stories/export1/v2"), route)
+    later = replace(
+        manifest,
+        version=2,
+        predecessor_digest=HASH,
+        destination="KnowledgeBase/matter1/stories/export1/v2",
+    )
+    assert validate_manifest(later, route)
+    with pytest.raises(ValueError):
         validate_manifest(replace(manifest, time_mode="hindsight"), route)
+    with pytest.raises(ValueError):
+        validate_manifest(replace(manifest, as_lived_cutoff=None), route)
     with pytest.raises(ValueError):
         validate_manifest(replace(manifest, entries=(replace(manifest.entries[0], source_ids=("other",)),)), route)
     with pytest.raises(ValueError):
@@ -142,6 +153,8 @@ def test_route_binding_and_no_overwrite_or_unapproved_root():
 
 def test_source_copy_is_explicit_and_offline_link_resolves():
     manifest, route = fixture()
+    with pytest.raises(ValueError):
+        PackageFile("source.bin", HASH, "raw_source_copy")
     with pytest.raises(ValueError):
         validate_manifest(
             replace(manifest, files=(PackageFile("source.bin", HASH, "raw_source_copy", "source1"),) + manifest.files),
