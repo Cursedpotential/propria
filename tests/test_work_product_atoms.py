@@ -1,6 +1,6 @@
 """Adversarial synthetic tests for D06 mention identity and overlap accounting.
 
-Byline: Codex · GPT-6 · 2026-09-23.
+Byline: Codex · GPT-6 · 2026-09-23 (Unicode coordinate-contract remediation).
 """
 
 from __future__ import annotations
@@ -40,6 +40,41 @@ def test_two_mentions_in_one_turn_have_distinct_ids_and_exact_spans() -> None:
     second = atom(16, 27)
     same_span_second_assertion = atom(0, 8, mention_key="assertion-2")
     assert len({first.atom_id, second.atom_id, same_span_second_assertion.atom_id}) == 3
+
+
+def test_unicode_code_point_boundaries_are_explicit_for_non_bmp_and_combining_marks() -> None:
+    source_text = "A\U0001f600e\u0301Z"
+    emoji = SourceSpan(turn_id="turn-unicode", char_start=1, char_end=2)
+    decomposed_grapheme = SourceSpan(turn_id="turn-unicode", char_start=2, char_end=4)
+
+    assert source_text[emoji.char_start : emoji.char_end] == "\U0001f600"
+    assert source_text[decomposed_grapheme.char_start : decomposed_grapheme.char_end] == "e\u0301"
+    assert emoji.model_dump(mode="json") == {
+        "turn_id": "turn-unicode",
+        "char_start": 1,
+        "char_end": 2,
+        "coordinate_unit": "unicode_code_point",
+        "normalization": "none",
+    }
+    assert decomposed_grapheme.char_end - decomposed_grapheme.char_start == 2
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("coordinate_unit", "utf16_code_unit"), ("normalization", "NFC")),
+)
+def test_source_span_rejects_alternate_coordinate_contracts(field: str, value: str) -> None:
+    values = {"turn_id": "turn-unicode", "char_start": 1, "char_end": 2, field: value}
+    with pytest.raises(ValidationError):
+        SourceSpan.model_validate(values)
+
+
+def test_unicode_coordinate_contract_is_bound_to_deterministic_atom_id() -> None:
+    unicode_span = SourceSpan(turn_id="turn-unicode", char_start=1, char_end=4)
+    candidate = atom(0, 8, spans=(unicode_span,), mention_key="unicode-assertion")
+
+    assert candidate.atom_id == "wp-atom-v1:327061dd64456ef4735359a67356b74fb678e01d57e49b8800f6ffa4582c198b"
+    assert MentionAtom.model_validate(candidate.model_dump(mode="json")).atom_id == candidate.atom_id
 
 
 def test_overlap_and_retry_keep_observations_but_one_atom() -> None:

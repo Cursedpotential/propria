@@ -4,7 +4,8 @@ This module is a pure, retry-safe unit. Callers must supply canonical source
 occurrence/version and provenance-origin IDs; this unit does not discover them,
 read source bytes, or promote candidates to evidence.
 
-Byline: Codex · GPT-6 · 2026-09-23 (D06 bounded atom identity slice).
+Byline: Codex · GPT-6 · 2026-09-23 (D06 bounded atom identity slice;
+Unicode coordinate-contract remediation).
 """
 
 from __future__ import annotations
@@ -32,13 +33,25 @@ RecordClass = Literal[
 
 
 class SourceSpan(BaseModel):
-    """Character offsets in one exact source-version turn, end exclusive."""
+    """End-exclusive Unicode code-point offsets in exact retained turn text.
+
+    Coordinates use Python ``str`` indexing: each Unicode code point counts as
+    one position, including each combining mark, and a non-BMP code point also
+    counts as one. They address the exact decoded source-version text without
+    NFC, NFD, or any other Unicode normalization.
+
+    This pure contract receives no source text, so it validates coordinate
+    shape and policy only. The caller must retain the exact source version and
+    verify bounds and excerpt readback against its turn text.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     turn_id: str = Field(min_length=1)
     char_start: int = Field(ge=0)
     char_end: int = Field(gt=0)
+    coordinate_unit: Literal["unicode_code_point"] = "unicode_code_point"
+    normalization: Literal["none"] = "none"
 
     @field_validator("turn_id")
     @classmethod
