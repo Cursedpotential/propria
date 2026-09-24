@@ -1,19 +1,21 @@
 """Focused W18 null/truncated enrichment and snapshot-retention regressions.
 
 Byline: Codex · GPT-6-Astra · 2026-09-23
+Updated by: Codex (W18 enrichment-fault review remediation) | Date: 2026-09-24 | Rev: 2 | Platform: Codex Desktop / win32 | Changes: mutation, invariant, and malformed-JSON regressions | Context: exact-head review findings on PR #37
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 import pytest
 
 from server.contracts.enrichment import (
     EnrichmentAttempt,
     EnrichmentSnapshot,
     EnrichmentSource,
+    SnapshotPublicationDecision,
     decide_snapshot_publication,
     evaluate_enrichment_output,
     recover_last_valid_snapshot,
@@ -122,14 +124,23 @@ def test_truncated_output_is_partial_and_retains_source_linkage(raw_output: str,
     assert evaluation.payload is None
 
 
-def test_malformed_nontruncated_json_is_failed_not_completed() -> None:
+@pytest.mark.parametrize(
+    "raw_output",
+    [
+        '{"title": nope, "date_basis": null, "summary": "x"}',
+        '{"title": }',
+        '{"title":"x",}',
+    ],
+)
+def test_closed_malformed_json_is_failed_not_truncated(raw_output: str) -> None:
     evaluation = evaluate_enrichment_output(
-        _attempt('{"title": nope, "date_basis": null, "summary": "x"}'),
+        _attempt(raw_output),
         _Payload,
     )
 
     assert evaluation.receipt.status == "failed"
     assert evaluation.receipt.reason == "invalid_json"
+    assert [issue.code for issue in evaluation.receipt.issues] == ["json_invalid"]
     assert evaluation.payload is None
 
 
@@ -221,6 +232,47 @@ def test_valid_attempt_advances_snapshot_with_exact_source_linkage() -> None:
     assert decision.active_snapshot.sequence == 2
     assert decision.active_snapshot.source.source_version == "v2"
     assert decision.active_snapshot.source.extracted_text_ref == "text://source-1/v2"
+
+
+def test_mutated_payload_cannot_publish_under_stale_validated_hash() -> None:
+    evaluation = _valid()
+    assert evaluation.payload is not None
+    evaluation.payload.summary = "mutated after validation"  # type: ignore[attr-defined]
+
+    with pytest.raises(ValueError, match="changed after evaluation"):
+        decide_snapshot_publication(
+            evaluation,
+            prior_active=None,
+            candidate_snapshot_id="snapshot-mutated",
+            candidate_sequence=1,
+            validated_at=T1,
+        )
+
+
+@pytest.mark.parametrize(
+    "snapshot_update",
+    [
+        {"source": _source("other-source")},
+        {"payload_sha256": "33" * 32},
+    ],
+)
+def test_public_decision_refuses_published_snapshot_mismatched_to_receipt(snapshot_update: dict) -> None:
+    valid = decide_snapshot_publication(
+        _valid(),
+        prior_active=None,
+        candidate_snapshot_id="snapshot-1",
+        candidate_sequence=1,
+        validated_at=T1,
+    )
+    assert valid.active_snapshot is not None
+    mismatched = valid.active_snapshot.model_copy(update=snapshot_update)
+
+    with pytest.raises(ValidationError, match="snapshot"):
+        SnapshotPublicationDecision(
+            receipt=valid.receipt,
+            published=True,
+            active_snapshot=mismatched,
+        )
 
 
 def test_identical_publication_retry_is_an_idempotent_noop() -> None:

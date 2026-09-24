@@ -6,6 +6,7 @@ one Temporal/n8n Activity, persist the returned receipt, and separately apply
 the publication decision.
 
 Byline: Codex · GPT-6-Astra · 2026-09-23
+Updated by: Codex (W18 enrichment-fault review remediation) | Date: 2026-09-24 | Rev: 2 | Platform: Codex Desktop / win32 | Changes: revalidation and publication invariants | Context: exact-head review found mutable-payload and direct-construction gaps
 """
 
 from __future__ import annotations
@@ -146,6 +147,22 @@ class EnrichmentSnapshot(BaseModel):
         return value
 
 
+def _snapshot_matches_completed_receipt(
+    snapshot: EnrichmentSnapshot,
+    receipt: EnrichmentReceipt,
+) -> bool:
+    """Bind an active snapshot to every immutable identity in a completed receipt."""
+
+    return (
+        snapshot.source == receipt.source
+        and snapshot.attempt_id == receipt.attempt_id
+        and snapshot.model_id == receipt.model_id
+        and snapshot.model_config_sha256 == receipt.model_config_sha256
+        and snapshot.raw_output_sha256 == receipt.raw_output_sha256
+        and snapshot.payload_sha256 == receipt.validated_payload_sha256
+    )
+
+
 class SnapshotPublicationDecision(BaseModel):
     """Atomic decision: publish the new validated snapshot or retain the prior one."""
 
@@ -157,10 +174,20 @@ class SnapshotPublicationDecision(BaseModel):
 
     @model_validator(mode="after")
     def _publication_matches_receipt(self) -> SnapshotPublicationDecision:
-        if self.published and self.receipt.status != "completed":
-            raise ValueError("only completed enrichment may publish a snapshot")
-        if self.published and self.active_snapshot is None:
-            raise ValueError("published decision requires the new active snapshot")
+        snapshot = self.active_snapshot
+        receipt = self.receipt
+        if snapshot is not None and snapshot.source.source_id != receipt.source.source_id:
+            raise ValueError("active snapshot belongs to a different source")
+        if self.published:
+            if receipt.status != "completed":
+                raise ValueError("only completed enrichment may publish a snapshot")
+            if snapshot is None:
+                raise ValueError("published decision requires the new active snapshot")
+            if not _snapshot_matches_completed_receipt(snapshot, receipt):
+                raise ValueError("published snapshot must match the completed receipt identities")
+        elif receipt.status == "completed":
+            if snapshot is None or not _snapshot_matches_completed_receipt(snapshot, receipt):
+                raise ValueError("completed no-op decision requires the identical active snapshot")
         return self
 
 
@@ -202,15 +229,55 @@ def _receipt(
     )
 
 
+def _json_envelope_is_closed(raw_output: str) -> bool:
+    """Return whether JSON strings and container delimiters are structurally closed."""
+
+    stack: list[str] = []
+    closing = {"}": "{", "]": "["}
+    in_string = False
+    escaped = False
+    for char in raw_output:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append(char)
+        elif char in closing:
+            if not stack or stack.pop() != closing[char]:
+                return True
+    return not in_string and not stack
+
+
 def _looks_truncated(error: json.JSONDecodeError, raw_output: str) -> bool:
     stripped = raw_output.rstrip()
     if not stripped:
+        return False
+    if _json_envelope_is_closed(stripped):
         return False
     if error.msg.startswith("Unterminated"):
         return True
     trailing_incomplete = stripped[-1] in "{[,:"
     at_end = error.pos >= max(0, len(stripped) - 1)
-    return trailing_incomplete or (at_end and error.msg.startswith("Expecting"))
+    incomplete_literal = stripped[error.pos :].strip() in {
+        "t",
+        "tr",
+        "tru",
+        "f",
+        "fa",
+        "fal",
+        "fals",
+        "n",
+        "nu",
+        "nul",
+    }
+    return trailing_incomplete or incomplete_literal or (at_end and error.msg.startswith("Expecting"))
 
 
 def evaluate_enrichment_output(
@@ -303,6 +370,9 @@ def decide_snapshot_publication(
         return SnapshotPublicationDecision(receipt=receipt, published=False, active_snapshot=prior_active)
     if evaluation.payload is None or receipt.validated_payload_sha256 is None:
         raise ValueError("completed receipt is missing its validated payload")
+    observed_payload_sha256 = _payload_sha256(evaluation.payload)
+    if observed_payload_sha256 != receipt.validated_payload_sha256:
+        raise ValueError("validated payload changed after evaluation")
     if not candidate_snapshot_id.strip():
         raise ValueError("candidate snapshot id must not be blank")
 
@@ -314,7 +384,7 @@ def decide_snapshot_publication(
         model_id=receipt.model_id,
         model_config_sha256=receipt.model_config_sha256,
         raw_output_sha256=receipt.raw_output_sha256,
-        payload_sha256=receipt.validated_payload_sha256,
+        payload_sha256=observed_payload_sha256,
         validated_at=validated_at,
     )
     if prior_active is not None and candidate_sequence <= prior_active.sequence:
