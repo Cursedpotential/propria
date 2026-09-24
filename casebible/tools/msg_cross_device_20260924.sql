@@ -172,14 +172,22 @@ where m.ts between w.a and w.b
   and not exists (select 1 from raw_duck.msg_corroboration_20260924 c
                   where c.attempt_id = :'attempt' and c.his_content_key = m.content_key and c.his_occurrence = m.dup_occurrence);
 
+-- Her phone can be represented by several files of the same phone (e.g. the SMS Backup & Restore backup and the allsms
+-- export made the same day): for this count one message is one row, citing every file of hers that holds it.
 insert into raw_duck.msg_cross_device_gaps_20260924
 select :'attempt', 'his_side',
-       case when h.bn = '' then 'no_text' when h.speaker_if_matt = 'Katrina' then 'katrina_sent' else 'matt_sent' end,
-       h.speaker_if_matt, h.ts, 'utc_known', h.body, h.files, h.dedup_key
-from her_matt h, (select min(ts) a, max(ts) b from his) w
-where h.ts between w.a and w.b
-  and not exists (select 1 from raw_duck.msg_corroboration_20260924 c
-                  where c.attempt_id = :'attempt' and c.her_dedup_key = h.dedup_key);
+       case when g.bn = '' then 'no_text' when g.speaker_if_matt = 'Katrina' then 'katrina_sent' else 'matt_sent' end,
+       g.speaker_if_matt, g.ts, 'utc_known', g.body, g.files, g.ref
+from (
+  select h.speaker_if_matt, date_trunc('second', h.ts) as sec, h.bh, min(h.ts) as ts, min(h.bn) as bn, min(h.body) as body,
+         array_agg(distinct f) as files, min(h.dedup_key) as ref,
+         bool_or(exists (select 1 from raw_duck.msg_corroboration_20260924 c
+                         where c.attempt_id = :'attempt' and c.her_dedup_key = h.dedup_key)) as linked
+  from her_matt h, unnest(h.files) f, (select min(ts) a, max(ts) b from his) w
+  where h.ts between w.a and w.b
+  group by 1, 2, 3
+) g
+where not g.linked;
 
 select 'her phone: all messages' as what, count(*) as n, min(ts)::date as first, max(ts)::date as last from her
 union all select 'her phone: Matt threads (known + content-proven numbers)', count(*), min(ts)::date, max(ts)::date from her_matt

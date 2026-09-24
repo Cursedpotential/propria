@@ -89,17 +89,19 @@ TEMPLATES = {
     "mbox": ("elt_mbox_v1.sql", ["*"], False),
     "whatsapp_txt": ("elt_whatsapp_txt_v1.sql", ["*"], False),
     "sms_csv": ("elt_sms_csv_v1.sql", ["*"], False),
+    "allsms_xml": ("elt_allsms_xml_v1.sql", ["*"], False),
 }
 TAGGER = "tag_events_v2.sql"
 # The medium a format records. Part of the true-duplicate key (owner 09:36: "same medium or platform").
 PLATFORM = {"sms_backup_xml": "carrier_sms_mms", "calls_backup_xml": "carrier_calls", "google_voice_html": "google_voice",
             "fb_messenger_html": "facebook_messenger", "imessage_html": "apple_messages",
             "imessage_txt": "apple_messages", "mbox": "email", "whatsapp_txt": "whatsapp",
-            "sms_csv": "carrier_sms_mms"}
+            "sms_csv": "carrier_sms_mms", "allsms_xml": "carrier_sms_mms"}
 # Source-side markers, counted straight from the file, to reconcile against the rows a reader returns.
 MARKERS = {"google_voice_html": r'<div class="message">', "imessage_html": r"""<div class=['"]bubble""",
            "imessage_txt": r"(?m)^\[[0-9]{4}-[0-9]{2}-[0-9]{2}",
-           "whatsapp_txt": r"(?m)^\x{200E}?\[?[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}, [0-9]{1,2}:[0-9]{2}"}
+           "whatsapp_txt": r"(?m)^\x{200E}?\[?[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}, [0-9]{1,2}:[0-9]{2}",
+           "allsms_xml": r'<sms address="'}
 EVENT_COLS = ["record_index", "event_ts_utc", "sort_ts", "ts_original", "ts_field", "tz_status", "event_kind",
               "conversation_id", "conversation_title", "participants", "sender", "recipients", "direction",
               "counterparty_phone", "contact_name", "body", "attachments", "member_path"]
@@ -120,6 +122,10 @@ def sniff(path: Path, guess: str) -> str | None:
         raise RuntimeError(f"unreadable: {e}")
     t = head.decode("utf-8", "replace")
     low = t.lower()
+    # 2026-09-24: the "<allsms>" export (another app; not valid XML) — must be tested before SMS Backup & Restore,
+    # whose records also start "<sms ".
+    if "<allsms" in low:
+        return "allsms_xml"
     if "<smses" in low or "<sms " in low or "<mms " in low:
         return "sms_backup_xml"
     if "<calls" in low or "<call " in low:
