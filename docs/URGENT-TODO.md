@@ -2385,3 +2385,74 @@ engine deploy is waiting on the owner's go.
   `apps/src-tauri/src/file_organizer.rs`, `apps/src-tauri/src/lib.rs`,
   `apps/intake-engine/src/catalog.rs`, `apps/intake-engine/src/routing.rs`,
   `apps/intake-engine/Dockerfile`.
+
+## 2026-09-22 — name search across all of B2 (owner 18:54 EDT)
+> _Byline: Claude Code · Fable 5.1 · 2026-09-22_
+
+- Owner: the magnifying-glass Search files tab must find any folder/file name across everything, not just the current folder. Today it is the donor's per-folder walk over the B2 mount. Agent `name-search` dispatched: new engine command over the catalog (read-only metabase_ro; `intake_catalog_fs_20260917` / `vault_objects_20260916_r4`), folders first, click navigates; scope "Everything" default. Stops before deploy; deploy bundled with Smart Suggestions step 1 (unpushed `a198bfe0`), pending owner yes. Also 18:39: the Windows 11 SDK 10.0.26100 is registered but its Lib/Include folders are gone from disk (5.7 MB shell) — untick/retick in VS Installer to restore; until then Rust compiles only in the Coolify build.
+
+### 2026-09-22 19:35 EDT — BUILT (not deployed): `intake_search_names` + the Find by name box
+> _Byline: Claude Code · Opus 5 · 2026-09-22_
+
+- Owner additions taken into the build: 18:55 the scope is a **dropdown**, not a toggle — Everything (default) · This folder only · This folder and subfolders · Subfolders only · One level up · Catalog only · B2 only — remembered between searches, with `*`/`?` wildcards, a folders/files/both filter and a name-or-path sort; 18:58 each row matches and shows **both** paths ("now" = current vault object, "was" = the recorded original), and zip member names are included, flagged "inside &lt;zip&gt;".
+- Engine command `intake_search_names { query, scope?, path?, kinds?, sort?, limit? }`, five concurrent read-only legs on the existing `metabase_ro` pool, `statement_timeout = 25s`, one leg's failure becomes a note rather than a failed search:
+  `intake_catalog_dirs_20260917` (folders, ~80 k rows — the fast one) · `intake_catalog_fs_20260917` (files, matched on the recorded name AND on the current vault basename) · `vault_objects_20260916_r4` minus `vault_onecopy_pilot_delete_20260916` (B2 objects the catalog never recorded; B2 folders derived from key prefixes, the hit being the deepest segment that matches by name) · `chat_event_provenance_20260918.member_path` (zip members, table name from `INTAKE_CHAT_INDEX_PROVENANCE_TABLE`, empty value retires the leg).
+  The `intake_fs_ops_20260917` write overlay is applied to every hit, so a file renamed inside Intake is found and opened under its current name.
+- **Cost, stated plainly:** none of these name columns is indexed for a leading-wildcard match, so each leg is a sequential scan that stops at `SCAN_CAP = 4,000` matching rows (the response says `capped: true` and the counts are then "what was read"). Folder search is cheap (38 MB table); file search reads the 2,256 MB `intake_catalog_fs_20260917` heap.
+- **PROPOSED, NOT APPLIED — catalog change for the owner to approve:** `create extension if not exists pg_trgm;` then GIN trigram indexes on `intake_catalog_dirs_20260917 (name)`, `intake_catalog_fs_20260917 (name)` and an expression index on `regexp_replace(vault_objects_20260916_r4.key, '^.*/', '')`. That turns every leg into an index scan and removes the cap. It writes to the catalog, so it is not applied here.
+- UI: `IntakeNameSearch` renders at the top of the hosted Search tab, above Content Search; **Ctrl+Shift+F now focuses the name box**. A folder hit navigates the active pane; a file hit uses the existing `openSearchHit` mechanism (navigate to parent, select once the listing loads). The chats-index search and the capped live rg scan are untouched.
+- Verification actually performed on the desktop: 12 frontend tests pass (`IntakeNameSearch.test.tsx`), `npx tsc --noEmit` clean, ESLint 0 errors on every changed file, Prettier clean, `LeftSidebar`/`SearchResultsPanel` suites still pass. **Rust was NOT compiled**: `cargo check` fails before reaching this code because the crate's lib target is the donor Tauri lib and `winreg` is absent on this Windows host. The 14 Rust unit tests were run by copying the module's database-free half into a scratch crate — all 14 pass — so the pattern translation, scope predicates, wildcard matcher and B2 folder derivation are proven; every database-facing line is unproven until the Coolify image build. `rustfmt` parses all four engine files without error (the crate does not follow rustfmt defaults; the new file has fewer diffs than its neighbours).
+- Files: `apps/intake-engine/src/name_search.rs` (new), `apps/intake-engine/src/{main,routing,catalog}.rs` (additive only), `apps/client/src/components/explorer/IntakeNameSearch.tsx` (new), `apps/client/src/components/explorer/IntakeChatSearchPanel.tsx`, `apps/client/src/lib/tauri-api/intake-name-search.ts` (new), `apps/client/src/lib/tauri-api/index.ts`, `apps/client/src/lib/tauri-api.ts`, `apps/client/src/lib/storage-keys.ts`, `apps/client/src/locales/{en,zh,ja,id}.json`, `apps/client/src/__tests__/components/explorer/{IntakeNameSearch,LeftSidebar}.test.tsx`.
+- [ ] **Not deployed.** Nothing pushed; the live search box at `https://homepage.tilapia-skilift.ts.net/progress/intake/xplorer/` is unchanged until the parent authorizes the deploy that also carries Smart Suggestions step 1.
+
+## 2026-09-23 — portal surfaces, Authentik login, public Workbench route (owner 08:15–09:41 EDT)
+> _Byline: Claude Code · Opus 5.5 · 2026-09-23. Codex handed the portal lane to Claude at 08:26 ("claude gonna handle this")._
+
+- **Owner access rule (08:06–08:11):** on the tailnet, Tailscale is the only barrier (no app login, no tokens). Off the tailnet there is one Authentik portal, user surfaces only, many apps, and every surface has a listing.
+- **Authentik login fixed (P0).** Every login showed "The request failed and the interceptors did not return an alternative response".
+  - Cause: the router label said `traefik.docker.network=probata`, but Authentik trusts only `10.201.0.2/32` (propria-edge). Authentik dropped X-Forwarded-Proto and built `http://` API URLs, which the browser blocked as mixed content. Broken since 9129ac7 (2026-09-21 23:12).
+  - Fix: Probata `dd2562c`, live-patched 08:36. Verified in a real browser.
+- **Public Probata (`workbench.int`) fixed.**
+  - The dynamic route named the pre-redeploy container (NXDOMAIN).
+  - The label route came over a network whose proxy IP had drifted, so every request was "Untrusted proxy".
+  - Fix: Workbench joins propria-edge at `10.201.0.4`; `TRAEFIK_PROXY_CIDR=10.201.0.2/32` (Coolify env); the dynamic route points at `http://10.201.0.4:8020`.
+  - Probata `cea8f82`, live-patched 09:57. Verified via the trusted proxy (200) and on the tailnet (200). **Owner to confirm after an Authentik login.**
+- **Tailnet portal (`/data/dashboards/homepage/services.yaml`): no raw-IP links left.** Baseline and step backups are in `/data/dashboards/to_be_deleted/20260923T0830-portal-surfaces-baseline/`.
+  - Re-pointed to HTTPS names: OpenList, Filestash, Temporal, n8n, ContextForge, Portkey (`/public/` console), LLM probe, OpenCode, Coolify, Attu, Neo4j.
+  - Added tiles: Metabase, Infisical.
+  - Replaced the hand-rolled `/schemas` tiles with pgAdmin, DbGate, CloudBeaver and the Weaviate UI.
+  - Surreal → self-hosted Surrealist (SurrealDB Studio web forces a SurrealDB Cloud login).
+- **New Coolify services on ovh-files** (Propria / production). Compose files: Probata `deploy/admin-surfaces/`. Connections are preloaded server-side, with no login on the tailnet:
+  - pgAdmin (:5050, `svc:pgadmin`)
+  - DbGate (:3002, `svc:dbgate`)
+  - CloudBeaver (:8978, `svc:cloudbeaver`, admin `msalem`)
+  - Surrealist (:8095, `svc:surrealist`)
+  - Weaviate UI (:8501, `svc:weaviate-ui`; image `propria/weaviate-ui:389a3f9` built on the host)
+  - Config builders: `/data/probata/tools/prep_db_surfaces.py` and `prep_cloudbeaver.py`
+- **New Tailscale Services:** `svc:filestash`, `svc:attu`, `svc:coolify`, `svc:pgadmin`, `svc:dbgate`, `svc:cloudbeaver`, `svc:surrealist`, `svc:weaviate-ui` (untagged: the OAuth client can't assign `tag:docker`). `svc:neo4j` gained `tcp:7687` (Bolt, TLS-terminated).
+  - `svc:coolify` is served from ovh-app via the forwarder container `coolify-tailnet-forward` (127.0.0.1:8001 → ion-control:8000). ovh-app's tailscaled can't dial a peer itself, and my key is refused on ion-control.
+- **Attu:** `ATTU_AUTH_MODE=none` plus `MILVUS_TOKEN` (Coolify env `MILVUS_ATTU_TOKEN`). Probata `e766d91`.
+- **Neo4j:** `dbms.security.auth_enabled=false`. No running service connects to it. Probata `8754531`.
+- **Tailscale API:** API key `2a6c52ae` is dead (401). The owner minted an OAuth client, now in `~/.secrets/tailscale.env` as `TAILSCALE_OAUTH_CLIENT_ID` / `TAILSCALE_OAUTH_CLIENT_SECRET`. Helper: root `.reconciliation/ts_api.py`.
+- [x] ~~**Probata `main` is 8 commits ahead of origin, not pushed** (2 Codex + 6 Claude). Until it is pushed, a Coolify redeploy of Authentik, memsearch-milvus, data-neo4j or Workbench from GitHub reverts the live hotfixes. Owner call: a push may auto-redeploy memsearch-milvus, and restarting Milvus + etcd together has corrupted etcd before.~~ **Resolved 2026-09-24 04:55:** the fixes reached `origin/main`, and Authentik, data-neo4j and memsearch-milvus were redeployed from Git at `382acf6a` and verified live. Details are in Probata `docs/planning/2026-09-20-TODO.md`.
+- [ ] Owner click-checks: public portal login → Probata card; tailnet Neo4j tile (Bolt over TLS; headless Chrome can't finish a live socket).
+- [ ] ~~ContextForge `/admin`, OpenCode, n8n, Temporal and Infisical still have their own app logins.~~ **2026-09-24 05:35:** OpenCode, n8n and Temporal have no app login on the tailnet; off the tailnet, the Authentik login is the only login. For n8n that works through a hook trusting Tailscale's and Authentik's identity headers. Details in Probata `docs/planning/2026-09-20-TODO.md`. **Still open (owner call):** ContextForge (its tokens also guard the public `mcp.mitechconsult.com`) and Infisical.
+- [ ] Public portal (`homepage-public`) not edited today. Codex's audit lists admin cards and a wrong-lane Advocatio link there (`Propria/docs/PORTAL-APP-LISTING-AUDIT-2026-09-23.md`).
+
+## 2026-09-24 — tailnet short names, ovh-app disk, portal asks (owner 05:33–05:41 EDT)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-24._
+
+- **Tailnet short names (owner option A: works on the tailnet, not off it).** `<service>.mitechconsult.com` redirects to `https://<service>.tilapia-skilift.ts.net` for all 36 Tailscale Services.
+  - DNS: Cloudflare DNS-only A records → `40.160.5.19` (ovh-app). 33 are new; `attu`, `coolify` and `n8n` were repointed from dead public IPs. `mcp`, `chat`, `agentos`, `browser`, `milvus` and `windmill` were not touched.
+  - Redirect: Traefik dynamic file `ovh-app:/data/coolify/proxy/dynamic/propria-tailnet-shortnames.yaml`; tracked copy `docs/receipts/portal/propria-tailnet-shortnames.yaml`. The Cloudflare API token cannot write redirect rules (403), so Traefik does the redirect instead.
+  - Verified: `https://n8n.mitechconsult.com/` → 302 `https://n8n.tilapia-skilift.ts.net/` with a valid Let's Encrypt certificate.
+  - Add a name to that file and a DNS record whenever a Tailscale Service is added.
+- **ovh-app disk full again (413 MB free, 100%).** It blocked the new certificate. `docker builder prune` freed 4.5 GB, so the disk is at 91%.
+  - Cause: container images (`/var/lib/containerd`, 29 GB) sit on the 50 GB system disk. The attached **100 GB block volume** (`sdb`) is mounted only by hand at `/mnt/recover`: it is not in fstab, and it holds 4.6 GB of 2026-08-01 recovery files.
+  - [ ] **Owner go + timing:** move containerd and Docker data onto the block volume and add it to fstab. This means a 15–30 min outage of everything on ovh-app.
+- [ ] **Portal (homepage, ovh-app):**
+  - top section order Case Bible Intake → Probata → Legal Work Desk → Family Law Toolbox last;
+  - move FileFlows into the services section;
+  - owner dislikes the widgets at the top (CPU/RAM/disk bars + clock, and the large Live board). Confirm which go.
+- [ ] **OpenCode ↔ local projects:** the owner expects OpenCode to pull/sync projects from his machine, or push out, and thinks this was part of the reason for OpenList. Check what exists: OpenCode mounts `/mnt/desktop-share` over SMB today.
