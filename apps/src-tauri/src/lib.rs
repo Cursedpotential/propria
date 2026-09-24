@@ -2,6 +2,7 @@ pub mod error;
 pub mod utils;
 pub mod runtime_paths;
 pub mod filesystem_index;
+pub mod intake_name_search;
 
 pub mod agent;
 pub mod agent_sessions;
