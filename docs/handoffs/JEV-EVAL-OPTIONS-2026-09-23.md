@@ -95,3 +95,8 @@ The job is **"point me to the stretches of conversation that matter for the case
 | 2 h | 3,855 | 2.4 | 10 | 82 | 565 |
 
 A silence split alone won't catch a shift **inside** a fast back-and-forth (friendly at 2:10, hostile by 2:25). That needs a content signal.
+
+## Owner decisions and facts, 2026-09-24 03:18 EDT
+
+- **"Try A and A":** a new bout after **30 minutes** of silence, within a day (America/Detroit); **tone** marks rapid shifts inside a bout. Pilot: the 2024 texts from Katrina's phone.
+- **Case fact:** there was no child before **January 2020**. Messages before then can be case-related, since they establish patterns and behavior, but they cannot be child-related. Every labelling prompt must carry this whenever pre-2020 messages are included (Facebook 2018–2019).
