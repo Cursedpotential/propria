@@ -96,7 +96,7 @@ The job is **"point me to the stretches of conversation that matter for the case
 
 A silence split alone won't catch a shift **inside** a fast back-and-forth (friendly at 2:10, hostile by 2:25). That needs a content signal.
 
-## Propagation register (owner 07:18–07:19: never redo processing; keep it in staging tables for now)
+## Propagation register (owner 07:18–07:20: don't throw away work we'd do again; carry usable work products forward; stage in the catalog for now)
 
 | Produced here | Staged now (catalog `casebible`, `raw_duck`) | Proper home later (Probata schema) | Also move into the engine |
 |---|---|---|---|
