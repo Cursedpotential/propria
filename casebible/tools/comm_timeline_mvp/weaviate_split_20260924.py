@@ -9,6 +9,7 @@ AiChatEvents20260918 = conversations with AI. Nothing is re-embedded: each objec
 Stdlib only; run on ovh-files (Weaviate at WEAVIATE_URL). Safe to re-run: the same UUIDs are overwritten.
   python3 weaviate_split_20260924.py copy        # create targets if missing, copy every object
   python3 weaviate_split_20260924.py verify      # per-format counts old vs new, sample vector equality
+  python3 weaviate_split_20260924.py probe       # AI-chat vector equality; keyword + vector search on each new collection
   python3 weaviate_split_20260924.py delete-old  # only after verify passes (owner 09:30: delete once counts match)
 """
 import json
@@ -148,12 +149,33 @@ def verify():
     return ok
 
 
+def probe():
+    """AI-chat vectors equal the old ones, and each new collection answers keyword and vector searches."""
+    ok = True
+    for o in (call("GET", f"/v1/objects?class={AI}&limit=3") or {}).get("objects") or []:
+        a = call("GET", f"/v1/objects/{OLD}/{o['id']}?include=vector")
+        b = call("GET", f"/v1/objects/{AI}/{o['id']}?include=vector")
+        same = a is not None and a["vectors"][VECTOR] == b["vectors"][VECTOR]
+        ok &= same
+        print("ai vector", o["id"], "same" if same else "DIFFERENT")
+    for cls in (MSG, AI):
+        kw = call("POST", "/v1/graphql", {"query": f'{{Get{{{cls}(limit:2, bm25:{{query:"custody"}}){{record_kind}}}}}}'})
+        seed = call("GET", f"/v1/objects?class={cls}&limit=1&include=vector")["objects"][0]["vectors"][VECTOR]
+        near = call("POST", "/v1/graphql", {"query": f'{{Get{{{cls}(limit:2, nearVector:{{vector:{json.dumps(seed)}, '
+                                                     f'targetVectors:["{VECTOR}"]}}){{record_kind _additional{{distance}}}}}}}}'})
+        hits_kw, hits_near = kw["data"]["Get"][cls], near["data"]["Get"][cls]
+        ok &= bool(hits_near)
+        print(cls, "keyword hits", len(hits_kw), "vector hits", hits_near)
+    print("PROBE", "PASS" if ok else "FAIL", flush=True)
+    return ok
+
+
 def delete_old():
-    if not verify():
+    if not (verify() and probe()):
         raise SystemExit("verify failed; old collection kept")
     call("DELETE", f"/v1/schema/{OLD}")
     print("deleted", OLD, "exists now:", call("GET", f"/v1/schema/{OLD}") is not None)
 
 
 if __name__ == "__main__":
-    {"copy": copy, "verify": verify, "delete-old": delete_old}[sys.argv[1]]()
+    {"copy": copy, "verify": verify, "probe": probe, "delete-old": delete_old}[sys.argv[1]]()
