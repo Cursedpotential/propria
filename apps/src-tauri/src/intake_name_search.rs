@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::LazyLock;
 use std::time::Duration;
 
@@ -19,7 +19,7 @@ const SCAN_CAP: u64 = 4_000;
 static REQUEST_SLOTS: LazyLock<tokio::sync::Semaphore> =
     LazyLock::new(|| tokio::sync::Semaphore::new(2));
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct NameSearchError {
     pub code: &'static str,
     pub message: String,
@@ -115,6 +115,43 @@ fn configured_base(value: Option<String>) -> Result<String, NameSearchError> {
     })
 }
 
+fn is_tailscale_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => (u32::from(ip) & 0xffc0_0000) == 0x6440_0000,
+        IpAddr::V6(ip) => {
+            let seg = ip.segments();
+            (seg[0], seg[1], seg[2]) == (0xfd7a, 0x115c, 0xa1e0)
+        }
+    }
+}
+
+fn approved_dns_addresses(
+    addresses: impl IntoIterator<Item = SocketAddr>,
+    allow_loopback_dev: bool,
+) -> Result<Vec<SocketAddr>, NameSearchError> {
+    let mut approved = Vec::new();
+    for address in addresses {
+        if !(is_tailscale_ip(address.ip()) || (allow_loopback_dev && address.ip().is_loopback()))
+            || approved.len() >= 16
+        {
+            return Err(error(
+                "invalid_configuration",
+                "Intake name-search hostname resolved outside the Tailnet",
+            ));
+        }
+        if !approved.contains(&address) {
+            approved.push(address);
+        }
+    }
+    if approved.is_empty() {
+        return Err(error(
+            "unavailable",
+            "Intake name-search hostname has no Tailnet address",
+        ));
+    }
+    Ok(approved)
+}
+
 fn search_url_with_dev(
     base: &str,
     allow_loopback_dev: bool,
@@ -136,15 +173,7 @@ fn search_url_with_dev(
     }
     let host = url.host_str().unwrap().trim_matches(['[', ']']);
     let allowed = match host.parse::<IpAddr>() {
-        Ok(IpAddr::V4(ip)) => {
-            let bits = u32::from(ip);
-            (bits & 0xffc0_0000) == 0x6440_0000 || (allow_loopback_dev && ip.is_loopback())
-        }
-        Ok(IpAddr::V6(ip)) => {
-            let seg = ip.segments();
-            (seg[0], seg[1], seg[2]) == (0xfd7a, 0x115c, 0xa1e0)
-                || (allow_loopback_dev && ip.is_loopback())
-        }
+        Ok(ip) => is_tailscale_ip(ip) || (allow_loopback_dev && ip.is_loopback()),
         Err(_) => {
             (host.ends_with(".ts.net") && url.scheme() == "https")
                 || (allow_loopback_dev && host.eq_ignore_ascii_case("localhost"))
@@ -160,13 +189,16 @@ fn search_url_with_dev(
     Ok(url)
 }
 
-fn search_url(base: &str) -> Result<reqwest::Url, NameSearchError> {
+fn allow_loopback_dev() -> bool {
     // Loopback is not a release surface. A debug launcher must opt in explicitly;
     // unit tests exercise loopback transport without changing process globals.
-    let allow_loopback_dev = cfg!(test)
+    cfg!(test)
         || (cfg!(debug_assertions)
-            && std::env::var("INTAKE_NAME_SEARCH_ALLOW_LOOPBACK_DEV").as_deref() == Ok("1"));
-    search_url_with_dev(base, allow_loopback_dev)
+            && std::env::var("INTAKE_NAME_SEARCH_ALLOW_LOOPBACK_DEV").as_deref() == Ok("1"))
+}
+
+fn search_url(base: &str) -> Result<reqwest::Url, NameSearchError> {
+    search_url_with_dev(base, allow_loopback_dev())
 }
 
 #[derive(Debug, Deserialize)]
@@ -307,25 +339,74 @@ fn checked_response(bytes: &[u8], expected: &SearchRequest) -> Result<Value, Nam
     Ok(raw)
 }
 
-async fn search_at(base: &str, request: &SearchRequest) -> Result<Value, NameSearchError> {
-    let url = search_url(base)?;
-    let _slot = REQUEST_SLOTS.try_acquire().map_err(|_| {
+async fn pinned_dns(
+    url: &reqwest::Url,
+) -> Result<Option<(String, Vec<SocketAddr>)>, NameSearchError> {
+    let host = url.host_str().ok_or_else(|| {
         error(
-            "busy",
-            "Two Intake name searches are already running; retry when one finishes",
+            "invalid_configuration",
+            "Intake name-search URL has no host",
         )
     })?;
-    let client = reqwest::Client::builder()
+    if host.trim_matches(['[', ']']).parse::<IpAddr>().is_ok() {
+        return Ok(None);
+    }
+    // URL validation only admits HTTPS *.ts.net here. Check every DNS answer,
+    // then pin the accepted set into reqwest to prevent a second DNS lookup.
+    let port = url.port_or_known_default().ok_or_else(|| {
+        error(
+            "invalid_configuration",
+            "Intake name-search URL has no port",
+        )
+    })?;
+    let addresses = tokio::time::timeout(
+        Duration::from_secs(5),
+        tokio::net::lookup_host((host, port)),
+    )
+    .await
+    .map_err(|_| error("timeout", "Intake name-search hostname lookup timed out"))?
+    .map_err(|_| {
+        error(
+            "unavailable",
+            "Cannot resolve the Intake name-search hostname",
+        )
+    })?;
+    Ok(Some((
+        host.to_owned(),
+        approved_dns_addresses(addresses, allow_loopback_dev())?,
+    )))
+}
+
+fn build_client(
+    pinned: Option<(&str, &[SocketAddr])>,
+    proxy_for_test: Option<reqwest::Proxy>,
+) -> Result<reqwest::Client, NameSearchError> {
+    let mut builder = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(5))
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(|_| {
-            error(
-                "client_error",
-                "Cannot initialize Intake name-search connection",
-            )
-        })?;
+        .redirect(reqwest::redirect::Policy::none());
+    if let Some(proxy) = proxy_for_test {
+        builder = builder.proxy(proxy);
+    }
+    // Clear explicit and ambient HTTP(S)_PROXY settings. The Tailnet address
+    // must be the actual socket peer, not an unchecked intermediary.
+    builder = builder.no_proxy();
+    if let Some((hostname, addresses)) = pinned {
+        builder = builder.resolve_to_addrs(hostname, addresses);
+    }
+    builder.build().map_err(|_| {
+        error(
+            "client_error",
+            "Cannot initialize Intake name-search connection",
+        )
+    })
+}
+
+async fn send_at(
+    url: reqwest::Url,
+    client: &reqwest::Client,
+    request: &SearchRequest,
+) -> Result<Value, NameSearchError> {
     let mut response = client
         .post(url)
         .json(request)
@@ -381,8 +462,38 @@ async fn search_at(base: &str, request: &SearchRequest) -> Result<Value, NameSea
     checked_response(&bytes, request)
 }
 
+async fn search_at(base: &str, request: &SearchRequest) -> Result<Value, NameSearchError> {
+    let url = search_url(base)?;
+    let _slot = REQUEST_SLOTS.try_acquire().map_err(|_| {
+        error(
+            "busy",
+            "Two Intake name searches are already running; retry when one finishes",
+        )
+    })?;
+    let pins = pinned_dns(&url).await?;
+    let client = build_client(
+        pins.as_ref()
+            .map(|(host, addresses)| (host.as_str(), addresses.as_slice())),
+        None,
+    )?;
+    send_at(url, &client, request).await
+}
+
 #[tauri::command]
 pub async fn intake_search_names(
+    query: String,
+    scope: Option<String>,
+    path: Option<String>,
+    kinds: Option<String>,
+    sort: Option<String>,
+    limit: Option<u32>,
+) -> Result<Value, String> {
+    intake_search_names_checked(query, scope, path, kinds, sort, limit)
+        .await
+        .map_err(|cause| cause.message)
+}
+
+async fn intake_search_names_checked(
     query: String,
     scope: Option<String>,
     path: Option<String>,
@@ -488,6 +599,35 @@ mod tests {
     }
 
     #[test]
+    fn dns_answers_must_all_be_tailnet_before_pinning() {
+        let v4: SocketAddr = "100.91.190.107:8790".parse().unwrap();
+        let v6: SocketAddr = "[fd7a:115c:a1e0::1]:8790".parse().unwrap();
+        let public: SocketAddr = "8.8.8.8:8790".parse().unwrap();
+        let local: SocketAddr = "127.0.0.1:8790".parse().unwrap();
+        assert_eq!(
+            approved_dns_addresses([v4, v6], false).unwrap(),
+            vec![v4, v6]
+        );
+        assert!(approved_dns_addresses([v4, public], false).is_err());
+        assert!(approved_dns_addresses([local], false).is_err());
+        assert_eq!(approved_dns_addresses([local], true).unwrap(), vec![local]);
+        assert!(approved_dns_addresses(Vec::<SocketAddr>::new(), false).is_err());
+    }
+
+    #[tokio::test]
+    async fn native_rejection_serializes_as_a_safe_ui_string() {
+        // This calls the actual Tauri command boundary. The existing UI uses
+        // String(cause), so an Err object would display [object Object].
+        let rejection = intake_search_names("".into(), None, None, None, None, None)
+            .await
+            .unwrap_err();
+        let wire_value = serde_json::to_value(&rejection).unwrap();
+        assert!(wire_value.is_string());
+        assert_eq!(wire_value.as_str(), Some(rejection.as_str()));
+        assert!(!rejection.contains("[object Object]"));
+    }
+
+    #[test]
     fn rejects_unavailable_or_mismatched_result_and_preserves_provenance() {
         let request = request_for_test();
         let valid = fixture();
@@ -538,6 +678,43 @@ mod tests {
             .unwrap();
         assert_eq!(result["hits"][0]["name"], "Takeout.zip");
         server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn client_ignores_proxy_and_uses_only_pinned_dns_address() {
+        use std::io::{Read, Write};
+        let backend = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let backend_address = backend.local_addr().unwrap();
+        let proxy = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let proxy_address = proxy.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = backend.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request_bytes = [0u8; 8192];
+            let size = stream.read(&mut request_bytes).unwrap();
+            let head = String::from_utf8_lossy(&request_bytes[..size]);
+            assert!(head.starts_with("POST /api/intake_search_names HTTP/1.1"));
+            assert!(head.to_ascii_lowercase().contains("host: pin.test.ts.net:"));
+            let body = serde_json::to_string(&fixture()).unwrap();
+            write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
+        });
+        let fake_domain = "pin.test.ts.net";
+        let client = build_client(
+            Some((fake_domain, &[backend_address])),
+            Some(reqwest::Proxy::all(format!("http://{proxy_address}")).unwrap()),
+        )
+        .unwrap();
+        let url = reqwest::Url::parse(&format!(
+            "http://{fake_domain}:{}/api/intake_search_names",
+            backend_address.port()
+        ))
+        .unwrap();
+        let result = send_at(url, &client, &request_for_test()).await.unwrap();
+        assert_eq!(result["hits"][0]["name"], "Takeout.zip");
+        server.join().unwrap();
+        drop(proxy);
     }
 
     #[tokio::test]
