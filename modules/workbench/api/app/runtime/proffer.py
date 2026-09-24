@@ -18,8 +18,8 @@ from app.service.proffer import (
     decide_repair,
     preview,
     preview_content,
-    preview_content_target,
     preview_messages,
+    require_preview_mode,
     start,
 )
 from app.runtime.proffer_decoded import router as _decoded_router
@@ -271,16 +271,9 @@ async def create_potential_promotion_flag_endpoint(
 ):
     actor = _decision_actor(request)
     try:
-        attempt_id, found = await preview_content_target(
-            preview_handle,
-            mode=mode,
-            scope=body.scope,
-            target_id=body.target_id,
-        )
-        if body.attempt_id != attempt_id:
-            raise HTTPException(status_code=409, detail="flag attempt does not match the current preview attempt")
-        if not found:
-            raise HTTPException(status_code=409, detail="flag target is not present in the current preview attempt")
+        await require_preview_mode(preview_handle, mode=mode)
+        if body.scope not in ("record", "chunk"):
+            raise HTTPException(status_code=422, detail="Preview content target is invalid or unsupported")
         return create_potential_promotion_flag(preview_handle, mode, body, actor)
     except ProfferError as error:
         raise _translate(error) from None

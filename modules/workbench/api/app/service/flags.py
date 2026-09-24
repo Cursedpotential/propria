@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from app.repo.spine_client import SpineError, spine_json
 
-__all__ = ["SpineError", "create_flag", "list_flags", "update_flag"]
+__all__ = ["SpineError", "create_flag", "create_proffer_potential_promotion_flag", "list_flags", "update_flag"]
 
 
 def create_flag(payload: dict) -> dict:
@@ -24,7 +24,14 @@ def create_flag(payload: dict) -> dict:
     return spine_json("POST", "/v1/flags", json=payload)
 
 
-def list_flags(*, status: str | None = None, target_kind: str | None = None) -> list[dict]:
+def create_proffer_potential_promotion_flag(payload: dict) -> dict:
+    """Create a preview-bound annotation with atomic current-attempt validation."""
+    return spine_json("POST", "/v1/flags/proffer-potential-promotion", json=payload)
+
+
+def list_flags(
+    *, status: str | None = None, target_kind: str | None = None, target_id: str | None = None
+) -> list[dict]:
     """GET /v1/flags?status=&target_kind= passthrough -> the flag list.
 
     Backs both the inline "flags on this record/run" views and the
@@ -35,6 +42,8 @@ def list_flags(*, status: str | None = None, target_kind: str | None = None) -> 
         params["status"] = status
     if target_kind:
         params["target_kind"] = target_kind
+    if target_id:
+        params["target_id"] = target_id
     result = spine_json("GET", "/v1/flags", params=params)
     return result if isinstance(result, list) else result.get("flags", [])
 

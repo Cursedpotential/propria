@@ -160,6 +160,11 @@ async def _require_mode(preview_handle: str, mode: MatterMode) -> None:
         raise ProfferError(error.detail, error.status_code) from None
 
 
+async def require_preview_mode(preview_handle: str, *, mode: MatterMode) -> None:
+    """Bind a write to the handle's configured matter mode before admission."""
+    await _require_mode(preview_handle, mode)
+
+
 def _validated(model, payload: Any, label: str):
     try:
         return model.model_validate(payload)

@@ -978,6 +978,128 @@ def test_create_flag_happy_path(client, monkeypatch):
     assert resp.json()["status"] == "open"
 
 
+def test_proffer_flag_rejects_snapshot_advanced_before_atomic_admission(client, monkeypatch):
+    handle = "preview_handle_abcdefghijklmnopqrstuvwxyz"
+    stale_attempt = "11111111-1111-1111-1111-111111111111"
+    current_attempt = "22222222-2222-2222-2222-222222222222"
+    fake = _FakeEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": current_attempt,
+                "source_version_id": "33333333-3333-3333-3333-333333333333",
+            },
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+
+    response = client.post(
+        "/v1/flags/proffer-potential-promotion",
+        json={
+            "preview_handle": handle,
+            "matter_mode": "TEST",
+            "scope": "chunk",
+            "target_id": "44444444-4444-4444-4444-444444444444",
+            "attempt_id": stale_attempt,
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review this chunk later",
+        },
+    )
+
+    assert response.status_code == 409
+    assert "does not match" in response.json()["detail"]
+    assert len(fake.calls) == 2
+    assert "pg_advisory_xact_lock(hashtextextended(:preview_handle, 0))" in fake.calls[0][0]
+    assert "ORDER BY snapshot.snapshot_seq DESC LIMIT 1" in fake.calls[1][0]
+    assert all("INSERT INTO analysis.corroboration_flag" not in statement for statement, _ in fake.calls)
+
+
+def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeypatch):
+    handle = "preview_handle_abcdefghijklmnopqrstuvwxyz"
+    attempt = "11111111-1111-1111-1111-111111111111"
+    source_version = "22222222-2222-2222-2222-222222222222"
+    target_id = "33333333-3333-3333-3333-333333333333"
+    fake = _FakeEngine(
+        [
+            None,
+            {"normalized_generation_id": attempt, "source_version_id": source_version},
+            True,
+            _flag_row(
+                target_kind="run",
+                target_id=handle,
+                claim="Review this chunk later",
+                notes='{"contract":"proffer-potential-promotion/v1"}',
+            ),
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+
+    response = client.post(
+        "/v1/flags/proffer-potential-promotion",
+        json={
+            "preview_handle": handle,
+            "matter_mode": "TEST",
+            "scope": "chunk",
+            "target_id": target_id,
+            "attempt_id": attempt,
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review this chunk later",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["target_kind"] == "run"
+    assert response.json()["target_id"] == handle
+    assert "pg_advisory_xact_lock" in fake.calls[0][0]
+    assert "SELECT EXISTS" in fake.calls[2][0]
+    insert_sql, insert_params = fake.calls[3]
+    assert isinstance(insert_params, dict)
+    assert "INSERT INTO analysis.corroboration_flag" in insert_sql
+    assert insert_params["target_id"] == handle
+    metadata = json.loads(insert_params["notes"])
+    assert metadata["preview_handle"] == handle
+    assert metadata["attempt_id"] == attempt
+    assert metadata["scope"] == "chunk"
+    assert metadata["target_id"] == target_id
+
+
+def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkeypatch):
+    handle = "preview_handle_abcdefghijklmnopqrstuvwxyz"
+    attempt = "11111111-1111-1111-1111-111111111111"
+    fake = _FakeEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": attempt,
+                "source_version_id": "22222222-2222-2222-2222-222222222222",
+            },
+            False,
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+
+    response = client.post(
+        "/v1/flags/proffer-potential-promotion",
+        json={
+            "preview_handle": handle,
+            "matter_mode": "TEST",
+            "scope": "record",
+            "target_id": "33333333-3333-3333-3333-333333333333",
+            "attempt_id": attempt,
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review this record later",
+        },
+    )
+
+    assert response.status_code == 409
+    assert "not present" in response.json()["detail"]
+    assert len(fake.calls) == 3
+    assert all("INSERT INTO analysis.corroboration_flag" not in statement for statement, _ in fake.calls)
+
+
 def test_create_flag_422_unknown_target_kind(client):
     resp = client.post("/v1/flags", json={"target_kind": "bogus", "target_id": "x", "claim": "c"})
     assert resp.status_code == 422
@@ -992,14 +1114,17 @@ def test_list_flags_filters_and_paginates(client, monkeypatch):
     fake = _FakeEngine([2, [_flag_row(), _flag_row(flag_id="flag-2")]])
     monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
 
-    resp = client.get("/v1/flags", params={"status": "open", "target_kind": "record", "limit": 10})
+    resp = client.get(
+        "/v1/flags",
+        params={"status": "open", "target_kind": "record", "target_id": "rec-1", "limit": 10},
+    )
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 2
     assert len(body["flags"]) == 2
     _, count_params = fake.calls[0]
-    assert count_params == {"status": "open", "target_kind": "record"}
+    assert count_params == {"status": "open", "target_kind": "record", "target_id": "rec-1"}
 
 
 def test_patch_flag_status_and_notes(client, monkeypatch):

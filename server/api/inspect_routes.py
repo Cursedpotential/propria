@@ -45,13 +45,13 @@ import json
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 
 from server.api.uploads import safe_upload_name
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import create_engine, text
 
 from server.core.knowledge_handle import resolve_knowledge
@@ -1021,6 +1021,19 @@ class FlagPatch(BaseModel):
     linked_artifacts_append: list[dict[str, Any]] | None = None
 
 
+class ProfferPotentialPromotionFlagCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    preview_handle: str = Field(min_length=32, max_length=64)
+    matter_mode: Literal["TEST", "REAL"]
+    scope: Literal["record", "chunk"]
+    target_id: UUID
+    attempt_id: UUID
+    actor_subject_uid: str = Field(min_length=1, max_length=256)
+    actor_username: str = Field(min_length=1, max_length=256)
+    claim: str = Field(min_length=1, max_length=2000)
+
+
 def _row_to_flag(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "flag_id": str(row["flag_id"]),
@@ -1076,10 +1089,100 @@ def _register_flags_routes(app: FastAPI) -> None:
             )
         return _row_to_flag(dict(row))
 
+    @app.post("/v1/flags/proffer-potential-promotion", status_code=201)
+    async def create_proffer_potential_promotion_flag(
+        body: ProfferPotentialPromotionFlagCreate,
+    ) -> dict[str, Any]:
+        metadata = {
+            "contract": "proffer-potential-promotion/v1",
+            "classification": "potential_promotion",
+            "preview_handle": body.preview_handle,
+            "matter_mode": body.matter_mode,
+            "scope": body.scope,
+            "target_id": str(body.target_id),
+            "attempt_id": str(body.attempt_id),
+            "actor_subject_uid": body.actor_subject_uid,
+            "actor_username": body.actor_username,
+        }
+        with _get_engine().begin() as conn:
+            conn.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:preview_handle, 0))"),
+                {"preview_handle": body.preview_handle},
+            )
+            snapshot = (
+                conn.execute(
+                    text(
+                        "SELECT snapshot.normalized_generation_id, snapshot.source_version_id "
+                        "FROM context.proffer_preview_binding binding "
+                        "JOIN context.proffer_preview_snapshot snapshot USING (preview_handle) "
+                        "WHERE binding.preview_handle = :preview_handle "
+                        "ORDER BY snapshot.snapshot_seq DESC LIMIT 1"
+                    ),
+                    {"preview_handle": body.preview_handle},
+                )
+                .mappings()
+                .first()
+            )
+            if snapshot is None:
+                raise HTTPException(409, "preview attempt is unavailable")
+            normalized_generation_id = str(snapshot["normalized_generation_id"])
+            if normalized_generation_id != str(body.attempt_id):
+                raise HTTPException(409, "flag attempt does not match the current preview attempt")
+
+            if body.scope == "record":
+                found = conn.execute(
+                    text(
+                        "SELECT EXISTS (SELECT 1 FROM context.normalized_record_identity "
+                        "WHERE id = :target_id AND normalized_generation_id = :attempt_id)"
+                    ),
+                    {"target_id": body.target_id, "attempt_id": body.attempt_id},
+                ).scalar()
+            else:
+                found = conn.execute(
+                    text(
+                        "SELECT EXISTS (SELECT 1 FROM working.content_chunk chunk "
+                        "WHERE chunk.id = :target_id AND chunk.generation_id = ("
+                        "SELECT generation.id FROM working.content_chunk_generation generation "
+                        "WHERE generation.source_version_id = :source_version_id "
+                        "AND generation.normalized_generation_id = :attempt_id "
+                        "AND generation.status = 'sealed' "
+                        "ORDER BY generation.generation_ordinal DESC LIMIT 1))"
+                    ),
+                    {
+                        "target_id": body.target_id,
+                        "source_version_id": snapshot["source_version_id"],
+                        "attempt_id": body.attempt_id,
+                    },
+                ).scalar()
+            if found is not True:
+                raise HTTPException(409, "flag target is not present in the current preview attempt")
+
+            row = (
+                conn.execute(
+                    text(
+                        "INSERT INTO analysis.corroboration_flag "
+                        "(target_kind, target_id, claim, evidence_wanted, status, "
+                        "linked_artifacts, notes) "
+                        "VALUES ('run', :target_id, :claim, '[]', 'open', '[]', :notes) RETURNING *"
+                    ),
+                    {
+                        "target_id": body.preview_handle,
+                        "claim": body.claim,
+                        "notes": json.dumps(metadata, sort_keys=True, separators=(",", ":")),
+                    },
+                )
+                .mappings()
+                .first()
+            )
+            if row is None:
+                raise HTTPException(503, "potential-promotion flag could not be persisted")
+        return _row_to_flag(dict(row))
+
     @app.get("/v1/flags")
     async def list_flags(
         status: str | None = Query(None),
         target_kind: str | None = Query(None),
+        target_id: str | None = Query(None),
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ) -> dict[str, Any]:
@@ -1091,6 +1194,9 @@ def _register_flags_routes(app: FastAPI) -> None:
         if target_kind is not None:
             where.append("target_kind = :target_kind")
             params["target_kind"] = target_kind
+        if target_id is not None:
+            where.append("target_id = :target_id")
+            params["target_id"] = target_id
         where_clause = f"WHERE {' AND '.join(where)}" if where else ""
 
         with _get_engine().connect() as conn:
