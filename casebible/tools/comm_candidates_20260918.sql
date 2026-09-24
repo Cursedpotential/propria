@@ -9,15 +9,15 @@
 -- Person-name matching is NOT done here (it lives in an untracked server-side terms file).
 --
 -- Run:
---   docker exec -i fgz1n7useplhk0t91uk7k1aw psql -U postgres -d casebible -v ON_ERROR_STOP=1 < chat_candidates_20260918.sql
+--   docker exec -i fgz1n7useplhk0t91uk7k1aw psql -U postgres -d casebible -v ON_ERROR_STOP=1 < comm_candidates_20260918.sql
 \pset pager off
 \timing on
 set max_parallel_workers_per_gather = 0;
 set work_mem = '256MB';
 
 begin;
-drop table if exists raw_duck.chat_candidates_20260918;
-create table raw_duck.chat_candidates_20260918 as
+drop table if exists raw_duck.comm_candidates_20260918;
+create table raw_duck.comm_candidates_20260918 as
 with v as (
   select v.key, v.size, v.sha1
   from raw_duck.vault_objects_20260916_r4 v
@@ -64,9 +64,9 @@ left join lateral (
 ) c on true
 where g.format_guess is not null;
 
-create index on raw_duck.chat_candidates_20260918 (format_guess);
-create index on raw_duck.chat_candidates_20260918 (sha1);
+create index on raw_duck.comm_candidates_20260918 (format_guess);
+create index on raw_duck.comm_candidates_20260918 (sha1);
 commit;
 
 select format_guess, count(*) as files, pg_size_pretty(sum(size)) as bytes, count(distinct sha1) as distinct_sha1
-from raw_duck.chat_candidates_20260918 group by 1 order by 2 desc;
+from raw_duck.comm_candidates_20260918 group by 1 order by 2 desc;

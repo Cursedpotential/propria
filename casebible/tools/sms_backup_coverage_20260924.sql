@@ -3,8 +3,8 @@
 -- backup covers everything that a different backup [has] ... we can get rid of the older ones as long as the newest
 -- one that we're using is still an original"). READ-ONLY analysis: it writes a report table and moves nothing.
 -- Coverage is measured over EVERY message the catalog parsed from each file (all threads on the phone, not just
--- Katrina's): file A is covered by file B when every A message (raw_duck.chat_events_20260918.dedup_key, via
--- chat_event_provenance_20260918) is also in B, and B's newest message is at least as new as A's.
+-- Katrina's): file A is covered by file B when every A message (raw_duck.comm_events_20260918.dedup_key, via
+-- comm_event_provenance_20260918) is also in B, and B's newest message is at least as new as A's.
 -- A file whose exact bytes exist elsewhere (same sha1 at another path) is a copy, reported as such.
 -- "Original" (owner) = the file as the backup app wrote it. The report carries each file's sha1s and the catalog's
 -- zero-fill hold flag where known; confirm the chosen keeper is an original before anything is removed.
@@ -27,8 +27,8 @@ begin;
 truncate raw_duck.sms_backup_coverage_20260924;
 with fk as (
   select distinct coalesce(p.catalog_rel, p.vault_key) as f, p.dedup_key, p.sha1, e.event_ts_utc
-  from raw_duck.chat_event_provenance_20260918 p
-  join raw_duck.chat_events_20260918 e using (dedup_key)
+  from raw_duck.comm_event_provenance_20260918 p
+  join raw_duck.comm_events_20260918 e using (dedup_key)
   where e.source_format = 'sms_backup_xml'
 ),
 fs as (

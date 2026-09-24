@@ -21,7 +21,7 @@ psql_ -q -c "create table if not exists raw_duck.sms_backup_headcheck_20260924 (
   catalog_rows int, head_ok boolean, checked_at timestamptz default now());"
 
 list=$(psql_ -At -F $'\t' -c "select c.file, min(p.vault_key), count(*) from raw_duck.sms_backup_coverage_20260924 c
-  join raw_duck.chat_event_provenance_20260918 p on coalesce(p.catalog_rel, p.vault_key) = c.file group by c.file")
+  join raw_duck.comm_event_provenance_20260918 p on coalesce(p.catalog_rel, p.vault_key) = c.file group by c.file")
 
 out=$(mktemp)
 while IFS=$'\t' read -r file vk rows <&3; do

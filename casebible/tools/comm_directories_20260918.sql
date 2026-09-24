@@ -1,7 +1,7 @@
 -- Byline: Claude Code · Opus 5 · 2026-09-18
 -- Chat DIRECTORY map (owner 2026-09-18 20:02 EDT: "scan the directories and make an attempt to identify
 -- the chat directories and index those first"). Supersedes the file-by-format candidate ordering of
--- chat_candidates_20260918.sql for indexing order; that table is still used as one of the inputs.
+-- comm_candidates_20260918.sql for indexing order; that table is still used as one of the inputs.
 --
 -- Catalog only (no re-scan): original paths from raw_duck.intake_catalog_fs_20260917 (rel / parent / name),
 -- current B2 vault = raw_duck.vault_objects_20260916_r4 minus raw_duck.vault_onecopy_pilot_delete_20260916.
@@ -12,7 +12,7 @@
 -- Priority (owner 20:02 + owner priority folders 20:07):
 --   1 path contains katrina|kinzel
 --   2 owner priority folders: Comms/Communications, Phone Data, Court, Communication Data, SMS
---   3 directories that already produced Katrina events (raw_duck.chat_event_provenance_20260918)
+--   3 directories that already produced Katrina events (raw_duck.comm_event_provenance_20260918)
 --   4 Phone Records / Messages / iMessage / texts / WhatsApp / chats
 --   5 Facebook / Messenger exports
 --   6 Google Takeout Voice / Chat / Mail / Hangouts
@@ -21,15 +21,15 @@
 -- Cube ACR folders are audio: only their .json metadata is readable (call log), no transcription.
 -- Person names beyond the owner-authorised directory keywords are NOT written here.
 --
--- Run: docker exec -i fgz1n7useplhk0t91uk7k1aw psql -U postgres -d casebible -v ON_ERROR_STOP=1 < chat_directories_20260918.sql
+-- Run: docker exec -i fgz1n7useplhk0t91uk7k1aw psql -U postgres -d casebible -v ON_ERROR_STOP=1 < comm_directories_20260918.sql
 \pset pager off
 \timing on
 set max_parallel_workers_per_gather = 0;
 set work_mem = '512MB';
 
 begin;
-drop table if exists raw_duck.chat_dir_files_20260918;
-drop table if exists raw_duck.chat_directories_20260918;
+drop table if exists raw_duck.comm_dir_files_20260918;
+drop table if exists raw_duck.comm_directories_20260918;
 
 create temp table vault_now as
 select v.key, v.size, v.sha1
@@ -39,12 +39,12 @@ create index on vault_now (key);
 
 create temp table kat_keys as
 select distinct p.vault_key
-from raw_duck.chat_event_provenance_20260918 p
-join raw_duck.chat_events_20260918 e using (dedup_key)
+from raw_duck.comm_event_provenance_20260918 p
+join raw_duck.comm_events_20260918 e using (dedup_key)
 where e.katrina_conf = 'strong' and e.katrina_ref_type <> 'group_participant';
 
 create temp table indexed_keys as
-select distinct vault_key from raw_duck.chat_event_provenance_20260918;
+select distinct vault_key from raw_duck.comm_event_provenance_20260918;
 
 create temp table cat as
 select f.rel, f.parent, f.name, f.source, f.vault_key, v.sha1, v.size,
@@ -57,7 +57,7 @@ create index on cat (parent);
 create temp table dir_class as
 with d as (
   select parent,
-    bool_or(vault_key in (select vault_key from raw_duck.chat_candidates_20260918)) as has_candidate,
+    bool_or(vault_key in (select vault_key from raw_duck.comm_candidates_20260918)) as has_candidate,
     bool_or(vault_key in (select vault_key from kat_keys)) as has_katrina_events
   from cat group by parent
 )
@@ -117,7 +117,7 @@ select c.parent,
 from cat c join dirs d using (parent)
 group by c.parent;
 
-create table raw_duck.chat_directories_20260918 as
+create table raw_duck.comm_directories_20260918 as
 with j as (
   select d.*, r.root_dir, s.total_files, s.readable_files, s.zip_files, s.bytes, s.readable_bytes, s.formats,
          s.already_indexed_files, min(d.priority) over (partition by r.root_dir) as root_priority
@@ -135,23 +135,23 @@ select
   null::text as status, null::timestamptz as indexed_at, null::text as errors,
   now() as mapped_at
 from j d;
-alter table raw_duck.chat_directories_20260918 add primary key (dir_rank);
-create unique index on raw_duck.chat_directories_20260918 (path);
-create index on raw_duck.chat_directories_20260918 (priority);
+alter table raw_duck.comm_directories_20260918 add primary key (dir_rank);
+create unique index on raw_duck.comm_directories_20260918 (path);
+create index on raw_duck.comm_directories_20260918 (priority);
 
 -- Work list: every catalog file in a chat directory, first occurrence of each vault key (by dir_rank) is the
 -- one that gets indexed; later occurrences are recorded as duplicates of an earlier directory.
-create table raw_duck.chat_dir_files_20260918 as
+create table raw_duck.comm_dir_files_20260918 as
 select d.dir_rank, c.rel, c.name, c.ext, c.vault_key, c.sha1, c.size,
   (c.ext in ('json','html','htm','txt','md','csv','xml','mbox','eml') and (not d.audio_dir or c.ext = 'json')) as readable,
   row_number() over (partition by c.vault_key order by d.dir_rank, c.rel) = 1 as first_occurrence,
   c.vault_key in (select vault_key from indexed_keys) as indexed_before
-from cat c join raw_duck.chat_directories_20260918 d on d.path = c.parent;
-create index on raw_duck.chat_dir_files_20260918 (dir_rank);
-create index on raw_duck.chat_dir_files_20260918 (vault_key);
+from cat c join raw_duck.comm_directories_20260918 d on d.path = c.parent;
+create index on raw_duck.comm_dir_files_20260918 (dir_rank);
+create index on raw_duck.comm_dir_files_20260918 (vault_key);
 commit;
 
 select priority, count(*) as dirs, sum(total_files) as files, sum(readable_files) as readable,
        sum(already_indexed_files) as already_indexed, pg_size_pretty(sum(bytes)) as bytes,
        pg_size_pretty(sum(readable_bytes)) as readable_bytes
-from raw_duck.chat_directories_20260918 group by 1 order by 1;
+from raw_duck.comm_directories_20260918 group by 1 order by 1;

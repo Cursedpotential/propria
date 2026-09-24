@@ -73,7 +73,7 @@ def report(root,output):
       'The old limited recovery scan and largest-trunk proposals do not establish BAS.','',
       '## Historical artifacts: UNVERIFIED','',
       '- `timeline_mvp_20260918`: two payloads plus directory marker; 101,009,949 visible bytes. No content read or canonical acceptance.',
-      '- `chat_events_20260918` and related provenance tables: retained historical outputs; row counts are in the exact catalog inventory.',
+      '- `comm_events_20260918` and related provenance tables: retained historical outputs; row counts are in the exact catalog inventory.',
       '- Weaviate and Surreal outputs: historical projections, not completeness or source-quality authorities. This publication does not rebuild or certify them.',
       '- Prior twin merge decisions, restricted recovery-quality conclusions and reported recovery-image deletions remain unverified as retention decisions.','',
       '## Verification and limits','',

@@ -1,7 +1,7 @@
 -- Byline: Claude Code · Opus 5 · 2026-09-18
 -- Chat timeline MVP tables in Intake's SurrealDB (surreal-intake, ns consignatio / db intake), a new
 -- dated table set beside the filesystem graph (owner 12:36 EDT: Surreal is the backend for this).
--- Rebuildable from B2 + raw_duck.chat_candidates_20260918; nothing here is canonical evidence.
+-- Rebuildable from B2 + raw_duck.comm_candidates_20260918; nothing here is canonical evidence.
 -- No person names in this file: tags are computed upstream from an untracked terms file.
 
 DEFINE TABLE IF NOT EXISTS tl_event_20260918 SCHEMALESS COMMENT 'One deduplicated chat/call event; provenance[] keeps every source row';

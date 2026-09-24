@@ -2,7 +2,7 @@
 """Chat discovery -> events (timeline MVP, owner 2026-09-18 12:32 EDT).
 
 Source: B2 only, read through the OpenList/rclone mount (/b2 in the container), scoped by
-the catalog table raw_duck.chat_candidates_20260918 (exported to candidates.tsv).
+the catalog table raw_duck.comm_candidates_20260918 (exported to candidates.tsv).
 Engine: DuckDB SQL templates first (read_json / read_text); the existing Probata parsers
 (server/tools/parsers/messaging, copied read-only into /app/server) are the backup for
 formats a template cannot stream (multi-GB SMS Backup & Restore XML, iMessage TXT/HTML,

@@ -3,15 +3,15 @@
 -- parsing, chunking and normalization can reference them; do as many jobs at once as possible).
 -- A bout = the messages of one conversation within one America/Detroit day with no silence over 30 minutes
 -- (owner 03:18, "try a and a"). Bouts are the parent unit: search chunks are message-aligned windows inside a bout,
--- and a hit opens its bout. The bridge table ties every bout to its catalog messages (chat_events_20260918.dedup_key).
+-- and a hit opens its bout. The bridge table ties every bout to its catalog messages (comm_events_20260918.dedup_key).
 -- Sources today (2024): the texts from Katrina's phone (SMS backup conversation 8102959302; sender taken from the
 -- addressed-to number, see Probata scripts/jev_eval/build_bouts_v2.sql) and the Facebook Messenger thread
 -- 'Katrina Kinzel'. Bout ids match the JSONL files the Opus passes read (c2024-b####, f2024-b####).
 -- Rebuild is idempotent for a source: its rows are deleted and rebuilt. Labels from any pass land in chat_bout_labels;
 -- their foreign key is ON DELETE RESTRICT, so a rebuild over labelled bouts fails instead of wiping labels (amended
--- 2026-09-24 07:18, see chat_bouts_custody_party_20260924.sql, which also adds custody_party).
+-- 2026-09-24 07:18, see msg_bouts_custody_party_20260924.sql, which also adds custody_party).
 
-create table if not exists raw_duck.chat_bouts_20260924 (
+create table if not exists raw_duck.msg_bouts_20260924 (
   bout_id          text primary key,
   source           text not null,          -- sms_her_phone | fb_messenger
   conversation_key text not null,
@@ -25,21 +25,21 @@ create table if not exists raw_duck.chat_bouts_20260924 (
   bout_rules       text not null,
   custody_party    text,                   -- third_party_acquired (her device) | first_party (Matt's own export)
   built_at         timestamptz not null default now(),
-  build_script     text not null default 'Consignatio/casebible/tools/chat_bouts_20260924.sql'
+  build_script     text not null default 'Consignatio/casebible/tools/msg_bouts_20260924.sql'
 );
 
-create table if not exists raw_duck.chat_bout_messages_20260924 (
-  bout_id    text not null references raw_duck.chat_bouts_20260924(bout_id) on delete cascade,
+create table if not exists raw_duck.msg_bout_messages_20260924 (
+  bout_id    text not null references raw_duck.msg_bouts_20260924(bout_id) on delete cascade,
   ordinal    int not null,                  -- the message index `i` the Opus passes cite
-  dedup_key  text not null,                 -- raw_duck.chat_events_20260918.dedup_key
+  dedup_key  text not null,                 -- raw_duck.comm_events_20260918.dedup_key
   who        text not null,                 -- Matt | Katrina
   ts_utc     timestamptz not null,
   primary key (bout_id, ordinal)
 );
-create index if not exists chat_bout_messages_20260924_key on raw_duck.chat_bout_messages_20260924 (dedup_key);
+create index if not exists chat_bout_messages_20260924_key on raw_duck.msg_bout_messages_20260924 (dedup_key);
 
-create table if not exists raw_duck.chat_bout_labels_20260924 (
-  bout_id        text not null references raw_duck.chat_bouts_20260924(bout_id) on delete restrict,
+create table if not exists raw_duck.msg_bout_labels_20260924 (
+  bout_id        text not null references raw_duck.msg_bouts_20260924(bout_id) on delete restrict,
   pass           text not null,             -- e.g. bout-tone-v1, bout-discover-v1
   model          text not null,
   prompt_sha256  text not null,
@@ -52,7 +52,7 @@ create table if not exists raw_duck.chat_bout_labels_20260924 (
 );
 
 begin;
-delete from raw_duck.chat_bouts_20260924 where source in ('sms_her_phone', 'fb_messenger') and day between '2024-01-01' and '2024-12-31';
+delete from raw_duck.msg_bouts_20260924 where source in ('sms_her_phone', 'fb_messenger') and day between '2024-01-01' and '2024-12-31';
 
 with k as (
   select e.dedup_key, e.event_ts_utc, e.body, e.n_sources, 'sms_her_phone'::text as source, e.conversation_id as conversation_key,
@@ -61,14 +61,14 @@ with k as (
          when right(regexp_replace(coalesce(e.recipients, ''), '\D', '', 'g'), 10) = '8102959302'
               or coalesce(e.recipients, '') in ('Matthew', 'Matt Salem') then 'Katrina' end as who,
     'c2024' as prefix, 'bouts-v2-30min-detroit-addressed-to' as rules
-  from raw_duck.chat_events_20260918 e
+  from raw_duck.comm_events_20260918 e
   where e.source_format = 'sms_backup_xml' and e.conversation_id = '8102959302'
     and e.event_kind is distinct from 'call' and e.event_ts_utc is not null
   union all
   select e.dedup_key, e.event_ts_utc, e.body, e.n_sources, 'fb_messenger', 'fb:Katrina Kinzel',
     case when e.sender = 'Matt Salem' then 'Matt' when e.sender = 'Katrina Kinzel' then 'Katrina' end,
     'f2024', 'bouts-fb-30min-detroit'
-  from raw_duck.chat_events_20260918 e
+  from raw_duck.comm_events_20260918 e
   where e.source_format = 'fb_messenger_json' and e.conversation_title = 'Katrina Kinzel' and e.event_ts_utc is not null
 ),
 d as (
@@ -96,7 +96,7 @@ m as (
   from b
 ),
 ins_bouts as (
-  insert into raw_duck.chat_bouts_20260924 (bout_id, source, conversation_key, day, start_local, end_local,
+  insert into raw_duck.msg_bouts_20260924 (bout_id, source, conversation_key, day, start_local, end_local,
                                              n_messages, n_matt, n_katrina, n_chars, bout_rules, custody_party)
   select bout_id, min(source), min(conversation_key), min(day), min(local_ts), max(local_ts), count(*),
          count(*) filter (where who = 'Matt'), count(*) filter (where who = 'Katrina'),
@@ -105,9 +105,9 @@ ins_bouts as (
   from m group by bout_id
   returning bout_id
 )
-insert into raw_duck.chat_bout_messages_20260924 (bout_id, ordinal, dedup_key, who, ts_utc)
+insert into raw_duck.msg_bout_messages_20260924 (bout_id, ordinal, dedup_key, who, ts_utc)
 select m.bout_id, m.ordinal, m.dedup_key, m.who, m.event_ts_utc
 from m join ins_bouts using (bout_id);
 
-select source, count(*) as bouts, sum(n_messages) as messages from raw_duck.chat_bouts_20260924 group by source order by source;
+select source, count(*) as bouts, sum(n_messages) as messages from raw_duck.msg_bouts_20260924 group by source order by source;
 commit;
