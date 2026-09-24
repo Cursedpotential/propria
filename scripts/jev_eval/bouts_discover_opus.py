@@ -11,6 +11,8 @@ Byline: Claude Code · Opus 5.5 · 2026-09-24. Owner rulings this follows:
   or forward, no provocation or blame calls, no reading of either person as a whole. Interpretation is a later step.
   v1 (125 Facebook bouts, raw/bout_discover/) is kept as a record.
 - 06:48: multiple categories on one message are acceptable and expected.
+- 07:12 (v2.1): flag when heated or upsetting acts are about the child (child_related), and record mentions of being
+  blocked or cut off. Blocked periods themselves come from the data (gaps in contact), not from the model.
 Runs in the ovh-files devbox (Propria/docs/reference/DEVBOX-ON-OVH-FILES.md); token via --env-file.
     .venv/bin/python code/bouts_discover_opus.py bouts/<file>.jsonl [--only N] [--ids id1,id2]
 """
@@ -28,7 +30,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
 from bouts_tone_opus import CONCURRENCY, MODEL, RETRIES, TONES, check, to_jsonable
 
-VERSION = "bout-discover-v2"
+VERSION = "bout-discover-v2.1"
 WORK = pathlib.Path(os.environ.get("JEV_WORK", "/home/kasm-user/persist/jev-eval"))
 
 GUIDE = """What to record. Record observable acts: what a message says or does, in plain words. This is a guide,
@@ -56,6 +58,7 @@ The child
 - child_contact_condition: sets a condition on seeing or talking to the child
 - child_time_refused_or_changed: parenting time or contact refused, cancelled, shortened or moved
 - child_in_argument: the child is brought into an argument between the adults
+- contact_blocked_mentioned: says they are blocked, cut off, or can't reach the other person or the child
 
 Money and property
 - money: money, payments, bills or property mentioned, asked for or refused
@@ -83,7 +86,9 @@ Do three things.
 1. Tone: split the chunk into consecutive tone stretches that cover every message, mark every point where the tone
    changes (abrupt or gradual, and the message where it changes), and give who sent most of the messages in each
    stretch.
-2. Observations: record each act you see, citing the message indices and quoting the key words.
+2. Observations: record each act you see, citing the message indices and quoting the key words. Mark each one
+   child_related when what is being said is about the child: seeing her, where she is, her care, contact with her,
+   or travel with her.
 3. New categories: list every category you used that is not in the guide, with a one-line definition.
 
 Tone labels (use only these for tone):
@@ -127,8 +132,9 @@ SCHEMA = {
             "message_is": {"type": "array", "items": {"type": "integer"}},
             "quote": {"type": "string"},
             "note": {"type": "string"},
-            "confidence": {"type": "string", "enum": ["low", "medium", "high"]}},
-            "required": ["category", "from_guide", "who", "message_is", "quote", "note", "confidence"],
+            "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
+            "child_related": {"type": "boolean"}},
+            "required": ["category", "from_guide", "who", "message_is", "quote", "note", "confidence", "child_related"],
             "additionalProperties": False}},
         "new_categories": {"type": "array", "items": {"type": "object", "properties": {
             "name": {"type": "string"}, "definition": {"type": "string"}},
@@ -198,7 +204,7 @@ async def main() -> None:
         k = int(sys.argv[sys.argv.index("--only") + 1])
         pick = [b for b in bouts if b["n_katrina"] and b["n_matt"]]
         bouts = sorted(pick, key=lambda b: b["n_messages"])[len(pick) // 2 - k // 2: len(pick) // 2 - k // 2 + k]
-    outdir = WORK / "raw" / "bout_discover_v2"
+    outdir = WORK / "raw" / "bout_discover_v21"
     outdir.mkdir(parents=True, exist_ok=True)
     (WORK / "cwd").mkdir(exist_ok=True)
     (outdir / "_prompt.json").write_text(json.dumps({"system_prompt": SYSTEM_PROMPT, "schema": SCHEMA, "version": VERSION,
