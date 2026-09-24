@@ -1,5 +1,5 @@
-"""Discovery pass: Opus marks tone stretches and shifts (same view as bout-tone-v1) and records the behaviour patterns it
-finds, naming new categories freely. The category list is guidance, not a closed set.
+"""Discovery pass: Opus marks tone stretches and shifts (same view as bout-tone-v1) and records the acts it sees in the
+chunk, naming new categories freely. The category list is guidance, not a closed set.
 
 Byline: Claude Code · Opus 5.5 · 2026-09-24. Owner rulings this follows:
 - 06:28: same visualization, but don't lock the categories; let it discover them. Give it guidance on what to look
@@ -7,6 +7,9 @@ Byline: Claude Code · Opus 5.5 · 2026-09-24. Owner rulings this follows:
 - 06:31: beware reactive behaviour. Read what came before; don't look at a situation shallowly.
 - 06:32: the prompt stays neutral. It looks for behaviours in both people and gets no background on either person.
 - Owner recipe: records describe conduct and quote the messages; no diagnoses or character labels.
+- 06:45 (v2): minimize psychoanalysis and judgment. Classify narrowly, only what is in the chunk: no looking backward
+  or forward, no provocation or blame calls, no reading of either person as a whole. Interpretation is a later step.
+  v1 (125 Facebook bouts, raw/bout_discover/) is kept as a record.
 Runs in the ovh-files devbox (Propria/docs/reference/DEVBOX-ON-OVH-FILES.md); token via --env-file.
     .venv/bin/python code/bouts_discover_opus.py bouts/<file>.jsonl [--only N] [--ids id1,id2]
 """
@@ -24,64 +27,62 @@ from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
 from bouts_tone_opus import CONCURRENCY, MODEL, RETRIES, TONES, check, to_jsonable
 
-VERSION = "bout-discover-v1"
+VERSION = "bout-discover-v2"
 WORK = pathlib.Path(os.environ.get("JEV_WORK", "/home/kasm-user/persist/jev-eval"))
 
-GUIDE = """Behaviours to look for. This is a guide, not a closed list: use these names when they fit, and name anything
-else you notice as a new category, in your own words, with a one-line definition.
+GUIDE = """What to record. Record observable acts: what a message says or does, in plain words. This is a guide,
+not a closed list: use these names when they fit, and name any other act you see as a new category, with a
+one-line definition of the act.
 
-Control and pressure
-- contact_conditions: conditions put on seeing or talking to the child ("only if…", "not until…")
-- time_withheld: parenting time or contact refused, cancelled, cut short or delayed
-- info_gatekeeping: information about the child held back or used as leverage
-- threats: threats of court, police, exposure, leaving, taking the child, or harm
-- money_pressure: money demanded, withheld, or used as leverage
-- monitoring: checking up on, tracking, or demanding accounts of the other person's whereabouts or contacts
+Questions, accusations, answers
+- asks_whereabouts: asks where someone is, who they are with, or what they are doing
+- accusation: accuses the other person of something (say what, in the note)
+- denial: denies an accusation, or denies saying or doing something
+- contradiction_in_chunk: a statement conflicts with another statement inside this chunk
+- unanswered_question: a question the other person does not answer inside this chunk
+- says_other_caused_it: says the other person caused their feelings or actions ("you made me")
 
-The child in the conflict
-- child_as_leverage: the child used as a bargaining chip or a messenger
-- child_drawn_in: the child pulled into adult conflict, or told about it
-- disparaging_parent: the other parent run down to or around the child
+Pressure and conflict
+- insult_or_swearing: insults, name-calling or swearing at the other person
+- threat: states a consequence if something happens or doesn't (court, police, leaving, exposure, the child)
+- demand: tells the other person to do something
+- refusal: refuses a request
+- repeated_messages: several messages in a row with no reply in between
 
-Truthfulness
-- contradiction: a statement contradicted by an earlier or later message
-- denial_of_record: denying something said or done that the messages show ("I never said that")
-- darvo_sequence: in answer to a complaint, deny it, attack the complainer, and claim to be the victim
-- deflection: changing the subject, whataboutism, or answering a different question
-- blame_shift: responsibility put on the other person
-- lying_cheating_stealing: lies, infidelity, or theft alleged, admitted, or shown
+The child
+- child_logistics: pickups, schedules, school, meals, belongings
+- child_wellbeing: the child's health, safety, feelings or needs
+- child_contact_condition: sets a condition on seeing or talking to the child
+- child_time_refused_or_changed: parenting time or contact refused, cancelled, shortened or moved
+- child_in_argument: the child is brought into an argument between the adults
 
-The relationship cycle
-- warmth: affection, love, care, support, humour, missing each other
-- tension_building: growing irritation, strain, curtness
-- blowup: an outburst
-- repair: an apology, making up, calming things down, reassurance
-- promise: a promise or commitment (note whether it is later kept or broken, if the messages show it)
-- love_bombing: intense affection or promises right after a conflict
-- withdrawal: silent treatment, ignoring, going quiet as pressure
+Money and property
+- money: money, payments, bills or property mentioned, asked for or refused
 
-Health and stress
-- mental_health_mentioned: mood, medication, diagnosis, crisis or trauma mentioned (record what is said; never diagnose)
-- mental_health_as_weapon: someone's mental health used to dismiss, insult or discredit them
-- support_given: help or support offered when someone is struggling
+Warmth and repair
+- affection: love, affection, missing each other, flirting
+- care_or_support: concern, help or support offered
+- thanks_or_praise: thanks, credit or a compliment
+- humour: joking, teasing in a friendly way
+- apology: says sorry or admits a mistake
+- reassurance: calms the other person or makes peace
+- promise: states a commitment ("I will…")
+- agreement_or_plan: agrees, or makes or confirms a plan
 
-Healthy co-parenting
-- cooperation: plans made and kept, logistics handled smoothly, flexibility, credit given
+Health and events
+- mental_health_mentioned: mood, anxiety, medication, diagnosis or crisis mentioned (quote it; never diagnose)
+- call_or_contact_event: a call, missed call, unsent message or reaction notice"""
 
-Reactions (read every heated message against what came before it)
-- provocation: a message that sets off a reaction (a threat, a taunt, an accusation, a lie, being ignored)
-- reaction: a message that answers a provocation; set reaction_to_i to the message it answers
-- reaction_used_against: a reaction later held up as proof against the person who reacted ("look how you talk to me")"""
-
-SYSTEM_PROMPT = f"""You read one stretch of messages between Matt and Katrina, who are co-parents of a daughter born around
-January 2020. You receive one "bout": messages from one day with no silence longer than 30 minutes. Each message has
+SYSTEM_PROMPT = f"""You read one chunk of messages between Matt and Katrina, who are co-parents of a daughter born around
+January 2020. The chunk is one "bout": messages from one day with no silence longer than 30 minutes. Each message has
 an index `i`, a local time, the sender, and its text. Platform notices (calls, missed calls, unsent messages,
 reactions) are messages too.
 
 Do three things.
-1. Tone, as before: split the bout into consecutive tone stretches that cover every message, mark every point where the
-   tone changes (abrupt or gradual, and the message that turns it), and say who drives each stretch.
-2. Patterns: record each behaviour you find, citing the message indices it rests on and quoting the key words.
+1. Tone: split the chunk into consecutive tone stretches that cover every message, mark every point where the tone
+   changes (abrupt or gradual, and the message where it changes), and give who sent most of the messages in each
+   stretch.
+2. Observations: record each act you see, citing the message indices and quoting the key words.
 3. New categories: list every category you used that is not in the guide, with a one-line definition.
 
 Tone labels (use only these for tone):
@@ -89,18 +90,16 @@ Tone labels (use only these for tone):
 
 {GUIDE}
 
-How to read:
-- Treat both people the same way. Any behaviour can come from either of them. Judge only from these messages, not
-  from who you expect to behave which way.
-- Read in order and look below the surface. A calm message can be the controlling one; an explosive one can be a
-  reaction. Before recording anything heated, look at what came before it. Record a provocation and the reaction to it
-  as separate patterns, and link the reaction to what it answers.
-- Warm, loving, normal and healthy moments matter exactly as much as conflict. Record them just as carefully.
-- Describe conduct in plain words and quote it. Do not diagnose or label people: no "narcissist", "bipolar",
-  "manipulative", "abuser", "crazy". Pattern names such as darvo_sequence describe a sequence of messages, never a person.
-- Say how sure you are. "low" is fine; a pattern with thin support should say so rather than be left out.
-- A bout with one message still gets one stretch; it may have no patterns.
-- Keep notes to one short line each.
+Stay narrow:
+- Classify only what is in this chunk. Do not look backward or forward, and do not guess at history, motives,
+  intentions or what happened outside these messages.
+- Describe acts, not people. No psychological reading, no diagnosis, no judgment of either person's character, and
+  no judgment of who provoked whom or who is to blame.
+- Treat both people the same way. Any act can come from either of them.
+- Warm, loving, normal and healthy acts matter exactly as much as conflict. Record them just as carefully.
+- Say how sure you are that the act is there; "low" is fine.
+- A chunk with one message still gets one stretch; it may have no observations.
+- Keep notes to one short line each. The summary says what happens in one or two plain sentences, without judgment.
 
 Return only the structured output."""
 
@@ -123,11 +122,10 @@ SCHEMA = {
             "from_guide": {"type": "boolean"},
             "who": {"type": "string", "enum": ["Matt", "Katrina", "both"]},
             "message_is": {"type": "array", "items": {"type": "integer"}},
-            "reaction_to_i": {"type": "integer"},
             "quote": {"type": "string"},
             "note": {"type": "string"},
             "confidence": {"type": "string", "enum": ["low", "medium", "high"]}},
-            "required": ["category", "from_guide", "who", "message_is", "reaction_to_i", "quote", "note", "confidence"],
+            "required": ["category", "from_guide", "who", "message_is", "quote", "note", "confidence"],
             "additionalProperties": False}},
         "new_categories": {"type": "array", "items": {"type": "object", "properties": {
             "name": {"type": "string"}, "definition": {"type": "string"}},
@@ -141,13 +139,11 @@ PROMPT_SHA256 = hashlib.sha256((SYSTEM_PROMPT + json.dumps(SCHEMA, sort_keys=Tru
 
 
 def check_patterns(out: dict, n: int) -> list[str]:
-    """Tone checks from bout-tone-v1, plus: every cited index is inside the bout (-1 means 'not a reaction')."""
+    """Tone checks from bout-tone-v1, plus: every cited index is inside the bout."""
     problems = check(out, n)
     for p in out["patterns"]:
         if not p["message_is"] or not all(0 <= i < n for i in p["message_is"]):
             problems.append(f"pattern {p['category']} cites messages outside the bout")
-        if p["reaction_to_i"] >= n or p["reaction_to_i"] < -1:
-            problems.append(f"pattern {p['category']} reaction_to_i out of range")
     return problems
 
 
@@ -156,8 +152,7 @@ async def label_bout(bout: dict, outdir: pathlib.Path, sem: asyncio.Semaphore) -
     if fname.exists() and json.loads(fname.read_text(encoding="utf-8")).get("ok"):
         return
     msgs = [{"i": i, "time": m["ts_local"], "who": m["who"], "text": m["text"]} for i, m in enumerate(bout["messages"])]
-    state = {"day": bout["day"], "bout": bout["bout_id"], "messages": msgs,
-             "note": "reaction_to_i is -1 when a pattern is not a reaction to an earlier message"}
+    state = {"day": bout["day"], "bout": bout["bout_id"], "messages": msgs}
     async with sem:
         for attempt in range(1, RETRIES + 1):
             t0, messages, result = time.monotonic(), [], None
@@ -200,7 +195,7 @@ async def main() -> None:
         k = int(sys.argv[sys.argv.index("--only") + 1])
         pick = [b for b in bouts if b["n_katrina"] and b["n_matt"]]
         bouts = sorted(pick, key=lambda b: b["n_messages"])[len(pick) // 2 - k // 2: len(pick) // 2 - k // 2 + k]
-    outdir = WORK / "raw" / "bout_discover"
+    outdir = WORK / "raw" / "bout_discover_v2"
     outdir.mkdir(parents=True, exist_ok=True)
     (WORK / "cwd").mkdir(exist_ok=True)
     (outdir / "_prompt.json").write_text(json.dumps({"system_prompt": SYSTEM_PROMPT, "schema": SCHEMA, "version": VERSION,
