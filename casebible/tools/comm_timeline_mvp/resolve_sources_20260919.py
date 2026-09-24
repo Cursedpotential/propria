@@ -17,7 +17,7 @@ import os
 import subprocess
 import sys
 
-SPOOL = os.environ.get("SPOOL", "/data/probata/volumes/timeline-mvp/chat_events_20260919.jsonl")
+SPOOL = os.environ.get("SPOOL", "/data/probata/volumes/timeline-mvp/comm_events_20260919.jsonl")
 OUT = os.environ.get("OUT", "/data/probata/volumes/timeline-mvp/sources_20260919.tsv")
 SQLF = os.environ.get("SQLF", "/data/probata/volumes/timeline-mvp/resolve_sources_20260919.sql")
 PG = os.environ.get("PG", "fgz1n7useplhk0t91uk7k1aw")

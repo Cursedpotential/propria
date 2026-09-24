@@ -20,8 +20,8 @@ import urllib.parse
 import urllib.request
 
 WV = os.environ.get("WV_URL", "http://100.91.190.107:8082").rstrip("/")
-CLASS = os.environ.get("WV_CLASS", "ChatEvents20260918")
-SPOOL = os.environ.get("SPOOL", "/data/probata/volumes/timeline-mvp/chat_events_20260919.jsonl")
+CLASS = os.environ.get("WV_CLASS", "MsgEvents20260918")
+SPOOL = os.environ.get("SPOOL", "/data/probata/volumes/timeline-mvp/comm_events_20260919.jsonl")
 STATE = SPOOL + ".seen.json"
 PAGE = int(os.environ.get("PAGE", "500"))
 

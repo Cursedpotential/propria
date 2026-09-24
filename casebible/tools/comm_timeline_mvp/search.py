@@ -1,5 +1,6 @@
 # Byline: Claude Code · Opus 5 · 2026-09-18
-"""Hybrid (BM25 + NIM vector) search over ChatEvents20260918.
+"""Hybrid (BM25 + NIM vector) search over MsgEvents20260918 (messages and calls with people);
+COLLECTION=AiChatEvents20260918 searches the AI chats.
 
 usage: python search.py "<query>" [katrina|daughter|all] [limit]
 Prints sort_ts, source_format, sender, tags and the event id (dedup_key); add SHOW_BODY=1 to print text.
@@ -11,7 +12,7 @@ import sys
 import httpx
 
 WV = os.environ.get("WEAVIATE_URL", "http://100.91.190.107:8082").rstrip("/")
-COLL = os.environ.get("COLLECTION", "ChatEvents20260918")
+COLL = os.environ.get("COLLECTION", "MsgEvents20260918")
 q = sys.argv[1]
 scope = sys.argv[2] if len(sys.argv) > 2 else "all"
 limit = int(sys.argv[3]) if len(sys.argv) > 3 else 10

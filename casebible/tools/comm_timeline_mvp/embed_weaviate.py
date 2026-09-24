@@ -1,5 +1,8 @@
-# Byline: Claude Code · Opus 5 · 2026-09-18
-"""Embed deduplicated chat events (NIM, batched) into a dedicated Weaviate collection for hybrid search.
+# Byline: Claude Code · Opus 5 · 2026-09-18; split by record kind, Claude Code · Opus 5.5 · 2026-09-24
+"""Embed deduplicated communication events (NIM, batched) into Weaviate for hybrid search.
+
+Owner 2026-09-24: chats are with AI, messages are with people. Messages and calls go to MsgEvents20260918, AI chats
+to AiChatEvents20260918 (names picked by the owner); an unknown source_format stops the run.
 
 Runs AFTER the Surreal load (owner 12:45: timelines readable before searchable). Same embedder as Intake
 (nvidia/nemotron-3-embed-1b, 2048-d, input_type=passage; the batching was probed with a 4-text call on 2026-09-18).
@@ -18,7 +21,13 @@ import httpx
 
 WORK = Path(os.environ.get("WORK", "/work"))
 WV = os.environ.get("WEAVIATE_URL", "http://100.91.190.107:8082").rstrip("/")
-COLL = os.environ.get("COLLECTION", "ChatEvents20260918")
+MSG_COLL = os.environ.get("MSG_COLLECTION", "MsgEvents20260918")
+AI_COLL = os.environ.get("AI_COLLECTION", "AiChatEvents20260918")
+AI_FORMATS = {"gemini_activity_json", "ai_markdown_transcript", "chatgpt_conversations_json", "claude_conversations_json",
+              "ai_generic_json", "ai_conversations_json", "ai_chat_file"}
+MSG_FORMATS = {"fb_messenger_json", "sms_backup_xml", "imessage_html", "imessage_txt", "google_chat_json", "whatsapp_txt",
+               "fb_messenger_html", "google_voice_html", "mbox"}
+CALL_FORMATS = {"calls_backup_xml"}
 MODEL = os.environ.get("NIM_EMBED_MODEL", "nvidia/nemotron-3-embed-1b")
 DIM = int(os.environ.get("NIM_EMBED_DIMENSIONS", "2048"))
 NIM = os.environ.get("NIM_BASE_URL", "https://integrate.api.nvidia.com/v1").rstrip("/") + "/embeddings"
@@ -31,8 +40,6 @@ TEXT = ["dedup_key", "body", "sender", "conversation_title", "source_format", "k
         "daughter_conf", "catrina_class", "tz_status", "ts_original", "vault_key", "embed_model"]
 
 SCHEMA = {
-    "class": COLL,
-    "description": "Chat timeline MVP events (2026-09-18); rebuildable from B2 via chat_timeline_mvp",
     "properties": [{"name": n, "dataType": ["text"]} for n in TEXT]
     + [{"name": "participants", "dataType": ["text[]"]}, {"name": "sort_ts", "dataType": ["date"]},
        {"name": "n_sources", "dataType": ["int"]}],
@@ -40,11 +47,27 @@ SCHEMA = {
 }
 
 
+DESCRIPTIONS = {MSG_COLL: "Messages and calls with people; rebuildable from B2 via comm_timeline_mvp",
+                AI_COLL: "Conversations with AI; rebuildable from B2 via comm_timeline_mvp"}
+
+
+def route(source_format):
+    """Collection and record_kind for one event; an unclassified format is an error, never a guess."""
+    if source_format in AI_FORMATS:
+        return AI_COLL, "ai_chat"
+    if source_format in MSG_FORMATS:
+        return MSG_COLL, "message"
+    if source_format in CALL_FORMATS:
+        return MSG_COLL, "call"
+    raise SystemExit(f"unclassified source_format {source_format!r}")
+
+
 def ensure_schema(c):
-    r = c.get(f"{WV}/v1/schema/{COLL}")
-    if r.status_code == 404:
-        c.post(f"{WV}/v1/schema", json=SCHEMA).raise_for_status()
-        print("created collection", COLL, flush=True)
+    for coll in (MSG_COLL, AI_COLL):
+        r = c.get(f"{WV}/v1/schema/{coll}")
+        if r.status_code == 404:
+            c.post(f"{WV}/v1/schema", json={"class": coll, "description": DESCRIPTIONS[coll], **SCHEMA}).raise_for_status()
+            print("created collection", coll, flush=True)
 
 
 def embed(c, texts):
@@ -85,7 +108,8 @@ def main():
             if r["sort_ts"]:
                 props["sort_ts"] = r["sort_ts"].isoformat() + "Z"
             props["n_sources"] = int(r["n_sources"])
-            objs.append({"class": COLL, "id": str(uuid.uuid5(NS, r["dedup_key"])), "properties": props,
+            coll, props["record_kind"] = route(r["source_format"])
+            objs.append({"class": coll, "id": str(uuid.uuid5(NS, r["dedup_key"])), "properties": props,
                          "vectors": {"text_nim": v}})
         res = c.post(f"{WV}/v1/batch/objects", json={"objects": objs})
         res.raise_for_status()

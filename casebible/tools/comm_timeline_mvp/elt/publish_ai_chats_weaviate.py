@@ -1,5 +1,5 @@
 # Byline: Claude Code · Opus 5 · 2026-09-18
-"""Publish AI-chat turns to Weaviate ChatEvents20260918 (owner 2026-09-18 20:07 EDT:
+"""Publish AI-chat turns to Weaviate AiChatEvents20260918 (split from ChatEvents20260918 on 2026-09-24) (owner 2026-09-18 20:07 EDT:
 "IT ALL GOES TO WEIVIATE FIRST"). No Postgres event tables.
 
   record_kind = 'ai_chat'   (message transcripts -- SMS/Messenger/etc -- are 'message')
@@ -34,7 +34,7 @@ import httpx
 
 WORK = os.environ.get("AI_DUCKDB", "/w/ai_chats.duckdb")
 WV = os.environ.get("WEAVIATE_URL", "http://100.91.190.107:8082").rstrip("/")
-COLL = os.environ.get("COLLECTION", "ChatEvents20260918")
+COLL = os.environ.get("COLLECTION", "AiChatEvents20260918")
 MODEL = os.environ.get("NIM_EMBED_MODEL", "nvidia/nemotron-3-embed-1b")
 DIM = int(os.environ.get("NIM_EMBED_DIMENSIONS", "2048"))
 NIM = os.environ.get("NIM_BASE_URL", "https://integrate.api.nvidia.com/v1").rstrip("/") + "/embeddings"

@@ -12,9 +12,9 @@ NEW_STATE=${NEW_STATE:-$VOL/poll_state_20260919.json}
 
 while true; do
   echo "=== pass $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  before=$(wc -l < "$VOL/chat_events_20260919.jsonl" || echo 0)
+  before=$(wc -l < "$VOL/comm_events_20260919.jsonl" || echo 0)
   python3 "$APP/weaviate_fetch_20260919.py" || echo "fetch failed; will retry next pass"
-  after=$(wc -l < "$VOL/chat_events_20260919.jsonl" || echo 0)
+  after=$(wc -l < "$VOL/comm_events_20260919.jsonl" || echo 0)
   if [ "$after" -gt "$before" ]; then
     echo "spool grew $before -> $after; reloading"
     python3 "$APP/resolve_sources_20260919.py" || true

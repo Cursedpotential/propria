@@ -2,7 +2,7 @@
 """Chat ELT runner — DuckDB templates over the B2 mount, straight into Weaviate.
 
 Owner direction 2026-09-18 20:52 / 21:05 EDT: extraction is DuckDB ELT (the versioned templates in
-elt/), the searchable set is Weaviate `ChatEvents20260918` (no Postgres event tables), and the work list
+elt/), the searchable set is Weaviate `MsgEvents20260918` (messages with people; was ChatEvents20260918, split 2026-09-24) (no Postgres event tables), and the work list
 is the chat candidates that the afternoon run did not already load. Type is confirmed by READING the
 file (first bytes), not by its folder name.
 
@@ -34,7 +34,7 @@ TMP = Path(os.environ.get("TMPD", "/tmpd"))
 ELT = Path(os.environ.get("ELT_DIR", "/app/elt"))
 RUN_ID = os.environ.get("RUN_ID", time.strftime("%Y%m%dT%H%M%S"))
 WV = os.environ.get("WEAVIATE_URL", "http://100.91.190.107:8082").rstrip("/")
-COLL = os.environ.get("COLLECTION", "ChatEvents20260918")
+COLL = os.environ.get("COLLECTION", "MsgEvents20260918")
 MODEL = os.environ.get("NIM_EMBED_MODEL", "nvidia/nemotron-3-embed-1b")
 DIM = int(os.environ.get("NIM_EMBED_DIMENSIONS", "2048"))
 NIM = os.environ.get("NIM_BASE_URL", "https://integrate.api.nvidia.com/v1").rstrip("/") + "/embeddings"
