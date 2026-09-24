@@ -31,15 +31,15 @@ Test first: `sed 's/^commit;$/rollback;/' <file>.sql | ssh … -f -`, check the 
 
 | # | Step | Script (repo) | Reads → writes | Future unit |
 |---|---|---|---|---|
-| 1 | **Register the conversation** (source format, match keys, speaker rule, the two people's identities, custody party, bout prefix) | Consignatio `casebible/tools/chat_extract_registry_20260924.sql` (the `insert … values` rows) | → `chat_conversation_registry_20260924` | config row; no code change per conversation |
-| 2 | **Normalize: speaker + duplicate renderings** (speaker by rule, never a model; same side/second/text = one message) | same file | `chat_events_20260918` + registry → `chat_message_norm_20260924` | normalization Activity |
-| 3 | **Chunk into day bouts** (America/Detroit day, new bout after >30 min silence; stable ids `<prefix><year>-b<nnnn>`) | same file | norm → `chat_bouts_20260924`, bridge `chat_bout_messages_20260924` | Go message-window chunker |
-| 4 | **Custody party + label protection** | `chat_bouts_custody_party_20260924.sql` | bouts (`custody_party`); labels FK RESTRICT | part of source registration |
-| 5 | **File citations** (every message → every source file that holds it) | `chat_message_files_20260924.sql` | norm + `chat_event_provenance_20260918` → `chat_message_files_20260924`, view `chat_bout_observations_cited_20260924` | provenance Activity |
-| 6 | **Export bouts for a pass** (one JSON line per bout) | Probata `scripts/jev_eval/build_bouts_v2.sql`, `build_bouts_fb2024.sql` (per source; to be replaced by one export over `chat_bouts_20260924`) | catalog → devbox `bouts/*.jsonl` | export Activity |
+| 1 | **Register the conversation** (source format, match keys, speaker rule, the two people's identities, custody party, bout prefix) | Consignatio `casebible/tools/msg_extract_registry_20260924.sql` (the `insert … values` rows) | → `msg_conversation_registry_20260924` | config row; no code change per conversation |
+| 2 | **Normalize: speaker + duplicate renderings** (speaker by rule, never a model; same side/second/text = one message) | same file | `comm_events_20260918` + registry → `msg_norm_20260924` | normalization Activity |
+| 3 | **Chunk into day bouts** (America/Detroit day, new bout after >30 min silence; stable ids `<prefix><year>-b<nnnn>`) | same file | norm → `msg_bouts_20260924`, bridge `msg_bout_messages_20260924` | Go message-window chunker |
+| 4 | **Custody party + label protection** | `msg_bouts_custody_party_20260924.sql` | bouts (`custody_party`); labels FK RESTRICT | part of source registration |
+| 5 | **File citations** (every message → every source file that holds it) | `msg_files_20260924.sql` | norm + `comm_event_provenance_20260918` → `msg_files_20260924`, view `msg_bout_observations_cited_20260924` | provenance Activity |
+| 6 | **Export bouts for a pass** (one JSON line per bout) | Probata `scripts/jev_eval/build_bouts_v2.sql`, `build_bouts_fb2024.sql` (per source; to be replaced by one export over `msg_bouts_20260924`) | catalog → devbox `bouts/*.jsonl` | export Activity |
 | 7 | **Opus tone pass** (tone stretches + shifts, same view the owner validated) | `scripts/jev_eval/bouts_tone_opus.py` | bouts jsonl → `raw/bout_tone/<bout>.json` | model Activity, one bout per call |
 | 8 | **Opus discovery pass** (conversation-level observations, open categories, child-related flag, no judgment of people) | `scripts/jev_eval/bouts_discover_opus.py` (prompt v3 under owner comparison with v1, v2 and v2.1; `--ids` / `--only` for samples) | bouts jsonl → `raw/bout_discover_v3/<bout>.json` | model Activity |
-| 9 | **Load labels into the catalog** | `scripts/jev_eval/export_bout_labels.py` → `\copy raw_duck.chat_bout_labels_stage_20260924` → Consignatio `chat_bout_labels_upsert_20260924.sql` | raw json → `chat_bout_labels_20260924` | loader Activity |
+| 9 | **Load labels into the catalog** | `scripts/jev_eval/export_bout_labels.py` → `\copy raw_duck.msg_bout_labels_stage_20260924` → Consignatio `msg_bout_labels_upsert_20260924.sql` | raw json → `msg_bout_labels_20260924` | loader Activity |
 | 10 | **Owner review pages** (tone review; prompt compare) | `scripts/jev_eval/bout_review_page.py`, `compare_discover_page.py`, `pick_review_set.py` | bouts + raw → private artifact with `db` answers | becomes the Workbench components below |
 | 11 | **Backup coverage + head/tail check** (which backups a newer original fully contains; does the catalog hold every record) | Consignatio `sms_backup_coverage_20260924.sql`, `sms_backup_headcheck_20260924.sh` (`ssh root@ovh-files 'bash -s' < …`) | catalog + B2 heads/tails → `sms_backup_coverage_20260924`, `sms_backup_headcheck_20260924` | vault hygiene Activity |
 
@@ -70,7 +70,7 @@ Propria `docs/reference/chart-visualization-libraries-2026-09-14.md` (library li
 
 ## To automate (in order)
 
-1. One export over `chat_bouts_20260924` replaces the per-source bout SQL (step 6).
+1. One export over `msg_bouts_20260924` replaces the per-source bout SQL (step 6).
 2. Steps 2–5 and 9 as Activities, each on its own; step 1 stays a registry row.
 3. Steps 7–8 as a model Activity per bout, resumable (the scripts already skip bouts with an `ok` result).
 4. The review pages become Workbench components reading the catalog tables.

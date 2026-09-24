@@ -100,14 +100,14 @@ A silence split alone won't catch a shift **inside** a fast back-and-forth (frie
 
 | Produced here | Staged now (catalog `casebible`, `raw_duck`) | Proper home later (Probata schema) | Also move into the engine |
 |---|---|---|---|
-| Sender/direction for the her-phone SMS backup (addressed-to rule; fixed 3,696 messages credited to Matt) | `chat_bout_messages_20260924.who` per `dedup_key` | `working.third_party_context_thread_message`, `working.message_participant` | the SMS-backup parser / DuckDB ELT template |
-| Duplicate renderings collapsed (same side, same second, same text) | the representative `dedup_key` in `chat_bout_messages_20260924` | `working.message` + the thread-message tables | normalization |
-| Custody party (her device = third-party acquired; Matt's FB = first-party) | `chat_bouts_20260924.custody_party` | `working.third_party_context_thread*` vs `working.first_party_context_thread*` (ADR-0059) | source registration |
-| Day bouts (30 min, America/Detroit) = parent chunks | `chat_bouts_20260924` + `chat_bout_messages_20260924` | `working.content_chunk` + `working.content_chunk_message`; `working.extraction_window` | the Go message-window chunker |
-| Tone stretches/shifts (bout-tone-v1) and discovery observations (v1 test, v2, v2.1) | `chat_bout_labels_20260924` (tone loaded; discovery loads per run) | the observation/claim tables (`working.claim_candidate` family, 08-29 design) | — |
+| Sender/direction for the her-phone SMS backup (addressed-to rule; fixed 3,696 messages credited to Matt) | `msg_bout_messages_20260924.who` per `dedup_key` | `working.third_party_context_thread_message`, `working.message_participant` | the SMS-backup parser / DuckDB ELT template |
+| Duplicate renderings collapsed (same side, same second, same text) | the representative `dedup_key` in `msg_bout_messages_20260924` | `working.message` + the thread-message tables | normalization |
+| Custody party (her device = third-party acquired; Matt's FB = first-party) | `msg_bouts_20260924.custody_party` | `working.third_party_context_thread*` vs `working.first_party_context_thread*` (ADR-0059) | source registration |
+| Day bouts (30 min, America/Detroit) = parent chunks | `msg_bouts_20260924` + `msg_bout_messages_20260924` | `working.content_chunk` + `working.content_chunk_message`; `working.extraction_window` | the Go message-window chunker |
+| Tone stretches/shifts (bout-tone-v1) and discovery observations (v1 test, v2, v2.1) | `msg_bout_labels_20260924` (tone loaded; discovery loads per run) | the observation/claim tables (`working.claim_candidate` family, 08-29 design) | — |
 | Owner context for hindsight | this doc | hindsight inputs / `working.claim_assertion` (kind `exposure`) | — |
 
-Scripts: Consignatio `casebible/tools/chat_bouts_20260924.sql`, `chat_bouts_custody_party_20260924.sql`, `chat_bout_labels_upsert_20260924.sql`; Probata `scripts/jev_eval/export_bout_labels.py`. The platform tables need the typed source/case identity that Codex's D02/D04 lane holds (Docstore flag `note:d04_processing_lineage_gate_20260924`), so populating them waits for that; the staged rows lose nothing in the meantime.
+Scripts: Consignatio `casebible/tools/msg_bouts_20260924.sql`, `msg_bouts_custody_party_20260924.sql`, `msg_bout_labels_upsert_20260924.sql`; Probata `scripts/jev_eval/export_bout_labels.py`. The platform tables need the typed source/case identity that Codex's D02/D04 lane holds (Docstore flag `note:d04_processing_lineage_gate_20260924`), so populating them waits for that; the staged rows lose nothing in the meantime.
 
 ## Owner decisions and facts, 2026-09-24 03:18 EDT
 

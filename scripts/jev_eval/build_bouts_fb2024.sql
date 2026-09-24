@@ -2,7 +2,7 @@
 -- Byline: Claude Code · Opus 5.5 · 2026-09-24. Same bout rules as build_bouts_v2.sql: a new bout on a new
 -- America/Detroit day or after 30 minutes of silence (owner 2026-09-24 03:18, "try a and a").
 -- Owner 06:23: process the 2024 transcripts across sources; the texts from her phone are already done.
--- Source: catalog raw_duck.chat_events_20260918, source_format fb_messenger_json, conversation_title 'Katrina Kinzel'
+-- Source: catalog raw_duck.comm_events_20260918, source_format fb_messenger_json, conversation_title 'Katrina Kinzel'
 -- (7,169 messages in 2024, from two copies of one export that the catalog already merged).
 -- Sender comes from the export's sender name. Read-only; computed here, never by a model.
 -- Platform notices (calls, missed calls, unsends, reactions) are kept verbatim: they show contact attempts and conduct.
@@ -11,7 +11,7 @@
 with k as (
   select e.*,
     case when sender = 'Matt Salem' then 'Matt' when sender = 'Katrina Kinzel' then 'Katrina' end as who
-  from raw_duck.chat_events_20260918 e
+  from raw_duck.comm_events_20260918 e
   where e.source_format = 'fb_messenger_json' and e.conversation_title = 'Katrina Kinzel'
     and e.event_ts_utc is not null
 ),

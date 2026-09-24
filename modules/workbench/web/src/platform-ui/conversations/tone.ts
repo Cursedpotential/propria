@@ -61,3 +61,15 @@ export function dominantTone(stretches: readonly ToneStretch[]): Tone {
   }
   return best;
 }
+
+/** Every sender in the bouts with their total messages, in order of first appearance; the index picks the sender color. */
+export function senderTotals(bouts: readonly BoutTone[]): [name: string, messages: number][] {
+  const totals = new Map<string, number>();
+  for (const b of bouts) for (const [name, n] of Object.entries(b.senders)) totals.set(name, (totals.get(name) ?? 0) + n);
+  return [...totals.entries()];
+}
+
+/** Sender colors cycle through four CSS custom properties (conversations.css). */
+export function senderColor(index: number): string {
+  return `var(--sender-${index % 4})`;
+}

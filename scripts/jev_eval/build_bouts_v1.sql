@@ -2,7 +2,7 @@
 -- Byline: Claude Code · Opus 5.5 · 2026-09-24. Owner 2026-09-23 21:06 (judge natural bouts within the day,
 -- inside conversation-shaped chunks; catch rapid shifts) and 2026-09-24 03:18 ("try a and a": new bout after
 -- 30 minutes of silence; tone marks the shifts inside a bout).
--- Source: catalog raw_duck.chat_events_20260918, conversation 8102959302 (her phones; 'owner' = Katrina,
+-- Source: catalog raw_duck.comm_events_20260918, conversation 8102959302 (her phones; 'owner' = Katrina,
 -- owner-confirmed 2026-09-23 14:23). Read-only. Sender/direction are computed here, never by a model.
 -- Days are America/Detroit. Duplicate renderings of one message (same side, same second, same text) collapse.
 -- Output: one JSON object per bout with its messages in order.
@@ -11,7 +11,7 @@ with k as (
   select e.*,
     case when sender in ('Matthew', '+18102959302', 'Matt Salem') then 'Matt'
          when sender = 'owner' then 'Katrina' end as who
-  from raw_duck.chat_events_20260918 e
+  from raw_duck.comm_events_20260918 e
   where e.source_format = 'sms_backup_xml' and e.conversation_id = '8102959302'
     and e.event_kind is distinct from 'call' and e.event_ts_utc is not null
 ),

@@ -1,13 +1,13 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-24
 // Stories use the real 2024 tone results for the texts from Katrina's phone (645 bouts, bout-tone-v1), exported from
-// the catalog (raw_duck.chat_bouts_20260924 ⋈ chat_bout_labels_20260924) without message text; per-sender counts are
+// the catalog (raw_duck.msg_bouts_20260924 ⋈ msg_bout_labels_20260924) without message text; per-sender counts are
 // a `senders` map so the component never assumes who is talking.
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
 import herPhone2024 from "./__fixtures__/her-phone-2024-tone.json";
 import { MoodStrip } from "./mood-strip";
-import type { BoutTone } from "./tone";
+import { TONE_LABEL, type BoutTone } from "./tone";
 
 // JSON arrays type as (string | number)[]; the export matches BoutTone (checked when the fixture was written).
 const BOUTS = herPhone2024 as unknown as BoutTone[];
@@ -18,9 +18,19 @@ function WithSelection(args: React.ComponentProps<typeof MoodStrip>) {
   return (
     <div className="grid max-w-[1100px] gap-3 p-4">
       <MoodStrip {...args} selectedDay={day} onSelectDay={setDay} />
-      <p className="text-sm text-muted-foreground">
-        {day ? `${day}: ${bouts.length} bouts, ${bouts.reduce((n, b) => n + b.messages, 0)} messages` : "Click a row to pick that day."}
-      </p>
+      {day ? (
+        <ul className="grid gap-1 text-sm">
+          {bouts.map((b) => (
+            <li key={b.id}>
+              <span className="font-mono text-muted-foreground">{b.start.slice(11)}–{b.end.slice(11)}</span> · {b.messages}{" "}
+              messages · {Object.entries(b.senders).map(([name, n]) => `${name} ${n}`).join(" · ")} ·{" "}
+              {b.stretches.map(([tone, n, driver]) => `${TONE_LABEL[tone]} ${n} (${driver})`).join(" → ")}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">Click a row to pick that day.</p>
+      )}
     </div>
   );
 }

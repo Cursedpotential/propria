@@ -130,7 +130,7 @@ questions) were not found in the fetched docs either way.
 (password read from `/data/probata/secrets/intake-engine/metabase-ro`, never printed;
 connected via `docker exec -e PGPASSWORD=... fgz1n7useplhk0t91uk7k1aw psql -h 127.0.0.1 -p 5432 -U metabase_ro -d casebible`).
 
-**`raw_duck.chat_events_20260918`** — the deduped, normalized message/call/AI-chat event table.
+**`raw_duck.comm_events_20260918`** — the deduped, normalized message/call/AI-chat event table.
 
 - Row count: **551,877**
 - Date range (`event_ts_utc`): **2014-01-10 02:52:47 UTC → 2026-09-11 21:59:19 UTC**
@@ -146,14 +146,14 @@ connected via `docker exec -e PGPASSWORD=... fgz1n7useplhk0t91uk7k1aw psql -h 12
 - sha256: no sha256 column on this table directly
 - No `iMessage`/`whatsapp_txt`... note: no `imessage` `source_format` value present at all in this table
 
-**`raw_duck.chat_event_provenance_20260918`** — per-source-occurrence provenance, joins to `chat_events_20260918` on `dedup_key`.
+**`raw_duck.comm_event_provenance_20260918`** — per-source-occurrence provenance, joins to `comm_events_20260918` on `dedup_key`.
 
 - Row count: **1,080,505** (more than 1 row per deduped event — multiple raw occurrences collapse into one event)
 - Columns: `dedup_key, event_uid, source_format, extractor, vault_key, sha1, catalog_rel, member_path, record_index, ts_original, ts_field`
 - `sha1` non-null: 1,068,694 / 1,080,505 (98.9%)
-- Every row's `dedup_key` matches a row in `chat_events_20260918` (inner join count = 1,080,505, i.e. full provenance coverage)
+- Every row's `dedup_key` matches a row in `comm_events_20260918` (inner join count = 1,080,505, i.e. full provenance coverage)
 
-**`raw_duck.chat_candidates_20260918`** — candidate chat-format files discovered but not necessarily parsed into `chat_events`.
+**`raw_duck.comm_candidates_20260918`** — candidate chat-format files discovered but not necessarily parsed into `chat_events`.
 - Row count: 6,431; `sha1` non-null: 6,401
 - Columns: `format_guess, vault_key, size, sha1, catalog_rel_example, n_catalog_occurrences, discovered_at`
 
@@ -174,7 +174,7 @@ connected via `docker exec -e PGPASSWORD=... fgz1n7useplhk0t91uk7k1aw psql -h 12
 **`raw_duck.ai_chat_probe_20260918`** — 122 AI-chat file candidates (sha1 present), columns `vault_key, size, sha1, ext, probe_class, catalog_rel, catalog_path, catalog_modtime_hint, n_catalog_occurrences, discovered_at`.
 
 Every table name in `raw_duck` matching `%message%|%sms%|%mms%|%thread%|%chat%|%whatsapp%|%imessage%|%facebook%|%messenger%`:
-`ai_chat_probe_20260918, backup_message_occurrences_20260920, backup_message_records_20260920, chat_candidates_20260918, chat_dir_files_20260918, chat_directories_20260918, chat_event_provenance_20260918, chat_events_20260918, missing_message_payloads_20260920`.
+`ai_chat_probe_20260918, backup_message_occurrences_20260920, backup_message_records_20260920, comm_candidates_20260918, comm_dir_files_20260918, comm_directories_20260918, comm_event_provenance_20260918, comm_events_20260918, missing_message_payloads_20260920`.
 
 ### 3b. B2 raw export locations recorded in the catalog (`raw_duck.b2_objects`, catalog only, no bucket listing/download performed)
 
@@ -281,7 +281,7 @@ mix of `upload://<sha256-like-hash>` handles, `r2://nexus/proffer/test-fixtures/
 
 Owner 14:20–14:22: sample messages between the owner and Katrina. Her numbers were 810-268-9630 (until 2024) and 810-353-3592 (2024–2025); an 810-869 number (about 2018 to early 2019) is dropped by owner order. Pull Facebook too. The 2018–19 texts would be an iMessage export and are not in this table.
 
-Catalog `raw_duck.chat_events_20260918` (read-only queries on the casebible PG container):
+Catalog `raw_duck.comm_events_20260918` (read-only queries on the casebible PG container):
 
 | Pool | Rows | Dates | Notes |
 |---|---:|---|---|

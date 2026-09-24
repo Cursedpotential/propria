@@ -8,13 +8,15 @@ import type { KeyboardEvent } from "react";
 
 import "./conversations.css";
 
-import { TONES, TONE_LABEL, type BoutTone } from "./tone";
+import { TONES, TONE_LABEL, senderColor, senderTotals, type BoutTone } from "./tone";
 
 export interface MoodStripProps {
   bouts: BoutTone[];
   /** A line under the legend, e.g. how to read the strip. */
   description?: string;
   showLegend?: boolean;
+  /** Show each sender (names from the data) with their message total. */
+  showSenders?: boolean;
   selectedDay?: string | null;
   /** When set, each day row is a button that reports its day (`YYYY-MM-DD`). */
   onSelectDay?: (day: string) => void;
@@ -22,7 +24,7 @@ export interface MoodStripProps {
 
 function boutTitle(bout: BoutTone): string {
   const who = Object.entries(bout.senders).map(([name, n]) => `${name} ${n}`).join(", ");
-  const tones = bout.stretches.map(([tone, n]) => `${TONE_LABEL[tone]} ${n}`).join(" → ");
+  const tones = bout.stretches.map(([tone, n, driver]) => `${TONE_LABEL[tone]} ${n} (${driver})`).join(" → ");
   return `${bout.start.slice(11)}–${bout.end.slice(11)} · ${bout.messages} messages` +
     (who ? ` (${who})` : "") + (tones ? ` · ${tones}` : " · not labelled") +
     (bout.shifts ? ` · ${bout.shifts} shift${bout.shifts > 1 ? "s" : ""}, ${bout.abrupt} abrupt` : "");
@@ -53,8 +55,16 @@ function BoutBlock({ bout }: { bout: BoutTone }) {
   );
 }
 
-export function MoodStrip({ bouts, description, showLegend = true, selectedDay = null, onSelectDay }: MoodStripProps) {
+export function MoodStrip({
+  bouts,
+  description,
+  showLegend = true,
+  showSenders = true,
+  selectedDay = null,
+  onSelectDay,
+}: MoodStripProps) {
   const days = groupByDay(bouts);
+  const senders = senderTotals(bouts);
   const toneMessages = new Map<string, number>();
   for (const b of bouts) for (const [tone, n] of b.stretches) toneMessages.set(tone, (toneMessages.get(tone) ?? 0) + n);
 
@@ -66,6 +76,15 @@ export function MoodStrip({ bouts, description, showLegend = true, selectedDay =
             <span key={tone} className={`tone-${tone}`}>
               <i />
               {tone} · {(toneMessages.get(tone) ?? 0).toLocaleString()} msgs
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {showSenders && senders.length ? (
+        <div className="mood-strip-senders" aria-label="Senders">
+          {senders.map(([name, n], i) => (
+            <span key={name}>
+              <b style={{ color: senderColor(i) }}>{name}</b> · {n.toLocaleString()} msgs
             </span>
           ))}
         </div>

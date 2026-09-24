@@ -10,6 +10,10 @@
   --tone-hostile: #c0392b;
   --tone-distressed: #7a4bb5;
   --tone-conciliatory: #1f8a8a;
+  --sender-0: #376f72;
+  --sender-1: #8a4f7d;
+  --sender-2: #5a6b2e;
+  --sender-3: #8a5a2b;
 }
 
 .dark {
@@ -20,6 +24,10 @@
   --tone-hostile: #ef7b6e;
   --tone-distressed: #b39be6;
   --tone-conciliatory: #6cc9c9;
+  --sender-0: #82bdc0;
+  --sender-1: #d69cc6;
+  --sender-2: #b5c77f;
+  --sender-3: #e0ad7a;
 }
 
 .tone-swatch-affectionate, .tone-affectionate { --tone: var(--tone-affectionate); }
@@ -57,6 +65,18 @@
   margin-right: 5px;
   vertical-align: -1px;
   background: var(--tone);
+}
+
+.mood-strip-senders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.mood-strip-senders b {
+  font-weight: 600;
 }
 
 .mood-strip-description {

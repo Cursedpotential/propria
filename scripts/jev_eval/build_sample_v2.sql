@@ -2,7 +2,7 @@
 -- v2 (2026-09-23 14:45): v1 let 5 Facebook system notices in ("… sent an attachment.", "You missed a call…",
 -- "… called you."). v2 excludes platform system notices and tapback reactions; everything else is identical to v1.
 -- Byline: Claude Code · Opus 5.5 · 2026-09-23. Handoff: docs/handoffs/HANDOFF-2026-09-23-jev-tier1-eval.md
--- Source of truth: catalog raw_duck.chat_events_20260918 (casebible PG, ovh-files). Read-only.
+-- Source of truth: catalog raw_duck.comm_events_20260918 (casebible PG, ovh-files). Read-only.
 -- Sender/direction are computed here in SQL, never by a model (handoff rule 6).
 --
 -- Strata (owner 2026-09-23 14:20-14:23; the 810-869 number is dropped by owner order):
@@ -28,7 +28,7 @@ with base as (
       when e.source_format = 'sms_backup_xml'
            and right(regexp_replace(coalesce(e.counterparty_phone, ''), '\D', '', 'g'), 10) = '8103533592' then 'D_sms_2025_26'
     end as src
-  from raw_duck.chat_events_20260918 e
+  from raw_duck.comm_events_20260918 e
   where e.event_kind is distinct from 'call' and e.event_ts_utc is not null
 ),
 k as (
@@ -83,7 +83,7 @@ pick as (
 ),
 prov as (
   select distinct on (v.dedup_key) v.dedup_key, v.vault_key, v.sha1, v.catalog_rel, v.member_path, v.record_index
-  from raw_duck.chat_event_provenance_20260918 v
+  from raw_duck.comm_event_provenance_20260918 v
   where v.dedup_key in (select dedup_key from pick)
   order by v.dedup_key, (v.sha1 is null), v.vault_key
 )
