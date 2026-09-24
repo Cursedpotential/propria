@@ -110,7 +110,12 @@ A silence split alone won't catch a shift **inside** a fast back-and-forth (frie
   - a **hindsight** read sees the whole day and what came after;
   - the **difference** between the two is the signal.
 - **Deferred (owner 04:38: "We aren't doing that part yet").** Nothing is built for it, and the question below waits until the owner raises it.
-- **Owner context for the hindsight pass, 06:38.** Example: the discovery pass flags Matt's "monitoring", and the owner says it must be read against the known history, later. That context is kept with the case data on the server, not in Git (`persist/jev-eval/context/owner-context-for-hindsight.md`). The as-lived and discovery passes never see it.
+- **Owner context for the hindsight pass, 06:38.** The as-lived and discovery passes never see it; the hindsight pass reads each bout against it.
+  - **Jul 27 2024 (c2024-b0142):** the discovery pass flagged Matt's "monitoring". The owner says monitoring has to be put into context, and that can be done down the road.
+  - **Owner's account:** by then Katrina had been cheating fairly consistently for about 4.5 years that he knew of, three times with two different men.
+  - **The recurring pattern he describes:** when he doesn't answer his phone for 30 seconds, or when he is at home or at his grandmother's, she swears at him and accuses him of sleeping with someone, even though she has his location. He has sent photos of himself in his room at his house to prove where he is. His reading is that this happens when she is out doing something herself.
+  - **For the hindsight pass:** read Matt's monitoring against this known history. Check the accusations against shared location and the proof photos (location-sharing records, photos sent in the thread, dates of the infidelity he knew about).
+- **Owner ruling, 06:39: no PII mitigation until court documents are being created.** It adds confusion for the owner and for the models, and he is the only user. Case names, facts and context go into the project docs and tables as they are. ~~An earlier copy was kept out of Git on the server (`persist/jev-eval/context/owner-context-for-hindsight.md`)~~; this doc is now the one place for it.
 - Open (owner): how much the as-lived read sees. Options:
   - A. the bout alone (what bout-tone-v1 did);
   - B. earlier bouts that same day (the proposed default);
