@@ -14,6 +14,7 @@ import hmac
 import json
 import time
 from pathlib import Path
+from uuid import UUID
 
 from app.repo.spine_client import SpineError, spine_json
 
@@ -39,13 +40,23 @@ def create_proffer_potential_promotion_flag(payload: dict) -> dict:
         raise SpineError("Proffer flag delegation is not configured", 503) from error
     if not 32 <= len(key) <= 4096:
         raise SpineError("Proffer flag delegation is not configured", 503)
+    try:
+        canonical_payload = {
+            **payload,
+            "target_id": str(UUID(str(payload["target_id"]))),
+            "attempt_id": str(UUID(str(payload["attempt_id"]))),
+        }
+    except (KeyError, TypeError, ValueError) as error:
+        raise SpineError("Proffer flag target or attempt is invalid", 422) from error
+    canonical_request = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    signed_payload = {**canonical_payload, "idempotency_key": hashlib.sha256(canonical_request).hexdigest()}
     issued_at = str(int(time.time()))
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    canonical = json.dumps(signed_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     signature = hmac.new(key, issued_at.encode("ascii") + b"." + canonical, hashlib.sha256).hexdigest()
     return spine_json(
         "POST",
         "/v1/flags/proffer-potential-promotion",
-        json=payload,
+        json=signed_payload,
         headers={"X-Proffer-Flag-Issued-At": issued_at, "X-Proffer-Flag-Signature": signature},
     )
 

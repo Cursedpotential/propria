@@ -1075,6 +1075,7 @@ class ProfferPotentialPromotionFlagCreate(BaseModel):
     actor_subject_uid: str = Field(min_length=1, max_length=256)
     actor_username: str = Field(min_length=1, max_length=256)
     claim: str = Field(min_length=1, max_length=2000)
+    idempotency_key: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 def _row_to_flag(row: dict[str, Any]) -> dict[str, Any]:
@@ -1140,6 +1141,11 @@ def _register_flags_routes(app: FastAPI) -> None:
         request: Request,
     ) -> dict[str, Any]:
         _verify_proffer_delegation(request, body)
+        canonical_request = json.dumps(
+            body.model_dump(mode="json", exclude={"idempotency_key"}), sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        if not hmac.compare_digest(body.idempotency_key, hashlib.sha256(canonical_request).hexdigest()):
+            raise HTTPException(409, "Proffer flag idempotency key conflicts with the request")
         expected_matter_id = _configured_proffer_matter(body.matter_mode)
         metadata = {
             "contract": _PROFFER_FLAG_CONTRACT,
@@ -1151,7 +1157,9 @@ def _register_flags_routes(app: FastAPI) -> None:
             "attempt_id": str(body.attempt_id),
             "actor_subject_uid": body.actor_subject_uid,
             "actor_username": body.actor_username,
+            "idempotency_key": body.idempotency_key,
         }
+        notes = json.dumps(metadata, sort_keys=True, separators=(",", ":"))
         with _get_engine().begin() as conn:
             conn.execute(
                 text("SELECT pg_advisory_xact_lock(hashtextextended(:preview_handle, 0))"),
@@ -1209,6 +1217,26 @@ def _register_flags_routes(app: FastAPI) -> None:
             if found is not True:
                 raise HTTPException(409, "flag target is not present in the current preview attempt")
 
+            # The same transaction lock is used by preview snapshot writers. Its
+            # serialization makes the lookup and insert one idempotent admission.
+            existing = (
+                conn.execute(
+                    text(
+                        "SELECT * FROM analysis.corroboration_flag "
+                        "WHERE target_kind = 'run' AND target_id = :target_id "
+                        "AND claim = :claim AND notes = :notes "
+                        "ORDER BY created_at, flag_id LIMIT 2"
+                    ),
+                    {"target_id": body.preview_handle, "claim": body.claim, "notes": notes},
+                )
+                .mappings()
+                .all()
+            )
+            if len(existing) > 1:
+                raise HTTPException(409, "duplicate governed Proffer flags require review")
+            if existing:
+                return _row_to_flag(dict(existing[0]))
+
             row = (
                 conn.execute(
                     text(
@@ -1220,7 +1248,7 @@ def _register_flags_routes(app: FastAPI) -> None:
                     {
                         "target_id": body.preview_handle,
                         "claim": body.claim,
-                        "notes": json.dumps(metadata, sort_keys=True, separators=(",", ":")),
+                        "notes": notes,
                     },
                 )
                 .mappings()

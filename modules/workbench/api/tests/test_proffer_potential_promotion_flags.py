@@ -379,7 +379,9 @@ def test_flag_service_signs_authenticated_actor_and_exact_payload(monkeypatch, t
     }
     assert flags_service.create_proffer_potential_promotion_flag(payload) == {"flag_id": "flag-1"}
     issued_at = captured["headers"]["X-Proffer-Flag-Issued-At"]
-    signed = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    request_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    expected_key = hashlib.sha256(request_bytes).hexdigest()
+    assert captured["json"] == {**payload, "idempotency_key": expected_key}
+    signed = json.dumps(captured["json"], sort_keys=True, separators=(",", ":")).encode()
     expected = hmac.new(key, issued_at.encode() + b"." + signed, hashlib.sha256).hexdigest()
     assert captured["headers"]["X-Proffer-Flag-Signature"] == expected
-    assert captured["json"] == payload

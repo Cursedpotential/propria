@@ -19,7 +19,9 @@ import hmac
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier, Lock
 from types import SimpleNamespace
 
 import pytest
@@ -972,6 +974,18 @@ def _flag_row(**overrides):
     return row
 
 
+def _proffer_request(body):
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    return {**body, "idempotency_key": hashlib.sha256(canonical).hexdigest()}
+
+
+def _signed_proffer_headers(key, body):
+    issued_at = str(int(time.time()))
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    signature = hmac.new(key, issued_at.encode() + b"." + canonical, hashlib.sha256).hexdigest()
+    return {"X-Proffer-Flag-Issued-At": issued_at, "X-Proffer-Flag-Signature": signature}
+
+
 def test_create_flag_happy_path(client, monkeypatch):
     fake = _FakeEngine([_flag_row()])
     monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
@@ -1003,16 +1017,18 @@ def test_proffer_flag_rejects_snapshot_advanced_before_atomic_admission(client, 
 
     response = client.post(
         "/v1/flags/proffer-potential-promotion",
-        json={
-            "preview_handle": handle,
-            "matter_mode": "TEST",
-            "scope": "chunk",
-            "target_id": "44444444-4444-4444-4444-444444444444",
-            "attempt_id": stale_attempt,
-            "actor_subject_uid": "subject-1",
-            "actor_username": "operator",
-            "claim": "Review this chunk later",
-        },
+        json=_proffer_request(
+            {
+                "preview_handle": handle,
+                "matter_mode": "TEST",
+                "scope": "chunk",
+                "target_id": "44444444-4444-4444-4444-444444444444",
+                "attempt_id": stale_attempt,
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review this chunk later",
+            }
+        ),
     )
 
     assert response.status_code == 409
@@ -1037,6 +1053,7 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
                 "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
             },
             True,
+            [],
             _flag_row(
                 target_kind="run",
                 target_id=handle,
@@ -1049,16 +1066,18 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
 
     response = client.post(
         "/v1/flags/proffer-potential-promotion",
-        json={
-            "preview_handle": handle,
-            "matter_mode": "TEST",
-            "scope": "chunk",
-            "target_id": target_id,
-            "attempt_id": attempt,
-            "actor_subject_uid": "subject-1",
-            "actor_username": "operator",
-            "claim": "Review this chunk later",
-        },
+        json=_proffer_request(
+            {
+                "preview_handle": handle,
+                "matter_mode": "TEST",
+                "scope": "chunk",
+                "target_id": target_id,
+                "attempt_id": attempt,
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review this chunk later",
+            }
+        ),
     )
 
     assert response.status_code == 201
@@ -1066,7 +1085,8 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
     assert response.json()["target_id"] == handle
     assert "pg_advisory_xact_lock" in fake.calls[0][0]
     assert "SELECT EXISTS" in fake.calls[2][0]
-    insert_sql, insert_params = fake.calls[3]
+    assert "ORDER BY created_at, flag_id LIMIT 2" in fake.calls[3][0]
+    insert_sql, insert_params = fake.calls[4]
     assert isinstance(insert_params, dict)
     assert "INSERT INTO analysis.corroboration_flag" in insert_sql
     assert "ARRAY[]::text[]" in insert_sql
@@ -1076,6 +1096,21 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
     assert metadata["attempt_id"] == attempt
     assert metadata["scope"] == "chunk"
     assert metadata["target_id"] == target_id
+    assert (
+        metadata["idempotency_key"]
+        == _proffer_request(
+            {
+                "preview_handle": handle,
+                "matter_mode": "TEST",
+                "scope": "chunk",
+                "target_id": target_id,
+                "attempt_id": attempt,
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review this chunk later",
+            }
+        )["idempotency_key"]
+    )
 
 
 def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkeypatch):
@@ -1096,16 +1131,18 @@ def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkey
 
     response = client.post(
         "/v1/flags/proffer-potential-promotion",
-        json={
-            "preview_handle": handle,
-            "matter_mode": "TEST",
-            "scope": "record",
-            "target_id": "33333333-3333-3333-3333-333333333333",
-            "attempt_id": attempt,
-            "actor_subject_uid": "subject-1",
-            "actor_username": "operator",
-            "claim": "Review this record later",
-        },
+        json=_proffer_request(
+            {
+                "preview_handle": handle,
+                "matter_mode": "TEST",
+                "scope": "record",
+                "target_id": "33333333-3333-3333-3333-333333333333",
+                "attempt_id": attempt,
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review this record later",
+            }
+        ),
     )
 
     assert response.status_code == 409
@@ -1128,16 +1165,18 @@ def test_proffer_flag_rejects_mode_when_durable_matter_disagrees(client, monkeyp
     monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
     response = client.post(
         "/v1/flags/proffer-potential-promotion",
-        json={
-            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
-            "matter_mode": "TEST",
-            "scope": "record",
-            "target_id": "33333333-3333-3333-3333-333333333333",
-            "attempt_id": "11111111-1111-1111-1111-111111111111",
-            "actor_subject_uid": "subject-1",
-            "actor_username": "operator",
-            "claim": "Review later",
-        },
+        json=_proffer_request(
+            {
+                "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+                "matter_mode": "TEST",
+                "scope": "record",
+                "target_id": "33333333-3333-3333-3333-333333333333",
+                "attempt_id": "11111111-1111-1111-1111-111111111111",
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review later",
+            }
+        ),
     )
     assert response.status_code == 409
     assert len(fake.calls) == 2
@@ -1193,16 +1232,18 @@ def test_proffer_delegation_rejects_tampered_actor_before_database(monkeypatch, 
     key_file.write_bytes(key)
     monkeypatch.setattr(inspect_routes, "_PROFFER_DELEGATION_KEY_FILE", key_file)
     monkeypatch.setenv("PROFFER_TEST_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
-    body = {
-        "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
-        "matter_mode": "TEST",
-        "scope": "record",
-        "target_id": "33333333-3333-3333-3333-333333333333",
-        "attempt_id": "11111111-1111-1111-1111-111111111111",
-        "actor_subject_uid": "subject-1",
-        "actor_username": "operator",
-        "claim": "Review later",
-    }
+    body = _proffer_request(
+        {
+            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+            "matter_mode": "TEST",
+            "scope": "record",
+            "target_id": "33333333-3333-3333-3333-333333333333",
+            "attempt_id": "11111111-1111-1111-1111-111111111111",
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
     issued_at = str(int(time.time()))
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
     signature = hmac.new(key, issued_at.encode() + b"." + canonical, hashlib.sha256).hexdigest()
@@ -1217,6 +1258,121 @@ def test_proffer_delegation_rejects_tampered_actor_before_database(monkeypatch, 
     )
     assert response.status_code == 401
     assert fake.calls == []
+
+
+def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(monkeypatch, tmp_path):
+    key = b"test-only-proffer-delegation-key-1234567890"
+    key_file = tmp_path / "delegation-key"
+    key_file.write_bytes(key)
+    monkeypatch.setattr(inspect_routes, "_PROFFER_DELEGATION_KEY_FILE", key_file)
+    monkeypatch.setenv("PROFFER_TEST_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
+
+    class ReplayEngine:
+        def __init__(self):
+            self.lock = Lock()
+            self.rows = []
+            self.calls = []
+            self.current_attempt = "11111111-1111-1111-1111-111111111111"
+
+        def begin(self):
+            return self
+
+        def __enter__(self):
+            self.lock.acquire()
+            return self
+
+        def __exit__(self, *_args):
+            self.lock.release()
+
+        def execute(self, statement, params=None):
+            sql = str(statement)
+            self.calls.append(sql)
+            if "pg_advisory_xact_lock" in sql:
+                return _FakeResult(None)
+            if "FROM context.proffer_preview_binding" in sql:
+                return _FakeResult(
+                    {
+                        "normalized_generation_id": self.current_attempt,
+                        "source_version_id": "22222222-2222-2222-2222-222222222222",
+                        "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
+                    }
+                )
+            if "SELECT EXISTS" in sql:
+                return _FakeResult(True)
+            if "ORDER BY created_at, flag_id LIMIT 2" in sql:
+                return _FakeResult(
+                    [
+                        row
+                        for row in self.rows
+                        if row["target_id"] == params["target_id"]
+                        and row["claim"] == params["claim"]
+                        and row["notes"] == params["notes"]
+                    ]
+                )
+            if "INSERT INTO analysis.corroboration_flag" in sql:
+                row = _flag_row(
+                    flag_id=f"flag-{len(self.rows) + 1}",
+                    target_kind="run",
+                    target_id=params["target_id"],
+                    claim=params["claim"],
+                    notes=params["notes"],
+                )
+                self.rows.append(row)
+                return _FakeResult(row)
+            raise AssertionError(f"unexpected SQL: {sql}")
+
+    engine = ReplayEngine()
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: engine)
+    app = FastAPI()
+    register_inspect_routes(app, knowledge=None)
+    body = _proffer_request(
+        {
+            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+            "matter_mode": "TEST",
+            "scope": "record",
+            "target_id": "33333333-3333-3333-3333-333333333333",
+            "attempt_id": engine.current_attempt,
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
+    headers = _signed_proffer_headers(key, body)
+    start = Barrier(2)
+
+    def submit():
+        start.wait()
+        return TestClient(app).post("/v1/flags/proffer-potential-promotion", json=body, headers=headers)
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        responses = list(workers.map(lambda _: submit(), range(2)))
+    assert [response.status_code for response in responses] == [201, 201]
+    assert [response.json()["flag_id"] for response in responses] == ["flag-1", "flag-1"]
+    assert len(engine.rows) == 1
+    assert sum("INSERT INTO analysis.corroboration_flag" in sql for sql in engine.calls) == 1
+    assert "pg_advisory_xact_lock" in engine.calls[0]
+    assert "ORDER BY created_at, flag_id LIMIT 2" in engine.calls[3]
+    assert "INSERT INTO analysis.corroboration_flag" in engine.calls[4]
+
+    repeated = TestClient(app).post("/v1/flags/proffer-potential-promotion", json=body, headers=headers)
+    assert repeated.status_code == 201
+    assert repeated.json()["flag_id"] == "flag-1"
+    assert len(engine.rows) == 1
+
+    changed_claim = {**body, "claim": "Different reason"}
+    conflict = TestClient(app).post(
+        "/v1/flags/proffer-potential-promotion",
+        json=changed_claim,
+        headers=_signed_proffer_headers(key, changed_claim),
+    )
+    assert conflict.status_code == 409
+    assert "idempotency key conflicts" in conflict.json()["detail"]
+    assert len(engine.rows) == 1
+
+    engine.current_attempt = "44444444-4444-4444-4444-444444444444"
+    stale = TestClient(app).post("/v1/flags/proffer-potential-promotion", json=body, headers=headers)
+    assert stale.status_code == 409
+    assert len(engine.rows) == 1
 
 
 def test_empty_evidence_wanted_is_a_postgresql_text_array():
