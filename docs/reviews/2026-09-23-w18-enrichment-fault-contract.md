@@ -51,7 +51,10 @@ Observed in the isolated worktree:
 - CocoIndex semantic search was attempted, but the existing global CCC safety-fault guard blocked it before search. Repository discovery therefore used scoped `rg` plus direct source inspection; the CCC fault record was not altered.
 - A separate read-only reviewer was requested, but the active collaboration tree limit rejected the spawn. Independent exact-head review remains required before merge.
 
-The implementation commit, exact PR head, and pull-request URL will be appended after they exist. No integration test, provider call, database write, live source read, deployment, or production readback was performed.
+- Implementation commit: `cf0f05327c8336706a1f8c298532d37956866015`
+- Draft/HOLD pull request: <https://github.com/Cursedpotential/probata/pull/37>
+
+The final exact PR head is reported by the orchestrator handoff because a commit cannot contain its own hash. No integration test, provider call, database write, live source read, deployment, or production readback was performed.
 
 ## Open activation gates
 
