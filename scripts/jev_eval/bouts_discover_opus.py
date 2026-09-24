@@ -10,6 +10,7 @@ Byline: Claude Code · Opus 5.5 · 2026-09-24. Owner rulings this follows:
 - 06:45 (v2): minimize psychoanalysis and judgment. Classify narrowly, only what is in the chunk: no looking backward
   or forward, no provocation or blame calls, no reading of either person as a whole. Interpretation is a later step.
   v1 (125 Facebook bouts, raw/bout_discover/) is kept as a record.
+- 06:48: multiple categories on one message are acceptable and expected.
 Runs in the ovh-files devbox (Propria/docs/reference/DEVBOX-ON-OVH-FILES.md); token via --env-file.
     .venv/bin/python code/bouts_discover_opus.py bouts/<file>.jsonl [--only N] [--ids id1,id2]
 """
@@ -97,6 +98,8 @@ Stay narrow:
   no judgment of who provoked whom or who is to blame.
 - Treat both people the same way. Any act can come from either of them.
 - Warm, loving, normal and healthy acts matter exactly as much as conflict. Record them just as carefully.
+- One message can carry several categories, and often does. Record each one; several observations may cite
+  the same message.
 - Say how sure you are that the act is there; "low" is fine.
 - A chunk with one message still gets one stretch; it may have no observations.
 - Keep notes to one short line each. The summary says what happens in one or two plain sentences, without judgment.
