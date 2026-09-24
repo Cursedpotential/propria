@@ -100,3 +100,16 @@ A silence split alone won't catch a shift **inside** a fast back-and-forth (frie
 
 - **"Try A and A":** a new bout after **30 minutes** of silence, within a day (America/Detroit); **tone** marks rapid shifts inside a bout. Pilot: the 2024 texts from Katrina's phone.
 - **Case fact:** there was no child before **January 2020**. Messages before then can be case-related, since they establish patterns and behavior, but they cannot be child-related. Every labelling prompt must carry this whenever pre-2020 messages are included (Facebook 2018–2019).
+
+## Owner direction, 2026-09-24 04:37 EDT: context versus hindsight
+
+- Came from the owner's review of bout `c2024-b0274` (Sep 26), marked "missed a shift". The shift in her tone is nearly imperceptible. The owner hears it because he knows the patterns, and it only shows against the rest of the day.
+- The owner judged the context-blind label **probably correct as it stands**. The contrast seen when looking back matters more: "it's going to be more important to see the hindsight comparison, and the contrast when looking back."
+- The work is to strike the right balance of context versus hindsight. This is the project's knowledge-horizon mechanism (`AGENTS.md`, "WHY THIS EXISTS"), applied to tone:
+  - an **as-lived** read sees only what came before;
+  - a **hindsight** read sees the whole day and what came after;
+  - the **difference** between the two is the signal.
+- Open (owner): how much the as-lived read sees. Options:
+  - A. the bout alone (what bout-tone-v1 did);
+  - B. earlier bouts that same day (the proposed default);
+  - C. everything before it.
