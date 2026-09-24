@@ -82,7 +82,7 @@ The job is **"point me to the stretches of conversation that matter for the case
 
 ### What exists today (checked 21:10)
 
-- **Super index** (`Consignatio/Intake/backend/src/casebible_index`): files are cut by CocoIndex's splitter at 2,400 characters with 300 overlap. Chat messages are indexed one object per message (`ChatEvents20260918`). **There is no conversation-shaped chunk.**
+- **Super index** (`Consignatio/Intake/backend/src/casebible_index`): files are cut by CocoIndex's splitter at 2,400 characters with 300 overlap. Messages are indexed one object per message (~~`ChatEvents20260918`~~ **2026-09-24: split into `MsgEvents20260918` for messages and calls with people and `AiChatEvents20260918` for AI chats; owner-picked names**). **There is no conversation-shaped chunk.**
 - **Probata engine:** message "chunks" are 64 MB storage files per thread (`derive/smsthreads`); the only registered chunker is the Markdown one. **Nothing conversation-shaped here either.**
 
 ### Bouts within a day, measured (Katrina pool, days in America/Detroit)
