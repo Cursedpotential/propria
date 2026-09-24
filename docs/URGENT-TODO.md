@@ -2550,3 +2550,17 @@ engine deploy is waiting on the owner's go.
 - [ ] devbox disk is 93% full (15 GB free). The blank 500 GB `sdb` on ovh-files is still unused (earlier to-do).
 - [ ] Owner cleanup in devbox `persist/work/`: test bundles `elt-msg-smoke`, `-smoke2`, `-smoke3`, `-smoke4` (never loaded into the catalog) and an empty folder `comm_timeline_mvp.next`. The guard blocks agent deletes.
 - [ ] Auto-memory could not be written: the memory folder is outside the workspace folders admin policy allows. This morning's rules are recorded only in this entry.
+
+## 2026-09-24 13:05–13:20 EDT — owner answers to the open questions
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-24._
+
+- **Numbers:** after seeing sample messages from each, the owner confirmed all 23 candidate numbers as his ("All mine — confirm all"). 810-853-2989 is confirmed as Katrina's (2019–2020). The identity table now has 25 confirmed numbers for Matt and 4 for Katrina, each row keeping its file or content basis.
+- **Publish:** approved into the existing Weaviate collection `MsgEvents20260918`, one object per copy (attempts `a2-matt-side-20260924` and `a3-her-phone-20260924`).
+- **Next work, in order:** readers for the gaps (PDF, XLSX, Cube ACR JSON, MMS images, scrambled CSVs via the repair toolkit), then attachment-only matching, then his 2022/2025 SMS backups re-extracted on v2.
+- **Jev run:** send (bout-q-v1, 660 windows, about $0.07).
+- **ovh-files 500 GB disk:** move the heavy data now, starting once the Weaviate publish finishes. Milvus is stopped gently first (Milvus, then etcd).
+- **R2:** not deliberately disabled. Turn it back on.
+- **Portal:** "it needs to look better and flow naturally". No specific widget named: redesign the top of the homepage (already queued: section order and the FileFlows move).
+- **Cloud route:** yes. Expose catalog queries + extraction tools through ContextForge (MCP) so cloud sessions can do this work.
+- **devbox rebuild:** later, when idle.
