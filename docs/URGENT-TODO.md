@@ -2456,3 +2456,7 @@ engine deploy is waiting on the owner's go.
   - move FileFlows into the services section;
   - owner dislikes the widgets at the top (CPU/RAM/disk bars + clock, and the large Live board). Confirm which go.
 - [ ] **OpenCode ↔ local projects:** the owner expects OpenCode to pull/sync projects from his machine, or push out, and thinks this was part of the reason for OpenList. Check what exists: OpenCode mounts `/mnt/desktop-share` over SMB today.
+- **07:25 Registry-driven conversation extractor** (`casebible/tools/chat_extract_registry_20260924.sql`, `31074c8`; owner 07:21: record the method so every conversation can use it programmatically). Add a row to `raw_duck.chat_conversation_registry_20260924` and rerun to get the speaker rule, collapsed duplicate renderings and day bouts, all years.
+  - Registered: `sms_her_phone` (third-party acquired), `fb_messenger`, `sms_9303` and `sms_3592` (first-party). 810-353-5467 is Matt's (owner 07:23).
+  - Built: 135,685 renderings = 135,629 messages; 8,283 bouts. Every bout's bridge count matches, and the 645 labels are intact. 4 group-text messages stay unassigned.
+  - Source files behind each conversation: query `chat_message_norm_20260924` ⋈ `chat_event_provenance_20260918`, grouped by `catalog_rel`.
