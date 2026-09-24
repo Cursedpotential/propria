@@ -28,7 +28,16 @@ while IFS=$'\t' read -r vk covered cnt <&3; do
   # `|| true`: large multipart B2 uploads carry no SHA-1, and an empty grep must not end the script under pipefail
   size=$(printf '%s' "$meta" | grep -o '"Size":[0-9]*' | grep -o '[0-9]*' | head -1 || true)
   sha1=$(printf '%s' "$meta" | grep -o '"sha1":"[0-9a-f]*"' | cut -d'"' -f4 | head -1 || true)
-  [ -n "$size" ] || { echo "MISSING at source: $vk"; exit 1; }
+  if [ -z "$size" ]; then
+    # Rerun after a partial run: already at the destination counts as moved; missing from both is an error.
+    dmeta=$(rclone lsjson --hash --no-mimetype "$B2/$QPREFIX/$vk" </dev/null 2>/dev/null | tr -d '\n')
+    dsize=$(printf '%s' "$dmeta" | grep -o '"Size":[0-9]*' | grep -o '[0-9]*' | head -1 || true)
+    [ -n "$dsize" ] || { echo "MISSING at source and destination: $vk"; exit 1; }
+    dsha1=$(printf '%s' "$dmeta" | grep -o '"sha1":"[0-9a-f]*"' | cut -d'"' -f4 | head -1 || true)
+    total=$((total + dsize)); printf '%12s  %s  (already moved)\n' "$dsize" "$vk"
+    [ "$MODE" = execute ] && printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$vk" "$QPREFIX/$vk" "$dsize" "$dsha1" "$covered" "$cnt" >> "$out"
+    continue
+  fi
   total=$((total + size))
   printf '%12s  %s\n' "$size" "$vk"
   if [ "$MODE" = execute ]; then
@@ -37,8 +46,10 @@ while IFS=$'\t' read -r vk covered cnt <&3; do
     dsize=$(printf '%s' "$dmeta" | grep -o '"Size":[0-9]*' | grep -o '[0-9]*' | head -1 || true)
     dsha1=$(printf '%s' "$dmeta" | grep -o '"sha1":"[0-9a-f]*"' | cut -d'"' -f4 | head -1 || true)
     left=$(rclone lsjson --no-mimetype "$B2/$vk" </dev/null 2>/dev/null | grep -c '"Path"' || true)
-    [ "$dsize" = "$size" ] && [ "$dsha1" = "$sha1" ] && [ "$left" = 0 ] || { echo "VERIFY FAILED: $vk"; exit 1; }
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$vk" "$QPREFIX/$vk" "$size" "$sha1" "$covered" "$cnt" >> "$out"
+    # SHA-1 is compared only when the original had one: B2 stores none for large multipart uploads, but computes one
+    # for the server-side copy.
+    [ "$dsize" = "$size" ] && { [ -z "$sha1" ] || [ "$dsha1" = "$sha1" ]; } && [ "$left" = 0 ] || { echo "VERIFY FAILED: $vk"; exit 1; }
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$vk" "$QPREFIX/$vk" "$size" "${dsha1:-$sha1}" "$covered" "$cnt" >> "$out"
   fi
 done 3<<< "$list"
 echo "total_bytes=$total ($((total / 1048576)) MiB) -> $B2/$QPREFIX/"
