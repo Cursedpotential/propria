@@ -262,10 +262,15 @@ def extract_file(con: duckdb.DuckDBPyConnection, path: Path, fmt: str, row: dict
                               [MARKERS[fmt], src]).fetchone()[0]
         if fmt == "google_voice_html" and markers == 0:
             markers = 1  # a call / voicemail page is one event with no message divs
+    truncated = False
     if needs_sanitize:
         dst = str(TMP / "sanitized.xml")
-        sql = (ELT / "elt_xml_sanitize_v1.sql").read_text(encoding="utf-8")
+        # v2 (2026-09-24): also salvages a backup that stops mid-record (keeps every complete record, closes the root).
+        sql = (ELT / "elt_xml_sanitize_v2.sql").read_text(encoding="utf-8")
         con.execute(sql.replace("{{SRC}}", src.replace("'", "''")).replace("{{DST}}", dst))
+        closed, declared = con.execute("select getvariable('xml_closed'), getvariable('xml_declared')").fetchone()
+        truncated = not closed
+        markers = declared  # the backup's own count="…": the source-side count for this file
         src = dst
     avail = load_blocks(tpl)
     con.execute("drop table if exists ev_in")
@@ -291,7 +296,7 @@ def extract_file(con: duckdb.DuckDBPyConnection, path: Path, fmt: str, row: dict
             raise
     lin = {"vault_key": row["vault_key"], "sha1": row["sha1"], "source_format": fmt, "extractor": tpl[:-4],
            "custodian": row.get("custodian"), "source_device": device, "also_at": row.get("also_at") or "",
-           "source_markers": markers, "rows_out": 0, "row_digest": None, "bundle_file": None}
+           "source_markers": markers, "rows_out": 0, "row_digest": None, "bundle_file": None, "truncated": truncated}
     if first:
         return lin
     # Gate 1: the reader returned the whole event contract.
@@ -402,7 +407,11 @@ def main() -> int:
                 lin = extract_file(con, path, fmt, row)
                 lineage.append(lin)
                 n_ev = lin["rows_out"]
-                if lin["source_markers"] is not None and lin["source_markers"] != n_ev:
+                if lin.get("truncated"):
+                    warnings.append({"vault_key": row["vault_key"], "sha1": row["sha1"], "kind": "truncated_salvaged",
+                                     "detail": f"file stops mid-record: declares {lin['source_markers']}, {n_ev} complete "
+                                               "records recovered up to the cut (reconstructed, repair toolkit A-15/R9)"})
+                elif lin["source_markers"] is not None and lin["source_markers"] != n_ev:
                     warnings.append({"vault_key": row["vault_key"], "sha1": row["sha1"], "kind": "count_differs",
                                      "detail": f"{lin['source_markers']} source markers, {n_ev} rows"})
                 if n_ev and lin.get("unparsed", 0) > 0.1 * n_ev:
