@@ -110,6 +110,7 @@ A silence split alone won't catch a shift **inside** a fast back-and-forth (frie
   - a **hindsight** read sees the whole day and what came after;
   - the **difference** between the two is the signal.
 - **Deferred (owner 04:38: "We aren't doing that part yet").** Nothing is built for it, and the question below waits until the owner raises it.
+- **Owner context for the hindsight pass, 06:38.** Example: the discovery pass flags Matt's "monitoring", and the owner says it must be read against the known history, later. That context is kept with the case data on the server, not in Git (`persist/jev-eval/context/owner-context-for-hindsight.md`). The as-lived and discovery passes never see it.
 - Open (owner): how much the as-lived read sees. Options:
   - A. the bout alone (what bout-tone-v1 did);
   - B. earlier bouts that same day (the proposed default);
