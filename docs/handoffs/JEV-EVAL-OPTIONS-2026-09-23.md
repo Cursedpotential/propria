@@ -109,6 +109,7 @@ A silence split alone won't catch a shift **inside** a fast back-and-forth (frie
   - an **as-lived** read sees only what came before;
   - a **hindsight** read sees the whole day and what came after;
   - the **difference** between the two is the signal.
+- **Deferred (owner 04:38: "We aren't doing that part yet").** Nothing is built for it, and the question below waits until the owner raises it.
 - Open (owner): how much the as-lived read sees. Options:
   - A. the bout alone (what bout-tone-v1 did);
   - B. earlier bouts that same day (the proposed default);
