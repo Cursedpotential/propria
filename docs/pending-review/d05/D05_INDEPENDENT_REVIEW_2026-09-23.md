@@ -91,3 +91,39 @@ verified against a live PostgreSQL service. Keep PR #30 open until the post-push
 fresh and required checks pass. The original independent review and receipt entries above are
 retained as historical evidence; the D05 receipt carries this repair's exact commit lineage
 and expanded source/test scope.
+
+## 2026-09-24 provenance remediation, awaiting independent re-review
+
+> _Byline: Codex PR30 implementation agent · GPT-6 · 2026-09-24. This section is an implementation receipt, not an independent approval._
+
+At code commit `380018a0addd4824bdf1ab2c414f9561683a117b`, the dedicated flag
+endpoint requires a short-lived HMAC delegation from the Workbench BFF over the exact
+actor, mode, handle, attempt, scope, target and claim. The BFF obtains the actor from
+its authenticated request state. The Platform API checks the signature before touching
+PostgreSQL and compares the request's mode with the current snapshot source version's
+durable `matter_id` under the per-handle transaction lock. The shared key is a new
+service-to-service secret at `/run/secrets/proffer-flag-delegation-key`; it must be
+mounted in both services before this endpoint can be released. Platform API
+`PROFFER_TEST_MATTER_ID` and `PROFFER_REAL_MATTER_ID` must match Workbench's configured
+identities. Missing configuration fails closed.
+
+Generic flag creation and note edits now reject the reserved Proffer contract; note
+edits to existing governed rows lock the row and return 409. Ordinary flag status
+and artifact updates remain available. Proffer listing reads one ordered server-side
+snapshot, returns up to 2000 rows, and returns 409 if the bound is exceeded. It no
+longer silently inherits the general flag list's 50-row default. The special INSERT
+uses `ARRAY[]::text[]` for the PostgreSQL `evidence_wanted` column.
+
+Focused shared API tests: 15 passed and the opt-in disposable PostgreSQL text-array
+test skipped because `PROBATA_TEST_POSTGRES_DSN` was not configured. Workbench flag
+and mode tests: 55 passed. Changed-file Ruff lint/format, targeted Workbench mypy,
+Go focused tests and vet, and `git diff --check` passed. Verified Gitleaks 8.30.0
+scanned all seven commits from `origin/main..380018a` with no findings. The
+existing `settings.py` mypy network-type errors remain outside this change.
+
+**Decision remains HOLD.** The new key and matter settings are not mounted on the
+deployed services; there is no disposable PostgreSQL execution receipt, live BFF/Go
+exchange, browser proof, or fresh independent review of this commit. The current
+schema uses free-text notes for provenance; the API reservation prevents ordinary
+route forgery and mutation, while direct privileged SQL writes remain outside the
+route boundary. Shared Validate CI is red on unrelated formatter baseline files.

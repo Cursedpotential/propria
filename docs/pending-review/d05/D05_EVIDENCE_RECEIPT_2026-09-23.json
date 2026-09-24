@@ -7,18 +7,27 @@
   "candidate": {
     "repository": "https://github.com/Cursedpotential/probata",
     "base_commit": "382acf6a8f1f919b6f3abc02de40f946629d8461",
-    "commit": "a195c416d1aaf6be6886ad44539d5e6eba6be7ca",
+    "commit": "380018a0addd4824bdf1ab2c414f9561683a117b",
     "branch": "codex/d05-exact-review-targets-20260923",
     "pull_request": "https://github.com/Cursedpotential/probata/pull/30",
     "worktree": "E:/AI_Workspace/Projects/Propria/_worktrees/probata-d05-exact-review-targets",
     "changed_files": [
+      "docs/pending-review/d05/D05_EVIDENCE_RECEIPT_2026-09-23.json",
+      "docs/pending-review/d05/D05_GITLEAKS_2026-09-23.json",
+      "docs/pending-review/d05/D05_INDEPENDENT_REVIEW_2026-09-23.md",
+      "docs/pending-review/d05/D05_LINKED_IDS_AND_CLAIMS.json",
       "modules/engine/postgres/proffer_preview_store.go",
+      "modules/engine/postgres/proffer_preview_store_test.go",
       "modules/engine/runtimeapi/previewmodel/model.go",
       "modules/engine/runtimeapi/proffer_preview.go",
       "modules/engine/runtimeapi/proffer_preview_test.go",
       "modules/workbench/api/app/runtime/proffer.py",
       "modules/workbench/api/app/service/proffer.py",
-      "modules/workbench/api/tests/test_proffer_potential_promotion_flags.py"
+      "modules/workbench/api/app/service/flags.py",
+      "modules/workbench/api/app/service/proffer_flags.py",
+      "modules/workbench/api/tests/test_proffer_potential_promotion_flags.py",
+      "server/api/inspect_routes.py",
+      "tests/test_inspect_routes.py"
     ]
   },
   "assertions": [
@@ -54,7 +63,7 @@
     "live_integration": "skipped by GitHub workflow; not claimed"
   },
   "negative_cases": ["off-page target succeeds", "absent target denies", "stale attempt denies", "entity denies before write", "wrong preview handle denies", "uncorrelated upstream response denies"],
-  "independent_reviewer": "D12 pending",
+  "independent_reviewer": "Fresh independent re-review of 380018a0addd4824bdf1ab2c414f9561683a117b pending",
   "limitations": [
     "No browser, native, live PostgreSQL, deployed service, sink readback, restore or release proof",
     "No entity annotation until a governed frozen-proposal entity reader exists",
@@ -104,6 +113,36 @@
         "Import-following targeted mypy still reports existing errors in unrelated Workbench modules, an unchanged nullable search parameter at app/runtime/proffer.py:212, and pre-existing annotations/indexing in tests/test_inspect_routes.py. Import-skipping mypy for the five changed Workbench source/test files passed, including the repaired tuple-inference test."
       ],
       "limits": "The admission/advance case is covered with a controlled API-store test double, not a live PostgreSQL concurrency test. No deployed service, browser, sink readback, or release proof is claimed. The original independent review findings and earlier evidence above are preserved."
+    },
+    {
+      "receipt_id": "D05-20260924-W08-provenance-integrity-r3",
+      "byline": "Codex PR30 remediation · GPT-6 · 2026-09-24",
+      "reviewed_parent_head": "14ca980f8d81714ce1e8af4ec50a72bc2492ed1c",
+      "implementation_commit": "380018a0addd4824bdf1ab2c414f9561683a117b",
+      "assertion": "The flag spine rejects a forged or expired BFF delegation signature before database access and compares the requested TEST/REAL mode with the source version's durable matter_id inside the current-attempt transaction. Ordinary POST/PATCH flag routes cannot create or replace the reserved Proffer JSON contract, and the Proffer list uses a single ordered query with an explicit 2000-row overflow error. The INSERT uses a PostgreSQL text[] empty array.",
+      "result": "passed_local_tests_with_postgresql_integration_pending",
+      "scope": [
+        "modules/workbench/api/app/service/flags.py",
+        "modules/workbench/api/app/service/proffer_flags.py",
+        "modules/workbench/api/tests/test_proffer_potential_promotion_flags.py",
+        "server/api/inspect_routes.py",
+        "tests/test_inspect_routes.py"
+      ],
+      "verification": [
+        {"command": "Focused shared flag routes pytest", "result": "15 passed; PostgreSQL text[] integration probe skipped because PROBATA_TEST_POSTGRES_DSN is not configured", "exit_code": 0},
+        {"command": "Workbench Proffer flags and mode-isolation pytest", "result": "55 passed, 1 dependency deprecation warning", "exit_code": 0},
+        {"command": "Ruff check and format --check on five changed Python files", "result": "passed", "exit_code": 0},
+        {"command": "Targeted mypy --follow-imports=skip on three changed Workbench service/test files", "result": "passed", "exit_code": 0},
+        {"command": "go test and go vet ./runtimeapi/... ./postgres/...", "workdir": "modules/engine", "result": "passed", "exit_code": 0},
+        {"command": "Official Gitleaks 8.30.0 git origin/main..380018a --redact=100", "result": "7 commits scanned; zero findings; tool release ZIP checksum verified", "exit_code": 0},
+        {"command": "git diff --cached --check", "result": "passed", "exit_code": 0}
+      ],
+      "deployment_requirements": [
+        "Mount the same independent /run/secrets/proffer-flag-delegation-key file into the Workbench BFF and Platform API; 32-4096 bytes; do not reuse the broad Platform bearer.",
+        "Configure PROFFER_TEST_MATTER_ID and PROFFER_REAL_MATTER_ID in the Platform API to match the Workbench matter identities. Missing or mismatched values fail closed.",
+        "Exercise the text[] INSERT and current-attempt transaction against disposable PostgreSQL before release. No live database write was performed here."
+      ],
+      "limits": "No disposable PostgreSQL DSN was available; the opt-in PostgreSQL test is skipped. No live service/browser integration or deployment proof. The provenance still uses reserved JSON notes under the current no-migrations schema policy; generic API writes are blocked, but direct privileged SQL writes are outside this route boundary. Independent re-review and shared CI remain required."
     }
   ],
   "sensitive_values_redacted": true
