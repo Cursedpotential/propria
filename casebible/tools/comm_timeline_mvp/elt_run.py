@@ -222,7 +222,9 @@ def publish(client: httpx.Client, rows: list[dict]) -> int:
             "ts_original": r["ts_original"], "vault_key": r["vault_key"], "sha1": r["sha1"],
             "catalog_path": r["catalog_rel"], "extractor": r["extractor"], "ingest_run_id": RUN_ID,
             "indexed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "embed_model": MODEL,
-            "record_kind": "message",  # owner glossary 21:08: message transcripts, not AI chats
+            # owner glossary 21:08: message transcripts, not AI chats. 2026-09-24: calls were also labelled "message";
+            # MsgEvents20260918 holds messages AND calls with people, told apart by record_kind (owner 09:30).
+            "record_kind": "call" if r["event_kind"] == "call" else "message",
             "attachments": r["attachments"], "n_sources": 1,
             "provenance": [f"{r['vault_key']}|{r['member_path'] or ''}|{r['record_index']}|{r['extractor']}"],
             "content_key": r["content_key"], "custodian": r["custodian"], "source_device": r["source_device"],
