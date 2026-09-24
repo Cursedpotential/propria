@@ -13,6 +13,9 @@ Byline: Claude Code · Opus 5.5 · 2026-09-24. Owner rulings this follows:
 - 06:48: multiple categories on one message are acceptable and expected.
 - 07:12 (v2.1): flag when heated or upsetting acts are about the child (child_related), and record mentions of being
   blocked or cut off. Blocked periods themselves come from the data (gaps in contact), not from the model.
+- 07:30 (v3): v2 was too granular and noisy, one act per message. Observe at the level of the conversation group:
+  a few observations per bout, each covering a stretch of messages, with categories, a topic line, and quotes and
+  message ranges as citations. Still narrow in scope: only this chunk, no history, no judging people.
 Runs in the ovh-files devbox (Propria/docs/reference/DEVBOX-ON-OVH-FILES.md); token via --env-file.
     .venv/bin/python code/bouts_discover_opus.py bouts/<file>.jsonl [--only N] [--ids id1,id2]
 """
@@ -30,12 +33,11 @@ from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
 from bouts_tone_opus import CONCURRENCY, MODEL, RETRIES, TONES, check, to_jsonable
 
-VERSION = "bout-discover-v2.1"
+VERSION = "bout-discover-v3"
 WORK = pathlib.Path(os.environ.get("JEV_WORK", "/home/kasm-user/persist/jev-eval"))
 
-GUIDE = """What to record. Record observable acts: what a message says or does, in plain words. This is a guide,
-not a closed list: use these names when they fit, and name any other act you see as a new category, with a
-one-line definition of the act.
+GUIDE = """Categories for observations. An observation can carry several. This is a guide, not a closed list: use these
+names when they fit, and name any other kind of act you see as a new category, with a one-line definition.
 
 Questions, accusations, answers
 - asks_whereabouts: asks where someone is, who they are with, or what they are doing
@@ -82,14 +84,18 @@ January 2020. The chunk is one "bout": messages from one day with no silence lon
 an index `i`, a local time, the sender, and its text. Platform notices (calls, missed calls, unsent messages,
 reactions) are messages too.
 
-Do three things.
-1. Tone: split the chunk into consecutive tone stretches that cover every message, mark every point where the tone
+Do four things.
+1. Topic: say in a few words what this exchange is about.
+2. Tone: split the chunk into consecutive tone stretches that cover every message, mark every point where the tone
    changes (abrupt or gradual, and the message where it changes), and give who sent most of the messages in each
    stretch.
-2. Observations: record each act you see, citing the message indices and quoting the key words. Mark each one
-   child_related when what is being said is about the child: seeing her, where she is, her care, contact with her,
-   or travel with her.
-3. New categories: list every category you used that is not in the guide, with a one-line definition.
+3. Observations: describe what happens in the exchange as a whole, at the level of the conversation, not message by
+   message. Each observation covers a group of messages (a back-and-forth, a run, an argument, a plan being made) and
+   says what happens there in one or two plain sentences. Give it one or more categories, who is acting, the messages
+   it covers, and one or two short quotes as the citation. Mark it child_related when what is being said is about the
+   child: seeing her, where she is, her care, contact with her, or travel with her. Most bouts need one to four
+   observations; a short bout may need one or none.
+4. New categories: list every category you used that is not in the guide, with a one-line definition.
 
 Tone labels (use only these for tone):
 {chr(10).join(f"- {k}: {v}" for k, v in TONES.items())}
@@ -103,8 +109,9 @@ Stay narrow:
   no judgment of who provoked whom or who is to blame.
 - Treat both people the same way. Any act can come from either of them.
 - Warm, loving, normal and healthy acts matter exactly as much as conflict. Record them just as carefully.
-- One message can carry several categories, and often does. Record each one; several observations may cite
-  the same message.
+- Stay at the level of the conversation. Merge repeated acts into one observation ("sends eleven messages asking where
+  she is" is one observation, not eleven). Do not list every message. If nothing notable happens, say so briefly.
+- An observation can carry several categories, and often does.
 - Say how sure you are that the act is there; "low" is fine.
 - A chunk with one message still gets one stretch; it may have no observations.
 - Keep notes to one short line each. The summary says what happens in one or two plain sentences, without judgment.
@@ -126,7 +133,8 @@ SCHEMA = {
             "trigger_i": {"type": "integer"}, "note": {"type": "string"}},
             "required": ["at_i", "from_tone", "to_tone", "speed", "trigger_i", "note"], "additionalProperties": False}},
         "patterns": {"type": "array", "items": {"type": "object", "properties": {
-            "category": {"type": "string"},
+            "categories": {"type": "array", "items": {"type": "string"}},
+            "what_happens": {"type": "string"},
             "from_guide": {"type": "boolean"},
             "who": {"type": "string", "enum": ["Matt", "Katrina", "both"]},
             "message_is": {"type": "array", "items": {"type": "integer"}},
@@ -134,14 +142,16 @@ SCHEMA = {
             "note": {"type": "string"},
             "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
             "child_related": {"type": "boolean"}},
-            "required": ["category", "from_guide", "who", "message_is", "quote", "note", "confidence", "child_related"],
+            "required": ["categories", "what_happens", "from_guide", "who", "message_is", "quote", "note", "confidence",
+                         "child_related"],
             "additionalProperties": False}},
         "new_categories": {"type": "array", "items": {"type": "object", "properties": {
             "name": {"type": "string"}, "definition": {"type": "string"}},
             "required": ["name", "definition"], "additionalProperties": False}},
         "summary": {"type": "string"},
+        "topic": {"type": "string"},
     },
-    "required": ["stretches", "shifts", "patterns", "new_categories", "summary"],
+    "required": ["topic", "stretches", "shifts", "patterns", "new_categories", "summary"],
     "additionalProperties": False,
 }
 PROMPT_SHA256 = hashlib.sha256((SYSTEM_PROMPT + json.dumps(SCHEMA, sort_keys=True)).encode()).hexdigest()
@@ -152,7 +162,7 @@ def check_patterns(out: dict, n: int) -> list[str]:
     problems = check(out, n)
     for p in out["patterns"]:
         if not p["message_is"] or not all(0 <= i < n for i in p["message_is"]):
-            problems.append(f"pattern {p['category']} cites messages outside the bout")
+            problems.append(f"observation {'/'.join(p.get('categories') or [p.get('category', '?')])} cites messages outside the bout")
     return problems
 
 
@@ -204,7 +214,7 @@ async def main() -> None:
         k = int(sys.argv[sys.argv.index("--only") + 1])
         pick = [b for b in bouts if b["n_katrina"] and b["n_matt"]]
         bouts = sorted(pick, key=lambda b: b["n_messages"])[len(pick) // 2 - k // 2: len(pick) // 2 - k // 2 + k]
-    outdir = WORK / "raw" / "bout_discover_v21"
+    outdir = WORK / "raw" / "bout_discover_v3"
     outdir.mkdir(parents=True, exist_ok=True)
     (WORK / "cwd").mkdir(exist_ok=True)
     (outdir / "_prompt.json").write_text(json.dumps({"system_prompt": SYSTEM_PROMPT, "schema": SCHEMA, "version": VERSION,
