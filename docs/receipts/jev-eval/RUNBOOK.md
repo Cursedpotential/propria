@@ -59,7 +59,7 @@ Where each output belongs in the platform later: `docs/handoffs/JEV-EVAL-OPTIONS
 
 | Piece | Library | Where |
 |---|---|---|
-| Mood strip (bouts on a zoomable date axis, colored by tone) | vis-timeline | Workbench Storybook component |
+| ~~Mood strip (bouts on a zoomable date axis, colored by tone)~~ **Corrected 2026-09-24 08:40 (owner: the vis-timeline build did not look like the bout review page):** Mood strip = the bout review page's chart, one row per day, each bout a block sized by its messages and split into tone stretches; sender names come from the data | ~~vis-timeline~~ plain React + CSS (flex rows, no chart library) | Workbench Storybook component `modules/workbench/web/src/platform-ui/conversations/mood-strip.tsx`; fixture from `scripts/jev_eval/mood_strip_fixture.sql` |
 | Conversation view (messages, tone, sender, time, file citation, observations) | Glide Data Grid (build on `components/sbv/message-browser-grid.tsx`) | Workbench |
 | Summary charts (tone mix by month, categories per person) | Recharts | Workbench |
 | Frozen reports | Evidence.dev (`Consignatio/Intake/evidanceio`) | reports over the same catalog tables |
