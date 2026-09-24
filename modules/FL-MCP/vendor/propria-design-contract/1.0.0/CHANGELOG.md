@@ -2,7 +2,7 @@
 
 > _Byline: Codex · GPT-5 · 2026-09-12._
 
-## Palette correction � 2026-09-24
+## Palette correction - 2026-09-24
 
 - Owner replaced the previous palette with Probata application colors; geometry and contract API stay unchanged.
 
