@@ -7,15 +7,20 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Cursedpotential/probata/engine/acquisition"
 	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 func testZIP(t *testing.T, members ...struct{ name, body string }) []byte {
@@ -86,6 +91,90 @@ func TestZIPMemberInventoryPreservesOrderAndProvenance(t *testing.T) {
 	}
 	if _, err := stream.Next(context.Background()); !errors.Is(err, io.EOF) {
 		t.Fatalf("expected EOF, got %v", err)
+	}
+}
+
+func TestZIPMemberInventoryAcceptsUserUploadRetainedObject(t *testing.T) {
+	// Exercise the upload:// ingress and resolver that the production worker
+	// registers, then pass its exact retained metadata to the same enumerator.
+	content := testZIP(t, struct{ name, body string }{"one.txt", "uploaded"})
+	root := t.TempDir()
+	ingress, err := acquisition.NewUploadIngress(acquisition.UploadIngressConfig{Root: root, MaxBytes: int64(len(content))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/upload", bytes.NewReader(content))
+	request.RemoteAddr = "100.64.1.2:12345"
+	response := httptest.NewRecorder()
+	ingress.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("upload failed: status=%d body=%s", response.Code, response.Body.String())
+	}
+	var accepted struct {
+		AcquisitionRef string `json:"acquisition_ref"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &accepted); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(accepted.AcquisitionRef, "upload://") {
+		t.Fatalf("unexpected acquisition ref %q", accepted.AcquisitionRef)
+	}
+	resolver, err := acquisition.NewUploadIngressResolver(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sealed, err := resolver(context.Background(), proffer.Ref(accepted.AcquisitionRef))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sealed.StorageClass != "immutable_object_store" || !strings.HasPrefix(sealed.ObjectURI, "file://") {
+		t.Fatalf("unexpected retained acquisition provenance: class=%q URI=%q", sealed.StorageClass, sealed.ObjectURI)
+	}
+	db := validObservationTestDB()
+	db.storageClass, db.objectURI, db.byteLength, db.contentSHA256 =
+		sealed.StorageClass, sealed.ObjectURI, sealed.ByteLength, sealed.ContentSHA256
+	enumerator, err := NewZIPMemberEnumerator(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := validObservationInput()
+	input.DeclaredFormat = "zip"
+	stream, err := enumerator.EnumerateMembers(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	member, err := stream.Next(context.Background())
+	if err != nil || member.Name != "one.txt" || member.ParentRef != input.OriginalRef {
+		t.Fatalf("uploaded ZIP lost source membership: member=%+v err=%v", member, err)
+	}
+}
+
+func TestZIPMemberInventoryRejectsOtherStorageAndNonFileURI(t *testing.T) {
+	content := testZIP(t, struct{ name, body string }{"one.txt", "body"})
+	for _, tc := range []struct{ name, class, uri, want string }{
+		{"remote class", "r2", "file:///tmp/ignored.zip", "unsupported retained storage class"},
+		{"sealed remote URI", "immutable_object_store", "s3://bucket/object", "file URI"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			filename := filepath.Join(t.TempDir(), "original.zip")
+			if err := os.WriteFile(filename, content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			db := validObservationTestDB()
+			db.storageClass, db.objectURI, db.byteLength = tc.class, tc.uri, int64(len(content))
+			digest := sha256.Sum256(content)
+			db.contentSHA256 = digest[:]
+			enumerator, err := NewZIPMemberEnumerator(db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			input := validObservationInput()
+			input.DeclaredFormat = "zip"
+			if stream, err := enumerator.EnumerateMembers(context.Background(), input); stream != nil || err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("unsupported retained object accepted: stream=%v err=%v", stream, err)
+			}
+		})
 	}
 }
 
@@ -178,6 +267,30 @@ func TestZIPCentralDirectoryAdmissionRejectsForgedCountsAndExtents(t *testing.T)
 		{"oversized directory bytes", "byte limit", func(content []byte) {
 			binary.LittleEndian.PutUint32(content[end+12:], uint32(zipMaxDirectoryBytes+1))
 		}},
+		{"entry disk start", "multi-disk", func(content []byte) {
+			binary.LittleEndian.PutUint16(content[central+34:], 1)
+		}},
+		{"entry compressed ZIP64 sentinel", "ZIP64", func(content []byte) {
+			binary.LittleEndian.PutUint32(content[central+20:], 0xffffffff)
+		}},
+		{"entry uncompressed ZIP64 sentinel", "ZIP64", func(content []byte) {
+			binary.LittleEndian.PutUint32(content[central+24:], 0xffffffff)
+		}},
+		{"entry offset ZIP64 sentinel", "ZIP64", func(content []byte) {
+			binary.LittleEndian.PutUint32(content[central+42:], 0xffffffff)
+		}},
+		{"EOCD disk number", "multi-disk", func(content []byte) {
+			binary.LittleEndian.PutUint16(content[end+4:], 1)
+		}},
+		{"EOCD ZIP64 count", "ZIP64", func(content []byte) {
+			binary.LittleEndian.PutUint16(content[end+10:], 0xffff)
+		}},
+		{"EOCD ZIP64 extent", "ZIP64", func(content []byte) {
+			binary.LittleEndian.PutUint32(content[end+12:], 0xffffffff)
+		}},
+		{"EOCD ZIP64 offset", "ZIP64", func(content []byte) {
+			binary.LittleEndian.PutUint32(content[end+16:], 0xffffffff)
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			content := append([]byte(nil), original...)
@@ -192,6 +305,79 @@ func TestZIPCentralDirectoryAdmissionRejectsForgedCountsAndExtents(t *testing.T)
 				t.Fatalf("malformed directory reached parser: err=%v called=%t", err, parserCalled)
 			}
 		})
+	}
+}
+
+func TestZIPCentralDirectoryAdmissionRejectsZIP64ExtraBeforeStdlib(t *testing.T) {
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	header := &zip.FileHeader{Name: "one.txt", Method: zip.Store, Extra: []byte{1, 0, 0, 0}}
+	entry, err := writer.CreateHeader(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.WriteString(entry, "body"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	parserCalled := false
+	_, err = openAdmittedZIP(context.Background(), bytes.NewReader(buffer.Bytes()), int64(buffer.Len()),
+		func(io.ReaderAt, int64) (*zip.Reader, error) {
+			parserCalled = true
+			return nil, nil
+		})
+	if err == nil || !strings.Contains(err.Error(), "ZIP64") || parserCalled {
+		t.Fatalf("ZIP64 extra reached stdlib parser: err=%v called=%t", err, parserCalled)
+	}
+	malformed := append([]byte(nil), buffer.Bytes()...)
+	central := bytes.Index(malformed, []byte{'P', 'K', 1, 2})
+	if central < 0 {
+		t.Fatal("test ZIP has no central directory")
+	}
+	extraAt := central + 46 + int(binary.LittleEndian.Uint16(malformed[central+28:]))
+	binary.LittleEndian.PutUint16(malformed[extraAt:], 0xcafe)
+	binary.LittleEndian.PutUint16(malformed[extraAt+2:], 5)
+	parserCalled = false
+	_, err = openAdmittedZIP(context.Background(), bytes.NewReader(malformed), int64(len(malformed)),
+		func(io.ReaderAt, int64) (*zip.Reader, error) {
+			parserCalled = true
+			return nil, nil
+		})
+	if err == nil || !strings.Contains(err.Error(), "extra field extent") || parserCalled {
+		t.Fatalf("malformed extra extent reached stdlib parser: err=%v called=%t", err, parserCalled)
+	}
+}
+
+func TestZIPCentralDirectoryAdmissionMaxCommentAndTrailingBytes(t *testing.T) {
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	if err := writer.SetComment(strings.Repeat("c", 65535)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	content := buffer.Bytes()
+	parserCalled := false
+	_, err := openAdmittedZIP(context.Background(), bytes.NewReader(content), int64(len(content)),
+		func(source io.ReaderAt, size int64) (*zip.Reader, error) {
+			parserCalled = true
+			return zip.NewReader(source, size)
+		})
+	if err != nil || !parserCalled {
+		t.Fatalf("valid maximum comment rejected: err=%v called=%t", err, parserCalled)
+	}
+	trailing := append(append([]byte(nil), content...), 'x')
+	parserCalled = false
+	_, err = openAdmittedZIP(context.Background(), bytes.NewReader(trailing), int64(len(trailing)),
+		func(io.ReaderAt, int64) (*zip.Reader, error) {
+			parserCalled = true
+			return nil, nil
+		})
+	if err == nil || parserCalled {
+		t.Fatalf("trailing bytes reached parser: err=%v called=%t", err, parserCalled)
 	}
 }
 

@@ -31,7 +31,7 @@ const (
 	zipMaxExpansionRatio int64 = 100
 )
 
-// NewZIPMemberEnumerator inventories retained filesystem ZIP/OOXML objects.
+// NewZIPMemberEnumerator inventories retained local-file ZIP/OOXML objects.
 // It never extracts members or creates a repaired source. The exact retained
 // original membership is checked before opening the file.
 func NewZIPMemberEnumerator(db platformpostgres.DB) (activities.MemberEnumerator, error) {
@@ -57,7 +57,11 @@ func (e zipMemberEnumerator) EnumerateMembers(ctx context.Context, input activit
 	if err != nil {
 		return nil, fmt.Errorf("resolve ZIP original: %w", err)
 	}
-	if object.storageClass != "filesystem" {
+	// Acquisition records sealed uploads and remote-source snapshots as an
+	// immutable_object_store provenance class, but retains their verified bytes
+	// at a file:// URI. Both repository-owned local-file classes must pass the
+	// identical URI, regular-file, length, and digest checks below.
+	if object.storageClass != "filesystem" && object.storageClass != "immutable_object_store" {
 		return nil, fmt.Errorf("ZIP inventory unsupported retained storage class %q", object.storageClass)
 	}
 	if object.byteLength < 0 || object.byteLength > zipMaxArchiveBytes {
@@ -256,6 +260,7 @@ func admitZIPCentralDirectory(ctx context.Context, source io.ReaderAt, size int6
 	position := int64(directoryOffset)
 	count := 0
 	var header [headerLength]byte
+	var extra [65535]byte
 	for position < endOffset {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -269,10 +274,38 @@ func admitZIPCentralDirectory(ctx context.Context, source io.ReaderAt, size int6
 		if binary.LittleEndian.Uint32(header[:]) != headerSignature {
 			return errors.New("invalid ZIP central directory header")
 		}
-		entryBytes := int64(headerLength) + int64(binary.LittleEndian.Uint16(header[28:])) +
-			int64(binary.LittleEndian.Uint16(header[30:])) + int64(binary.LittleEndian.Uint16(header[32:]))
+		if binary.LittleEndian.Uint16(header[34:]) != 0 {
+			return errors.New("multi-disk ZIP central directory entry is unsupported")
+		}
+		if binary.LittleEndian.Uint32(header[20:]) == 0xffffffff ||
+			binary.LittleEndian.Uint32(header[24:]) == 0xffffffff ||
+			binary.LittleEndian.Uint32(header[42:]) == 0xffffffff {
+			return errors.New("ZIP64 central directory entry is unsupported")
+		}
+		nameBytes := int64(binary.LittleEndian.Uint16(header[28:]))
+		extraBytes := int64(binary.LittleEndian.Uint16(header[30:]))
+		entryBytes := int64(headerLength) + nameBytes + extraBytes + int64(binary.LittleEndian.Uint16(header[32:]))
 		if entryBytes > endOffset-position {
 			return errors.New("truncated ZIP central directory entry")
+		}
+		if extraBytes > 0 {
+			field := extra[:int(extraBytes)]
+			if _, err := source.ReadAt(field, position+headerLength+nameBytes); err != nil {
+				return fmt.Errorf("read ZIP central directory extra fields: %w", err)
+			}
+			for len(field) > 0 {
+				if len(field) < 4 {
+					return errors.New("malformed ZIP central directory extra field")
+				}
+				fieldBytes := int(binary.LittleEndian.Uint16(field[2:4]))
+				if fieldBytes > len(field)-4 {
+					return errors.New("malformed ZIP central directory extra field extent")
+				}
+				if binary.LittleEndian.Uint16(field[:2]) == 0x0001 {
+					return errors.New("ZIP64 central directory extra field is unsupported")
+				}
+				field = field[4+fieldBytes:]
+			}
 		}
 		count++
 		if count > zipMaxMembers {
