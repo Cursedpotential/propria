@@ -7,7 +7,8 @@
   "candidate": {
     "repository": "https://github.com/Cursedpotential/probata",
     "base_commit": "382acf6a8f1f919b6f3abc02de40f946629d8461",
-    "commit": "380018a0addd4824bdf1ab2c414f9561683a117b",
+    "commit": "d08718221322239d68066192bb99f8184597d150",
+    "commit_role": "source implementation head before this receipt amendment; the receipt commit cannot contain its own SHA",
     "branch": "codex/d05-exact-review-targets-20260923",
     "pull_request": "https://github.com/Cursedpotential/probata/pull/30",
     "worktree": "E:/AI_Workspace/Projects/Propria/_worktrees/probata-d05-exact-review-targets",
@@ -63,7 +64,15 @@
     "live_integration": "skipped by GitHub workflow; not claimed"
   },
   "negative_cases": ["off-page target succeeds", "absent target denies", "stale attempt denies", "entity denies before write", "wrong preview handle denies", "uncorrelated upstream response denies"],
-  "independent_reviewer": "Fresh independent re-review of 380018a0addd4824bdf1ab2c414f9561683a117b pending",
+  "independent_reviewer": "Exact fd8f8aa8b23eb25a2a5cdb0b5cf9e403e1343ea0 review: HOLD for replay and receipt lineage; d08718221322239d68066192bb99f8184597d150 re-review pending",
+  "last_independent_review": {
+    "reviewed_pr_head": "fd8f8aa8b23eb25a2a5cdb0b5cf9e403e1343ea0",
+    "reviewed_pr_commit_count_from_base": 9,
+    "result": "HOLD: signed-request replay and receipt lineage",
+    "gitleaks": "Official 8.30.0 redacted origin/main..fd8f8aa scan: 9 commits, zero findings",
+    "gitleaks_report": "E:/AI_Workspace/Projects/Propria/.reconciliation/2026-09-23-orchestration-input/agents/PR30/gitleaks-full-pr-head-fd8f8aa.json",
+    "gitleaks_report_sha256": "37517E5F3DC66819F61F5A7BB8ACE1921282415F10551D2DEFA5C3EB0985B570"
+  },
   "limitations": [
     "No browser, native, live PostgreSQL, deployed service, sink readback, restore or release proof",
     "No entity annotation until a governed frozen-proposal entity reader exists",
@@ -144,6 +153,34 @@
         "Exercise the text[] INSERT and current-attempt transaction against disposable PostgreSQL before release. No live database write was performed here."
       ],
       "limits": "No disposable PostgreSQL DSN was available; the opt-in PostgreSQL test is skipped. No live service/browser integration or deployment proof. The provenance still uses reserved JSON notes under the current no-migrations schema policy; generic API writes are blocked, but direct privileged SQL writes are outside this route boundary. Independent re-review and shared CI remain required."
+    },
+    {
+      "receipt_id": "D05-20260924-W08-idempotent-replay-r4",
+      "byline": "Codex PR30 remediation · GPT-6 · 2026-09-24",
+      "reviewed_parent_head": "fd8f8aa8b23eb25a2a5cdb0b5cf9e403e1343ea0",
+      "implementation_source_head": "d08718221322239d68066192bb99f8184597d150",
+      "source_commit_count_from_base": 10,
+      "gitleaks_report": "E:/AI_Workspace/Projects/Propria/.reconciliation/2026-09-23-orchestration-input/agents/PR30/gitleaks-full-pr-source-d087182.json",
+      "gitleaks_report_sha256": "37517E5F3DC66819F61F5A7BB8ACE1921282415F10551D2DEFA5C3EB0985B570",
+      "assertion": "The BFF derives a stable SHA-256 idempotency key from the canonical actor/mode/handle/attempt/scope/target/claim request, signs the key with the delegation payload, and the Platform API verifies the key. After current matter/attempt/target checks, it queries exact existing claim and notes under the same preview advisory transaction lock and returns one existing flag. A second simultaneous identical request waits and reuses that row; a conflicting key/body is rejected before database access, and a replay after attempt advance remains 409.",
+      "result": "passed_local_controlled_concurrency_tests_live_postgresql_pending",
+      "scope": [
+        "modules/workbench/api/app/service/flags.py",
+        "modules/workbench/api/tests/test_proffer_potential_promotion_flags.py",
+        "server/api/inspect_routes.py",
+        "tests/test_inspect_routes.py"
+      ],
+      "verification": [
+        {"command": "Focused shared flag API pytest", "result": "17 passed, 1 optional disposable PostgreSQL test skipped", "exit_code": 0},
+        {"command": "Full tests/test_inspect_routes.py", "result": "60 passed, 2 failures asserting the retired sql/0007 file exists, 2 skipped", "exit_code": 1},
+        {"command": "Workbench Proffer flags and mode-isolation pytest", "result": "55 passed, 1 dependency deprecation warning", "exit_code": 0},
+        {"command": "Ruff lint and format on four changed Python files", "result": "passed", "exit_code": 0},
+        {"command": "Targeted Workbench mypy with imports skipped", "result": "no issues in two changed Workbench files", "exit_code": 0},
+        {"command": "go test and go vet ./runtimeapi/... ./postgres/...", "workdir": "modules/engine", "result": "passed", "exit_code": 0},
+        {"command": "Official Gitleaks 8.30.0 redacted git origin/main..d087182", "result": "10 commits scanned, zero findings", "exit_code": 0},
+        {"command": "git diff --cached --check", "result": "passed", "exit_code": 0}
+      ],
+      "limits": "Concurrency coverage uses a transaction-lock test double, not a live PostgreSQL concurrent insert. The advisory lookup is the idempotency authority under the current no-migrations policy; no database uniqueness constraint is claimed. This receipt records the source commit only. Its own eventual commit and pushed PR head are verified after commit/push, not recursively embedded."
     }
   ],
   "sensitive_values_redacted": true

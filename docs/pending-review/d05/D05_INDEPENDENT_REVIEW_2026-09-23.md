@@ -129,3 +129,40 @@ exchange, browser proof, or fresh independent review of this commit. The current
 schema uses free-text notes for provenance; the API reservation prevents ordinary
 route forgery and mutation, while direct privileged SQL writes remain outside the
 route boundary. Shared Validate CI is red on unrelated formatter baseline files.
+
+## 2026-09-24 signed-request replay correction, awaiting re-review
+
+> _Byline: Codex PR30 implementation agent · GPT-6 · 2026-09-24. This is an implementation receipt. The independent review of the prior exact head remains HOLD._
+
+The independent reviewer held PR head `fd8f8aa8b23eb25a2a5cdb0b5cf9e403e1343ea0`
+because a valid signature could be reused within its 60-second window to insert a
+second flag. That reviewed PR head contained nine commits from `origin/main`; the
+verified Gitleaks 8.30.0 redacted scan of that exact range found zero leaks.
+The prior receipt named code commit `380018a` as the candidate although the PR
+head was a later receipt commit. The receipt now calls its code SHA a **source
+head** and does not attempt to embed the receipt's own commit SHA.
+
+Source commit `d08718221322239d68066192bb99f8184597d150` adds a stable
+SHA-256 key over the canonical request. Workbench sends and signs it; the Platform
+API recomputes it and rejects a conflicting key. After the existing locked
+current-attempt and target checks, the API looks up the exact claim and metadata
+under the same per-preview advisory transaction lock. A repeat returns the
+existing row, and two concurrent admissions through this endpoint serialize.
+No table or migration was added under the repository's snapshot-only database
+policy. A direct privileged SQL writer that ignores the lock remains outside
+this endpoint's guarantee.
+
+Focused API tests: 17 passed; the disposable PostgreSQL test skipped for lack
+of `PROBATA_TEST_POSTGRES_DSN`. A controlled concurrent transaction test,
+identical repeat, conflicting key/body, and stale-attempt denial passed. The
+full inspector suite had 60 passes, two skips and two failures asserting the
+retired `sql/0007_curation_and_flags.sql` exists. Workbench: 55 passed. Go
+tests/vet, changed-file Ruff lint/format, targeted mypy and diff checks passed.
+The official redacted Gitleaks scan of `origin/main..d087182` covered ten
+commits and found zero leaks. The final receipt commit and pushed PR head are
+verified separately after this document is committed, since a document cannot
+contain its own Git SHA.
+
+**Decision: HOLD pending fresh independent review and live proof.** The shared
+CI baseline, disposable PostgreSQL concurrent admission, deployed key and
+matter configuration, and live BFF/Platform exchange remain release gates.
