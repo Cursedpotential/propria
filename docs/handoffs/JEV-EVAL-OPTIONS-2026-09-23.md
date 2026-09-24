@@ -73,3 +73,25 @@ The job is **"point me to the stretches of conversation that matter for the case
 3. Categories: **named after seeing clusters** (A), **your list first** (B), or both?
 4. Opus reading windows is extraction. Does your rule "Opus does the classification and reasoning" cover it, or may a cheaper model do the first neutral pass, the way the recipe splits it?
 5. Pilot period: the **2024 texts from her phone** (112 sessions), or another stretch you know well enough to judge?
+
+## Owner direction, 2026-09-23 21:06–21:08 EDT (voice, cleaned)
+
+- Judge a larger snippet, **not the whole conversation**. Use the index's chunks, which should be **conversation-shaped** once messages are ingested and indexed, as the narrowing constraint.
+- Inside that, capture the **natural bouts of conversation within the day**, because "there's going to be rapid shifts throughout the day, and it can be important to catch those."
+- All of this belongs in the **Case Bible super index (CocoIndex)**; anything not there gets pushed through it.
+
+### What exists today (checked 21:10)
+
+- **Super index** (`Consignatio/Intake/backend/src/casebible_index`): files are cut by CocoIndex's splitter at 2,400 characters with 300 overlap. Chat messages are indexed one object per message (`ChatEvents20260918`). **There is no conversation-shaped chunk.**
+- **Probata engine:** message "chunks" are 64 MB storage files per thread (`derive/smsthreads`); the only registered chunker is the Markdown one. **Nothing conversation-shaped here either.**
+
+### Bouts within a day, measured (Katrina pool, days in America/Detroit)
+
+| A new bout starts after silence of | Bouts | Per day | Typical bout | 90th pct | Single-message bouts |
+|---|---:|---:|---:|---:|---:|
+| 15 min | 11,532 | 8.6 | 3 | 24 | 2,828 |
+| 30 min | 8,283 | 5.7 | 5 | 35 | 1,679 |
+| 60 min | 5,735 | 3.7 | 7 | 53 | 988 |
+| 2 h | 3,855 | 2.4 | 10 | 82 | 565 |
+
+A silence split alone won't catch a shift **inside** a fast back-and-forth (friendly at 2:10, hostile by 2:25). That needs a content signal.
