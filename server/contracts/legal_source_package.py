@@ -23,6 +23,7 @@ SCHEMA_VERSION = "legal-source-package/v1"
 SIGNATURE_ALGORITHM = "ed25519"
 _DOMAIN = b"propria.legal-source-package.v1\n"
 _HASH = re.compile(r"sha256:[0-9a-f]{64}\Z")
+_ED25519_SIGNATURE_HEX = re.compile(r"[0-9a-f]{128}\Z")
 _SPAN = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:[^\s?#]+\Z")
 PackageStatus = Literal["available", "revoked", "superseded", "unavailable"]
 Signer = Callable[[bytes], bytes]
@@ -37,6 +38,11 @@ def _uuid(value: UUID, name: str) -> None:
 def _hash(value: str, name: str) -> None:
     if not isinstance(value, str) or _HASH.fullmatch(value) is None:
         raise ValueError(f"{name} must be a lowercase sha256 digest")
+
+
+def _signature_hex(value: str) -> None:
+    if not isinstance(value, str) or _ED25519_SIGNATURE_HEX.fullmatch(value) is None:
+        raise ValueError("signature_hex must be exactly 64 Ed25519 bytes as lowercase hexadecimal")
 
 
 def _text(value: str, name: str) -> None:
@@ -231,8 +237,7 @@ def _validate_shape(package: LegalSourcePackage) -> None:
     ):
         raise ValueError("package items must be in canonical identity order")
     _hash(package.package_digest, "package_digest")
-    if not package.signature_hex or re.fullmatch(r"[0-9a-f]+", package.signature_hex) is None:
-        raise ValueError("signature_hex must be lowercase hexadecimal")
+    _signature_hex(package.signature_hex)
 
 
 def assemble_package(
@@ -273,7 +278,7 @@ def assemble_package(
         status="available",
         items=ordered,
         package_digest="sha256:" + "0" * 64,
-        signature_hex="00",
+        signature_hex="0" * 128,
     )
     _validate_shape(draft)
     # Identity excludes signing metadata and is stable across transport retries.
@@ -288,8 +293,8 @@ def assemble_package(
     draft = replace(draft, package_id=uuid5(NAMESPACE_URL, _DOMAIN.decode() + identity.decode()))
     payload = manifest_bytes(draft)
     signature = sign(_DOMAIN + payload)
-    if not isinstance(signature, bytes) or not signature:
-        raise ValueError("issuer signer returned no signature")
+    if type(signature) is not bytes or len(signature) != 64:
+        raise ValueError("issuer signer must return exactly 64 Ed25519 signature bytes")
     return replace(draft, package_digest=_digest(payload), signature_hex=signature.hex())
 
 
@@ -421,12 +426,12 @@ def assemble_status_event(
         reason=reason,
         effective_at=effective_at,
         event_digest="sha256:" + "0" * 64,
-        signature_hex="00",
+        signature_hex="0" * 128,
     )
     payload = _status_payload(draft)
     signature = sign(_DOMAIN + b"status\n" + payload)
-    if not isinstance(signature, bytes) or not signature:
-        raise ValueError("issuer signer returned no status signature")
+    if type(signature) is not bytes or len(signature) != 64:
+        raise ValueError("issuer signer must return exactly 64 Ed25519 status signature bytes")
     return replace(draft, event_digest=_digest(payload), signature_hex=signature.hex())
 
 
@@ -470,6 +475,7 @@ def verify_status_event(
     payload = _status_payload(event)
     if event.event_digest != _digest(payload):
         raise ValueError("status event digest mismatch")
+    _signature_hex(event.signature_hex)
     if (
         verify_signature(package.issuer_key_id, _DOMAIN + b"status\n" + payload, bytes.fromhex(event.signature_hex))
         is not True

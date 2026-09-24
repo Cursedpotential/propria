@@ -11,6 +11,8 @@ The new import-light `server/contracts/legal_source_package.py` defines a versio
 
 The verifier rejects wrong issuer, matter, schema, package identity, digest, signature, source ref, span, version, locator, and current status. A single canonical producer snapshot must bind the package identity, all evidence statuses and exact items to one revision. The consumer acknowledgment callback must compare that same revision against the producer and durably record availability before returning success; changed or unavailable revision fails closed. The pure module defines this interface but cannot enforce a future network/database adapter's atomicity. A successful acknowledgment establishes package **availability at that revision** only. Later invalidation must still reach the consumer. It does not adopt a legal assertion, approve a draft, release a document, file, serve, or promote evidence.
 
+**2026-09-24 signature-shape correction (Codex D08):** a targeted review against the merged Legal consumer PR #1 found the producer previously accepted any nonempty lowercase signature hex and any nonempty signer byte string even though the declared algorithm is Ed25519. Package and status-event assembly now require exactly 64 returned signature bytes; package and status-event verification require exactly 128 lowercase hex characters before invoking the verifier callback. Draft placeholders match that shape. This is wire-shape enforcement, **not** proof that the callback uses a trusted Ed25519 public key. Synthetic test signatures use SHA-512 solely to exercise the 64-byte interface and are not real Ed25519 signatures. No real signer, key, or case data was used.
+
 ## Current-source reconciliation
 
 - Canon §§16–18, 20 require one promotion authority/history for eligible context and investigative entrypoints, a source reread, human authorization, committed evidence version, durable delivery/read-back, and separate legal adoption/release. `D-152` in `docs/DECISION_LOG.md` expressly defers custody hashing and real promotion. `D-154` requires reopening the retained original at any later admission; a context fingerprint is not custody.
@@ -34,14 +36,15 @@ The actual outbox tables, Legal importer adapter, public-key verifier, current-s
 
 | Check | Result | Limit |
 |---|---|---|
-| Synthetic producer/consumer contract tests | 17 passed | Test signer is deliberately synthetic; does not prove production Ed25519 key management or atomic network read-back/acknowledgment. |
-| Adjacent case-management route/capability tests | 51 passed | Existing hard-disabled promotion behavior; no real evidence action. |
+| Synthetic producer/consumer contract tests | 35 passed after signature-shape correction | Test signer is deliberately synthetic; does not prove production Ed25519 key management or atomic network read-back/acknowledgment. |
+| Adjacent case-management route/capability tests | 51 passed; 86 total with contract tests | Existing hard-disabled promotion behavior; no real evidence action. |
 | Focused Ruff | passed | Only the two new Python files. |
 | Python compilation | passed | Syntax/import only. |
 | Official Gitleaks 8.30.0, redacted file scans | passed; no leaks in each of the three candidate files | File scan, not historical repository scan. |
 | Wheel build | passed | Packaging only; no application deployment. |
+| Targeted mypy, 2026-09-24 correction | passed; no issues in the contract module | Does not establish repository-wide type safety. |
 | Build, deployed read-back, outage catch-up, legal adoption, restore | not run | Requires integration and D12 review. |
 
-**Negative cases exercised:** changed span/manifest, forged signature, wrong matter, wrong source or evidence version, unsupported locator, missing/revoked/superseded/unavailable package or evidence status, revocation between snapshot and acknowledgment, boolean version confusion, and tampered/out-of-order/noncanonical or disconnected first status event. Positive tests verify both the first package-digest anchor and a later event chained from the first event digest. A test rerun generates the same package and event identities.
+**Negative cases exercised:** changed span/manifest, forged signature, wrong-length/case signature bytes and hex for package and status event, wrong matter, wrong source or evidence version, unsupported locator, missing/revoked/superseded/unavailable package or evidence status, revocation between snapshot and acknowledgment, boolean version confusion, and tampered/out-of-order/noncanonical or disconnected first status event. Positive tests verify both the first package-digest anchor and a later event chained from the first event digest. A test rerun generates the same package and event identities.
 
 **Rollback:** this branch adds one unreferenced contract module, one test file, and this receipt. An ordinary revert removes the contract without changing live state. The Legal importer remains fail-closed until an independently reviewed producer/consumer integration is deployed.

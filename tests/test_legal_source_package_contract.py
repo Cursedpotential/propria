@@ -51,7 +51,8 @@ def _item() -> LegalSourceItem:
 
 
 def _sign(message: bytes) -> bytes:
-    return hashlib.sha256(b"synthetic-test-only" + message).digest()
+    # Signature-shape fixture only; this is not an Ed25519 implementation.
+    return hashlib.sha512(b"synthetic-test-only" + message).digest()
 
 
 def _verify(key_id: str, message: bytes, signature: bytes) -> bool:
@@ -133,7 +134,7 @@ def test_forged_scope_digest_signature_and_locator_fail() -> None:
     with pytest.raises(ValueError, match="digest mismatch"):
         _accept(replace(package, items=(replace(package.items[0], span_locator="source:message:wrong"),)))
     with pytest.raises(ValueError, match="signature invalid"):
-        _accept(replace(package, signature_hex="00"))
+        _accept(replace(package, signature_hex="0" * 128))
     with pytest.raises(ValueError, match="readback mismatch"):
         _accept(package, readback=replace(_item(), source_locator="r2://synthetic-bucket/moved"))
 
@@ -224,6 +225,26 @@ def test_invalid_issuer_inputs_and_unsupported_locators_do_not_sign() -> None:
             sign=signer,
         )
     assert signed == []
+
+
+@pytest.mark.parametrize("signature", [b"", b"s" * 32, b"s" * 63, b"s" * 65])
+def test_issuer_rejects_wrong_length_signature_bytes(signature: bytes) -> None:
+    with pytest.raises(ValueError, match="exactly 64 Ed25519 signature bytes"):
+        assemble_package(
+            issuer="indicia-probata",
+            issuer_key_id="test-key-1",
+            matter_id=MATTER,
+            package_version=7,
+            committed_at=datetime(2026, 9, 23, 18, tzinfo=UTC),
+            items=(_item(),),
+            sign=lambda _: signature,
+        )
+
+
+@pytest.mark.parametrize("signature_hex", ["", "00", "a" * 126, "a" * 130, "A" * 128])
+def test_consumer_rejects_wrong_length_or_case_signature_hex(signature_hex: str) -> None:
+    with pytest.raises(ValueError, match="exactly 64 Ed25519 bytes"):
+        _accept(replace(_package(), signature_hex=signature_hex))
 
 
 def test_status_event_is_immutable_chained_and_signed() -> None:
@@ -362,4 +383,41 @@ def test_signed_first_status_event_cannot_start_from_unrelated_digest() -> None:
             expected_sequence=1,
             expected_previous_digest=unrelated,
             verify_signature=_verify,
+        )
+
+
+@pytest.mark.parametrize("signature", [b"", b"s" * 32, b"s" * 63, b"s" * 65])
+def test_status_issuer_rejects_wrong_length_signature_bytes(signature: bytes) -> None:
+    package = _package()
+    with pytest.raises(ValueError, match="exactly 64 Ed25519 status signature bytes"):
+        assemble_status_event(
+            package,
+            sequence=1,
+            previous_digest=package.package_digest,
+            status="revoked",
+            reason="synthetic correction",
+            effective_at=datetime(2026, 9, 23, 19, tzinfo=UTC),
+            sign=lambda _: signature,
+        )
+
+
+@pytest.mark.parametrize("signature_hex", ["", "00", "a" * 126, "a" * 130, "A" * 128])
+def test_status_consumer_rejects_wrong_length_or_case_signature_hex(signature_hex: str) -> None:
+    package = _package()
+    event = assemble_status_event(
+        package,
+        sequence=1,
+        previous_digest=package.package_digest,
+        status="revoked",
+        reason="synthetic correction",
+        effective_at=datetime(2026, 9, 23, 19, tzinfo=UTC),
+        sign=_sign,
+    )
+    with pytest.raises(ValueError, match="exactly 64 Ed25519 bytes"):
+        verify_status_event(
+            replace(event, signature_hex=signature_hex),
+            package=package,
+            expected_sequence=1,
+            expected_previous_digest=package.package_digest,
+            verify_signature=lambda *_: True,
         )
