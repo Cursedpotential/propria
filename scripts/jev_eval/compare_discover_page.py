@@ -5,16 +5,19 @@ results before and after the prompt change and say which look better. Answers ar
 (collection `compare`, one doc per bout id) and read back with read_db. The output embeds case messages; it is built
 on the devbox and published as a private artifact, never committed.
 
-Usage: python compare_discover_page.py <out.html> <v1 dir> <v2 dir> <bouts.jsonl> [<bouts.jsonl> ...]
+Usage: python compare_discover_page.py <out.html> <label=dir>[,<label=dir>...] <bouts.jsonl> [<bouts.jsonl> ...]
+Example: ... "v1 (test)=raw/bout_discover,v2=raw/bout_discover_v2,v2.1=raw/bout_discover_v21" bouts/f2024_bouts_v1.jsonl
+Owner 07:17: add prompt v2.1 as a further column on the same bouts.
 """
 
 import json
 import pathlib
 import sys
 
-out_path, v1_dir, v2_dir = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+out_path = pathlib.Path(sys.argv[1])
+VERS = [tuple(x.split("=", 1)) for x in sys.argv[2].split(",")]
 bouts = {}
-for f in sys.argv[4:]:
+for f in sys.argv[3:]:
     for line in pathlib.Path(f).read_text(encoding="utf-8").split("\n"):
         if line.strip():
             b = json.loads(line)
@@ -32,17 +35,18 @@ def load(d: pathlib.Path) -> dict:
 
 def slim(o: dict) -> dict:
     return {"sum": o.get("summary", ""),
-            "p": [[p["category"], p["from_guide"], p["who"], p["message_is"], p["confidence"], p["note"], p["quote"]]
+            "p": [[p["category"], p["from_guide"], p["who"], p["message_is"], p["confidence"], p["note"], p["quote"], p.get("child_related", False)]
                   for p in o.get("patterns", [])],
             "new": [[c["name"], c["definition"]] for c in o.get("new_categories", [])]}
 
 
-v1, v2 = load(v1_dir), load(v2_dir)
-ids = sorted(set(v1) & set(v2), key=lambda i: (bouts[i]["day"], bouts[i]["start_local"], i))
+res = [load(pathlib.Path(d)) for _, d in VERS]
+ids = sorted(set.intersection(*(set(r) for r in res)), key=lambda i: (bouts[i]["day"], bouts[i]["start_local"], i))
 data = [{"id": i, "day": bouts[i]["day"], "s": bouts[i]["start_local"][11:16], "e": bouts[i]["end_local"][11:16],
          "src": "Facebook" if i.startswith("f") else "Texts",
          "m": [[m["ts_local"], m["who"], m["text"]] for m in bouts[i]["messages"]],
-         "a": slim(v1[i]), "b": slim(v2[i])} for i in ids]
+         "v": [slim(r[i]) for r in res]} for i in ids]
+LABELS = [label for label, _ in VERS]
 
 TEMPLATE = r"""<title>Prompt Compare · Discovery</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -73,7 +77,7 @@ details.msgs summary { cursor:pointer; font-size:13px; color:var(--accent); }
 .msg .t { font:12px "IBM Plex Mono",ui-monospace,monospace; color:var(--muted); padding-top:2px; }
 .msg .w { font-weight:600; font-size:13px; } .w.Matt { color:var(--matt); } .w.Katrina { color:var(--kat); }
 .msg .x { white-space:pre-wrap; overflow-wrap:anywhere; }
-.cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px; }
 @media (max-width:760px) { .cols { grid-template-columns:1fr; } }
 .col { border:1px solid var(--line); border-radius:4px; padding:10px; display:grid; gap:6px; align-content:start; }
 .col h3 { margin:0; font-size:14px; } .col .sum { font-size:14px; }
@@ -90,17 +94,18 @@ details.msgs summary { cursor:pointer; font-size:13px; color:var(--accent); }
 <div class="wrap">
   <header>
     <h1>Prompt Compare · Discovery</h1>
-    <p class="lede">The same bouts read by two prompts. <b>v1 (test)</b> read behaviour, including provocation, reaction and blame. <b>v2</b> only records acts it can see in the chunk, without judging anyone. Pick the one that reads better; your picks decide the prompt for the full run.</p>
+    <p class="lede">The same bouts read by each prompt version. <b>v1 (test)</b> read behaviour, including provocation, reaction and blame. <b>v2</b> only records acts it can see in the chunk, without judging anyone. <b>v2.1</b> is v2 plus a child-related flag and a blocked-contact category. Pick the one that reads best; your picks decide the prompt for the full run.</p>
   </header>
   <div class="bar" role="search">
     <select id="f-show" aria-label="Show"><option value="some">Bouts with observations</option><option value="all">All bouts</option></select>
-    <select id="f-pick" aria-label="Your pick"><option value="">Any pick</option><option value="todo">Not picked</option><option value="v1">v1 better</option><option value="v2">v2 better</option><option value="same">About the same</option></select>
+    <select id="f-pick" aria-label="Your pick"><option value="">Any pick</option><option value="todo">Not picked</option>__PICK_OPTIONS__</select>
     <span id="count" class="muted"></span><span id="tally" class="muted"></span><span id="save" class="muted">Connecting…</span>
   </div>
   <div id="list" class="wrap"></div>
 </div>
 <script>
 const DATA = __DATA__;
+const LABELS = __LABELS__;
 const $ = id => document.getElementById(id);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const picks = {}; let db = null; const timers = {}, queued = {}, inflight = {};
@@ -114,6 +119,7 @@ function col(title, r) {
     h.append(document.createTextNode(" · " + p[2] + " · msgs " + p[3].join(",") + " · " + p[4]));
     d.append(h, el("div", null, p[5]));
     if (p[6]) d.append(el("div", "q", "“" + p[6] + "”"));
+    if (p[7]) d.append(el("div", "none", "child-related"));
     c.append(d);
   }
   for (const n of r.new) c.append(el("div", "none", "New category: " + n[0] + " — " + n[1]));
@@ -126,9 +132,9 @@ function card(b) {
   const det = el("details", "msgs"); det.append(el("summary", null, "Show the messages"));
   for (const m of b.m) { const r = el("div", "msg"); r.append(el("span", "t", m[0]), el("span", "w " + m[1], m[1]), el("span", "x", m[2])); det.append(r); }
   a.append(det);
-  const cols = el("div", "cols"); cols.append(col("v1 (test)", b.a), col("v2", b.b)); a.append(cols);
+  const cols = el("div", "cols"); LABELS.forEach((l, k) => cols.append(col(l, b.v[k]))); a.append(cols);
   const fb = el("div", "fb"); a._btn = {};
-  for (const [k, label] of [["v1", "v1 reads better"], ["v2", "v2 reads better"], ["same", "About the same"]]) {
+  for (const [k, label] of [...LABELS.map(l => [l, l + " reads best"]), ["same", "About the same"]]) {
     const bt = el("button", null, label); bt.type = "button";
     bt.addEventListener("click", () => save(b, { pick: (picks[b.id] || {}).pick === k ? "" : k }));
     a._btn[k] = bt; fb.append(bt);
@@ -143,7 +149,7 @@ function paint(b, a) {
 }
 function visible(b) {
   const show = $("f-show").value, pk = $("f-pick").value, p = (picks[b.id] || {}).pick || "";
-  if (show === "some" && !b.a.p.length && !b.b.p.length) return false;
+  if (show === "some" && !b.v.some(r => r.p.length)) return false;
   if (pk === "todo" && p) return false; if (pk && pk !== "todo" && p !== pk) return false; return true;
 }
 function render() {
@@ -152,8 +158,8 @@ function render() {
   $("count").textContent = n + " bouts"; tally();
 }
 function tally() {
-  const t = { v1: 0, v2: 0, same: 0 }; for (const k in picks) if (t[picks[k].pick] != null) t[picks[k].pick]++;
-  $("tally").textContent = "v1 " + t.v1 + " · v2 " + t.v2 + " · same " + t.same;
+  const t = {}; [...LABELS, "same"].forEach(l => t[l] = 0); for (const k in picks) if (t[picks[k].pick] != null) t[picks[k].pick]++;
+  $("tally").textContent = Object.entries(t).map(([l, n]) => l + " " + n).join(" · ");
 }
 function setSave(t, e) { const s = $("save"); s.textContent = t; s.className = e ? "err" : "muted"; }
 function save(b, patch) {
@@ -182,6 +188,8 @@ render(); connect();
 </script>
 """
 
-page = TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False))
+opts = "".join(f'<option value="{l}">{l} best</option>' for l in LABELS) + '<option value="same">About the same</option>'
+page = (TEMPLATE.replace("__DATA__", json.dumps(data, ensure_ascii=False)).replace("__LABELS__", json.dumps(LABELS))
+        .replace("__PICK_OPTIONS__", opts))
 out_path.write_text(page, encoding="utf-8")
-print(f"wrote {out_path}: {len(data)} bouts with both versions ({sum(1 for d in data if d['a']['p'] or d['b']['p'])} with observations)")
+print(f"wrote {out_path}: {len(data)} bouts with all {len(LABELS)} versions ({sum(1 for d in data if any(r['p'] for r in d['v']))} with observations)")
