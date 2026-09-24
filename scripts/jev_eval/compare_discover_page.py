@@ -132,7 +132,7 @@ function card(b) {
   const a = el("article", "bout"); a.id = "b-" + b.id;
   const h = el("div", "head"); h.append(el("b", null, b.day + " " + b.s + "–" + b.e), el("span", null, b.src + " · " + b.m.length + " messages · " + b.id));
   a.append(h);
-  const det = el("details", "msgs"); det.append(el("summary", null, "Show the messages"));
+  const det = el("details", "msgs"); det.open = true; det.append(el("summary", null, "Messages (all, in order)"));
   for (const m of b.m) { const r = el("div", "msg"); r.append(el("span", "t", m[0]), el("span", "w " + m[1], m[1]), el("span", "x", m[2])); det.append(r); }
   a.append(det);
   const cols = el("div", "cols"); LABELS.forEach((l, k) => cols.append(col(l, b.v[k]))); a.append(cols);
