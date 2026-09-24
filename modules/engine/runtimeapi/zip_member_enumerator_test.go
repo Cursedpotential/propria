@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -108,6 +109,87 @@ func TestZIPMemberInventoryRejectsMalformedAndUnsupportedInputs(t *testing.T) {
 			stream, err := enumerator.EnumerateMembers(context.Background(), input)
 			if stream != nil || err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("stream=%v err=%v; want %q", stream, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestZIPCentralDirectoryAdmissionCountsPhysicalEntriesBeforeStdlib(t *testing.T) {
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	for i := 0; i <= zipMaxMembers; i++ {
+		if _, err := writer.Create(fmt.Sprintf("member-%05d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	content := append([]byte(nil), buffer.Bytes()...)
+	end := bytes.LastIndex(content, []byte{'P', 'K', 5, 6})
+	if end < 0 {
+		t.Fatal("test ZIP has no end record")
+	}
+	// The claimed count is small, but the physical directory has 10,001
+	// entries. archive/zip otherwise parses and allocates them before the
+	// caller can inspect len(archive.File).
+	binary.LittleEndian.PutUint16(content[end+8:], 1)
+	binary.LittleEndian.PutUint16(content[end+10:], 1)
+	parserCalled := false
+	archive, err := openAdmittedZIP(context.Background(), bytes.NewReader(content), int64(len(content)),
+		func(io.ReaderAt, int64) (*zip.Reader, error) {
+			parserCalled = true
+			return nil, errors.New("stdlib parser must not run")
+		})
+	if archive != nil || err == nil || !strings.Contains(err.Error(), "member limit") || parserCalled {
+		t.Fatalf("oversized physical directory reached parser: archive=%v err=%v called=%t", archive, err, parserCalled)
+	}
+	enumerator, input := zipFixture(t, content, "zip")
+	if stream, err := enumerator.EnumerateMembers(context.Background(), input); stream != nil || err == nil || !strings.Contains(err.Error(), "member limit") {
+		t.Fatalf("inventory did not reject oversized directory: stream=%v err=%v", stream, err)
+	}
+}
+
+func TestZIPCentralDirectoryAdmissionRejectsForgedCountsAndExtents(t *testing.T) {
+	original := testZIP(t, struct{ name, body string }{"one.txt", "body"})
+	end := bytes.LastIndex(original, []byte{'P', 'K', 5, 6})
+	central := bytes.Index(original, []byte{'P', 'K', 1, 2})
+	if end < 0 || central < 0 {
+		t.Fatal("test ZIP lacks directory records")
+	}
+	for _, tc := range []struct {
+		name, want string
+		change     func([]byte)
+	}{
+		{"forged high count", "member limit", func(content []byte) {
+			binary.LittleEndian.PutUint16(content[end+8:], zipMaxMembers+1)
+			binary.LittleEndian.PutUint16(content[end+10:], zipMaxMembers+1)
+		}},
+		{"forged low count", "count mismatch", func(content []byte) {
+			binary.LittleEndian.PutUint16(content[end+8:], 0)
+			binary.LittleEndian.PutUint16(content[end+10:], 0)
+		}},
+		{"truncated entry", "truncated ZIP central directory entry", func(content []byte) {
+			binary.LittleEndian.PutUint16(content[central+28:], 0xffff)
+		}},
+		{"false directory extent", "extent", func(content []byte) {
+			binary.LittleEndian.PutUint32(content[end+12:], 1)
+		}},
+		{"oversized directory bytes", "byte limit", func(content []byte) {
+			binary.LittleEndian.PutUint32(content[end+12:], uint32(zipMaxDirectoryBytes+1))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			content := append([]byte(nil), original...)
+			tc.change(content)
+			parserCalled := false
+			_, err := openAdmittedZIP(context.Background(), bytes.NewReader(content), int64(len(content)),
+				func(io.ReaderAt, int64) (*zip.Reader, error) {
+					parserCalled = true
+					return nil, nil
+				})
+			if err == nil || !strings.Contains(err.Error(), tc.want) || parserCalled {
+				t.Fatalf("malformed directory reached parser: err=%v called=%t", err, parserCalled)
 			}
 		})
 	}
