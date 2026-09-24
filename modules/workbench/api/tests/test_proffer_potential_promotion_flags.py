@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import asyncio
+import hashlib
+import hmac
 from typing import Any, Literal
 
 import httpx
 import pytest
 from app.runtime import proffer as proffer_runtime
-from app.service import proffer as proffer_service, proffer_flags
+from app.service import flags as flags_service, proffer as proffer_service, proffer_flags
 from app.types.proffer import ProfferContentResponse, ProfferDecisionActor
 from app.types.matter_mode import MatterMode
 from app.types.proffer_flags import (
@@ -293,6 +295,8 @@ def test_flag_service_persists_governed_metadata_without_promoting(monkeypatch) 
         )
         return {
             "flag_id": "flag-1",
+            "target_kind": "run",
+            "target_id": payload["preview_handle"],
             "claim": payload["claim"],
             "notes": returned_notes,
             "created_at": "2026-09-13T20:00:00Z",
@@ -341,6 +345,41 @@ def test_flag_list_is_scoped_to_preview_handle(monkeypatch) -> None:
     assert proffer_flags.list_potential_promotion_flags(PREVIEW_HANDLE, "TEST") == []
     assert captured == {
         "method": "GET",
-        "path": "/v1/flags",
-        "params": {"target_kind": "run", "target_id": PREVIEW_HANDLE},
+        "path": "/v1/flags/proffer-potential-promotion",
+        "params": {"preview_handle": PREVIEW_HANDLE},
     }
+
+
+def test_ordinary_run_notes_are_not_governed_proffer_flags() -> None:
+    assert proffer_flags._normalize({"notes": "ordinary free text"}) is None
+    assert proffer_flags._normalize({"notes": json.dumps({"contract": "another-contract"})}) is None
+
+
+def test_flag_service_signs_authenticated_actor_and_exact_payload(monkeypatch, tmp_path) -> None:
+    key = b"test-only-proffer-delegation-key-1234567890"
+    key_file = tmp_path / "delegation-key"
+    key_file.write_bytes(key)
+    monkeypatch.setattr(flags_service, "_PROFFER_DELEGATION_KEY_FILE", key_file)
+    captured: dict[str, Any] = {}
+
+    def spine_json(method, path, **kwargs):
+        captured.update(method=method, path=path, **kwargs)
+        return {"flag_id": "flag-1"}
+
+    monkeypatch.setattr(flags_service, "spine_json", spine_json)
+    payload = {
+        "preview_handle": PREVIEW_HANDLE,
+        "matter_mode": "TEST",
+        "scope": "record",
+        "target_id": "33333333-3333-3333-3333-333333333333",
+        "attempt_id": "11111111-1111-1111-1111-111111111111",
+        "actor_subject_uid": "subject-1",
+        "actor_username": "operator",
+        "claim": "Review later",
+    }
+    assert flags_service.create_proffer_potential_promotion_flag(payload) == {"flag_id": "flag-1"}
+    issued_at = captured["headers"]["X-Proffer-Flag-Issued-At"]
+    signed = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    expected = hmac.new(key, issued_at.encode() + b"." + signed, hashlib.sha256).hexdigest()
+    assert captured["headers"]["X-Proffer-Flag-Signature"] == expected
+    assert captured["json"] == payload

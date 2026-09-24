@@ -9,9 +9,16 @@ evidence. Thin passthrough, same posture as app/service/inspect.py.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
+import time
+from pathlib import Path
+
 from app.repo.spine_client import SpineError, spine_json
 
 __all__ = ["SpineError", "create_flag", "create_proffer_potential_promotion_flag", "list_flags", "update_flag"]
+_PROFFER_DELEGATION_KEY_FILE = Path("/run/secrets/proffer-flag-delegation-key")
 
 
 def create_flag(payload: dict) -> dict:
@@ -26,7 +33,29 @@ def create_flag(payload: dict) -> dict:
 
 def create_proffer_potential_promotion_flag(payload: dict) -> dict:
     """Create a preview-bound annotation with atomic current-attempt validation."""
-    return spine_json("POST", "/v1/flags/proffer-potential-promotion", json=payload)
+    try:
+        key = _PROFFER_DELEGATION_KEY_FILE.read_bytes().strip()
+    except OSError as error:
+        raise SpineError("Proffer flag delegation is not configured", 503) from error
+    if not 32 <= len(key) <= 4096:
+        raise SpineError("Proffer flag delegation is not configured", 503)
+    issued_at = str(int(time.time()))
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    signature = hmac.new(key, issued_at.encode("ascii") + b"." + canonical, hashlib.sha256).hexdigest()
+    return spine_json(
+        "POST",
+        "/v1/flags/proffer-potential-promotion",
+        json=payload,
+        headers={"X-Proffer-Flag-Issued-At": issued_at, "X-Proffer-Flag-Signature": signature},
+    )
+
+
+def list_proffer_potential_promotion_flags(preview_handle: str) -> list[dict]:
+    """One bounded server snapshot; an overflow is an error, never a partial list."""
+    result = spine_json("GET", "/v1/flags/proffer-potential-promotion", params={"preview_handle": preview_handle})
+    if not isinstance(result, dict) or not isinstance(result.get("flags"), list):
+        raise SpineError("Proffer flag store returned an invalid list", 502)
+    return result["flags"]
 
 
 def list_flags(

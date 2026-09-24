@@ -21,8 +21,15 @@ _NOTES_VERSION = "proffer-potential-promotion/v1"
 def _normalize(row: dict[str, Any]) -> ProfferPotentialPromotionFlag | None:
     try:
         metadata = json.loads(str(row.get("notes") or ""))
-        if metadata.get("contract") != _NOTES_VERSION:
-            return None
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None  # Ordinary run flags may have free-text notes.
+    if not isinstance(metadata, dict) or metadata.get("contract") != _NOTES_VERSION:
+        return None
+    try:
+        if row.get("target_kind") != "run" or row.get("target_id") != metadata["preview_handle"]:
+            raise ValueError("governed preview handle does not match the flag target")
+        if metadata["classification"] != "potential_promotion":
+            raise ValueError("governed classification is invalid")
         return ProfferPotentialPromotionFlag(
             flag_id=str(row.get("flag_id") or row["id"]),
             preview_handle=metadata["preview_handle"],
@@ -36,7 +43,7 @@ def _normalize(row: dict[str, Any]) -> ProfferPotentialPromotionFlag | None:
             flagged_at=datetime.fromisoformat(str(row["created_at"])),
             status=str(row.get("status") or "open"),
         )
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+    except (KeyError, TypeError, ValueError) as error:
         raise ProfferError("Potential-promotion flag store returned an invalid governed row", 502) from error
 
 
@@ -75,7 +82,7 @@ def create_potential_promotion_flag(
 
 def list_potential_promotion_flags(preview_handle: str, mode: MatterMode) -> list[ProfferPotentialPromotionFlag]:
     result: list[ProfferPotentialPromotionFlag] = []
-    for row in flags_service.list_flags(target_kind="run", target_id=preview_handle):
+    for row in flags_service.list_proffer_potential_promotion_flags(preview_handle):
         normalized = _normalize(row)
         if normalized and normalized.preview_handle == preview_handle and normalized.matter_mode == mode:
             result.append(normalized)

@@ -41,14 +41,17 @@ Routes:
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
+import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 
 from server.api.uploads import safe_upload_name
 from pydantic import BaseModel, ConfigDict, Field
@@ -1001,6 +1004,46 @@ def _register_record_meta_route(app: FastAPI) -> None:
 
 _ALLOWED_TARGET_KINDS = {"record", "knowledge", "run"}
 _ALLOWED_FLAG_STATUSES = {"open", "partial", "corroborated", "unobtainable"}
+_PROFFER_FLAG_CONTRACT = "proffer-potential-promotion/v1"
+_PROFFER_DELEGATION_KEY_FILE = Path("/run/secrets/proffer-flag-delegation-key")
+
+
+def _reserved_proffer_notes(notes: str | None) -> bool:
+    if not notes:
+        return False
+    try:
+        parsed = json.loads(notes)
+    except (ValueError, TypeError):
+        return False
+    return isinstance(parsed, dict) and parsed.get("contract") == _PROFFER_FLAG_CONTRACT
+
+
+def _verify_proffer_delegation(request: Request, body: "ProfferPotentialPromotionFlagCreate") -> None:
+    """Only the BFF may attest the actor it obtained from its user boundary."""
+    try:
+        key = _PROFFER_DELEGATION_KEY_FILE.read_bytes().strip()
+    except OSError:
+        raise HTTPException(503, "Proffer flag delegation is not configured") from None
+    if not 32 <= len(key) <= 4096:
+        raise HTTPException(503, "Proffer flag delegation is not configured")
+    issued_at = request.headers.get("x-proffer-flag-issued-at", "")
+    signature = request.headers.get("x-proffer-flag-signature", "")
+    if not issued_at.isascii() or not issued_at.isdecimal() or len(issued_at) > 12:
+        raise HTTPException(401, "Proffer flag delegation is required")
+    if abs(int(time.time()) - int(issued_at)) > 60:
+        raise HTTPException(401, "Proffer flag delegation expired")
+    canonical = json.dumps(body.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode("utf-8")
+    expected = hmac.new(key, issued_at.encode("ascii") + b"." + canonical, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(signature, expected):
+        raise HTTPException(401, "Proffer flag delegation is invalid")
+
+
+def _configured_proffer_matter(mode: str) -> UUID:
+    raw = os.getenv(f"PROFFER_{mode}_MATTER_ID", "")
+    try:
+        return UUID(raw)
+    except ValueError:
+        raise HTTPException(503, f"{mode} matter identity is not configured") from None
 
 
 class FlagCreate(BaseModel):
@@ -1060,6 +1103,8 @@ def _register_flags_routes(app: FastAPI) -> None:
             )
         if body.status not in _ALLOWED_FLAG_STATUSES:
             raise HTTPException(422, f"unknown status {body.status!r}; allowed: {sorted(_ALLOWED_FLAG_STATUSES)}")
+        if _reserved_proffer_notes(body.notes):
+            raise HTTPException(422, "governed Proffer provenance is reserved")
 
         with _get_engine().begin() as conn:
             row = (
@@ -1092,9 +1137,12 @@ def _register_flags_routes(app: FastAPI) -> None:
     @app.post("/v1/flags/proffer-potential-promotion", status_code=201)
     async def create_proffer_potential_promotion_flag(
         body: ProfferPotentialPromotionFlagCreate,
+        request: Request,
     ) -> dict[str, Any]:
+        _verify_proffer_delegation(request, body)
+        expected_matter_id = _configured_proffer_matter(body.matter_mode)
         metadata = {
-            "contract": "proffer-potential-promotion/v1",
+            "contract": _PROFFER_FLAG_CONTRACT,
             "classification": "potential_promotion",
             "preview_handle": body.preview_handle,
             "matter_mode": body.matter_mode,
@@ -1112,9 +1160,11 @@ def _register_flags_routes(app: FastAPI) -> None:
             snapshot = (
                 conn.execute(
                     text(
-                        "SELECT snapshot.normalized_generation_id, snapshot.source_version_id "
+                        "SELECT snapshot.normalized_generation_id, snapshot.source_version_id, "
+                        "version.matter_id "
                         "FROM context.proffer_preview_binding binding "
                         "JOIN context.proffer_preview_snapshot snapshot USING (preview_handle) "
+                        "JOIN context.source_version version ON version.id = snapshot.source_version_id "
                         "WHERE binding.preview_handle = :preview_handle "
                         "ORDER BY snapshot.snapshot_seq DESC LIMIT 1"
                     ),
@@ -1125,6 +1175,8 @@ def _register_flags_routes(app: FastAPI) -> None:
             )
             if snapshot is None:
                 raise HTTPException(409, "preview attempt is unavailable")
+            if snapshot["matter_id"] is None or str(snapshot["matter_id"]) != str(expected_matter_id):
+                raise HTTPException(409, "preview matter does not match the requested mode")
             normalized_generation_id = str(snapshot["normalized_generation_id"])
             if normalized_generation_id != str(body.attempt_id):
                 raise HTTPException(409, "flag attempt does not match the current preview attempt")
@@ -1163,7 +1215,7 @@ def _register_flags_routes(app: FastAPI) -> None:
                         "INSERT INTO analysis.corroboration_flag "
                         "(target_kind, target_id, claim, evidence_wanted, status, "
                         "linked_artifacts, notes) "
-                        "VALUES ('run', :target_id, :claim, '[]', 'open', '[]', :notes) RETURNING *"
+                        "VALUES ('run', :target_id, :claim, ARRAY[]::text[], 'open', '[]', :notes) RETURNING *"
                     ),
                     {
                         "target_id": body.preview_handle,
@@ -1177,6 +1229,27 @@ def _register_flags_routes(app: FastAPI) -> None:
             if row is None:
                 raise HTTPException(503, "potential-promotion flag could not be persisted")
         return _row_to_flag(dict(row))
+
+    @app.get("/v1/flags/proffer-potential-promotion")
+    async def list_proffer_potential_promotion_flags(
+        preview_handle: str = Query(min_length=32, max_length=64),
+    ) -> dict[str, Any]:
+        with _get_engine().connect() as conn:
+            rows = (
+                conn.execute(
+                    text(
+                        "SELECT * FROM analysis.corroboration_flag "
+                        "WHERE target_kind = 'run' AND target_id = :preview_handle "
+                        "ORDER BY created_at, flag_id LIMIT 2001"
+                    ),
+                    {"preview_handle": preview_handle},
+                )
+                .mappings()
+                .all()
+            )
+        if len(rows) > 2000:
+            raise HTTPException(409, "Proffer flag list exceeds the governed limit")
+        return {"flags": [_row_to_flag(dict(row)) for row in rows]}
 
     @app.get("/v1/flags")
     async def list_flags(
@@ -1227,6 +1300,8 @@ def _register_flags_routes(app: FastAPI) -> None:
             raise HTTPException(422, f"unknown status {body.status!r}; allowed: {sorted(_ALLOWED_FLAG_STATUSES)}")
         if body.status is None and body.notes is None and body.linked_artifacts_append is None:
             raise HTTPException(422, "at least one of status/notes/linked_artifacts_append must be given")
+        if _reserved_proffer_notes(body.notes):
+            raise HTTPException(422, "governed Proffer provenance is reserved")
 
         sets = ["updated_at = now()"]
         params: dict[str, Any] = {"id": flag_id}
@@ -1241,6 +1316,19 @@ def _register_flags_routes(app: FastAPI) -> None:
             params["append"] = json.dumps(body.linked_artifacts_append)
 
         with _get_engine().begin() as conn:
+            if body.notes is not None:
+                current = (
+                    conn.execute(
+                        text("SELECT notes FROM analysis.corroboration_flag WHERE flag_id = :id FOR UPDATE"),
+                        {"id": flag_id},
+                    )
+                    .mappings()
+                    .first()
+                )
+                if current is None:
+                    raise HTTPException(404, f"flag {flag_id!r} not found")
+                if _reserved_proffer_notes(current["notes"]):
+                    raise HTTPException(409, "governed Proffer provenance is immutable")
             row = (
                 conn.execute(
                     text(f"UPDATE analysis.corroboration_flag SET {', '.join(sets)} WHERE flag_id = :id RETURNING *"),
