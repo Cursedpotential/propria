@@ -7,7 +7,9 @@
 -- Sources today (2024): the texts from Katrina's phone (SMS backup conversation 8102959302; sender taken from the
 -- addressed-to number, see Probata scripts/jev_eval/build_bouts_v2.sql) and the Facebook Messenger thread
 -- 'Katrina Kinzel'. Bout ids match the JSONL files the Opus passes read (c2024-b####, f2024-b####).
--- Rebuild is idempotent for a source: its rows are deleted and rebuilt. Labels from any pass land in chat_bout_labels.
+-- Rebuild is idempotent for a source: its rows are deleted and rebuilt. Labels from any pass land in chat_bout_labels;
+-- their foreign key is ON DELETE RESTRICT, so a rebuild over labelled bouts fails instead of wiping labels (amended
+-- 2026-09-24 07:18, see chat_bouts_custody_party_20260924.sql, which also adds custody_party).
 
 create table if not exists raw_duck.chat_bouts_20260924 (
   bout_id          text primary key,
@@ -21,6 +23,7 @@ create table if not exists raw_duck.chat_bouts_20260924 (
   n_katrina        int not null,
   n_chars          int not null,
   bout_rules       text not null,
+  custody_party    text,                   -- third_party_acquired (her device) | first_party (Matt's own export)
   built_at         timestamptz not null default now(),
   build_script     text not null default 'Consignatio/casebible/tools/chat_bouts_20260924.sql'
 );
@@ -36,7 +39,7 @@ create table if not exists raw_duck.chat_bout_messages_20260924 (
 create index if not exists chat_bout_messages_20260924_key on raw_duck.chat_bout_messages_20260924 (dedup_key);
 
 create table if not exists raw_duck.chat_bout_labels_20260924 (
-  bout_id        text not null references raw_duck.chat_bouts_20260924(bout_id) on delete cascade,
+  bout_id        text not null references raw_duck.chat_bouts_20260924(bout_id) on delete restrict,
   pass           text not null,             -- e.g. bout-tone-v1, bout-discover-v1
   model          text not null,
   prompt_sha256  text not null,
@@ -94,10 +97,11 @@ m as (
 ),
 ins_bouts as (
   insert into raw_duck.chat_bouts_20260924 (bout_id, source, conversation_key, day, start_local, end_local,
-                                             n_messages, n_matt, n_katrina, n_chars, bout_rules)
+                                             n_messages, n_matt, n_katrina, n_chars, bout_rules, custody_party)
   select bout_id, min(source), min(conversation_key), min(day), min(local_ts), max(local_ts), count(*),
          count(*) filter (where who = 'Matt'), count(*) filter (where who = 'Katrina'),
-         sum(length(coalesce(body, ''))), min(rules)
+         sum(length(coalesce(body, ''))), min(rules),
+         case min(source) when 'sms_her_phone' then 'third_party_acquired' when 'fb_messenger' then 'first_party' end
   from m group by bout_id
   returning bout_id
 )
