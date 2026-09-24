@@ -2460,3 +2460,9 @@ engine deploy is waiting on the owner's go.
   - Registered: `sms_her_phone` (third-party acquired), `fb_messenger`, `sms_9303` and `sms_3592` (first-party). 810-353-5467 is Matt's (owner 07:23).
   - Built: 135,685 renderings = 135,629 messages; 8,283 bouts. Every bout's bridge count matches, and the 645 labels are intact. 4 group-text messages stay unassigned.
   - Source files behind each conversation: query `chat_message_norm_20260924` ⋈ `chat_event_provenance_20260918`, grouped by `catalog_rel`.
+- **07:26 File citation on every record** (`casebible/tools/chat_message_files_20260924.sql`, `e219146`; owner: "a file name citation on every single record"). `chat_message_files_20260924` lists every source file of every normalized message: 135,629 messages, 0 uncited. The view `chat_bout_observations_cited_20260924` gives each Opus observation its messages and files.
+- **07:27–07:36 SMS backup coverage** (owner: older backups can go when a newer original covers everything; `sms_backup_coverage_20260924.sql` `4f9853e`, read-only).
+  - 45 SMS backup files: 19 are fully contained in a newer backup (`covered_by_newer`), 9 are keepers, and 17 hold messages no newer backup has (messages removed from the phone between backups; they stay).
+  - **Parse verified** (`sms_backup_headcheck_20260924.sh` `5b7e40d`): each B2 copy's head `<smses count=…>` equals the catalog's parsed rows for all 45 files, 0 missing. The tail's last-record date agrees wherever MMS blobs don't hide it.
+  - [ ] **Owner go:** move the 19 covered files to a B2 quarantine prefix (dry-run with sizes first).
+  - [ ] Offer: list exactly which messages vanished between consecutive backups (the 17 not-covered files).
