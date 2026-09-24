@@ -120,6 +120,8 @@ and mode tests: 55 passed. Changed-file Ruff lint/format, targeted Workbench myp
 Go focused tests and vet, and `git diff --check` passed. Verified Gitleaks 8.30.0
 scanned all seven commits from `origin/main..380018a` with no findings. The
 existing `settings.py` mypy network-type errors remain outside this change.
+The full inspector suite had 59 passing tests, two skipped tests, and two
+failures that assert the retired `sql/0007_curation_and_flags.sql` still exists.
 
 **Decision remains HOLD.** The new key and matter settings are not mounted on the
 deployed services; there is no disposable PostgreSQL execution receipt, live BFF/Go

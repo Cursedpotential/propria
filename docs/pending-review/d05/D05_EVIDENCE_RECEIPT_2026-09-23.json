@@ -130,6 +130,7 @@
       ],
       "verification": [
         {"command": "Focused shared flag routes pytest", "result": "15 passed; PostgreSQL text[] integration probe skipped because PROBATA_TEST_POSTGRES_DSN is not configured", "exit_code": 0},
+        {"command": "Full tests/test_inspect_routes.py", "result": "59 passed, 2 failed, 2 skipped; both failures assert the retired sql/0007_curation_and_flags.sql file exists", "exit_code": 1},
         {"command": "Workbench Proffer flags and mode-isolation pytest", "result": "55 passed, 1 dependency deprecation warning", "exit_code": 0},
         {"command": "Ruff check and format --check on five changed Python files", "result": "passed", "exit_code": 0},
         {"command": "Targeted mypy --follow-imports=skip on three changed Workbench service/test files", "result": "passed", "exit_code": 0},
