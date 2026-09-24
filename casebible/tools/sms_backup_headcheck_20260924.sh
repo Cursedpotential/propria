@@ -12,7 +12,9 @@
 set -euo pipefail
 PG=fgz1n7useplhk0t91uk7k1aw
 REMOTE='b2native-full:salem-data'
-psql_() { docker exec -i "$PG" psql -U postgres -d casebible -v ON_ERROR_STOP=1 "$@"; }
+# stdin comes from PSQL_IN (default /dev/null): with `bash -s` the script itself arrives on stdin, and a bare
+# `docker exec -i` would swallow the rest of it.
+psql_() { docker exec -i "$PG" psql -U postgres -d casebible -v ON_ERROR_STOP=1 "$@" < "${PSQL_IN:-/dev/null}"; }
 
 psql_ -q -c "create table if not exists raw_duck.sms_backup_headcheck_20260924 (
   file text primary key, vault_key text, declared_count int, backup_date timestamptz, last_record_ts timestamptz,
@@ -22,19 +24,19 @@ list=$(psql_ -At -F $'\t' -c "select c.file, min(p.vault_key), count(*) from raw
   join raw_duck.chat_event_provenance_20260918 p on coalesce(p.catalog_rel, p.vault_key) = c.file group by c.file")
 
 out=$(mktemp)
-while IFS=$'\t' read -r file vk rows; do
-  head=$(rclone cat --head 4096 "$REMOTE/$vk" 2>/dev/null | tr -d '\0' | head -c 4096 || true)
+while IFS=$'\t' read -r file vk rows <&3; do
+  head=$(rclone cat --head 4096 "$REMOTE/$vk" 2>/dev/null </dev/null | tr -d '\0' | head -c 4096 || true)
   count=$(printf '%s' "$head" | grep -o '<smses[^>]*count="[0-9]*"' | grep -o 'count="[0-9]*"' | grep -o '[0-9]*' | head -1 || true)
   bdate=$(printf '%s' "$head" | grep -o 'backup_date="[0-9]*"' | grep -o '[0-9]*' | head -1 || true)
-  last=$(rclone cat --tail 262144 "$REMOTE/$vk" 2>/dev/null | tr -d '\0' | grep -o ' date="[0-9]\{13\}"' | tail -1 | grep -o '[0-9]*' || true)
+  last=$(rclone cat --tail 262144 "$REMOTE/$vk" 2>/dev/null </dev/null | tr -d '\0' | grep -o ' date="[0-9]\{13\}"' | tail -1 | grep -o '[0-9]*' || true)
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$file" "$vk" "${count:-\\N}" "${bdate:-\\N}" "${last:-\\N}" "$rows" \
     "$([ -n "$head" ] && echo t || echo f)" >> "$out"
-done <<< "$list"
+done 3<<< "$list"
 
 psql_ -q -c "create table if not exists raw_duck.sms_backup_headcheck_stage_20260924 (file text, vault_key text,
   declared_count text, bdate text, last text, catalog_rows int, head_ok boolean);
   truncate raw_duck.sms_backup_headcheck_stage_20260924;"
-psql_ -q -c "\copy raw_duck.sms_backup_headcheck_stage_20260924 from stdin" < "$out"
+PSQL_IN="$out" psql_ -q -c "\copy raw_duck.sms_backup_headcheck_stage_20260924 from stdin"
 psql_ -q -c "insert into raw_duck.sms_backup_headcheck_20260924 (file, vault_key, declared_count, backup_date,
     last_record_ts, catalog_rows, head_ok)
   select file, vault_key, nullif(declared_count,'')::int, to_timestamp(nullif(bdate,'')::bigint / 1000.0),
