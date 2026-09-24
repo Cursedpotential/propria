@@ -15,8 +15,10 @@
 --              (e.g. "index copy.html" and the renamed html) are grouped by content_key + dup_occurrence for the
 --              comparison, and every copy stays cited.
 -- Match (basis recorded on every link): same speaker, same text (lower-cased, whitespace collapsed), and |Δt| <= 5 min.
---   Her times are UTC to the millisecond. The iMessage export writes local wall-clock minutes with no zone; they are
---   read as America/Detroit (DST-aware), so Δt includes up to 59 s of truncation plus delivery delay.
+--   Her times are UTC to the millisecond. His side's times are whatever its reader established: Google Voice states
+--   UTC offsets; the iMessage HTML export states UTC minutes (reader v3, tz_status utc_inferred, cross-checked on
+--   2024-08-09 after v2 read them as local and matched almost nothing: 130 pairs). A source with truly unknown zone is
+--   read as America/Detroit (DST-aware). Δt includes up to 59 s of minute truncation plus delivery delay.
 -- Gaps (only inside her backup's coverage window for his threads, first to last message on her phone, because
 -- before/after that window her phone holds nothing to compare):
 --   side_missing = 'her_phone'  on his side, not on her phone. category:
@@ -80,7 +82,7 @@ create temp table his on commit drop as
 with katnums as (select distinct identifier from raw_duck.msg_identity_20260924 where person = 'Katrina' and kind = 'phone')
 select r.content_key, r.dup_occurrence,
        min(coalesce(r.event_ts_utc, r.sort_ts at time zone 'America/Detroit')) as ts,
-       min(case when r.event_ts_utc is not null then 'utc_known' else 'local_minute_read_as_America/Detroit' end) as ts_basis,
+       min(case when r.event_ts_utc is not null then r.tz_status else 'local_minute_read_as_America/Detroit' end) as ts_basis,
        min(r.body) as body,
        lower(regexp_replace(btrim(coalesce(min(r.body), '')), '\s+', ' ', 'g')) as bn,
        min(case when r.direction in ('sent', 'placed') then 'Matt' when r.direction = 'received' then 'Katrina' end) as speaker,

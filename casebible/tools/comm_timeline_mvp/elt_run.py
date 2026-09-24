@@ -28,6 +28,8 @@ the packing and extraction guidance ... fix any bugs that's part of this process
   * Weaviate is written only with PUBLISH=1 (precommit contract: nothing reaches a store before review). The bundle
     is the review artifact and the catalog load source (msg_extract_load_20260924.sh).
   * The runner no longer lists a Cube ACR reader: elt_cube_acr_json_v1.sql never existed.
+  * New readers elt_whatsapp_txt_v1 and elt_sms_csv_v1 (no reader existed; owner 09:47 "no tool -> add one").
+  * A file where more than 10% of rows have no usable date is reported as suspect_integrity (repair toolkit).
 """
 from __future__ import annotations
 
@@ -71,7 +73,7 @@ TERMS = json.load(open(os.environ["TERMS"]))
 # 810-268-9630, her number to 2024). Without the export the terms file's list is used, as before.
 IDENTITY = os.environ.get("IDENTITY", "")
 if IDENTITY and Path(IDENTITY).exists():
-    KATRINA_PHONES = sorted({r["identifier"] for r in csv.DictReader(open(IDENTITY, encoding="utf-8"), delimiter="	")
+    KATRINA_PHONES = sorted({r["identifier"] for r in csv.DictReader(open(IDENTITY, encoding="utf-8"), delimiter="\t")
                              if r["person"] == "Katrina" and r["kind"] == "phone" and r["status"] == "confirmed"})
 else:
     KATRINA_PHONES = TERMS["katrina_phones_confirmed"]
@@ -82,18 +84,22 @@ TEMPLATES = {
     "calls_backup_xml": ("elt_smsbackuprestore_v2.sql", ["sms", "mms", "call"], True),
     "google_voice_html": ("elt_google_voice_html_v2.sql", ["text", "call"], False),
     "fb_messenger_html": ("elt_fb_messenger_html_v1.sql", ["*"], False),
-    "imessage_html": ("elt_imessage_html_v2.sql", ["*"], False),
+    "imessage_html": ("elt_imessage_html_v3.sql", ["*"], False),  # v3: the export's clock is UTC (cross-checked)
     "imessage_txt": ("elt_imessage_txt_v2.sql", ["*"], False),
     "mbox": ("elt_mbox_v1.sql", ["*"], False),
+    "whatsapp_txt": ("elt_whatsapp_txt_v1.sql", ["*"], False),
+    "sms_csv": ("elt_sms_csv_v1.sql", ["*"], False),
 }
 TAGGER = "tag_events_v2.sql"
 # The medium a format records. Part of the true-duplicate key (owner 09:36: "same medium or platform").
 PLATFORM = {"sms_backup_xml": "carrier_sms_mms", "calls_backup_xml": "carrier_calls", "google_voice_html": "google_voice",
             "fb_messenger_html": "facebook_messenger", "imessage_html": "apple_messages",
-            "imessage_txt": "apple_messages", "mbox": "email"}
+            "imessage_txt": "apple_messages", "mbox": "email", "whatsapp_txt": "whatsapp",
+            "sms_csv": "carrier_sms_mms"}
 # Source-side markers, counted straight from the file, to reconcile against the rows a reader returns.
 MARKERS = {"google_voice_html": r'<div class="message">', "imessage_html": r"""<div class=['"]bubble""",
-           "imessage_txt": r"(?m)^\[[0-9]{4}-[0-9]{2}-[0-9]{2}"}
+           "imessage_txt": r"(?m)^\[[0-9]{4}-[0-9]{2}-[0-9]{2}",
+           "whatsapp_txt": r"(?m)^\x{200E}?\[?[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}, [0-9]{1,2}:[0-9]{2}"}
 EVENT_COLS = ["record_index", "event_ts_utc", "sort_ts", "ts_original", "ts_field", "tz_status", "event_kind",
               "conversation_id", "conversation_title", "participants", "sender", "recipients", "direction",
               "counterparty_phone", "contact_name", "body", "attachments", "member_path"]
@@ -132,6 +138,14 @@ def sniff(path: Path, guess: str) -> str | None:
         return "imessage_txt"
     if t.startswith("From ") and re.search(r"(?im)^Date: ", t):
         return "mbox"
+    # 2026-09-24: WhatsApp exports and phone SMS CSV exports had no reader and were skipped.
+    tw = t.replace("\u200e", "")
+    if re.search(r"^\[\d{1,2}/\d{1,2}/\d{2,4}, \d{1,2}:\d{2}[^\]]*\] [^:\n]{1,80}: ", tw, re.M) or \
+            re.search(r"^\d{1,2}/\d{1,2}/\d{2,4}, \d{1,2}:\d{2}[^-\n]{0,8} - [^:\n]{1,80}: ", tw, re.M):
+        return "whatsapp_txt"
+    first = low.lstrip("\ufeff").split("\n", 1)[0].replace('"', "").replace(" ", "")
+    if first.startswith("address,readable_date,type,body"):
+        return "sms_csv"
     if guess == "cube_acr_json" and t.lstrip().startswith(("{", "[")):
         return "cube_acr_json"
     return None
@@ -149,6 +163,9 @@ def connect() -> duckdb.DuckDBPyConnection:
     con = duckdb.connect()
     con.execute("install webbed from community; load webbed; install zipfs from community; load zipfs")
     con.execute(f"set memory_limit='{os.environ.get('DUCK_MEM', '6GB')}'; set temp_directory='{TMP}'; set threads=4")
+    # 2026-09-24: pin the session zone. Unpinned, sort_ts_final (= event_ts_utc::timestamp for zoned sources) was the
+    # host's wall clock: UTC in the 09-18 container, US Eastern in devbox.
+    con.execute("set TimeZone = 'UTC'")
     for k in ("katrina_strict", "katrina_possible", "catrina_c", "landlord_context", "nickname",
               "daughter_strong", "daughter_weak", "kinship", "custody", "housing"):
         con.execute(f"set variable {k} = ?", [TERMS[k]])
@@ -291,7 +308,9 @@ def extract_file(con: duckdb.DuckDBPyConnection, path: Path, fmt: str, row: dict
     n2, digest2 = con.execute(digest_sql.format(src=f"read_parquet({q(str(out))})")).fetchone()
     if (n, digest) != (n2, digest2):
         raise RuntimeError(f"bundle read-back mismatch: extracted {n}/{digest}, parquet {n2}/{digest2}")
-    lin.update(rows_out=n, row_digest=digest, bundle_file=str(out.relative_to(PROPOSAL)))
+    lin.update(rows_out=n, row_digest=digest, bundle_file=str(out.relative_to(PROPOSAL)),
+               unparsed=con.execute("select count(*) filter (where tz_status in ('unparsed', 'missing')) "
+                                    "from ev_tagged").fetchone()[0])
     return lin
 
 
@@ -384,6 +403,10 @@ def main() -> int:
                 if lin["source_markers"] is not None and lin["source_markers"] != n_ev:
                     warnings.append({"vault_key": row["vault_key"], "sha1": row["sha1"], "kind": "count_differs",
                                      "detail": f"{lin['source_markers']} source markers, {n_ev} rows"})
+                if n_ev and lin.get("unparsed", 0) > 0.1 * n_ev:
+                    warnings.append({"vault_key": row["vault_key"], "sha1": row["sha1"], "kind": "suspect_integrity",
+                                     "detail": f"{lin['unparsed']} of {n_ev} rows have no usable date: "
+                                               "check with the repair toolkit"})
                 if n_ev == 0:
                     warnings.append({"vault_key": row["vault_key"], "sha1": row["sha1"], "kind": "no_rows",
                                      "detail": f"{fmt} reader returned no rows"})
