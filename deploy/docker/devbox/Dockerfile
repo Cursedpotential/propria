@@ -172,13 +172,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends pipx ocrmypdf \
     && UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin uv tool install --python 3.12 exifread==3.5.1 \
     && chmod -R a+rX /opt/uv-tools \
     && uv venv /opt/venv --python 3.12 \
-    && uv pip install --python /opt/venv/bin/python pypdfium2 pypdf duckdb httpx pyarrow \
+    && uv pip install --python /opt/venv/bin/python pypdfium2 pypdf duckdb httpx pyarrow pytz \
     && chmod -R a+rX /opt/venv
 # ~~pymupdf~~ replaced by pypdfium2 2026-09-24 (owner 09:44 "that pdf lib was the most unreliable"): the 2026-09-11
 # reader bake-off on the owner's evidence (Consignatio repair-tool-kit/FINDINGS.md) found MuPDF (`mutool`, the engine
 # pymupdf wraps) the only reader that emitted a glyph corresponding to nothing; pdftotext (poppler-utils, apt below),
 # pypdf and pypdfium2 recovered 33/33. This line predated that test.
-# duckdb/httpx/pyarrow added 2026-09-24 (Claude Code · Opus 5.5; owner 09:43 "if we use it here, it needs to be installed
+# duckdb/httpx/pyarrow (+ pytz, which duckdb needs to return TIMESTAMPTZ to Python) added 2026-09-24 (Claude Code · Opus 5.5; owner 09:43 "if we use it here, it needs to be installed
 # there too"): the Consignatio DuckDB ELT runner (casebible/tools/comm_timeline_mvp/elt_run.py) runs in devbox. The
 # Python duckdb is unpinned like the CLI above, so both track the latest release together (1.5.5 on 2026-09-24).
 # The running container (created 2026-09-08 15:04Z) predated /opt/venv; it was created in place the same day.
