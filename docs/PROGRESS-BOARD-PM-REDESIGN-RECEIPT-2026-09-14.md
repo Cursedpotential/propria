@@ -1,3 +1,5 @@
+> Updated 2026-09-24: palette references now reflect the owner-directed Probata color alignment; earlier verification dates below do not verify this update.
+
 # Receipt: Propria progress board redesigned as a project-management app
 
 > _Byline: Claude Code · Sonnet · 2026-09-14 — owner direction 08:07 EDT ("more project-management
@@ -22,7 +24,7 @@ Live route: `https://homepage.tilapia-skilift.ts.net/progress/`. Deployed files 
   `healthSummary`, `renderBoardMarkup` (flat or per-lane swimlanes), `trackerRows` /
   `filterTrackerRows` / `trackerTableRows`, priority/due badges on task cards, and a
   `statusChipClass` heuristic for the tracker's status chips.
-- `public/style.css` — rebuilt on the Propria Carbon-Linen-Seal token contract. `server.mjs` only
+- `public/style.css` — rebuilt on the Propria Probata graphite/indigo token contract. `server.mjs` only
   serves the four fixed filenames above (no route for a fifth `tokens.css`), so the generated
   token block (`resources/design/tokens.json`, sha256
   `4d1ed7b7a62cb04289c48570fd49a28f7493855413416ca20a088134699473e`, contract 1.0.0) is vendored

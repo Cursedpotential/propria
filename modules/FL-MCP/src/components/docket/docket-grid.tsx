@@ -1,5 +1,5 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
-// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — resolved Carbon-Linen-Seal Glide themes.
+// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — resolved Probata graphite/indigo Glide themes.
 //
 // Glide Data Grid over docket entries (filings/drafts/orders/upcoming
 // court_events — see mcp-app/src/store.ts's `caseDocket`). Row click opens a
@@ -41,23 +41,23 @@ export function DocketGrid({ entries }: { entries: DocketEntry[] }) {
 
   const gridTheme = React.useMemo<Partial<Theme>>(
     () => ({
-      accentColor: contractToken("--pr-action", theme === "dark" ? "#f27479" : "#9f303b"),
-      accentFg: contractToken("--pr-action-text", theme === "dark" ? "#211011" : "#ffffff"),
-      accentLight: contractToken("--pr-action-soft", theme === "dark" ? "#4a252b" : "#f3e1e5"),
-      textDark: contractToken("--pr-ink", theme === "dark" ? "#f5f1e8" : "#171a1c"),
-      textMedium: contractToken("--pr-ink-muted", theme === "dark" ? "#b8b1a5" : "#5d625f"),
-      textLight: contractToken("--pr-ink-muted", theme === "dark" ? "#b8b1a5" : "#5d625f"),
-      textHeader: contractToken("--pr-shell-text", theme === "dark" ? "#f5f1e8" : "#f4f0e8"),
-      textHeaderSelected: contractToken("--pr-shell-text", theme === "dark" ? "#f5f1e8" : "#f4f0e8"),
-      bgCell: contractToken("--pr-surface", theme === "dark" ? "#202622" : "#fffdf8"),
-      bgCellMedium: contractToken("--pr-surface-muted", theme === "dark" ? "#2a312c" : "#e7e1d5"),
-      bgHeader: contractToken("--pr-shell-surface", theme === "dark" ? "#1b211d" : "#232b27"),
-      bgHeaderHasFocus: contractToken("--pr-action-soft", theme === "dark" ? "#4a252b" : "#f3e1e5"),
-      bgHeaderHovered: contractToken("--pr-border-strong", theme === "dark" ? "#717c74" : "#81786a"),
-      bgSearchResult: contractToken("--pr-action-soft", theme === "dark" ? "#4a252b" : "#f3e1e5"),
-      borderColor: contractToken("--pr-border", theme === "dark" ? "#49534d" : "#c6beb0"),
-      horizontalBorderColor: contractToken("--pr-border", theme === "dark" ? "#49534d" : "#c6beb0"),
-      headerBottomBorderColor: contractToken("--pr-border-strong", theme === "dark" ? "#717c74" : "#81786a"),
+      accentColor: contractToken("--pr-action", theme === "dark" ? "#8591F0" : "#4051B9"),
+      accentFg: contractToken("--pr-action-text", theme === "dark" ? "#111820" : "#ffffff"),
+      accentLight: contractToken("--pr-action-soft", theme === "dark" ? "#313A66" : "#E9ECFB"),
+      textDark: contractToken("--pr-ink", theme === "dark" ? "#F7F8F7" : "#1D2228"),
+      textMedium: contractToken("--pr-ink-muted", theme === "dark" ? "#B1B8BD" : "#687078"),
+      textLight: contractToken("--pr-ink-muted", theme === "dark" ? "#B1B8BD" : "#687078"),
+      textHeader: contractToken("--pr-shell-text", theme === "dark" ? "#F7F8F7" : "#F7F8F7"),
+      textHeaderSelected: contractToken("--pr-shell-text", theme === "dark" ? "#F7F8F7" : "#F7F8F7"),
+      bgCell: contractToken("--pr-surface", theme === "dark" ? "#242E36" : "#FFFEFB"),
+      bgCellMedium: contractToken("--pr-surface-muted", theme === "dark" ? "#2C373F" : "#EBE8E0"),
+      bgHeader: contractToken("--pr-shell-surface", theme === "dark" ? "#202B33" : "#202B33"),
+      bgHeaderHasFocus: contractToken("--pr-action-soft", theme === "dark" ? "#313A66" : "#E9ECFB"),
+      bgHeaderHovered: contractToken("--pr-border-strong", theme === "dark" ? "#62707A" : "#B8B6B0"),
+      bgSearchResult: contractToken("--pr-action-soft", theme === "dark" ? "#313A66" : "#E9ECFB"),
+      borderColor: contractToken("--pr-border", theme === "dark" ? "#43505A" : "#D5D1C9"),
+      horizontalBorderColor: contractToken("--pr-border", theme === "dark" ? "#43505A" : "#D5D1C9"),
+      headerBottomBorderColor: contractToken("--pr-border-strong", theme === "dark" ? "#62707A" : "#B8B6B0"),
       linkColor: contractToken("--pr-information", theme === "dark" ? "#82bdc0" : "#376f72"),
       fontFamily: contractToken("--pr-font-ui", '"Instrument Sans", "Segoe UI", sans-serif'),
       baseFontStyle: "14px",

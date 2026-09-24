@@ -3,10 +3,12 @@ priority: critical
 authority: owner_direction_and_existing_accepted_contracts
 status: accepted_for_initial_adoption
 contract_version: 1.0.0
-updated: 2026-09-12
+updated: 2026-09-24
 ---
 
 # Propria shared surface design contract
+
+> Updated 2026-09-24: palette references now reflect the owner-directed Probata color alignment; earlier verification dates below do not verify this update.
 
 <!-- Created by: Codex | Date: 2026-09-12 | Platform: Codex / win32 -->
 
@@ -16,11 +18,10 @@ portal, project progress board, Consignatio Intake, the Indicia Probata Workbenc
 **advocatio Legal Workdesk**.
 
 The interaction and authority rules below consolidate current accepted decisions and verified
-implementation receipts. The **Carbon-Linen-Seal** palette responds to the owner's 2026-09-12
-feedback that the current portal and Intake presentation is too blue, too bland, and lacks contrast.
-The owner accepted this direction for initial adoption on 2026-09-12, with the explicit requirement
-that color and CSS remain a centrally editable template. Acceptance does not freeze individual
-values: a versioned token change can adjust the entire family without changing each product by hand.
+implementation receipts. The owner selected **Probata graphite/indigo** on 2026-09-24,
+replacing the former palette throughout the shared source and its Advocatio and Family Court
+consumers. Probata's application stylesheet supplies the matching surface/action values.
+Colors remain centrally adjustable without changing each product by hand.
 
 ## Contract precedence
 
@@ -80,7 +81,7 @@ pretending to be one application. Align these parts now:
 
 - App shell proportions: compact header/search, bounded left navigation, primary work canvas and an
   optional right inspector or assistant.
-- The same Carbon-Linen-Seal semantic roles, focus treatment, typography roles, spacing, radii,
+- The same Probata graphite/indigo semantic roles, focus treatment, typography roles, spacing, radii,
   hairline borders and restrained shadows.
 - The context strip vocabulary for matter, court case, selection/source, revision/package, run,
   authority and freshness.
@@ -178,35 +179,34 @@ and the contract's core contrast pairs. [The package README](design-contract/REA
 guide. Products map their local variables through the supplied adapters to the `--pr-*` semantic
 names; they do not import another product's CSS or create a shared runtime dependency.
 
-### Carbon-Linen-Seal palette
+### Probata graphite/indigo palette
 
 | Semantic role | Light | Dark | Use |
 |---|---:|---:|---|
-| Canvas | `#F3F0E8` | `#161A18` | Page/workspace background |
-| Surface | `#FFFDF8` | `#202622` | Primary panel, card and editor |
-| Surface muted | `#E7E1D5` | `#2A312C` | Recessed controls, lanes and secondary panels |
-| Ink | `#171A1C` | `#F5F1E8` | Primary text |
-| Ink muted | `#5D625F` | `#B8B1A5` | Secondary text; never critical facts alone |
-| Border | `#C6BEB0` | `#49534D` | Ordinary separation |
-| Border strong | `#81786A` | `#717C74` | Interactive boundaries and selected groups |
-| Shell | `#171C19` | `#101412` | Navigation shell |
-| Shell surface | `#232B27` | `#1B211D` | Active or nested shell area |
-| Shell text | `#F4F0E8` | `#F5F1E8` | Shell copy and icons |
-| Action / seal | `#9F303B` | `#F27479` | Primary action, active route, deliberate commitment |
-| Action text | `#FFFFFF` | `#211011` | Text/icon on a solid action background |
-| Action hover | `#7B222D` | `#FF9A9F` | Hover/pressed emphasis |
-| Action soft | `#F3E1E5` | `#4A252B` | Selected or active background |
-| Focus / brass | `#7D5200` | `#F0B45A` | Keyboard focus and current target |
+| Canvas | `#F5F3EE` | `#1D252C` | Page/workspace background |
+| Surface | `#FFFEFB` | `#242E36` | Primary panel, card and editor |
+| Surface muted | `#EBE8E0` | `#2C373F` | Recessed controls, lanes and secondary panels |
+| Ink | `#1D2228` | `#F7F8F7` | Primary text |
+| Ink muted | `#687078` | `#B1B8BD` | Secondary text; never critical facts alone |
+| Border | `#D5D1C9` | `#43505A` | Ordinary separation |
+| Border strong | `#B8B6B0` | `#62707A` | Interactive boundaries and selected groups |
+| Shell | `#151E25` | `#121A21` | Navigation shell |
+| Shell surface | `#202B33` | `#202B33` | Active or nested shell area |
+| Shell text | `#F7F8F7` | `#F7F8F7` | Shell copy and icons |
+| Action | `#4051B9` | `#8591F0` | Primary action, active route, deliberate commitment |
+| Action text | `#FFFFFF` | `#111820` | Text/icon on a solid action background |
+| Action hover | `#2F3D9C` | `#A4AEFF` | Hover/pressed emphasis |
+| Action soft | `#E9ECFB` | `#313A66` | Selected or active background |
+| Focus / indigo | `#4051B9` | `#8591F0` | Keyboard focus and current target |
 | Positive / verified | `#247047` | `#6CC392` | Verified success only |
 | Caution | `#9A5A12` | `#E6B55D` | Pending, incomplete, stale or attention |
-| Destructive | `#B42318` | `#FF8377` | Failure or genuinely destructive action |
+| Destructive | `#B5433B` | `#E06E65` | Failure or genuinely destructive action |
 | Information | `#376F72` | `#82BDC0` | Neutral information and charts; blue/teal is not the brand action |
 
 Rules:
 
-- Primary actions use seal red, not blue. Blue/teal is reserved for information where it adds
-  meaning.
-- Focus is brass and always includes an outline, not a color-only change.
+- Primary actions use Probata indigo. Status colors remain distinct from navigation and actions.
+- Focus is indigo and always includes an outline, not a color-only change.
 - Success green means verified completion, never merely submitted, transported or locally built.
 - Caution covers pending, partial, stale and unknown only when a text/icon label states which one.
 - Destructive red is not reused for ordinary navigation, decoration or a generic chart series.
@@ -292,7 +292,7 @@ The progress board uses real project-management structure:
 - Never publish one blended percent that combines unrelated repositories, story points, tests and
   deployments. If a percentage is used, define its denominator beside it.
 - Graph series use semantic colors only where the meaning is consistent; otherwise use a neutral
-  categorical sequence derived from ink, seal, brass, verify and information tokens.
+  categorical sequence derived from ink, action, focus, verify and information tokens.
 
 ## Stack adapters observed 2026-09-12
 
@@ -329,7 +329,7 @@ Implementation ownership, sequencing, and evidence status are tracked in the
 An adoption lane is not in progress until that register names an explicit repository-scoped task.
 
 1. **Owner visual direction:** SATISFIED FOR INITIAL ADOPTION — the owner accepted the
-   Carbon-Linen-Seal sample on 2026-09-12 and clarified that the approved Probata General/Advanced
+   initial palette sample on 2026-09-12 (superseded on 2026-09-24) and clarified that the approved Probata General/Advanced
    mockups remain the structural donors. Cross-surface rendered comparison is still required before
    declaring visual parity complete.
 2. **Token adoption:** map product-local variables to `--pr-*` without importing another product's
@@ -349,7 +349,7 @@ An adoption lane is not in progress until that register names an explicit reposi
   legal shell.
 - The owner rejected the current bland/blue/low-contrast direction; this contract removes blue as the
   primary brand/action color.
-- The owner accepted the Carbon-Linen-Seal direction for now and required a centrally adjustable CSS
+- The owner now requires the Probata graphite/indigo direction and required a centrally adjustable CSS
   template. The preserved Probata Evidence Operations Desk and Modular Service Cockpit—not the later
   generic sample—remain the approved structural source for General and Advanced surfaces.
 - Intake's selection/chat receipt records component and source tests, but native click-through and an

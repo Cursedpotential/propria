@@ -1,3 +1,5 @@
+> Updated 2026-09-24: palette references now reflect the owner-directed Probata color alignment; earlier verification dates below do not verify this update.
+
 # SDA-04 Family Court surface design adoption receipt
 
 > _Byline: OpenAI Codex · GPT-5 · 2026-09-12._
@@ -5,7 +7,7 @@
 ## Outcome
 
 Family Court Workbench now consumes a repository-owned, pinned copy of the Propria
-Carbon-Linen-Seal surface contract. Dark and light modes use the same semantic roles as the other
+Probata graphite/indigo surface contract. Dark and light modes use the same semantic roles as the other
 Propria workspaces without changing this product into advocatio or treating Probata's experience
 tier as a theme.
 
@@ -35,12 +37,12 @@ package's canonical builder restored LF and produced the exact pinned Git blob
 
 ## Applied surface contract
 
-- Dark canvas/surface/action/focus: `#161a18`, `#202622`, `#f27479`, `#f0b45a`.
-- Light canvas/surface/action/focus: `#f3f0e8`, `#fffdf8`, `#9f303b`, `#7d5200`.
+- Dark canvas/surface/action/focus: `#1D252C`, `#242E36`, `#8591F0`, `#8591F0`.
+- Light canvas/surface/action/focus: `#F5F3EE`, `#FFFEFB`, `#4051B9`, `#4051B9`.
 - UI type: Instrument Sans with Segoe UI fallback.
 - Data/code type: IBM Plex Mono with Cascadia Code fallback.
 - Family Court aliases map to shared semantic tokens rather than maintaining a second palette.
-- Seal red is reserved for primary action/selection; brass is the keyboard focus signal; teal is
+- Indigo is reserved for primary action/selection; indigo is the keyboard focus signal; teal is
   informational/status only.
 - Buttons, inputs, badges, cards, navigation, the Glide docket grid, unavailable/retry messaging,
   and Storybook stories now resolve through the shared contract.
@@ -80,7 +82,7 @@ All checks were run from `projects/family-court-workbench` on 2026-09-12.
 | Browser dark mode | Passed at `http://127.0.0.1:5183/`; computed values matched the dark contract and no console error/warning was captured. |
 | Browser light mode | Passed; computed values matched the light contract and both theme attributes/classes changed together. |
 | Selected navigation contrast | Passed after browser-led correction: 13.92:1 in light mode and 11.71:1 in dark mode. |
-| Keyboard/focus | Passed with keyboard Tab; the focused retry control showed the brass solid focus outline. |
+| Keyboard/focus | Passed with keyboard Tab; the focused retry control showed the indigo solid focus outline. |
 | 200% equivalent reflow | Passed at a 640×360 CSS viewport (half the 1280×720 baseline): top-rail navigation, wrapped header, and `scrollWidth === clientWidth` for the document. |
 | Unavailable/retry | Passed: after the bounded 6-second store timeout the UI announced “Case store unavailable,” explained the timeout, exposed “Try again,” and returned to the connecting state when invoked. |
 | AI panel | Passed visual/semantic inspection in dark mode; the Claude panel inherited the contract and retained its Family Court-only authority text. No prompt was transmitted. |

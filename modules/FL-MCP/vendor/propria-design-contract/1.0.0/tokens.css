@@ -1,28 +1,28 @@
-/* Propria shared semantic tokens | contract 1.0.0 | 2026-09-12 | Byline: Codex · GPT-5
+/* Propria shared semantic tokens | contract 1.0.0 | 2026-09-24 | Byline: Codex · GPT-5
    GENERATED FROM tokens.json. Do not hand-edit this file. */
 
 :root,
 [data-pr-theme="light"],
 :root.theme-light {
   color-scheme: light;
-  --pr-canvas: #f3f0e8;
-  --pr-surface: #fffdf8;
-  --pr-surface-muted: #e7e1d5;
-  --pr-ink: #171a1c;
-  --pr-ink-muted: #5d625f;
-  --pr-border: #c6beb0;
-  --pr-border-strong: #81786a;
-  --pr-shell: #171c19;
-  --pr-shell-surface: #232b27;
-  --pr-shell-text: #f4f0e8;
-  --pr-action: #9f303b;
+  --pr-canvas: #f5f3ee;
+  --pr-surface: #fffefb;
+  --pr-surface-muted: #ebe8e0;
+  --pr-ink: #1d2228;
+  --pr-ink-muted: #687078;
+  --pr-border: #d5d1c9;
+  --pr-border-strong: #b8b6b0;
+  --pr-shell: #151e25;
+  --pr-shell-surface: #202b33;
+  --pr-shell-text: #f7f8f7;
+  --pr-action: #4051b9;
   --pr-action-text: #ffffff;
-  --pr-action-hover: #7b222d;
-  --pr-action-soft: #f3e1e5;
-  --pr-focus: #7d5200;
+  --pr-action-hover: #2f3d9c;
+  --pr-action-soft: #e9ecfb;
+  --pr-focus: #4051b9;
   --pr-positive: #247047;
   --pr-caution: #9a5a12;
-  --pr-destructive: #b42318;
+  --pr-destructive: #b5433b;
   --pr-information: #376f72;
   --pr-font-ui: "Instrument Sans", "Segoe UI", sans-serif;
   --pr-font-data: "IBM Plex Mono", "Cascadia Code", monospace;
@@ -38,24 +38,24 @@
 :root.theme-dark,
 html.dark {
   color-scheme: dark;
-  --pr-canvas: #161a18;
-  --pr-surface: #202622;
-  --pr-surface-muted: #2a312c;
-  --pr-ink: #f5f1e8;
-  --pr-ink-muted: #b8b1a5;
-  --pr-border: #49534d;
-  --pr-border-strong: #717c74;
-  --pr-shell: #101412;
-  --pr-shell-surface: #1b211d;
-  --pr-shell-text: #f5f1e8;
-  --pr-action: #f27479;
-  --pr-action-text: #211011;
-  --pr-action-hover: #ff9a9f;
-  --pr-action-soft: #4a252b;
-  --pr-focus: #f0b45a;
+  --pr-canvas: #1d252c;
+  --pr-surface: #242e36;
+  --pr-surface-muted: #2c373f;
+  --pr-ink: #f0f1ef;
+  --pr-ink-muted: #b1b8bd;
+  --pr-border: #43505a;
+  --pr-border-strong: #62707a;
+  --pr-shell: #121a21;
+  --pr-shell-surface: #202b33;
+  --pr-shell-text: #f7f8f7;
+  --pr-action: #8591f0;
+  --pr-action-text: #111820;
+  --pr-action-hover: #a4aeff;
+  --pr-action-soft: #313a66;
+  --pr-focus: #8591f0;
   --pr-positive: #6cc392;
   --pr-caution: #e6b55d;
-  --pr-destructive: #ff8377;
+  --pr-destructive: #e06e65;
   --pr-information: #82bdc0;
   --pr-shadow-panel: 0 10px 28px rgb(0 0 0 / 28%);
   --pr-shadow-dialog: 0 24px 72px rgb(0 0 0 / 44%);

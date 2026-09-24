@@ -1,3 +1,5 @@
+> Updated 2026-09-24: palette references now reflect the owner-directed Probata color alignment; earlier verification dates below do not verify this update.
+
 ---
 priority: critical
 authority: owner_decision
@@ -77,7 +79,7 @@ The owner-approved [shared result presentation and document revision contract](R
 The [Propria shared surface design contract](SURFACE-DESIGN-CONTRACT.md) aligns owner-facing semantics,
 context, typography, accessibility and visual tokens without merging application runtimes or authority.
 Its Intake layout rules consolidate the current native split/selection/chat receipts. Its proposed
-Carbon-Linen-Seal palette still requires rendered owner approval and is not yet an accepted product
+Probata graphite/indigo palette follows the 2026-09-24 owner direction; source alignment alone does not prove product
 color decision.
 
 Do not share or silently repoint app/environment identity, tracking databases, worker locks, configuration/credentials or target tables/collections between these systems. Endpoint sharing, if explicitly designed, does not merge ownership. Human-facing command names must disambiguate the system; never run codebase ccc indexing as Docstore or Intake ingestion.

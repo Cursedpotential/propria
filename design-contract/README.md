@@ -3,7 +3,7 @@
 > _Byline: Codex · GPT-5 · 2026-09-12._
 
 This directory is the portable styling contract for Propria's owner-facing surfaces. Version 1.0.0
-keeps the accepted Carbon-Linen-Seal palette in one place and preserves Probata's owner-approved
+keeps the accepted Probata graphite/indigo palette in one place and preserves Probata's owner-approved
 two-surface structure:
 
 - **General:** Evidence Operations Desk — everyday evidence work.

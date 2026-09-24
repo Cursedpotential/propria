@@ -1,5 +1,5 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
-// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — 36px targets and brass focus.
+// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — 36px targets and indigo focus.
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 import { cn } from "@/lib/utils";

@@ -12,7 +12,7 @@
  *   gradients. Status is communicated primarily through muted fills + a 1px
  *   border + font-weight, NEVER through a loud color alone.
  *
- * Carbon-Linen-Seal values come only from the pinned contract's generated
+ * Probata graphite/indigo values come only from the pinned contract's generated
  * `tokens.css`. This file is a compatibility adapter for established local
  * names so the React components do not create a second semantic palette.
  *

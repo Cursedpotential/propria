@@ -2,9 +2,13 @@
 
 > _Byline: Codex · GPT-5 · 2026-09-12._
 
+## Palette correction � 2026-09-24
+
+- Owner replaced the previous palette with Probata application colors; geometry and contract API stay unchanged.
+
 ## 1.0.0 — 2026-09-12
 
-- Accepted Carbon-Linen-Seal as the initial, centrally adjustable palette direction.
+- Established the initial centrally adjustable palette; colors superseded by the 2026-09-24 correction.
 - Preserved Probata's approved Evidence Operations Desk and Modular Service Cockpit as the General
   and Advanced structural donors.
 - Added independent light/dark theme and General/Advanced experience axes.

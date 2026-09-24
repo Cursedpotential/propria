@@ -1,5 +1,5 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
-// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — reflow-safe Carbon-Linen-Seal header.
+// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — reflow-safe Probata graphite/indigo header.
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Moon, Search, Sun } from "lucide-react";

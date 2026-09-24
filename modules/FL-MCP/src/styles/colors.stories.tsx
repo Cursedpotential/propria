@@ -1,6 +1,6 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
 //
-// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — Carbon-Linen-Seal semantics.
+// Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — Probata graphite/indigo semantics.
 // The vendored contract owns values; this story documents Family Court aliases.
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
@@ -56,7 +56,7 @@ export const Palettes: StoryObj = {
   render: () => (
     <div className="max-w-3xl space-y-4">
       <p className="text-sm text-text-secondary">
-        Carbon-Linen-Seal uses seal red for deliberate action, brass for focus, green only for verified completion,
+        Probata graphite/indigo uses indigo for deliberate action, indigo for focus, green only for verified completion,
         caution for pending or stale states, and teal only for neutral information. Every state remains text-labelled.
       </p>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
