@@ -31,3 +31,63 @@ The new Go endpoint previously sent unexpected store error text to callers throu
 | Live PostgreSQL/BFF/Go/sink/browser/deployment | Not run; no live acceptance claimed. |
 
 GitHub PR checks at review time: Go engine and CodeQL passed. Both Validate runs failed at `uv run ruff format --config pyproject.toml --check server tests` on exactly `tests/test_authentik_deploy_contract.py` and `tests/test_docker_user_firewall_contract.py`; neither file is in PR #30's diff. The mandatory live integration suite was skipped by the workflow. These two formatter files belong to another owner and were not edited here. PR #30 must remain open until required checks are genuinely green. No merge or deployment occurred in this review.
+
+## Remediation re-review — atomic current-attempt flag admission
+
+> _Byline: Codex · GPT-5 · 2026-09-24; implementation evidence is local only._
+
+The independent review's read-then-write race is addressed in implementation commit
+`0a8b742699f2807521613d015f1c0e697fcad490`, on the same PR branch. The exact lineage from
+the reviewed base is:
+
+`382acf6a8f1f919b6f3abc02de40f946629d8461` →
+`a195c416d1aaf6be6886ad44539d5e6eba6be7ca` →
+`9dc5496bbecb3dcb4fca4336e54bc5b3fac5231e` →
+`f844050f9eab5a80fec85189ff2ab703f8acaf91` →
+`fdd390d64122fdd411ad37aff370f0b2686fbde3` →
+`0a8b742699f2807521613d015f1c0e697fcad490`.
+
+The BFF retains its mode/handle check, but no longer does a separate current-target read
+before the write. It submits the expected handle, attempt, target UUID/scope, mode, actor,
+and reason to a dedicated existing-flag-spine endpoint. That endpoint runs in the shared
+PostgreSQL transaction, acquires `pg_advisory_xact_lock(hashtextextended(preview_handle, 0))`,
+reads the latest snapshot, verifies both the expected normalized attempt and exact current
+record/chunk target, then inserts the flag before releasing the transaction lock. Go
+snapshot publication and decision writes already acquire the same per-handle advisory lock.
+Thus a snapshot advanced before admission causes a 409 and no insert; a competing advance
+after admission waits until the flag transaction completes.
+
+The flag remains reversible metadata in `analysis.corroboration_flag`, not an evidence
+mutation. The table/API target-kind contract permits only `record`, `knowledge`, or `run`;
+the preview handle is therefore stored as a `run` target, while notes preserve the exact
+preview handle, TEST/REAL mode, record/chunk scope, target UUID, attempt ID, and actor.
+Listing is additionally filtered by the preview handle. The response normalizer now accepts
+the flag spine's actual `flag_id` response field, and the target-scoped listing query is
+covered. Entity annotation remains explicitly unavailable.
+
+Regression coverage includes a target attempt advanced before atomic admission (rejected
+without insertion), an absent current target (rejected without insertion), and a successful
+current target whose flag and provenance metadata are persisted. The API test double verifies
+that the advisory lock precedes the latest-snapshot read and that the insert is not reached on
+either denial path. This is not a live PostgreSQL concurrency test.
+
+### Re-review verification
+
+| Gate | Result |
+| --- | --- |
+| Workbench potential-promotion flag + mode-isolation suites | 53 passed, 1 existing dependency deprecation warning |
+| Shared flag API / CRUD / atomic-admission tests | 12 passed, 1 existing dependency deprecation warning |
+| `go test ./runtimeapi/... ./postgres/...` | Passed (cached) |
+| Ruff lint and format check on seven changed Python files | Passed |
+| Targeted Workbench mypy with imports skipped | No issues in five changed source/test files, including the explicit typed service-call tuple union |
+| `git diff --check` | Passed |
+| Official Gitleaks 8.30.0, scoped to seven changed Python files | Zero findings |
+| Full `tests/test_inspect_routes.py` | 3 baseline failures from assertions for absent retired `sql/0007_curation_and_flags.sql`; all 12 flag-focused tests passed |
+| Import-following mypy | Existing unrelated Workbench import/type errors remain, including the unchanged nullable parameter at `app/runtime/proffer.py:212`; existing annotation/indexing errors also remain elsewhere in `tests/test_inspect_routes.py`. The changed Workbench source/test set passes the import-skipping targeted check. |
+| Live PostgreSQL, deployed BFF/Go, sink readback, browser, release | Not run; not claimed |
+
+The atomicity finding is closed at the implementation/test boundary, not independently
+verified against a live PostgreSQL service. Keep PR #30 open until the post-push CI state is
+fresh and required checks pass. The original independent review and receipt entries above are
+retained as historical evidence; the D05 receipt carries this repair's exact commit lineage
+and expanded source/test scope.
