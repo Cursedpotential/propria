@@ -3,6 +3,7 @@
 # runtime values are interpolated by LibreChat from container configuration.
 # Byline: Claude Code · Fable 5 · 2026-07-20
 # Byline: Codex · GPT-5.6-Sol · 2026-08-29 (tracked image-baked config)
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (chain comment: glm-5.1 removed, kimi-k3 on NVIDIA NIM primary)
 version: 1.2.1
 cache: true
 
@@ -16,7 +17,8 @@ endpoints:
         x-portkey-config: "${PORTKEY_CHAT_CONFIG}"
       models:
         # Pseudo-model: the chat.json lane overrides provider+model per target
-        # (glm-5.1 -> Gemini pool -> Groq -> Cerebras -> OpenRouter -> NVIDIA -> Mistral).
+        # (kimi-k3 on NVIDIA NIM -> Ollama pool -> Gemini pool -> Groq/Cerebras/OpenRouter
+        # -> NVIDIA pool -> Mistral). glm-5.1 removed 2026-09-25, owner blanket ban.
         default: ["platform-chat"]
         fetch: false
       titleConvo: true

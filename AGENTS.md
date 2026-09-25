@@ -21,7 +21,10 @@
 > own data-vector role and that phrasing is retired — never conflate service with role;
 > drift-fix 2026-09-05 Claude Code · Fable 5.1: naming canon sweep D-137..D-141 — this
 > repository is **Indicia Probata** / `probata`; the import lane (formerly UIW / Universal Import /
-> `uiw`) is renamed **proffer**; see `docs/NAMING.md`.)_
+> `uiw`) is renamed **proffer**; see `docs/NAMING.md`;
+> drift-fix 2026-09-25 Claude Code · Opus 5.5: Stack line + Model Provider Chain — glm-5.1
+> removed everywhere (owner blanket ban), NVIDIA NIM `moonshotai/kimi-k3` is the primary default,
+> Ollama Cloud is a non-default option after its pricing change.)_
 
 > **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
 > Keep it short: universal context + navigation index. **Closest file wins** — nested
@@ -200,7 +203,9 @@ PostGIS) as canonical source/control plane and Agno operational store · Weaviat
 search projection · Neo4j Semantica-originated semantic graph · **SurrealDB as
 the governed final reconciled temporal-graph, walk, and analysis engine**
 (D-073/D-080) · Temporal durable spine + n8n visual business/agent flow ·
-Portkey gateway (Ollama Cloud primary; LiteLLM retired, ADR-0042). Graphiti is
+Portkey gateway (~~Ollama Cloud primary~~ **NVIDIA NIM `moonshotai/kimi-k3` primary since
+2026-09-25** — owner: glm-5.1 banned, Ollama Cloud no longer primary after its pricing change;
+LiteLLM retired, ADR-0042). Graphiti is
 retired for now (D-070). The **legacy Agno operational Surreal adapter and old
 `data-surreal` instance only** remain retired/zero-caller and parked read-only;
 they are not the current Surreal analytical role or target. Its export remains
@@ -323,7 +328,11 @@ See `server/agents/AGENTS.md` for the roster and build conventions.
 
 ## Model Provider Chain
 
-Ollama (glm-5.1) → NVIDIA → Kimi → OpenRouter → Anthropic → OpenAI → Google → Groq.
+~~Ollama (glm-5.1) → NVIDIA → Kimi → OpenRouter → Anthropic → OpenAI → Google → Groq.~~
+**Corrected 2026-09-25 (Claude Code · Opus 5.5; owner: "Stop using GLM 5.1 in general", and Ollama
+Cloud is no longer primary after its pricing change):** NVIDIA (`moonshotai/kimi-k3`) → Ollama (no
+default model; used only when `OLLAMA_MODEL_ID` names one) → Kimi (`moonshotai/kimi-k3`) →
+OpenRouter → Anthropic → OpenAI → Google → Groq.
 First provider with valid credentials wins. Override via `DEFAULT_MODEL_PROVIDER`
 or `<PROVIDER>_MODEL_ID`. See `server/core/settings.py` for resolution rules.
 

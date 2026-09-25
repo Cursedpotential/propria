@@ -4,6 +4,7 @@ Follows the pattern from server/core/settings.py but tailored for
 workbench classification/sentiment use cases.
 
 Byline: Codex · GPT-5 · 2026-08-16
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (glm-5.1 removed — owner blanket ban; NVIDIA NIM kimi-k3 default; no Ollama default)
 """
 
 from __future__ import annotations
@@ -23,10 +24,14 @@ from app.types.classification import ProviderName
 
 NVIDIA_BASE_URL_DEFAULT = "https://integrate.api.nvidia.com/v1"
 
-# Pinned default models per provider (can be overridden via env)
+# Pinned default models per provider (can be overridden via env).
+# A provider missing from this dict has no default: callers must name a model.
 _PINNED_MODELS: dict[ProviderName, str] = {
-    ProviderName.OLLAMA: "glm-5.1",
-    ProviderName.NVIDIA: "nvidia/nemotron-3-super-120b-a12b",
+    # OLLAMA: no default. glm-5.1 removed 2026-09-25, owner blanket ban; Ollama Cloud is a non-default option.
+    # NVIDIA NIM is the default since 2026-09-25 (owner: kimi-k3 on NIM replaces glm-5.1). Reasoning model:
+    # keep max_tokens generous (owner-relayed live check: a 200-token cap left `content` empty). Even at
+    # 2048, ~1 in 4 plain calls on 2026-09-25 returned empty content (32-token reasoning stub).
+    ProviderName.NVIDIA: "moonshotai/kimi-k3",
     ProviderName.OPENROUTER: "deepseek/deepseek-chat",
     ProviderName.ANTHROPIC: "claude-sonnet-4-6",
     ProviderName.OPENAI: "gpt-4o",
@@ -49,14 +54,14 @@ class ModelProvider(Protocol):
 
 
 def _model_id(provider: ProviderName, model_id: str | None = None) -> str:
-    """Resolve model ID for provider."""
+    """Resolve model ID for provider; empty string when nothing names one and there is no pin."""
     if model_id:
         return model_id
     env_key = f"{provider.value.upper()}_MODEL_ID"
     per = os.getenv(env_key)
     if per:
         return per
-    return os.getenv("DEFAULT_MODEL_ID") or _PINNED_MODELS[provider]
+    return os.getenv("DEFAULT_MODEL_ID") or _PINNED_MODELS.get(provider, "")
 
 
 def _try_provider(provider: ProviderName, model_id: str | None = None) -> ModelProvider | None:
@@ -133,6 +138,11 @@ def build_provider(provider: ProviderName, model_id: str | None = None) -> Model
 
     Creates a fresh instance on every call - do NOT cache.
     """
+    if not _model_id(provider, model_id):
+        raise ValueError(
+            f"Provider '{provider.value}' has no default model; choose a model_id "
+            f"(the glm-5.1 default was removed 2026-09-25 under the owner's ban)."
+        )
     model = _try_provider(provider, model_id)
     if model is None:
         available = [p.value for p in ProviderName if _try_provider(p) is not None]
@@ -155,7 +165,7 @@ async def run_classification(
     categories: list[str],
     system_prompt: str | None = None,
     temperature: float = 0.0,
-    max_tokens: int = 1024,
+    max_tokens: int = 2048,  # 1024 → 2048 2026-09-25: default model kimi-k3 reasons before answering
 ) -> tuple[str, float, str, str]:
     """Run classification with a provider.
 
@@ -213,7 +223,7 @@ async def run_sentiment(
     text: str,
     system_prompt: str | None = None,
     temperature: float = 0.0,
-    max_tokens: int = 1024,
+    max_tokens: int = 2048,  # 1024 → 2048 2026-09-25: default model kimi-k3 reasons before answering
     include_emotions: bool = True,
 ) -> tuple[str, float, dict[str, float], str, str]:
     """Run sentiment analysis with a provider.

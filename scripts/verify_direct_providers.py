@@ -22,6 +22,7 @@ Usage:
     .venv/Scripts/python.exe scripts/verify_direct_providers.py --skip-live-chat    # list-only, skip the minimal completion calls (cheaper/faster)
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (Ollama chat probe no longer targets glm-5.1 — owner blanket ban)
 
 from __future__ import annotations
 
@@ -329,7 +330,8 @@ def main() -> int:
             for m in r["models"]:
                 print(f"  - {m}")
             if not args.skip_live_chat and r["models"]:
-                probe_model = next((m for m in r["models"] if "glm-5.1" in m), r["models"][0])
+                # Probe any non-glm-5.1 model: glm-5.1 is banned outright (owner, 2026-09-25).
+                probe_model = next((m for m in r["models"] if "glm-5.1" not in m), r["models"][0])
                 print(f"\nLive chat probe: model={probe_model!r}")
                 p = ollama_chat_probe(ollama_key, probe_model)
                 catalog["ollama"]["chat_probe"] = p
