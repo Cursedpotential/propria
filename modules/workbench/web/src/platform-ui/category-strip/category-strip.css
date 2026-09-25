@@ -1,0 +1,103 @@
+/* Byline: Claude Code · Opus 5.5 · 2026-09-24
+   Category strip layout, from the bout review page's chart, on workbench tokens. Segment colors come from the data. */
+
+.category-strip {
+  display: grid;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.category-strip-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.category-strip-legend i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.category-strip-description {
+  margin: 0 0 2px;
+  color: var(--muted-foreground);
+}
+
+.category-strip-rows {
+  display: grid;
+  gap: 2px;
+}
+
+.category-strip-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 44px;
+  gap: 8px;
+  align-items: center;
+  border-radius: 4px;
+  padding: 1px 2px;
+}
+
+.category-strip-row[role="button"] {
+  cursor: pointer;
+}
+
+.category-strip-row[role="button"]:hover,
+.category-strip-row[aria-pressed="true"] {
+  background: var(--muted);
+}
+
+.category-strip-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.category-strip-label,
+.category-strip-total {
+  font: 12px var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-strip-label {
+  font-weight: 500;
+}
+
+.category-strip-total {
+  text-align: right;
+}
+
+.category-strip-bar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+}
+
+.category-strip-block {
+  display: flex;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.category-strip-block > i {
+  display: block;
+  height: 100%;
+}
+
+.category-strip-block > i.category-strip-empty {
+  flex-grow: 1;
+  background: var(--muted);
+}
