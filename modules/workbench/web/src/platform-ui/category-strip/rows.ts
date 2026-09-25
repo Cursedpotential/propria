@@ -1,6 +1,6 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-24
 // Data side of the category strip: the row/block/segment shape, a grouper that builds it from flat records (any query
-// result), category totals and color assignment.
+// result) and category totals. Colors live in schemes.ts.
 
 export interface StripSegment {
   category: string;
@@ -22,26 +22,6 @@ export interface StripRow {
   blocks: StripBlock[];
   /** Right-hand number; defaults to the sum of segment weights. */
   total?: number;
-}
-
-/** Categorical palette (Tableau 10 + 2), cycled; categories past the palette get evenly spread hues. */
-const PALETTE = [
-  "#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948",
-  "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac", "#86bcb6", "#d37295",
-];
-
-export function categoryColors(categories: readonly string[], fixed: Record<string, string> = {}): Record<string, string> {
-  const out: Record<string, string> = {};
-  let next = 0;
-  for (const c of categories) {
-    if (fixed[c]) {
-      out[c] = fixed[c];
-      continue;
-    }
-    out[c] = next < PALETTE.length ? PALETTE[next] : `hsl(${Math.round((next * 137.508) % 360)} 55% 55%)`;
-    next += 1;
-  }
-  return out;
 }
 
 /** Every category with its total weight: `order` first, then the rest largest first. */
