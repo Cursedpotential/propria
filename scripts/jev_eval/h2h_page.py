@@ -1,15 +1,14 @@
-"""Build the owner's head-to-head page: 25 reviewed chunks x every working model, with a scoreboard.
+"""Build the owner's head-to-head page: his reviewed stretches (plus clearly hostile ones) x every working model.
 
-Byline: Claude Code · Opus 5.5 · 2026-09-24. Owner 21:40: run his reviewed chunks through every working model head-to-head.
-Per chunk the owner sees his own earlier verdict/note, the chunk with its context, and each model's labels; he picks the
-best model(s) and can note why (artifact db collection `h2h`, doc per chunk). The scoreboard adds an automatic check
-against his earlier verdicts (GOLD below, derived only from what he said: "Jev right" = tension was there; "Opus right"
-on a neutral bout = no conflict/hostility; the Bout Review verdicts on distress/hostility/affection). It is a rough guide,
-not a grade: his picks on this page are the real one.
-Window mode (items-h2h-window-v1, owner 22:01-22:02): each item is the reviewed bout plus 25 messages either side, all
-labelled; the model decides where conversations start and end. The verdict check reads only the episodes that overlap
-the reviewed messages, and the page draws where every model split the window next to the 30-minute bouts and, when a
-Chonkie output dir is given, Chonkie's semantic and Slumber splits (owner 22:03 "try chonky?").
+Byline: Claude Code · Opus 5.5 · 2026-09-24/25. Owner 21:40: run his reviewed chunks through every working model head-to-head.
+Per stretch the owner sees his own review, the whole stretch with his reviewed messages highlighted, where each model split
+it into conversations, and each model's labels; he picks the best model(s) and can note why (artifact db collection h2h).
+~~The scoreboard adds an automatic check against his earlier verdicts (GOLD).~~ Removed 2026-09-25 (owner 22:24-00:29: "the
+math doesn't math"; the check was a keyword rule on 17 of 25 stretches and a ratio over unfinished runs). The scoreboard
+now only counts: done out of N, failed, not run yet, speed, and his picks; a model still running is shown as such.
+Window mode: each item is the reviewed bout plus 25 messages either side, all labelled; the model decides where
+conversations start and end (prompt v3). Strips show every model's splits next to the old 30-minute rule and Chonkie.
+Items may carry owner_note (his own words from the review pages) and group ("reviewed" or e.g. "clearly hostile").
 The output embeds case messages: build it on the devbox or in a scratch path, never commit it.
 Usage: python h2h_page.py <out.html> <h2h dir> [<chonkie dir>]   (run from the jev-eval dir: reads bouts/)
 """
@@ -20,46 +19,8 @@ import sys
 
 NEGATIVE = {"edgy", "conflict", "hostile", "threat", "deflecting", "leverage", "stonewalling"}
 POSITIVE = {"warm", "cooperative", "playful", "conciliatory"}
-TENSION = {"edgy", "conflict", "hostile", "stonewalling", "threat", "deflecting"}
-# expect: at least one of these labels; avoid: none of these at intensity >= avoid_min; who: expected shower of an expect label
-GOLD = {
-    "c2024-b0007": {"expect": {"upset"}, "basis": "Bout Review: Opus 'distressed' marked right"},
-    "c2024-b0142": {"expect": {"hostile", "conflict"}, "basis": "Bout Review: Opus 'hostile' marked right"},
-    "c2024-b0407": {"expect": {"warm"}, "basis": "Bout Review: Opus 'affectionate' marked right"},
-    "c2024-b0592": {"avoid": {"hostile", "conflict"}, "basis": "Bout Review: Opus 'neutral' marked right"},
-    "c2024-b0027": {"expect": {"edgy"}, "avoid": {"hostile"}, "basis": "owner: attitude was there; Jev caught too much"},
-    "c2024-b0229": {"expect": {"edgy", "conflict"}, "avoid": {"hostile"}, "avoid_min": 3,
-                    "basis": "owner: Opus didn't catch enough, Jev caught too much"},
-    "c2024-b0211": {"expect": {"conflict", "hostile"}, "who": "Katrina", "basis": "owner: a conflict, not by him"},
-}
-for b in ("c2024-b0076", "c2024-b0084", "c2024-b0085", "c2024-b0140", "c2024-b0179", "c2024-b0181"):
-    GOLD[b] = {"expect": TENSION, "basis": "owner: Jev right (tense)"}
-for b in ("c2024-b0141", "c2024-b0180", "c2024-b0230", "c2024-b0276"):
-    GOLD[b] = {"avoid": {"conflict", "hostile"}, "basis": "owner: Opus right (neutral)"}
-
-
 BOUT_FILES = {"c2024": "bouts/c2024_bouts_v2.jsonl", "f2024": "bouts/f2024_bouts_v1.jsonl"}
-
-
-def in_focus(e: dict, ff: int, ft: int) -> bool:
-    try:
-        return int(e.get("from_i")) <= ft and int(e.get("to_i")) >= ff
-    except (TypeError, ValueError):
-        return True
-
-
-def gold_check(bout_id: str, out: dict, ff: int, ft: int) -> str | None:
-    g = GOLD.get(bout_id)
-    if not g or not out:
-        return None
-    labs = [l for e in out.get("episodes", []) if in_focus(e, ff, ft) for l in e.get("labels", [])]
-    ok = True
-    if g.get("expect"):
-        hits = [l for l in labs if l.get("label") in g["expect"] and (not g.get("who") or l.get("who") in (g["who"], "both"))]
-        ok = ok and bool(hits)
-    if g.get("avoid"):
-        ok = ok and not any(l.get("label") in g["avoid"] and (l.get("intensity") or 1) >= g.get("avoid_min", 1) for l in labs)
-    return "pass" if ok else "miss"
+CHONKIE_SHOWN = ("semantic_t65_w3",)  # one meaning-based setting on the strips; all four are in the chonkie dir
 
 
 def splits(out: dict | None) -> list[int] | None:
@@ -72,20 +33,11 @@ def splits(out: dict | None) -> list[int] | None:
         return None
 
 
-def agree(a: list[int], b: list[int], tol: int = 1) -> float:
-    """F1 of two split sets, a split within tol messages counting as the same place; both empty = 1."""
-    if not a and not b:
-        return 1.0
-    hit_a = sum(1 for x in a if any(abs(x - y) <= tol for y in b))
-    hit_b = sum(1 for y in b if any(abs(x - y) <= tol for x in a))
-    p, r = (hit_a / len(a) if a else 0), (hit_b / len(b) if b else 0)
-    return 2 * p * r / (p + r) if p + r else 0.0
-
-
 out_path, h2h = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 chonkie_dir = pathlib.Path(sys.argv[3]) if len(sys.argv) > 3 else None
 run = json.loads((h2h / "_run.json").read_text(encoding="utf-8"))
 models = [d for d in sorted(h2h.iterdir()) if d.is_dir()]
+n_items = len(run["items"])
 flat, first_k = {}, {}
 for src, path in BOUT_FILES.items():
     # split on "\n" only: splitlines() also breaks on U+2028 etc. inside message text
@@ -94,16 +46,17 @@ for src, path in BOUT_FILES.items():
     flat[src] = [b["bout_id"] for b in bs for _ in b["messages"]]
     for k, b_id in enumerate(flat[src]):
         first_k.setdefault(b_id, (src, k))
-chonkie = {}  # label -> sorted global chunk starts (semantic) or {bout_id: starts} (slumber)
+chonkie = {}  # label -> sorted global chunk starts (whole stream) or {bout_id: starts} (per window)
 if chonkie_dir:
     for f in sorted(chonkie_dir.glob("semantic_*.json")):
+        if f.stem in CHONKIE_SHOWN:
+            r = json.loads(f.read_text(encoding="utf-8"))
+            chonkie["Chonkie meaning-based"] = sorted(c["first"] for c in r["chunks"])
+    for f in sorted(chonkie_dir.glob("*_windows_*.json")) + sorted(chonkie_dir.glob("slumber_*.json")):
         r = json.loads(f.read_text(encoding="utf-8"))
-        chonkie["Chonkie semantic " + f.stem.removeprefix("semantic_")] = sorted(c["first"] for c in r["chunks"])
-    for f in sorted(chonkie_dir.glob("slumber_*.json")):
-        r = json.loads(f.read_text(encoding="utf-8"))
-        chonkie["Chonkie slumber " + f.stem.removeprefix("slumber_")] = {
+        chonkie[r.get("label") or ("Chonkie " + f.stem)] = {
             b: sorted(c["first"] for c in w.get("chunks", [])) for b, w in r["windows"].items() if w.get("chunks")}
-chunks, board, cagree = [], {}, {}
+chunks, board = [], {}
 for it in run["items"]:
     bid = it["bout_id"]
     tup = run["texts"][bid]
@@ -111,7 +64,7 @@ for it in run["items"]:
     ff, ft = (tup[2], tup[3]) if len(tup) > 3 else (0, n - 1)
     src, k0 = first_k[bid]
     base = k0 - ff  # global index of window line 0 (items_h2h.py puts WINDOW messages before the bout)
-    rows = [["30-minute bouts", [j for j in range(1, n) if flat[src][base + j] != flat[src][base + j - 1]]]]
+    rows = [["Old 30-minute rule", [j for j in range(1, n) if flat[src][base + j] != flat[src][base + j - 1]]]]
     if src == "c2024":
         for label, starts in chonkie.items():
             st = starts.get(bid) if isinstance(starts, dict) else starts
@@ -119,71 +72,30 @@ for it in run["items"]:
                 rows.append([label, [g - base for g in st if base < g < base + n]])
     res = {}
     for d in models:
+        b = board.setdefault(d.name, {"ok": 0, "fail": 0, "secs": []})
         f = d / f"{bid}.json"
         if not f.exists():
             continue
         r = json.loads(f.read_text(encoding="utf-8"))
         out = r.get("output") if r.get("ok") else None
-        gc = gold_check(bid, out, ff, ft)
         res[d.name] = {"ok": bool(r.get("ok")), "s": r.get("seconds"), "err": (r.get("error") or "")[:200],
-                       "problems": r.get("problems") or [], "gold": gc, "splits": splits(out),
+                       "splits": splits(out),
                        "eps": [{"f": e.get("from_i"), "t": e.get("to_i"), "topic": e.get("topic", ""), "sum": e.get("summary", ""),
                                 "labs": [[l.get("label"), l.get("who"), l.get("directed_at"), l.get("intensity"), l.get("note", ""),
                                           l.get("responds_to_i")] for l in e.get("labels", [])],
                                 "un": [[u.get("who"), u.get("from_i"), u.get("to_i"), u.get("note", "")] for u in e.get("unanswered", [])]}
                                for e in (out or {}).get("episodes", [])]}
-        b = board.setdefault(d.name, {"ok": 0, "fail": 0, "secs": [], "pass": 0, "miss": 0, "pos": 0, "neg": 0, "logistics": 0,
-                                      "labels": 0, "unanswered": 0, "problems": 0})
         if r.get("ok"):
             b["ok"] += 1
             b["secs"].append(r.get("seconds") or 0)
-            labs = [l for e in out.get("episodes", []) for l in e.get("labels", [])]
-            b["labels"] += len(labs)
-            b["pos"] += sum(1 for l in labs if l.get("label") in POSITIVE)
-            b["neg"] += sum(1 for l in labs if l.get("label") in NEGATIVE)
-            b["logistics"] += sum(1 for l in labs if l.get("label") == "logistics")
-            b["unanswered"] += sum(len(e.get("unanswered", [])) for e in out.get("episodes", []))
-            b["problems"] += 1 if r.get("problems") else 0
-            if gc:
-                b[gc] += 1
-                if gc == "miss":
-                    b.setdefault("misses", []).append(bid)
         else:
             b["fail"] += 1
-    msplits = {m: v["splits"] for m, v in res.items() if v["splits"] is not None}
-    for m, sp in msplits.items():
-        others = [agree(sp, o) for m2, o in msplits.items() if m2 != m]
-        if others:
-            board[m].setdefault("agree", []).append(sum(others) / len(others))
-    for label, sp in rows:
-        if msplits:
-            cagree.setdefault(label, []).append(sum(agree(sp, o) for o in msplits.values()) / len(msplits))
-    chunks.append({"id": bid, "why": it.get("why", ""), "gold": GOLD.get(bid, {}).get("basis", ""), "n": n, "text": text,
-                   "ff": ff, "ft": ft, "rows": rows, "res": res})
-scores = [{"m": m, "ok": v["ok"], "fail": v["fail"], "avg_s": round(sum(v["secs"]) / len(v["secs"]), 1) if v["secs"] else None,
-           "pass": v["pass"], "graded": v["pass"] + v["miss"], "pos": v["pos"], "neg": v["neg"], "logistics": v["logistics"],
-           "labels": v["labels"], "unanswered": v["unanswered"], "problems": v["problems"],
-           "agree": round(100 * sum(v["agree"]) / len(v["agree"])) if v.get("agree") else None,
-           "misses": v.get("misses", [])} for m, v in board.items()]
-# Owner 22:24 "the math doesn't math": a ratio over only the stretches a model has answered ranked a model with 5 of 17
-# done above one with 16 of 17 done. Every model is now counted against all of the owner's calls, unanswered shown.
-gold_ids = [it["bout_id"] for it in run["items"] if it["bout_id"] in GOLD]
-for s_ in scores:
-    s_["pending"] = len(gold_ids) - s_["graded"]
-scores.sort(key=lambda s: (-s["pass"], s["graded"] - s["pass"], -s["ok"], s["avg_s"] or 9999))
-
-
-def rule_text(g: dict) -> str:
-    parts = []
-    if g.get("expect"):
-        parts.append("needs at least one of: " + ", ".join(sorted(g["expect"])) + (f" (shown by {g['who']})" if g.get("who") else ""))
-    if g.get("avoid"):
-        parts.append("must not say: " + ", ".join(sorted(g["avoid"])) + (f" at strength {g['avoid_min']}" if g.get("avoid_min") else ""))
-    return "; ".join(parts)
-
-
-calls = [{"id": b, "basis": GOLD[b]["basis"], "rule": rule_text(GOLD[b])} for b in gold_ids]
-csplit = [{"m": k, "agree": round(100 * sum(v) / len(v)), "windows": len(v)} for k, v in cagree.items()]
+    chunks.append({"id": bid, "group": it.get("group", "reviewed"), "review": it.get("owner_note") or "",
+                   "why": it.get("why", ""), "n": n, "text": text, "ff": ff, "ft": ft, "rows": rows, "res": res})
+scores = [{"m": m, "ok": v["ok"], "fail": v["fail"], "todo": n_items - v["ok"] - v["fail"],
+           "avg_s": round(sum(v["secs"]) / len(v["secs"]), 1) if v["secs"] else None} for m, v in board.items()]
+scores.sort(key=lambda s: (-s["ok"], s["fail"], s["avg_s"] or 9999))
+running = [s["m"] for s in scores if s["todo"]]
 
 TEMPLATE = r"""<title>Model Head-to-Head · 2024 Texts</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -217,18 +129,19 @@ th, td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--line); 
 th { font-weight:600; color:var(--muted); }
 .bar { position:sticky; top:env(safe-area-inset-top, 0px); z-index:5; background:var(--ground); padding-block:10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; border-bottom:1px solid var(--line); }
 select, textarea { font:inherit; font-size:14px; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:6px 8px; }
+select { max-width:100%; }
 .save { font-size:13px; color:var(--muted); } .save.err { color:var(--bad); }
 :focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
 .chunk { display:grid; gap:10px; }
 .why { font-size:14px; } .gold { font-size:13px; color:var(--muted); }
 pre.ctx { white-space:pre-wrap; overflow-wrap:anywhere; margin:0; font:13px/1.5 "IBM Plex Mono", ui-monospace, monospace; background:var(--soft); border-radius:4px; padding:10px; max-height:420px; overflow:auto; }
-.models { display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr)); gap:10px; }
+.models { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap:10px; }
 .m { border:1px solid var(--line); border-radius:6px; padding:10px; display:grid; gap:6px; background:var(--panel); align-content:start; }
 .m.pick { border-color:var(--ok); box-shadow:inset 0 0 0 1px var(--ok); }
 .mh { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:baseline; }
 .mh .n { font-weight:700; font-size:13.5px; overflow-wrap:anywhere; }
 .tag { font-size:11.5px; font-weight:700; padding:1px 6px; border-radius:3px; }
-.tag.pass { background:var(--ok-bg); color:var(--ok); } .tag.miss { background:var(--bad-bg); color:var(--bad); } .tag.fail { background:var(--soft); color:var(--muted); }
+.tag.fail { background:var(--soft); color:var(--muted); }
 .ep { font-size:13px; display:grid; gap:4px; border-top:1px solid var(--line); padding-top:6px; }
 .ep .t { font-weight:600; }
 .labs { display:flex; flex-wrap:wrap; gap:4px; }
@@ -241,7 +154,7 @@ pre.ctx { white-space:pre-wrap; overflow-wrap:anywhere; margin:0; font:13px/1.5 
 .err { font-size:12.5px; color:var(--muted); overflow-wrap:anywhere; }
 .ctx .fl { background:var(--oth-bg); box-shadow:inset 3px 0 0 var(--accent); display:block; }
 .strips { display:grid; gap:3px; }
-.strip { display:grid; grid-template-columns:minmax(120px, 210px) 1fr; gap:8px; align-items:center; font-size:12px; }
+.strip { display:grid; grid-template-columns:minmax(110px, 210px) 1fr; gap:8px; align-items:center; font-size:12px; }
 .strip .lbl { color:var(--muted); overflow-wrap:anywhere; }
 .cells { display:flex; height:14px; border:1px solid var(--line); border-radius:3px; overflow:hidden; }
 .cells span { flex:1; min-width:1px; }
@@ -251,41 +164,34 @@ pre.ctx { white-space:pre-wrap; overflow-wrap:anywhere; margin:0; font:13px/1.5 
 <div class="wrap">
   <header>
     <h1>Model Head-to-Head · 2024 Texts</h1>
-    <p class="lede">25 stretches of the 2024 texts around chunks you had already reviewed. Each model got the whole stretch (your chunk plus about 25 messages either side), decided for itself where each conversation starts and ends, and labelled every message. Your reviewed messages are highlighted. The strips show where each model, the old 30-minute bouts and Chonkie split the stretch. Pick the best model for each stretch; the automatic check only compares against your earlier verdicts, on the conversations that include your reviewed messages.</p>
+    <p class="lede">Stretches of the 2024 texts: the chunks you reviewed, plus clearly hostile ones. Each model got the whole stretch (the chunk plus about 25 messages either side), decided where each conversation starts and ends, and labelled every message. Your messages from the review are highlighted. Pick the best model for each stretch; your picks are the only score.</p>
   </header>
   <section class="panel"><h2>Scoreboard</h2>
-    <div class="tablewrap"><table id="board"><thead><tr><th>Model</th><th>Answered</th><th>Failed</th><th>Avg s</th><th>Your calls: matched</th><th>missed</th><th>not answered yet</th><th>Positive labels</th><th>Negative labels</th><th>"Logistics"</th><th>Unanswered runs</th><th>Structure warnings</th><th>Splits agree with other models</th><th>Your picks</th></tr></thead><tbody></tbody></table></div>
-    <details style="margin-top:10px"><summary id="calls-sum"></summary><div class="tablewrap"><table id="calls"><thead><tr><th>Stretch</th><th>Your earlier call</th><th>A model matches when its labels on your messages…</th></tr></thead><tbody></tbody></table></div></details>
-    <h2 style="margin-top:12px">Splitters without labels</h2>
-    <div class="tablewrap"><table id="cboard"><thead><tr><th>Splitter</th><th>Stretches</th><th>Agrees with the models on where conversations split</th></tr></thead><tbody></tbody></table></div>
+    <p class="gold" id="run-state"></p>
+    <div class="tablewrap"><table id="board"><thead><tr><th>Model</th><th>Done</th><th>Failed</th><th>Not run yet</th><th>Seconds per stretch</th><th>Your picks</th></tr></thead><tbody></tbody></table></div>
   </section>
-  <div class="bar"><select id="pick-chunk" aria-label="Chunk"></select><select id="filter" aria-label="Show models"><option value="ok">Models that answered</option><option value="all">All models</option></select><span class="save" id="save-state">Connecting…</span></div>
+  <div class="bar"><select id="pick-chunk" aria-label="Stretch"></select><select id="filter" aria-label="Show models"><option value="ok">Models that answered</option><option value="all">All models</option></select><span class="save" id="save-state">Connecting…</span></div>
   <div id="chunk" class="wrap"></div>
 </div>
 <script>
 const CHUNKS = __CHUNKS__;
 const SCORES = __SCORES__;
-const CSPLIT = __CSPLIT__;
-const CALLS = __CALLS__;
+const RUNNING = __RUNNING__;
 const POS = new Set(__POS__), NEG = new Set(__NEG__);
 const $ = id => document.getElementById(id);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
-const short = m => m.replace(/^(gemini|gemma|nim|openrouter|claude)_/, "").replace(/_free$/, " (free)").replace(/_/g, "/");
+const short = m => m.replace(/^(gemini|gemma|nim|openrouter-plain|openrouter|claude)_/, "").replace(/_free$/, " (free)").replace(/_/g, "/");
 let cur = 0, db = null; const picks = {};
 function board() {
   const tb = $("board").querySelector("tbody"); tb.replaceChildren();
   const counts = {}; for (const k in picks) for (const m of picks[k].models || []) counts[m] = (counts[m] || 0) + 1;
   for (const s of SCORES) {
     const tr = el("tr");
-    const cells = [short(s.m), s.ok, s.fail, s.avg_s ?? "–", s.pass, s.graded - s.pass, s.pending, s.pos, s.neg, s.logistics, s.unanswered, s.problems, s.agree != null ? s.agree + "%" : "–", counts[s.m] || 0];
+    const cells = [short(s.m), s.ok + " of " + CHUNKS.length, s.fail, s.todo, s.avg_s ?? "–", counts[s.m] || 0];
     cells.forEach((v, i) => { const td = el("td", i === 0 ? "mono" : null, String(v)); tr.append(td); });
     tb.append(tr);
   }
-  $("calls-sum").textContent = CALLS.length + " of the " + CHUNKS.length + " stretches have an earlier call of yours the page can check (the other " + (CHUNKS.length - CALLS.length) + " had notes but no clear call). Each model is counted against all " + CALLS.length + ": matched + missed + not answered yet = " + CALLS.length + ". Show them";
-  const ct = $("calls").querySelector("tbody"); ct.replaceChildren();
-  for (const c of CALLS) { const tr = el("tr"); [c.id, c.basis, c.rule].forEach(v => tr.append(el("td", null, v))); ct.append(tr); }
-  const cb = $("cboard").querySelector("tbody"); cb.replaceChildren();
-  for (const c of CSPLIT) { const tr = el("tr"); [c.m, c.windows, c.agree + "%"].forEach(v => tr.append(el("td", null, String(v)))); cb.append(tr); }
+  $("run-state").textContent = RUNNING.length ? "Still running: " + RUNNING.length + " model(s) have stretches not run yet." : "Finished: every model has an answer or a failure for every stretch.";
 }
 function strip(label, sp, n, ff, ft) {
   const row = el("div", "strip"); row.append(el("span", "lbl", label));
@@ -296,8 +202,9 @@ function strip(label, sp, n, ff, ft) {
 function render() {
   const c = CHUNKS[cur]; const box = $("chunk"); box.replaceChildren();
   const p = el("section", "panel chunk");
-  p.append(el("h2", null, c.id + " · " + c.n + " messages in the stretch, " + (c.ft - c.ff + 1) + " of them yours (highlighted)"), el("div", "why", "Why it's here: " + c.why));
-  if (c.gold) p.append(el("div", "gold", "Automatic check uses: " + c.gold));
+  p.append(el("h2", null, c.id + " · " + c.n + " messages · " + (c.group === "reviewed" ? "you reviewed this" : c.group)));
+  if (c.review) p.append(el("div", "why", "Your review: " + c.review));
+  if (c.why) p.append(el("div", "gold", "Why it's in the test: " + c.why));
   const pre = el("pre", "ctx");
   for (const line of c.text.split("\n")) {
     const m = line.match(/^\[(\d+)\]/); const i = m ? +m[1] : -1;
@@ -307,7 +214,7 @@ function render() {
   const strips = el("div", "strips");
   for (const [label, sp] of c.rows) strips.append(strip(label, sp, c.n, c.ff, c.ft));
   for (const s of SCORES) { const r = c.res[s.m]; if (r && r.ok && r.splits) strips.append(strip(short(s.m), r.splits, c.n, c.ff, c.ft)); }
-  p.append(el("div", "gold", "Where each one split this stretch (a colour change = a new conversation; underlined = your reviewed messages):"), strips);
+  p.append(el("div", "gold", "Where each one split this stretch into conversations (a colour change = a new conversation; underlined = your reviewed messages):"), strips);
   const note = el("div", "note"); const ta = el("textarea"); ta.id = "note-" + c.id; ta.placeholder = "What did the best ones get right? What did they all miss? (optional)";
   ta.value = (picks[c.id] || {}).note || ""; ta.addEventListener("input", () => save(c.id, { note: ta.value }, true)); note.append(ta); p.append(note);
   box.append(p);
@@ -317,7 +224,7 @@ function render() {
     const r = c.res[s.m]; if (!r) continue; if (show === "ok" && !r.ok) continue;
     const card = el("article", "m" + (mine.has(s.m) ? " pick" : ""));
     const h = el("div", "mh"); h.append(el("span", "n", short(s.m)));
-    if (!r.ok) h.append(el("span", "tag fail", "failed")); else if (r.gold) h.append(el("span", "tag " + r.gold, r.gold === "pass" ? "matches your verdict" : "misses your verdict"));
+    if (!r.ok) h.append(el("span", "tag fail", "failed"));
     if (r.s != null) h.append(el("span", "mono", r.s + " s"));
     card.append(h);
     if (!r.ok) card.append(el("div", "err", r.err));
@@ -366,7 +273,7 @@ async function connect() {
     board(); if (document.activeElement?.tagName !== "TEXTAREA") render();
   }, e => setSave("Live sync stopped (" + (e && e.code || "error") + "); reload to reconnect", true));
 }
-CHUNKS.forEach((c, i) => { const o = el("option", null, (i + 1) + ". " + c.id + " — " + c.why.slice(0, 70)); o.value = String(i); $("pick-chunk").append(o); });
+CHUNKS.forEach((c, i) => { const o = el("option", null, (i + 1) + ". " + (c.group === "reviewed" ? "" : "[" + c.group + "] ") + c.id + " — " + (c.review || c.why).slice(0, 70)); o.value = String(i); $("pick-chunk").append(o); });
 $("pick-chunk").addEventListener("change", () => { cur = +$("pick-chunk").value; render(); });
 $("filter").addEventListener("change", render);
 board(); render(); connect();
@@ -374,11 +281,9 @@ board(); render(); connect();
 """
 
 page = (TEMPLATE.replace("__CHUNKS__", json.dumps(chunks, ensure_ascii=False)).replace("__SCORES__", json.dumps(scores))
-        .replace("__CSPLIT__", json.dumps(csplit)).replace("__CALLS__", json.dumps(calls, ensure_ascii=False))
+        .replace("__RUNNING__", json.dumps(running))
         .replace("__POS__", json.dumps(sorted(POSITIVE))).replace("__NEG__", json.dumps(sorted(NEGATIVE))))
 out_path.write_text(page, encoding="utf-8")
-print(f"wrote {out_path}: {len(chunks)} chunks x {len(models)} models, {len(page) // 1024} KB")
+print(f"wrote {out_path}: {len(chunks)} stretches x {len(models)} models, {len(page) // 1024} KB; still running: {len(running)}")
 for s in scores:
-    print(f"  {s['m']:<50} ok={s['ok']:>2} fail={s['fail']:>2} avg_s={s['avg_s']} verdicts={s['pass']}/{s['graded']} pos={s['pos']} neg={s['neg']} logistics={s['logistics']} unanswered={s['unanswered']} agree={s['agree']}")
-for c in csplit:
-    print(f"  {c['m']:<50} windows={c['windows']} agree_with_models={c['agree']}%")
+    print(f"  {s['m']:<50} done={s['ok']:>2}/{n_items} failed={s['fail']:>2} not_run={s['todo']:>2} avg_s={s['avg_s']}")
