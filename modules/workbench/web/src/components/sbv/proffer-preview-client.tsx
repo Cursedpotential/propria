@@ -149,7 +149,14 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
       setResources(response.items);
       setResourcesError(null);
       if (!activeHandleRef.current && response.items.length > 0) {
-        selectResource(response.items[0].preview_handle);
+        // Land on the first REVIEWABLE run (has messages/records), not the newest
+        // which is often a failed attempt — that opened the page on an error +
+        // the Overview system-field table instead of the conversation. Owner
+        // 2026-09-24: "the review page is still fucked".
+        const reviewable = response.items.find(
+          (item) => item.lifecycle !== "failed" && item.lifecycle !== "unavailable",
+        );
+        selectResource((reviewable ?? response.items[0]).preview_handle);
       }
     } catch (error) {
       if (!controller.signal.aborted) {

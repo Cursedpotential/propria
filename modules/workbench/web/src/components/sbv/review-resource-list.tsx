@@ -123,16 +123,18 @@ export function ReviewResourceList({ resources, loading, selectedHandle, onSelec
                   aria-pressed={selected}
                   onClick={() => onSelect(resource.preview_handle)}
                   title={`${resource.source_ref}\n${resource.representation_detail}`}
-                  className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${selected ? "bg-accent" : "hover:bg-accent/40"}`}
+                  className={`grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-0.5 px-4 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${selected ? "bg-accent" : "hover:bg-accent/40"}`}
                 >
-                  <span aria-hidden className={`size-2 rounded-full ${DOT[resource.lifecycle] ?? "bg-amber-500"}`} />
+                  {/* Name gets the full row width (was squeezed to one letter by a
+                      long no-wrap status column); status drops to a second line.
+                      Owner 2026-09-24: run names showed as "sms-…", "s…", "b2…". */}
+                  <span aria-hidden className={`mt-1.5 size-2 rounded-full ${DOT[resource.lifecycle] ?? "bg-amber-500"}`} />
                   <span className="min-w-0">
                     <strong className="block truncate text-sm font-medium">{name}</strong>
                     {context && <span className="block truncate text-[11px] text-muted-foreground">{context}</span>}
-                  </span>
-                  <span className="whitespace-nowrap text-right text-[11px] capitalize text-muted-foreground">
-                    {resource.lifecycle.replaceAll("_", " ")} · {resource.completed_stage_count} stages · {resource.representation_state === "committed_readback" ? "Committed readback" : "Precommit proposal"}
-                    <span className="block normal-case">{when(resource.created_at)}</span>
+                    <span className="block truncate text-[11px] capitalize text-muted-foreground">
+                      {resource.lifecycle.replaceAll("_", " ")} · {resource.completed_stage_count} stages · {when(resource.created_at)}
+                    </span>
                   </span>
                 </button>
               </li>
