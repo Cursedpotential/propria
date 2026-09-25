@@ -199,7 +199,9 @@ def post_gemini(model: str, body: dict) -> dict:
                         {"x-goog-api-key": key})
         except RuntimeError as e:
             last = e
-            if "HTTP 503" in str(e) or "HTTP 429" in str(e) or "HTTP 403" in str(e):
+            # 404 "no longer available to new users" (gemini-2.5-*, 2026-09-24) is per key: older keys still serve it
+            if ("HTTP 503" in str(e) or "HTTP 429" in str(e) or "HTTP 403" in str(e)
+                    or ("HTTP 404" in str(e) and "no longer available" in str(e))):
                 continue
             raise
     raise last or RuntimeError("no Gemini key in the environment")
