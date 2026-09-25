@@ -105,7 +105,9 @@ for u in containerd docker; do
   printf '[Unit]\nRequiresMountsFor=/var/lib/%s\n' "$u" > "/etc/systemd/system/$u.service.d/10-data-volume.conf"
 done
 systemctl daemon-reload
-mount -a
+# not "mount -a": on 2026-09-25 04:39 UTC it failed on an unrelated fstab entry (the desktop CIFS share, unreachable) and
+# set -e ended the script with Docker stopped and masked; the two binds were already mounted and were finished by hand
+for s in "${STORES[@]}"; do mountpoint -q "/var/lib/$s" || mount "/var/lib/$s"; done
 for s in "${STORES[@]}"; do mountpoint -q "/var/lib/$s" || { say "/var/lib/$s not mounted - stopping"; exit 1; }; done
 systemctl unmask --runtime "${UNITS[@]}"
 systemctl start containerd docker
