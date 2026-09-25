@@ -44,7 +44,10 @@ test("direct Review entry uses a resource list instead of manual opaque-handle p
   assert.match(review, /query\.get\("preview_handle"\)/);
   assert.match(review, /query\.get\("attempt"\)/);
   assert.match(review, /Start intake/);
-  assert.match(resourceList, /Committed readback/);
+  // AMENDED 2026-09-25 (Claude Code · Opus 5.5): the one-line-per-run list (owner 2026-09-20
+  // 23:10, "massive and hard to nav") dropped the six-line card and its "Committed readback"
+  // label; the representation detail stays on each row's tooltip. This pin was stale on main.
+  assert.match(resourceList, /aria-label="Sources and proposals"/);
   assert.match(resourceList, /resource\.representation_detail/);
   assert.match(client, /\/api\/proffer\/proposal-resources/);
   assert.match(client, /context_review_resources/);
