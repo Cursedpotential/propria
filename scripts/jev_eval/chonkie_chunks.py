@@ -16,6 +16,7 @@ Runs in the ovh-files devbox, jev-eval venv, --env-file h2h.env (NVIDIA_API_KEY,
 """
 
 import argparse
+import base64
 import json
 import os
 import pathlib
@@ -83,10 +84,15 @@ class StoredThenNim(BaseEmbeddings):
         super().__init__()
         self.by_text, self.cache_path, self.cache = by_text, cache_path, {}
         self.reused = self.fresh = self.cached = 0
-        if cache_path.exists():
-            for line in cache_path.read_text(encoding="utf-8").splitlines():
-                t, v = json.loads(line)
-                self.cache[t] = np.asarray(v, dtype=np.float32)
+        if cache_path.exists():  # rows: [text, base64 float16] (older rows: [text, float list])
+            with cache_path.open(encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        t, v = json.loads(line)
+                    except ValueError:  # a line cut off by a stopped run
+                        continue
+                    self.cache[t] = (np.frombuffer(base64.b64decode(v), dtype=np.float16).astype(np.float32)
+                                     if isinstance(v, str) else np.asarray(v, dtype=np.float32))
 
     def _nim(self, texts: list[str]) -> list[np.ndarray]:
         out = []
@@ -97,9 +103,10 @@ class StoredThenNim(BaseEmbeddings):
             vs = [x["embedding"] for x in sorted(d["data"], key=lambda x: x["index"])]
             assert len(vs) == len(part) and all(len(v) == DIM for v in vs)
             with self.cache_path.open("a", encoding="utf-8") as f:
-                for t, v in zip(part, vs):
-                    f.write(json.dumps([t, v]) + "\n")
-                    self.cache[t] = np.asarray(v, dtype=np.float32)
+                for t, v in zip(part, vs):  # float16 keeps the cache ~6x smaller than JSON floats (host disk 94%)
+                    h = np.asarray(v, dtype=np.float16)
+                    f.write(json.dumps([t, base64.b64encode(h.tobytes()).decode()]) + "\n")
+                    self.cache[t] = h.astype(np.float32)
             out += [self.cache[t] for t in part]
         return out
 
