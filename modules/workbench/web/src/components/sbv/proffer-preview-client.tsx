@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-5.6 · 2026-09-12 (hydrate deep-linked preview mode and handle atomically)
+// Byline: Claude Code · Opus 5.5 · 2026-09-25 (Actions panel wiring: re-run + gate answers; one mode indicator)
 "use client";
 
 import { ChevronLeft, CircleDot, Loader2, RefreshCw } from "lucide-react";
@@ -8,9 +9,8 @@ import { toast } from "sonner";
 import { ProfferOperatorPreview } from "@/components/sbv/proffer-operator-preview";
 import { ReviewResourceList } from "@/components/sbv/review-resource-list";
 import { ContextFlowRail } from "@/components/intake/context-flow-rail";
-import { MatterModeSelector } from "@/components/intake/matter-mode-selector";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useReviewRerun } from "@/hooks/use-review-rerun";
 import {
   createProfferPreviewEventSource,
   createProfferPotentialPromotionFlag,
@@ -39,6 +39,9 @@ import type {
   ProfferPotentialPromotionScope,
   ProfferProposalResource,
 } from "@/lib/shared/types";
+
+// Shown as one small line inside the Decision block while Approve is locked.
+const APPROVAL_LOCK_REASON = "Approval remains locked until this exact attempt has normalized records, source locators, and every required completed receipt.";
 
 function initialHandle(mode: "TEST" | "REAL") {
   if (typeof window === "undefined") return "";
@@ -484,6 +487,21 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
     receiptsComplete,
   );
 
+  // A new run of the same source is selected as soon as it starts, so its progress and any
+  // stop it reaches are on screen at once.
+  const openStartedRun = useCallback((handle: string) => {
+    selectResource(handle);
+    void loadResources();
+  }, [loadResources, selectResource]);
+  const { rerun, starting: rerunStarting, pendingForRun } = useReviewRerun({
+    mode,
+    previewHandle,
+    snapshot: operatorSnapshot,
+    preview,
+    loadSnapshot,
+    onStarted: openStartedRun,
+  });
+
   return (
     // One-viewport Review (owner ruling 2026-09-20 23:48): a one-line header, the sources list as
     // a left rail, and the selected source's strip, checkpoints and views beside it.
@@ -497,10 +515,8 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
             Select a source proposal, inspect every available context artifact, and control the exact processing attempt.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <MatterModeSelector />
-          <Badge variant={previewHandle ? "default" : "outline"}>{previewHandle ? `${mode} resource selected` : `${mode} · no resource selected`}</Badge>
-        </div>
+        {/* No Test / Live switch and no mode chip here: the top bar holds the only switch and the
+            run header carries one small flag (owner 2026-09-25: Test was shown four times). */}
       </header>
 
       <div className="grid gap-2 lg:grid-cols-[19rem_minmax(0,1fr)] lg:items-start">
@@ -540,8 +556,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
         <section className="platform-panel flex items-center justify-center p-6 text-sm text-muted-foreground" aria-label="Review loading"><Loader2 className="mr-2 size-4 animate-spin motion-reduce:animate-none" /> Loading the {mode} review workspace…</section>
       ) : (
         <>
-          {eventError && <p className="truncate border border-[#ead5a9] bg-[#fff4dd] px-2 py-1 text-xs text-[#684b18]" role="status" title={eventError}>{eventError}</p>}
-          {!decisionEligible && awaitingDecision && <p className="border border-[#ead5a9] bg-[#fff4dd] p-3 text-xs text-[#684b18]" role="status">Approval remains locked until this exact attempt has normalized records, source locators, and every required completed receipt.</p>}
+          {eventError && <p className="truncate px-1 text-[11px] text-muted-foreground" role="status" title={eventError}>Live updates paused: {eventError}</p>}
           <ProfferOperatorPreview
             key={`${mode}:${previewHandle}`}
             snapshot={operatorSnapshot}
@@ -566,6 +581,10 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
             onReject={(reason) => decisionEligible && void decide(false, reason)}
             onRetainOriginal={() => void retainOriginal()}
             onSelectHandler={(candidate) => void selectHandler(candidate)}
+            onRerun={(request) => void rerun(request)}
+            rerunPending={rerunStarting}
+            pendingAnswers={pendingForRun}
+            decisionLockReason={APPROVAL_LOCK_REASON}
             actionPending={decisionPending}
             decisionReady={decisionEligible}
           />

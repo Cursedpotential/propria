@@ -4,6 +4,7 @@
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review client)
 // Byline: Codex · GPT-5 · 2026-08-18 (native evidence horizon search parameter)
 // Byline: Codex · GPT-5 · 2026-08-28 (proffer workflow (formerly Universal Import Workflow) client)
+// Byline: Claude Code · Opus 5.5 · 2026-09-25 (run source-context read-back for Review Actions)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -100,6 +101,8 @@ import type {
   ProfferSourceInspection,
   ProfferSourceObject,
   ProfferHumanSourceAssertions,
+  ProfferObservedSource,
+  ProfferRunSourceContext,
   ProfferSourceContextReceipt,
   ProfferHandlerSelectionDecisionRequest,
   ProfferHandlerSelectionDecisionResponse,
@@ -686,14 +689,7 @@ export function createProfferSourceContext(payload: {
   matter_id: string;
   court_case_id: string;
   source_ref: string;
-  observed_source: {
-    key: string;
-    name: string;
-    byte_length: number;
-    etag: string;
-    preview_sha256: string;
-    verification_state: "preview_only";
-  };
+  observed_source: ProfferObservedSource;
   supersedes_ref?: string | null;
   assertions: ProfferHumanSourceAssertions;
   change_reason: string;
@@ -706,6 +702,23 @@ export function createProfferSourceContext(payload: {
     body: JSON.stringify(payload),
   }).then((response) => {
     if (response.matter_mode !== payload.matter_mode) throw new ApiError("The source-context receipt did not confirm the active TEST/REAL mode", 502);
+    return response;
+  });
+}
+
+/**
+ * One run's registration facts and newest operator context revision (Review Actions panel).
+ * Byline: Claude Code · Opus 5.5 · 2026-09-25.
+ */
+export function getProfferRunSourceContext(previewHandle: string, mode: MatterMode, signal?: AbortSignal) {
+  const query = new URLSearchParams({ mode });
+  return apiFetch<ProfferRunSourceContext>(
+    `/api/proffer/previews/${encodeURIComponent(previewHandle)}/source-context?${query.toString()}`,
+    { signal },
+  ).then((response) => {
+    if (response.preview_handle !== previewHandle || response.matter_mode !== mode) {
+      throw new ApiError("The run source context crossed its preview or TEST/REAL boundary", 502);
+    }
     return response;
   });
 }

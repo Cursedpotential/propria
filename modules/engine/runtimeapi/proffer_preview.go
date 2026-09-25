@@ -575,6 +575,7 @@ func (h *PreviewHTTPHandler) Routes() http.Handler {
 	mux.HandleFunc("GET /reference-import/previews/{preview_handle}/messages", h.auth(h.messages))
 	mux.HandleFunc("GET /reference-import/previews/{preview_handle}/content", h.auth(h.content))
 	mux.HandleFunc("GET /reference-import/previews/{preview_handle}/events", h.auth(h.events))
+	mux.HandleFunc("GET /reference-import/previews/{preview_handle}/source-context", h.auth(h.readSourceContext))
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/decision", h.auth(h.decide))
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/repair-decision", h.auth(h.decideRepair))
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/handler-selection", h.auth(h.decideHandler))

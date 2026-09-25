@@ -1,6 +1,7 @@
 """Authenticated adapter for durable Proffer source-context receipts.
 
 Byline: Codex · GPT-5.6-Sol · 2026-08-30.
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (read-back for the Review Actions panel).
 """
 
 from __future__ import annotations
@@ -9,9 +10,27 @@ import hashlib
 import json
 
 from app.service.matter_mode import MatterModeError, require_scope
-from app.service.proffer import ProfferError, _json_payload, _mode_payload, _request, _validated
-from app.types.source_context import SourceContextCreateRequest, SourceContextReceipt
+from app.service.proffer import ProfferError, _json_payload, _mode_payload, _request, _require_mode, _validated
+from app.types.source_context import ProfferRunSourceContext, SourceContextCreateRequest, SourceContextReceipt
 from app.types.proffer import MatterMode, ProfferDecisionActor
+
+
+async def run_source_context(preview_handle: str, *, mode: MatterMode) -> ProfferRunSourceContext:
+    """Read one run's registration facts and newest operator context revision.
+
+    Mode ownership is proven from durable state first (it survives a BFF restart);
+    the engine answer is validated fail-closed and echoed with the active mode.
+    """
+    await _require_mode(preview_handle, mode)
+    response = await _request("GET", f"/reference-import/previews/{preview_handle}/source-context")
+    result = _validated(
+        ProfferRunSourceContext,
+        _mode_payload(_json_payload(response, "run source context"), "run source context", mode),
+        "run source context",
+    )
+    if result.preview_handle != preview_handle:
+        raise ProfferError("Proffer run source context correlation failed", 502)
+    return result
 
 
 async def create_source_context(

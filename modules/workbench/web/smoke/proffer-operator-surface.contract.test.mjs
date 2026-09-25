@@ -36,7 +36,10 @@ test("the primary surface consistently names this workspace Review", () => {
 test("direct Review entry uses a resource list instead of manual opaque-handle plumbing", () => {
   assert.match(review, /Sources and proposals/);
   assert.match(review, /listProfferProposalResources\(mode, \{ limit: 50 \}/);
-  assert.match(review, /selectResource\(response\.items\[0\]\.preview_handle\)/);
+  // AMENDED 2026-09-25 (Claude Code · Opus 5.5): since 21a4872 (owner 2026-09-24, "still
+  // fucked") the landing run is the most-processed non-failed run, falling back to the newest;
+  // the old `selectResource(response.items[0].preview_handle)` pin failed on main from then on.
+  assert.match(review, /selectResource\(\(reviewable\[0\] \?\? response\.items\[0\]\)\.preview_handle\)/);
   assert.match(review, /query\.get\("resource"\)/);
   assert.match(review, /query\.get\("preview_handle"\)/);
   assert.match(review, /query\.get\("attempt"\)/);

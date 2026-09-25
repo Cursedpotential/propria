@@ -1072,6 +1072,49 @@ export interface ProfferSourceContextReceipt {
   matter_mode: MatterMode;
 }
 
+// Byline: Claude Code · Opus 5.5 · 2026-09-25 — Review Actions panel read-back
+// (GET /api/proffer/previews/{handle}/source-context).
+export interface ProfferObservedSource {
+  key: string;
+  name: string;
+  byte_length: number;
+  etag: string;
+  preview_sha256: string;
+  verification_state: "preview_only";
+}
+
+/** The newest context revision; a correction must supersede exactly this ref and echo this observation. */
+export interface ProfferSourceContextRevision {
+  source_context_ref: string;
+  revision: number;
+  observed_source: ProfferObservedSource;
+  assertions: ProfferHumanSourceAssertions;
+  change_reason: string;
+  actor_username: string;
+  receipt_ref: string;
+  recorded_at: string;
+}
+
+/** What register_source recorded for the run. */
+export interface ProfferSourceRegistration {
+  source_version_ref: string;
+  declared_format: string;
+  source_context_ref?: string | null;
+  original_filename?: string | null;
+  original_sha256?: string | null;
+  original_bytes?: number | null;
+}
+
+export interface ProfferRunSourceContext {
+  preview_handle: string;
+  request_id: string;
+  source_ref: string;
+  parser_options_ref: string;
+  registration?: ProfferSourceRegistration | null;
+  current?: ProfferSourceContextRevision | null;
+  matter_mode: MatterMode;
+}
+
 export interface ProfferStartRequest {
   request_id: string;
   source_ref: string;

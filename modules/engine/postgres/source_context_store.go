@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (append-only Proffer source context)
+// Byline: Claude Code · Opus 5.5 · 2026-09-25 (read-back of current context and registration)
 package postgres
 
 import (
@@ -136,5 +137,66 @@ func (s *SourceContextStore) ValidateSourceContext(
 	return nil
 }
 
+// CurrentSourceContext returns the newest revision of the operator context
+// recorded for requestID against sourceRef, or found=false when none exists.
+// Read-only. Byline: Claude Code · Opus 5.5 · 2026-09-25
+func (s *SourceContextStore) CurrentSourceContext(
+	ctx context.Context, requestID, sourceRef string,
+) (sourcecontext.Revision, bool, error) {
+	var current sourcecontext.Revision
+	var observed, assertions []byte
+	err := s.db.QueryRow(ctx, `
+		SELECT source_context_ref::text, revision, observed_source, assertions,
+		       change_reason, actor_username, receipt_ref, recorded_at
+		FROM context.proffer_source_context_revision
+		WHERE request_id=$1 AND source_ref=$2
+		ORDER BY revision DESC
+		LIMIT 1`, requestID, sourceRef).Scan(&current.SourceContextRef, &current.Revision, &observed, &assertions,
+		&current.ChangeReason, &current.ActorUsername, &current.ReceiptRef, &current.RecordedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sourcecontext.Revision{}, false, nil
+	}
+	if err != nil {
+		return sourcecontext.Revision{}, false, fmt.Errorf("read current source context: %w", err)
+	}
+	if err := json.Unmarshal(observed, &current.ObservedSource); err != nil {
+		return sourcecontext.Revision{}, false, fmt.Errorf("decode source context observation: %w", err)
+	}
+	if err := json.Unmarshal(assertions, &current.Assertions); err != nil {
+		return sourcecontext.Revision{}, false, fmt.Errorf("decode source context assertions: %w", err)
+	}
+	return current, true, nil
+}
+
+// SourceRegistration returns what register_source recorded for requestID
+// (context.source_version.workflow_id is the request id), including the
+// retained original's digest and length once retain_original has run.
+// Read-only. Byline: Claude Code · Opus 5.5 · 2026-09-25
+func (s *SourceContextStore) SourceRegistration(
+	ctx context.Context, requestID string,
+) (sourcecontext.Registration, bool, error) {
+	var registration sourcecontext.Registration
+	err := s.db.QueryRow(ctx, `
+		SELECT version.id::text, version.declared_format, version.source_context_ref::text,
+		       version.original_filename,
+		       CASE WHEN retained.id IS NULL THEN NULL ELSE encode(retained.content_sha256, 'hex') END,
+		       retained.byte_length
+		FROM context.source_version version
+		LEFT JOIN context.retained_object retained ON retained.id = version.original_object_id
+		WHERE version.workflow_id = $1
+		ORDER BY version.version_ordinal DESC
+		LIMIT 1`, requestID).Scan(&registration.SourceVersionRef, &registration.DeclaredFormat,
+		&registration.SourceContextRef, &registration.OriginalFilename,
+		&registration.OriginalSHA256, &registration.OriginalBytes)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sourcecontext.Registration{}, false, nil
+	}
+	if err != nil {
+		return sourcecontext.Registration{}, false, fmt.Errorf("read source registration: %w", err)
+	}
+	return registration, true, nil
+}
+
 var _ sourcecontext.Writer = (*SourceContextStore)(nil)
 var _ sourcecontext.Validator = (*SourceContextStore)(nil)
+var _ sourcecontext.Reader = (*SourceContextStore)(nil)

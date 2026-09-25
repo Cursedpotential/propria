@@ -1,13 +1,14 @@
 """Authenticated BFF routes for immediate fixed-source preview and hashing.
 
 Byline: Codex · GPT-5.6-Sol · 2026-08-30.
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (run source-context read-back).
 """
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
 from app.service.source_inspection import (
@@ -16,9 +17,9 @@ from app.service.source_inspection import (
     open_source_content,
     stream_source_content,
 )
-from app.service.source_context import create_source_context
+from app.service.source_context import create_source_context, run_source_context
 from app.service.proffer import ProfferError
-from app.types.source_context import SourceContextCreateRequest, SourceContextReceipt
+from app.types.source_context import ProfferRunSourceContext, SourceContextCreateRequest, SourceContextReceipt
 from app.types.source_inspection import SourceInspectionRequest, SourceInspectionResponse
 from app.types.proffer import MatterMode, ProfferDecisionActor
 
@@ -62,6 +63,18 @@ async def source_context_endpoint(
 ):
     try:
         return await create_source_context(body, _actor(request), mode=mode)
+    except ProfferError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from None
+
+
+@router.get("/previews/{preview_handle}/source-context", response_model=ProfferRunSourceContext)
+async def run_source_context_endpoint(
+    preview_handle: Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{32,128}$")],
+    mode: Annotated[MatterMode, Query()],
+):
+    """The run's registration facts and newest operator context (Review Actions panel)."""
+    try:
+        return await run_source_context(preview_handle, mode=mode)
     except ProfferError as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from None
 

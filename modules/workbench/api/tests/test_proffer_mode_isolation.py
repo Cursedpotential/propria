@@ -452,6 +452,8 @@ def test_mode_is_required_on_every_scoped_http_operation() -> None:
         ("/api/proffer/upload", "post"),
         ("/api/proffer/source-inspection", "post"),
         ("/api/proffer/source-contexts", "post"),
+        # Review Actions panel read-back (Claude Code · Opus 5.5 · 2026-09-25).
+        ("/api/proffer/previews/{preview_handle}/source-context", "get"),
         ("/api/proffer/start", "post"),
         ("/api/proffer/previews/{preview_handle}", "get"),
         ("/api/proffer/previews/{preview_handle}/messages", "get"),

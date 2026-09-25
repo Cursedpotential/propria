@@ -1,6 +1,7 @@
 """Actor-independent browser payloads for append-only intake source context.
 
 Byline: Codex · GPT-5.6-Sol · 2026-08-30.
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (run source-context read model).
 """
 
 from __future__ import annotations
@@ -108,6 +109,53 @@ class SourceContextReceipt(BaseModel):
     content_digest: Sha256Digest
     revision: Annotated[int, Field(ge=1)]
     recorded_at: datetime
+    matter_mode: MatterMode
+
+
+class SourceContextRevisionView(BaseModel):
+    """The newest revision of a run's operator context, with its exact observation.
+
+    A new revision must supersede exactly this ``source_context_ref`` and echo this
+    ``observed_source`` unchanged; the engine rejects anything else.
+    Byline: Claude Code · Opus 5.5 · 2026-09-25.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    source_context_ref: UUID
+    revision: Annotated[int, Field(ge=1)]
+    observed_source: ObservedSource
+    assertions: HumanSourceAssertions
+    change_reason: Annotated[str, StringConstraints(max_length=4000)] = ""
+    actor_username: Annotated[str, StringConstraints(max_length=512)] = ""
+    receipt_ref: NonBlank
+    recorded_at: datetime
+
+
+class SourceRegistrationView(BaseModel):
+    """What register_source recorded for a run (references and scalars only)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    source_version_ref: NonBlank
+    declared_format: NonBlank
+    source_context_ref: UUID | None = None
+    original_filename: Annotated[str, StringConstraints(max_length=1024)] | None = None
+    original_sha256: Sha256Digest | None = None
+    original_bytes: Annotated[int, Field(ge=0)] | None = None
+
+
+class ProfferRunSourceContext(BaseModel):
+    """Read model behind the Review page's Actions panel for one run."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    preview_handle: NonBlank
+    request_id: NonBlank
+    source_ref: NonBlank
+    parser_options_ref: Annotated[str, StringConstraints(max_length=1024)] = ""
+    registration: SourceRegistrationView | None = None
+    current: SourceContextRevisionView | None = None
     matter_mode: MatterMode
 
 

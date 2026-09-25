@@ -1,18 +1,30 @@
+// Byline: Claude Code · Opus 5.5 · 2026-09-25 (always-present Actions panel; one small mode flag;
+// tab dots from real row counts; portal More menu; decoded messages for derive-only runs)
 "use client";
 
-import { AlertTriangle, Check, ChevronDown, CircleDot, Database, ExternalLink, Flag, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Check, ChevronDown, CircleDot, Database, Flag, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AtomicTools } from "@/components/tools/atomic-tools";
+import { MODE_LABEL } from "@/components/intake/matter-mode-selector";
 import { CallsTable, parseCallRecords } from "@/components/sbv/calls-table";
+import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
 import { MessageBrowser } from "@/components/sbv/message-browser";
 import { MessageThreadView } from "@/components/sbv/message-thread-view";
+import { ReviewActionsPanel } from "@/components/sbv/review-actions-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePreviewMessageRows } from "@/hooks/use-preview-messages";
-import { AppLink } from "@/lib/router-compat";
+import type { PendingGateAnswers, RerunRequest } from "@/hooks/use-review-rerun";
 import { checkpointLabel } from "@/lib/proffer-context-checkpoints";
 import type {
   ProfferOperatorAvailability,
@@ -51,18 +63,24 @@ const TABS: Array<{ id: ReviewTab; label: string }> = [
 // visible as the primary path; everything else moves under "More".
 const PRIMARY_TAB_IDS = new Set<ReviewTab>(["messages", "calls", "overview", "records"]);
 
-function tabAvailability(
-  id: ReviewTab,
-  content: ProfferContentResponse | null,
-  snapshot: ProfferOperatorSnapshot,
-): { status: "available" | "pending" | "unavailable" } {
-  const durableContentAvailable = Boolean(content && (
-    id === "messages" || id === "calls" || id === "overview" || id === "records" || id === "files" || id === "lineage" || id === "warnings" || id === "attempts" ||
-    (id === "chunks" && content.chunk_generation)
-  ));
-  const surfaceKey = id === "relationships" ? "graph" : id === "attempts" ? "workflow" : id;
-  const projected = surfaceKey in snapshot.surfaces ? snapshot.surfaces[surfaceKey as keyof typeof snapshot.surfaces] : undefined;
-  return durableContentAvailable ? { status: "available" as const } : projected ?? { status: "unavailable" as const };
+// A tab's marker reflects rows it actually holds (owner 2026-09-25: "It's orange, draws my
+// attention, but there's never anything there"). No rows, no marker; attention colour only
+// on Warnings, and only when a warning exists. `count: null` means the tab has no row count.
+type TabStat = { count: number | null; more?: boolean; attention?: boolean };
+
+function countLabel(stat: TabStat) {
+  if (stat.count === null) return "";
+  return `${stat.count.toLocaleString()}${stat.more ? "+" : ""}`;
+}
+
+function TabDot({ stat }: { stat: TabStat }) {
+  if (!stat.count) return null;
+  return <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", stat.attention ? "bg-[#c69027]" : "bg-[#2f9d67]")} />;
+}
+
+function runName(sourceRef: string) {
+  const segments = sourceRef.split("/").filter(Boolean);
+  return segments.at(-1) ?? sourceRef;
 }
 
 function Availability({ value, label }: { value: ProfferOperatorAvailability; label: string }) {
@@ -151,6 +169,10 @@ export function ProfferOperatorPreview({
   onReject,
   onRetainOriginal,
   onSelectHandler,
+  onRerun,
+  rerunPending,
+  pendingAnswers,
+  decisionLockReason,
   actionPending,
   decisionReady,
 }: {
@@ -176,20 +198,30 @@ export function ProfferOperatorPreview({
   onReject: (reason: string) => void;
   onRetainOriginal: () => void;
   onSelectHandler: (candidate: ProfferParserCandidate) => void;
+  onRerun: (request: RerunRequest) => void;
+  rerunPending: boolean;
+  pendingAnswers?: PendingGateAnswers;
+  /** Why Approve is still locked; shown as one small line inside the decision block. */
+  decisionLockReason: string;
   actionPending: boolean;
   decisionReady: boolean;
 }) {
+  // A derive-only run (smsthreads_derive: 9 stages, execution path "derive") produces no
+  // normalized messages by design: it republishes the backup as conversation files in
+  // `<key>.derived/`. Its Messages view reads those decoded files instead of an empty
+  // message table (owner 2026-09-25).
+  const deriveOnly = !preview.correlation && messages.length === 0
+    && (snapshot.parser_handler === "smsthreads_derive" || snapshot.parser_execution_path === "derive");
   // The Messages view is offered only for a messaging source, and is where such a source
   // lands (owner ruling 2026-09-20 23:48; pinned by
   // `smoke/proffer-operator-surface.contract.test.mjs`). A picked tab always wins.
-  const messagingSource = messages.length > 0;
+  const messagingSource = messages.length > 0 || deriveOnly;
   const fallbackMessagePages = useMemo(() => [{ messages, participants }], [messages, participants]);
   const { rows: fallbackMessageRows, participants: fallbackParticipantMap } = usePreviewMessageRows(fallbackMessagePages);
   const callRows = useMemo(() => parseCallRecords(content?.records ?? []), [content]);
   const callsSource = callRows.length > 0;
   const [pickedTab, setTab] = useState<ReviewTab | null>(null);
   const tab: ReviewTab = pickedTab ?? (messagingSource ? "messages" : callsSource ? "calls" : "overview");
-  const [moreOpen, setMoreOpen] = useState(false);
   const visibleTabs = useMemo(
     () => TABS.filter((entry) => (entry.id !== "messages" || messagingSource) && (entry.id !== "calls" || callsSource)),
     [callsSource, messagingSource],
@@ -197,17 +229,38 @@ export function ProfferOperatorPreview({
   const primaryTabs = useMemo(() => visibleTabs.filter((entry) => PRIMARY_TAB_IDS.has(entry.id)), [visibleTabs]);
   const moreTabs = useMemo(() => visibleTabs.filter((entry) => !PRIMARY_TAB_IDS.has(entry.id)), [visibleTabs]);
   const activeMoreTab = moreTabs.find((entry) => entry.id === tab);
+  const warningCount = (snapshot.reason ? 1 : 0) + (contentError ? 1 : 0) + (messageError ? 1 : 0)
+    + snapshot.stages.filter((stage) => stage.reason).length;
+  const stats: Record<ReviewTab, TabStat> = {
+    messages: { count: deriveOnly ? null : messages.length, more: hasMore },
+    calls: { count: callRows.length },
+    overview: { count: null },
+    records: { count: content?.records.length ?? 0, more: Boolean(content?.next_record_cursor) },
+    chunks: { count: content?.chunk_generation?.chunk_count ?? content?.chunks.length ?? 0 },
+    entities: { count: 0 },
+    relationships: { count: 0 },
+    graph: { count: 0 },
+    files: { count: content?.attachments.length ?? 0 },
+    lineage: { count: content?.records.length ?? 0, more: Boolean(content?.next_record_cursor) },
+    warnings: { count: warningCount, attention: true },
+    attempts: { count: snapshot.stages.length },
+  };
   const [reason, setReason] = useState("");
-  const candidates = useMemo(() => preview.recommended_handler
-    ? [preview.recommended_handler, ...(preview.alternative_handlers ?? [])]
-    : [], [preview.alternative_handlers, preview.recommended_handler]);
-  const [selectedHandlerKey, setSelectedHandlerKey] = useState("");
-  const selectedHandler = candidates.find((candidate) => `${candidate.handler_id}:${candidate.handler_version}:${candidate.execution_path}:${candidate.compatibility_ref}` === selectedHandlerKey);
   const actionNames = new Set(snapshot.valid_actions.map((item) => item.action));
   const modeTone = snapshot.matter_mode === "REAL"
-    ? "border-[#b5433b] bg-[#fbe9e7] text-[#7e2924] dark:bg-[#4d2522] dark:text-[#ffd3ce]"
-    : "border-[#c69027] bg-[#fff4dd] text-[#6a480c] dark:bg-[#493719] dark:text-[#ffe0a6]";
+    ? "border-[#b5433b] text-[#7e2924] dark:text-[#ffd3ce]"
+    : "border-[#c69027] text-[#6a480c] dark:text-[#ffe0a6]";
   const attemptId = content?.attempt.attempt_ref || content?.attempt.projection_ref || "";
+  // Approve / Reject are unchanged: only at the preview decision stop, and only once the
+  // exact attempt is readable (`decisionReady`).
+  const decision = actionNames.has("approve_preview") || actionNames.has("reject_preview") ? (
+    <div className="space-y-2">
+      {!decisionReady && <p className="text-[11px] text-muted-foreground" role="status">{decisionLockReason}</p>}
+      <Label htmlFor="operator-decision-reason">Reason for rejection</Label>
+      <Input id="operator-decision-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required only for rejection"/>
+      <div className="flex flex-wrap gap-2">{actionNames.has("approve_preview") && <Button disabled={actionPending || !decisionReady} onClick={onApprove}><Check className="size-4" /> Approve this attempt</Button>}{actionNames.has("reject_preview") && <Button variant="destructive" disabled={actionPending || !decisionReady || !reason.trim()} onClick={() => onReject(reason.trim())}><X className="size-4" /> Reject with reason</Button>}</div>
+    </div>
+  ) : null;
   const entityViewerAvailability: ProfferOperatorAvailability = {
     status: "unavailable",
     reason: snapshot.surfaces.entities.reason || "The Review API does not return attempt-bound entity rows yet.",
@@ -219,93 +272,70 @@ export function ProfferOperatorPreview({
 
   return (
     <div className="space-y-2">
-      <details className={cn("border px-3 py-1.5", modeTone)} aria-label={`${snapshot.matter_mode} destination`}>
-        <summary className="flex cursor-pointer flex-wrap items-center gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-[0.18em]">{snapshot.matter_mode} operation destination</span>
-          <h2 className="text-sm font-semibold">{snapshot.matter_mode === "REAL" ? "Real matter" : "Development test matter"}</h2>
-          <Badge variant="outline" className="border-current text-current">{snapshot.lifecycle.replaceAll("_", " ")}</Badge>
-        </summary>
-        <dl className="mt-2 grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-4">
-          <div><dt className="opacity-70">Matter</dt><dd className="mt-1 break-all font-mono text-[10px]">{snapshot.matter_id}</dd></div>
-          <div><dt className="opacity-70">Court case</dt><dd className="mt-1 break-all font-mono text-[10px]">{snapshot.court_case_id}</dd></div>
-          <div><dt className="opacity-70">Attempt resource</dt><dd className="mt-1 break-all font-mono text-[10px]">{snapshot.preview_handle}</dd></div>
-          <div><dt className="opacity-70">Request</dt><dd className="mt-1 break-all font-mono text-[10px]">{snapshot.request_id}</dd></div>
-        </dl>
-      </details>
+      {/* One line per run. The Test / Live switch lives only in the top bar; here the mode is
+          one small flag (owner 2026-09-25: Test was shown four times; one flag, no banners). */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border bg-card px-3 py-1.5" aria-label="Selected run">
+        <h2 className="min-w-0 max-w-full truncate text-sm font-semibold" title={snapshot.source_ref}>{runName(snapshot.source_ref)}</h2>
+        <Badge variant="outline">{snapshot.lifecycle.replaceAll("_", " ")}</Badge>
+        <span
+          className={cn("rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold", modeTone)}
+          title={`Matter ${snapshot.matter_id} · Court case ${snapshot.court_case_id} · Run ${snapshot.preview_handle} · Request ${snapshot.request_id}`}
+          data-testid="review-mode-flag"
+        >
+          {MODE_LABEL[snapshot.matter_mode]} · {snapshot.matter_mode === "REAL" ? "Real matter" : "Development test matter"}
+        </span>
+        <Button variant="ghost" size="sm" className="ml-auto h-7" onClick={onRefresh} disabled={actionPending}><RefreshCw className="size-3.5" /> Refresh</Button>
+      </header>
 
-      <section className="sticky top-0 z-20 border bg-card px-3 py-2 shadow-sm" aria-label="Next valid actions">
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="platform-rule-title" title="Only actions backed by the current state and API contract appear here.">Next valid actions</p><p className="sr-only">Only actions backed by the current state and API contract appear here.</p></div><Button variant="outline" size="sm" onClick={onRefresh} disabled={actionPending}><RefreshCw className="size-3.5" /> Refresh</Button></div>
-        {snapshot.reason && <p className="mt-1 border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive" role="alert"><AlertTriangle className="mr-2 inline size-4" />{snapshot.reason}</p>}
-        {actionNames.has("select_handler") && <div className="mt-4 space-y-3"><Label htmlFor="operator-handler">Compatible handler</Label><select id="operator-handler" className="h-10 w-full border bg-background px-3 text-sm" value={selectedHandlerKey} onChange={(event) => setSelectedHandlerKey(event.target.value)}><option value="">Choose an exact registered handler</option>{candidates.map((candidate) => {const key = `${candidate.handler_id}:${candidate.handler_version}:${candidate.execution_path}:${candidate.compatibility_ref}`; return <option key={key} value={key}>{candidate.handler_id} · {candidate.handler_version} · {candidate.execution_path}</option>;})}</select><Button disabled={!selectedHandler || actionPending} onClick={() => selectedHandler && onSelectHandler(selectedHandler)}><Check className="size-4" /> Record handler and continue</Button></div>}
-        {actionNames.has("retain_original") && <div className="mt-4"><Button disabled={actionPending} onClick={onRetainOriginal}><ShieldCheck className="size-4" /> Retain sealed original and continue</Button></div>}
-        {(actionNames.has("approve_preview") || actionNames.has("reject_preview")) && <div className="mt-4 space-y-3"><Label htmlFor="operator-decision-reason">Reason for rejection</Label><Input id="operator-decision-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required only for rejection"/><div className="flex flex-wrap gap-2">{actionNames.has("approve_preview") && <Button disabled={actionPending || !decisionReady} onClick={onApprove}><Check className="size-4" /> Approve this attempt</Button>}{actionNames.has("reject_preview") && <Button variant="destructive" disabled={actionPending || !decisionReady || !reason.trim()} onClick={() => onReject(reason.trim())}><X className="size-4" /> Reject with reason</Button>}</div></div>}
-        {actionNames.has("restart_new_operation") && <div className="mt-4"><Button asChild><AppLink href={`/intake?mode=${snapshot.matter_mode}`}><CircleDot className="size-4" /> Start a new import <ExternalLink className="size-3.5" /></AppLink></Button><p className="mt-2 text-xs text-muted-foreground">This creates a new request identity and does not misrepresent the failed operation as resumed.</p></div>}
-      </section>
-
+      <div className="@container">
+      <div className="grid gap-2 @4xl:grid-cols-[minmax(0,1fr)_21rem] @4xl:items-start">
+      <div className="min-w-0 space-y-2">
       <nav className="relative flex items-center gap-1 overflow-x-auto border bg-card px-2 pt-2" role="tablist" aria-label="Context review views">
-        {primaryTabs.map(({ id, label }) => {
-          const state = tabAvailability(id, content, snapshot);
-          return (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => { setTab(id); setMoreOpen(false); }} className={cn("flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-xs font-semibold", tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
-              {label}<span className={cn("size-1.5 rounded-full", state.status === "available" ? "bg-[#2f9d67]" : state.status === "pending" ? "bg-[#c69027]" : "bg-muted-foreground/50")} />
-            </button>
-          );
-        })}
+        {primaryTabs.map(({ id, label }) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} title={countLabel(stats[id]) ? `${countLabel(stats[id])} rows` : undefined} className={cn("flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-xs font-semibold", tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+            {label}<TabDot stat={stats[id]} />
+          </button>
+        ))}
         {moreTabs.length > 0 && (
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              aria-haspopup="true"
-              aria-expanded={moreOpen}
-              onClick={() => setMoreOpen((value) => !value)}
-              className={cn(
-                "flex items-center gap-1 border-b-2 px-3 py-2 text-xs font-semibold",
-                activeMoreTab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-              data-testid="review-more-menu-trigger"
-            >
-              {activeMoreTab ? activeMoreTab.label : "More"} <ChevronDown className="size-3" />
-            </button>
-            {moreOpen && (
-              <div
-                role="menu"
-                className="absolute left-0 top-full z-10 mt-1 min-w-48 border bg-card py-1 shadow-md"
-                data-testid="review-more-menu"
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "flex shrink-0 items-center gap-1 border-b-2 px-3 py-2 text-xs font-semibold",
+                  activeMoreTab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+                data-testid="review-more-menu-trigger"
               >
-                {moreTabs.map(({ id, label }) => {
-                  const state = tabAvailability(id, content, snapshot);
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={tab === id}
-                      onClick={() => { setTab(id); setMoreOpen(false); }}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
-                        tab === id ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
-                      )}
-                    >
-                      {label}
-                      <span className={cn("size-1.5 shrink-0 rounded-full", state.status === "available" ? "bg-[#2f9d67]" : state.status === "pending" ? "bg-[#c69027]" : "bg-muted-foreground/50")} />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                {activeMoreTab ? activeMoreTab.label : "More"} <ChevronDown className="size-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" data-testid="review-more-menu">
+              <DropdownMenuRadioGroup value={tab} onValueChange={(value) => setTab(value as ReviewTab)}>
+                {moreTabs.map(({ id, label }) => (
+                  <DropdownMenuRadioItem key={id} value={id} className={cn(!stats[id].count && "text-muted-foreground")}>
+                    <span className="flex-1">{label}</span>
+                    <span className="tabular-nums text-[11px]">({countLabel(stats[id]) || "0"})</span>
+                    <TabDot stat={stats[id]} />
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </nav>
 
       <section className="border bg-card p-3" role="tabpanel">
-        {tab === "messages" && (
+        {tab === "messages" && (deriveOnly ? (
+          <DecodedSourceViewer sourceRef={snapshot.source_ref} />
+        ) : (
           <MessageBrowser
             key={`${snapshot.matter_mode}:${snapshot.preview_handle}`}
             previewHandle={snapshot.preview_handle}
             mode={snapshot.matter_mode}
             packageProjection={content?.package ?? null}
           />
-        )}
+        ))}
 
         {tab === "calls" && (
           <div className="space-y-3">
@@ -399,7 +429,7 @@ export function ProfferOperatorPreview({
           <ol className="divide-y border">{content.records.map((record) => <li key={record.record_id} className="p-4"><div className="flex flex-wrap justify-between gap-2"><strong>#{record.ordinal} · {record.record_type}</strong><span className="text-xs text-muted-foreground">{record.occurred_at ?? "No occurrence time"}</span></div><p className="mt-2 break-all font-mono text-[10px] text-muted-foreground">{record.record_id} · {record.source_locator_ref}</p><details className="mt-3"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">Raw JSON</summary><pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap border bg-muted/30 p-3 text-xs">{JSON.stringify(record.payload, null, 2)}</pre></details><PotentialPromotionControl scope="record" targetId={record.record_id} attemptId={attemptId} flags={potentialFlags} pending={flagPendingTarget === `record:${record.record_id}`} onFlag={onFlagPotentialPromotion} /></li>)}</ol>
           {!content.records.length && <p className="border p-6 text-center text-sm text-muted-foreground">No normalized records are projected for this attempt.</p>}
           {content.next_record_cursor && <Button variant="outline" disabled={contentLoading} onClick={() => onLoadMoreContent(content.next_record_cursor ?? undefined, undefined)}>Load more records</Button>}
-        </div> : <MessageThreadView key={snapshot.preview_handle} rows={fallbackMessageRows} participants={fallbackParticipantMap} loading={messagesLoading || contentLoading} error={contentError ?? messageError} previewHandle={snapshot.preview_handle} mode={snapshot.matter_mode} hasMore={hasMore} fetching={messagesLoading} onLoadMore={onLoadMore} />)}
+        </div> : messagesLoading || contentLoading || fallbackMessageRows.length > 0 ? <MessageThreadView key={snapshot.preview_handle} rows={fallbackMessageRows} participants={fallbackParticipantMap} loading={messagesLoading || contentLoading} error={contentError ?? messageError} previewHandle={snapshot.preview_handle} mode={snapshot.matter_mode} hasMore={hasMore} fetching={messagesLoading} onLoadMore={onLoadMore} /> : <UnavailablePanel title="Source records" availability={{ status: "unavailable", reason: contentError ?? "This run has no normalized records." }} />)}
 
         {tab === "chunks" && (content?.chunk_generation ? <div className="space-y-4">
           <header><p className="platform-kicker">Exact pre-publication chunks</p><h2 className="mt-1 text-xl font-semibold">Sealed chunk generation {content.chunk_generation.generation_ordinal}</h2><p className="mt-1 text-xs text-muted-foreground">These chunks remain Context candidates until the exact attempt is approved for its configured destination.</p></header>
@@ -448,7 +478,26 @@ export function ProfferOperatorPreview({
           <section><h2 className="platform-rule-title">Replayable events</h2><ol className="mt-3 space-y-2">{events.length ? events.map((event) => <li key={event.event_id} className="border-l-2 pl-3 text-xs"><span className="font-mono">#{event.event_id}</span> · {event.event_type} · {event.phase}{event.detail && <p className="mt-1 text-muted-foreground">{event.detail}</p>}</li>) : <li className="text-sm text-muted-foreground">No events received in this browser session.</li>}</ol></section>
         </div>}
       </section>
+      </div>
 
+      {/* Actions for this run, always present: beside the views when there is room, above
+          them when there is not (owner 2026-09-25: "there's no option to do any of it"). */}
+      <ReviewActionsPanel
+        className="order-first @4xl:order-none @4xl:sticky @4xl:top-2 @4xl:max-h-[calc(100dvh-7rem)] @4xl:overflow-y-auto"
+        snapshot={snapshot}
+        preview={preview}
+        content={content}
+        actionNames={actionNames}
+        actionPending={actionPending}
+        decision={decision}
+        onSelectHandler={onSelectHandler}
+        onRetainOriginal={onRetainOriginal}
+        onRerun={onRerun}
+        rerunPending={rerunPending}
+        pendingAnswers={pendingAnswers}
+      />
+      </div>
+      </div>
     </div>
   );
 }

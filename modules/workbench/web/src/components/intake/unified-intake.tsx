@@ -4,6 +4,7 @@
 // Byline: Codex · GPT-5 · 2026-08-29 (Case Bible Sorted default source browser)
 // Byline: Codex · GPT-5 · 2026-08-29 (approved inspector and receipt anatomy)
 // Byline: Codex · GPT-5 · 2026-08-29 (shared fixed-case shell context)
+// Byline: Claude Code · Opus 5.5 · 2026-09-25 (assertion fields + declared-format rule shared with Review; no behavior change)
 "use client";
 
 import { AppLink as Link } from "@/lib/router-compat";
@@ -23,6 +24,7 @@ import {
 import { AtomicTools } from "@/components/tools/atomic-tools";
 import { ContextFlowRail } from "@/components/intake/context-flow-rail";
 import { ParserSelectionPanel } from "@/components/intake/parser-selection-panel";
+import { SourceAssertionsFields } from "@/components/intake/source-assertions-fields";
 import { SourceExplorer } from "@/components/intake/source-explorer";
 import { DiscoveryExplorer } from "@/components/intake/discovery-explorer";
 import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
@@ -53,7 +55,9 @@ import type {
   ProfferSourceObject,
 } from "@/lib/shared/types";
 import { useFixedCase } from "@/lib/fixed-case-context";
+import { declaredFormat } from "@/lib/declared-format";
 import { profferContextFlowComplete } from "@/lib/proffer-context-checkpoints";
+import { EMPTY_ASSERTIONS } from "@/lib/source-assertions";
 import { cn } from "@/lib/utils";
 
 type IntakePhase = "choose" | "ready" | "starting" | "handler_review" | "repair_review" | "review" | "complete" | "error";
@@ -65,55 +69,8 @@ type OperatorTab = "intake" | "atomic_tools";
 
 const LOCAL_FILE_ACCEPT = ".xml,.json,.txt,.csv,.md,.html,.htm,.pdf,.docx,.zip,.tar,.tgz,.gz,.7z,.rar,.png,.jpg,.jpeg,.gif,.webp,.avif,.tif,.tiff,.bmp";
 
-const EMPTY_ASSERTIONS: ProfferHumanSourceAssertions = {
-  source_class: "unknown",
-  source_principal: "",
-  other_party: "",
-  acquired_at: null,
-  acquisition_method: "",
-  acquisition_authority: "",
-  source_device: "",
-  device_custodian: "",
-  occurred_start: "",
-  occurred_end: "",
-  date_certainty: "",
-  context: "",
-  notes: "",
-};
-
 function errorText(error: unknown) {
   return error instanceof ApiError ? error.message : error instanceof Error ? error.message : "The intake request failed";
-}
-
-function declaredFormat(source: { name: string }) {
-  const extension = source.name.split(".").pop()?.toLowerCase();
-  const formats: Record<string, string> = {
-    xml: "xml",
-    json: "message_export_json",
-    md: "markdown",
-    txt: "delimited_text",
-    csv: "delimited_text",
-    pdf: "pdf",
-    png: "image",
-    jpg: "image",
-    jpeg: "image",
-    gif: "image",
-    webp: "image",
-    avif: "image",
-    tif: "image",
-    tiff: "image",
-    bmp: "image",
-    docx: "docx",
-    html: "html",
-    htm: "html",
-    zip: "archive",
-    tar: "archive",
-    tgz: "archive",
-    gz: "archive",
-    "7z": "archive",
-    rar: "archive",
-  };
-  return formats[extension ?? ""] ?? "unknown_binary";
 }
 
 function bytes(value: number) {
@@ -799,55 +756,7 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
                         <div><p className="platform-rule-title">Add what you already know</p><p className="mt-1 text-xs leading-5 text-muted-foreground">These are your assertions, kept separate from observed source facts. Starting intake records them with your authenticated identity and a durable receipt.</p></div>
                         {sourceContextReceipt && <span className="border border-[#2f9d67] bg-[#e2f3e9] px-2 py-1 text-[10px] font-semibold uppercase text-[#17794b]">Recorded · revision {sourceContextReceipt.revision}</span>}
                       </div>
-                      <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                        <label className="grid gap-1.5 text-xs font-semibold">Source relationship
-                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.source_class} onChange={(event) => updateAssertion("source_class", event.target.value as ProfferHumanSourceAssertions["source_class"])}>
-                            <option value="unknown">Unknown / not sure</option><option value="first_party">First party / mine</option><option value="acquired_third_party">Acquired third party</option>
-                          </select>
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">Other party
-                          <input className="h-10 border bg-background px-3 font-normal" value={assertions.other_party} onChange={(event) => updateAssertion("other_party", event.target.value)} placeholder="Person, account, organization, or opposing party" />
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">Source principal
-                          <input className="h-10 border bg-background px-3 font-normal" value={assertions.source_principal} onChange={(event) => updateAssertion("source_principal", event.target.value)} placeholder="Account, phone, device, or person this came from" />
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">How acquired
-                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.acquisition_method} onChange={(event) => updateAssertion("acquisition_method", event.target.value as ProfferHumanSourceAssertions["acquisition_method"])}>
-                            <option value="">Not entered</option><option value="own_device">Own device</option><option value="household_device">Household device</option><option value="voluntary_third_party">Provided voluntarily</option><option value="legal_process">Legal process</option><option value="public_source">Public source</option><option value="unknown">Unknown</option>
-                          </select>
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">When acquired
-                          <input type="datetime-local" className="h-10 border bg-background px-3 font-normal" value={assertions.acquired_at ?? ""} onChange={(event) => updateAssertion("acquired_at", event.target.value || null)} />
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">Acquisition authority
-                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.acquisition_authority} onChange={(event) => updateAssertion("acquisition_authority", event.target.value as ProfferHumanSourceAssertions["acquisition_authority"])}>
-                            <option value="">Not entered</option><option value="device_owner">Device owner</option><option value="parent_guardian">Parent / guardian</option><option value="account_holder">Account holder</option><option value="consent_given">Consent given</option><option value="court_order">Court order</option><option value="unclear">Unclear</option>
-                          </select>
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">Known date — start
-                          <input type="date" className="h-10 border bg-background px-3 font-normal" value={assertions.occurred_start} onChange={(event) => updateAssertion("occurred_start", event.target.value)} />
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">Known date — end
-                          <input type="date" className="h-10 border bg-background px-3 font-normal" value={assertions.occurred_end} onChange={(event) => updateAssertion("occurred_end", event.target.value)} />
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">Date certainty
-                          <select className="h-10 border bg-background px-3 font-normal" value={assertions.date_certainty} onChange={(event) => updateAssertion("date_certainty", event.target.value as ProfferHumanSourceAssertions["date_certainty"])}>
-                            <option value="">Not entered</option><option value="exact">Exact</option><option value="approximate">Approximate</option><option value="range">Date range</option><option value="unknown">Unknown</option>
-                          </select>
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">Source device
-                          <input className="h-10 border bg-background px-3 font-normal" value={assertions.source_device} onChange={(event) => updateAssertion("source_device", event.target.value)} placeholder="Device or storage source" />
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold">Device custodian
-                          <input className="h-10 border bg-background px-3 font-normal" value={assertions.device_custodian} onChange={(event) => updateAssertion("device_custodian", event.target.value)} placeholder="Who controlled the device" />
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold sm:col-span-2">Context
-                          <textarea className="min-h-24 border bg-background p-3 font-normal" value={assertions.context} onChange={(event) => updateAssertion("context", event.target.value)} placeholder="What this source is, why it matters, and anything the parser cannot know" />
-                        </label>
-                        <label className="grid gap-1.5 text-xs font-semibold sm:col-span-2">Notes
-                          <textarea className="min-h-20 border bg-background p-3 font-normal" value={assertions.notes} onChange={(event) => updateAssertion("notes", event.target.value)} placeholder="Collection notes, limitations, or follow-up needed" />
-                        </label>
-                      </div>
+                      <SourceAssertionsFields value={assertions} onChange={updateAssertion} />
                     </div>
                   </section>
                 )}

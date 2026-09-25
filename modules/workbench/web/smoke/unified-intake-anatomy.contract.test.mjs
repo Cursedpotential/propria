@@ -11,6 +11,10 @@ const intake = readFileSync(
 const parserPanel = readFileSync(new URL("../src/components/intake/parser-selection-panel.tsx", import.meta.url), "utf8");
 const explorer = readFileSync(new URL("../src/components/intake/source-explorer.tsx", import.meta.url), "utf8");
 const client = readFileSync(new URL("../src/lib/api-client.ts", import.meta.url), "utf8");
+// AMENDED 2026-09-25 (Claude Code · Opus 5.5): the extension -> declared_format map moved
+// unchanged into src/lib/declared-format.ts so Review's Re-run declares a source exactly
+// as intake does; intake imports it. The map assertions below read that file.
+const declaredFormats = readFileSync(new URL("../src/lib/declared-format.ts", import.meta.url), "utf8");
 
 function between(source, startMarker, endMarker) {
   const start = source.indexOf(startMarker);
@@ -36,16 +40,17 @@ test("source inspection exposes the Source viewer, Metadata, and Parser tabs", (
 test("local intake selects supported document extensions and declares them truthfully", () => {
   assert.match(intake, /const LOCAL_FILE_ACCEPT = "\.xml,\.json,\.txt,\.csv,\.md,\.html,\.htm,\.pdf,\.docx,\.zip,\.tar,\.tgz,\.gz,\.7z,\.rar,\.png,\.jpg,\.jpeg,\.gif,\.webp,\.avif,\.tif,\.tiff,\.bmp";/);
   assert.match(intake, /<input accept=\{LOCAL_FILE_ACCEPT\} className="sr-only" type="file"/);
-  assert.match(intake, /md: "markdown"/);
-  assert.match(intake, /json: "message_export_json"/);
-  assert.match(intake, /docx: "docx"/);
-  assert.match(intake, /html: "html"/);
-  assert.match(intake, /htm: "html"/);
-  assert.match(intake, /pdf: "pdf"/);
-  assert.match(intake, /zip: "archive"/);
-  assert.match(intake, /"7z": "archive"/);
+  assert.match(intake, /import \{ declaredFormat \} from "@\/lib\/declared-format"/);
+  assert.match(declaredFormats, /md: "markdown"/);
+  assert.match(declaredFormats, /json: "message_export_json"/);
+  assert.match(declaredFormats, /docx: "docx"/);
+  assert.match(declaredFormats, /html: "html"/);
+  assert.match(declaredFormats, /htm: "html"/);
+  assert.match(declaredFormats, /pdf: "pdf"/);
+  assert.match(declaredFormats, /zip: "archive"/);
+  assert.match(declaredFormats, /"7z": "archive"/);
   for (const extension of ["png", "jpg", "jpeg", "gif", "webp", "avif", "tif", "tiff", "bmp"]) {
-    assert.match(intake, new RegExp(`${extension}: "image"`));
+    assert.match(declaredFormats, new RegExp(`${extension}: "image"`));
   }
   assert.match(intake, /\/\\\.\(md\|json\|html\?\|txt\|csv\|xml\)\$\/i/);
 });
