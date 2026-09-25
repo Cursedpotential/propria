@@ -29,16 +29,10 @@ import time
 
 import block_review_llm as B
 
-CONTEXT = 10
+WINDOW = int(os.environ.get("H2H_WINDOW", "25"))  # messages on each side of the reviewed bout, all labelled
 BOUT_FILES = {"c2024": "bouts/c2024_bouts_v2.jsonl", "f2024": "bouts/f2024_bouts_v1.jsonl"}
-ITEM_RULES = """
-
-This time you get ONE chunk to label, with context around it:
-- "Earlier messages" (indexes -10 to -1) and "Later messages" (a1, a2, ...) are context only. Use them to understand the
-  chunk (what a message answers, whether a conversation continues or was cut off, who went silent), but do not put them
-  in episodes and do not label them.
-- Episodes cover exactly the chunk's own messages, index 0 to the last chunk index, contiguously.
-- responds_to_i may point into the earlier context with a negative index (-1 is the message just before the chunk)."""
+WINDOW_NOTE = ("\n\nThe block is a window cut from a longer history: it may start or end in the middle of a conversation. "
+               "Split all of it into conversations and label every message.")
 
 
 def load_bouts() -> dict:
@@ -51,18 +45,23 @@ def load_bouts() -> dict:
     return out
 
 
-def item_text(src_data, bout_id: str) -> tuple[str, int]:
+def item_text(src_data, bout_id: str) -> tuple[str, int, int, int]:
+    """Window mode (owner 22:01-22:02: the 30-minute bouts were never real chunks; messages a minute later belong to the
+    same conversation and must be labelled; the LLM is there to find the real chunks). The model gets WINDOW messages
+    either side of the reviewed bout, splits the whole window into conversations itself and labels every message.
+    Returns (text, window size, first and last index of the reviewed bout inside the window)."""
     bouts, flat = src_data
     idx = [k for k, (bid, _, _) in enumerate(flat) if bid == bout_id]
-    lo, hi = idx[0], idx[-1]
-    line = lambda lab, day, m: f"[{lab}] {day} {m['ts_local']} {m['who']}: {m['text']}"
-    before = [line(k - lo, flat[k][1], flat[k][2]) for k in range(max(0, lo - CONTEXT), lo)]
-    chunk = [line(k - lo, flat[k][1], flat[k][2]) for k in range(lo, hi + 1)]
-    after = [line(f"a{k - hi}", flat[k][1], flat[k][2]) for k in range(hi + 1, min(len(flat), hi + 1 + CONTEXT))]
-    text = (("Earlier messages (context only - do not label):\n" + "\n".join(before) + "\n\n" if before else "")
-            + "THE CHUNK TO LABEL:\n" + "\n".join(chunk)
-            + ("\n\nLater messages (context only - do not label):\n" + "\n".join(after) if after else ""))
-    return text, hi - lo + 1
+    lo, hi = max(0, idx[0] - WINDOW), min(len(flat), idx[-1] + 1 + WINDOW)
+    lines, prev = [], None
+    for j, k in enumerate(range(lo, hi)):
+        day, m = flat[k][1], flat[k][2]
+        ts = datetime.datetime.fromisoformat(day + "T" + m["ts_local"])
+        if prev is not None and (ts - prev).total_seconds() >= 3600:
+            lines.append(f"[— {round((ts - prev).total_seconds() / 3600, 1)} h no messages —]")
+        lines.append(f"[{j}] {day} {m['ts_local']} {m['who']}: {m['text']}")
+        prev = ts
+    return "\n".join(lines), hi - lo, idx[0] - lo, idx[-1] - lo
 
 
 def call_openrouter(model: str, text: str, system: str, schema: dict) -> tuple[str, dict]:
@@ -131,9 +130,9 @@ def run_model(spec: str, items: list, texts: dict, system: str, schema: dict, sh
         if f.exists() and json.loads(f.read_text(encoding="utf-8")).get("ok"):
             ok += 1
             continue
-        text, n = texts[it["bout_id"]]
-        rec = {"version": "items-h2h-v2", "prompt_sha256": sha, "provider": provider, "model": model,
-               "bout_id": it["bout_id"], "n_messages": n, "request_ts": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+        text, n, ff, ft = texts[it["bout_id"]]
+        rec = {"version": "items-h2h-window-v1", "prompt_sha256": sha, "provider": provider, "model": model,
+               "bout_id": it["bout_id"], "n_messages": n, "focus_from": ff, "focus_to": ft, "request_ts": datetime.datetime.now(datetime.timezone.utc).isoformat()}
         t0 = time.time()
         try:
             raw, meta = call(provider, model, text, system, schema)
@@ -163,12 +162,12 @@ def main() -> int:
         b = by_id[e["bout_id"]]
         e["text"] = "\n".join(f"[{i}] {b['day']} {m['ts_local']} {m['who']}: {m['text']}" for i, m in enumerate(b["messages"]))
     assert not {e["bout_id"] for e in examples} & {it["bout_id"] for it in items}, "an example bout is in the test set"
-    system = B.system_v2(examples) + ITEM_RULES
+    system = B.system_v2(examples) + WINDOW_NOTE
     schema = B.SCHEMA_V2
     sha = hashlib.sha256((system + json.dumps(schema, sort_keys=True)).encode()).hexdigest()
     texts = {it["bout_id"]: item_text(data[it.get("source", "c2024")], it["bout_id"]) for it in items}
     outdir.mkdir(parents=True, exist_ok=True)
-    (outdir / "_run.json").write_text(json.dumps({"version": "items-h2h-v2", "prompt_sha256": sha, "system": system,
+    (outdir / "_run.json").write_text(json.dumps({"version": "items-h2h-window-v1", "prompt_sha256": sha, "system": system,
                                                   "schema": schema, "items": items, "texts": texts, "models": specs},
                                                  ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"items-h2h-v2 prompt {sha[:12]}: {len(items)} items x {len(specs)} models", flush=True)
