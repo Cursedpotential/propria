@@ -14,8 +14,9 @@ Nemotron, Mistral) and OpenRouter free models (north-mini-code, nex 2.5 mini/pro
 - Keys from --env-file (GEMINI_*, NVIDIA_API_KEY, OPENROUTER_API_KEY, CLAUDE_CODE_OAUTH_TOKEN); never printed.
 Runs in the ovh-files devbox with the jev-eval venv (Claude needs claude_agent_sdk):
     .venv/bin/python code/items_h2h.py <items.json> <examples.json> <outdir> <provider:model> [...]
-items.json: [{"bout_id": ..., "source": "c2024"|"f2024", "why": ...}]; bouts files: bouts/<source>_bouts_v2|v1.jsonl.
-Writes <outdir>/<provider>_<model>/<bout_id>.json per item (skips items already ok, so reruns resume).
+items.json: [{"bout_id": ..., "source": "c2024"|"f2024", "why": ..., optional "id", "focus_i": [from, to], "group",
+"owner_note"}]; bouts files: bouts/<source>_bouts_v2|v1.jsonl (build_h2h_items.py makes v2: owner notes + hostile picks).
+Writes <outdir>/<provider>_<model>/<item id>.json per item (skips items already ok, so reruns resume).
 """
 
 import asyncio
@@ -47,13 +48,21 @@ def load_bouts() -> dict:
     return out
 
 
-def item_text(src_data, bout_id: str) -> tuple[str, int, int, int]:
+def item_id(it: dict) -> str:
+    """Key for texts and result files: the bout id, or an explicit id for an item that targets part of a bout."""
+    return it.get("id") or it["bout_id"]
+
+
+def item_text(src_data, bout_id: str, focus_i: list | None = None) -> tuple[str, int, int, int, int]:
     """Window mode (owner 22:01-22:02: the 30-minute bouts were never real chunks; messages a minute later belong to the
     same conversation and must be labelled; the LLM is there to find the real chunks). The model gets WINDOW messages
     either side of the reviewed bout, splits the whole window into conversations itself and labels every message.
-    Returns (text, window size, first and last index of the reviewed bout inside the window)."""
+    focus_i [from, to] narrows the focus to those messages of the bout (the 2024 hostile bouts run 300-800 messages).
+    Returns (text, window size, first and last focus index inside the window, stream index of window line 0)."""
     bouts, flat = src_data
     idx = [k for k, (bid, _, _) in enumerate(flat) if bid == bout_id]
+    if focus_i:
+        idx = idx[focus_i[0]:focus_i[1] + 1]
     lo, hi = max(0, idx[0] - WINDOW), min(len(flat), idx[-1] + 1 + WINDOW)
     lines, prev = [], None
     for j, k in enumerate(range(lo, hi)):
@@ -63,7 +72,7 @@ def item_text(src_data, bout_id: str) -> tuple[str, int, int, int]:
             lines.append(f"[— {round((ts - prev).total_seconds() / 3600, 1)} h no messages —]")
         lines.append(f"[{j}] {day} {m['ts_local']} {m['who']}: {m['text']}")
         prev = ts
-    return "\n".join(lines), hi - lo, idx[0] - lo, idx[-1] - lo
+    return "\n".join(lines), hi - lo, idx[0] - lo, idx[-1] - lo, lo
 
 
 def call_openrouter(model: str, text: str, system: str, schema: dict) -> tuple[str, dict]:
@@ -128,13 +137,13 @@ def run_model(spec: str, items: list, texts: dict, system: str, schema: dict, sh
     mdir.mkdir(parents=True, exist_ok=True)
     ok = fail = 0
     for it in items:
-        f = mdir / f"{it['bout_id']}.json"
+        f = mdir / f"{item_id(it)}.json"
         if f.exists() and json.loads(f.read_text(encoding="utf-8")).get("ok"):
             ok += 1
             continue
-        text, n, ff, ft = texts[it["bout_id"]]
+        text, n, ff, ft = texts[item_id(it)][:4]
         rec = {"version": f"items-h2h-window-{PROMPT}", "prompt_sha256": sha, "provider": provider, "model": model,
-               "bout_id": it["bout_id"], "n_messages": n, "focus_from": ff, "focus_to": ft, "request_ts": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+               "bout_id": it["bout_id"], "item_id": item_id(it), "n_messages": n, "focus_from": ff, "focus_to": ft, "request_ts": datetime.datetime.now(datetime.timezone.utc).isoformat()}
         t0 = time.time()
         try:
             raw, meta = call(provider, model, text, system, schema)
@@ -167,7 +176,7 @@ def main() -> int:
     system = (B.system_v3 if PROMPT == "v3" else B.system_v2)(examples) + WINDOW_NOTE
     schema = B.SCHEMA_V2
     sha = hashlib.sha256((system + json.dumps(schema, sort_keys=True)).encode()).hexdigest()
-    texts = {it["bout_id"]: item_text(data[it.get("source", "c2024")], it["bout_id"]) for it in items}
+    texts = {item_id(it): item_text(data[it.get("source", "c2024")], it["bout_id"], it.get("focus_i")) for it in items}
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "_run.json").write_text(json.dumps({"version": f"items-h2h-window-{PROMPT}", "prompt_sha256": sha, "system": system,
                                                   "schema": schema, "items": items, "texts": texts, "models": specs},

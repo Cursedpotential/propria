@@ -59,21 +59,22 @@ if chonkie_dir:
 chunks, board = [], {}
 for it in run["items"]:
     bid = it["bout_id"]
-    tup = run["texts"][bid]
+    key = it.get("id") or bid  # an item may target part of a bout (hostile picks)
+    tup = run["texts"][key]
     text, n = tup[0], tup[1]
     ff, ft = (tup[2], tup[3]) if len(tup) > 3 else (0, n - 1)
     src, k0 = first_k[bid]
-    base = k0 - ff  # global index of window line 0 (items_h2h.py puts WINDOW messages before the bout)
+    base = tup[4] if len(tup) > 4 else k0 - ff  # stream index of window line 0
     rows = [["Old 30-minute rule", [j for j in range(1, n) if flat[src][base + j] != flat[src][base + j - 1]]]]
     if src == "c2024":
         for label, starts in chonkie.items():
-            st = starts.get(bid) if isinstance(starts, dict) else starts
+            st = starts.get(key) if isinstance(starts, dict) else starts
             if st is not None:
                 rows.append([label, [g - base for g in st if base < g < base + n]])
     res = {}
     for d in models:
         b = board.setdefault(d.name, {"ok": 0, "fail": 0, "secs": []})
-        f = d / f"{bid}.json"
+        f = d / f"{key}.json"
         if not f.exists():
             continue
         r = json.loads(f.read_text(encoding="utf-8"))
@@ -90,7 +91,7 @@ for it in run["items"]:
             b["secs"].append(r.get("seconds") or 0)
         else:
             b["fail"] += 1
-    chunks.append({"id": bid, "group": it.get("group", "reviewed"), "review": it.get("owner_note") or "",
+    chunks.append({"id": key, "group": it.get("group", "reviewed"), "review": it.get("owner_note") or "",
                    "why": it.get("why", ""), "n": n, "text": text, "ff": ff, "ft": ft, "rows": rows, "res": res})
 scores = [{"m": m, "ok": v["ok"], "fail": v["fail"], "todo": n_items - v["ok"] - v["fail"],
            "avg_s": round(sum(v["secs"]) / len(v["secs"]), 1) if v["secs"] else None} for m, v in board.items()]
