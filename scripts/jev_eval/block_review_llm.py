@@ -138,6 +138,37 @@ def system_v2(examples: list[dict]) -> str:
                                               if examples else ""))
 
 
+# ---- v3 (owner 22:29: the 30-minute window breaks context, and a conversation carries on after a wait: "there's things
+# called work. That conversation continued. So it's a fucking prompting issue."). Measured on the v2 window run
+# (raw/h2h_v2, split_by_silence.py): the models started a new conversation at 62% of silences of an hour or more and at 1%
+# of gaps under 5 minutes, i.e. they split by the clock. Three causes in v2: silence divider lines in the text, worked
+# examples that are each one 30-minute bout, and "one hour can hold two different topics". v3 drops the dividers (every
+# message keeps its date and time), makes a change of subject the only reason to split, and says the examples are excerpts.
+STEP1_V2 = ("1. Split it into episodes: stretches that belong together by topic and conversational flow. Follow the conversation,\n"
+            "   not the clock: a conversation can pause for hours and continue, and one hour can hold two different topics. Every\n"
+            "   message belongs to exactly one episode; episodes are contiguous and cover the block.")
+STEP1_V3 = ("1. Split it into conversations (episodes). A new conversation starts only when the subject changes and the new\n"
+            "   message does not answer or carry on anything said before it. Time passing never ends a conversation by itself:\n"
+            "   people reply after work, after sleeping or the next day, and that reply continues the same conversation. Do not\n"
+            "   split at a pause. When unsure, keep the messages together. Every message belongs to exactly one episode;\n"
+            "   episodes are contiguous and cover the block.")
+SILENCE_V2 = " Long\nsilences are shown as [— N h no messages —]."
+STEP3_V2 = "3. Record silences that matter:"
+STEP3_V3 = "3. Record silences that matter (a silence is recorded here, never as a split):"
+EXAMPLES_V2 = "Worked examples (from the owner's own review; the style to follow):"
+EXAMPLES_V3 = ("Worked examples (from the owner's own review; the labelling style to follow). Each is a short excerpt cut out of a "
+               "longer history to show labels: where an excerpt starts or ends says nothing about where a conversation starts "
+               "or ends:")
+
+
+def system_v3(examples: list[dict]) -> str:
+    s = system_v2(examples)
+    for old in (STEP1_V2, SILENCE_V2, STEP3_V2) + ((EXAMPLES_V2,) if examples else ()):
+        assert old in s, f"v2 prompt text moved: {old[:40]!r}"
+    s = s.replace(STEP1_V2, STEP1_V3).replace(SILENCE_V2, "").replace(STEP3_V2, STEP3_V3)
+    return s.replace(EXAMPLES_V2, EXAMPLES_V3)
+
+
 SCHEMA_V2 = json.loads(json.dumps(SCHEMA))
 _lab = SCHEMA_V2["properties"]["episodes"]["items"]["properties"]["labels"]["items"]
 _lab["properties"]["label"]["enum"] = list(LABELS_V2)

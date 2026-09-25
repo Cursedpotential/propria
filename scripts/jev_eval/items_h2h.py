@@ -1,4 +1,4 @@
-"""Head-to-head: the owner's reviewed chunks, each labelled by every working model with the same prompt (v2).
+"""Head-to-head: the owner's reviewed chunks, each labelled by every working model with the same prompt (v3; v2 via H2H_PROMPT=v2).
 
 Byline: Claude Code · Opus 5.5 · 2026-09-24. Owner 21:40: take the chunks he has reviewed, rated or confirmed (not mostly
 neutral; some neutral; the ones that matter), run 25 through every working model head-to-head, same prompt or tuned per
@@ -6,8 +6,9 @@ model; try older Gemini (2.5), the Claude SDK models incl. 4.x, NVIDIA (Kimi K3,
 Nemotron, Mistral) and OpenRouter free models (north-mini-code, nex 2.5 mini/pro, Qwen 3.8 27B, GLM 5.2).
 - Prompt: block_review_llm.py v2 (background, behaviours for both, worked examples from the owner's notes). The 6 example
   bouts are never in the test set.
-- Each chunk goes with the 10 messages before it and the 10 after it as context (owner notes: chunks were cut short, "there
-  was more to this conversation"); only the chunk's own messages [0..n-1] are labelled.
+- ~~Each chunk goes with the 10 messages before it and the 10 after it as context; only the chunk's own messages are
+  labelled.~~ Corrected 22:01 (owner): window mode, see item_text. 22:29: prompt v3 (block_review_llm.system_v3), since the
+  v2 window run split by the clock (62% of 1 h+ silences vs 1% of gaps under 5 min; split_by_silence.py).
 - Same prompt for every model; only the JSON mechanism differs by provider (Gemini schema mode, OpenAI-style json_schema
   for NIM/OpenRouter, SDK output_format for Claude). Per-model tuning comes after seeing where each one fails.
 - Keys from --env-file (GEMINI_*, NVIDIA_API_KEY, OPENROUTER_API_KEY, CLAUDE_CODE_OAUTH_TOKEN); never printed.
@@ -30,6 +31,7 @@ import time
 import block_review_llm as B
 
 WINDOW = int(os.environ.get("H2H_WINDOW", "25"))  # messages on each side of the reviewed bout, all labelled
+PROMPT = os.environ.get("H2H_PROMPT", "v3")  # v3: no silence dividers, subject-only splits (block_review_llm.system_v3)
 BOUT_FILES = {"c2024": "bouts/c2024_bouts_v2.jsonl", "f2024": "bouts/f2024_bouts_v1.jsonl"}
 WINDOW_NOTE = ("\n\nThe block is a window cut from a longer history: it may start or end in the middle of a conversation. "
                "Split all of it into conversations and label every message.")
@@ -57,7 +59,7 @@ def item_text(src_data, bout_id: str) -> tuple[str, int, int, int]:
     for j, k in enumerate(range(lo, hi)):
         day, m = flat[k][1], flat[k][2]
         ts = datetime.datetime.fromisoformat(day + "T" + m["ts_local"])
-        if prev is not None and (ts - prev).total_seconds() >= 3600:
+        if PROMPT == "v2" and prev is not None and (ts - prev).total_seconds() >= 3600:
             lines.append(f"[— {round((ts - prev).total_seconds() / 3600, 1)} h no messages —]")
         lines.append(f"[{j}] {day} {m['ts_local']} {m['who']}: {m['text']}")
         prev = ts
@@ -131,7 +133,7 @@ def run_model(spec: str, items: list, texts: dict, system: str, schema: dict, sh
             ok += 1
             continue
         text, n, ff, ft = texts[it["bout_id"]]
-        rec = {"version": "items-h2h-window-v1", "prompt_sha256": sha, "provider": provider, "model": model,
+        rec = {"version": f"items-h2h-window-{PROMPT}", "prompt_sha256": sha, "provider": provider, "model": model,
                "bout_id": it["bout_id"], "n_messages": n, "focus_from": ff, "focus_to": ft, "request_ts": datetime.datetime.now(datetime.timezone.utc).isoformat()}
         t0 = time.time()
         try:
@@ -162,12 +164,12 @@ def main() -> int:
         b = by_id[e["bout_id"]]
         e["text"] = "\n".join(f"[{i}] {b['day']} {m['ts_local']} {m['who']}: {m['text']}" for i, m in enumerate(b["messages"]))
     assert not {e["bout_id"] for e in examples} & {it["bout_id"] for it in items}, "an example bout is in the test set"
-    system = B.system_v2(examples) + WINDOW_NOTE
+    system = (B.system_v3 if PROMPT == "v3" else B.system_v2)(examples) + WINDOW_NOTE
     schema = B.SCHEMA_V2
     sha = hashlib.sha256((system + json.dumps(schema, sort_keys=True)).encode()).hexdigest()
     texts = {it["bout_id"]: item_text(data[it.get("source", "c2024")], it["bout_id"]) for it in items}
     outdir.mkdir(parents=True, exist_ok=True)
-    (outdir / "_run.json").write_text(json.dumps({"version": "items-h2h-window-v1", "prompt_sha256": sha, "system": system,
+    (outdir / "_run.json").write_text(json.dumps({"version": f"items-h2h-window-{PROMPT}", "prompt_sha256": sha, "system": system,
                                                   "schema": schema, "items": items, "texts": texts, "models": specs},
                                                  ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"items-h2h-v2 prompt {sha[:12]}: {len(items)} items x {len(specs)} models", flush=True)
