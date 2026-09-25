@@ -27,3 +27,10 @@ Per message/record, attributed + timestamped, append-only revisions:
 
 ## 3. Entity extraction with aliases
 Populate the EXISTING `registry.entity` / `registry.entity_alias` / `working.entity_mention` / `working.entity_resolution`: extract people (and places/orgs) from normalized messages, resolve aliases (spellings, nicknames, phone numbers, handles → one entity), keep mentions linked to their source records, owner can merge/split/rename. Extraction via the DuckDB ELT → Weaviate → Surreal rule. Replaces the rejected per-person Weaviate columns (`catrina_class`, `katrina_ref_type`, `katrina_conf`). Entities feed §2's to/about.
+
+## 4. Events (owner 2026-09-25 19:17)
+"Make sure events are extracted also. If it was not auto-detected as an event, you'll be able to select it and say it's an event worth recalling, and commit it to … an event log, timeline log."
+- Same propose → correct → commit pattern as entities, built by the `entities` agent.
+- **Uses the EXISTING timeline schema — no new log:** proposals -> `timeline.event_candidate` (+ `_relative_time_anchor`, `_source_range`); committed -> `timeline.timeline_collection` / `timeline.timeline_member`; view -> the existing Timesketch projection (`timeline.timeline_projection_*`, `server/timeline/`).
+- Auto-detected events (detected_by='auto') AND owner-marked events: "Mark as event worth recalling" on any message -> event_candidate (detected_by='owner'), dated by the SOURCE record's time, not by now.
+- Knowledge horizon: an event carries occurred_at + its source's availability time; the as-lived view sees it only from `source_available_from`. "Worth recalling" is an owner provenance marker, NOT a hindsight flag (foreshadowing stays in §2's hindsight-only overlay).
