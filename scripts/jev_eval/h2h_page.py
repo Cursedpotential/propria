@@ -146,6 +146,8 @@ for it in run["items"]:
             b["problems"] += 1 if r.get("problems") else 0
             if gc:
                 b[gc] += 1
+                if gc == "miss":
+                    b.setdefault("misses", []).append(bid)
         else:
             b["fail"] += 1
     msplits = {m: v["splits"] for m, v in res.items() if v["splits"] is not None}
@@ -161,9 +163,27 @@ for it in run["items"]:
 scores = [{"m": m, "ok": v["ok"], "fail": v["fail"], "avg_s": round(sum(v["secs"]) / len(v["secs"]), 1) if v["secs"] else None,
            "pass": v["pass"], "graded": v["pass"] + v["miss"], "pos": v["pos"], "neg": v["neg"], "logistics": v["logistics"],
            "labels": v["labels"], "unanswered": v["unanswered"], "problems": v["problems"],
-           "agree": round(100 * sum(v["agree"]) / len(v["agree"])) if v.get("agree") else None} for m, v in board.items()]
+           "agree": round(100 * sum(v["agree"]) / len(v["agree"])) if v.get("agree") else None,
+           "misses": v.get("misses", [])} for m, v in board.items()]
+# Owner 22:24 "the math doesn't math": a ratio over only the stretches a model has answered ranked a model with 5 of 17
+# done above one with 16 of 17 done. Every model is now counted against all of the owner's calls, unanswered shown.
+gold_ids = [it["bout_id"] for it in run["items"] if it["bout_id"] in GOLD]
+for s_ in scores:
+    s_["pending"] = len(gold_ids) - s_["graded"]
+scores.sort(key=lambda s: (-s["pass"], s["graded"] - s["pass"], -s["ok"], s["avg_s"] or 9999))
+
+
+def rule_text(g: dict) -> str:
+    parts = []
+    if g.get("expect"):
+        parts.append("needs at least one of: " + ", ".join(sorted(g["expect"])) + (f" (shown by {g['who']})" if g.get("who") else ""))
+    if g.get("avoid"):
+        parts.append("must not say: " + ", ".join(sorted(g["avoid"])) + (f" at strength {g['avoid_min']}" if g.get("avoid_min") else ""))
+    return "; ".join(parts)
+
+
+calls = [{"id": b, "basis": GOLD[b]["basis"], "rule": rule_text(GOLD[b])} for b in gold_ids]
 csplit = [{"m": k, "agree": round(100 * sum(v) / len(v)), "windows": len(v)} for k, v in cagree.items()]
-scores.sort(key=lambda s: (-(s["pass"] / s["graded"] if s["graded"] else 0), -s["ok"], s["avg_s"] or 9999))
 
 TEMPLATE = r"""<title>Model Head-to-Head · 2024 Texts</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -234,7 +254,8 @@ pre.ctx { white-space:pre-wrap; overflow-wrap:anywhere; margin:0; font:13px/1.5 
     <p class="lede">25 stretches of the 2024 texts around chunks you had already reviewed. Each model got the whole stretch (your chunk plus about 25 messages either side), decided for itself where each conversation starts and ends, and labelled every message. Your reviewed messages are highlighted. The strips show where each model, the old 30-minute bouts and Chonkie split the stretch. Pick the best model for each stretch; the automatic check only compares against your earlier verdicts, on the conversations that include your reviewed messages.</p>
   </header>
   <section class="panel"><h2>Scoreboard</h2>
-    <div class="tablewrap"><table id="board"><thead><tr><th>Model</th><th>Answered</th><th>Failed</th><th>Avg s</th><th>Matches your verdicts</th><th>Positive labels</th><th>Negative labels</th><th>"Logistics"</th><th>Unanswered runs</th><th>Structure warnings</th><th>Splits agree with other models</th><th>Your picks</th></tr></thead><tbody></tbody></table></div>
+    <div class="tablewrap"><table id="board"><thead><tr><th>Model</th><th>Answered</th><th>Failed</th><th>Avg s</th><th>Your calls: matched</th><th>missed</th><th>not answered yet</th><th>Positive labels</th><th>Negative labels</th><th>"Logistics"</th><th>Unanswered runs</th><th>Structure warnings</th><th>Splits agree with other models</th><th>Your picks</th></tr></thead><tbody></tbody></table></div>
+    <details style="margin-top:10px"><summary id="calls-sum"></summary><div class="tablewrap"><table id="calls"><thead><tr><th>Stretch</th><th>Your earlier call</th><th>A model matches when its labels on your messages…</th></tr></thead><tbody></tbody></table></div></details>
     <h2 style="margin-top:12px">Splitters without labels</h2>
     <div class="tablewrap"><table id="cboard"><thead><tr><th>Splitter</th><th>Stretches</th><th>Agrees with the models on where conversations split</th></tr></thead><tbody></tbody></table></div>
   </section>
@@ -245,6 +266,7 @@ pre.ctx { white-space:pre-wrap; overflow-wrap:anywhere; margin:0; font:13px/1.5 
 const CHUNKS = __CHUNKS__;
 const SCORES = __SCORES__;
 const CSPLIT = __CSPLIT__;
+const CALLS = __CALLS__;
 const POS = new Set(__POS__), NEG = new Set(__NEG__);
 const $ = id => document.getElementById(id);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
@@ -255,10 +277,13 @@ function board() {
   const counts = {}; for (const k in picks) for (const m of picks[k].models || []) counts[m] = (counts[m] || 0) + 1;
   for (const s of SCORES) {
     const tr = el("tr");
-    const cells = [short(s.m), s.ok, s.fail, s.avg_s ?? "–", s.graded ? s.pass + " / " + s.graded : "–", s.pos, s.neg, s.logistics, s.unanswered, s.problems, s.agree != null ? s.agree + "%" : "–", counts[s.m] || 0];
+    const cells = [short(s.m), s.ok, s.fail, s.avg_s ?? "–", s.pass, s.graded - s.pass, s.pending, s.pos, s.neg, s.logistics, s.unanswered, s.problems, s.agree != null ? s.agree + "%" : "–", counts[s.m] || 0];
     cells.forEach((v, i) => { const td = el("td", i === 0 ? "mono" : null, String(v)); tr.append(td); });
     tb.append(tr);
   }
+  $("calls-sum").textContent = CALLS.length + " of the " + CHUNKS.length + " stretches have an earlier call of yours the page can check (the other " + (CHUNKS.length - CALLS.length) + " had notes but no clear call). Each model is counted against all " + CALLS.length + ": matched + missed + not answered yet = " + CALLS.length + ". Show them";
+  const ct = $("calls").querySelector("tbody"); ct.replaceChildren();
+  for (const c of CALLS) { const tr = el("tr"); [c.id, c.basis, c.rule].forEach(v => tr.append(el("td", null, v))); ct.append(tr); }
   const cb = $("cboard").querySelector("tbody"); cb.replaceChildren();
   for (const c of CSPLIT) { const tr = el("tr"); [c.m, c.windows, c.agree + "%"].forEach(v => tr.append(el("td", null, String(v)))); cb.append(tr); }
 }
@@ -349,7 +374,7 @@ board(); render(); connect();
 """
 
 page = (TEMPLATE.replace("__CHUNKS__", json.dumps(chunks, ensure_ascii=False)).replace("__SCORES__", json.dumps(scores))
-        .replace("__CSPLIT__", json.dumps(csplit))
+        .replace("__CSPLIT__", json.dumps(csplit)).replace("__CALLS__", json.dumps(calls, ensure_ascii=False))
         .replace("__POS__", json.dumps(sorted(POSITIVE))).replace("__NEG__", json.dumps(sorted(NEGATIVE))))
 out_path.write_text(page, encoding="utf-8")
 print(f"wrote {out_path}: {len(chunks)} chunks x {len(models)} models, {len(page) // 1024} KB")
