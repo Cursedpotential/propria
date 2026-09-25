@@ -88,7 +88,8 @@ run = json.loads((h2h / "_run.json").read_text(encoding="utf-8"))
 models = [d for d in sorted(h2h.iterdir()) if d.is_dir()]
 flat, first_k = {}, {}
 for src, path in BOUT_FILES.items():
-    bs = [json.loads(x) for x in pathlib.Path(path).read_text(encoding="utf-8").splitlines() if x.strip()]
+    # split on "\n" only: splitlines() also breaks on U+2028 etc. inside message text
+    bs = [json.loads(x) for x in pathlib.Path(path).read_text(encoding="utf-8").split("\n") if x.strip()]
     bs.sort(key=lambda b: b["start_local"])
     flat[src] = [b["bout_id"] for b in bs for _ in b["messages"]]
     for k, b_id in enumerate(flat[src]):
