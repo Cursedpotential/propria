@@ -149,14 +149,16 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
       setResources(response.items);
       setResourcesError(null);
       if (!activeHandleRef.current && response.items.length > 0) {
-        // Land on the first REVIEWABLE run (has messages/records), not the newest
-        // which is often a failed attempt — that opened the page on an error +
-        // the Overview system-field table instead of the conversation. Owner
-        // 2026-09-24: "the review page is still fucked".
-        const reviewable = response.items.find(
-          (item) => item.lifecycle !== "failed" && item.lifecycle !== "unavailable",
-        );
-        selectResource((reviewable ?? response.items[0]).preview_handle);
+        // Land on a run the operator can actually read, not the newest — which is
+        // often a failed attempt (opened on an error + the Overview system table)
+        // or a 9-stage derive-only run with no preview messages (also fell to
+        // Overview). Prefer non-failed runs with the MOST completed stages: the
+        // full 24-26-stage runs are the ones carrying normalized messages, so the
+        // page lands on the conversation. Owner 2026-09-24: "still fucked".
+        const reviewable = response.items
+          .filter((item) => item.lifecycle !== "failed" && item.lifecycle !== "unavailable")
+          .sort((a, b) => b.completed_stage_count - a.completed_stage_count);
+        selectResource((reviewable[0] ?? response.items[0]).preview_handle);
       }
     } catch (error) {
       if (!controller.signal.aborted) {
