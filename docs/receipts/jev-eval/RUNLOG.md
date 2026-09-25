@@ -128,3 +128,16 @@
   - SlumberChunker (an LLM picks the split points) on the same 25 stretches, Gemini genie with key rotation: next, after the semantic runs.
 - **First split comparison** (partial, 23 stretches): splits agree model-to-model 58–82% (±1 message). The old 30-minute bouts agree with the models 73%: the models also split at long silences.
 - Page republished (version 2): https://claude.ai/artifact/UATg9wgBmn8GF3gzPSFgk9 — split strips per model, the 30-minute bouts and Chonkie under each stretch; the reviewed messages are highlighted.
+
+## 2026-09-24 22:24–22:35 — the models split by the clock; prompt v3; Chonkie semantic result
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-24._
+
+- **Owner 22:24–22:27:** the "matches your verdicts" column and "Splitters without labels 73%" make no sense. Both are invented scores: a keyword rule on 17 of the 25 reviewed stretches, a ratio over partial runs, and an agreement percentage. Proposed: drop them and show the owner's own review word for word per stretch. Awaiting his yes; `h2h_page.py` column edits are uncommitted until then.
+- **Owner 22:29:** a 30-minute (or longer) wait does not end a conversation ("there's things called work"); it is a prompting issue.
+  - Measured on the v2 window run (`split_by_silence.py`): a new conversation started at **62%** of silences of 1 h or more, 15% at 30–60 min, 5% at 5–30 min, **1%** under 5 min. The models split by the clock.
+  - Causes in the v2 prompt: `[— N h no messages —]` divider lines, six worked examples that are each one 30-minute bout, and "one hour can hold two different topics".
+  - v2 window run and its queued retry pass stopped (answers kept in `raw/h2h_v2`).
+- **Prompt v3** (`block_review_llm.system_v3`, 24d52c5): no dividers (each message keeps its date and time); a change of subject is the only reason to split; time never ends a conversation; silences are recorded as unanswered runs, never as splits; the examples are marked as excerpts. Test: Opus 5.5, Sonnet 5, Gemini 3 Flash Preview, Kimi K3 × 25 stretches → `raw/h2h_v3`.
+- **Chonkie SemanticChunker** on the stored vectors finished: 23,030 messages → 4,098–6,807 chunks, median 3–4 messages (max 50–120). 12,852–22,578 stored vectors reused; 38,177 window texts embedded new. Short text messages carry too little meaning alone for similarity to find conversation boundaries; it cuts far finer than the 30-minute rule. Slumber (LLM-chosen splits) not run yet.
+- **Disk (owner 22:25):** the 500 GB disk move never ran. `sdb` is blank and unmounted; root is 94% (13 GB free). The script (8151a85) was written after the owner's "Yes, now" (~13:15) but apply was deferred and never run. Go/no-go asked again (45–60 min ovh-files outage).
