@@ -1,7 +1,7 @@
-// Byline: Claude Code · Opus 5.5 · 2026-09-24
+// Byline: Claude Code · Opus 5.5 · 2026-09-24; schemes 2026-09-25
 // Category strip: rows stacked on top of each other; each row holds blocks side by side; each block is split into
 // colored category segments sized by weight. Categories and colors come from the data: any category gets the next
-// palette color unless `colors` pins one. Feed it anything with `rowsFromRecords` (row, block, category, weight).
+// color from the chosen scheme (schemes.ts) unless `colors` pins one. Feed it anything with `rowsFromRecords` (row, block, category, weight).
 // Origin: the chart on the owner's bout review page (owner 2026-09-24: "pull in different categories, assign them
 // colors and stack them on top of each other").
 
@@ -9,13 +9,16 @@ import type { KeyboardEvent } from "react";
 
 import "./category-strip.css";
 
-import { categoryColors, categoryTotals, type StripRow } from "./rows";
+import { categoryTotals, type StripRow } from "./rows";
+import { SCHEMES, schemeColors, schemeOrder, schemeValue, type Scheme } from "./schemes";
 
 export interface CategoryStripProps {
   rows: StripRow[];
+  /** How categories are colored and ordered (see schemes.ts); default: categorical, colors in order of appearance. */
+  scheme?: Scheme;
   /** Fixed colors for categories that have a meaning (any CSS color); every other category gets a palette color. */
   colors?: Record<string, string>;
-  /** Legend order; categories not listed follow, largest first. */
+  /** Legend order; default: along the scheme's scale, else largest first. */
   order?: string[];
   /** Unit shown in the legend and row totals, e.g. "msgs". */
   unit?: string;
@@ -28,6 +31,7 @@ export interface CategoryStripProps {
 
 export function CategoryStrip({
   rows,
+  scheme = SCHEMES.categorical,
   colors,
   order,
   unit = "",
@@ -36,15 +40,18 @@ export function CategoryStrip({
   selectedRowId = null,
   onSelectRow,
 }: CategoryStripProps) {
-  const totals = categoryTotals(rows, order);
-  const color = categoryColors(totals.map(([c]) => c), colors);
+  const bySize = categoryTotals(rows);
+  const totals = categoryTotals(rows, order ?? schemeOrder(bySize.map(([c]) => c), scheme));
+  const color = schemeColors(totals.map(([c]) => c), scheme, colors);
+  const offScale = (c: string) => scheme.kind !== "categorical" && !colors?.[c] && schemeValue(scheme, c) === undefined;
 
   return (
     <section className="category-strip">
       {showLegend ? (
         <div className="category-strip-legend" aria-label="Categories">
           {totals.map(([category, weight]) => (
-            <span key={category}>
+            <span key={category} className={offScale(category) ? "off-scale" : undefined}
+                  title={offScale(category) ? `Not on the ${scheme.label} scale` : undefined}>
               <i style={{ background: color[category] }} />
               {category} · {weight.toLocaleString()}
               {unit ? ` ${unit}` : ""}
