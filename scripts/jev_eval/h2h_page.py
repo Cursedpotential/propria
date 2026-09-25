@@ -6,8 +6,12 @@ best model(s) and can note why (artifact db collection `h2h`, doc per chunk). Th
 against his earlier verdicts (GOLD below, derived only from what he said: "Jev right" = tension was there; "Opus right"
 on a neutral bout = no conflict/hostility; the Bout Review verdicts on distress/hostility/affection). It is a rough guide,
 not a grade: his picks on this page are the real one.
+Window mode (items-h2h-window-v1, owner 22:01-22:02): each item is the reviewed bout plus 25 messages either side, all
+labelled; the model decides where conversations start and end. The verdict check reads only the episodes that overlap
+the reviewed messages, and the page draws where every model split the window next to the 30-minute bouts and, when a
+Chonkie output dir is given, Chonkie's semantic and Slumber splits (owner 22:03 "try chonky?").
 The output embeds case messages: build it on the devbox or in a scratch path, never commit it.
-Usage: python h2h_page.py <out.html> <h2h dir>
+Usage: python h2h_page.py <out.html> <h2h dir> [<chonkie dir>]   (run from the jev-eval dir: reads bouts/)
 """
 
 import json
@@ -34,11 +38,21 @@ for b in ("c2024-b0141", "c2024-b0180", "c2024-b0230", "c2024-b0276"):
     GOLD[b] = {"avoid": {"conflict", "hostile"}, "basis": "owner: Opus right (neutral)"}
 
 
-def gold_check(bout_id: str, out: dict) -> str | None:
+BOUT_FILES = {"c2024": "bouts/c2024_bouts_v2.jsonl", "f2024": "bouts/f2024_bouts_v1.jsonl"}
+
+
+def in_focus(e: dict, ff: int, ft: int) -> bool:
+    try:
+        return int(e.get("from_i")) <= ft and int(e.get("to_i")) >= ff
+    except (TypeError, ValueError):
+        return True
+
+
+def gold_check(bout_id: str, out: dict, ff: int, ft: int) -> str | None:
     g = GOLD.get(bout_id)
     if not g or not out:
         return None
-    labs = [l for e in out.get("episodes", []) for l in e.get("labels", [])]
+    labs = [l for e in out.get("episodes", []) if in_focus(e, ff, ft) for l in e.get("labels", [])]
     ok = True
     if g.get("expect"):
         hits = [l for l in labs if l.get("label") in g["expect"] and (not g.get("who") or l.get("who") in (g["who"], "both"))]
@@ -48,13 +62,60 @@ def gold_check(bout_id: str, out: dict) -> str | None:
     return "pass" if ok else "miss"
 
 
+def splits(out: dict | None) -> list[int] | None:
+    """Window indexes where a new conversation starts (the first episode's start is not a split)."""
+    if not out:
+        return None
+    try:
+        return sorted({int(e["from_i"]) for e in out.get("episodes", [])} - {0})
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def agree(a: list[int], b: list[int], tol: int = 1) -> float:
+    """F1 of two split sets, a split within tol messages counting as the same place; both empty = 1."""
+    if not a and not b:
+        return 1.0
+    hit_a = sum(1 for x in a if any(abs(x - y) <= tol for y in b))
+    hit_b = sum(1 for y in b if any(abs(x - y) <= tol for x in a))
+    p, r = (hit_a / len(a) if a else 0), (hit_b / len(b) if b else 0)
+    return 2 * p * r / (p + r) if p + r else 0.0
+
+
 out_path, h2h = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+chonkie_dir = pathlib.Path(sys.argv[3]) if len(sys.argv) > 3 else None
 run = json.loads((h2h / "_run.json").read_text(encoding="utf-8"))
 models = [d for d in sorted(h2h.iterdir()) if d.is_dir()]
-chunks, board = [], {}
+flat, first_k = {}, {}
+for src, path in BOUT_FILES.items():
+    bs = [json.loads(x) for x in pathlib.Path(path).read_text(encoding="utf-8").splitlines() if x.strip()]
+    bs.sort(key=lambda b: b["start_local"])
+    flat[src] = [b["bout_id"] for b in bs for _ in b["messages"]]
+    for k, b_id in enumerate(flat[src]):
+        first_k.setdefault(b_id, (src, k))
+chonkie = {}  # label -> sorted global chunk starts (semantic) or {bout_id: starts} (slumber)
+if chonkie_dir:
+    for f in sorted(chonkie_dir.glob("semantic_*.json")):
+        r = json.loads(f.read_text(encoding="utf-8"))
+        chonkie["Chonkie semantic " + f.stem.removeprefix("semantic_")] = sorted(c["first"] for c in r["chunks"])
+    for f in sorted(chonkie_dir.glob("slumber_*.json")):
+        r = json.loads(f.read_text(encoding="utf-8"))
+        chonkie["Chonkie slumber " + f.stem.removeprefix("slumber_")] = {
+            b: sorted(c["first"] for c in w.get("chunks", [])) for b, w in r["windows"].items() if w.get("chunks")}
+chunks, board, cagree = [], {}, {}
 for it in run["items"]:
     bid = it["bout_id"]
-    text, n = run["texts"][bid]
+    tup = run["texts"][bid]
+    text, n = tup[0], tup[1]
+    ff, ft = (tup[2], tup[3]) if len(tup) > 3 else (0, n - 1)
+    src, k0 = first_k[bid]
+    base = k0 - ff  # global index of window line 0 (items_h2h.py puts WINDOW messages before the bout)
+    rows = [["30-minute bouts", [j for j in range(1, n) if flat[src][base + j] != flat[src][base + j - 1]]]]
+    if src == "c2024":
+        for label, starts in chonkie.items():
+            st = starts.get(bid) if isinstance(starts, dict) else starts
+            if st is not None:
+                rows.append([label, [g - base for g in st if base < g < base + n]])
     res = {}
     for d in models:
         f = d / f"{bid}.json"
@@ -62,9 +123,9 @@ for it in run["items"]:
             continue
         r = json.loads(f.read_text(encoding="utf-8"))
         out = r.get("output") if r.get("ok") else None
-        gc = gold_check(bid, out)
+        gc = gold_check(bid, out, ff, ft)
         res[d.name] = {"ok": bool(r.get("ok")), "s": r.get("seconds"), "err": (r.get("error") or "")[:200],
-                       "problems": r.get("problems") or [], "gold": gc,
+                       "problems": r.get("problems") or [], "gold": gc, "splits": splits(out),
                        "eps": [{"f": e.get("from_i"), "t": e.get("to_i"), "topic": e.get("topic", ""), "sum": e.get("summary", ""),
                                 "labs": [[l.get("label"), l.get("who"), l.get("directed_at"), l.get("intensity"), l.get("note", ""),
                                           l.get("responds_to_i")] for l in e.get("labels", [])],
@@ -86,10 +147,21 @@ for it in run["items"]:
                 b[gc] += 1
         else:
             b["fail"] += 1
-    chunks.append({"id": bid, "why": it.get("why", ""), "gold": GOLD.get(bid, {}).get("basis", ""), "n": n, "text": text, "res": res})
+    msplits = {m: v["splits"] for m, v in res.items() if v["splits"] is not None}
+    for m, sp in msplits.items():
+        others = [agree(sp, o) for m2, o in msplits.items() if m2 != m]
+        if others:
+            board[m].setdefault("agree", []).append(sum(others) / len(others))
+    for label, sp in rows:
+        if msplits:
+            cagree.setdefault(label, []).append(sum(agree(sp, o) for o in msplits.values()) / len(msplits))
+    chunks.append({"id": bid, "why": it.get("why", ""), "gold": GOLD.get(bid, {}).get("basis", ""), "n": n, "text": text,
+                   "ff": ff, "ft": ft, "rows": rows, "res": res})
 scores = [{"m": m, "ok": v["ok"], "fail": v["fail"], "avg_s": round(sum(v["secs"]) / len(v["secs"]), 1) if v["secs"] else None,
            "pass": v["pass"], "graded": v["pass"] + v["miss"], "pos": v["pos"], "neg": v["neg"], "logistics": v["logistics"],
-           "labels": v["labels"], "unanswered": v["unanswered"], "problems": v["problems"]} for m, v in board.items()]
+           "labels": v["labels"], "unanswered": v["unanswered"], "problems": v["problems"],
+           "agree": round(100 * sum(v["agree"]) / len(v["agree"])) if v.get("agree") else None} for m, v in board.items()]
+csplit = [{"m": k, "agree": round(100 * sum(v) / len(v)), "windows": len(v)} for k, v in cagree.items()]
 scores.sort(key=lambda s: (-(s["pass"] / s["graded"] if s["graded"] else 0), -s["ok"], s["avg_s"] or 9999))
 
 TEMPLATE = r"""<title>Model Head-to-Head · 2024 Texts</title>
@@ -146,14 +218,24 @@ pre.ctx { white-space:pre-wrap; overflow-wrap:anywhere; margin:0; font:13px/1.5 
 .pickbtn.on { background:var(--ok-bg); color:var(--ok); border-color:var(--ok); }
 .note textarea { width:100%; min-height:38px; }
 .err { font-size:12.5px; color:var(--muted); overflow-wrap:anywhere; }
+.ctx .fl { background:var(--oth-bg); box-shadow:inset 3px 0 0 var(--accent); display:block; }
+.strips { display:grid; gap:3px; }
+.strip { display:grid; grid-template-columns:minmax(120px, 210px) 1fr; gap:8px; align-items:center; font-size:12px; }
+.strip .lbl { color:var(--muted); overflow-wrap:anywhere; }
+.cells { display:flex; height:14px; border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+.cells span { flex:1; min-width:1px; }
+.cells span.a { background:var(--oth-bg); } .cells span.b { background:var(--pos-bg); }
+.cells span.f { box-shadow:inset 0 -3px 0 var(--accent); }
 </style>
 <div class="wrap">
   <header>
     <h1>Model Head-to-Head · 2024 Texts</h1>
-    <p class="lede">25 chunks you had already reviewed, each read with the 10 messages before and after it, labelled by every working model with the same prompt (v2: background, behaviours to watch for both of you, your worked examples). Pick the best model for each chunk; the scoreboard's automatic check only compares against your earlier verdicts.</p>
+    <p class="lede">25 stretches of the 2024 texts around chunks you had already reviewed. Each model got the whole stretch (your chunk plus about 25 messages either side), decided for itself where each conversation starts and ends, and labelled every message. Your reviewed messages are highlighted. The strips show where each model, the old 30-minute bouts and Chonkie split the stretch. Pick the best model for each stretch; the automatic check only compares against your earlier verdicts, on the conversations that include your reviewed messages.</p>
   </header>
   <section class="panel"><h2>Scoreboard</h2>
-    <div class="tablewrap"><table id="board"><thead><tr><th>Model</th><th>Answered</th><th>Failed</th><th>Avg s</th><th>Matches your verdicts</th><th>Positive labels</th><th>Negative labels</th><th>"Logistics"</th><th>Unanswered runs</th><th>Structure warnings</th><th>Your picks</th></tr></thead><tbody></tbody></table></div>
+    <div class="tablewrap"><table id="board"><thead><tr><th>Model</th><th>Answered</th><th>Failed</th><th>Avg s</th><th>Matches your verdicts</th><th>Positive labels</th><th>Negative labels</th><th>"Logistics"</th><th>Unanswered runs</th><th>Structure warnings</th><th>Splits agree with other models</th><th>Your picks</th></tr></thead><tbody></tbody></table></div>
+    <h2 style="margin-top:12px">Splitters without labels</h2>
+    <div class="tablewrap"><table id="cboard"><thead><tr><th>Splitter</th><th>Stretches</th><th>Agrees with the models on where conversations split</th></tr></thead><tbody></tbody></table></div>
   </section>
   <div class="bar"><select id="pick-chunk" aria-label="Chunk"></select><select id="filter" aria-label="Show models"><option value="ok">Models that answered</option><option value="all">All models</option></select><span class="save" id="save-state">Connecting…</span></div>
   <div id="chunk" class="wrap"></div>
@@ -161,6 +243,7 @@ pre.ctx { white-space:pre-wrap; overflow-wrap:anywhere; margin:0; font:13px/1.5 
 <script>
 const CHUNKS = __CHUNKS__;
 const SCORES = __SCORES__;
+const CSPLIT = __CSPLIT__;
 const POS = new Set(__POS__), NEG = new Set(__NEG__);
 const $ = id => document.getElementById(id);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
@@ -171,17 +254,34 @@ function board() {
   const counts = {}; for (const k in picks) for (const m of picks[k].models || []) counts[m] = (counts[m] || 0) + 1;
   for (const s of SCORES) {
     const tr = el("tr");
-    const cells = [short(s.m), s.ok, s.fail, s.avg_s ?? "–", s.graded ? s.pass + " / " + s.graded : "–", s.pos, s.neg, s.logistics, s.unanswered, s.problems, counts[s.m] || 0];
+    const cells = [short(s.m), s.ok, s.fail, s.avg_s ?? "–", s.graded ? s.pass + " / " + s.graded : "–", s.pos, s.neg, s.logistics, s.unanswered, s.problems, s.agree != null ? s.agree + "%" : "–", counts[s.m] || 0];
     cells.forEach((v, i) => { const td = el("td", i === 0 ? "mono" : null, String(v)); tr.append(td); });
     tb.append(tr);
   }
+  const cb = $("cboard").querySelector("tbody"); cb.replaceChildren();
+  for (const c of CSPLIT) { const tr = el("tr"); [c.m, c.windows, c.agree + "%"].forEach(v => tr.append(el("td", null, String(v)))); cb.append(tr); }
+}
+function strip(label, sp, n, ff, ft) {
+  const row = el("div", "strip"); row.append(el("span", "lbl", label));
+  const cells = el("div", "cells"); const set = new Set(sp || []); let seg = 0;
+  for (let j = 0; j < n; j++) { if (set.has(j)) seg++; const c = el("span", (seg % 2 ? "b" : "a") + (j >= ff && j <= ft ? " f" : "")); c.title = "message " + j; cells.append(c); }
+  row.append(cells); return row;
 }
 function render() {
   const c = CHUNKS[cur]; const box = $("chunk"); box.replaceChildren();
   const p = el("section", "panel chunk");
-  p.append(el("h2", null, c.id + " · " + c.n + " messages"), el("div", "why", "Why it's here: " + c.why));
+  p.append(el("h2", null, c.id + " · " + c.n + " messages in the stretch, " + (c.ft - c.ff + 1) + " of them yours (highlighted)"), el("div", "why", "Why it's here: " + c.why));
   if (c.gold) p.append(el("div", "gold", "Automatic check uses: " + c.gold));
-  p.append(el("pre", "ctx", c.text));
+  const pre = el("pre", "ctx");
+  for (const line of c.text.split("\n")) {
+    const m = line.match(/^\[(\d+)\]/); const i = m ? +m[1] : -1;
+    pre.append(el("span", i >= c.ff && i <= c.ft ? "fl" : null, line + "\n"));
+  }
+  p.append(pre);
+  const strips = el("div", "strips");
+  for (const [label, sp] of c.rows) strips.append(strip(label, sp, c.n, c.ff, c.ft));
+  for (const s of SCORES) { const r = c.res[s.m]; if (r && r.ok && r.splits) strips.append(strip(short(s.m), r.splits, c.n, c.ff, c.ft)); }
+  p.append(el("div", "gold", "Where each one split this stretch (a colour change = a new conversation; underlined = your reviewed messages):"), strips);
   const note = el("div", "note"); const ta = el("textarea"); ta.id = "note-" + c.id; ta.placeholder = "What did the best ones get right? What did they all miss? (optional)";
   ta.value = (picks[c.id] || {}).note || ""; ta.addEventListener("input", () => save(c.id, { note: ta.value }, true)); note.append(ta); p.append(note);
   box.append(p);
@@ -248,8 +348,11 @@ board(); render(); connect();
 """
 
 page = (TEMPLATE.replace("__CHUNKS__", json.dumps(chunks, ensure_ascii=False)).replace("__SCORES__", json.dumps(scores))
+        .replace("__CSPLIT__", json.dumps(csplit))
         .replace("__POS__", json.dumps(sorted(POSITIVE))).replace("__NEG__", json.dumps(sorted(NEGATIVE))))
 out_path.write_text(page, encoding="utf-8")
 print(f"wrote {out_path}: {len(chunks)} chunks x {len(models)} models, {len(page) // 1024} KB")
 for s in scores:
-    print(f"  {s['m']:<50} ok={s['ok']:>2} fail={s['fail']:>2} avg_s={s['avg_s']} verdicts={s['pass']}/{s['graded']} pos={s['pos']} neg={s['neg']} logistics={s['logistics']} unanswered={s['unanswered']}")
+    print(f"  {s['m']:<50} ok={s['ok']:>2} fail={s['fail']:>2} avg_s={s['avg_s']} verdicts={s['pass']}/{s['graded']} pos={s['pos']} neg={s['neg']} logistics={s['logistics']} unanswered={s['unanswered']} agree={s['agree']}")
+for c in csplit:
+    print(f"  {c['m']:<50} windows={c['windows']} agree_with_models={c['agree']}%")
