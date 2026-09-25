@@ -70,3 +70,40 @@
   - Both mark cooperation, warmth and playfulness, and put the "Scott hitting child" incident at a third party.
   - Page: **Block Review** https://claude.ai/artifact/CnP8fihnfwg2EuvvxLoNg3 (db `block_reviews`).
 - **July 1 block** (07-01 07:14 → 07-02 12:04), v1 vs v2 on the same three models: running. It holds none of the example bouts, so the comparison is fair.
+
+## 2026-09-24 21:40–22:05 EDT — model availability sweep and head-to-head on the owner's reviewed chunks
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-24._
+
+- **July 1 block, prompt v1 vs v2:**
+  - Gemini 3.8 Flash on v2: 27 labels vs 19 (positive 11 vs 9, negative 6 vs 2). It used the new labels (deflecting, checking, leverage) and traced 17 reactions to what they answered; v1 traced 0.
+  - Gemma 4 31B on v2: more unanswered runs (5 vs 2), but it ignored the new labels and the `responds_to_i` field. It needs its own tuning.
+  - Block Review page updated (v2): https://claude.ai/artifact/CnP8fihnfwg2EuvvxLoNg3
+- **Liveness through llm_probe** (the owner's probe tool, ovh-files :8030; `scripts/jev_eval/probe_models_sweep.py` calls its `/probe/run` liveness probe with persist=true, so results are on its board):
+  - **Working (13):**
+    - Google: Gemini 2.5 Flash, 2.5 Flash-Lite, 3 Flash Preview, Gemma 4 26B.
+    - NIM: Kimi K3, GLM 5.3, GLM 5.3 Flash, Laguna XS 2.1, Nemotron 3 Super 120B, Nemotron 3 Ultra 550B, Nemotron 3.5 Lightning.
+    - OpenRouter: north-mini-code (free), nex-n2.5-mini (free).
+  - **Busy or timing out at that moment (8):**
+    - Gemini 3.8 Flash (503), Gemma 4 31B (500).
+    - DeepSeek V4.1 Flash, Mistral-Nemotron and nex-n2.5-pro (60 s timeouts).
+    - Qwen 3.8 27B, GLM 5.2 and Laguna XS (free-tier 429s).
+  - **Not available:**
+    - NIM Mistral Large, Large 2, Mixtral 8x22B, 7B, Nemo 12B and Codestral: 404 "not found for account".
+    - Kimi K2.6 and Llama 3.1 Nemotron 70B: 404.
+    - Inkling (free) only runs inside agentic harnesses.
+    - Not on NIM at all: Seed OSS, DeepSeek V4 Pro, GLM 5.2 and Llama 3.1 70B Instruct. The last three are on OpenRouter as paid models.
+- **Claude through the Agent SDK on the Max login** (`scripts/jev_eval/claude_models_probe.py`):
+  - Genuinely answer: Opus 5.5, Sonnet 5, **Opus 4.5 (20251101), Sonnet 4.5 (20250929), Haiku 4.5**.
+  - The Opus 4.1 and Opus 4 ids are silently answered by Opus 5.5.
+  - Not available: Sonnet 4.0, Sonnet 3.7, Haiku 3.5.
+  - Fable 5.1 refused ("out of…").
+- **Head-to-head** (`scripts/jev_eval/items_h2h.py`, page `h2h_page.py`; commit `2c962fc`):
+  - 25 chunks the owner had reviewed, labelled by 25 models with the same prompt (v2 + `ITEM_RULES`).
+  - The 25: Bout Review ×5, Tone Disagreements ×19 (the owner's notes, "Jev right", confirmed neutrals, and the badly-cut ones), and the Messenger chunk `f2024-b0009`.
+  - Each chunk carries 10 context messages on each side. The 6 example bouts are excluded from the test set.
+  - Only the structured-output method differs by provider.
+  - The scoreboard's automatic check compares only against the owner's earlier verdicts (GOLD in `h2h_page.py`).
+  - Page: **Model Head-to-Head** https://claude.ai/artifact/UATg9wgBmn8GF3gzPSFgk9 (db `h2h`: best-model picks and notes per chunk).
+  - Early numbers: Opus 5.5 matched 5/5 verdicts (18 s/chunk); Gemini 2.5 Flash-Lite 10/12 (7 s/chunk).
+  - The OpenRouter free models are rate-limited or return nothing in schema mode. A slow retry pass is queued after the main run, with nex-mini on a plain-JSON path.
