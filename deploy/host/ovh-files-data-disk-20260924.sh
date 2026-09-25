@@ -46,10 +46,12 @@ mountpoint -q "$MNT" || mount "$MNT"
 say "mounted $MNT ($(df -h "$MNT" | awk 'NR==2{print $2}'))"
 
 UNITS=(docker.socket docker.service containerd.service)
-start_saved() {  # etcd before Milvus (hand-stopped containers do not come back with the daemon), then wait for the rest
+start_saved() {  # etcd, then Milvus, then everything else: every container was stopped by hand (see below), so none
+  # comes back with the daemon by itself
   for c in $(grep -E 'etcd' /root/ovh-files-containers-before-$STAMP.txt); do docker start "$c" >/dev/null || true; done
   sleep 20
   for c in $(grep -E 'milvus' /root/ovh-files-containers-before-$STAMP.txt | grep -v etcd); do docker start "$c" >/dev/null || true; done
+  for c in $(grep -v -E 'etcd|milvus' /root/ovh-files-containers-before-$STAMP.txt); do docker start "$c" >/dev/null || true; done
   for i in $(seq 1 30); do
     n=$(docker ps --format '{{.Names}}' | sort | comm -23 /root/ovh-files-containers-before-$STAMP.txt - | wc -l)
     [ "$n" = 0 ] && break; sleep 10
@@ -65,9 +67,15 @@ restore_old() {  # a failed copy or verify must not leave the host without Docke
   start_saved
 }
 
-# gentle Milvus stop, then everything else via the daemons
+# gentle Milvus stop, then every other container by hand: this host runs Docker with "live-restore": true, so stopping
+# the daemons leaves containers running and writing (second apply, 02:50 UTC: verify found 2 changed entries).
+# PRECONDITION (checked by the operator, not here): Coolify's Docker cleanup must be off for this server. It prunes
+# stopped containers and, with delete_unused_volumes, their named volumes; at 02:50 UTC it pruned the stopped Milvus
+# container in the seconds between unmask and restart (data safe: Milvus binds /data/probata/volumes/memsearch-milvus).
 for c in $(docker ps --format '{{.Names}}' | grep -E 'milvus' | grep -v etcd); do say "stop $c"; docker stop -t 120 "$c" >/dev/null; done
 for c in $(docker ps --format '{{.Names}}' | grep -E 'etcd'); do say "stop $c"; docker stop -t 60 "$c" >/dev/null; done
+docker ps -q | xargs -r docker stop -t 60 >/dev/null
+say "all containers stopped ($(docker ps -q | wc -l) still running)"
 systemctl stop "${UNITS[@]}"
 # 2026-09-24 02:41 UTC, first apply: Coolify found Docker down and ran apt-get install docker-ce containerd.io, which
 # upgraded and restarted both daemons mid-copy (verify then found 16 changed entries). Masked for the copy window.
