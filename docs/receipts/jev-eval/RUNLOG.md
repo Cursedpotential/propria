@@ -107,3 +107,24 @@
   - Page: **Model Head-to-Head** https://claude.ai/artifact/UATg9wgBmn8GF3gzPSFgk9 (db `h2h`: best-model picks and notes per chunk).
   - Early numbers: Opus 5.5 matched 5/5 verdicts (18 s/chunk); Gemini 2.5 Flash-Lite 10/12 (7 s/chunk).
   - The OpenRouter free models are rate-limited or return nothing in schema mode. A slow retry pass is queued after the main run, with nex-mini on a plain-JSON path.
+
+## 2026-09-24 22:01–22:30 — window mode; Chonkie on the stored vectors
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-24._
+
+- **Owner 22:01–22:02:** a chunk is a semantic conversation. Messages a minute later are part of it and get labelled. The 30-minute bouts "never gonna work"; the LLM is there to find the real chunks.
+  - The context-only design (10 unlabelled messages each side) was stopped. Its 163 answers stay in `raw/h2h_v1` as the record of that approach.
+- **Window mode** (`items_h2h.py` 3261833, `items-h2h-window-v1`):
+  - Each item = the reviewed bout plus 25 messages either side (29–83 messages). The model splits the whole stretch into conversations and labels every message.
+  - Records carry `focus_from`/`focus_to`. The verdict check reads only the conversations overlapping the reviewed messages (`h2h_page.py` c0c05f7).
+  - Running: 25 models → `raw/h2h_v2`. A retry pass of every failed item starts by itself when it ends (`raw/h2h_v2_retry.log`), adding Gemini 3.5 Flash-Lite.
+  - Gemini 2.5 Flash / Flash-Lite answer 404 "no longer available to new users" on some keys; rotation now moves past that per key (b33ccec).
+- **Owner 22:03 "try chonky?", 22:05 "aren't these indexed ... searchable semantically?"** Yes:
+  - `MsgEvents20260918` holds 366,912 message/call records, each with its own `text_nim` vector (nemotron-3-embed-1b, passage, stripped body).
+  - The 2024 Katrina stream is 23,030 messages; 22,562 have a stored vector (found by `content_key` = `msg_id`); the rest are mostly attachments.
+- **Chonkie 1.7** installed in the jev-eval venv (`chonkie[semantic,genie]`). `chonkie_chunks.py` (5f8e1c4, 46d12eb):
+  - SemanticChunker, one message per sentence, reusing each message's stored vector. Its own window/group texts are embedded with the same NIM settings and cached (`raw/chonkie_v1/embed_cache.jsonl`, float16 because the ovh-files root disk is at 94%, 14 GB free).
+  - Four settings (threshold 0.8/0.65/0.5, window 3; threshold 0.65, window 5, no short-message merge).
+  - SlumberChunker (an LLM picks the split points) on the same 25 stretches, Gemini genie with key rotation: next, after the semantic runs.
+- **First split comparison** (partial, 23 stretches): splits agree model-to-model 58–82% (±1 message). The old 30-minute bouts agree with the models 73%: the models also split at long silences.
+- Page republished (version 2): https://claude.ai/artifact/UATg9wgBmn8GF3gzPSFgk9 — split strips per model, the 30-minute bouts and Chonkie under each stretch; the reviewed messages are highlighted.
