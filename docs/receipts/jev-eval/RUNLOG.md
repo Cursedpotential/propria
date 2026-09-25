@@ -42,3 +42,31 @@
 - Opus runs through the Agent SDK, which has no temperature setting. Proposed substitute: re-label a random 10% to measure self-consistency.
 - `source_sha256` is not in the catalog; `source_sha1` is carried instead (271/300) and the gap is reported, never filled in.
 - TypeSafe direct is unavailable (sign-ups paused): cells A/B only.
+
+## 2026-09-24 20:46–21:15 EDT — owner review of the disagreements; whole-block episodes across models
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-24._
+
+- **Owner review** of 29 Opus-vs-Jev disagreements (all in the "Opus neutral → Jev tense" group): Opus right 12, Jev right 7, notes only 10. The notes, in the owner's words, boiled down to four points:
+  - **Chunking destroys context.** Sample notes: "there was more to this conversation" (×5), "why was one message evaluated", "by stripping out one message it destroyed the context".
+  - **"Neutral" hides the good.** "hasn't marked one good thing"; "I almost want to take neutral away"; flag working together and planning to move in, for the later contrast.
+  - **Upset about a third party is not hostility toward her.** b0149: anger at her brother.
+  - **Her silences and blocks must be flagged.** b0291.
+
+  Jev over-reads tension and Opus under-reads it.
+- **New approach** (`scripts/jev_eval/block_review_llm.py`, `332e806`): a model reads a 100-message block whole and makes its own conversations by topic and flow. Labels are multi-label, each with who / at whom / intensity 1–3 / evidence indexes. The catch-all neutral is gone: "logistics" is used only when a stretch has no emotion at all. Unanswered runs are recorded.
+  - **Prompt v2** (owner 20:52): a factual background plus a list of behaviours to watch for, applied to both people. It adds the labels leverage, deflecting, threat and checking, a `responds_to_i` field, and 6 worked examples written from the owner's notes (b0014, b0019, b0108, b0149, b0187, b0291). The examples hold case text, so they live in devbox `persist/jev-eval/prompts/block_examples_v2.json`, never git.
+- **Models** (keys in root-only `/data/probata/secrets/jev-eval/*.env`; the script rotates across keys on 503/429):
+  - Gemini **3.8 Flash**: ok. The first try got 503 "high demand"; the retry passed.
+  - Gemini 3 Flash Preview: ok.
+  - Gemini 3.7 Flash: 503.
+  - Gemini **3.1 Pro**: no quota on any key (RESOURCE_EXHAUSTED). 2.5 Pro is gone (NOT_FOUND). **Pro needs a key on a project with billing enabled.**
+  - `GEMINI_API_KEY_4` is denied outright (403).
+  - **Gemma 4 31B IT**: ok, but slow (412 s).
+  - **Nemotron 3.5 Lightning** (NIM): it rejects `nvext.guided_json` (switched to `response_format` json_schema) and returned 1 conversation that did not cover the block. Not usable for this task as prompted.
+- **June 27 block** (100 messages, 06-27 09:27 → 06-29 13:33, prompt v1):
+  - Gemini 3.8 Flash: 7 conversations, clean.
+  - Gemma: 12 conversations, clean, and 3 unanswered runs.
+  - Both mark cooperation, warmth and playfulness, and put the "Scott hitting child" incident at a third party.
+  - Page: **Block Review** https://claude.ai/artifact/CnP8fihnfwg2EuvvxLoNg3 (db `block_reviews`).
+- **July 1 block** (07-01 07:14 → 07-02 12:04), v1 vs v2 on the same three models: running. It holds none of the example bouts, so the comparison is fair.

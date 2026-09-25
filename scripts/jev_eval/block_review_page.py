@@ -35,6 +35,8 @@ for d in map(pathlib.Path, sys.argv[2:]):
                          "episodes": (r.get("output") or {}).get("episodes", []),
                          "overall": (r.get("output") or {}).get("overall", "")})
         m = b["messages"]
+        if any(x["id"] == f"{m[0]['day']}_{version}" for x in blocks):
+            continue  # the same block saved under the older file name (_block.json) and the versioned one
         blocks.append({"id": f"{m[0]['day']}_{version}", "version": version, "range": f"{m[0]['day']} {m[0]['ts']} → {m[-1]['day']} {m[-1]['ts']}",
                        "msgs": [[x["i"], x["day"], x["ts"], 0 if x["who"] == "Matt" else 1, x["text"]] for x in m],
                        "runs": runs})
