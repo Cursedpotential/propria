@@ -1,5 +1,10 @@
 # ADR-0004: Memory = native LearningMachine; no hand-rolled learned_knowledge table
-- Status: Accepted
+
+> **SUPERSEDED** by D-101/D-107 (2026-08-29) — AgentOS is retired completely and Agno survives only as a disabled bounded atomic-agent library adapter; Agno's native LearningMachine is no longer the memory home. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-101 and D-107._
+
+- Status: ~~Accepted~~ **Superseded** — see banner above.
 - Date: 2026-06-01
 
 ## Context

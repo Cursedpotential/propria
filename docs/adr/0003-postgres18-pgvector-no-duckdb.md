@@ -1,5 +1,10 @@
 # ADR-0003: PostgreSQL 18 (native uuidv7), pgvector-only, no DuckDB; FalkorDB deferred
-- Status: Accepted
+
+> **SUPERSEDED** by ADR-0013 (2026-06-10) and D-080 (2026-08-25) — pg_duckdb was adopted inside the custom PG18 image, reversing this ADR's "no DuckDB anywhere" stance; the PG18/pgvector-only shape otherwise stands. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see ADR-0013 and D-080._
+
+- Status: ~~Accepted~~ **Superseded in part** — see banner above.
 - Date: 2026-06-01
 
 ## Context

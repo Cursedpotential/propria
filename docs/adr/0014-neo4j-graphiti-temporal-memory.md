@@ -1,5 +1,10 @@
 # ADR-0014: Pull Graphiti temporal memory forward on Neo4j (not FalkorDB)
-- Status: Accepted
+
+> **SUPERSEDED** by D-070 (2026-08-25) — "Graphiti is retired for now"; this ADR is one of the five (ADR-0014/0031/0037/0038/0039) D-070 names explicitly as suspended, not deleted. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-070._
+
+- Status: ~~Accepted~~ **Suspended (superseded)** — see banner above.
 - Date: 2026-06-10
 
 ## Context

@@ -1,5 +1,10 @@
 # ADR-0025: Platform topology — Agno core, IBM ContextForge tool gateway, LiteLLM model gateway
-- Status: Accepted
+
+> **SUPERSEDED** by ADR-0042 (2026-07-29) and D-107 (2026-08-29) — LiteLLM is retired (ADR-0042: Portkey is the model gateway) and Agno-core is retired as the application host (D-107); only the ContextForge tool-gateway leg of this topology survives. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see ADR-0042 and D-107._
+
+- Status: ~~Accepted~~ **Superseded** — see banner above.
 - Date: 2026-06-13
 - _Byline: Claude Code · Opus 4.8 · 2026-06-13_
 

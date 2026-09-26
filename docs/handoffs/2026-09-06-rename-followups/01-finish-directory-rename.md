@@ -1,5 +1,9 @@
 # Prompt: finish the directory renames (probata / vestigia / memory store)
 
+> **DONE 2026-09-06** (README row 01; commit `38a3ea3`) — owner ran it; defects fixed by hand and the follow-up sweep (nested junctions re-pointed, stale "rename pending" text cleared in this repo, the vestigia repo, memory index and guardian rules — see register §9). Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — closing banner added; see `2026-09-06-rename-followups/README.md` row 01._
+
 > _Byline: Claude Code · Fable 5.1 · 2026-09-06. Agent-ready prompt file: paste the whole file to a fresh agent. Self-contained. Read `README.md` in this folder for the standing rules._
 
 ## Goal
