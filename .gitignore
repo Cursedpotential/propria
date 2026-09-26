@@ -96,3 +96,6 @@ TraceIQ_Backups/
 TraceIQ_Evidence/
 traaceiq_mess/
 traceiq-rebuild/
+
+# Credential downloads never belong in git (owner 2026-09-26: "not in the repo").
+Neo4j-*-Created-*.txt

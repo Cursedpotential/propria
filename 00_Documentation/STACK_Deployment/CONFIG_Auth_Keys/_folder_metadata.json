@@ -5,7 +5,7 @@
     "last_modified": "2025-12-25T17:19:43.442656",
     "is_latest": true,
     "is_iteration": false,
-    "summary": "MISTRAL_API_KEY='0NXMu5M6Ai3laH0z6mdoHdAdvbmNUg82' EMBEDDING_ENGINE='mistral' EMBEDDING_BASE_PATH='https://openrouter.ai/api/v1/chat/completions' EMBEDDING_MODEL_MAX_CHUNK_LENGTH='2000' GENERIC_OPEN_A...",
+    "summary": "MISTRAL_API_KEY='<redacted:MISTRAL_API_KEY>' EMBEDDING_ENGINE='mistral' EMBEDDING_BASE_PATH='https://openrouter.ai/api/v1/chat/completions' EMBEDDING_MODEL_MAX_CHUNK_LENGTH='2000' GENERIC_OPEN_A...",
     "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\CONFIG_Auth_Keys",
     "group_base_name": ".api-keys-reference"
   },
@@ -15,7 +15,7 @@
     "last_modified": "2025-12-25T17:19:43.363916",
     "is_latest": false,
     "is_iteration": true,
-    "summary": "# Open Web UI Configuration WEBUI_SECRET_KEY=change_this_to_a_random_secret OLLAMA_BASE_URL=http://host.docker.internal:11434 ENABLE_RAG_WEB_SEARCH=true DEVICE_TYPE=cpu # AnythingLLM Configuration SER...",
+    "summary": "# Open Web UI Configuration WEBUI_SECRET_KEY=<redacted:WEBUI_SECRET_KEY> OLLAMA_BASE_URL=http://host.docker.internal:11434 ENABLE_RAG_WEB_SEARCH=true DEVICE_TYPE=cpu # AnythingLLM Configuration SER...",
     "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\CONFIG_Auth_Keys",
     "group_base_name": ".env"
   },
@@ -75,7 +75,7 @@
     "last_modified": "2025-11-29T01:51:26",
     "is_latest": true,
     "is_iteration": false,
-    "summary": "{ \"type\": \"service_account\", \"project_id\": \"drive-479520\", \"private_key_id\": \"4833b9f83011c3b6e10e49760aff09bbd8cdb5f6\", \"private_key\": \"-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBK...",
+    "summary": "{ \"type\": \"service_account\", \"project_id\": \"drive-479520\", \"private_key_id\": \"4833b9f83011c3b6e10e49760aff09bbd8cdb5f6\", \"private_key\": \"-----BEGIN PRIVATE KEY-----<redacted:private-key>",
     "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\CONFIG_Auth_Keys",
     "group_base_name": "drive-479520-4833b9f83011"
   },
