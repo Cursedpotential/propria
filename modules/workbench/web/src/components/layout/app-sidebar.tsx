@@ -52,7 +52,8 @@ export function AppSidebar() {
           <div className="flex items-center gap-2 font-semibold uppercase tracking-wide text-[#dce1e3]">
             <ShieldCheck className="h-4 w-4" /> Focused release
           </div>
-          <p>Intake and Review expose available controls, missing projections, and recovery paths in one Context workflow.</p>
+          {/* Byline: Claude Code · Opus 5 · 2026-09-22 — Sources replaced Intake. */}
+          <p>Sources brings files in; Review reads what came out. Anything not yet reachable is flagged on the item itself.</p>
         </div>
       </SidebarFooter>
     </Sidebar>

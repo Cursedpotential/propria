@@ -13,6 +13,7 @@ from app.repo.intake_discovery import (
     catalog_page,
     units_for_member_keys,
     units_for_roots,
+    units_under_prefix,
 )
 from app.service.intake_discovery import capabilities, neighbors, search_index
 
@@ -35,6 +36,15 @@ async def unit_lookup_endpoint(body: UnitLookupRequest):
         members = await run_in_threadpool(units_for_member_keys, body.keys)
         return {"units": roots["items"], "members": members["items"],
                 "backend": "casebible_atomic_units", "source_links_verified": False}
+    except DiscoveryError as error:
+        raise HTTPException(error.status, error.message) from None
+
+
+@router.get("/units/under-prefix")
+async def units_under_prefix_endpoint(prefix: str = Query(..., min_length=1, max_length=4096)):
+    """Which recorded units the files under ONE vault folder belong to."""
+    try:
+        return await run_in_threadpool(units_under_prefix, prefix)
     except DiscoveryError as error:
         raise HTTPException(error.status, error.message) from None
 
