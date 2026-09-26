@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-08-29T20:48:19+00:00",
+  "results": [
+    {
+      "provider": "ollama_cloud",
+      "model": "nemotron-3-ultra",
+      "status": 200,
+      "classification": "visible_text",
+      "first_data_s": 0.72,
+      "elapsed_s": 0.98,
+      "exact_pong": true,
+      "finish_reason": "stop"
+    },
+    {
+      "provider": "mistral",
+      "model": "ministral-14b-latest",
+      "status": 200,
+      "classification": "visible_text",
+      "first_data_s": 0.55,
+      "elapsed_s": 0.55,
+      "exact_pong": true,
+      "finish_reason": "stop"
+    }
+  ]
+}

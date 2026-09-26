@@ -1,0 +1,212 @@
+{
+  "timestamp": "2026-09-10T12:26:45+00:00",
+  "base": "https://integrate.api.nvidia.com/v1",
+  "rerank_base": "https://ai.api.nvidia.com/v1/retrieval",
+  "catalog_count": 80,
+  "timeout_s": 600.0,
+  "long_chars": 60000,
+  "batch": 8,
+  "rerank_long_chars": 75000,
+  "passages": 16,
+  "results": [
+    {
+      "model": "nvidia/embed-qa-4",
+      "kind": "embed",
+      "listed": true,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 404,
+      "detail": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"Function '09c64e32-2b65-4892-a285-2f585408d118': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'\"}",
+      "elapsed_s": 0.08
+    },
+    {
+      "model": "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+      "kind": "embed",
+      "listed": true,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 404,
+      "detail": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"Function '6cb5bc77-9adc-48ac-85e2-c0ebceda934f': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'\"}",
+      "elapsed_s": 0.52
+    },
+    {
+      "model": "nvidia/llama-3.2-nv-embedqa-1b-v1",
+      "kind": "embed",
+      "listed": true,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 404,
+      "detail": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"Function 'b51e8011-e772-4c9a-8b02-618e99ae4467': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'\"}",
+      "elapsed_s": 0.06
+    },
+    {
+      "model": "nvidia/llama-nemotron-embed-vl-1b-v2",
+      "kind": "embed",
+      "listed": true,
+      "mode": "asymmetric (input_type required)",
+      "dim": 2048,
+      "short_count": 4,
+      "short_s": 0.47,
+      "sanity_ok": true,
+      "untruncated": {
+        "ok": false,
+        "status": 400,
+        "classification": "http_error",
+        "elapsed_s": 0.44,
+        "detail": "{\"error\":\"Input length 15952 exceeds maximum allowed token size 8192\"}",
+        "sent_chars": 60000,
+        "token_limit": 8192
+      },
+      "long_batch": {
+        "ok": true,
+        "status": 200,
+        "elapsed_s": 1.62,
+        "sent_chars": 480000,
+        "prompt_tokens": 32768,
+        "vectors": 8,
+        "complete": true
+      },
+      "ok": true,
+      "classification": "long_batch_ok"
+    },
+    {
+      "model": "nvidia/nemotron-3-embed-1b",
+      "kind": "embed",
+      "listed": true,
+      "mode": "symmetric",
+      "dim": 2048,
+      "short_count": 4,
+      "short_s": 0.45,
+      "sanity_ok": false,
+      "untruncated": {
+        "ok": false,
+        "status": 422,
+        "classification": "http_error",
+        "elapsed_s": 0.47,
+        "detail": "{\"object\":\"error\",\"message\":\"input length 19422 exceeds model maximum 4096; set truncate=END or START to truncate long inputs\",\"type\":\"invalid_request_error\"}",
+        "sent_chars": 60000,
+        "token_limit": 4096
+      },
+      "long_batch": {
+        "ok": true,
+        "status": 200,
+        "elapsed_s": 2.43,
+        "sent_chars": 480000,
+        "prompt_tokens": 32768,
+        "vectors": 8,
+        "complete": true
+      },
+      "ok": true,
+      "classification": "long_batch_ok"
+    },
+    {
+      "model": "nvidia/nv-embedqa-mistral-7b-v2",
+      "kind": "embed",
+      "listed": true,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 404,
+      "detail": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"Function '6caf65cf-1c3a-4823-89a5-21b821640d99': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'\"}",
+      "elapsed_s": 0.07
+    },
+    {
+      "model": "nvidia/nvclip",
+      "kind": "embed",
+      "listed": true,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 404,
+      "detail": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"Function '3072eebf-b0f0-4318-a5b8-5a45cd035b95': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'\"}",
+      "elapsed_s": 0.08
+    },
+    {
+      "model": "snowflake/arctic-embed-l",
+      "kind": "embed",
+      "listed": true,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 404,
+      "detail": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"Function '1528a0ad-205a-46ac-a783-94e2372586a9': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'\"}",
+      "elapsed_s": 0.07
+    },
+    {
+      "model": "nvidia/llama-nemotron-rerank-vl-1b-v2",
+      "kind": "rerank",
+      "listed": false,
+      "short_count": 4,
+      "short_s": 0.67,
+      "sanity_ok": true,
+      "untruncated": {
+        "ok": false,
+        "status": 422,
+        "classification": "http_error",
+        "elapsed_s": 0.56,
+        "detail": "{\"error\":\"Input length 19953 exceeds maximum allowed token size 10240\"}",
+        "sent_chars": 75000,
+        "token_limit": 10240
+      },
+      "long_batch": {
+        "ok": true,
+        "status": 200,
+        "elapsed_s": 4.35,
+        "sent_chars": 1125000,
+        "prompt_tokens": 153629,
+        "rankings": 16,
+        "complete": true,
+        "needle_top": true
+      },
+      "ok": true,
+      "classification": "long_batch_ok"
+    },
+    {
+      "model": "nvidia/llama-nemotron-rerank-1b-v2",
+      "kind": "rerank",
+      "listed": false,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 410,
+      "detail": "{\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"This endpoint has reached its end of life on 2026-08-25T09:00:00Z and is no longer available.\"}\n",
+      "elapsed_s": 0.43
+    },
+    {
+      "model": "nvidia/llama-3.2-nv-rerankqa-1b-v2",
+      "kind": "rerank",
+      "listed": false,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 410,
+      "detail": "{\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"This endpoint has reached its end of life on 2026-05-18T00:00:00Z and is no longer available.\"}\n",
+      "elapsed_s": 0.82
+    },
+    {
+      "model": "nvidia/llama-3.2-nemoretriever-500m-rerank-v2",
+      "kind": "rerank",
+      "listed": false,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 410,
+      "detail": "{\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"This endpoint has reached its end of life on 2026-05-18T00:00:00Z and is no longer available.\"}\n",
+      "elapsed_s": 0.07
+    },
+    {
+      "model": "nvidia/nv-rerankqa-mistral-4b-v3",
+      "kind": "rerank",
+      "listed": false,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 404,
+      "detail": "{\"status\":404,\"title\":\"Not Found\",\"detail\":\"Function '98b83903-f595-48c4-b727-b69067b7c069': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'\"}",
+      "elapsed_s": 0.08
+    },
+    {
+      "model": "nvidia/rerank-qa-mistral-4b",
+      "kind": "rerank",
+      "listed": false,
+      "ok": false,
+      "classification": "unavailable",
+      "status": 404,
+      "detail": "404 page not found\n",
+      "elapsed_s": 0.06
+    }
+  ]
+}

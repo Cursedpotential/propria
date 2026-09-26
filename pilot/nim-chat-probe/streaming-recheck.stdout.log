@@ -1,0 +1,24 @@
+Streaming recheck targets: 11
+[1/11] deepseek-ai/deepseek-v4-pro-0813
+  -> no_headers status=None first=Nones total=12.0s exact=None
+[2/11] google/diffusiongemma-26b-a4b-it
+  -> no_headers status=None first=Nones total=12.01s exact=None
+[3/11] google/gemma-4-31b-it
+  -> no_headers status=None first=Nones total=12.02s exact=None
+[4/11] meta/muse-glimmer-30b
+  -> visible_text status=200 first=2.32s total=15.83s exact=True
+[5/11] mistralai/mistral-nemotron
+  -> visible_text status=200 first=0.44s total=0.49s exact=True
+[6/11] nvidia/ai-synthetic-video-detector
+  -> http_error status=500 first=Nones total=0.26s exact=None
+[7/11] nvidia/nemotron-3-nano-30b-a3b
+  -> visible_text status=200 first=0.29s total=0.81s exact=True
+[8/11] nvidia/nemotron-3-ultra-550b-a55b
+  -> no_headers status=None first=Nones total=12.02s exact=None
+[9/11] nvidia/nemotron-3.5-lightning-30b-a3b
+  -> visible_text status=200 first=0.49s total=4.83s exact=True
+[10/11] nvidia/nemotron-parse
+  -> http_error status=400 first=Nones total=0.3s exact=None
+[11/11] poolside/laguna-xs-2.1
+  -> events_without_text status=200 first=0.24s total=0.24s exact=False
+DONE: E:\AI_Workspace\casebible\pilot\nim-chat-probe\streaming-recheck.json

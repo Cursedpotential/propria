@@ -1,0 +1,111 @@
+{
+  "timestamp": "2026-08-29T20:27:19+00:00",
+  "base": "https://integrate.api.nvidia.com/v1",
+  "catalog_count": 83,
+  "first_event_timeout_s": 60.0,
+  "results": [
+    {
+      "model": "deepseek-ai/deepseek-v4-flash-0731",
+      "ok": false,
+      "classification": "no_headers",
+      "elapsed_s": 60.01
+    },
+    {
+      "model": "deepseek-ai/deepseek-v4-pro-0813",
+      "ok": false,
+      "classification": "no_headers",
+      "elapsed_s": 60.01
+    },
+    {
+      "model": "google/diffusiongemma-26b-a4b-it",
+      "status": 200,
+      "ok": true,
+      "classification": "events_without_text",
+      "first_data_s": 10.7,
+      "elapsed_s": 10.7,
+      "event_count": 2,
+      "visible_text": "",
+      "reasoning_text": "",
+      "exact_pong": false,
+      "finish_reason": "stop",
+      "usage": null
+    },
+    {
+      "model": "google/gemma-4-31b-it",
+      "ok": false,
+      "classification": "no_headers",
+      "elapsed_s": 60.01
+    },
+    {
+      "model": "moonshotai/kimi-k3",
+      "status": 200,
+      "ok": true,
+      "classification": "visible_text",
+      "first_data_s": 0.87,
+      "elapsed_s": 1.57,
+      "event_count": 24,
+      "visible_text": "PONG",
+      "reasoning_text": "The user wants exactly the word PONG. Need final only PONG. Ensure no extra punctuation.",
+      "exact_pong": true,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 94,
+        "completion_tokens": 35,
+        "total_tokens": 129,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0
+        }
+      }
+    },
+    {
+      "model": "nvidia/nemotron-3-ultra-550b-a55b",
+      "status": 200,
+      "ok": true,
+      "classification": "visible_text",
+      "first_data_s": 34.85,
+      "elapsed_s": 35.48,
+      "event_count": 6,
+      "visible_text": "PONG",
+      "reasoning_text": "The user wants me to reply with exactly the word \"PONG\".",
+      "exact_pong": true,
+      "finish_reason": "stop",
+      "usage": null
+    },
+    {
+      "model": "poolside/laguna-xs-2.1",
+      "status": 200,
+      "ok": true,
+      "classification": "events_without_text",
+      "first_data_s": 0.41,
+      "elapsed_s": 0.41,
+      "event_count": 1,
+      "visible_text": "",
+      "reasoning_text": "",
+      "exact_pong": false,
+      "finish_reason": null,
+      "usage": null
+    }
+  ],
+  "excluded": [
+    "meta/llama-guard-4-12b",
+    "nvidia/ai-synthetic-video-detector",
+    "nvidia/embed-qa-4",
+    "nvidia/ising-calibration-1.5-31b",
+    "nvidia/llama-3.1-nemoguard-8b-content-safety",
+    "nvidia/llama-3.1-nemoguard-8b-topic-control",
+    "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+    "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+    "nvidia/llama-3.2-nv-embedqa-1b-v1",
+    "nvidia/llama-nemotron-embed-vl-1b-v2",
+    "nvidia/nemotron-3-embed-1b",
+    "nvidia/nemotron-3.5-content-safety",
+    "nvidia/nemotron-parse",
+    "nvidia/nv-embedqa-mistral-7b-v2",
+    "nvidia/nvclip",
+    "nvidia/riva-translate-4b-instruct",
+    "nvidia/riva-translate-4b-instruct-v1.1",
+    "nvidia/riva-translate-4b-instruct-v2",
+    "snowflake/arctic-embed-l"
+  ]
+}
