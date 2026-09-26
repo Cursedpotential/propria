@@ -58,7 +58,10 @@ This file is a router, not an encyclopedia. Read only the branches relevant to t
 
 ## Repository boundary router
 
-- Canonical repository checkout: `E:/AI_Workspace/Projects/Propria/Probata/probata`.
+- ~~Canonical repository checkout: `E:/AI_Workspace/Projects/Propria/Probata/probata`.~~
+  **Corrected 2026-09-26 (Claude Code · Opus 5.5):** `E:/AI_Workspace/Projects/Propria/modules/Probata/probata`
+  since 2026-09-20, a module of the Propria monorepo. The "Current checkout routing" table in the
+  Propria root `AGENTS.md` is the one place current paths are kept.
 - Repository status: separate child Git repository pending controlled Propria monorepo import.
 - Canonical linked-worktree root: `E:/AI_Workspace/Projects/Propria/_worktrees/`.
 - Codex-managed exception: `C:/Users/matts/.codex/worktrees/`.

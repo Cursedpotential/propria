@@ -65,12 +65,20 @@ D-139). AI Legal Team (to build; product name **advocatio**, D-138).
 
 ## Repository and worktree boundary
 
-This repository's canonical checkout is `E:/AI_Workspace/Projects/Propria/Probata/probata`.
+~~This repository's canonical checkout is `E:/AI_Workspace/Projects/Propria/Probata/probata`.~~
+**Corrected 2026-09-26 (Claude Code · Opus 5.5):** since 2026-09-20 the checkout is
+`E:/AI_Workspace/Projects/Propria/modules/Probata/probata`, one module of the Propria monorepo that
+every product is moving into. Current paths are kept in one place, the "Current checkout routing"
+table of the Propria root `AGENTS.md`, with `docs/monorepo-migration-manifest.json` there (Probata:
+`independent_repository_relocated`); read them there instead of copying a path from here.
 It remains a separate child Git repository pending its controlled import into the Propria
 monorepo; a checkout beneath Propria does not by itself change repository ownership. Normal
 linked worktrees belong under `E:/AI_Workspace/Projects/Propria/_worktrees/`. Codex-managed
 worktrees may instead live under `C:/Users/matts/.codex/worktrees/`; that tool-managed
 exception also does not create a new repository or ownership boundary.
+On 2026-09-26 the canonical checkout's local `main` was 54 commits behind `origin/main`, because
+merges are pushed from worktrees, and a worktree branched from it lacked the browser-free smoke
+fix. Run `git fetch` and branch new worktrees from `origin/main`.
 
 Consignatio is outside this repository's authority. Route Consignatio work to
 `E:/AI_Workspace/Projects/Propria/Consignatio` and follow that repository's own routers.
