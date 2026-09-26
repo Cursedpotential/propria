@@ -1,5 +1,9 @@
 # GOAL — Horizon Swift MVP (usable ingest → Workbench → minimal Surreal)
 
+> **HISTORICAL** — this doc frames "Waves 4-10, Agno retirement" as future work; AgentOS/Agno retirement is executed (D-101/D-107, owner-ruled 2026-08-29). Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — historical banner added; see D-101 and D-107._
+
 > _Byline: Owner-provided goal · captured by Codex · GPT-5 · 2026-08-16_
 > _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 

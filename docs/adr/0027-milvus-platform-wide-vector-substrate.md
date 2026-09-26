@@ -1,5 +1,10 @@
 # ADR-0027: Milvus = the platform-wide vector/ANN substrate (Knowledge engine included)
-- Status: Accepted
+
+> **SUPERSEDED** by ADR-0040 (2026-07-27) — Weaviate is the locked vector substrate and Milvus is sidelined (cutover verified D-042, 2026-08-09; the `data-vector`/Milvus Coolify app is down deliberately since 2026-08-10). Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see ADR-0040._
+
+- Status: ~~Accepted~~ **Superseded** — see banner above.
 - Date: 2026-06-13
 - _Byline: Claude Code · Opus 4.8 · 2026-06-13_
 

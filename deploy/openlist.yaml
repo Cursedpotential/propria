@@ -6,6 +6,7 @@
 # Own Coolify "Docker Compose" app on ovh-files (server cn89l8801u8gsginw1rxq5qt, 100.91.190.107).
 #
 # Byline: Claude Code · Fable 5.1 · 2026-09-07
+# Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — read-only Consignatio + Probata docs-private mounts.
 #
 # Access (tailnet-only via BIND_IP): http://100.91.190.107:5244 (UI) · WebDAV http://100.91.190.107:5244/dav
 # First boot prints the generated admin password in the container log (`openlist admin` resets it).
@@ -35,6 +36,13 @@ services:
       - /data/probata/exchange:/mnt/exchange                    # rw drop zone shared by every host/agent
       - /data/probata/volumes:/mnt/probata-volumes:ro           # platform volumes, read-only browse (devbox, opencode, surreal-case …)
       - /mnt/desktop-share:/mnt/desktop:rslave                  # desktop the-platform-workspace via the host's SMB automount (replaces the WebDAV storage)
+      # Consignatio + Probata payloads moved off the desktop 2026-09-26 (owner: "Fix that" — make them visible like probata's volumes).
+      # Read-only browse. /data/consignatio/secrets and /data/consignatio/config are deliberately NOT mounted.
+      - /data/consignatio/receipts:/mnt/consignatio/receipts:ro
+      - /data/consignatio/migrations:/mnt/consignatio/migrations:ro
+      - /data/consignatio/backups:/mnt/consignatio/backups:ro
+      - /data/consignatio/volumes:/mnt/consignatio/volumes:ro
+      - /data/probata/docs-private:/mnt/probata-docs-private:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5244/ping >/dev/null 2>&1 || curl -fsS http://127.0.0.1:5244/ping >/dev/null"]
       interval: 30s

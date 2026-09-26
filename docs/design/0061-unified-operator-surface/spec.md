@@ -3,7 +3,7 @@
 > _Byline: Codex · GPT-5 · 2026-08-27._
 > _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._
 
-**ADR**: [Unified operator shell ADR](/docs/adr/0061-unified-operator-surface.md)
+**ADR**: [Unified operator shell ADR](../../adr/0061-unified-operator-surface.md)
 
 - Phase: `preflight`
 - Status: **Proposed; implementation blocked pending owner acceptance and preflight verification**

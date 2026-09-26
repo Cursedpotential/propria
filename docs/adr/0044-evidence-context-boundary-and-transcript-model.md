@@ -1,5 +1,10 @@
 # ADR-0044: Evidence-vs-Context boundary + forensic transcript data model
-- Status: **Accepted** (numbered + accepted by PIPELINE per ORCHESTRATOR greenlight, TASKS 00:05; drafted by PROCESS)
+
+> **PARTIALLY SUPERSEDED** by D-069 (2026-08-25) — D-069 explicitly "supersedes ADR-0044's ingest-time custody for primary evidence": evidence no longer begins at ingest, only at owner promotion (fingerprint-verified against H1). The rest of this ADR's evidence-vs-context boundary and transcript data model is unaffected. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-069._
+
+- Status: **Accepted** (numbered + accepted by PIPELINE per ORCHESTRATOR greenlight, TASKS 00:05; drafted by PROCESS) — **partially superseded by D-069, see banner above**
 - Date: 2026-06-25 (accepted 2026-06-27); **renumbered ~~ADR-0033~~ → ADR-0044 on 2026-08-05**
 - Renumbering note: this ADR was drafted as 0033 on the unmerged branch
   `docs/adr-0033-0034-evidence-model` while, in parallel, `main` shipped a

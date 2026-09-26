@@ -533,8 +533,12 @@ class CdpPipe {
 // launch a browser: headless Chrome/Edge froze it (owner ban 2026-09-24), and a plain `npm run smoke`
 // started headless Edge four times per run. They run only when SMOKE_BROWSER names a browser executable,
 // e.g. on a VPS or in CI; otherwise they are skipped with that reason. There is no default browser path.
+// Never on Windows, even with SMOKE_BROWSER set: the owner's desktop is the only Windows host
+// (Claude Code · Opus 5.5 · 2026-09-26). README.md says how to run them on a VPS.
 const SMOKE_BROWSER = process.env.SMOKE_BROWSER || "";
-const BROWSER_SKIP = SMOKE_BROWSER ? false : "browser smoke is opt-in: set SMOKE_BROWSER to a browser path (never on the owner's desktop)";
+const BROWSER_SKIP = process.platform === "win32"
+  ? "browser smoke never runs on Windows (the owner's desktop); run it on a VPS (README.md)"
+  : SMOKE_BROWSER ? false : "browser smoke is opt-in: set SMOKE_BROWSER to a browser path (never on the owner's desktop)";
 
 function browserPath() {
   return SMOKE_BROWSER;

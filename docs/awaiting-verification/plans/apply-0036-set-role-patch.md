@@ -1,5 +1,9 @@
 # Required root-lane patch: `scripts/apply_0036_live.py` must run under `SET LOCAL ROLE context_owner`
 
+> **LANDED in a different form** — the script now executes `SET LOCAL ROLE platform_admin` (`scripts/apply_0036_live.py:341`), not `context_owner` as this doc proposed; see OW-142 (`docs/consolidated/OPEN-WORK-REGISTER-2026-09-05.md`). Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — closing banner added; see OW-142._
+
 > _Byline: Claude Code · Sonnet 5 · 2026-08-27_
 
 ## Why this doc exists instead of a code change

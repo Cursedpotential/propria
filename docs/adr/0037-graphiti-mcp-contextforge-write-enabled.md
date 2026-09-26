@@ -1,8 +1,12 @@
 # ADR-0037: Graphiti MCP as a write-enabled ContextForge virtual server
 
+> **SUPERSEDED** by D-070 (2026-08-25) — "Graphiti is retired for now"; this ADR is one of the five (ADR-0014/0031/0037/0038/0039) D-070 names explicitly as suspended, not deleted. The file's only in-place "retire" language is about the old `:8071` nginx door, not about this later suspension. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-070._
+
 > _Byline: Claude (Opus 4.8, chat) + owner · 2026-07-13 · DRAFT for review_
 
-**Status:** **Accepted** — owner 2026-07-29 (Proposed 2026-07-13). The original BLOCKER (ContextForge federating a Streamable HTTP upstream) is cleared by lived evidence: a `graphiti` virtual server has been registered and serving in ContextForge since ≤2026-07-10 (DECISION_LOG D-028 lists it alongside `agno`/`coolify`/`exa`/`platform_tools`). Execution remainder: verify the registered surface is the full WRITE surface, and retire the standalone no-auth `:8071` nginx door.
+**Status:** ~~**Accepted**~~ **Suspended (superseded)** — see banner above. Owner 2026-07-29 (Proposed 2026-07-13). The original BLOCKER (ContextForge federating a Streamable HTTP upstream) is cleared by lived evidence: a `graphiti` virtual server has been registered and serving in ContextForge since ≤2026-07-10 (DECISION_LOG D-028 lists it alongside `agno`/`coolify`/`exa`/`platform_tools`). Execution remainder: verify the registered surface is the full WRITE surface, and retire the standalone no-auth `:8071` nginx door.
 **Supersedes/relates:** [ADR-0025](0025-gateway-topology-agno-contextforge-litellm.md) (gateway topology: Agno · ContextForge · LiteLLM), [ADR-0014](0014-neo4j-graphiti-temporal-memory.md), [ADR-0036](0036-dozerdb-multidb-rbac-memory-evidence-isolation.md). Retires the standalone read-only Graphiti door.
 
 ## Context

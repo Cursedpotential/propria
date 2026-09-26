@@ -1,5 +1,10 @@
 # ADR-0006: Two-layer team topology — root Router (route) over coordinate families
-- Status: Accepted
+
+> **SUPERSEDED** by D-107 (2026-08-29) — AgentOS, the router's entry point (`agents["router"]`), is retired completely; the two-layer team topology no longer has a live host. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-107._
+
+- Status: ~~Accepted~~ **Superseded** — see banner above.
 - Date: 2026-06-01
 
 ## Context

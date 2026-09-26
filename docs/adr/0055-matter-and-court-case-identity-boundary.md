@@ -1,8 +1,12 @@
 # ADR-0055 — Matter and CourtCase identity boundary
 
+> **PARTIALLY SUPERSEDED** by D-072 (2026-08-25) — D-072 reasserts D-041 and "supersedes D-060 / ADR-0055's multi-proceeding identity consequence": the platform is permanently one owner and one personal case, and multi-Matter tenancy/cross-Matter isolation machinery must not be built. The rest of this ADR's identity-boundary and promotion-bridge design is unaffected. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-072._
+
 > _Byline: Codex · GPT-5 · 2026-08-15_
 
-- **Status:** Accepted (owner approval 2026-08-15)
+- **Status:** Accepted (owner approval 2026-08-15) — **narrowed by D-072, see banner above**
 - **Decision:** D-060
 - **Relates:** D-041, ADR-0044, ADR-0045, ADR-0053, ADR-0054
 

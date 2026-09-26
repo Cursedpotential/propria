@@ -1,5 +1,9 @@
 # ADR-0052: The PG-CDC spine, end-to-end AI-chat ingest with coverage-based engine split, and Stage-2 extraction (tools, not agents)
 
+> **PARTIALLY SUPERSEDED** by D-109 (2026-08-29/30) — "ADR-0052 ruling Q6 / D-054(6) is AMENDED: `working.claim_candidate` is the narrated-assertion row, not the legal-document extractor"; the `artifact_candidate` naming is replaced by a three-way claim/entity/created-work split. The transactional outbox, full-row events, NOTIFY-as-wakeup, per-sink cursors, and coverage-based engine split remain authoritative. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-109._
+
 > _Byline: Claude Code · Opus 4.x (draft) · 2026-08-12; amended + SIGNED per owner · Kimi K3 · 2026-08-12 (owner rulings on all 8 open questions — format/size split replaced by coverage-based Go-primary)_
 
 > **2026-08-13 amendment:** ADR-0053 supersedes the AI-chat `working.context_record`
@@ -8,7 +12,7 @@
 > per-sink cursors, dead-letter/replay, extraction semantics, and coverage-based engine split
 > remain authoritative. _Byline: Codex · GPT-5 · 2026-08-13._
 
-- Status: **ACCEPTED — owner sign-off 2026-08-12 (15:50 EDT)** ("sign 52"), all 8 open questions
+- Status: **ACCEPTED — owner sign-off 2026-08-12 (15:50 EDT)** ("sign 52"), all 8 open questions — **Q6/`claim_candidate` naming amended by D-109, see banner above**
   ruled same day (see "Owner rulings" / D-054). Phases 1+ may now be built (Phase 0 already
   shipped as D-048).
 - Date: 2026-08-12 ~~(title said "size-based engine split")~~ **Corrected 2026-08-12, owner

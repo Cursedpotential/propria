@@ -1,5 +1,10 @@
 # ADR-0008: Provider-agnostic model factory, no hard default, pinned IDs
-- Status: Accepted (provider selection (D7) still open)
+
+> **SUPERSEDED** by ADR-0042 (2026-07-29) — the D7 provider-selection question this ADR left open was closed by ADR-0011, re-closed by ADR-0015, and ADR-0015 is itself now superseded by ADR-0042 (Portkey is the model gateway); this file's "D7 still open" status line is stale. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see ADR-0042._
+
+- Status: ~~Accepted (provider selection (D7) still open)~~ **Superseded** — D7 closed via ADR-0011 → ADR-0015 → ADR-0042; see banner above.
 - Date: 2026-06-01
 
 ## Context

@@ -14,6 +14,8 @@ perspectives: [operator experience, evidence authority, legal work product, secu
 
 **Design Spec**: [Implementation Spec](/docs/design/0061-unified-operator-surface/spec.md)
 
+> _Dated footnote (Claude Code · Sonnet 5 · 2026-09-09): the "Design Spec" link above is body text and is left unedited per `docs/NAMING.md` §7 (ADRs are append-only). The link as written is an absolute `/docs/...` path that does not resolve; the corrected relative path is `../design/0061-unified-operator-surface/spec.md`._
+
 - Status: **Accepted** — owner acceptance and SBV boundary clarification, 2026-08-29
 - Date: 2026-08-27
 - Extends: ADR-0048, ADR-0049, ADR-0052, ADR-0053, ADR-0054, ADR-0055, ADR-0057, ADR-0060

@@ -31,13 +31,13 @@ deployed.
 | Current forward order | [BUILD_PLAN.md](BUILD_PLAN.md) | Forward entry point |
 | Entire application TODO | [MASTER-TODO-2026-08-18.md](MASTER-TODO-2026-08-18.md) | Authoritative production resume ledger |
 | Independent verification of the above | [OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md) | Confirms/contradicts MASTER-TODO against live code+DB; lists gaps and owner-blocked items |
-| Evidence Desk handoff | [HANDOFF-2026-08-18-evidence-operations-desk-mvp.md](HANDOFF-2026-08-18-evidence-operations-desk-mvp.md) | Immediate production MVP |
-| Derived-document ingest wiring | [HANDOFF-2026-08-29-derived-document-ingest-wiring.md](HANDOFF-2026-08-29-derived-document-ingest-wiring.md) | AI work products (chronologies/strategy/guides) → context → timeline/vectors/graphs; WP-1..WP-11 |
-| AgentOS retirement and Agno bounded role | [HANDOFF-2026-08-29-agno-role-dissection.md](HANDOFF-2026-08-29-agno-role-dissection.md) | Current cutover status, owner rulings, local verification, and live release holds |
+| Evidence Desk handoff | [HANDOFF-2026-08-18-evidence-operations-desk-mvp.md](handoffs/HANDOFF-2026-08-18-evidence-operations-desk-mvp.md) | Immediate production MVP |
+| Derived-document ingest wiring | [HANDOFF-2026-08-29-derived-document-ingest-wiring.md](handoffs/HANDOFF-2026-08-29-derived-document-ingest-wiring.md) | AI work products (chronologies/strategy/guides) → context → timeline/vectors/graphs; WP-1..WP-11 |
+| AgentOS retirement and Agno bounded role | [HANDOFF-2026-08-29-agno-role-dissection.md](handoffs/HANDOFF-2026-08-29-agno-role-dissection.md) | Current cutover status, owner rulings, local verification, and live release holds |
 | Repository placement | [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | Structural index |
 | Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
 | Pending historical review | [awaiting-verification/README.md](awaiting-verification/README.md) | Moved records; all claims UNVERIFIED |
-| Archive policy | [archive/README.md](archive/README.md) | Verified or explicitly historical records only |
+| ~~Archive policy~~ | ~~[archive/README.md](archive/README.md)~~ | **Corrected 2026-09-09: `docs/archive/` no longer exists (removed by commit `288591e`, 2026-09-08 docs restructure). No replacement invented — there is currently no archive-policy doc.** |
 | Temporal adoption plan | [plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md](plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md) | Phased adoption plan; D-067 ruled it 2026-08-23 |
 | Ingestion readiness | [INGESTION-READINESS-2026-08-23.md](INGESTION-READINESS-2026-08-23.md) | What's up and working for tonight's ingest |
 | Cross-repo evidence audit | [reviews/2026-08-23-cross-repo-evidence-audit/](reviews/2026-08-23-cross-repo-evidence-audit/) | Issues/TODO register (ISS-/TODO-numbered), framework-roles ruling (TODO-212), custody ruling (TODO-101/207) |

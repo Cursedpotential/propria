@@ -1,8 +1,12 @@
 # ADR-0046 — Universal MCP exposure contract (progressive disclosure + horizon binding)
 
+> **SUPERSEDED** by D-107 (2026-08-29) — this ADR's mechanism ("the AgentOS MCP door") is retired completely; the file was last touched 2026-08-31, two days after D-107, but the stale AgentOS premise was not reconciled. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-107._
+
 > _Byline: Claude (Cowork) · Fable 5 · 2026-08-09_
 
-- **Status:** **Accepted** (owner signed 2026-08-09; recorded as D-042)
+- **Status:** ~~**Accepted**~~ **Superseded** — see banner above. (owner signed 2026-08-09; recorded as D-042)
 - **Context sources:** PROJECT_CANON §5 item "Universal exposure … needs ADR" (locked 2026-06-13,
   never ratified); ADR-0016 (consolidated tool containers), ADR-0023 (universal API/MCP
   exposure), ADR-0035 (tools subnamespacing); 2026-08-09 audit finding M-1 (MCP doors are an

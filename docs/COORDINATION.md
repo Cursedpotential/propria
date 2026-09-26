@@ -576,15 +576,15 @@ reliable completion executes each bounded task, with escalation for complexity o
 Resume documents: `docs/MASTER-TODO-2026-08-18.md` (entire application) and
 `docs/HANDOFF-2026-08-18-evidence-operations-desk-mvp.md` (immediate MVP).
 
-## 2026-09-12 — tool-runtime rename lane
+## 2026-09-09 — Documentation consolidation in place (owner directive 05:01–05:06 EDT)
 
-> _Byline: Codex · GPT-5 · 2026-09-12._
+> _Byline: Claude Code · Fable 5.1 · 2026-09-09. Append-only status block._
 
-| Lane | Ownership | State |
-|---|---|---|
-| `tool-runtime` in-place rename | `deploy/tool-runtime.yaml`, `deploy/docker/tool-runtime/**`, runtime client/config compatibility, current naming docs, targeted tests, and the existing Coolify application UUID `e1mshujml6bv8ldtoe8n7je0` | Complete — non-force fast-forwarded to `main`; same app is `running:healthy`; 43 tools, repair manifest, pinned Poppler profile, SBV, and the canonicalized `tool-gateway` caller passed live. CI passed format/lint/mypy and full Go, then hit the pre-existing repository doc-resolution baseline. |
-
-Boundary: preserve the orphaned Poppler/profile/read-root changes; do not create a second app;
-do not rename the separate `parser-runtime`; retain the old Docker DNS and ContextForge
-publication names only as explicit compatibility aliases. Receipt:
-`docs/reviews/2026-09-12-tool-runtime-rename.md`.
+Owner ruling: consolidation happens **in place** — a new version in the same directory and format
+as the documents it replaces, stale content dropped; never renamed and moved into an archive or
+`consolidated/` folder. Eight read-only walkers covered all of `docs/` except `private/`. New files
+this session: `docs/MASTER-TODO-2026-09-09.md` (replaces the TODO cluster; the replaced list is at
+its end), `docs/handoffs/HANDOFF-2026-09-09-current-state.md` (replaces the prior handoffs for
+forward work), and a staleness inventory under `docs/reviews/`. Existing files were not deleted;
+the owner removes them. Another session's staged set (`.review_hold/`, `.agents/blueprint/`) was
+left untouched; nothing was committed from this lane.
