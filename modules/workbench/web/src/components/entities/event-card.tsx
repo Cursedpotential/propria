@@ -4,7 +4,8 @@
 import { Flag, Pencil, RotateCcw, X } from "lucide-react";
 import { useState } from "react";
 
-import { RecordPeek, formatWhen } from "@/components/entities/record-peek";
+import { formatWhen } from "@/components/entities/format";
+import { RecordPeek } from "@/components/entities/record-peek";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

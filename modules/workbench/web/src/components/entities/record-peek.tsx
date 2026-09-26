@@ -4,16 +4,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 
+import { formatWhen } from "@/components/entities/format";
 import { MarkEventButton } from "@/components/entities/mark-event-button";
 import { Button } from "@/components/ui/button";
 import { getExtractionRecord } from "@/lib/entity-extraction-client";
 import type { MatterMode } from "@/lib/shared/types";
-
-export function formatWhen(value: string | null | undefined) {
-  if (!value) return "no time";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
-}
 
 /** Shows one record of the run with the mentioned span highlighted. */
 export function RecordPeek({

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 
 import { EntityCard } from "@/components/entities/entity-card";
 import { EventCard } from "@/components/entities/event-card";
-import { formatWhen } from "@/components/entities/record-peek";
+import { formatWhen } from "@/components/entities/format";
 import { ValidationChecklist, WorkflowSteps } from "@/components/entities/workflow-steps";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
