@@ -1,0 +1,226 @@
+{
+  "schema_version": "phase0-horizon-canary-v2-adr0059",
+  "matter_id": "matter-synthetic-a",
+  "subject_id": "owner-synthetic",
+  "canary_literal": "CANARY_FUTURE_FACT_X9",
+  "horizons": {
+    "early": "2024-06-01T00:00:00Z",
+    "late": "2026-06-01T00:00:00Z"
+  },
+  "top_k": 2,
+  "documents": [
+    {
+      "id": "first-party-occurrence-a",
+      "matter_id": "matter-synthetic-a",
+      "source_class": "first_party",
+      "conversation_id": "first-party-conversation",
+      "occurred_at": "2024-01-15T12:00:00Z",
+      "acquired_at": null,
+      "source_available_from": "2024-01-15T12:00:00Z",
+      "recorded_at": "2026-01-16T08:00:00Z",
+      "sender_id": "owner-synthetic",
+      "recipient_ids": ["partner-synthetic"],
+      "participant_ids": ["owner-synthetic", "partner-synthetic"],
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 0.88,
+      "content": "The blue folder was stored in the office cabinet."
+    },
+    {
+      "id": "first-party-occurrence-b",
+      "matter_id": "matter-synthetic-a",
+      "source_class": "first_party",
+      "conversation_id": "first-party-conversation",
+      "occurred_at": "2024-02-01T09:00:00Z",
+      "acquired_at": null,
+      "source_available_from": "2024-02-01T09:00:00Z",
+      "recorded_at": "2026-02-01T10:00:00Z",
+      "sender_id": "partner-synthetic",
+      "recipient_ids": ["owner-synthetic"],
+      "participant_ids": ["owner-synthetic", "partner-synthetic"],
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 0.83,
+      "content": "A message asked whether the blue folder was still in the cabinet."
+    },
+    {
+      "id": "future-occurring-canary",
+      "matter_id": "matter-synthetic-a",
+      "source_class": "first_party",
+      "conversation_id": "first-party-conversation",
+      "occurred_at": "2026-01-10T12:00:00Z",
+      "acquired_at": null,
+      "source_available_from": "2026-01-10T12:00:00Z",
+      "recorded_at": "2026-01-10T12:05:00Z",
+      "sender_id": "partner-synthetic",
+      "recipient_ids": ["owner-synthetic"],
+      "participant_ids": ["owner-synthetic", "partner-synthetic"],
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 1.0,
+      "content": "CANARY_FUTURE_FACT_X9: the blue folder was moved to Vault 9."
+    },
+    {
+      "id": "acquired-third-party-canary",
+      "matter_id": "matter-synthetic-a",
+      "source_class": "acquired_third_party",
+      "conversation_id": "third-party-conversation",
+      "occurred_at": "2023-04-01T12:00:00Z",
+      "acquired_at": "2025-09-20T16:30:00Z",
+      "source_available_from": "2025-09-20T16:30:00Z",
+      "recorded_at": "2026-01-02T08:00:00Z",
+      "sender_id": "partner-synthetic",
+      "recipient_ids": ["friend-synthetic"],
+      "participant_ids": ["partner-synthetic", "friend-synthetic"],
+      "disclosure_tier": "discovered",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 0.99,
+      "content": "CANARY_FUTURE_FACT_X9: an acquired third-party thread described the Vault 9 transfer."
+    },
+    {
+      "id": "hindsight-only-canary",
+      "matter_id": "matter-synthetic-a",
+      "source_class": "first_party",
+      "conversation_id": "first-party-conversation",
+      "occurred_at": "2024-03-01T12:00:00Z",
+      "acquired_at": null,
+      "source_available_from": "2024-03-01T12:00:00Z",
+      "recorded_at": "2024-03-02T08:00:00Z",
+      "sender_id": "partner-synthetic",
+      "recipient_ids": ["owner-synthetic"],
+      "participant_ids": ["owner-synthetic", "partner-synthetic"],
+      "disclosure_tier": "hindsight",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 1.01,
+      "content": "CANARY_FUTURE_FACT_X9: hindsight connects the cabinet and Vault 9 records."
+    },
+    {
+      "id": "other-matter-canary",
+      "matter_id": "matter-synthetic-b",
+      "source_class": "first_party",
+      "conversation_id": "other-matter-conversation",
+      "occurred_at": "2024-01-01T12:00:00Z",
+      "acquired_at": null,
+      "source_available_from": "2024-01-01T12:00:00Z",
+      "recorded_at": "2024-01-02T08:00:00Z",
+      "sender_id": "other-a",
+      "recipient_ids": ["other-b"],
+      "participant_ids": ["other-a", "other-b"],
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "active",
+      "similarity": 0.97,
+      "content": "CANARY_FUTURE_FACT_X9: unrelated Matter B material."
+    },
+    {
+      "id": "revoked-projection-canary",
+      "matter_id": "matter-synthetic-a",
+      "source_class": "first_party",
+      "conversation_id": "first-party-conversation",
+      "occurred_at": "2024-01-05T12:00:00Z",
+      "acquired_at": null,
+      "source_available_from": "2024-01-05T12:00:00Z",
+      "recorded_at": "2024-01-06T08:00:00Z",
+      "sender_id": "owner-synthetic",
+      "recipient_ids": ["partner-synthetic"],
+      "participant_ids": ["owner-synthetic", "partner-synthetic"],
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "approved",
+      "promotion_state": "revoked",
+      "similarity": 0.96,
+      "content": "CANARY_FUTURE_FACT_X9: a revoked projection must never be served."
+    },
+    {
+      "id": "candidate-only-canary",
+      "matter_id": "matter-synthetic-a",
+      "source_class": "first_party",
+      "conversation_id": "first-party-conversation",
+      "occurred_at": "2024-01-20T12:00:00Z",
+      "acquired_at": null,
+      "source_available_from": "2024-01-20T12:00:00Z",
+      "recorded_at": "2024-01-21T08:00:00Z",
+      "sender_id": "owner-synthetic",
+      "recipient_ids": ["partner-synthetic"],
+      "participant_ids": ["owner-synthetic", "partner-synthetic"],
+      "disclosure_tier": "contemporaneous",
+      "authority_state": "candidate",
+      "promotion_state": "active",
+      "similarity": 0.95,
+      "content": "CANARY_FUTURE_FACT_X9: an unreviewed candidate claim."
+    }
+  ],
+  "realization_links": [
+    {
+      "id": "realization-third-party-1",
+      "message_id": "acquired-third-party-canary",
+      "realized_at": "2025-10-02T12:00:00Z",
+      "kind": "contradiction",
+      "approval_state": "approved"
+    },
+    {
+      "id": "realization-third-party-2",
+      "message_id": "acquired-third-party-canary",
+      "realized_at": "2026-02-14T12:00:00Z",
+      "kind": "pattern",
+      "approval_state": "approved"
+    },
+    {
+      "id": "realization-third-party-proposed",
+      "message_id": "acquired-third-party-canary",
+      "realized_at": "2026-03-01T12:00:00Z",
+      "kind": "pattern",
+      "approval_state": "proposed"
+    }
+  ],
+  "walk_cases": {
+    "healthy": {
+      "walk_id": "walk-healthy-r1",
+      "projection_revision": "projection-r1",
+      "checkpoint_id": "checkpoint-walk-healthy-r1-step-1",
+      "current_step": 1,
+      "state_hash": "sha256:healthy-state",
+      "trace_hash": "sha256:healthy-trace",
+      "belief_ids": ["belief-healthy-1"],
+      "retrieval_ids": ["first-party-occurrence-a", "first-party-occurrence-b"]
+    },
+    "terminal": {
+      "walk_id": "walk-terminal-r1",
+      "projection_revision": "projection-r1",
+      "snapshot_id": "snapshot-walk-terminal-r1",
+      "state_hash": "sha256:terminal-state",
+      "trace_hash": "sha256:terminal-trace",
+      "resumable": false,
+      "failure_reason": "SYNTHETIC_HASH_DRIFT"
+    },
+    "rewalk": {
+      "walk_id": "walk-terminal-r2",
+      "projection_revision": "projection-r2",
+      "rewalk_of": "walk-terminal-r1",
+      "change_manifest_hash": "sha256:synthetic-reconciliation"
+    }
+  },
+  "expected": {
+    "early_as_lived_ranked_ids": [
+      "first-party-occurrence-a",
+      "first-party-occurrence-b"
+    ],
+    "late_as_lived_top_ids": [
+      "future-occurring-canary",
+      "acquired-third-party-canary"
+    ],
+    "hindsight_top_ids": [
+      "hindsight-only-canary",
+      "future-occurring-canary"
+    ],
+    "third_party_realization_ids": [
+      "realization-third-party-1",
+      "realization-third-party-2",
+      "realization-third-party-proposed"
+    ]
+  }
+}

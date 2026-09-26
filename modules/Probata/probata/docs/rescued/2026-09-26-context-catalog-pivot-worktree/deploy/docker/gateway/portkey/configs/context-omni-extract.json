@@ -1,0 +1,42 @@
+{
+  "_comment": "On-demand context extraction only. Uses signed media references, never inline base64, and rotates the matching free Omni model across OpenRouter and NVIDIA with opposite-order fallback chains.",
+  "strategy": { "mode": "loadbalance" },
+  "targets": [
+    {
+      "weight": 1,
+      "strategy": { "mode": "fallback", "on_status_codes": [429, 500, 502, 503, 504, 524, 529] },
+      "targets": [
+        {
+          "provider": "openai",
+          "custom_host": "https://openrouter.ai/api/v1",
+          "api_key": "$OPENROUTER_API_KEY",
+          "override_params": { "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" }
+        },
+        {
+          "provider": "openai",
+          "custom_host": "https://integrate.api.nvidia.com/v1",
+          "api_key": "$NVIDIA_API_KEY",
+          "override_params": { "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" }
+        }
+      ]
+    },
+    {
+      "weight": 1,
+      "strategy": { "mode": "fallback", "on_status_codes": [429, 500, 502, 503, 504, 524, 529] },
+      "targets": [
+        {
+          "provider": "openai",
+          "custom_host": "https://integrate.api.nvidia.com/v1",
+          "api_key": "$NVIDIA_API_KEY",
+          "override_params": { "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" }
+        },
+        {
+          "provider": "openai",
+          "custom_host": "https://openrouter.ai/api/v1",
+          "api_key": "$OPENROUTER_API_KEY",
+          "override_params": { "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" }
+        }
+      ]
+    }
+  ]
+}

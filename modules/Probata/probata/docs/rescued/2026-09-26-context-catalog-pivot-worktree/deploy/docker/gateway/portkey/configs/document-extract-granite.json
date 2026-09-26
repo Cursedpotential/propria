@@ -1,0 +1,13 @@
+{
+  "_comment": "DISABLED / CONFIG-ONLY until the owner adds credits, the Hugging Face endpoint exists, and a real image-plus-PDF extraction probe passes. A zero-weight target makes accidental use fail closed. Scale-to-zero cold starts can return 502 and must be retried by Temporal, not hidden here.",
+  "strategy": { "mode": "loadbalance" },
+  "targets": [
+    {
+      "weight": 0,
+      "provider": "openai",
+      "custom_host": "$HF_GRANITE_DOCLING_ENDPOINT",
+      "api_key": "$HF_TOKEN",
+      "override_params": { "model": "ibm-granite/granite-docling-258M" }
+    }
+  ]
+}

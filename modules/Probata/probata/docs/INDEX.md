@@ -1,0 +1,95 @@
+# Documentation Index — Current Entry Points
+
+> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-18 (Codex · GPT-5)._
+> _2026-08-27 amendment: Codex · GPT-5 — added the static API-to-Workbench coverage census._
+> _2026-08-29 amendment: Codex · GPT-5 — recorded accepted ADR-0061 Workbench/SBV composition._
+> _2026-08-29 amendment: Codex · GPT-5.6-Sol — indexed the AgentOS retirement cutover handoff._
+> _2026-08-27 amendment: Codex · GPT-5 — corrected the live `platform` baseline and indexed
+> D-093 Slice 1 plus the durable run-event implementation status._
+> _2026-08-27 amendment: Codex · GPT-5 — added the open-source live observability shortlist._
+> _2026-08-27 amendment: Codex · GPT-5 — added the D-091 fresh `platform` database hold,
+> D-092 court-export-only redaction boundary, and the held migration-0036 runbook._
+> _2026-09-05 amendment: Claude Code · Fable 5.1 — indexed docs/NAMING.md, the naming canon
+register for D-137..D-141 (probata/proffer/indagatio/consignatio/advocatio/vestigia)._
+> _2026-08-26 amendment: Claude Code · Opus 5 — added the two current naming-migration artifacts
+> (owner HTML + census/handoff) to Start Here and the D-086 naming paragraph to Current truth._
+> _2026-08-23 amendment: Claude Code · Opus 5 — corrected the "Held activation" migration
+> claim (0026-0030 are applied, CH-15/CH-16) and added the Temporal plan, ingestion-readiness
+> note, and cross-repo review directory to Start Here._
+
+Use this page to distinguish durable canon, the accepted 2026-08-15 target, current local
+implementation, and historical planning. A file describing a target does not prove it is
+deployed.
+
+## Start here
+
+| Need | Document | Authority |
+|---|---|---|
+- `docs/PURPOSE.md` — **what this app is for**: the owner's six steps (2026-09-22) and the dated record they came from. Read before touching any surface.
+| Product invariant and locked decisions | [PROJECT_CANON.md](PROJECT_CANON.md) | Durable canon |
+| Naming canon (product + component names) | [NAMING.md](NAMING.md) | Durable canon; D-137..D-141 |
+| Current forward order | [BUILD_PLAN.md](BUILD_PLAN.md) | Forward entry point |
+| Entire application TODO | [MASTER-TODO-2026-08-18.md](MASTER-TODO-2026-08-18.md) | Authoritative production resume ledger |
+| Independent verification of the above | [OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md) | Confirms/contradicts MASTER-TODO against live code+DB; lists gaps and owner-blocked items |
+| Evidence Desk handoff | [HANDOFF-2026-08-18-evidence-operations-desk-mvp.md](handoffs/HANDOFF-2026-08-18-evidence-operations-desk-mvp.md) | Immediate production MVP |
+| Derived-document ingest wiring | [HANDOFF-2026-08-29-derived-document-ingest-wiring.md](handoffs/HANDOFF-2026-08-29-derived-document-ingest-wiring.md) | AI work products (chronologies/strategy/guides) → context → timeline/vectors/graphs; WP-1..WP-11 |
+| AgentOS retirement and Agno bounded role | [HANDOFF-2026-08-29-agno-role-dissection.md](handoffs/HANDOFF-2026-08-29-agno-role-dissection.md) | Current cutover status, owner rulings, local verification, and live release holds |
+| Repository placement | [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | Structural index |
+| Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
+| Pending historical review | [awaiting-verification/README.md](awaiting-verification/README.md) | Moved records; all claims UNVERIFIED |
+| ~~Archive policy~~ | ~~[archive/README.md](archive/README.md)~~ | **Corrected 2026-09-09: `docs/archive/` no longer exists (removed by commit `288591e`, 2026-09-08 docs restructure). No replacement invented — there is currently no archive-policy doc.** |
+| Temporal adoption plan | [plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md](plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md) | Phased adoption plan; D-067 ruled it 2026-08-23 |
+| Ingestion readiness | [INGESTION-READINESS-2026-08-23.md](INGESTION-READINESS-2026-08-23.md) | What's up and working for tonight's ingest |
+| Cross-repo evidence audit | [reviews/2026-08-23-cross-repo-evidence-audit/](reviews/2026-08-23-cross-repo-evidence-audit/) | Issues/TODO register (ISS-/TODO-numbered), framework-roles ruling (TODO-212), custody ruling (TODO-101/207) |
+
+## Current truth in one paragraph
+
+AgentOS is retired from the production API target; the plain FastAPI host and direct-caller cutover
+are implemented locally and held for live Coolify proof. Agno 2.8.7 remains only as a disabled,
+bounded atomic-agent library dependency while Temporal task contracts are built. Knowledge is ingested once without horizon
+restriction; agents later receive immutable, filtered horizon experiences. Semantica is a VIP
+service whose findings may be governed candidates. PostgreSQL is authoritative; Graphiti is a
+retired adapter, while SurrealDB is the governed manually promoted temporal/walk projection.
+Portkey remains preferred routing, OpenCode adds persistent
+workspace/provider flexibility. Go routing is
+decoder-coverage based at every file size.
+
+ADR-0056–0058 add a governed Surreal analytical/walk-memory target, claim-centered evidence
+assembly, Investigation Search, and scoped behavioral analysis. This does not reactivate the
+parked legacy Surreal deployment or change PostgreSQL authority. See the goal hierarchy and
+technical blueprint above; the new capabilities are design-only.
+
+The Phase-0 review package now defines logical contracts, routes 33 unresolved questions,
+specifies the gold corpus/evaluation gates, and adds a 14-test synthetic future-fact canary.
+It does not verify live adapters or authorize Phase 1. Six compact owner choices remain pending.
+
+## Held activation
+
+The Matter/CourtCase foundation, migration `0030`, neutral spine APIs,
+Workbench adapters/UI, provenance-preserving Knowledge-to-Evidence promotion,
+custody inspection, court-readiness read side, and activation preflight are
+committed and pushed to `main`. ~~The worktree is clean.~~ **Corrected
+2026-08-18 (Claude Code · Fable 5): the worktree is currently DIRTY** — live
+`git status` shows uncommitted changes (docs reorg, SurrealDB runner files,
+`AGENTS.md`, compose/deploy yaml); see
+[OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md)
+Part 2. ~~Migrations `0026–0030`
+remain unapplied~~ **Corrected 2026-08-23 (Claude Code · Opus 5, CH-15/CH-16): migrations
+`0026`–`0030` are APPLIED** to live PG18 (`100.91.190.107:5432`, db `ai`) — `0026`-`0029`
+were found already live (stale banners), `0030` was applied the same night on owner
+instruction. The **feature** (Matter/CourtCase-aware evidence pipeline, native evidence
+vectors) remains undeployed; no live-service proof beyond the applied schema is
+claimed. Use the R9 handoff and activation preflight pre-mortem for current
+verification and release gates.
+
+Three divergent self-contained Workbench mockups and their evaluation reports
+are available through the comparison page above. They are design donors/prototypes, not production
+applications. Accepted ADR-0061 defines the production composition: Workbench is the unified shell and
+the storage-free SBV client is its bounded `/evidence/preview` pipeline surface.
+
+## Archived lane packets and historical plans
+
+- [R0–R14 packets](awaiting-verification/handoffs/) (pending independent review)
+
+Historical packets, dated plans, inventories, summaries, evaluations, and design history are
+archived by category. They remain read-only context and never override current production truth.

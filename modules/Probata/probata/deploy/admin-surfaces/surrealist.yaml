@@ -1,0 +1,17 @@
+# Surrealist (self-hosted): SurrealDB query, graph and schema surface (tailnet only).
+# Byline: Claude Code · Opus 5.5 · 2026-09-23. Owner 08:16: "the surreal studio link doesn't work,
+# I want to be able to see the graphs and work with the surreal tools".
+#
+# Why self-hosted Surrealist and not SurrealDB Studio: studio.surrealdb.com forces a SurrealDB Cloud
+# sign-in before anything else (checked 2026-09-23). Surrealist connects straight to our servers:
+#   wss://surreal.tilapia-skilift.ts.net         (case, ovh-files:8471)
+#   wss://surreal-docs.tilapia-skilift.ts.net    (docs, :8472)
+#   wss://surreal-intake.tilapia-skilift.ts.net  (intake, :8473)
+# Connections are saved in the browser once. HTTPS name: svc:surrealist →
+# https://surrealist.tilapia-skilift.ts.net
+services:
+  surrealist:
+    image: surrealdb/surrealist:latest
+    restart: unless-stopped
+    ports:
+      - "100.91.190.107:8095:8080"

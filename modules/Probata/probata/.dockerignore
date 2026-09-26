@@ -1,0 +1,45 @@
+.DS_Store
+
+.git
+
+# Cache
+.mypy_cache
+.ruff_cache
+.pytest_cache
+*__pycache__*
+*.egg-info
+*.pyc
+
+# Machine specific
+.idea
+.vscode
+
+# Ignore .env files
+.env
+.env.production
+.envrc
+
+# ignore virtualenvs
+.venv
+venv*
+aienv*
+
+.ipynb_checkpoints
+
+# Project-specific
+tmp/
+.claude/
+
+# Byline: Claude Code · Fable 5 · 2026-09-02 — removed stale root vendored/sbv/* excludes
+# (sbv moved to modules/forks/sbv in the 2026-09-01 restructure; no root vendored/ exists,
+# so those patterns matched nothing — modules/forks/ below covers the whole tree).
+
+# 2026-09-02: build context moved to repo root (deploy/*.yaml context: ..) - exclude nested repos + bulk
+modules/forks/
+modules/custom/
+modules/traceIQ/
+modules/Legal-Workspace/
+modules/apps/
+modules/workbench/web/node_modules/
+docs/
+tests/

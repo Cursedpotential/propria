@@ -1,0 +1,214 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[codz]
+*$py.class
+
+# Packaging / build artifacts
+build/
+# EXCEPTION (2026-09-05): this vendored Go package embeds its `build/` directory
+# with //go:embed, so the blanket `build/` rule above silently un-vendored it and
+# every clean clone failed `go build` with
+# "pattern build: no matching files found". The assets are 4 files / ~148 KB and
+# are part of the vendored module, not our packaging output. Re-include the
+# directory first, then its contents — a negation cannot reach into a directory
+# that is itself still excluded.
+!modules/engine/vendor/github.com/tailscale/web-client-prebuilt/build/
+!modules/engine/vendor/github.com/tailscale/web-client-prebuilt/build/**
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Type checking / linting
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+.cache
+
+# uv state — requirements.txt is the lockfile of record
+uv.lock
+# The disposable Surreal runner is intentionally dependency-isolated and owns its lock.
+!docker/surreal-phase1-runner/uv.lock
+# Byline: Codex · GPT-5 · 2026-08-16
+
+# =========================
+# Virtual envs + secrets
+# =========================
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.production
+.envrc
+
+# =========================
+# Jupyter / notebooks
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# IDEs / editors
+# =========================
+.idea/
+.vscode/
+
+# =========================
+# OS cruft
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Project-specific
+# =========================
+tmp
+.claude
+
+# Local tool state (auto-generated, machine-local) — never commit
+.memsearch/
+.planning/
+.serena/
+# generated reports from doc-patch / principles audit passes
+.migration-passes/
+
+# Optional: local PyPI creds (uncomment if you ever create it)
+# .pypirc
+.osgrep
+
+# Case-specific segmentation terms (real names/places) — keep out of git
+evidence/config/case_terms.yaml
+
+# Infra doc with real credentials — commit only the sanitized .template.md
+docs/INFRASTRUCTURE.md
+
+# gateway content-addressed result store (runtime artifacts, never committed)
+data/content_store/
+
+# context-chat-ingest local dedup ledger (runtime state, never committed)
+data/context_ingest/
+
+# build artifacts + local analysis scratch (untracked lanes)
+*.egg-info/
+.osgrep/
+analytics/
+# live-DB dumps (may contain sealed values) — NEVER commit
+live-dumps/
+
+# env backups (live secrets) — NEVER commit
+.env.bak*
+# chat-sample breakdowns (real case PII; owner rule 2026-07-11: local + gitignored)
+docs/planning/chat-sample-analysis/
+
+# generated evidence-pipeline reports — they embed real message content (one sample
+# row in the first generated report contained a name, DOB and SSN). The GENERATOR is
+# tracked (scripts/evidence_pipeline_report.py); its output never is.
+docs/reports/*
+!docs/reports/README.md
+
+# --- per-session agent scratch (2026-08-05) -------------------------------
+# One-off memory-consolidation / inspection scripts written straight into the
+# repo root by tooling sessions. They are session artifacts, not platform code:
+# never imported, never tested, superseded by the next session's copy. Ignored
+# rather than deleted (owner rule: never delete — these stay on disk).
+.cleanup/
+.consolidate.py
+.consolidate_cnf.py
+.inspect.py
+consolidate_memories.py
+scripts/_cnf_consolidate.py
+scripts/_cnf_inspect.py
+scripts/_inspect_mem.py
+scripts/_e*.txt
+
+# Codex CLI's per-repo config + hooks. Tool-specific setup lives in that tool's
+# own config, never in this repo (AGENTS.md, "Further Reading").
+.codex/
+
+# vendored upstream clones pulled in for reading only (semantica et al). These
+# carry their own .git; they are a research checkout, not a dependency.
+.research/
+
+# local DuckDB scratch DB for Iceberg/lakehouse poking (regenerable).
+iceberg
+
+# TODO snapshots emitted by the session tooling — a point-in-time dump of the
+# in-flight task list, superseded on every run. The durable lane is
+# docs/COORDINATION.md; HANDOFF-*.md carries what must survive.
+docs/TODO-SNAPSHOT-*.json
+
+# Auto-generated compaction summaries. These transcribe whole sessions VERBATIM,
+# so anything the session handled in the clear lands in them — the 2026-08-02 and
+# -08-03 files each carry live Cloudflare R2 API tokens (`cfat_…`) and the account
+# id, 44 occurrences between them. Same reasoning as docs/reports/* above: the
+# artifact embeds real secrets even though the process producing it is fine.
+# HANDOFF-*.md stays tracked — it is written deliberately, not transcribed.
+# COMPACT-SUMMARY-2026-08-01.md predates this rule, is already tracked, and was
+# verified token-free; a tracked file is unaffected by this pattern either way.
+docs/COMPACT-SUMMARY-*.md
+# Owner-only quarantine. Files moved here are intentionally retained until the
+# owner deletes them and may include credential-bearing application data.
+to_be_deleted/
+# CocoIndex Code (ccc)
+/.cocoindex_code/
+
+# Pre-edit snapshot convention (multi-agent sessions). Snapshots belong in _stale/,
+# never alongside the live file, and never in git. Added 2026-08-23 during reconciliation.
+*.backup_*
+
+# local DuckDB databases (derived, rebuildable — e.g. npm community-node catalog)
+.duckdb/
+!.duckdb/
+.duckdb/*
+!.duckdb/AGENTS.md
+!.duckdb/CLAUDE.md
+
+# stray build/agent artifacts (2026-08-29 cleanup)
+workbench/design-mockups/**/node_modules/
+.cnf/
+
+# generated test results (owner consolidation 2026-09-01: tests + results share one parent)
+tests/_reports/
+
+# nested independent repos (owner restructure 2026-09-01) - each has its own .git;
+# the platform repo never tracks them (ignored-independent-child pattern, no gitlinks)
+modules/forks/timesketch/
+modules/custom/
+modules/Legal-Workspace/
+modules/advocatio/
+modules/traceIQ/
+modules/vestigia/
+modules/apps/
+
+# CodeLens Graph local index
+.codelens/
+
+# generated pytest reports (workbench API; same rule as tests/_reports/)
+modules/workbench/api/tests/_reports/
+
+# Private data (real names, case facts) — stays on disk, never committed (owner 2026-09-06)
+docs/private/
+**/*.private.md
+
+# Local embedded SurrealDB document store (D-155): lives beside docs/, never committed
+.docstore/
+
+# docstore plugin runtime state (per-session search flags)
+plugins/docstore/claude/.state/last_search_*.flag
+
+# Docstore 0.8 ADR projections: generated from the authoritative ADR table and written here by every
+# `client.py sync --apply`; the Docstore re-creates them, so they are not source.
+# Byline: Claude Code · Opus 5.5 · 2026-09-26
+docs/adr/generated/

@@ -1,0 +1,262 @@
+# Byline: Codex · GPT-5 · 2026-08-18 (owner-only native evidence search credential)
+# Byline: Codex · GPT-5 · 2026-08-28 (unified proffer (then UIW) production surface)
+# Byline: Codex · GPT-5 · 2026-08-29 (Authentik-only Traefik ingress boundary)
+# Byline: Codex · GPT-5 · 2026-08-29 (private movable Tailscale Service ingress)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (private Platform API service-DNS cutover)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-30 (runtime proffer (then UIW) service credential)
+# =============================================================================
+# KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
+# tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
+# (see compose.data-vector.yaml for the pattern precedent).
+#
+# Coolify Watch Paths for this app: workbench/** + deploy/workbench.yaml
+# Branch: workbench/sprint (sprint), main after milestone merges.
+#
+# HOST-PREP (once, before first deploy):
+#   sudo mkdir -p /data/probata/volumes/workbench/{inbox,copilot}
+#   sudo chown -R 1000:1000 /data/probata/volumes/workbench
+#   sudo install -d -m 0700 /data/probata/secrets/platform
+#   sudo install -m 0400 /dev/null /data/probata/secrets/platform/api-bearer
+#   # Write the Platform API bearer without a trailing newline; never place it in env.
+#   docker network inspect probata >/dev/null 2>&1 || docker network create probata
+#
+# C2.5 (Ops Copilot) points at the exec-gateway service. Authentication for
+# user-facing Workbench traffic is owned by Authentik at Traefik; this manifest
+# does not carry a shared-password ingress contract.
+#
+# The released intake path streams source bytes to the Universal Import
+# starter's authenticated acquisition ingress and sends only its opaque
+# reference through Temporal. The retired LanceDB intake store is not mounted
+# or used by this deployment. PostgreSQL remains canonical.
+#
+# Case Bible Sorted is the fixed default ingestion source. Credentials are read
+# at runtime from a mounted JSON document; the bucket is not filesystem-mounted.
+#
+# Coolify gotcha: env values are rendered as literals into the materialized
+# compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
+# first deploy; later env changes require a redeploy.
+# =============================================================================
+# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4; Coolify path/watch-path true-up 2026-08-13, Codex · GPT-5; Graphiti host repoint + model-lab Portkey env + held neutral-chat config contract 2026-08-16, Codex · GPT-5)
+
+services:
+  workbench:
+    build:
+      context: ./modules/workbench
+      dockerfile: Dockerfile
+    image: probata-workbench:latest
+    container_name: workbench
+    restart: unless-stopped
+    environment:
+      APP_PORT: "8020"
+      # Exact socket peer allowed to assert Authentik identity. Set this to the
+      # Coolify Traefik address as a /32 (or /128), never a broad Docker/tailnet
+      # range. Missing or malformed configuration fails closed.
+      TRUSTED_AUTH_PROXY_CIDRS: ${TRAEFIK_PROXY_CIDR}  # Coolify renders a `:?` message as the literal VALUE (seen live 2026-09-07); empty still fails closed in auth.py
+      # Feature-gated owner testing path. Traefik remains the trusted socket
+      # peer and X-Real-IP must be inside this Tailscale range. Disable after
+      # Authentik activation without changing application code.
+      TAILNET_AUTH_BYPASS_ENABLED: ${WORKBENCH_TAILNET_AUTH_BYPASS_ENABLED:-false}
+      TAILNET_AUTH_BYPASS_CIDRS: ${WORKBENCH_TAILNET_AUTH_BYPASS_CIDRS:-100.64.0.0/10}
+      TRUSTED_TAILSCALE_SERVE_PROXY_CIDRS: ${WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS:-127.0.0.1/32,172.17.0.1/32}
+      # Serve strips client capability headers. Enable only with an explicit
+      # tailnet app grant and --accept-app-caps on svc:workbench.
+      TAILSCALE_DEVICE_CAPABILITY: ${WORKBENCH_TAILSCALE_DEVICE_CAPABILITY:-}
+      # Same-host service traffic stays on the shared private Coolify network.
+      # PLATFORM_API_URL remains overridable for a future cross-host Tailscale
+      # Service cutover without changing Workbench application code.
+      PLATFORM_API_URL: ${PLATFORM_API_URL:-http://platform-api:8000}
+      # The Platform API currently uses the backend runtime's native bearer contract. The secret is
+      # read fresh from the read-only mount below for every upstream request;
+      # only this non-secret path is configurable.
+      PLATFORM_API_BEARER_SECRET_FILE: /run/secrets/platform-api-bearer
+      # Direct-tailnet Proffer boundary on ovh-files.
+      PROFFER_STARTER_URL: ${PROFFER_STARTER_URL:-http://100.91.190.107:8091}
+      # Shared service credential for authenticated preview/start/context calls.
+      # The value is runtime-read on every request so rotation needs no rebuild.
+      PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
+      # Distinct owner-only capability for bounded exploratory evidence search.
+      # It is runtime-read from the mount below and never issued to agents.
+      EVIDENCE_OPERATOR_BEARER_SECRET_FILE: /run/secrets/evidence-operator-security-key
+      # --- MCP tool servers (Tool Explorer, C1 console) ---
+      # Normal MCP traffic uses the Portkey-published ContextForge doors and
+      # their own scoped credentials. The Platform API bearer is not an MCP
+      # environment credential; native calls read it only from the file mount.
+      # Set as a LITERAL, not `${MCP_SERVERS:-<json>}`: Docker Compose's
+      # interpolation has no brace-nesting awareness, so a JSON default
+      # containing `}` would truncate at the JSON's own first `}`. This is
+      # also just this repo's existing Coolify convention anyway (env
+      # values are rendered as literals at deploy — see the file header) —
+      # to override, edit this value directly in the Coolify env editor.
+      # Activation contains only Portkey-published ContextForge virtual-server
+      # endpoints with gateway:"portkey" on every entry. The Platform API has
+      # no MCP surface.
+      # Empty is fail-closed. Direct doors require the explicit diagnostic flag.
+      MCP_SERVERS: ${MCP_SERVERS:-[]}
+      MCP_DIRECT_BYPASS_ALLOWED: ${MCP_DIRECT_BYPASS_ALLOWED:-false}
+      CONTEXTFORGE_TOKEN: ${CONTEXTFORGE_TOKEN:-}
+      # --- LLM gateway (default model-lab route) ---
+      # Self-hosted Portkey accepts the selected upstream in
+      # x-portkey-provider and the corresponding upstream credential as the
+      # bearer token. The Workbench never exposes either value to the browser.
+      # A future Portkey control-plane key can omit PORTKEY_PROVIDER and use
+      # the same variables for the integrated cloud Model Catalog instead.
+      PORTKEY_BASE_URL: ${PORTKEY_BASE_URL:-http://100.72.169.40:8787/v1}
+      PORTKEY_PROVIDER: ${PORTKEY_PROVIDER:-}
+      PORTKEY_API_KEY: ${PORTKEY_API_KEY:-}
+      PORTKEY_MODEL_ID: ${PORTKEY_MODEL_ID:-gpt-4o}
+      # Required by POST /v1/chat. The saved config owns fallback/load-balance
+      # policy; empty fails closed. Provision only during the separately
+      # approved Workbench activation.
+      PORTKEY_CONFIG: ${PORTKEY_CONFIG:-}
+      PORTKEY_ENVIRONMENT: ${PORTKEY_ENVIRONMENT:-production}
+      # --- Graphiti knowledge-graph memory (C4 Graph memory pane) ---
+      # Graphiti is retired for now (D-070). SurrealDB is the governed final
+      # temporal-graph, walk, and analysis engine (D-073/D-080).
+      # GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-}
+      # --- Ops Copilot (C2.5) — headless OpenCode server, exec-gateway app ---
+      OPENCODE_URL: ${OPENCODE_URL:-http://100.72.169.40:4096}
+      OPENCODE_USERNAME: ${OPENCODE_USERNAME:-opencode}
+      OPENCODE_MODEL: ${OPENCODE_MODEL:-groq/llama-3.3-70b-versatile}
+      OPENCODE_WORKSPACE_DIR: ${OPENCODE_WORKSPACE_DIR:-/workspace/copilot}
+      COPILOT_PRESETS_PATH: ${COPILOT_PRESETS_PATH:-/data/copilot/presets.json}
+      CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
+      # Byline: Codex, 2026-09-20. Read the existing pre-ingest catalog.
+      INTAKE_DISCOVERY_PG_HOST: ${INTAKE_DISCOVERY_PG_HOST:-100.91.190.107}
+      INTAKE_DISCOVERY_PG_PORT: ${INTAKE_DISCOVERY_PG_PORT:-5475}
+      INTAKE_DISCOVERY_PG_DATABASE: casebible
+      INTAKE_DISCOVERY_PG_USER: metabase_ro
+      INTAKE_DISCOVERY_PG_PASSWORD_FILE: /run/secrets/intake-catalog-readonly
+      INTAKE_DISCOVERY_INDEX_URL: ${INTAKE_DISCOVERY_INDEX_URL:-}
+      # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
+      # store: scheme -> credential file. Switching provider = a credential file + these two
+      # values, identical in every Proffer/Workbench service. The first root is the default.
+      # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
+      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json","r2":"/run/secrets/casebible-r2.json"}'
+      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Vault","url":"b2://salem-data/consignatio/vault/v1/"},{"id":"b2-bucket","label":"B2 / salem-data (whole bucket)","url":"b2://salem-data/"},{"id":"r2-sorted","label":"R2 / Case Bible Sorted","url":"r2://casebible-sorted/","temporary":true},{"id":"r2-raw","label":"R2 / Case Bible Raw","url":"r2://casebible-raw/","temporary":true},{"id":"r2-quarantine","label":"R2 / Case Bible Quarantine","url":"r2://casebible-quarantine/","temporary":true}]'
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
+    volumes:
+      # Bind mounts only — owner backs up host dirs (no named volumes).
+      - /data/probata/volumes/workbench/inbox:/data/inbox
+      # C2.5 Ops Copilot preset-prompt override (optional — see
+      # app/service/copilot_presets.py; absent file = in-code defaults only).
+      - /data/probata/volumes/workbench/copilot:/data/copilot
+      # Runtime-read bearer rotation takes effect on the next request without
+      # rebuilding, restarting, or redeploying Workbench.
+      - /data/probata/secrets/platform/api-bearer:/run/secrets/platform-api-bearer:ro
+      - /data/probata/secrets/platform/evidence-operator-security-key:/run/secrets/evidence-operator-security-key:ro
+      - /data/probata/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
+      - /data/probata/secrets/progress-board/metabase-ro:/run/secrets/intake-catalog-readonly:ro
+      - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
+      - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
+    ports:
+      # STEP 2 OF THE TSNET CUTOVER DELETES THIS PUBLISH (owner directive
+      # 2026-09-07: "APIs without networking endpoints ... bind to TS only").
+      # Today the stable private HTTPS identity comes from the HOST running
+      # `tailscale serve` for svc:workbench into this loopback port — a host
+      # networking endpoint, and one that ties the identity to ovh-app.
+      # The `tsnet-front` sidecar below replaces it with an in-process tsnet
+      # listener. Delete this line, and run `tailscale serve reset` on the
+      # host, in the same step that records the live verification. Public
+      # traffic remains the independent Coolify Traefik route below.
+      - "127.0.0.1:18080:8020"
+    healthcheck:
+      # /health deliberately stays HTTP 200 while degraded; require its JSON
+      # contract so missing R2 access cannot be reported healthy by Docker.
+      test: ["CMD-SHELL", "python3 -c \"import json,urllib.request,sys; body=json.load(urllib.request.urlopen('http://127.0.0.1:8020/health', timeout=5)); sys.exit(0 if body.get('status') == 'ok' and body.get('object_store') is True else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      workbench:
+      probata:
+      propria-edge:
+        # Fixed address so Traefik (fixed 10.201.0.2 on propria-edge) is the one trusted proxy;
+        # same pattern as authentik-server 10.201.0.3 (9129ac7). 2026-09-23 fix: the proxy IP on
+        # probata/xjbuo6 drifted, so every public request was 'Untrusted proxy'.
+        ipv4_address: 10.201.0.4
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=propria-edge
+      - traefik.http.routers.workbench.rule=Host(`workbench.int.mitechconsult.com`)
+      # Authentik's single-app forward-auth contract pairs the application
+      # router at priority 10 with its more-specific outpost router at 15.
+      - traefik.http.routers.workbench.priority=10
+      - traefik.http.routers.workbench.entrypoints=https
+      - traefik.http.routers.workbench.tls=true
+      - traefik.http.routers.workbench.tls.certresolver=letsencrypt
+      - traefik.http.routers.workbench.service=workbench
+      - traefik.http.routers.workbench.middlewares=workbench-authentik
+      - traefik.http.services.workbench.loadbalancer.server.port=8020
+      # A forward_single outpost is selected by the protected application's
+      # external host. Route this callback through Workbench's public host so
+      # the priority-15 outpost router reaches Authentik without re-entering
+      # the priority-10 application middleware.
+      - traefik.http.middlewares.workbench-authentik.forwardauth.address=https://workbench.int.mitechconsult.com/outpost.goauthentik.io/auth/traefik
+      - traefik.http.middlewares.workbench-authentik.forwardauth.trustForwardHeader=true
+      - traefik.http.middlewares.workbench-authentik.forwardauth.authResponseHeaders=X-authentik-username,X-authentik-groups,X-authentik-entitlements,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version
+      - coolify.traefik.middlewares=workbench-authentik
+
+  # ---------------------------------------------------------------------------
+  # tsnet-front — the Workbench's own Tailscale identity (D-134), for a runtime
+  # that cannot embed one. Python has no tsnet, so today the HOST proxies
+  # svc:workbench into the loopback publish above; that is a host networking
+  # endpoint and it binds the service's identity to ovh-app.
+  #
+  # WHY network_mode: service:workbench. The sidecar joins the Workbench
+  # container's network namespace and proxies to 127.0.0.1:8020. That makes the
+  # proxy's socket peer 127.0.0.1 — a value ALREADY inside the default
+  # TRUSTED_TAILSCALE_SERVE_PROXY_CIDRS — so nothing has to discover a bridge
+  # address, resolve a compose-DNS name at startup, or teach auth.py to accept
+  # hostnames. It is the simplest arrangement that works, and it is why this
+  # sidecar declares no networks and no ports of its own.
+  #
+  # PRECONDITION, live, before enabling: the host must stop advertising
+  # svc:workbench (`tailscale serve reset` on ovh-app) or the two advertisements
+  # collide and this container fails closed at startup. That is a deliberate
+  # owner-approved live step, not something a deploy does by itself.
+  #
+  # Host prep (once):
+  #   install -d -o 10001 -g 10001 -m 0700 /data/probata/tsnet/workbench
+  #   install -d -o root -g 10001 -m 0750 /data/probata/secrets/workbench
+  #   # write a tag:docker auth key with NO trailing newline, then:
+  #   chown 10001:10001 /data/probata/secrets/workbench/ts-authkey
+  #   chmod 0400        /data/probata/secrets/workbench/ts-authkey
+  #
+  # Byline: Claude Code subagent · Opus 5 · 2026-09-07.
+  tsnet-front:
+    build:
+      # Repo root, NOT the deploy/ directory: Coolify builds with
+      # `--project-directory <repo root>`, which is why the working reference
+      # (deploy/tool-gateway.yaml) pairs `context: .` with a repo-root-relative
+      # dockerfile path. The Dockerfile's `COPY modules/engine/` needs it.
+      context: .
+      dockerfile: deploy/docker/tsnet-front/Dockerfile
+    image: ${WORKBENCH_TSNET_FRONT_IMAGE:-probata-tsnet-front:latest}
+    container_name: workbench-tsnet-front
+    restart: unless-stopped
+    depends_on:
+      - workbench
+    # The sidecar has NO network of its own and NO published port: its only
+    # listener is the tsnet one. That is the whole point of the component.
+    network_mode: "service:workbench"
+    environment:
+      # This binary refuses to run with the flag off — it has no other listener.
+      TSNET_LISTENER_ENABLED: ${WORKBENCH_TSNET_LISTENER_ENABLED:-true}
+      TSNET_FRONT_SERVICE: workbench
+      TSNET_FRONT_UPSTREAM: ${WORKBENCH_TSNET_FRONT_UPSTREAM:-http://127.0.0.1:8020}
+      TSNET_HOSTNAME: ${WORKBENCH_TSNET_HOSTNAME:-workbench}
+      TSNET_SERVICE: ${WORKBENCH_TSNET_SERVICE:-svc:workbench}
+      TSNET_TAGS: ${WORKBENCH_TSNET_TAGS:-tag:docker}
+      TSNET_STATE_DIR: /data/tsnet
+      TSNET_AUTHKEY_FILE: /run/secrets/tsnet-authkey
+    volumes:
+      - /data/probata/tsnet/workbench:/data/tsnet
+      - /data/probata/secrets/workbench/ts-authkey:/run/secrets/tsnet-authkey:ro
+
+networks:
+  workbench:
+  probata:
+    external: true   # shared cross-app net for Traefik, Authentik, and Workbench
+  propria-edge:
+    external: true   # fixed-address edge net: coolify-proxy 10.201.0.2, authentik 10.201.0.3, workbench 10.201.0.4

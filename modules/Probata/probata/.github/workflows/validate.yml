@@ -1,0 +1,196 @@
+# Byline: Codex · GPT-5 · 2026-08-13 (align validation scope with AGENTS.md)
+# Byline: Claude Code · Sonnet 5 · 2026-08-26 (P-18/GAP-021 — add the mandatory
+# `integration` job: runs `pytest -m integration` against configured live
+# services, then scripts/ci_integration_gate.py fails the job if every
+# collected test skipped, so a green run proves at least one live test
+# actually executed. See
+# docs/reviews/2026-08-25-schema-audit/GAP-021-IMPLEMENTATION-STATUS.md for
+# the required repository secrets and the tests this job depends on.)
+# Byline: Claude Code · Sonnet 5 · 2026-09-01 (H-02a — add the `go` job:
+# build/vet/test the engine/ module, plus vendored/sbv with the mandatory
+# -tags fts5 per AGENTS.md. Independent of the Python jobs above.)
+name: Validate
+
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+env:
+  UV_SYSTEM_PYTHON: 1
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project with dev dependencies
+        run: |
+          uv pip install --system -r requirements.txt
+          uv pip install --system -e .[dev,observability,temporal]
+          ruff --version
+          mypy --version
+
+      - name: Format with ruff
+        run: uv run ruff format --config pyproject.toml --check server tests
+
+      - name: Validate (lint + type)
+        run: uv run bash scripts/validate.sh
+
+      - name: Unit tests
+        run: uv run pytest -q
+
+      # Naming gate (D-137..D-142; docs/reviews/2026-09-05-rename-as-a-system.md §3):
+      # a retired product/lane name outside the allowlist fails the build. This is the
+      # balancing loop that stops a second name from creeping back in.
+      - name: Naming gate
+        run: uv run python scripts/check_naming.py
+
+  go:
+    # sbv build/test steps removed 2026-09-01: sbv lives at modules/forks/sbv,
+    # now a proper git SUBMODULE of Cursedpotential/sbv-forensic (private),
+    # whose own CI builds the image the tool-runtime Dockerfile consumes by
+    # digest. Its Go CI lives there. The submodule checkout below exists only
+    # because engine/go.mod replaces github.com/lowcarbdev/sbv with
+    # ../forks/sbv — the engine cannot build without the sources present.
+    # Requires repo secret SUBMODULE_TOKEN (PAT with read access to
+    # sbv-forensic); falls back to github.token, which cannot read it.
+    name: Go engine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.7"
+
+      - name: engine - go build
+        working-directory: modules/engine
+        run: go build ./...
+
+      - name: engine - go vet
+        working-directory: modules/engine
+        run: go vet ./...
+
+      - name: engine - go test
+        working-directory: modules/engine
+        run: go test ./...
+
+  integration:
+    name: Mandatory live integration suite (GAP-021)
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the project with dev dependencies
+        run: |
+          uv pip install --system -r requirements.txt
+          uv pip install --system -e .[dev,observability,temporal]
+
+      # Fails with a named, actionable error instead of a cryptic Tailscale/DB
+      # timeout when the repo isn't configured yet. Failing (not skipping) on
+      # a missing secret is deliberate: GAP-021 exists because a silently
+      # skipped live suite used to read as a green check.
+      - name: Preflight - required secrets present
+        env:
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_OAUTH_CLIENT_SECRET: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          INTEGRATION_DB_USER: ${{ secrets.INTEGRATION_DB_USER }}
+          INTEGRATION_DB_PASS: ${{ secrets.INTEGRATION_DB_PASS }}
+          INTEGRATION_SBV_BASE_URL: ${{ secrets.INTEGRATION_SBV_BASE_URL }}
+          INTEGRATION_SBV_SERVICE_USER: ${{ secrets.INTEGRATION_SBV_SERVICE_USER }}
+          INTEGRATION_SBV_SERVICE_PASS: ${{ secrets.INTEGRATION_SBV_SERVICE_PASS }}
+        run: |
+          missing=()
+          [ -z "${TS_OAUTH_CLIENT_ID:-}" ] && missing+=("TS_OAUTH_CLIENT_ID")
+          [ -z "${TS_OAUTH_CLIENT_SECRET:-}" ] && missing+=("TS_OAUTH_CLIENT_SECRET")
+          [ -z "${INTEGRATION_DB_USER:-}" ] && missing+=("INTEGRATION_DB_USER")
+          [ -z "${INTEGRATION_DB_PASS:-}" ] && missing+=("INTEGRATION_DB_PASS")
+          [ -z "${INTEGRATION_SBV_BASE_URL:-}" ] && missing+=("INTEGRATION_SBV_BASE_URL")
+          [ -z "${INTEGRATION_SBV_SERVICE_USER:-}" ] && missing+=("INTEGRATION_SBV_SERVICE_USER")
+          [ -z "${INTEGRATION_SBV_SERVICE_PASS:-}" ] && missing+=("INTEGRATION_SBV_SERVICE_PASS")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::GAP-021 mandatory integration job cannot run - missing repository secrets: ${missing[*]}. See docs/reviews/2026-08-25-schema-audit/GAP-021-IMPLEMENTATION-STATUS.md for the exact handoff list. This job fails (not skips) until configured - that is the point of GAP-021."
+            exit 1
+          fi
+
+      - name: Connect to tailnet (Tailscale)
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
+      - name: Write DB credential file (masked by Actions, never echoed)
+        env:
+          INTEGRATION_DB_PASS: ${{ secrets.INTEGRATION_DB_PASS }}
+        run: |
+          mkdir -p "$HOME/.secrets"
+          printf 'DB_PASS=%s\n' "$INTEGRATION_DB_PASS" > "$HOME/.secrets/probata.env"
+          chmod 600 "$HOME/.secrets/probata.env"
+
+      - name: Run mandatory integration suite
+        env:
+          DB_HOST: "100.91.190.107"
+          DB_PORT: "5432"
+          DB_USER: ${{ secrets.INTEGRATION_DB_USER }}
+          DB_PASS: ${{ secrets.INTEGRATION_DB_PASS }}
+          DB_DATABASE: "horizon_scratch"
+          HORIZON_SCRATCH_LIVE: "1"
+          HORIZON_SCRATCH_TARGET_UUID: "yrhzg9ksyr8sjko1yg44qvgc"
+          SBV_CUSTODY_ENABLED: "1"
+          SBV_BASE_URL: ${{ secrets.INTEGRATION_SBV_BASE_URL }}
+          SBV_SERVICE_USER: ${{ secrets.INTEGRATION_SBV_SERVICE_USER }}
+          SBV_SERVICE_PASS: ${{ secrets.INTEGRATION_SBV_SERVICE_PASS }}
+        run: |
+          mkdir -p artifacts
+          uv run pytest -m integration --junitxml=artifacts/integration-junit.xml -v
+
+      - name: Enforce no-all-skipped gate and build receipt
+        if: always()
+        run: uv run python scripts/ci_integration_gate.py --junit artifacts/integration-junit.xml --receipt artifacts/integration-receipt.json
+
+      - name: Publish integration receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gap-021-integration-receipt
+          path: |
+            artifacts/integration-junit.xml
+            artifacts/integration-receipt.json
+          retention-days: 90

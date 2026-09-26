@@ -1,0 +1,296 @@
+# Byline: Codex · GPT-5 · 2026-08-18 (native evidence capability boundaries)
+# Byline: Claude Code · Kimi K3 (drift-fix, comments only) · 2026-08-12 —
+#         LiteLLM labels marked stale (ADR-0042). No values/ports changed.
+#         2026-08-12b — FUNCTIONAL (owner ruling): graphiti-mcp LLM+embeddings
+#         rewired gateway:4000 → direct NVIDIA NIM (integrate.api.nvidia.com,
+#         NVIDIA_API_KEY); model ids fixed in docker/graphiti/config.yaml; prod
+#         chain verified equivalent (portkeyfix injects same custom_host+models),
+#         both models probe-verified 200. Ports/other services unchanged.
+
+services:
+  probata-db:
+    # Custom PG18 image: pg_duckdb + PostGIS + pgvector + pg_stat_statements
+    # (ADR-0013; docker/postgres/Dockerfile). Was: agnohq/pgvector:18 — same
+    # PG major, so the pgdata volume carries over.
+    build:
+      context: ./docker/postgres
+    image: probata-postgres:18-duckdb
+    container_name: probata-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      # init SQL runs once at first boot (empty data dir only)
+      # THE database: fresh volumes bootstrap from the snapshot (migrations retired 2026-09-07, D-153)
+      - ./sql/bootstrap/schema_snapshot_20260907.sql:/docker-entrypoint-initdb.d/01_schema_snapshot.sql:ro
+    environment:
+      POSTGRES_USER: ${DB_USER:-ai}
+      POSTGRES_PASSWORD: ${DB_PASS:-ai}
+      POSTGRES_DB: ${DB_DATABASE:-platform}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - agentos
+
+  agentos-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentos-api
+    image: ${IMAGE_NAME:-agentos}:${IMAGE_TAG:-latest}
+    # NO --reload: uvicorn reload breaks the MCP lifespan under AgentOS
+    # (handoff §4 correction #4). Restart the container to pick up code changes.
+    command: uvicorn server.api.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      # R2 bucket "nexus" via rclone docker volume plugin — stack-wide blob
+      # storage (ADR-0007 landing zone). Any service can mount r2-nexus.
+      - r2-nexus:/r2
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RUNTIME_ENV: ${RUNTIME_ENV:-dev}
+      AGNO_DEBUG: "True"
+      WAIT_FOR_DB: "True"
+      AGENTOS_URL: http://127.0.0.1:8000
+      DB_HOST: probata-db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-ai}
+      DB_PASS: ${DB_PASS:-ai}
+      DB_DATABASE: ${DB_DATABASE:-platform}
+      # Native evidence reads are enabled only after alias/schema activation.
+      # Agent reads use exact walk-transition capabilities; Workbench uses a
+      # separate owner-only credential (OS_SECURITY_KEY retired 2026-09-07, R-6).
+      NATIVE_EVIDENCE_ENABLED: ${NATIVE_EVIDENCE_ENABLED:-false}
+      NATIVE_EVIDENCE_DRAIN_BATCH_LIMIT: ${NATIVE_EVIDENCE_DRAIN_BATCH_LIMIT:-100}
+      NATIVE_EVIDENCE_DRAIN_INTERVAL_SECONDS: ${NATIVE_EVIDENCE_DRAIN_INTERVAL_SECONDS:-5}
+      NATIVE_EVIDENCE_DRAIN_ERROR_BACKOFF_SECONDS: ${NATIVE_EVIDENCE_DRAIN_ERROR_BACKOFF_SECONDS:-15}
+      NATIVE_EVIDENCE_DRAIN_MAX_BACKOFF_SECONDS: ${NATIVE_EVIDENCE_DRAIN_MAX_BACKOFF_SECONDS:-60}
+      WALK_PASS_SIGNING_KEY: ${WALK_PASS_SIGNING_KEY:-}
+      EVIDENCE_OPERATOR_SECURITY_KEY: ${EVIDENCE_OPERATOR_SECURITY_KEY:-}
+      # R2 blob landing zone (ADR-0007) — S3-compatible reads via boto3/agno;
+      # set in .env when the bucket is provisioned. No FUSE mount needed.
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
+      # SBV toolkit (facade-collapse plan Batch A, §2.3) — server/agents/tools/
+      # sbv_tools.py talks to SBV directly over the agentos docker network
+      # (tool-runtime:8085), not through the tools-facade proxy. No
+      # agentos-mcp service exists in this local/dev compose file (only
+      # compose.exec.yaml runs it), so only agentos-api needs this here.
+      SBV_BASE_URL: ${SBV_BASE_URL:-http://tool-runtime:8085}
+      SBV_SERVICE_USER: ${SBV_SERVICE_USER:-mcp_service}
+      # SBV_PRIMARY_ENABLED removed 2026-08-10 (owner call): dead knob. The
+      # 2026-08-02 demotion was LIFTED by PR #18 (aacf21c) -> SBV is PRIMARY again
+      # (DECISION_LOG D-040). _sbv_enabled() gates solely on SBV_SERVICE_PASS, and
+      # tests/test_sbv_demotion.py pins that this var gates nothing. Setting it in
+      # any env is now a no-op and safe to delete there too.
+      SBV_SERVICE_PASS: ${SBV_SERVICE_PASS:-}
+    depends_on:
+      probata-db:
+        condition: service_healthy
+    networks:
+      - agentos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ---------------------------------------------------------------------------
+  # Consolidated tool containers (owner decision 2026-06-10): as few as possible.
+  # Under the "tools" profile until first build is verified:
+  #   docker compose --profile tools up -d --build
+  # ---------------------------------------------------------------------------
+  tool-runtime:
+    build:
+      # Context ".." = repository root. The Dockerfile COPYs both the runtime
+      # files and `server/`, so a deploy-directory-only context cannot work.
+      # SBV is NOT built from source here - the Dockerfile lifts the binary
+      # from the digest-pinned ghcr.io/cursedpotential/sbv-forensic CI image;
+      # the sbv working checkout now lives at modules/forks/sbv (own repo,
+      # gitignored). Comment corrected 2026-09-01 (owner restructure).
+      context: ..
+      dockerfile: deploy/docker/tool-runtime/Dockerfile
+    image: probata-tool-runtime:latest
+    container_name: tool-runtime
+    profiles: ["tools"]
+    restart: unless-stopped
+    ports:
+      - "8080:8085"   # SBV GUI + REST API (SBV's internal default is 8085)
+      - "8090:8090"   # parsers/extractors facade
+    volumes:
+      - sbv_data:/opt/sbv/data        # SBV uses CWD-relative ./data
+      - r2-nexus:/r2
+      # NOTE: the `server` package is BAKED into the image (docker/tool-runtime/Dockerfile
+      # `COPY server/`), NOT mounted — Coolify ignores relative bind mounts and the
+      # image is rebuilt on every deploy, so the facade is self-contained.
+    networks:
+      agentos:
+        aliases:
+          - platform-tools  # temporary compatibility alias for old callers
+
+  sandbox:
+    build:
+      context: ./docker/sandbox
+    image: agno-sandbox:latest
+    container_name: agent-sandbox
+    profiles: ["tools"]
+    restart: unless-stopped
+    # NO published ports, NO env secrets, NO repo mounts — agents reach it
+    # over the internal network only (http://sandbox:8070/run).
+    cpus: 2
+    mem_limit: 1g
+    volumes:
+      - agent_workspace:/workspace   # shared with the desktop (owner sees agent output)
+    networks:
+      - agentos
+
+  # Kasm browser desktop (owner decision 2026-06-11). SEPARATE from sandbox to
+  # preserve the sandbox's no-secrets isolation; shares the workspace volume so
+  # the desktop sees/edits the same files agents run code in. Opt-in profile
+  # ("desktop") because it wants ~1.5-2GB RAM — bring it up only when needed:
+  #   docker compose --profile desktop up -d
+  # Then open https://<host or tailnet ip>:6901  (user: kasm_user, pw: VNC_PW).
+  desktop:
+    image: kasmweb/desktop:1.16.0
+    container_name: kasm-desktop
+    profiles: ["desktop"]
+    restart: unless-stopped
+    ports:
+      - "6901:6901"
+    environment:
+      VNC_PW: ${KASM_VNC_PW:-changeme-desktop}
+    shm_size: "1gb"          # browsers/desktops need shared memory
+    mem_limit: 2g
+    volumes:
+      - kasm_profile:/home/kasm-user      # PERSISTENT home (settings, files, installs-in-home)
+      - agent_workspace:/workspace        # shared with sandbox
+    networks:
+      - agentos
+
+  gateway:
+    build:
+      context: ./docker/gateway
+    image: agno-gateway:latest
+    container_name: gateway
+    profiles: ["tools"]
+    restart: unless-stopped
+    ports:
+      - "4000:4000"   # ~~LiteLLM proxy (OpenAI-compatible)~~ STALE LABEL 2026-08-12:
+                      # LiteLLM is RETIRED (ADR-0042) — the gateway image has litellm
+                      # autostart=false (docker/gateway/supervisord.conf), so nothing
+                      # listens behind :4000 in this stack. Label only; port mapping unchanged.
+      - "4096:4096"   # OpenCode server
+    environment:
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-changeme-dev-key}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+    networks:
+      - agentos
+
+  # ---------------------------------------------------------------------------
+  # Temporal graph memory (ADR-0014): Neo4j + Graphiti MCP, pulled forward.
+  # ~~Graphiti's LLM + embeddings ride the LiteLLM gateway — no extra keys.~~
+  # RESOLVED 2026-08-12 (owner ruling): LiteLLM is RETIRED (ADR-0042) and
+  # graphiti-mcp below now goes DIRECT to NVIDIA NIM (integrate.api.nvidia.com)
+  # using the exact model IDs prod selects. NB: this compose file is NOT dev-only —
+  # it is the stack definition that gets mirrored to the VPS, so this is the
+  # deployed-elsewhere lane, not a laptop-local one. Verified against the live prod chain
+  # (ovh-files /data/probata/config/graphiti-case/portkeyfix.conf): prod's portkeyfix
+  # sidecar injects x-portkey-config whose targets are custom_host=integrate.api.nvidia.
+  # com with override_params models — Portkey is a pass-through there, so direct
+  # NIM locally is equivalent, and Portkey is bypassed temporarily by design.
+  # Both model IDs probe-verified HTTP 200 from this repo's NVIDIA_API_KEY 2026-08-12.
+  # ---------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5-community
+    container_name: neo4j
+    profiles: ["graph"]
+    restart: unless-stopped
+    ports:
+      - "7474:7474"   # Neo4j Browser (visual graph exploration)
+      - "7687:7687"   # bolt
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-graphiti-dev-password}
+      # capped for the 8GB VPS (heaviest single service on the box)
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - agentos
+
+  graphiti-mcp:
+    image: zepai/knowledge-graph-mcp:latest
+    container_name: graphiti-mcp
+    profiles: ["graph"]
+    restart: unless-stopped
+    ports:
+      - "8071:8000"   # MCP (streamable-http/SSE)
+    environment:
+      CONFIG_PATH: /config/config.yaml      # our yaml: neo4j + gateway models
+      BROWSER: "0"                          # kill the embedded FalkorDB browser (unused; V2 = slim image)
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphiti-dev-password}
+      # LLM + embeddings DIRECT to NVIDIA NIM (OpenAI-compatible) — see the
+      # section header above for the 2026-08-12 owner ruling + prod verification.
+      # ~~was: LiteLLM gateway http://gateway:4000/v1 (retired ADR-0042; dead in
+      # this stack — litellm autostart=false in the gateway image)~~
+      # OPENAI_API_URL feeds the config yaml (embedder path); OPENAI_BASE_URL
+      # is read natively by the openai SDK — needed because the image's LLM
+      # factory drops api_url (upstream bug, verified 2026-06-10).
+      # Model IDs live in docker/graphiti/config.yaml (llm.model / embedder.model)
+      # and MUST be real NIM ids — the old "nemotron"/"embed-text" names were
+      # LiteLLM-gateway aliases that direct NIM rejects.
+      OPENAI_API_KEY: ${NVIDIA_API_KEY:?NVIDIA_API_KEY must be set in .env (direct-NIM lane, 2026-08-12)}
+      OPENAI_API_URL: https://integrate.api.nvidia.com/v1
+      OPENAI_BASE_URL: https://integrate.api.nvidia.com/v1
+    volumes:
+      # mounted OVER the image's default config path — main.py's argparse
+      # default outranks the CONFIG_PATH env, so we replace the file itself
+      - ./docker/graphiti/config.yaml:/app/mcp/config/config.yaml:ro
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    networks:
+      - agentos
+
+# n8n runs on a SEPARATE server (owner decision 2026-06-10) — not in this stack.
+# It drives this platform over HTTP (/v1/... routes) from wherever it lives.
+
+networks:
+  agentos:
+
+volumes:
+  pgdata:
+  sbv_data:
+  sbv_uploads:
+  neo4j_data:
+  agent_workspace:     # shared sandbox <-> desktop
+  kasm_profile:        # persistent Kasm desktop home
+  # Cloudflare R2 bucket "nexus" mounted via the rclone volume plugin
+  # (config: /var/lib/docker-plugins/rclone/config/rclone.conf on the host).
+  r2-nexus:
+    driver: rclone
+    driver_opts:
+      remote: "r2:nexus"
+      allow_other: "true"
+      vfs_cache_mode: "writes"

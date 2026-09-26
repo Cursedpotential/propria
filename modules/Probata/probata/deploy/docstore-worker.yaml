@@ -1,0 +1,81 @@
+# =============================================================================
+# RETIRED 2026-09-25, kept for history. Correction by Claude Code · Opus 5.5 · 2026-09-26:
+#   - Docstore 0.8.1 (Codex, 2026-09-20) replaced this app. On 2026-09-20 it was stopped; the owner deleted
+#     it on 2026-09-25. Nothing listens on 8474 now.
+#   - Worker and API now run inside the Coolify SERVICE propria-docstore-0-8-1 (uuid
+#     o8obobz576je1fbyygnywl83, image propria-docstore:0.8.1-rN on ovh-files). Its build context is
+#     /data/propria/releases/docstore-0.8.1, which is in no git repository.
+#   - That service publishes the API on 8072, and svc:docstore-api proxies to it (2026-09-26).
+#   - The source mirror is /data/propria/releases/docstore-0.8.1/sources, fed by `client.py sync`.
+#   - Receipts: docs/pending-review/2026-09-20-docstore-0.8.1-r1/ and docs/pending-review/2026-09-26-docstore-0.8.1-r2/.
+# ~~DOCSTORE-WORKER - keeps the cloud docstore (surreal-docs) in sync with the repo and serves its API.~~
+# Owner orders 2026-09-10: run on the server on a cron; use CocoIndex change detection so only changed
+# files re-index and every re-index updates the database; add a reranker; expose an HTTP API for a
+# front end; build the document graph; always a bind-mount exchange folder.
+#
+# Byline: Claude Code · Opus 5 · 2026-09-10
+#
+# Coolify "Docker Compose" app on ovh-files, deployed from main like surreal-case / surreal-docs.
+# Watch paths: docs/**, scripts/docstore/**, deploy/docstore-worker.yaml, deploy/docker/docstore-worker/**
+#   -> a docs push rebuilds + restarts the worker, and its start-up sync pass is the change event.
+# Coolify scheduled task: python scripts/docstore/worker_sync.py (periodic resync, graph, health).
+# Coolify env: BIND_IP=100.91.190.107, SURREAL_DOCS_USER, SURREAL_DOCS_PASS, NVIDIA_API_KEY,
+#   VOYAGE_API_KEY, optional DOCSTORE_API_TOKEN. Never in this file.
+# Client API: https://docstore-api.tilapia-skilift.ts.net (svc:docstore-api).
+# Canonical backend: 8072 (80=machine HTTP, 72=Docstore). Temporary 8474 remains
+# during the no-downtime service repoint. Port 8473 belongs to surreal-intake.
+# HOST-PREP (once): install -d -m 0750 /data/probata/volumes/docstore-worker
+#                   install -d -m 0775 /data/probata/exchange/docstore-worker
+# =============================================================================
+
+services:
+  docstore-worker:
+    build:
+      context: .
+      dockerfile: deploy/docker/docstore-worker/Dockerfile
+    container_name: docstore-worker
+    restart: unless-stopped
+    environment:
+      SURREAL_DOCS_URL: ${SURREAL_DOCS_URL:-wss://surreal-docs.tilapia-skilift.ts.net}
+      SURREAL_DOCS_USER: ${SURREAL_DOCS_USER:?set SURREAL_DOCS_USER in Coolify env}
+      SURREAL_DOCS_PASS: ${SURREAL_DOCS_PASS:?set SURREAL_DOCS_PASS in Coolify env}
+      # flow_docs.py reads the SURREAL_* names
+      SURREAL_URL: ${SURREAL_DOCS_URL:-wss://surreal-docs.tilapia-skilift.ts.net}
+      SURREAL_USER: ${SURREAL_DOCS_USER:?set SURREAL_DOCS_USER in Coolify env}
+      SURREAL_PASS: ${SURREAL_DOCS_PASS:?set SURREAL_DOCS_PASS in Coolify env}
+      SURREAL_NS: probata
+      SURREAL_DB: docs
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:?set NVIDIA_API_KEY in Coolify env}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      DOCSTORE_API_TOKEN: ${DOCSTORE_API_TOKEN:-}
+      DOCSTORE_COCOINDEX_DB: /data/state/cocoindex_state.db
+      DOCSTORE_SYNC_LOCK: /data/state/sync.lock
+      DOCSTORE_RUN_STATUS: /data/state/latest-run.json
+      DOCSTORE_RUN_RECEIPTS: /data/state/runs
+      DOCSTORE_MAX_RSS_MB: "3000"
+      # Multi-root ingestion (owner 2026-09-14: every registered project root, docs -> CocoIndex -> SurrealDB).
+      # Both come from Coolify env; unset = legacy Probata-only source. The registry and the six
+      # source roots live in the bind-mounted exchange projection (/exchange/sources). Fail-closed:
+      # a missing required root aborts the sync, the API stays up.  Byline: Claude Code · Fable 5.1 · 2026-09-14
+      DOCSTORE_PROJECT_REGISTRY: ${DOCSTORE_PROJECT_REGISTRY:-}
+      DOCSTORE_MULTI_ROOT_ENABLED: ${DOCSTORE_MULTI_ROOT_ENABLED:-}
+      DOCSTORE_INGEST_TIMEOUT_S: ${DOCSTORE_INGEST_TIMEOUT_S:-3600}
+      COCOINDEX_MAX_INFLIGHT_COMPONENTS: ${COCOINDEX_MAX_INFLIGHT_COMPONENTS:-4}
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8072:8000"   # canonical backend; clients use svc:docstore-api
+      - "${BIND_IP:-127.0.0.1}:8474:8000"   # transitional only; remove after service repoint proof
+    volumes:
+      - /data/probata/volumes/docstore-worker:/data/state
+      - /data/probata/exchange/docstore-worker:/exchange
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,urllib.request,sys; value=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)); sys.exit(0 if value.get('ok') is True else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - probata
+
+networks:
+  probata:
+    external: true

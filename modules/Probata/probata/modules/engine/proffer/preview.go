@@ -1,0 +1,239 @@
+package proffer
+
+import (
+	"errors"
+	"time"
+)
+
+// PreviewDecisionSignalName is the Signal ProfferWorkflow listens on after
+// the verified normalized preview (and, for non-messaging context, the exact
+// versioned chunk generation) is persisted. It carries the operator's
+// approve/reject decision. This is a real Temporal Signal, so the hold
+// survives worker restart or replica change.
+const PreviewDecisionSignalName = "preview_decision"
+
+const RepairDecisionSignalName = "repair_decision"
+
+// PreviewQueryName reads current repair, handler-selection, and final context
+// preview state. Queries, like Signals, are served from workflow history and
+// work against any worker, including after closure within retention.
+const PreviewQueryName = "preview"
+
+// OperationQueryName exposes the complete, reference-only lifecycle of a
+// Proffer execution. Unlike PreviewQueryName, it is registered before the
+// first Activity is scheduled so an operator can always reopen a run while it
+// is registering, retaining, parsing, waiting for review, or terminating.
+const OperationQueryName = "operation"
+
+// previewDecisionTimeout bounds how long the hold waits for
+// PreviewDecisionSignalName before failing the run closed. This is a real
+// Temporal Timer (workflow.NewTimer), backed by the Temporal server itself —
+// not bounded by any Activity's StartToCloseTimeout — so it is independent
+// of engine/proffer/options.go's per-stage Activity timeouts.
+const previewDecisionTimeout = 24 * time.Hour
+
+// PreviewPhase is the human-readable lifecycle position of the preview
+// hold, as reported by PreviewState.
+type PreviewPhase string
+
+const (
+	PhaseStarting                 PreviewPhase = "starting"
+	PhaseAwaitingHandlerSelection PreviewPhase = "awaiting_handler_selection"
+	PhaseHandlerSelected          PreviewPhase = "handler_selected"
+	PhaseAwaitingDecision         PreviewPhase = "awaiting_decision"
+	PhaseAwaitingRepairDecision   PreviewPhase = "awaiting_repair_decision"
+	PhaseRepairApproved           PreviewPhase = "repair_approved"
+	PhaseApproved                 PreviewPhase = "approved"
+	PhaseRejected                 PreviewPhase = "rejected"
+	PhaseRerunRequired            PreviewPhase = "rerun_required"
+	PhaseTimedOut                 PreviewPhase = "timed_out"
+)
+
+// ErrPreviewRerunRequired is returned when a preview decision proposes a
+// different parser selection or parser-options reference. Those changes can
+// only be applied by creating a new immutable extraction attempt. The current
+// workflow fails closed instead of approving bytes produced by the old
+// configuration under the new configuration's name.
+var ErrPreviewRerunRequired = errors.New("preview changes require a new immutable extraction attempt")
+
+// PreviewDecision is the human operator's approve/reject input, sent as
+// PreviewDecisionSignalName's payload.
+type PreviewDecision struct {
+	Approved                 bool   `json:"approved"`
+	Reason                   string `json:"reason,omitempty"`
+	Decider                  string `json:"decider"`
+	RepairedSelectionRef     Ref    `json:"repaired_selection_ref,omitempty"`
+	RepairedParserOptionsRef Ref    `json:"repaired_parser_options_ref,omitempty"`
+}
+
+// RepairDecision contains only the durable decision registry. The HTTP
+// surface persists the authenticated actor-bound decision before signaling.
+type RepairDecision struct {
+	DecisionRef Ref `json:"decision_ref"`
+}
+
+type RepairDecisionSpec struct {
+	SourceVersionRef Ref            `json:"source_version_ref"`
+	AssessmentRef    Ref            `json:"assessment_ref"`
+	ActorRef         Ref            `json:"actor_ref"`
+	Approved         bool           `json:"approved"`
+	ApplyRepair      bool           `json:"apply_repair"`
+	ToolID           string         `json:"tool_id,omitempty"`
+	ToolPayload      map[string]any `json:"tool_payload,omitempty"`
+	IdempotencyKey   string         `json:"idempotency_key"`
+}
+
+// PreviewState is PreviewQueryName's reference-only response for repair,
+// handler selection, normalized content, optional chunk generation, and the
+// current human-review phase.
+type PreviewState struct {
+	Phase                    PreviewPhase          `json:"phase"`
+	PreviewHandle            Ref                   `json:"preview_handle,omitempty"`
+	PackageRef               Ref                   `json:"package_ref,omitempty"`
+	AttemptRef               Ref                   `json:"attempt_ref,omitempty"`
+	SourceVersionRef         Ref                   `json:"source_version_ref,omitempty"`
+	SourceRepresentationRef  Ref                   `json:"source_representation_ref,omitempty"`
+	ChunkGenerationRef       Ref                   `json:"chunk_generation_ref,omitempty"`
+	ChunkReceiptRef          Ref                   `json:"chunk_receipt_ref,omitempty"`
+	RepairAssessmentRef      Ref                   `json:"repair_assessment_ref,omitempty"`
+	SelectRef                Ref                   `json:"select_ref"`
+	ParserOptionsRef         Ref                   `json:"parser_options_ref,omitempty"`
+	Reason                   string                `json:"reason,omitempty"`
+	RepairAssessment         *RepairAssessmentView `json:"repair_assessment,omitempty"`
+	Checkpoints              []PreviewCheckpoint   `json:"checkpoints,omitempty"`
+	HandlerRecommendationRef Ref                   `json:"handler_recommendation_ref,omitempty"`
+	HandlerDecisionRef       Ref                   `json:"handler_decision_ref,omitempty"`
+	DetectedFormat           string                `json:"detected_format,omitempty"`
+	DetectedFormatRef        Ref                   `json:"detected_format_ref,omitempty"`
+	SignatureRef             Ref                   `json:"signature_ref,omitempty"`
+	RecommendedHandler       *HandlerCandidate     `json:"recommended_handler,omitempty"`
+	AlternativeHandlers      []HandlerCandidate    `json:"alternative_handlers,omitempty"`
+}
+
+// PreviewCheckpointStatus is the live, context-only progress of one of the
+// six import checkpoints shown before the full normalized preview is ready.
+// These statuses are operational intake state, not evidence custody or a
+// promotion decision.
+type PreviewCheckpointStatus string
+
+const (
+	CheckpointPending   PreviewCheckpointStatus = "pending"
+	CheckpointRunning   PreviewCheckpointStatus = "running"
+	CheckpointCompleted PreviewCheckpointStatus = "completed"
+	CheckpointFailed    PreviewCheckpointStatus = "failed"
+)
+
+// PreviewCheckpoint is intentionally compact enough to live in Temporal
+// workflow state. The full preview remains gated until PublishPreview; this
+// only reports stage status and the durable receipt once one exists.
+type PreviewCheckpoint struct {
+	Checkpoint string                  `json:"checkpoint"`
+	Status     PreviewCheckpointStatus `json:"status"`
+	ReceiptRef Ref                     `json:"receipt_ref,omitempty"`
+	Reason     string                  `json:"reason,omitempty"`
+}
+
+func newPreviewCheckpoints(enabled bool) []PreviewCheckpoint {
+	if !enabled {
+		return nil
+	}
+	return []PreviewCheckpoint{
+		{Checkpoint: "raw_source_verification", Status: CheckpointPending},
+		{Checkpoint: "parser_selection", Status: CheckpointPending},
+		{Checkpoint: "parser_execution", Status: CheckpointPending},
+		{Checkpoint: "normalization", Status: CheckpointPending},
+		{Checkpoint: "storage", Status: CheckpointPending},
+		{Checkpoint: "completeness", Status: CheckpointPending},
+	}
+}
+
+func (s *PreviewState) setCheckpoint(checkpoint string, status PreviewCheckpointStatus, receipt Ref, reason string) {
+	for index := range s.Checkpoints {
+		if s.Checkpoints[index].Checkpoint != checkpoint {
+			continue
+		}
+		s.Checkpoints[index].Status = status
+		s.Checkpoints[index].ReceiptRef = receipt
+		s.Checkpoints[index].Reason = reason
+		return
+	}
+}
+
+// RepairAssessmentView is the reference-only human-gate projection. Detailed
+// detector output remains in PostgreSQL and never enters Temporal history.
+type RepairAssessmentView struct {
+	AssessmentRef    Ref  `json:"assessment_ref"`
+	SourceVersionRef Ref  `json:"source_version_ref"`
+	ReviewRequired   bool `json:"review_required"`
+}
+
+// OperationLifecycle is the current externally meaningful state of one
+// Proffer execution. Review waits are first-class lifecycle values rather than
+// an overloaded generic "running" status so an operator can filter for work
+// that needs a decision.
+type OperationLifecycle string
+
+const (
+	OperationRunning                 OperationLifecycle = "running"
+	OperationAwaitingRepairDecision  OperationLifecycle = "awaiting_repair_decision"
+	OperationAwaitingPreviewDecision OperationLifecycle = "awaiting_preview_decision"
+	// OperationRerunRequired is terminal for this immutable attempt. The
+	// operator may start a successor attempt from the retained package; this
+	// workflow never mutates or relabels the completed extraction in place.
+	OperationRerunRequired OperationLifecycle = "rerun_required"
+	OperationCompleted     OperationLifecycle = "completed"
+	OperationFailed        OperationLifecycle = "failed"
+	// OperationUnavailable is emitted by the HTTP read facade when the durable
+	// Temporal query cannot currently be served. Work is never guessed to have
+	// succeeded or failed from an incomplete projection.
+	OperationUnavailable OperationLifecycle = "unavailable"
+)
+
+// OperationWait identifies the human input, if any, that can advance a held
+// workflow. It deliberately contains no actor or decision payload.
+type OperationWait string
+
+const (
+	OperationWaitRepairDecision  OperationWait = "repair_decision"
+	OperationWaitPreviewDecision OperationWait = "preview_decision"
+)
+
+// OperationStage is the compact query projection of one settled Activity.
+// Source bytes and decoded records never enter workflow queries.
+type OperationStage struct {
+	Stage      ActivityName `json:"stage"`
+	Status     Status       `json:"status"`
+	Ref        Ref          `json:"ref,omitempty"`
+	ReceiptRef Ref          `json:"receipt_ref,omitempty"`
+	Reason     string       `json:"reason,omitempty"`
+}
+
+// OperationState is returned by OperationQueryName. ActiveStages is populated
+// for bounded fan-out; CurrentStage is the first still-active stage and gives
+// simple clients a stable scalar without concealing concurrent work.
+type OperationState struct {
+	Lifecycle               OperationLifecycle `json:"lifecycle"`
+	CurrentStage            ActivityName       `json:"current_stage,omitempty"`
+	ActiveStages            []ActivityName     `json:"active_stages"`
+	Wait                    OperationWait      `json:"wait,omitempty"`
+	Terminal                bool               `json:"terminal"`
+	Reason                  string             `json:"reason,omitempty"`
+	PackageRef              Ref                `json:"package_ref,omitempty"`
+	AttemptRef              Ref                `json:"attempt_ref,omitempty"`
+	SourceVersionRef        Ref                `json:"source_version_ref,omitempty"`
+	SourceRepresentationRef Ref                `json:"source_representation_ref,omitempty"`
+	ChunkGenerationRef      Ref                `json:"chunk_generation_ref,omitempty"`
+	ChunkReceiptRef         Ref                `json:"chunk_receipt_ref,omitempty"`
+	CompletedStageCount     int                `json:"completed_stage_count"`
+	Stages                  []OperationStage   `json:"stages"`
+	// The derive route's terminal summary. Empty on every other route.
+	// Byline: Claude Code · Opus 5 · 2026-09-20
+	DeriveManifestRef Ref    `json:"derive_manifest_ref,omitempty"`
+	DeriveManifestURI string `json:"derive_manifest_uri,omitempty"`
+	DerivedChunkCount int    `json:"derived_chunk_count,omitempty"`
+	// DerivedThreadsPrefix is the folder a batch import can be started on.
+	// The derive route deliberately does not auto-start it; it returns the
+	// locator and a human decides (owner build order step 4).
+	// Byline: Claude Code · Opus 5 · 2026-09-21
+	DerivedThreadsPrefix string `json:"derived_threads_prefix,omitempty"`
+}

@@ -1,0 +1,69 @@
+"""Sentiment analysis runtime router for workbench API.
+
+Byline: Codex · GPT-5 · 2026-08-16
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (unusable reply → 502, provider rate limit → 429; see model_errors)
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException
+
+from app.runtime.model_errors import MODEL_CALL_ERRORS, model_call_http_error
+from app.service.sentiment import sentiment_service
+from app.types.classification import (
+    BatchSentimentRequest,
+    BatchSentimentResponse,
+    SentimentRequest,
+    SentimentResponse,
+)
+
+router = APIRouter(prefix="/api/sentiment", tags=["sentiment"])
+
+
+@router.post(
+    "/analyze",
+    response_model=SentimentResponse,
+    summary="Analyze sentiment of a single text",
+    description="""
+Analyze the sentiment of a single text.
+
+Returns sentiment label (positive/negative/neutral/mixed), score (-1 to 1),
+emotion breakdown, reasoning, and raw response.
+
+**Providers**: ollama, nvidia, openrouter, anthropic, openai, google, groq, portkey
+    """,
+    response_description="Sentiment analysis result with label, score, and emotions",
+)
+async def analyze_sentiment(request: SentimentRequest) -> SentimentResponse:
+    """Analyze sentiment of a single text."""
+    try:
+        return await sentiment_service.analyze(request)
+    except MODEL_CALL_ERRORS as e:
+        raise model_call_http_error(e)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sentiment analysis failed: {e}")
+
+
+@router.post(
+    "/batch",
+    response_model=BatchSentimentResponse,
+    summary="Analyze sentiment of multiple texts in batch",
+    description="""
+Analyze sentiment of multiple texts in parallel (max 100 texts per request).
+
+Returns list of sentiment results with total latency.
+    """,
+    response_description="Batch sentiment analysis results with total latency",
+)
+async def analyze_batch(request: BatchSentimentRequest) -> BatchSentimentResponse:
+    """Analyze sentiment of multiple texts in batch."""
+    try:
+        return await sentiment_service.analyze_batch(request)
+    except MODEL_CALL_ERRORS as e:
+        raise model_call_http_error(e)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Batch sentiment analysis failed: {e}")

@@ -1,0 +1,187 @@
+{
+  "$schema": "D12-evidence-receipt-v1",
+  "receipt_id": "D05-20260923-W08-exact-target-r1",
+  "byline": "Codex D05 · GPT-6 · 2026-09-23",
+  "status": "unit_tested_partial",
+  "proof_level": "UNIT_TESTED",
+  "candidate": {
+    "repository": "https://github.com/Cursedpotential/probata",
+    "base_commit": "382acf6a8f1f919b6f3abc02de40f946629d8461",
+    "commit": "d08718221322239d68066192bb99f8184597d150",
+    "commit_role": "source implementation head before this receipt amendment; the receipt commit cannot contain its own SHA",
+    "branch": "codex/d05-exact-review-targets-20260923",
+    "pull_request": "https://github.com/Cursedpotential/probata/pull/30",
+    "worktree": "E:/AI_Workspace/Projects/Propria/_worktrees/probata-d05-exact-review-targets",
+    "changed_files": [
+      "docs/pending-review/d05/D05_EVIDENCE_RECEIPT_2026-09-23.json",
+      "docs/pending-review/d05/D05_GITLEAKS_2026-09-23.json",
+      "docs/pending-review/d05/D05_INDEPENDENT_REVIEW_2026-09-23.md",
+      "docs/pending-review/d05/D05_LINKED_IDS_AND_CLAIMS.json",
+      "modules/engine/postgres/proffer_preview_store.go",
+      "modules/engine/postgres/proffer_preview_store_test.go",
+      "modules/engine/runtimeapi/previewmodel/model.go",
+      "modules/engine/runtimeapi/proffer_preview.go",
+      "modules/engine/runtimeapi/proffer_preview_test.go",
+      "modules/workbench/api/app/runtime/proffer.py",
+      "modules/workbench/api/app/service/proffer.py",
+      "modules/workbench/api/app/service/flags.py",
+      "modules/workbench/api/app/service/proffer_flags.py",
+      "modules/workbench/api/tests/test_proffer_potential_promotion_flags.py",
+      "server/api/inspect_routes.py",
+      "tests/test_inspect_routes.py"
+    ]
+  },
+  "assertions": [
+    {
+      "finding_ids": ["PB05"],
+      "work_item_ids": ["W08"],
+      "acceptance_ids": ["AC-F-PB05"],
+      "assertion": "The original candidate resolved off-page record and chunk targets, but lookup and flag persistence were separate operations; current-at-write atomicity was not established.",
+      "result": "partial_local_tests_with_open_concurrency_gap",
+      "limits": "The original candidate did not test a snapshot advance between target lookup and flag creation. PostgreSQL query and deployed BFF/Go exchange were not exercised against a live service."
+    },
+    {
+      "finding_ids": ["PB05"],
+      "work_item_ids": ["W08"],
+      "acceptance_ids": ["AC-F-PB05", "AC-W-W08"],
+      "assertion": "Entity annotation remains unavailable before submit because current preview content exposes no governed entity reader.",
+      "result": "open_explicitly_unavailable"
+    }
+  ],
+  "verification": [
+    {"command": "go test ./runtimeapi/... ./postgres/...", "workdir": "modules/engine", "result": "passed", "exit_code": 0},
+    {"command": "uv run --no-project --python <existing Probata uv-managed venv> python -m pytest -q modules/workbench/api/tests/test_proffer_potential_promotion_flags.py modules/workbench/api/tests/test_proffer_mode_isolation.py", "workdir": "Probata isolated worktree root", "result": "52 passed, 1 deprecation warning", "exit_code": 0},
+    {"command": "uv run --extra dev ruff check <three changed Workbench Python files>", "result": "passed", "exit_code": 0},
+    {"command": "git diff --cached --check", "result": "passed", "exit_code": 0},
+    {"command": "Official Gitleaks 8.30.0 dir scan of all nine PR files, --redact --report-format json", "result": "zero findings", "exit_code": 0, "release_zip_sha256": "54fe94f644b832dd08e8c3a5915efb3bfa862386d59fb27ca0792cb687a83573", "checksum_verified_against_official_release": true}
+  ],
+  "ci": {
+    "state": "hold",
+    "reason": "GitHub Validate ruff format gate fails on two untouched baseline files: tests/test_authentik_deploy_contract.py and tests/test_docker_user_firewall_contract.py. Both have an empty PR diff; the same format failure was reproduced locally.",
+    "merge": "not_performed",
+    "go_engine": "passed",
+    "codeql": "passed",
+    "live_integration": "skipped by GitHub workflow; not claimed"
+  },
+  "negative_cases": ["off-page target succeeds", "absent target denies", "stale attempt denies", "entity denies before write", "wrong preview handle denies", "uncorrelated upstream response denies"],
+  "independent_reviewer": "Exact fd8f8aa8b23eb25a2a5cdb0b5cf9e403e1343ea0 review: HOLD for replay and receipt lineage; d08718221322239d68066192bb99f8184597d150 re-review pending",
+  "last_independent_review": {
+    "reviewed_pr_head": "fd8f8aa8b23eb25a2a5cdb0b5cf9e403e1343ea0",
+    "reviewed_pr_commit_count_from_base": 9,
+    "result": "HOLD: signed-request replay and receipt lineage",
+    "gitleaks": "Official 8.30.0 redacted origin/main..fd8f8aa scan: 9 commits, zero findings",
+    "gitleaks_report": "E:/AI_Workspace/Projects/Propria/.reconciliation/2026-09-23-orchestration-input/agents/PR30/gitleaks-full-pr-head-fd8f8aa.json",
+    "gitleaks_report_sha256": "37517E5F3DC66819F61F5A7BB8ACE1921282415F10551D2DEFA5C3EB0985B570"
+  },
+  "limitations": [
+    "No browser, native, live PostgreSQL, deployed service, sink readback, restore or release proof",
+    "No entity annotation until a governed frozen-proposal entity reader exists",
+    "No closure of the wider W08 correction and entity review acceptance"
+  ],
+  "amendments": [
+    {
+      "receipt_id": "D05-20260924-W08-atomic-flag-admission-r2",
+      "byline": "Codex remediation · GPT-5 · 2026-09-24",
+      "base_commit": "382acf6a8f1f919b6f3abc02de40f946629d8461",
+      "reviewed_parent_head": "fdd390d64122fdd411ad37aff370f0b2686fbde3",
+      "implementation_commit": "0a8b742699f2807521613d015f1c0e697fcad490",
+      "lineage": [
+        "a195c416d1aaf6be6886ad44539d5e6eba6be7ca",
+        "9dc5496bbecb3dcb4fca4336e54bc5b3fac5231e",
+        "f844050f9eab5a80fec85189ff2ab703f8acaf91",
+        "fdd390d64122fdd411ad37aff370f0b2686fbde3",
+        "0a8b742699f2807521613d015f1c0e697fcad490"
+      ],
+      "assertion": "Potential-promotion flag admission now validates the latest preview attempt and exact record/chunk target, then inserts the reversible flag inside the same PostgreSQL transaction while holding the per-preview advisory lock shared by snapshot writers. A stale request or absent target is rejected before insert.",
+      "result": "passed_local_tests",
+      "scope": [
+        "modules/engine/postgres/proffer_preview_store.go",
+        "modules/engine/runtimeapi/previewmodel/model.go",
+        "modules/engine/runtimeapi/proffer_preview.go",
+        "modules/engine/runtimeapi/proffer_preview_test.go",
+        "modules/workbench/api/app/runtime/proffer.py",
+        "modules/workbench/api/app/service/proffer.py",
+        "modules/workbench/api/app/service/proffer_flags.py",
+        "modules/workbench/api/app/service/flags.py",
+        "modules/workbench/api/tests/test_proffer_potential_promotion_flags.py",
+        "server/api/inspect_routes.py",
+        "tests/test_inspect_routes.py"
+      ],
+      "verification": [
+        {"command": "go test ./runtimeapi/... ./postgres/...", "workdir": "modules/engine", "result": "passed", "exit_code": 0},
+        {"command": "uv run --no-project --python <existing Probata uv-managed venv> python -m pytest -q tests/test_proffer_potential_promotion_flags.py tests/test_proffer_mode_isolation.py", "workdir": "modules/workbench/api", "result": "53 passed, 1 dependency deprecation warning", "exit_code": 0},
+        {"command": "uv run --no-project --python <existing Probata uv-managed venv> python -m pytest -q tests/test_inspect_routes.py -k 'proffer_flag or create_flag or list_flags or patch_flag'", "workdir": "Probata isolated worktree root", "result": "12 passed, 1 dependency deprecation warning", "exit_code": 0},
+        {"command": "uv run --no-project --python <existing Probata uv-managed venv> ruff check <seven changed Python files>", "result": "passed", "exit_code": 0},
+        {"command": "uv run --no-project --python <existing Probata uv-managed venv> ruff format --check <seven changed Python files>", "result": "passed", "exit_code": 0},
+        {"command": "uv run --no-project --python <existing Probata uv-managed venv> python -m mypy --follow-imports=skip --config-file pyproject.toml <five Workbench source/test files>", "workdir": "modules/workbench/api", "result": "no issues found in 5 source files", "exit_code": 0},
+        {"command": "Official Gitleaks 8.30.0 dir scan of seven changed Python files --redact 100", "result": "zero findings", "exit_code": 0},
+        {"command": "git diff --check", "result": "passed", "exit_code": 0}
+      ],
+      "baseline_observations": [
+        "Full tests/test_inspect_routes.py has three pre-existing failures because this branch does not contain the retired sql/0007_curation_and_flags.sql migration file; all 12 flag-route-focused tests passed.",
+        "Import-following targeted mypy still reports existing errors in unrelated Workbench modules, an unchanged nullable search parameter at app/runtime/proffer.py:212, and pre-existing annotations/indexing in tests/test_inspect_routes.py. Import-skipping mypy for the five changed Workbench source/test files passed, including the repaired tuple-inference test."
+      ],
+      "limits": "The admission/advance case is covered with a controlled API-store test double, not a live PostgreSQL concurrency test. No deployed service, browser, sink readback, or release proof is claimed. The original independent review findings and earlier evidence above are preserved."
+    },
+    {
+      "receipt_id": "D05-20260924-W08-provenance-integrity-r3",
+      "byline": "Codex PR30 remediation · GPT-6 · 2026-09-24",
+      "reviewed_parent_head": "14ca980f8d81714ce1e8af4ec50a72bc2492ed1c",
+      "implementation_commit": "380018a0addd4824bdf1ab2c414f9561683a117b",
+      "assertion": "The flag spine rejects a forged or expired BFF delegation signature before database access and compares the requested TEST/REAL mode with the source version's durable matter_id inside the current-attempt transaction. Ordinary POST/PATCH flag routes cannot create or replace the reserved Proffer JSON contract, and the Proffer list uses a single ordered query with an explicit 2000-row overflow error. The INSERT uses a PostgreSQL text[] empty array.",
+      "result": "passed_local_tests_with_postgresql_integration_pending",
+      "scope": [
+        "modules/workbench/api/app/service/flags.py",
+        "modules/workbench/api/app/service/proffer_flags.py",
+        "modules/workbench/api/tests/test_proffer_potential_promotion_flags.py",
+        "server/api/inspect_routes.py",
+        "tests/test_inspect_routes.py"
+      ],
+      "verification": [
+        {"command": "Focused shared flag routes pytest", "result": "15 passed; PostgreSQL text[] integration probe skipped because PROBATA_TEST_POSTGRES_DSN is not configured", "exit_code": 0},
+        {"command": "Full tests/test_inspect_routes.py", "result": "59 passed, 2 failed, 2 skipped; both failures assert the retired sql/0007_curation_and_flags.sql file exists", "exit_code": 1},
+        {"command": "Workbench Proffer flags and mode-isolation pytest", "result": "55 passed, 1 dependency deprecation warning", "exit_code": 0},
+        {"command": "Ruff check and format --check on five changed Python files", "result": "passed", "exit_code": 0},
+        {"command": "Targeted mypy --follow-imports=skip on three changed Workbench service/test files", "result": "passed", "exit_code": 0},
+        {"command": "go test and go vet ./runtimeapi/... ./postgres/...", "workdir": "modules/engine", "result": "passed", "exit_code": 0},
+        {"command": "Official Gitleaks 8.30.0 git origin/main..380018a --redact=100", "result": "7 commits scanned; zero findings; tool release ZIP checksum verified", "exit_code": 0},
+        {"command": "git diff --cached --check", "result": "passed", "exit_code": 0}
+      ],
+      "deployment_requirements": [
+        "Mount the same independent /run/secrets/proffer-flag-delegation-key file into the Workbench BFF and Platform API; 32-4096 bytes; do not reuse the broad Platform bearer.",
+        "Configure PROFFER_TEST_MATTER_ID and PROFFER_REAL_MATTER_ID in the Platform API to match the Workbench matter identities. Missing or mismatched values fail closed.",
+        "Exercise the text[] INSERT and current-attempt transaction against disposable PostgreSQL before release. No live database write was performed here."
+      ],
+      "limits": "No disposable PostgreSQL DSN was available; the opt-in PostgreSQL test is skipped. No live service/browser integration or deployment proof. The provenance still uses reserved JSON notes under the current no-migrations schema policy; generic API writes are blocked, but direct privileged SQL writes are outside this route boundary. Independent re-review and shared CI remain required."
+    },
+    {
+      "receipt_id": "D05-20260924-W08-idempotent-replay-r4",
+      "byline": "Codex PR30 remediation · GPT-6 · 2026-09-24",
+      "reviewed_parent_head": "fd8f8aa8b23eb25a2a5cdb0b5cf9e403e1343ea0",
+      "implementation_source_head": "d08718221322239d68066192bb99f8184597d150",
+      "source_commit_count_from_base": 10,
+      "gitleaks_report": "E:/AI_Workspace/Projects/Propria/.reconciliation/2026-09-23-orchestration-input/agents/PR30/gitleaks-full-pr-source-d087182.json",
+      "gitleaks_report_sha256": "37517E5F3DC66819F61F5A7BB8ACE1921282415F10551D2DEFA5C3EB0985B570",
+      "assertion": "The BFF derives a stable SHA-256 idempotency key from the canonical actor/mode/handle/attempt/scope/target/claim request, signs the key with the delegation payload, and the Platform API verifies the key. After current matter/attempt/target checks, it queries exact existing claim and notes under the same preview advisory transaction lock and returns one existing flag. A second simultaneous identical request waits and reuses that row; a conflicting key/body is rejected before database access, and a replay after attempt advance remains 409.",
+      "result": "passed_local_controlled_concurrency_tests_live_postgresql_pending",
+      "scope": [
+        "modules/workbench/api/app/service/flags.py",
+        "modules/workbench/api/tests/test_proffer_potential_promotion_flags.py",
+        "server/api/inspect_routes.py",
+        "tests/test_inspect_routes.py"
+      ],
+      "verification": [
+        {"command": "Focused shared flag API pytest", "result": "17 passed, 1 optional disposable PostgreSQL test skipped", "exit_code": 0},
+        {"command": "Full tests/test_inspect_routes.py", "result": "60 passed, 2 failures asserting the retired sql/0007 file exists, 2 skipped", "exit_code": 1},
+        {"command": "Workbench Proffer flags and mode-isolation pytest", "result": "55 passed, 1 dependency deprecation warning", "exit_code": 0},
+        {"command": "Ruff lint and format on four changed Python files", "result": "passed", "exit_code": 0},
+        {"command": "Targeted Workbench mypy with imports skipped", "result": "no issues in two changed Workbench files", "exit_code": 0},
+        {"command": "go test and go vet ./runtimeapi/... ./postgres/...", "workdir": "modules/engine", "result": "passed", "exit_code": 0},
+        {"command": "Official Gitleaks 8.30.0 redacted git origin/main..d087182", "result": "10 commits scanned, zero findings", "exit_code": 0},
+        {"command": "git diff --cached --check", "result": "passed", "exit_code": 0}
+      ],
+      "limits": "Concurrency coverage uses a transaction-lock test double, not a live PostgreSQL concurrent insert. The advisory lookup is the idempotency authority under the current no-migrations policy; no database uniqueness constraint is claimed. This receipt records the source commit only. Its own eventual commit and pushed PR head are verified after commit/push, not recursively embedded."
+    }
+  ],
+  "sensitive_values_redacted": true
+}

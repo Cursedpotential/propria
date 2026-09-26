@@ -1,0 +1,27 @@
+# ⚠ NOT MOUNTED SINCE 2026-09-17 (Claude Code · Opus 5): memsearch-milvus now runs etcd
+# as its own `memsearch-etcd` service (deploy/memsearch-milvus.yaml). Kept for history.
+# ~~Embedded etcd config — mounted at /milvus/configs/embedEtcd.yaml (ETCD_CONFIG_PATH).~~
+# Byline: Claude Code · Opus 4.8 · 2026-06-13
+# From the official milvus standalone_embed.sh — lets Milvus run etcd in-process
+# (no separate etcd container).
+listen-client-urls: http://0.0.0.0:2379
+advertise-client-urls: http://0.0.0.0:2379
+quota-backend-bytes: 4294967296
+auto-compaction-mode: revision
+auto-compaction-retention: "1000"
+# Boot-race fix (2026-07-22): single-member embedded etcd on a busy VPS sees
+# 1.5s+ apply latencies at Milvus boot; default 100ms heartbeat / 1000ms
+# election flaps leadership -> Milvus sessionutil panics ("etcdserver: leader
+# changed") -> exit 134 crash loop (observed 3x). One-member cluster = no real
+# elections; these only govern self-leadership stability under I/O stall.
+# DRIFT-FIX 2026-08-12: repo copy was missing these two lines (host copy at
+# /data/probata/config/milvus/embedEtcd.yaml had them) — synced repo -> host.
+# ~~heartbeat-interval: 1000 / election-timeout: 10000~~
+# REVERTED TO DEFAULTS 2026-09-17 (Claude Code · Opus 5). On restart of a store that
+# has data, the single member waits one election timeout before electing itself;
+# Milvus's first read lands in that leaderless gap and fails "leader changed" ~7-10 s
+# after etcd start -> panic rc=134. Fresh stores self-elect at bootstrap, which is why
+# rebuilds booted and restarts looked like "corruption". Live config is the `configs:`
+# block in deploy/memsearch-milvus.yaml (no host copy is mounted).
+heartbeat-interval: 100
+election-timeout: 1000

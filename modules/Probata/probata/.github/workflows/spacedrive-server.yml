@@ -1,0 +1,436 @@
+# Byline: Claude Code · Sonnet 5 · 2026-09-16
+#
+# Owner order 2026-09-16: the Spacedrive gate on ovh-files runs a frozen
+# 2024-08 GHCR image that predates ephemeral (unindexed) filesystem browsing
+# and the FileInspector. Those exist on spacedriveapp/spacedrive `main`.
+# This workflow builds the SERVER (apps/server, sd-server) plus its embedded
+# web client (apps/web) straight from upstream `main` at a pinned commit,
+# using upstream's own recipe (apps/server/Dockerfile, documented in that
+# file's header comment: `bun install && bun run build` in apps/web/ to
+# produce apps/web/dist, which the Dockerfile then COPYs in and builds with
+# `--features sd-core/heif,sd-core/ffmpeg`). Pushed to GHCR under this repo's
+# owner (Cursedpotential), NOT upstream's own GHCR namespace.
+#
+# Trigger manually (workflow_dispatch) and pass a different `spacedrive_ref`
+# to rebuild against a newer upstream commit later; the default is the
+# commit verified live on 2026-09-16 (HEAD of spacedriveapp/spacedrive main).
+
+name: Spacedrive server (build from upstream source)
+
+on:
+  workflow_dispatch:
+    inputs:
+      spacedrive_ref:
+        description: "Commit SHA (or ref) in spacedriveapp/spacedrive to build"
+        required: false
+        default: "6dfeccf2113039e35f2ce735f945e70dc3e4ea45"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-spacedrive-server:
+    name: Build sd-server + web client, push to GHCR
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          remove-codeql: 'true'
+          remove-dotnet: 'true'
+          remove-haskell: 'true'
+          remove-android: 'true'
+          overprovision-lvm: 'true'
+          remove-docker-images: 'true'
+          root-reserve-mb: 2048
+
+      - name: Checkout spacedriveapp/spacedrive @ ${{ github.event.inputs.spacedrive_ref }}
+        uses: actions/checkout@v4
+        with:
+          repository: spacedriveapp/spacedrive
+          ref: ${{ github.event.inputs.spacedrive_ref }}
+          path: spacedrive-src
+          fetch-depth: 1
+
+      - name: Record resolved commit
+        id: sd_commit
+        working-directory: spacedrive-src
+        run: |
+          set -euo pipefail
+          full_sha="$(git rev-parse HEAD)"
+          short_sha="${full_sha:0:7}"
+          echo "full_sha=${full_sha}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "Building spacedriveapp/spacedrive @ ${full_sha}"
+
+      - name: Set up bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.0"
+
+      - name: Patch packages/ts-client — @tanstack/react-query required, not optional
+        working-directory: spacedrive-src
+        run: |
+          set -euo pipefail
+          # Vite's resolve.ts (tryNodeResolve) special-cases an import ONLY
+          # when the IMPORTER's nearest package.json lists the bare specifier
+          # in both peerDependencies AND peerDependenciesMeta[<name>].optional
+          # -- when that's true it returns the synthetic
+          # `__vite-optional-peer-dep:<id>:<pkg>` module (empty exports in a
+          # production build) INSTEAD of attempting normal resolution, not as
+          # a fallback after a failed one. Runs 35091382439/35092105916/
+          # 35092935671 all failed identically ("QueryClient is not exported
+          # by __vite-optional-peer-dep:@tanstack/react-query:@sd/ts-client")
+          # whether install was scoped to apps/web, run from the repo root,
+          # or given a `bun add ... --cwd packages/ts-client` afterwards --
+          # because none of that removes the optional:true flag that trips
+          # this special case in the first place. Fix at the source: drop
+          # `optional` from ts-client's peerDependenciesMeta and add it as a
+          # real dependency, matching the version packages/interface already
+          # uses, before the one-and-only `bun install` below.
+          python3 - <<'PY'
+          import json, pathlib
+          p = pathlib.Path("packages/ts-client/package.json")
+          data = json.loads(p.read_text())
+          data.setdefault("dependencies", {})["@tanstack/react-query"] = "^5.90.7"
+          meta = data.get("peerDependenciesMeta") or {}
+          if "@tanstack/react-query" in meta:
+              meta["@tanstack/react-query"].pop("optional", None)
+              if not meta["@tanstack/react-query"]:
+                  del meta["@tanstack/react-query"]
+          data["peerDependenciesMeta"] = meta
+          p.write_text(json.dumps(data, indent=2) + "\n")
+          PY
+          grep -A2 '"@tanstack/react-query"' packages/ts-client/package.json
+
+      - name: Install workspace deps (bun install at repo root)
+        working-directory: spacedrive-src
+        run: |
+          set -euo pipefail
+          # Installing from the workspace root (not just apps/web/) so bun
+          # hoists every packages/* workspace member consistently.
+          bun install
+          # vite's scss preprocessor (used by packages/interface's
+          # QuickPreview one-dark.scss) needs sass-embedded, which no
+          # package.json in this workspace declares as of the pinned
+          # commit (run 35090921970: "Preprocessor dependency
+          # sass-embedded not found").
+          bun add -D sass-embedded --cwd apps/web
+          ls -la node_modules/@tanstack/react-query 2>&1 || true
+          ls -la packages/ts-client/node_modules/@tanstack/react-query 2>&1 || true
+
+      - name: Build apps/web (produces apps/web/dist for the Dockerfile)
+        working-directory: spacedrive-src/apps/web
+        run: |
+          set -euo pipefail
+          bun run build
+          test -d dist && echo "apps/web/dist built: $(du -sh dist | cut -f1)"
+
+      - name: Write apps/server/Dockerfile — cargo-chef caching + prior upstream-build fixes
+        working-directory: spacedrive-src
+        run: |
+          set -euo pipefail
+          # 2026-09-17 (Claude Code · Sonnet 5): owner GO "wire caching into the
+          # Spacedrive server CI build so rebuilds against a newer upstream commit
+          # don't cost the full ~22 min compile". The single-stage Dockerfile below
+          # (upstream's original, already patched here for trixie/ffmpeg/force-warn)
+          # recompiles EVERY dependency from scratch on every run: its one COPY of
+          # core/crates/apps/server precedes its one `cargo build` RUN, so any change
+          # to spacedrive_ref invalidates that RUN's Docker layer regardless of
+          # `cache-from`/`cache-to` on the build-push-action step below. The
+          # `RUN --mount=type=cache,target=/root/.cargo/registry` (and .../git,
+          # .../target) mounts don't help across CI runs either: BuildKit cache
+          # MOUNTS live only in the local builder's state directory and are not
+          # exported by `cache-to` (any backend) -- only real image LAYERS are.
+          #
+          # Fix: cargo-chef (https://github.com/LukeMathWalker/cargo-chef, "How to
+          # use" section of that README, fetched 2026-09-17) splits the build into a
+          # `planner` stage that runs `cargo chef prepare` to emit recipe.json -- a
+          # fingerprint of the dependency graph derived from Cargo.lock/Cargo.toml
+          # only, NOT of application source -- and a `builder` stage that runs
+          # `cargo chef cook` against that recipe BEFORE copying real source. The
+          # `cook` RUN becomes a ordinary, cacheable Docker layer: as long as
+          # recipe.json is byte-identical to a previous build (Cargo.lock/manifests
+          # unchanged), `cache-from` reuses it even though spacedrive_ref has moved
+          # to a newer commit, and only the final `cargo build` (fast: workspace
+          # crates only, deps already compiled) reruns. `cache-to`/`cache-from` moves
+          # from `type=gha` to `type=registry` (ghcr.io/cursedpotential/
+          # spacedrive-server:buildcache) per Docker's own registry-cache-backend
+          # docs (docs.docker.com/manuals/build/cache/backends/registry, "efficiently
+          # cache multi-stage builds in max mode") -- avoids competing with every
+          # other job in this repo for the shared 10 GB GHA actions-cache budget,
+          # which a `mode=max` export of a Rust `target/` directory would blow
+          # through quickly.
+          #
+          # This step now WRITES apps/server/Dockerfile in full (previously it was
+          # patched incrementally in place with string-replacement + assert guards).
+          # A cargo-chef stage split isn't expressible as a small text substitution
+          # on upstream's single-stage file, so every earlier fix (trixie-slim base
+          # for libheif >= 1.17, the full ffmpeg-sys-next library set, clang for its
+          # bindgen step, disambiguated apt cache-mount ids, --force-warn for the
+          # `forbid(deprecated_in_future)` workspace crates) is carried into the new
+          # file as literal content instead of a patch, with the same rationale kept
+          # as comments below. RUSTFLAGS is identical between the `cook` and final
+          # `build` steps (set once via ENV in the builder stage) so their fingerprint
+          # matches and `cook`'s cached layer isn't invalidated by the final build
+          # using different flags. `curl` is added to the runtime stage (queued by
+          # the prior CI agent 2026-09-16: the image shipped no curl/wget/nc, so
+          # Consignatio's spacedrive-gate compose healthcheck
+          # `curl -sf -u "$SD_AUTH" http://127.0.0.1:8080/health` could never
+          # succeed in-container) and a matching Dockerfile HEALTHCHECK is declared;
+          # a compose-level `healthcheck:` block still overrides it if declared.
+          python3 - <<'PY'
+          import pathlib
+
+          dockerfile = r"""# Spacedrive Server Docker Image (probata CI build)
+          #
+          # Generated in full by .github/workflows/spacedrive-server.yml (not a patch
+          # of upstream's apps/server/Dockerfile) so the cargo-chef dependency-caching
+          # stage split and every earlier upstream-build fix stay visible in one
+          # place. See that workflow step's comments for full rationale citations.
+          #
+          # Prerequisite: apps/web/dist/ must exist in the build context (produced by
+          # `bun install && bun run build` in apps/web/, done earlier in the workflow).
+
+          ARG RUST_BUILD_FLAGS="--force-warn=deprecated_in_future --force-warn=deprecated"
+
+          # ---- stage: base -- build deps + Rust + cargo-chef. No app source is
+          # COPYed here, so this stage's layers stay cache-hit across every build as
+          # long as this file itself doesn't change. ----
+          FROM debian:trixie-slim AS base
+
+          # id= disambiguates this cache mount from the runtime stage's identical
+          # target path below -- BuildKit runs independent stages concurrently when
+          # possible and gives unnamed cache mounts the same id (keyed by target
+          # path), which previously raced both stages for /var/lib/apt/lists/lock.
+          RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-builder --mount=type=cache,target=/var/lib/apt,id=apt-lib-builder \
+          	apt-get update && apt-get install -y \
+          	build-essential \
+          	curl \
+          	git \
+          	pkg-config \
+          	libssl-dev \
+          	ca-certificates \
+          	cmake \
+          	nasm \
+          	libavcodec-dev \
+          	libavformat-dev \
+          	libavutil-dev \
+          	libavfilter-dev \
+          	libavdevice-dev \
+          	libswscale-dev \
+          	libswresample-dev \
+          	libpostproc-dev \
+          	libheif-dev \
+          	clang \
+          	libclang-dev
+
+          RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          ENV PATH="/root/.cargo/bin:$PATH"
+          RUN cargo install cargo-chef --version 0.1.78 --locked
+
+          WORKDIR /build
+
+          # ---- stage: planner -- compute the dependency recipe. Its output
+          # (recipe.json) is a fingerprint of Cargo.lock/Cargo.toml, not of the .rs
+          # source also copied here (cargo-chef needs the real manifests, including
+          # any path-dependency Cargo.tomls, to resolve the workspace). ----
+          FROM base AS planner
+          COPY Cargo.toml Cargo.lock ./
+          COPY .cargo ./.cargo
+          COPY core ./core
+          COPY crates ./crates
+          COPY apps/server ./apps/server
+          RUN cargo chef prepare --recipe-path recipe.json
+
+          # ---- stage: builder -- cook dependencies (the caching layer), then build
+          # the real binary. ----
+          FROM base AS builder
+          ARG RUST_BUILD_FLAGS
+          ENV RUSTFLAGS="${RUST_BUILD_FLAGS}"
+
+          COPY --from=planner /build/recipe.json recipe.json
+          # THE caching layer: matching -p/--features to the final `cargo build`
+          # below so cook compiles the exact same dependency feature set. As long as
+          # recipe.json is unchanged from a previous build, cache-from reuses this
+          # layer instead of recompiling every dependency crate -- this is what
+          # survives a spacedrive_ref bump to a newer upstream commit.
+          RUN cargo chef cook --release --recipe-path recipe.json -p sd-server --features sd-core/heif,sd-core/ffmpeg
+
+          COPY Cargo.toml Cargo.lock ./
+          COPY .cargo ./.cargo
+          COPY core ./core
+          COPY crates ./crates
+          COPY apps/server ./apps/server
+          # Embedded web UI assets -- must be pre-built before `docker build` runs.
+          COPY apps/web/dist ./apps/web/dist
+
+          # SD_SKIP_WEB_BUILD tells build.rs to use the pre-built apps/web/dist
+          # instead of trying to run `bun run build` (bun isn't installed in this
+          # stage). Dependencies are already compiled by `cargo chef cook` above, so
+          # this only compiles the workspace's own crates.
+          RUN SD_SKIP_WEB_BUILD=1 cargo build --release -p sd-server --features sd-core/heif,sd-core/ffmpeg && \
+          	cp target/release/sd-server /usr/local/bin/sd-server
+
+          #--
+          # Runtime image
+          #--
+          FROM debian:trixie-slim
+
+          RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime --mount=type=cache,target=/var/lib/apt,id=apt-lib-runtime \
+          	apt-get update && apt-get install -y \
+          	libssl3 \
+          	ca-certificates \
+          	curl \
+          	libavcodec61 \
+          	libavformat61 \
+          	libavutil59 \
+          	libavfilter10 \
+          	libavdevice61 \
+          	libswscale8 \
+          	libswresample5 \
+          	libpostproc58 \
+          	libheif1 \
+          	&& rm -rf /var/lib/apt/lists/*
+
+          # Create non-root user
+          RUN useradd -m -u 1000 spacedrive
+
+          # Copy binary
+          COPY --from=builder /usr/local/bin/sd-server /usr/bin/sd-server
+
+          # Environment
+          ENV DATA_DIR=/data \
+          	PORT=8080 \
+          	RUST_LOG=info,sd_core=debug
+
+          # Expose HTTP port
+          EXPOSE 8080
+
+          # Expose P2P port
+          EXPOSE 7373
+
+          # Volume for persistent data
+          VOLUME ["/data"]
+
+          # curl is installed above so this can run in-container. SD_AUTH/PORT are
+          # read from the container's own runtime environment at check time (shell
+          # form CMD expands them live, nothing is baked in at build time). A
+          # compose-level `healthcheck:` block still overrides this if declared --
+          # see Consignatio/Intake/docs/ops/2026-09-15-spacedrive-gate-docker-compose.yml
+          # for the existing (previously curl-less, now unblocked) definition.
+          HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=15s \
+          	CMD curl -sf -u "$SD_AUTH" "http://127.0.0.1:${PORT}/health" || exit 1
+
+          # Run as non-root user
+          USER spacedrive:spacedrive
+
+          # Start server
+          ENTRYPOINT ["/usr/bin/sd-server"]
+          CMD ["--data-dir", "/data"]
+          """
+
+          p = pathlib.Path("apps/server/Dockerfile")
+          p.write_text(dockerfile)
+          PY
+          cat apps/server/Dockerfile
+
+      - name: Patch root Cargo.toml — drop workspace members not in the build context
+        working-directory: spacedrive-src
+        run: |
+          set -euo pipefail
+          # Run 35093976607 (apt lock fix held) failed inside the builder
+          # stage's `cargo build`: "failed to load manifest for workspace
+          # member `/build/apps/mobile/modules/sd-mobile-core/core`... No
+          # such file or directory". Cargo eagerly loads the manifest for
+          # EVERY entry in [workspace].members when it loads the workspace,
+          # even ones excluded by `-p sd-server`. apps/server/Dockerfile
+          # only COPYs Cargo.toml/.lock, .cargo, core, crates, apps/server
+          # and apps/web/dist -- not apps/mobile, apps/cli or apps/tauri,
+          # which the root Cargo.toml still lists as active (uncommented)
+          # members. sd-server doesn't depend on those sibling apps, so
+          # comment them out of the copy of Cargo.toml used for this image
+          # build only (never touches the real repo).
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path("Cargo.toml")
+          text = p.read_text()
+          drop = [
+              '"apps/mobile/modules/sd-mobile-core/core"',
+              '"apps/cli"',
+              '"apps/tauri/sd-tauri-core"',
+              '"apps/tauri/src-tauri"',
+              '"xtask"',
+          ]
+          lines = text.splitlines(keepends=True)
+          out = []
+          hits = {d: 0 for d in drop}
+          for line in lines:
+              stripped = line.strip()
+              matched = None
+              for d in drop:
+                  if stripped == f'{d},' or stripped == d:
+                      matched = d
+                      break
+              if matched:
+                  hits[matched] += 1
+                  indent = line[: len(line) - len(line.lstrip("\t"))]
+                  out.append(f"{indent}# {stripped}\n")
+              else:
+                  out.append(line)
+          missing = [d for d, n in hits.items() if n == 0]
+          assert not missing, f"member entries not found, check formatting: {missing}"
+          p.write_text("".join(out))
+          PY
+          sed -n '1,20p' Cargo.toml
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push sd-server image
+        id: build_push
+        uses: docker/build-push-action@v6
+        with:
+          context: spacedrive-src
+          file: spacedrive-src/apps/server/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/cursedpotential/spacedrive-server:main-${{ steps.sd_commit.outputs.short_sha }}
+            ghcr.io/cursedpotential/spacedrive-server:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/spacedriveapp/spacedrive
+            org.opencontainers.image.revision=${{ steps.sd_commit.outputs.full_sha }}
+            org.opencontainers.image.version=main-${{ steps.sd_commit.outputs.short_sha }}
+            org.opencontainers.image.description=Spacedrive sd-server built from spacedriveapp/spacedrive main @ ${{ steps.sd_commit.outputs.full_sha }}
+            io.propria.built-by=Cursedpotential/probata .github/workflows/spacedrive-server.yml
+          # registry cache (not type=gha): mode=max exports every stage's
+          # layers, including the cargo-chef `cook` layer that lives only in
+          # the discarded `builder` stage -- without mode=max that layer
+          # would never be reused. A GHA-backed mode=max export of a Rust
+          # target/ directory competes with every other job in this repo for
+          # the shared 10 GB actions-cache budget and gets evicted quickly;
+          # ghcr.io has no such shared quota. Docs:
+          # docs.docker.com/manuals/build/cache/backends/registry ("It can
+          # efficiently cache multi-stage builds in max mode, instead of
+          # only the final stage").
+          cache-from: type=registry,ref=ghcr.io/cursedpotential/spacedrive-server:buildcache
+          cache-to: type=registry,ref=ghcr.io/cursedpotential/spacedrive-server:buildcache,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "### Spacedrive server image"
+            echo ""
+            echo "- Upstream commit: \`${{ steps.sd_commit.outputs.full_sha }}\`"
+            echo "- Image digest: \`${{ steps.build_push.outputs.digest }}\`"
+            echo "- Tags: \`ghcr.io/cursedpotential/spacedrive-server:main-${{ steps.sd_commit.outputs.short_sha }}\`, \`ghcr.io/cursedpotential/spacedrive-server:latest\`"
+          } >> "$GITHUB_STEP_SUMMARY"

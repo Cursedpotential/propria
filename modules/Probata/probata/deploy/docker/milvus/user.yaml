@@ -1,0 +1,84 @@
+# Milvus config override — mounted read-only at /milvus/configs/user.yaml
+# Byline: Claude Code · Opus 4.8 · 2026-06-13
+# Updated: Claude Code · Opus 5 · 2026-08-05 (Storage V3)
+# Updated: Claude Code · Fable 5 · 2026-08-12 (S3/R2 object store for memsearch rebuild)
+# Updated: Claude Code · Opus 5 · 2026-08-23 (R2/S3 BACKED OUT -> local; Storage V3 off)
+# Updated: Claude Code · Opus 5 · 2026-09-17 (graceful stop 240 s + mmap; app renamed)
+#
+# THIS FILE IS THE HUMAN-READABLE SOURCE OF TRUTH. The live config is the
+# `configs: user_yaml:` block embedded in deploy/memsearch-milvus.yaml
+# (~~deploy/data-vector.yaml~~, renamed 2026-09-17; no host bind-mount, no SSH).
+# The two MUST be updated together.
+#
+# (1) Auth ON so the store isn't open to anyone who reaches 19530.
+#     Default credential after first boot: user "root", password "Milvus"
+#       -> client token = "root:Milvus"   (CHANGE IT on first boot — see README §Security)
+#
+# (2) Object store = LOCAL disk on the fresh volume.
+#     ~~Cloudflare R2 (S3-compatible) via a `minio:` block, 2026-08-12.~~
+#     **BACKED OUT 2026-08-23 (owner call).** The R2 build never reached a healthy
+#     boot: the app sat in `restarting`, and bucket `milvus-memsearch` stayed at
+#     0 objects across every attempt — Milvus died before writing anything. The
+#     failure could not be read out: Coolify's /logs endpoint returns only the
+#     attu container, and SSH to that box is barred by owner directive
+#     (2026-08-12, "all the work should be done through Coolify").
+#     NB the 6 prior corruptions were EMBEDDED ETCD, not the object store, so
+#     local storage does NOT reintroduce that failure class. It also removes an
+#     R2 Class-A op on every binlog flush.
+#     Revert path: set common.storageType back to `remote`, restore the `minio:`
+#     block, and re-add MINIO_* to the compose env (the Coolify app envs are
+#     still set). The R2 bucket is retained, empty.
+#
+# (3) Storage V3 (storage.useLoonFFI) DISABLED 2026-08-23.
+#     ~~Enabled 2026-08-05.~~ Milvus docs call V3 one-way ("downgrading to a
+#     version that cannot read Storage V3 is not supported") — but that binds
+#     only once data is WRITTEN in V3. This store is empty, so turning it off
+#     costs nothing and removes an exotic code path from an already-failing boot.
+#     Pre-V3 rollback snapshot of the OLD volume (unrelated to this fresh one):
+#       /data/probata/backups/milvus-volume-pre-storagev3-20260805.tar.gz
+#
+# NOTE: `common:` must appear EXACTLY ONCE. A second top-level `common:` key
+# silently overrides the first in YAML, which would drop authorizationEnabled
+# and leave the store unauthenticated.
+#
+# No credentials live in this file, and none are needed while storageType=local.
+
+common:
+  security:
+    authorizationEnabled: true
+  # Local disk object store (was: remote/R2 2026-08-12 -> 2026-08-23).
+  storageType: local
+  # 2026-09-17: JSON shredding stats OFF. With storageType=local this nightly loads
+  # them via a remote-style path ("files/json_stats/...") through the LOCAL chunk
+  # manager -> "invalid local path" (segcore 2011) -> segment load retries forever,
+  # collection stuck Loading. Optional query acceleration only; rows are unaffected.
+  enabledJSONShredding: false
+  usingJSONShreddingForQuery: false
+
+# Segment / binlog store. Lives on the same volume as etcd + the WAL, i.e.
+# ~~/data/probata/volumes/milvus-memsearch~~ /data/probata/volumes/memsearch-milvus
+# on the host (2026-09-17). Back that path up — it is the ONLY copy of the vectors.
+localStorage:
+  path: /var/lib/milvus/data
+
+woodpecker:
+  meta:
+    type: etcd
+    prefix: woodpecker
+  storage:
+    type: local
+    rootPath: /var/lib/milvus/woodpecker
+
+# 2026-09-17: finish shutdown inside the container's 300 s stop grace. Upstream
+# default is 1800 s, so Docker could SIGKILL mid-flush -> corrupt embedded etcd.
+dataNode:
+  gracefulStopTimeout: 240
+
+queryNode:
+  gracefulStopTimeout: 240
+  # Keep loaded vectors/indexes out of resident RAM on the shared 22 GB box.
+  mmap:
+    vectorField: true
+    vectorIndex: true
+    scalarField: true
+    scalarIndex: true

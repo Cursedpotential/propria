@@ -1,0 +1,67 @@
+{
+  "_comment": "Updated 2026-09-25 (Claude Code · Opus 5.5): owner blanket ban on glm-5.1, so its target is removed. NVIDIA NIM moonshotai/kimi-k3 is the new primary (owner: Ollama Cloud is no longer primary after its pricing change). It answered a JSON-mode classification in 3.7 s on 2026-09-25; it is a reasoning model, so callers must not cap max_tokens low, and it retries 429/502/503/504 with the gateway's exponential backoff before falling through. The Ollama tier stays as a non-default fallback. Superseded comment of 2026-08-14: Comprehensive cheap/fast triage lane with expanded Ollama Cloud and NVIDIA model selection for classification tasks. Organized by speed and cost efficiency, using smaller, faster models appropriate for classification/triage. ~~Primary tier uses fast Ollama Cloud models with loadbalancing.~~ Fallback tiers include Google Gemini flash, ultra-fast providers, comprehensive NVIDIA NIM selection for fast inference, and Mistral small as absolute-last paid fallback.",
+  "strategy": { "mode": "fallback" },
+  "targets": [
+    {
+      "provider": "openai",
+      "custom_host": "https://integrate.api.nvidia.com/v1",
+      "api_key": "$NVIDIA_API_KEY",
+      "override_params": { "model": "moonshotai/kimi-k3" },
+      "retry": { "attempts": 2, "on_status_codes": [429, 502, 503, 504] }
+    },
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "openai", "custom_host": "https://ollama.com/v1", "api_key": "$OLLAMA_API_KEY", "override_params": { "model": "gemma4:31b" } },
+        { "provider": "openai", "custom_host": "https://ollama.com/v1", "api_key": "$OLLAMA_API_KEY", "override_params": { "model": "kimi-k2.6" } },
+        { "provider": "openai", "custom_host": "https://ollama.com/v1", "api_key": "$OLLAMA_API_KEY", "override_params": { "model": "deepseek-v4-flash" } },
+        { "provider": "openai", "custom_host": "https://ollama.com/v1", "api_key": "$OLLAMA_API_KEY", "override_params": { "model": "phi-3-vision-128k-instruct" } }
+      ]
+    },
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "google", "api_key": "$GEMINI_API_KEY",   "weight": 1, "override_params": { "model": "gemini-flash-latest" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_2", "weight": 1, "override_params": { "model": "gemini-flash-latest" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_3", "weight": 1, "override_params": { "model": "gemini-flash-latest" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_4", "weight": 1, "override_params": { "model": "gemini-flash-latest" } }
+      ]
+    },
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "groq", "api_key": "$GROQ_API_KEY", "override_params": { "model": "llama-3.1-8b-instant" } },
+        { "provider": "groq", "api_key": "$GROQ_API_KEY", "override_params": { "model": "llama-3.2-1b-instruct" } },
+        { "provider": "cerebras", "api_key": "$CEREBRAS_API_KEY", "override_params": { "model": "gemma-4-31b" } },
+        { "provider": "openrouter", "api_key": "$OPENROUTER_API_KEY", "override_params": { "model": "meta-llama/llama-3.1-8b-instruct" } }
+      ]
+    },
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nemotron-nano-12b-v2-vl" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nemotron-3-nano-30b-a3b" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/llama-3.2-nemotron-nano-vl-8b-v1" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/llama-3.1-nemotron-nano-8b-v1" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "mistralai/mistral-7b-instruct-v0.3" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "mistralai/mistral-small-latest" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "google/gemma-3-4b-it" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "google/gemma-3-12b-it" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "bigcode/starcoder2-15b" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "ibm/granite-3.0-8b-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "ibm/granite-3.0-3b-a800m-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "microsoft/phi-3.5-moe-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "microsoft/phi-3-vision-128k-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "meta/llama-3.2-3b-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "meta/llama-3.2-1b-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "meta/llama-3.1-8b-instruct" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "phiatral/phimo-3b-instruct" } }
+      ]
+    },
+    {
+      "provider": "mistral-ai",
+      "api_key": "$MISTRAL_API_KEY",
+      "override_params": { "model": "mistral-small-latest" }
+    }
+  ]
+}

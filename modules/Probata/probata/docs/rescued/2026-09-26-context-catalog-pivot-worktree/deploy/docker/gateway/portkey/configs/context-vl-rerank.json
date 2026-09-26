@@ -1,0 +1,42 @@
+{
+  "_comment": "Context-only multimodal rerank lane. Requests use the Portkey /rerank contract and the client normalizes relevance_score or NVIDIA logit responses. Opposite-order chains rotate free capacity and fail over on 429/5xx. Direct-NVIDIA request-shape compatibility still requires live deployment proof before this route is production-enabled.",
+  "strategy": { "mode": "loadbalance" },
+  "targets": [
+    {
+      "weight": 1,
+      "strategy": { "mode": "fallback", "on_status_codes": [429, 500, 502, 503, 504, 524, 529] },
+      "targets": [
+        {
+          "provider": "openai",
+          "custom_host": "https://openrouter.ai/api/v1",
+          "api_key": "$OPENROUTER_API_KEY",
+          "override_params": { "model": "nvidia/llama-nemotron-rerank-vl-1b-v2:free" }
+        },
+        {
+          "provider": "openai",
+          "custom_host": "https://ai.api.nvidia.com/v1/retrieval/nvidia",
+          "api_key": "$NVIDIA_API_KEY",
+          "override_params": { "model": "nvidia/llama-nemotron-rerank-vl-1b-v2" }
+        }
+      ]
+    },
+    {
+      "weight": 1,
+      "strategy": { "mode": "fallback", "on_status_codes": [429, 500, 502, 503, 504, 524, 529] },
+      "targets": [
+        {
+          "provider": "openai",
+          "custom_host": "https://ai.api.nvidia.com/v1/retrieval/nvidia",
+          "api_key": "$NVIDIA_API_KEY",
+          "override_params": { "model": "nvidia/llama-nemotron-rerank-vl-1b-v2" }
+        },
+        {
+          "provider": "openai",
+          "custom_host": "https://openrouter.ai/api/v1",
+          "api_key": "$OPENROUTER_API_KEY",
+          "override_params": { "model": "nvidia/llama-nemotron-rerank-vl-1b-v2:free" }
+        }
+      ]
+    }
+  ]
+}

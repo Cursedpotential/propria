@@ -1,0 +1,208 @@
+# Byline: Codex · GPT-5 · 2026-08-13 (reproducible CI toolchain and optional-import typing)
+# Byline: Codex · GPT-5 · 2026-08-16 (D-046 torch-free Chonkie production runtime)
+[project]
+name = "platform-api"
+version = "1.0.0"
+description = "Framework-neutral platform API with bounded Agno atomic-agent adapters."
+requires-python = ">=3.12,<4"
+readme = "README.md"
+license-files = ["LICENSE"]
+authors = [{ name = "Platform contributors" }]
+
+dependencies = [
+  # Bounded atomic-agent adapter only. AgentOS and provider/chat surfaces are
+  # intentionally not installed as extras.
+  "agno",
+  "surrealdb>=1.0.4,<2",
+  "fastapi[standard]",
+  "mcp",
+  "openai",
+  # agno 2.8.0 stopped bundling per-provider model SDKs as transitive deps
+  # (they were transitive under 2.6.13, satisfied implicitly). server/core/
+  # settings.py's provider-priority chain (ADR-0008) imports agno.models.*
+  # for all four directly, so they must be explicit here now.
+  "ollama",
+  "anthropic",
+  "groq",
+  "google-genai",
+  "parallel-web",
+  "pgvector",
+  "weaviate-client",
+  "psycopg[binary]",
+  "sqlalchemy",
+  # --- streaming repair layer (server/tools/repair/) ---
+  # Every one of these is imported LAZILY, inside a function, never at module
+  # import time. `registry.load_builtin_tools()` walks server/tools/ recursively
+  # and imports every non-underscore module, and that same tree is volume-mounted
+  # into the dep-light docker/tools facade — a module-level `import lxml` there
+  # would FATAL-loop the facade exactly the way ADR-0033 already paid for once.
+  # server/tools/repair/engines/__init__.py::available() reports which of these
+  # actually resolved, so a missing one degrades instead of crashing.
+  "lxml>=5",               # libxml2 recover=True: the ONLY XML repair that streams
+  "ijson>=3.2",            # streaming JSON item iteration (no whole-doc load)
+  "json-repair>=0.30,<1",  # semver: pin the major only (upstream ships frequent minors)
+  "clevercsv>=0.8",        # dialect detection for messy CSV
+  # charset-normalizer was present only TRANSITIVELY (via requests). The repair
+  # layer depends on it directly for streaming encoding detection, so it is
+  # declared here rather than relying on someone else's dependency tree.
+  "charset-normalizer>=3",
+  # pikepdf bundles libqpdf in its wheels, so structural PDF repair needs NO
+  # system package. QPDF rebuilds a damaged cross-reference table by scanning
+  # the file for object markers, which recovers PDFs that no reader will open.
+  # This is REPAIR (make the file parseable); extract_text.py is EXTRACTION
+  # (read text from a file that already parses). Different problems, both here.
+  "pikepdf>=9",
+  # native PDF text tiers used by server/tools/extractors/extract_text.py.
+  # OCR (pytesseract + pdf2image) is deliberately NOT here: it needs the system
+  # `tesseract-ocr` and `poppler` binaries, so it lives in the `ocr` extra.
+  "pypdf>=5",
+  "pdfplumber>=0.11",
+  # beautifulsoup4 was dev-ONLY until 2026-08-02, but parsers/messaging/
+  # facebook_messenger_html.py and imessage_html.py import it at RUNTIME. Any
+  # prod ingest touching an HTML export would have raised ImportError. It is a
+  # runtime dependency of shipped parsers, so it belongs in base.
+  "beautifulsoup4>=4.12",
+  # D-046: CPU-only chunkers in the live ingest path. These exact extras add
+  # model2vec/tree-sitter/table support without Chonkie's neural/torch extra.
+  "chonkie[semantic,code,table]==1.7.0",
+]
+
+[project.optional-dependencies]
+dev = ["mypy==2.1.0", "ruff==0.15.17", "pytest>=8,<9", "pytest-cov>=5,<8"]
+# OCR tier. Both wheels are useless without system binaries — `tesseract-ocr`
+# for pytesseract and `poppler` for pdf2image — so this stays opt-in and the
+# container image must install those alongside it.
+ocr = ["pytesseract", "pdf2image", "pillow"]
+# Structured document/OCR tier for the standalone ingestion worker. Kept out
+# of the parser facade's base environment because Docling brings local models
+# and document-AI dependencies; install on the VPS worker or Colab backup.
+document-ai = ["docling>=2.119,<3"]
+# Compatibility extra retained for existing install commands; Chonkie is now
+# also pinned in base because the production ingest path executes it.
+chunking = ["chonkie[semantic,code,table]==1.7.0"]
+# CPU-first, multi-label chat routing challenger. Kept optional until owner-
+# labeled calibration proves its thresholds; production safely falls back to
+# keyword-v1 when this extra is absent.
+classification = ["sentence-transformers[onnx]>=5,<6", "setfit>=1.1,<2"]
+# Optional external trace sink. Agno's own Postgres tracing remains enabled;
+# this exporter mirrors the same OTel spans to Langfuse when credentials exist.
+observability = ["opentelemetry-exporter-otlp-proto-http>=1.44,<2", "langfuse>=2.50,<4"]
+# claude-agent-sdk: powers agno.agents.claude.ClaudeAgent (runs Claude Code as
+# a subprocess — the SDK bundles its own native Claude Code binary, no
+# separate Node.js/CLI install needed). NOT a base dependency: it's a heavier
+# install than the chat-completion path (agno.models.anthropic.Claude, which
+# only needs the `anthropic` package already in base deps) and is opt-in
+# pending owner sign-off on actually mounting server/agents/claude_code_agent.py
+# into the live Root Router topology (server/agents/factory.py). See that
+# module's docstring for the concrete wiring plan. Install with:
+#   uv pip install -e ".[claude-code]"
+claude-code = ["claude-agent-sdk"]
+# Temporal durable-execution skeleton (server/temporal/, INERT — nothing
+# dispatches to it yet; see docs/plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md
+# and D-067). Deliberately NOT a base dependency and deliberately absent from
+# requirements.txt: the production image is unchanged until the P1 seam flips.
+# The temporal-worker Coolify app installs this extra on top of the same
+# server/ dependency stack.
+temporal = ["temporalio>=1.7,<2"]
+# The knowledge-step framework bake (server/temporal/knowledge_harness/BAKE.md):
+# the PydanticAI side of a two-implementation comparison behind one interface.
+# Strictly optional, and it goes away entirely if the agno side wins — the
+# losing harness is deleted, not kept as a parallel path.
+temporal-bake = ["pydantic-ai>=0.0.49"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["server*", "evals*"]
+
+[tool.ruff]
+line-length = 120
+# docs/ holds vendored third-party code (cookbook notebooks); server/vendored/
+# holds vendored third-party projects (chatminer, semantica) — not ours to
+# format or lint.
+exclude = [".venv*", "docs", "server/vendored", "modules/engine", "modules/forks", "modules/custom", "modules/Legal-Workspace", "modules/traceIQ", "modules/apps"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+
+[tool.mypy]
+check_untyped_defs = true
+no_implicit_optional = true
+warn_unused_configs = true
+plugins = ["pydantic.mypy"]
+exclude = [".venv*", "docs", "deploy/docker", "server/vendored", "modules/engine", "modules/forks", "modules/custom", "modules/Legal-Workspace", "modules/traceIQ", "modules/apps"]
+# scripts/ holds standalone scripts with no __init__.py; without this mypy maps
+# e.g. ingest_knowledge.py to both "ingest_knowledge" and "scripts.ingest_knowledge"
+# and errors with "Source file found twice under different module names".
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+# Third-party modules without type stubs / py.typed (incl. optional, heavy ML
+# deps that aren't installed in CI and are lazy-imported in the segmenters).
+module = [
+  "pgvector.*",
+  "weaviate.*",
+  "agno.*",
+  "httpx.*",
+  "mcp.*",
+  "sqlalchemy.*",
+  "fastapi.*",
+  "google.*",
+  "sentence_transformers.*",
+  "opentelemetry.exporter.*",
+  "torch.*",
+  "sklearn.*",
+  "yaml",
+  # optional OCR / HTML-parsing deps used by the forensic evidence tools
+  "pypdf.*",
+  "pdfplumber.*",
+  "pytesseract.*",
+  "pdf2image.*",
+  "PIL.*",
+  "bs4.*",
+  # streaming repair layer (server/tools/repair/). All lazy-imported inside
+  # functions, so mypy sees them but the dep-light tools facade never does.
+  # lxml ships no py.typed (lxml-stubs is a separate, partial package); the
+  # rest are untyped upstream.
+  "lxml.*",
+  "ijson.*",
+  "clevercsv.*",
+  "json_repair.*",
+  "pikepdf.*",
+  "charset_normalizer.*",
+  # optional ingestion/agent extras; imports are lazy and availability-gated
+  "chonkie.*",
+  "claude_agent_sdk.*",
+  # knowledge-harness bake side B; ships only in the `temporal-bake` extra and
+  # is imported lazily (server/temporal/knowledge_harness/pydantic_ai_harness.py)
+  "pydantic_ai.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Vendored Semantica is third-party source and is intentionally outside the
+# first-party typing boundary. ``exclude`` prevents direct discovery, while
+# this override also prevents mypy from traversing it through adapter imports.
+module = ["server.vendored.semantica.*"]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Keep the first-party suite isolated from vendored third-party projects.
+# server/vendored/semantica's test suite pulls heavy ML deps (torch, spacy,
+# transformers) even in its "safe default" install and is NOT collected by
+# default — run it opt-in, explicitly, after installing its extras:
+#   uv pip install -e "server/vendored/semantica[dev]"
+#   uv run pytest server/vendored/semantica/tests
+norecursedirs = ["docs", ".venv*", "server/tools", "server/vendored", "modules/engine", "modules/forks", "modules/custom", "modules/Legal-Workspace", "modules/traceIQ", "modules/apps"]
+# Integration tests are opt-in: run them with `pytest -m integration`.
+addopts = "-m 'not integration' -p server.observability.pytest_reporter"
+markers = [
+  "integration: tests that require live services (Postgres/Neo4j/R2); not run by default",
+  "local_samples: privacy-safe tests against an owner-supplied local corpus",
+]
+
+[tool.uv.pip]
+no-annotate = true

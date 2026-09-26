@@ -1,0 +1,77 @@
+# =============================================================================
+# LIBRECHAT — deploy as its OWN Coolify app on ovh-files (OVH-2, tailnet
+# 100.91.190.107), project "Case Bible". Minimal profile: app + mongo ONLY —
+# NO Meilisearch (SEARCH=false), NO rag_api/vector store (knowledge lives in
+# the platform spine → ~~Milvus~~ **Weaviate** (ADR-0040 locked it 2026-07-27,
+# Milvus sidelined; corrected 2026-08-05); a second RAG lane would violate
+# single-writer either way.
+#
+# Model backend = Portkey gateway (ovh-app :8787) via the chat.json failover
+# lane, sent per-request as the x-portkey-config header (see
+# docker/gateway/portkey/README.md). The header value is the MATERIALIZED
+# config (secrets substituted) held in the PORTKEY_CHAT_CONFIG stored env —
+# LibreChat interpolates ${PORTKEY_CHAT_CONFIG} from container env into the
+# header at request time (config file itself stays secret-free).
+#
+# MCP tools are published from ContextForge through Portkey. The tracked,
+# secret-free docker/librechat/librechat.yaml is baked into the derived image,
+# so a Git-backed Coolify deploy cannot keep running a stale host-staged copy.
+#
+# HOST-PREP (once, before first deploy):
+#   mkdir -p /data/probata/volumes/librechat/{images,uploads,logs}
+#   docker network inspect probata >/dev/null 2>&1 || docker network create probata
+#
+# Coolify gotcha: env values are baked at deploy — set ALL envs before first
+# deploy; changes need a redeploy. After the owner registers their account,
+# flip ALLOW_REGISTRATION=false + redeploy.
+# =============================================================================
+# Byline: Claude Code · Fable 5 · 2026-07-20
+# Byline: Claude Code · Opus 5 · 2026-08-05 (digest pin + stale-comment corrections)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (tracked ContextForge/Portkey MCP config)
+
+services:
+  librechat:
+    # Pinned by DIGEST, not `:latest` — this is production, and a redeploy on a
+    # floating tag silently swaps the version. This digest IS the image running
+    # since 2026-07-29; the app reports version v0.8.7. Bump deliberately.
+    build:
+      context: .
+      dockerfile: docker/librechat/Dockerfile
+    image: platform-librechat:latest
+    container_name: librechat
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:-127.0.0.1}:3080:3080"   # tailnet-only; NEVER 0.0.0.0
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3080"
+      MONGO_URI: mongodb://librechat-mongo:27017/LibreChat
+      CONFIG_PATH: /app/librechat.yaml
+      # --- session/crypto secrets (random, stored in Coolify env only) ---
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      CREDS_KEY: ${CREDS_KEY}
+      CREDS_IV: ${CREDS_IV}
+      # --- Portkey chat lane (materialized chat.json, single line) ---
+      PORTKEY_CHAT_CONFIG: ${PORTKEY_CHAT_CONFIG}
+      # --- ContextForge MCP published through Portkey ---
+      PORTKEY_PLATFORM_TOOLS_MCP_URL: ${PORTKEY_PLATFORM_TOOLS_MCP_URL:?set the Portkey-published ContextForge endpoint}
+      PORTKEY_MCP_API_KEY: ${PORTKEY_MCP_API_KEY:?set the scoped Portkey MCP credential}
+      # --- minimal profile ---
+      SEARCH: "false"
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      ALLOW_SOCIAL_LOGIN: "false"
+      NO_INDEX: "true"
+    volumes:
+      # Bind mounts only — owner backs up host dirs (no named volumes).
+      - /data/probata/volumes/librechat/images:/app/client/public/images
+      - /data/probata/volumes/librechat/uploads:/app/uploads
+      - /data/probata/volumes/librechat/logs:/app/api/logs
+    networks:
+      - librechat
+      - probata
+
+networks:
+  librechat:
+  probata:
+    external: true

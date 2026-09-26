@@ -1,0 +1,91 @@
+# Proffer starter — separate Coolify application on ovh-files.
+# Watch paths — see deploy/WATCH-PATHS.md for the exact value to paste into
+# Coolify. As of the vendored-build repair (2026-09-02):
+#   modules/engine/**, deploy/docker/proffer-starter/**,
+#   deploy/proffer-starter.yaml
+# The upload ingress and worker share this host-backed source-object root.
+# Prepare it with ownership 10001:10001 and mode 0750 before deployment.
+# Byline: Codex · GPT-5.6-Sol · 2026-08-30 (durable preview and source-context API)
+# Byline: Codex · GPT-5.6-Terra · 2026-08-30 (rotatable n8n runtime-file auth)
+# Byline: Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE D1: hermetic vendored
+# build post-restructure — build context set to repo root so
+# deploy/docker/proffer-starter/Dockerfile's `COPY modules/engine/`
+# resolves; dockerfile path made explicit and repo-root-relative)
+
+services:
+  proffer-starter:
+    build:
+      context: .
+      dockerfile: deploy/docker/proffer-starter/Dockerfile
+    image: ${PROFFER_STARTER_IMAGE:-platform-proffer-starter:latest}
+    restart: unless-stopped
+    # Host networking preserves the actual Tailscale socket peer. Docker's
+    # published-port DNAT rewrites it to a bridge address and defeats the
+    # direct-peer authorization check.
+    network_mode: host
+    environment:
+      # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
+      # store: scheme -> credential file. Switching provider = a credential file + these two
+      # values, identical in every Proffer/Workbench service. The first root is the default.
+      # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
+      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Vault","url":"b2://salem-data/consignatio/vault/v1/"},{"id":"b2-bucket","label":"B2 / salem-data (whole bucket)","url":"b2://salem-data/"},{"id":"r2-sorted","label":"R2 / Case Bible Sorted","url":"r2://casebible-sorted/","temporary":true},{"id":"r2-raw","label":"R2 / Case Bible Raw","url":"r2://casebible-raw/","temporary":true},{"id":"r2-quarantine","label":"R2 / Case Bible Quarantine","url":"r2://casebible-quarantine/","temporary":true}]'
+      # Repair builder (2026-09-26): the starter validates repair plans (destination_resolves), so it
+      # needs the same object stores and derived roots as the worker - identical values in both.
+      # Literal on purpose: Compose ends a ${VAR:-default} at the first '}'. Byline: Claude Code · Opus 5.5 · 2026-09-26
+      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json","r2":"/run/secrets/casebible-r2.json"}'
+      DERIVED_ROOTS_JSON: ''
+      PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
+      TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-proffer-v1}
+      # STEP 2 OF THE TSNET CUTOVER DELETES THESE TWO LINES (and drops
+      # network_mode: host, which only exists to preserve the direct Tailscale
+      # socket peer for this host bind). The binary fails closed if
+      # REFERENCE_STARTER_ADDR is set while the tsnet listener is on
+      # (engine/tsnetlisten.GuardExclusiveBind).
+      REFERENCE_STARTER_ADDR: 100.91.190.107:8091
+      REFERENCE_STARTER_HEALTH_URL: http://100.91.190.107:8091/healthz
+      # --- tsnet identity (owner directive 2026-09-07; D-132/D-134/D-127) ----
+      # Default FALSE: modules/engine/** is a watch path for this Coolify app,
+      # so any push redeploys it; the flip is a deliberate per-service deploy
+      # act after host prep. Removal condition (D-127): delete the flag and the
+      # legacy branch once every service serves from tsnet.
+      # After the flip the starter is reached at
+      # https://proffer-starter.tilapia-skilift.ts.net — callers
+      # (N8N_PROFFER_* workflows, the Workbench's PROFFER_STARTER_URL) must be
+      # repointed there in the SAME step.
+      TSNET_LISTENER_ENABLED: ${PROFFER_STARTER_TSNET_LISTENER_ENABLED:-false}
+      TSNET_HOSTNAME: ${PROFFER_STARTER_TSNET_HOSTNAME:-proffer-starter}
+      TSNET_SERVICE: ${PROFFER_STARTER_TSNET_SERVICE:-svc:proffer-starter}
+      TSNET_TAGS: ${PROFFER_STARTER_TSNET_TAGS:-tag:docker}
+      TSNET_STATE_DIR: /data/tsnet
+      TSNET_AUTHKEY_FILE: /run/secrets/tsnet-authkey
+      SOURCE_OBJECT_DIR: /data/proffer/source-objects
+      PROFFER_UPLOAD_MAX_BYTES: ${PROFFER_UPLOAD_MAX_BYTES:?set}
+      N8N_PROFFER_BASE_URL: ${N8N_PROFFER_BASE_URL:?set}
+      N8N_PROFFER_AUTH_HEADER: ${N8N_PROFFER_AUTH_HEADER:?set}
+      N8N_PROFFER_AUTH_VALUE_FILE: /run/secrets/n8n-proffer-auth
+      PROFFER_PREVIEW_CURSOR_KEY_FILE: /run/secrets/proffer-preview-cursor-key
+      PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
+      # How many items of one folder batch may run at once. One at a time is
+      # the owner's instruction (2026-09-20 23:52) and the fallback for any
+      # unreadable or out-of-range value; a request may ask for fewer or more
+      # up to 16. Byline: Claude Code · Opus 5 · 2026-09-21
+      PROFFER_BATCH_MAX_IN_FLIGHT: ${PROFFER_BATCH_MAX_IN_FLIGHT:-1}
+    volumes:
+      - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
+      # tsnet node state. MUST be persistent or the service re-registers as a
+      # new tailnet node on every deploy. Host prep (once, before the flip):
+      #   install -d -o 10001 -g 10001 -m 0700 /data/probata/tsnet/proffer-starter
+      #   install -d -o root -g 10001 -m 0750 /data/probata/secrets/proffer-starter
+      #   # write a tag:docker auth key, no trailing newline, then chown/chmod:
+      #   chown 10001:10001 /data/probata/secrets/proffer-starter/ts-authkey
+      #   chmod 0400        /data/probata/secrets/proffer-starter/ts-authkey
+      - /data/probata/tsnet/proffer-starter:/data/tsnet
+      - /data/probata/secrets/proffer-starter/ts-authkey:/run/secrets/tsnet-authkey:ro
+      - /data/probata/secrets/proffer/preview-cursor-key:/run/secrets/proffer-preview-cursor-key:ro
+      - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
+      - /data/probata/secrets/n8n/proffer-auth:/run/secrets/n8n-proffer-auth:ro
+      - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro
+      - /data/probata/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
+      - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro

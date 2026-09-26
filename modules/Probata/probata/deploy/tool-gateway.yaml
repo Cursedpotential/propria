@@ -1,0 +1,109 @@
+# tool-gateway — locator-addressed front end for the Python tool-runtime
+# registry (D-132), with its own Tailscale identity via tsnet.
+#
+# WHY IT EXISTS: the proffer worker (formerly UIW) (ovh-files) handed the tool
+# runtime (then named platform-tools, on ovh-app) a worker-local filesystem
+# path; the runtime 404'd with the path as the
+# response body because the file was not there. This gateway takes LOCATORS
+# (upload://, r2://, b2://), resolves them through the same
+# acquisition.NewSchemeRouter the engine uses, materializes the bytes where the
+# tool can read them, and only then calls the tool. An interim second
+# tool runtime was explicitly rejected by the owner as temporary-permanent.
+#
+# DEPLOYMENT REQUIREMENT — read this before changing any path:
+#   TOOL_GATEWAY_MATERIALIZE_DIR must be bind-mounted into the tool-runtime
+#   container at the SAME absolute path. The gateway hands that path to the
+#   tool; if the two sides disagree the service fails closed with 404s, which is
+#   precisely the defect it was built to remove. Deploy this app on the SAME
+#   HOST as tool-runtime and share
+#   /data/probata/volumes/tool-gateway/materialize into both.
+#
+# Host preparation (once, on the tool-runtime host):
+#   install -d -o 10001 -g 10001 -m 0750 \
+#     /data/probata/volumes/tool-gateway/materialize \
+#     /data/probata/volumes/tool-gateway/seal \
+#     /data/probata/volumes/tool-gateway/tsnet
+#   # then add this to the tool-runtime app's volumes:
+#   #   /data/probata/volumes/tool-gateway/materialize:/data/toolgw/materialize:ro
+#
+# Coolify watch paths for this app:
+#   modules/engine/**
+#   deploy/docker/tool-gateway/**
+#   deploy/tool-gateway.yaml
+#
+# Byline: Claude Code · Opus 5 · 2026-09-02.
+# Byline: Claude Code · Fable 5.1 · 2026-09-20 (host networking -> bridge + probata)
+
+services:
+  tool-gateway:
+    build:
+      context: .
+      dockerfile: deploy/docker/tool-gateway/Dockerfile
+    image: ${TOOL_GATEWAY_IMAGE:-platform-tool-gateway:latest}
+    restart: unless-stopped
+    # CORRECTED 2026-09-20 (owner: "not sure why they were different to begin
+    # with, fix it"): back on bridge + the shared `probata` network like every
+    # other app. Host networking was a workaround for Docker's exhausted default
+    # address pool; that is fixed on both hosts (/etc/docker/daemon.json
+    # default-address-pools 10.200.0.0/16 size 24). Inbound arrives through the
+    # tsnet listener (svc:tool-gateway), which runs in userspace and needs no
+    # published port. Probed live from a `probata` bridge container before the
+    # change: 100.72.169.40:8090, 100.91.190.107:8091 and tool-runtime:8090 connect.
+    networks:
+      - probata
+    environment:
+      # CORRECTED 2026-09-05 (probed live on ovh-app): the runtime publishes
+      # on ${BIND_IP}, NOT loopback. Set TOOL_RUNTIME_BASE_URL to the host's
+      # tailnet address, e.g. http://100.72.169.40:8090. (`GET /` is 404;
+      # `/tools` is the liveness route.) The legacy key remains during the
+      # bounded rename window so the current Coolify environment can cut over
+      # without an outage.
+      TOOL_RUNTIME_BASE_URL: ${TOOL_RUNTIME_BASE_URL:-}
+      PLATFORM_TOOLS_BASE_URL: ${PLATFORM_TOOLS_BASE_URL:-}
+
+      # Shared with the tool-runtime container at the identical path.
+      TOOL_GATEWAY_MATERIALIZE_DIR: /data/toolgw/materialize
+      TOOL_GATEWAY_SEAL_DIR: /data/toolgw/seal
+      TOOL_GATEWAY_PORT: ${TOOL_GATEWAY_PORT:-8099}
+
+      # tsnet identity. Persist TS_STATE_DIR or the node re-registers each deploy.
+      # TOOL_GATEWAY_TS_SERVICE advertises a Tailscale SERVICE, matching the
+      # pattern already live on this tailnet (the Workbench is svc:workbench).
+      # Services require a TAG-BASED identity, hence TOOL_GATEWAY_TS_TAGS; the
+      # tailnet's existing nodes use tag:docker. The auth key must be minted
+      # with the same tag or registration is refused.
+      TOOL_GATEWAY_TS_HOSTNAME: ${TOOL_GATEWAY_TS_HOSTNAME:-tool-gateway}
+      TOOL_GATEWAY_TS_SERVICE: ${TOOL_GATEWAY_TS_SERVICE:-svc:tool-gateway}
+      TOOL_GATEWAY_TS_TAGS: ${TOOL_GATEWAY_TS_TAGS:-tag:docker}
+      TOOL_GATEWAY_TS_STATE_DIR: /data/toolgw/tsnet
+      TOOL_GATEWAY_TS_AUTHKEY_FILE: /run/secrets/tool-gateway-ts-authkey
+
+      # Bearer token required in addition to the always-on tailnet peer check.
+      TOOL_GATEWAY_SERVICE_TOKEN_FILE: /run/secrets/tool-gateway-service-token
+
+      # Cross-host source bytes travel via object storage, never a shared disk.
+      CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
+      # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
+      # store: scheme -> credential file. Switching provider = a credential file + these two
+      # values, identical in every Proffer/Workbench service. The first root is the default.
+      # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
+      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json","r2":"/run/secrets/casebible-r2.json"}'
+      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Vault","url":"b2://salem-data/consignatio/vault/v1/"},{"id":"b2-bucket","label":"B2 / salem-data (whole bucket)","url":"b2://salem-data/"},{"id":"r2-sorted","label":"R2 / Case Bible Sorted","url":"r2://casebible-sorted/","temporary":true},{"id":"r2-raw","label":"R2 / Case Bible Raw","url":"r2://casebible-raw/","temporary":true},{"id":"r2-quarantine","label":"R2 / Case Bible Quarantine","url":"r2://casebible-quarantine/","temporary":true}]'
+
+      # D-132: upload:// objects are sealed on the host that runs the Proffer starter.
+      # The gateway fetches them by SHA-256 over the tailnet and re-hashes before use.
+      # The byte bound must equal the starter's PROFFER_UPLOAD_MAX_BYTES.
+      UPLOAD_ORIGIN_URL: ${UPLOAD_ORIGIN_URL:-http://100.91.190.107:8091}
+      PROFFER_UPLOAD_MAX_BYTES: ${PROFFER_UPLOAD_MAX_BYTES:-209715200}
+    volumes:
+      - /data/probata/volumes/tool-gateway/materialize:/data/toolgw/materialize
+      - /data/probata/volumes/tool-gateway/seal:/data/toolgw/seal
+      - /data/probata/volumes/tool-gateway/tsnet:/data/toolgw/tsnet
+      - /data/probata/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
+      - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
+      - /data/probata/secrets/tool-gateway/ts-authkey:/run/secrets/tool-gateway-ts-authkey:ro
+      - /data/probata/secrets/tool-gateway/service-token:/run/secrets/tool-gateway-service-token:ro
+
+networks:
+  probata:
+    external: true

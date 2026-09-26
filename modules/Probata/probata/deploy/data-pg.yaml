@@ -1,0 +1,63 @@
+# =============================================================================
+# DATA TIER — POSTGRES SUBSET, split out of compose.data.yaml.
+# Reason: 2026-06-25 incident + owner mandate 2026-07-05 — every DB must be its
+# own Coolify app so any one crashing / being updated never takes down the
+# others. Mirrors the Milvus split (commit 18c42d2 / compose.data-vector.yaml).
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-pg` on OVH-3
+# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/probata (formerly mcp-platform-agno-mvp)
+# @ main, compose file /compose.data-pg.yaml.
+# Env (copy from existing data-tier app):
+#   BIND_IP=100.119.96.29      (OVH-3 tailnet — ports bind here, never 0.0.0.0)
+#   DB_USER / DB_PASS / DB_DATABASE   (must match existing — data on disk)
+#
+# Same absolute bind mounts as the original (already staged on host) — NO data
+# migration: agentos-db reattaches /data/probata/volumes/pgdata. Init SQL mounts
+# only fire on an EMPTY data dir; existing datadir is populated → skipped.
+#
+# CUTOVER (one pass, after this lands on main + new app created + healthy):
+#   1. Edit compose.data.yaml on main: DELETE the `agentos-db:` service block.
+#   2. Redeploy the existing `data-tier` app (uuid ipy7vrw…) → shrinks by one.
+#   3. This app `data-pg` already serving 5432 on tailnet → exec-tier sees no
+#      interruption (agentos-api reaches PG at ${OVH3_HOST}:5432, unchanged).
+# Reversible: revert compose.data.yaml edit + stop/delete data-pg; datadir intact.
+# =============================================================================
+
+services:
+  probata-db:
+    # Custom PG18: pg_duckdb + PostGIS + pgvector + pg_stat_statements.
+    build:
+      context: ./deploy/docker/postgres   # Coolify resolves build contexts from the repo root (base_directory), not the compose file
+    image: probata-postgres:18-duckdb
+    container_name: probata-db
+    restart: unless-stopped
+    ports:
+      # raw TCP, tailnet-only (reached by agentos-api on OVH-1); never proxied
+      - "${BIND_IP:-127.0.0.1}:5432:5432"
+    volumes:
+      - /data/probata/volumes/pgdata:/var/lib/postgresql
+      # init SQL — ABSOLUTE host binds (gotcha #5); run once on an EMPTY data dir
+      # THE database: fresh volumes bootstrap from the snapshot (migrations retired 2026-09-07, D-153); file lives on the host
+      - /data/probata/config/sql/schema_snapshot_20260907.sql:/docker-entrypoint-initdb.d/01_schema_snapshot.sql:ro
+    environment:
+      POSTGRES_USER: ${DB_USER:-ai}
+      POSTGRES_PASSWORD: ${DB_PASS:-ai}
+      POSTGRES_DB: ${DB_DATABASE:-platform}
+    healthcheck:
+      # -d is required: without it pg_isready targets a database named after the
+      # user ("ai"), which does not exist -> one FATAL log line every 5 s (2026-09-20).
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai} -d ${DB_DATABASE:-platform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - pg
+      - probata                # shared external net — reachable as `probata-db` by other ovh-files apps (renamed from agentos-db 2026-09-07, plan §4.6)
+
+networks:
+  pg:
+  probata:
+    external: true          # pre-created on OVH-3 (`docker network create probata`)
+
+# No named volumes — absolute host binds (declared inline above).
+# Byline: Claude Code · Fable 5 · 2026-07-05

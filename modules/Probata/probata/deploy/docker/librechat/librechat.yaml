@@ -1,0 +1,36 @@
+# LibreChat instance config — SOURCE OF TRUTH lives here in the repo and is
+# baked read-only into the derived image at /app/librechat.yaml. SECRET-FREE:
+# runtime values are interpolated by LibreChat from container configuration.
+# Byline: Claude Code · Fable 5 · 2026-07-20
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (tracked image-baked config)
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (chain comment: glm-5.1 removed, kimi-k3 on NVIDIA NIM primary)
+version: 1.2.1
+cache: true
+
+endpoints:
+  custom:
+    - name: "Platform (Portkey)"
+      # Portkey ignores the bearer key; routing/auth is the x-portkey-config header.
+      apiKey: "portkey"
+      baseURL: "http://100.72.169.40:8787/v1"
+      headers:
+        x-portkey-config: "${PORTKEY_CHAT_CONFIG}"
+      models:
+        # Pseudo-model: the chat.json lane overrides provider+model per target
+        # (kimi-k3 on NVIDIA NIM -> Ollama pool -> Gemini pool -> Groq/Cerebras/OpenRouter
+        # -> NVIDIA pool -> Mistral). glm-5.1 removed 2026-09-25, owner blanket ban.
+        default: ["platform-chat"]
+        fetch: false
+      titleConvo: true
+      titleModel: "current_model"
+      modelDisplayLabel: "Platform chat (failover lane)"
+
+mcpServers:
+  platform-tools:
+    type: streamable-http
+    # ContextForge authors this registry; Portkey publishes the audited client
+    # endpoint. Both values are runtime configuration, never embedded secrets.
+    url: "${PORTKEY_PLATFORM_TOOLS_MCP_URL}"
+    headers:
+      x-portkey-api-key: "${PORTKEY_MCP_API_KEY}"
+    timeout: 120000

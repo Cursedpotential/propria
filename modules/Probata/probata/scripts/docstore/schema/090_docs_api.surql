@@ -1,0 +1,572 @@
+-- 090_docs_api.surql
+-- Domain-level docs-store API. Agents call ONLY these functions (per the
+-- docstore design doc §3/§4): raw SurrealQL is the KNN-post-filter trap
+-- (empty results with status OK) and the freelance-write trap. Every
+-- function here keeps its scope filter inside the same WHERE as any KNN
+-- predicate, and K/EF are always literal integers (parameterised K is a
+-- SurrealQL parse error, even inside a function body).
+
+-- ---------------------------------------------------------------------
+-- fn::docs_search — hybrid BM25 (document title/body) + vector (chunk,
+-- via the same scoped-KNN pattern as fn::search_vec in 060_functions.surql)
+-- when $vec is supplied. Results are fused to document granularity.
+--
+-- GOTCHA (post-filter KNN): the doc_type/domain/status predicates sit
+-- INSIDE the same WHERE clause as the `<|K,EF|>` operator on both the
+-- narrow (<=20 k) and wide (>20 k) branches below, so SurrealDB folds
+-- them into the KnnScan plan node itself. Applying them as a wrapping
+-- SELECT ... FROM (subquery) WHERE ... post-filter would only look
+-- inside the fixed top-K candidate set the HNSW index already returned,
+-- silently truncating recall for narrow scopes while reporting status OK.
+--
+-- GOTCHA (K literal): K/EF must be integer literals inside `<|K,EF|>`.
+-- $k only controls the final LIMIT after fusion. Because the caller can
+-- ask for more than the default pool, this function carries TWO literal
+-- KNN variants (<|20,128|> and, when $k > 20, <|50,256|>) rather than
+-- trying to parameterise K.
+--
+-- GOTCHA (status default): unscoped search must not silently include
+-- superseded/retracted rows, so status defaults to "active" here, same
+-- as fn::search_vec/fn::search_text.
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::docs_search(
+  $query: string,
+  $vec: option<array<float>> | null,
+  $doc_type: option<string> | null,
+  $domain: option<string> | null,
+  $status: option<string> | null,
+  $k: option<int> | null
+) {
+  -- NULL-TOLERANT OPTIONALS (fixed 2026-09-16). Every optional argument is
+  -- typed `option<T> | null` and normalised to NONE below. Reason: an MCP
+  -- client speaking JSON has no NONE literal, so an omitted argument arrives
+  -- as JSON `null` -> SurrealDB NULL, and a bare `option<T>` REFUSES it with
+  -- "Failed to coerce argument `$vec`: Expected `none | array<float>` but
+  -- found `NULL`". That error made fn::docs_search uncallable from the docs
+  -- MCP `run` tool for anyone who did not know to send {"$ql": "NONE"}.
+  -- NULL and NONE are distinct values in SurrealDB; both now mean "unset".
+  LET $vec_n      = IF $vec == NULL { NONE } ELSE { $vec };
+  LET $doc_type_n = IF $doc_type == NULL { NONE } ELSE { $doc_type };
+  LET $domain_n   = IF $domain == NULL { NONE } ELSE { $domain };
+  -- $status NONE = every status (owner 2026-09-14): status is a classification
+  -- field, not a visibility gate. Pass a value to narrow.
+  LET $status_f   = IF $status == NULL { NONE } ELSE { $status };
+  LET $k_eff      = IF $k == NULL { 10 } ELSE { $k ?? 10 };
+
+  -- BM25 over document title/body, scope predicates inline.
+  LET $text_hits = (
+    SELECT id, source_path, title, doc_type, domains, tags, status,
+           (search::score(1) + search::score(2)) AS score,
+           (search::highlight("<<", ">>", 2)
+             OR search::highlight("<<", ">>", 1)) AS excerpt
+    FROM document
+    WHERE (title @1@ $query OR body @2@ $query)
+      AND ($status_f = NONE OR status = $status_f)
+      AND ($doc_type_n = NONE OR doc_type = $doc_type_n)
+      AND ($domain_n = NONE OR $domain_n INSIDE domains)
+    ORDER BY score DESC
+    LIMIT ($k_eff * 3)
+  );
+
+  -- Vector recall over chunks. Scope filtering uses the denormalised
+  -- columns on `chunk` (020_chunks.surql) so the KNN scan never joins;
+  -- the chunk_of edge is traversed only for the surviving hits.
+  -- Scope predicates are inline with the KNN operator on both branches.
+  LET $vec_hits = IF $vec_n == NONE { [] }
+    ELSE IF $k_eff > 20 {
+      (
+        SELECT array::first(->chunk_of->document) AS doc,
+               text AS excerpt, vector::distance::knn() AS dist
+        FROM chunk
+        WHERE embedding <|50,256|> $vec_n
+          AND ($status_f = NONE OR status = $status_f)
+          AND ($doc_type = NONE OR doc_type = $doc_type)
+          AND ($domain = NONE OR $domain INSIDE domains)
+        ORDER BY dist
+      )
+    } ELSE {
+      (
+        SELECT array::first(->chunk_of->document) AS doc,
+               text AS excerpt, vector::distance::knn() AS dist
+        FROM chunk
+        WHERE embedding <|20,128|> $vec_n
+          AND ($status_f = NONE OR status = $status_f)
+          AND ($doc_type = NONE OR doc_type = $doc_type)
+          AND ($domain = NONE OR $domain INSIDE domains)
+        ORDER BY dist
+      )
+    };
+
+  -- Collapse per-chunk vector hits to one row per document (best chunk).
+  --
+  -- GOTCHA: `array::first(field)` inside a GROUP BY is NOT an aggregate
+  -- here — it runs per-row on the (scalar) field value, errors to NONE,
+  -- and only THEN gets collected by the implicit per-group array, which
+  -- silently produces an array of NULLs (verified live against 3.2.0:
+  -- `array::first(name)` returned `[null, null]`). The working idiom is
+  -- `array::first(array::group(field))`: `array::group()` performs the
+  -- real aggregation into a per-group array, and `array::first()` then
+  -- legitimately picks its first element. `math::max()` is a true
+  -- aggregate already and needs no such wrapping.
+  -- Dereference the edge once, then collapse to one row per document.
+  -- `doc` is a record<document>; SurrealDB auto-fetches through dot notation.
+  -- Chunks with no chunk_of edge (a partial run) yield doc = NONE and are
+  -- dropped here rather than fusing a NULL-id row into the results.
+  LET $vec_flat = (
+    SELECT doc.id AS id, doc.source_path AS source_path, doc.title AS title,
+           doc.doc_type AS doc_type, doc.domains AS domains, doc.tags AS tags,
+           doc.status AS status, excerpt, dist
+    FROM $vec_hits
+    WHERE doc != NONE
+  );
+
+  LET $vec_docs = (
+    SELECT id,
+           array::first(array::group(source_path)) AS source_path,
+           array::first(array::group(title)) AS title,
+           array::first(array::group(doc_type)) AS doc_type,
+           array::first(array::group(domains)) AS domains,
+           array::first(array::group(tags)) AS tags,
+           array::first(array::group(status)) AS status,
+           math::max(1 - dist) AS score,
+           array::first(array::group(excerpt)) AS excerpt
+    FROM $vec_flat
+    GROUP BY id
+  );
+
+  -- Fuse: max score per document id, keep first non-null projection.
+  -- Same array::group() gotcha applies to this second GROUP BY.
+  LET $combined = array::concat($text_hits, $vec_docs);
+  LET $fused = (
+    SELECT id,
+           array::first(array::group(source_path)) AS source_path,
+           array::first(array::group(title)) AS title,
+           array::first(array::group(doc_type)) AS doc_type,
+           array::first(array::group(domains)) AS domains,
+           array::first(array::group(tags)) AS tags,
+           array::first(array::group(status)) AS status,
+           math::max(score) AS score,
+           array::first(array::group(excerpt)) AS excerpt
+    FROM $combined
+    GROUP BY id
+    ORDER BY score DESC
+    LIMIT $k_eff
+  );
+
+  -- COMPACT PROJECTION (defect 3, fixed 2026-09-16). `search::highlight`
+  -- returns the ENTIRE highlighted field and a vector hit's excerpt is the
+  -- whole chunk text, so k=8 produced a ~67 KB result that overflowed the MCP
+  -- output cap and made this tool unusable through the docs MCP. The default
+  -- return is now a fixed compact shape — id, title, source_path, status,
+  -- doc_type, domains, tags, score, snippet (<= 300 chars). Full bodies are
+  -- fetched deliberately, one at a time, via fn::docs_get($id).
+  LET $final = (
+    SELECT id, source_path, title, doc_type, domains, tags, status, score,
+           (IF type::is_string(excerpt) { string::slice(excerpt, 0, 300) } ELSE { "" }) AS snippet
+    FROM $fused
+    ORDER BY score DESC
+  );
+
+  RETURN $final;
+} COMMENT "Hybrid BM25 + scoped-KNN document search. Every optional arg accepts NULL or NONE (MCP JSON null safe). Returns a compact projection: id, source_path, title, doc_type, domains, tags, status, score, snippet (<=300 chars) - full body via fn::docs_get. Scope predicates inline with KNN; K/EF literal; status NONE = every status." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::docs_get — one document plus its supersedes neighbourhood in both
+-- edge directions (edge is new->supersedes->old, per fn::docs_new_version
+-- below): `supersedes` = older documents this one replaces, `superseded_by`
+-- = newer documents that replace this one.
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::docs_get($id: record<document> | string) {
+  -- STRING IDS ACCEPTED (fixed 2026-09-16). A bare `record<document>` refused
+  -- the string form with "Expected `record<document>` but found
+  -- 'document:xyz'", which is exactly what an MCP client sends unless the
+  -- caller knows the {"$ql": "document:xyz"} sentinel. Both forms now work.
+  LET $rid = IF type::is_record($id) { $id } ELSE { <record<document>> $id };
+  RETURN {
+    document: (SELECT * FROM ONLY $rid),
+    status: (SELECT VALUE status FROM ONLY $rid),
+    supersedes: (SELECT * FROM $rid->supersedes->document),
+    superseded_by: (SELECT * FROM $rid<-supersedes<-document)
+  };
+} COMMENT "Document plus its supersedes neighbourhood in both directions, and its status. Accepts a record id or its string form." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::docs_register — creates a document. Refuses (returns an error
+-- object; never THROWs) when an active-lineage document already exists
+-- at the same source_path, i.e. status != "superseded". A superseded
+-- row at that path is fine to coexist with (it is history, not a
+-- collision) — that is exactly what fn::docs_new_version produces.
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::docs_register(
+  $source_path: string,
+  $title: string,
+  $doc_type: string,
+  $domains: array<string>,
+  $status: string,
+  $body: string,
+  $authored_at: option<datetime> | null
+) {
+  -- NULL-tolerant optional (2026-09-16): MCP JSON null means "unset".
+  LET $authored_n = IF $authored_at == NULL { NONE } ELSE { $authored_at };
+  LET $existing = (
+    SELECT id FROM document
+    WHERE source_path = $source_path AND status != "superseded"
+    LIMIT 1
+  );
+
+  IF array::len($existing) > 0 {
+    RETURN {
+      ok: false,
+      error: "duplicate_active_document",
+      source_path: $source_path,
+      existing_id: $existing[0].id
+    };
+  };
+
+  LET $new = CREATE ONLY document SET
+    source_path  = $source_path,
+    title        = $title,
+    doc_type     = $doc_type,
+    domains      = $domains,
+    status       = $status,
+    body         = $body,
+    content_hash = crypto::sha256($body),
+    authored_at  = $authored_n;
+
+  RETURN { ok: true, id: $new.id };
+} COMMENT "Registers a new document; refuses (error object, no throw) if source_path already has a non-superseded row." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::docs_new_version — new document inherits type/domains/source_path
+-- from $old; new->supersedes->old; old flips to superseded. This is the
+-- one legitimate way an active source_path gets a second live row: the
+-- old row's status changes to "superseded" in the SAME call, so
+-- fn::docs_register's uniqueness check never sees two active rows.
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::docs_new_version(
+  $old: record<document> | string,
+  $body: string,
+  $title: option<string> | null
+) {
+  -- Accepts a record id or its string form; NULL title means "inherit".
+  LET $old_r = IF type::is_record($old) { $old } ELSE { <record<document>> $old };
+  LET $title_n = IF $title == NULL { NONE } ELSE { $title };
+  LET $old_doc = (SELECT * FROM ONLY $old_r);
+  LET $new_title = $title_n ?? $old_doc.title;
+
+  LET $new = CREATE ONLY document SET
+    source_path  = $old_doc.source_path,
+    title        = $new_title,
+    doc_type     = $old_doc.doc_type,
+    domains      = $old_doc.domains,
+    status       = "active",
+    body         = $body,
+    content_hash = crypto::sha256($body),
+    authored_at  = time::now();
+
+  LET $new_id = $new.id;
+  RELATE $new_id->supersedes->$old_r SET at = time::now();
+  UPDATE $old_r SET status = "superseded";
+
+  RETURN { new: $new_id, old: $old_r };
+} COMMENT "New version of $old: inherits type/domains/source_path, RELATEs new->supersedes->old, flips old to superseded." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::docs_supersede — edge + status flip only, no new document created
+-- (for when the "new" document already exists, e.g. registered
+-- separately and now needs to be linked as the replacement of $old).
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::docs_supersede(
+  $new: record<document> | string,
+  $old: record<document> | string
+) {
+  LET $new_r = IF type::is_record($new) { $new } ELSE { <record<document>> $new };
+  LET $old_r = IF type::is_record($old) { $old } ELSE { <record<document>> $old };
+  RELATE $new_r->supersedes->$old_r SET at = time::now();
+  UPDATE $old_r SET status = "superseded";
+  RETURN { new: $new_r, old: $old_r };
+} COMMENT "Edge + status flip only: new->supersedes->old, old.status = superseded." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::docs_tagged — documents carrying an author tag (front matter `tags:` or a
+-- `<!-- tags: a, b -->` comment, carried by the pipeline into document.tags).
+-- Owner 2026-09-14: "tag or label things so they pop up when needed, searching,
+-- or working on UI components". $query narrows by BM25. Every status.
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::docs_tagged(
+  $tag: string,
+  $query: option<string> | null,
+  $domain: option<string> | null,
+  $k: option<int> | null
+) {
+  -- NULL-tolerant optionals (2026-09-16): MCP JSON null means "unset".
+  LET $query_n  = IF $query == NULL { NONE } ELSE { $query };
+  LET $domain_n = IF $domain == NULL { NONE } ELSE { $domain };
+  LET $k_eff = IF $k == NULL { 20 } ELSE { $k ?? 20 };
+  LET $tag_n = string::lowercase($tag);
+  IF $query_n = NONE {
+    RETURN (
+      SELECT id, source_path, title, doc_type, domains, tags, status, project
+      FROM document
+      WHERE $tag_n INSIDE tags AND ($domain_n = NONE OR $domain_n INSIDE domains)
+      ORDER BY title LIMIT $k_eff
+    )
+  };
+  -- Snippet capped at 300 chars for the same reason as fn::docs_search
+  -- (search::highlight returns the whole field); full body via fn::docs_get.
+  LET $hits = (
+    SELECT id, source_path, title, doc_type, domains, tags, status, project,
+           (search::score(1) + search::score(2)) AS score,
+           (search::highlight("<<", ">>", 2) OR search::highlight("<<", ">>", 1)) AS excerpt
+    FROM document
+    WHERE (title @1@ $query_n OR body @2@ $query_n)
+      AND $tag_n INSIDE tags AND ($domain_n = NONE OR $domain_n INSIDE domains)
+    ORDER BY score DESC LIMIT $k_eff
+  );
+  RETURN (
+    SELECT id, source_path, title, doc_type, domains, tags, status, project, score,
+           (IF type::is_string(excerpt) { string::slice(excerpt, 0, 300) } ELSE { "" }) AS snippet
+    FROM $hits
+    ORDER BY score DESC
+  );
+} COMMENT "Documents carrying an author tag; optional BM25 query and domain scope; every status." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::docs_set_tags — governed metadata write: replace a document's tags.
+-- Used by the tags backfill (old docs whose front matter/comment tags are not
+-- yet in the store) and by skills after fn::handoff_write / fn::docs_register.
+-- Content, hash, status untouched; decision_log row appended.
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::docs_set_tags(
+  $id: record<document> | string,
+  $tags: array<string>,
+  $actor: string
+) {
+  LET $rid = IF type::is_record($id) { $id } ELSE { <record<document>> $id };
+  LET $doc = (SELECT * FROM ONLY $rid);
+  IF $doc = NONE { RETURN { ok: false, error: "not_found", id: $rid } };
+  LET $norm = array::distinct($tags.map(|$t: string| string::lowercase(string::trim($t))));
+  IF $doc.tags = $norm { RETURN { ok: true, id: $rid, unchanged: true, tags: $norm } };
+  UPDATE $rid SET tags = $norm;
+  CREATE decision_log SET subject = $rid, actor = $actor, action = "tags_set",
+    from = array::join($doc.tags, ","), to = array::join($norm, ",");
+  RETURN { ok: true, id: $rid, unchanged: false, tags: $norm };
+} COMMENT "Replace document.tags (normalized, de-duplicated); logs tags_set. Content and hash untouched." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::docs_retract — retire a document row and RELEASE its content_hash.
+-- `document_hash` is an unconditional UNIQUE index on content_hash, so a
+-- hand-registered row that carries the same bytes as a file the CocoIndex
+-- pipeline owns blocks the pipeline's own row (seen 2026-09-14, multi-root
+-- run). The original digest is kept in retracted_reason; the released hash
+-- is deterministic and cannot collide with a real digest. Nothing deleted.
+-- Defined live by consignatio-d6 on 2026-09-14 (owner: "resolve that issue
+-- for once"); recorded here as the source of truth by Claude Code · Fable 5.1.
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::docs_retract(
+  $id: record<document> | string,
+  $reason: string
+) {
+  LET $rid = IF type::is_record($id) { $id } ELSE { <record<document>> $id };
+  LET $doc = (SELECT * FROM ONLY $rid);
+  IF $doc = NONE { RETURN { ok: false, error: "not_found", id: $rid } };
+  IF $doc.status = "retracted" {
+    RETURN { ok: true, id: $rid, unchanged: true, content_hash: $doc.content_hash }
+  };
+  LET $orig = $doc.content_hash;
+  LET $released = crypto::sha256($orig + ":retracted:" + <string> $rid);
+  UPDATE $rid SET
+    status = "retracted",
+    retracted_reason = $reason + " | original_content_hash=" + $orig,
+    content_hash = $released;
+  CREATE decision_log SET subject = $rid, actor = "system", action = "document_retracted", rationale = $reason;
+  RETURN { ok: true, id: $rid, original_content_hash: $orig, content_hash: $released };
+} COMMENT "Retire a document row and release its content_hash (original digest kept in retracted_reason; decision_log row appended). Nothing deleted." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::decision_amend — append-only decision_log row plus optional close
+-- of documents. $subject is the source_path of "the decision document";
+-- when a document exists at that path (doc_type = "decision"), each
+-- $closes document gets a supersedes edge from it and flips to
+-- superseded. When no such decision document exists, this is just the
+-- log row (nothing to attribute the edge to) — kept simple and safe.
+--
+-- GOTCHA: decision_log (030_records.surql) has no `note` field; the
+-- closest existing field is `rationale`, which is what $banner is
+-- written to. `subject` on decision_log is a non-optional `record`, so
+-- if neither a decision document nor any $closes item exists there is
+-- nothing valid to write as subject — that case returns an error
+-- object instead of violating the schema.
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::decision_amend(
+  $subject: string,
+  $banner: string,
+  $closes: option<array<record<document>>> | null
+) {
+  -- NULL-tolerant optional (2026-09-16): MCP JSON null means "nothing to close".
+  LET $closes_arr = IF $closes == NULL { [] } ELSE { $closes ?? [] };
+
+  LET $decision_doc = (
+    SELECT id FROM document
+    WHERE source_path = $subject AND doc_type = "decision"
+    LIMIT 1
+  );
+  LET $decision_id = IF array::len($decision_doc) > 0 { $decision_doc[0].id } ELSE { NONE };
+
+  LET $log_subject = IF $decision_id != NONE { $decision_id }
+    ELSE IF array::len($closes_arr) > 0 { $closes_arr[0] }
+    ELSE { NONE };
+
+  IF $log_subject == NONE {
+    RETURN {
+      ok: false,
+      error: "no_subject_record",
+      detail: "no decision document at that source_path and no $closes items given"
+    };
+  };
+
+  CREATE decision_log SET
+    subject   = $log_subject,
+    actor     = "system",
+    action    = "decision_amended",
+    rationale = $banner;
+
+  IF $decision_id != NONE {
+    FOR $c IN $closes_arr {
+      RELATE $decision_id->supersedes->$c SET at = time::now();
+      UPDATE $c SET status = "superseded";
+    };
+  };
+
+  RETURN {
+    ok: true,
+    subject: $log_subject,
+    decision_document: $decision_id,
+    closed: $closes_arr
+  };
+} COMMENT "Append-only decision_log row (rationale = $banner); closes $closes docs via supersedes only if a decision doc exists at $subject." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::todo_open / fn::todo_close — over the existing `todo` table
+-- (030_records.surql). Respects its ASSERT lists: priority 0..4,
+-- status enum driven by the table's own DEFAULT/ASSERT and the
+-- todo_status_change / todo_close_stamp EVENTs in 050_events.surql.
+--
+-- GOTCHA: `todo` has NO `domains` column (only document/chunk do).
+-- Rather than altering the existing schema (out of scope here),
+-- $domains is folded into `detail` as "domains:a,b" so the information
+-- is not silently dropped. $source is a source_path string, resolved
+-- to `source_doc` (record<document>) when a match exists.
+-- ---------------------------------------------------------------------
+DEFINE FUNCTION OVERWRITE fn::todo_open(
+  $item: string,
+  $priority: int,
+  $domains: array<string>,
+  $source: option<string> | null
+) {
+  -- NULL-tolerant optional (2026-09-16): MCP JSON null means "no source".
+  LET $source_n = IF $source == NULL { NONE } ELSE { $source };
+  LET $src_match = IF $source_n == NONE { [] } ELSE {
+    (SELECT id FROM document WHERE source_path = $source_n LIMIT 1)
+  };
+  LET $src_id = IF array::len($src_match) > 0 { $src_match[0].id } ELSE { NONE };
+
+  LET $detail_txt = "domains:" + array::join($domains, ",")
+    + (IF $source_n != NONE { " | source:" + $source_n } ELSE { "" });
+
+  LET $new = CREATE ONLY todo SET
+    title      = $item,
+    priority   = $priority,
+    detail     = $detail_txt,
+    source_doc = $src_id;
+
+  RETURN { id: $new.id, title: $item, priority: $priority, domains: $domains, source_doc: $src_id };
+} COMMENT "Opens a todo. No domains column on todo (gotcha): folded into detail. $source resolved to source_doc when it matches a document." PERMISSIONS FULL;
+
+DEFINE FUNCTION OVERWRITE fn::todo_close($id: record<todo> | string, $evidence: string) {
+  LET $rid = IF type::is_record($id) { $id } ELSE { <record<todo>> $id };
+  LET $before = (SELECT * FROM ONLY $rid);
+
+  -- GOTCHA: closed_at is set by the todo_close_stamp EVENT
+  -- (050_events.surql) on the done/dropped transition. Do not set it
+  -- here too — that would just be an immediate second write.
+  UPDATE $rid SET
+    status = "done",
+    detail = ($before.detail OR "") + " | closed_evidence:" + $evidence;
+
+  RETURN (SELECT * FROM ONLY $rid);
+} COMMENT "Closes a todo as done with evidence appended to detail; closed_at comes from the todo_close_stamp EVENT." PERMISSIONS FULL;
+
+-- ---------------------------------------------------------------------
+-- fn::handoff_write — new active handoff document. Fixed 2026-09-15/16
+-- (owner: two real handoffs were clobbered because the old LIMIT-1
+-- "any overlapping domain" match superseded one arbitrary active handoff
+-- with ANY shared domain — e.g. an Intake handoff superseded a
+-- B2-consolidation handoff (document:al3a33z0sm0w635lkaxg) that merely
+-- shared the 'consignatio' domain, leaving a second overlapping handoff
+-- untouched). Fix: an explicit optional 4th arg $supersedes wins when
+-- given; otherwise it supersedes every ACTIVE handoff whose domain SET
+-- equals $domains exactly (order/duplicates ignored) — a strictly
+-- narrower default than "any overlap", so 3-arg callers keep working
+-- (fixed the same new->supersedes->old + status-flip semantics as
+-- fn::docs_new_version, reimplemented inline because the new document's
+-- title/domains are caller-given here, not inherited from $old).
+-- Applied live to the docs SurrealDB 2026-09-15/16 (verified via
+-- INFO FOR DB — this source now matches); see
+-- Consignatio/docs/ops/docstore-handoff-write-fix-2026-09-15.surql.
+-- ---------------------------------------------------------------------
+-- BUG FIXED 2026-09-16 (written 2026-09-15, classifier-blocked then; source
+-- patch was Consignatio/docs/ops/docstore-handoff-write-fix-2026-09-15.surql).
+-- Until now this function superseded ONE arbitrary active handoff with ANY
+-- overlapping domain (LIMIT 1). It clobbered other lanes (2026-09-09/10: 4
+-- real handoffs flipped; 2026-09-14: the B2-consolidation handoff
+-- document:al3a33z0sm0w635lkaxg was superseded by an Intake handoff that
+-- merely shared the 'consignatio' domain) while leaving a second overlapping
+-- handoff active.
+-- FIX: 4th optional arg $supersedes. An explicit list wins; otherwise every
+-- ACTIVE handoff whose domain SET equals $domains exactly (order/duplicates
+-- ignored). 3-arg callers keep working (trailing optional arg). Recorded
+-- choice: exact-set default, NOT "all overlapping" (that would clobber more,
+-- not less); a lane that changes its domain list passes $supersedes.
+DEFINE FUNCTION OVERWRITE fn::handoff_write(
+  $title: string,
+  $body: string,
+  $domains: array<string>,
+  $supersedes: none | array<record<document>> | null
+) {
+  LET $explicit = IF $supersedes == NULL { [] } ELSE { $supersedes ?? [] };
+  LET $wanted = array::sort::asc(array::distinct($domains));
+  LET $same_set = (
+    SELECT VALUE id FROM document
+    WHERE doc_type = "handoff" AND status = "active"
+      AND array::sort::asc(array::distinct(domains)) = $wanted
+  );
+  LET $prev = IF array::len($explicit) > 0 { $explicit } ELSE { $same_set };
+
+  LET $slug = string::lowercase(string::replace($title, " ", "-"));
+  LET $path = "handoff://" + $slug + "/" + <string>rand::uuid();
+
+  LET $new = CREATE ONLY document SET
+    source_path  = $path,
+    title        = $title,
+    doc_type     = "handoff",
+    domains      = $domains,
+    status       = "active",
+    body         = $body,
+    content_hash = crypto::sha256($body),
+    authored_at  = time::now();
+  LET $new_id = $new.id;
+
+  FOR $p IN $prev {
+    IF $p != $new_id AND (SELECT VALUE doc_type FROM ONLY $p) = "handoff" {
+      RELATE $new_id->supersedes->$p SET at = time::now();
+      UPDATE $p SET status = "superseded";
+    };
+  };
+
+  RETURN {
+    id: $new_id,
+    superseded: $prev,
+    match: IF array::len($explicit) > 0 { "explicit" } ELSE { "same_domain_set" }
+  };
+} COMMENT "New active handoff doc. Supersedes $supersedes when given (explicit list); otherwise every active handoff whose domain SET equals $domains exactly. Until 2026-09-15 it superseded ONE arbitrary handoff with ANY overlapping domain (LIMIT 1), which clobbered other lanes." PERMISSIONS FULL;

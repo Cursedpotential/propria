@@ -1,0 +1,30 @@
+{
+  "_comment": "Updated 2026-08-14: For NOT-YET-CREATED knowledge-core collections only (dimension not locked yet). Expanded to include comprehensive selection of NVIDIA NIM embedding models as options, with Gemini 4-key loadbalance primary and multiple NVIDIA fallbacks. WARNING: Embedding dimension truncation (output_dimensionality/etc.) is NOT honored by this Portkey image — every model returns its native dimension. Do NOT trust any dimensionality override figures; lock collections to ACTUALLY observed dimensions at creation time. See model_catalog.py for detailed model specifications including symmetry and known dimensions.",
+  "strategy": { "mode": "fallback" },
+  "targets": [
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "google", "api_key": "$GEMINI_API_KEY",   "weight": 1, "override_params": { "model": "gemini-embedding-001" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_2",   "weight": 1, "override_params": { "model": "gemini-embedding-001" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_3",   "weight": 1, "override_params": { "model": "gemini-embedding-001" } },
+        { "provider": "google", "api_key": "$GEMINI_API_KEY_4",   "weight": 1, "override_params": { "model": "gemini-embedding-001" } }
+      ]
+    },
+    {
+      "strategy": { "mode": "loadbalance" },
+      "targets": [
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nv-embed-v1" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nv-embedcode-7b-v1" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/llama-nemotron-embed-vl-1b-v2" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nemotron-3-embed-1b" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nv-embedqa-e5-v5" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/nv-embedqa-mistral-7b-v2" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "snowflake/arctic-embed-l" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/llama-3.2-nv-embedqa-1b-v1" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1" } },
+        { "provider": "openai", "custom_host": "https://integrate.api.nvidia.com/v1", "api_key": "$NVIDIA_API_KEY", "override_params": { "model": "nvidia/embed-qa-4" } }
+      ]
+    }
+  ]
+}

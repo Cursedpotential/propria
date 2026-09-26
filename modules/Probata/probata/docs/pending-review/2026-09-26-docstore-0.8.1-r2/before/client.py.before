@@ -1,0 +1,120 @@
+"""Portable thin client. All Docstore operations use the mandatory hosted ctl MCP."""
+from __future__ import annotations
+import argparse
+import asyncio
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+from urllib.parse import urlsplit
+try:
+    from fastmcp import Client
+    from fastmcp.client.transports import StreamableHttpTransport
+except ImportError:
+    # Local fallback (Claude Code · Opus 5.5 · 2026-09-26): a desktop Python can carry an incompatible
+    # fastmcp/mcp pair (seen: fastmcp 3.4.7 + mcp 2.0.0), which breaks this import. Re-run this client under
+    # the plugin's own pinned requirements through uv instead of changing the global Python.
+    import shutil as _shutil, subprocess as _subprocess
+    if os.environ.get("DOCSTORE_CLIENT_REEXEC") != "1" and _shutil.which("uv"):
+        _here = Path(__file__).resolve().parent
+        raise SystemExit(_subprocess.call(
+            ["uv", "run", "--no-project", "--quiet", "--with-requirements", str(_here / "requirements.txt"),
+             "python", str(Path(__file__).resolve()), *sys.argv[1:]],
+            env={**os.environ, "DOCSTORE_CLIENT_REEXEC": "1"}))
+    raise
+
+
+from connection_settings import load_connection, error_report
+
+
+def connection():
+    settings = load_connection()
+    return Client(StreamableHttpTransport(settings.url, headers=settings.headers), timeout=180)
+
+
+async def call(client,tool,args):
+    names={item.name for item in await client.list_tools()}
+    try:
+        resolved=resolve_tool(names,tool)
+    except ValueError:
+        discovery=resolve_tool(names,'docstore_capabilities')
+        schema=(await client.call_tool(discovery,{'operation':tool})).data
+        read=schema['read_only'] or (tool=='docstore_adr' and args.get('action') in schema.get('read_actions',[]))
+        result=await client.call_tool(resolve_tool(names,'docstore_query'),
+            {'operation':tool,'arguments':args,'mode':'read' if read else 'write'})
+    else:
+        result=await client.call_tool(resolved,args)
+    return result.data
+
+
+def resolve_tool(names,tool):
+    if tool in names:return tool
+    matches=[name for name in names if name.endswith('-'+tool.replace('_','-'))]
+    if len(matches)!=1:raise ValueError('Missing or ambiguous hosted ctl tool: '+tool)
+    return matches[0]
+
+
+async def sync(client,root,apply=False):
+    roots={'propria':'docs','probata':'Probata/probata/docs','consignatio':'Consignatio/docs','consignatio-intake':'Consignatio/Intake/docs','advocatio':'Legal-desktop/docs'}
+    # ADR payloads are authoritative; projections are included in the manifest without local writes on dry run.
+    projections=await call(client,'docstore_adr',{'action':'projections'})
+    projected={p['path'].removeprefix('docs/'):p for p in projections.get('projections',[])}
+    files=[]
+    for project,path in roots.items():
+        directory=(root/path).resolve(strict=True)
+        if not directory.is_relative_to(root):
+            raise ValueError('Root escapes Propria')
+        found={}
+        for file in directory.rglob('*.md'):
+            relative=file.relative_to(directory)
+            if (any(p.startswith('.') or p.lower() in {'private','to_be_deleted','_to_be_deleted'} for p in relative.parts)
+                or (project=='propria' and relative.parts[0].lower() in {'probata','consignatio','consignatio-intake','advocatio','vestigia','family-court'})):
+                continue
+            if not file.resolve().is_relative_to(directory) or file.is_symlink():
+                raise ValueError('Source symlinks are not supported')
+            if file.stat().st_size>1024*1024:
+                raise ValueError('Document exceeds 1 MiB: '+str(relative))
+            found[relative.as_posix()]=file.read_bytes().decode('utf-8')
+        if project=='probata':
+            found.update({p:v['content'] for p,v in projected.items()})
+        files.extend({'project':project,'path':p,'content':content,'sha256':hashlib.sha256(content.encode()).hexdigest()} for p,content in found.items())
+    plan=await call(client,'docstore_source_plan',{'files':files})
+    if not apply:
+        return plan
+    receipt=await call(client,'docstore_source_apply',{'files':files,'plan_id':plan['plan_id']})
+    # Preserve existing local projections before materializing the authoritative version.
+    for path,item in projected.items():
+        target=root/roots['probata']/path
+        target.parent.mkdir(parents=True,exist_ok=True)
+        if target.exists() and target.read_bytes()!=item['content'].encode():
+            archive=root/'to_be_deleted'/('adr-'+receipt['generation'])/path
+            archive.parent.mkdir(parents=True,exist_ok=True); target.replace(archive)
+        target.write_bytes(item['content'].encode())
+    return receipt
+
+
+async def main(args):
+    async with connection() as client:
+        catalog={tool.name for tool in await client.list_tools()}
+        required={'docstore_health','docstore_capabilities','docstore_query','coco_docstore_search','docstore_get'}
+        for tool in required:
+            resolve_tool(catalog,tool)
+        if args.command=='sync':
+            return await sync(client,Path(args.root).resolve(strict=True),args.apply)
+        if args.command=='catalog':
+            return {'tools':sorted(catalog)}
+        return await call(client,args.tool,json.loads(args.json))
+
+
+if __name__=='__main__':
+    parser=argparse.ArgumentParser()
+    sub=parser.add_subparsers(dest='command',required=True)
+    sub.add_parser('catalog')
+    invoke=sub.add_parser('call'); invoke.add_argument('tool'); invoke.add_argument('--json',default='{}')
+    sync_parser=sub.add_parser('sync'); sync_parser.add_argument('--root',required=True); sync_parser.add_argument('--apply',action='store_true')
+    try:
+        print(json.dumps(asyncio.run(main(parser.parse_args())),ensure_ascii=False,default=str))
+    except Exception as exc:
+        print(json.dumps(error_report(exc)),file=sys.stderr)
+        raise SystemExit(1)

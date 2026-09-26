@@ -1,0 +1,49 @@
+# Research_Plan_Ready_for_Review-2026-04-14-19-17-38.md
+> _Byline: Claude Code · Sonnet · 2026-07-11_
+
+## Snapshot
+- Source tool: Gemini web export (markdown `.md`, "Exported on: 4/14/2026, 7:17:38 PM" — Gemini's export timestamp, not the underlying conversation date)
+- Size: 92 KB / 1,031 lines / 35 user turns (35 `**You:**`/`**Gemini:**` pairs)
+- Format: single markdown file, no JSON, no per-turn timestamps or IDs
+- Era: export dated 2026-04-14; no other in-body dates. Despite the "Research Plan" title, this is a **multi-topic, meandering single conversation** — not one research task.
+
+## Structure & format
+- Turns delimited by `**You:**` / `**Gemini:**` bold labels; `---` horizontal rules separate turn-pairs. No topic-change markers of any kind — same flat structure as the other two Gemini exports in this batch.
+- **PARSING NOTE (critical) — "Deep Research" turns are stubs, not content.** Whenever the user triggers Gemini's Deep Research feature ("Start research" / "Deep Research"), the actual multi-page report body is **not captured in this export**. The `**Gemini:**` reply is a one-line placeholder ("I've completed your research. Feel free to ask me follow-up questions or request changes.") or, occasionally, the literal research-plan outline text run together as unformatted prose (e.g. "Research Websites(1) Identify the central theme... MoreAnalyze ResultsCreate ReportReady in a few mins Edit plan Start research"). The substantive research report — if the user ever exported it separately to Google Docs, as Gemini's own onboarding message describes — is **not in this file**. A parser must not treat these turns as containing analyzable content; they are markers that a (missing) research artifact exists elsewhere.
+- **PARSING NOTE — "Generate Audio Overview" turns are also stubs.** Same pattern: "Sure, here is your Audio Overview" plus a title line for a generated audio artifact that is not embedded (no audio, no transcript).
+- No embedded code blocks in this file (contrast with File 2, which has a code/app-dev-heavy section) — all technical discussion here is descriptive prose about NLP/LLM approaches, not generated artifacts.
+- Legal citations appear inline as prose, not as a structured bibliography (e.g. a real case name, `V.C. v. M.J.` (NJ Supreme Court, 1999), and several named scholarly/self-help sources are cited by Gemini without links).
+
+## Section-by-section breakdown (in order)
+1. **Lines 6–58 — NPD-vs-BPD "splitting" manipulation research kickoff**, followed immediately by a detailed Gemini answer on how a female partner's idealization→devaluation→infidelity cycle maps to NPD dynamics (narcissistic supply, narcissistic injury, triangulation). Framed hypothetically ("the male partner," "she"), no names.
+2. **Lines 62–107 — Owner's first-person disclosure.** Owner states he believes his partner has NPD, describes the cheating/supply/devaluation pattern as personally observed, and asks specifically about the **interaction between her alcoholism and NPD**: sober = performs a "good woman" mask with apparent partial self-awareness of missing empathy; drinking = mask drops, "becomes really evil," frantic repeated "I'm a good woman" (described as cognitive dissonance / ego defense). This is the same core narrative later named "Matt and Katrina" in File 3 (`abusive-relationship.md`) — here it's unnamed/hypothetical-voiced but unmistakably the same relationship.
+3. **Lines 111–139 — Repeat splitting-research request + a Gemini "Gem" idea**: owner wants a custom Gemini Gem offering conflict-management tips for co-parents where one has a personality disorder (BPD/NPD) and the other has a mood disorder with anxiety/trust issues — i.e., a tool modeled directly on his own situation, generalized.
+4. **Lines 143–288 — Meta/tooling tangent: an AI chatbot to analyze years of conversation for conflict + psychological cues.** Owner asks how to build or find (cheaply) an AI that can ingest a multi-year conversation history and discuss conflict/psychological patterns with him — **this is the owner independently describing the exact chat-ingest/extraction-lane capability this discovery project is now building**, plus a follow-up on free-tier NLP/LLM platforms (Hugging Face, GCP/Vertex, AWS Comprehend, Azure AI Language) to prototype it cheaply.
+5. **Lines 292–629 — Gemini Gem creation tutorials**, twice: a generic "what is a Gemini Gem" walkthrough (owner initially confuses "gem"/"gym"), then a fully fleshed-out **28-day tip program** for a co-parenting-conflict Gem, organized by week (Communication → Managing Intense Emotions [mood-disorder parent] → Building Empathy [NPD/BPD-trait parent] → Anxiety/Trust), each day a CBT/DBT-flavored tip, plus a mandatory non-therapy disclaimer. This is a therapeutic-content generation exercise, not case documentation, but it re-encodes the owner's real dynamic as a generic template.
+6. **Lines 650–743 — Legal research: relationship/custody law.** Owner asks whether any statute/case law defines the "obligations" of a boyfriend/girlfriend relationship involving a child. Gemini covers parental rights, best-interests-of-the-child standard, third-party/non-parent limits, child support (non-parent generally not obligated), and DV's impact on custody/visitation — then, on a follow-up, cites the **"psychological parent"/"de facto parent" doctrine** and names `V.C. v. M.J.` (Supreme Court of New Jersey, 1999) as the seminal case establishing standing for a non-biological parent figure.
+7. **Lines 766–1031 — Continued relationship-expectations research.** Unwritten-contract/relationship-norms discussion (communication, respect, support, commitment, intimacy) with scholarly-source requests; Gemini names Gottman ("The Seven Principles for Making Marriage Work," "The Relationship Cure"), Esther Perel ("Mating in Captivity"), Stephanie Coontz ("The Evolution of Marriage") — unverified AI-cited sources, not court-usable. Final exchange: **recovering from betrayal in a long-term relationship where both partners have mental-health conditions** (infidelity, hidden substance abuse, hidden opposite-sex friendships) — detailed recovery framework (full ownership, safety/transparency, individual + couples + family therapy, EFT/Gottman Method, BIFF-adjacent communication, "when recovery may not be possible" criteria). File ends mid-stream on another "Deep Research" stub.
+
+## Facets present (extraction-lane map)
+| facet | present? | examples / notes |
+|---|---|---|
+| identity(who) | minimal | No real names in this file (contrast File 3's "Matt"/"Katrina"); owner referred to only as "you"/implied "he" |
+| entities | weak | `V.C. v. M.J.` (real NJ case citation); named authors/books (Gottman, Perel, Coontz) — scholarly, not case-specific |
+| relationships | heavy | Full idealization→devaluation→infidelity cycle; sober-mask-vs-drunk-behavior duality; co-parent conflict dynamic; betrayal-recovery dynamics |
+| timeline/events | weak | No dated incidents; only vague duration cues ("over the years," implicit recurring sober/drunk cycle) — no anchorable dates in this file |
+| life-history | weak | Implied years-long pattern; no specifics |
+| legal-strategy | yes | Custody/best-interests research, non-parent/de facto-parent standing, DV impact on custody/visitation — background research feeding case strategy, not drafted strategy itself |
+| legal-artifacts | no | No drafted documents; only informal legal-topic Q&A |
+| mood/sentiment (owner-self, low-pri) | weak | Owner's framing/word choice ("she just becomes really evil honestly") signals distress but is mostly about describing partner, not owner's own state |
+| psychiatric | heavy | NPD/BPD splitting, alcoholism×NPD interaction, "narcissistic mask," cognitive dissonance framing of the "I'm a good woman" refrain — clinical-language-heavy throughout |
+| code/app-dev/plans | heavy | AI conversation-analysis chatbot idea (self-referential to this very project), free-tier NLP/LLM platform survey, two full Gemini Gem build-outs |
+| work | none | — |
+
+## Notable content
+- **Owner independently proposed the chat-ingest/extraction-lane concept** (section 4) before this platform existed — strong prior-art signal for the extraction-lane design discussion (DECISION_LOG D-034).
+- Real case citation: `V.C. v. M.J.` (NJ Supreme Court, 1999) — psychological/de facto parent doctrine. Verify jurisdiction relevance before relying on it (case is New Jersey; confirm whether owner's case is in a state with an analogous doctrine).
+- Same underlying relationship narrative (sober "good woman" mask vs. drinking-triggered devaluation) recurs verbatim in spirit across all three files in this batch — treat as one continuing story told to different chat sessions, not three independent incidents.
+- Gemini Gem content (co-parenting conflict tips) is therapeutic/template material generated FROM the owner's situation, not independent evidence — do not mistake generated tip lists for documented incidents.
+- Scholarly/legal sources named by Gemini (Gottman, Perel, Coontz, and the unlinked "Gottman Institute," "Holding Hope MFT," "Anchor Light Therapy Collective" articles) are AI-recalled, not verified — flag as leads to check, not citations to use as-is.
+
+## Sensitivity
+- HIGH. Contains detailed psychiatric characterization of a partner (suspected NPD) and the owner (implicit distress, relationship trauma), alcohol-abuse description, and infidelity/cheating allegations — all in hypothetical/unnamed voice in this file, but confirmed (via File 3) to describe real persons. LABEL as: (a) owner-self mood/psychological content, (b) third-party (partner) psychiatric/behavioral allegations, (c) co-parenting/child-impact content. No redaction — research policy; real-name cross-reference lives in `abusive-relationship.md`.

@@ -1,0 +1,41 @@
+# =============================================================================
+# LIBRECHAT MONGO — deploy as its OWN Coolify app on ovh-files (OVH-2,
+# tailnet 100.91.190.107), project "Case Bible". One-concern-per-app rule.
+#
+# ⚠ Conscious owner override (2026-07-20): REAL MongoDB, not FerretDB — the
+# MongoDB→FerretDB substitution mandate is waived for LibreChat only (Mongoose
+# query patterns hit FerretDB compatibility gaps). Do not copy this precedent.
+#
+# NO host port — internal docker-network access only (librechat reaches it as
+# mongodb://librechat-mongo:27017 over the shared external `probata` net).
+#
+# HOST-PREP (once, before first deploy):
+#   mkdir -p /data/probata/volumes/librechat/mongo && chown -R 999:999 /data/probata/volumes/librechat/mongo
+#   docker network inspect probata >/dev/null 2>&1 || docker network create probata
+# =============================================================================
+# Byline: Claude Code · Fable 5 · 2026-07-20
+# Byline: Claude Code · Opus 5 · 2026-08-05 (digest pin)
+
+services:
+  librechat-mongo:
+    # `mongo:7` was already a sane major pin; the digest makes it exact. This is
+    # the image running since 2026-07-29. Bump deliberately.
+    image: mongo:7@sha256:340c1c56fb10e95cf79ff547f8664b96bc6ead9909bc355238cbf865a9695a6f
+    container_name: librechat-mongo
+    restart: unless-stopped
+    command: mongod --quiet
+    volumes:
+      # Bind mounts only — owner backs up host dirs (no named volumes).
+      - /data/probata/volumes/librechat/mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - probata
+
+networks:
+  probata:
+    external: true

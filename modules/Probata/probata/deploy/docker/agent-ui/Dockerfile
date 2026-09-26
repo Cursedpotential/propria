@@ -1,0 +1,38 @@
+# =============================================================================
+# Agno Agent UI — self-hosted native chat/control surface (agno-agi/agent-ui)
+# =============================================================================
+# Open-source Next.js + TypeScript UI for AgentOS. Runs in the browser and talks
+# DIRECTLY to the AgentOS API (agentos-api) — no data passes through Agno's cloud
+# and this container holds NO secrets/DB. It only serves the static/SSR frontend.
+#
+# The AgentOS endpoint is selected in the UI's connect dialog (point it at the
+# api hostname, e.g. https://api.int.mitechconsult.com). Internal surface
+# (chat.int.*); a gated public twin (chat.*) comes via Traefik later.
+#
+# NOTE: cloned from main (no upstream Docker image / stable tag). Pin to a commit
+# once we lock a known-good build.
+# =============================================================================
+FROM node:22-alpine AS build
+RUN apk add --no-cache git
+# Use pnpm 9, NOT corepack's pnpm 10. pnpm 10 blocks dependency build scripts by
+# default ([ERR_PNPM_IGNORED_BUILDS] sharp@0.34.5) → sharp's native binary never
+# compiles → `next build` fails. pnpm 9 runs those build scripts, so sharp builds.
+RUN npm install -g pnpm@9.15.9
+WORKDIR /app
+# Build-OOM guards (OVH-1 is 7.6GB; the box now also has a 4GB swapfile). Cap the
+# Node heap and silence telemetry so `next build` completes instead of OOM-killing.
+ENV NODE_OPTIONS=--max-old-space-size=4096
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN git clone --depth 1 https://github.com/agno-agi/agent-ui.git . \
+ && pnpm install --no-frozen-lockfile \
+ && pnpm build
+
+FROM node:22-alpine AS run
+RUN npm install -g pnpm@9.15.9
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app ./
+EXPOSE 3000
+CMD ["pnpm", "start"]
+
+# Byline: Claude Code · Opus 4.8 · 2026-06-14

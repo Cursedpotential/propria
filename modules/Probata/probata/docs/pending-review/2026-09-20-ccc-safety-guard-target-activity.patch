@@ -1,0 +1,44 @@
+--- _safety_guard.py
++++ _safety_guard.py
+@@ -189,6 +189,12 @@
+                 age = 0 if self.heartbeat is None else time.monotonic() - self.heartbeat
+                 reason = fault_reason(sample, age)
+                 if reason is None:
++                    # Patch 2026-09-20 (Claude Code - Fable 5.1): the per-file counters in
++                    # job_progress stand still while cocoindex applies the target (one long
++                    # SQLite transaction; the journal grew 114 -> 250 MB with every counter
++                    # frozen), so a healthy re-index was killed at 300 s twice today. Bytes
++                    # still being written to the project's index count as progress.
++                    self._refresh_from_target_activity()
+                     with self.jobs_lock:
+                         stalled = [key for key, value in self.jobs.items() if time.monotonic() - value[0] > 300]
+                     if stalled:
+@@ -200,6 +206,28 @@
+                 self.trip(reason, sample)
+                 return
+ 
++    def _refresh_from_target_activity(self):
++        with self.jobs_lock:
++            keys = list(self.jobs)
++        signatures = getattr(self, '_target_signatures', None)
++        if signatures is None:
++            signatures = self._target_signatures = {}
++        for key in keys:
++            base = Path(key) / '.cocoindex_code'
++            signature = []
++            for name in ('target_sqlite.db', 'target_sqlite.db-journal', 'target_sqlite.db-wal'):
++                try:
++                    st = (base / name).stat()
++                    signature.append((name, st.st_size, st.st_mtime_ns))
++                except OSError:
++                    signature.append((name, None, None))
++            signature = tuple(signature)
++            if signatures.get(key) != signature:
++                signatures[key] = signature
++                with self.jobs_lock:
++                    if key in self.jobs:
++                        self.jobs[key] = (time.monotonic(), self.jobs[key][1])
++
+     def job_progress(self, key, progress):
+         with self.jobs_lock:
+             previous = self.jobs.get(key)

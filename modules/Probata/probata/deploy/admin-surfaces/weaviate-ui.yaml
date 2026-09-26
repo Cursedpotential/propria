@@ -1,0 +1,12 @@
+# Weaviate UI (tailnet only). Byline: Claude Code · Opus 5.5 · 2026-09-23.
+# The image is built locally on ovh-files from weaviate-ui/Dockerfile (pinned commit 389a3f9), so
+# pull_policy is never. Weaviate allows anonymous access, so no key is needed; the app connects
+# server-side to http://100.91.190.107:8082 (gRPC 50052).
+# HTTPS name: svc:weaviate-ui → https://weaviate-ui.tilapia-skilift.ts.net
+services:
+  weaviate-ui:
+    image: propria/weaviate-ui:389a3f9
+    pull_policy: never
+    restart: unless-stopped
+    ports:
+      - "100.91.190.107:8501:8501"

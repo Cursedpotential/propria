@@ -1,0 +1,168 @@
+# =============================================================================
+# Byline: Claude Code · Kimi K3 (drift-fix) · 2026-08-12 — stale "LiteLLM stays
+#         the active path" doors-policy comment corrected (cutover long done);
+#         OVH1_HOST/LITELLM_MASTER_KEY env-list labels marked rollback-only.
+# =============================================================================
+# DATA TIER — GRAPHITI MCP SUBSET, split out of compose.data.yaml.
+# Reason: 2026-06-25 incident + owner mandate 2026-07-05 — every service must be
+# its own Coolify app so any one crashing / being updated never takes down the
+# others. Mirrors the Milvus split (commit 18c42d2 / compose.data-vector.yaml).
+#
+# DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-graphiti` on OVH-3
+# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/probata (formerly mcp-platform-agno-mvp)
+# @ main, compose file /compose.data-graphiti.yaml.
+# Env (copy from existing data-tier app):
+#   BIND_IP=100.119.96.29      (OVH-3 tailnet — ports bind here, never 0.0.0.0)
+#   OVH3_HOST=100.119.96.29    (used for NEO4J_URI now that neo4j is cross-app)
+#   OVH1_HOST=100.72.169.40    (~~LiteLLM gateway on the exec box, over tailnet~~
+#      Corrected 2026-08-12: historical/rollback-only — LiteLLM RETIRED (ADR-0042);
+#      OVH1_HOST matters now only for the pre-cutover rollback path at :68-76 below.
+#      graphiti-mcp currently reaches PORTKEY via the graphiti-portkeyfix sidecar.)
+#   NEO4J_PASSWORD             (must match data-neo4j app)
+#   LITELLM_MASTER_KEY         (~~gateway auth~~ Corrected 2026-08-12: rollback-only —
+#      LiteLLM retired ADR-0042; only read if the :68-76 rollback path is ever taken)
+#
+# Same absolute config mount as the original — NO data migration: graphiti-mcp
+# is stateless (state lives in Neo4j, which is now its own app). It reattaches
+# /data/agno/config/graphiti/config.yaml (read-only).
+#
+# REWIRING (the ONE change from the bundled version):
+#   NEO4J_URI: bolt://neo4j:7687   (docker DNS, same compose)  → REMOVED
+#   NEO4J_URI: bolt://${OVH3_HOST}:7687  (tailnet host port, cross-app)  → NEW
+#   depends_on: neo4j: condition: service_healthy  → REMOVED (cross-app can't
+#   express cross-compose depends_on; graphiti's bolt driver retries on its own,
+#   and the cutover starts data-neo4j and confirms healthy BEFORE data-graphiti).
+#
+# CUTOVER (one pass, after this lands on main + new app created + healthy):
+#   1. Edit compose.data.yaml on main: DELETE the `graphiti-mcp:` service block.
+#   2. Redeploy the existing `data-tier` app (uuid ipy7vrw…) → shrinks by one.
+#   3. This app `data-graphiti` already serving 8071 on tailnet → exec-tier /
+#      ContextForge (http://${OVH3_HOST}:8071) see no interruption.
+# Reversible: revert compose.data.yaml edit + stop/delete data-graphiti.
+# =============================================================================
+
+services:
+  graphiti-mcp:
+    image: zepai/knowledge-graph-mcp:latest
+    platform: linux/amd64
+    container_name: graphiti-mcp
+    restart: unless-stopped
+    # NO host port binding — internal only. The graphiti-hostfix nginx sidecar
+    # (below) owns ${BIND_IP}:8071 and proxies here with a rewritten Host header.
+    environment:
+      CONFIG_PATH: /app/mcp/config/config.yaml
+      BROWSER: "0"
+      # STALE-AS-DOCUMENTED, kept for the record: the image's bundled MCP SDK (mcp 1.26.0)
+      # constructs FastMCP() with default host 127.0.0.1, which passes an EXPLICIT
+      # allowed_hosts=["127.0.0.1:*","localhost:*"] kwarg — so this env override is
+      # silently IGNORED upstream (wildcards are port-only; base host must be exactly
+      # localhost/127.0.0.1). Tailnet-IP requests → 421 "Invalid Host header".
+      # The real fix is the graphiti-hostfix nginx sidecar below, which rewrites
+      # Host to "localhost:8071" before proxying. Env left in place (harmless) in
+      # case a future image version honors it.
+      FASTMCP_TRANSPORT_SECURITY: '{"enable_dns_rebinding_protection": false}'
+      # Neo4j is now its own Coolify app (data-neo4j); reach over the tailnet
+      # bolt port instead of the docker DNS name. graphiti's bolt driver retries
+      # on startup, so cross-app depends_on is not needed — but data-neo4j must
+      # be healthy before this app starts (ordered cutover).
+      NEO4J_URI: bolt://neo4j:7687   # docker DNS on the shared `agno` net (was tailnet host IP pre-shared-net)
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphiti-dev-password}
+      # LLM + embeddings via the graphiti-portkeyfix sidecar (this compose,
+      # internal docker DNS) -> Portkey on OVH-1. CUTOVER 2026-07-19: was
+      # http://${OVH1_HOST:-100.72.169.40}:4000/v1 (LiteLLM, direct). The
+      # sidecar bakes the real provider auth into the x-portkey-config header
+      # it injects server-side (see docker/gateway/portkey/configs/{embed,
+      # graphiti-llm}.json), so OPENAI_API_KEY here is a dummy value nginx
+      # never inspects — LITELLM_MASTER_KEY is no longer read for this path.
+      # ROLLBACK: point OPENAI_API_URL/OPENAI_BASE_URL back at
+      # http://${OVH1_HOST:-100.72.169.40}:4000/v1 and OPENAI_API_KEY back at
+      # ${LITELLM_MASTER_KEY:-changeme-dev-key}; redeploy. LiteLLM
+      # (docker/gateway/litellm-config.yaml) was never touched or stopped.
+      OPENAI_API_KEY: portkey-sidecar-noauth
+      OPENAI_API_URL: http://graphiti-portkeyfix:8072/v1
+      OPENAI_BASE_URL: http://graphiti-portkeyfix:8072/v1
+    volumes:
+      # ABSOLUTE host bind (gotcha #5) — staged at /data/agno/config/graphiti/
+      - /data/agno/config/graphiti/config.yaml:/app/mcp/config/config.yaml:ro
+    # No depends_on — neo4j is cross-app now. Start data-neo4j first and confirm
+    # healthy before starting data-graphiti (cutover ordering enforces this).
+    # MCP SERVER — NO direct external access, ever. Internal/tailnet-only now
+    # (reached by agentos-api + n8n over the tailnet). When external access is
+    # required, it routes through the IBM ContextForge MCP gateway (ADR-0025,
+    # Phase D) — NEVER a direct Traefik route. Deliberately NO proxy labels.
+    networks:
+      - graphiti
+      - agno                # shared external net — reach neo4j/pg/surreal by docker DNS on OVH-3
+
+  # -----------------------------------------------------------------------
+  # Host-header-rewriting reverse proxy in front of graphiti-mcp.
+  # WHY: upstream FastMCP ctor locks DNS-rebinding allowed_hosts to
+  # localhost/127.0.0.1 (env override ignored — see comment above), so any
+  # request arriving with Host=<tailnet-ip>:8071 gets 421. This sidecar owns
+  # the host port and forwards everything with Host forced to localhost:8071.
+  # Config file MUST pre-exist on the host (Coolify gotcha): staged at
+  # /data/agno/config/graphiti/hostfix.conf.
+  # -----------------------------------------------------------------------
+  graphiti-hostfix:
+    image: nginx:alpine
+    restart: unless-stopped
+    # GAP-008/D-070 (Claude Code · Sonnet 5 · 2026-08-26): direct tailnet host-port
+    # publish REMOVED — Graphiti is retired; the register (GAP-008) flagged this
+    # port as directly tailnet-exposed with no proof of zero exposure. Denying the
+    # port here is the deploy-manifest half of the zero-caller path (the code half
+    # is server/agents/providers.py + server/analysis/context_chat_ingest.py — see
+    # docs/reviews/2026-08-25-schema-audit/GAP-008-IMPLEMENTATION-STATUS.md).
+    # ~~ports: - "${BIND_IP:-127.0.0.1}:8071:8071"~~ — service remains defined
+    # (not deleted, not stopped) but publishes nothing; a redeploy is required for
+    # this to take live effect (out of scope for this packet — see the status doc's
+    # live handoff). The container still runs on the internal `graphiti`/`agno`
+    # docker networks only.
+    volumes:
+      - /data/agno/config/graphiti/hostfix.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - graphiti-mcp
+    networks:
+      - graphiti
+      - agno
+
+  # -----------------------------------------------------------------------
+  # Portkey header-injection sidecar (2026-07-19 Portkey changeover, Phase 3).
+  # WHY: graphiti_core's OpenAIClient/OpenAIEmbedder build a bare
+  # AsyncOpenAI(api_key=, base_url=) with no default_headers/extra_headers
+  # hook anywhere in the chain (config.yaml -> factories.py -> graphiti_core
+  # client ctors — read live out of the running image 2026-07-19, no such
+  # param exists), so Graphiti structurally cannot send the
+  # x-portkey-config header Portkey's stateless/no-DB deployment requires.
+  # Same architectural pattern as graphiti-hostfix above: a static nginx
+  # config injects the right x-portkey-config per path (embeddings vs chat)
+  # and proxies to Portkey on OVH-1. Config templates that generated this
+  # static file live in docker/gateway/portkey/configs/{embed,graphiti-llm}.json
+  # in this repo — portkeyfix.conf is NOT hand-authored, it's those two JSON
+  # bodies inlined with the real key substituted, staged at
+  # /data/agno/config/graphiti/portkeyfix.conf (same host-mount convention as
+  # hostfix.conf). Internal-only (no host port) — only graphiti-mcp talks to it.
+  # ~~NOT yet wired into graphiti-mcp's config.yaml as of this commit — this
+  # stands the sidecar up standalone so it can be verified in isolation
+  # BEFORE graphiti-mcp's OPENAI_API_URL is repointed at it (doors policy:
+  # LiteLLM stays the active path for graphiti-mcp until Portkey is proven).~~
+  # Corrected 2026-08-12: STALE — the wiring it describes as pending is DONE
+  # (cutover 2026-07-19): graphiti-mcp above already runs
+  # OPENAI_API_URL/OPENAI_BASE_URL=http://graphiti-portkeyfix:8072/v1 (see the
+  # graphiti-mcp env block in THIS FILE), and LiteLLM is RETIRED (ADR-0042).
+  # -----------------------------------------------------------------------
+  graphiti-portkeyfix:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - /data/agno/config/graphiti/portkeyfix.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - graphiti
+      - agno
+
+networks:
+  graphiti:
+  agno:
+    external: true          # pre-created on OVH-3 (`docker network create agno`)
+
+# Byline: Claude Code · Fable 5 · 2026-07-05 · Claude Code · Fable 5 · 2026-07-07 (hostfix sidecar: upstream FastMCP ctor locks allowed_hosts to localhost, env override ignored -> nginx rewrites Host) · Claude Code · Sonnet · 2026-07-19 (graphiti-portkeyfix sidecar, Portkey changeover Phase 3)
