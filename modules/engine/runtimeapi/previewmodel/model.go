@@ -307,6 +307,12 @@ type ContentStore interface {
 	Content(context.Context, string, int, int, int) (ContentPage, error)
 }
 
+// ContentTargetStore resolves one target against the authorized preview's
+// current attempt. It does not rely on a caller's presentation page.
+type ContentTargetStore interface {
+	ContentTarget(context.Context, string, string, string) (string, bool, error)
+}
+
 type Store interface {
 	Create(context.Context, Binding) (Binding, error)
 	Binding(context.Context, string) (Binding, error)

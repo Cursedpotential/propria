@@ -1,5 +1,7 @@
 """server/evidence/derivation.py — the SOLE-writer derivation engine (W1.3, ADR-0045 §B).
 
+Byline amendment: Codex · gpt-6-astra · 2026-09-23 (validate walk schedules before writes).
+
 ADR-0045 §B (signed D-042) sanctions version-pinned DERIVED pass materializations
 and FORBIDS parallel authored as-lived/hindsight stores. There is ONE authored
 store (``working.normalized_record`` + ``working.realization_event``); the pass
@@ -212,6 +214,48 @@ def _visible_slice(conn: Any, case_id: str, horizon_at: datetime | None) -> list
     return conn.execute(text(_SLICE_SQL), {"cid": case_id, "horizon": horizon_at}).fetchall()
 
 
+def _validated_horizon_schedule(
+    horizon_policy: str,
+    horizon_schedule: list[datetime] | None,
+    custom_horizon_ceiling: datetime | None,
+) -> list[datetime | None]:
+    """Validate the exact ordered cutoffs that will be recorded for a walk."""
+    if horizon_policy not in ("ignorant", "hindsight", "custom"):
+        raise ValueError(f"horizon_policy {horizon_policy!r} not allowed.")
+    if horizon_policy == "hindsight":
+        if horizon_schedule or custom_horizon_ceiling is not None:
+            raise ValueError("hindsight walk cannot have bounded cutoffs or a ceiling.")
+        return [None]
+    if not horizon_schedule:
+        raise ValueError(f"{horizon_policy} walk requires a non-empty horizon_schedule.")
+    if horizon_policy == "custom":
+        if custom_horizon_ceiling is None:
+            raise ValueError("custom policy requires custom_horizon_ceiling.")
+        ceiling = _utc_datetime(custom_horizon_ceiling, field="custom_horizon_ceiling")
+    elif custom_horizon_ceiling is not None:
+        raise ValueError("ignorant walk cannot have a custom horizon ceiling.")
+    else:
+        ceiling = None
+
+    validated: list[datetime | None] = []
+    previous: datetime | None = None
+    for step_no, horizon_at in enumerate(horizon_schedule, start=1):
+        cutoff = _utc_datetime(horizon_at, field=f"horizon_schedule[{step_no - 1}]")
+        if previous is not None and cutoff <= previous:
+            raise ValueError("walk horizons must advance strictly in time.")
+        if ceiling is not None and cutoff > ceiling:
+            raise ValueError("walk horizon exceeds its custom ceiling.")
+        validated.append(cutoff)
+        previous = cutoff
+    return validated
+
+
+def _utc_datetime(value: datetime, *, field: str) -> datetime:
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{field} must be a timezone-aware datetime.")
+    return value.astimezone(timezone.utc)
+
+
 # ---------------------------------------------------------------------------
 # derive_walk — the SOLE-writer entry point.
 # ---------------------------------------------------------------------------
@@ -236,22 +280,15 @@ def derive_walk(
     horizon timestamps (one per step); the agent lives events as discovered.
     For **hindsight**, pass ``horizon_schedule=None`` — a single step with no
     cutoff sees the whole case. For **custom**, pass ``custom_horizon_ceiling``
-    and an optional schedule (the ceiling caps each step).
+    and a strictly advancing schedule within that ceiling. Invalid cutoffs
+    fail before a walk run is written.
 
     Acquires the F13 sole-writer advisory lock, pins ``base_version``, computes
     ``genesis_hash``, walks the schedule writing steps (each chain-hashed) +
     the final ``final_corpus_hash``, and attests every step + the final hash to
     ``ops.audit_ledger`` (atomic via ``connection``). Returns the ``walk_run.id``.
     """
-    if horizon_policy not in ("ignorant", "hindsight", "custom"):
-        raise ValueError(f"horizon_policy {horizon_policy!r} not allowed.")
-    if horizon_policy == "custom" and custom_horizon_ceiling is None:
-        raise ValueError("custom policy requires custom_horizon_ceiling.")
-    if horizon_policy == "hindsight":
-        # Hindsight = one step, no cutoff.
-        horizon_schedule = [None]  # type: ignore[list-item]
-    elif not horizon_schedule:
-        raise ValueError(f"{horizon_policy} walk requires a non-empty horizon_schedule.")
+    validated_schedule = _validated_horizon_schedule(horizon_policy, horizon_schedule, custom_horizon_ceiling)
 
     params = dict(parameters or {})
 
@@ -289,12 +326,7 @@ def derive_walk(
         prev_hash = genesis
         from server.core.audit import record as audit_record  # local import (cycle-safe)
 
-        for step_no, horizon_at in enumerate(horizon_schedule, start=1):
-            # custom policy caps each step's horizon at the ceiling.
-            if horizon_policy == "custom" and horizon_at is not None and custom_horizon_ceiling is not None:
-                if horizon_at > custom_horizon_ceiling:
-                    horizon_at = custom_horizon_ceiling
-
+        for step_no, horizon_at in enumerate(validated_schedule, start=1):
             slice_rows = _visible_slice(conn, case_id, horizon_at)
             slice_canonical = _canonical_slice(slice_rows, horizon_at)
             corpus_hash = _step_corpus_hash(prev_hash, slice_canonical)

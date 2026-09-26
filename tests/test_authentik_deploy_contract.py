@@ -30,9 +30,7 @@ AUTHENTIK_EXACT_PROXY_SETTING = "${TRAEFIK_PROXY_CIDR:?exact Traefik proxy CIDR 
 # the variable is absent. Workbench uses plain substitution and its own auth
 # boundary rejects an empty or malformed value at runtime.
 WORKBENCH_EXACT_PROXY_SETTING = "${TRAEFIK_PROXY_CIDR}"
-FORWARD_AUTH_ADDRESS = (
-    "https://workbench.int.mitechconsult.com/outpost.goauthentik.io/auth/traefik"
-)
+FORWARD_AUTH_ADDRESS = "https://workbench.int.mitechconsult.com/outpost.goauthentik.io/auth/traefik"
 
 
 def _load(path: Path) -> dict:

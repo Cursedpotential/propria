@@ -10,6 +10,7 @@ Byline amendment: Codex · GPT-5 · 2026-08-18 (governed message projection tran
 Byline amendment: Codex · GPT-5 · 2026-08-18 (duplicate acquisition relink)
 Byline amendment: Codex · GPT-5 · 2026-08-18 (native vector outbox pending receipt)
 Byline amendment: Codex · GPT-5 · 2026-08-29 (startup recovery for incomplete ingests)
+Byline amendment: Codex · GPT-6 · 2026-09-23 (bound XML signature probe to its prefix; PB06)
 """
 
 from __future__ import annotations
@@ -251,7 +252,8 @@ def _parse(
     if request.lane is not IngestLane.evidence and hint is None and path.suffix.lower() in _DOCUMENT_SUFFIXES:
         return _extract_document(path, request)
     if hint is None and path.suffix.lower() == ".xml":
-        head = path.read_bytes()[:4096].lower()
+        with path.open("rb") as source:
+            head = source.read(4096).lower()
         if b"<smses" in head or b"<sms " in head or b"<mms " in head:
             hint = "smsbackuprestore-xml"
 

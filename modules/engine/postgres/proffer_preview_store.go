@@ -683,6 +683,51 @@ func (s *ProfferPreviewStore) Page(ctx context.Context, handle string, offset, l
 // Content resolves the generic D-158 operator projection from existing
 // package, normalized-record, and content-chunk tables. It is read-only and
 // does not publish chunks, establish custody, or duplicate retained content.
+func (s *ProfferPreviewStore) ContentTarget(ctx context.Context, handle, scope, targetID string) (string, bool, error) {
+	snapshot, err := s.Snapshot(ctx, handle)
+	if err != nil {
+		return "", false, err
+	}
+	attemptID := snapshot.Correlation.NormalizedGenerationID.String()
+	targetUUID, err := uuid.Parse(targetID)
+	if err != nil {
+		return attemptID, false, nil
+	}
+	var found bool
+	switch scope {
+	case "record":
+		err = s.db.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM context.normalized_record_identity
+				WHERE id=$1 AND normalized_generation_id=$2
+			)`, targetUUID, snapshot.Correlation.NormalizedGenerationID).Scan(&found)
+	case "chunk":
+		found, err = s.chunkTarget(ctx, targetUUID, snapshot.Correlation.SourceVersionID, snapshot.Correlation.NormalizedGenerationID)
+	default:
+		return "", false, errors.New("unsupported preview content target scope")
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("read exact preview content target: %w", err)
+	}
+	return attemptID, found, nil
+}
+
+func (s *ProfferPreviewStore) chunkTarget(ctx context.Context, targetID, sourceVersionID, normalizedGenerationID uuid.UUID) (bool, error) {
+	var found bool
+	err := s.db.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM working.content_chunk chunk
+				WHERE chunk.id=$1 AND chunk.generation_id=(
+					SELECT generation.id FROM working.content_chunk_generation generation
+					WHERE generation.source_version_id=$2
+					  AND generation.normalized_generation_id=$3
+					  AND generation.status='sealed'
+					ORDER BY generation.generation_ordinal DESC LIMIT 1
+				)
+			)`, targetID, sourceVersionID, normalizedGenerationID).Scan(&found)
+	return found, err
+}
+
 func (s *ProfferPreviewStore) Content(ctx context.Context, handle string, recordOffset, chunkOffset, limit int) (previewmodel.ContentPage, error) {
 	if recordOffset < 0 || chunkOffset < 0 || limit < 1 || limit > 250 {
 		return previewmodel.ContentPage{}, errors.New("preview content page bounds are invalid")
@@ -794,8 +839,10 @@ func (s *ProfferPreviewStore) Content(ctx context.Context, handle string, record
 		       generation.chunk_count, generation.activity_receipt_id::text, receipt.verification_result, generation.sealed_at
 		FROM working.content_chunk_generation generation
 		LEFT JOIN working.content_chunk_reassembly_receipt receipt ON receipt.generation_id=generation.id
-		WHERE generation.source_version_id=$1::uuid AND generation.status='sealed'
-		ORDER BY generation.generation_ordinal DESC LIMIT 1`, sourceID).Scan(
+		WHERE generation.source_version_id=$1::uuid
+		  AND generation.normalized_generation_id=$2::uuid
+		  AND generation.status='sealed'
+		ORDER BY generation.generation_ordinal DESC LIMIT 1`, sourceID, snapshot.Correlation.NormalizedGenerationID).Scan(
 		&generation.GenerationRef, &generation.GenerationOrdinal, &generation.Status,
 		&generation.PolicyID, &generation.PolicyVersion, &generation.ChunkerID, &generation.ChunkerVersion,
 		&generation.SchemaVersion, &generation.SourceView, &generation.SourceSHA256, &generation.ManifestSHA256,

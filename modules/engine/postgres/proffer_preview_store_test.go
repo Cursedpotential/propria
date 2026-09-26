@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -17,6 +18,43 @@ import (
 )
 
 type nestedPreviewTestDB struct{ tx pgx.Tx }
+
+type chunkTargetTestDB struct {
+	DB
+	query string
+	args  []any
+	found bool
+}
+
+func (db *chunkTargetTestDB) QueryRow(_ context.Context, query string, args ...any) pgx.Row {
+	db.query, db.args = query, args
+	return chunkTargetTestRow{found: db.found}
+}
+
+type chunkTargetTestRow struct{ found bool }
+
+func (row chunkTargetTestRow) Scan(dest ...any) error {
+	*dest[0].(*bool) = row.found
+	return nil
+}
+
+func TestExactChunkTargetBindsSourceAndNormalizedGeneration(t *testing.T) {
+	db := &chunkTargetTestDB{found: true}
+	store := &ProfferPreviewStore{db: db}
+	targetID, sourceID, generationID := uuid.New(), uuid.New(), uuid.New()
+	found, err := store.chunkTarget(context.Background(), targetID, sourceID, generationID)
+	if err != nil || !found {
+		t.Fatalf("exact chunk lookup = %t, %v; want found", found, err)
+	}
+	if len(db.args) != 3 || db.args[0] != targetID || db.args[1] != sourceID || db.args[2] != generationID {
+		t.Fatalf("exact chunk lookup omitted a correlation coordinate: %v", db.args)
+	}
+	if !strings.Contains(db.query, "generation.source_version_id=$2") ||
+		!strings.Contains(db.query, "generation.normalized_generation_id=$3") ||
+		!strings.Contains(db.query, "generation.status='sealed'") {
+		t.Fatal("exact chunk lookup does not restrict the sealed generation to this preview attempt")
+	}
+}
 
 func (db nestedPreviewTestDB) BeginTx(ctx context.Context, _ pgx.TxOptions) (pgx.Tx, error) {
 	return db.tx.Begin(ctx)

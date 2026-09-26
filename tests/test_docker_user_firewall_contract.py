@@ -26,28 +26,40 @@ def test_public_traefik_exceptions_precede_ipv4_default_drop() -> None:
     drop = _index(lines, 'ipt -A DOCKER-USER -i "$PUB_IF" -j DROP')
 
     assert _index(lines, "for dport in 80 443; do") < drop
-    assert _index(
-        lines,
-        '  ipt -A DOCKER-USER -i "$PUB_IF" -p tcp -m conntrack --ctorigdstport "$dport" -j ACCEPT',
-    ) < drop
-    assert _index(
-        lines,
-        'ipt -A DOCKER-USER -i "$PUB_IF" -p udp -m conntrack --ctorigdstport 443 -j ACCEPT',
-    ) < drop
+    assert (
+        _index(
+            lines,
+            '  ipt -A DOCKER-USER -i "$PUB_IF" -p tcp -m conntrack --ctorigdstport "$dport" -j ACCEPT',
+        )
+        < drop
+    )
+    assert (
+        _index(
+            lines,
+            'ipt -A DOCKER-USER -i "$PUB_IF" -p udp -m conntrack --ctorigdstport 443 -j ACCEPT',
+        )
+        < drop
+    )
 
 
 def test_public_traefik_exceptions_precede_ipv6_default_drop() -> None:
     lines = _lines()
     drop = _index(lines, 'ipt6 -A DOCKER-USER -i "$PUB_IF" -j DROP')
 
-    assert _index(
-        lines,
-        '  ipt6 -A DOCKER-USER -i "$PUB_IF" -p tcp -m conntrack --ctorigdstport "$dport" -j ACCEPT',
-    ) < drop
-    assert _index(
-        lines,
-        'ipt6 -A DOCKER-USER -i "$PUB_IF" -p udp -m conntrack --ctorigdstport 443 -j ACCEPT',
-    ) < drop
+    assert (
+        _index(
+            lines,
+            '  ipt6 -A DOCKER-USER -i "$PUB_IF" -p tcp -m conntrack --ctorigdstport "$dport" -j ACCEPT',
+        )
+        < drop
+    )
+    assert (
+        _index(
+            lines,
+            'ipt6 -A DOCKER-USER -i "$PUB_IF" -p udp -m conntrack --ctorigdstport 443 -j ACCEPT',
+        )
+        < drop
+    )
 
 
 def test_exception_matches_original_public_port_not_post_dnat_container_port() -> None:
