@@ -24,5 +24,14 @@ ui/tsconfig.tsbuildinfo
 .claude/settings.local.json
 ui/.claude/settings.local.json
 .serena/project.local.yml
-.memsearch/.capture.pid
-.memsearch/*.db
+
+# Local reconciliation receipts, preserved runtime state, and private location exports.
+/.reconciliation/
+/to_be_deleted/
+/.claude/memories/
+/visit-locations.html
+/visit-locations/data/visit_locations_2023_clustered.original.csv
+/visit-locations/sources/visits/locations.csv
+
+# Next.js build output holds per-build preview-mode keys; never track it (2026-09-26).
+/ui/.next/
