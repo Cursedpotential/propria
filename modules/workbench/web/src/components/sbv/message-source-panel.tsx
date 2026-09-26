@@ -2,11 +2,15 @@
 // Byline: Claude Code · Opus 5 · 2026-09-20 (borrows SBV's media preview into the dense/default Table
 // mode's detail panel per owner ruling — "borrow" SBV's media/carousel/vCard behavior, not the
 // bubble layout, so it now renders next to every attachment listed here instead of raw fields only)
+// Byline: Claude Code · Opus 5.5 · 2026-09-26 (each attachment opens the full metadata screen)
 "use client";
 
-import { FileText, ShieldCheck } from "lucide-react";
+import { FileSearch, FileText, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 
+import { FileMetadataScreen } from "@/components/metadata/file-metadata-screen";
 import { AttachmentPreview } from "@/components/sbv/attachment-preview";
+import { Button } from "@/components/ui/button";
 import type { PreviewMessageRow } from "@/hooks/use-preview-messages";
 import type { MatterMode, ProfferPackageProjection } from "@/lib/shared/types";
 
@@ -34,6 +38,7 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 export function MessageSourcePanel({ row, packageProjection, previewHandle, mode }: MessageSourcePanelProps) {
+  const [metadataFor, setMetadataFor] = useState<{ sha256: string; label: string } | null>(null);
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="message-source-panel">
       <header className="border-b px-4 py-3">
@@ -68,7 +73,19 @@ export function MessageSourcePanel({ row, packageProjection, previewHandle, mode
                   <li key={attachment.attachment_id} className="border p-2">
                     <div className="flex items-start gap-1.5">
                       <FileText className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <span className="min-w-0 break-all text-xs font-medium">{attachment.filename ?? "Unnamed attachment"}</span>
+                      <span className="min-w-0 flex-1 break-all text-xs font-medium">{attachment.filename ?? "Unnamed attachment"}</span>
+                      {attachment.sha256 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 shrink-0 px-1.5 text-[11px]"
+                          title="Open every metadata value recorded for this file"
+                          onClick={() => attachment.sha256 && setMetadataFor({ sha256: attachment.sha256, label: attachment.filename ?? "Attachment" })}
+                        >
+                          <FileSearch className="size-3.5" /> All metadata
+                        </Button>
+                      )}
                     </div>
                     <div className="mt-2">
                       <AttachmentPreview attachment={attachment} previewHandle={previewHandle} mode={mode} />
@@ -111,6 +128,14 @@ export function MessageSourcePanel({ row, packageProjection, previewHandle, mode
       <footer className="border-t px-4 py-2 text-[10px] text-muted-foreground">
         Read-only projection · PostgreSQL remains canonical
       </footer>
+      <FileMetadataScreen
+        open={metadataFor !== null}
+        onOpenChange={(open) => !open && setMetadataFor(null)}
+        previewHandle={previewHandle}
+        mode={mode}
+        subjectSha256={metadataFor?.sha256}
+        fileLabel={metadataFor?.label}
+      />
     </div>
   );
 }

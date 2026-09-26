@@ -1,18 +1,23 @@
 // Byline: Claude Code · Opus 5 · 2026-09-20 (selection-driven message detail; no per-row detail button)
+// Byline: Claude Code · Opus 5.5 · 2026-09-26 (context review for the selected message)
 "use client";
 
 import { MessageSquareText } from "lucide-react";
 
+import { ContextReviewPanel } from "@/components/review/context-review";
 import { Badge } from "@/components/ui/badge";
 import type { PreviewMessageRow } from "@/hooks/use-preview-messages";
-import type { ProfferPreviewParticipant } from "@/lib/shared/types";
+import type { MatterMode, ProfferPreviewParticipant } from "@/lib/shared/types";
 
 interface MessageDetailPanelProps {
   row: PreviewMessageRow | null;
   participants: Map<string, ProfferPreviewParticipant>;
+  /** With both set, the owner can review the selected message's context. */
+  previewHandle?: string;
+  mode?: MatterMode;
 }
 
-export function MessageDetailPanel({ row, participants }: MessageDetailPanelProps) {
+export function MessageDetailPanel({ row, participants, previewHandle, mode }: MessageDetailPanelProps) {
   if (!row) {
     return (
       <div className="grid h-full place-content-center px-6 text-center">
@@ -44,6 +49,11 @@ export function MessageDetailPanel({ row, participants }: MessageDetailPanelProp
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.body || "(no message body)"}</p>
+        {previewHandle && mode && (
+          <div className="-mx-4 mt-3">
+            <ContextReviewPanel key={message.message_id} previewHandle={previewHandle} mode={mode} messageId={message.message_id} />
+          </div>
+        )}
       </div>
 
       <footer className="space-y-1 border-t px-4 py-3 font-mono text-[10px] text-muted-foreground">
