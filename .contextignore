@@ -1,0 +1,29 @@
+# claude-context index rules for Propria. Byline: Claude Code · Opus 5.5 · 2026-09-26
+#
+# Propria is one project and is indexed as one codebase (owner 2026-09-26 17:44: "Everything under
+# Propria is one repo ... Anything under this repo needs to be indexed together."). The claude-context
+# fork (E:/AI_Workspace/Projects/claude-context) applies every .gitignore to its own repository, so a
+# nested repository stays in the index under its own rules. These index-only rules apply everywhere,
+# nested repositories included, after the .gitignore rules.
+
+# The root .gitignore leaves out the module folders only because they keep their own git histories
+# for now (modules/Probata is a folder holding the Probata repository, not a repository itself).
+!/modules/Consignatio/
+!/modules/Probata/
+!/modules/Legal-desktop/
+!/modules/vestigia-geodata_processor/
+# Consignatio's .gitignore leaves out this folder because it holds two child repositories (the Xplorer
+# fork and the build kit); the root .gitignore lists design-contract/ although its files are tracked.
+!/modules/Consignatio/Intake/xplorer-copilot-buildkit/
+!/design-contract/
+
+# Third-party dependency copies (Go modules in Probata's engine, vendored web assets).
+vendor/
+
+# Quarantine folders awaiting the owner's delete, in every repository.
+to_be_deleted/
+
+# Tool forks are separate repositories outside Propria (owner 2026-09-26 17:44). The memsearch fork
+# clone still sits here while another session works in it; delete this line once it moves to
+# E:/AI_Workspace/Projects/memsearch.
+/modules/memsearch/

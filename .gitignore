@@ -241,8 +241,6 @@ Secrets/
 /modules/Probata/
 /modules/Legal-desktop/
 /modules/vestigia-geodata_processor/
-# Private fork of zilliztech/claude-context (code-search MCP), own history. 2026-09-26.
-/modules/claude-context/
 
 # Local Docstore databases and credential backups are never source.
 /docs/.docstore/

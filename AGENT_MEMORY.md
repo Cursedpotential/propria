@@ -30,7 +30,6 @@ root governance, `modules/FL-MCP/`, and the preserved shared `scripts/` and
 | Vestigia | `modules/vestigia-geodata_processor/` | Independent outer repository |
 | TraceIQ Rebuild | `modules/vestigia-geodata_processor/traceiq-rebuild/` | Independent nested repository; `master` |
 | Family Court Workbench | `modules/FL-MCP/` | Propria root repository |
-| claude-context code-search MCP (private fork of zilliztech/claude-context, added 2026-09-26) | `modules/claude-context/` | Independent repository; `master`, remote `Cursedpotential/claude-context`; notes in `propria/README.md` |
 
 Read the selected module's local instructions and verify its Git root before
 staging. The existing `docs/` junctions and source registry remain the Docstore
