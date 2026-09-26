@@ -26,7 +26,7 @@ This follows the r1 precedent (`../2026-09-20-docstore-0.8.1-r1/`).
 | `coco_docstore_search` → "Docstore unavailable or invalid response" | Search was never down. A long question sent `/recall` into its any-term keyword fallback. That fallback ran one BM25 query per term, one after another, repeated terms included: 16 queries, 7.7 s warm and 30.25 s on the first cold call. The ctl→API client had a fixed 30 s budget, and every failure was reported as the same bare "unavailable". | **r2** `recall.py`: terms are de-duplicated and queried concurrently on the one multiplexed connection (1.7 s measured for the same 16 terms), and the vector leg overlaps the keyword leg. **r2** `server.py`: the budget is `DOCSTORE_API_TIMEOUT_S` (default 55 s, under ContextForge's 60 s tool timeout), and a timeout, HTTP status or unreachable API is named. Upstream bodies are still never echoed. |
 | Sync stale since 2026-09-21 01:51 | 1) 0.8.1 has no automatic sync. The source mirror (`/data/propria/releases/docstore-0.8.1/sources`) changes only through `client.py sync`, and nothing had run it since 2026-09-20. 2) `sync()` hard-coded the pre-2026-09-19 folders (`Probata/probata/docs` …, now under `modules/`) and ignored the registry's exclusions. Advocatio's `planning/original-context` (files over 1 MiB) would have aborted it anyway. 3) The hosted ctl refused any MCP request body over 4 MiB with HTTP 413; that is the MCP SDK default. A full manifest is about 12 MB, so no client sync could ever reach the mirror. The 09-20 mirror was copied server-side. | **Client (0.8.2-sync-r2)** `patch_client_sync.py`: folders and exclusions come from `Propria/docs/docstore-source-registry.json`. **r2** `hosted.py`: the ctl accepts `DOCSTORE_MCP_MAX_BODY_BYTES` (default 40 MiB, the worker API's own upload bound). Then sync, then `docstore_index_full`. |
 | `svc:docstore-api` 502 | On 2026-09-20, 0.8.1 stopped the old worker app, which served 8474 and 8072. Its own API listened only on loopback inside the new container. The owner deleted the old app on 2026-09-25. No decision retired the external API; see Evidence below. | **r2** `service.py`: `DOCSTORE_API_HOST` (loopback by default). The service compose sets `0.0.0.0` and publishes `100.91.190.107:8072:8000`, the canonical Docstore API port. `svc:docstore-api` was re-pointed from 8474 to 8072. |
-| ADR enrichment failures 0085, 0016 (ValueError) | The provider is intermittent. `nvidia/nemotron-3.5-lightning-30b-a3b` returned invalid or truncated JSON on both attempts in the 09-21 run. Reproduced today (`enrichment_probe.py`): both documents extract cleanly on the first attempt (about 8 s each), while one retry hung to a 180 s ReadTimeout. The documents and the code are not at fault. | Retried by the next run: `pending-enrichment.json` carries them. |
+| ADR enrichment failures 0085, 0016 (ValueError) | `nvidia/nemotron-3.5-lightning-30b-a3b` sometimes returns `statements` as one string instead of an array. `knowledge.extract()` retried only unparseable or truncated JSON, so a parseable reply of the wrong shape failed the document on the first try. An overloaded provider's 429/5xx failed it with no retry at all: 88 `HTTPStatusError` in run `6f397d56`. | **r4** `knowledge.py`: shape validation moved inside the retry loop, and 429/5xx get one retry after 5 s. A release test covers the shape retry. 0085 enriched in run `6206106a`, 0016 in run `e2b1ddf5`. |
 
 ## Evidence that `svc:docstore-api` is meant to exist
 
@@ -76,8 +76,12 @@ The owner's order followed the discovery of 24 Probata docs missing from the des
   - `docstore_source_apply` without naming it was refused (HTTP 409).
   - `docstore_source_read` returned the exact copy, and its hash matched the plan.
   - `client.py sync --apply` restored it (`FLAG restored from mirror (hash-verified)`), byte-identical to the canonical file. It then applied with 0 retractions.
-- **Enrichment:**
-  - `nvidia/nemotron-3.5-lightning-30b-a3b` is overloaded on NIM: a trivial prompt took 24.3 s, and the two ADRs hit a 180 s ReadTimeout twice.
+- **Final state:**
+  - Image `propria-docstore:0.8.1-r4`, 315 tests passing.
+  - Run `e2b1ddf51fec4900b88e49ca80a85d06` ended 2026-09-26 23:34:59 UTC: 792 sources, CDC verified 792/792, 933 documents, 14,057 chunks, retirement held 0.
+  - `docstore_health` through ctl: `ok:true`, `enrichment_pending: 2`. The two still pending are the propria WS00 reconciliation docs, which fail on the provider's reply shape.
+- **Enrichment earlier today:**
+  - `nvidia/nemotron-3.5-lightning-30b-a3b` was overloaded on NIM: a trivial prompt took 24.3 s, and the two ADRs hit a 180 s ReadTimeout twice.
   - The 23:10 run recorded 88 `HTTPStatusError` failures. They stay queued in `pending-enrichment.json`, 0085 and 0016 among them.
   - `moonshotai/kimi-k3` answered the same ping in 2.8 s.
 
@@ -104,6 +108,7 @@ The owner's order followed the discovery of 24 Probata docs missing from the des
 |---|---|
 | `apply_r2.py` | recall concurrency, named API failures, `DOCSTORE_API_HOST`, 40 MiB MCP body |
 | `apply_r3.py` | retraction guard (server) + test updates |
+| `apply_r4.py` | enrichment retries a mis-shaped reply and an overloaded provider once, plus a release test |
 | `coolify_service_r2.py` | image tag, `DOCSTORE_API_HOST`, port 8072 in the service's stored compose (values never printed) |
 | `patch_client_sync.py`, `patch_client_guard.py` | client repairs (four installed copies) |
 | `recall_timing.py`, `recall_compare.py`, `enrichment_probe.py`, `run_progress.py` | read-only probes run inside the container |
