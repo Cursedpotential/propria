@@ -2,7 +2,7 @@
 #
 # Propria is one project and is indexed as one codebase (owner 2026-09-26 17:44: "Everything under
 # Propria is one repo ... Anything under this repo needs to be indexed together."). The claude-context
-# fork (E:/AI_Workspace/Projects/claude-context) applies every .gitignore to its own repository, so a
+# fork (~/.claude/local-plugins/forks/claude-context) applies every .gitignore to its own repository, so a
 # nested repository stays in the index under its own rules. These index-only rules apply everywhere,
 # nested repositories included, after the .gitignore rules.
 
