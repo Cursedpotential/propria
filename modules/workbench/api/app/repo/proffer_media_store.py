@@ -25,6 +25,20 @@ def list_media_objects(scheme: str, bucket: str, prefix: str, *, max_keys: int =
     return list(page.get("Contents", []))
 
 
+def list_objects_beside(scheme: str, bucket: str, prefix: str, *, max_keys: int = 50) -> list[dict]:
+    """List objects directly under `prefix` without descending into sub-folders.
+
+    Byline: Claude Code · Opus 5.5 · 2026-09-26 — the metadata screen's
+    same-stem sidecar lookup ("IMG_1234" -> IMG_1234.jpg.json, IMG_1234.xmp, ...).
+    The delimiter keeps a decoded "<key>.derived/" folder out of the answer.
+    """
+    try:
+        page = get_store_client(scheme).list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=max_keys, Delimiter="/")
+    except ClientError as error:
+        raise RuntimeError("sidecar listing failed") from error
+    return list(page.get("Contents", []))
+
+
 def object_exists(scheme: str, bucket: str, key: str) -> bool:
     """HEAD one object. True when it exists, False when it does not.
 

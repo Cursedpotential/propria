@@ -170,6 +170,33 @@ def catalog_by_vault_key(vault_key: str) -> dict:
             "freshness": {"catalog_snapshot": "2026-09-17", "checked_at_is_source_update": False}}
 
 
+def catalog_companions(vault_key: str, stem: str, *, limit: int = 50) -> dict:
+    """Files the catalog records in the same original folder whose name starts with `stem`.
+
+    Byline: Claude Code · Opus 5.5 · 2026-09-26 — the metadata screen's sidecar
+    lookup asks the catalog first (the catalog is the source of truth for what
+    sat beside a file) instead of scanning a bucket. Read-only; exact vault key,
+    literal prefix, bounded.
+    """
+    if len(vault_key) > 4096 or "\x00" in vault_key or not stem or len(stem) > 1024 or "\x00" in stem:
+        raise DiscoveryError("Invalid catalog companion lookup", 422)
+    prefix = stem.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    rows = _query(
+        f"""SELECT c.rel, c.parent, c.name, c.size, c.vault_key
+        FROM {CATALOG} c
+        JOIN (SELECT parent, rel FROM {CATALOG} WHERE vault_key = %s ORDER BY rel LIMIT 5) me
+          ON c.parent = me.parent
+        WHERE c.name LIKE %s ESCAPE '\\' AND c.rel <> me.rel
+        ORDER BY c.rel LIMIT %s""",
+        (vault_key, prefix, limit),
+    )
+    return {
+        "backend": "casebible_preingest_catalog",
+        "items": rows,
+        "freshness": {"catalog_snapshot": "2026-09-17", "checked_at_is_source_update": False},
+    }
+
+
 def atomic_members(unit_id: int, limit: int = 100, cursor: str | None = None) -> dict:
     binding = {"unit_id": unit_id, "table": "raw_duck.atomic_unit_members"}
     last = cursor_decode(cursor, binding)
