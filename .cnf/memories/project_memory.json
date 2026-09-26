@@ -1,0 +1,62 @@
+{
+  "memories": [],
+  "manual_memories": [],
+  "realtime_memories": [
+    {
+      "type": "claude_response",
+      "content": "Checking what the SBV importer does when an MMS part names a file but carries no bytes — that decides whether the ingestion check needs a parser change or just a reader over its existing output.",
+      "added_at": "2026-09-20T20:52:13.588603",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "message",
+      "content": "The live ingest actually runs through the Temporal + DuckDB path in the Go engine, not the Python workflow I just patched—that fix still stands for its own path, but I need to hook the ingestion check",
+      "added_at": "2026-09-20T20:52:13.588661",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "claude_response",
+      "content": "Picking up where I stopped: the failing test for the SBV Go parser is written. Running it to confirm it fails, then fixing the parser.",
+      "added_at": "2026-09-20T20:58:22.932293",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "message",
+      "content": "i mena that enrtire flow was tested",
+      "added_at": "2026-09-20T20:58:22.932358",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "message",
+      "content": "its even supposed to record the missing fucking payload",
+      "added_at": "2026-09-20T20:58:23.622859",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "message",
+      "content": "Create a table for missing payloads. Then add that those timestamps and we will try and find it along the way. I do need to retire R2 so we need to recover. Or copy any of those. Potential files. That",
+      "added_at": "2026-09-20T20:58:34.482896",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "claude_response",
+      "content": "Applying the parser fix now: empty or absent payloads become an explicit \"source reported missing\" reference instead of a fake 0-byte attachment.",
+      "added_at": "2026-09-20T21:00:13.998819",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "message",
+      "content": "FAIL FAIL github.com/lowcarbdev/sbv/internal 0.428s FAIL why are we using the upstream repo??",
+      "added_at": "2026-09-20T21:00:13.998886",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "message",
+      "content": "and not our fork?? thats in modules",
+      "added_at": "2026-09-20T21:00:20.180102",
+      "source": "realtime_capture"
+    }
+  ],
+  "created_at": "2026-09-20T20:52:13.576082",
+  "updated_at": "2026-09-20T21:00:20.180147"
+}
