@@ -5,6 +5,7 @@
 // Byline: Codex · GPT-5 · 2026-08-18 (native evidence horizon search parameter)
 // Byline: Codex · GPT-5 · 2026-08-28 (proffer workflow (formerly Universal Import Workflow) client)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25 (run source-context read-back for Review Actions)
+// Byline: Claude Code · Opus 5.5 · 2026-09-26 (repair workflow builder client; ApiError keeps its body)
 /**
  * API client for the Knowledge Workbench.
  *
@@ -109,6 +110,13 @@ import type {
   ProfferBatchStartRequest,
   ProfferBatchStartResponse,
   ProfferBatchStatus,
+  ProfferRepairCheck,
+  ProfferRepairPlan,
+  ProfferRepairProposeResponse,
+  ProfferRepairRunResponse,
+  ProfferRepairRunStatus,
+  ProfferRepairToolsResponse,
+  ProfferRepairValidateResponse,
   DecodedExistsResponse,
   CatalogUnitLookup,
   CatalogProvenance,
@@ -126,6 +134,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    /** The parsed error body, when the server sent JSON (e.g. a refused repair run's checks). */
+    public readonly body: unknown = undefined,
   ) {
     super(message);
     this.name = "ApiError";
@@ -165,6 +175,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(
       body.detail || `API error: ${res.status}`,
       res.status,
+      body,
     );
   }
   return res.json();
@@ -1247,6 +1258,101 @@ export function getProfferBatch(batchId: string, mode: MatterMode, signal?: Abor
   return apiFetch<ProfferBatchStatus>(`/api/proffer/batches/${encodeURIComponent(batchId)}?${query.toString()}`, { signal }).then((response) => {
     if (response.matter_mode !== mode || response.batch_id !== batchId) {
       throw new ApiError("The batch status did not confirm this batch and Test/Live mode", 502);
+    }
+    return response;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Repair workflow builder (Review Actions). BFF /api/proffer/repair/* passes the engine's
+// /reference-import/repair/* routes through; every call names the TEST/REAL mode.
+// Byline: Claude Code · Opus 5.5 · 2026-09-26.
+// ---------------------------------------------------------------------------
+
+/** The engine refused to start a plan (422); `checks` says which rules failed and why. */
+export class RepairRunRefusedError extends ApiError {
+  constructor(
+    message: string,
+    public readonly checks: ProfferRepairCheck[],
+  ) {
+    super(message, 422);
+    this.name = "RepairRunRefusedError";
+  }
+}
+
+/** Every repair-capable Activity, for the step picker. */
+export function listProfferRepairTools(mode: MatterMode, signal?: AbortSignal) {
+  const query = new URLSearchParams({ mode });
+  return apiFetch<ProfferRepairToolsResponse>(`/api/proffer/repair/tools?${query.toString()}`, { signal }).then((response) => {
+    if (response.matter_mode !== mode) throw new ApiError("The repair tool list did not confirm the active Test/Live mode", 502);
+    return response;
+  });
+}
+
+/** The engine's candidate plans for one Review run's source (its own repair report decides). */
+export function proposeProfferRepairs(
+  mode: MatterMode,
+  body: { source_ref: string; preview_handle: string },
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({ mode });
+  return apiFetch<ProfferRepairProposeResponse>(`/api/proffer/repair/propose?${query.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  }).then((response) => {
+    if (response.matter_mode !== mode) throw new ApiError("The repair proposals did not confirm the active Test/Live mode", 502);
+    return response;
+  });
+}
+
+/** Every named check against the plan; the engine fails closed. */
+export function validateProfferRepairPlan(plan: ProfferRepairPlan, signal?: AbortSignal) {
+  const query = new URLSearchParams({ mode: plan.matter_mode });
+  return apiFetch<ProfferRepairValidateResponse>(`/api/proffer/repair/validate?${query.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(plan),
+    signal,
+  }).then((response) => {
+    if (response.matter_mode !== plan.matter_mode) throw new ApiError("The plan validation did not confirm the active Test/Live mode", 502);
+    return response;
+  });
+}
+
+/** Starts the plan on Temporal. A refusal throws RepairRunRefusedError with the engine's checks. */
+export function runProfferRepairPlan(plan: ProfferRepairPlan) {
+  const query = new URLSearchParams({ mode: plan.matter_mode });
+  return apiFetch<ProfferRepairRunResponse>(`/api/proffer/repair/run?${query.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(plan),
+  }).then(
+    (response) => {
+      if (response.matter_mode !== plan.matter_mode) throw new ApiError("The repair run did not confirm the active Test/Live mode", 502);
+      return response;
+    },
+    (error: unknown) => {
+      const body = error instanceof ApiError ? error.body : undefined;
+      const checks = body && typeof body === "object" && Array.isArray((body as { checks?: unknown }).checks)
+        ? (body as { checks: ProfferRepairCheck[] }).checks
+        : null;
+      if (error instanceof ApiError && error.status === 422 && checks) throw new RepairRunRefusedError(error.message, checks);
+      throw error;
+    },
+  );
+}
+
+/** One repair run's per-step progress, receipts and re-entry. */
+export function getProfferRepairRun(workflowId: string, mode: MatterMode, signal?: AbortSignal) {
+  const query = new URLSearchParams({ mode });
+  return apiFetch<ProfferRepairRunStatus>(
+    `/api/proffer/repair/runs/${encodeURIComponent(workflowId)}?${query.toString()}`,
+    { signal },
+  ).then((response) => {
+    if (response.workflow_id !== workflowId || response.matter_mode !== mode) {
+      throw new ApiError("The repair run status crossed its run or Test/Live boundary", 502);
     }
     return response;
   });

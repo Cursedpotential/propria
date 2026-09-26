@@ -1,4 +1,6 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
+// Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — the repair builder replaces the disabled
+// apply-repair choice; a repaired run shows "Repaired → <new run>" from its history.
 // Review Actions: always present for the selected run, whatever state it is in.
 // Owner 2026-09-25 00:16: "Can't modify any metadata. I can't add any context, I can't
 // choose a parser, I can't choose a repair. I can't do anything."
@@ -7,6 +9,9 @@
 //   context            -> POST /api/proffer/source-contexts (append-only revision)
 //   parser, at its stop -> POST /api/proffer/previews/{handle}/handler-selection
 //   repair, at its stop -> POST /api/proffer/previews/{handle}/repair-decision
+//   repair plan         -> /api/proffer/repair/{propose,tools,validate,run,runs/{id}}
+//                          (repair-builder.tsx): a separate plan whose result re-enters as a
+//                          new run; this run's repair gate stays open (owner decision 4A)
 //   anything else       -> POST /api/proffer/start: a fresh run of the same source that
 //                          answers its own stops with the choices made here
 //                          (hooks/use-review-rerun.ts).
@@ -17,6 +22,8 @@ import { AlertTriangle, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 import { ParserSelectionPanel } from "@/components/intake/parser-selection-panel";
+import { RepairBuilder } from "@/components/sbv/repair-builder";
+import { RepairedLink } from "@/components/sbv/repair-run-view";
 import { ReviewContextSection } from "@/components/sbv/review-context-section";
 import { Button } from "@/components/ui/button";
 import { offeredCandidate, type PendingGateAnswers, type RerunRequest } from "@/hooks/use-review-rerun";
@@ -79,6 +86,7 @@ export function ReviewActionsPanel({
   onRerun,
   rerunPending,
   pendingAnswers,
+  onOpenRun,
 }: {
   className?: string;
   snapshot: ProfferOperatorSnapshot;
@@ -93,6 +101,8 @@ export function ReviewActionsPanel({
   onRerun: (request: RerunRequest) => void;
   rerunPending: boolean;
   pendingAnswers?: PendingGateAnswers;
+  /** Opens another run (a repaired run's re-entry) in Review. */
+  onOpenRun: (previewHandle: string) => void;
 }) {
   const [selectedKey, setSelectedKey] = useState("");
   const [repairChoice, setRepairChoice] = useState<"original" | null>(null);
@@ -185,6 +195,9 @@ export function ReviewActionsPanel({
 
       <section aria-labelledby="review-repair-heading" className="space-y-1.5 border-t pt-3" data-testid="review-actions-repair">
         <SectionTitle id="review-repair-heading">Repair</SectionTitle>
+        {/* Read from this run's own history (the engine's repair.reentry receipt); the gate
+            controls below stay, because the owner still answers this run's gate (decision 4A). */}
+        <RepairedLink stages={snapshot.stages} mode={snapshot.matter_mode} onOpenRun={onOpenRun} />
         {failure?.repairCheck && (
           <div className="flex items-center gap-2 text-xs">
             <AlertTriangle className="size-3.5 shrink-0 text-destructive" aria-hidden="true" />
@@ -196,16 +209,11 @@ export function ReviewActionsPanel({
         )}
         <StatusLine label="Assessment" value={snapshot.repair_state.assessment_report} />
         <StatusLine label="Affected parts" value={snapshot.repair_state.affected_units} />
-        <StatusLine label="Proposed repair" value={snapshot.repair_state.proposed_action} />
         <fieldset className="space-y-1 text-xs">
           <legend className="sr-only">Repair choice</legend>
           <label className="flex items-start gap-2">
             <input type="radio" name="review-repair-choice" className="mt-0.5" checked={repairChoice === "original"} onChange={() => setRepairChoice("original")} />
             <span>Continue without repair, using the kept original</span>
-          </label>
-          <label className="flex items-start gap-2 text-muted-foreground" title={snapshot.repair_state.proposed_action.reason || undefined}>
-            <input type="radio" name="review-repair-choice" className="mt-0.5" disabled checked={false} readOnly />
-            <span>Apply the proposed repair — the engine proposed no repair tool for this run</span>
           </label>
         </fieldset>
         {atRepairStop ? (
@@ -217,6 +225,7 @@ export function ReviewActionsPanel({
             <RotateCcw className="size-3.5" /> Re-run with this choice
           </Button>
         )}
+        <RepairBuilder snapshot={snapshot} onOpenRun={onOpenRun} />
       </section>
 
       <section aria-labelledby="review-process-heading" className="space-y-1.5 border-t pt-3" data-testid="review-actions-process">

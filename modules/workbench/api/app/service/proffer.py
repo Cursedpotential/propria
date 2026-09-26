@@ -1,6 +1,8 @@
 """Authenticated pass-through to the Proffer starter.
 
 Byline: Codex · GPT-5 · 2026-08-28.
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — an upstream error keeps its JSON body
+on `ProfferError.payload` (the repair run refusal relays its checks).
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from app.service.matter_mode import (
     configured_matter_id,
     require_scope,
 )
-from app.service.proffer_errors import ProfferError
+from app.service.proffer_errors import ProfferError, upstream_payload
 from app.service.proffer_sources import browse_sources  # noqa: F401
 from app.types.matter_mode import MatterMode
 from app.types.proffer import (
@@ -78,13 +80,8 @@ def _service_authorization_headers() -> dict[str, str]:
 
 
 def _detail(response: httpx.Response) -> str:
-    try:
-        payload: Any = response.json()
-    except (ValueError, json.JSONDecodeError):
-        return response.text[:500]
-    if isinstance(payload, dict) and isinstance(payload.get("detail"), str):
-        return payload["detail"]
-    return response.text[:500]
+    payload = upstream_payload(response)
+    return payload["detail"] if payload and isinstance(payload.get("detail"), str) else response.text[:500]
 
 
 async def _request(method: str, path: str, **kwargs: Any) -> httpx.Response:
@@ -100,7 +97,8 @@ async def _request(method: str, path: str, **kwargs: Any) -> httpx.Response:
     except httpx.HTTPError as error:
         raise ProfferError(f"Proffer starter unreachable: {error}") from error
     if response.status_code >= 400:
-        raise ProfferError(_detail(response) or "Proffer starter rejected the request", response.status_code)
+        detail = _detail(response) or "Proffer starter rejected the request"
+        raise ProfferError(detail, response.status_code, payload=upstream_payload(response))
     return response
 
 

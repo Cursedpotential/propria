@@ -1,4 +1,6 @@
 // Byline: Claude Code · Fable 5.1 · 2026-09-20
+// Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — one small flag, "N runs hidden: mode
+// unknown", for runs the server could not prove Test or Live (they are listed under neither).
 // Owner 2026-09-20 23:10: "Sources and proposals — this section sucks now, it's
 // massive and hard to nav". Every run was a six-line card titled with a
 // front-truncated b2:// path (so all titles looked alike), repeating one
@@ -16,9 +18,25 @@ type Filter = "reviewable" | "failed" | "all";
 
 interface ReviewResourceListProps {
   resources: ProfferProposalResource[];
+  /** Runs on this page whose Test/Live mode could not be proven; they are never listed. */
+  unboundCount?: number;
   loading: boolean;
   selectedHandle: string | null;
   onSelect: (handle: string) => void;
+}
+
+/** One small flag, never a banner: how many runs are hidden because their mode is unknown. */
+function UnboundFlag({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className="shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+      title="Their Test / Live mode could not be proven from the run's recorded matter, so they are not listed under either mode."
+      data-testid="review-unbound-flag"
+    >
+      {count} {count === 1 ? "run" : "runs"} hidden: mode unknown
+    </span>
+  );
 }
 
 /** The part of a source ref a person recognises: the file, plus its parent when it is a derived chunk. */
@@ -50,7 +68,7 @@ const DOT: Record<string, string> = {
   unavailable: "bg-destructive",
 };
 
-export function ReviewResourceList({ resources, loading, selectedHandle, onSelect }: ReviewResourceListProps) {
+export function ReviewResourceList({ resources, unboundCount = 0, loading, selectedHandle, onSelect }: ReviewResourceListProps) {
   const [filter, setFilter] = useState<Filter>("reviewable");
   const [query, setQuery] = useState("");
 
@@ -83,6 +101,7 @@ export function ReviewResourceList({ resources, loading, selectedHandle, onSelec
         <CircleDot className="mx-auto size-5 text-muted-foreground" />
         <p className="mt-3 text-sm font-semibold">No context proposals are available</p>
         <p className="mt-1 text-xs text-muted-foreground">Start intake to select source material and create the first reviewable attempt.</p>
+        {unboundCount > 0 && <p className="mt-2"><UnboundFlag count={unboundCount} /></p>}
       </div>
     );
   }
@@ -103,6 +122,7 @@ export function ReviewResourceList({ resources, loading, selectedHandle, onSelec
             </button>
           ))}
         </div>
+        <UnboundFlag count={unboundCount} />
         <label className="relative ml-auto w-full max-w-xs">
           <span className="sr-only">Find a source by name</span>
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />

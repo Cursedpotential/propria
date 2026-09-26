@@ -75,15 +75,23 @@ def _wire(monkeypatch: pytest.MonkeyPatch, preview, operation) -> None:
 
 
 def test_repair_wait_has_forward_action_and_does_not_fabricate_repair_tool(monkeypatch) -> None:
-    _wire(monkeypatch, _preview("awaiting_repair_decision", "awaiting_repair_decision"), _operation("awaiting_repair_decision"))
+    _wire(
+        monkeypatch,
+        _preview("awaiting_repair_decision", "awaiting_repair_decision"),
+        _operation("awaiting_repair_decision"),
+    )
 
     result = asyncio.run(proffer_operator.operator_snapshot(HANDLE, mode="TEST"))
 
     actions = {item.action for item in result.valid_actions}
     gaps = {item.control: item.reason for item in result.unavailable_controls}
     assert "retain_original" in actions
-    assert "apply_repair" in gaps
-    assert "applicable repair tool IDs" in gaps["apply_repair"]
+    # The gate itself still offers no apply action; repairs run from the Review Actions repair
+    # builder as a separate plan, so no "cannot offer a repair button" gap is shown any more.
+    # Byline amendment: Claude Code · Opus 5.5 · 2026-09-26.
+    assert not any("repair" in action for action in actions - {"retain_original"})
+    assert "apply_repair" not in gaps
+    assert "Review Actions" in result.repair_state.reentry_rule
     assert result.repair_state.assessment_report.ref == "repair-assessment-ref"
     assert result.repair_state.proposed_action.status == "unavailable"
     assert "not proof that the source is damaged" in result.repair_state.proposed_action.reason
@@ -130,7 +138,11 @@ def test_operator_projection_fails_closed_on_cross_mode_preview(monkeypatch) -> 
 
 
 def test_operator_route_returns_the_correlated_projection(monkeypatch) -> None:
-    _wire(monkeypatch, _preview("awaiting_repair_decision", "awaiting_repair_decision"), _operation("awaiting_repair_decision"))
+    _wire(
+        monkeypatch,
+        _preview("awaiting_repair_decision", "awaiting_repair_decision"),
+        _operation("awaiting_repair_decision"),
+    )
 
     result = asyncio.run(runtime.operator_snapshot_endpoint(HANDLE, "TEST"))
 

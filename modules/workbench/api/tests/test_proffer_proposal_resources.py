@@ -1,8 +1,12 @@
-"""Focused tests for the mode-bound Proffer proposal resource catalog."""
+"""Focused tests for the mode-bound Proffer proposal resource catalog.
+
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — unprovable runs are left out and counted.
+"""
 
 from __future__ import annotations
 
 import asyncio
+from uuid import UUID
 
 import pytest
 from app.runtime import proffer_resources as runtime
@@ -97,9 +101,7 @@ def _wire(monkeypatch: pytest.MonkeyPatch, *, items: list[dict] | None = None) -
 def test_catalog_lists_only_proven_mode_bound_operations_and_open_paths(monkeypatch) -> None:
     _wire(monkeypatch)
 
-    result = asyncio.run(
-        proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50)
-    )
+    result = asyncio.run(proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50))
 
     assert result.scope == "context_review_resources"
     assert str(result.matter_id) == MATTER_ID
@@ -107,6 +109,7 @@ def test_catalog_lists_only_proven_mode_bound_operations_and_open_paths(monkeypa
     assert result.approval_destination == "neo4j"
     assert result.later_manual_projection == "surrealdb"
     assert [item.preview_handle for item in result.items] == [HANDLE]
+    assert result.unbound_count == 0
     assert result.items[0].representation_state == "committed_readback"
     assert "already-persisted PostgreSQL Context rows" in result.items[0].representation_detail
     assert "per-attempt DuckDB manifest and digest" in result.items[0].representation_detail
@@ -115,15 +118,45 @@ def test_catalog_lists_only_proven_mode_bound_operations_and_open_paths(monkeypa
     assert result.items[0].open_path == f"/api/proffer/previews/{HANDLE}?mode=TEST"
 
 
-def test_catalog_fails_truthfully_when_operation_mode_cannot_be_proven(monkeypatch) -> None:
+def test_catalog_leaves_out_and_counts_runs_whose_mode_cannot_be_proven(monkeypatch) -> None:
+    # Was test_catalog_fails_truthfully_when_operation_mode_cannot_be_proven: one unprovable run
+    # used to refuse the whole catalog with a 503 and blank the owner's Review page.
+    # Byline amendment: Claude Code · Opus 5.5 · 2026-09-26.
     unknown = "unbound_resource_handle_abcdefghijklmn"
-    _wire(monkeypatch, items=[_operation(unknown)])
+    unknown_matter = "33333333-3333-4333-8333-333333333333"  # neither mode's configured matter
+    _wire(
+        monkeypatch,
+        items=[
+            _operation(),
+            _operation(unknown),
+            {**_operation("unknown_matter_resource_handle_abcdef"), "matter_id": unknown_matter},
+            _operation(OTHER_HANDLE),
+        ],
+    )
 
-    with pytest.raises(proffer.ProfferError) as caught:
-        asyncio.run(proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50))
+    for mode, visible in (("TEST", [HANDLE]), ("REAL", [OTHER_HANDLE])):
+        result = asyncio.run(proffer_resources.list_proposal_resources(mode=mode, status=None, cursor=None, limit=50))
+        # Provable runs are listed under their own mode only; the two unprovable ones under neither.
+        assert [item.preview_handle for item in result.items] == visible
+        assert result.unbound_count == 2
 
-    assert caught.value.status_code == 503
-    assert "cannot prove TEST/REAL ownership" in caught.value.detail
+    # Leaving a run out never binds it to a mode by implication.
+    with pytest.raises(matter_mode.MatterModeError, match="no active TEST/REAL binding"):
+        matter_mode.require_preview_mode(unknown, "TEST")
+
+
+def test_catalog_rebinds_a_run_its_durable_matter_proves(monkeypatch) -> None:
+    rebound = "rebound_resource_handle_abcdefghijklm"
+    _wire(monkeypatch, items=[{**_operation(rebound), "matter_id": MATTER_ID}])
+    real_matter = UUID("44444444-4444-4444-8444-444444444444")
+    monkeypatch.setattr(
+        matter_mode, "configured_matter_id", lambda mode: UUID(MATTER_ID) if mode == "TEST" else real_matter
+    )
+
+    result = asyncio.run(proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50))
+
+    assert [item.preview_handle for item in result.items] == [rebound]
+    assert result.unbound_count == 0
 
 
 def test_catalog_fails_when_content_store_is_unavailable(monkeypatch) -> None:
@@ -145,9 +178,7 @@ def test_catalog_reports_not_ready_content_without_inventing_resources(monkeypat
         raise proffer.ProfferError("preview projection is not ready", 409)
 
     monkeypatch.setattr(proffer, "preview_content", pending)
-    result = asyncio.run(
-        proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50)
-    )
+    result = asyncio.run(proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50))
 
     assert len(result.items) == 1
     assert result.items[0].content_status == "pending"

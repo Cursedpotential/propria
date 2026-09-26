@@ -1,4 +1,7 @@
-"""Read-only catalog projections for reviewable Proffer Context proposals."""
+"""Read-only catalog projections for reviewable Proffer Context proposals.
+
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — `unbound_count`.
+"""
 
 from __future__ import annotations
 
@@ -65,5 +68,8 @@ class ProfferProposalResourceCatalog(BaseModel):
     approval_destination: Literal["neo4j"] = "neo4j"
     later_manual_projection: Literal["surrealdb"] = "surrealdb"
     items: Annotated[list[ProfferProposalResource], Field(max_length=100)]
+    # Runs on this page whose TEST/REAL mode could not be proven: left out of every mode's
+    # list, counted here so the page can say so (Claude Code · Opus 5.5 · 2026-09-26).
+    unbound_count: Annotated[int, Field(ge=0)] = 0
     notices: Annotated[list[ProfferProposalCatalogNotice], Field(max_length=100)] = Field(default_factory=list)
     next_cursor: OpaqueCursor | None = None
