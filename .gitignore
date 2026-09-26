@@ -32,3 +32,6 @@ ui/.claude/settings.local.json
 /visit-locations.html
 /visit-locations/data/visit_locations_2023_clustered.original.csv
 /visit-locations/sources/visits/locations.csv
+
+# Next.js build output holds per-build preview-mode keys; never track it (2026-09-26).
+/ui/.next/
