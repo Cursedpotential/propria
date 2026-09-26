@@ -138,13 +138,30 @@ func TestRepairPlanRunsStepsRecordsReceiptsAndReentersProffer(t *testing.T) {
 	require.Equal(t, proffer.Ref("pending-handler-selection/v1"), child.ParserOptionsRef)
 	require.True(t, strings.HasPrefix(child.RequestID, testWorkflowID+"-reentry-"))
 
-	require.Len(t, receipts.requests, 1)
+	// One receipt per step, then the re-entry's own receipt with the link.
+	require.Len(t, receipts.requests, 2)
 	receipt := receipts.requests[0]
 	require.Equal(t, ReceiptSuccess, receipt.Status)
 	require.Equal(t, testAnchor().SourceVersionID, receipt.SourceVersionID)
 	require.Equal(t, testSource, receipt.InputRef)
 	require.NotNil(t, receipt.Result)
 	require.Equal(t, salvagedRef, receipt.Result.OutputRef)
+
+	reentryReceipt := receipts.requests[1]
+	require.Equal(t, ReentryReceiptActivity, reentryReceipt.Activity)
+	require.Equal(t, reentryStepID, reentryReceipt.StepID)
+	require.Equal(t, 1, reentryReceipt.StepIndex)
+	require.Equal(t, ReceiptSuccess, reentryReceipt.Status)
+	require.Equal(t, salvagedRef, reentryReceipt.InputRef)
+	require.Equal(t, child.RequestID, reentryReceipt.Result.OutputRef)
+	var link ReentryLink
+	require.NoError(t, json.Unmarshal(reentryReceipt.Result.Summary, &link))
+	require.Equal(t, ReentryLink{
+		Link: supersededByLink, FromPreviewHandle: testHandle, FromWorkflowID: "req-1",
+		ToPreviewHandle: "ReentryHandleReentryHandleReentryHandle01", ToWorkflowID: child.RequestID,
+		SourceRef: salvagedRef, GateClosed: false, GateNote: gateLeftOpenNote,
+	}, link)
+	require.Equal(t, "receipt-"+reentryStepID, status.ReentryReceiptRef)
 }
 
 // A re-entry run that ends before registering its source is never bound to
@@ -182,6 +199,13 @@ func TestAReentryRunThatNeverRegistersIsNotBoundToReview(t *testing.T) {
 	require.Contains(t, status.Reason, "before registering its source")
 	require.Equal(t, StepSucceeded, status.Steps[0].Status, "the salvage itself succeeded and keeps its receipt")
 	require.Empty(t, status.ReentryPreviewHandle)
+	// The failed re-entry is receipted too, with the link as far as it got.
+	require.Len(t, receipts.requests, 2)
+	require.Equal(t, ReceiptFailed, receipts.requests[1].Status)
+	require.Equal(t, ReentryReceiptActivity, receipts.requests[1].Activity)
+	require.Contains(t, receipts.requests[1].Error, "before registering its source")
+	require.Contains(t, receipts.requests[1].Error, `"to_workflow_id":"`+testWorkflowID+`-reentry-`)
+	require.Equal(t, "receipt-"+reentryStepID, status.ReentryReceiptRef)
 }
 
 func TestFindRepointsTheSourceForTheFollowingSteps(t *testing.T) {
@@ -200,13 +224,14 @@ func TestFindRepointsTheSourceForTheFollowingSteps(t *testing.T) {
 	status, err := runRepair(t, env, plan)
 	require.NoError(t, err)
 	require.Equal(t, RunCompleted, status.Status)
-	require.Len(t, receipts.requests, 2)
+	require.Len(t, receipts.requests, 3, "two step receipts and the re-entry receipt")
 	require.Equal(t, otherCopyRef, receipts.requests[1].InputRef)
+	require.Equal(t, ReentryReceiptActivity, receipts.requests[2].Activity)
 }
 
 func TestLenientDecodeReentersAsOneBoundedBatch(t *testing.T) {
 	plan := testPlan(lenientID)
-	env, _ := newRepairEnv(t, plan)
+	env, receipts := newRepairEnv(t, plan)
 	env.OnActivity(lenientID, mock.Anything, mock.Anything).Return(StepResult{
 		OutputRef: lenientRef, OutputType: TypeDerivedThreads, OutputKind: OutputDerivedChunkFolder,
 		OutputSHA256: digestA, ReentryRef: threadsRef,
@@ -230,6 +255,15 @@ func TestLenientDecodeReentersAsOneBoundedBatch(t *testing.T) {
 	require.Equal(t, DerivedThreadsDeclaredFormat, batch.DeclaredFormat)
 	require.Equal(t, 1, batch.MaxInFlight)
 	require.Equal(t, testMatter, batch.MatterID)
+
+	// The link records the batch that superseded the Review run.
+	require.Len(t, receipts.requests, 2)
+	var link ReentryLink
+	require.NoError(t, json.Unmarshal(receipts.requests[1].Result.Summary, &link))
+	require.Equal(t, status.ReentryBatchID, link.ToBatchID)
+	require.Equal(t, testHandle, link.FromPreviewHandle)
+	require.Empty(t, link.ToPreviewHandle)
+	require.Equal(t, "reentry_batch", receipts.requests[1].Result.OutputKind)
 }
 
 func TestAFailedStepIsReceiptedAndStopsThePlan(t *testing.T) {

@@ -5,7 +5,9 @@
 // sources." One job: ask the catalog for other copies with the source's file
 // name, confirm each still exists in its store, and name the best one. It
 // writes nothing. The catalog proposes; the store confirms — a catalog name is
-// never turned into a source reference without a live HEAD.
+// never turned into a source reference without a live HEAD, and a copy whose
+// first 64 KiB are all zero bytes (a zero-filled husk, 2026-09-13 quarantine)
+// is refused after one ranged GET, never a whole-object read.
 
 package activities
 
@@ -82,12 +84,27 @@ func inQuarantine(key string) bool {
 	return false
 }
 
+// zeroCheckBytes is the head sample every candidate must pass: a copy whose
+// first 64 KiB are all zero bytes is a zero-filled husk (the 2026-09-13
+// zero-fill quarantine covered R2, B2, Drive and D:), however large it is.
+// It is read with one ranged GET, never the whole object.
+// Byline: Claude Code · Opus 5.5 · 2026-09-25
+const zeroCheckBytes = 64 << 10
+
+// maxReportedZeroFilled bounds the zero-filled locators listed in a summary.
+const maxReportedZeroFilled = 20
+
+const rejectZeroFilled = "zero-filled (first 64 KiB all zero bytes)"
+
 type findCandidate struct {
 	SourceRef   string `json:"source_ref"`
 	Size        int64  `json:"size"`
 	CatalogSize int64  `json:"catalog_size"`
 	SHA1        string `json:"sha1,omitempty"`
 	Snapshot    string `json:"snapshot"`
+	// ZeroCheckedBytes is how many head bytes a ranged GET read and found
+	// not all zero.
+	ZeroCheckedBytes int `json:"zero_checked_bytes"`
 }
 
 type findSummary struct {
@@ -104,6 +121,10 @@ type findSummary struct {
 	Quarantine     bool            `json:"include_quarantine"`
 	MaxCandidates  int             `json:"max_candidates"`
 	CatalogSources []string        `json:"catalog_snapshots"`
+	// ZeroCheckBytes is the head sample size every candidate must pass, and
+	// ZeroFilled the candidates rejected because theirs was all zero bytes.
+	ZeroCheckBytes int      `json:"zero_check_bytes"`
+	ZeroFilled     []string `json:"zero_filled"`
 }
 
 // FindOtherVersion names the largest verified other copy of the source.
@@ -132,7 +153,7 @@ func (a RepairFindOtherVersionActivity) find(ctx context.Context, request repair
 		return repairplan.StepResult{}, permanent(errors.New(
 			"find other version: the Case Bible catalog is not configured on this worker (INTAKE_DISCOVERY_PG_* and INTAKE_DISCOVERY_OBJECT_STORE)"))
 	}
-	catalogStore, err := a.statter(a.Store.Scheme)
+	catalogStore, err := a.candidateStore(a.Store.Scheme)
 	if err != nil {
 		return repairplan.StepResult{}, permanent(err)
 	}
@@ -141,7 +162,7 @@ func (a RepairFindOtherVersionActivity) find(ctx context.Context, request repair
 		Basename: basename, OriginalSize: -1, Candidates: []findCandidate{},
 		Rejected: map[string]int{}, CatalogStore: a.Store.Scheme + "://" + a.Store.Bucket + "/",
 		RequireLarger: params.RequireLarger, Quarantine: params.IncludeQuarantine, MaxCandidates: limit,
-		CatalogSources: []string{},
+		CatalogSources: []string{}, ZeroCheckBytes: zeroCheckBytes, ZeroFilled: []string{},
 	}
 
 	// What the original is now: its live size, and its catalog hash when the
@@ -223,8 +244,24 @@ func (a RepairFindOtherVersionActivity) find(ctx context.Context, request repair
 			summary.Rejected["changed since the catalog snapshot and no longer qualifies"]++
 			continue
 		}
+		head, readErr := catalogStore.ReadRange(ctx, candidate.Bucket, candidate.Key, 0, zeroCheckBytes)
+		if readErr != nil {
+			return repairplan.StepResult{}, fmt.Errorf("read the first %d bytes of candidate %s: %w", zeroCheckBytes, candidate.URI(), readErr)
+		}
+		switch {
+		case len(head) == 0:
+			summary.Rejected["empty (no bytes to read)"]++
+			continue
+		case allZero(head):
+			summary.Rejected[rejectZeroFilled]++
+			if len(summary.ZeroFilled) < maxReportedZeroFilled {
+				summary.ZeroFilled = append(summary.ZeroFilled, candidate.URI())
+			}
+			continue
+		}
 		summary.Candidates = append(summary.Candidates, findCandidate{
 			SourceRef: candidate.URI(), Size: info.Size, CatalogSize: row.Size, SHA1: row.SHA1, Snapshot: row.Snapshot,
+			ZeroCheckedBytes: len(head),
 		})
 	}
 	if len(summary.Candidates) == 0 {
@@ -261,6 +298,35 @@ func describeRejections(rejected map[string]int) string {
 	}
 	sort.Strings(reasons)
 	return strings.Join(reasons, ", ")
+}
+
+// allZero reports a sample made only of zero bytes.
+func allZero(sample []byte) bool {
+	for _, b := range sample {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// candidateStore is what confirming a candidate needs: a HEAD and a ranged
+// head read.
+type candidateStore interface {
+	smsthreads.ObjectStatter
+	smsthreads.ObjectRangeReader
+}
+
+func (a RepairFindOtherVersionActivity) candidateStore(scheme string) (candidateStore, error) {
+	store, err := a.Stores(scheme)
+	if err != nil {
+		return nil, fmt.Errorf("object store %q: %w", scheme, err)
+	}
+	capable, ok := store.(candidateStore)
+	if !ok {
+		return nil, fmt.Errorf("object store %q cannot report object size and read a byte range", scheme)
+	}
+	return capable, nil
 }
 
 func (a RepairFindOtherVersionActivity) statter(scheme string) (smsthreads.ObjectStatter, error) {

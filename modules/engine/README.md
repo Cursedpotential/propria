@@ -165,8 +165,17 @@ registered its source.
 The three first repair Activities are registered in
 `stagegraph.RepairPlanActivities` and run on the proffer worker:
 `repair.find_other_version` (read-only Case Bible catalog lookup, confirmed by a
-live HEAD), `repair.salvage_truncated_xml` (`engine/derive/xmlsalvage`: an exact
-byte prefix of the source up to the last complete record, plus the closing tag,
-published as a new hashed derived object) and `repair.lenient_decode`
+live HEAD, and refused when a ranged GET of its first 64 KiB is all zero bytes —
+a zero-filled husk), `repair.salvage_truncated_xml` (`engine/derive/xmlsalvage`:
+an exact byte prefix of the source up to the last complete record, plus the
+closing tag, published as a new hashed derived object) and `repair.lenient_decode`
 (`engine/derive/smsthreads` with `Lenient` set, published under the derived
 location's `lenient/` variant). None writes an original.
+
+After re-entry the plan records one more receipt, `repair.reentry`, holding the
+supersession link (the Review run's preview handle → the new run's handle or the
+batch id). The Review run's repair gate is left open for the owner: no existing
+repair-gate decision records a supersession, and a rejection would end that run
+as a failed import. `proffer.AwaitRunRegistration` (shared with the batch
+workflow, versioned `proffer-batch-bind-after-register-v1`) binds a started run
+to Review only once it has registered its source, so its matter is provable.

@@ -204,6 +204,9 @@ type RunStatus struct {
 	// a folder of derived chunks: re-entry is then one Proffer batch over that
 	// folder (GET /reference-import/batches/{id}), not a single run.
 	ReentryBatchID string `json:"reentry_batch_id,omitempty"`
+	// ReentryReceiptRef is the re-entry's own receipt, which records the
+	// supersession link (this run's preview_handle → the re-entry run or batch).
+	ReentryReceiptRef string `json:"reentry_receipt_ref,omitempty"`
 	// Checks carries the worker's own validation when it refused the plan.
 	Checks []Check `json:"checks,omitempty"`
 }

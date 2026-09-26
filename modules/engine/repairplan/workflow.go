@@ -38,10 +38,15 @@ const (
 	readImportOperationActivityName = "read_import_operation_activity"
 	runFlowActivityName             = "run_n8n_flow_activity"
 
-	// reentryRegisterPoll and reentryRegisterLimit bound the wait for the
-	// re-entry run to register its source before it is bound to Review.
-	reentryRegisterPoll  = 5 * time.Second
+	// reentryRegisterLimit bounds the wait for the re-entry run to register
+	// its source before it is bound to Review.
 	reentryRegisterLimit = 30 * time.Minute
+
+	// ReentryReceiptActivity labels the receipt that records the re-entry
+	// and its supersession link (Review run → new run or batch).
+	ReentryReceiptActivity = "repair.reentry"
+	// reentryStepID is the receipt step id of the re-entry.
+	reentryStepID = "reentry"
 )
 
 // RunInput starts RepairPlanWorkflow. The plan is small and bounded (at most
@@ -304,8 +309,18 @@ func RepairPlanWorkflow(ctx workflow.Context, in RunInput) (RunStatus, error) {
 		currentRef, currentType, terminal = result.OutputRef, result.OutputType, result
 	}
 
-	if err := reenter(ctx, workflowID, runID, validated, terminal, state); err != nil {
-		return state.fail("every step succeeded but re-entry into Proffer failed: " + boundedReason(err.Error()))
+	link, reentryErr := reenter(ctx, workflowID, runID, validated, terminal, state)
+	receiptRef, receiptErr := recordReentryReceipt(ctx, workflowID, runID, validated, terminal, link, reentryErr)
+	state.status.ReentryReceiptRef = receiptRef
+	if reentryErr != nil {
+		reason := "every step succeeded but re-entry into Proffer failed: " + boundedReason(reentryErr.Error())
+		if receiptErr != nil {
+			reason += "; its failure receipt could not be recorded: " + boundedReason(receiptErr.Error())
+		}
+		return state.fail(reason)
+	}
+	if receiptErr != nil {
+		return state.fail("re-entry started but its receipt could not be recorded: " + boundedReason(receiptErr.Error()))
 	}
 	state.status.Status = RunCompleted
 	return state.snapshot(), nil
@@ -379,11 +394,41 @@ func checkStepResult(step ResolvedStep, result StepResult) error {
 	return nil
 }
 
+// ReentryLink is the supersession link the re-entry receipt records: the
+// Review run the plan repaired, and the run or batch that re-entered Proffer
+// in its place.
+type ReentryLink struct {
+	Link              string `json:"link"`
+	FromPreviewHandle string `json:"from_preview_handle"`
+	FromWorkflowID    string `json:"from_workflow_id"`
+	ToPreviewHandle   string `json:"to_preview_handle,omitempty"`
+	ToBatchID         string `json:"to_batch_id,omitempty"`
+	ToWorkflowID      string `json:"to_workflow_id,omitempty"`
+	SourceRef         string `json:"source_ref"`
+	// GateClosed reports whether the Review run's repair gate was closed.
+	// It is always false today: no existing gate decision records a
+	// supersession (a rejection would end the run as a failed import), so
+	// the run stays parked until the owner answers it in Review.
+	GateClosed bool   `json:"gate_closed"`
+	GateNote   string `json:"gate_note"`
+}
+
+const (
+	supersededByLink = "superseded_by"
+	gateLeftOpenNote = "The Review run's repair gate is left open for the owner: no existing repair-gate " +
+		"decision records a supersession, and a rejection would end the run as a failed import."
+)
+
 // reenter starts the ordinary Proffer route on the plan's result. The child
 // is abandoned on purpose: a re-entry run parked at a human gate must outlive
 // the repair run that started it (the owner answers it later, in Review).
-func reenter(ctx workflow.Context, workflowID, runID string, validated ValidatedPlan, terminal StepResult, state *runState) error {
+// The returned link is filled as far as re-entry got, even on failure.
+func reenter(ctx workflow.Context, workflowID, runID string, validated ValidatedPlan, terminal StepResult, state *runState) (ReentryLink, error) {
 	reentry := validated.Reentry
+	link := ReentryLink{
+		Link: supersededByLink, FromPreviewHandle: validated.Anchor.PreviewHandle,
+		FromWorkflowID: validated.Anchor.WorkflowID, SourceRef: terminal.OutputRef, GateNote: gateLeftOpenNote,
+	}
 	short := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: time.Minute, RetryPolicy: boundedRetry(2*time.Second, 4),
 	})
@@ -400,10 +445,11 @@ func reenter(ctx workflow.Context, workflowID, runID string, validated Validated
 		})
 		var execution workflow.Execution
 		if err := child.GetChildWorkflowExecution().Get(ctx, &execution); err != nil {
-			return fmt.Errorf("start the re-entry run: %w", err)
+			return link, fmt.Errorf("start the re-entry run: %w", err)
 		}
-		if err := awaitReentryRegistration(ctx, short, child, execution.ID); err != nil {
-			return err
+		link.ToWorkflowID = execution.ID
+		if err := proffer.AwaitRunRegistration(ctx, short, child, execution.ID, proffer.RegistrationPollInterval, reentryRegisterLimit); err != nil {
+			return link, err
 		}
 		var bound struct {
 			PreviewHandle string `json:"preview_handle"`
@@ -416,14 +462,15 @@ func reenter(ctx workflow.Context, workflowID, runID string, validated Validated
 			if err == nil {
 				err = errors.New("no preview handle was returned")
 			}
-			return fmt.Errorf("the re-entry run %s started but its Review binding failed: %w", execution.ID, err)
+			return link, fmt.Errorf("the re-entry run %s started but its Review binding failed: %w", execution.ID, err)
 		}
+		link.ToPreviewHandle = bound.PreviewHandle
 		state.status.ReentryPreviewHandle = bound.PreviewHandle
-		return nil
+		return link, nil
 	case ReentryBatch:
 		scheme, bucket, prefix, err := splitFolderRef(terminal.ReentryRef)
 		if err != nil {
-			return err
+			return link, err
 		}
 		digest := sha256.Sum256([]byte(workflowID + "/" + runID))
 		batchID := "repair-" + hex.EncodeToString(digest[:])[:40]
@@ -438,59 +485,46 @@ func reenter(ctx workflow.Context, workflowID, runID string, validated Validated
 		})
 		var execution workflow.Execution
 		if err := child.GetChildWorkflowExecution().Get(ctx, &execution); err != nil {
-			return fmt.Errorf("start the re-entry batch: %w", err)
+			return link, fmt.Errorf("start the re-entry batch: %w", err)
 		}
+		link.ToWorkflowID, link.ToBatchID = execution.ID, batchID
 		state.status.ReentryBatchID = batchID
-		return nil
+		return link, nil
 	}
-	return fmt.Errorf("unknown re-entry kind %q", reentry.Kind)
+	return link, fmt.Errorf("unknown re-entry kind %q", reentry.Kind)
 }
 
-// awaitReentryRegistration holds the Review binding until the re-entry run
-// has registered its source. Only then is the run's matter provable from
-// durable state, and the Workbench refuses its whole Review list over one
-// binding whose TEST/REAL ownership it cannot prove. A run that ends before
-// registering is reported and never bound.
-func awaitReentryRegistration(ctx, short workflow.Context, child workflow.ChildWorkflowFuture, runWorkflowID string) error {
-	deadline := workflow.Now(ctx).Add(reentryRegisterLimit)
-	for {
-		var state struct {
-			Lifecycle        string `json:"lifecycle"`
-			Terminal         bool   `json:"terminal"`
-			Reason           string `json:"reason,omitempty"`
-			Available        bool   `json:"available"`
-			SourceVersionRef string `json:"source_version_ref,omitempty"`
-		}
-		err := workflow.ExecuteActivity(short, readImportOperationActivityName,
-			map[string]any{"workflow_id": runWorkflowID}).Get(ctx, &state)
-		if err == nil && state.Available {
-			if state.SourceVersionRef != "" {
-				return nil
-			}
-			if state.Terminal {
-				return fmt.Errorf("the re-entry run %s ended (%s) before registering its source: %s", runWorkflowID, state.Lifecycle, state.Reason)
-			}
-		}
-		if workflow.Now(ctx).After(deadline) {
-			return fmt.Errorf("the re-entry run %s did not register its source within %s, so it was not bound to Review", runWorkflowID, reentryRegisterLimit)
-		}
-		finished := false
-		var childErr error
-		selector := workflow.NewSelector(ctx)
-		selector.AddFuture(child, func(future workflow.Future) {
-			finished = true
-			childErr = future.Get(ctx, nil)
-		})
-		selector.AddFuture(workflow.NewTimer(ctx, reentryRegisterPoll), func(workflow.Future) {})
-		selector.Select(ctx)
-		if finished {
-			if childErr != nil {
-				return fmt.Errorf("the re-entry run %s failed before it was bound to Review: %w", runWorkflowID, childErr)
-			}
-			// A run that completed has registered its source.
-			return nil
-		}
+// recordReentryReceipt writes the re-entry's own append-only receipt, after
+// the plan's step receipts, carrying the supersession link (success) or the
+// failure with as much of the link as exists (failure).
+func recordReentryReceipt(ctx workflow.Context, workflowID, runID string, validated ValidatedPlan, terminal StepResult, link ReentryLink, reentryErr error) (string, error) {
+	receipt := ReceiptRequest{
+		WorkflowID: workflowID, RunID: runID, PlanID: validated.PlanID, StepID: reentryStepID,
+		StepIndex: len(validated.Steps), Activity: ReentryReceiptActivity,
+		SourceVersionID: validated.Anchor.SourceVersionID, InputRef: terminal.OutputRef, Status: ReceiptSuccess,
 	}
+	encodedLink, _ := json.Marshal(link)
+	if reentryErr != nil {
+		receipt.Status = ReceiptFailed
+		receipt.Error = boundedReason(reentryErr.Error() + " (link so far: " + string(encodedLink) + ")")
+	} else {
+		outputRef, kind := link.ToWorkflowID, "reentry_run"
+		if link.ToBatchID != "" {
+			kind = "reentry_batch"
+		}
+		receipt.Result = &StepResult{OutputRef: outputRef, OutputType: terminal.OutputType, OutputKind: kind, Summary: encodedLink}
+	}
+	var recorded ReceiptResult
+	receiptCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: time.Minute, RetryPolicy: boundedRetry(2*time.Second, 5),
+	})
+	if err := workflow.ExecuteActivity(receiptCtx, RecordStepReceiptActivityName, receipt).Get(ctx, &recorded); err != nil {
+		return "", err
+	}
+	if recorded.ReceiptRef == "" {
+		return "", errors.New("the receipt store returned no reference")
+	}
+	return recorded.ReceiptRef, nil
 }
 
 func splitFolderRef(ref string) (scheme, bucket, prefix string, err error) {

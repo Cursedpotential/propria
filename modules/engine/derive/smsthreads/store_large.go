@@ -39,6 +39,42 @@ type LargeObjectPutter interface {
 	PutLarge(ctx context.Context, bucket, key string, body io.ReaderAt, size int64, contentType string) error
 }
 
+// ObjectRangeReader reads one byte range of an object with a ranged GET, so a
+// caller that needs a head sample never downloads the whole object.
+type ObjectRangeReader interface {
+	ReadRange(ctx context.Context, bucket, key string, offset, length int64) ([]byte, error)
+}
+
+// maxRangeRead bounds one ranged read held in memory.
+const maxRangeRead = 1 << 20
+
+// ReadRange issues one GET with a Range header for [offset, offset+length).
+// It never reads more than length bytes even if a server ignored the Range,
+// and returns fewer when the object is shorter.
+// Byline: Claude Code · Opus 5.5 · 2026-09-25
+func (s S3Store) ReadRange(ctx context.Context, bucket, key string, offset, length int64) ([]byte, error) {
+	if s.Client == nil {
+		return nil, errors.New("smsthreads: S3 store has no client")
+	}
+	if offset < 0 || length <= 0 || length > maxRangeRead {
+		return nil, fmt.Errorf("smsthreads: range read of %d bytes at %d is out of bounds", length, offset)
+	}
+	out, err := s.Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket), Key: aws.String(key),
+		Range: aws.String(fmt.Sprintf("bytes=%d-%d", offset, offset+length-1)),
+	})
+	if err != nil {
+		var invalidRange interface{ ErrorCode() string }
+		if errors.As(err, &invalidRange) && invalidRange.ErrorCode() == "InvalidRange" {
+			// A range starting past the end of the object: nothing to read.
+			return []byte{}, nil
+		}
+		return nil, err
+	}
+	defer out.Body.Close()
+	return io.ReadAll(io.LimitReader(out.Body, length))
+}
+
 const (
 	// singlePutLimit keeps a single PUT well under the 5 GiB ceiling.
 	singlePutLimit = 4 << 30

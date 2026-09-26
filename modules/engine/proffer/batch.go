@@ -57,7 +57,71 @@ const (
 	// batchItemPollLimit stops an item holding its slot forever when durable
 	// state never becomes readable. The run itself is not cancelled.
 	batchItemPollLimit = 8 * time.Hour
+
+	// batchBindAfterRegisterChangeID versions the bind-after-registration
+	// order (2026-09-25); older histories keep binding at child start.
+	batchBindAfterRegisterChangeID = "proffer-batch-bind-after-register-v1"
+	batchBindAfterRegisterVersion  = workflow.Version(1)
+	// batchRegistrationLimit bounds how long an item waits for its run to
+	// register its source before it is recorded failed and left unbound.
+	batchRegistrationLimit = 30 * time.Minute
+	// RegistrationPollInterval is how often a started run's registration is
+	// read while a caller holds its Review binding.
+	RegistrationPollInterval = 5 * time.Second
 )
+
+// AwaitRunRegistration returns once the started run has registered its
+// source, which is when its matter becomes provable from durable state and a
+// Review binding for it is safe. It returns an error, and the caller must
+// not bind, when the run ends before registering, or when registration is
+// not observed within limit. A run that completed registered by definition
+// (register_source_activity is its first stage). It never cancels the run.
+//
+// activityCtx must carry options for read_import_operation_activity.
+// Byline: Claude Code · Opus 5.5 · 2026-09-25
+func AwaitRunRegistration(ctx, activityCtx workflow.Context, child workflow.ChildWorkflowFuture, runWorkflowID string, poll, limit time.Duration) error {
+	deadline := workflow.Now(ctx).Add(limit)
+	finished := false
+	var childErr error
+	for {
+		var state struct {
+			Lifecycle        string `json:"lifecycle"`
+			Terminal         bool   `json:"terminal"`
+			Reason           string `json:"reason,omitempty"`
+			Available        bool   `json:"available"`
+			SourceVersionRef string `json:"source_version_ref,omitempty"`
+		}
+		err := workflow.ExecuteActivity(activityCtx, readImportOperationActivityName,
+			map[string]any{"workflow_id": runWorkflowID}).Get(ctx, &state)
+		if err == nil && state.Available {
+			if state.SourceVersionRef != "" || state.Lifecycle == string(OperationCompleted) {
+				return nil
+			}
+			if state.Terminal {
+				return fmt.Errorf("the run %s ended (%s) before registering its source, so it was not bound to Review: %s",
+					runWorkflowID, state.Lifecycle, state.Reason)
+			}
+		}
+		if finished {
+			if childErr == nil {
+				return nil
+			}
+			return fmt.Errorf("the run %s failed before registering its source, so it was not bound to Review: %w", runWorkflowID, childErr)
+		}
+		if workflow.Now(ctx).After(deadline) {
+			return fmt.Errorf("the run %s did not register its source within %s, so it was not bound to Review", runWorkflowID, limit)
+		}
+		timerCtx, cancelTimer := workflow.WithCancel(ctx)
+		selector := workflow.NewSelector(ctx)
+		selector.AddFuture(child, func(future workflow.Future) {
+			finished = true
+			childErr = future.Get(ctx, nil)
+		})
+		selector.AddFuture(workflow.NewTimer(timerCtx, poll), func(workflow.Future) {})
+		selector.Select(ctx)
+		cancelTimer()
+	}
+}
 
 // BatchItemStatus is one item's position in the batch.
 type BatchItemStatus string
@@ -324,6 +388,19 @@ func runBatchItem(ctx workflow.Context, in BatchInput, item *BatchItem) {
 		return
 	}
 	item.Status = BatchItemRunning
+
+	// Bind only once the run has registered its source. Before that its
+	// matter is not in durable state, and one binding whose TEST/REAL
+	// ownership the Workbench cannot prove turns the whole Review list into a
+	// 503. An item that ends before registering is recorded failed and never
+	// bound. Histories recorded before this change replay the old order.
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
+	if workflow.GetVersion(ctx, batchBindAfterRegisterChangeID, workflow.DefaultVersion, batchBindAfterRegisterVersion) != workflow.DefaultVersion {
+		if err := AwaitRunRegistration(ctx, shortCtx, child, execution.ID, RegistrationPollInterval, batchRegistrationLimit); err != nil {
+			item.Status, item.Reason = BatchItemFailed, err.Error()
+			return
+		}
+	}
 
 	// The binding is what makes this item visible in Review; without it the
 	// run is durable but unaddressable, so a binding failure fails the item.

@@ -25,11 +25,32 @@ import (
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
-// repairStore is an in-memory object store with HEAD and large uploads.
+// repairStore is an in-memory object store with HEAD, ranged reads and
+// large uploads. It records whole-object opens and ranged reads.
 type repairStore struct {
 	mu      sync.Mutex
 	objects map[string][]byte
 	puts    []string
+	opens   []string
+	ranges  []string
+}
+
+func (s *repairStore) ReadRange(_ context.Context, bucket, key string, offset, length int64) ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ranges = append(s.ranges, fmt.Sprintf("%s@%d+%d", key, offset, length))
+	data, ok := s.objects[bucket+"/"+key]
+	if !ok {
+		return nil, errors.New("no such object: " + key)
+	}
+	if offset >= int64(len(data)) {
+		return []byte{}, nil
+	}
+	end := offset + length
+	if end > int64(len(data)) {
+		end = int64(len(data))
+	}
+	return append([]byte(nil), data[offset:end]...), nil
 }
 
 func newRepairStore(objects map[string][]byte) *repairStore {
@@ -39,6 +60,7 @@ func newRepairStore(objects map[string][]byte) *repairStore {
 func (s *repairStore) Open(_ context.Context, bucket, key string) (io.ReadCloser, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.opens = append(s.opens, key)
 	data, ok := s.objects[bucket+"/"+key]
 	if !ok {
 		return nil, errors.New("no such object: " + key)
@@ -228,6 +250,80 @@ func TestFindOtherVersionRequireLargerIgnoresHashOnlyDifferences(t *testing.T) {
 		SourceRef: vaultRef, SourceType: repairplan.TypeSMSBackupXML, Params: json.RawMessage(`{"require_larger":true}`),
 	})
 	requirePermanent(t, err, "no other version of sms-20250617122400.xml was found")
+}
+
+// A larger copy can be a zero-filled husk (the 2026-09-13 zero-fill
+// quarantine). Every candidate's first 64 KiB is read with one ranged GET —
+// never the whole object — and an all-zero head is refused.
+// Byline: Claude Code · Opus 5.5 · 2026-09-25
+func TestFindOtherVersionRefusesZeroFilledCopiesWithARangedRead(t *testing.T) {
+	husk := "consignatio/intake/raw-dedupe/v1/husk/sms-20250617122400.xml"
+	good := "consignatio/intake/raw-dedupe/v1/good/sms-20250617122400.xml"
+	empty := "consignatio/intake/raw-dedupe/v1/empty/sms-20250617122400.xml"
+	lateData := append(make([]byte, 70<<10), []byte("<smses count=\"1\">")...) // zero head, data only past 64 KiB
+	store := newRepairStore(map[string][]byte{
+		"salem-data/" + vaultKey: bytes.Repeat([]byte("x"), 100),
+		"salem-data/" + husk:     make([]byte, 300<<10), // 300 KiB of zeros
+		"salem-data/" + good:     append([]byte("<?xml version='1.0'?><smses count=\"5\">"), bytes.Repeat([]byte("s"), 200)...),
+		"salem-data/" + empty:    {},
+		"salem-data/consignatio/intake/raw-dedupe/v1/late/sms-20250617122400.xml": lateData,
+	})
+	catalog := &fakeCatalog{rows: []CatalogObject{
+		{Key: husk, Size: 300 << 10},
+		{Key: "consignatio/intake/raw-dedupe/v1/late/sms-20250617122400.xml", Size: int64(len(lateData))},
+		{Key: good, Size: 238},
+		{Key: empty, Size: 0, SHA1: "da39a3ee5e6b4b0d3255bfef95601890afd80709"},
+	}, byKey: map[string]CatalogObject{vaultKey: {Key: vaultKey, Size: 100, SHA1: "aaaa"}}}
+
+	result, err := findActivity(t, store, catalog).FindOtherVersion(context.Background(), repairplan.StepRequest{
+		SourceRef: vaultRef, SourceType: repairplan.TypeSMSBackupXML,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OutputRef != "b2://salem-data/"+good {
+		t.Fatalf("chose %s, want the non-zero copy", result.OutputRef)
+	}
+	var summary struct {
+		Candidates []struct {
+			SourceRef        string `json:"source_ref"`
+			ZeroCheckedBytes int    `json:"zero_checked_bytes"`
+		} `json:"candidates"`
+		ZeroFilled     []string       `json:"zero_filled"`
+		ZeroCheckBytes int            `json:"zero_check_bytes"`
+		Rejected       map[string]int `json:"rejected"`
+	}
+	if err := json.Unmarshal(result.Summary, &summary); err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Candidates) != 1 || summary.Candidates[0].ZeroCheckedBytes != 238 || summary.ZeroCheckBytes != 64<<10 {
+		t.Fatalf("summary = %s", result.Summary)
+	}
+	if len(summary.ZeroFilled) != 2 || summary.Rejected[rejectZeroFilled] != 2 || summary.Rejected["empty (no bytes to read)"] != 1 {
+		t.Fatalf("zero-filled = %v rejected = %v", summary.ZeroFilled, summary.Rejected)
+	}
+	for _, read := range store.ranges {
+		if !strings.HasSuffix(read, "@0+65536") {
+			t.Fatalf("head read %q is not one ranged read of the first 64 KiB", read)
+		}
+	}
+	if len(store.opens) != 0 {
+		t.Fatalf("candidates were read whole: %v", store.opens)
+	}
+}
+
+// Every candidate a zero-fill: the step fails and says why.
+func TestFindOtherVersionFailsWhenEveryCopyIsZeroFilled(t *testing.T) {
+	husk := "consignatio/intake/raw-dedupe/v1/husk/sms-20250617122400.xml"
+	store := newRepairStore(map[string][]byte{
+		"salem-data/" + vaultKey: bytes.Repeat([]byte("x"), 100),
+		"salem-data/" + husk:     make([]byte, 128<<10),
+	})
+	catalog := &fakeCatalog{rows: []CatalogObject{{Key: husk, Size: 128 << 10}}}
+	_, err := findActivity(t, store, catalog).FindOtherVersion(context.Background(), repairplan.StepRequest{
+		SourceRef: vaultRef, SourceType: repairplan.TypeSMSBackupXML,
+	})
+	requirePermanent(t, err, "1 zero-filled (first 64 KiB all zero bytes)")
 }
 
 // Copies the owner set aside under _quarantine/ are eligible only on request
