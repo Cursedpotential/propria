@@ -151,6 +151,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Entity/event extraction: propose -> correct -> commit.
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
+	extractionRoutes, err := entityExtractionHandler(pool, c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountEntityExtractionRoutes(routes, extractionRoutes); err != nil {
+		return err
+	}
 
 	server := &http.Server{
 		Addr:              cfg.StarterAddr,

@@ -37,6 +37,7 @@ from server.temporal.activities import (
 )
 from server.temporal.classification_workflow import ClassificationBatchPipeline
 from server.temporal.n8n_activities import n8n_webhook_activity
+from server.temporal.timeline_activities import build_timeline_generation_activity
 from server.temporal.workflows import ChatTranscriptIngest, P0DurabilityProbe
 
 log = logging.getLogger("temporal.worker")
@@ -63,7 +64,16 @@ async def main() -> None:
             client,
             task_queue=task_queue,
             workflows=[ChatTranscriptIngest, P0DurabilityProbe, ClassificationBatchPipeline],
-            activities=[custody_activity, parse_activity, store_activity, knowledge_activity, n8n_webhook_activity],
+            # build_timeline_generation_activity: projection step of the Go
+            # extraction_commit_workflow (Claude Code · Opus 5.5 · 2026-09-25).
+            activities=[
+                custody_activity,
+                parse_activity,
+                store_activity,
+                knowledge_activity,
+                n8n_webhook_activity,
+                build_timeline_generation_activity,
+            ],
             activity_executor=executor,
         )
         log.info("worker running — workflows: ChatTranscriptIngest, P0DurabilityProbe, ClassificationBatchPipeline")
