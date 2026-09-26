@@ -26,12 +26,16 @@ import "@glideapps/glide-data-grid/dist/index.css";
 /** Rows remaining below the viewport before the next listing page is requested. */
 const PREFETCH_ROW_MARGIN = 30;
 
+// Widths are chosen so the State and Unit marks are on screen at the panel's
+// default width — a mark the operator has to scroll sideways to find is not a
+// mark. Name takes the slack instead of a fixed 380 (live screenshot fix,
+// 2026-09-22): at ~700px the old set ran 914px wide and cut "State" in half.
 const COLUMNS: GridColumn[] = [
-  { title: "Name", id: "name", width: 380, grow: 1 },
-  { title: "Size", id: "size", width: 96 },
-  { title: "Modified", id: "modified", width: 170 },
-  { title: "State", id: "state", width: 118 },
-  { title: "Unit", id: "unit", width: 150 },
+  { title: "Name", id: "name", width: 230, grow: 1 },
+  { title: "Size", id: "size", width: 78 },
+  { title: "Modified", id: "modified", width: 132 },
+  { title: "State", id: "state", width: 104 },
+  { title: "Unit", id: "unit", width: 104 },
 ];
 
 export interface SourceGridRow {
