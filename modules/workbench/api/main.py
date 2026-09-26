@@ -26,6 +26,7 @@ from app.runtime import (
     compare,
     copilot,
     documents,
+    entity_extraction,
     files,
     health,
     inspect,
@@ -118,6 +119,7 @@ app.include_router(upload.router)
 app.include_router(proffer.router)
 app.include_router(proffer_batch.router)
 app.include_router(proffer_resources.router)
+app.include_router(entity_extraction.router)  # /api/entities/*, /api/events/from-record (Claude Code · Opus 5.5 · 2026-09-25)
 app.include_router(source_inspection.router)
 app.include_router(source_unit_marks.router)
 app.include_router(files.router)

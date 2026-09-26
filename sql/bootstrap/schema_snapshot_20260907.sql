@@ -39967,6 +39967,41 @@ ALTER DEFAULT PRIVILEGES FOR ROLE ai IN SCHEMA working GRANT ALL ON TABLES TO pl
 
 
 --
+-- Name: entity/event extraction grants for platform_runtime; Type: ACL; Schema: -; Owner: -
+--
+-- Byline: Claude Code · Opus 5.5 · 2026-09-25. Tracked, idempotent script with
+-- read-back: scripts/2026-09-25-entity-proposals.sql (NOT applied live when
+-- written). The Proffer starter and worker connect as platform_runtime and
+-- stage proposals in the existing working.extraction_run / candidate_entity /
+-- candidate_event, then commit to registry.entity / entity_alias,
+-- working.entity_mention / entity_resolution, timeline.event_candidate (+ the
+-- event's source_available_from anchor) and timeline.timeline_member.
+-- INSERT everywhere; UPDATE only on each row's documented lifecycle columns;
+-- no DELETE. USAGE on schema ai is name lookup for the ::ai.source_ref[]
+-- provenance casts (ai: 0 SECURITY DEFINER functions; every table has an
+-- explicit ACL, so it opens no data).
+--
+
+GRANT USAGE ON SCHEMA ai TO platform_runtime;
+GRANT USAGE ON SCHEMA timeline TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE working.extraction_run TO platform_runtime;
+GRANT UPDATE (status, finished_at, error, stats) ON TABLE working.extraction_run TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE working.candidate_entity TO platform_runtime;
+GRANT UPDATE (review_state, promoted_to_table, promoted_to_id, promoted_at) ON TABLE working.candidate_entity TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE working.candidate_event TO platform_runtime;
+GRANT UPDATE (review_state, promoted_to_table, promoted_to_id, promoted_at) ON TABLE working.candidate_event TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE registry.entity TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE registry.entity_alias TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE working.entity_mention TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE working.entity_resolution TO platform_runtime;
+GRANT UPDATE (sys_period) ON TABLE working.entity_resolution TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE timeline.event_candidate TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE timeline.event_candidate_relative_time_anchor TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE timeline.timeline_collection TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE timeline.timeline_member TO platform_runtime;
+
+
+--
 -- PostgreSQL database dump complete
 --
 

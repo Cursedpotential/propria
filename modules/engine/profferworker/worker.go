@@ -53,6 +53,9 @@ type Registrations struct {
 	// Activities; they fail closed when called unwired).
 	// Byline: Claude Code · Opus 5 · 2026-09-21
 	BatchImport activities.BatchImportActivities
+	// Extraction serves the entity/event extraction workflows (extraction.go).
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
+	Extraction activities.EntityExtractionActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -150,6 +153,7 @@ func Run(ctx context.Context, cfg Config) error {
 
 	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, workerOptions(cfg))
 	RegisterAll(temporalWorker, registrations)
+	RegisterExtraction(temporalWorker, registrations.Extraction)
 	if err := temporalWorker.Start(); err != nil {
 		return fmt.Errorf("proffer worker: start Temporal worker: %w", err)
 	}
@@ -408,7 +412,12 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err := derivedRoots.RequireConfiguredSchemes(stores.Schemes()); err != nil {
 		return Registrations{}, err
 	}
+	extraction, err := buildExtraction(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
 	return Registrations{
+		Extraction:            extraction,
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation: activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
 		InventoryObservation:  activities.NewSourceObservationActivities(nil, runtimeapi.NewNonContainerMemberEnumerator(), observationRepo),
