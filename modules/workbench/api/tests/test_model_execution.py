@@ -7,6 +7,7 @@ Byline: Claude Code · Opus 5.5 · 2026-09-25 (empty/junk/invalid-JSON reply ret
 from __future__ import annotations
 
 import asyncio
+import logging
 from types import SimpleNamespace
 from typing import Any
 
@@ -144,6 +145,31 @@ def test_each_attempt_uses_its_own_model_and_the_json_request() -> None:
     parsed, raw = asyncio.run(ask_json([("thinking off", first), ("thinking on", second)], [], dict, request))
     assert parsed["category"] == "legal" and raw == VALID
     assert first.calls == [request] and second.calls == [request]
+
+
+def test_each_attempt_logs_one_line_without_prompt_text(caplog: pytest.LogCaptureFixture) -> None:
+    private = "PRIVATE-CASE-TEXT-7731"
+    caplog.set_level(logging.INFO, logger="app.service.model_replies")
+    model = ScriptedModel(["!" * 32, VALID], model_id="m1")
+    asyncio.run(run_classification(model, private, ["legal", "other"]))
+    lines = [r.getMessage() for r in caplog.records if r.name == "app.service.model_replies"]
+    assert len(lines) == 2
+    assert lines[0].startswith("model attempt model=m1 mode=first try prompt_chars=")
+    assert "outcome=junk latency_ms=" in lines[0]
+    assert "mode=retry" in lines[1] and "outcome=ok" in lines[1]
+    assert all(private not in line and "legal" not in line for line in lines)
+
+
+def test_a_provider_error_is_logged_then_raised(caplog: pytest.LogCaptureFixture) -> None:
+    class Failing(ScriptedModel):
+        async def aresponse(self, messages: list[Message], **kwargs: Any) -> Any:
+            raise ModelRateLimitError("Unknown model error", model_id=KIMI_K3_MODEL_ID)
+
+    caplog.set_level(logging.INFO, logger="app.service.model_replies")
+    with pytest.raises(ModelRateLimitError):
+        asyncio.run(run_classification(Failing([], model_id=KIMI_K3_MODEL_ID), "Motion", ["legal", "other"]))
+    lines = [r.getMessage() for r in caplog.records if r.name == "app.service.model_replies"]
+    assert len(lines) == 1 and "outcome=error (ModelRateLimitError)" in lines[0]
 
 
 def _nim_provider(monkeypatch: pytest.MonkeyPatch) -> Any:

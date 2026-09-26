@@ -7,17 +7,21 @@ routes answer with HTTP 502 naming the model and each attempt's failure. This re
 the old silent ``categories[0]`` / 0.5 classification fallback.
 
 Byline: Claude Code · Opus 5.5 · 2026-09-25 (owner decision relayed by the parent session:
-one retry, then fail clearly; delete the silent fallback; detect empty and junk replies)
+one retry, then fail clearly; delete the silent fallback; detect empty and junk replies;
+one INFO line per attempt — model, mode, prompt size, outcome, latency; never prompt text)
 """
 
 from __future__ import annotations
 
 import json
+import logging
+import time
 from collections.abc import Callable, Sequence
 from typing import Any, Protocol, TypeVar
 
 from agno.models.message import Message
 
+logger = logging.getLogger(__name__)
 _T = TypeVar("_T")
 
 
@@ -38,6 +42,18 @@ def reply_problem(raw: str) -> str | None:
     if len(raw) > 1 and len(set(raw)) == 1:
         return f"junk reply ({len(raw)} x {raw[0]!r})"
     return None
+
+
+def _log_attempt(model: Any, mode: str, prompt_chars: int, outcome: str, started: float) -> None:
+    """One INFO line per model attempt: no prompt text, no reply text, no credentials."""
+    logger.info(
+        "model attempt model=%s mode=%s prompt_chars=%d outcome=%s latency_ms=%d",
+        getattr(model, "id", "unknown"),
+        mode,
+        prompt_chars,
+        outcome,
+        round((time.perf_counter() - started) * 1000),
+    )
 
 
 def json_object(raw: str) -> dict[str, Any]:
@@ -64,15 +80,25 @@ async def ask_json(
     ``(read(object), raw_text)``; raises ModelReplyError when every attempt fails.
     """
     problems: list[str] = []
+    prompt_chars = sum(len(str(message.content or "")) for message in messages)
     for label, model in attempts:
-        response = await model.aresponse(messages, **(request or {}))
+        started = time.perf_counter()
+        try:
+            response = await model.aresponse(messages, **(request or {}))
+        except Exception as error:
+            _log_attempt(model, label, prompt_chars, f"error ({type(error).__name__})", started)
+            raise
         raw = str(response.content).strip() if response.content else ""
         problem = reply_problem(raw)
         if problem is None:
             try:
-                return read(json_object(raw)), raw
+                result = read(json_object(raw))
             except (KeyError, TypeError, ValueError) as error:
                 problem = f"invalid JSON reply ({error})"
+            else:
+                _log_attempt(model, label, prompt_chars, "ok", started)
+                return result, raw
+        _log_attempt(model, label, prompt_chars, problem.split(" reply", 1)[0], started)
         problems.append(f"{label}: {problem}")
     model_id = getattr(attempts[0][1], "id", "unknown") if attempts else "unknown"
     raise ModelReplyError(
