@@ -63,7 +63,7 @@
 1. **ENV FILES** (CRITICAL - CREDENTIALS):
    - ` (2).env` (25 lines, DB password: `Ms10238512ms!!`)
    - ` (3).env` (77 lines, DB password: `Ms10238512ms!`) ← WRONG
-   - `MASTER_ENV_COMPILED.env` (87 lines, labeled "THE CORRECT ONE", DB password: `@@Kailah2020!#`)
+   - `MASTER_ENV_COMPILED.env` (87 lines, labeled "THE CORRECT ONE", DB password: `<redacted:DB_PASSWORD>`)
    - **DECISION:** Keep MASTER_ENV_COMPILED as `.env`, archive the (2) and (3)
 
 2. **Timeline (1).json** (13MB)

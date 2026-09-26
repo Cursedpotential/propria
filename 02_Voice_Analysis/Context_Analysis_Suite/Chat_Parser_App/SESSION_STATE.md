@@ -92,4 +92,4 @@
 Should have access to:
 - `mcp__gemini__*` tools from `@maxanatsko/gemini-mcp-tool`
 - Can use Gemini 2.0 Flash Experimental (massive context window)
-- API key configured: AIzaSyAQ3gTKbhBu6sYpjelglQu75jZ_gdJstmg
+- API key configured: <redacted:GEMINI_API_KEY>
