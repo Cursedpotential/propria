@@ -32,9 +32,9 @@
 > _Byline: Claude Code · Opus 5.5 · 2026-09-26 — owner rule 2026-09-24, restated 2026-09-26._
 
 Never launch Chrome, Edge, a headless browser or Playwright on the owner's desktop; it freezes the
-machine. The browser journeys in `smoke/matter-flow.smoke.test.mjs` run only on a VPS, through
-`npm run smoke:matter-flow` with `SMOKE_BROWSER` set (see `README.md`, "Browser journeys run on a
-VPS only"). On Windows they skip in the default gate and `smoke:matter-flow` refuses to start. The
+machine. The browser journeys in `smoke/matter-flow.smoke.test.mjs` run only on a VPS:
+`smoke/run-in-devbox.sh` runs them in the ovh-files devbox (see `README.md`, "Browser journeys run
+on a VPS only"). On Windows they skip in the default gate and `smoke:matter-flow` refuses to start. The
 "live browser proof" gate above is taken from a VPS headless browser or through the API, never from
 a browser on the desktop.
 

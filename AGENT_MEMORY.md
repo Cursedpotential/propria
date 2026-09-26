@@ -65,7 +65,8 @@ This file is a router, not an encyclopedia. Read only the branches relevant to t
 - Repository status: separate child Git repository pending controlled Propria monorepo import.
 - Canonical linked-worktree root: `E:/AI_Workspace/Projects/Propria/_worktrees/`.
 - Codex-managed exception: `C:/Users/matts/.codex/worktrees/`.
-- Consignatio authority: `E:/AI_Workspace/Projects/Propria/Consignatio`; read its own routers
+- Consignatio authority: ~~`E:/AI_Workspace/Projects/Propria/Consignatio`~~
+  `E:/AI_Workspace/Projects/Propria/modules/Consignatio` (moved 2026-09-20); read its own routers
   before Consignatio work and do not treat this Probata repository as its authority.
 
 ## Path router
@@ -79,7 +80,7 @@ This file is a router, not an encyclopedia. Read only the branches relevant to t
 | `sql/**` | `sql/AGENT_MEMORY.md` |
 | `deploy/**` | `deploy/AGENT_MEMORY.md` |
 | `deploy/docker/**` (was root `docker/`, moved 2026-09-01) | `deploy/docker/AGENT_MEMORY.md`; for n8n also `deploy/docker/n8n/AGENT_MEMORY.md` |
-| `modules/advocatio-legal_workbench/**` (advocatio) and `modules/vestigia-geodata_processor/**` (vestigia) | each nested repo's own `AGENTS.md` / `AGENT_MEMORY.md` |
+| ~~`modules/advocatio-legal_workbench/**` (advocatio) and `modules/vestigia-geodata_processor/**` (vestigia)~~ moved out 2026-09-20 to `Propria/modules/Legal-desktop/` and `Propria/modules/vestigia-geodata_processor/`; reach them through the Propria root router | each nested repo's own `AGENTS.md` / `AGENT_MEMORY.md` |
 | `modules/workbench/**` (was root `workbench/`, moved 2026-09-01) | `modules/workbench/AGENT_MEMORY.md` plus the closest nested memory |
 | `tests/**` | `tests/AGENT_MEMORY.md` |
 | `knowledge/**` | `knowledge/AGENT_MEMORY.md` |

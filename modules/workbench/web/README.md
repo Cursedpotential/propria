@@ -71,19 +71,24 @@ and always on Windows. A skipped journey is not browser proof.
 ### Browser journeys run on a VPS only
 
 Never set `SMOKE_BROWSER` or run the browser journeys on the owner's desktop: headless Chrome and
-Edge froze it (owner ban 2026-09-24). Run them on a VPS, from this directory after `npm ci`, as a
-non-root user (Chromium will not start as root without `--no-sandbox`, which the journeys do not pass):
+Edge froze it (owner ban 2026-09-24). Run them in the Probata devbox on ovh-files (the agents' Kasm
+sandbox, `deploy/devbox.yaml`), from anywhere in this repository:
 
 ```bash
-SMOKE_BROWSER=/path/to/chromium npm run smoke:matter-flow
+modules/workbench/web/smoke/run-in-devbox.sh [git-ref]
 ```
 
-`SMOKE_BROWSER` is the path of a Chromium-family binary on that host; there is no default path.
-`npm run smoke:matter-flow` runs `smoke/browser-preflight.mjs` first and fails, instead of reporting
-four skips as a pass, on Windows, without `SMOKE_BROWSER`, or when that path does not exist. The
-journeys serve the built SPA through a same-origin fixture, drive it over the DevTools pipe, and
-leave each browser profile under the repository's `to_be_deleted/` directory for owner-only cleanup.
-No CI job or VPS runner runs them yet.
+It packs the committed web source at the ref (default `HEAD`) with `git archive`, streams it over
+SSH into the devbox, and runs `npm ci` and `npm run smoke:matter-flow` there as the non-root user
+with Chrome's real binary, so Chrome keeps its own sandbox. Nothing browser-related runs locally,
+and uncommitted edits are not tested. Each run unpacks into `~/browser-journeys-<sha>` in the devbox.
+
+On another VPS, run `SMOKE_BROWSER=/path/to/chromium npm run smoke:matter-flow` from this directory
+as a non-root user; there is no default browser path. `npm run smoke:matter-flow` runs
+`smoke/browser-preflight.mjs` first and fails, instead of reporting four skips as a pass, on
+Windows, without `SMOKE_BROWSER`, or when that path does not exist. The journeys serve the built
+SPA through a same-origin fixture, drive it over the DevTools pipe, and leave each browser profile
+under the repository's `to_be_deleted/` directory for owner-only cleanup.
 
 The focused backend static-serving contract runs from the repository root:
 

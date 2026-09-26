@@ -81,7 +81,8 @@ merges are pushed from worktrees, and a worktree branched from it lacked the bro
 fix. Run `git fetch` and branch new worktrees from `origin/main`.
 
 Consignatio is outside this repository's authority. Route Consignatio work to
-`E:/AI_Workspace/Projects/Propria/Consignatio` and follow that repository's own routers.
+~~`E:/AI_Workspace/Projects/Propria/Consignatio`~~ `E:/AI_Workspace/Projects/Propria/modules/Consignatio`
+(moved 2026-09-20; corrected 2026-09-26) and follow that repository's own routers.
 
 ## Standing Subagent Authorization
 
@@ -249,8 +250,8 @@ an expected state.
 | `modules/workbench/` | Operator Workbench — `api` (FastAPI) + `web`. Moved from root `workbench/` 2026-09-01. | — |
 | `modules/forks/` | **Nested independent repos, gitignored** — our forks of upstream projects, one repo each. Currently: `timesketch` (fork of google/timesketch) and `sbv` (**DONOR, not a fork** - D-131; MIT, Copyright (c) 2025 **lowcarbdev** - an earlier revision of this line credited "danzek", which was wrong. Being absorbed as a subtree into `modules/engine/decode/`; canonical remote `Cursedpotential/sbv-forensic`, whose CI builds the image the tool-runtime Dockerfile consumes **by digest** — the platform build does NOT need this checkout). Add an `upstream` remote per fork for rebasing. Owner ruling 2026-09-01. | each fork's own README |
 | `modules/custom/` | **One nested independent repo, gitignored** — owner-authored standalone modules versioned together (`llm_probe`, `llm_probe_ui`, `tool-skills`). | — |
-| `modules/advocatio-legal_workbench/` (**advocatio**, D-138) | **Nested independent product repo, gitignored** — placed beside the Workbench per owner ruling 2026-09-01 ("legal workbench should live next to workbench"). Still consumes `LegalSourcePackage` read-only; never a second writable evidence store. A full merge into the Workbench repo is an OPEN decision, not done. | its own `AGENTS.md` |
-| `modules/vestigia-geodata_processor/` (**vestigia**, D-140) | **Nested independent product repo, gitignored** (contains its own nested `traceiq-rebuild` repo). | its own `AGENTS.md` |
+| ~~`modules/advocatio-legal_workbench/`~~ (**advocatio**, D-138) — moved out 2026-09-20: the legal workdesk is `Propria/modules/Legal-desktop/` (corrected 2026-09-26) | **Nested independent product repo, gitignored** — placed beside the Workbench per owner ruling 2026-09-01 ("legal workbench should live next to workbench"). Still consumes `LegalSourcePackage` read-only; never a second writable evidence store. A full merge into the Workbench repo is an OPEN decision, not done. | its own `AGENTS.md` |
+| ~~`modules/vestigia-geodata_processor/`~~ (**vestigia**, D-140) — moved out 2026-09-20 to `Propria/modules/vestigia-geodata_processor/` (corrected 2026-09-26) | **Nested independent product repo, gitignored** (contains its own nested `traceiq-rebuild` repo). | its own `AGENTS.md` |
 | `modules/apps/` | Owner's transient staging area during reorganizations — gitignored, contents move on; never reference it in code or docs | — |
 | `sql/` | **`bootstrap/schema_snapshot_<date>.sql` IS the database** (D-142 §3, D-152, D-153). No migrations: a schema change = edit the snapshot in its final form + `scripts/rebuild_platform_from_snapshot.sh`; the keep set (reference/state) survives every rebuild. Numbered migrations retired to `sql/_stale/` 2026-09-07, never replayed. | `sql/bootstrap/README.md` |
 | `deploy/docker/` | One folder per service image (`tools/`, `gateway/`, `postgres/`, ...) — moved from root `docker/` 2026-09-01; compose files in `deploy/` now resolve their `./docker/...` build contexts correctly per the compose spec | — |
