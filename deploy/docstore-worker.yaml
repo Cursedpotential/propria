@@ -1,5 +1,14 @@
 # =============================================================================
-# DOCSTORE-WORKER - keeps the cloud docstore (surreal-docs) in sync with the repo and serves its API.
+# RETIRED 2026-09-25, kept for history. Correction by Claude Code · Opus 5.5 · 2026-09-26:
+#   - Docstore 0.8.1 (Codex, 2026-09-20) replaced this app. On 2026-09-20 it was stopped; the owner deleted
+#     it on 2026-09-25. Nothing listens on 8474 now.
+#   - Worker and API now run inside the Coolify SERVICE propria-docstore-0-8-1 (uuid
+#     o8obobz576je1fbyygnywl83, image propria-docstore:0.8.1-rN on ovh-files). Its build context is
+#     /data/propria/releases/docstore-0.8.1, which is in no git repository.
+#   - That service publishes the API on 8072, and svc:docstore-api proxies to it (2026-09-26).
+#   - The source mirror is /data/propria/releases/docstore-0.8.1/sources, fed by `client.py sync`.
+#   - Receipts: docs/pending-review/2026-09-20-docstore-0.8.1-r1/ and docs/pending-review/2026-09-26-docstore-0.8.1-r2/.
+# ~~DOCSTORE-WORKER - keeps the cloud docstore (surreal-docs) in sync with the repo and serves its API.~~
 # Owner orders 2026-09-10: run on the server on a cron; use CocoIndex change detection so only changed
 # files re-index and every re-index updates the database; add a reranker; expose an HTTP API for a
 # front end; build the document graph; always a bind-mount exchange folder.

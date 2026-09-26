@@ -1,0 +1,36 @@
+"""Authenticated stateless Streamable HTTP entry point for the hosted ctl service."""
+import hashlib
+import hmac
+import os
+import asyncio
+from fastmcp.server.auth import TokenVerifier, AccessToken
+from server import build_server, Config
+from cli import mcp_runtime
+
+
+class ControlTokenVerifier(TokenVerifier):
+    def __init__(self,token):
+        super().__init__()
+        if len(token)<32:
+            raise ValueError('DOCSTORE_CONTROL_TOKEN must contain at least 32 characters')
+        self.digest=hashlib.sha256(token.encode()).digest()
+
+    async def verify_token(self,token):
+        if hmac.compare_digest(hashlib.sha256(token.encode()).digest(),self.digest):
+            return AccessToken(token=token,client_id='docstore-client',scopes=['docstore'])
+        return None
+
+
+def main():
+    if not os.environ.get('DOCSTORE_API_TOKEN'):
+        raise ValueError('Authenticated worker API is required')
+    os.environ['DOCSTORE_MCP_TRANSPORT']='http'
+    from public_surface import build_public_server
+    server=asyncio.run(build_public_server(build_server(Config.from_env())))
+    server.auth=ControlTokenVerifier(os.environ.get('DOCSTORE_CONTROL_TOKEN',''))
+    runtime=mcp_runtime({**os.environ,'DOCSTORE_MCP_TRANSPORT':'http'})
+    server.run(**runtime)
+
+
+if __name__=='__main__':
+    main()

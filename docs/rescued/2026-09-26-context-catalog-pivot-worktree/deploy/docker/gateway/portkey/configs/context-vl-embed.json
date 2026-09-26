@@ -1,0 +1,42 @@
+{
+  "_comment": "Context-only 2048d multimodal embedding lane. The two equal-weight slots use opposite provider order so normal traffic rotates while 429/5xx responses immediately fail over to the sibling free endpoint. Do not add another model or vector space.",
+  "strategy": { "mode": "loadbalance" },
+  "targets": [
+    {
+      "weight": 1,
+      "strategy": { "mode": "fallback", "on_status_codes": [429, 500, 502, 503, 504, 524, 529] },
+      "targets": [
+        {
+          "provider": "openai",
+          "custom_host": "https://openrouter.ai/api/v1",
+          "api_key": "$OPENROUTER_API_KEY",
+          "override_params": { "model": "nvidia/llama-nemotron-embed-vl-1b-v2:free" }
+        },
+        {
+          "provider": "openai",
+          "custom_host": "https://integrate.api.nvidia.com/v1",
+          "api_key": "$NVIDIA_API_KEY",
+          "override_params": { "model": "nvidia/llama-nemotron-embed-vl-1b-v2" }
+        }
+      ]
+    },
+    {
+      "weight": 1,
+      "strategy": { "mode": "fallback", "on_status_codes": [429, 500, 502, 503, 504, 524, 529] },
+      "targets": [
+        {
+          "provider": "openai",
+          "custom_host": "https://integrate.api.nvidia.com/v1",
+          "api_key": "$NVIDIA_API_KEY",
+          "override_params": { "model": "nvidia/llama-nemotron-embed-vl-1b-v2" }
+        },
+        {
+          "provider": "openai",
+          "custom_host": "https://openrouter.ai/api/v1",
+          "api_key": "$OPENROUTER_API_KEY",
+          "override_params": { "model": "nvidia/llama-nemotron-embed-vl-1b-v2:free" }
+        }
+      ]
+    }
+  ]
+}
