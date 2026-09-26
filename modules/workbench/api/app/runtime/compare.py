@@ -1,4 +1,5 @@
 # Byline: Codex · GPT-5 · 2026-08-15 (OpenAPI endpoint documentation)
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (unusable reply → 502, provider rate limit → 429; see model_errors)
 """Comparison runtime router for workbench API."""
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ import io
 import json
 import csv
 
+from app.runtime.model_errors import MODEL_CALL_ERRORS, model_call_http_error
 from app.service.comparison import comparison_service
 from app.types.classification import (
     ComparisonRequest,
@@ -46,6 +48,8 @@ async def run_comparison(request: ComparisonRequest) -> ComparisonResponse:
     """Run classification and/or sentiment comparison across multiple providers."""
     try:
         return await comparison_service.compare(request)
+    except MODEL_CALL_ERRORS as e:
+        raise model_call_http_error(e)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

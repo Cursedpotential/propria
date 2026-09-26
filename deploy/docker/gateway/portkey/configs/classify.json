@@ -1,12 +1,18 @@
 {
-  "_comment": "Updated 2026-08-14: Comprehensive cheap/fast triage lane with expanded Ollama Cloud and NVIDIA model selection for classification tasks. Organized by speed and cost efficiency, using smaller, faster models appropriate for classification/triage. Primary tier uses fast Ollama Cloud models with loadbalancing. Fallback tiers include Google Gemini flash, ultra-fast providers, comprehensive NVIDIA NIM selection for fast inference, and Mistral small as absolute-last paid fallback.",
+  "_comment": "Updated 2026-09-25 (Claude Code · Opus 5.5): owner blanket ban on glm-5.1, so its target is removed. NVIDIA NIM moonshotai/kimi-k3 is the new primary (owner: Ollama Cloud is no longer primary after its pricing change). It answered a JSON-mode classification in 3.7 s on 2026-09-25; it is a reasoning model, so callers must not cap max_tokens low, and it retries 429/502/503/504 with the gateway's exponential backoff before falling through. The Ollama tier stays as a non-default fallback. Superseded comment of 2026-08-14: Comprehensive cheap/fast triage lane with expanded Ollama Cloud and NVIDIA model selection for classification tasks. Organized by speed and cost efficiency, using smaller, faster models appropriate for classification/triage. ~~Primary tier uses fast Ollama Cloud models with loadbalancing.~~ Fallback tiers include Google Gemini flash, ultra-fast providers, comprehensive NVIDIA NIM selection for fast inference, and Mistral small as absolute-last paid fallback.",
   "strategy": { "mode": "fallback" },
   "targets": [
+    {
+      "provider": "openai",
+      "custom_host": "https://integrate.api.nvidia.com/v1",
+      "api_key": "$NVIDIA_API_KEY",
+      "override_params": { "model": "moonshotai/kimi-k3" },
+      "retry": { "attempts": 2, "on_status_codes": [429, 502, 503, 504] }
+    },
     {
       "strategy": { "mode": "loadbalance" },
       "targets": [
         { "provider": "openai", "custom_host": "https://ollama.com/v1", "api_key": "$OLLAMA_API_KEY", "override_params": { "model": "gemma4:31b" } },
-        { "provider": "openai", "custom_host": "https://ollama.com/v1", "api_key": "$OLLAMA_API_KEY", "override_params": { "model": "glm-5.1" } },
         { "provider": "openai", "custom_host": "https://ollama.com/v1", "api_key": "$OLLAMA_API_KEY", "override_params": { "model": "kimi-k2.6" } },
         { "provider": "openai", "custom_host": "https://ollama.com/v1", "api_key": "$OLLAMA_API_KEY", "override_params": { "model": "deepseek-v4-flash" } },
         { "provider": "openai", "custom_host": "https://ollama.com/v1", "api_key": "$OLLAMA_API_KEY", "override_params": { "model": "phi-3-vision-128k-instruct" } }

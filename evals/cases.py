@@ -16,6 +16,8 @@ land with the evals phase — see docs/planning/BUILD_TODO.md Phase 12.
 Add a case below, then run `python -m evals`.
 """
 
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (test-agent model id glm-5.1 → moonshotai/kimi-k3 — owner blanket ban)
+
 from dataclasses import dataclass
 
 from agno.agent import Agent
@@ -48,7 +50,7 @@ class Case:
 
 classification_test_agent = Agent(
     name="classification-tester",
-    model=OpenAILike(id="glm-5.1", api_key="test"),  # Will be overridden by test
+    model=OpenAILike(id="moonshotai/kimi-k3", api_key="test"),  # Will be overridden by test
     instructions="""
 You are a test agent for classification and sentiment analysis.
 Your role is to verify that the classification and sentiment endpoints work correctly.
@@ -58,7 +60,7 @@ Your role is to verify that the classification and sentiment endpoints work corr
 
 sentiment_test_agent = Agent(
     name="sentiment-tester",
-    model=OpenAILike(id="glm-5.1", api_key="test"),
+    model=OpenAILike(id="moonshotai/kimi-k3", api_key="test"),
     instructions="""
 You are a test agent for sentiment analysis.
 """,
@@ -67,7 +69,7 @@ You are a test agent for sentiment analysis.
 
 comparison_test_agent = Agent(
     name="comparison-tester",
-    model=OpenAILike(id="glm-5.1", api_key="test"),
+    model=OpenAILike(id="moonshotai/kimi-k3", api_key="test"),
     instructions="""
 You are a test agent for multi-provider comparison.
 """,

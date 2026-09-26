@@ -16,6 +16,7 @@ setting ``<PROVIDER>_MODEL_ID``) can use; it does not change which model
 ``build_model()`` picks by default.
 
 Byline: Claude Code · Sonnet (agent) · 2026-08-01
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (glm-5.1 dropped from the Ollama list — owner blanket ban)
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # Ollama Cloud — GET https://ollama.com/api/tags, Bearer OLLAMA_API_KEY.
 # 18 models, key verified live (chat probe against glm-5.1: HTTP 200, "OK").
+# 2026-09-25: glm-5.1 removed from this list (owner blanket ban) — 17 listed, so
+# scripts/update_available_models.py can no longer offer it in the Studio picker.
 # ---------------------------------------------------------------------------
 
 OLLAMA_CLOUD_MODELS: list[str] = [
@@ -30,7 +33,6 @@ OLLAMA_CLOUD_MODELS: list[str] = [
     "deepseek-v4-flash:0731",
     "deepseek-v4-pro",
     "gemma4:31b",
-    "glm-5.1",
     "glm-5.2",
     "gpt-oss:120b",
     "gpt-oss:20b",
@@ -55,6 +57,8 @@ OLLAMA_CLOUD_MODELS: list[str] = [
 # empirically verified as of this catalog snapshot — included here on family
 # resemblance as a caution flag, not a confirmed failure. Verify before
 # trusting it with structured output; do not silently assume it's fixed.
+# glm-5.1 stays in this deny-list on purpose (2026-09-25): it is banned outright,
+# and removing it here would make structured_output_capable() call it safe.
 OLLAMA_NON_STRUCTURED_OUTPUT_MODELS: frozenset[str] = frozenset({"glm-5.1", "glm-5.2"})
 
 

@@ -6,8 +6,10 @@
 """Run a delegated task on the headless OpenCode server (ovh-files :4096) — the executor for delegated
 work per owner rule 2026-09-07 21:23 (no Claude subagents; NIM/Ollama Cloud/OpenRouter models, spread out).
 Byline: Claude Code · Fable 5.1 · 2026-09-08
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (default model nvidia/nemotron-3-super-120b-a12b → nvidia/moonshotai/kimi-k3:
+owner 2026-09-25 made kimi-k3 on NIM the default; nemotron-3-super was intermittent 200/404/503 that day)
 
-usage: uv run scripts/oc_task.py --dir /home/opencode/path --model nvidia/nvidia/nemotron-3-super-120b-a12b \
+usage: uv run scripts/oc_task.py --dir /home/opencode/path --model nvidia/moonshotai/kimi-k3 \
            --prompt-file task.md [--title "…"] [--timeout 3600]
 Creates a session in <dir>, posts the prompt, waits for the assistant turn, prints the final text and the
 session id (resume with --session <id> --prompt-file followup.md). Password from ~/.secrets/opencode-server.env.
@@ -18,7 +20,7 @@ from pathlib import Path
 import httpx
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--dir", required=True); ap.add_argument("--model", default="nvidia/nvidia/nemotron-3-super-120b-a12b")
+ap.add_argument("--dir", required=True); ap.add_argument("--model", default="nvidia/moonshotai/kimi-k3")
 ap.add_argument("--prompt-file", required=True); ap.add_argument("--title", default="delegated task")
 ap.add_argument("--session"); ap.add_argument("--timeout", type=int, default=3600); ap.add_argument("--url", default="http://100.91.190.107:4096")
 a = ap.parse_args()
