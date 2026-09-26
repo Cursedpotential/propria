@@ -5,6 +5,8 @@ workbench classification/sentiment use cases.
 
 Byline: Codex · GPT-5 · 2026-08-16
 Byline: Claude Code · Opus 5.5 · 2026-09-25 (glm-5.1 removed — owner blanket ban; NVIDIA NIM kimi-k3 default; no Ollama default)
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (kimi-k3 on NIM: JSON mode + thinking off; replies are read by
+app.service.model_replies, so the silent categories[0]/0.5 and neutral/0.0 fallbacks are gone)
 """
 
 from __future__ import annotations
@@ -19,19 +21,42 @@ from agno.models.groq import Groq
 from agno.models.ollama import Ollama
 from agno.models.openai import OpenAIChat
 from agno.models.openai.like import OpenAILike
-from app.types.classification import ProviderName
+from app.service.model_replies import ask_json
+from app.types.classification import ProviderName, SentimentLabel
 
 
 NVIDIA_BASE_URL_DEFAULT = "https://integrate.api.nvidia.com/v1"
+KIMI_K3_MODEL_ID = "moonshotai/kimi-k3"
+_SENTIMENT_LABELS = frozenset(label.value for label in SentimentLabel)
+
+
+def _kimi_k3_no_thinking() -> dict[str, Any]:
+    """NIM request body that turns kimi-k3's reasoning off.
+
+    Measured 2026-09-25: with thinking on, about 1 in 8 calls stopped after 32-35 reasoning
+    tokens with EMPTY content; with ``thinking: false``, 0 of 8 did and latency fell to ~3 s.
+    """
+    return {"chat_template_kwargs": {"thinking": False}}
+
+
+def _json_mode(provider: Any) -> dict[str, Any]:
+    """``aresponse`` arguments for a JSON answer: JSON mode for kimi-k3 on NVIDIA NIM, else none."""
+    base = str(getattr(provider, "base_url", "") or "").rstrip("/")
+    nim = os.getenv("NVIDIA_BASE_URL", NVIDIA_BASE_URL_DEFAULT).rstrip("/")
+    if getattr(provider, "id", None) == KIMI_K3_MODEL_ID and base == nim:
+        return {"response_format": {"type": "json_object"}}
+    return {}
+
 
 # Pinned default models per provider (can be overridden via env).
 # A provider missing from this dict has no default: callers must name a model.
 _PINNED_MODELS: dict[ProviderName, str] = {
     # OLLAMA: no default. glm-5.1 removed 2026-09-25, owner blanket ban; Ollama Cloud is a non-default option.
-    # NVIDIA NIM is the default since 2026-09-25 (owner: kimi-k3 on NIM replaces glm-5.1). Reasoning model:
-    # keep max_tokens generous (owner-relayed live check: a 200-token cap left `content` empty). Even at
-    # 2048, ~1 in 4 plain calls on 2026-09-25 returned empty content (32-token reasoning stub).
-    ProviderName.NVIDIA: "moonshotai/kimi-k3",
+    # NVIDIA NIM is the default since 2026-09-25 (owner: kimi-k3 on NIM replaces glm-5.1). It is a reasoning
+    # model that sometimes answers with an empty reply, so this module runs it with thinking off and in JSON
+    # mode (see _kimi_k3_no_thinking and _ask_json). nemotron-3-super, the previous pin, was intermittent
+    # (200 / 404 / 503) on 2026-09-25 and stays out of every default.
+    ProviderName.NVIDIA: KIMI_K3_MODEL_ID,
     ProviderName.OPENROUTER: "deepseek/deepseek-chat",
     ProviderName.ANTHROPIC: "claude-sonnet-4-6",
     ProviderName.OPENAI: "gpt-4o",
@@ -74,7 +99,18 @@ def _try_provider(provider: ProviderName, model_id: str | None = None) -> ModelP
     if provider == ProviderName.NVIDIA:
         if not nvidia_key:
             return None
-        return OpenAILike(id=resolved_model, api_key=nvidia_key, base_url=nvidia_base)
+        extra_body = _kimi_k3_no_thinking() if resolved_model == KIMI_K3_MODEL_ID else None
+        # Free-tier NIM answers bursts with 429 (live 2026-09-25, after the SDK's own quick retries);
+        # agno retries rate limits and 5xx with 2 s / 4 s / 8 s backoff before giving up.
+        return OpenAILike(
+            id=resolved_model,
+            api_key=nvidia_key,
+            base_url=nvidia_base,
+            extra_body=extra_body,
+            retries=3,
+            delay_between_retries=2,
+            exponential_backoff=True,
+        )
 
     if provider == ProviderName.OPENROUTER:
         key = os.getenv("OPENROUTER_API_KEY")
@@ -189,32 +225,17 @@ Return ONLY a JSON object with this exact structure:
 
     provider.temperature = temperature
     provider.max_tokens = max_tokens
-    response = await provider.aresponse(messages)
 
-    raw = str(response.content) if response.content else ""
+    def read(parsed: dict[str, Any]) -> tuple[str, float, str]:
+        category = parsed["category"]
+        if not isinstance(category, str) or not category.strip():
+            raise ValueError("category is not a non-empty string")
+        confidence = float(parsed["confidence"])
+        if not 0.0 <= confidence <= 1.0:
+            raise ValueError(f"confidence {confidence} is outside 0-1")
+        return category, confidence, str(parsed.get("reasoning") or "No reasoning provided")
 
-    # Parse JSON response
-    import json
-
-    try:
-        # Try to extract JSON from response
-        json_start = raw.find("{")
-        json_end = raw.rfind("}") + 1
-        if json_start >= 0 and json_end > json_start:
-            parsed = json.loads(raw[json_start:json_end])
-            category = parsed.get("category", categories[0])
-            confidence = float(parsed.get("confidence", 0.5))
-            reasoning = parsed.get("reasoning", "No reasoning provided")
-        else:
-            # Fallback: try to find category in text
-            category = categories[0]
-            confidence = 0.5
-            reasoning = "Failed to parse structured response"
-    except (json.JSONDecodeError, ValueError, KeyError):
-        category = categories[0]
-        confidence = 0.5
-        reasoning = "Failed to parse response as JSON"
-
+    (category, confidence, reasoning), raw = await ask_json(provider, messages, read, _json_mode(provider))
     return category, confidence, reasoning, raw
 
 
@@ -249,30 +270,19 @@ The emotions object should contain scores 0.0-1.0 for each emotion present."""
 
     provider.temperature = temperature
     provider.max_tokens = max_tokens
-    response = await provider.aresponse(messages)
 
-    raw = str(response.content) if response.content else ""
+    def read(parsed: dict[str, Any]) -> tuple[str, float, dict[str, float], str]:
+        sentiment = str(parsed["sentiment"]).strip().lower()
+        if sentiment not in _SENTIMENT_LABELS:
+            raise ValueError(f"sentiment {sentiment!r} is not one of {sorted(_SENTIMENT_LABELS)}")
+        score = float(parsed["score"])
+        if not -1.0 <= score <= 1.0:
+            raise ValueError(f"score {score} is outside -1..1")
+        emotions = parsed.get("emotions") or {}
+        if not isinstance(emotions, dict):
+            raise ValueError("emotions is not an object")
+        emotion_scores = {str(name): float(value) for name, value in emotions.items()}
+        return sentiment, score, emotion_scores, str(parsed.get("reasoning") or "No reasoning provided")
 
-    import json
-
-    try:
-        json_start = raw.find("{")
-        json_end = raw.rfind("}") + 1
-        if json_start >= 0 and json_end > json_start:
-            parsed = json.loads(raw[json_start:json_end])
-            sentiment = parsed.get("sentiment", "neutral")
-            score = float(parsed.get("score", 0.0))
-            emotions = parsed.get("emotions", {})
-            reasoning = parsed.get("reasoning", "No reasoning provided")
-        else:
-            sentiment = "neutral"
-            score = 0.0
-            emotions = {}
-            reasoning = "Failed to parse structured response"
-    except (json.JSONDecodeError, ValueError, KeyError):
-        sentiment = "neutral"
-        score = 0.0
-        emotions = {}
-        reasoning = "Failed to parse response as JSON"
-
+    (sentiment, score, emotions, reasoning), raw = await ask_json(provider, messages, read, _json_mode(provider))
     return sentiment, score, emotions, reasoning, raw

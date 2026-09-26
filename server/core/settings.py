@@ -39,6 +39,7 @@ account can actually reach, not a guess) live in ``server/core/model_catalog.py`
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01 (direct-provider wiring: ANTHROPIC_AUTH_TOKEN fallback + model_catalog.py cross-ref)
 # Byline: Codex · GPT-5 · 2026-08-13 (non-null Kimi model/base resolution)
 # Byline: Claude Code · Opus 5.5 · 2026-09-25 (glm-5.1 removed — owner blanket ban; NVIDIA NIM kimi-k3 primary; no Ollama default)
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (kimi-k3 on NIM: thinking off by default; build_model(thinking=True) per agent)
 
 from __future__ import annotations
 
@@ -52,9 +53,10 @@ NVIDIA_BASE_URL_DEFAULT = "https://integrate.api.nvidia.com/v1"
 _PINNED: dict[str, str] = {
     # "ollama": no default. glm-5.1 removed 2026-09-25, owner blanket ban; Ollama Cloud is a non-default option.
     # NVIDIA NIM (OpenAI-compatible) — PRIMARY since 2026-09-25 (owner: kimi-k3 on NIM replaces glm-5.1).
-    # Live 200 on 2026-09-25, JSON mode OK; it is a reasoning model, so never cap max_tokens low.
-    # Same day: ~1 in 3-5 plain calls ended with empty content (a 32-token reasoning stub), and the
-    # free-tier rate limit answered 429 to about 1 in 4 sequential calls. Callers must handle empty replies.
+    # A reasoning model: with thinking on, some calls end with EMPTY content, so it runs with thinking
+    # off by default (_nim_extra_body). The free tier answered 429 to about 1 in 4 rapid sequential calls
+    # (openai SDK retries with backoff). nemotron-3-super-120b-a12b, the previous pin, was intermittent
+    # (200 / 404 / 503) on 2026-09-25 and stays out of every default.
     "nvidia": "moonshotai/kimi-k3",
     # Kimi — NIM (or Moonshot direct if MOONSHOT_API_KEY set). kimi-k2.6 → kimi-k3 2026-09-25: k2.6 is 404 on NIM.
     "kimi": "moonshotai/kimi-k3",
@@ -77,6 +79,22 @@ _DEFAULT_ORDER: list[str] = [
     "google",
     "groq",
 ]
+
+_KIMI_K3 = "moonshotai/kimi-k3"
+
+
+def _nim_extra_body(model_id: str, thinking: Optional[bool]) -> Optional[dict[str, Any]]:
+    """Extra request body for a NIM call: kimi-k3 runs with reasoning off unless *thinking* is True.
+
+    Measured 2026-09-25: with thinking on, about 1 in 8 kimi-k3 calls stopped after 32-35
+    reasoning tokens with EMPTY content; with ``thinking: false`` 0 of 8 did and latency fell
+    to ~3 s. An agent that wants reasoning builds its model with ``build_model(thinking=True)``
+    and must then retry on an empty reply itself. Other NIM models get no extra body.
+    """
+    if model_id != _KIMI_K3:
+        return None
+    return {"chat_template_kwargs": {"thinking": bool(thinking)}}
+
 
 # LEGACY/NIM-fallback embedder IDs — these do NOT mirror the live contract and never did
 # ("db/session.py" here means server/core/session.py, the actual source of truth).
@@ -134,7 +152,7 @@ def _provider_order() -> list[str]:
     return [forced.strip().lower()] if forced else list(_DEFAULT_ORDER)
 
 
-def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any]:
+def _try_provider(provider: str, model_id: Optional[str] = None, thinking: Optional[bool] = None) -> Optional[Any]:
     """Construct an Agno model for *provider* if its credentials exist.
 
     Returns ``None`` when the provider has no credentials configured — the
@@ -147,6 +165,9 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
     model_id:
         Exact model ID to construct. When ``None`` the provider's usual
         env-override/pinned-default resolution applies (unchanged behaviour).
+    thinking:
+        Reasoning switch for kimi-k3 on NIM; ``None``/``False`` = off (see
+        ``_nim_extra_body``). Ignored for other models and for Moonshot direct.
 
     Returns
     -------
@@ -165,7 +186,12 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
             return None
         from agno.models.openai.like import OpenAILike
 
-        return OpenAILike(id=resolved, api_key=nvidia_key, base_url=nvidia_base)
+        return OpenAILike(
+            id=resolved,
+            api_key=nvidia_key,
+            base_url=nvidia_base,
+            extra_body=_nim_extra_body(resolved, thinking),
+        )
 
     if provider == "kimi":
         # Prefer Moonshot direct if a key is set; else ride NVIDIA NIM.
@@ -180,7 +206,12 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
                 base_url=base,
             )
         if nvidia_key:
-            return OpenAILike(id=resolved, api_key=nvidia_key, base_url=nvidia_base)
+            return OpenAILike(
+                id=resolved,
+                api_key=nvidia_key,
+                base_url=nvidia_base,
+                extra_body=_nim_extra_body(resolved, thinking),
+            )
         return None
 
     if provider == "openrouter":
@@ -253,7 +284,7 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
     return None
 
 
-def build_model(provider: Optional[str] = None, model_id: Optional[str] = None) -> Any:
+def build_model(provider: Optional[str] = None, model_id: Optional[str] = None, thinking: Optional[bool] = None) -> Any:
     """Select and construct a model by available credentials.
 
     Creates a fresh model instance on every call — do NOT cache. Each agent
@@ -268,6 +299,9 @@ def build_model(provider: Optional[str] = None, model_id: Optional[str] = None) 
         Force a specific model ID for the chosen provider. Only meaningful
         together with *provider* (the chain would otherwise apply one id to
         whichever provider happens to answer first).
+    thinking:
+        Per-agent override of kimi-k3's reasoning on NIM. Default (``None``) is
+        off; ``True`` turns it on, and that agent must then retry empty replies.
 
     Returns
     -------
@@ -281,7 +315,7 @@ def build_model(provider: Optional[str] = None, model_id: Optional[str] = None) 
     """
     order = [provider.strip().lower()] if provider else _provider_order()
     for p in order:
-        model = _try_provider(p, model_id)
+        model = _try_provider(p, model_id, thinking)
         if model is not None:
             return model
     raise ValueError(
