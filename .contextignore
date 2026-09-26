@@ -22,8 +22,3 @@ vendor/
 
 # Quarantine folders awaiting the owner's delete, in every repository.
 to_be_deleted/
-
-# Tool forks are separate repositories outside Propria (owner 2026-09-26 17:44). The memsearch fork
-# clone still sits here while another session works in it; delete this line once it moves to
-# E:/AI_Workspace/Projects/memsearch.
-/modules/memsearch/
