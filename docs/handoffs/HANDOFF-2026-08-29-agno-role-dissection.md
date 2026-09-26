@@ -1,5 +1,9 @@
 # HANDOFF — Agno role dissection (what Agno still does, and what it should)
 
+> **CLOSED** — content became D-101/D-107/D-108 (owner-ruled 2026-08-29/30). Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — closing banner added; see D-101, D-107, D-108._
+
 > _Byline: Claude · Opus 5 · 2026-08-29, from an owner directive._
 > _Ruling reconciliation: Codex · GPT-5.6-Sol · 2026-08-29._
 > _Naming: written before the 2026-09-05 rename (D-137..D-141); see docs/NAMING.md for the old->new glossary._

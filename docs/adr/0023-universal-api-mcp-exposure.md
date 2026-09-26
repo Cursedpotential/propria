@@ -1,5 +1,10 @@
 # ADR-0023: Universal exposure — API-first, MCP-wrapped
-- Status: Accepted
+
+> **SUPERSEDED** by D-107 (2026-08-29) — the mechanism this ADR assumed (Agno's native AgentOS as the MCP/API host) is retired completely; the API-first/MCP-wrapped exposure principle may survive but needs a fresh ADR against the new host stack. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-107._
+
+- Status: ~~Accepted~~ **Superseded** — see banner above.
 - Date: 2026-06-13
 - _Byline: Claude Code · Opus 4.8 · 2026-06-13_
 

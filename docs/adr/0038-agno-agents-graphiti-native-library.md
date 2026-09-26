@@ -1,8 +1,12 @@
 # ADR-0038: Agno agents use Graphiti natively (library); MCP door for GUI clients only
 
+> **SUPERSEDED** by D-070 (2026-08-25) and D-107 (2026-08-29) — Graphiti is suspended (this ADR is one of the five, ADR-0014/0031/0037/0038/0039, D-070 names explicitly), and separately the Agno-agent host this ADR assumes is retired completely by D-107. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-070 and D-107._
+
 > _Byline: Claude (Opus 4.8, chat) + owner · 2026-07-13 · DRAFT for review_
 
-**Status:** **Accepted** — owner 2026-07-29 (Proposed 2026-07-13). Consistent with ADR-0041's later "orchestration settled Agno-native" ruling.
+**Status:** ~~**Accepted**~~ **Superseded** — see banner above. Owner 2026-07-29 (Proposed 2026-07-13). Consistent with ADR-0041's later "orchestration settled Agno-native" ruling.
 **Supersedes/relates:** [ADR-0024](0024-surrealdb-store-session-knowledge-memory.md) (SurrealDB for session/knowledge/memory), [ADR-0037](0037-graphiti-mcp-contextforge-write-enabled.md).
 
 ## Context

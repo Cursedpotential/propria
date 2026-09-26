@@ -30,7 +30,7 @@ All validation done. Persisting the report + dispatch plan to the repo per the r
 
 # Validation complete — package is sound, with three big corrections
 
-**Full report persisted at [handoffs-v2-validation-and-dispatch-plan.md](docs/pending-review/handoffs-v2-validation-and-dispatch-plan.md).** Everything below was live-verified against the repo and the live `platform` DB, not taken from the handoffs' word.
+**Full report persisted at [handoffs-v2-validation-and-dispatch-plan.md](../awaiting-verification/handoffs-v2-validation-and-dispatch-plan.md).** Everything below was live-verified against the repo and the live `platform` DB, not taken from the handoffs' word.
 
 ## What validation found
 
@@ -65,7 +65,7 @@ Green light received. Executing T-0 now.
 Already landed this session:
 
 - **T-0 committed (`82258c6`)** — your directory moves recorded, worktree clean, `.gitattributes` + `validate.yml` restored, timesketch-fork fully out at `..\timesketch-fork`
-- **Validation report** at [handoffs-v2-validation-and-dispatch-plan.md](docs/pending-review/handoffs-v2-validation-and-dispatch-plan.md)
+- **Validation report** at [handoffs-v2-validation-and-dispatch-plan.md](../awaiting-verification/handoffs-v2-validation-and-dispatch-plan.md)
 
 When agents return I'll verify each against its "Done when" gate, commit via Desktop Commander, then run **H-08a** (apply 0062 to live + fix the two known mismatches) — that's the one remaining live-DB step you green-lit.
 

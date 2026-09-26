@@ -1,5 +1,10 @@
 # ADR-0031: CaseBible entity / temporal-graph layer = Neo4j + Graphiti, isolated by group_id
-- Status: **Accepted (2026-06-23)** — extends ADR-0014 (Neo4j/Graphiti) and ADR-0018 (bitemporal)
+
+> **SUPERSEDED** by D-070 (2026-08-25) — "Graphiti is retired for now"; this ADR is one of the five (ADR-0014/0031/0037/0038/0039) D-070 names explicitly as suspended, not deleted. Body below is preserved as history.
+>
+> _Byline amendment: Claude Code · Sonnet 5 · 2026-09-09 — supersession banner added; see D-070._
+
+- Status: ~~**Accepted (2026-06-23)** — extends ADR-0014 (Neo4j/Graphiti) and ADR-0018 (bitemporal)~~ **Suspended (superseded)** — see banner above.
 - Date: 2026-06-23
 - _Byline: Claude Code · Opus 4.8 · 2026-06-23_
 - _Handoff 2026-06-25: drafted by the CaseBible ingestion workstream; ownership/maintenance transferred to the platform workstream (owner of this repo). This ADR == the platform plan's "P3 (populate the graph)". File stays in place; revise as you see fit._
