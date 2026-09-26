@@ -49,6 +49,55 @@ The owner's order followed the discovery of 24 Probata docs missing from the des
 - **Server index runs:** `retire_unexpected_projection` used to retract every stored document absent from the source, up to 1000, in every run. Now it retracts only the paths named in `docstore_index_full(retract_paths=…)`. Every other absent document is held and stays active. The run records `retraction_held` and a reason, and its CDC check stays degraded until someone decides.
 - Code: `apply_r3.py`. The two retraction tests in `tests/test_release.py` follow the new contract.
 
+## Live proof (2026-09-26, UTC)
+
+- **Search:**
+  - The failing question ("Docstore API deployment: which Coolify service or app serves the Docstore API, its port, and svc:docstore-api endpoint after the 0.8 release") returned 5 results through ctl/ContextForge in 6.1 s, on the first call to a freshly restarted container. Before the fix: 30.25 s and "unavailable".
+  - `recall_compare.py`, same queries before and after: 11.0 → 5.5 s, 6.8 → 2.3 s and 7.5 → 5.3 s. Reranked top 5 identical in all four queries.
+  - 298 control tests pass on the r2 image.
+  - 314 control + release tests pass on the r3 image. The release tests ran with `surrealdb-embedded`, in a throwaway container.
+- **svc:docstore-api:**
+  - `tailscale serve` now proxies to `http://100.91.190.107:8072`.
+  - `https://docstore-api.tilapia-skilift.ts.net/health` returns 200 `ok:true`.
+  - `/stats` returns 401 without a token. With the container's token it answers through the service DNS.
+- **Sync and index:**
+  - The mirror took generations `2a00ad9b…` (22:23; 153 changed), `b5d49a5e…` (23:07; 43 changed, the 2026-09-20 flatten recovery) and `b394162f…` (23:19; 1 changed).
+  - Run `6f397d56c50b48938335e2bb6769b647` ended 23:10:10:
+    - 791 sources; CDC attribution **verified**, 791/791, 0 mismatch / missing / unexpected;
+    - ADR projections 95/95;
+    - 932 documents, 14,042 chunks, HNSW ready, 0 orphan chunks;
+    - retirement: held 0, retired 0.
+  - Status `degraded` with reason "provider enrichment remains pending". The r1 health rule keeps `ok:true`.
+  - Earlier, run `54e7c905…` was cancelled during enrichment after its ingest had completed. 89 enrichments made before the cancel were kept.
+- **The 62 docs of the 2026-09-20 flatten:**
+  - Every one is indexed with the current desktop content: 59 by exact sha256; 3 (`BUILD_PLAN.md`, `PROJECT_CANON.md`, the 09-06 naming digest) equal after the store's non-BMP folding.
+- **Retraction guard, live:**
+  - A scratch Propria copy missing one doc gave a plan listing it with its mirror hash.
+  - `docstore_source_apply` without naming it was refused (HTTP 409).
+  - `docstore_source_read` returned the exact copy, and its hash matched the plan.
+  - `client.py sync --apply` restored it (`FLAG restored from mirror (hash-verified)`), byte-identical to the canonical file. It then applied with 0 retractions.
+- **Enrichment:**
+  - `nvidia/nemotron-3.5-lightning-30b-a3b` is overloaded on NIM: a trivial prompt took 24.3 s, and the two ADRs hit a 180 s ReadTimeout twice.
+  - The 23:10 run recorded 88 `HTTPStatusError` failures. They stay queued in `pending-enrichment.json`, 0085 and 0016 among them.
+  - `moonshotai/kimi-k3` answered the same ping in 2.8 s.
+
+## Open for the owner (lettered options; default first)
+
+1. **Where the 0.8.x source lives.** The server tree (`/data/propria/releases/docstore-0.8.1`) and the 0.8.2 client are in no git repository; r1–r3 are patch receipts.
+   - (A) Import the 0.8.1-r3 tree into this repository as the Docstore source, replacing the 0.6.5-era `plugins/docstore` and `scripts/docstore`, and build the image from git.
+   - (B) Give it its own repository.
+   - (C) Keep patch receipts.
+2. **Enrichment model.**
+   - (A) Point `DOCSTORE_LLM_MODEL` at `moonshotai/kimi-k3`, the primary since 2026-09-25. Its quirks need handling first: it takes the `thinking` kwarg, and empty or junk content must count as a failure and be retried.
+   - (B) Keep nemotron-3.5-lightning and let later runs drain the queue.
+3. **No automatic sync.** The mirror changes only when someone runs `client.py sync`, and indexing starts only on request.
+   - (A) A Coolify scheduled `docstore_index_full`. It refreshes only what the mirror already holds.
+   - (B) The VPS pulls committed docs from git. This misses desktop-only docs, which the new untracked flag lists.
+   - (C) Keep the manual sync.
+4. **ContextForge `ctl08` upstream is a raw IP** (`http://100.91.190.107:8175/mcp`). By the service-DNS rule it wants a Tailscale Service. The name needs your approval.
+5. **Legacy `probata-docstore-control` (:8172).** Its API token is empty and its API URL is a raw IP: retire it or repoint it.
+6. **FL-MCP and Vestigia docs are still outside the five server roots** (2026-09-24 TODO item).
+
 ## Files
 
 | File | What |
@@ -59,6 +108,7 @@ The owner's order followed the discovery of 24 Probata docs missing from the des
 | `patch_client_sync.py`, `patch_client_guard.py` | client repairs (four installed copies) |
 | `recall_timing.py`, `recall_compare.py`, `enrichment_probe.py`, `run_progress.py` | read-only probes run inside the container |
 | `recover_flatten_edits.py`, `hold_restored_copies.py` | the 2026-09-20 flatten recovery cross-check and the move of today's restored copies |
+| `index_hashes.py`, `provider_ping.py`, `guard_live_test.py` | stored-hash proof, provider liveness, live negative test of the server guard (read-only) |
 | `before/` | pre-change copies; sha256 of the originals listed below |
 
 Original sha256 values, CRLF as found:
