@@ -99,6 +99,17 @@ services:
       # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
       OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json","r2":"/run/secrets/casebible-r2.json"}'
       SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Vault","url":"b2://salem-data/consignatio/vault/v1/"},{"id":"b2-bucket","label":"B2 / salem-data (whole bucket)","url":"b2://salem-data/"},{"id":"r2-sorted","label":"R2 / Case Bible Sorted","url":"r2://casebible-sorted/","temporary":true},{"id":"r2-raw","label":"R2 / Case Bible Raw","url":"r2://casebible-raw/","temporary":true},{"id":"r2-quarantine","label":"R2 / Case Bible Quarantine","url":"r2://casebible-quarantine/","temporary":true}]'
+      # Repair builder (2026-09-26): repair.find_other_version reads the catalog READ-ONLY
+      # (role metabase_ro, default_transaction_read_only=on) and HEADs candidates in B2.
+      INTAKE_DISCOVERY_PG_HOST: fgz1n7useplhk0t91uk7k1aw
+      INTAKE_DISCOVERY_PG_PORT: '5432'
+      INTAKE_DISCOVERY_PG_DATABASE: casebible
+      INTAKE_DISCOVERY_PG_USER: metabase_ro
+      INTAKE_DISCOVERY_PG_PASSWORD_FILE: /run/secrets/intake-catalog-readonly
+      INTAKE_DISCOVERY_OBJECT_STORE: b2://salem-data
+      # Entity/event extraction (2026-09-26): kimi-k3 on NVIDIA NIM; without the key only the
+      # participant rules run. Byline: Claude Code · Opus 5.5 · 2026-09-26
+      ENTITY_MODEL_API_KEY_FILE: /run/secrets/nvidia-api-key
     volumes:
       - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
       - /data/probata/volumes/proffer/parser-bundles:/data/proffer/parser-bundles
@@ -110,6 +121,8 @@ services:
       - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/n8n/proffer-auth:/run/secrets/n8n-proffer-auth:ro
       - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro
+      - /data/probata/secrets/intake-engine/metabase-ro:/run/secrets/intake-catalog-readonly:ro
+      - /data/probata/secrets/intake-engine/nvidia-api-key:/run/secrets/nvidia-api-key:ro
       # Tool gateway service token (D-132): the worker calls platform-tools ONLY through
       # the gateway and fails closed at startup without this file. Copied from ovh-app
       # /data/probata/secrets/tool-gateway/service-token on 2026-09-05.
