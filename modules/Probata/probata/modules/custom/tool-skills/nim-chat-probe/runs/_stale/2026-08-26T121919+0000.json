@@ -1,0 +1,53 @@
+{
+ "ts": "2026-08-26T12:19:19+00:00",
+ "base": "https://integrate.api.nvidia.com/v1",
+ "tests": [
+  "chat"
+ ],
+ "total_listed": 83,
+ "results": {
+  "nvidia/nemotron-parse": {
+   "chat": {
+    "ok": false,
+    "secs": 0.3,
+    "status": 400,
+    "detail": "Content cannot be a plain string. The model does not support text input. Content cannot be a plain string. The model does not support text input."
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true
+  },
+  "openai/gpt-oss-120b": {
+   "chat": {
+    "ok": true,
+    "secs": 73.37,
+    "usage": {
+     "prompt": 73,
+     "completion": 16,
+     "total": 89
+    },
+    "reply": "The user says: \"Reply with exactly the w",
+    "reasoning": true
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "listed": true
+  }
+ }
+}

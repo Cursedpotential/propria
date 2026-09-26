@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "C:\Users\matts\.agents\skills\nim-chat-probe\scripts\nim_chat_probe.py", line 269, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\matts\.agents\skills\nim-chat-probe\scripts\nim_chat_probe.py", line 254, in main
+    difflines = diff(sub_prev, sub_cur)
+  File "C:\Users\matts\.agents\skills\nim-chat-probe\scripts\nim_chat_probe.py", line 176, in diff
+    lines.append(f"+ NEW      {m}: chat={caps(r)[0]} tools={caps(r)[1]} vision={caps(r)[2]}")
+                                         ~~~~^^^
+  File "C:\Users\matts\.agents\skills\nim-chat-probe\scripts\nim_chat_probe.py", line 168, in caps
+    return (r["chat"]["ok"], bool(r["tools"].get("called")), r["vision"]["ok"])
+                                  ~^^^^^^^^^
+KeyError: 'tools'

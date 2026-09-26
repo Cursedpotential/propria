@@ -1,0 +1,705 @@
+{
+  "timestamp": "2026-08-29T20:08:51+00:00",
+  "base": "https://integrate.api.nvidia.com/v1",
+  "catalog_count": 83,
+  "fast_timeout_s": 8.0,
+  "retry_timeout_s": 20.0,
+  "workers": 2,
+  "results": {
+    "01-ai/yi-large": {
+      "model": "01-ai/yi-large",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function '23bd454d-b225-49a3-8118-582a62fc51b8': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "adept/fuyu-8b": {
+      "model": "adept/fuyu-8b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function 'e598bfc1-b058-41af-869d-556d3c7e1b48': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "ai21labs/jamba-1.5-large-instruct": {
+      "model": "ai21labs/jamba-1.5-large-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.19,
+      "ok": false,
+      "detail": "Function '6497fc2b-7ff8-4019-8946-123dccbfc863': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "aisingapore/sea-lion-7b-instruct": {
+      "model": "aisingapore/sea-lion-7b-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.18,
+      "ok": false,
+      "detail": "Function '02f84bf4-c1a1-489b-a9de-ac3e8dcdec14': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "bigcode/starcoder2-15b": {
+      "model": "bigcode/starcoder2-15b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "404 page not found\n"
+    },
+    "databricks/dbrx-instruct": {
+      "model": "databricks/dbrx-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.24,
+      "ok": false,
+      "detail": "Function '3d6c2ff8-8bfc-4d10-8fd0-b7337288e869': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "deepseek-ai/deepseek-coder-6.7b-instruct": {
+      "model": "deepseek-ai/deepseek-coder-6.7b-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.26,
+      "ok": false,
+      "detail": "Function 'e503b15c-62b0-4d69-b532-a88f0bfa2656': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "deepseek-ai/deepseek-v4-flash-0731": {
+      "model": "deepseek-ai/deepseek-v4-flash-0731",
+      "stage": "retry",
+      "status": 200,
+      "latency_s": 4.64,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 12,
+      "completion_tokens": 26
+    },
+    "deepseek-ai/deepseek-v4-pro-0813": {
+      "model": "deepseek-ai/deepseek-v4-pro-0813",
+      "stage": "retry",
+      "status": -1,
+      "latency_s": 20.12,
+      "ok": false,
+      "detail": "The read operation timed out"
+    },
+    "google/codegemma-1.1-7b": {
+      "model": "google/codegemma-1.1-7b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.29,
+      "ok": false,
+      "detail": "Function 'e2d298c5-204e-4213-b921-9f492cc9011b': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "google/codegemma-7b": {
+      "model": "google/codegemma-7b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function '7dfc10a8-3cc4-448e-97c1-2213308dc222': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "google/deplot": {
+      "model": "google/deplot",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.19,
+      "ok": false,
+      "detail": "Function '784a8ca4-ea7d-4c93-bb46-ec027c3fae47': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "google/diffusiongemma-26b-a4b-it": {
+      "model": "google/diffusiongemma-26b-a4b-it",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 6.14,
+      "ok": true,
+      "reply": "",
+      "visible_reply": "",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 21,
+      "completion_tokens": 1
+    },
+    "google/gemma-2b": {
+      "model": "google/gemma-2b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.26,
+      "ok": false,
+      "detail": "Function '04174188-f742-4069-9e72-d77c2b77d3cb': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "google/gemma-3-12b-it": {
+      "model": "google/gemma-3-12b-it",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function 'ee47df99-c92b-4dc9-b3a7-f3fb0f087b73': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "google/gemma-3-4b-it": {
+      "model": "google/gemma-3-4b-it",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.23,
+      "ok": false,
+      "detail": "Function 'c322f327-55a3-4af3-a91f-c757e2b8b135': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "google/gemma-4-31b-it": {
+      "model": "google/gemma-4-31b-it",
+      "stage": "retry",
+      "status": -1,
+      "latency_s": 20.13,
+      "ok": false,
+      "detail": "The read operation timed out"
+    },
+    "google/recurrentgemma-2b": {
+      "model": "google/recurrentgemma-2b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.22,
+      "ok": false,
+      "detail": "Function '2f495340-a99f-4b4b-89bd-1beb003dd896': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "ibm/granite-3.0-3b-a800m-instruct": {
+      "model": "ibm/granite-3.0-3b-a800m-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.19,
+      "ok": false,
+      "detail": "Function '67324577-3f91-4aa6-b750-97468262530d': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "ibm/granite-3.0-8b-instruct": {
+      "model": "ibm/granite-3.0-8b-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.19,
+      "ok": false,
+      "detail": "Function '5a24a4f0-2d59-46b3-ac65-42307f2633d1': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "ibm/granite-34b-code-instruct": {
+      "model": "ibm/granite-34b-code-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.22,
+      "ok": false,
+      "detail": "Function '4df48b4f-e3c5-4ade-82c7-c06b65e25d18': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "ibm/granite-8b-code-instruct": {
+      "model": "ibm/granite-8b-code-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.2,
+      "ok": false,
+      "detail": "Function 'af7b6f03-f615-4c5f-86c6-388bd35cede0': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "meta/codellama-70b": {
+      "model": "meta/codellama-70b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function 'f6b06895-d073-4714-8bb2-26c09e9f6597': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "meta/llama-3.2-11b-vision-instruct": {
+      "model": "meta/llama-3.2-11b-vision-instruct",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 0.42,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 43,
+      "completion_tokens": 3
+    },
+    "meta/llama-3.2-90b-vision-instruct": {
+      "model": "meta/llama-3.2-90b-vision-instruct",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 1.06,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 43,
+      "completion_tokens": 3
+    },
+    "meta/llama-guard-4-12b": {
+      "model": "meta/llama-guard-4-12b",
+      "stage": "retry",
+      "status": -1,
+      "latency_s": 20.14,
+      "ok": false,
+      "detail": "The read operation timed out"
+    },
+    "meta/llama2-70b": {
+      "model": "meta/llama2-70b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.2,
+      "ok": false,
+      "detail": "Function '2fddadfb-7e76-4c8a-9b82-f7d3fab94471': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "meta/muse-glimmer-30b": {
+      "model": "meta/muse-glimmer-30b",
+      "stage": "retry",
+      "status": 200,
+      "latency_s": 11.21,
+      "ok": true,
+      "reply": "Reply with exactly the word PONG.\n\nWe need reply with exactly the word PONG. Probably just PONG. Exactly the word PONG. ",
+      "visible_reply": "",
+      "reasoning_only": true,
+      "finish_reason": "length",
+      "prompt_tokens": 64,
+      "completion_tokens": 64
+    },
+    "microsoft/kosmos-2": {
+      "model": "microsoft/kosmos-2",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.2,
+      "ok": false,
+      "detail": "Function '6018fed7-f227-48dc-99bc-3fd4264d5037': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "microsoft/phi-3-vision-128k-instruct": {
+      "model": "microsoft/phi-3-vision-128k-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.29,
+      "ok": false,
+      "detail": "Function '20f2537e-8593-4eb9-ad40-60eee3bbaa55': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "microsoft/phi-3.5-moe-instruct": {
+      "model": "microsoft/phi-3.5-moe-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.23,
+      "ok": false,
+      "detail": "Function 'e6cab982-62f4-481e-9a7a-3dedb87dbd01': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "minimaxai/minimax-m3": {
+      "model": "minimaxai/minimax-m3",
+      "stage": "retry",
+      "status": 200,
+      "latency_s": 3.87,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 171,
+      "completion_tokens": 3
+    },
+    "mistralai/codestral-22b-instruct-v0.1": {
+      "model": "mistralai/codestral-22b-instruct-v0.1",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.18,
+      "ok": false,
+      "detail": "Function '9a10b012-e6df-46fd-83b2-700dcbc75814': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "mistralai/mistral-7b-instruct-v0.3": {
+      "model": "mistralai/mistral-7b-instruct-v0.3",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.22,
+      "ok": false,
+      "detail": "Function 'cd89bd68-13e3-47a9-861e-9a62e6e14b05': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "mistralai/mistral-large": {
+      "model": "mistralai/mistral-large",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.22,
+      "ok": false,
+      "detail": "Function '767b5b9a-3f9d-4c1d-86e8-fa861988cee7': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "mistralai/mistral-large-2-instruct": {
+      "model": "mistralai/mistral-large-2-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.2,
+      "ok": false,
+      "detail": "Function '7fadd4de-e22a-48e4-90e9-f02ef14a74b9': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "mistralai/mistral-nemotron": {
+      "model": "mistralai/mistral-nemotron",
+      "stage": "retry",
+      "status": -1,
+      "latency_s": 20.12,
+      "ok": false,
+      "detail": "The read operation timed out"
+    },
+    "mistralai/mixtral-8x22b-v0.1": {
+      "model": "mistralai/mixtral-8x22b-v0.1",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function '39655fc1-9ebc-4b24-963e-6915ea6680de': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "moonshotai/kimi-k2.6": {
+      "model": "moonshotai/kimi-k2.6",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function '23d4f03a-b8a6-4adb-a183-7daa083a09cc': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "moonshotai/kimi-k3": {
+      "model": "moonshotai/kimi-k3",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 2.18,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 94,
+      "completion_tokens": 35
+    },
+    "nv-mistralai/mistral-nemo-12b-instruct": {
+      "model": "nv-mistralai/mistral-nemo-12b-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function 'f8c05193-d2e2-4f0f-bb4d-7ad70070002b': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/ai-synthetic-video-detector": {
+      "model": "nvidia/ai-synthetic-video-detector",
+      "stage": "retry",
+      "status": 500,
+      "latency_s": 0.32,
+      "ok": false,
+      "detail": "Internal error while making inference request"
+    },
+    "nvidia/cosmos-reason2-8b": {
+      "model": "nvidia/cosmos-reason2-8b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.23,
+      "ok": false,
+      "detail": "Function 'e199b43b-6c62-4a63-9379-f60e1a953236': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/ising-calibration-1.5-31b": {
+      "model": "nvidia/ising-calibration-1.5-31b",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 0.44,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 21,
+      "completion_tokens": 3
+    },
+    "nvidia/llama-3.1-nemoguard-8b-content-safety": {
+      "model": "nvidia/llama-3.1-nemoguard-8b-content-safety",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 0.39,
+      "ok": true,
+      "reply": "{\"User Safety\": \"safe\"}",
+      "visible_reply": "{\"User Safety\": \"safe\"}",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 402,
+      "completion_tokens": 8
+    },
+    "nvidia/llama-3.1-nemoguard-8b-topic-control": {
+      "model": "nvidia/llama-3.1-nemoguard-8b-topic-control",
+      "stage": "retry",
+      "status": 500,
+      "latency_s": 0.36,
+      "ok": false,
+      "detail": "Error during inference of request chat-ba429c35e5fd40c2b4f856d16d85dc2e -- Encountered an error in forwardAsync function: [TensorRT-LLM][ERROR] CUDA runtime error in cudaMemcpyAsync(dst, src.data(), src.getSizeInBytes(), cudaMemcpyDefault, "
+    },
+    "nvidia/llama-3.1-nemotron-51b-instruct": {
+      "model": "nvidia/llama-3.1-nemotron-51b-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function '5beba52c-65a9-4f46-8cd9-656689a1b205': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/llama-3.1-nemotron-70b-instruct": {
+      "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.57,
+      "ok": false,
+      "detail": "Function '9b96341b-9791-4db9-a00d-4e43aa192a39': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/llama-3.1-nemotron-safety-guard-8b-v3": {
+      "model": "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 0.97,
+      "ok": true,
+      "reply": "{\"User Safety\": \"safe\"}",
+      "visible_reply": "{\"User Safety\": \"safe\"}",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 402,
+      "completion_tokens": 9
+    },
+    "nvidia/llama-3.1-nemotron-ultra-253b-v1": {
+      "model": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.18,
+      "ok": false,
+      "detail": "Function '84bf12ff-edbd-4435-baea-0fa6a7453d2e': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/llama3-chatqa-1.5-70b": {
+      "model": "nvidia/llama3-chatqa-1.5-70b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.19,
+      "ok": false,
+      "detail": "Function '46594287-38b9-481c-a37f-baa02f2d3ba1': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/mistral-nemo-minitron-8b-8k-instruct": {
+      "model": "nvidia/mistral-nemo-minitron-8b-8k-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.23,
+      "ok": false,
+      "detail": "Function '5aa06dd2-0a02-4a5d-be4c-bf88e956965d': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/nemotron-3-nano-30b-a3b": {
+      "model": "nvidia/nemotron-3-nano-30b-a3b",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 1.21,
+      "ok": true,
+      "reply": "The user asks: \"Reply with exactly the word PONG.\" So we must output exactly \"PONG\". No extra punctuation, no extra spac",
+      "visible_reply": "The user asks: \"Reply with exactly the word PONG.\" So we must output exactly \"PONG\". No extra punctuation, no extra spac",
+      "reasoning_only": false,
+      "finish_reason": "length",
+      "prompt_tokens": 24,
+      "completion_tokens": 64
+    },
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning": {
+      "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 1.63,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 24,
+      "completion_tokens": 58
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 3.61,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 24,
+      "completion_tokens": 43
+    },
+    "nvidia/nemotron-3-ultra-550b-a55b": {
+      "model": "nvidia/nemotron-3-ultra-550b-a55b",
+      "stage": "retry",
+      "status": -1,
+      "latency_s": 20.15,
+      "ok": false,
+      "detail": "The read operation timed out"
+    },
+    "nvidia/nemotron-3.5-content-safety": {
+      "model": "nvidia/nemotron-3.5-content-safety",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 0.31,
+      "ok": true,
+      "reply": "User Safety: safe",
+      "visible_reply": "User Safety: safe",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 474,
+      "completion_tokens": 5
+    },
+    "nvidia/nemotron-3.5-lightning-30b-a3b": {
+      "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+      "stage": "retry",
+      "status": 200,
+      "latency_s": 0.76,
+      "ok": true,
+      "reply": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user says \"Reply with exactly the word PONG.\"\n2.  **Identify",
+      "visible_reply": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user says \"Reply with exactly the word PONG.\"\n2.  **Identify",
+      "reasoning_only": false,
+      "finish_reason": "length",
+      "prompt_tokens": 24,
+      "completion_tokens": 64
+    },
+    "nvidia/nemotron-4-340b-instruct": {
+      "model": "nvidia/nemotron-4-340b-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function 'b0fcd392-e905-4ab4-8eb9-aeae95c30b37': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/nemotron-4-340b-reward": {
+      "model": "nvidia/nemotron-4-340b-reward",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.19,
+      "ok": false,
+      "detail": "Function 'c53ee0e9-bad9-4e09-b365-52c9d6b71254': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/nemotron-nano-3-30b-a3b": {
+      "model": "nvidia/nemotron-nano-3-30b-a3b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.32,
+      "ok": false,
+      "detail": "Model not found"
+    },
+    "nvidia/nemotron-parse": {
+      "model": "nvidia/nemotron-parse",
+      "stage": "fast",
+      "status": 400,
+      "latency_s": 0.29,
+      "ok": false,
+      "detail": "Content cannot be a plain string. The model does not support text input. Content cannot be a plain string. The model does not support text input."
+    },
+    "nvidia/neva-22b": {
+      "model": "nvidia/neva-22b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.18,
+      "ok": false,
+      "detail": "Function 'bc205f8e-1740-40df-8d32-c4321763498a': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/riva-translate-4b-instruct": {
+      "model": "nvidia/riva-translate-4b-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.19,
+      "ok": false,
+      "detail": "Function 'f35337fa-b4dd-4996-bcba-5476ee01171d': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "nvidia/riva-translate-4b-instruct-v1.1": {
+      "model": "nvidia/riva-translate-4b-instruct-v1.1",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 0.69,
+      "ok": true,
+      "reply": "Reply with the exact word PONG.",
+      "visible_reply": "Reply with the exact word PONG.",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 21,
+      "completion_tokens": 9
+    },
+    "nvidia/riva-translate-4b-instruct-v2": {
+      "model": "nvidia/riva-translate-4b-instruct-v2",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 0.41,
+      "ok": true,
+      "reply": "Reply with exactly the word PONG.",
+      "visible_reply": "Reply with exactly the word PONG.",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 21,
+      "completion_tokens": 9
+    },
+    "nvidia/vila": {
+      "model": "nvidia/vila",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function '1c8df143-2303-419b-8b28-b4dd82cfe113': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "openai/gpt-oss-120b": {
+      "model": "openai/gpt-oss-120b",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 0.97,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 73,
+      "completion_tokens": 57
+    },
+    "openai/gpt-oss-20b": {
+      "model": "openai/gpt-oss-20b",
+      "stage": "fast",
+      "status": 200,
+      "latency_s": 0.86,
+      "ok": true,
+      "reply": "PONG",
+      "visible_reply": "PONG",
+      "reasoning_only": false,
+      "finish_reason": "stop",
+      "prompt_tokens": 73,
+      "completion_tokens": 52
+    },
+    "poolside/laguna-xs-2.1": {
+      "model": "poolside/laguna-xs-2.1",
+      "stage": "retry",
+      "status": 503,
+      "latency_s": 0.35,
+      "ok": false,
+      "detail": "ResourceExhausted: Worker local total request limit reached (55/32)"
+    },
+    "writer/palmyra-creative-122b": {
+      "model": "writer/palmyra-creative-122b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.21,
+      "ok": false,
+      "detail": "Function '00bdd0a7-e38f-4423-9007-c4d8730a3f78': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "writer/palmyra-fin-70b-32k": {
+      "model": "writer/palmyra-fin-70b-32k",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.19,
+      "ok": false,
+      "detail": "Function '316490c6-f1ed-41f9-9da8-3fa9e885653b': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "writer/palmyra-med-70b": {
+      "model": "writer/palmyra-med-70b",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.18,
+      "ok": false,
+      "detail": "Function 'aab71274-5281-4941-b0b8-20f339d1fc7e': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "writer/palmyra-med-70b-32k": {
+      "model": "writer/palmyra-med-70b-32k",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.2,
+      "ok": false,
+      "detail": "Function 'd6faa974-3591-49a4-963d-97221d074b2e': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    },
+    "zyphra/zamba2-7b-instruct": {
+      "model": "zyphra/zamba2-7b-instruct",
+      "stage": "fast",
+      "status": 404,
+      "latency_s": 0.2,
+      "ok": false,
+      "detail": "Function '8378ffb2-51b0-4140-9684-dda1889373e6': Not found for account 'VSZXQLRN7geBYJXyHdh0E5S8Siwk5-YWGden8rcPknA'"
+    }
+  }
+}

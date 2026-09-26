@@ -1,0 +1,48 @@
+{
+ "ts": "2026-08-26T12:13:37+00:00",
+ "base": "https://integrate.api.nvidia.com/v1",
+ "tests": [
+  "vision"
+ ],
+ "total_listed": 83,
+ "results": {
+  "meta/llama-3.1-8b-instruct": {
+   "chat": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.32,
+    "status": 410,
+    "detail": "The model 'meta/llama-3.1-8b-instruct' has reached its end of life on 2026-08-26T09:00:00Z and is no longer available."
+   },
+   "listed": false
+  },
+  "nvidia/nemotron-3-super-120b": {
+   "chat": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "tools": {
+    "ok": false,
+    "called": false,
+    "skipped": true
+   },
+   "vision": {
+    "ok": false,
+    "secs": 0.32,
+    "status": 404,
+    "detail": "404 page not found\n"
+   },
+   "listed": false
+  }
+ }
+}

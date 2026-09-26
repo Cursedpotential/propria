@@ -1,0 +1,131 @@
+Catalog 83; streamed general-chat candidates 64; excluded specialized 19
+[1/64] 01-ai/yi-large
+[2/64] adept/fuyu-8b
+  -> http_error status=404 first=Nones total=0.11s
+[3/64] ai21labs/jamba-1.5-large-instruct
+  -> http_error status=404 first=Nones total=0.08s
+[4/64] aisingapore/sea-lion-7b-instruct
+  -> http_error status=404 first=Nones total=0.22s
+[5/64] bigcode/starcoder2-15b
+  -> http_error status=404 first=Nones total=0.07s
+[6/64] databricks/dbrx-instruct
+  -> http_error status=404 first=Nones total=0.06s
+[7/64] deepseek-ai/deepseek-coder-6.7b-instruct
+  -> http_error status=404 first=Nones total=0.08s
+[8/64] deepseek-ai/deepseek-v4-flash-0731
+  -> http_error status=404 first=Nones total=0.08s
+[9/64] deepseek-ai/deepseek-v4-pro-0813
+  -> no_headers status=None first=Nones total=20.01s
+  -> no_headers status=None first=Nones total=20.01s
+[10/64] google/codegemma-1.1-7b
+[11/64] google/codegemma-7b
+  -> http_error status=404 first=Nones total=0.23s
+  -> http_error status=404 first=Nones total=0.23s
+[12/64] google/deplot
+[13/64] google/diffusiongemma-26b-a4b-it
+  -> http_error status=404 first=Nones total=0.08s
+[14/64] google/gemma-2b
+  -> http_error status=404 first=Nones total=0.07s
+[15/64] google/gemma-3-12b-it
+  -> http_error status=404 first=Nones total=0.08s
+[16/64] google/gemma-3-4b-it
+  -> http_error status=404 first=Nones total=0.16s
+[17/64] google/gemma-4-31b-it
+  -> no_headers status=None first=Nones total=20.01s
+[18/64] google/recurrentgemma-2b
+  -> http_error status=404 first=Nones total=0.22s
+[19/64] ibm/granite-3.0-3b-a800m-instruct
+  -> http_error status=404 first=Nones total=0.07s
+[20/64] ibm/granite-3.0-8b-instruct
+  -> http_error status=404 first=Nones total=0.07s
+[21/64] ibm/granite-34b-code-instruct
+  -> no_headers status=None first=Nones total=20.02s
+[22/64] ibm/granite-8b-code-instruct
+  -> http_error status=404 first=Nones total=0.1s
+[23/64] meta/codellama-70b
+  -> http_error status=404 first=Nones total=0.1s
+[24/64] meta/llama-3.2-11b-vision-instruct
+  -> http_error status=404 first=Nones total=0.22s
+[25/64] meta/llama-3.2-90b-vision-instruct
+  -> visible_text status=200 first=0.2s total=0.24s
+[26/64] meta/llama2-70b
+  -> http_error status=404 first=Nones total=0.17s
+[27/64] meta/muse-glimmer-30b
+  -> visible_text status=200 first=1.29s total=1.89s
+[28/64] microsoft/kosmos-2
+  -> http_error status=404 first=Nones total=0.22s
+[29/64] microsoft/phi-3-vision-128k-instruct
+  -> http_error status=404 first=Nones total=0.08s
+[30/64] microsoft/phi-3.5-moe-instruct
+  -> http_error status=404 first=Nones total=0.08s
+[31/64] minimaxai/minimax-m3
+  -> visible_text status=200 first=0.31s total=0.37s
+[32/64] mistralai/codestral-22b-instruct-v0.1
+  -> http_error status=404 first=Nones total=0.19s
+[33/64] mistralai/mistral-7b-instruct-v0.3
+  -> http_error status=404 first=Nones total=0.08s
+[34/64] mistralai/mistral-large
+  -> http_error status=404 first=Nones total=0.09s
+[35/64] mistralai/mistral-large-2-instruct
+  -> http_error status=404 first=Nones total=0.09s
+[36/64] mistralai/mistral-nemotron
+  -> visible_text status=200 first=0.88s total=0.94s
+[37/64] mistralai/mixtral-8x22b-v0.1
+  -> http_error status=404 first=Nones total=0.29s
+[38/64] moonshotai/kimi-k2.6
+  -> http_error status=404 first=Nones total=0.07s
+[39/64] moonshotai/kimi-k3
+  -> visible_text status=200 first=2.3s total=14.78s
+[40/64] nv-mistralai/mistral-nemo-12b-instruct
+  -> http_error status=404 first=Nones total=0.2s
+[41/64] nvidia/cosmos-reason2-8b
+  -> http_error status=404 first=Nones total=0.13s
+[42/64] nvidia/llama-3.1-nemotron-51b-instruct
+  -> http_error status=404 first=Nones total=0.08s
+[43/64] nvidia/llama-3.1-nemotron-70b-instruct
+  -> http_error status=404 first=Nones total=0.07s
+[44/64] nvidia/llama-3.1-nemotron-ultra-253b-v1
+  -> http_error status=404 first=Nones total=0.08s
+[45/64] nvidia/llama3-chatqa-1.5-70b
+  -> http_error status=404 first=Nones total=0.1s
+[46/64] nvidia/mistral-nemo-minitron-8b-8k-instruct
+  -> http_error status=404 first=Nones total=0.08s
+[47/64] nvidia/nemotron-3-nano-30b-a3b
+  -> visible_text status=200 first=0.29s total=0.76s
+[48/64] nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+  -> visible_text status=200 first=0.44s total=2.16s
+[49/64] nvidia/nemotron-3-super-120b-a12b
+  -> visible_text status=200 first=0.86s total=2.04s
+[50/64] nvidia/nemotron-3-ultra-550b-a55b
+  -> no_headers status=None first=Nones total=20.01s
+[51/64] nvidia/nemotron-3.5-lightning-30b-a3b
+  -> visible_text status=200 first=0.43s total=3.08s
+[52/64] nvidia/nemotron-4-340b-instruct
+  -> http_error status=404 first=Nones total=0.19s
+[53/64] nvidia/nemotron-4-340b-reward
+  -> http_error status=404 first=Nones total=0.09s
+[54/64] nvidia/nemotron-nano-3-30b-a3b
+  -> http_error status=404 first=Nones total=0.24s
+[55/64] nvidia/neva-22b
+  -> http_error status=404 first=Nones total=0.08s
+[56/64] nvidia/vila
+  -> http_error status=404 first=Nones total=0.09s
+[57/64] openai/gpt-oss-120b
+  -> visible_text status=200 first=0.87s total=1.27s
+[58/64] openai/gpt-oss-20b
+  -> visible_text status=200 first=0.37s total=0.72s
+[59/64] poolside/laguna-xs-2.1
+  -> no_headers status=None first=Nones total=20.02s
+[60/64] writer/palmyra-creative-122b
+  -> http_error status=404 first=Nones total=0.18s
+[61/64] writer/palmyra-fin-70b-32k
+  -> http_error status=404 first=Nones total=0.09s
+[62/64] writer/palmyra-med-70b
+  -> http_error status=404 first=Nones total=0.1s
+[63/64] writer/palmyra-med-70b-32k
+  -> http_error status=404 first=Nones total=0.08s
+[64/64] zyphra/zamba2-7b-instruct
+  -> http_error status=404 first=Nones total=0.09s
+  -> no_first_data_event status=200 first=Nones total=20.37s
+DONE: E:\AI_Workspace\casebible\pilot\nim-chat-probe\streamed-general-chat-20260829T202449Z.json
+E:\AI_Workspace\casebible\pilot\nim-chat-probe\streamed-general-chat-20260829T202449Z.md

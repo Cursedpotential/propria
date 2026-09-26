@@ -1,0 +1,17 @@
+Catalog 83; streamed general-chat candidates 7; excluded specialized 19
+[1/7] deepseek-ai/deepseek-v4-flash-0731
+[2/7] deepseek-ai/deepseek-v4-pro-0813
+  -> no_headers status=None first=Nones total=60.01s
+  -> no_headers status=None first=Nones total=60.01s
+[3/7] google/diffusiongemma-26b-a4b-it
+[4/7] google/gemma-4-31b-it
+  -> events_without_text status=200 first=10.7s total=10.7s
+[5/7] moonshotai/kimi-k3
+  -> visible_text status=200 first=0.87s total=1.57s
+[6/7] nvidia/nemotron-3-ultra-550b-a55b
+  -> visible_text status=200 first=34.85s total=35.48s
+[7/7] poolside/laguna-xs-2.1
+  -> events_without_text status=200 first=0.41s total=0.41s
+  -> no_headers status=None first=Nones total=60.01s
+DONE: E:\AI_Workspace\casebible\pilot\nim-chat-probe\streamed-general-chat-20260829T202719Z.json
+E:\AI_Workspace\casebible\pilot\nim-chat-probe\streamed-general-chat-20260829T202719Z.md
