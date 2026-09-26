@@ -1,0 +1,70 @@
+# Advocatio adoption-auth change receipt
+
+**Date:** 2026-09-23  
+**Repository:** `E:/AI_Workspace/Projects/Propria/modules/Legal-desktop`  
+**Base:** `master@2c6c0007ed6328d94ad4f7b2cc9bec222317c1af`  
+**Status:** planned change; implementation and verification pending
+
+## Reproduction
+
+- `POST /v1/reviews` authenticates the request globally but discards
+  `request.state.auth`; it forwards only the caller-controlled `ReviewCreate`.
+- `Workspace.add_review` authorizes a consequential decision solely with
+  `created.reviewer == "owner"`, then persists the supplied string as the actor.
+- The same middleware admits Authentik humans, signed BFF requests, the MCP
+  gateway service token, direct-tailnet access, and the explicit test bypass.
+  Therefore a service/agent-facing credential can submit `reviewer: "owner"`.
+- `Workspace.import_package` persists an accepted package without comparing its
+  matter to the workspace matter. The consumer also accepts an arbitrary manifest
+  hash and schema version. These are package-consumer gaps, not producer proof.
+- `Workspace.home` is GET-backed and may persist a first-remote-matter projection.
+  This receipt does not authorize changing that separate projection flow unless a
+  focused compatibility test proves it is the same adoption mutation.
+
+## Claimed files
+
+- `api/legal_workspace/api/auth.py` — classify the already-authenticated principal
+  for action authorization without weakening JWT issuer/audience/signature/lifetime.
+- `api/legal_workspace/api/main.py` — bind review/adoption to `request.state.auth`;
+  keep package import available to authenticated producer/service delivery.
+- `api/legal_workspace/services/workspace.py` — enforce local matter and supported
+  package identity/digest/version before import; derive the review actor from the
+  verified eligible-human principal passed by the route; deny before state writes.
+- `api/legal_workspace/services/source_package.py` and/or
+  `api/legal_workspace/contracts/source_package.py` only if the existing consumer
+  validation cannot express the required package digest/version checks locally.
+- `tests/test_review_release.py` and `tests/test_source_package.py` (or one new
+  focused adoption-auth test module) — human/service/agent/forged-body and exact
+  package/matter/digest/version positive/negative coverage, including state equality
+  after every denial.
+- This receipt, updated with the exact diff, tests, and rollback after verification.
+
+No root/shared manifests, D08 producer code, shared schema, migration, credentials,
+deployment, or unrelated files are claimed.
+
+## Intended invariant
+
+Package delivery may make a validated exact package available, including through an
+authenticated service identity. Availability never means reliance, legal adoption,
+approval, release, filing, service, or transmission. Consequential review/adoption
+requires an eligible authenticated human principal. The recorded actor is derived
+from that principal and never from `reviewer` in the request body. Service, gateway,
+BFF, bypass, and agent identities fail closed for this action. Denial occurs before
+any workspace, event, review, or work-product mutation.
+
+JWT verification continues to require Authentik RS256 signature, issuer, audience,
+`exp`, `iat`, and `sub`. Package import continues to require approved items and will
+add consumer-side local matter, supported schema version, package ID, manifest
+SHA-256, item version, and content SHA-256 validation without claiming D08 producer
+signature or promotion completeness.
+
+## Planned proof
+
+1. Reproduce the forged `reviewer: "owner"` acceptance with a service identity.
+2. Add eligible-human positive coverage and service/agent/BFF/body-forgery denials.
+3. Add wrong matter, package linkage, manifest digest, schema/item version denials.
+4. Snapshot serialized workspace state and event-log bytes before each denied action
+   and prove they are unchanged afterward.
+5. Run focused auth/package/review tests, then the relevant Python suite.
+6. Inspect and commit only the claimed tracked paths; do not push.
+
