@@ -237,13 +237,19 @@ Secrets/
 /docs/family-court
 
 # Independent repositories relocated under modules; retain their own histories.
-/modules/Consignatio/
-/modules/Probata/
-/modules/Legal-desktop/
-/modules/vestigia-geodata_processor/
 
 # Local Docstore databases and credential backups are never source.
 /docs/.docstore/
 # Preserve only the tracked placeholder in plugin runtime state.
 /plugins/docstore/claude/.state/*
 !/plugins/docstore/claude/.state/.gitkeep
+
+# Evidence corpora and location data: kept on disk, never committed to the monorepo.
+/modules/vestigia-geodata_processor/raw_api_responses/
+/modules/vestigia-geodata_processor/TraceIQ_Main/
+/modules/vestigia-geodata_processor/TraceIQ_Backups/
+/modules/vestigia-geodata_processor/TraceIQ_Evidence/
+/modules/vestigia-geodata_processor/traaceiq_mess/
+/modules/vestigia-geodata_processor/Timeline.json
+/modules/Consignatio/_intake/
+/modules/Consignatio/casebible/vault-sorted.7z
