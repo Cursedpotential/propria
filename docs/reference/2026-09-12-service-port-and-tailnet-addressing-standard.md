@@ -90,6 +90,13 @@ route, and remove `8474` in a later deployment. The repository's
 current `main` is dirty and diverged from `origin/main`; no broad merge, push or
 automatic deployment was attempted.
 
+**Status 2026-09-26 (Claude Code · Opus 5.5): the cutover is complete, by a different route.**
+- Docstore 0.8.1 (2026-09-20) replaced the worker app. The owner deleted that app on 2026-09-25, and `8474` had nothing listening.
+- The Coolify service `propria-docstore-0-8-1` now publishes the worker API on `100.91.190.107:8072` (image `propria-docstore:0.8.1-r2` onward).
+- `svc:docstore-api` proxies to `8072`, and `https://docstore-api.tilapia-skilift.ts.net/health` answers 200.
+- `8474` is retired in `deploy/service-port-registry.json`.
+- Receipt: `docs/pending-review/2026-09-26-docstore-0.8.1-r2/`.
+
 `deploy/service-port-registry.json` is the machine-readable allocation source.
 `scripts/validate_service_ports.py` enforces unique two-digit product codes,
 class-prefix/product-suffix canonical ports, unique Tailscale Service identities,
