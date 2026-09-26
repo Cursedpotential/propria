@@ -34,6 +34,8 @@ go test ./...
 | `proffer/` | the Temporal workflow: sequencing, gates, signals, queries |
 | `profferworker/` | worker wiring — where resolvers and repositories are constructed |
 | `activities/` | Activity bodies |
+| `contextreview/` | Review context overlays (to / about / about the child / relevant) and the hindsight-only foreshadowing flag; the as-lived read never touches the flag (Claude Code · Opus 5.5 · 2026-09-26) |
+| `sourcemeta/` | Review metadata screen read model and the owner's append-only metadata corrections; reads what the Activities recorded, extracts nothing (Claude Code · Opus 5.5 · 2026-09-26) |
 | `postgres/` | repositories; the schema admission probe |
 | `runtimeapi/` | HTTP surfaces and filesystem boundaries |
 | `derive/` | streaming derivations published under the configured derived root: `smsthreads` (SBV SMS backup → NDJSON threads, strict or lenient), `xmlsalvage` (cut-off XML → last complete record) |

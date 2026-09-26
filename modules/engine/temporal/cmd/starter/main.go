@@ -143,6 +143,16 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Review overlays: the metadata screen with owner corrections, and context
+	// review with the hindsight-only foreshadowing flag.
+	// Byline: Claude Code · Opus 5.5 · 2026-09-26
+	metadataRoutes, contextReviewRoutes, err := reviewOverlayHandlers(pool, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountReviewOverlayRoutes(routes, metadataRoutes, contextReviewRoutes); err != nil {
+		return err
+	}
 	sourceContextHandler, err := runtimeapi.NewSourceContextHTTPHandler(sourceContextStore, serviceTokenFile)
 	if err != nil {
 		return err

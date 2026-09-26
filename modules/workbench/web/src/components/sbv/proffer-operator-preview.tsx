@@ -1,13 +1,15 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-25 (always-present Actions panel; one small mode flag;
 // tab dots from real row counts; portal More menu; decoded messages for derive-only runs)
+// Byline: Claude Code · Opus 5.5 · 2026-09-26 (the run's file name opens its full metadata screen)
 "use client";
 
-import { Check, ChevronDown, CircleDot, Database, Flag, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Check, ChevronDown, CircleDot, Database, FileSearch, Flag, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AtomicTools } from "@/components/tools/atomic-tools";
 import { EntitiesPanel } from "@/components/entities/entities-panel";
 import { MODE_LABEL } from "@/components/intake/matter-mode-selector";
+import { FileMetadataScreen } from "@/components/metadata/file-metadata-screen";
 import { CallsTable, parseCallRecords } from "@/components/sbv/calls-table";
 import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
 import { MessageBrowser } from "@/components/sbv/message-browser";
@@ -247,6 +249,7 @@ export function ProfferOperatorPreview({
     attempts: { count: snapshot.stages.length },
   };
   const [reason, setReason] = useState("");
+  const [metadataOpen, setMetadataOpen] = useState(false);
   const actionNames = new Set(snapshot.valid_actions.map((item) => item.action));
   const modeTone = snapshot.matter_mode === "REAL"
     ? "border-[#b5433b] text-[#7e2924] dark:text-[#ffd3ce]"
@@ -272,7 +275,11 @@ export function ProfferOperatorPreview({
       {/* One line per run. The Test / Live switch lives only in the top bar; here the mode is
           one small flag (owner 2026-09-25: Test was shown four times; one flag, no banners). */}
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border bg-card px-3 py-1.5" aria-label="Selected run">
-        <h2 className="min-w-0 max-w-full truncate text-sm font-semibold" title={snapshot.source_ref}>{runName(snapshot.source_ref)}</h2>
+        <h2 className="min-w-0 max-w-full truncate text-sm font-semibold" title={`${snapshot.source_ref} — open all metadata`}>
+          <button type="button" className="inline-flex max-w-full items-center gap-1 truncate hover:underline" onClick={() => setMetadataOpen(true)} data-testid="review-file-metadata">
+            <FileSearch className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{runName(snapshot.source_ref)}</span>
+          </button>
+        </h2>
         <Badge variant="outline">{snapshot.lifecycle.replaceAll("_", " ")}</Badge>
         <span
           className={cn("rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold", modeTone)}
@@ -283,6 +290,7 @@ export function ProfferOperatorPreview({
         </span>
         <Button variant="ghost" size="sm" className="ml-auto h-7" onClick={onRefresh} disabled={actionPending}><RefreshCw className="size-3.5" /> Refresh</Button>
       </header>
+      <FileMetadataScreen open={metadataOpen} onOpenChange={setMetadataOpen} previewHandle={snapshot.preview_handle} mode={snapshot.matter_mode} />
 
       <div className="@container">
       <div className="grid gap-2 @4xl:grid-cols-[minmax(0,1fr)_21rem] @4xl:items-start">

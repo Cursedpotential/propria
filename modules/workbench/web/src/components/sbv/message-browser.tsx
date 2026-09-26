@@ -1,5 +1,6 @@
 // Byline: Claude Code · Opus 5 · 2026-09-20 (three-panel Review message browser; detail follows selection)
 // Byline: Claude Code · Opus 5 · 2026-09-20 (Thread | Table mode switch; SBV thread view is the default reading mode)
+// Byline: Claude Code · Opus 5.5 · 2026-09-26 (detail panel carries the run so it can show context review)
 //
 // Layout shape ported from RAGFlow's chunk-review screen
 // (web/src/pages/chunk/parsed-result/add-knowledge/components/knowledge-chunk/index.tsx,

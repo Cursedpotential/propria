@@ -38,6 +38,7 @@ from app.runtime import (
     proffer_resources,
     promote,
     repairs,
+    review_overlays,
     run_events,
     runs,
     sentiment,
@@ -122,6 +123,7 @@ app.include_router(proffer_resources.router)
 app.include_router(entity_extraction.router)  # /api/entities/*, /api/events/from-record (Claude Code · Opus 5.5 · 2026-09-25)
 app.include_router(source_inspection.router)
 app.include_router(source_unit_marks.router)
+app.include_router(review_overlays.router)  # metadata screen + context review (Claude Code · Opus 5.5 · 2026-09-26)
 app.include_router(files.router)
 app.include_router(promote.router)
 app.include_router(documents.router)

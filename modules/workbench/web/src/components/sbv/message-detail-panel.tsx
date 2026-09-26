@@ -6,6 +6,7 @@ import { MessageSquareText } from "lucide-react";
 
 import { MarkEventButton } from "@/components/entities/mark-event-button";
 import { Badge } from "@/components/ui/badge";
+import { ContextReviewPanel } from "@/components/review/context-review";
 import type { PreviewMessageRow } from "@/hooks/use-preview-messages";
 import type { MatterMode, ProfferPreviewParticipant } from "@/lib/shared/types";
 
@@ -48,6 +49,10 @@ export function MessageDetailPanel({ row, participants, previewHandle, mode }: M
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.body || "(no message body)"}</p>
+        {/* Byline: Claude Code · Opus 5.5 · 2026-09-26 — context review for the selected message (owner 2026-09-25). */}
+        <div className="-mx-4 mt-3">
+          <ContextReviewPanel key={message.message_id} previewHandle={previewHandle} mode={mode} messageId={message.message_id} />
+        </div>
       </div>
 
       <footer className="space-y-1 border-t px-4 py-3 font-mono text-[10px] text-muted-foreground">
