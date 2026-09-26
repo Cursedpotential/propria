@@ -1,4 +1,8 @@
-"""Compose the Review catalog from existing Proffer operation and content stores."""
+"""Compose the Review catalog from existing Proffer operation and content stores.
+
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — a run whose TEST/REAL mode cannot be
+proven is left out and counted (`unbound_count`) instead of turning the whole catalog into a 503.
+"""
 
 from __future__ import annotations
 
@@ -17,23 +21,22 @@ def _mode_coordinate(callable_, mode: MatterMode):
         raise proffer.ProfferError(error.detail, error.status_code) from None
 
 
-def _require_catalog_binding(preview_handle: str, mode: MatterMode, matter_id=None) -> bool:
+def _catalog_binding(preview_handle: str, mode: MatterMode, matter_id=None) -> bool | None:
+    """True: the run belongs to `mode`. False: to the other mode. None: its mode cannot be proven.
+
+    One unprovable run used to refuse the whole catalog with a 503, which blanked the owner's
+    Review page (2026-09-25). It is now left out of both modes' lists and only counted: an
+    unproven run is never shown under either mode.
+    """
     try:
         matter_mode.require_preview_mode(preview_handle, mode)
         return True
     except matter_mode.MatterModeError as error:
         if "different matter mode" in error.detail:
             return False
-        # The in-memory binding is gone after a BFF restart: re-derive it from the
-        # run's durable matter id before refusing the whole catalog.
-        proven = preview_mode_recovery.rebind(preview_handle, matter_id)
-        if proven is not None:
-            return proven == mode
-        raise proffer.ProfferError(
-            "Proffer proposal catalog cannot prove TEST/REAL ownership for every listed operation; "
-            "restart the import to create an active binding",
-            503,
-        ) from None
+    # The in-memory binding is gone after a BFF restart: re-derive it from the run's durable matter id.
+    proven = preview_mode_recovery.rebind(preview_handle, matter_id)
+    return None if proven is None else proven == mode
 
 
 async def _resource(operation: ProfferOperationSummary, mode: MatterMode) -> ProfferProposalResource:
@@ -107,8 +110,12 @@ async def list_proposal_resources(
     operations = await proffer_operations.list_operations(status=status, cursor=cursor, limit=limit)
 
     resources: list[ProfferProposalResource] = []
+    unbound = 0
     for operation in operations.items:
-        if _require_catalog_binding(operation.preview_handle, mode, operation.matter_id):
+        binding = _catalog_binding(operation.preview_handle, mode, operation.matter_id)
+        if binding is None:
+            unbound += 1
+        elif binding:
             resources.append(await _resource(operation, mode))
 
     return ProfferProposalResourceCatalog(
@@ -116,5 +123,6 @@ async def list_proposal_resources(
         matter_id=matter_id,
         court_case_id=court_case_id,
         items=resources,
+        unbound_count=unbound,
         next_cursor=operations.next_cursor,
     )
