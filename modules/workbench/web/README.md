@@ -1,6 +1,7 @@
 # The Platform Workbench — browser application
 
 > _Byline: Codex · GPT-5.6-Sol · 2026-08-30._
+> _Byline: Claude Code · Opus 5.5 · 2026-09-26 (Verification: `npm run smoke` is browser-free; browser journeys run on a VPS only)._
 
 This is the browser-first operator surface for The Platform. It is a React + Vite application
 served same-origin by `workbench/api` and deployed as the `knowledge-workbench` Coolify service.
@@ -61,10 +62,26 @@ npm run smoke
 npm run build-storybook
 ```
 
-`npm run build` typechecks and writes the production bundle to `dist/`. The smoke suite serves that
-actual SPA bundle through a same-origin fixture and exercises the governed Matter journey plus the
-static contract tests. Browser profiles created by the journey are retained under the repository's
-`to_be_deleted/` directory for owner-only cleanup.
+`npm run build` typechecks and writes the production bundle to `dist/`. `npm run smoke` runs the
+static contract tests and launches no browser: the four browser-driven journeys in
+`smoke/matter-flow.smoke.test.mjs` (Matter promotion and review, the Matter capability gate, and New
+Run with a staged and a fresh file) report as skipped unless `SMOKE_BROWSER` names a browser binary.
+A skipped journey is not browser proof.
+
+### Browser journeys run on a VPS only
+
+Never set `SMOKE_BROWSER` or run the browser journeys on the owner's desktop: headless Chrome and
+Edge froze it (owner ban 2026-09-24). Run them on a VPS, from this directory after `npm ci`, as a
+non-root user (Chromium will not start as root without `--no-sandbox`, which the journeys do not pass):
+
+```bash
+SMOKE_BROWSER=/path/to/chromium npm run smoke:matter-flow
+```
+
+`SMOKE_BROWSER` is the path of a Chromium-family binary on that host; there is no default path. The
+journeys serve the built SPA through a same-origin fixture, drive it over the DevTools pipe, and
+leave each browser profile under the repository's `to_be_deleted/` directory for owner-only cleanup.
+No CI job or VPS runner runs them yet.
 
 The focused backend static-serving contract runs from the repository root:
 

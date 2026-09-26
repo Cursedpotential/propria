@@ -27,6 +27,16 @@
 
 > _Sprint-mode policy REMOVED 2026-08-25 on owner order ("you're grounded — remove it entirely"). Confirm-and-discuss-before-changing is back in force._
 
+## Browser checks stay off the owner's desktop
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-26 — owner rule 2026-09-24, restated 2026-09-26._
+
+Never launch Chrome, Edge, a headless browser or Playwright on the owner's desktop; it freezes the
+machine. The browser journeys in `smoke/matter-flow.smoke.test.mjs` run only on a VPS, through
+`npm run smoke:matter-flow` with `SMOKE_BROWSER` set (see `README.md`, "Browser journeys run on a
+VPS only"). The "live browser proof" gate above is taken from a VPS headless browser or through the
+API, never from a browser on the desktop.
+
 ## ATOMICITY — every unit must be assignable to a Temporal Activity
 
 > _Owner directive · 2026-09-02. Binding on every directory below this file.
