@@ -9,6 +9,7 @@
 > webhook path segments (`proffer/*`) and `N8N_PROFFER_*` env var names (formerly `universal-import/*`, `N8N_UNIVERSAL_IMPORT_*`) were renamed 2026-09-06 with the deploy lane; an earlier revision of this line said they were UNCHANGED
 > pending a coordinated rename with the deploy/n8n lane (see
 > docs/reviews/ for the day's rename report)._
+> _2026-09-25 Claude Code · Opus 5.5: package map gains `derive/` and `repairplan/` (repair workflow builder)._
 
 This module owns custody hashing, acquisition, format decoding, parsing, chunking,
 normalization, and the Proffer (formerly UIW / Universal Import Workflow) stage graph. It is its own Go
@@ -35,6 +36,8 @@ go test ./...
 | `activities/` | Activity bodies |
 | `postgres/` | repositories; the schema admission probe |
 | `runtimeapi/` | HTTP surfaces and filesystem boundaries |
+| `derive/` | streaming derivations published under the configured derived root: `smsthreads` (SBV SMS backup → NDJSON threads, strict or lenient), `xmlsalvage` (cut-off XML → last complete record) |
+| `repairplan/` | the repair workflow builder: tool registry, signature proposer, fail-closed validator, `RepairPlanWorkflow` (2026-09-25) |
 
 ## Boundaries that are rulings, not preferences
 

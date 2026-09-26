@@ -84,6 +84,10 @@ type ReadImportOperationResult struct {
 	// Available is false when durable workflow state could not be read; the
 	// caller must treat that as "unknown", never as "finished".
 	Available bool `json:"available"`
+	// SourceVersionRef is set once the run has registered its source, which
+	// is when its matter becomes provable from durable state. Repair re-entry
+	// binds a run to Review only after this. Byline: Claude Code · Opus 5.5 · 2026-09-25
+	SourceVersionRef string `json:"source_version_ref,omitempty"`
 }
 
 // FindImportBindingsRequest asks whether this exact source was imported before.
@@ -194,6 +198,7 @@ func (a BatchImportActivities) ReadImportOperation(ctx context.Context, req Read
 	return ReadImportOperationResult{
 		Lifecycle: string(state.Lifecycle), Wait: string(state.Wait),
 		Terminal: state.Terminal, Reason: state.Reason, Available: true,
+		SourceVersionRef: string(state.SourceVersionRef),
 	}, nil
 }
 

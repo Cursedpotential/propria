@@ -177,6 +177,103 @@ func TestBatchWorkflowSkipsObjectsAlreadyCompleted(t *testing.T) {
 	require.Equal(t, "prior-handle", status.Items[0].PreviewHandle)
 }
 
+// An item whose run ends before registering its source is never bound:
+// its matter is not provable, and one unprovable binding turns the owner's
+// whole Review list into a 503. A registered item is bound as before.
+// Byline: Claude Code · Opus 5.5 · 2026-09-25
+func TestBatchItemThatFailsBeforeRegisteringLeavesNoBinding(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	registerBatchActivityStubs(env)
+	mockOneListingPage(env, []any{"vault/v1/sms /a.xml", "vault/v1/sms /bad.xml"})
+	mockEmptyPriorImports(env)
+
+	in := batchInput()
+	badRun := in.BatchID + "-00001"
+	var bound []string
+	env.OnActivity(bindImportOperationActivityName, mock.Anything, mock.Anything).
+		Return(func(_ context.Context, req map[string]any) (map[string]any, error) {
+			bound = append(bound, req["workflow_id"].(string))
+			return map[string]any{"preview_handle": "handle"}, nil
+		})
+	env.OnActivity(readImportOperationActivityName, mock.Anything, mock.Anything).
+		Return(func(_ context.Context, req map[string]any) (map[string]any, error) {
+			if req["workflow_id"] == badRun {
+				return map[string]any{"lifecycle": "failed", "terminal": true, "available": true,
+					"reason": "register_source_activity: acquisition refused the source"}, nil
+			}
+			return map[string]any{"lifecycle": "running", "available": true, "source_version_ref": "source-version-a"}, nil
+		})
+	env.OnWorkflow(ProfferWorkflow, mock.Anything, mock.Anything).
+		Return(func(_ workflow.Context, in WorkflowInput) (WorkflowResult, error) {
+			if in.SourceRef == "b2://bucket/vault/v1/sms /bad.xml" {
+				return WorkflowResult{}, errors.New("acquisition refused the source")
+			}
+			return WorkflowResult{SourceVersionRef: "v", Status: StatusSuccess}, nil
+		})
+
+	status := runBatch(t, env, in)
+
+	require.Equal(t, []string{in.BatchID + "-00000"}, bound, "only the registered item may be bound")
+	require.Equal(t, BatchItemDone, status.Items[0].Status)
+	require.Equal(t, "handle", status.Items[0].PreviewHandle)
+	require.Equal(t, BatchItemFailed, status.Items[1].Status)
+	require.Empty(t, status.Items[1].PreviewHandle)
+	require.Contains(t, status.Items[1].Reason, "before registering its source")
+}
+
+// A run that fails after registering is still bound, so it stays visible in
+// Review with a provable matter.
+func TestBatchItemThatRegisteredThenFailedIsBound(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	registerBatchActivityStubs(env)
+	mockOneListingPage(env, []any{"vault/v1/sms /late.xml"})
+	mockEmptyPriorImports(env)
+	mockBindings(env)
+	env.OnActivity(readImportOperationActivityName, mock.Anything, mock.Anything).
+		Return(map[string]any{"lifecycle": "failed", "terminal": true, "available": true, "source_version_ref": "source-version-late"}, nil)
+	env.OnWorkflow(ProfferWorkflow, mock.Anything, mock.Anything).Return(WorkflowResult{}, errors.New("parser refused"))
+
+	status := runBatch(t, env, batchInput())
+
+	require.Equal(t, "handle", status.Items[0].PreviewHandle)
+	require.Equal(t, BatchItemFailed, status.Items[0].Status)
+	require.Contains(t, status.Items[0].Reason, "parser refused")
+}
+
+// Histories recorded before the change replay the old order: bind at child
+// start, with no registration read before it.
+func TestBatchLegacyHistoriesKeepBindingAtChildStart(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	registerBatchActivityStubs(env)
+	env.OnGetVersion(batchBindAfterRegisterChangeID, workflow.DefaultVersion, batchBindAfterRegisterVersion).Return(workflow.DefaultVersion)
+	mockOneListingPage(env, []any{"vault/v1/sms /a.xml"})
+	mockEmptyPriorImports(env)
+	var order []string
+	env.OnActivity(bindImportOperationActivityName, mock.Anything, mock.Anything).
+		Return(func(context.Context, map[string]any) (map[string]any, error) {
+			order = append(order, "bind")
+			return map[string]any{"preview_handle": "handle"}, nil
+		})
+	env.OnActivity(readImportOperationActivityName, mock.Anything, mock.Anything).
+		Return(func(context.Context, map[string]any) (map[string]any, error) {
+			order = append(order, "read")
+			return map[string]any{"lifecycle": "running", "available": true}, nil
+		})
+	env.OnWorkflow(ProfferWorkflow, mock.Anything, mock.Anything).Return(WorkflowResult{Status: StatusSuccess}, nil)
+
+	status := runBatch(t, env, batchInput())
+
+	require.Equal(t, BatchItemDone, status.Items[0].Status)
+	require.NotEmpty(t, order)
+	require.Equal(t, "bind", order[0], "the legacy order binds before any registration read")
+}
+
 func TestBatchWorkflowRejectsAnIncompleteInput(t *testing.T) {
 	for name, mutate := range map[string]func(*BatchInput){
 		"no batch id":     func(in *BatchInput) { in.BatchID = "" },

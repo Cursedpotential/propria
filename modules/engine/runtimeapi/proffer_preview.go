@@ -510,6 +510,9 @@ type PreviewHTTPHandler struct {
 	// batch is nil until UseBatchWorkflow is called; the batch routes then
 	// answer 503 instead of 404. Byline: Claude Code · Opus 5 · 2026-09-21
 	batch BatchWorkflowClient
+	// repair is nil until UseRepairPlans is called; the repair routes then
+	// answer 503. Byline: Claude Code · Opus 5.5 · 2026-09-25
+	repair RepairPlanService
 }
 
 // OperationSummary is the browser-safe identity and lifecycle of one Proffer
@@ -579,6 +582,12 @@ func (h *PreviewHTTPHandler) Routes() http.Handler {
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/decision", h.auth(h.decide))
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/repair-decision", h.auth(h.decideRepair))
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/handler-selection", h.auth(h.decideHandler))
+	// Repair workflow builder (repair_plan_http.go). Byline: Claude Code · Opus 5.5 · 2026-09-25
+	mux.HandleFunc("GET /reference-import/repair/tools", h.auth(h.repairTools))
+	mux.HandleFunc("POST /reference-import/repair/propose", h.auth(h.repairPropose))
+	mux.HandleFunc("POST /reference-import/repair/validate", h.auth(h.repairValidate))
+	mux.HandleFunc("POST /reference-import/repair/run", h.auth(h.repairRun))
+	mux.HandleFunc("GET /reference-import/repair/runs/{workflow_id}", h.auth(h.repairRunStatus))
 	return mux
 }
 

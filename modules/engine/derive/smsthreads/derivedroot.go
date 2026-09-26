@@ -35,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -149,6 +150,26 @@ func LegacyLocation(scheme, bucket, key string) DerivedLocation {
 	}
 }
 
+// variantPattern keeps a derivation variant one lower-case directory name.
+var variantPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+
+// WithVariant is the location of a named derivation variant beneath l (for
+// example a lenient decode published under <prefix>/lenient/). An empty
+// variant is l itself.
+// Byline: Claude Code · Opus 5.5 · 2026-09-25
+func (l DerivedLocation) WithVariant(variant string) DerivedLocation {
+	if variant == "" {
+		return l
+	}
+	l.Prefix += variant + "/"
+	return l
+}
+
+// ValidVariant reports whether variant may name a derivation variant.
+func ValidVariant(variant string) bool {
+	return variant == "" || variantPattern.MatchString(variant)
+}
+
 // ResolvePublished says where this source's derivation lives NOW and whether
 // one is published. The mapped location wins; a derivation already published
 // at the legacy beside-the-original location is found there and reused in
@@ -157,10 +178,22 @@ func LegacyLocation(scheme, bucket, key string) DerivedLocation {
 func ResolvePublished(
 	ctx context.Context, store ObjectStore, roots DerivedRoots, scheme, bucket, key string,
 ) (DerivedLocation, bool, error) {
+	return ResolvePublishedVariant(ctx, store, roots, "", scheme, bucket, key)
+}
+
+// ResolvePublishedVariant is ResolvePublished for a named variant: the same
+// mapped-then-legacy lookup, each location narrowed to <prefix>/<variant>/.
+func ResolvePublishedVariant(
+	ctx context.Context, store ObjectStore, roots DerivedRoots, variant, scheme, bucket, key string,
+) (DerivedLocation, bool, error) {
+	if !ValidVariant(variant) {
+		return DerivedLocation{}, false, fmt.Errorf("smsthreads: derivation variant %q is not one lower-case directory name", variant)
+	}
 	mapped, err := roots.Locate(scheme, bucket, key)
 	if err != nil {
 		return DerivedLocation{}, false, err
 	}
+	mapped = mapped.WithVariant(variant)
 	if store == nil {
 		return mapped, false, errors.New("smsthreads: object store is required to resolve a published derivation")
 	}
@@ -169,7 +202,7 @@ func ResolvePublished(
 	} else if done {
 		return mapped, true, nil
 	}
-	legacy := LegacyLocation(scheme, bucket, key)
+	legacy := LegacyLocation(scheme, bucket, key).WithVariant(variant)
 	if legacy.Prefix == mapped.Prefix && legacy.Bucket == mapped.Bucket {
 		return mapped, false, nil
 	}

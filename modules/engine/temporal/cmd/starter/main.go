@@ -130,6 +130,15 @@ func run() error {
 	if err := previewHandler.UseBatchWorkflow(batchStarter); err != nil {
 		return err
 	}
+	// Repair workflow builder: tools, propose, validate, run, runs/{id}.
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
+	repairService, err := newRepairPlanService(pool, c, cfg.TemporalTaskQueue)
+	if err != nil {
+		return err
+	}
+	if err := previewHandler.UseRepairPlans(repairService); err != nil {
+		return err
+	}
 	routes, err = mountPreviewRoutes(routes, previewHandler.Routes())
 	if err != nil {
 		return err

@@ -66,6 +66,10 @@ const (
 	RespProjectPreview
 	RespChunk
 	RespDerive
+	// RespLocate is a read-only lookup that names another existing object; it
+	// writes nothing (repair.find_other_version).
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
+	RespLocate
 )
 
 // Descriptor is the static, dependency-free description of one stage: its

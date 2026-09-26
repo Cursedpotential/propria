@@ -125,13 +125,16 @@ func TestReadImportOperationReportsUnavailableRatherThanFailing(t *testing.T) {
 	require.False(t, result.Terminal)
 
 	live := BatchImportActivities{Operations: fixedOperations{state: proffer.OperationState{
-		Lifecycle: proffer.OperationCompleted, Terminal: true,
+		Lifecycle: proffer.OperationCompleted, Terminal: true, SourceVersionRef: "source-version-1",
 	}}}
 	result, err = live.ReadImportOperation(context.Background(), ReadImportOperationRequest{WorkflowID: "w"})
 	require.NoError(t, err)
 	require.True(t, result.Available)
 	require.True(t, result.Terminal)
 	require.Equal(t, string(proffer.OperationCompleted), result.Lifecycle)
+	// Repair re-entry binds a run to Review only once this is set.
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
+	require.Equal(t, "source-version-1", result.SourceVersionRef)
 
 	_, err = live.ReadImportOperation(context.Background(), ReadImportOperationRequest{})
 	require.True(t, nonRetryable(err))

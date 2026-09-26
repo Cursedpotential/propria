@@ -184,12 +184,21 @@ type mediaSink struct {
 
 func (s *mediaSink) ArtifactDir(context.Context, string, string) (string, error) {
 	if err := os.MkdirAll(s.staging, 0o700); err != nil {
-		return "", err
+		return "", environmental(err)
 	}
 	return s.staging, nil
 }
 
+// Store publishes one decoded attachment. Every failure here belongs to the
+// scratch disk or the object store, never to the source bytes, so it is
+// marked as an environment failure a lenient derivation must not tolerate.
+// Byline: Claude Code · Opus 5.5 · 2026-09-25
 func (s *mediaSink) Store(ctx context.Context, artifact parseonly.Artifact) (parseonly.ArtifactLocator, error) {
+	locator, err := s.store(ctx, artifact)
+	return locator, environmental(err)
+}
+
+func (s *mediaSink) store(ctx context.Context, artifact parseonly.Artifact) (parseonly.ArtifactLocator, error) {
 	file, err := os.Open(artifact.StagedPath)
 	if err != nil {
 		return parseonly.ArtifactLocator{}, err

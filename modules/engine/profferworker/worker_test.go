@@ -12,6 +12,7 @@ import (
 
 	"github.com/Cursedpotential/probata/engine/activities"
 	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/repairplan"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
@@ -42,22 +43,35 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 			return proffer.HandlerSelectionValidationResult{}, nil
 		},
 	}})
-	// Two workflows: the per-source ProfferWorkflow and the batch-by-folder
-	// workflow that starts one child run per object.
+	// Three workflows: the per-source ProfferWorkflow, the batch-by-folder
+	// workflow that starts one child run per object, and the repair plan
+	// workflow (Byline: Claude Code · Opus 5.5 · 2026-09-25).
 	// Byline: Claude Code · Opus 5 · 2026-09-21
-	if recorder.workflowCount != 2 {
-		t.Fatalf("workflow registration count = %d, want 2", recorder.workflowCount)
+	if recorder.workflowCount != 3 {
+		t.Fatalf("workflow registration count = %d, want 3", recorder.workflowCount)
 	}
-	if len(recorder.workflowNames) != 1 || recorder.workflowNames[0] != proffer.BatchWorkflowName {
-		t.Fatalf("named workflow registrations = %v, want just %q", recorder.workflowNames, proffer.BatchWorkflowName)
+	if len(recorder.workflowNames) != 2 || recorder.workflowNames[0] != proffer.BatchWorkflowName || recorder.workflowNames[1] != repairplan.WorkflowName {
+		t.Fatalf("named workflow registrations = %v, want %q and %q", recorder.workflowNames, proffer.BatchWorkflowName, repairplan.WorkflowName)
 	}
 	const replayAliasCount = 3
 	// 6 = 2 structured-ELT + derive_sms_threads + 3 handler/flow standalones,
-	// plus the 4 batch-by-folder Activities.
+	// plus the 4 batch-by-folder Activities and the 5 repair-plan Activities.
 	const standaloneActivityCount = 6
 	const batchActivityCount = 4
-	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount || len(stagegraph.Stages) != 26 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 6 standalone + 4 batch activities", len(recorder.names))
+	repairActivityCount := len(stagegraph.RepairPlanActivities)
+	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 6 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+	}
+	for _, descriptor := range stagegraph.RepairPlanActivities {
+		found := 0
+		for _, registered := range recorder.names {
+			if registered == string(descriptor.ID) {
+				found++
+			}
+		}
+		if found != 1 {
+			t.Errorf("repair-plan activity %q registered %d times", descriptor.ID, found)
+		}
 	}
 	for _, name := range []string{
 		activities.ListBatchFolderActivityName, activities.BindImportOperationActivityName,

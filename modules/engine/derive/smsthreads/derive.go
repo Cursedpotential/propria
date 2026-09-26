@@ -39,6 +39,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -67,6 +68,10 @@ const (
 // <key>.derived/manifest.json. Callers that want the existing result instead
 // set Options.ReuseExisting rather than inspecting an error string.
 var ErrAlreadyDerived = errors.New("smsthreads: a finished derivation already exists and is never overwritten")
+
+// ErrNoRecords reports a source the decoder produced nothing from — not one
+// record, not one reject. It is a property of the bytes; a retry cannot help.
+var ErrNoRecords = errors.New("smsthreads: decoder emitted no records")
 
 // Derived placement is configured, not coded: see derivedroot.go. The
 // <key>.derived/ layout described above is now only the fallback used when no
@@ -126,6 +131,19 @@ type Options struct {
 	// the derived objects are still never overwritten.
 	ReuseExisting bool
 
+	// Lenient keeps what decoded when the decoder stops on the SOURCE's own
+	// bytes (a cut-off backup, a span too damaged to represent): everything
+	// emitted before the stop is published, and the manifest records where and
+	// why decoding stopped. Storage, scratch-disk, network and cancellation
+	// failures are never tolerated. Records the decoder refuses one at a time
+	// are rejected into rejects/ exactly as in a strict run.
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25 (repair.lenient_decode)
+	Lenient bool
+	// Variant publishes under <derived location>/<variant>/ instead of the
+	// derived location itself, so a lenient derivation can never be mistaken
+	// for — or reused as — a strict one. Empty is the standard derivation.
+	Variant string
+
 	// Progress, when set, is called while the source streams so a caller can
 	// report liveness (a Temporal heartbeat, a CLI line). It is deliberately
 	// caller-agnostic: this unit knows nothing about Temporal, n8n, or HTTP.
@@ -174,6 +192,84 @@ type Manifest struct {
 	MediaRefs     uint64       `json:"media_references"`
 	Threads       []ThreadFile `json:"threads"`
 	Rejects       RejectFiles  `json:"rejects,omitempty"`
+
+	// Variant, Lenient, StreamError and DecodedBytes describe a lenient
+	// derivation (repair.lenient_decode). StreamError is why decoding stopped
+	// before the end of the source, and DecodedBytes how far it had read; both
+	// are empty when the source decoded to its end.
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
+	Variant      string `json:"variant,omitempty"`
+	Lenient      bool   `json:"lenient,omitempty"`
+	StreamError  string `json:"stream_error,omitempty"`
+	DecodedBytes int64  `json:"decoded_bytes,omitempty"`
+}
+
+// maxStreamErrorBytes bounds the decode error recorded in a manifest.
+const maxStreamErrorBytes = 1024
+
+// decodeSMSBackup runs the SBV parse-only SMS Backup & Restore importer over
+// source. It is a variable only so tests can stand in a decoder that stops
+// part-way, which the real importer does only on inputs too large for a unit
+// test (a malformed span over its 64 MiB raw-record bound).
+var decodeSMSBackup = func(
+	ctx context.Context, source io.Reader, sourceURI string,
+	sink parseonly.ImmutableArtifactSink, emit func(context.Context, parseonly.Record) error,
+) error {
+	importer, err := parseonly.New(parseonly.FormatSMSBackupXML)
+	if err != nil {
+		return environmental(err)
+	}
+	return importer.ParseWithArtifacts(ctx, source, sourceURI, sink, emit)
+}
+
+// environmentFailure marks an error raised by the derive unit's own storage,
+// scratch disk or object store while the decoder was running. A lenient
+// derivation tolerates the decoder stopping on the source's bytes; it never
+// tolerates these.
+type environmentFailure struct{ err error }
+
+func (e environmentFailure) Error() string { return e.err.Error() }
+func (e environmentFailure) Unwrap() error { return e.err }
+
+func environmental(err error) error {
+	if err == nil {
+		return nil
+	}
+	return environmentFailure{err: err}
+}
+
+// sourceReadRecorder remembers the first non-EOF error the source itself
+// returned, so a network failure is never mistaken for a decode stop.
+type sourceReadRecorder struct {
+	reader io.Reader
+	err    error
+}
+
+func (r *sourceReadRecorder) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) && r.err == nil {
+		r.err = err
+	}
+	return n, err
+}
+
+// tolerableDecodeStop reports whether a lenient derivation may keep what was
+// decoded before parseErr: the decoder stopped on the source's own bytes. A
+// file-system error (the decoder's own attachment staging hitting a full or
+// failing scratch disk) is an environment failure too, never a source defect.
+func tolerableDecodeStop(ctx context.Context, parseErr error, source *sourceReadRecorder) bool {
+	var environment environmentFailure
+	var pathErr *fs.PathError
+	return ctx.Err() == nil && source.err == nil &&
+		!errors.As(parseErr, &environment) && !errors.As(parseErr, &pathErr)
+}
+
+func boundedStreamError(err error) string {
+	message := err.Error()
+	if len(message) > maxStreamErrorBytes {
+		message = message[:maxStreamErrorBytes]
+	}
+	return message
 }
 
 // RejectFiles reads both manifest shapes: v1 published one object, v2 a list.
@@ -249,7 +345,7 @@ func Derive(ctx context.Context, opts Options) (Manifest, DerivedLocation, error
 	}
 	// A derivation published before DERIVED_ROOTS_JSON was switched on lives
 	// beside the original; it is reused in place rather than re-derived.
-	location, alreadyDerived, err := ResolvePublished(ctx, opts.Store, opts.DerivedRoots, opts.Scheme, opts.Bucket, opts.Key)
+	location, alreadyDerived, err := ResolvePublishedVariant(ctx, opts.Store, opts.DerivedRoots, opts.Variant, opts.Scheme, opts.Bucket, opts.Key)
 	if err != nil {
 		return Manifest{}, location, err
 	}
@@ -273,12 +369,9 @@ func Derive(ctx context.Context, opts Options) (Manifest, DerivedLocation, error
 	}
 	defer source.Close()
 	sourceHash := sha256.New()
-	counted := &countingReader{reader: io.TeeReader(source, sourceHash)}
+	sourceReads := &sourceReadRecorder{reader: source}
+	counted := &countingReader{reader: io.TeeReader(sourceReads, sourceHash)}
 
-	importer, err := parseonly.New(parseonly.FormatSMSBackupXML)
-	if err != nil {
-		return Manifest{}, location, err
-	}
 	sourceURI := fmt.Sprintf("%s://%s/%s", opts.Scheme, opts.Bucket, opts.Key)
 	media := &mediaSink{
 		ctx: ctx, opts: opts, target: location, prefix: prefix,
@@ -309,33 +402,44 @@ func Derive(ctx context.Context, opts Options) (Manifest, DerivedLocation, error
 			rejected++
 			line.Thread = "rejects"
 			line.Raw = string(record.Raw)
-			return threads.write("rejects", nil, line, record.OccurredAt)
+			return environmental(threads.write("rejects", nil, line, record.OccurredAt))
 		}
 		records++
 		name, participants := threadIdentity(record)
 		line.Thread = name
-		return threads.write(name, participants, line, record.OccurredAt)
+		return environmental(threads.write(name, participants, line, record.OccurredAt))
 	}
-	if err := importer.ParseWithArtifacts(ctx, counted, sourceURI, media, emit); err != nil {
-		return Manifest{}, location, fmt.Errorf("smsthreads: %w", err)
+	var streamError string
+	var decodedBytes int64
+	if err := decodeSMSBackup(ctx, counted, sourceURI, media, emit); err != nil {
+		if !opts.Lenient || !tolerableDecodeStop(ctx, err, sourceReads) {
+			return Manifest{}, location, fmt.Errorf("smsthreads: %w", err)
+		}
+		// Lenient: keep everything decoded before the stop and say so.
+		streamError, decodedBytes = boundedStreamError(err), counted.count
 	}
 	// The decoder may stop at the closing tag; drain so the digest covers the whole object.
 	if _, err := io.Copy(io.Discard, counted); err != nil {
 		return Manifest{}, location, fmt.Errorf("smsthreads: drain source: %w", err)
 	}
 	if records == 0 && rejected == 0 {
-		return Manifest{}, location, errors.New("smsthreads: decoder emitted no records")
+		return Manifest{}, location, ErrNoRecords
 	}
 	if err := threads.closeAll(); err != nil {
 		return Manifest{}, location, err
 	}
 
+	decoder := "sbv/parseonly " + parseonly.FormatSMSBackupXML
+	if opts.Lenient {
+		decoder += " lenient"
+	}
 	manifest := Manifest{
 		Schema: SchemaVersion, Source: sourceURI, SourceSHA256: hex.EncodeToString(sourceHash.Sum(nil)),
 		SourceBytes: counted.count, DerivedPrefix: location.URI(),
-		DerivedAt: opts.Now().UTC().Format(time.RFC3339), Decoder: "sbv/parseonly " + parseonly.FormatSMSBackupXML,
+		DerivedAt: opts.Now().UTC().Format(time.RFC3339), Decoder: decoder,
 		Records: records, Rejected: rejected,
 		MediaObjects: uint64(len(media.seen)), MediaBytes: media.bytes, MediaRefs: media.refs,
+		Variant: opts.Variant, Lenient: opts.Lenient, StreamError: streamError, DecodedBytes: decodedBytes,
 	}
 	var published uint64
 	for _, name := range threads.names() {
