@@ -133,11 +133,14 @@ services:
     cap_add:
       - MKNOD
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:9980/office/hosting/discovery"]
+      # The collabora/code image has no shell, curl or wget, so the old curl check could never run and
+      # the container sat "unhealthy" while serving fine. Use the image's own built-in probe instead
+      # (verified live: exit 0). Claude Code · Opus 5.5 · 2026-09-26
+      test: ["CMD", "/usr/bin/coolwsd", "--probe", "--use-env-vars"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 5
-      start_period: 90s
+      start_period: 120s
     networks:
       - legal
 
