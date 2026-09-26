@@ -1,0 +1,167 @@
+# Byline: Claude Code · Opus 5 · 2026-08-21 (VPS deploy shape; supersedes the
+# 2026-08-18 Grok draft, preserved at _stale/compose.yaml.pre-vps-2026-08-21)
+#
+# Target host: ovh-app (100.72.169.40). Service names only inside containers.
+# Auth boundary revised by Codex · GPT-5 · 2026-09-12: the existing tailnet
+# bindings below stay direct for the enrolled owner. A separately configured
+# public HTTPS Traefik router protects legal-web with Authentik forward-auth.
+# legal-api is never attached to that public router.
+# Volumes: bind-mount host dirs, never named volumes (owner backup rule).
+#
+# PERSISTENCE: the package installs into site-packages, so the repo-relative
+# default store dir resolves inside the image and is destroyed on redeploy.
+# LEGAL_WORKSPACE_STORE_DIR + the bind mount below are what make state durable.
+#
+# DATABASE: intentionally left on SQLite-in-the-bind-mount. The ORM declares flat
+# tables (legal_core_matter_ref) in the default schema, while sql/0001 creates
+# schema-qualified ones (legal_core.matter_ref) with an older column set, and
+# db/store.py bootstraps through the SQLite branch of get_engine(). Pointing
+# DATABASE_URL at the live PG18 today would deploy a path that has never run.
+# Tracked in docs/URGENT-TODO.md as the next increment.
+
+services:
+  legal-api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+    image: legal-workspace-api:0.1.0
+    container_name: legal-api
+    restart: unless-stopped
+    # WOPI callbacks carry scoped tokens; keep request URLs out of access logs.
+    command: uvicorn legal_workspace.api.main:app --host 0.0.0.0 --port 8010 --no-access-log
+    # Bound to the tailnet IP only. A bare "8010:8010" publishes on 0.0.0.0 and
+    # ovh-app has no DOCKER-USER/ufw rules, so it was reachable from the public
+    # internet (verified 2026-08-21: http://40.160.5.19:8010/health returned 200).
+    ports:
+      - "100.72.169.40:8010:8010"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LEGAL_WORKSPACE_ENV: ${LEGAL_WORKSPACE_ENV:-prod}
+      LEGAL_WORKSPACE_STORE_DIR: /data/workspace
+      LEGAL_API_SERVICE: legal-api
+      EVIDENCE_PLATFORM_SERVICE: contextforge
+      MODEL_GATEWAY_SERVICE: model-gateway
+      EVIDENCE_PLATFORM_BASE_URL: ${EVIDENCE_PLATFORM_BASE_URL:-http://contextforge:4444}
+      MODEL_GATEWAY_BASE_URL: ${MODEL_GATEWAY_BASE_URL:-http://model-gateway:4000}
+      LEGAL_RENDERER_BASE_URL: http://legal-renderer:3000
+      OFFICE_EDITOR_PUBLIC_URL: https://legal.tilapia-skilift.ts.net/office
+      OFFICE_EDITOR_INTERNAL_URL: http://legal-office:9980/office
+      OFFICE_WOPI_BASE_URL: http://legal-api:8010
+      OFFICE_HOST_ORIGIN: https://legal.tilapia-skilift.ts.net
+      LEGAL_WORKSPACE_BYPASS_AUTH: "false"
+      LEGAL_TAILNET_OWNER_ACCESS: "true"
+      # Authentik's signing key remains in Authentik. legal-api fetches only the
+      # public JWKS and validates issuer, audience, signature and token lifetime.
+      AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER}
+      AUTHENTIK_AUDIENCE: ${AUTHENTIK_AUDIENCE}
+      AUTHENTIK_JWKS_URL: ${AUTHENTIK_JWKS_URL}
+      AUTHENTIK_ALLOWED_GROUPS: ${AUTHENTIK_ALLOWED_GROUPS:-}
+      LEGAL_BFF_SIGNING_SECRET: ${LEGAL_BFF_SIGNING_SECRET}
+      CF_GATEWAY_TOKEN: ${CF_GATEWAY_TOKEN:-}
+      # Service credential ContextForge presents to legal-api /mcp. Unset = lane off.
+      LEGAL_MCP_GATEWAY_TOKEN: ${LEGAL_MCP_GATEWAY_TOKEN:-}
+      # Evidence desk: read-only Consignatio catalog + signed B2 links (empty = desk reports "not configured")
+      CONSIGNATIO_CATALOG_URL: ${CONSIGNATIO_CATALOG_URL:-}
+      B2_KEY_ID: ${B2_KEY_ID:-}
+      B2_APPLICATION_KEY: ${B2_APPLICATION_KEY:-}
+      B2_S3_ENDPOINT: ${B2_S3_ENDPOINT:-}
+      B2_REGION: ${B2_REGION:-}
+    volumes:
+      - /var/lib/legal-workspace/workspace:/data/workspace
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8010/health',timeout=4).status==200 else 1)\""]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 20s
+    networks:
+      - legal
+      - probata
+
+  # LibreOffice renderer sidecar (CAT5 `legal-renderer`, added 2026-09-20 by
+  # Claude Code · Fable 5.1). Gotenberg wraps headless LibreOffice behind HTTP.
+  # No published port: only legal-api reaches it, by service name, on `legal`.
+  # Chromium routes are disabled; this sidecar is LibreOffice + PDF engines only.
+  legal-renderer:
+    image: gotenberg/gotenberg:8.37.0
+    container_name: legal-renderer
+    restart: unless-stopped
+    command:
+      - gotenberg
+      - --chromium-disable-routes=true
+      - --api-timeout=180s
+    networks:
+      - legal
+
+  legal-web:
+    build:
+      context: ./web
+      dockerfile: ../deploy/Dockerfile.web
+    image: legal-workspace-web:0.1.0
+    container_name: legal-web
+    restart: unless-stopped
+    # 3010 is owned by `homepage` on ovh-app — do not reuse it.
+    # Tailnet-only for the same reason as legal-api above.
+    # Existing ingress port moves to legal-gateway, which also proxies editor WebSockets.
+    environment:
+      LEGAL_API_INTERNAL_URL: http://legal-api:8010
+      LEGAL_WEB_INTERNAL_URL: http://legal-web:3000
+      LEGAL_PUBLIC_HOST: ${LEGAL_PUBLIC_HOST}
+      LEGAL_BFF_SIGNING_SECRET: ${LEGAL_BFF_SIGNING_SECRET}
+    depends_on:
+      legal-api:
+        condition: service_healthy
+    networks:
+      - legal
+
+  legal-office:
+    # Official CODE digest resolved from Docker Hub 2026-09-24; never float latest.
+    image: collabora/code@sha256:4e983196eb9878f339cc506c38c21f1cc3473bca3d6de883c5de08f9c0cc3a6c
+    restart: unless-stopped
+    environment:
+      aliasgroup1: http://legal-api:8010
+      server_name: legal.tilapia-skilift.ts.net
+      extra_params: >-
+        --o:ssl.enable=false
+        --o:ssl.termination=true
+        --o:net.service_root=/office
+        --o:net.frame_ancestors=https://legal.tilapia-skilift.ts.net
+        --o:logging.level=warning
+        --o:welcome.enable=false
+    cap_add:
+      - MKNOD
+    healthcheck:
+      # The collabora/code image has no shell, curl or wget, so the old curl check could never run and
+      # the container sat "unhealthy" while serving fine. Use the image's own built-in probe instead
+      # (verified live: exit 0). Claude Code · Opus 5.5 · 2026-09-26
+      test: ["CMD", "/usr/bin/coolwsd", "--probe", "--use-env-vars"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - legal
+
+  legal-gateway:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.gateway
+    restart: unless-stopped
+    ports:
+      - "100.72.169.40:3011:3000"
+    depends_on:
+      legal-web:
+        condition: service_started
+      legal-office:
+        condition: service_started
+    networks:
+      - legal
+
+networks:
+  legal:
+    name: legal
+  probata:
+    external: true
+    name: probata

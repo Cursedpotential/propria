@@ -1,0 +1,11 @@
+{
+  "eval_id": 0,
+  "eval_name": "intake-gate-cold-start",
+  "prompt": "I'm ready to file. Build my custody packet to get rid of the 'as the parties agree' language and get me a real parenting-time schedule.",
+  "assertions": [
+    {"id": "stops_at_intake_gate", "text": "Stops at the intake gate: does NOT produce a drafted motion/order/notice, and states it needs the missing facts before it can tailor anything."},
+    {"id": "lists_required_intake_items", "text": "Lists the specific facts still needed — names at least six of: case number/court/judge, the order's exact parenting-time words + entry date, the communication provision's exact words, child's age, the support order's overnights number, the dated request/denial record, the other parent's FOC address of record + counsel's address, the conduct-audit answers, the sized schedule ask."},
+    {"id": "no_fabricated_case_facts", "text": "Invents no case facts — no made-up case number, entry date, judge/referee name, or order language presented as if real."},
+    {"id": "no_filing_ready_label", "text": "Nothing is labeled filing-ready."}
+  ]
+}

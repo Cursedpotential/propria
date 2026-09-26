@@ -1,0 +1,1148 @@
+{
+  "distribution": "family-court-toolkit-claude-plugin",
+  "hash_algorithm": "SHA-256",
+  "file_inventory": [
+    {
+      "path": ".claude-plugin/plugin.json",
+      "sha256": "b8a0521aaf724a3459aa775907315d7ce216ed78bc846a8429eed05ce10ec84e",
+      "bytes": 644
+    },
+    {
+      "path": ".mcp.json",
+      "sha256": "1aa258a290c6b72e64dbc2467fb00d65b9f22eb7005faabd024c572516f8f2fe",
+      "bytes": 123
+    },
+    {
+      "path": ".pytest_cache/.gitignore",
+      "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
+      "bytes": 37
+    },
+    {
+      "path": ".pytest_cache/CACHEDIR.TAG",
+      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
+      "bytes": 191
+    },
+    {
+      "path": ".pytest_cache/README.md",
+      "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
+      "bytes": 302
+    },
+    {
+      "path": ".pytest_cache/v/cache/lastfailed",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "bytes": 2
+    },
+    {
+      "path": ".pytest_cache/v/cache/nodeids",
+      "sha256": "36bc2d78987002e7447dbca36fba79955d23a27b84d34f5bb270ea0b54a8b2de",
+      "bytes": 2602
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "d39412f7fda4e64cbaec457b232ec773387b8211959898de06364a08404acfd6",
+      "bytes": 636
+    },
+    {
+      "path": "LEGAL-RESEARCH-INTEGRATIONS.md",
+      "sha256": "93da04f243fe2e87da8b9569597f4b2cc1e6bf0ba0ccb7e5a83a7bca1ddcf2e0",
+      "bytes": 2975
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "b835b3c4032195eb3dd897213d64a42dd238318eab804de21ad106e27e5a2879",
+      "bytes": 340
+    },
+    {
+      "path": "MANIFEST-SCHEMA-NOTES.md",
+      "sha256": "1d8bd6a3e62b3e03ea8c055ec59fe63021fc4c8bcd96f1d3422e43499c4394cc",
+      "bytes": 2695
+    },
+    {
+      "path": "MICOURT-CASE-SEARCH-INTEGRATION.md",
+      "sha256": "3807a2aaf385b48f2c6e4251a71e042bcf1868f5f7e9fa8a43a70a6f443f47df",
+      "bytes": 3895
+    },
+    {
+      "path": "README.md",
+      "sha256": "0cce230a51b0ea1b6f2ab42c3757af53b6967a2e7de394c012e3be2b67b37df8",
+      "bytes": 3866
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "eca9fa77bae199d9fd64f1adad4d5f30f1345c7275fd05d29d0c1cd62878f09d",
+      "bytes": 1173
+    },
+    {
+      "path": "UPDATE_POLICY.md",
+      "sha256": "1817573fc95b1fcc90f4c7e9c915fdef44a1345532f290609491b86357c96906",
+      "bytes": 338
+    },
+    {
+      "path": "agents/case-law-researcher.md",
+      "sha256": "059e301368242d673942a70d6ac6f5a0bdbd55997714a97e8a99f5dd8802429a",
+      "bytes": 1488
+    },
+    {
+      "path": "agents/evidence-organizer.md",
+      "sha256": "c31efb8817b1ccac8c5e72bfaa4ef57f0c63ab5c62c5e0edd1971ba7f4231441",
+      "bytes": 510
+    },
+    {
+      "path": "agents/family-court-document-drafter.md",
+      "sha256": "84847b3d11995f601624e70785f1773035ec9a7d0fe941498ea0dbcd237f2f02",
+      "bytes": 515
+    },
+    {
+      "path": "agents/michigan-source-verifier.md",
+      "sha256": "13c89983ef6fafdc647922506ca8b201888da6d0c53c557e3f63296c5692d7d2",
+      "bytes": 1711
+    },
+    {
+      "path": "commands/case-law.md",
+      "sha256": "5d73e84dfb574b8a1fec0ac78d76199ebc352b7fd1514b58c7b52c7510c060cd",
+      "bytes": 1055
+    },
+    {
+      "path": "commands/case-lookup.md",
+      "sha256": "5dcbc922f533e7807e16b6e9d33cf3f1e1d23b678005bb3c897a6dc6b9671b12",
+      "bytes": 1429
+    },
+    {
+      "path": "commands/discovery.md",
+      "sha256": "8ec90f9a1010fbae39abf7513cd8f4c7efe99bba1a3b91e0e9544331ad65e8dc",
+      "bytes": 368
+    },
+    {
+      "path": "commands/evidence.md",
+      "sha256": "8743c56167ef2f86d952226d73d0198f6ee042aa429bb02ccb437b03a14233b0",
+      "bytes": 372
+    },
+    {
+      "path": "commands/family-court.md",
+      "sha256": "75d3deeebf836e4074740c76085d1604154f9deedb87a7e96ccd6ab2fe2cdcf8",
+      "bytes": 419
+    },
+    {
+      "path": "commands/hearing.md",
+      "sha256": "7a66f2c1ad156d7b305ecb70594d6e79f532ffa8b714bad965e62099305fc233",
+      "bytes": 342
+    },
+    {
+      "path": "commands/motion.md",
+      "sha256": "7be8737d7c6141f15a95b6c9946068083251c0e93190f75d873d035aac8245ac",
+      "bytes": 409
+    },
+    {
+      "path": "commands/packet.md",
+      "sha256": "e2b0a5ddc86f0fc46e0abb4aca440762a72e85998b0c0f059d052bb43e764f13",
+      "bytes": 808
+    },
+    {
+      "path": "commands/verify-sources.md",
+      "sha256": "8b43cc0e3c8e5f9771af1753bb65ca90d4bf6f72aab0deabf439dbf85cd8e46f",
+      "bytes": 417
+    },
+    {
+      "path": "hooks/case_law_prompt_hook.py",
+      "sha256": "e1a5973313854ec8910ba190e585e3662f7b223999089aaba2a13434f12e75b6",
+      "bytes": 1085
+    },
+    {
+      "path": "hooks/case_law_tool_hook.py",
+      "sha256": "1b9634e7fb8aa35ca3fa6dd34b028d05594a06e36b85d8a14b0977e5d54e276a",
+      "bytes": 1459
+    },
+    {
+      "path": "hooks/hooks.json",
+      "sha256": "f48356937fecd606eed8806586f0bc12591ce6893a6452002e1bddb27a59e06f",
+      "bytes": 1389
+    },
+    {
+      "path": "skills/custody-packet/SKILL.md",
+      "sha256": "dbbbf42b39dc788e8de22a8d0658083902640a567285f096a008b880adf63110",
+      "bytes": 7589
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/CHEAT-SHEET.md",
+      "sha256": "1a290682c904a0b15b7863840b40be507251a9daa0c232720b21e5875cdac76a",
+      "bytes": 6596
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/DRAFTING-HANDOFF.md",
+      "sha256": "8cda24b141eeba381fcbf7aebb9f9c3b79eb2c9d66f7b52c1f1ca837d1f8f2ae",
+      "bytes": 9149
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/GUARDRAILS.md",
+      "sha256": "01c66851cad1154bd82193ac304573f54c4d0e8fb06e2c9462233dd3f3a0c29a",
+      "bytes": 14020
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/PRE-DRAFTING-CHECKLIST.md",
+      "sha256": "b5d48acce888bf50f89dbebb9acfbc3562596f4af46aedfa14343894609e94b5",
+      "bytes": 9805
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/README.md",
+      "sha256": "078be93dae04d4622020c1474445ef3dfd5d4106471b8e85778263a53bd465a6",
+      "bytes": 6061
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/analysis_final_pass.md",
+      "sha256": "ab669ed80e9957e8826384ed45ecb2392ca79cd7f1e19516880eaff49dcf6c96",
+      "bytes": 9913
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/council/model-council-claude_opus_5_0.md",
+      "sha256": "48169898d562d50c3c6e1cfcf921b0f5153949c3a5dfa7e15a2d61763f37ad1f",
+      "bytes": 87218
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/council/model-council-gemini_3_1_pro.md",
+      "sha256": "28068d987c87ff95b5453404178a9bb8ddea9a2b23c6f1d0cb21017dbebfecde",
+      "bytes": 9826
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/council/model-council-gpt_5_6_sol.md",
+      "sha256": "211d6180fae3dbeb40505cfae9827e8f87e9321b448ede540eb84d543ef035b5",
+      "bytes": 58526
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/council/model-council-synthesis.md",
+      "sha256": "763d05a643d90dd1767e8cab9f6d1ab30397af79cf45617a3569e28192f0ca1f",
+      "bytes": 20588
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/critical_review_outline_v2.md",
+      "sha256": "5dc3621f186f960c8a5628a5b38872b4cc5adfbbbc4b9bb94de15ae9728a3ca9",
+      "bytes": 14072
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/custody_guide_outline_v2.md",
+      "sha256": "1957fee6689747ba0cd802e69138f2f8279b9f5e6c084da778cca979dde37e79",
+      "bytes": 247808
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/custody_guide_plan.md",
+      "sha256": "1a099490d8ff75c3c096dd17bfeb39eb13e9fefc38c86ac8401d52769b51cd32",
+      "bytes": 22800
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/custody_guide_research.md",
+      "sha256": "54ad0be2c7a2e677c56ae6297199b048cde2d0bda9ccdcf2f76d6b1ddcb3d05e",
+      "bytes": 70606
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/draft/FM-0-triage-router.md",
+      "sha256": "b3f41ef12e04ec222369e6186549586e9e696d234c3c95c66b5a0fcb8c82c19b",
+      "bytes": 11080
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/draft/P1-hearing-prep-referee.md",
+      "sha256": "074805f5ece2e1fe55857b2bd167d7e4cbcaadd5a623d8b88d822ae2b89eeebe",
+      "bytes": 49506
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/draft/P1-interim-documentation-protocol.md",
+      "sha256": "9178a64feb8182d1a80766f02805af06ed7c755f66c2b31c3bafcf026f647cb3",
+      "bytes": 39668
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/draft/P1-motion-packet-specific-parenting-time.md",
+      "sha256": "becfcccc6aeb90b40a3bd7717cda5e877991c1b370893285fbb5dbbb9432e0fd",
+      "bytes": 64620
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/draft/P1-service-pack.md",
+      "sha256": "05a501645e9cb8ed6b32f435ac1e22ba6712a7d6e3be3dcedc0ff2ecb3bd3fb3",
+      "bytes": 47853
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/draft/P1-translation-card.md",
+      "sha256": "523f798715dfec1291df20c303ffbcda352a3ac00b28046b675c7b9d93d2dfbe",
+      "bytes": 10772
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/draft/P1-worked-examples.md",
+      "sha256": "6ef4440e213f6d63b99cf13315436b7e98841e43992a79d5bc746e2a69c60d1b",
+      "bytes": 116938
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/master_source_directory.md",
+      "sha256": "8506b0cb06b356eebd842869b0bb51154bd85087bf96554a79a4dcb0b933e50e",
+      "bytes": 42143
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/research_interference_coercive_control.md",
+      "sha256": "a3e5461f460b610b0bf116ef94a584e2271fe6c94d2080f45361337981919ac9",
+      "bytes": 32174
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/sources/README.md",
+      "sha256": "72eef8f4b50775b08250d2ca37dffc38bbc40f2e73fd7cddc6b1b6f72dec4ceb",
+      "bytes": 6282
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/sources/fetch-sources.sh",
+      "sha256": "82d3c670f7eea5c88e52096400720967b79703ed4a2ce121a7a178811684b01a",
+      "bytes": 5173
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/sources/primary/2025-michigan-child-support-formula_eff-2025-01-01.md",
+      "sha256": "894a630dee1caf769ddd3b7e4e3a345b8fe3c24c1916673f1defafb42fec4ffe",
+      "bytes": 81304
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/sources/primary/SHA256SUMS",
+      "sha256": "e0c4ce1041567fa763c8c0ec5ea62b3996749af97d00cebed5e0d2c6cdaa37fa",
+      "bytes": 633
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/sources/primary/local-court-rules-circuit_2025-06-01.md",
+      "sha256": "593d0b752909b8b00f4845c57f6dd75b863894157fceb30ab4396fec8462d90a",
+      "bytes": 91659
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/sources/primary/michigan-court-rules_2026-07-31.md",
+      "sha256": "701ed764587e6b4b9c488c744c3254a8e5343db580c1dfad27a6b53420535daa",
+      "bytes": 2516866
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/sources/primary/michigan-rules-of-evidence_2026-01-28.md",
+      "sha256": "6706dc68ca75c55662ae6d3ff9bd44725f4fbd91a8b425c9c35767cb789374a5",
+      "bytes": 74705
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/sources/primary/mji-domestic-violence-benchbook.md",
+      "sha256": "3f2bf22a296f7edadb8c8845fc2db4e1cb476edac0a4ae1b568dd464de66cca0",
+      "bytes": 1370442
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/sources/primary/mji-evidence-benchbook.md",
+      "sha256": "9dcacf259aa432e82dc668acb6be3d251076063ca74853856d2e6a50f07a203e",
+      "bytes": 1339175
+    },
+    {
+      "path": "skills/custody-packet/content/custody-guide/verification_ledger.md",
+      "sha256": "dfd619e2ddbc9e52116c717d1a0d2fc48692909389895c8f70d228e5859f914f",
+      "bytes": 51194
+    },
+    {
+      "path": "skills/toolkit/SKILL.md",
+      "sha256": "e943897cba6383cf82c31574258f3a0829e636e2afeb096083326608454003ff",
+      "bytes": 4627
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/CHANGELOG.md",
+      "sha256": "3a1c8843517351e48eb6e562644ce67456725c2ea3f7bafd22366b48066ba7cc",
+      "bytes": 1159
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/LIMITATIONS.md",
+      "sha256": "314fe11a69c3c2ce99fd6f07f3d0c1788203a9a2ba99691965a732e2eeb02a15",
+      "bytes": 4092
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/README.md",
+      "sha256": "d0e9c143d6c1ac300860330018a9040bb8de41c6343ffba0dd42ee54aa24c8c3",
+      "bytes": 2765
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/SKILL.md",
+      "sha256": "c5eb606faf8a4e731bdf7ed58c88adcc59b0286314c87a4c054c3d748a2922c5",
+      "bytes": 5131
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/cheatsheet/L0-hearing-day-card.md",
+      "sha256": "dca3903552836f5d7bb215d2dada806b1bd223cbfede3041740ca04455e568d7",
+      "bytes": 5316
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/cheatsheet/L1-pro-se-guide.md",
+      "sha256": "31294d107fb7ad0067f79c5e346860b695034a343a3a926473765ec021fc5f2e",
+      "bytes": 21685
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/de-novo-hearing.md",
+      "sha256": "0f1658b0274df20e49b946c017b76a94182425876d0f4ade278e099119259383",
+      "bytes": 3144
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/discovery-response.md",
+      "sha256": "3b673cf1b318fd11cf5681bde86318bf340551f5451e7686875cd3445dc79eb8",
+      "bytes": 3094
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/evidentiary-hearing.md",
+      "sha256": "2375a6ebf5ccab2c988b73d21555b78aa05b30cc32a918c09c3f3188ad74792d",
+      "bytes": 3105
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/exhibit-prep.md",
+      "sha256": "12a6b8f191114d7fefe8ef7e01aac9a3b7168c07bd2e858f91d95600e8634d5d",
+      "bytes": 3050
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/hearing-day.md",
+      "sha256": "c8ba73de34b12aa145bf4be325d5ededa428984ef958eb42bdaca2a5712e9dfa",
+      "bytes": 3121
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/meet-and-confer.md",
+      "sha256": "41fb0c6c5da4e87de81fa34e39dc5f140563d810a3e92ce57a669b7e6adc627a",
+      "bytes": 3028
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/motion-filing.md",
+      "sha256": "7a3fc63393f8167db4a4bfee2129a787e8a00838c24962cd96fce2d8e6dde7c5",
+      "bytes": 3085
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/post-hearing-order-entry.md",
+      "sha256": "33e19a6eb937c011ba85db8647c2c9b521a9ca599181994a167e02eee764ecf4",
+      "bytes": 3115
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/pre-filing.md",
+      "sha256": "045bc7daad3827abda994ff99a92fca04c81914cb0d3bdc97ab336d56d9fe2d1",
+      "bytes": 3072
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/redaction.md",
+      "sha256": "56c59beee2a68964e69057fea9ecb1618b90050d7473a5ed49e9dfa210fcb489",
+      "bytes": 3070
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/referee-hearing.md",
+      "sha256": "ed99377001438c7efbf652cafbff74dd25e3a0156a8dcec4b75bb69891dc9c69",
+      "bytes": 3101
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/safety-planning.md",
+      "sha256": "03a5ad29e2914329bd14010240077dacfc2862378524f6e282f81b9c498fefe0",
+      "bytes": 3100
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/checklists/service.md",
+      "sha256": "6c07d95ad178ca868a05aef7ed305fa02ff716a6ab4c097c3b545485cadfcbab",
+      "bytes": 2992
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/can-i-use-this-evidence.md",
+      "sha256": "b067becf4db5ccaafebe17771c36d21f483dc835df07d631b1abd4bb0c7eb06e",
+      "bytes": 3451
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/discovery-dispute-escalation.md",
+      "sha256": "747af747d6491d4d831941182ba1b1be4221e449ee9d1b4f65815926dd55611b",
+      "bytes": 3248
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/dv-disclosure-and-screening.md",
+      "sha256": "4f4884e1af6f323109a5bfee82159c666010f8252f55564427bd7aeb40c70e91",
+      "bytes": 3282
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/emergency-ex-parte.md",
+      "sha256": "0db1cf7155a154ce4c50fc877c3e6049fd6b4439f7ccb7df85acf2b08d476303",
+      "bytes": 3244
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/hand-me-down-device.md",
+      "sha256": "1531077a1e5bfa8c049c663f054861994faa476f6ca663014444daa31f9d26bc",
+      "bytes": 3324
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/hearsay-path.md",
+      "sha256": "0ab4516102df505a9a569c474bc18feb0d6aa17167916415c1e87f5e41d51d98",
+      "bytes": 3218
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/object-or-let-it-go.md",
+      "sha256": "f094a51661be298596cd5c70d29ec2b66271d3a91a7590fa5910e3748a512505",
+      "bytes": 3245
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/privileged-records.md",
+      "sha256": "5417f62fce118cc6d7da8d75097e15b56d6e2d6cdfe68c809c2971174f96a2d7",
+      "bytes": 3257
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/recording-legality.md",
+      "sha256": "1bcf0bd97bad3dcb9f78eb1aaf625c7511923f41f2cfc39496dd37d174c8bfc7",
+      "bytes": 3338
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/decision-trees/referee-vs-judge.md",
+      "sha256": "fe8496c4f27e37af2b00a2645bed1bd19c25853a8920ea93cb1bc89c52cd2d74",
+      "bytes": 3228
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/examples/annotated-bad-example.md",
+      "sha256": "e8c9dc1fccfc102890e32af3d32a355c530afcb401d313e730fd279b91be21c5",
+      "bytes": 3338
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/examples/worked-chronology-excerpt.md",
+      "sha256": "b87230127eb47be0ca44793d8d91ba1511afdbd2bca0bd65bfb6d6133147c669",
+      "bytes": 3356
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/examples/worked-deficiency-letter.md",
+      "sha256": "eadfca5e095a615be9a50a1bc27fe32e2ebd3d6536225c8f250aab56591679a8",
+      "bytes": 3326
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/examples/worked-foundation-transcript.md",
+      "sha256": "c20d009a6d73f162de7338cdfa1a24e322422993e7e8ff8563da80273f0fd833",
+      "bytes": 3417
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/examples/worked-motion-to-compel.md",
+      "sha256": "c5a0d64869ed80fb2200615e0e741dd3c9dc35e18e9d4f7878210deff88ec4fb",
+      "bytes": 3351
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/examples/worked-objection.md",
+      "sha256": "848fff642fb2d0899c9bee6be5e467ae64d95e40d9f4f76082ab9130345abf04",
+      "bytes": 3357
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/examples/worked-rfa-set.md",
+      "sha256": "d0491529c9983070aa4603ecd7f91eedff5291762d89d080f11156ffb4d571a0",
+      "bytes": 3315
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/examples/worked-rfp-set.md",
+      "sha256": "e947566ae4067f0e81692354c2a87d421dfed33f00bf433a7dd3053e79256869",
+      "bytes": 3310
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/ledger.csv",
+      "sha256": "8812e4b169dcbd65481f3a7544f1a26a7b2a82e32cdc9a78a3373d354c52cfdf",
+      "bytes": 326493
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/ledger.json",
+      "sha256": "40a3974d7b8011922415f1557fa375ca0a63fc857f6489d0fc8f7c194a2b2823",
+      "bytes": 524523
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/manifest.json",
+      "sha256": "9703b306fb62328318843da7e977f9ebeb26c303f14ad5c976691fcf6d6e18fd",
+      "bytes": 32068
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/00-how-to-use-references.md",
+      "sha256": "c14abe96663d78aff85d2053cfff63ec941bbc1d7d817f5d063bad1cbd1b042c",
+      "bytes": 3173
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/audit/audit-form-and-supplement-drift.md",
+      "sha256": "2a5ccbf25f8a7934a00535689a85ae50c31ccb2da4c4cbd7135c9eba4170fee5",
+      "bytes": 2889
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/audit/audit-high-risk-gaps.md",
+      "sha256": "5758a582147de17db3d5ae9cf699f1770b6a16e54c4ea54e40f2fd47a83bae27",
+      "bytes": 2935
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/audit/audit-mifile-nonlisting.md",
+      "sha256": "2cfb4a0c7888e8b483af30f6ef7031e44360b6b3897141b48d41c32eaffaa718",
+      "bytes": 2524
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/audit/audit-primary-text-access-limits.md",
+      "sha256": "e2be6426c513da3e1028cf123a677d1616ad2efe6872fb9346c9bb1b3ea8fd93",
+      "bytes": 2656
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/audit/audit-recording-doctrine.md",
+      "sha256": "234f0c53ab136d4cf46807cb3b1f5fb2d85f0a913fdb87dc03125415d4cac9e3",
+      "bytes": 2795
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/audit/audit-roster-conflicts.md",
+      "sha256": "8f61a3ccbc811df6fbc492809f913b5f12003d7ad4afaab50c356329a67ffc00",
+      "bytes": 2784
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/audit/deep-research-source-audit-2026-08-09.md",
+      "sha256": "b1a82a35ac52b78204b89124076ddc6ce00baeb56a1a951eaf67eb589bf32762",
+      "bytes": 54670
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/audit/deep-research-source-ledger-2026-08-09.json",
+      "sha256": "c20f0159463d50c22bcfeff624732f81a6be53ccbfd2d4d5e98861cc2bbb5073",
+      "bytes": 162665
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/caselaw/custody-standards.md",
+      "sha256": "c8d597686e43bdcd00487997e76d4a891b112c4fc3f5c83e24b4d1db9ab4d2f2",
+      "bytes": 2880
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/caselaw/discovery-sanctions.md",
+      "sha256": "5d56463df2efb50e61957b058da052cdde30978eabea39bdb1d580e4560a6c48",
+      "bytes": 3061
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/caselaw/evidence-authentication.md",
+      "sha256": "f7feaf197a21a9128a5e1f7cc874c11c2f24debfec4370dbb719343268b54230",
+      "bytes": 3728
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/caselaw/referee-de-novo-review.md",
+      "sha256": "8a4da9f0b22aa05e28144967929109cd677e287bdf8455889068c3f8a260a4c7",
+      "bytes": 3364
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/family-court-plan.md",
+      "sha256": "4f564a10146c4ec2daed416b815b06a6d6abcaa184a72e4b3919af75d0f53261",
+      "bytes": 3154
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/filing-service-efiling.md",
+      "sha256": "84b6350120614427cddf89febc6a2d384cd92ec519b786c9d680c0fe1c1aed90",
+      "bytes": 4987
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/foc-office-and-referees.md",
+      "sha256": "7c12380ae032f398ad1f90d6ed263843c54805a24bc066fb397a4cec54ead9af",
+      "bytes": 2984
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/judge-policies/ariana-e-heath.md",
+      "sha256": "2403e1abe4f5692cb66727421d38bf159e945f4888c14c619371308275642e9a",
+      "bytes": 4154
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/judge-policies/dawn-m-weier.md",
+      "sha256": "3dbf99b8e95942db898191335f94f406d48750acf2d6fbfbf1e3dcda30364c71",
+      "bytes": 4144
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/judge-policies/john-a-gadola.md",
+      "sha256": "699b47e7cb1af780fa0544636a4dfa19b9daedc644571e6e147b9758624b28c9",
+      "bytes": 4149
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/judge-policies/khary-l-hanible.md",
+      "sha256": "5ed5e2ef33e78e656072a7eed0fc174752aee0cddc1161a4160f3e4af196a489",
+      "bytes": 4159
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/lcr-2-119-concurrence.md",
+      "sha256": "e32a99aaf743b911790999e1109b3d65e7002182e06ad9bcec0f7c69a36c4567",
+      "bytes": 4153
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/legal-resource-center.md",
+      "sha256": "f926677141cca660b7472af4e1b7c8f3ed15cfcc713ba7590fc68f946ea00620",
+      "bytes": 3042
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/local-administrative-orders.md",
+      "sha256": "b83fb6fda0192f381a9ec105a190b4a029740edef84848b76e0d79124a4e045a",
+      "bytes": 5029
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/genesee/objection-to-referee-recommendation.md",
+      "sha256": "25a44707c715661abdfa520fe3bcc85bcafc2c45103208d64b5c86f24bdcca01",
+      "bytes": 5796
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/cfr-45-parts-301-310.md",
+      "sha256": "57f2de3e809af52f27137c6a6b19c6cff9e3ec57e8cf491700d614372e96ad92",
+      "bytes": 3297
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/child-support-formula-manual.md",
+      "sha256": "ed6fdd20e4c403b1ed4ef98ff6d124bc9af7c0522611f904c5952968ed533de1",
+      "bytes": 3201
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/child-support-formula-supplement.md",
+      "sha256": "959694863924f379e4965e618abd82176a5ccbe86d41d68619884b41d4583bf9",
+      "bytes": 4255
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/foc-bureau.md",
+      "sha256": "99b6578a6b493b094f72fb7b4696f09d27c1c166dcef7094b82dad2158ec96ef",
+      "bytes": 2480
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/foc-model-handbook.md",
+      "sha256": "e22ee4e10597b77f47aad3b33481ba21c8dcadc3312ca347ff8f9bea698bd342",
+      "bytes": 2692
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/icle-family-law-benchbook-cite-only.md",
+      "sha256": "e981f33ae2dadfe661d5103496fda5643956f8701c7fe3ae2e8ab5e27f5a5c21",
+      "bytes": 2554
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mdhhs-child-welfare-law-manual.md",
+      "sha256": "f7a0492f653b0fdbcd7dfce35d6f2778f2d072ec32dbd3ee4d6ab34efd8be679",
+      "bytes": 2296
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mdhhs-confidentiality-and-records.md",
+      "sha256": "af485f7349e9be76c8e1d796972896260c3d83a9a35bacd2e766f79a93fc88d1",
+      "bytes": 2499
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mdhhs-cps-policy-manual.md",
+      "sha256": "20782d33e56a5f20d68532e3f357820a58504035445bcedcc67abd278a4b8d0a",
+      "bytes": 2451
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mdhhs-family-violence-and-dv-screening.md",
+      "sha256": "40e15d9edbb77dc0d059e850cf38f04cae8f7ab32bc0a8b6310705e4273ee8f6",
+      "bytes": 3028
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mdhhs-ivd-child-support-manual.md",
+      "sha256": "4b40b80abe93f53d06928fecb3bf27a7f00a657401d0cae58dbfdd391887aa96",
+      "bytes": 2817
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mdhhs-office-of-child-support-policy.md",
+      "sha256": "9085b762223344245436d4b1e7289dc56b0837ad32eae7366316c525fc20fbae",
+      "bytes": 2829
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mji-child-protective-proceedings-benchbook.md",
+      "sha256": "811f305daaa4e3d78318d18b9124ddda1e0de072165780d98698d35fe1b63f31",
+      "bytes": 3007
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mji-civil-proceedings-benchbook.md",
+      "sha256": "7451472acc80f2b2fb8a1151ab482aab82d81bb078bf532db7347a8f0e5445e3",
+      "bytes": 2986
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mji-contempt-resources.md",
+      "sha256": "9b1f754d4d6c8105353fa9f336619a9f82e8f3fcf7008a179a0864969bb3678b",
+      "bytes": 2752
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mji-domestic-relations-quick-reference.md",
+      "sha256": "0bd6f7faec2f6a185fc71eaca2a83835a37bbefe941c902bb40d5f9ba691dfe2",
+      "bytes": 3088
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mji-domestic-violence-benchbook.md",
+      "sha256": "256096ca8ccbf023acb8286f6a30899c75c38059963748fae252edb48768d814",
+      "bytes": 2908
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mji-evidence-benchbook.md",
+      "sha256": "996276fa26aa48f55f51690a8214841cc479f8294f3080bdde4c5217d074427f",
+      "bytes": 2869
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/mji-juvenile-and-probate-resources.md",
+      "sha256": "8bb0faf1812845d4200ae59e74165aa53a3eafd76501bcbc8d3ca8c8561fffd5",
+      "bytes": 2864
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/scao-forms.md",
+      "sha256": "3db71b1b9d7ccbe530410b17842e803b43c8615d06ee2709ee4270b2567da018",
+      "bytes": 3542
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/guidance/title-iv-d-federal.md",
+      "sha256": "09f4c37a8e6146f7595a3d93ebffb5831b5b9b860588cbb613f72573fcbbf55f",
+      "bytes": 2326
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/child-custody-act.md",
+      "sha256": "e8b0c737620090f943a35bdf51489b6c438710779a6eca0070b09b6c12b41431",
+      "bytes": 3025
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/eavesdropping-and-recordings.md",
+      "sha256": "99663eeb1fdb00b59626a2959bb20831ccfa4d5f1a57c7bd130a69d560c9640e",
+      "bytes": 4698
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/foc-act.md",
+      "sha256": "2e0330a2057a78a9ed93c07ab3184952db86999b5fb4a920d973108d62a10f3c",
+      "bytes": 3632
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/icwa-mifpa.md",
+      "sha256": "1e892d50abac66d939786409e0ef88f41ff3d9c91b3335c44e649c76ca3bc19e",
+      "bytes": 2827
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/mcr-2-310-rfp.md",
+      "sha256": "d8c4dc311fc1554a3818ca04e8efe15d48e05f24f818b908c352c1c15ef1b6a3",
+      "bytes": 4584
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/mcr-2-312-rfa.md",
+      "sha256": "eaf0e4b3fd807fcf5657d04e270f39f6c3b84b05f36e429e47980693ad248706",
+      "bytes": 4549
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/mcr-2-313-compel-sanctions.md",
+      "sha256": "536fe4b2bc09336bff057329fd22cea7eaf966a1b84315de8adbc7961a0f0854",
+      "bytes": 4576
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/mcr-3-2xx-domestic-relations.md",
+      "sha256": "7b695c95d48605b2f7b9a4340a7527fd9b8b4ea5eb71c5b2d85eca4003290ea0",
+      "bytes": 4597
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/mcr-motion-practice.md",
+      "sha256": "395cf87f9c58bb1ecdc3cec410713171a56da4684c9d4acd31114929efae7d09",
+      "bytes": 5359
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/mre-guide.md",
+      "sha256": "a4d22f08fd524c08e4e2fe25ba782fe16eac81d4e7be25ba4df8dbed74aa4da9",
+      "bytes": 4959
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/ppo-and-dv-statutes.md",
+      "sha256": "80edeac6d547b73bb678153d95aa038ce1d17cba4424a6795827e7a39a2f7485",
+      "bytes": 2908
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/privilege-and-confidentiality.md",
+      "sha256": "450f9027bbbe87ba643c98e807298f8b1c5b0a96e1b2d4d21e45a04086afd072",
+      "bytes": 3402
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/revocation-of-paternity.md",
+      "sha256": "23e3ef027fb2c6ce98323d4cfe70473fc166522d352586daf317df8626f5bb60",
+      "bytes": 2467
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/sptea.md",
+      "sha256": "b15799d6302de47d6528efc950bb9c1e4cfc3621833b52a4ffc60e710659df8d",
+      "bytes": 2901
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/uccjea.md",
+      "sha256": "49dc1d5c1da88d44a5df4ecbfc82e1e0b90f462fe4a3831b3c3487b439f77508",
+      "bytes": 2298
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/references/michigan/uifsa.md",
+      "sha256": "56f6b8783bb186f6b65bf4b114f3fe7cf96e4b3bebc7a7975709c181f2ada220",
+      "bytes": 2694
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/scripts/_common.py",
+      "sha256": "0f2f791353d5bba66f650f4e97cd6078bae2f4a5be6bd00a5713fc3459150542",
+      "bytes": 858
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/scripts/chronology_builder.py",
+      "sha256": "ac4f3dc9e9c2b4693ac4d0e6d8d9b1ace555c83b9f5bc45166921cf69154a5d2",
+      "bytes": 1607
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/scripts/citation_url_checker.py",
+      "sha256": "c195e0e4bd18421e8988ca9326b7a435c1673e4f1a47999c9bd67cc2195efd3f",
+      "bytes": 2848
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/scripts/deadline_calculator.py",
+      "sha256": "abdf5dada2f459e97dc77d9d47ef3a007e0abc093ba9f950c54fd8140d07c140",
+      "bytes": 2912
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/scripts/exhibit_indexer.py",
+      "sha256": "6fcf8cb69f0d503e98841b431a0cdf4d476283916c6f08994926ae4226daee74",
+      "bytes": 1686
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/scripts/redaction_helper.py",
+      "sha256": "89591a84a3fa23327f699a3ec241019120d19b21088e981d30ade7bd336681e9",
+      "bytes": 1782
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/scripts/traceability_check.py",
+      "sha256": "112826af7bc1b998e05339e3a7f4f668463413aff435256d129fbd92627713c2",
+      "bytes": 2062
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/scripts/update_checker.py",
+      "sha256": "6e6437dafbd5cb81fd2ddc23fca35e63db5527f469cfc5c64a39817bdd72a40c",
+      "bytes": 1526
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/source_url_check_20260809.json",
+      "sha256": "ae23e0a33d5723da885039626869c9c5e765e6a92d0dba37e54c799783566273",
+      "bytes": 69354
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/source_url_check_20260809.log",
+      "sha256": "0f00338e34777b53a0518538f475baa38251d07e643a1476e8dc369011a0ac05",
+      "bytes": 69813
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/source_url_check_final_20260809.json",
+      "sha256": "3fbab8a2820e6ff7500290dd4f1afc16f08a55f17c9803d0ae150e17e597709a",
+      "bytes": 69352
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/source_url_check_final_20260809.log",
+      "sha256": "b786f35de029a595df64460b2549aaa5c89a4230379048be1425e713a07fa25e",
+      "bytes": 69811
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/source_url_check_recheck_20260809.json",
+      "sha256": "85203396bde4a406ebfc8d2532e0c3b9b2fdf4064f261e8175077cb69d6377e1",
+      "bytes": 69459
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/source_url_check_recheck_20260809.log",
+      "sha256": "275619be23be01b207de902e372b36eda0923152ab2b2ac3d7df41eb7330fb94",
+      "bytes": 69918
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/adjournment-stipulation.md",
+      "sha256": "53c28a1feb03bf86b02e67c9815176233556e67b1c8061a042defdd1be5a269f",
+      "bytes": 3405
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/affidavit.md",
+      "sha256": "adde21d08de57784a39c407068dd13c97ccea84dcbb062b73cb01e05e34b7dda",
+      "bytes": 3371
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/brief-in-support.md",
+      "sha256": "41cedab9e7119a7a0b26c669d45215c627328709b2fa8792554365f14b71ee00",
+      "bytes": 3404
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/chronology.md",
+      "sha256": "f9e1d20f2b02bc7c5ba19853f7ff790db8c4d00602ad2728d833fc040b5e26fc",
+      "bytes": 3354
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/concurrence-certificate.md",
+      "sha256": "7adac8e7ff39f780966c3747b943b1bbc5220648110964a69e937eb38bdf5ed7",
+      "bytes": 3459
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/deficiency-letter.md",
+      "sha256": "6ea03760f20a83cf1716e2d3019670915e167d7542176a22cdfa06c7659f9c3a",
+      "bytes": 3421
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/exhibit-list.md",
+      "sha256": "7242e51f4f98721dbef9b62dc648a0e0dd808860d7ee14239f4ce51ecec1e1c9",
+      "bytes": 3362
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/fee-waiver-request.md",
+      "sha256": "f87f4346294f85d7214202ad58506dabcb5474ead7ddac05f34f830669d395ab",
+      "bytes": 3376
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/motion-in-limine.md",
+      "sha256": "475ece2a9339237f932e9b9695a68cc26710f9c102eb8af0bedf99ba68afb17e",
+      "bytes": 3398
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/motion-to-compel.md",
+      "sha256": "60fa7e01382fc5adfbed688096abc62e25ac3484b1f51f19cef6026011a40352",
+      "bytes": 3419
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/motion.md",
+      "sha256": "6973f8ad1ef23956047821e41884e196382542a543a013c9359bfb4d1becfd1b",
+      "bytes": 3453
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/notice-of-hearing.md",
+      "sha256": "965c56446e040847bfd4e2add823eecd9f4cb065c13860b48a4b141acbc9a6fe",
+      "bytes": 3399
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/objection-to-referee-recommendation.md",
+      "sha256": "ba6f2e3baf71e2ecc431a87ed7a2ac1af4bb007639c896ceb8b6b60f2b179480",
+      "bytes": 3492
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/preservation-letter.md",
+      "sha256": "f63f08fec4c4866448120f5bb2018b4cbe51b7ab4e9c36b2d93f485a5d0052a8",
+      "bytes": 3415
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/privilege-log.md",
+      "sha256": "8bb26676f96539010fff44c19bb489a728fd6dc9323aa7d4d866bf4a45514ddf",
+      "bytes": 3404
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/proof-of-service.md",
+      "sha256": "54dec3f21654345ae1410ca2ece0b43436c2942bf44df2af95f5f5643b08cfe2",
+      "bytes": 3380
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/proposed-order.md",
+      "sha256": "324f8e9f678f788e2d6927ee3a013752a5acfa1882d7abf711e1ff361c2aacb2",
+      "bytes": 3392
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/reply.md",
+      "sha256": "a59e2be3a138bfd782337033bc97d8f0cd0eb7b6e59cd6098815e1b9ef843ae6",
+      "bytes": 3300
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/requests-for-admission.md",
+      "sha256": "4c4f0d15b4ec079022f5e4ece4da568f6cae74b20a69cca8809fddafa1959218",
+      "bytes": 3390
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/requests-for-production.md",
+      "sha256": "a78f830d8d811b2562055cf991d7c1af79f7f64918dee99fbf89bf3374261224",
+      "bytes": 3400
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/response.md",
+      "sha256": "2f391d0f5d7250867e99f928e5496fda277632fec6e0cc0f0cd757e8d6a826d2",
+      "bytes": 3366
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/responses-and-objections.md",
+      "sha256": "792481c2f7cd2766cb5f07b842e386608bdf78d1925b1e297c2f632df9d614bb",
+      "bytes": 3428
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/subpoena-cover.md",
+      "sha256": "27c5df03b07e91f4094cc47c8fb338a5fb14b93c22dab381aa73336a4d0309d2",
+      "bytes": 3405
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/templates/witness-list.md",
+      "sha256": "65064439b352b1fe51e467d57c92f4d491d3c39f1af71705cc0037deeb388ca5",
+      "bytes": 3358
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/conftest.py",
+      "sha256": "f04f3652e0b6c8c48613fccb97cbe23727842677b26931109d92addbf9176d47",
+      "bytes": 1024
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/fixtures/hostile_source.txt",
+      "sha256": "a889e6ba7ec2788e3cd50aca2c01502611147ae9f281b9115fc05c7ebb9f8ddd",
+      "bytes": 110
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/fixtures/synthetic_events.json",
+      "sha256": "cac58495a649a0c65e4c94489f15ec3d98813b531b582b8eac9767ee7f9f6bbd",
+      "bytes": 312
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_deadlines.py",
+      "sha256": "5c81584ee1ba4230d431d509f4467fece0f33ce14a2d30d8706645ebbaefe8be",
+      "bytes": 601
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_deep_audit_integration.py",
+      "sha256": "5828b87d07787fd971796ff20d86fc86497a74642c6c9fd48797ed7290e04cce",
+      "bytes": 997
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_form_revision_drift.py",
+      "sha256": "4b425fc766adb1de608cb0f59726d5b0abd9cbfffcf5316081a5f9c75eb5c967",
+      "bytes": 506
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_ledger_schema.py",
+      "sha256": "d818f43a956ff3248a0d6a12be43f8f1f9e21c6a95e58fc6ac0fd5488757e469",
+      "bytes": 995
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_links.py",
+      "sha256": "e12b4da8d0cb92e9064e4429181b5a37e352125f7827448a6d2a8a4430e9588b",
+      "bytes": 551
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_no_advice_language.py",
+      "sha256": "7ed0a630aed8750b197f1ab3c77495bb11a54afe907439dad971272420c5d360",
+      "bytes": 546
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_prompt_injection_sources.py",
+      "sha256": "918a54576960ca971428bf08b714360e0657d3d81fb6f8bd5bc30b2f2a027690",
+      "bytes": 687
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_redaction.py",
+      "sha256": "822b2d787d70b175fbcb0f92bfe6fd06c9ea074521afa1af043354f387e80126",
+      "bytes": 542
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_superseded_sources.py",
+      "sha256": "a8a8e44dda31c84bbe15cfdba3fdb0f9c717f28ee63c6234cca79553f759f547",
+      "bytes": 422
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_traceability.py",
+      "sha256": "0e47393cd4292085c2ad0042c4fec5dd383bcd4abdc035d985be014d9e53799e",
+      "bytes": 282
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/tests/test_wrong_jurisdiction_urls.py",
+      "sha256": "391ab132926bf18b8732b4acbfbbe33f96cdb4c6f3bba8bc97ceb056ce8fb70c",
+      "bytes": 445
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/traceability_after_audit.json",
+      "sha256": "6a4928105639e7ce33a96dabb31a0d9262408d742488683bdf766b85ff700e02",
+      "bytes": 336
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/traceability_cachefree_final.json",
+      "sha256": "5f62d589f056df9be7a114912d77ff3ae8f46f536b452af5631ec93318bcf158",
+      "bytes": 336
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/traceability_final.json",
+      "sha256": "6ab81d97cfdd229973dd2552df61e0013cb4588c70be2d35c8ce46916176dc09",
+      "bytes": 336
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/traceability_final_audit.json",
+      "sha256": "5f62d589f056df9be7a114912d77ff3ae8f46f536b452af5631ec93318bcf158",
+      "bytes": 336
+    },
+    {
+      "path": "skills/toolkit/content/toolkit/traceability_initial.json",
+      "sha256": "6ab81d97cfdd229973dd2552df61e0013cb4588c70be2d35c8ce46916176dc09",
+      "bytes": 336
+    },
+    {
+      "path": "tests/test_claude_plugin_schema.py",
+      "sha256": "2dfe99eada0a456b91726eb6602fc9a0c9b95d63b2d2caf62d22ff19fb5c7ced",
+      "bytes": 6380
+    },
+    {
+      "path": "tests/test_courtlistener_mcp_hooks.py",
+      "sha256": "8212973e75fe9c179387f45433071ee975068c4996302608c6c3552e8ae85bf3",
+      "bytes": 3284
+    },
+    {
+      "path": "tests/test_micourt_documentation_only.py",
+      "sha256": "c2b4a469f7c392265afb1f94cc37ceaee123fd90fd23d6e3b22ce1b6b0ed7920",
+      "bytes": 1849
+    },
+    {
+      "path": "tests/test_runtime_resources_resolve.py",
+      "sha256": "bc852909444f3eb12c64fb09e76e6a2661bff2da14eab4b06be52775e3d34939",
+      "bytes": 3292
+    }
+  ],
+  "transient_excluded": true,
+  "self_hash": "excluded to avoid recursion"
+}

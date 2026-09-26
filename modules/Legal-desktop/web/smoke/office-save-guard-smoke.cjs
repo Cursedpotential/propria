@@ -1,0 +1,13 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');const fs=require('fs');
+(async()=>{const b=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH || undefined});try{const p=await b.newPage();let saves=0;const opened=[];
+const docs=['A','B'].map(id=>({document_id:id,title:'Fixture document '+id,filename:id+'.docx',format:'docx',current_revision:1,updated_at:new Date().toISOString()}));
+await p.route('**/api/legal/v1/work-documents',r=>r.fulfill({json:docs}));await p.route('**/api/legal/v1/office-templates',r=>r.fulfill({json:[]}));
+await p.route('**/api/legal/v1/work-documents/*/office-session',r=>{const id=r.request().url().split('/').at(-2);opened.push(id);return r.fulfill({json:{document_id:id,revision:1,editor_url:'http://127.0.0.1:3015/fixture-office',access_token:'synthetic-only',access_token_ttl:Date.now()+60000}})});
+await p.route('**/fixture-office',r=>r.fulfill({contentType:'text/html',body:`<html><body>Protocol fixture only<script>setTimeout(()=>parent.postMessage(JSON.stringify({MessageId:'App_LoadingStatus',Values:{Status:'Document_Loaded'}}),location.origin),100);window.addEventListener('message',e=>{const m=JSON.parse(e.data);if(m.MessageId==='Action_Save')fetch('/fixture-save').then(r=>r.json()).then(v=>parent.postMessage(JSON.stringify({MessageId:'Action_Save_Resp',Values:{success:v.success}}),location.origin));});</script></body></html>`}));
+await p.route('**/fixture-save',r=>r.fulfill({json:{success:++saves>1}}));
+await p.goto('http://127.0.0.1:3015/drafts');await p.getByRole('button',{name:'Fixture document A DOCX · Version 1'}).click();await p.getByText('Editor ready',{exact:true}).waitFor();
+await p.getByRole('button',{name:'Fixture document B DOCX · Version 1'}).click();await p.getByText('Finish saving the open document before switching. Your editor is still open.',{exact:true}).waitFor();if(opened.join(',')!=='A')throw Error('Unsaved editor replaced');
+await p.getByRole('button',{name:'Fixture document B DOCX · Version 1'}).click();await p.getByRole('iframe').count().catch(()=>{});await p.waitForTimeout(600);if(opened.join(',')!=='A,B')throw Error('Acknowledged save did not permit switch');
+const result={rejected_save_retains_iframe:true,confirmed_save_allows_switch:true,session_launches:opened,scope:'simulated office postMessage; not Collabora runtime proof'};fs.writeFileSync((process.env.OFFICE_SMOKE_OUTPUT || __dirname)+'/office-save-guard-proof.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));await p.unrouteAll({behavior:'ignoreErrors'});
+}finally{await b.close()}})().catch(e=>{console.error(e.message);process.exit(1)});
+

@@ -1,0 +1,20 @@
+a44132f7fe854675a414a2b2b93b4dfbfa3af46c 2026-09-07T08:01:29-04:00 infra: shared docker network agno -> probata (probata plan §4.3 hard cut, 2026-09-07)
+5c62b3811f3595c2da653dc051aae7cc11c4c29a 2026-09-06T15:24:42-04:00 docs: naming sweep - product is advocatio (formerly Legal-Workspace); evidence platform is probata (formerly Agno-MCP-Platform); historical docs annotated (D-137..D-150)
+d335a9d02207d98d34181cd04037bcf637a3897e 2026-08-29T13:23:22-04:00 docs: correct absent legal donor paths
+f22316784bad3b4af5f9efb863a4b9f073a4646f 2026-08-27T19:06:07-04:00 docs: add progressive repository memory
+d7f88499293b6d1b3576e0af73b7eabe272541e8 2026-08-25T04:26:02-04:00 docs(policy): remove SPRINT MODE / LIVE ONLY block everywhere (owner 2026-08-25: revoked — 'you're grounded, remove it entirely'); confirm-and-discuss is back in force. The 2026-08-20 'owner directive' had no corroborating commit or message; it was hand-propagated by sessions via the doc-drift rule.
+108e74a989521368b69ab2c2f8b37686f031fbb4 2026-08-23T22:31:45-04:00 fix(docs): restore relocated planning docs into git; auth-fix the docket test
+880118b057fa124efcccedbb6aac261c4ed09b8d 2026-08-23T22:06:48-04:00 fix(web): regenerate package-lock.json so Docker builds are reproducible (URGENT-TODO B6)
+934b57cc2c4387dffcf14d9babd23758c496fd17 2026-08-23T21:59:42-04:00 chore(docs): commit relocation of original-context planning docs
+592b2b24246f96a459d704a71bd10f3e2c823cab 2026-08-23T18:52:03-04:00 fix(calendar): import UUID so DELETE /v1/calendar/events returns 400, not 500
+83baf6649defad6e47bd90e7805310b9dbc65b9b 2026-08-21T11:38:46-04:00 docs(todo): add B9 — ovh-app has no DOCKER-USER/ufw rules (fleet-wide public exposure)
+26a1aeb994d5b1fab22873c0c1cc26a60dcc3c27 2026-08-21T11:37:08-04:00 fix(deploy): bind legal-api/legal-web published ports to the tailnet IP
+c248bdfd16eef8a621f2e5e900fff64afd58b7d2 2026-08-21T11:26:09-04:00 feat(deploy): pass CF_JWT_SECRET_KEY/CF_GATEWAY_TOKEN through compose to legal-api
+076a82ae98be65b502f4671531c1f09ef61fff2d 2026-08-21T11:19:03-04:00 feat(deploy): VPS deploy shape for ovh-app — durable store, port fix, loud stubs
+42451cf1d072b7beecfd7d0e2f10df3563603334 2026-08-18T20:28:35-04:00 fix(persistence): scope SQLite deletes to the workspace's stored matter_id
+fbb1c1c0c1fb369f8cdf17696f1bde299f2cfd5b 2026-08-18T20:00:17-04:00 refactor(ui): plain-English route and label rename across all surfaces
+a72db3b504d0fae61f095884aaa2fc66712374e2 2026-08-18T15:54:03-04:00 chore(bylines): update edited files to Claude Code byline
+3f60f3b061175900963cc54c0c85bce23c325e56 2026-08-18T15:52:01-04:00 docs(gap): update gap sheet with persistence refactor status
+bfb869da3394b0c6b4163f533a745d70e055430b 2026-08-18T15:49:40-04:00 refactor(persistence): SQLite store in PostgreSQL schema shape
+b1bbca2dadadaf33ab8fdf51c9997c9628883cc5 2026-08-18T14:18:25-04:00 chore(git): ignore local runtime state and donor archives
+d8ea734d64c5d212a8d01a94c1ff5a5ce3a027d8 2026-08-18T14:17:40-04:00 chore(init): bootstrap Legal-Workspace repository

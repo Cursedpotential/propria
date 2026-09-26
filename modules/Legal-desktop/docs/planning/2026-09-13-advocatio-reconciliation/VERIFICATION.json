@@ -1,0 +1,21 @@
+{
+  "requirements": 52,
+  "requirements_with_phase_mapping": 52,
+  "recovered_requirements": 35,
+  "external_integrations": 20,
+  "json_files_parsed": [
+    "requirements.json",
+    "VERIFICATION.json",
+    "inputs\\current-app\\coverage.json",
+    "inputs\\current-app\\legal-capabilities.json",
+    "inputs\\handoffs\\LEGAL-MCP-SOURCE-CATALOG.json",
+    "inputs\\handoffs\\rediscovery.json",
+    "inputs\\stack\\toolkit-capabilities.json"
+  ],
+  "root_markdown_file_links_checked": 72,
+  "broken_links": [],
+  "missing_reports": [],
+  "checks": "artifact structure, JSON, requirements numbering/coverage and local file links",
+  "runtime_tests": "not run in planning review",
+  "docstore_registration": "See DOCSTORE-PUBLICATION.md for registration and readback; indexing is separate"
+}

@@ -1,0 +1,51 @@
+ M .env.example
+ M .gitignore
+ M api/legal_workspace/api/main.py
+ M api/legal_workspace/config.py
+ M compose.yaml
+ M pyproject.toml
+ M tests/conftest.py
+ M uv.lock
+ M web/next-env.d.ts
+ M web/src/app/assistant-log/page.tsx
+ M web/src/app/calendar/page.tsx
+ M web/src/app/challenge-draft/page.tsx
+ M web/src/app/confidentiality-check/page.tsx
+ M web/src/app/drafts/page.tsx
+ M web/src/app/evidence-requests/page.tsx
+ M web/src/app/evidence/page.tsx
+ M web/src/app/filing-checklist/page.tsx
+ M web/src/app/final-copy/page.tsx
+ M web/src/app/globals.css
+ M web/src/app/layout.tsx
+ M web/src/app/missing-evidence/page.tsx
+ M web/src/app/open-questions/page.tsx
+ M web/src/app/private-notes/page.tsx
+ M web/src/app/questions/page.tsx
+ M web/src/app/review/page.tsx
+ M web/src/app/templates/page.tsx
+ M web/src/app/timeline/page.tsx
+ M web/src/components/AgentRunForm.tsx
+ M web/src/components/DocketForm.tsx
+ M web/src/components/DraftEditor.tsx
+ M web/src/components/EvidenceRequestForm.tsx
+ M web/src/components/ExhibitForm.tsx
+ M web/src/components/InvestigationForm.tsx
+ M web/src/components/PrivilegeScanForm.tsx
+ M web/src/components/ReleaseForm.tsx
+ M web/src/components/ResearchForm.tsx
+ M web/src/components/ReviewForm.tsx
+ M web/src/components/RoutingEditor.tsx
+ M web/src/components/SourceSearch.tsx
+ M web/src/components/TemplateForm.tsx
+ M web/src/components/TerminalShell.tsx
+ M web/src/lib/api/client.ts
+?? api/legal_workspace/api/auth.py
+?? tests/test_auth.py
+?? web/AGENTS.md
+?? web/CLAUDE.md
+?? web/smoke/
+?? web/src/app/api/legal/
+?? web/src/lib/auth/
+?? web/src/proxy.ts
+?? web/vendor/

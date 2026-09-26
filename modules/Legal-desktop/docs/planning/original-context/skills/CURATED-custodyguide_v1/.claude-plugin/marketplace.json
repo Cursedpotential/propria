@@ -1,0 +1,31 @@
+{
+  "name": "cursedpotential-legal",
+  "owner": {
+    "name": "Matthew Salem"
+  },
+  "metadata": {
+    "description": "Michigan family-court self-representation tooling: verified-source legal information, drafting structure, and filing-packet workflow for the 7th Judicial Circuit (Genesee County).",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "family-court-toolkit",
+      "source": "./Projects/custody-guide/toolkit-package/plugin",
+      "description": "Read-only legal-information and drafting workflow for Genesee County, Michigan family-court procedure, evidence, discovery, FOC/referee practice, source verification, and tailored parenting-time filing packets.",
+      "version": "1.3.0",
+      "author": {
+        "name": "Matthew Salem"
+      },
+      "license": "MIT",
+      "keywords": [
+        "michigan",
+        "genesee-county",
+        "family-court",
+        "friend-of-the-court",
+        "parenting-time",
+        "evidence",
+        "legal-information"
+      ]
+    }
+  ]
+}

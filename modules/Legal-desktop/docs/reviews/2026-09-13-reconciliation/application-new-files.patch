@@ -1,0 +1,1812 @@
+--- /dev/null
++++ api/legal_workspace/api/auth.py
+@@ -0,0 +1,243 @@
++"""Authentication adapters for the private advocatio API.
++
++The public human UI is protected by Authentik at Traefik. The Next.js BFF
++forwards Authentik's signed identity JWT; this module validates its signature,
++issuer, audience and lifetime before any legal-domain route runs. Direct
++requests observed on the tailnet retain the owner's pre-existing unrestricted
++access. The BFF can also authenticate server-rendered/tailnet UI calls with a
++short-lived request signature whose secret never reaches browser code.
++
++Byline: Codex · GPT-5 · 2026-09-12
++"""
++
++from __future__ import annotations
++
++import hashlib
++import hmac
++import ipaddress
++import time
++from collections.abc import Awaitable, Callable
++from dataclasses import dataclass
++from functools import lru_cache
++from typing import Any
++
++import jwt
++from fastapi import Request, Response
++from fastapi.responses import JSONResponse
++from jwt import InvalidTokenError, PyJWKClient
++from starlette.middleware.base import BaseHTTPMiddleware
++
++from legal_workspace.config import Settings, get_settings
++
++_TAILNET = ipaddress.ip_network("100.64.0.0/10")
++_BFF_MAX_AGE_SECONDS = 30
++
++
++@dataclass(frozen=True)
++class AuthenticatedPrincipal:
++    """Minimal identity made available to request handlers and audit adapters."""
++
++    subject: str
++    username: str | None
++    email: str | None
++    groups: tuple[str, ...]
++    source: str
++
++
++class AuthenticationUnavailable(RuntimeError):
++    """Raised when production authentication has not been configured."""
++
++
++class AuthenticationDenied(ValueError):
++    """Raised when supplied credentials do not satisfy the auth contract."""
++
++
++class AuthentikTokenVerifier:
++    """Verify Authentik JWTs against the provider's pinned issuer contract."""
++
++    def __init__(self, settings: Settings, *, jwks_client: PyJWKClient | None = None) -> None:
++        if not settings.authentik_issuer:
++            raise AuthenticationUnavailable("AUTHENTIK_ISSUER is required")
++        if not settings.authentik_audience:
++            raise AuthenticationUnavailable("AUTHENTIK_AUDIENCE is required")
++        if not settings.authentik_jwks_url:
++            raise AuthenticationUnavailable("AUTHENTIK_JWKS_URL is required")
++        self._settings = settings
++        self._jwks = jwks_client or _jwks_client(settings.authentik_jwks_url)
++
++    def verify(self, token: str) -> AuthenticatedPrincipal:
++        try:
++            header = jwt.get_unverified_header(token)
++            if header.get("alg") != "RS256":
++                raise AuthenticationDenied("only Authentik RS256 tokens are accepted")
++            signing_key = self._jwks.get_signing_key_from_jwt(token)
++            claims = jwt.decode(
++                token,
++                signing_key.key,
++                algorithms=["RS256"],
++                audience=self._settings.authentik_audience,
++                issuer=self._settings.authentik_issuer,
++                leeway=self._settings.auth_clock_skew_seconds,
++                options={
++                    "require": ["aud", "exp", "iat", "iss", "sub"],
++                    "verify_signature": True,
++                    "verify_aud": True,
++                    "verify_exp": True,
++                    "verify_iat": True,
++                    "verify_iss": True,
++                },
++            )
++        except AuthenticationDenied:
++            raise
++        except (InvalidTokenError, ValueError, TypeError) as exc:
++            raise AuthenticationDenied("invalid Authentik identity token") from exc
++
++        groups = _claim_values(claims.get("groups"))
++        allowed = {
++            item.strip()
++            for item in self._settings.authentik_allowed_groups.split(",")
++            if item.strip()
++        }
++        if allowed and not allowed.intersection(groups):
++            raise AuthenticationDenied("user is not in an allowed Authentik group")
++
++        subject = str(claims.get("sub") or "").strip()
++        if not subject:
++            raise AuthenticationDenied("Authentik token has no subject")
++        return AuthenticatedPrincipal(
++            subject=subject,
++            username=_optional_claim(claims, "preferred_username"),
++            email=_optional_claim(claims, "email"),
++            groups=tuple(groups),
++            source="authentik",
++        )
++
++
++@lru_cache(maxsize=8)
++def _jwks_client(url: str) -> PyJWKClient:
++    """Reuse Authentik's bounded JWKS cache across requests."""
++
++    return PyJWKClient(url, cache_keys=True, lifespan=300)
++
++
++def _optional_claim(claims: dict[str, Any], name: str) -> str | None:
++    value = claims.get(name)
++    return str(value) if value is not None else None
++
++
++def _claim_values(value: object) -> list[str]:
++    if isinstance(value, str):
++        return [item for item in value.split("|") if item]
++    if isinstance(value, list):
++        return [str(item) for item in value if str(item)]
++    return []
++
++
++def _direct_tailnet_client(request: Request) -> bool:
++    """Use the socket peer only; forwarded headers are attacker-controlled here."""
++
++    if request.client is None:
++        return False
++    try:
++        return ipaddress.ip_address(request.client.host) in _TAILNET
++    except ValueError:
++        return False
++
++
++def _bearer_token(authorization: str | None) -> str | None:
++    if not authorization:
++        return None
++    scheme, separator, credentials = authorization.partition(" ")
++    if not separator or scheme.lower() != "bearer" or not credentials.strip():
++        return None
++    return credentials.strip()
++
++
++def _canonical_bff_message(request: Request, timestamp: str, nonce: str, body: bytes) -> bytes:
++    target = request.url.path
++    if request.url.query:
++        target = f"{target}?{request.url.query}"
++    body_hash = hashlib.sha256(body).hexdigest()
++    return f"{timestamp}\n{nonce}\n{request.method.upper()}\n{target}\n{body_hash}".encode()
++
++
++async def _verify_bff_signature(request: Request, settings: Settings) -> bool:
++    timestamp = request.headers.get("x-legal-bff-timestamp", "")
++    nonce = request.headers.get("x-legal-bff-nonce", "")
++    supplied = request.headers.get("x-legal-bff-signature", "")
++    secret = settings.legal_bff_signing_secret
++    if not timestamp or not nonce or not supplied:
++        return False
++    if len(secret.encode()) < 32:
++        raise AuthenticationUnavailable("LEGAL_BFF_SIGNING_SECRET must be at least 32 bytes")
++    try:
++        issued_at = int(timestamp)
++    except ValueError:
++        return False
++    if abs(int(time.time()) - issued_at) > _BFF_MAX_AGE_SECONDS:
++        return False
++    body = await request.body()
++    expected = hmac.new(
++        secret.encode(),
++        _canonical_bff_message(request, timestamp, nonce, body),
++        hashlib.sha256,
++    ).hexdigest()
++    return hmac.compare_digest(supplied, expected)
++
++
++class LegalWorkspaceAuthMiddleware(BaseHTTPMiddleware):
++    """Apply the two-lane ingress contract at the private API boundary."""
++
++    async def dispatch(
++        self,
++        request: Request,
++        call_next: Callable[[Request], Awaitable[Response]],
++    ) -> Response:
++        if request.url.path == "/health":
++            return await call_next(request)
++
++        settings = get_settings()
++        if settings.bypass_auth:
++            request.state.auth = AuthenticatedPrincipal(
++                subject="test-bypass",
++                username=None,
++                email=None,
++                groups=(),
++                source="explicit-test-bypass",
++            )
++            return await call_next(request)
++
++        if settings.tailnet_owner_access and _direct_tailnet_client(request):
++            request.state.auth = AuthenticatedPrincipal(
++                subject="tailnet-owner",
++                username=None,
++                email=None,
++                groups=(),
++                source="tailnet",
++            )
++            return await call_next(request)
++
++        try:
++            if await _verify_bff_signature(request, settings):
++                request.state.auth = AuthenticatedPrincipal(
++                    subject="legal-web-bff",
++                    username=None,
++                    email=None,
++                    groups=(),
++                    source="signed-bff",
++                )
++                return await call_next(request)
++
++            token = _bearer_token(request.headers.get("authorization"))
++            if token is None:
++                raise AuthenticationDenied("authentication required")
++            request.state.auth = AuthentikTokenVerifier(settings).verify(token)
++            return await call_next(request)
++        except AuthenticationUnavailable as exc:
++            return JSONResponse(status_code=503, content={"detail": str(exc)})
++        except AuthenticationDenied:
++            return JSONResponse(
++                status_code=401,
++                content={"detail": "Valid Authentik identity required"},
++                headers={"WWW-Authenticate": 'Bearer realm="advocatio"'},
++            )
+--- /dev/null
++++ tests/test_auth.py
+@@ -0,0 +1,185 @@
++"""Positive and negative tests for the advocatio API trust boundary.
++
++Byline: Codex · GPT-5 · 2026-09-12
++"""
++
++from __future__ import annotations
++
++import hashlib
++import hmac
++import time
++from datetime import UTC, datetime, timedelta
++from types import SimpleNamespace
++
++import jwt
++import pytest
++from cryptography.hazmat.primitives.asymmetric import rsa
++from fastapi.testclient import TestClient
++from legal_workspace.api import auth as auth_mod
++from legal_workspace.api.main import app
++
++ISSUER = "https://auth.example.test/application/o/advocatio/"
++AUDIENCE = "advocatio"
++BFF_SECRET = "test-only-bff-signing-secret-at-least-32-bytes"
++
++
++class _StaticJwksClient:
++    def __init__(self, public_key: rsa.RSAPublicKey) -> None:
++        self._public_key = public_key
++
++    def get_signing_key_from_jwt(self, _token: str) -> SimpleNamespace:
++        return SimpleNamespace(key=self._public_key)
++
++
++@pytest.fixture
++def oidc_keys() -> tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey]:
++    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
++    return private, private.public_key()
++
++
++@pytest.fixture
++def secure_auth(monkeypatch: pytest.MonkeyPatch, oidc_keys) -> rsa.RSAPrivateKey:
++    private, public = oidc_keys
++    monkeypatch.setenv("LEGAL_WORKSPACE_BYPASS_AUTH", "false")
++    monkeypatch.setenv("LEGAL_TAILNET_OWNER_ACCESS", "true")
++    monkeypatch.setenv("AUTHENTIK_ISSUER", ISSUER)
++    monkeypatch.setenv("AUTHENTIK_AUDIENCE", AUDIENCE)
++    monkeypatch.setenv("AUTHENTIK_JWKS_URL", f"{ISSUER}jwks/")
++    monkeypatch.setenv("AUTHENTIK_ALLOWED_GROUPS", "advocatio-users")
++    monkeypatch.setenv("LEGAL_BFF_SIGNING_SECRET", BFF_SECRET)
++
++    monkeypatch.setattr(auth_mod, "_jwks_client", lambda _url: _StaticJwksClient(public))
++    return private
++
++
++def _token(
++    private_key: rsa.RSAPrivateKey,
++    *,
++    audience: str = AUDIENCE,
++    expires_delta: timedelta = timedelta(minutes=5),
++    groups: list[str] | None = None,
++) -> str:
++    now = datetime.now(UTC)
++    return jwt.encode(
++        {
++            "iss": ISSUER,
++            "aud": audience,
++            "sub": "owner-subject",
++            "iat": now,
++            "exp": now + expires_delta,
++            "preferred_username": "owner",
++            "email": "owner@example.test",
++            "groups": groups if groups is not None else ["advocatio-users"],
++        },
++        private_key,
++        algorithm="RS256",
++        headers={"kid": "test-key"},
++    )
++
++
++def _signed_bff_headers(method: str, target: str, body: bytes = b"") -> dict[str, str]:
++    timestamp = str(int(time.time()))
++    nonce = "unit-test-nonce"
++    message = "\n".join(
++        (timestamp, nonce, method.upper(), target, hashlib.sha256(body).hexdigest())
++    ).encode()
++    signature = hmac.new(BFF_SECRET.encode(), message, hashlib.sha256).hexdigest()
++    return {
++        "x-legal-bff-timestamp": timestamp,
++        "x-legal-bff-nonce": nonce,
++        "x-legal-bff-signature": signature,
++    }
++
++
++def test_missing_auth_is_denied_when_not_on_tailnet(secure_auth) -> None:
++    response = TestClient(app).get("/v1/auth/whoami")
++    assert response.status_code == 401
++    assert response.json() == {"detail": "Valid Authentik identity required"}
++
++
++def test_valid_authentik_token_projects_minimal_identity(secure_auth) -> None:
++    token = _token(secure_auth)
++    response = TestClient(app).get(
++        "/v1/auth/whoami",
++        headers={"authorization": f"Bearer {token}"},
++    )
++    assert response.status_code == 200
++    assert response.json() == {
++        "subject": "owner-subject",
++        "username": "owner",
++        "email": "owner@example.test",
++        "groups": ["advocatio-users"],
++        "source": "authentik",
++    }
++
++
++@pytest.mark.parametrize(
++    ("audience", "expires_delta", "groups"),
++    [
++        ("wrong-app", timedelta(minutes=5), ["advocatio-users"]),
++        (AUDIENCE, timedelta(minutes=-5), ["advocatio-users"]),
++        (AUDIENCE, timedelta(minutes=5), ["unrelated-users"]),
++    ],
++)
++def test_wrong_audience_expired_or_unauthorized_group_is_denied(
++    secure_auth,
++    audience: str,
++    expires_delta: timedelta,
++    groups: list[str],
++) -> None:
++    token = _token(
++        secure_auth,
++        audience=audience,
++        expires_delta=expires_delta,
++        groups=groups,
++    )
++    response = TestClient(app).get(
++        "/v1/auth/whoami",
++        headers={"authorization": f"Bearer {token}"},
++    )
++    assert response.status_code == 401
++
++
++def test_signed_bff_request_is_accepted_without_browser_bearer(secure_auth) -> None:
++    response = TestClient(app).get(
++        "/v1/auth/whoami",
++        headers=_signed_bff_headers("GET", "/v1/auth/whoami"),
++    )
++    assert response.status_code == 200
++    assert response.json()["source"] == "signed-bff"
++
++
++def test_invalid_bff_signature_is_denied(secure_auth) -> None:
++    headers = _signed_bff_headers("GET", "/v1/auth/whoami")
++    headers["x-legal-bff-signature"] = "0" * 64
++    response = TestClient(app).get("/v1/auth/whoami", headers=headers)
++    assert response.status_code == 401
++
++
++def test_direct_tailnet_owner_access_remains_unfettered(secure_auth) -> None:
++    client = TestClient(app, client=("100.100.10.20", 41200))
++    response = client.get("/v1/auth/whoami")
++    assert response.status_code == 200
++    assert response.json()["source"] == "tailnet"
++
++
++def test_forwarded_tailnet_address_does_not_bypass_socket_check(secure_auth) -> None:
++    response = TestClient(app).get(
++        "/v1/auth/whoami",
++        headers={"x-forwarded-for": "100.100.10.20"},
++    )
++    assert response.status_code == 401
++
++
++def test_missing_oidc_configuration_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
++    monkeypatch.setenv("LEGAL_WORKSPACE_BYPASS_AUTH", "false")
++    monkeypatch.setenv("LEGAL_TAILNET_OWNER_ACCESS", "false")
++    monkeypatch.delenv("AUTHENTIK_ISSUER", raising=False)
++    monkeypatch.delenv("AUTHENTIK_AUDIENCE", raising=False)
++    monkeypatch.delenv("AUTHENTIK_JWKS_URL", raising=False)
++    monkeypatch.delenv("LEGAL_BFF_SIGNING_SECRET", raising=False)
++    response = TestClient(app).get(
++        "/v1/auth/whoami",
++        headers={"authorization": "Bearer not-a-jwt"},
++    )
++    assert response.status_code == 503
+--- /dev/null
++++ web/AGENTS.md
+@@ -0,0 +1,9 @@
++<!-- BEGIN:nextjs-agent-rules -->
++
++# This is NOT the Next.js you know
++
++This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
++
++This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
++
++<!-- END:nextjs-agent-rules -->
+--- /dev/null
++++ web/CLAUDE.md
+@@ -0,0 +1 @@
++@AGENTS.md
+--- /dev/null
++++ web/smoke/design-contract.contract.test.mjs
+@@ -0,0 +1,95 @@
++// Byline: Codex · GPT-5 · 2026-09-12
++import assert from "node:assert/strict";
++import { readdir, readFile } from "node:fs/promises";
++import { test } from "node:test";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++
++const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const vendor = path.join(root, "vendor", "propria-design-contract");
++
++async function text(relativePath) {
++  return readFile(path.join(root, relativePath), "utf8");
++}
++
++async function sourceFiles(directory) {
++  const entries = await readdir(directory, { withFileTypes: true });
++  const nested = await Promise.all(
++    entries.map(async (entry) => {
++      const next = path.join(directory, entry.name);
++      return entry.isDirectory() ? sourceFiles(next) : [next];
++    }),
++  );
++  return nested.flat();
++}
++
++test("vendors the complete pinned Propria design contract", async () => {
++  const required = [
++    "CALLABILITY.md",
++    "CHANGELOG.md",
++    "README.md",
++    "adapters/advocatio.css",
++    "adapters/intake.css",
++    "adapters/portal.css",
++    "adapters/probata.css",
++    "build.mjs",
++    "examples/probata-two-surface-sample.html",
++    "package.json",
++    "theme.css",
++    "tokens.css",
++    "tokens.json",
++    "verify.mjs",
++  ];
++
++  const files = (await sourceFiles(vendor))
++    .map((file) => path.relative(vendor, file).replaceAll(path.sep, "/"))
++    .sort();
++  assert.deepEqual(files, required.sort());
++
++  const receipt = await text("vendor/PROPRIA-DESIGN-CONTRACT.md");
++  assert.match(receipt, /c6da1419e2baaea0c481047083f178d46ac14ca7/);
++  assert.match(receipt, /9dcb135efedfb05b423e8e7e4b64529b09b556a9/);
++});
++
++test("loads tokens, theme, adapter, then product CSS and stays General-first", async () => {
++  const layout = await text("src/app/layout.tsx");
++  const imports = [
++    "tokens.css",
++    "theme.css",
++    "adapters/advocatio.css",
++    "./globals.css",
++  ].map((needle) => layout.indexOf(needle));
++
++  assert.ok(imports.every((index) => index >= 0), "all design layers must be imported");
++  assert.deepEqual(imports, [...imports].sort((left, right) => left - right));
++  assert.match(layout, /data-pr-theme="dark"/);
++  assert.match(layout, /data-pr-experience="general"/);
++  assert.match(layout, /className="pr-app"/);
++});
++
++test("keeps palette control in the shared token source", async () => {
++  const css = await text("src/app/globals.css");
++  const tsxFiles = (await sourceFiles(path.join(root, "src"))).filter((file) => file.endsWith(".tsx"));
++  const tsx = (await Promise.all(tsxFiles.map((file) => readFile(file, "utf8")))).join("\n");
++
++  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i);
++  assert.doesNotMatch(css, /rgba?\(/i);
++  assert.doesNotMatch(css, /!important/i);
++  assert.doesNotMatch(tsx, /#[0-9a-f]{3,8}\b/i);
++  assert.match(css, /--bg:\s*var\(--pr-canvas\)/);
++  assert.match(css, /outline:\s*3px solid var\(--ring\)/);
++  assert.match(css, /min-height:\s*var\(--pr-context-strip-min-height\)/);
++});
++
++test("renders explicit legal authority and release boundaries", async () => {
++  const shell = await text("src/components/TerminalShell.tsx");
++
++  assert.match(shell, /Source policy: LegalSourcePackage only/);
++  assert.match(shell, /Currency state: not verified here/);
++  assert.match(shell, /Release policy: owner review required/);
++  assert.match(shell, /Confidential setting: local only/);
++  assert.match(shell, /Confidential mode:/);
++  assert.match(shell, /confidentialEnforcement/);
++  assert.match(shell, /Available.*workspace backend/s);
++  assert.match(shell, /Unavailable.*workspace backend/s);
++});
+--- /dev/null
++++ web/src/app/api/legal/[...path]/route.ts
+@@ -0,0 +1,99 @@
++// Same-origin browser/server adapter for the private advocatio API.
++// Byline: Codex · GPT-5 · 2026-09-12
++
++import { signBffRequest } from "@/lib/auth/bff-signature";
++
++export const runtime = "nodejs";
++export const dynamic = "force-dynamic";
++
++type RouteContext = { params: Promise<{ path?: string[] }> };
++
++const REQUEST_HEADERS = ["accept", "content-type", "if-match", "if-none-match"];
++const RESPONSE_HEADERS = [
++  "content-disposition",
++  "content-length",
++  "content-type",
++  "etag",
++  "last-modified",
++];
++
++function normalizedHost(value: string | null): string {
++  return (value ?? "").trim().toLowerCase().replace(/:\d+$/, "");
++}
++
++function isPublicIngress(request: Request): boolean {
++  const configured = normalizedHost(process.env.LEGAL_PUBLIC_HOST ?? null);
++  return Boolean(configured) && normalizedHost(request.headers.get("host")) === configured;
++}
++
++function upstreamBase(): string {
++  const configured = process.env.LEGAL_API_INTERNAL_URL ?? "http://127.0.0.1:8010";
++  const url = new URL(configured);
++  if (!['http:', 'https:'].includes(url.protocol)) {
++    throw new Error("LEGAL_API_INTERNAL_URL must use http or https");
++  }
++  return url.toString().replace(/\/$/, "");
++}
++
++async function forward(request: Request, context: RouteContext): Promise<Response> {
++  const segments = (await context.params).path ?? [];
++  if (segments.some((segment) => segment === "." || segment === "..")) {
++    return Response.json({ detail: "invalid API path" }, { status: 400 });
++  }
++  const pathname = `/${segments.map(encodeURIComponent).join("/")}`;
++  const incoming = new URL(request.url);
++  const target = `${pathname}${incoming.search}`;
++  const upstream = `${upstreamBase()}${target}`;
++  const body = request.method === "GET" || request.method === "HEAD"
++    ? new Uint8Array()
++    : new Uint8Array(await request.arrayBuffer());
++
++  const authentikJwt = request.headers.get("x-authentik-jwt")?.trim() ?? "";
++  if (isPublicIngress(request) && !authentikJwt) {
++    return Response.json({ detail: "Authentik identity required" }, { status: 401 });
++  }
++
++  const headers = new Headers();
++  for (const name of REQUEST_HEADERS) {
++    const value = request.headers.get(name);
++    if (value) headers.set(name, value);
++  }
++  if (authentikJwt) {
++    // The private API performs cryptographic OIDC validation. This bearer never
++    // appears in browser code, storage or a response.
++    headers.set("authorization", `Bearer ${authentikJwt}`);
++  } else {
++    const signature = signBffRequest(request.method, target, body);
++    for (const [name, value] of Object.entries(signature)) headers.set(name, value);
++  }
++
++  let response: Response;
++  try {
++    response = await fetch(upstream, {
++      method: request.method,
++      headers,
++      body: body.byteLength ? body : undefined,
++      cache: "no-store",
++      redirect: "manual",
++    });
++  } catch {
++    return Response.json({ detail: "legal-api unavailable" }, { status: 502 });
++  }
++
++  const outgoing = new Headers({ "cache-control": "no-store" });
++  for (const name of RESPONSE_HEADERS) {
++    const value = response.headers.get(name);
++    if (value) outgoing.set(name, value);
++  }
++  return new Response(request.method === "HEAD" ? null : response.body, {
++    status: response.status,
++    headers: outgoing,
++  });
++}
++
++export const GET = forward;
++export const POST = forward;
++export const PUT = forward;
++export const PATCH = forward;
++export const DELETE = forward;
++export const HEAD = forward;
+--- /dev/null
++++ web/src/lib/auth/bff-signature.ts
+@@ -0,0 +1,27 @@
++// Server-only request authentication for the private advocatio API.
++// Byline: Codex · GPT-5 · 2026-09-12
++
++import { createHash, createHmac, randomBytes } from "node:crypto";
++
++export type BffSignatureHeaders = {
++  "x-legal-bff-timestamp": string;
++  "x-legal-bff-nonce": string;
++  "x-legal-bff-signature": string;
++};
++
++export function signBffRequest(method: string, target: string, body: Uint8Array): BffSignatureHeaders {
++  const secret = process.env.LEGAL_BFF_SIGNING_SECRET ?? "";
++  if (Buffer.byteLength(secret, "utf8") < 32) {
++    throw new Error("LEGAL_BFF_SIGNING_SECRET must be at least 32 bytes");
++  }
++  const timestamp = Math.floor(Date.now() / 1000).toString();
++  const nonce = randomBytes(16).toString("hex");
++  const bodyHash = createHash("sha256").update(body).digest("hex");
++  const message = [timestamp, nonce, method.toUpperCase(), target, bodyHash].join("\n");
++  const signature = createHmac("sha256", secret).update(message).digest("hex");
++  return {
++    "x-legal-bff-timestamp": timestamp,
++    "x-legal-bff-nonce": nonce,
++    "x-legal-bff-signature": signature,
++  };
++}
+--- /dev/null
++++ web/src/proxy.ts
+@@ -0,0 +1,48 @@
++// Defense-in-depth for the public Authentik/Traefik ingress only.
++// Tailnet hosts remain direct and are deliberately not redirected to Authentik.
++// Byline: Codex · GPT-5 · 2026-09-12
++
++import { NextRequest, NextResponse } from "next/server";
++
++function normalizedHost(value: string | null): string {
++  return (value ?? "").trim().toLowerCase().replace(/:\d+$/, "");
++}
++
++export async function proxy(request: NextRequest): Promise<NextResponse> {
++  const publicHost = normalizedHost(process.env.LEGAL_PUBLIC_HOST ?? null);
++  const requestHost = normalizedHost(request.headers.get("host"));
++
++  if (publicHost && requestHost === publicHost) {
++    const token = request.headers.get("x-authentik-jwt")?.trim();
++    if (!token) {
++      return NextResponse.json(
++        { detail: "Authenticated public UI session required" },
++        { status: 401, headers: { "cache-control": "no-store" } },
++      );
++    }
++
++    try {
++      const apiBase = process.env.LEGAL_API_INTERNAL_URL ?? "http://127.0.0.1:8010";
++      const identity = await fetch(`${apiBase.replace(/\/$/, "")}/v1/auth/whoami`, {
++        headers: { authorization: `Bearer ${token}` },
++        cache: "no-store",
++      });
++      if (!identity.ok) {
++        return NextResponse.json(
++          { detail: "Invalid or expired public UI session" },
++          { status: 401, headers: { "cache-control": "no-store" } },
++        );
++      }
++    } catch {
++      return NextResponse.json(
++        { detail: "Public UI authorization unavailable" },
++        { status: 503, headers: { "cache-control": "no-store" } },
++      );
++    }
++  }
++  return NextResponse.next();
++}
++
++export const config = {
++  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
++};
+--- /dev/null
++++ web/vendor/PROPRIA-DESIGN-CONTRACT.md
+@@ -0,0 +1,24 @@
++# Vendored Propria design contract
++
++> _Byline: Codex · GPT-5 · 2026-09-12._
++
++- Upstream repository: `E:/AI_Workspace/Projects/Propria`
++- Upstream commit: `c6da1419e2baaea0c481047083f178d46ac14ca7`
++- Upstream tree: `resources/design` at `9dcb135efedfb05b423e8e7e4b64529b09b556a9`
++- Contract version: `1.0.0`
++- Adoption lane: `SDA-03 advocatio Legal Workdesk`
++
++The `propria-design-contract/` directory is an exact repository-owned copy of the upstream tree at
++the pinned commit. Runtime and build imports resolve only inside this advocatio repository; they do
++not reach across repositories into Propria.
++
++To verify the vendored contract itself:
++
++```powershell
++Set-Location web/vendor/propria-design-contract
++npm.cmd run verify
++```
++
++The contract verifier proves token generation parity, adapters, required semantic roles, CSS policy,
++and core contrast pairs. It does not replace browser, keyboard, zoom, forced-colors, or legal-state
++verification in the consuming Workdesk.
+--- /dev/null
++++ web/vendor/propria-design-contract/CALLABILITY.md
+@@ -0,0 +1,75 @@
++# Surface callability and alignment matrix
++
++> _Byline: Codex · GPT-5 · 2026-09-12._
++>
++> _Evidence boundary: coordinated read-only reports from the active portal, Probata naming and Family
++> Court design tasks. HTTP status proves reachability or auth gating only—not an authenticated workflow,
++> data authority, mutation path or end-to-end integration._
++
++## What the shared design may call now
++
++| Surface | Current safe label | Addressable entry | What may be claimed |
++|---|---|---|---|
++| Propria | Portal | `https://homepage.tilapia-skilift.ts.net/` | Live entry point |
++| Propria | Project workspace | `/progress/` | Live route; current presentation is rejected and being redesigned |
++| Probata General | Evidence Operations Desk | `https://workbench.tilapia-skilift.ts.net/` | Addressable deployed SPA route; authenticated workflow not proved by HTTP |
++| Probata General | Intake | `/intake` | Primary navigation route; backend workflow proof remains separate |
++| Probata General | Preview | `/evidence/preview` | Primary navigation route; bounded preview contract |
++| Probata gated | Matter workspace | `/matter?matter_id=<uuid>` | Direct gated route; advanced evidence behavior is capability-gated and not a completed release claim |
++| Probata Advanced | Modular Service Cockpit | No application route | Approved design mock and gated surface definition only |
++| advocatio | Legal Workdesk | `https://legal.tilapia-skilift.ts.net/` | HTTP reachability only; no Probata launch exchange is implemented |
++| Consignatio | Intake preview | `/progress/intake/` | Component preview; Xplorer and metadata backends are not connected |
++| Family Court | Michigan Family Court toolbox preview | `/progress/family-court/` | Read-only preview route; live MCP runtime not verified |
++
++Two same-day read-only probes disagreed on the unauthenticated status of the Probata routes: the
++portal task received HTTP 403 while the Probata task received HTTP 200. That may reflect request or
++authentication context, but it was not reconciled here. Therefore the matrix claims addressability
++only and does not claim stable public access or an authenticated end-to-end workflow.
++
++Probata also has directly addressable source routes such as `/classification-test`, `/copilot`,
++`/evidence-queue`, `/knowledge`, `/records`, `/repairs`, `/runs`, `/schemas`, `/surreal` and `/tools`.
++They are advanced or reconciliation routes, not permission to advertise a finished cockpit menu.
++There is no current Probata `/advanced`, `/cockpit`, `/legal` or `/advocatio` route.
++
++## Legal integration seam
++
++The Family Court Console is a separate local React/Tauri product, not the advocatio Legal Workdesk.
++Its local navigation
++contract includes Case Status, Docket, Timeline, Memos, Evidence, Evals, Reference, Tools and Chat, but
++those development routes are not production deep links.
++
++The safest initial integration candidates are eight bounded read-only MCP App operations:
++
++- `open_dashboard`
++- `route_issue`
++- `calculate_planning_date`
++- `get_packet_plan`
++- `get_checklist`
++- `audit_sources`
++- `search_guide`
++- `build_chronology`
++
++Their current-session host availability was not proven. Treat them as an adapter allowlist candidate,
++not a callable-production claim. The richer Family Court server also has mixed read/write tools; do
++not surface them wholesale. Mutations remain behind explicit legal/custody authority and review.
++
++## Shared context, separate authority
++
++A future server-side launch exchange may carry a versioned, audience-bound, expiring, single-use
++context reference containing only the applicable:
++
++- `matter_id` and `court_case_id`;
++- immutable source/custody record IDs, hashes and receipt references;
++- durable `run_id` or correlation ID;
++- projection generation or `LegalSourcePackage` ID, version, manifest hash and verification state;
++- requested capability, audience, issuance/expiry, nonce and revocation/staleness state.
++
++The receiving product creates its own session and revalidates the scope. Never carry raw secrets,
++browser-asserted authorization, mutable evidence copies, private storage paths or a precomputed
++`safe_for_legal_use` conclusion.
++
++Probata/PostgreSQL owns evidence, custody, review decisions, projection generations, receipts and
++legal-package issuance. The advocatio Legal Workdesk owns research, theories, drafts,
++review/release preparation and
++typed requests for missing proof. Legal output does not automatically become evidence. Visual
++alignment does not change those ownership lines.
+--- /dev/null
++++ web/vendor/propria-design-contract/CHANGELOG.md
+@@ -0,0 +1,17 @@
++# Propria design-contract changelog
++
++> _Byline: Codex · GPT-5 · 2026-09-12._
++
++## 1.0.0 — 2026-09-12
++
++- Accepted Carbon-Linen-Seal as the initial, centrally adjustable palette direction.
++- Preserved Probata's approved Evidence Operations Desk and Modular Service Cockpit as the General
++  and Advanced structural donors.
++- Added independent light/dark theme and General/Advanced experience axes.
++- Added framework-neutral foundations and adapters for Intake, Probata, advocatio and the portal.
++- Made `tokens.json` the single editable source and added deterministic CSS generation/drift checks.
++- Added exact package, token, density, adapter, contrast and CSS-policy verification.
++
++## 0.9.0 — 2026-09-12
++
++- Proposed the first portable semantic token contract for visual review.
+--- /dev/null
++++ web/vendor/propria-design-contract/README.md
+@@ -0,0 +1,88 @@
++# Propria design-contract package
++
++> _Byline: Codex · GPT-5 · 2026-09-12._
++
++This directory is the portable styling contract for Propria's owner-facing surfaces. Version 1.0.0
++keeps the accepted Carbon-Linen-Seal palette in one place and preserves Probata's owner-approved
++two-surface structure:
++
++- **General:** Evidence Operations Desk — everyday evidence work.
++- **Advanced:** Modular Service Cockpit — deep forensic and governed service tooling.
++
++Theme and experience are separate. Any product can use light or dark tokens. Only Probata defines the
++General/Advanced Workbench switch; Intake, the portal and advocatio Legal Workdesk are General-first.
++
++## One edit point
++
++`tokens.json` is the single editable source for color, typography, effects, geometry and the
++General/Advanced density values. Do not hand-edit the generated `tokens.css`. After changing JSON,
++run:
++
++```powershell
++npm.cmd run build:tokens
++npm.cmd run verify
++```
++
++For CI or a read-only drift check, run only:
++
++```powershell
++npm.cmd run verify
++```
++
++Verification first regenerates the expected CSS in memory and fails if the checked-in file differs.
++It then checks package/token version parity, exact CSS/JSON color and density parity, required
++adapters, forbidden `!important`, sample integration, and core contrast pairs. A successful run does
++not replace browser, keyboard, zoom, high-contrast, or live-route verification.
++
++## Consumption order
++
++Load the files in this order:
++
++```css
++@import "@propria/design-contract/tokens.css";
++@import "@propria/design-contract/theme.css";
++@import "@propria/design-contract/adapters/probata.css";
++/* Product-local component overrides follow. */
++```
++
++Until a private package pipeline exists, each independent repository should vendor a pinned copy of
++the release rather than importing through a relative path into `Propria`. That preserves independent
++builds and release cycles. The adapter files are migration maps; adding this directory does not claim
++that any product has adopted them.
++
++Set theme and experience independently on the application root:
++
++```html
++<html data-pr-theme="dark">
++  <body data-pr-experience="advanced"></body>
++</html>
++```
++
++Existing `html.dark`, `:root.theme-dark`, and `:root.theme-light` selectors remain compatible.
++
++## Adapter intent
++
++| Adapter | Maps | Boundary |
++|---|---|---|
++| `intake.css` | Intake's workspace, surface, shell, selection and status variables | Does not replace Explorer, preview, metadata or chat components |
++| `probata.css` | shadcn/Tailwind-style roles plus General/Advanced density variables | Does not expose gated Advanced destinations or change evidence authority |
++| `advocatio.css` | Legal Workdesk shell, status, confidential and document-font aliases | Does not make advocatio the Probata Advanced surface |
++| `portal.css` | Portal/progress-board shell, paper, status and chart aliases | Does not turn the portal into an application or merge status sources |
++
++See [CALLABILITY.md](CALLABILITY.md) before exposing a route or legal tool. Shared styling is not proof
++that a cross-product launch, authentication exchange, backend connection or mutation path exists.
++
++## Versioning
++
++- **Patch:** tune a value while preserving semantic meaning and adapter shape.
++- **Minor:** add a compatible semantic role or adapter alias.
++- **Major:** rename/remove a role, change state meaning, or break an adapter contract.
++
++Do not use `!important`. Product-local overrides load after the adapter. Status must include readable
++text or an icon; color alone never communicates authority, completion, failure, or staleness.
++
++## Visual reference
++
++Open `examples/probata-two-surface-sample.html` to see the current palette applied to a compact
++structural sample of the approved Evidence Operations Desk and Modular Service Cockpit layouts. The
++original Probata mockups remain the structural authority; the sample is a token-integration aid.
+--- /dev/null
++++ web/vendor/propria-design-contract/adapters/advocatio.css
+@@ -0,0 +1,24 @@
++/* advocatio Legal Workdesk adapter | Propria contract 1.0.0 | 2026-09-12
++   Byline: Codex · GPT-5. Legal Workdesk remains General-first and preserves document typography. */
++
++:root {
++  --bg: var(--pr-canvas);
++  --bg-panel: var(--pr-surface);
++  --bg-elevated: var(--pr-surface-muted);
++  --text: var(--pr-ink);
++  --text-muted: var(--pr-ink-muted);
++  --border: var(--pr-border);
++  --border-strong: var(--pr-border-strong);
++  --accent: var(--pr-action);
++  --accent-hover: var(--pr-action-hover);
++  --accent-muted: var(--pr-action-soft);
++  --focus: var(--pr-focus);
++  --success: var(--pr-positive);
++  --warning: var(--pr-caution);
++  --danger: var(--pr-destructive);
++  --information: var(--pr-information);
++  --confidential: var(--pr-focus);
++  --font-sans: var(--pr-font-ui);
++  --font-mono: var(--pr-font-data);
++  --font-display: var(--pr-font-document);
++}
+--- /dev/null
++++ web/vendor/propria-design-contract/adapters/intake.css
+@@ -0,0 +1,24 @@
++/* Consignatio Intake variable adapter | Propria contract 1.0.0 | 2026-09-12
++   Byline: Codex · GPT-5. Load after tokens.css and before product overrides. */
++
++:root {
++  --workspace: var(--pr-canvas);
++  --surface: var(--pr-surface);
++  --ink: var(--pr-ink);
++  --muted: var(--pr-ink-muted);
++  --soft-fill: var(--pr-surface-muted);
++  --border: var(--pr-border);
++  --border-strong: var(--pr-border-strong);
++  --nav: var(--pr-shell);
++  --sidebar: var(--pr-shell-surface);
++  --sidebar-active: var(--pr-action-soft);
++  --shell-text: var(--pr-shell-text);
++  --shell-bright: var(--pr-shell-text);
++  --indigo: var(--pr-action);
++  --focus: var(--pr-focus);
++  --success: var(--pr-positive);
++  --warning: var(--pr-caution);
++  --destructive: var(--pr-destructive);
++  --font-ui: var(--pr-font-ui);
++  --font-mono: var(--pr-font-data);
++}
+--- /dev/null
++++ web/vendor/propria-design-contract/adapters/portal.css
+@@ -0,0 +1,25 @@
++/* Propria portal and progress-board adapter | contract 1.0.0 | 2026-09-12
++   Byline: Codex · GPT-5. Blue remains informational, never the primary action. */
++
++:root {
++  --paper: var(--pr-canvas);
++  --sheet: var(--pr-surface);
++  --ink: var(--pr-ink);
++  --muted: var(--pr-ink-muted);
++  --line: var(--pr-border);
++  --line-strong: var(--pr-border-strong);
++  --nav: var(--pr-shell);
++  --nav-surface: var(--pr-shell-surface);
++  --nav-text: var(--pr-shell-text);
++  --action: var(--pr-action);
++  --action-hover: var(--pr-action-hover);
++  --action-soft: var(--pr-action-soft);
++  --blue: var(--pr-information);
++  --green: var(--pr-positive);
++  --amber: var(--pr-caution);
++  --red: var(--pr-destructive);
++  --focus: var(--pr-focus);
++  --font-ui: var(--pr-font-ui);
++  --font-data: var(--pr-font-data);
++  --font-document: var(--pr-font-document);
++}
+--- /dev/null
++++ web/vendor/propria-design-contract/adapters/probata.css
+@@ -0,0 +1,54 @@
++/* Indicia Probata Workbench adapter | Propria contract 1.0.0 | 2026-09-12
++   Byline: Codex · GPT-5. Covers both General and Advanced Probata surfaces. */
++
++:root {
++  --background: var(--pr-canvas);
++  --foreground: var(--pr-ink);
++  --card: var(--pr-surface);
++  --card-foreground: var(--pr-ink);
++  --popover: var(--pr-surface);
++  --popover-foreground: var(--pr-ink);
++  --primary: var(--pr-action);
++  --primary-foreground: var(--pr-action-text);
++  --secondary: var(--pr-surface-muted);
++  --secondary-foreground: var(--pr-ink);
++  --muted: var(--pr-surface-muted);
++  --muted-foreground: var(--pr-ink-muted);
++  --accent: var(--pr-action-soft);
++  --accent-foreground: var(--pr-ink);
++  --destructive: var(--pr-destructive);
++  --border: var(--pr-border);
++  --input: var(--pr-border-strong);
++  --ring: var(--pr-focus);
++  --sidebar: var(--pr-shell);
++  --sidebar-foreground: var(--pr-shell-text);
++  --sidebar-primary: var(--pr-action);
++  --sidebar-primary-foreground: var(--pr-action-text);
++  --sidebar-accent: var(--pr-shell-surface);
++  --sidebar-accent-foreground: var(--pr-shell-text);
++  --sidebar-border: var(--pr-border-strong);
++  --sidebar-ring: var(--pr-focus);
++  --chart-1: var(--pr-information);
++  --chart-2: var(--pr-action);
++  --chart-3: var(--pr-focus);
++  --chart-4: var(--pr-positive);
++  --chart-5: var(--pr-ink-muted);
++  --status-positive: var(--pr-positive);
++  --status-caution: var(--pr-caution);
++  --status-destructive: var(--pr-destructive);
++  --status-information: var(--pr-information);
++}
++
++[data-pr-experience="general"] {
++  --workbench-layout-gap: var(--pr-layout-gap);
++  --workbench-panel-padding: var(--pr-panel-padding);
++  --workbench-row-height: var(--pr-data-row-height);
++  --workbench-context-height: var(--pr-context-strip-min-height);
++}
++
++[data-pr-experience="advanced"] {
++  --workbench-layout-gap: var(--pr-layout-gap);
++  --workbench-panel-padding: var(--pr-panel-padding);
++  --workbench-row-height: var(--pr-data-row-height);
++  --workbench-context-height: var(--pr-context-strip-min-height);
++}
+--- /dev/null
++++ web/vendor/propria-design-contract/build.mjs
+@@ -0,0 +1,90 @@
++// Propria deterministic CSS token generator | contract 1.0.0 | 2026-09-12
++// Byline: Codex · GPT-5
++import assert from "node:assert/strict";
++import { readFile, writeFile } from "node:fs/promises";
++
++const root = new URL("./", import.meta.url);
++const tokenUrl = new URL("tokens.json", root);
++const cssUrl = new URL("tokens.css", root);
++const contract = JSON.parse(await readFile(tokenUrl, "utf8"));
++const checkOnly = process.argv.includes("--check");
++
++function kebab(value) {
++  return value.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
++}
++
++function fontStack(values) {
++  return values.map((value) => value.includes(" ") ? `"${value}"` : value).join(", ");
++}
++
++function themeLines(themeName, includeFoundation) {
++  const theme = contract.themes[themeName];
++  const lines = Object.entries(theme).map(([name, value]) => `  --pr-${kebab(name)}: ${value.toLowerCase()};`);
++  if (includeFoundation) {
++    lines.push(
++      `  --pr-font-ui: ${fontStack(contract.typography.ui)};`,
++      `  --pr-font-data: ${fontStack(contract.typography.data)};`,
++      `  --pr-font-document: ${fontStack(contract.typography.document)};`,
++      `  --pr-radius-control: ${contract.geometry.radiusPx.control}px;`,
++      `  --pr-radius-panel: ${contract.geometry.radiusPx.panel}px;`,
++      `  --pr-radius-dialog: ${contract.geometry.radiusPx.dialog}px;`,
++    );
++  }
++  const effects = contract.effects[themeName];
++  lines.push(
++    `  --pr-shadow-panel: ${effects.shadowPanel};`,
++    `  --pr-shadow-dialog: ${effects.shadowDialog};`,
++  );
++  return lines.join("\n");
++}
++
++function tierLines(tierName) {
++  const tier = contract.experienceTiers[tierName];
++  return [
++    `  --pr-layout-gap: ${tier.layoutGapPx}px;`,
++    `  --pr-panel-padding: ${tier.panelPaddingPx}px;`,
++    `  --pr-data-row-height: ${tier.dataRowHeightPx}px;`,
++    `  --pr-control-min-height: ${tier.controlMinHeightPx}px;`,
++    `  --pr-context-strip-min-height: ${tier.contextStripMinHeightPx}px;`,
++    `  --pr-label-size: ${tier.labelSizePx}px;`,
++  ].join("\n");
++}
++
++const output = `/* Propria shared semantic tokens | contract ${contract.version} | ${contract.updated} | Byline: Codex · GPT-5
++   GENERATED FROM tokens.json. Do not hand-edit this file. */
++
++:root,
++[data-pr-theme="light"],
++:root.theme-light {
++  color-scheme: light;
++${themeLines("light", true)}
++}
++
++[data-pr-theme="dark"],
++:root.theme-dark,
++html.dark {
++  color-scheme: dark;
++${themeLines("dark", false)}
++}
++
++/* Experience tier is independent of light/dark theme. These values tune density and composition,
++   never authority. General mirrors the Evidence Operations Desk; Advanced mirrors the Modular
++   Service Cockpit. */
++:root,
++[data-pr-experience="general"] {
++${tierLines("general")}
++}
++
++[data-pr-experience="advanced"] {
++${tierLines("advanced")}
++}
++`;
++
++if (checkOnly) {
++  const current = await readFile(cssUrl, "utf8");
++  assert.equal(current, output, "tokens.css drifted from tokens.json; run npm run build:tokens");
++  console.log(`Verified generated tokens.css is current for ${contract.version}.`);
++} else {
++  await writeFile(cssUrl, output, "utf8");
++  console.log(`Generated tokens.css from tokens.json for ${contract.version}.`);
++}
+--- /dev/null
++++ web/vendor/propria-design-contract/examples/probata-two-surface-sample.html
+@@ -0,0 +1,163 @@
++<!doctype html>
++<html lang="en" data-pr-theme="light">
++<head>
++  <meta charset="utf-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1">
++  <title>Probata two-surface token sample</title>
++  <link rel="stylesheet" href="../tokens.css">
++  <link rel="stylesheet" href="../theme.css">
++  <style>
++    /* Byline: Codex · GPT-5 · 2026-09-12. Token sample; original Probata mockups remain canonical. */
++    * { box-sizing: border-box; }
++    html, body { margin: 0; min-height: 100%; }
++    body { padding: 24px; }
++    button { font: inherit; cursor: pointer; }
++    .review { width: min(1480px, 100%); margin: auto; }
++    .review-head, .surface-label { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
++    .review-head { margin-bottom: 30px; }
++    .review-head h1 { margin: 0; font: 650 clamp(28px, 4vw, 48px)/1 var(--pr-font-document); }
++    .review-head p { max-width: 750px; margin: 8px 0 0; color: var(--pr-ink-muted); }
++    .theme-buttons { display: flex; gap: 8px; }
++    .quiet-button { min-height: 36px; padding: 7px 11px; color: var(--pr-ink); border: 1px solid var(--pr-border-strong); border-radius: var(--pr-radius-control); background: var(--pr-surface); }
++    .quiet-button:focus-visible { outline: 3px solid var(--pr-focus); outline-offset: 2px; }
++    .surface-label { margin: 30px 0 10px; }
++    .surface-label h2 { margin: 0; font-size: 18px; }
++    .surface-label span { color: var(--pr-ink-muted); font: 12px var(--pr-font-data); }
++
++    .desk, .cockpit { overflow: hidden; border: 1px solid var(--pr-border-strong); border-radius: var(--pr-radius-panel); box-shadow: var(--pr-shadow-dialog); }
++    .desk { display: grid; grid-template-rows: 58px minmax(420px, 1fr); }
++    .desk-top { display: grid; grid-template-columns: 220px 1fr auto; align-items: center; color: var(--pr-shell-text); border-bottom: 3px solid var(--pr-action); background: var(--pr-shell); }
++    .brand { padding: 0 16px; font-weight: 800; letter-spacing: .04em; }
++    .top-context { padding: 9px 16px; border-left: 1px solid var(--pr-border-strong); }
++    .top-context small, .module small, .jacket small { display: block; color: var(--pr-ink-muted); font: 10px var(--pr-font-data); }
++    .top-context small { color: var(--pr-shell-text); opacity: .68; }
++    .desk-top .pr-status { margin-right: 14px; color: var(--pr-shell-text); }
++    .desk-body { display: grid; grid-template-columns: 200px minmax(430px, 1fr) 330px; min-height: 0; }
++    .desk-nav { padding: 14px 10px; color: var(--pr-shell-text); background: var(--pr-shell-surface); }
++    .desk-nav button { width: 100%; min-height: 36px; margin-bottom: 5px; padding: 8px 10px; color: inherit; border: 0; border-left: 3px solid transparent; background: transparent; text-align: left; }
++    .desk-nav button.active { border-left-color: var(--pr-action); background: var(--pr-action-soft); color: var(--pr-ink); }
++    .desk-main { min-width: 0; padding: var(--pr-panel-padding); background: var(--pr-canvas); }
++    .desk-main h3, .jacket h3 { margin: 0 0 4px; }
++    .desk-main > p { margin: 0 0 16px; color: var(--pr-ink-muted); }
++    .table { overflow: hidden; border: 1px solid var(--pr-border); background: var(--pr-surface); }
++    .row { display: grid; grid-template-columns: 38px 1.7fr .85fr .8fr; min-height: var(--pr-data-row-height); align-items: center; border-top: 1px solid var(--pr-border); }
++    .row:first-child { border-top: 0; }
++    .row > span { min-width: 0; padding: 8px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++    .row.head { color: var(--pr-ink-muted); background: var(--pr-surface-muted); font-size: 11px; font-weight: 800; }
++    .row.selected { background: var(--pr-action-soft); box-shadow: inset 3px 0 var(--pr-action); }
++    .jacket { padding: var(--pr-panel-padding); border-left: 1px solid var(--pr-border-strong); background: var(--pr-surface); }
++    .chain { display: grid; gap: 8px; margin-top: 16px; }
++    .chain div { padding: 9px 10px; border-left: 3px solid var(--pr-information); background: var(--pr-surface-muted); }
++    .chain div:nth-child(3) { border-left-color: var(--pr-caution); }
++    .chain div:nth-child(4) { border-left-color: var(--pr-positive); }
++
++    .cockpit { color: var(--pr-ink); background: var(--pr-canvas); }
++    .cockpit-top { display: flex; min-height: 52px; align-items: center; gap: 20px; padding: 0 16px; color: var(--pr-shell-text); background: var(--pr-shell); }
++    .presets { display: flex; gap: 4px; }
++    .presets span { padding: 9px 8px; border-bottom: 2px solid transparent; font-size: 11px; opacity: .68; }
++    .presets span.active { border-bottom-color: var(--pr-focus); opacity: 1; }
++    .context-spine { display: grid; grid-template-columns: repeat(6, minmax(100px, 1fr)); min-height: var(--pr-context-strip-min-height); border-bottom: 1px solid var(--pr-border-strong); background: var(--pr-surface); }
++    .scope { min-width: 0; padding: 10px 12px; border-right: 1px solid var(--pr-border); }
++    .scope:last-child { border-right: 0; }
++    .scope span { display: block; color: var(--pr-ink-muted); font: 9px var(--pr-font-data); text-transform: uppercase; }
++    .scope strong { display: block; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
++    .cockpit-body { display: grid; grid-template-columns: 54px 1fr; }
++    .rail { display: grid; align-content: start; gap: 7px; padding: 10px 8px; color: var(--pr-shell-text); background: var(--pr-shell-surface); }
++    .rail span { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--pr-border-strong); font: 10px var(--pr-font-data); }
++    .modules { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: var(--pr-layout-gap); padding: var(--pr-panel-padding); }
++    .module { min-height: 145px; padding: var(--pr-panel-padding); border: 1px solid var(--pr-border); border-top: 2px solid var(--pr-information); background: var(--pr-surface); }
++    .module:nth-child(2), .module:nth-child(5) { border-top-color: var(--pr-focus); }
++    .module:nth-child(3) { border-top-color: var(--pr-destructive); }
++    .module:nth-child(4) { border-top-color: var(--pr-action); }
++    .module:nth-child(6) { border-top-color: var(--pr-positive); }
++    .module h3 { margin: 5px 0 10px; font-size: 13px; }
++    .metric { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; border: 1px solid var(--pr-border); background: var(--pr-border); }
++    .metric span { padding: 8px; background: var(--pr-surface-muted); font: 11px var(--pr-font-data); }
++    .boundary { margin-top: 10px; color: var(--pr-ink-muted); font-size: 11px; }
++
++    .legal-alignment { display: grid; grid-template-columns: 220px 1fr 310px; min-height: 300px; }
++    .legal-nav { padding: 16px 12px; color: var(--pr-shell-text); background: var(--pr-shell); }
++    .legal-nav h3 { margin: 0 8px 18px; }
++    .legal-nav div { min-height: 36px; padding: 9px 8px; border-left: 3px solid transparent; }
++    .legal-nav .active { border-left-color: var(--pr-action); background: var(--pr-shell-surface); }
++    .legal-document { padding: 24px; background: var(--pr-surface); }
++    .legal-document h3 { margin: 0; font: 650 28px var(--pr-font-document); }
++    .legal-document p { max-width: 68ch; line-height: 1.65; }
++    .legal-inspector { padding: 16px; border-left: 1px solid var(--pr-border); background: var(--pr-surface-muted); }
++    .legal-state { margin: 12px 0; padding: 10px; border-left: 3px solid var(--pr-caution); background: var(--pr-surface); }
++
++    @media (max-width: 980px) {
++      body { padding: 12px; }
++      .desk-body { grid-template-columns: 58px minmax(0, 1fr); }
++      .jacket { grid-column: 1 / -1; border-top: 1px solid var(--pr-border-strong); border-left: 0; }
++      .context-spine { grid-template-columns: repeat(3, 1fr); }
++      .modules { grid-template-columns: 1fr 1fr; }
++      .legal-alignment { grid-template-columns: 150px 1fr; }
++      .legal-inspector { grid-column: 1 / -1; border-top: 1px solid var(--pr-border); border-left: 0; }
++    }
++    @media (max-width: 680px) {
++      .review-head { align-items: start; flex-direction: column; }
++      .desk-top { grid-template-columns: 1fr auto; }
++      .top-context { display: none; }
++      .desk-body, .legal-alignment { grid-template-columns: 1fr; }
++      .desk-nav { display: flex; overflow-x: auto; }
++      .desk-nav button { width: auto; min-width: max-content; }
++      .row { grid-template-columns: 32px 1fr .8fr; }
++      .row > :last-child { display: none; }
++      .context-spine, .modules { grid-template-columns: 1fr; }
++      .cockpit-body { grid-template-columns: 1fr; }
++      .rail { grid-auto-flow: column; overflow-x: auto; }
++    }
++  </style>
++</head>
++<body class="pr-app">
++  <main class="review">
++    <header class="review-head">
++      <div>
++        <h1>One visual language, bounded workspaces</h1>
++        <p>The original Probata General and Advanced structures remain intact. Legal aligns through the same shell, components, states, and tokens while keeping legal authority and document semantics distinct.</p>
++      </div>
++      <div class="theme-buttons" aria-label="Theme preview">
++        <button class="quiet-button" type="button" data-theme="light">Light</button>
++        <button class="quiet-button" type="button" data-theme="dark">Dark</button>
++      </div>
++    </header>
++
++    <div class="surface-label"><h2>Probata General · Evidence Operations Desk</h2><span>daily evidence work</span></div>
++    <section class="desk" data-pr-experience="general" aria-label="General Evidence Operations Desk sample">
++      <header class="desk-top"><div class="brand">INDICIA PROBATA</div><div class="top-context"><small>Matter / court case</small><strong>Primary matter · Primary proceeding</strong></div><span class="pr-status">Verified</span></header>
++      <div class="desk-body">
++        <nav class="desk-nav" aria-label="General work"><button class="active">Evidence desk</button><button>Intake</button><button>Review</button><button>Chronology</button><button>Receipts</button></nav>
++        <div class="desk-main"><h3>Evidence review</h3><p>Dense daily operation with custody state always visible.</p><div class="table" role="table"><div class="row head"><span></span><span>Source</span><span>State</span><span>Updated</span></div><div class="row selected"><span>✓</span><span>Exhibit 12 · message export</span><span>Pending review</span><span class="pr-data">14:32</span></div><div class="row"><span></span><span>School attendance record</span><span>Accepted</span><span class="pr-data">13:48</span></div><div class="row"><span></span><span>Call log · provider export</span><span>Parsed</span><span class="pr-data">12:05</span></div><div class="row"><span></span><span>Photograph metadata</span><span>Needs context</span><span class="pr-data">09:18</span></div></div></div>
++        <aside class="jacket"><small>Persistent inspector</small><h3>Custody jacket</h3><div class="chain"><div>Canonical source<br><small class="pr-data">sha256 · source version 4</small></div><div>Normalized record<br><small>parser receipt attached</small></div><div>Evidence proposal<br><small>human decision required</small></div><div>Verified status<br><small>scope and revision pinned</small></div></div></aside>
++      </div>
++    </section>
++
++    <div class="surface-label"><h2>Probata Advanced · Modular Service Cockpit</h2><span>deep forensic tools · gated</span></div>
++    <section class="cockpit" data-pr-experience="advanced" aria-label="Advanced Modular Service Cockpit sample">
++      <header class="cockpit-top"><strong>INDICIA PROBATA</strong><div class="presets"><span class="active">Investigation</span><span>Chronology</span><span>Custody</span><span>Automation</span></div></header>
++      <div class="context-spine"><div class="scope"><span>Matter</span><strong>Primary matter</strong></div><div class="scope"><span>Court case</span><strong>Primary proceeding</strong></div><div class="scope"><span>Partition</span><strong class="pr-data">matter:primary</strong></div><div class="scope"><span>Horizon</span><strong class="pr-data">2026-09-12</strong></div><div class="scope"><span>Run</span><strong class="pr-data">run_8fd2</strong></div><div class="scope"><span>Authority</span><strong>Proposal only</strong></div></div>
++      <div class="cockpit-body"><nav class="rail"><span>TS</span><span>GR</span><span>WF</span><span>DB</span></nav><div class="modules">
++        <article class="module"><small>Governed service</small><h3>Timesketch chronology</h3><div class="metric"><span>84 events</span><span>7 gaps</span><span>3 flags</span></div><p class="boundary">Standalone projection · source pins retained</p></article>
++        <article class="module"><small>Extraction</small><h3>Semantica proposals</h3><div class="metric"><span>19 claims</span><span>4 pending</span><span>0 accepted</span></div><p class="boundary">Candidates until human review</p></article>
++        <article class="module"><small>Custody</small><h3>Evidence integrity</h3><div class="metric"><span>42 hashes</span><span>2 stale</span><span>1 alert</span></div><p class="boundary">PostgreSQL receipts are canonical</p></article>
++        <article class="module"><small>Relationship view</small><h3>Graph projection</h3><div class="metric"><span>31 nodes</span><span>56 links</span><span>2 unknown</span></div><p class="boundary">Projection is not source authority</p></article>
++        <article class="module"><small>Workflow</small><h3>Temporal and n8n</h3><div class="metric"><span>6 active</span><span>1 blocked</span><span>9 complete</span></div><p class="boundary">Durable run IDs remain visible</p></article>
++        <article class="module"><small>Legal handoff</small><h3>Legal Workdesk package</h3><div class="metric"><span>v12 pinned</span><span>3 drafts</span><span>1 stale</span></div><p class="boundary">Versioned source package · no evidence writes</p></article>
++      </div></div>
++    </section>
++
++    <div class="surface-label"><h2>advocatio Legal Workdesk · same chassis, quieter document workspace</h2><span>separate authority</span></div>
++    <section class="pr-surface legal-alignment" data-pr-experience="general" aria-label="Aligned legal workspace sample">
++      <nav class="legal-nav"><h3>ADVOCATIO<br><small>Legal Workdesk</small></h3><div class="active">Matter brief</div><div>Research</div><div>Drafts</div><div>Review</div><div>Release</div></nav>
++      <article class="legal-document"><span class="pr-status" data-pr-status="caution">Attorney review required</span><h3>Motion response · working draft</h3><p>The reading surface uses the same geometry, contrast, focus, and semantic state system as Probata. Document typography and longer measure distinguish legal writing without creating another visual brand.</p><p>Every factual assertion remains bound to a versioned source package. A new evidence revision marks dependent work stale; it does not silently update or re-approve the draft.</p></article>
++      <aside class="legal-inspector"><small class="pr-data">LEGAL SOURCE PACKAGE</small><h3>Package v12</h3><div class="legal-state"><strong>Stale dependency</strong><br><small>One source has a newer accepted revision.</small></div><div class="chain"><div>Manifest hash<br><small class="pr-data">8c41…e72a</small></div><div>Authority posture<br><small>Verified primary + conflict noted</small></div></div></aside>
++    </section>
++  </main>
++  <script>
++    document.querySelectorAll("[data-theme]").forEach((button) => {
++      button.addEventListener("click", () => { document.documentElement.dataset.prTheme = button.dataset.theme; });
++    });
++  </script>
++</body>
++</html>
+--- /dev/null
++++ web/vendor/propria-design-contract/package.json
+@@ -0,0 +1,32 @@
++{
++  "name": "@propria/design-contract",
++  "version": "1.0.0",
++  "private": true,
++  "description": "Portable semantic color, typography, density, and product adapter contract for Propria surfaces.",
++  "type": "module",
++  "propria:byline": "Codex · GPT-5 · 2026-09-12",
++  "files": [
++    "tokens.css",
++    "theme.css",
++    "tokens.json",
++    "build.mjs",
++    "adapters",
++    "examples",
++    "README.md",
++    "CALLABILITY.md",
++    "CHANGELOG.md"
++  ],
++  "exports": {
++    "./tokens.css": "./tokens.css",
++    "./theme.css": "./theme.css",
++    "./tokens.json": "./tokens.json",
++    "./adapters/intake.css": "./adapters/intake.css",
++    "./adapters/probata.css": "./adapters/probata.css",
++    "./adapters/advocatio.css": "./adapters/advocatio.css",
++    "./adapters/portal.css": "./adapters/portal.css"
++  },
++  "scripts": {
++    "build:tokens": "node build.mjs",
++    "verify": "node build.mjs --check && node verify.mjs"
++  }
++}
+--- /dev/null
++++ web/vendor/propria-design-contract/theme.css
+@@ -0,0 +1,115 @@
++/* Propria portable theme foundations | contract 1.0.0 | 2026-09-12
++   Byline: Codex · GPT-5. Import tokens.css before this file. */
++
++.pr-app {
++  min-width: 320px;
++  min-height: 100%;
++  color: var(--pr-ink);
++  background: var(--pr-canvas);
++  font-family: var(--pr-font-ui);
++  accent-color: var(--pr-action);
++}
++
++.pr-surface {
++  color: var(--pr-ink);
++  border: 1px solid var(--pr-border);
++  border-radius: var(--pr-radius-panel);
++  background: var(--pr-surface);
++  box-shadow: var(--pr-shadow-panel);
++}
++
++.pr-surface-muted {
++  color: var(--pr-ink);
++  border: 1px solid var(--pr-border);
++  background: var(--pr-surface-muted);
++}
++
++.pr-shell {
++  color: var(--pr-shell-text);
++  background: var(--pr-shell);
++}
++
++.pr-shell-surface {
++  color: var(--pr-shell-text);
++  background: var(--pr-shell-surface);
++}
++
++.pr-action {
++  min-height: var(--pr-control-min-height);
++  padding: 8px 14px;
++  color: var(--pr-action-text);
++  border: 1px solid var(--pr-action);
++  border-radius: var(--pr-radius-control);
++  background: var(--pr-action);
++  font: 700 0.875rem/1 var(--pr-font-ui);
++}
++
++.pr-action:hover {
++  border-color: var(--pr-action-hover);
++  background: var(--pr-action-hover);
++}
++
++.pr-focusable:focus-visible,
++.pr-action:focus-visible {
++  outline: 3px solid var(--pr-focus);
++  outline-offset: 2px;
++}
++
++.pr-data {
++  font-family: var(--pr-font-data);
++  font-variant-numeric: tabular-nums;
++}
++
++.pr-document-title {
++  font-family: var(--pr-font-document);
++  text-wrap: balance;
++}
++
++.pr-status {
++  display: inline-flex;
++  min-height: 24px;
++  align-items: center;
++  gap: 6px;
++  padding: 3px 8px;
++  border: 1px solid currentColor;
++  border-radius: 999px;
++  font: 700 0.75rem/1 var(--pr-font-ui);
++}
++
++.pr-status[data-pr-status="positive"] { color: var(--pr-positive); }
++.pr-status[data-pr-status="caution"] { color: var(--pr-caution); }
++.pr-status[data-pr-status="destructive"] { color: var(--pr-destructive); }
++.pr-status[data-pr-status="information"] { color: var(--pr-information); }
++
++[data-pr-experience="general"] {
++  --pr-current-layout: "Evidence Operations Desk";
++}
++
++[data-pr-experience="advanced"] {
++  --pr-current-layout: "Modular Service Cockpit";
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .pr-app *,
++  .pr-app *::before,
++  .pr-app *::after {
++    scroll-behavior: auto;
++    transition-duration: 0.01ms;
++    animation-duration: 0.01ms;
++    animation-iteration-count: 1;
++  }
++}
++
++@media (forced-colors: active) {
++  .pr-surface,
++  .pr-surface-muted,
++  .pr-action,
++  .pr-status {
++    border-color: CanvasText;
++  }
++
++  .pr-focusable:focus-visible,
++  .pr-action:focus-visible {
++    outline-color: Highlight;
++  }
++}
+--- /dev/null
++++ web/vendor/propria-design-contract/tokens.css
+@@ -0,0 +1,84 @@
++/* Propria shared semantic tokens | contract 1.0.0 | 2026-09-12 | Byline: Codex · GPT-5
++   GENERATED FROM tokens.json. Do not hand-edit this file. */
++
++:root,
++[data-pr-theme="light"],
++:root.theme-light {
++  color-scheme: light;
++  --pr-canvas: #f3f0e8;
++  --pr-surface: #fffdf8;
++  --pr-surface-muted: #e7e1d5;
++  --pr-ink: #171a1c;
++  --pr-ink-muted: #5d625f;
++  --pr-border: #c6beb0;
++  --pr-border-strong: #81786a;
++  --pr-shell: #171c19;
++  --pr-shell-surface: #232b27;
++  --pr-shell-text: #f4f0e8;
++  --pr-action: #9f303b;
++  --pr-action-text: #ffffff;
++  --pr-action-hover: #7b222d;
++  --pr-action-soft: #f3e1e5;
++  --pr-focus: #7d5200;
++  --pr-positive: #247047;
++  --pr-caution: #9a5a12;
++  --pr-destructive: #b42318;
++  --pr-information: #376f72;
++  --pr-font-ui: "Instrument Sans", "Segoe UI", sans-serif;
++  --pr-font-data: "IBM Plex Mono", "Cascadia Code", monospace;
++  --pr-font-document: "Source Serif 4", "Playfair Display", Georgia, serif;
++  --pr-radius-control: 4px;
++  --pr-radius-panel: 6px;
++  --pr-radius-dialog: 8px;
++  --pr-shadow-panel: 0 8px 24px rgb(23 26 28 / 10%);
++  --pr-shadow-dialog: 0 20px 60px rgb(23 26 28 / 24%);
++}
++
++[data-pr-theme="dark"],
++:root.theme-dark,
++html.dark {
++  color-scheme: dark;
++  --pr-canvas: #161a18;
++  --pr-surface: #202622;
++  --pr-surface-muted: #2a312c;
++  --pr-ink: #f5f1e8;
++  --pr-ink-muted: #b8b1a5;
++  --pr-border: #49534d;
++  --pr-border-strong: #717c74;
++  --pr-shell: #101412;
++  --pr-shell-surface: #1b211d;
++  --pr-shell-text: #f5f1e8;
++  --pr-action: #f27479;
++  --pr-action-text: #211011;
++  --pr-action-hover: #ff9a9f;
++  --pr-action-soft: #4a252b;
++  --pr-focus: #f0b45a;
++  --pr-positive: #6cc392;
++  --pr-caution: #e6b55d;
++  --pr-destructive: #ff8377;
++  --pr-information: #82bdc0;
++  --pr-shadow-panel: 0 10px 28px rgb(0 0 0 / 28%);
++  --pr-shadow-dialog: 0 24px 72px rgb(0 0 0 / 44%);
++}
++
++/* Experience tier is independent of light/dark theme. These values tune density and composition,
++   never authority. General mirrors the Evidence Operations Desk; Advanced mirrors the Modular
++   Service Cockpit. */
++:root,
++[data-pr-experience="general"] {
++  --pr-layout-gap: 16px;
++  --pr-panel-padding: 16px;
++  --pr-data-row-height: 40px;
++  --pr-control-min-height: 36px;
++  --pr-context-strip-min-height: 48px;
++  --pr-label-size: 12px;
++}
++
++[data-pr-experience="advanced"] {
++  --pr-layout-gap: 10px;
++  --pr-panel-padding: 12px;
++  --pr-data-row-height: 36px;
++  --pr-control-min-height: 36px;
++  --pr-context-strip-min-height: 64px;
++  --pr-label-size: 11px;
++}
+--- /dev/null
++++ web/vendor/propria-design-contract/tokens.json
+@@ -0,0 +1,96 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "contract": "propria-surface-design",
++  "version": "1.0.0",
++  "status": "accepted_for_initial_adoption",
++  "updated": "2026-09-12",
++  "byline": "Codex · GPT-5 · 2026-09-12",
++  "themes": {
++    "light": {
++      "canvas": "#F3F0E8",
++      "surface": "#FFFDF8",
++      "surfaceMuted": "#E7E1D5",
++      "ink": "#171A1C",
++      "inkMuted": "#5D625F",
++      "border": "#C6BEB0",
++      "borderStrong": "#81786A",
++      "shell": "#171C19",
++      "shellSurface": "#232B27",
++      "shellText": "#F4F0E8",
++      "action": "#9F303B",
++      "actionText": "#FFFFFF",
++      "actionHover": "#7B222D",
++      "actionSoft": "#F3E1E5",
++      "focus": "#7D5200",
++      "positive": "#247047",
++      "caution": "#9A5A12",
++      "destructive": "#B42318",
++      "information": "#376F72"
++    },
++    "dark": {
++      "canvas": "#161A18",
++      "surface": "#202622",
++      "surfaceMuted": "#2A312C",
++      "ink": "#F5F1E8",
++      "inkMuted": "#B8B1A5",
++      "border": "#49534D",
++      "borderStrong": "#717C74",
++      "shell": "#101412",
++      "shellSurface": "#1B211D",
++      "shellText": "#F5F1E8",
++      "action": "#F27479",
++      "actionText": "#211011",
++      "actionHover": "#FF9A9F",
++      "actionSoft": "#4A252B",
++      "focus": "#F0B45A",
++      "positive": "#6CC392",
++      "caution": "#E6B55D",
++      "destructive": "#FF8377",
++      "information": "#82BDC0"
++    }
++  },
++  "typography": {
++    "ui": ["Instrument Sans", "Segoe UI", "sans-serif"],
++    "data": ["IBM Plex Mono", "Cascadia Code", "monospace"],
++    "document": ["Source Serif 4", "Playfair Display", "Georgia", "serif"]
++  },
++  "effects": {
++    "light": {
++      "shadowPanel": "0 8px 24px rgb(23 26 28 / 10%)",
++      "shadowDialog": "0 20px 60px rgb(23 26 28 / 24%)"
++    },
++    "dark": {
++      "shadowPanel": "0 10px 28px rgb(0 0 0 / 28%)",
++      "shadowDialog": "0 24px 72px rgb(0 0 0 / 44%)"
++    }
++  },
++  "geometry": {
++    "spacingPx": [4, 8, 12, 16, 24, 32, 48],
++    "radiusPx": { "control": 4, "panel": 6, "dialog": 8 },
++    "focusOutlinePx": 3,
++    "focusOffsetPx": 2,
++    "dividerHitAreaPx": 8,
++    "denseTargetMinimumPx": 36,
++    "preferredTargetMinimumPx": 44
++  },
++  "experienceTiers": {
++    "general": {
++      "canonicalDonor": "Probata Evidence Operations Desk",
++      "layoutGapPx": 16,
++      "panelPaddingPx": 16,
++      "dataRowHeightPx": 40,
++      "controlMinHeightPx": 36,
++      "contextStripMinHeightPx": 48,
++      "labelSizePx": 12
++    },
++    "advanced": {
++      "canonicalDonor": "Probata Modular Service Cockpit",
++      "layoutGapPx": 10,
++      "panelPaddingPx": 12,
++      "dataRowHeightPx": 36,
++      "controlMinHeightPx": 36,
++      "contextStripMinHeightPx": 64,
++      "labelSizePx": 11
++    }
++  }
++}
+--- /dev/null
++++ web/vendor/propria-design-contract/verify.mjs
+@@ -0,0 +1,125 @@
++// Propria design-contract verification | contract 1.0.0 | 2026-09-12
++// Byline: Codex · GPT-5
++import assert from "node:assert/strict";
++import { readFile } from "node:fs/promises";
++
++const root = new URL("./", import.meta.url);
++const contract = JSON.parse(await readFile(new URL("tokens.json", root), "utf8"));
++const packageContract = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
++const css = await readFile(new URL("tokens.css", root), "utf8");
++const themeCss = await readFile(new URL("theme.css", root), "utf8");
++const sampleHtml = await readFile(new URL("examples/probata-two-surface-sample.html", root), "utf8");
++
++const requiredRoles = [
++  "canvas", "surface", "surfaceMuted", "ink", "inkMuted", "border", "borderStrong",
++  "shell", "shellSurface", "shellText", "action", "actionText", "actionHover",
++  "actionSoft", "focus", "positive", "caution", "destructive", "information",
++];
++const adapters = ["intake", "probata", "advocatio", "portal"];
++
++function cssName(role) {
++  return role.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
++}
++
++function escapeRegExp(value) {
++  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
++}
++
++function selectorBlock(source, selector) {
++  const selectorAt = source.indexOf(selector);
++  assert.notEqual(selectorAt, -1, `Missing selector ${selector}`);
++  const openAt = source.indexOf("{", selectorAt);
++  let depth = 0;
++  for (let index = openAt; index < source.length; index += 1) {
++    if (source[index] === "{") depth += 1;
++    if (source[index] === "}") depth -= 1;
++    if (depth === 0) return source.slice(openAt + 1, index);
++  }
++  assert.fail(`Unclosed selector ${selector}`);
++}
++
++function cssValue(block, customProperty) {
++  const match = block.match(new RegExp(`${escapeRegExp(customProperty)}\\s*:\\s*([^;]+);`, "i"));
++  assert.ok(match, `Missing ${customProperty}`);
++  return match[1].trim();
++}
++
++function luminance(hex) {
++  const channels = hex.slice(1).match(/.{2}/g).map((value) => Number.parseInt(value, 16) / 255);
++  const linear = channels.map((value) =>
++    value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4,
++  );
++  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
++}
++
++function contrast(a, b) {
++  const [bright, dark] = [luminance(a), luminance(b)].sort((left, right) => right - left);
++  return (bright + 0.05) / (dark + 0.05);
++}
++
++assert.equal(packageContract.version, contract.version, "package.json and tokens.json versions differ");
++assert.equal(contract.status, "accepted_for_initial_adoption", "Unexpected contract status");
++
++for (const themeName of ["light", "dark"]) {
++  const theme = contract.themes[themeName];
++  assert.ok(theme, `Missing ${themeName} theme`);
++  const block = selectorBlock(css, `[data-pr-theme="${themeName}"]`);
++
++  for (const role of requiredRoles) {
++    const jsonColor = theme[role];
++    assert.match(jsonColor ?? "", /^#[0-9A-F]{6}$/i, `${themeName}.${role} must be a hex color`);
++    const cssColor = cssValue(block, `--pr-${cssName(role)}`);
++    assert.equal(cssColor.toUpperCase(), jsonColor.toUpperCase(), `${themeName}.${role} CSS/JSON drift`);
++  }
++
++  for (const [foreground, background] of [
++    ["ink", "canvas"], ["ink", "surface"], ["inkMuted", "surface"],
++    ["shellText", "shell"], ["actionText", "action"],
++  ]) {
++    const ratio = contrast(theme[foreground], theme[background]);
++    assert.ok(ratio >= 4.5, `${themeName} ${foreground}/${background} is ${ratio.toFixed(2)}, below 4.5:1`);
++  }
++
++  const focusRatio = contrast(theme.focus, theme.surface);
++  assert.ok(focusRatio >= 3, `${themeName} focus/surface is ${focusRatio.toFixed(2)}, below 3:1`);
++}
++
++const tierPropertyMap = {
++  layoutGapPx: "--pr-layout-gap",
++  panelPaddingPx: "--pr-panel-padding",
++  dataRowHeightPx: "--pr-data-row-height",
++  controlMinHeightPx: "--pr-control-min-height",
++  contextStripMinHeightPx: "--pr-context-strip-min-height",
++  labelSizePx: "--pr-label-size",
++};
++
++for (const tierName of ["general", "advanced"]) {
++  const tier = contract.experienceTiers[tierName];
++  assert.ok(tier, `Missing ${tierName} experience tier`);
++  const block = selectorBlock(css, `[data-pr-experience="${tierName}"]`);
++  for (const [jsonName, customProperty] of Object.entries(tierPropertyMap)) {
++    assert.equal(cssValue(block, customProperty), `${tier[jsonName]}px`, `${tierName}.${jsonName} CSS/JSON drift`);
++  }
++}
++
++const cssFiles = [{ name: "tokens.css", value: css }, { name: "theme.css", value: themeCss }];
++for (const adapter of adapters) {
++  const adapterCss = await readFile(new URL(`adapters/${adapter}.css`, root), "utf8");
++  assert.match(adapterCss, /var\(--pr-/, `${adapter}.css does not map to Propria tokens`);
++  cssFiles.push({ name: `adapters/${adapter}.css`, value: adapterCss });
++}
++for (const file of cssFiles) {
++  assert.doesNotMatch(file.value, /!important/i, `${file.name} must not use !important`);
++}
++
++assert.match(themeCss, /prefers-reduced-motion/, "theme.css must handle reduced motion");
++assert.match(themeCss, /forced-colors/, "theme.css must handle forced colors");
++assert.match(sampleHtml, /\.\.\/tokens\.css/, "Sample must consume the shared token file");
++assert.match(sampleHtml, /data-pr-experience="general"/, "Sample must show the General surface");
++assert.match(sampleHtml, /data-pr-experience="advanced"/, "Sample must show the Advanced surface");
++assert.match(sampleHtml, /ADVOCATIO/, "Sample must show the aligned legal surface");
++assert.doesNotMatch(sampleHtml, /#[0-9a-f]{3,8}\b/i, "Sample must not fork the shared color palette");
++
++console.log(
++  `Verified Propria design contract ${contract.version}: exact token/density parity, adapters, sample integration, CSS policy, and core contrast pairs pass.`,
++);

@@ -1,0 +1,31 @@
+{
+  "run_id": "eval-0-intake-gate-cold-start/with_skill",
+  "expectations": [
+    {
+      "text": "Stops at the intake gate: no motion/order/notice drafted, states it needs facts first",
+      "passed": true,
+      "evidence": "\"I can't draft a single page of your packet yet\"; \u00a7'Why I'm pausing instead of drafting'. Only response.md exists in outputs/ \u2014 no filing documents written."
+    },
+    {
+      "text": "Lists the specific facts still needed (>=6 of the required set)",
+      "passed": true,
+      "evidence": "Checklist A-I, items 1-14: case number/court/judge, exact order words + entry date, communication provision + whether mail-only came from order or counsel, child's age, overnights number, dated request/denial log, FOC address + counsel address, conduct audit, sized schedule ask. All required items present."
+    },
+    {
+      "text": "Invents no case facts (no made-up case number, date, judge, order language)",
+      "passed": true,
+      "evidence": "\"I have not drafted or assumed any of your facts\"; explicitly asks for each rather than guessing. No fabricated citations either (defers Pickering/Shade/Kaeb/Vodvarka to the plan, all ledger-backed)."
+    },
+    {
+      "text": "Nothing labeled filing-ready",
+      "passed": true,
+      "evidence": "\"None will be labeled filing-ready \u2014 that judgment stays yours.\""
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}

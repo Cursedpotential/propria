@@ -1,0 +1,288 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-09-13",
+  "repository": "E:/AI_Workspace/Projects/Propria/Legal-desktop",
+  "audit_mode": "read-only source; new planning outputs only",
+  "scope": [
+    "api/legal_workspace",
+    "web/src",
+    "web/smoke",
+    "tests",
+    "config",
+    "pyproject.toml",
+    "web/package.json",
+    "AGENTS.md",
+    "AGENT_MEMORY.md",
+    "web/AGENTS.md"
+  ],
+  "excluded": [
+    "data/private runtime",
+    "resources/build-kit source content",
+    "node_modules generated content",
+    "services/models execution"
+  ],
+  "smart_explore": {
+    "hash_verified": "ED5AB3E3176052AA8596FEA32599E94EAD2C339121541DB090E347B4690876D4",
+    "commands": [
+      "search Draft --path api --max 25 --json",
+      "outline web/src/components/TerminalShell.tsx --json",
+      "unfold api/legal_workspace/services/workspace.py update_draft --json"
+    ],
+    "note": "Structural launcher can maintain its own external code index; no application data touched."
+  },
+  "dirty_scope_entries": 46,
+  "tests_run": false,
+  "live_services_queried": false,
+  "screenshots": {
+    "current_app_found": [],
+    "newly_captured": [],
+    "note": "Bounded file inventories found no current-app screenshot. Historical reconciliation CSV names donor screenshots, not proof of current UI."
+  },
+  "coverage": [
+    {
+      "id": "CA-01",
+      "requirement": "Reference and case-law snapshots",
+      "status": "partial",
+      "evidence": [
+        "api/legal_workspace/domain/authority_library.py:15",
+        "api/legal_workspace/domain/authority_library.py:40",
+        "api/legal_workspace/api/source_routes.py:26",
+        "web/src/components/CitationParse.tsx:43"
+      ],
+      "observed": "Curated authority records contain proposition, pinpoint, source_path and snapshot_hash. Seed pins are packet labels, not observed content-addressed snapshot captures. Search returns results without saving. All citation tabs call the parser.",
+      "gap_candidate": "Versioned source capture with URL/date/content hash and explicit currency/history review; avoid claiming Snapshot check captures a snapshot.",
+      "test_source": "tests/test_authorities.py:10; tests/test_research.py:36",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-02",
+      "requirement": "Shared versioned resources and skills",
+      "status": "not_found_in_searched_code",
+      "evidence": [
+        "api/legal_workspace/domain/templates.py:25",
+        "api/legal_workspace/services/workspace.py:456",
+        "api/legal_workspace/services/routing.py:47"
+      ],
+      "observed": "No skill/resource-version domain, route or execution binding found in api, web/src, config, tests searches. Templates and routed prompts are adjacent implementations.",
+      "gap_candidate": "Shared resource/version manifest and pinned skill dependencies per run/draft, with applicability and update review.",
+      "test_source": "tests/test_templates.py:25",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-03",
+      "requirement": "Skill-guided drafting and review",
+      "status": "partial",
+      "evidence": [
+        "api/legal_workspace/services/workspace.py:456",
+        "api/legal_workspace/services/workspace.py:470",
+        "api/legal_workspace/services/workspace.py:593",
+        "web/src/components/DraftEditor.tsx:23"
+      ],
+      "observed": "Templates render outlines. Factor draft creation uses entered text and copied factor citations. Agent runs invoke the supplied prompt and model; no skill-guided drafting pipeline or review binding found.",
+      "gap_candidate": "Drafting session tied to selected skill version, source/context scope, proposed output, independent review and owner decision.",
+      "test_source": "tests/test_templates.py:25; tests/test_draft_edit.py",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-04",
+      "requirement": "Independent structure, citation, factual and substantive checks",
+      "status": "partial",
+      "evidence": [
+        "api/legal_workspace/services/citation_gate.py:25",
+        "api/legal_workspace/services/citation_gate.py:46",
+        "api/legal_workspace/domain/support_map.py:56",
+        "api/legal_workspace/api/citation_routes.py:25",
+        "api/legal_workspace/services/workspace.py:1071"
+      ],
+      "observed": "Citation gate validates package/assertion version and nonempty locator; support map labels every non-instruction paragraph supported when any section citations pass. It does not match paragraph claims to evidence. Authority validator exists, but release-candidate path calls factual validation only.",
+      "gap_candidate": "Separate version-pinned check records; claim-to-span entailment and contradiction review; legal proposition/authority review; independent substantive review with unresolved blockers.",
+      "test_source": "tests/test_citation_gate.py:65; tests/test_support_map.py:11",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-05",
+      "requirement": "Accept/reject proposed versioned edits",
+      "status": "partial",
+      "evidence": [
+        "web/src/components/ReviewForm.tsx:80",
+        "api/legal_workspace/services/workspace.py:493",
+        "api/legal_workspace/services/workspace.py:1015",
+        "api/legal_workspace/domain/work_product.py:47",
+        "api/legal_workspace/db/store.py:778"
+      ],
+      "observed": "Owner may approve/reject/request changes on a section hash. Editing a section already in a release manifest forks a new ID; otherwise edits overwrite its text. No change-level proposal/diff accept-reject contract found. DB save reconstructs work-product version=1.",
+      "gap_candidate": "Immutable revision chain and proposal base-version/hash; per-change accept/reject and rationale; stale proposal detection and preserved rejected suggestions.",
+      "test_source": "tests/test_work_product_versions.py:15; tests/test_review_release.py:108",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-06",
+      "requirement": "Original voice to court-language translator",
+      "status": "not_found_in_searched_code",
+      "evidence": [
+        "web/src/components/DraftEditor.tsx:18",
+        "api/legal_workspace/domain/strategy.py:25",
+        "api/legal_workspace/services/workspace.py:593"
+      ],
+      "observed": "Original-voice, translator, translation and related searches found no dedicated paired-original/rewrite model, route or UI in current source. General notes, draft editor and assistant are adjacent capabilities.",
+      "gap_candidate": "Keep original immutable, propose court-language wording beside it, show factual additions/omissions and require owner acceptance.",
+      "test_source": "No specific test found in bounded test search",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-07",
+      "requirement": "Personal, relationship and case context plus strategy",
+      "status": "partial",
+      "evidence": [
+        "api/legal_workspace/domain/strategy.py:16",
+        "api/legal_workspace/domain/strategy.py:25",
+        "api/legal_workspace/services/workspace.py:299",
+        "web/src/components/TerminalShell.tsx:471"
+      ],
+      "observed": "Typed private theories, strategy, directions, scratch drafts, ideas and chat extracts exist. Saved surface context and live UI context reach assistant. No dedicated personal/relationship history or provenance-scoped context record found.",
+      "gap_candidate": "Structured private context with who/when/source/uncertainty and scope controls; preserve separation from accepted evidence.",
+      "test_source": "tests/test_strategy.py; tests/test_surface_context.py:1",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-08",
+      "requirement": "Risk, anticipated accusation and red-team records",
+      "status": "partial",
+      "evidence": [
+        "api/legal_workspace/domain/redteam.py:18",
+        "api/legal_workspace/domain/redteam.py:28",
+        "api/legal_workspace/api/main.py:383"
+      ],
+      "observed": "Red-team lenses and findings support severity, claim, why and non-court-finding flag. Target references and prompts persist. No separately tracked anticipated accusation/risk with mitigation/evidence/disposition lifecycle found.",
+      "gap_candidate": "Risk/accusation register connected to issues, rebuttal evidence, missing proof, mitigation, ownership and resolution.",
+      "test_source": "tests/test_redteam_todos.py:11",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-09",
+      "requirement": "Overall timeline versus docket/calendar",
+      "status": "partial",
+      "evidence": [
+        "web/src/app/timeline/page.tsx:22",
+        "web/src/app/calendar/page.tsx:38",
+        "api/legal_workspace/domain/investigation.py:41",
+        "api/legal_workspace/api/main.py:533"
+      ],
+      "observed": "Timeline and calendar use identical docket-events endpoint. Timeline explicitly says court events, not evidence-platform factual timeline. Missing-proof requests carry linked issue, factor, contradiction and assertion IDs.",
+      "gap_candidate": "A read-only projection of accepted overall factual timeline with claim evidence states and gap reports; keep court dates distinct and avoid a second evidence truth store.",
+      "test_source": "tests/test_calendar.py; tests/test_investigation.py",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-10",
+      "requirement": "Accepted analysis imports distinct from facts",
+      "status": "partial",
+      "evidence": [
+        "api/legal_workspace/contracts/source_package.py:22",
+        "api/legal_workspace/services/source_package.py:24",
+        "api/legal_workspace/domain/agents.py:60",
+        "web/src/app/analysis-queue/page.tsx:9"
+      ],
+      "observed": "Approved-source package imports are present; package item contract represents assertion references, not accepted analysis findings. Agent output is agent_hypothesis/private/nonexportable. Analysis queue displays scheduled jobs. No distinct accepted-analysis import contract found.",
+      "gap_candidate": "Analysis package with originating run/model/source/version, human acceptance and epistemic class; acceptance must not establish its claims as facts.",
+      "test_source": "tests/test_source_package.py; tests/test_agents.py:38",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-11",
+      "requirement": "Firm roles and provider routing",
+      "status": "partial",
+      "evidence": [
+        "api/legal_workspace/domain/agents.py:18",
+        "api/legal_workspace/services/routing.py:47",
+        "api/legal_workspace/services/workspace.py:593",
+        "web/src/components/RoutingEditor.tsx"
+      ],
+      "observed": "Eight roles: intake, research, element_mapper, drafter, citation, redteam, discovery, filing_checker. Runtime table selects models/surfaces; forbidden actions and confidential provider restrictions are represented. Requested managing/associate/senior-reviewer/clerk/librarian/exhibit-clerk hierarchy is not implemented as that role model.",
+      "gap_candidate": "Map requested firm roles to explicit responsibilities, run contracts, escalation and separate author/reviewer assignments; preserve user-controlled provider routing.",
+      "test_source": "tests/test_agents.py:20; tests/test_routing.py; tests/test_confidential.py",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-12",
+      "requirement": "Exhibits and released versions",
+      "status": "partial",
+      "evidence": [
+        "api/legal_workspace/services/workspace.py:779",
+        "api/legal_workspace/api/main.py:512",
+        "api/legal_workspace/services/workspace.py:1058",
+        "api/legal_workspace/services/workspace.py:1129"
+      ],
+      "observed": "Exhibit candidates/annotations and owner-triggered Bates assignment exist for approved source items. Release candidate records include hash and exclusions, owner hash approval gates, JSON/Markdown/DOCX exports; state remains release_candidate and filed=false.",
+      "gap_candidate": "Versioned exhibit assembly and attachment manifests linked to exact document revision; distinguish candidate/final approved/released states, prove immutable export behavior.",
+      "test_source": "tests/test_exhibits.py:66; tests/test_exhibits.py:150; tests/test_review_release.py:108",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-13",
+      "requirement": "Dense plain-language mouse and keyboard UX",
+      "status": "present_with_limits",
+      "evidence": [
+        "web/src/lib/surfaces.ts:40",
+        "web/src/components/TerminalShell.tsx:91",
+        "web/src/components/TerminalShell.tsx:244",
+        "web/src/components/TerminalShell.tsx:537",
+        "web/src/components/ContractWorkbench.tsx:16"
+      ],
+      "observed": "Plain page labels, phase grouping, link navigation, clickable command suggestions, Enter/Escape/Tab, Ctrl/Cmd-K, F1 assistant, Ctrl/Cmd-backslash split and clickable Ask/split buttons exist. Agreement compare displays texts; negotiation note is unsaved useState. API catalog can override local labels.",
+      "gap_candidate": "Retain navigation affordances, integrate evidence/review/proposals in dense work surface, remove technical vocabulary from product explanations, verify focus and keyboard workflows in browser.",
+      "test_source": "web/smoke/design-contract.contract.test.mjs:27",
+      "validation": "static source inspection; tests not run"
+    },
+    {
+      "id": "CA-14",
+      "requirement": "Persistence and audit integrity",
+      "status": "partial_high_risk",
+      "evidence": [
+        "api/legal_workspace/services/workspace.py:194",
+        "api/legal_workspace/services/workspace.py:221",
+        "api/legal_workspace/db/engine.py:29",
+        "api/legal_workspace/db/store.py:609",
+        "api/legal_workspace/db/store.py:645",
+        "api/legal_workspace/db/store.py:778"
+      ],
+      "observed": "Workspace passes store_dir, selecting SQLite. JSON is debug-only. Save deletes aggregate rows and commits before rebuilding; failure after commit can leave missing state. Version=1 and aggregate_version=1 undermine complete revision audit. No DB opened or mutations executed.",
+      "gap_candidate": "Replace destructive aggregate rewrite with transactional versioned persistence; preserve history and verify failure rollback/concurrent edits before expanded drafting/review workflows.",
+      "test_source": "tests/test_persist.py:22; tests/test_work_product_versions.py:15",
+      "validation": "static source inspection; tests not run"
+    }
+  ],
+  "visualization_integration": {
+    "status": "not_found_in_searched_current_source",
+    "searched": [
+      "web/package.json",
+      "web/src",
+      "api/legal_workspace",
+      "pyproject.toml",
+      "config",
+      "uv.lock"
+    ],
+    "names": [
+      "Timesketch",
+      "Timescale",
+      "React Flow",
+      "xyflow",
+      "Cytoscape",
+      "Sigma",
+      "vis-timeline",
+      "vis-network",
+      "D3",
+      "ECharts",
+      "Plotly",
+      "Mermaid",
+      "NetworkX",
+      "PyVis"
+    ],
+    "actual": [
+      "web/src/app/timeline/page.tsx:47 plain React border/articles/dots",
+      "web/src/app/calendar/page.tsx:78 CSS month grid",
+      "api/legal_workspace/services/workspace.py:349 shared docket context"
+    ],
+    "limit": "Retained donors and begun forks are separately audited by parent handoff lane."
+  }
+}

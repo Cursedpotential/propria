@@ -1,0 +1,221 @@
+{
+  "date": "2026-09-13",
+  "mode": "bounded inventory and static content review; no installation, enabling, execution or config mutation",
+  "roots_searched": [
+    "C:/Users/matts/.claude/local-plugins",
+    "C:/Users/matts/.claude/skills",
+    "C:/Users/matts/.codex/plugins/cache",
+    "C:/Users/matts/.codex/skills",
+    "C:/Users/matts/.agents/skills"
+  ],
+  "scope_limit": "Name/manifest inventory first; relevant unique skills expanded; stale trees identified but not analyzed as active packages. Full family-court toolkit and Codex variant owned parallel lane.",
+  "baseline_pointers": [
+    "C:/Users/matts/.claude/local-plugins/plugins/family-court-toolkit",
+    "C:/Users/matts/.codex/plugins/cache/custody-guide-codex-local/family-court-toolkit-codex/2.0.0"
+  ],
+  "entries": [
+    {
+      "id": "law-quality",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/legal-quality-checker/SKILL.md",
+      "jurisdiction": "general legal; jurisdiction must be selected",
+      "intended_use": "Independent reviewer",
+      "reusable_method": "Fourteen research checks: primary support, hierarchy, currency, counterarguments, summary consistency, source laundering and quoted operative language.",
+      "evidence": "SKILL.md:14 preflight; :25 checklist; scripts/cite_check.py:278-318 mechanical/manual split",
+      "flags": "citation heuristic only; other checks manual; cited validate_legal_opinion.py not found within law plugin"
+    },
+    {
+      "id": "law-hallucinations",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/hallucination-taxonomy/SKILL.md",
+      "jurisdiction": "general legal",
+      "intended_use": "Citation reviewer",
+      "reusable_method": "Classify mismatch, paragraph hallucination, fabricated quotation, distorted paraphrase, nonexistent authority and malformed citation per claim-citation pair; unavailable public source stays unverifiable rather than nonexistent.",
+      "evidence": "SKILL.md:7-87",
+      "flags": "Source retrieval and verification required; taxonomy is not factual truth"
+    },
+    {
+      "id": "law-draft",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/law/scripts/draft.py",
+      "jurisdiction": "generic US family/estate; forum-specific review needed",
+      "intended_use": "Draft assistant plus owner reviewer",
+      "reusable_method": "Template discovery, required-field extraction, facts validation and working-draft Markdown skeleton.",
+      "evidence": "draft.py:147,156,183,212,256; law/SKILL.md domain tools",
+      "flags": "Skeleton only; no filed or court-ready certification"
+    },
+    {
+      "id": "law-appellate",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/appellate-formatting/SKILL.md",
+      "jurisdiction": "federal appellate plus state variations",
+      "intended_use": "Formatting clerk/reviewer",
+      "reusable_method": "Preserve exact headings, derive TOC/TOA, expose word-count exclusions and unknown pagination.",
+      "evidence": "SKILL.md:14-20,44-48; law/scripts/toa.py",
+      "flags": "FRAP-based patterns cannot silently become Michigan trial-court requirements"
+    },
+    {
+      "id": "law-irac",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/irac-practice/SKILL.md",
+      "jurisdiction": "education; jurisdiction-specific rule review",
+      "intended_use": "Independent educational evaluator",
+      "reusable_method": "Grade issue spotting, rule accuracy, application depth, organization; top three fixes; does not rewrite original answer.",
+      "evidence": "SKILL.md:3,10-15",
+      "flags": "Teaching workflow with student-tracker mutation instruction; adaptation needed for app review records"
+    },
+    {
+      "id": "law-plain",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/plain-english/SKILL.md",
+      "jurisdiction": "contracts, general",
+      "intended_use": "Human reading support/translator",
+      "reusable_method": "Clause-by-clause original-to-plain-English explanation, confusing-language flags, obligations and restrictions summary.",
+      "evidence": "SKILL.md:18,48-85",
+      "flags": "Reverse direction from requested original-voice-to-court-language; preserve as complementary method"
+    },
+    {
+      "id": "law-entities",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/map-entities/SKILL.md",
+      "jurisdiction": "general document analysis",
+      "intended_use": "Researcher/entity graph assistant",
+      "reusable_method": "Entity extraction and co-occurrence mapping; source-preserving output and optional redaction.",
+      "evidence": "law/scripts/entities.py:3,14,134,185,194; map-entities/scripts/map_entities.py",
+      "flags": "Local spaCy model/fallback code present; not executed; co-occurrence is not proven relationship; keep evidence authority upstream"
+    },
+    {
+      "id": "law-kb",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/lexwiki-legal-kb/SKILL.md",
+      "jurisdiction": "generic legal knowledge library",
+      "intended_use": "Librarian",
+      "reusable_method": "Index/search structured reference material; available fallback implementation uses SQLite FTS5 and optional LexWiki passthrough.",
+      "evidence": "SKILL.md:46-60; law/scripts/kb.py:77,124,173",
+      "flags": "Named LexWiki MCP surface described as unavailable in source; current registration not probed"
+    },
+    {
+      "id": "law-cited",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/cited-research/SKILL.md",
+      "jurisdiction": "generic research",
+      "intended_use": "Research workflow",
+      "reusable_method": "Acquire sources, materialize manifest, NotebookLM synthesis, import Markdown and validate outputs.",
+      "evidence": "SKILL.md:38-56",
+      "flags": "Requires separately reviewed connectors; no notebook/source upload performed"
+    },
+    {
+      "id": "law-specialized",
+      "plugin": "law",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/law/skills/family-law-summons/SKILL.md",
+      "jurisdiction": "generic US family/estate; QDRO federal retirement law",
+      "intended_use": "Specialized draft assistant",
+      "reusable_method": "Summons, dissolution petition/response, paternity petition, guardianship nomination/petition, elder summary, QDRO, appellate mandate and precedent reference exist.",
+      "evidence": "law/.claude-plugin/plugin.json:2-4; individual SKILL frontmatter and prerequisites",
+      "flags": "Not Michigan custody defaults; generic deadline examples and court-ready wording require verification"
+    },
+    {
+      "id": "legal-legacy",
+      "plugin": "legal",
+      "version": "0.1.0-test",
+      "path": "C:/Users/matts/.codex/plugins/cache/legal/legal/skills/lc-case-research/SKILL.md",
+      "jurisdiction": "Michigan",
+      "intended_use": "Researcher; resource librarian",
+      "reusable_method": "Frame issue, primary source search, citation existence/currentness, opposing authority, structured results; six lc skills cover factors/court/CPS/DV/FOC.",
+      "evidence": "plugin.json:2-4; SKILL.md:12-63",
+      "flags": "Legacy proof-of-pattern; cache presence is not enabled/callable proof"
+    },
+    {
+      "id": "agents-behavior",
+      "plugin": ".agents standalone",
+      "version": "unversioned",
+      "path": "C:/Users/matts/.agents/skills/behavioral-pattern-analyzer/SKILL.md",
+      "jurisdiction": "Michigan-framed behavioral/custody analysis",
+      "intended_use": "Private risk/red-team reviewer",
+      "reusable_method": "Both-side analysis, observed conduct categories, trigger/escalation/reaction sequence and anticipated accusation/rebuttal prompts.",
+      "evidence": "SKILL.md:8-75",
+      "flags": "Variant differs from toolkit copy; psychological/causal claims unverified; unsuitable as automatic findings or diagnoses"
+    },
+    {
+      "id": "casebible",
+      "plugin": "case-bible",
+      "version": "0.6.1",
+      "path": "C:/Users/matts/.codex/plugins/cache/casebible-local/case-bible/0.6.1/skills/case-bible-custody/SKILL.md",
+      "jurisdiction": "technical provenance; evidence-platform boundary",
+      "intended_use": "Evidence technician upstream",
+      "reusable_method": "Versioned H1/H2/H3 recipes, verification, no in-place recipe change; adjacent forensics hash/fuzzy/string tools.",
+      "evidence": "custody/SKILL.md:13-35; case-bible-forensics/SKILL.md:13-46",
+      "flags": "Do not duplicate evidence custody in Advocatio"
+    },
+    {
+      "id": "memo-template",
+      "plugin": "openai-templates",
+      "version": "0.1.1",
+      "path": "C:/Users/matts/.codex/plugins/cache/openai-curated-remote/openai-templates/0.1.1/skills/artifact-template-legal-memorandum/SKILL.md",
+      "jurisdiction": "general memo format",
+      "intended_use": "Draft/export clerk",
+      "reusable_method": "Issue, brief answer, facts, analysis and conclusion using retained DOCX reference; preserve styles, render/verify output.",
+      "evidence": "SKILL.md:3,11-23; artifact-template.json:4",
+      "flags": "Formatting resource, no substantive authority validation"
+    },
+    {
+      "id": "research-start",
+      "plugin": ".claude standalone",
+      "version": "unversioned",
+      "path": "C:/Users/matts/.claude/skills/research-start/SKILL.md",
+      "jurisdiction": "Chinese legal clinic/PRC databases",
+      "intended_use": "Educational research planner",
+      "reusable_method": "Seed-file-first scoping and gap roadmap; explicitly distinguish research leads from authority.",
+      "evidence": "SKILL.md:3-6,32-45",
+      "flags": "Different jurisdiction; adapt method only, not databases/rules"
+    },
+    {
+      "id": "finance-land",
+      "plugin": "finance",
+      "version": "1.1.0",
+      "path": "C:/Users/matts/.claude/local-plugins/plugins/finance/skills/michigan-land-contract/SKILL.md",
+      "jurisdiction": "Michigan real estate",
+      "intended_use": "Specialized document reviewer",
+      "reusable_method": "Structured prerequisites, estate seller authority, finance terms and verification markers.",
+      "evidence": "SKILL.md:3,14,27,39; finance plugin.json:2-3",
+      "flags": "Adjacent specialty; not custody workflow"
+    }
+  ],
+  "duplicate_checks": [
+    {
+      "files": [
+        "C:/Users/matts/.codex/plugins/cache/legal/legal/skills/lc-case-research/SKILL.md",
+        "C:/Users/matts/.codex/plugins/cache/casebible-local/legal/0.1.0-test/skills/lc-case-research/SKILL.md"
+      ],
+      "equal": true,
+      "sha256": "A0DC62FB145CE529EF74BBF81A58E96EA67A7AED3ACB9FAC43F184D66187A40E"
+    },
+    {
+      "files": [
+        "C:/Users/matts/.claude/local-plugins/plugins/case-bible/skills/case-bible-custody/SKILL.md",
+        "C:/Users/matts/.codex/plugins/cache/casebible-local/case-bible/0.6.1/skills/case-bible-custody/SKILL.md"
+      ],
+      "equal": true,
+      "sha256": "15C6546205A1A3F7381BE346C19BC8775E32B555988221B9863A4C57FB06B814"
+    },
+    {
+      "files": [
+        "C:/Users/matts/.agents/skills/behavioral-pattern-analyzer/SKILL.md",
+        "C:/Users/matts/.claude/local-plugins/plugins/family-court-toolkit/skills/behavioral-pattern-analyzer/SKILL.md"
+      ],
+      "equal": false,
+      "sha256_a": "32D9F36258013E8013F00C673A652388D255B6431BADA2D60E768E3EC5293E1D",
+      "sha256_b": "723B412EC8850C6B85223CAFC02036B8FFE95FFB6C2B83CCCC12B4EA17D4BA2B"
+    }
+  ]
+}

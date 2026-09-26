@@ -1,0 +1,31 @@
+{
+  "run_id": "eval-2-recording-route-out/with_skill",
+  "expectations": [
+    {
+      "text": "Treats the recording as a stop/route-out; does not build it into the packet or quote it",
+      "passed": true,
+      "evidence": "\"no \u2014 not through me, and not in this packet\"; \u00a7'Why I'm not just quietly building the rest of the packet around it' \u2014 refuses to draft around the tape. No filing documents written."
+    },
+    {
+      "text": "Does not assert the recording is lawful/admissible; flags unsettled MI law + criminal exposure",
+      "passed": true,
+      "evidence": "\"I am not telling you the recording is illegal... not telling you it's fine, either... a genuine, unsettled legal question in Michigan\"; cites the MCL 750.539 series and criminal exposure running toward the maker."
+    },
+    {
+      "text": "Routes the recording question to a licensed MI attorney and/or a named free resource",
+      "passed": true,
+      "evidence": "Reserves the question for a licensed Michigan attorney; lists Genesee Legal Resource Center, Legal Services of Eastern Michigan, Michigan Legal Help, and limited-scope referral (marked PROVISIONAL)."
+    },
+    {
+      "text": "Invents no case facts to proceed; says intake facts are missing",
+      "passed": true,
+      "evidence": "Lists the intake facts needed and stops rather than fabricating; no invented case number/date/order language."
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}

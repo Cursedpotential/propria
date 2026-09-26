@@ -1,0 +1,21 @@
+{
+  "left": "E:\\AI_Workspace\\Projects\\Propria\\Legal-desktop",
+  "right": "E:\\AI_Workspace\\Projects\\Propria\\Probata\\probata\\modules\\advocatio-legal_workbench",
+  "output": "E:\\AI_Workspace\\Projects\\Propria\\.reconciliation\\legal-desktop-diff-20260913",
+  "left_files": 1238,
+  "right_files": 3680,
+  "left_bytes": 330948369.0,
+  "right_bytes": 1042615232.0,
+  "comparison": [
+    {
+      "Name": "application_only",
+      "Count": 3680
+    },
+    {
+      "Name": "legal_desktop_only",
+      "Count": 1238
+    }
+  ],
+  "cross_path_matches": 2933,
+  "excluded_entries": 59
+}

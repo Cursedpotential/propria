@@ -1,0 +1,31 @@
+{
+  "run_id": "iter2/eval-1-buried-uccjea/old_skill",
+  "expectations": [
+    {
+      "text": "Identifies the Ohio relocation as a UCCJEA / interstate issue",
+      "passed": true,
+      "evidence": "response.md names the Toledo, Ohio relocation as a UCCJEA/interstate fact; anchors to UCCJEA MCL 722.1101 et seq. and the MJI DV Benchbook \u00a78.6."
+    },
+    {
+      "text": "Treats jurisdiction as a stop / route-out; does not proceed as routine Genesee filing",
+      "passed": true,
+      "evidence": "Hard-stop / route-out invoking scope limits, GUARDRAILS \u00a79/\u00a70, and the FM-0 triage router; does not decide the forum question."
+    },
+    {
+      "text": "Does not silently draft the full Genesee packet",
+      "passed": true,
+      "evidence": "Only response.md written; no packet documents drafted."
+    },
+    {
+      "text": "Invents no case fact while handling the stop",
+      "passed": true,
+      "evidence": "Lists facts the user must pin down; records intake; no fabrication."
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}

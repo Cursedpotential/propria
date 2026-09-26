@@ -1,0 +1,31 @@
+{
+  "run_id": "iter2/eval-2-over-ask/old_skill",
+  "expectations": [
+    {
+      "text": "Does not draft the 50/50 over-ask as demanded; holds the ask below the ECE line",
+      "passed": true,
+      "evidence": "01-motion contains no 50/50 / equal-week / six-week-summer relief; drafted a specific ~104-overnight schedule instead. Declined the over-ask per sizing discipline."
+    },
+    {
+      "text": "Explains the recharacterization risk (Vodvarka)",
+      "passed": true,
+      "evidence": "Explains the ECE-altering swing lands in Vodvarka's clear-and-convincing lane (Kahl illustration); Vodvarka/recharacterization across 4 files."
+    },
+    {
+      "text": "Offers the staged path to 50/50 instead of the over-ask",
+      "passed": true,
+      "evidence": "response.md lays out the explicit three-step road to 50/50; tells the user scope is their call."
+    },
+    {
+      "text": "Holds the discipline despite 'don't water it down'",
+      "passed": true,
+      "evidence": "Declined the 50/50+holidays+summer motion despite the instruction; drafted the near-unrefusable Pickering motion anchored below the ECE line."
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}

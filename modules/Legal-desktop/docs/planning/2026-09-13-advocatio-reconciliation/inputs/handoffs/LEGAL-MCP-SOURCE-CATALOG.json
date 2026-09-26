@@ -1,0 +1,441 @@
+{
+  "source_id": "SRC-051",
+  "source_sha256": "2478de5da721ce3a127a8f8601cb1262051b3ffc650cfebbf4c2736f81f47aac",
+  "coverage": {
+    "full_substantive_files": 40,
+    "partial_substantive_files": 3,
+    "inventory_only_files": 33,
+    "python_ast_parsed_files": 51,
+    "runtime_executed": false,
+    "tests_run": false,
+    "network_integrations_called": false
+  },
+  "counts": {
+    "tool": 27,
+    "resource": 11,
+    "prompt": 8
+  },
+  "registrations": [
+    {
+      "kind": "prompt",
+      "name": "contract_review",
+      "source": "prompts/analysis_prompts.py",
+      "line": 9,
+      "signature": "contract_type: str='default'",
+      "resource_uri": null
+    },
+    {
+      "kind": "prompt",
+      "name": "clause_comparison",
+      "source": "prompts/analysis_prompts.py",
+      "line": 80,
+      "signature": "clause_type: str='default'",
+      "resource_uri": null
+    },
+    {
+      "kind": "prompt",
+      "name": "citation_validation",
+      "source": "prompts/argument_prompts.py",
+      "line": 9,
+      "signature": "citation_format: str='bluebook'",
+      "resource_uri": null
+    },
+    {
+      "kind": "prompt",
+      "name": "authority_integration",
+      "source": "prompts/argument_prompts.py",
+      "line": 97,
+      "signature": "argument_type: str='default'",
+      "resource_uri": null
+    },
+    {
+      "kind": "prompt",
+      "name": "brief_construction",
+      "source": "prompts/drafting_prompts.py",
+      "line": 9,
+      "signature": "case_type: str='default'",
+      "resource_uri": null
+    },
+    {
+      "kind": "prompt",
+      "name": "argument_development",
+      "source": "prompts/drafting_prompts.py",
+      "line": 89,
+      "signature": "legal_issue: str='default'",
+      "resource_uri": null
+    },
+    {
+      "kind": "prompt",
+      "name": "precedent_analysis",
+      "source": "prompts/research_prompts.py",
+      "line": 9,
+      "signature": "case_facts: str='default'",
+      "resource_uri": null
+    },
+    {
+      "kind": "prompt",
+      "name": "statutory_interpretation",
+      "source": "prompts/research_prompts.py",
+      "line": 64,
+      "signature": "statute_text: str='default'",
+      "resource_uri": null
+    },
+    {
+      "kind": "resource",
+      "name": "brief_frameworks",
+      "source": "resources/brief_resources.py",
+      "line": 16,
+      "signature": "",
+      "resource_uri": "legal://brief-frameworks"
+    },
+    {
+      "kind": "resource",
+      "name": "brief_outline",
+      "source": "resources/brief_resources.py",
+      "line": 31,
+      "signature": "brief_id: str",
+      "resource_uri": "legal://brief/{brief_id}/outline"
+    },
+    {
+      "kind": "resource",
+      "name": "citation_standards",
+      "source": "resources/brief_resources.py",
+      "line": 43,
+      "signature": "",
+      "resource_uri": "legal://citation-standards"
+    },
+    {
+      "kind": "resource",
+      "name": "case_database",
+      "source": "resources/case_resources.py",
+      "line": 17,
+      "signature": "",
+      "resource_uri": "legal://case-database"
+    },
+    {
+      "kind": "resource",
+      "name": "case_analysis",
+      "source": "resources/case_resources.py",
+      "line": 41,
+      "signature": "case_id: str",
+      "resource_uri": "legal://case/{case_id}/analysis"
+    },
+    {
+      "kind": "resource",
+      "name": "server_config",
+      "source": "resources/config_resources.py",
+      "line": 18,
+      "signature": "",
+      "resource_uri": "legal://server-config"
+    },
+    {
+      "kind": "resource",
+      "name": "contract_templates",
+      "source": "resources/contract_resources.py",
+      "line": 17,
+      "signature": "",
+      "resource_uri": "legal://contract-templates"
+    },
+    {
+      "kind": "resource",
+      "name": "contract_differ",
+      "source": "resources/contract_resources.py",
+      "line": 43,
+      "signature": "contract_id: str",
+      "resource_uri": "legal://contract/{contract_id}/differ"
+    },
+    {
+      "kind": "resource",
+      "name": "integrations_status",
+      "source": "resources/integration_resources.py",
+      "line": 19,
+      "signature": "",
+      "resource_uri": "legal://integrations"
+    },
+    {
+      "kind": "resource",
+      "name": "statute_library",
+      "source": "resources/statute_resources.py",
+      "line": 17,
+      "signature": "",
+      "resource_uri": "legal://statute-library"
+    },
+    {
+      "kind": "resource",
+      "name": "statute_context",
+      "source": "resources/statute_resources.py",
+      "line": 40,
+      "signature": "statute_id: str",
+      "resource_uri": "legal://statute/{statute_id}/context"
+    },
+    {
+      "kind": "tool",
+      "name": "queue_document_analysis",
+      "source": "tools/analysis_queue_tools.py",
+      "line": 101,
+      "signature": "file_path: str, analysis_notes: str=''",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "get_analysis_status",
+      "source": "tools/analysis_queue_tools.py",
+      "line": 151,
+      "signature": "job_id: str",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "get_analysis_result",
+      "source": "tools/analysis_queue_tools.py",
+      "line": 181,
+      "signature": "job_id: str",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "list_analysis_jobs",
+      "source": "tools/analysis_queue_tools.py",
+      "line": 222,
+      "signature": "",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "generate_brief_outline",
+      "source": "tools/brief_tools.py",
+      "line": 24,
+      "signature": "case_type: str, jurisdiction: Optional[str]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "create_argument_structure",
+      "source": "tools/brief_tools.py",
+      "line": 50,
+      "signature": "issue: str, authorities: Optional[List[str]]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "generate_issue_statement",
+      "source": "tools/brief_tools.py",
+      "line": 70,
+      "signature": "facts: str, law: str",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "validate_citation",
+      "source": "tools/citation_tools.py",
+      "line": 24,
+      "signature": "citation: str, format_standard: str='bluebook'",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "normalize_citation",
+      "source": "tools/citation_tools.py",
+      "line": 34,
+      "signature": "citation: str, jurisdiction: Optional[str]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "check_demo_database",
+      "source": "tools/citation_tools.py",
+      "line": 45,
+      "signature": "citation: str",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "compare_contracts",
+      "source": "tools/contract_tools.py",
+      "line": 191,
+      "signature": "contract_a: str, contract_b: str",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "analyze_clauses",
+      "source": "tools/contract_tools.py",
+      "line": 254,
+      "signature": "contract_id: str, clause_type: Optional[str]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "extract_clauses",
+      "source": "tools/contract_tools.py",
+      "line": 294,
+      "signature": "contract_id: str, template: Optional[str]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "suggest_clause_alternatives",
+      "source": "tools/contract_tools.py",
+      "line": 318,
+      "signature": "clause_text: str, clause_type: str",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "generate_negotiation_guide",
+      "source": "tools/contract_tools.py",
+      "line": 338,
+      "signature": "contract_id: str, party_role: str='buyer', focus_areas: Optional[List[str]]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "deep_analyze_clause",
+      "source": "tools/deep_analysis_tools.py",
+      "line": 48,
+      "signature": "clause_text: str, clause_type: str='general', ctx: Optional[Context]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "analyze_document",
+      "source": "tools/document_tools.py",
+      "line": 331,
+      "signature": "file_path: str, contract_type: Optional[str]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "compare_documents",
+      "source": "tools/document_tools.py",
+      "line": 366,
+      "signature": "file_path_a: str, file_path_b: str",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "export_analysis_report",
+      "source": "tools/document_tools.py",
+      "line": 392,
+      "signature": "analysis_json: str, output_path: str",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "extract_contract_metadata",
+      "source": "tools/document_tools.py",
+      "line": 433,
+      "signature": "file_path: str",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "integration_status",
+      "source": "tools/integration_tools.py",
+      "line": 25,
+      "signature": "",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "search_live_case_law",
+      "source": "tools/integration_tools.py",
+      "line": 40,
+      "signature": "query: str, source: str='courtlistener', jurisdiction: Optional[str]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "check_privilege_risk",
+      "source": "tools/privilege_tools.py",
+      "line": 143,
+      "signature": "file_path: str, inference_provider: str='unknown', counsel_directed: bool=False",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "search_precedents",
+      "source": "tools/research_tools.py",
+      "line": 56,
+      "signature": "query: str, jurisdiction: Optional[str]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "extract_statute",
+      "source": "tools/research_tools.py",
+      "line": 91,
+      "signature": "statute_id: str, context: bool=True",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "search_case_law",
+      "source": "tools/research_tools.py",
+      "line": 130,
+      "signature": "query: str, jurisdiction: Optional[str]=None",
+      "resource_uri": null
+    },
+    {
+      "kind": "tool",
+      "name": "research_legal_issue",
+      "source": "tools/research_tools.py",
+      "line": 167,
+      "signature": "issue: str, jurisdiction: Optional[str]=None, include_statutes: bool=True",
+      "resource_uri": null
+    }
+  ],
+  "ast_parsed_files": [
+    "demo_mode.py",
+    "feature_flags.py",
+    "main.py",
+    "utils.py",
+    "integrations/config.py",
+    "integrations/courtlistener.py",
+    "integrations/pacer.py",
+    "integrations/__init__.py",
+    "prompts/analysis_prompts.py",
+    "prompts/argument_prompts.py",
+    "prompts/drafting_prompts.py",
+    "prompts/research_prompts.py",
+    "prompts/__init__.py",
+    "resources/brief_resources.py",
+    "resources/case_resources.py",
+    "resources/config_resources.py",
+    "resources/contract_resources.py",
+    "resources/integration_resources.py",
+    "resources/statute_resources.py",
+    "resources/__init__.py",
+    "tests/conftest.py",
+    "tests/__init__.py",
+    "tools/analysis_queue_tools.py",
+    "tools/brief_tools.py",
+    "tools/citation_tools.py",
+    "tools/contract_tools.py",
+    "tools/deep_analysis_tools.py",
+    "tools/document_tools.py",
+    "tools/integration_tools.py",
+    "tools/privilege_tools.py",
+    "tools/research_tools.py",
+    "tools/risk_helpers.py",
+    "tools/__init__.py",
+    "tests/fixtures/__init__.py",
+    "tests/integration/test_analysis_queue_tools.py",
+    "tests/integration/test_citation_tools.py",
+    "tests/integration/test_contract_tools.py",
+    "tests/integration/test_deep_analysis_tools.py",
+    "tests/integration/test_demo_mode.py",
+    "tests/integration/test_document_tools.py",
+    "tests/integration/test_feature_flags.py",
+    "tests/integration/test_integrations.py",
+    "tests/integration/test_privilege_tools.py",
+    "tests/integration/test_prompts.py",
+    "tests/integration/test_research_tools.py",
+    "tests/integration/test_resources.py",
+    "tests/integration/__init__.py",
+    "tests/unit/test_feature_flags.py",
+    "tests/unit/test_risk_helpers.py",
+    "tests/unit/test_utils.py",
+    "tests/unit/__init__.py"
+  ]
+}

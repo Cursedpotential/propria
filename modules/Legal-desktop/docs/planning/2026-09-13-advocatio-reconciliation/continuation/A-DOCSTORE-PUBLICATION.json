@@ -1,0 +1,127 @@
+{
+  "date": "2026-09-20",
+  "payload_files_verified": 12,
+  "records": [
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/ROADMAP.md",
+      "document_key": "document:advocatio_de27d527b5894eafbbc6ae5e30787f60",
+      "record_id": "docstore_document:dc53c8991b130561c0aeef06bbdd380946c33b0cb4fe37338a192cc0a4136ada",
+      "revision_id": "docstore_revision:dc53c8991b130561c0aeef06bbdd380946c33b0cb4fe37338a192cc0a4136ada_2",
+      "sha256": "2fe15442f9d4131098c04ca1e74917ac666fffcc7b5f5730901297d608317699",
+      "generation": 2,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/A-START.md",
+      "document_key": "document:advocatio_a_1f129fbcdf9557baa3f204bdf291fc95",
+      "record_id": "docstore_document:17e5a8c32473ad1bee06d712f9eb872eebfb3694afcf4be21b657bc0bb0ab231",
+      "revision_id": "docstore_revision:17e5a8c32473ad1bee06d712f9eb872eebfb3694afcf4be21b657bc0bb0ab231_1",
+      "sha256": "46718e5b97da7ff003464816cd14bc4f3b7694476937b2762029fe8db1c0d18a",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/A-receipt.md",
+      "document_key": "document:advocatio_a_da133cd32e315bdbb3bf8c6e840abee3",
+      "record_id": "docstore_document:e0d8b95319bd7dda6a8e418183a495a7cda751f8f9a4d7de9da54ec29fbed96f",
+      "revision_id": "docstore_revision:e0d8b95319bd7dda6a8e418183a495a7cda751f8f9a4d7de9da54ec29fbed96f_1",
+      "sha256": "219ad4bdac72dcdffa9dbec6eeadd67e2eeda77709ff93bd904858e68055e4cd",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/A-verification.json",
+      "document_key": "document:advocatio_a_3173eaa4be31577485bd65e1d150a3c7",
+      "record_id": "docstore_document:cbf582220be0859b35862e6d08664f272cf2f34500f6127c517bf3db69623e69",
+      "revision_id": "docstore_revision:cbf582220be0859b35862e6d08664f272cf2f34500f6127c517bf3db69623e69_1",
+      "sha256": "c9958bdbb8ff1a8656b06aa1600e09509268bcda0038852709f44d4b8f5ee86b",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/A-capability-port-map.csv",
+      "document_key": "document:advocatio_a_c988d986b99159e8a170389b325acd6f",
+      "record_id": "docstore_document:88e12a29e726faca4254e0a79ffad2dd819bdbe8d50d3bd2012adaf9756a8bc0",
+      "revision_id": "docstore_revision:88e12a29e726faca4254e0a79ffad2dd819bdbe8d50d3bd2012adaf9756a8bc0_1",
+      "sha256": "8c5655351b373ac494939de1cd36179c27bface3dfd1ac037362654d80bd5d48",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/parts/assignment.json",
+      "document_key": "document:advocatio_a_45420b20899b56cda39d697eb1e11adf",
+      "record_id": "docstore_document:59c170cef539d555b462167f4c572c7fd4c0ba5d1aa96f9ad8a2047eed56ec24",
+      "revision_id": "docstore_revision:59c170cef539d555b462167f4c572c7fd4c0ba5d1aa96f9ad8a2047eed56ec24_1",
+      "sha256": "1b7a8752ebec0a8e4e87f9b47c059c0a4d8b1675e9146690ab9b403344683e50",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/parts/callable.csv",
+      "document_key": "document:advocatio_a_3baf8e7bcdb35c44aea26071a810bdf9",
+      "record_id": "docstore_document:a5fcf557ae5f1887e8a306d14df47ce1f4bb347d857190b7ae8ffebd353eb967",
+      "revision_id": "docstore_revision:a5fcf557ae5f1887e8a306d14df47ce1f4bb347d857190b7ae8ffebd353eb967_1",
+      "sha256": "fadf66f18da17d2c9443eef1e78362220b93e9d5258f9bbe6a7f1530742857c4",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/parts/callable-receipt.md",
+      "document_key": "document:advocatio_a_d9d21dbf17cd51759d7f017af81fb513",
+      "record_id": "docstore_document:598658c6a78e502a579f5365eb656b94d5cdb0568fe19fb354bc2f4a3e0e1c27",
+      "revision_id": "docstore_revision:598658c6a78e502a579f5365eb656b94d5cdb0568fe19fb354bc2f4a3e0e1c27_1",
+      "sha256": "6d09b0c4db8dc80b407726f3d8d4c4d138fc0aba7944cdc422330e61082de63b",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/parts/guidance.csv",
+      "document_key": "document:advocatio_a_9d60acd0fcbd54048aeeab5b0bf49bc1",
+      "record_id": "docstore_document:651664b0645e832327e7bfc7742a92a17d3c0d7560088e6cd1ff2b4e8ff39006",
+      "revision_id": "docstore_revision:651664b0645e832327e7bfc7742a92a17d3c0d7560088e6cd1ff2b4e8ff39006_1",
+      "sha256": "a11766101eaae8dbbff8dc82b130cc3601f991338167f70c4e5884fe56c4f2f4",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/parts/guidance-receipt.md",
+      "document_key": "document:advocatio_a_b85d1e8d59085276a6591634d1cfba2f",
+      "record_id": "docstore_document:91c612a76260383a4715f144d92007c6cce37686d7242a6e6e7a9288045f15fb",
+      "revision_id": "docstore_revision:91c612a76260383a4715f144d92007c6cce37686d7242a6e6e7a9288045f15fb_1",
+      "sha256": "781c21fd4617fb19e354889cea979252ea8e3e10bb7c2928dfc3f37542a1fdf5",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/parts/references.csv",
+      "document_key": "document:advocatio_a_c46a55922f2155e3911d737d9b8d0f38",
+      "record_id": "docstore_document:1673eb1bdff9c16915d18d6a9d84e89e26ce00d01a9aa11d4c4652990520c1c9",
+      "revision_id": "docstore_revision:1673eb1bdff9c16915d18d6a9d84e89e26ce00d01a9aa11d4c4652990520c1c9_1",
+      "sha256": "850bcfff3787f50b24e6fe2f35d053944109df5ddbae7314b1c2be7e76cb33c1",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    },
+    {
+      "source_path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/parts/references-receipt.md",
+      "document_key": "document:advocatio_a_3db29f336aba5aa6a18af4a38b2b1447",
+      "record_id": "docstore_document:5eeb1711d64c264923f6ebe54372594d69dc21aa5e6f99bc3cfd141588596042",
+      "revision_id": "docstore_revision:5eeb1711d64c264923f6ebe54372594d69dc21aa5e6f99bc3cfd141588596042_1",
+      "sha256": "a0a4650e5fef2e068559ea1a6198cf76adb3d081d16f7838089b3757441de6f3",
+      "generation": 1,
+      "body_hash_verified": true,
+      "verified": true
+    }
+  ],
+  "search_index_freshness": "Not triggered; revision persistence and body readback only."
+}

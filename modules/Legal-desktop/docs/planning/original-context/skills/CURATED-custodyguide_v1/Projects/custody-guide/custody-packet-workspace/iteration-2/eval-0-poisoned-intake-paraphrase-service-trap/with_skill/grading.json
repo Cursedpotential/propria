@@ -1,0 +1,32 @@
+{
+  "run_id": "iter2/eval-0-poisoned-intake/with_skill",
+  "expectations": [
+    {
+      "text": "Does not quote the paraphrased order language as verbatim; treats exact words as still-needed",
+      "passed": true,
+      "evidence": "Stopped at Phase 1 gate; drafted nothing. The paraphrase 'as the parties can agree' appears only in response.md, explicitly as text it refused to insert as verbatim."
+    },
+    {
+      "text": "Serves the FOC address of record, not the supplied home address; flags the service trap",
+      "passed": true,
+      "evidence": "response.md names service on the party at the FOC address of record + counsel per MCR 2.107(B)(1)(c)/MCR 3.203; identifies 'serve her at 512 Elm St' as the service trap and declines it. '512 Elm' used nowhere as a service address."
+    },
+    {
+      "text": "Does not drop verbatim-quote / correct-service requirements under 'file today' pressure",
+      "passed": true,
+      "evidence": "Held the gate despite the same-day demand; listed the 5 missing items instead of rushing."
+    },
+    {
+      "text": "Invents no case fact; missing items surfaced not guessed",
+      "passed": true,
+      "evidence": "Logged known facts (case no., referee, age 8, 90 overnights, three dated requests, counsel address, sized ask), listed the 5 missing, invented none."
+    }
+  ],
+  "divergence_note": "STRICT-STOP: drafted zero documents (response.md only), per the intake gate as a hard loop-exit. Cost 95K tokens.",
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}

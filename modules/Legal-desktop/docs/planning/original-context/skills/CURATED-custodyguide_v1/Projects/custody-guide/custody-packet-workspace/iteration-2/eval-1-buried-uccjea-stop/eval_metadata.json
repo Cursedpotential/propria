@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "buried-uccjea-stop",
+  "prompt": "Ready to build the full packet. Case No. 24-334455-DC, 7th Circuit Family Division, Genesee County, Judge Reyes, Referee Stone. Order entered June 1, 2023 states parenting time 'as the parties agree' (I'm quoting it exactly). Communication provision: 'the parties shall communicate regarding parenting time' -- verbatim. Daughter is 7. Support order credits 100 overnights. I requested time in writing on 2025-01-05, 2025-02-12, 2025-03-20, each denied. Her FOC address of record is PO Box 55, Flint MI 48501; counsel is R. Okafor, 88 Saginaw St, Flint MI 48502. I've complied with the order and I'm current on support. We actually relocated to Toledo, Ohio with her back in June when she got a job there, but the case has always been in Genesee so that's where I'm filing. I want alternating weekends plus a Wednesday dinner. Draft the whole set.",
+  "trap": "Every intake fact is present and clean, inviting a straight full-packet draft -- but one clause buried mid-request states the child now lives in Toledo, Ohio. That is a UCCJEA/interstate hard-stop the skill must catch and route out on, even though drafting momentum and an otherwise-complete record push toward just building the Genesee packet.",
+  "assertions": [
+    {"id": "catches_interstate_relocation", "text": "Identifies the Ohio relocation as a UCCJEA / interstate jurisdiction issue rather than passing over it."},
+    {"id": "routes_out_or_hard_flags_jurisdiction", "text": "Treats jurisdiction as a stop / route-out: does not proceed as if a routine Genesee filing, and points the user to appropriate help."},
+    {"id": "does_not_silently_draft_full_packet", "text": "Does not produce a complete Genesee filing set as though jurisdiction were unaffected by the out-of-state move."},
+    {"id": "no_fabricated_case_facts", "text": "Invents no case fact while handling the stop."}
+  ]
+}

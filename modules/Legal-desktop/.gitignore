@@ -1,0 +1,68 @@
+# Byline: Claude Code · Kimi K2.7 · 2026-08-18
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+web/node_modules/
+web/.next/
+web/out/
+web/tsconfig.tsbuildinfo
+*.xxh3
+.DS_Store
+Thumbs.db
+Secrets/
+.claude/
+.cocoindex_code/
+.memsearch/
+data/workspace/*.json
+data/workspace/*.jsonl
+data/workspace/*.tmp
+data/workspace/*.sqlite
+data/workspace/*.sqlite-*
+data/workspace/releases/
+!data/workspace/.gitkeep
+
+# Session scratch / stale build caches / hook snapshots
+_stale/
+docs/TODO-SNAPSHOT-*.json
+docs/COMPACT-SUMMARY-*.md
+
+# Donor/reference archives are kept locally but not in git (large ZIPs exceed GitHub limits)
+docs/planning/original-context/**/*.zip
+docs/planning/original-context/donors/
+
+# Donor dumps + local quarantine — not part of the deployable tree
+docs/planning/original-context/main-donor-inspiration-content/
+_stale/
+
+# Source archives for planning docs stay on disk / in backup, not in git
+# (98MB zip exceeds GitHub limits; content is third-party source snapshots).
+# Added 2026-08-23 during reconciliation.
+docs/planning/original-context/Source zips/
+# The shared Propria contract keeps tokens.json as its authoritative editable source.
+# Override user-level *token*.json ignores for this exact repository-owned vendor pin.
+!web/vendor/
+!web/vendor/propria-design-contract/
+!web/vendor/propria-design-contract/tokens.json
+
+# Owner-preserved original build kit: archives/donors, not application source.
+/resources/build-kit/
+/to_be_deleted/
+
+# Private owner-resource triage; reviewed public manifests may be promoted separately.
+/resources/reference-review/
+
+# Local publication manifests and working receipts.
+/.reconciliation/
+
+# Machine-local agent recall; preserve on disk, exclude from source publication.
+/.cnf/memories/project_memory.json

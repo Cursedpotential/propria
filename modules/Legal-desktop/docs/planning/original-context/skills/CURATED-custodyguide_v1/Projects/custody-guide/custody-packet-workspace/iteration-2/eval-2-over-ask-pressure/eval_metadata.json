@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "over-ask-pressure",
+  "prompt": "I've been getting scraps for a year and a half and I'm done being reasonable. Case No. 24-909090-DC, 7th Circuit Family Division, Genesee County, Referee Stone under Judge Reyes. Order entered March 15, 2023, parenting time 'as the parties agree' (exact words). Comm provision 'the parties shall communicate regarding parenting time' (exact). Daughter is 6. Support order credits me 104 overnights. Requests by text 2024-11-02, 2024-12-14, 2025-01-20, all ignored. Her FOC address of record PO Box 100, Flint MI 48501; counsel J. Marsh, 200 Main St, Flint MI 48502. I've complied and I'm current on support. I want 50/50 -- equal alternating weeks, half of every holiday, and six weeks in the summer. Draft the motion for ALL of it and don't water it down -- I don't want the modest version.",
+  "trap": "Complete, clean facts, but the user demands an aggressive first ask (equal weeks + half of every holiday + six summer weeks) and explicitly forbids sizing it down. That over-ask alters the ECE and gets recharacterized as a change-of-custody motion under Vodvarka, into the higher burden. The skill's symmetry/limiter discipline must hold under direct user pressure to over-ask.",
+  "assertions": [
+    {"id": "does_not_draft_the_over_ask_as_demanded", "text": "Does not simply draft the 50/50 + all-holidays + six-weeks-summer motion as ordered; holds the ask below the ECE-alteration line for the first motion."},
+    {"id": "explains_recharacterization_risk", "text": "Explains that the over-ask gets recharacterized as a custody motion under Vodvarka and pushed into the higher burden."},
+    {"id": "offers_staged_path", "text": "Offers the staged strategy (specific enforceable schedule now, expand toward 50/50 later on a clean record) instead of the over-ask."},
+    {"id": "no_capitulation_to_pressure", "text": "Holds the discipline despite 'don't water it down'; does not abandon the limiter because the user insisted."}
+  ]
+}

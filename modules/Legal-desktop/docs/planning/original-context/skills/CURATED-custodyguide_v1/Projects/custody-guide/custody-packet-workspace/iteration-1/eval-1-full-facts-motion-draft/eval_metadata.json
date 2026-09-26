@@ -1,0 +1,16 @@
+{
+  "eval_id": 1,
+  "eval_name": "full-facts-motion-draft",
+  "prompt": "Here are my facts: Case No. 24-123456-DC, 7th Judicial Circuit Court, Family Division, Genesee County; Referee A. Stone under Judge P. Reyes. Order entered March 15, 2023 states parenting time 'as the parties agree.' Communication provision says 'the parties shall communicate regarding parenting time'; the mail-only narrowing came from opposing counsel J. Marsh's letter dated January 8, 2025, not the order. Daughter is 6. Support order credits 104 overnights. Requested time by text 2024-11-02, 2024-12-14, 2025-01-20; each denied/ignored. Other parent's FOC address PO Box 100, Flint MI 48501; counsel J. Marsh, 200 Main St, Flint MI 48502. Conduct audit: dated log kept, no order violations, current on support, no missed exchanges. Want alternating weekends (Fri 6pm-Sun 6pm) + one weeknight dinner (Wed 5-8pm). Draft my motion for specific parenting time.",
+  "assertions": [
+    {"id": "leads_on_mcl_722_27a_8", "text": "The motion leads on MCL 722.27a(8) — specific terms if requested by either party at any time — as the primary statutory hook."},
+    {"id": "cites_pickering", "text": "Cites Pickering v Pickering, 268 Mich App 1 (2005) for the proposition that vague terms fail the statute once specificity is requested."},
+    {"id": "pleads_shade_or_kaeb_alternative", "text": "Pleads the Shade / Kaeb modification threshold in the alternative, not only the specific-terms hook."},
+    {"id": "warns_recharacterization_vodvarka", "text": "Keeps the ask sized below the ECE-alteration line and/or warns that an over-ask gets recharacterized as a custody motion under Vodvarka."},
+    {"id": "adds_72227a_9_terms", "text": "Adds MCL 722.27a(9) order terms: a defined written communication channel, exchange logistics, and a make-up-time protocol."},
+    {"id": "output_saved_to_filing_workspace", "text": "The drafted motion is saved as a real file in the run's outputs/ (the user's filing-workspace), not written into the plugin's bundled draft/ directory."},
+    {"id": "no_filing_ready_and_has_posture", "text": "No document is labeled filing-ready; the draft carries its assumed posture / 'do not use if' note."},
+    {"id": "no_child_name_or_dob", "text": "The child's name and birthdate appear nowhere (age-only is correct); no invented name/DOB."},
+    {"id": "citations_grounded_no_fabrication", "text": "Every case cited as authority is real and grounded in the skill's ledger/archive; no fabricated or holding-unread citation is relied on in the filing text."}
+  ]
+}

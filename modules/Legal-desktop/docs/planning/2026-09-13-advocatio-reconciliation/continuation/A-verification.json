@@ -1,0 +1,42 @@
+{
+  "input_sha256": "7da5304dbfd94f2bfea263de4b242933a653457f06e424e57230a4eea110a7da",
+  "input_count": 383,
+  "output_count": 383,
+  "unique_ids": 383,
+  "omissions": 0,
+  "duplicate_ids": 0,
+  "identity_and_observed_fields_preserved": true,
+  "csv_roundtrip": true,
+  "sections": {
+    "callable": {
+      "rows": 96,
+      "sha256": "fadf66f18da17d2c9443eef1e78362220b93e9d5258f9bbe6a7f1530742857c4"
+    },
+    "guidance": {
+      "rows": 63,
+      "sha256": "a11766101eaae8dbbff8dc82b130cc3601f991338167f70c4e5884fe56c4f2f4"
+    },
+    "references": {
+      "rows": 224,
+      "sha256": "28b6f3d90b8f9bc2dd5ecadc8b27797db03166e13811f31f0a806e55becf1216"
+    }
+  },
+  "destinations": {
+    "method": 55,
+    "resource": 265,
+    "mcp_tool": 39,
+    "shared_code": 18,
+    "operational_support": 5,
+    "unresolved": 1
+  },
+  "approaches": {
+    "adapt": 58,
+    "import_reconcile": 226,
+    "port": 48,
+    "reuse_connection": 29,
+    "expose_implementation": 16,
+    "investigate": 6
+  },
+  "output_sha256": "8c5655351b373ac494939de1cd36179c27bface3dfd1ac037362654d80bd5d48",
+  "scope": "Static inventory mapping; no execution or legal-source validation claimed"
+}

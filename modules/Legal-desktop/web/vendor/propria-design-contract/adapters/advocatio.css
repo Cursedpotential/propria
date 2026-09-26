@@ -1,0 +1,24 @@
+/* advocatio Legal Workdesk adapter | Propria contract 1.0.0 | 2026-09-12
+   Byline: Codex · GPT-5. Legal Workdesk remains General-first and preserves document typography. */
+
+:root {
+  --bg: var(--pr-canvas);
+  --bg-panel: var(--pr-surface);
+  --bg-elevated: var(--pr-surface-muted);
+  --text: var(--pr-ink);
+  --text-muted: var(--pr-ink-muted);
+  --border: var(--pr-border);
+  --border-strong: var(--pr-border-strong);
+  --accent: var(--pr-action);
+  --accent-hover: var(--pr-action-hover);
+  --accent-muted: var(--pr-action-soft);
+  --focus: var(--pr-focus);
+  --success: var(--pr-positive);
+  --warning: var(--pr-caution);
+  --danger: var(--pr-destructive);
+  --information: var(--pr-information);
+  --confidential: var(--pr-focus);
+  --font-sans: var(--pr-font-ui);
+  --font-mono: var(--pr-font-data);
+  --font-display: var(--pr-font-document);
+}

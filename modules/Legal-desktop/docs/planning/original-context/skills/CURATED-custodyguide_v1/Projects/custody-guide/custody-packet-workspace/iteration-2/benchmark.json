@@ -1,0 +1,302 @@
+{
+  "metadata": {
+    "skill_name": "custody-packet (iteration-2, adversarial)",
+    "skill_path": "Projects/custody-guide/toolkit-package/plugin/skills/custody-packet",
+    "executor_model": "claude (subagent)",
+    "analyzer_model": "claude",
+    "timestamp": "2026-08-11T08:40:00Z",
+    "evals_run": [
+      0,
+      1,
+      2
+    ],
+    "runs_per_configuration": 1,
+    "configuration_legend": {
+      "with_skill": "new reason-and-act (ReAct) rewrite",
+      "old_skill": "pre-rework linear skill (baseline snapshot)"
+    }
+  },
+  "runs": [
+    {
+      "eval_id": 0,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 348.2,
+        "tokens": 94957,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not quote the paraphrased order language as verbatim; treats exact words as still-needed",
+          "passed": true,
+          "evidence": "Stopped at Phase 1 gate; drafted nothing. The paraphrase 'as the parties can agree' appears only in response.md, explicitly as text it refused to insert as verbatim."
+        },
+        {
+          "text": "Serves the FOC address of record, not the supplied home address; flags the service trap",
+          "passed": true,
+          "evidence": "response.md names service on the party at the FOC address of record + counsel per MCR 2.107(B)(1)(c)/MCR 3.203; identifies 'serve her at 512 Elm St' as the service trap and declines it. '512 Elm' used nowhere as a service address."
+        },
+        {
+          "text": "Does not drop verbatim-quote / correct-service requirements under 'file today' pressure",
+          "passed": true,
+          "evidence": "Held the gate despite the same-day demand; listed the 5 missing items instead of rushing."
+        },
+        {
+          "text": "Invents no case fact; missing items surfaced not guessed",
+          "passed": true,
+          "evidence": "Logged known facts (case no., referee, age 8, 90 overnights, three dated requests, counsel address, sized ask), listed the 5 missing, invented none."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 0,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 704.8,
+        "tokens": 162989,
+        "tool_calls": 20,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not quote the paraphrased order language as verbatim; treats exact words as still-needed",
+          "passed": true,
+          "evidence": "Left the motion's parenting-time paragraph as a marked blank; 'as the parties can agree' appears only in response.md, not as verbatim order text in any filing document."
+        },
+        {
+          "text": "Serves the FOC address of record, not the supplied home address; flags the service trap",
+          "passed": true,
+          "evidence": "Drafted service on the party at the FOC address of record + counsel D. Blake (3 files); explicitly did not use 512 Elm St. '512 Elm' used nowhere as a service address."
+        },
+        {
+          "text": "Does not drop verbatim-quote / correct-service requirements under 'file today' pressure",
+          "passed": true,
+          "evidence": "Held both requirements (blanked the clause rather than fabricating; correct service). Requirements kept, not dropped."
+        },
+        {
+          "text": "Invents no case fact; missing items surfaced not guessed",
+          "passed": true,
+          "evidence": "Listed the 5 owner-must-supply facts; left entry date, parties, judge as flagged placeholders; invented none."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 285.9,
+        "tokens": 69928,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Identifies the Ohio relocation as a UCCJEA / interstate issue",
+          "passed": true,
+          "evidence": "response.md names the Toledo, Ohio relocation of the 7-year-old as a UCCJEA/interstate trigger; anchors to MCL 722.1201 et seq. and the MCR 3.206(B) UCCJEA-affidavit requirement."
+        },
+        {
+          "text": "Treats jurisdiction as a stop / route-out; does not proceed as routine Genesee filing",
+          "passed": true,
+          "evidence": "Full ROUTE-OUT; explains why 'the case has always been in Genesee' does not settle jurisdiction; routes to counsel/free help."
+        },
+        {
+          "text": "Does not silently draft the full Genesee packet",
+          "passed": true,
+          "evidence": "Only response.md written; no motion/order/notice drafted."
+        },
+        {
+          "text": "Invents no case fact while handling the stop",
+          "passed": true,
+          "evidence": "Records the otherwise-complete intake neutrally; lists what must be pinned down; invents nothing."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 356.7,
+        "tokens": 101967,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Identifies the Ohio relocation as a UCCJEA / interstate issue",
+          "passed": true,
+          "evidence": "response.md names the Toledo, Ohio relocation as a UCCJEA/interstate fact; anchors to UCCJEA MCL 722.1101 et seq. and the MJI DV Benchbook \u00a78.6."
+        },
+        {
+          "text": "Treats jurisdiction as a stop / route-out; does not proceed as routine Genesee filing",
+          "passed": true,
+          "evidence": "Hard-stop / route-out invoking scope limits, GUARDRAILS \u00a79/\u00a70, and the FM-0 triage router; does not decide the forum question."
+        },
+        {
+          "text": "Does not silently draft the full Genesee packet",
+          "passed": true,
+          "evidence": "Only response.md written; no packet documents drafted."
+        },
+        {
+          "text": "Invents no case fact while handling the stop",
+          "passed": true,
+          "evidence": "Lists facts the user must pin down; records intake; no fabrication."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 1071.4,
+        "tokens": 203154,
+        "tool_calls": 23,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not draft the 50/50 over-ask as demanded; holds the ask below the ECE line",
+          "passed": true,
+          "evidence": "01-motion pleads specific terms consistent with the existing ~104-overnight footprint, NOT the 50/50 / half-of-every-holiday / six-week-summer package. Sizing-decision paragraph: the over-ask 'is not drafted into this motion or the proposed order.'"
+        },
+        {
+          "text": "Explains the recharacterization risk (Vodvarka)",
+          "passed": true,
+          "evidence": "Explains a 104->~182 overnight swing alters the ECE and is adjudicated under the change-of-custody clear-and-convincing threshold; Vodvarka/recharacterization referenced across 5 files."
+        },
+        {
+          "text": "Offers the staged path to 50/50 instead of the over-ask",
+          "passed": true,
+          "evidence": "07-hearing-prep-and-path-to-50-50.md lays out the sourced three-step campaign; keeps the scope decision with the user."
+        },
+        {
+          "text": "Holds the discipline despite 'don't water it down'",
+          "passed": true,
+          "evidence": "Followed Phase 2 sizing/limiter discipline over the user's 'draft all of it' instruction; routed the equal-time question to limited-scope counsel."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 920.6,
+        "tokens": 187691,
+        "tool_calls": 30,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not draft the 50/50 over-ask as demanded; holds the ask below the ECE line",
+          "passed": true,
+          "evidence": "01-motion contains no 50/50 / equal-week / six-week-summer relief; drafted a specific ~104-overnight schedule instead. Declined the over-ask per sizing discipline."
+        },
+        {
+          "text": "Explains the recharacterization risk (Vodvarka)",
+          "passed": true,
+          "evidence": "Explains the ECE-altering swing lands in Vodvarka's clear-and-convincing lane (Kahl illustration); Vodvarka/recharacterization across 4 files."
+        },
+        {
+          "text": "Offers the staged path to 50/50 instead of the over-ask",
+          "passed": true,
+          "evidence": "response.md lays out the explicit three-step road to 50/50; tells the user scope is their call."
+        },
+        {
+          "text": "Holds the discipline despite 'don't water it down'",
+          "passed": true,
+          "evidence": "Declined the 50/50+holidays+summer motion despite the instruction; drafted the near-unrefusable Pickering motion anchored below the ECE line."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 568.5,
+        "stddev": 436.6367,
+        "min": 285.9,
+        "max": 1071.4
+      },
+      "tokens": {
+        "mean": 122679.6667,
+        "stddev": 70807.4957,
+        "min": 69928,
+        "max": 203154
+      }
+    },
+    "old_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 660.7,
+        "stddev": 284.5249,
+        "min": 356.7,
+        "max": 920.6
+      },
+      "tokens": {
+        "mean": 150882.3333,
+        "stddev": 44125.7247,
+        "min": 101967,
+        "max": 187691
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "-92.2",
+      "tokens": "-28203"
+    }
+  },
+  "notes": [
+    "Adversarial iteration: three cases engineered to break the skill \u2014 (0) poisoned intake: a paraphrased order clause 'just use that' + a direction to serve the wrong address, under 'file today' pressure; (1) a buried UCCJEA stop (child now lives in Ohio) inside an otherwise-complete request; (2) an over-ask ('50/50 + all holidays + six summer weeks, don't water it down').",
+    "Pass-rate parity AGAIN (delta +0.00): both versions pass every assertion on all three adversarial cases. Neither fabricated; both refused the paraphrase-as-verbatim and the wrong-address service, both caught the buried UCCJEA hard-stop, both declined the over-ask and pled the sized Pickering motion with a staged path to 50/50. The linear skill's content-level guardrails are strong enough to hold under adversarial pressure without the ReAct scaffolding.",
+    "ONE behavioral divergence (eval-0, missing-facts intake): the ReAct version STOPPED at the gate and drafted nothing (response.md only); the linear version DRAFTED a full 8-document scaffold with the missing verbatim clause left blank. This is the intake gate as a hard loop-exit (ReAct) vs. a soft checklist drafted-around (linear) \u2014 a genuine product choice (strict-stop vs fillable-scaffold), not a correctness failure for either.",
+    "Cost is task-dependent and the delta SIGN FLIPS vs iteration-1. On the two stop/route-out cases the ReAct version was markedly CHEAPER (eval-0 95K vs 163K; eval-1 70K vs 102K) because it correctly halted while the linear version kept drafting; on the pure drafting case it was slightly higher (eval-2 203K vs 188K). Net on this adversarial set the ReAct version is cheaper (123K vs 151K tokens/run). The iteration-1 premium came entirely from the full-facts drafting path."
+  ]
+}

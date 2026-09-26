@@ -1,0 +1,114 @@
+{
+  "terminal-shell": {
+    "timestamp": "2026-08-18T16:06:22.165942+00:00",
+    "answers": {
+      "module_name": "terminal-shell",
+      "module_purpose": "Bloomberg-style matter command center chrome: sidebar, › command line, command palette, status bar, and split workspace wrapping Matter Home and mnemonic routes. Chat is a module at /chat, not the landing page. One high-conflict Michigan custody matter. Primary operator is a self-represented litigant (not a lawyer). Agno is evidence truth; this app never clones evidence.",
+      "user_role": "Self-represented litigant (Michigan family court / Genesee 7th Circuit). Not a lawyer. Must remain usable at expert density.",
+      "density": "Maximal density (Bloomberg-style)",
+      "tech_stack": "Next.js 16.3 App Router + React 19.2 + TypeScript. No Vite. cmdk already installed. Tailwind 4 + shadcn cited in CAT2 but not yet installed. FastAPI legal-api sibling on :8010.",
+      "aesthetic_direction": "Bloomberg terminal / legal-terminal-master dark graphite, concealed complexity, IBM Plex Mono + Inter + Playfair Display (self-hosted OFL). Progressive disclosure: keep the density, put a plain-English layer on top.",
+      "data_viz_needs": "Combination: dense tables + AI chat/agent panel + database/source explorer + matter-document-party relationships + status/ingestion chrome. Keyboard-first command bar.",
+      "must_haves": "WCAG 2.2 AA; keyboard-first; self-hosted fonts only (no Google CDN); MIT/Apache/OFL licenses; keep existing CSS tokens in globals.css; Confidential Mode persist + no consumer-model fallback; CHAT is /chat not landing; never clone Agno evidence; no Vite; no TUI; export tables as CSV/JSON later; cmdk already in tree; every mnemonic has a plain-English name + one-line Michigan explanation; do not Barney-down — treat the user as a capable adult who is not a lawyer."
+    },
+    "research_brief": {
+      "instruction": "Live research completed 2026-08-18. Owner skipped interactive interview; answers filled from Legal Workspace SSOT + newest owner correction (pro se Michigan SRL).",
+      "suggested_queries": [
+        "Next.js 16 React 19 dark mode component library Bloomberg terminal",
+        "best terminal style UI kit Next.js 16 shadcn termcn 2026",
+        "Bloomberg terminal dark color palette design system graphite"
+      ],
+      "live_sources": [
+        "https://ui.shadcn.com/docs/installation/next",
+        "https://ui.shadcn.com/docs/tailwind-v4",
+        "https://github.com/shadcn-labs/termcn",
+        "https://github.com/palantir/blueprint/wiki/React-19-Support",
+        "https://blueprintjs.com/",
+        "https://www.bloomberg.com/company/stories/designing-the-terminal-for-color-accessibility/"
+      ]
+    },
+    "final_recommendation": {
+      "chosen_at": "2026-08-18T16:20:00+00:00",
+      "byline": "Grok · grok-4.6 · 2026-08-18",
+      "library": {
+        "name": "Existing graphite CSS tokens + cmdk; adopt shadcn/ui + Tailwind 4 incrementally",
+        "why": "CAT2 already locked Next 16 + shadcn + Tailwind 4. The running app already has legal-terminal-master tokens, cmdk, and a working shell. A big-bang Tailwind preflight rewrite would trash that. termcn is an Ink TUI (CAT2: no TUI). Blueprint v6 is React-19-ready but Sass/CSS-in-JS and fights the existing token file. Fortress is a paid finance template, not a library.",
+        "rejected": [
+          {
+            "name": "termcn (shadcn-labs/termcn)",
+            "why": "Ink + OpenTUI. CLI/TUI only. CAT2 forbids a TUI for this app."
+          },
+          {
+            "name": "Palantir Blueprint v6",
+            "why": "Excellent dense tables (Apache-2.0, React 19 as of v6.16, 2026-06-09). Wrong styling engine for a Tailwind-bound Next app that already has graphite tokens."
+          },
+          {
+            "name": "Fortress / glitchcn / cyberpunk kits",
+            "why": "Paid template or neon scanlines. Wrong license posture and wrong legal aesthetic."
+          },
+          {
+            "name": "Classic amber-on-black Bloomberg clone",
+            "why": "Nostalgic, worse for long legal reading. Confidential gold already occupies amber. Keep graphite."
+          }
+        ],
+        "install_later": "When the next primitive is needed (Tooltip, Dialog, DataTable): npm i tailwindcss @tailwindcss/postcss; import utilities only (no preflight); npx shadcn@latest add tooltip dialog. Map shadcn CSS vars onto the existing --bg/--text/--accent tokens."
+      },
+      "color_scheme": {
+        "name": "Legal-terminal graphite (already in globals.css)",
+        "direction": "Keep current tokens. Do not switch to slate/navy SaaS or amber-on-black.",
+        "tokens": {
+          "bg": "#0e1114",
+          "bg-panel": "#141820",
+          "bg-panel2": "#1a202a",
+          "bg-hover": "#222938",
+          "bg-selected": "#223040",
+          "bg-inset": "#11151c",
+          "surface-raised": "#171c25",
+          "text": "#d4d8df",
+          "text-dim": "#8a9099",
+          "text-muted": "#4d5563",
+          "text-heading": "#e8eaf0",
+          "accent": "#6f9cbd",
+          "accent-dim": "#466f90",
+          "risk-critical": "#c25b5b",
+          "risk-high": "#c2854f",
+          "risk-medium": "#b3a44f",
+          "risk-low": "#6fa370",
+          "confidential": "#c8a03c"
+        },
+        "rules": [
+          "Never use color alone for status — pair with a word.",
+          "Amber/gold is Confidential Mode, not 'warning' unless labeled.",
+          "No pure #000 background, no pure #fff text.",
+          "WCAG 2.2 AA: body text 4.5:1."
+        ]
+      },
+      "layout": {
+        "pattern": "Persistent left sidebar + › command line + module header + split workspace + status bar",
+        "landing": "/",
+        "chat_route": "/chat",
+        "keyboard": "› line, Tab complete, Ctrl/Cmd+K palette, Ctrl+\\ split, Esc closes split"
+      },
+      "srl_layer": {
+        "audience": "Michigan self-represented litigant, Genesee County / 7th Circuit, high-conflict custody. Capable adult, not a lawyer. Do not Barney-down.",
+        "rule": "Same screen stays dense. Every control also has a plain-English name and a one-line 'what this is' explanation. Legal terms stay; they get a gloss, they are not deleted.",
+        "group_renames": {
+          "Matter": "Your case",
+          "Research": "Law & cases",
+          "Drafting": "Papers",
+          "Operations": "Evidence & calendar",
+          "Private": "Advanced"
+        },
+        "advanced_disclosure": "STRAT / TEAM / AGNT / PRIV start folded under Advanced. One click opens them. Never deleted.",
+        "not_court_safe": "Always visible as: 'Workbench only — do not file this screen with the court.'",
+        "examples": {
+          "FCTR": "Best-interest factors — the 12 things a Michigan judge must weigh (MCL 722.23).",
+          "FOC": "Friend of the Court — the county office that investigates custody and support.",
+          "RELS": "Release candidate — the version you review before anything is treated as ready to file.",
+          "PRIV": "Privilege first-pass — flags attorney-client / work-product text. Not a legal conclusion.",
+          "CONF": "Confidential mode — blocks consumer AI (ChatGPT/Claude). Stays on until you turn it off."
+        }
+      }
+    }
+  }
+}

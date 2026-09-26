@@ -1,0 +1,30 @@
+[
+  {
+    "path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/E-baseline.md",
+    "key": "document:advocatio_bringup_525b10fae8515752a41297d4e027f736",
+    "id": "docstore_document:86a95c6539d263e3cf61630a3c74ec8a7c0d610a31421921c282a2e83794a620",
+    "sha256": "ae3f47c7573427fb00ed32b630f5eb4c24e696e7122ae1feae7b6cb82d74a4d3",
+    "verified": true
+  },
+  {
+    "path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/F0-route-parity.md",
+    "key": "document:advocatio_bringup_793a3fa5c17958848fa6c7adc5df530c",
+    "id": "docstore_document:c6f37c2d29116623dbd946c14e4cae069bf988b717cc7d64278bbc49cd253ece",
+    "sha256": "33982b99e4e1265c577eaba45681c87d33bd675e4552ab0f1e35b1c1fef26d13",
+    "verified": true
+  },
+  {
+    "path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/SINGLE-WORKDESK-CONVERGENCE.md",
+    "key": "document:advocatio_bringup_e07af4a2700c5355a93944025154e42b",
+    "id": "docstore_document:8e90212591f698f15783b8d4f0cf776f6e34fda4b1a0f0c40b4cd00a6c80d5fd",
+    "sha256": "d112c951f0159b3c2fce18d84757c4d16653c325fc83f5cb1ec478ac6f5186e5",
+    "verified": true
+  },
+  {
+    "path": "docs/planning/2026-09-13-advocatio-reconciliation/continuation/LIVE-BRINGUP-2026-09-20.md",
+    "key": "document:advocatio_bringup_f1463aefd6cc5ebf9a0357b89ef439d3",
+    "id": "docstore_document:3baad30405b3da7dcda85241d2ee429982c9cb700076b5520403a20a076307c7",
+    "sha256": "c7454bc0103908a85b7ec01d2eabd1298d84f5893aa75075adfdeadd56d752ca",
+    "verified": true
+  }
+]

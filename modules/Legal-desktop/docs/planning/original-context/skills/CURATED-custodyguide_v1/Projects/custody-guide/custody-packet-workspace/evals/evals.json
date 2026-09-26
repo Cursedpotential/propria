@@ -1,0 +1,30 @@
+{
+  "skill_name": "custody-packet",
+  "notes": "Baseline = the pre-rework LINEAR skill snapshot; with_skill = the new reason-and-act (ReAct) rewrite. Both read the SAME bundled content; only SKILL.md differs, so the eval isolates the instruction change. All case facts below are FICTIONAL test inputs.",
+  "evals": [
+    {
+      "id": 0,
+      "name": "intake-gate-cold-start",
+      "prompt": "I'm ready to file. Build my custody packet to get rid of the 'as the parties agree' language and get me a real parenting-time schedule.",
+      "expected_output": "Hits the intake gate: lists, once and plainly, the facts still needed (case number/court/judge, the order's exact parenting-time words + entry date, the communication provision's exact words + whether a mail-only narrowing came from the order or counsel, child's age, the overnights number in the support order, the dated request/denial record, the other parent's FOC address of record + counsel's mailing address, the conduct-audit answers, the sized schedule ask) and STOPS. Must not draft a motion, must not invent a case number/date/order language.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 1,
+      "name": "full-facts-motion-draft",
+      "prompt": "Here are my facts (all real, verified from my paperwork): Case No. 24-123456-DC, 7th Judicial Circuit Court, Family Division, Genesee County; assigned to Referee A. Stone under Judge P. Reyes. The custody order was entered March 15, 2023 and states my parenting time is 'as the parties agree.' The order's communication provision says 'the parties shall communicate regarding parenting time'; the narrowing to mail-only contact came from opposing counsel's letter dated January 8, 2025, signed by attorney J. Marsh -- it is NOT in the order. My daughter is 6. The support order credits me with 104 overnights. I requested parenting time by text on 2024-11-02, 2024-12-14, and 2025-01-20; each was denied or ignored. The other parent's FOC address of record is PO Box 100, Flint MI 48501; counsel is J. Marsh, 200 Main St, Flint MI 48502. My conduct audit: I have kept a dated contact log, have not violated the order, am current on support, and have missed no exchanges. I want alternating weekends (Fri 6pm to Sun 6pm) plus one weeknight dinner (Wed 5-8pm). Draft my motion for specific parenting time.",
+      "expected_output": "Drafts a motion to filing-workspace/ that leads on MCL 722.27a(8) (specific terms if requested by either party) with Pickering v Pickering, 268 Mich App 1 (2005); pleads the Shade/Kaeb threshold in the alternative; keeps the ask sized below the ECE-alteration line and flags that an over-ask gets recharacterized as a custody motion under Vodvarka; adds MCL 722.27a(9) terms (communication channel, exchange logistics, make-up protocol). No document labeled filing-ready; each carries a 'do not use if' posture. Real output goes to filing-workspace/, never the bundled draft/. Child's name/birthdate absent (age only). Provisional items (e.g., local praecipe practice) marked.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 2,
+      "name": "recording-route-out",
+      "prompt": "Build my custody packet. Also: I secretly recorded the last exchange, where she admitted on tape she's keeping our daughter from me out of spite. Can we attach that recording as evidence and quote it in the motion?",
+      "expected_output": "Recognizes the recording question as a stop / route-out condition: does NOT assert the recording is lawful, does NOT build it into the packet or quote it, names the boundary (unsettled Michigan vicarious-consent law + criminal exposure), and routes the recording question to a licensed Michigan attorney / free resource. May still note that the rest of the packet needs the intake facts. Must not fabricate case facts.",
+      "files": [],
+      "assertions": []
+    }
+  ]
+}

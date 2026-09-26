@@ -1,0 +1,1577 @@
+{
+  "review_date": "2026-09-13",
+  "scope": "Historical candidate recovery only; no code/runtime assessment, current provider advice, donor execution or installation.",
+  "discussion_baseline": "Parent-supplied rough list: references, skills, personalcontext, timelines, evidence, firmroles, proposedchanges, courttranslator; overlap is provisional, not a definitive conversation audit.",
+  "precedence": "Current owner instruction overrides old decisions. Canonical repository routing overrides former monorepo paths. Original handoffs refine older proposed matrix; later analyses are interpretations, not implementation proof.",
+  "items": [
+    {
+      "id": "DOC-01",
+      "requirement": "A real in-browser document editor with native tracked changes and clause suggestions entering drafts",
+      "original_state": "agreed capability; tool choice open",
+      "original_rationale": "Owner wanted a working document surface and real libraries, not background converters alone.",
+      "historical_resources": [
+        "Collabora Online CODE",
+        "OnlyOffice Docs CE",
+        "TipTap or Lexical fallback"
+      ],
+      "current_discussion_overlap": "Partial overlap: drafting/proposed changes; full office fidelity rediscovered",
+      "issue_to_rediscuss": "Define whether office-native editing and redlines are required alongside Markdown, and what 'done' means for accepting/rejecting a clause.",
+      "later_document_state": "Later report recommends TipTap/Markdown v1; office suite and LibreOffice remain a second surface on HOLD, explicitly 'Do not skip it'; OnlyOffice conditional Phase 2. This is not evidence the original requirement was withdrawn.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 7,
+          "line_end": 17,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 51,
+          "line_end": 55,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 16,
+          "line_end": 32,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "DOC-02",
+      "requirement": "LibreOffice office conversion and deterministic DOCX/PDF rendering",
+      "original_state": "agreed conversion capability; named engine candidate",
+      "original_rationale": "Office work must interoperate with DOCX/ODT/PDF and export durable work products.",
+      "historical_resources": [
+        "Headless LibreOffice sidecar",
+        "unoconv",
+        "python-docx"
+      ],
+      "current_discussion_overlap": "Explicit user reassertion today; historical provenance recovered",
+      "issue_to_rediscuss": "Restore explicit renderer requirement, define format-direction/fidelity acceptance and deployment boundary. Do not assume PDF-to-editable-DOCX roundtrip quality from the historical double arrow.",
+      "later_document_state": "Later report selects LibreOffice legal-renderer, still HOLD. Current user request makes omission unacceptable; no installation performed.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 19,
+          "line_end": 25,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 24,
+          "line_end": 32,
+          "layer": "later_analysis"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 44,
+          "line_end": 52,
+          "layer": "later_analysis"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 577,
+          "line_end": 585,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "DOC-03",
+      "requirement": "PDF viewing and interactive AcroForm filling",
+      "original_state": "agreed capability; candidates open",
+      "original_rationale": "Owner needs to read and complete actual court forms in the workspace.",
+      "historical_resources": [
+        "pdf.js",
+        "react-pdf-viewer",
+        "pdfme"
+      ],
+      "current_discussion_overlap": "Partial overlap: templates; interactive form editing rediscovered",
+      "issue_to_rediscuss": "Separate viewing, existing-field filling, new form design, save and render validation; choose initial official forms.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 17,
+          "line_end": 20,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 34,
+          "line_end": 37,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "DOC-04",
+      "requirement": "Programmatic PDF form filling",
+      "original_state": "agreed capability; candidates open",
+      "original_rationale": "Template data should populate actual form fields.",
+      "historical_resources": [
+        "pdf-lib",
+        "pypdf",
+        "pdftk/pdftk-java"
+      ],
+      "current_discussion_overlap": "New detail beneath templates",
+      "issue_to_rediscuss": "Define reviewed field mappings, blank unknown fields and output checks for filled/flattened forms.",
+      "later_document_state": "Later report picks pypdf; runtime unverified.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 20,
+          "line_end": 20,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 44,
+          "line_end": 46,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "DOC-05",
+      "requirement": "Markdown and structured JSON to printable PDF/Markdown",
+      "original_state": "agreed capability; candidates open",
+      "original_rationale": "Reusable cover sheets, motions and reports need one composable rendering path.",
+      "historical_resources": [
+        "md-to-pdf",
+        "WeasyPrint",
+        "Pandoc",
+        "Jinja2",
+        "Handlebars/Nunjucks",
+        "@react-pdf/renderer"
+      ],
+      "current_discussion_overlap": "Partial overlap: templates, drafting",
+      "issue_to_rediscuss": "Choose one reviewed template/render pipeline and clarify layout fidelity, fonts, page breaks and provenance manifest.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 21,
+          "line_end": 24,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 44,
+          "line_end": 51,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "DOC-06",
+      "requirement": "PDF to Markdown/structured extraction, including OCR",
+      "original_state": "agreed and explicitly identified gap",
+      "original_rationale": "Scanned or photographed court documents cannot be ignored; extraction must handle tables/layout.",
+      "historical_resources": [
+        "Docling",
+        "marker",
+        "unstructured",
+        "Tesseract"
+      ],
+      "current_discussion_overlap": "New interoperability detail alongside evidence/documents",
+      "issue_to_rediscuss": "Clarify work-product/accepted-source conversion boundary versus evidence-platform raw ingestion; preserve page/spans and surface OCR uncertainty. Historical library claims are unverified candidates.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 22,
+          "line_end": 22,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 45,
+          "line_end": 46,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 48,
+          "line_end": 55,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "DOC-07",
+      "requirement": "Treatise/self-help-course EPUB and ebook conversion",
+      "original_state": "agreed distinct use case; outside interactive workspace",
+      "original_rationale": "Owner's custody treatise/course project was named separately from day-to-day legal work.",
+      "historical_resources": [
+        "Calibre ebook-convert CLI/API",
+        "Pandoc EPUB"
+      ],
+      "current_discussion_overlap": "Rediscovered; no clear overlap in supplied current list",
+      "issue_to_rediscuss": "Keep as a separately tracked publishing need or explicitly defer; do not silently drop or inflate core app scope.",
+      "later_document_state": "Later report labels Calibre CLI later.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 25,
+          "line_end": 25,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 52,
+          "line_end": 52,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "DOC-08",
+      "requirement": "True derivative redaction with detection and extraction checks",
+      "original_state": "agreed capability; removal approach research",
+      "original_rationale": "Black rectangles that leave text extractable are insufficient.",
+      "historical_resources": [
+        "pikepdf",
+        "Microsoft Presidio"
+      ],
+      "current_discussion_overlap": "Partial overlap: evidence/export; detection-plus-removal rediscovered",
+      "issue_to_rediscuss": "Confirm detection/review/removal separation, original preservation, text/image/metadata leakage tests and output verification; a dependency alone does not prove secure redaction.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 27,
+          "line_end": 28,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 482,
+          "line_end": 488,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 57,
+          "line_end": 63,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "DOC-09",
+      "requirement": "Bates numbering and exhibit page stamping",
+      "original_state": "agreed capability; implementation open",
+      "original_rationale": "Sequential page identities support filing/discovery organization.",
+      "historical_resources": [
+        "pypdf",
+        "pdf-lib",
+        "custody-guide exhibit_indexer.py (later report reference)"
+      ],
+      "current_discussion_overlap": "Partial overlap: evidence/exhibits",
+      "issue_to_rediscuss": "Define prefix, sequence, stable page references and relationship between original and stamped derivative.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 30,
+          "line_end": 31,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 432,
+          "line_end": 439,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 65,
+          "line_end": 69,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "DOC-10",
+      "requirement": "Metadata inspection, scrub, hash check and printable metadata report",
+      "original_state": "agreed technical capability; legal certification explicitly open",
+      "original_rationale": "Owner needs file metadata/integrity inspection and a printable record before sharing.",
+      "historical_resources": [
+        "exiftool",
+        "evidence API /v1/verify/{sha256} historical candidate",
+        "JSON-to-PDF template"
+      ],
+      "current_discussion_overlap": "Rediscovered beyond evidence browsing",
+      "issue_to_rediscuss": "Separate factual technical report from legal authentication/certification; verify real endpoint and current Michigan primary authority before any court claim.",
+      "later_document_state": "Later report retains separate legal research HOLD; do not label report an established certificate.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 33,
+          "line_end": 37,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 71,
+          "line_end": 85,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "DOC-11",
+      "requirement": "Official Michigan/Genesee/FOC form library",
+      "original_state": "agreed content requirement",
+      "original_rationale": "Generic capability to fill PDFs was explicitly insufficient without real relevant forms.",
+      "historical_resources": [
+        "courts.michigan.gov",
+        "Genesee clerk/FOC official forms"
+      ],
+      "current_discussion_overlap": "Partial overlap: references/templates; official forms versus outlines distinction",
+      "issue_to_rediscuss": "Choose actual official revisions and record provenance/fillability/currentness; private outlines are a different product.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 39,
+          "line_end": 40,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 87,
+          "line_end": 94,
+          "layer": "later_analysis"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 413,
+          "line_end": 427,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "DOC-12",
+      "requirement": "Own work-product hashes and immutable version receipts",
+      "original_state": "agreed capability; storage decision open",
+      "original_rationale": "Owner wanted a record of exactly what was produced/filed and when.",
+      "historical_resources": [
+        "SHA-256",
+        "legal_work_product version metadata",
+        "Evidence Platform API as historical alternative"
+      ],
+      "current_discussion_overlap": "Overlap: evidence/proposed changes; work-product identity needs explicit treatment",
+      "issue_to_rediscuss": "Distinguish generated-copy integrity, approved release and actual filing receipt; never imply producing PDF means it was filed.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 5  Contract & Document Analysis.md",
+          "line_start": 42,
+          "line_end": 46,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT5-documents.md",
+          "line_start": 96,
+          "line_end": 101,
+          "layer": "later_analysis"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 347,
+          "line_end": 368,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "UI-01",
+      "requirement": "Dense grouped navigation with a pinned second panel",
+      "original_state": "agreed, split view explicitly high priority",
+      "original_rationale": "Owner called split view 'super handy'; compare research/document while working.",
+      "historical_resources": [
+        "legal-terminal shell inspiration",
+        "react-resizable-panels",
+        "allotment",
+        "CSS grid"
+      ],
+      "current_discussion_overlap": "Confirmed latest dense/plain language/mouse+keyboard UX",
+      "issue_to_rediscuss": "Keep density and split view; label destinations in ordinary language and provide direct click controls plus optional keyboard search. Do not retain mnemonic recall as required navigation.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 2  Command Bar & UI Shell.md",
+          "line_start": 11,
+          "line_end": 20,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 2  Command Bar & UI Shell.md",
+          "line_start": 35,
+          "line_end": 35,
+          "layer": "original_handoff"
+        }
+      ]
+    },
+    {
+      "id": "UI-02",
+      "requirement": "Panel export and case-phase shortcuts",
+      "original_state": "agreed lower-priority v1",
+      "original_rationale": "Capture useful current panel and surface actions appropriate to discovery/motions/hearing/trial.",
+      "historical_resources": [
+        "PDF/image panel export",
+        "Case-phase switcher"
+      ],
+      "current_discussion_overlap": "Rediscovered shell capabilities",
+      "issue_to_rediscuss": "Decide exportable content versus private material; make phase switch change visible suggestions without hiding core tools.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 2  Command Bar & UI Shell.md",
+          "line_start": 17,
+          "line_end": 18,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 2  Command Bar & UI Shell.md",
+          "line_start": 38,
+          "line_end": 40,
+          "layer": "original_handoff"
+        }
+      ]
+    },
+    {
+      "id": "UI-03",
+      "requirement": "Truthful health and confidentiality indicators; personal shell settings",
+      "original_state": "agreed",
+      "original_rationale": "Status must report actual source connectivity; dark-only replaced earlier theme toggle.",
+      "historical_resources": [
+        "pydantic-settings",
+        "app_settings",
+        "Graphite/Playfair/Inter/IBM Plex Mono historical design"
+      ],
+      "current_discussion_overlap": "Partial overlap: current UX",
+      "issue_to_rediscuss": "Separate connection state, stale data and running jobs; today's design can reconsider original visual tokens without reviving fake mock/live toggles.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 1  Persistence & Settings.md",
+          "line_start": 14,
+          "line_end": 14,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 2  Command Bar & UI Shell.md",
+          "line_start": 15,
+          "line_end": 20,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/Legal OS — Feature Decision Matrix.md",
+          "line_start": 31,
+          "line_end": 35,
+          "layer": "original_candidate_analysis"
+        }
+      ]
+    },
+    {
+      "id": "AI-01",
+      "requirement": "Summon assistant beside current work with automatic visible context and persistent session",
+      "original_state": "agreed",
+      "original_rationale": "Owner should not re-explain the visible document; chat must survive navigation in other pane.",
+      "historical_resources": [
+        "F1 historical shortcut",
+        "structured panel/document/selection context",
+        "global session state"
+      ],
+      "current_discussion_overlap": "Overlap: firm roles, assistant; context continuity may be missed",
+      "issue_to_rediscuss": "Specify visible-context consent/preview, selected excerpt and source references; add a plain-language button with optional shortcut.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 3  Chat   AI Agent Orchestration.md",
+          "line_start": 11,
+          "line_end": 14,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 3  Chat   AI Agent Orchestration.md",
+          "line_start": 23,
+          "line_end": 24,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 733,
+          "line_end": 734,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "AI-02",
+      "requirement": "Action-capable chat, router and directly selectable specialists",
+      "original_state": "agreed capability; action tiering open",
+      "original_rationale": "Assistant should queue work and fill workflow steps while retaining access to named specialists.",
+      "historical_resources": [
+        "Agno/AG2/LangGraph/hand-rolled candidates",
+        "DSPy prompt optimization",
+        "LlamaIndex retrieval",
+        "Portkey reuse"
+      ],
+      "current_discussion_overlap": "Overlap: firmroles/skills/proposedchanges",
+      "issue_to_rediscuss": "Use human-readable role names; recover scoped action execution and preview/confirmation rules. No autonomous approve/file/send.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 3  Chat   AI Agent Orchestration.md",
+          "line_start": 13,
+          "line_end": 17,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 3  Chat   AI Agent Orchestration.md",
+          "line_start": 21,
+          "line_end": 29,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 499,
+          "line_end": 529,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "AI-03",
+      "requirement": "Bounded multi-hop deep research with citations and cost limits",
+      "original_state": "agreed added gap fix",
+      "original_rationale": "Single search calls were explicitly inadequate for decomposing/refining a legal question.",
+      "historical_resources": [
+        "Typed Category 4 research tools",
+        "query decomposition/refine/stopping loop"
+      ],
+      "current_discussion_overlap": "Partial overlap: references/skills",
+      "issue_to_rediscuss": "Make depth/cost budget, citations across hops, adverse results and stopping conditions visible; distinguish research tool capability from orchestration.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 3  Chat   AI Agent Orchestration.md",
+          "line_start": 16,
+          "line_end": 16,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 3  Chat   AI Agent Orchestration.md",
+          "line_start": 28,
+          "line_end": 28,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 4  Research Tools.md",
+          "line_start": 21,
+          "line_end": 21,
+          "layer": "original_handoff"
+        }
+      ]
+    },
+    {
+      "id": "RES-01",
+      "requirement": "Add research sources through settings JSON plus separately entered credentials",
+      "original_state": "agreed core requirement; manifest details proposed",
+      "original_rationale": "Owner wanted additional sources without code changes and a single panel result shape.",
+      "historical_resources": [
+        "Case/Statute/Citation canonical models",
+        "CourtListener/RECAP default",
+        "Midpage candidate",
+        "Airbyte manifest subset",
+        "JSONPath/jsonschema"
+      ],
+      "current_discussion_overlap": "Overlap: references; configurable source interoperability rediscovered",
+      "issue_to_rediscuss": "Define endpoint/auth/mapping/pagination validation and credential boundary; current provider API availability is not established by these docs.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 4  Research Tools.md",
+          "line_start": 11,
+          "line_end": 16,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 4  Research Tools.md",
+          "line_start": 27,
+          "line_end": 32,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT4-research-tools.md",
+          "line_start": 109,
+          "line_end": 119,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "RES-02",
+      "requirement": "Hybrid internal search, full-text documents, configured general web search",
+      "original_state": "agreed explicit gap fix; engine choice open",
+      "original_rationale": "Sources alone do not specify retrieval across saved research and internal work product.",
+      "historical_resources": [
+        "pgvector + full-text/BM25 candidates",
+        "RRF",
+        "Brave/Perplexity examples",
+        "Weaviate reuse considered"
+      ],
+      "current_discussion_overlap": "Partial overlap: references/evidence",
+      "issue_to_rediscuss": "Specify exact identifiers, lexical+semantic results, matter/sensitivity filters and relevance explanations; keep internal work product separate from evidence truth.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 4  Research Tools.md",
+          "line_start": 17,
+          "line_end": 21,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 4  Research Tools.md",
+          "line_start": 33,
+          "line_end": 34,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT4-research-tools.md",
+          "line_start": 11,
+          "line_end": 37,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "RES-03",
+      "requirement": "Citation parsing/normalization plus separate integrity and currentness",
+      "original_state": "agreed library requirement",
+      "original_rationale": "Real citation parser replaces donor regex; formatted citations cannot prove legal status.",
+      "historical_resources": [
+        "eyecite",
+        "authority snapshots",
+        "official primary sources"
+      ],
+      "current_discussion_overlap": "Overlap: references/court translator",
+      "issue_to_rediscuss": "Show parse result separately from source existence, pinpoint support and currentness; no inherited citator/privilege claim.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 4  Research Tools.md",
+          "line_start": 15,
+          "line_end": 15,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/Legal Terminal & Legal MCP — Deep Analysis (Part 1).md",
+          "line_start": 105,
+          "line_end": 107,
+          "layer": "original_candidate_analysis"
+        },
+        {
+          "path": "docs/reports/CAT4-research-tools.md",
+          "line_start": 93,
+          "line_end": 107,
+          "layer": "later_analysis"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 632,
+          "line_end": 637,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "PRIV-01",
+      "requirement": "Confidential preflight, verified-provider routing and hard block",
+      "original_state": "agreed; terms verification open",
+      "original_rationale": "No local inference capability; no unsafe provider fallback.",
+      "historical_resources": [
+        "Presidio",
+        "Portkey",
+        "Ollama Cloud",
+        "NVIDIA NIM",
+        "Venice",
+        "OpenRouter ZDR"
+      ],
+      "current_discussion_overlap": "Rediscovered explicit privacy pipeline",
+      "issue_to_rediscuss": "Restore preflight and provider-grid requirements; verify current terms separately, never copy old donor eligibility/guarantees.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 6  Privilege, Privacy & LLM Routing.md",
+          "line_start": 7,
+          "line_end": 24,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 6  Privilege, Privacy & LLM Routing.md",
+          "line_start": 28,
+          "line_end": 33,
+          "layer": "original_handoff"
+        }
+      ]
+    },
+    {
+      "id": "PRIV-02",
+      "requirement": "Hybrid privilege detector and all-provider comparison",
+      "original_state": "agreed rule-first/ambiguity-escalation design",
+      "original_rationale": "Toy keyword-only checking was specifically rejected; owner valued the provider grid.",
+      "historical_resources": [
+        "Rules + low-cost classification candidate",
+        "provider trust grid"
+      ],
+      "current_discussion_overlap": "Partial overlap: roles/AI",
+      "issue_to_rediscuss": "Clarify how ambiguous sensitive text can be classified without prior unauthorized egress; flags remain hypotheses, never legal conclusions.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 6  Privilege, Privacy & LLM Routing.md",
+          "line_start": 22,
+          "line_end": 24,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/Legal OS — Feature Decision Matrix.md",
+          "line_start": 101,
+          "line_end": 106,
+          "layer": "original_candidate_analysis"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 525,
+          "line_end": 533,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "PRIV-03",
+      "requirement": "Manual high-sensitivity Colab runbook",
+      "original_state": "agreed manual documentation only",
+      "original_rationale": "An ephemeral on-demand GPU session was proposed for exceptional documents.",
+      "historical_resources": [
+        "Google Colab Pro",
+        "open-weight model manual setup/teardown"
+      ],
+      "current_discussion_overlap": "Rediscovered historical optional resource",
+      "issue_to_rediscuss": "Decide whether to retain the documented option under today's remote-only policy; do not call it a privacy guarantee or automate it.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 6  Privilege, Privacy & LLM Routing.md",
+          "line_start": 21,
+          "line_end": 21,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 6  Privilege, Privacy & LLM Routing.md",
+          "line_start": 34,
+          "line_end": 44,
+          "layer": "original_handoff"
+        }
+      ]
+    },
+    {
+      "id": "WF-01",
+      "requirement": "Browse and compose internal playbooks with step parameters, test run and results",
+      "original_state": "agreed handoff; sequencing conflict with build guide",
+      "original_rationale": "Repeatable legal work should be inspectable and owner-composable.",
+      "historical_resources": [
+        "legal-mcp toolkit playbooks",
+        "custody packet checklists",
+        "sequential internal tool runner"
+      ],
+      "current_discussion_overlap": "Overlap: skills/roles; editable workflow UI rediscovered",
+      "issue_to_rediscuss": "Resolve timing: Category 7 says builder, original guide forbids generic designer before fixed legal workflows proven. Preserve capability, agree phased scope.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 7  Workflow & Automation Engine.md",
+          "line_start": 11,
+          "line_end": 14,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 7  Workflow & Automation Engine.md",
+          "line_start": 21,
+          "line_end": 22,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 690,
+          "line_end": 701,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "docs/reports/CAT7-workflow-automation.md",
+          "line_start": 58,
+          "line_end": 66,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "WF-02",
+      "requirement": "Backend schedules/events with run now, filters, enable/disable and history",
+      "original_state": "agreed; scheduler choice open",
+      "original_rationale": "Automation must continue with UI closed.",
+      "historical_resources": [
+        "APScheduler",
+        "BullMQ/node-cron/n8n cron evaluated",
+        "daily/weekly/once/event"
+      ],
+      "current_discussion_overlap": "Rediscovered operations detail",
+      "issue_to_rediscuss": "Specify durable schedules/run state and recovery verification, not merely server timer existence; clarify event sources.",
+      "later_document_state": "Later report corrects PostgreSQL claim to MemoryJobStore + JSONL and retains PostgreSQL HOLD; does not prove current runtime.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 7  Workflow & Automation Engine.md",
+          "line_start": 12,
+          "line_end": 22,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "docs/reports/CAT7-workflow-automation.md",
+          "line_start": 8,
+          "line_end": 13,
+          "layer": "later_analysis"
+        },
+        {
+          "path": "docs/reports/CAT7-workflow-automation.md",
+          "line_start": 53,
+          "line_end": 56,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "WF-03",
+      "requirement": "Existing n8n for authorized external integrations",
+      "original_state": "agreed division; activation research-only",
+      "original_rationale": "Reuse existing integration engine for mail/text/webhooks rather than build a second platform.",
+      "historical_resources": [
+        "n8n webhook/auth boundary"
+      ],
+      "current_discussion_overlap": "Rediscovered integrations; no sending authorized in this task",
+      "issue_to_rediscuss": "Keep notification/inbound/outbound distinction and owner-controlled communications; agent boundaries prohibit autonomous external delivery.",
+      "later_document_state": "Later report states n8n webhook HOLD; no integration called.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 7  Workflow & Automation Engine.md",
+          "line_start": 7,
+          "line_end": 19,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 515,
+          "line_end": 524,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 603,
+          "line_end": 609,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "docs/reports/CAT7-workflow-automation.md",
+          "line_start": 25,
+          "line_end": 42,
+          "layer": "later_analysis"
+        },
+        {
+          "path": "docs/reports/CAT7-workflow-automation.md",
+          "line_start": 81,
+          "line_end": 82,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "OPS-01",
+      "requirement": "Inbox triage with process/dismiss, rules, attachments and contextual assistant",
+      "original_state": "proposed matrix rescope, not final decision",
+      "original_rationale": "Convert donor simulated inbox into real court/FOC/opposing-counsel mail handling.",
+      "historical_resources": [
+        "IMAP/POP3/forwarding candidate",
+        "category/domain/keyword rules",
+        "n8n"
+      ],
+      "current_discussion_overlap": "Rediscovered beyond generic communications",
+      "issue_to_rediscuss": "Decide inbound ownership and evidence-intake routing; remove demo injector/HR category and never treat email_received as live without a source.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/Legal OS — Feature Decision Matrix.md",
+          "line_start": 142,
+          "line_end": 151,
+          "layer": "original_candidate_analysis"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/Bloomberg + Legal Terminal Feature Catalog.md",
+          "line_start": 162,
+          "line_end": 167,
+          "layer": "original_candidate_analysis"
+        },
+        {
+          "path": "docs/reports/CAT7-workflow-automation.md",
+          "line_start": 53,
+          "line_end": 56,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "OPS-02",
+      "requirement": "Case monitor and alert thresholds",
+      "original_state": "proposed matrix rescope; guide Phase 4",
+      "original_rationale": "Small fixed watchlist instead of demo product pitch and unlimited docket product.",
+      "historical_resources": [
+        "CourtListener/PACER historical candidates",
+        "notifications settings"
+      ],
+      "current_discussion_overlap": "Partial overlap: timelines; live monitoring distinct",
+      "issue_to_rediscuss": "Re-discuss actual court/source coverage and budgets; historical PACER idea is not authorization, present integration or current requirement.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/Legal OS — Feature Decision Matrix.md",
+          "line_start": 168,
+          "line_end": 178,
+          "layer": "original_candidate_analysis"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 603,
+          "line_end": 609,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "docs/planning/HANDOFF-ANALYSIS.md",
+          "line_start": 67,
+          "line_end": 68,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "OPS-03",
+      "requirement": "Saved worksheets, reusable filters, entity profiles, generalized comparison and CSV export",
+      "original_state": "proposed matrix Keep/Rescope, not final decision",
+      "original_rationale": "Bloomberg provided broader information-work patterns beyond acronym navigation.",
+      "historical_resources": [
+        "Named rerunnable grids",
+        "canonical party/witness/exhibit profiles",
+        "2–3-way compare",
+        "CSV/spreadsheet export"
+      ],
+      "current_discussion_overlap": "Overlap: timelines/personalcontext/evidence; worksheet/compare/export details rediscovered",
+      "issue_to_rediscuss": "Select first concrete worksheets and comparison types; use dense master-detail tables and ordinary labels, avoid sprawling generic dashboard customization.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/Legal OS — Feature Decision Matrix.md",
+          "line_start": 192,
+          "line_end": 202,
+          "layer": "original_candidate_analysis"
+        },
+        {
+          "path": "resources/build-kit/artifacts (3)/Bloomberg + Legal Terminal Feature Catalog.md",
+          "line_start": 45,
+          "line_end": 60,
+          "layer": "original_candidate_analysis"
+        }
+      ]
+    },
+    {
+      "id": "LAW-01",
+      "requirement": "Agreement analysis/compare/negotiate with missing parenting-plan provisions",
+      "original_state": "proposed matrix Keep/Rescope; guide P1",
+      "original_rationale": "Settlement proposals, parenting plans and prior orders replace commercial template libraries.",
+      "historical_resources": [
+        "legal-mcp contract tool concepts",
+        "per-clause alternatives/fallback language"
+      ],
+      "current_discussion_overlap": "Overlap: proposedchanges; negotiation workflow rediscovered",
+      "issue_to_rediscuss": "Define owner goals, offer/counteroffer history and clause review; suggestions cannot choose concessions or outcomes.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/Legal OS — Feature Decision Matrix.md",
+          "line_start": 76,
+          "line_end": 95,
+          "layer": "original_candidate_analysis"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 466,
+          "line_end": 472,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 518,
+          "line_end": 519,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "LAW-02",
+      "requirement": "Hearing/trial binder, witness examination, objections, impeachment and post-hearing comparison",
+      "original_state": "guide P1 high-value operations",
+      "original_rationale": "Connect factor/element proof to hearing preparation and follow-up.",
+      "historical_resources": [
+        "verified citation binder",
+        "provenance manifest",
+        "requested relief",
+        "order-compliance tasks"
+      ],
+      "current_discussion_overlap": "Partial overlap: timelines/evidence/firmroles",
+      "issue_to_rediscuss": "Recover concrete hearing products and workflows; separate historical timelines from evidence-platform authored factual timeline.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 474,
+          "line_end": 480,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 40,
+          "line_end": 47,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "LAW-03",
+      "requirement": "Discovery response/objection/deficiency and meet-and-confer lifecycle",
+      "original_state": "guide P1",
+      "original_rationale": "Discovery extends beyond generating request text.",
+      "historical_resources": [
+        "interrogatories/RFP/admissions/subpoenas",
+        "deficiency history",
+        "motion-to-compel readiness"
+      ],
+      "current_discussion_overlap": "Partial overlap: roles/proposedchanges",
+      "issue_to_rediscuss": "Track lifecycle and missing-proof linkage with owner-controlled scope/service; avoid reducing this to text generation.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 459,
+          "line_end": 464,
+          "layer": "original_build_guide"
+        }
+      ]
+    },
+    {
+      "id": "CORE-01",
+      "requirement": "Persistence, source packages, staleness propagation and review invalidation",
+      "original_state": "agreed/historical guide boundary",
+      "original_rationale": "Keep canonical evidence ownership and legal work product distinct with durable state.",
+      "historical_resources": [
+        "shared PG18 schemas and numbered SQL",
+        "Pydantic v2",
+        "R2 bytes",
+        "read-only Surreal projection",
+        "versioned neutral APIs"
+      ],
+      "current_discussion_overlap": "Overlap: evidence/references/proposedchanges",
+      "issue_to_rediscuss": "Treat original monorepo placement and direct Surreal-primary framing as superseded; verify contracts independently and keep source changes invalidating dependent approvals.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/artifacts (3)/HANDOFF — Category 1  Persistence & Settings.md",
+          "line_start": 11,
+          "line_end": 24,
+          "layer": "original_handoff"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 238,
+          "line_end": 306,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 450,
+          "line_end": 455,
+          "layer": "original_build_guide"
+        },
+        {
+          "path": "docs/planning/HANDOFF-ANALYSIS.md",
+          "line_start": 61,
+          "line_end": 64,
+          "layer": "later_analysis"
+        }
+      ]
+    },
+    {
+      "id": "LATER-01",
+      "requirement": "Scenario comparison, legal-template regression, model comparison, lawyer review and isolated reusable research",
+      "original_state": "guide P2 later",
+      "original_rationale": "Explicit advanced roadmap outside initial proof.",
+      "historical_resources": [
+        "reviewed gold documents",
+        "latency/cost/token comparisons",
+        "local-court revision watchers"
+      ],
+      "current_discussion_overlap": "Partial overlap: firmroles/references; later features rediscovered",
+      "issue_to_rediscuss": "Retain named backlog items; do not turn them into silent MVP commitments or multi-client tenancy.",
+      "later_document_state": "No later resolution established in this document-only pass.",
+      "implementation_state": "Not assessed; current-app auditor owns code and runtime findings.",
+      "provenance": [
+        {
+          "path": "resources/build-kit/LEGAL-WORKSPACE-BUILD-GUIDE-2026-08-17.md",
+          "line_start": 490,
+          "line_end": 497,
+          "layer": "original_build_guide"
+        }
+      ]
+    }
+  ],
+  "external_integrations": [
+    {
+      "name": "google/timesketch",
+      "purpose": "Personal-case chronology, dense event exploration, annotations, narrative preparation and individual/bulk curation",
+      "original_commitment": "Accepted ADR-0060/D-084/D-085 real maintained application fork; adapter-only explicitly rejected",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Probata/probata/modules/forks/timesketch",
+      "modification_or_integration_evidence": "Live read-only checks: clean local Git HEAD 00eff7d; no remotes listed. UPSTREAM.md records tag 20260630 and upstream 10dd077c6fe3b5e74fd9e28cd3ac1ef6c7c85849. personal_case_authority files and importer TimelineProjector present; upstream analyzer registration gate present.",
+      "later_disposition_or_hold": "Historical WP-E02 reports no end-to-end importer/OpenSearch proof, no HTTP mount and governed source resolver absent. Aug30 places Timesketch in advanced surface gated on deployment/PG round-trip proof. Current deployment not tested.",
+      "rediscussion": "The accepted old fork retained Vue, OpenSearch and extension interfaces. Latest owner requires unified surface and underlying language/framework convergence; explicitly decide which frontend is ported/rebuilt versus which backend capability remains behind neutral contracts. Do not assume iframe retention satisfies this new direction.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/adr/0060-timesketch-personal-case-timeline-fork.md",
+          "line_start": 3,
+          "line_end": 40,
+          "layer": "sibling_platform_historical_or_source"
+        },
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/adr/0060-timesketch-personal-case-timeline-fork.md",
+          "line_start": 104,
+          "line_end": 145,
+          "layer": "sibling_platform_historical_or_source"
+        },
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/modules/forks/timesketch/personal_case_authority/README.md",
+          "line_start": 3,
+          "line_end": 24,
+          "layer": "sibling_platform_historical_or_source"
+        },
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/modules/forks/timesketch/timesketch/lib/analyzers/__init__.py",
+          "line_start": 22,
+          "line_end": 35,
+          "layer": "sibling_platform_historical_or_source"
+        },
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/reviews/2026-08-25-schema-audit/TIMESKETCH-WP-E02-IMPLEMENTATION-STATUS.md",
+          "line_start": 118,
+          "line_end": 145,
+          "layer": "sibling_platform_historical_or_source"
+        },
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/reviews/2026-08-25-schema-audit/TIMESKETCH-FORK-CURATION-HANDOFF.md",
+          "line_start": 76,
+          "line_end": 100,
+          "layer": "sibling_platform_handoff"
+        },
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/adr/0061-unified-operator-surface.md",
+          "line_start": 129,
+          "line_end": 131,
+          "layer": "sibling_platform_later_decision"
+        }
+      ]
+    },
+    {
+      "name": "react-calendar-timeline",
+      "purpose": "Lightweight primary-surface event visualization",
+      "original_commitment": "Aug30 owner direction: retain as development-only option; not replacement for Timesketch",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Probata/probata/modules/workbench/web/package.json",
+      "modification_or_integration_evidence": "Declared ^0.30.0-beta.19 at line 44; no UI runtime audit in this lane.",
+      "later_disposition_or_hold": "Choose engine per concrete visualization; no forced bake-off.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/modules/workbench/web/package.json",
+          "line_start": 44,
+          "line_end": 44,
+          "layer": "sibling_platform_historical_or_source"
+        },
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/awaiting-verification/WORKBENCH-STORYBOOK-AND-SURFACE-REFACTOR-2026-08-30.md",
+          "line_start": 22,
+          "line_end": 25,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "vis-timeline",
+      "purpose": "Alternative lightweight interactive timeline",
+      "original_commitment": "Aug30 owner direction: retain alongside react-calendar-timeline",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Probata/probata/modules/workbench/web/package.json",
+      "modification_or_integration_evidence": "Declared ^8.5.4 at line 53; no runtime verification.",
+      "later_disposition_or_hold": "May coexist for different jobs; does not replace governed Timesketch.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/modules/workbench/web/package.json",
+          "line_start": 53,
+          "line_end": 53,
+          "layer": "sibling_platform_historical_or_source"
+        },
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/awaiting-verification/WORKBENCH-STORYBOOK-AND-SURFACE-REFACTOR-2026-08-30.md",
+          "line_start": 113,
+          "line_end": 116,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "Evidence.dev",
+      "purpose": "SQL/Markdown reports over PG/DuckDB",
+      "original_commitment": "Historical selection explicitly never reversed; project re-establishment owed",
+      "local_source_or_fork_path": null,
+      "modification_or_integration_evidence": "Named source integration row; local implementation not assessed.",
+      "later_disposition_or_hold": "Corrected September 2 note: not deployed for platform after project moved to TraceIQ.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/planning/gui-integration-spec.md",
+          "line_start": 111,
+          "line_end": 111,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "Claude Code history viewer",
+      "purpose": "Session history browsing",
+      "original_commitment": "Owner-requested; exact repository undecided",
+      "local_source_or_fork_path": null,
+      "modification_or_integration_evidence": "Named source integration row; local implementation not assessed.",
+      "later_disposition_or_hold": "Candidates d-kimuson/claude-code-viewer, InDate/claude-log-viewer, daaain/claude-code-log; no selected local fork verified.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/planning/gui-integration-spec.md",
+          "line_start": 112,
+          "line_end": 112,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "NeoDash (neo4j-labs)",
+      "purpose": "Entity networks, relationship timelines, incident maps",
+      "original_commitment": "Embed candidate",
+      "local_source_or_fork_path": null,
+      "modification_or_integration_evidence": "Named source integration row; local implementation not assessed.",
+      "later_disposition_or_hold": "Historical iframe /x/neodash/ idea; current adoption not verified.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/planning/gui-integration-spec.md",
+          "line_start": 113,
+          "line_end": 113,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "Surrealist",
+      "purpose": "SurrealDB admin interface",
+      "original_commitment": "Embed candidate",
+      "local_source_or_fork_path": null,
+      "modification_or_integration_evidence": "Named source integration row; local implementation not assessed.",
+      "later_disposition_or_hold": "Historical /x/surreal/ operator tool; not legal work-product editor.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/planning/gui-integration-spec.md",
+          "line_start": 114,
+          "line_end": 114,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "CopilotKit generative UI / AG-UI",
+      "purpose": "Inline agent-generated charts/tables/timelines",
+      "original_commitment": "Historical in-app integration design",
+      "local_source_or_fork_path": null,
+      "modification_or_integration_evidence": "Named source integration row; local implementation not assessed.",
+      "later_disposition_or_hold": "Current survival not verified; do not resurrect older architecture by implication.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/planning/gui-integration-spec.md",
+          "line_start": 115,
+          "line_end": 115,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "React Flow",
+      "purpose": "Workflow-run directed graph visualization",
+      "original_commitment": "Historical in-app G5 component candidate",
+      "local_source_or_fork_path": null,
+      "modification_or_integration_evidence": "Named source integration row; local implementation not assessed.",
+      "later_disposition_or_hold": "Specific graph library identified; no local dependency found in current app auditor's lane.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/planning/gui-integration-spec.md",
+          "line_start": 116,
+          "line_end": 116,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "Kepler.gl / Leaflet pattern",
+      "purpose": "Geospatial PostGIS analysis",
+      "original_commitment": "Historical map pattern candidate",
+      "local_source_or_fork_path": null,
+      "modification_or_integration_evidence": "Named source integration row; local implementation not assessed.",
+      "later_disposition_or_hold": "Keep separate from chronology; source local fork not established.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Probata/probata/docs/planning/gui-integration-spec.md",
+          "line_start": 117,
+          "line_end": 117,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "legal-mcp",
+      "purpose": "Research/citation/document/clause/queue tool logic and workflow skills",
+      "original_commitment": "Deep analysis calls primary toolset; later analysis says port as FastAPI adapters, not second MCP runtime",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/legal-mcp-main/legal-mcp-main",
+      "modification_or_integration_evidence": "Retained source pyproject.toml/README/tools exists; current app port fidelity owned by auditor.",
+      "later_disposition_or_hold": "Replace toy regex/provider postures/demo knowledge; preserve tool jobs, not legal conclusions.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/docs/planning/DONOR-ANALYSIS.md",
+          "line_start": 65,
+          "line_end": 94,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "legal-terminal-master (genego-io)",
+      "purpose": "Dense Bloomberg-style shell, split panels, master-detail and job tables",
+      "original_commitment": "From-scratch visual/function inspiration explicitly, not code co-option",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/legal-terminal-master/legal-terminal-master",
+      "modification_or_integration_evidence": "Original screenshots and source tree retained; no modification assessment.",
+      "later_disposition_or_hold": "Current plain-language mouse+keyboard requirement overrides mnemonic-first interaction.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/artifacts (3)/Legal Terminal & Legal MCP — Deep Analysis (Part 1).md",
+          "line_start": 143,
+          "line_end": 147,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "legal-terminal-main (JuriSupport)",
+      "purpose": "Record/draft split, file mentions, hearing notes, PDF reading",
+      "original_commitment": "Later donor analysis treats separate Korean Electron product as shape donor",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/legal-terminal-main/legal-terminal-main",
+      "modification_or_integration_evidence": "README/package.json and screenshots/app.png retained; differs from master donor.",
+      "later_disposition_or_hold": "Later analysis excludes Korean-specific HWP/SSH/Electron assumptions. Latest user says some outside projects intended adoption; this interpretation should be re-discussed.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/docs/planning/DONOR-ANALYSIS.md",
+          "line_start": 140,
+          "line_end": 153,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "LexRAG",
+      "purpose": "Hybrid legal retrieval separate from chat",
+      "original_commitment": "Archive present; later Aug18 analysis classifies as shape/skill donor, not proven owner approval to narrow scope",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/LexRAG-main/LexRAG-main",
+      "modification_or_integration_evidence": "Top-level resource identity read; source fork modifications not diffed.",
+      "later_disposition_or_hold": "Re-discuss later shape-only narrowing against user's recalled integration intent. No archive was run or installed.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/docs/planning/DONOR-ANALYSIS.md",
+          "line_start": 155,
+          "line_end": 160,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "LIGHT-2",
+      "purpose": "Router/specialist agents, authority refresh and form workflow",
+      "original_commitment": "Archive present; later Aug18 analysis classifies as shape/skill donor, not proven owner approval to narrow scope",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/LIGHT-2-main/LIGHT-2-main",
+      "modification_or_integration_evidence": "Top-level resource identity read; source fork modifications not diffed.",
+      "later_disposition_or_hold": "Re-discuss later shape-only narrowing against user's recalled integration intent. No archive was run or installed.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/docs/planning/DONOR-ANALYSIS.md",
+          "line_start": 162,
+          "line_end": 171,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "THEMIS",
+      "purpose": "Skills per instrument/work-product kind",
+      "original_commitment": "Archive present; later Aug18 analysis classifies as shape/skill donor, not proven owner approval to narrow scope",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/themis-main/themis-main",
+      "modification_or_integration_evidence": "Top-level resource identity read; source fork modifications not diffed.",
+      "later_disposition_or_hold": "Re-discuss later shape-only narrowing against user's recalled integration intent. No archive was run or installed.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/docs/planning/DONOR-ANALYSIS.md",
+          "line_start": 173,
+          "line_end": 182,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "Suna / Kortix",
+      "purpose": "Agent operating system and durable tool/run traces",
+      "original_commitment": "Archive present; later Aug18 analysis classifies as shape/skill donor, not proven owner approval to narrow scope",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/suna-main-docs/suna-main",
+      "modification_or_integration_evidence": "Top-level resource identity read; source fork modifications not diffed.",
+      "later_disposition_or_hold": "Re-discuss later shape-only narrowing against user's recalled integration intent. No archive was run or installed.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/docs/planning/DONOR-ANALYSIS.md",
+          "line_start": 184,
+          "line_end": 187,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "OpenLegalDataSkills",
+      "purpose": "Case/statute/citation source tools and skills",
+      "original_commitment": "Archive present; later Aug18 analysis classifies as shape/skill donor, not proven owner approval to narrow scope",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/OpenLegalDataSkills-main/OpenLegalDataSkills-main",
+      "modification_or_integration_evidence": "Top-level resource identity read; source fork modifications not diffed.",
+      "later_disposition_or_hold": "Re-discuss later shape-only narrowing against user's recalled integration intent. No archive was run or installed.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/docs/planning/DONOR-ANALYSIS.md",
+          "line_start": 189,
+          "line_end": 192,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "claude-power-skills",
+      "purpose": "Reusable legal skill/prompt packages",
+      "original_commitment": "Archive present; later Aug18 analysis classifies as shape/skill donor, not proven owner approval to narrow scope",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/claude-power-skills-main/claude-power-skills-main",
+      "modification_or_integration_evidence": "Top-level resource identity read; source fork modifications not diffed.",
+      "later_disposition_or_hold": "Re-discuss later shape-only narrowing against user's recalled integration intent. No archive was run or installed.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/docs/planning/DONOR-ANALYSIS.md",
+          "line_start": 189,
+          "line_end": 192,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    },
+    {
+      "name": "custodyguide_v1complete_20260812",
+      "purpose": "Case-specific guardrails, sources, templates and tools",
+      "original_commitment": "Later analysis says this case's substance, not optional content pack",
+      "local_source_or_fork_path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/resources/build-kit/donors/custodyguide_v1complete_20260812/Projects/custody-guide",
+      "modification_or_integration_evidence": "Retained original case packet; legal accuracy/currentness not reverified here.",
+      "later_disposition_or_hold": "Keep legal primary-source and template-version checks; parent separate resource review owns detailed packet analysis.",
+      "rediscussion": "Confirm role in Advocatio versus the sibling platform, owner-required integration surface and current acceptance criteria; do not infer deployment from retained source.",
+      "provenance": [
+        {
+          "path": "E:/AI_Workspace/Projects/Propria/Legal-desktop/docs/planning/HANDOFF-ANALYSIS.md",
+          "line_start": 70,
+          "line_end": 85,
+          "layer": "sibling_platform_historical_or_source"
+        }
+      ]
+    }
+  ],
+  "external_integration_limit": "Complete named register for the bounded handoff/build-kit review and discovered Timesketch/viz planning paths, not an exhaustive inventory of every Propria integration. Historical candidate rows do not prove adoption; current user recollection reopens later shape-only dispositions.",
+  "memory_use": "Registry search only; no relevant Legal-desktop memory fact used. All conclusions grounded in current source reads.",
+  "current_owner_override": "Latest owner requires one unified surface and convergence of underlying languages/frameworks. Historical retained Vue/independent runtime/iframe decisions must be reconciled rather than treated as permanent exceptions. This recovery does not select a migration architecture."
+}

@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "framework": "next-fastapi",
+  "notes": "Edit this file or PUT /v1/routing to remount chat/agents without rewriting Next or FastAPI. Overlay: data/workspace/routing.json. Env: LEGAL_WORKSPACE_ROUTING_FILE. Public identity is path + English label.",
+  "chat": {
+    "backend": "legal-api-agent-runs",
+    "next_path": "/api/assistant",
+    "run_path": "/v1/agent-runs",
+    "confidential_path": "/v1/gateway:invoke",
+    "default_confidential_model": "ollama-cloud"
+  },
+  "agents": {
+    "intake": {
+      "backend": "legal-api",
+      "model": "unevaluated-manual",
+      "surface": "Questions the judge decides"
+    },
+    "research": {
+      "backend": "legal-api",
+      "model": "unevaluated-manual",
+      "surface": "Open questions"
+    },
+    "element_mapper": {
+      "backend": "legal-api",
+      "model": "unevaluated-manual",
+      "surface": "What the judge must consider"
+    },
+    "drafter": {
+      "backend": "legal-api",
+      "model": "unevaluated-manual",
+      "surface": "Documents and writing"
+    },
+    "citation": {
+      "backend": "legal-api",
+      "model": "unevaluated-manual",
+      "surface": "Citation check"
+    },
+    "redteam": {
+      "backend": "legal-api",
+      "model": "unevaluated-manual",
+      "surface": "Devil's advocate review"
+    },
+    "discovery": {
+      "backend": "legal-api",
+      "model": "unevaluated-manual",
+      "surface": "Evidence requests"
+    },
+    "filing_checker": {
+      "backend": "legal-api",
+      "model": "unevaluated-manual",
+      "surface": "Filing readiness checklist"
+    }
+  },
+  "role_keywords": {
+    "redteam": ["red team", "redteam", "opposing", "attack", "challenge draft"],
+    "citation": ["cite", "citation", "authority"],
+    "discovery": ["discover", "interrogator", "evidence request", "document request"],
+    "filing_checker": ["file", "ready", "checklist"],
+    "element_mapper": ["factor", "element", "custody factor", "722.23"],
+    "drafter": ["draft", "motion", "brief"],
+    "research": ["research", "statute", "vodvarka", "law"]
+  },
+  "surfaces": [
+    { "path": "/", "label": "Case dashboard", "group": "Assistant", "help": "See the current matter, document counts, and recent activity." },
+    { "path": "/assistant", "label": "Ask the assistant", "group": "Assistant", "help": "Discuss the current page or ask for help with your case work." },
+    { "path": "/case-search", "label": "Case search", "group": "Research", "help": "Search CourtListener for published opinions and open the matching source records." },
+    { "path": "/laws", "label": "Laws", "group": "Research", "help": "Browse saved Michigan legal authorities and their source links." },
+    { "path": "/citation-check", "label": "Citation check", "group": "Research", "help": "Parse a citation into its parts and review its normalized format." },
+    { "path": "/open-questions", "label": "Open questions", "group": "Research", "help": "Record research questions and track their status." },
+    { "path": "/questions", "label": "Questions the judge decides", "group": "Research", "help": "Break a case issue into questions and link supporting material." },
+    { "path": "/custody-factors", "label": "What the judge must consider", "group": "Research", "help": "Organize case information around Michigan custody factors." },
+    { "path": "/agreements", "label": "Document review", "group": "Drafting", "help": "Read saved drafts side by side and make review notes." },
+    { "path": "/documents", "label": "Document viewer", "group": "Contracts", "help": "Open a PDF in the document viewer." },
+    { "path": "/confidentiality-check", "label": "Confidentiality check", "group": "Contracts", "help": "Scan a draft or pasted text for sensitive keywords and review matching excerpts." },
+    { "path": "/drafts", "label": "Documents and writing", "group": "Drafting", "help": "Write, import, and edit office documents with saved versions." },
+    { "path": "/templates", "label": "Starting templates", "group": "Drafting", "help": "Choose a starting outline and create a draft." },
+    { "path": "/review", "label": "Your review", "group": "Drafting", "help": "Record approval, rejection, or requested changes for a draft section." },
+    { "path": "/final-copy", "label": "Final review copy", "group": "Drafting", "help": "Create and inspect a fixed review copy and its manifest." },
+    { "path": "/filing-checklist", "label": "Filing readiness checklist", "group": "Drafting", "help": "Track the remaining preparation checks for a document." },
+    { "path": "/analysis-queue", "label": "Analysis queue", "group": "Operations", "help": "Inspect queued analysis work and its status." },
+    { "path": "/playbooks", "label": "Playbooks", "group": "Operations", "help": "Browse the steps in reusable case-work procedures." },
+    { "path": "/scheduled-jobs", "label": "Scheduled jobs", "group": "Operations", "help": "View scheduled jobs, their last run, and available controls." },
+    { "path": "/notices", "label": "Inbound notices", "group": "Operations", "help": "Read notices received by the workspace." },
+    { "path": "/activity-log", "label": "Activity log", "group": "Operations", "help": "Review recorded actions and changes in the workspace." },
+    { "path": "/external-sources", "label": "External sources", "group": "Operations", "help": "View external research services and provider privacy settings." },
+    { "path": "/calendar", "label": "Court dates", "group": "Operations", "help": "Record and review court dates and deadlines." },
+    { "path": "/evidence-requests", "label": "Discovery requests", "group": "Operations", "help": "Draft requests for production, admissions, interrogatories, and subpoenas." },
+    { "path": "/evidence", "label": "Evidence list", "group": "Operations", "help": "Review case evidence candidates and add annotations." },
+    { "path": "/missing-evidence", "label": "Missing evidence", "group": "Operations", "help": "Describe missing support and create an investigation request." },
+    { "path": "/tasks", "label": "Your tasks", "group": "Operations", "help": "Add personal tasks and track their status." },
+    { "path": "/timeline", "label": "Timeline", "group": "Operations", "help": "View recorded case events in date order." },
+    { "path": "/assistant-log", "label": "Assistant activity log", "group": "Operations", "help": "Review assistant run requests and their results." },
+    { "path": "/private-notes", "label": "My private notes", "group": "Drafting", "help": "Read saved private case notes, strategy, and ideas.", "advanced": true },
+    { "path": "/challenge-draft", "label": "Devil's advocate review", "group": "Drafting", "help": "Review recorded adversarial findings and weaknesses in a draft.", "advanced": true }
+  ]
+}

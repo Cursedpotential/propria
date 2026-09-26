@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "courtlistener": {
+      "type": "http",
+      "url": "https://mcp.courtlistener.com/"
+    }
+  }
+}

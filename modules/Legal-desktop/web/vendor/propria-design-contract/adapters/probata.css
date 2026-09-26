@@ -1,0 +1,54 @@
+/* Indicia Probata Workbench adapter | Propria contract 1.0.0 | 2026-09-12
+   Byline: Codex · GPT-5. Covers both General and Advanced Probata surfaces. */
+
+:root {
+  --background: var(--pr-canvas);
+  --foreground: var(--pr-ink);
+  --card: var(--pr-surface);
+  --card-foreground: var(--pr-ink);
+  --popover: var(--pr-surface);
+  --popover-foreground: var(--pr-ink);
+  --primary: var(--pr-action);
+  --primary-foreground: var(--pr-action-text);
+  --secondary: var(--pr-surface-muted);
+  --secondary-foreground: var(--pr-ink);
+  --muted: var(--pr-surface-muted);
+  --muted-foreground: var(--pr-ink-muted);
+  --accent: var(--pr-action-soft);
+  --accent-foreground: var(--pr-ink);
+  --destructive: var(--pr-destructive);
+  --border: var(--pr-border);
+  --input: var(--pr-border-strong);
+  --ring: var(--pr-focus);
+  --sidebar: var(--pr-shell);
+  --sidebar-foreground: var(--pr-shell-text);
+  --sidebar-primary: var(--pr-action);
+  --sidebar-primary-foreground: var(--pr-action-text);
+  --sidebar-accent: var(--pr-shell-surface);
+  --sidebar-accent-foreground: var(--pr-shell-text);
+  --sidebar-border: var(--pr-border-strong);
+  --sidebar-ring: var(--pr-focus);
+  --chart-1: var(--pr-information);
+  --chart-2: var(--pr-action);
+  --chart-3: var(--pr-focus);
+  --chart-4: var(--pr-positive);
+  --chart-5: var(--pr-ink-muted);
+  --status-positive: var(--pr-positive);
+  --status-caution: var(--pr-caution);
+  --status-destructive: var(--pr-destructive);
+  --status-information: var(--pr-information);
+}
+
+[data-pr-experience="general"] {
+  --workbench-layout-gap: var(--pr-layout-gap);
+  --workbench-panel-padding: var(--pr-panel-padding);
+  --workbench-row-height: var(--pr-data-row-height);
+  --workbench-context-height: var(--pr-context-strip-min-height);
+}
+
+[data-pr-experience="advanced"] {
+  --workbench-layout-gap: var(--pr-layout-gap);
+  --workbench-panel-padding: var(--pr-panel-padding);
+  --workbench-row-height: var(--pr-data-row-height);
+  --workbench-context-height: var(--pr-context-strip-min-height);
+}

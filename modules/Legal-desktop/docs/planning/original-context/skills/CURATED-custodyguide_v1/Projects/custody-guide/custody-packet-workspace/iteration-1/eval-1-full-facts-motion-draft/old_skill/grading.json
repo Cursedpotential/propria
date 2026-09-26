@@ -1,0 +1,56 @@
+{
+  "run_id": "eval-1-full-facts-motion-draft/old_skill",
+  "expectations": [
+    {
+      "text": "Motion leads on MCL 722.27a(8) as the primary hook",
+      "passed": true,
+      "evidence": "722.27a(8) appears across 6 output files; 01-motion leads on the specific-terms mandate."
+    },
+    {
+      "text": "Cites Pickering v Pickering, 268 Mich App 1 (2005)",
+      "passed": true,
+      "evidence": "Pickering cited in the motion and brief (3 files); matches ledger \u00a74.3."
+    },
+    {
+      "text": "Pleads Shade / Kaeb threshold in the alternative",
+      "passed": true,
+      "evidence": "Shade v Wright and Kaeb v Kaeb (2 files each) pleaded in the alternative; Pierron v Pierron added."
+    },
+    {
+      "text": "Warns recharacterization / sizes ask below the ECE line (Vodvarka)",
+      "passed": true,
+      "evidence": "01-motion: '~52 overnights/yr ... below the ECE line and below the 104 already credited \u2014 the opposite of the ... over-ask that gets recharacterized under Vodvarka'; response.md makes the same 52<104 argument."
+    },
+    {
+      "text": "Adds MCL 722.27a(9) order terms (communication channel, exchange logistics, make-up protocol)",
+      "passed": true,
+      "evidence": "722.27a(9) terms appear across 6 files."
+    },
+    {
+      "text": "Output saved to the run's filing-workspace, not the bundled draft/",
+      "passed": true,
+      "evidence": "10 documents (01-10) + response.md written to old_skill/outputs/; no bundled draft/ leakage."
+    },
+    {
+      "text": "No document labeled filing-ready; carries posture / 'do not use if'",
+      "passed": true,
+      "evidence": "Every document carries 'Not filing-ready'; response.md: 'Nothing here is filing-ready, and no document may be labeled that way.'"
+    },
+    {
+      "text": "Child's name and birthdate absent (age-only)",
+      "passed": true,
+      "evidence": "Age-only ('daughter is 6'); banned words appear only inside an explicit do-not-write list (01-motion line 180)."
+    },
+    {
+      "text": "Citations grounded; no fabricated or holding-unread citation relied on",
+      "passed": true,
+      "evidence": "Strong discipline: brief states 'No unpublished opinion is cited' and 'No case is cited whose holding this project has not read. Hayes v Hayes is a natural fit for the ECE point and is deliberately absent for that reason.' Kahl (ledger-backed, unpublished) appears only in internal drafting rationale, not as filing authority."
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}

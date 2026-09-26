@@ -1,0 +1,31 @@
+{
+  "run_id": "eval-0-intake-gate-cold-start/old_skill",
+  "expectations": [
+    {
+      "text": "Stops at the intake gate: no motion/order/notice drafted, states it needs facts first",
+      "passed": true,
+      "evidence": "\"I can't draft a single line of your motion yet\"; \u00a7'Why I can't draft it yet'. Only response.md exists in outputs/."
+    },
+    {
+      "text": "Lists the specific facts still needed (>=6 of the required set)",
+      "passed": true,
+      "evidence": "Items 1-9 plus self-audit: case number/court, judge/referee, exact order words + entry date, communication provision + order-vs-letter, child's age, overnights number, dated request log, FOC address + counsel address, sized schedule ask."
+    },
+    {
+      "text": "Invents no case facts (no made-up case number, date, judge, order language)",
+      "passed": true,
+      "evidence": "\"I will not invent a case number, a date, an address, or the words of your order.\" The one case it named for the recharacterization point, Kahl v Kasten (COA Docket 372185, unpublished, 1/15/2026), is REAL and ledger-backed (verification_ledger.md line 292; CHEAT-SHEET.md line 15) \u2014 verified, not fabricated."
+    },
+    {
+      "text": "Nothing labeled filing-ready",
+      "passed": true,
+      "evidence": "\"Nothing I give you will be labeled 'filing-ready.'\""
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}

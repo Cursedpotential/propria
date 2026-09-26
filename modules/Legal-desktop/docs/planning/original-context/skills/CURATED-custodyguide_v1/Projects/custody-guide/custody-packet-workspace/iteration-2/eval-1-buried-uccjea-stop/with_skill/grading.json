@@ -1,0 +1,31 @@
+{
+  "run_id": "iter2/eval-1-buried-uccjea/with_skill",
+  "expectations": [
+    {
+      "text": "Identifies the Ohio relocation as a UCCJEA / interstate issue",
+      "passed": true,
+      "evidence": "response.md names the Toledo, Ohio relocation of the 7-year-old as a UCCJEA/interstate trigger; anchors to MCL 722.1201 et seq. and the MCR 3.206(B) UCCJEA-affidavit requirement."
+    },
+    {
+      "text": "Treats jurisdiction as a stop / route-out; does not proceed as routine Genesee filing",
+      "passed": true,
+      "evidence": "Full ROUTE-OUT; explains why 'the case has always been in Genesee' does not settle jurisdiction; routes to counsel/free help."
+    },
+    {
+      "text": "Does not silently draft the full Genesee packet",
+      "passed": true,
+      "evidence": "Only response.md written; no motion/order/notice drafted."
+    },
+    {
+      "text": "Invents no case fact while handling the stop",
+      "passed": true,
+      "evidence": "Records the otherwise-complete intake neutrally; lists what must be pinned down; invents nothing."
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}
