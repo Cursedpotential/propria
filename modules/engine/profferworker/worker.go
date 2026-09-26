@@ -24,6 +24,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/parser"
 	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/repairplan"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
@@ -53,6 +54,10 @@ type Registrations struct {
 	// Activities; they fail closed when called unwired).
 	// Byline: Claude Code · Opus 5 · 2026-09-21
 	BatchImport activities.BatchImportActivities
+	// RepairPlan serves RepairPlanWorkflow (the repair workflow builder).
+	// Unwired fields fail closed when called.
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
+	RepairPlan activities.RepairPlanActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -76,6 +81,8 @@ func RegisterAll(registrar interface {
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
 	activities.RegisterBatchImportActivities(registrar, registrations.BatchImport)
+	registrar.RegisterWorkflowWithOptions(repairplan.RepairPlanWorkflow, workflow.RegisterOptions{Name: repairplan.WorkflowName})
+	activities.RegisterRepairPlanActivities(registrar, registrations.RepairPlan)
 	activities.RegisterSourceLifecycleActivities(registrar, registrations.Lifecycle)
 	activities.RegisterFilesystemMetadataActivity(registrar, registrations.FilesystemObservation)
 	activities.RegisterHashActivities(registrar, registrations.Hash)
@@ -143,7 +150,28 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	defer temporalClient.Close()
 
-	registrations, err := buildRegistrations(pool, cfg, flowRegistry, temporalClient)
+	// The Case Bible catalog is optional and read-only; only
+	// repair.find_other_version reads it. The pool connects on first use, so
+	// an unreachable catalog never stops the worker starting.
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
+	var catalog activities.CatalogVersionFinder
+	if cfg.Catalog.Enabled {
+		catalogPool, err := platformpostgres.OpenCatalogPool(ctx, platformpostgres.CatalogConnection{
+			Host: cfg.Catalog.Host, Port: cfg.Catalog.Port, Database: cfg.Catalog.Database,
+			User: cfg.Catalog.User, Password: cfg.Catalog.Password,
+		})
+		if err != nil {
+			return fmt.Errorf("proffer worker: %w", err)
+		}
+		defer catalogPool.Close()
+		store, err := platformpostgres.NewCatalogVersionStore(catalogPool)
+		if err != nil {
+			return err
+		}
+		catalog = store
+	}
+
+	registrations, err := buildRegistrations(pool, cfg, flowRegistry, temporalClient, catalog)
 	if err != nil {
 		return err
 	}
@@ -240,7 +268,7 @@ func batchFolderLister(stores objectstores.Stores) activities.BatchFolderLister 
 	}
 }
 
-func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformtemporal.FlowRegistry, temporalClient client.Client) (Registrations, error) {
+func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformtemporal.FlowRegistry, temporalClient client.Client, catalog activities.CatalogVersionFinder) (Registrations, error) {
 	openObject, err := runtimeapi.NewRetainedObjectOpener(pool)
 	if err != nil {
 		return Registrations{}, err
@@ -408,7 +436,15 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err := derivedRoots.RequireConfiguredSchemes(stores.Schemes()); err != nil {
 		return Registrations{}, err
 	}
+	// One store resolver serves the derive route and the repair tools, so
+	// both publish through the same configured clients.
+	objectStores := derivationStores(stores)
+	repairPlan, err := buildRepairPlanActivities(pool, cfg, stores, derivedRoots, objectStores, catalog)
+	if err != nil {
+		return Registrations{}, err
+	}
 	return Registrations{
+		RepairPlan:            repairPlan,
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation: activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
 		InventoryObservation:  activities.NewSourceObservationActivities(nil, runtimeapi.NewNonContainerMemberEnumerator(), observationRepo),
@@ -418,7 +454,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		Hash:                  activities.NewHashActivities(hashRepo),
 		StructuredELT:         activities.NewStructuredELTActivities(structuredELTRepo, parserStore, handlerSelectionStore),
 		DeriveSMSThreads: activities.NewDeriveSMSThreadsActivities(
-			deriveStore, derivationStores(stores), deriveStore,
+			deriveStore, objectStores, deriveStore,
 			derivedRoots, cfg.DeriveScratchDir, cfg.DeriveMaxChunkBytes,
 		),
 		HandlerSelection: HandlerSelectionActivities{

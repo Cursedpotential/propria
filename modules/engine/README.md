@@ -143,3 +143,30 @@ archives, whatever comes next — runs through the same 23-stage
 database, a reduced stage set, or a silently skipped stage; a stage that
 does not apply to a given source still emits an explicit `not_applicable`
 receipt so the gap is visible rather than absent.
+
+## Repair workflow builder (2026-09-25)
+
+> Byline: Claude Code · Opus 5.5 · 2026-09-25. Ratified design and shared
+> contract: `docs/pending-review/2026-09-25-repair-workflow-builder.md` (option A).
+
+`engine/repairplan` is the engine side of the owner's repair workflow builder:
+a registry of repair-capable Activities (`GET /reference-import/repair/tools`),
+a signature-table proposer (`POST .../propose`), a fail-closed validator with
+one named check per rule (`POST .../validate`), and `RepairPlanWorkflow`
+(`POST .../run`, `GET .../runs/{workflow_id}`). `RepairPlanWorkflow` is its own
+workflow type: the 26-stage `ProfferWorkflow` is untouched, and a plan's result
+re-enters it only as an ordinary new run (or, for derived NDJSON threads, one
+ordinary batch). The worker re-validates every plan with its own storage
+configuration before any step, records one receipt per step in
+`context.activity_execution`/`context.activity_receipt` (keyed to the Review
+run's source version), and binds the re-entry run to Review only after it has
+registered its source.
+
+The three first repair Activities are registered in
+`stagegraph.RepairPlanActivities` and run on the proffer worker:
+`repair.find_other_version` (read-only Case Bible catalog lookup, confirmed by a
+live HEAD), `repair.salvage_truncated_xml` (`engine/derive/xmlsalvage`: an exact
+byte prefix of the source up to the last complete record, plus the closing tag,
+published as a new hashed derived object) and `repair.lenient_decode`
+(`engine/derive/smsthreads` with `Lenient` set, published under the derived
+location's `lenient/` variant). None writes an original.

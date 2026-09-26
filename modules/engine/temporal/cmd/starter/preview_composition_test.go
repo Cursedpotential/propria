@@ -49,6 +49,17 @@ func TestMountPreviewRoutesForwardsEveryPreviewRoute(t *testing.T) {
 		{http.MethodPost, "/reference-import/previews/handle/decision"},
 		{http.MethodPost, "/reference-import/previews/handle/repair-decision"},
 		{http.MethodPost, "/reference-import/previews/handle/handler-selection"},
+		{http.MethodGet, "/reference-import/previews/handle/source-context"},
+		// Batch routes were missing until 2026-09-25 and 404'd.
+		// Byline: Claude Code · Opus 5.5 · 2026-09-25
+		{http.MethodPost, "/reference-import/start-batch"},
+		{http.MethodGet, "/reference-import/batches/batch-id"},
+		// Repair workflow builder.
+		{http.MethodGet, "/reference-import/repair/tools"},
+		{http.MethodPost, "/reference-import/repair/propose"},
+		{http.MethodPost, "/reference-import/repair/validate"},
+		{http.MethodPost, "/reference-import/repair/run"},
+		{http.MethodGet, "/reference-import/repair/runs/repair-plan-x-0123456789ab"},
 	} {
 		got := httptest.NewRecorder()
 		routes.ServeHTTP(got, httptest.NewRequest(tc.method, tc.path, nil))

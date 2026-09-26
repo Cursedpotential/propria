@@ -41,10 +41,17 @@ const maxProblems = 50
 // publishes to (derivedroot.go), so a validation run and a derive run can
 // never disagree about where the derivation lives.
 func Validate(ctx context.Context, store ObjectStore, roots DerivedRoots, scheme, bucket, key string, maxChunk int64) (Report, error) {
+	return ValidateVariant(ctx, store, roots, "", scheme, bucket, key, maxChunk)
+}
+
+// ValidateVariant is Validate for a named derivation variant (for example the
+// lenient derivation repair.lenient_decode publishes under <prefix>/lenient/).
+// Byline: Claude Code · Opus 5.5 · 2026-09-25
+func ValidateVariant(ctx context.Context, store ObjectStore, roots DerivedRoots, variant, scheme, bucket, key string, maxChunk int64) (Report, error) {
 	if maxChunk <= 0 {
 		maxChunk = defaultMaxChunk
 	}
-	location, _, err := ResolvePublished(ctx, store, roots, scheme, bucket, key)
+	location, _, err := ResolvePublishedVariant(ctx, store, roots, variant, scheme, bucket, key)
 	if err != nil {
 		return Report{}, err
 	}

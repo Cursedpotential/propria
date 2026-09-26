@@ -67,6 +67,74 @@ type Config struct {
 	// once (PROFFER_MAX_CONCURRENT_ACTIVITIES). Temporal's own default is 1,000,
 	// which a batch fan-out would spend against the shared PostgreSQL.
 	MaxConcurrentActivities int
+
+	// Catalog is the read-only Case Bible catalog repair.find_other_version
+	// reads, in the Workbench's INTAKE_DISCOVERY_PG_* convention. It is
+	// optional: unset, that one Activity fails closed with a clear reason and
+	// nothing else changes. Byline: Claude Code · Opus 5.5 · 2026-09-25
+	Catalog CatalogConfig
+}
+
+// CatalogConfig is the catalog connection plus the object store its keys are
+// relative to. The password stays in memory and is never logged.
+type CatalogConfig struct {
+	Enabled      bool
+	Host         string
+	Port         int
+	Database     string
+	User         string
+	Password     string
+	PasswordFile string
+	// ObjectStore is "<scheme>://<bucket>" (INTAKE_DISCOVERY_OBJECT_STORE):
+	// the catalog's keys are object keys in that bucket.
+	ObjectScheme string
+	ObjectBucket string
+}
+
+// loadCatalogConfig reads INTAKE_DISCOVERY_PG_*. No password file means the
+// catalog is not configured; a password file with any other part missing or
+// malformed is a startup failure, never a silently disabled Activity.
+func loadCatalogConfig() (CatalogConfig, []string) {
+	passwordFile := firstEnvironment("INTAKE_DISCOVERY_PG_PASSWORD_FILE")
+	if passwordFile == "" {
+		return CatalogConfig{}, nil
+	}
+	var problems []string
+	cfg := CatalogConfig{
+		Enabled: true, PasswordFile: passwordFile,
+		Host:     firstEnvironment("INTAKE_DISCOVERY_PG_HOST"),
+		Database: firstEnvironment("INTAKE_DISCOVERY_PG_DATABASE"),
+		User:     firstEnvironment("INTAKE_DISCOVERY_PG_USER"),
+	}
+	if cfg.Database == "" {
+		cfg.Database = "casebible"
+	}
+	if cfg.User == "" {
+		cfg.User = "metabase_ro"
+	}
+	if cfg.Host == "" {
+		problems = append(problems, "INTAKE_DISCOVERY_PG_HOST is required when INTAKE_DISCOVERY_PG_PASSWORD_FILE is set")
+	}
+	port, err := strconv.Atoi(firstEnvironment("INTAKE_DISCOVERY_PG_PORT"))
+	if err != nil || port <= 0 || port > 65535 {
+		problems = append(problems, "INTAKE_DISCOVERY_PG_PORT must be a TCP port when INTAKE_DISCOVERY_PG_PASSWORD_FILE is set")
+	}
+	cfg.Port = port
+	if !absoluteRuntimePath(passwordFile) {
+		problems = append(problems, "INTAKE_DISCOVERY_PG_PASSWORD_FILE must be an absolute path")
+	} else if value, err := platformtemporal.ReadRuntimeSecretFile(passwordFile, 4096); err != nil || strings.TrimSpace(value) == "" {
+		problems = append(problems, "INTAKE_DISCOVERY_PG_PASSWORD_FILE is unavailable or empty")
+	} else {
+		cfg.Password = strings.TrimSpace(value)
+	}
+	store := firstEnvironment("INTAKE_DISCOVERY_OBJECT_STORE")
+	scheme, bucket, found := strings.Cut(store, "://")
+	bucket = strings.TrimSuffix(bucket, "/")
+	if !found || scheme == "" || bucket == "" || strings.Contains(bucket, "/") {
+		problems = append(problems, "INTAKE_DISCOVERY_OBJECT_STORE must be <scheme>://<bucket> when the catalog is configured")
+	}
+	cfg.ObjectScheme, cfg.ObjectBucket = strings.ToLower(scheme), bucket
+	return cfg, problems
 }
 
 const defaultMaxConcurrentActivities = 4
@@ -171,6 +239,9 @@ func LoadConfig() (Config, error) {
 			cfg.MaxConcurrentActivities = value
 		}
 	}
+	catalog, catalogProblems := loadCatalogConfig()
+	cfg.Catalog = catalog
+	problems = append(problems, catalogProblems...)
 	if len(problems) > 0 {
 		return Config{}, fmt.Errorf("proffer worker: invalid configuration: %s", strings.Join(problems, "; "))
 	}
