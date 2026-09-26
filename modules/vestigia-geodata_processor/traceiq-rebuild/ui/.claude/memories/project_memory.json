@@ -1,0 +1,14 @@
+{
+  "memories": [],
+  "manual_memories": [],
+  "realtime_memories": [
+    {
+      "type": "message",
+      "content": "You are a third-person note-taker. You will receive a transcript of ONE conversation turn between User and Claude Code. Your job is to record what happened as factual third-person notes. You are an EX",
+      "added_at": "2026-07-25T13:52:51.602998",
+      "source": "realtime_capture"
+    }
+  ],
+  "created_at": "2026-07-25T13:52:51.602738",
+  "updated_at": "2026-07-25T13:52:51.603004"
+}

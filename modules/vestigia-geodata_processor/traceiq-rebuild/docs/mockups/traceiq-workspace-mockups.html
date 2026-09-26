@@ -1,0 +1,556 @@
+<title>TraceIQ Workspace — Layout Mockups</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eceef2;
+    --ink: #14181f; --muted: #5a6472; --faint: #8b95a3;
+    --border: #dce0e6; --border-strong: #c3c9d2;
+    --signal: #147d8c; --signal-soft: #dcf0f2;
+    --overnight: #6a5ac0; --concerning: #b67d16; --critical: #c0453f; --verified: #2f7d57;
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+    --r: 7px; --r-sm: 4px;
+    --shadow: 0 1px 2px rgba(20,24,31,.05), 0 4px 16px rgba(20,24,31,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1217; --surface: #161b22; --surface-2: #1d232c;
+      --ink: #e6e9ee; --muted: #8592a0; --faint: #5d6875;
+      --border: #262d38; --border-strong: #333c49;
+      --signal: #3db8cc; --signal-soft: #10333a;
+      --overnight: #9285e0; --concerning: #d99a2b; --critical: #e0655f; --verified: #4bab77;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1217; --surface: #161b22; --surface-2: #1d232c;
+    --ink: #e6e9ee; --muted: #8592a0; --faint: #5d6875;
+    --border: #262d38; --border-strong: #333c49;
+    --signal: #3db8cc; --signal-soft: #10333a;
+    --overnight: #9285e0; --concerning: #d99a2b; --critical: #e0655f; --verified: #4bab77;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eceef2;
+    --ink: #14181f; --muted: #5a6472; --faint: #8b95a3;
+    --border: #dce0e6; --border-strong: #c3c9d2;
+    --signal: #147d8c; --signal-soft: #dcf0f2;
+    --overnight: #6a5ac0; --concerning: #b67d16; --critical: #c0453f; --verified: #2f7d57;
+    --shadow: 0 1px 2px rgba(20,24,31,.05), 0 4px 16px rgba(20,24,31,.06);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-ui);
+    font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .eyebrow { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--faint); }
+
+  /* ---- shell chrome ---- */
+  .pagehead { max-width: 1240px; margin: 0 auto; padding: 28px 24px 8px; }
+  .pagehead h1 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.01em; text-wrap: balance; }
+  .pagehead p { margin: 0; color: var(--muted); max-width: 68ch; }
+  .switcher { position: sticky; top: 0; z-index: 40; background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  .switcher-inner { max-width: 1240px; margin: 0 auto; padding: 12px 24px; display: flex;
+    align-items: center; gap: 16px; flex-wrap: wrap; }
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 3px; gap: 2px; }
+  .seg button { font: inherit; font-size: 12.5px; border: 0; background: transparent; color: var(--muted);
+    padding: 6px 14px; border-radius: var(--r-sm); cursor: pointer; white-space: nowrap; }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0,0,0,.08); font-weight: 600; }
+  .seg button:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
+  .grow { flex: 1; }
+  .themebtn { font: inherit; font-size: 12px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); padding: 6px 12px; border-radius: var(--r-sm); cursor: pointer; }
+  .variant-note { max-width: 1240px; margin: 0 auto; padding: 14px 24px 0; }
+  .variant-note .eyebrow { color: var(--signal); }
+  .variant-note strong { font-weight: 600; }
+  .variant-note span { color: var(--muted); }
+
+  .stage { max-width: 1240px; margin: 18px auto 40px; padding: 0 24px; }
+  .frame { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 10px;
+    box-shadow: var(--shadow); overflow: hidden; }
+
+  /* ---- app top bar (inside frame) ---- */
+  .appbar { display: flex; align-items: center; gap: 14px; padding: 10px 14px;
+    border-bottom: 1px solid var(--border); background: var(--surface); }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -.01em; }
+  .brand .dot { width: 9px; height: 9px; border-radius: 2px; background: var(--signal);
+    box-shadow: 0 0 0 3px var(--signal-soft); }
+  .subject { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono);
+    font-size: 12px; background: var(--surface-2); border: 1px solid var(--border);
+    padding: 4px 9px; border-radius: var(--r-sm); color: var(--ink); }
+  .subject b { color: var(--signal); }
+  .tabs { display: flex; gap: 2px; }
+  .tabs a { font-size: 12.5px; color: var(--muted); text-decoration: none; padding: 6px 11px;
+    border-radius: var(--r-sm); }
+  .tabs a.on { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+  .modepill { display: inline-flex; border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
+  .modepill button { font: inherit; font-size: 11.5px; border: 0; background: transparent; color: var(--muted);
+    padding: 5px 12px; cursor: pointer; }
+  .modepill button.on { background: var(--signal); color: #fff; font-weight: 600; }
+  :root[data-theme="dark"] .modepill button.on, @media (prefers-color-scheme: dark){ .modepill button.on { color:#04171b; } }
+
+  /* ---- panels ---- */
+  .panel { padding: 14px; }
+  .panel + .panel { border-top: 1px solid var(--border); }
+  .panel-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .panel-h .eyebrow { margin: 0; }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px;
+    font-family: var(--font-mono); letter-spacing: .03em; }
+  .daterow { display: flex; align-items: center; gap: 6px; }
+  .inp { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2);
+    border: 1px solid var(--border); color: var(--ink); padding: 6px 8px; border-radius: var(--r-sm); width: 100%; }
+  .track { position: relative; height: 28px; margin-top: 8px; }
+  .track .rail { position: absolute; top: 12px; left: 0; right: 0; height: 4px; border-radius: 2px;
+    background: var(--surface-2); }
+  .track .fill { position: absolute; top: 12px; height: 4px; border-radius: 2px; background: var(--signal); }
+  .track .gap { position: absolute; top: 12px; height: 4px; background: repeating-linear-gradient(
+    90deg, var(--critical) 0 4px, transparent 4px 8px); opacity: .6; }
+  .track .knob { position: absolute; top: 7px; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--signal); }
+  .track-label { display: flex; justify-content: space-between; margin-top: 4px; }
+  .track-label span { font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-family: var(--font-mono); font-size: 11px; padding: 4px 9px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--muted); cursor: pointer; background: var(--surface); }
+  .chip.on { background: var(--signal-soft); border-color: var(--signal); color: var(--signal); font-weight: 600; }
+  .chip .sw { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+
+  /* ---- chat ---- */
+  .chat { display: flex; flex-direction: column; gap: 10px; }
+  .msg { font-size: 12.5px; padding: 9px 11px; border-radius: 10px; max-width: 92%; }
+  .msg.user { align-self: flex-end; background: var(--signal); color: #fff; border-bottom-right-radius: 3px; }
+  :root[data-theme="dark"] .msg.user { color: #04171b; }
+  @media (prefers-color-scheme: dark) { .msg.user { color: #04171b; } }
+  .msg.ai { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border);
+    border-bottom-left-radius: 3px; }
+  .msg.ai .receipt { margin-top: 8px; display: flex; align-items: center; gap: 6px; font-family: var(--font-mono);
+    font-size: 10.5px; color: var(--signal); background: var(--surface); border: 1px solid var(--border);
+    padding: 5px 8px; border-radius: var(--r-sm); cursor: pointer; }
+  .receipt .lk { color: var(--verified); }
+  .chatbox { display: flex; gap: 8px; margin-top: 4px; }
+  .chatbox .inp { flex: 1; }
+  .send { border: 0; background: var(--signal); color: #fff; font: inherit; font-size: 12px; font-weight: 600;
+    padding: 0 14px; border-radius: var(--r-sm); cursor: pointer; }
+  :root[data-theme="dark"] .send { color: #04171b; }
+  @media (prefers-color-scheme: dark) { .send { color: #04171b; } }
+  .assist-hint { font-family: var(--font-mono); font-size: 10px; color: var(--faint); margin-top: 8px; }
+
+  /* ---- map ---- */
+  .map { position: relative; background:
+      linear-gradient(0deg, transparent 23px, color-mix(in srgb, var(--border) 55%, transparent) 24px),
+      linear-gradient(90deg, transparent 23px, color-mix(in srgb, var(--border) 55%, transparent) 24px);
+    background-size: 24px 24px; background-color: var(--surface-2); overflow: hidden; }
+  .map::after { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(120% 90% at 42% 46%, transparent 55%, color-mix(in srgb, var(--bg) 55%, transparent)); }
+  .pin { position: absolute; border-radius: 50%; transform: translate(-50%,-50%);
+    border: 2px solid var(--surface); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+  .maplegend { position: absolute; left: 12px; bottom: 12px; z-index: 3; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 10px; font-family: var(--font-mono);
+    font-size: 10.5px; display: grid; gap: 4px; box-shadow: var(--shadow); }
+  .maplegend div { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .maplegend .sw { width: 9px; height: 9px; border-radius: 50%; }
+  .mapscrim { position: absolute; right: 12px; top: 12px; z-index: 3; font-family: var(--font-mono);
+    font-size: 10.5px; color: var(--muted); background: var(--surface); border: 1px solid var(--border);
+    padding: 5px 9px; border-radius: var(--r-sm); }
+  .maptools { position: absolute; left: 12px; top: 12px; z-index: 3; display: flex; gap: 6px; align-items: center; }
+  .mode { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+    padding: 2px; box-shadow: var(--shadow); }
+  .mode button { font: inherit; font-family: var(--font-mono); font-size: 10.5px; border: 0; background: transparent;
+    color: var(--muted); padding: 4px 9px; border-radius: 3px; cursor: pointer; }
+  .mode button.on { background: var(--signal-soft); color: var(--signal); font-weight: 600; }
+  .popbtn { font-family: var(--font-mono); font-size: 10.5px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--signal); padding: 4px 9px; border-radius: var(--r-sm); cursor: pointer; box-shadow: var(--shadow); }
+  .scrubber { position: absolute; left: 12px; right: 12px; bottom: 42px; z-index: 3; height: 26px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow);
+    display: flex; align-items: center; gap: 8px; padding: 0 8px; }
+  .scrubber .rail2 { position: relative; flex: 1; height: 4px; border-radius: 2px; background: var(--surface-2); }
+  .scrubber .fill2 { position: absolute; left: 0; width: 62%; height: 4px; border-radius: 2px; background: var(--signal); }
+  .scrubber .knob2 { position: absolute; left: 62%; top: -4px; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--signal); }
+  .scrubber .t { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+  .popdoors { display: inline-flex; gap: 6px; }
+  .door { font-family: var(--font-mono); font-size: 10px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--signal); padding: 3px 8px; border-radius: var(--r-sm); cursor: pointer; }
+
+  /* ---- stat tiles ---- */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 11px 12px; }
+  .tile .k { font-family: var(--font-mono); font-size: 22px; font-weight: 600; letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums; }
+  .tile .l { font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--faint); margin-top: 2px; }
+  .tile.accent .k { color: var(--signal); }
+  .tile.warn .k { color: var(--overnight); }
+
+  /* ---- table ---- */
+  .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tbl th { text-align: left; font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--faint); font-weight: 500; padding: 8px 10px;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+  .tbl td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .tbl td.m { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+  .tbl tr:hover td { background: var(--surface-2); }
+  .pill { font-family: var(--font-mono); font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 600; }
+  .pill.on { background: color-mix(in srgb, var(--overnight) 16%, transparent); color: var(--overnight); }
+  .pill.cn { background: color-mix(in srgb, var(--concerning) 18%, transparent); color: var(--concerning); }
+  .pill.vf { background: color-mix(in srgb, var(--verified) 16%, transparent); color: var(--verified); }
+  .tag { font-family: var(--font-mono); font-size: 10px; color: var(--muted); background: var(--surface-2);
+    border: 1px solid var(--border); padding: 1px 6px; border-radius: var(--r-sm); }
+
+  .scroll { overflow: auto; }
+  .toolbar { display: flex; gap: 8px; align-items: center; }
+  .btn { font: inherit; font-size: 12px; border: 1px solid var(--border-strong); background: var(--surface);
+    color: var(--ink); padding: 6px 12px; border-radius: var(--r-sm); cursor: pointer; }
+  .btn.primary { background: var(--signal); border-color: var(--signal); color: #fff; font-weight: 600; }
+  :root[data-theme="dark"] .btn.primary { color: #04171b; }
+  @media (prefers-color-scheme: dark) { .btn.primary { color: #04171b; } }
+  .btn:focus-visible, .chip:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
+
+  /* ---- variant layouts ---- */
+  .variant { display: none; }
+  .variant.on { display: block; }
+
+  /* A: left rail | map | data */
+  .layA { display: grid; grid-template-columns: 300px 1fr 340px; min-height: 560px; }
+  .layA .col { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+  .layA .col:last-child { border-right: 0; }
+  .layA .map { flex: 1; min-height: 300px; }
+
+  /* B: map on top, split below */
+  .layB { display: flex; flex-direction: column; min-height: 560px; }
+  .layB .map { height: 300px; }
+  .layB .split { display: grid; grid-template-columns: 380px 1fr; flex: 1; border-top: 1px solid var(--border); }
+  .layB .split > div:first-child { border-right: 1px solid var(--border); }
+
+  /* C: three vertical panes */
+  .layC { display: grid; grid-template-columns: 320px 1fr 380px; min-height: 560px; }
+  .layC > div { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+  .layC > div:last-child { border-right: 0; }
+  .layC .map { flex: 1; }
+
+  .datahead { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
+    border-bottom: 1px solid var(--border); }
+
+  @media (max-width: 900px) {
+    .layA, .layC { grid-template-columns: 1fr; }
+    .layA .col, .layC > div { border-right: 0; border-bottom: 1px solid var(--border); }
+    .layB .split { grid-template-columns: 1fr; }
+    .layB .split > div:first-child { border-right: 0; border-bottom: 1px solid var(--border); }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .layA .map, .layC .map { min-height: 240px; }
+  }
+  .footer { max-width: 1240px; margin: 0 auto 60px; padding: 0 24px; color: var(--faint);
+    font-family: var(--font-mono); font-size: 11px; }
+</style>
+
+<div class="pagehead">
+  <div class="eyebrow">TraceIQ · proposed workspace · ADR-0015</div>
+  <h1>Dual-Use Forensic Workspace — Layout Study</h1>
+  <p><strong>Variant A is the chosen base.</strong> Every layout works fully by hand — query,
+     view, edit, export — with the analysis agent as an optional co-pilot that answers with
+     receipts, never replaces them. Map = deck.gl in-app + <span class="mono">↗ Kepler</span>
+     pop-out; reporting = Evidence (<span class="mono">↗ analytics</span> pop-out); table editing
+     = Mathesar + pgAdmin tabs. All on the live corpus (subject <span class="mono">K</span>,
+     2017–2024, 40,320 events).</p>
+</div>
+
+<div class="switcher">
+  <div class="switcher-inner">
+    <div class="seg" role="group" aria-label="Layout variant">
+      <button data-v="A" aria-pressed="true">A · Left rail ★</button>
+      <button data-v="B" aria-pressed="false">B · Map-primary</button>
+      <button data-v="C" aria-pressed="false">C · Three panes</button>
+    </div>
+    <span class="grow"></span>
+    <button class="themebtn" id="theme">◐ Theme</button>
+  </div>
+</div>
+
+<div class="variant-note" id="vnote"></div>
+
+<div class="stage">
+  <div class="frame">
+
+    <!-- ============ VARIANT A ============ -->
+    <div class="variant on" data-variant="A">
+      <div class="appbar">
+        <span class="brand"><span class="dot"></span>TraceIQ</span>
+        <span class="subject">subject <b>K (respondent)</b> ▾</span>
+        <nav class="tabs"><a class="on">Explore</a><a>Analytics</a><a>Tables</a><a>Export</a><a>Config</a></nav>
+        <span class="grow"></span>
+        <span class="modepill"><button class="on">Manual</button><button>Agent-assist</button></span>
+      </div>
+      <div class="layA">
+        <!-- controls + chat -->
+        <div class="col">
+          <div class="panel">
+            <div class="panel-h"><span class="eyebrow">Query</span><span class="tag">edit freely</span></div>
+            <div class="field">
+              <label>Date range</label>
+              <div class="daterow">
+                <input class="inp" value="2020-01-01" aria-label="from"/>
+                <span class="mono" style="color:var(--faint)">→</span>
+                <input class="inp" value="2022-12-31" aria-label="to"/>
+              </div>
+              <div class="track" aria-hidden="true">
+                <div class="rail"></div><div class="fill" style="left:30%;right:12%"></div>
+                <div class="gap" style="left:33%;width:11%" title="2020 data gap"></div>
+                <div class="knob" style="left:30%"></div><div class="knob" style="left:88%"></div>
+              </div>
+              <div class="track-label"><span>2017-09</span><span style="color:var(--critical)">gap ’20</span><span>2024-08</span></div>
+            </div>
+            <div class="field">
+              <label>Event type</label>
+              <div class="chips">
+                <span class="chip on"><span class="sw" style="background:var(--signal)"></span>visit</span>
+                <span class="chip on"><span class="sw" style="background:var(--muted)"></span>activity</span>
+                <span class="chip"><span class="sw" style="background:var(--faint)"></span>path</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Place / tag filter</label>
+              <div class="chips">
+                <span class="chip on">home_base</span><span class="chip">concerning</span><span class="chip">relative</span>
+              </div>
+            </div>
+            <div class="toolbar"><button class="btn primary">Run query</button><button class="btn">Reset</button></div>
+          </div>
+          <div class="panel" style="flex:1;display:flex;flex-direction:column">
+            <div class="panel-h"><span class="eyebrow">Agent assist · optional</span></div>
+            <div class="chat" style="flex:1">
+              <div class="msg user">Was she at the flagged bar the night of Jun 15 2022?</div>
+              <div class="msg ai">Yes — a visit from <b>8:23–10:15 PM ET</b> on 2022-06-15 at the place tagged
+                <span class="tag">concerning</span>. It qualifies as an overnight-window touch.
+                <div class="receipt">▤ working.event <span class="lk">#28,914 · re-derivable ✓</span></div>
+              </div>
+            </div>
+            <div class="chatbox">
+              <input class="inp" placeholder="Ask, or keep working by hand…"/>
+              <button class="send">Ask</button>
+            </div>
+            <div class="assist-hint">answers cite deterministic rows · agent never edits evidence</div>
+          </div>
+        </div>
+        <!-- map -->
+        <div class="col">
+          <div class="map">
+            <div class="maptools">
+              <span class="mode"><button class="on">pins</button><button>paths</button><button>heatmap</button><button>⏱ time</button></span>
+              <button class="popbtn">↗ Kepler</button>
+            </div>
+            <span class="mapscrim">247 visits · range 2020–2022</span>
+            <div class="scrubber"><span class="t">2020-01</span><div class="rail2"><div class="fill2"></div><div class="knob2"></div></div><span class="t">2022-12</span><span class="t" style="color:var(--signal)">▶</span></div>
+            <span class="pin" style="left:42%;top:46%;width:34px;height:34px;background:color-mix(in srgb,var(--overnight) 80%,#000)"></span>
+            <span class="pin" style="left:55%;top:38%;width:22px;height:22px;background:var(--concerning)"></span>
+            <span class="pin" style="left:36%;top:58%;width:18px;height:18px;background:var(--signal)"></span>
+            <span class="pin" style="left:62%;top:56%;width:14px;height:14px;background:var(--signal)"></span>
+            <span class="pin" style="left:48%;top:64%;width:12px;height:12px;background:var(--signal)"></span>
+            <span class="pin" style="left:29%;top:41%;width:11px;height:11px;background:var(--signal)"></span>
+            <span class="pin" style="left:70%;top:44%;width:10px;height:10px;background:var(--signal)"></span>
+            <div class="maplegend">
+              <div><span class="sw" style="background:color-mix(in srgb,var(--overnight) 80%,#000)"></span>home base · 325 overnights</div>
+              <div><span class="sw" style="background:var(--concerning)"></span>concerning / watch</div>
+              <div><span class="sw" style="background:var(--signal)"></span>visit · sized by count</div>
+            </div>
+          </div>
+        </div>
+        <!-- data -->
+        <div class="col">
+          <div class="datahead"><span class="eyebrow">Results · 247 visits</span><span class="popdoors"><button class="door">↗ map</button><button class="door">↗ analytics</button></span></div>
+          <div class="scroll" style="flex:1">
+            <table class="tbl">
+              <thead><tr><th>ID</th><th>Place</th><th>Start (ET)</th><th>Ovn</th><th>Dur</th></tr></thead>
+              <tbody>
+                <tr style="background:var(--signal-soft)"><td class="m">2206151k</td><td><span class="pill cn">bar</span> ChIJ…dwKQ</td><td class="m">06-15 8:23p</td><td><span class="pill on">yes</span></td><td class="m">1h52</td></tr>
+                <tr><td class="m">2205281k</td><td>ChIJezMg…</td><td class="m">05-28 11:40p</td><td><span class="pill on">yes</span></td><td class="m">8h10</td></tr>
+                <tr><td class="m">2205210k</td><td><span class="pill vf">home</span> ChIJe8dW…</td><td class="m">05-21 9:05p</td><td><span class="pill on">yes</span></td><td class="m">9h33</td></tr>
+                <tr><td class="m">2205140k</td><td>ChIJ631f…</td><td class="m">05-14 2:11p</td><td>—</td><td class="m">0h47</td></tr>
+                <tr><td class="m">2204300k</td><td>ChIJDYib…</td><td class="m">04-30 6:30p</td><td>—</td><td class="m">1h20</td></tr>
+                <tr><td class="m">2204062k</td><td><span class="pill vf">home</span> ChIJe8dW…</td><td class="m">04-06 10:12p</td><td><span class="pill on">yes</span></td><td class="m">10h04</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ VARIANT B ============ -->
+    <div class="variant" data-variant="B">
+      <div class="appbar">
+        <span class="brand"><span class="dot"></span>TraceIQ</span>
+        <span class="subject">subject <b>K (respondent)</b> ▾</span>
+        <nav class="tabs"><a class="on">Explore</a><a>Analytics</a><a>Tables</a><a>Export</a><a>Config</a></nav>
+        <span class="grow"></span>
+        <span class="modepill"><button class="on">Manual</button><button>Agent-assist</button></span>
+      </div>
+      <div class="layB">
+        <div class="map">
+          <span class="mapscrim">full corpus · 760 places · 2017–2024</span>
+          <span class="pin" style="left:44%;top:42%;width:40px;height:40px;background:color-mix(in srgb,var(--overnight) 80%,#000)"></span>
+          <span class="pin" style="left:58%;top:33%;width:26px;height:26px;background:var(--concerning)"></span>
+          <span class="pin" style="left:33%;top:55%;width:20px;height:20px;background:var(--signal)"></span>
+          <span class="pin" style="left:66%;top:52%;width:16px;height:16px;background:var(--signal)"></span>
+          <span class="pin" style="left:50%;top:62%;width:14px;height:14px;background:var(--signal)"></span>
+          <span class="pin" style="left:26%;top:38%;width:13px;height:13px;background:var(--signal)"></span>
+          <span class="pin" style="left:73%;top:40%;width:12px;height:12px;background:var(--signal)"></span>
+          <span class="pin" style="left:39%;top:70%;width:11px;height:11px;background:var(--signal)"></span>
+          <div class="maplegend">
+            <div><span class="sw" style="background:color-mix(in srgb,var(--overnight) 80%,#000)"></span>home base</div>
+            <div><span class="sw" style="background:var(--concerning)"></span>concerning</div>
+            <div><span class="sw" style="background:var(--signal)"></span>visit</div>
+          </div>
+        </div>
+        <div class="split">
+          <div style="display:flex;flex-direction:column">
+            <div class="panel">
+              <div class="panel-h"><span class="eyebrow">Query</span></div>
+              <div class="field">
+                <label>Date range</label>
+                <div class="daterow"><input class="inp" value="2017-09-20" aria-label="from"/><span class="mono" style="color:var(--faint)">→</span><input class="inp" value="2024-08-05" aria-label="to"/></div>
+              </div>
+              <div class="field"><label>Event type</label>
+                <div class="chips"><span class="chip on">visit</span><span class="chip on">activity</span><span class="chip on">path</span></div>
+              </div>
+              <button class="btn primary">Run query</button>
+            </div>
+            <div class="panel" style="flex:1;display:flex;flex-direction:column">
+              <div class="panel-h"><span class="eyebrow">Agent assist · optional</span></div>
+              <div class="chat" style="flex:1">
+                <div class="msg ai">Ask me to find, compare, or summarise — I’ll surface the rows and pins.
+                  You can ignore me and drive the filters yourself.</div>
+                <div class="msg user">Show every overnight at a non-home place in 2022.</div>
+                <div class="msg ai">31 overnights across 6 places, 2 tagged <span class="tag">concerning</span>.
+                  <div class="receipt">▤ analysis.overnight_events <span class="lk">31 rows ✓</span></div>
+                </div>
+              </div>
+              <div class="chatbox"><input class="inp" placeholder="Ask, or keep working by hand…"/><button class="send">Ask</button></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column">
+            <div class="datahead"><span class="eyebrow">Results</span><span class="toolbar"><button class="btn">CSV</button><button class="btn">Exhibit</button></span></div>
+            <div class="scroll" style="flex:1">
+              <table class="tbl">
+                <thead><tr><th>ID</th><th>Place</th><th>Start (ET)</th><th>Tags</th><th>Hrs</th></tr></thead>
+                <tbody>
+                  <tr><td class="m">2211121k</td><td>ChIJIzea…</td><td class="m">11-12 10:40p</td><td><span class="pill cn">bar</span></td><td class="m">7.1</td></tr>
+                  <tr><td class="m">2209281k</td><td>ChIJDYib…</td><td class="m">09-28 11:02p</td><td><span class="tag">relative</span></td><td class="m">9.4</td></tr>
+                  <tr><td class="m">2206151k</td><td>ChIJ…dwKQ</td><td class="m">06-15 8:23p</td><td><span class="pill cn">concerning</span></td><td class="m">1.9</td></tr>
+                  <tr><td class="m">2205210k</td><td>ChIJe8dW…</td><td class="m">05-21 9:05p</td><td><span class="pill vf">home</span></td><td class="m">9.6</td></tr>
+                  <tr><td class="m">2203170k</td><td>ChIJKYO6…</td><td class="m">03-17 11:31p</td><td><span class="tag">unlabeled</span></td><td class="m">6.8</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ VARIANT C ============ -->
+    <div class="variant" data-variant="C">
+      <div class="appbar">
+        <span class="brand"><span class="dot"></span>TraceIQ</span>
+        <span class="subject">subject <b>K (respondent)</b> ▾</span>
+        <nav class="tabs"><a class="on">Explore</a><a>Analytics</a><a>Tables</a><a>Export</a><a>Config</a></nav>
+        <span class="grow"></span>
+        <span class="modepill"><button>Manual</button><button class="on">Agent-assist</button></span>
+      </div>
+      <div class="layC">
+        <!-- pane 1: controls + chat -->
+        <div>
+          <div class="panel">
+            <div class="panel-h"><span class="eyebrow">Query</span></div>
+            <div class="field"><label>Date range</label>
+              <div class="daterow"><input class="inp" value="2021-05" aria-label="from"/><span class="mono" style="color:var(--faint)">→</span><input class="inp" value="2024-03" aria-label="to"/></div>
+            </div>
+            <div class="field"><label>Subject</label>
+              <div class="chips"><span class="chip on">K (respondent)</span><span class="chip">self</span><span class="chip">both</span></div>
+            </div>
+          </div>
+          <div class="panel" style="flex:1;display:flex;flex-direction:column">
+            <div class="panel-h"><span class="eyebrow">Agent</span><span class="tag">mode: on</span></div>
+            <div class="chat" style="flex:1">
+              <div class="msg user">Where did she sleep most nights this range?</div>
+              <div class="msg ai">Top overnight place: <b>462 visits / 293 overnights</b>, 2021-05→2024-03.
+                Candidate residence — label it to confirm.
+                <div class="receipt">▤ analysis.place_analytics <span class="lk">rank #1 ✓</span></div>
+              </div>
+            </div>
+            <div class="chatbox"><input class="inp" placeholder="Ask…"/><button class="send">Ask</button></div>
+            <div class="assist-hint">flip to Manual anytime · nothing here is agent-only</div>
+          </div>
+        </div>
+        <!-- pane 2: map -->
+        <div>
+          <div class="map">
+            <span class="mapscrim">candidate residence highlighted</span>
+            <span class="pin" style="left:46%;top:44%;width:44px;height:44px;background:color-mix(in srgb,var(--overnight) 80%,#000)"></span>
+            <span class="pin" style="left:58%;top:36%;width:18px;height:18px;background:var(--signal)"></span>
+            <span class="pin" style="left:37%;top:57%;width:15px;height:15px;background:var(--signal)"></span>
+            <span class="pin" style="left:64%;top:58%;width:13px;height:13px;background:var(--signal)"></span>
+            <span class="pin" style="left:52%;top:66%;width:12px;height:12px;background:var(--concerning)"></span>
+            <div class="maplegend">
+              <div><span class="sw" style="background:color-mix(in srgb,var(--overnight) 80%,#000)"></span>293 overnights</div>
+              <div><span class="sw" style="background:var(--concerning)"></span>watch</div>
+            </div>
+          </div>
+        </div>
+        <!-- pane 3: data / detail -->
+        <div>
+          <div class="datahead"><span class="eyebrow">Place detail</span><span class="btn primary" style="padding:4px 10px">＋ Label as home_base</span></div>
+          <div class="panel">
+            <div class="tiles" style="grid-template-columns:repeat(2,1fr)">
+              <div class="tile accent"><div class="k">462</div><div class="l">visits</div></div>
+              <div class="tile warn"><div class="k">293</div><div class="l">overnights</div></div>
+              <div class="tile"><div class="k">63%</div><div class="l">overnight rate</div></div>
+              <div class="tile"><div class="k mono" style="font-size:14px;padding-top:6px">’21–’24</div><div class="l">span</div></div>
+            </div>
+          </div>
+          <div class="panel" style="flex:1">
+            <div class="panel-h"><span class="eyebrow">Provider data · joined on demand</span></div>
+            <table class="tbl">
+              <tbody>
+                <tr><td class="m" style="color:var(--faint)">place_id</td><td class="m">ChIJe8dWjIKGI4gR…</td></tr>
+                <tr><td class="m" style="color:var(--faint)">radar</td><td class="m">cached ✓</td></tr>
+                <tr><td class="m" style="color:var(--faint)">google</td><td class="m">place_details ✓</td></tr>
+                <tr><td class="m" style="color:var(--faint)">enrichment</td><td><span class="pill vf">verified</span></td></tr>
+                <tr><td class="m" style="color:var(--faint)">r4 key</td><td class="m">43.0126,-83.6875</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="footer">
+  static mockup · no backend · real corpus figures · TraceIQ ADR-0015 (proposed) · hand to a coding agent or Claude Design as a build spec
+</div>
+
+<script>
+  const notes = {
+    A: ['A · Left rail — SELECTED', 'Sidebar holds every control <strong>and</strong> the optional chat; deck.gl map center (pins/paths/heatmap/⏱time + ↗Kepler pop-out); results right with ↗map / ↗analytics deep-dive doors. Tabs add Analytics (Evidence), Tables (Mathesar/pgAdmin), Export, Config.'],
+    B: ['B · Map-primary', 'Map leads full-width; controls + chat and results split beneath. Best when the <strong>map is the question</strong> and tables are the answer you pull down to.'],
+    C: ['C · Three panes', 'Query+chat · map · place-detail, with a Manual⇄Agent posture toggle up top. Best for <strong>drill-down</strong> — pick a place, see everything about it, label it in place.']
+  };
+  const vnote = document.getElementById('vnote');
+  function setNote(v){ vnote.innerHTML = '<span class="eyebrow">'+notes[v][0]+'</span><br><span>'+notes[v][1]+'</span>'; }
+  setNote('A');
+  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.v;
+    document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x===b));
+    document.querySelectorAll('.variant').forEach(x => x.classList.toggle('on', x.dataset.variant===v));
+    setNote(v);
+  }));
+  const root = document.documentElement, tb = document.getElementById('theme');
+  tb.addEventListener('click', () => {
+    const cur = root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light');
+    root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  });
+</script>

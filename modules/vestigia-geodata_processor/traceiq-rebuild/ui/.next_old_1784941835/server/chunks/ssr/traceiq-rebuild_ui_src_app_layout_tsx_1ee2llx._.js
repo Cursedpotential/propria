@@ -1,0 +1,3 @@
+module.exports=[81803,a=>{"use strict";var b=a.i(35808);a.s(["default",0,function({children:a}){return(0,b.jsx)("html",{lang:"en",className:"h-full antialiased",suppressHydrationWarning:!0,children:(0,b.jsx)("body",{className:"h-full overflow-hidden bg-bg text-ink",children:a})})},"metadata",0,{title:"TraceIQ Workspace",description:"Dual-use agent-native investigation workspace"}])},25111,a=>{a.n(a.i(81803))}];
+
+//# sourceMappingURL=traceiq-rebuild_ui_src_app_layout_tsx_1ee2llx._.js.map

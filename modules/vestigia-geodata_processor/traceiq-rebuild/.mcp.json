@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "here-docs": {
+      "url": "https://docs.here.com/mcp",
+      "type": "http"
+    }
+  }
+}

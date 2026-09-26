@@ -1,0 +1,28 @@
+dev.log
+dev.pid
+ui/dev.pid
+.memsearch/
+
+# --- secrets (2026-07-27) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
+.secrets/
+ops/.dsn
+
+# --- build/tool debris ---
+__pycache__/
+*.pyc
+.serena/
+ui/dist/
+ui/.next_old_*/
+.ruff_cache/
+ui/tsconfig.tsbuildinfo
+.claude/settings.local.json
+ui/.claude/settings.local.json
+.serena/project.local.yml
+.memsearch/.capture.pid
+.memsearch/*.db

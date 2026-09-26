@@ -1,0 +1,37 @@
+{
+  "name": "@traceiq/workspace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@assistant-ui/react": "^0.14.27",
+    "@assistant-ui/react-ui": "^0.2.1",
+    "@types/pg": "^8.20.0",
+    "@vis.gl/react-maplibre": "^8.1.1",
+    "assistant-ui": "^0.0.106",
+    "date-fns": "^4.1.0",
+    "deck.gl": "^9.3.7",
+    "lucide-react": "^0.507.0",
+    "maplibre-gl": "^5.3.2",
+    "next": "16.2.11",
+    "pg": "^8.22.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.11",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
