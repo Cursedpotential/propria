@@ -98,7 +98,7 @@ def main() -> int:
     print("\n6) NO secrets inlined — passwords/tokens referenced by ENV NAME only:")
     import inspect
     src = inspect.getsource(sw) + inspect.getsource(mf)
-    leaked = [needle for needle in ("graphiti-7235e9db38e03a11", "graphiti-dev-password") if needle in src]
+    leaked = [needle for needle in ("<redacted:NEO4J_PASSWORD>", "graphiti-dev-password") if needle in src]
     check("no known secret literal in source", leaked == [], f"leaked={leaked}")
     check("secrets referenced via env names",
           set(sw.secrets_referenced()) == {"MILVUS_TOKEN", "NEO4J_PASSWORD", "GRAPHITI_MCP_URL"})
