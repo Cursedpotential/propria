@@ -57,7 +57,7 @@ READ IN THIS ORDER — do this before doing anything else
   GOTCHAS.md        ranked failure modes — most were hit during planning
   SPLIT.md          the engine contract
   PHASES.md         build sequence with hard exit criteria
-  CLAUDE.md         operating rules for this codebase
+  AGENTS.md         operating rules for this codebase
   DIAGRAMS.html     all of the above, visually
   INTEGRATION.md    deferred — Temporal, n8n, promotion, hashing. Don't act on it.
 

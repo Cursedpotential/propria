@@ -36,3 +36,10 @@ the organizing index. Deduplication never grants deletion authority.
   application's source so they do not recurse into independent child projects.
 - Do not use `ccc` as this application's launch/index command. Keep instance
   identifiers, ports, state and worker limits explicit and isolated.
+
+<!-- Moved here from `CLAUDE.md` on 2026-09-26 when that importer was removed. The
+     root guardrails it pointed at now load from `../AGENTS.md`. -->
+> _Byline: Claude Code · Opus 5 · 2026-09-26_
+
+- Read `docs/DEVELOPMENT.md` before changing module boundaries.
+- Never let a frontend demo stand as a claim that the backend really executed.

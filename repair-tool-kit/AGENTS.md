@@ -1,4 +1,7 @@
-# CLAUDE.md — casekit operating rules
+# AGENTS.md — casekit operating rules
+
+<!-- Renamed from `CLAUDE.md` on 2026-09-26 when that importer was removed; content unchanged. -->
+> _Byline: Claude Code · Opus 5 · 2026-09-26_
 
 ## Before anything
 
