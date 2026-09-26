@@ -77,7 +77,7 @@ cb-sort orchestrator halted before any upload awaiting per-stage GO.
   - **Fix is literally: base64-encode the compose string and re-POST.** That is the resume point.
 - Then upsert the password env so it's not in the compose/ transcript:
   `PATCH /applications/{uuid}/envs/bulk` body
-  `{"data":[{"key":"POSTGRES_PASSWORD","value":"153b6512b816403ac842d7631cd86662b8cd79dcc89d3c4c","is_preview":false}]}`
+  `{"data":[{"key":"POSTGRES_PASSWORD","value":"<redacted:POSTGRES_PASSWORD>","is_preview":false}]}`
   (fetch the value in-process from `~/.secrets/`; it is the existing casebible PG password —
   reuse so consumers only change host). Then `POST /deploy?uuid={uuid}`.
 - **Verify:** container on the `agno` network (172.24.0.0/16), `PG 18.1`, `pg_duckdb` preloadable
