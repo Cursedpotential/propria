@@ -1,0 +1,36 @@
+# Byline: Claude Code · Opus 5 · 2026-09-17
+# Coolify application "intake-engine" on ovh-files (tailnet only). Build context = repo root.
+# B2 = the existing OpenList WebDAV -> rclone FUSE mount at /srv/openlist on the host (bind, rslave).
+# State lives on /data/probata/volumes/intake-engine. Catalog credentials are files, never env values.
+services:
+  intake-engine:
+    build:
+      context: .
+      dockerfile: apps/intake-engine/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '100.91.190.107:8790:8790'
+    volumes:
+      - '/data/probata/volumes/intake-engine:/state'
+      # rslave so a remount of the host's rclone FUSE is seen without restarting the engine
+      # (Coolify dropped the long-syntax propagation on 2026-09-17; short syntax keeps it).
+      - '/srv/openlist:/srv/openlist:rslave'
+      - '/data/probata/secrets/intake-engine:/run/secrets/intake-engine:ro'
+    environment:
+      INTAKE_PORTKEY_URL: 'http://100.72.169.40:8787'
+      # Chat model (2026-09-18 evening): Gemini 3.8 Flash primary, Kimi K3 (NVIDIA NIM) fallback;
+      # the routing lives in scripts/intake-portkey-chat.json. The label below is what the UI shows.
+      INTAKE_CHAT_MODEL: 'portkey:gemini-3.8-flash'
+      # Model keys are root-only secret files, not environment values (2026-09-18), so the
+      # web terminal (non-root, cleared env) and /proc/<pid>/environ never expose them.
+      GEMINI_API_KEY_FILE: /run/secrets/intake-engine/gemini-api-key
+      NVIDIA_API_KEY_FILE: /run/secrets/intake-engine/nvidia-api-key
+      INTAKE_AGENT_ROOT: /srv/openlist
+      INTAKE_CATALOG_PG_HOST: 100.91.190.107
+      INTAKE_CATALOG_PG_PORT: '5475'
+      INTAKE_CATALOG_PG_DB: casebible
+      INTAKE_CATALOG_RO_USER: metabase_ro
+      INTAKE_CATALOG_RO_PASSWORD_FILE: /run/secrets/intake-engine/metabase-ro
+      INTAKE_CATALOG_OPS_USER: cb_agent
+      INTAKE_CATALOG_OPS_PASSWORD_FILE: /run/secrets/intake-engine/cb-agent
+      INTAKE_B2_ROOT: /srv/openlist/b2/salem-data

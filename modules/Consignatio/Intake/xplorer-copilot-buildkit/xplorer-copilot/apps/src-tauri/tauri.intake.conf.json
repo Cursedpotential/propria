@@ -1,0 +1,24 @@
+{
+  "identifier": "com.propria.intake.dev",
+  "productName": "Intake",
+  "build": { "devUrl": "http://127.0.0.1:5176" },
+  "app": {
+    "windows": [{
+      "label": "main",
+      "create": false,
+      "title": "Intake — File Workstation",
+      "width": 1400,
+      "height": 900,
+      "minWidth": 800,
+      "minHeight": 600,
+      "resizable": true,
+      "decorations": true
+    }],
+    "security": {
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$HOME/**", "D:/**", "E:/**", "V:/**", "Y:/**"]
+      }
+    }
+  }
+}

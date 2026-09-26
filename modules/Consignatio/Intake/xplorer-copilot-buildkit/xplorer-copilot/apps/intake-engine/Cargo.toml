@@ -1,0 +1,101 @@
+# Byline: Claude Code · Opus 5 · 2026-09-17
+#
+# Hosted Intake engine (owner plan 2026-09-17 08:25-08:43 EDT).
+# The library target IS the donor's own handler crate (`apps/src-tauri/src/lib.rs`),
+# compiled against `tauri-headless` instead of Tauri, so every command runs the
+# donor code unchanged. The binary serves those commands over the documented
+# web-mode contract (POST /api/<command>, GET /api/asset, SSE /api/events/<event>).
+[package]
+name = "intake-engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+default-run = "intake-engine"
+
+[lib]
+name = "xplorer"
+path = "../src-tauri/src/lib.rs"
+doctest = false
+test = false
+
+[[bin]]
+name = "intake-engine"
+path = "src/main.rs"
+
+[dependencies]
+# Donor handler dependencies (apps/src-tauri/Cargo.toml) minus the webview/plugins.
+tauri = { package = "tauri-headless", path = "crates/tauri-headless" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+glob = "0.3"
+zip = "0.6"
+tar = "0.4.45"
+flate2 = "1.0"
+bzip2 = "0.4"
+xz2 = "0.1"
+sha2 = "0.10"
+aes-gcm = "0.10"
+argon2 = "0.5"
+reqwest = { version = "0.12", features = ["json", "blocking", "stream"] }
+chrono = { version = "0.4", features = ["serde"] }
+ollama-rs = "0.3.2"
+trash = "5.1"
+dirs = "5.0"
+base64 = "0.22"
+rand = "0.8"
+regex = "1.0"
+pdf-extract = "0.7"
+dotenvy = "0.15"
+rayon = "1.8"
+memmap2 = "0.9"
+crossbeam = "0.8"
+dashmap = "6"
+num_cpus = "1.16"
+libloading = "0.8"
+hostname = "0.4"
+futures-util = "0.3"
+walkdir = "2.5"
+ignore = "0.4"
+jwalk = "0.8"
+notify = "7"
+rust-stemmers = "1.2"
+rustc-hash = "2"
+fst = { version = "0.4", features = ["levenshtein"] }
+roaring = "0.10"
+notify-debouncer-full = "0.4"
+image = "0.25"
+git2 = "0.19"
+keyring = { version = "3", features = ["linux-native"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+bincode = "1.3"
+rusqlite = { version = "0.31", features = ["bundled"] }
+sevenz-rust2 = { version = "0.20", features = ["compress", "util"] }
+unrar = "0.5"
+wasmi = "0.40"
+ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
+portable-pty = "0.8"
+moka = { version = "0.12", features = ["sync"] }
+
+# Engine HTTP layer and the engine-native modules (catalog, media metadata).
+axum = { version = "0.8", features = ["macros"] }
+tower-http = { version = "0.6", features = ["trace", "compression-gzip"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+mime_guess = "2"
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-chrono-0_4"] }
+deadpool-postgres = "0.14"
+kamadak-exif = "0.6"
+lofty = "0.22"
+percent-encoding = "2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+
+[profile.release]
+opt-level = 2
+debug = false
+codegen-units = 16
+incremental = false

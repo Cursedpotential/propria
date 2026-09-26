@@ -1,0 +1,585 @@
+// Byline: Claude Code · Sonnet 5 · 2026-09-14 -- pass live selection into the native
+// ReviewDockPanel (metadata) instead of the iframe it used to wrap.
+// Byline: Claude Code · Opus 5 · 2026-09-17 -- ReviewDockPanel (localhost backend adapter) is out
+// of the build; the right rail's Metadata panel reads the hosted engine instead.
+import React, { useRef, useState, useMemo, useLayoutEffect, useEffect, useCallback } from 'react';
+import ExtensionPanelHost from './ExtensionPanelHost';
+import PreviewNavigationBar from './PreviewNavigationBar';
+import { extensionHost } from '@/lib/extension-host';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { FileEntry, FolderSizeInfo } from '@/lib/tauri-api';
+import { usePreviewHistory } from '@/hooks/use-preview-history';
+import { useTranslation } from 'react-i18next';
+import ResizeHandle from '@/components/ui/ResizeHandle';
+
+// Lazy-loaded panels -- only loaded when the user switches to their tab
+const PreviewPanel = React.lazy(() => import('./PreviewPanel'));
+const TokenizerStatusPanel = React.lazy(() => import('./TokenizerStatusPanel'));
+// Hosted Intake: the right rail's "Content Search" opens the one chats search, not the donor's
+// legacy tokenizer/AI-vision indexing screen (Claude Code · Opus 5 · 2026-09-18).
+const IntakeChatSearchPanel = React.lazy(
+  () => import('@/components/explorer/IntakeChatSearchPanel'),
+);
+const ExtensionsPanel = React.lazy(() => import('./ExtensionsPanel'));
+const MarketplacePanel = React.lazy(() => import('./MarketplacePanel'));
+const PerformanceDashboard = React.lazy(() => import('./PerformanceDashboard'));
+const StandaloneChatPanel = React.lazy(() => import('./StandaloneChatPanel'));
+const AgentManagerPanel = React.lazy(() => import('./AgentManagerPanel'));
+const MetadataPanel = React.lazy(() => import('./MetadataPanel'));
+const ComparePreview = React.lazy(() => import('@/components/previews/ComparePreview'));
+
+interface Theme {
+  name: string;
+  primary: string;
+  bg: string;
+  surface: string;
+  text: string;
+}
+
+interface RightSidebarProps {
+  rightSidebarCollapsed: boolean;
+  setRightSidebarCollapsed: (collapsed: boolean) => void;
+  rightPanelTab: string;
+  width?: number;
+  selectedFile: FileEntry | null;
+  formatFileSize: (bytes: number) => string;
+  formatDate: (timestamp: number | null) => string;
+  themes: Record<string, Theme>;
+  theme: string;
+  applyTheme: (themeKey: string) => void;
+  allFiles: FileEntry[];
+  selectedFiles?: Set<string>;
+  getFolderSize?: (path: string) => FolderSizeInfo | null;
+  isCalculatingSize?: (path: string) => boolean;
+  currentPath: string;
+  navigateToPath?: (path: string) => void;
+}
+
+const RightSidebar = ({
+  rightSidebarCollapsed,
+  setRightSidebarCollapsed,
+  rightPanelTab,
+  width,
+  selectedFile,
+  formatFileSize,
+  formatDate,
+  themes,
+  theme,
+  applyTheme,
+  allFiles,
+  selectedFiles,
+  getFolderSize,
+  isCalculatingSize,
+  currentPath,
+  navigateToPath,
+}: RightSidebarProps) => {
+  const { t } = useTranslation();
+  const outerRef = useRef<HTMLDivElement>(null);
+  const panelContentRef = useRef<HTMLDivElement>(null);
+  const [measuredHeight, setMeasuredHeight] = useState<number>(0);
+  const [compareDismissed, setCompareDismissed] = useState(false);
+  const [splitRequested, setSplitRequested] = useState(false);
+  const [previewRatio, setPreviewRatio] = useState(0.4);
+  const canCombine =
+    import.meta.env.VITE_INTAKE_MODE === '1' &&
+    (rightPanelTab === 'chat' || rightPanelTab === 'preview');
+  const tooShortToSplit = measuredHeight > 0 && measuredHeight < 360;
+  const splitVisible = canCombine && splitRequested && !tooShortToSplit && !rightSidebarCollapsed;
+  const chatActive = (rightPanelTab === 'chat' || splitVisible) && !rightSidebarCollapsed;
+  const [chatOpened, setChatOpened] = useState(chatActive);
+  useEffect(() => {
+    if (chatActive) setChatOpened(true);
+  }, [chatActive]);
+  const resizePreview = useCallback(
+    (delta: number) => {
+      const height = panelContentRef.current?.clientHeight || Math.max(measuredHeight - 80, 400);
+      setPreviewRatio((previous) => Math.max(0.2, Math.min(0.65, previous + delta / height)));
+    },
+    [measuredHeight],
+  );
+
+  // ── Preview scrubber state ──────────────────────────────────────────────────
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [scrubberCompareMode, setScrubberCompareMode] = useState(false);
+  const { getHistory, addToHistory, versionRef } = usePreviewHistory();
+  // Force re-render counter so the Recent dropdown can re-read history
+  const [historyVersion, setHistoryVersion] = useState(0);
+
+  // Build ordered list of selected FileEntry objects for the scrubber
+  const selectedFileEntries = useMemo<FileEntry[]>(() => {
+    if (!selectedFiles || selectedFiles.size <= 1) return [];
+    const fileMap = new Map(allFiles.map((f) => [f.path, f]));
+    const entries: FileEntry[] = [];
+    for (const path of selectedFiles) {
+      const fe = fileMap.get(path);
+      if (fe) entries.push(fe);
+    }
+    return entries;
+  }, [selectedFiles, allFiles]);
+
+  const multiSelected = selectedFileEntries.length > 1;
+  const isPreviewTab = rightPanelTab === 'preview' || splitVisible;
+
+  // Clamp previewIndex when selection changes
+  useEffect(() => {
+    if (multiSelected) {
+      setPreviewIndex((prev) => Math.min(prev, selectedFileEntries.length - 1));
+    } else {
+      setPreviewIndex(0);
+    }
+  }, [selectedFileEntries.length, multiSelected]);
+
+  // Reset scrubber compare mode when selection changes
+  const prevSelectionKey = useRef('');
+  const selectionKey = selectedFiles ? Array.from(selectedFiles).sort().join('|') : '';
+  if (selectionKey !== prevSelectionKey.current) {
+    prevSelectionKey.current = selectionKey;
+    if (scrubberCompareMode) setScrubberCompareMode(false);
+  }
+
+  // Determine the file to preview: when multi-select scrubber is active, use scrubber index
+  const scrubberFile =
+    multiSelected && isPreviewTab ? (selectedFileEntries[previewIndex] ?? null) : null;
+
+  // The effective file for the preview panel
+  const effectivePreviewFile = scrubberFile ?? selectedFile;
+
+  // Track previewed files in history
+  useEffect(() => {
+    if (effectivePreviewFile && isPreviewTab) {
+      addToHistory(effectivePreviewFile);
+      setHistoryVersion(versionRef.current);
+    }
+    // effectivePreviewFile?.path is sufficient; versionRef is a ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectivePreviewFile?.path, isPreviewTab, addToHistory]);
+
+  // ── Keyboard navigation ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!multiSelected || !isPreviewTab || rightSidebarCollapsed) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle when the panel or its children are focused
+      const panel = panelContentRef.current;
+      if (!panel) return;
+      // Check if focus is within the right sidebar panel, or if nothing specific is focused
+      const activeEl = document.activeElement;
+      const isInputFocused =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement;
+      if (isInputFocused) return;
+
+      const total = selectedFileEntries.length;
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // Check if inside the right sidebar
+        if (!panel.contains(activeEl) && activeEl !== document.body) return;
+
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey) {
+          // Ctrl+Left/Right: jump to first/last
+          setPreviewIndex(e.key === 'ArrowLeft' ? 0 : total - 1);
+        } else {
+          setPreviewIndex((prev) => {
+            if (e.key === 'ArrowLeft') return Math.max(0, prev - 1);
+            return Math.min(total - 1, prev + 1);
+          });
+        }
+      } else if (e.key === 'Enter') {
+        if (!panel.contains(activeEl) && activeEl !== document.body) return;
+        // Open the previewed file
+        const file = selectedFileEntries[previewIndex];
+        if (file) {
+          import('@/lib/tauri-api').then(({ TauriAPI }) => {
+            TauriAPI.openFile(file.path).catch(console.error);
+          });
+        }
+      } else if (e.key === ' ') {
+        if (!panel.contains(activeEl) && activeEl !== document.body) return;
+        // Space: toggle file selection is handled by the grid, skip here
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [multiSelected, isPreviewTab, rightSidebarCollapsed, selectedFileEntries, previewIndex]);
+
+  // ── Compare mode for scrubber ──────────────────────────────────────────────
+  const scrubberCompareFiles = useMemo<[FileEntry, FileEntry] | null>(() => {
+    if (!scrubberCompareMode || !multiSelected || previewIndex === 0) return null;
+    const prev = selectedFileEntries[previewIndex - 1];
+    const curr = selectedFileEntries[previewIndex];
+    if (prev && curr) return [prev, curr];
+    return null;
+  }, [scrubberCompareMode, multiSelected, previewIndex, selectedFileEntries]);
+
+  // ── Original 2-file compare logic ──────────────────────────────────────────
+  const compareFiles = useMemo<[FileEntry, FileEntry] | null>(() => {
+    if (!selectedFiles || selectedFiles.size !== 2) return null;
+    const paths = Array.from(selectedFiles);
+    const fileMap = new Map(allFiles.map((f) => [f.path, f]));
+    const left = fileMap.get(paths[0]);
+    const right = fileMap.get(paths[1]);
+    if (left && right) return [left, right];
+    return null;
+  }, [selectedFiles, allFiles]);
+
+  // Reset dismissed state when selection changes away from 2 files
+  const prevCompareKey = useRef<string>('');
+  const compareKey = compareFiles ? `${compareFiles[0].path}|${compareFiles[1].path}` : '';
+  if (compareKey !== prevCompareKey.current) {
+    prevCompareKey.current = compareKey;
+    if (compareDismissed) setCompareDismissed(false);
+  }
+
+  // Whether to show the original compare mode (only when NOT using scrubber compare)
+  const showCompare =
+    !splitVisible &&
+    rightPanelTab === 'preview' &&
+    compareFiles !== null &&
+    !compareDismissed &&
+    !scrubberCompareMode;
+
+  // Measure the actual rendered height of the outer div (set by flex cross-axis stretch)
+  useLayoutEffect(() => {
+    if (rightSidebarCollapsed) return;
+    const el = outerRef.current;
+    if (!el) return;
+    const update = () => {
+      const h = el.clientHeight;
+      if (h > 0) setMeasuredHeight(h);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [rightSidebarCollapsed]);
+
+  // ── History select handler ─────────────────────────────────────────────────
+  const handleHistorySelect = useCallback(
+    (file: FileEntry) => {
+      // Navigate to the file's parent directory and ensure it shows in preview
+      if (navigateToPath) {
+        const separator = file.path.includes('\\') ? '\\' : '/';
+        const parentDir = file.path.substring(0, file.path.lastIndexOf(separator));
+        if (parentDir) {
+          navigateToPath(parentDir);
+        }
+      }
+    },
+    [navigateToPath],
+  );
+
+  if (rightSidebarCollapsed && !chatOpened) return null;
+
+  // Show scrubber navigation bar?
+  const showScrubber = isPreviewTab && multiSelected && !showCompare;
+
+  // Props bag passed to extension panels (for any extension that uses PanelRenderProps)
+  // Convert selectedFiles Set<string> to the array format extensions expect
+  const extensionSelectedFiles = selectedFiles
+    ? allFiles
+        .filter((f) => selectedFiles.has(f.path))
+        .map((f) => ({
+          name: f.name,
+          path: f.path,
+          is_dir: f.is_dir,
+        }))
+    : undefined;
+
+  const extensionProps = {
+    selectedFile: showScrubber ? effectivePreviewFile : selectedFile,
+    formatFileSize,
+    formatDate,
+    allFiles,
+    selectedFiles: extensionSelectedFiles,
+    getFolderSize,
+    isCalculatingSize,
+    currentPath,
+    navigateToPath,
+  };
+
+  // Get panel title for header
+  const getTabTitle = () => {
+    if (splitVisible) return t('intakePanels.previewChat');
+    if (showCompare) return 'Compare Files';
+    if (scrubberCompareFiles) return 'Compare Files';
+    if (rightPanelTab === 'preview') return 'File Preview';
+    if (rightPanelTab === 'tokenizer') return 'Content Search';
+    if (rightPanelTab === 'chat') return 'AI Chat';
+    if (rightPanelTab === 'metadata' || rightPanelTab === 'review') return 'Metadata';
+    if (rightPanelTab === 'agent-manager') return 'Agent Manager';
+    if (rightPanelTab === 'performance') return 'Performance';
+    if (rightPanelTab === 'extensions') return 'Extensions';
+    if (rightPanelTab === 'marketplace') return 'Marketplace';
+    const panel = extensionHost.getPanel(rightPanelTab);
+    if (panel) return panel.title;
+    return rightPanelTab;
+  };
+
+  return (
+    <div
+      ref={outerRef}
+      className="bg-xp-surface border-xp-border border-l"
+      style={{
+        width: width ?? 320,
+        flexShrink: 0,
+        minHeight: 0,
+        overflow: 'hidden',
+        display: rightSidebarCollapsed ? 'none' : undefined,
+      }}
+    >
+      {/* Inner container with explicit measured height -- bypasses WebView2 flex height bug */}
+      <div
+        style={{
+          height: measuredHeight || '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Right Panel Header */}
+        <div
+          className="border-xp-border flex items-center justify-between border-b px-3 py-2"
+          style={{ flexShrink: 0 }}
+        >
+          <h3 className="truncate text-sm font-medium">{getTabTitle()}</h3>
+          {canCombine && (
+            <button
+              type="button"
+              aria-pressed={splitRequested}
+              onClick={() => setSplitRequested((previous) => !previous)}
+              className="border-xp-border ml-2 rounded border px-2 py-1 text-xs"
+              title={t('intakePanels.splitHelp')}
+            >
+              {t('intakePanels.previewChat')}
+            </button>
+          )}
+          <button
+            onClick={() => setRightSidebarCollapsed(true)}
+            className="hover:bg-xp-surface-light ml-2 flex-shrink-0 rounded p-1"
+            aria-label="Close panel"
+          >
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {canCombine && splitRequested && tooShortToSplit && (
+          <p role="status" className="text-xp-text-muted px-3 py-1 text-xs">
+            {t('intakePanels.shortWindow')}
+          </p>
+        )}
+
+        {/* Preview scrubber navigation bar (multi-select only) */}
+        {showScrubber && (
+          <PreviewNavigationBar
+            files={selectedFileEntries}
+            currentIndex={previewIndex}
+            onIndexChange={setPreviewIndex}
+            getHistory={getHistory}
+            historyVersion={historyVersion}
+            onHistorySelect={handleHistorySelect}
+            compareMode={!splitVisible && scrubberCompareMode}
+            onCompareToggle={() => setScrubberCompareMode((v) => !v)}
+            showCompareToggle={!splitVisible && selectedFileEntries.length >= 2 && previewIndex > 0}
+          />
+        )}
+
+        {/* Panel content */}
+        <div
+          ref={panelContentRef}
+          tabIndex={-1}
+          style={{
+            flex: '1 1 0%',
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            outline: 'none',
+          }}
+        >
+          <React.Suspense
+            fallback={
+              <div className="text-xp-text-secondary flex flex-1 items-center justify-center text-xs">
+                Loading...
+              </div>
+            }
+          >
+            {splitVisible && (
+              <div
+                key="combined-preview"
+                data-testid="combined-preview-slot"
+                style={{
+                  flex: `0 0 ${previewRatio * 100}%`,
+                  minHeight: 100,
+                  maxHeight: 'calc(100% - 124px)',
+                  overflow: 'auto',
+                }}
+              >
+                <ErrorBoundary>
+                  <PreviewPanel
+                    selectedFile={showScrubber ? effectivePreviewFile : selectedFile}
+                    formatFileSize={formatFileSize}
+                    formatDate={formatDate}
+                    getFolderSize={getFolderSize}
+                    isCalculatingSize={isCalculatingSize}
+                    currentPath={currentPath}
+                  />
+                </ErrorBoundary>
+              </div>
+            )}
+            {splitVisible && (
+              <div
+                role="separator"
+                aria-label={t('intakePanels.resize')}
+                aria-orientation="horizontal"
+                aria-valuenow={Math.round(previewRatio * 100)}
+                aria-valuemin={20}
+                aria-valuemax={65}
+                tabIndex={0}
+                className="flex-shrink-0"
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    resizePreview(event.key === 'ArrowUp' ? -24 : 24);
+                  }
+                }}
+              >
+                <ResizeHandle direction="vertical" onResize={resizePreview} />
+              </div>
+            )}
+            {(chatOpened || chatActive) && (
+              <div
+                key="retained-chat"
+                hidden={!chatActive}
+                style={{
+                  display: chatActive ? 'flex' : 'none',
+                  flexDirection: 'column',
+                  flex: '1 1 0%',
+                  minHeight: splitVisible ? 120 : 0,
+                }}
+              >
+                <ErrorBoundary>
+                  <StandaloneChatPanel active={chatActive} />
+                </ErrorBoundary>
+              </div>
+            )}
+            {(() => {
+              if (rightSidebarCollapsed || rightPanelTab === 'chat' || splitVisible) return null;
+              if (scrubberCompareFiles) {
+                return (
+                  <ErrorBoundary>
+                    <ComparePreview
+                      leftFile={scrubberCompareFiles[0]}
+                      rightFile={scrubberCompareFiles[1]}
+                      onDismiss={() => setScrubberCompareMode(false)}
+                      formatFileSize={formatFileSize}
+                      formatDate={formatDate}
+                    />
+                  </ErrorBoundary>
+                );
+              }
+              if (showCompare && compareFiles) {
+                return (
+                  <ErrorBoundary>
+                    <ComparePreview
+                      leftFile={compareFiles[0]}
+                      rightFile={compareFiles[1]}
+                      onDismiss={() => setCompareDismissed(true)}
+                      formatFileSize={formatFileSize}
+                      formatDate={formatDate}
+                    />
+                  </ErrorBoundary>
+                );
+              }
+              if (rightPanelTab === 'preview') {
+                return (
+                  <ErrorBoundary>
+                    <PreviewPanel
+                      selectedFile={showScrubber ? effectivePreviewFile : selectedFile}
+                      formatFileSize={formatFileSize}
+                      formatDate={formatDate}
+                      getFolderSize={getFolderSize}
+                      isCalculatingSize={isCalculatingSize}
+                      currentPath={currentPath}
+                    />
+                  </ErrorBoundary>
+                );
+              }
+              if (rightPanelTab === 'tokenizer') {
+                return (
+                  <ErrorBoundary>
+                    {import.meta.env.VITE_INTAKE_MODE === '1' ? (
+                      <IntakeChatSearchPanel
+                        navigateToPath={navigateToPath ?? (() => {})}
+                        activePaneRoot={currentPath}
+                      />
+                    ) : (
+                      <TokenizerStatusPanel />
+                    )}
+                  </ErrorBoundary>
+                );
+              }
+              if (rightPanelTab === 'metadata' || rightPanelTab === 'review') {
+                return (
+                  <ErrorBoundary>
+                    <MetadataPanel
+                      selectedFile={selectedFile}
+                      selectedFiles={extensionSelectedFiles}
+                    />
+                  </ErrorBoundary>
+                );
+              }
+              if (rightPanelTab === 'performance') {
+                return (
+                  <ErrorBoundary>
+                    <PerformanceDashboard
+                      currentPath={currentPath}
+                      allFiles={allFiles}
+                      navigateToPath={navigateToPath}
+                    />
+                  </ErrorBoundary>
+                );
+              }
+              if (rightPanelTab === 'extensions') {
+                return (
+                  <ErrorBoundary>
+                    <ExtensionsPanel themes={themes} theme={theme} applyTheme={applyTheme} />
+                  </ErrorBoundary>
+                );
+              }
+              if (rightPanelTab === 'agent-manager') {
+                return (
+                  <ErrorBoundary>
+                    <AgentManagerPanel />
+                  </ErrorBoundary>
+                );
+              }
+              if (rightPanelTab === 'marketplace') {
+                return (
+                  <ErrorBoundary>
+                    <MarketplacePanel />
+                  </ErrorBoundary>
+                );
+              }
+              return (
+                <ErrorBoundary>
+                  <ExtensionPanelHost panelId={rightPanelTab} builtinProps={extensionProps} />
+                </ErrorBoundary>
+              );
+            })()}
+          </React.Suspense>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default RightSidebar;
