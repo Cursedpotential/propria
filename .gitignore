@@ -24,11 +24,5 @@ ui/tsconfig.tsbuildinfo
 .claude/settings.local.json
 ui/.claude/settings.local.json
 .serena/project.local.yml
-
-# Local reconciliation receipts, preserved runtime state, and private location exports.
-/.reconciliation/
-/to_be_deleted/
-/.claude/memories/
-/visit-locations.html
-/visit-locations/data/visit_locations_2023_clustered.original.csv
-/visit-locations/sources/visits/locations.csv
+.memsearch/.capture.pid
+.memsearch/*.db
