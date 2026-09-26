@@ -1,8 +1,7 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-23 (C4: knowledge router — Knowledge browser + Graphiti pane)
 # Byline: Codex · GPT-5 · 2026-08-16 (neutral Portkey streaming chat)
 # Byline: Codex · GPT-5 · 2026-08-27 (durable run-event SSE proxy)
-# Byline: Claude Code · Opus 5.5 · 2026-09-26 (repair workflow builder routes, /api/proffer/repair/*)
-"""Knowledge Workbench API entrypoint — the C1-C4 Operator Console backend.
+"""Probata Workbench API entrypoint (formerly Knowledge Workbench) — the C1-C4 Operator Console backend.
 
 Stages uploaded files locally (LanceDB whole-file store + object-store copy),
 starts/lists/inspects spine runs (custody -> parse -> store -> knowledge, via
@@ -60,7 +59,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workbench")
 
 app = FastAPI(
-    title="Knowledge Workbench API",
+    title="Probata Workbench API",
     description="""
 Staging + promote surface over the existing platform ingestion API.
 

@@ -91,15 +91,9 @@ func (smsXMLImporter) Run(sink ImportSink, r *bufio.Reader) error {
 					err.Error(), elementStart, elementStart+span.consumed())
 				if !span.complete {
 					tail, nextName, nextPrefix, resyncErr := resyncMalformedSpan(r, nil, &offset)
-					available := maxRawRecordBytes - len(raw)
-					if len(tail) > available {
-						tail = tail[:available]
-					}
 					raw = append(raw, tail...)
-					end := offset - int64(len(nextPrefix))
-					complete = complete && int64(len(raw)) == end-elementStart
 					reason = fmt.Sprintf("malformed_mms_record: %s (bytes %d-%d, resynced)",
-						err.Error(), elementStart, end)
+						err.Error(), elementStart, elementStart+span.consumed()+int64(len(tail)))
 					if rejectErr := sink.Reject(pos, reason, raw, complete); rejectErr != nil {
 						return rejectErr
 					}
@@ -133,9 +127,8 @@ func (smsXMLImporter) Run(sink ImportSink, r *bufio.Reader) error {
 			// span, emit exactly one reject for it, and continue the file.
 			span, nextName, nextPrefix, resyncErr := resyncMalformedSpan(r, raw, &offset)
 			reason := fmt.Sprintf("malformed_start_element: <%s> start tag did not terminate (unescaped quote desynchronises attribute scanning); bytes %d-%d",
-				name, elementStart, offset-int64(len(nextPrefix)))
-			complete := int64(len(span)) == offset-int64(len(nextPrefix))-elementStart
-			if rejectErr := sink.Reject(pos, reason, span, complete); rejectErr != nil {
+				name, elementStart, elementStart+int64(len(span)))
+			if rejectErr := sink.Reject(pos, reason, span, true); rejectErr != nil {
 				return rejectErr
 			}
 			if resyncErr == io.EOF {
@@ -285,38 +278,34 @@ func xmlRecordBoundary(peek []byte) (string, int) {
 
 // resyncMalformedSpan consumes bytes from a malformed region until the next
 // record boundary (<sms/<mms/<call) or container close (</smses>, </calls>).
-// It retains at most maxRawRecordBytes plus the next boundary. Callers compare
-// the retained length with the consumed offsets before claiming a complete span.
+// It returns the complete malformed span plus the boundary element it stopped
+// at, so exactly one reject covers the bad bytes and no good record is lost.
 func resyncMalformedSpan(r *bufio.Reader, seed []byte, offset *int64) ([]byte, string, []byte, error) {
 	span := append([]byte(nil), seed...)
 	for {
-		first, err := r.Peek(1)
-		if err != nil {
-			return span, "", nil, err
-		}
-		if first[0] == '<' {
-			peek, _ := r.Peek(17)
-			if name, end := xmlRecordBoundary(peek[1:]); name != "" {
-				prefix := append([]byte(nil), peek[:end+2]...)
-				if _, err := r.Discard(len(prefix)); err != nil {
-					return span, "", nil, err
-				}
-				*offset += int64(len(prefix))
-				return span, name, prefix, nil
-			}
-			lower := strings.ToLower(string(peek[1:]))
-			if strings.HasPrefix(lower, "/smses") || strings.HasPrefix(lower, "/calls") {
-				return span, "", nil, nil
-			}
-		}
 		b, err := r.ReadByte()
 		if err != nil {
 			return span, "", nil, err
 		}
 		*offset++
-		if len(span) < maxRawRecordBytes {
+		if b != '<' {
 			span = append(span, b)
+			continue
 		}
+		peek, _ := r.Peek(16)
+		if name, end := xmlRecordBoundary(peek); name != "" {
+			prefix := append([]byte{'<'}, peek[:end+1]...)
+			if _, err := r.Discard(end + 1); err != nil {
+				return span, "", nil, err
+			}
+			*offset += int64(end + 1)
+			return span, name, prefix, nil
+		}
+		lower := strings.ToLower(string(peek))
+		if strings.HasPrefix(lower, "/smses") || strings.HasPrefix(lower, "/calls") {
+			return span, "", nil, nil
+		}
+		span = append(span, b)
 	}
 }
 
@@ -345,7 +334,7 @@ func streamMMSRecord(sink ImportSink, r *bufio.Reader, prefix []byte, pos string
 		}
 		return nil, span, err
 	}
-	return rec, span, nil
+	return rec, nil, nil
 }
 
 // mmsSpan retains the exact bytes an <mms> element consumed so a failed record
@@ -378,12 +367,7 @@ func (s *mmsSpan) readBytes(limit int) ([]byte, bool) {
 	if s == nil || s.path == "" {
 		return nil, false
 	}
-	file, err := os.Open(s.path)
-	if err != nil {
-		return nil, false
-	}
-	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))
+	data, err := os.ReadFile(s.path)
 	if err != nil {
 		return nil, false
 	}
@@ -426,9 +410,6 @@ func streamMMSRecordInto(sink ImportSink, r *bufio.Reader, prefix []byte, pos st
 	span.buffered = rawBuffered
 	span.path = rawSpool.Name()
 	span.size = &rawSize
-	// Flush retained source bytes before the deferred raw-spool close, including
-	// when malformed input interrupts streaming.
-	defer span.seal()
 	writeRaw := func(data []byte) error {
 		if _, err := h.Write(data); err != nil {
 			return err

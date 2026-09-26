@@ -14,6 +14,10 @@ SHARED_PARSER_HOST = "/data/probata/volumes/proffer/parser-bundles"
 SHARED_PARSER_CONTAINER = "/data/proffer/parser-bundles"
 PARSER_ARTIFACT_HOST = "/data/probata/volumes/proffer/parser-artifacts"
 PARSER_ARTIFACT_CONTAINER = "/data/proffer/parser-artifacts"
+# tsnet node state: one persistent directory per service under the 2026-09-07
+# host root, mounted at the same container path everywhere (D-134).
+TSNET_STATE_HOST_ROOT = "/data/probata/tsnet"
+TSNET_STATE_CONTAINER = "/data/tsnet"
 
 
 def _compose(path: Path) -> dict:
@@ -102,9 +106,13 @@ def test_worker_and_starter_share_dedicated_nonlegacy_queue_default() -> None:
 def test_starter_and_parser_mount_only_their_required_shared_storage() -> None:
     starter = _compose(STARTER_DEPLOY)["services"]["proffer-starter"]
     parser = _compose(PARSER_DEPLOY)["services"]["parser-activity-runtime"]
-    # The starter mounts exactly one data volume; everything else is a read-only secret file.
+    # The starter mounts its source-object root plus its own persistent tsnet
+    # node state (2026-09-07); everything else is a read-only secret file.
     data_mounts = [m for m in starter["volumes"] if not m.endswith(":ro")]
-    assert data_mounts == ["/data/probata/volumes/proffer/source-objects:/data/proffer/source-objects"]
+    assert data_mounts == [
+        "/data/probata/volumes/proffer/source-objects:/data/proffer/source-objects",
+        f"{TSNET_STATE_HOST_ROOT}/proffer-starter:{TSNET_STATE_CONTAINER}",
+    ]
     assert all(":/run/secrets/" in m for m in starter["volumes"] if m.endswith(":ro"))
     assert parser["volumes"] == [
         # read-only view of the retained originals (7feea1f, 2026-09-05): the runtime
@@ -117,6 +125,8 @@ def test_starter_and_parser_mount_only_their_required_shared_storage() -> None:
             "target": PARSER_ARTIFACT_CONTAINER,
             "bind": {"create_host_path": False},
         },
+        f"{TSNET_STATE_HOST_ROOT}/parser-runtime:{TSNET_STATE_CONTAINER}",
+        "/data/probata/secrets/parser-runtime/ts-authkey:/run/secrets/tsnet-authkey:ro",
     ]
 
 

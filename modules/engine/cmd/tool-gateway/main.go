@@ -33,13 +33,12 @@ import (
 	"syscall"
 	"time"
 
-	"tailscale.com/tsnet"
-
 	"github.com/Cursedpotential/probata/engine/acquisition"
 	"github.com/Cursedpotential/probata/engine/objectstores"
 	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 	"github.com/Cursedpotential/probata/engine/toolgateway"
+	"github.com/Cursedpotential/probata/engine/tsnetlisten"
 )
 
 func main() {
@@ -229,16 +228,17 @@ func buildResolver() (platformpostgres.ImmutableAcquisitionResolver, []string, e
 
 // buildListener gives the gateway its own Tailscale identity.
 //
-// PREFERRED: a Tailscale SERVICE (TOOL_GATEWAY_TS_SERVICE, e.g. "svc:tool-gateway").
-// This matches the pattern already in use on this tailnet — the Workbench is
-// advertised as svc:workbench — and yields a stable HTTPS FQDN owned by the
-// service rather than by whichever host it happens to run on. Tailscale requires
-// a TAG-BASED identity to advertise a service, so TOOL_GATEWAY_TS_TAGS must name
-// at least one tag (the tailnet's existing nodes use tag:docker).
+// The tsnet mechanics moved to engine/tsnetlisten on 2026-09-07 so that
+// parser-runtime, proffer-starter and the Workbench front use the SAME proven
+// listener instead of three copies of it (owner directive: tsnet per service,
+// tailnet-only bind). This function keeps the TOOL_GATEWAY_TS_* environment
+// names, which are already set in the live Coolify app — the behaviour is
+// unchanged, only its implementation is now shared.
 //
-// Falling back, in order: a plain tsnet node listener, then TOOL_GATEWAY_BIND_IP
-// for hosts not yet joined via tsnet. The HTTP layer enforces tailnet-only peers
-// in every mode, so no fallback widens exposure.
+// PREFERRED: a Tailscale SERVICE (TOOL_GATEWAY_TS_SERVICE, e.g. "svc:tool-gateway").
+// Falling back: a plain tsnet node listener, then TOOL_GATEWAY_BIND_IP for hosts
+// not yet joined via tsnet. The HTTP layer enforces tailnet-only peers in every
+// mode, so no fallback widens exposure.
 func buildListener() (net.Listener, string, func(), error) {
 	port := env("TOOL_GATEWAY_PORT")
 	if port == "" {
@@ -259,66 +259,35 @@ func buildListener() (net.Listener, string, func(), error) {
 		return listener, addr, func() {}, nil
 	}
 
-	authKey, err := readSecretFile(keyPath)
-	if err != nil {
-		return nil, "", func() {}, err
-	}
-	if authKey == "" {
-		return nil, "", func() {}, errors.New("TOOL_GATEWAY_TS_AUTHKEY_FILE is empty")
-	}
 	stateDir, err := requireEnv("TOOL_GATEWAY_TS_STATE_DIR")
 	if err != nil {
 		return nil, "", func() {}, err
 	}
-	if err := os.MkdirAll(stateDir, 0o700); err != nil {
-		return nil, "", func() {}, fmt.Errorf("create tsnet state dir: %w", err)
-	}
-	hostname := env("TOOL_GATEWAY_TS_HOSTNAME")
-	if hostname == "" {
-		hostname = "tool-gateway"
+	portNumber, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, "", func() {}, fmt.Errorf("TOOL_GATEWAY_PORT %q is not a port number: %w", port, err)
 	}
 
-	srv := &tsnet.Server{
-		Hostname: hostname,
-		AuthKey:  authKey,
-		Dir:      stateDir,
-		Logf:     func(string, ...any) {},
+	cfg := tsnetlisten.Config{
+		Service:          tsnetlisten.ToolGateway,
+		Hostname:         env("TOOL_GATEWAY_TS_HOSTNAME"),
+		TailscaleService: "-", // a plain node listener unless the service is named below
+		AuthKeyPath:      keyPath,
+		StateDir:         stateDir,
+		Port:             portNumber,
+	}
+	if service := env("TOOL_GATEWAY_TS_SERVICE"); service != "" {
+		cfg.TailscaleService = service
 	}
 	if tags := env("TOOL_GATEWAY_TS_TAGS"); tags != "" {
-		for _, tag := range strings.Split(tags, ",") {
-			if trimmed := strings.TrimSpace(tag); trimmed != "" {
-				srv.AdvertiseTags = append(srv.AdvertiseTags, trimmed)
-			}
-		}
+		cfg.Tags = strings.Split(tags, ",")
 	}
 
-	// Start explicitly so a registration failure surfaces as a startup failure
-	// rather than as a confusing listen failure. Without an auth key tsnet would
-	// print an authentication URL here instead.
-	if err := srv.Start(); err != nil {
-		_ = srv.Close()
-		return nil, "", func() {}, fmt.Errorf("tsnet start: %w", err)
-	}
-
-	if service := env("TOOL_GATEWAY_TS_SERVICE"); service != "" {
-		if len(srv.AdvertiseTags) == 0 {
-			_ = srv.Close()
-			return nil, "", func() {}, errors.New("TOOL_GATEWAY_TS_SERVICE requires TOOL_GATEWAY_TS_TAGS: Tailscale Services need a tag-based identity")
-		}
-		listener, err := srv.ListenService(service, tsnet.ServiceModeHTTP{HTTPS: true, Port: 443})
-		if err != nil {
-			_ = srv.Close()
-			return nil, "", func() {}, fmt.Errorf("tsnet listen service %q: %w", service, err)
-		}
-		return listener, "https://" + listener.FQDN + " (" + service + ")", func() { _ = srv.Close() }, nil
-	}
-
-	listener, err := srv.Listen("tcp", ":"+port)
+	listener, srv, err := tsnetlisten.ListenWith(context.Background(), cfg)
 	if err != nil {
-		_ = srv.Close()
-		return nil, "", func() {}, fmt.Errorf("tsnet listen: %w", err)
+		return nil, "", func() {}, err
 	}
-	return listener, "tsnet:" + hostname + ":" + port, func() { _ = srv.Close() }, nil
+	return listener, tsnetlisten.Describe(listener), func() { _ = srv.Close() }, nil
 }
 
 // toolIndexFunc proxies the tool-runtime registry so callers discover tools

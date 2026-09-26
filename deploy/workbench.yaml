@@ -149,9 +149,15 @@ services:
       - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
     ports:
-      # Private door: Tailscale Serve owns the stable HTTPS identity and
-      # proxies directly to this unique loopback-only host port. Public
-      # traffic remains an independent Coolify Traefik route below.
+      # STEP 2 OF THE TSNET CUTOVER DELETES THIS PUBLISH (owner directive
+      # 2026-09-07: "APIs without networking endpoints ... bind to TS only").
+      # Today the stable private HTTPS identity comes from the HOST running
+      # `tailscale serve` for svc:workbench into this loopback port — a host
+      # networking endpoint, and one that ties the identity to ovh-app.
+      # The `tsnet-front` sidecar below replaces it with an in-process tsnet
+      # listener. Delete this line, and run `tailscale serve reset` on the
+      # host, in the same step that records the live verification. Public
+      # traffic remains the independent Coolify Traefik route below.
       - "127.0.0.1:18080:8020"
     healthcheck:
       # /health deliberately stays HTTP 200 while degraded; require its JSON
@@ -190,6 +196,63 @@ services:
       - traefik.http.middlewares.workbench-authentik.forwardauth.trustForwardHeader=true
       - traefik.http.middlewares.workbench-authentik.forwardauth.authResponseHeaders=X-authentik-username,X-authentik-groups,X-authentik-entitlements,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version
       - coolify.traefik.middlewares=workbench-authentik
+
+  # ---------------------------------------------------------------------------
+  # tsnet-front — the Workbench's own Tailscale identity (D-134), for a runtime
+  # that cannot embed one. Python has no tsnet, so today the HOST proxies
+  # svc:workbench into the loopback publish above; that is a host networking
+  # endpoint and it binds the service's identity to ovh-app.
+  #
+  # WHY network_mode: service:workbench. The sidecar joins the Workbench
+  # container's network namespace and proxies to 127.0.0.1:8020. That makes the
+  # proxy's socket peer 127.0.0.1 — a value ALREADY inside the default
+  # TRUSTED_TAILSCALE_SERVE_PROXY_CIDRS — so nothing has to discover a bridge
+  # address, resolve a compose-DNS name at startup, or teach auth.py to accept
+  # hostnames. It is the simplest arrangement that works, and it is why this
+  # sidecar declares no networks and no ports of its own.
+  #
+  # PRECONDITION, live, before enabling: the host must stop advertising
+  # svc:workbench (`tailscale serve reset` on ovh-app) or the two advertisements
+  # collide and this container fails closed at startup. That is a deliberate
+  # owner-approved live step, not something a deploy does by itself.
+  #
+  # Host prep (once):
+  #   install -d -o 10001 -g 10001 -m 0700 /data/probata/tsnet/workbench
+  #   install -d -o root -g 10001 -m 0750 /data/probata/secrets/workbench
+  #   # write a tag:docker auth key with NO trailing newline, then:
+  #   chown 10001:10001 /data/probata/secrets/workbench/ts-authkey
+  #   chmod 0400        /data/probata/secrets/workbench/ts-authkey
+  #
+  # Byline: Claude Code subagent · Opus 5 · 2026-09-07.
+  tsnet-front:
+    build:
+      # Repo root, NOT the deploy/ directory: Coolify builds with
+      # `--project-directory <repo root>`, which is why the working reference
+      # (deploy/tool-gateway.yaml) pairs `context: .` with a repo-root-relative
+      # dockerfile path. The Dockerfile's `COPY modules/engine/` needs it.
+      context: .
+      dockerfile: deploy/docker/tsnet-front/Dockerfile
+    image: ${WORKBENCH_TSNET_FRONT_IMAGE:-probata-tsnet-front:latest}
+    container_name: workbench-tsnet-front
+    restart: unless-stopped
+    depends_on:
+      - workbench
+    # The sidecar has NO network of its own and NO published port: its only
+    # listener is the tsnet one. That is the whole point of the component.
+    network_mode: "service:workbench"
+    environment:
+      # This binary refuses to run with the flag off — it has no other listener.
+      TSNET_LISTENER_ENABLED: ${WORKBENCH_TSNET_LISTENER_ENABLED:-true}
+      TSNET_FRONT_SERVICE: workbench
+      TSNET_FRONT_UPSTREAM: ${WORKBENCH_TSNET_FRONT_UPSTREAM:-http://127.0.0.1:8020}
+      TSNET_HOSTNAME: ${WORKBENCH_TSNET_HOSTNAME:-workbench}
+      TSNET_SERVICE: ${WORKBENCH_TSNET_SERVICE:-svc:workbench}
+      TSNET_TAGS: ${WORKBENCH_TSNET_TAGS:-tag:docker}
+      TSNET_STATE_DIR: /data/tsnet
+      TSNET_AUTHKEY_FILE: /run/secrets/tsnet-authkey
+    volumes:
+      - /data/probata/tsnet/workbench:/data/tsnet
+      - /data/probata/secrets/workbench/ts-authkey:/run/secrets/tsnet-authkey:ro
 
 networks:
   workbench:

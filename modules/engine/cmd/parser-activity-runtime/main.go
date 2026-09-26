@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,6 +21,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/parser"
 	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
+	"github.com/Cursedpotential/probata/engine/tsnetlisten"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -56,7 +58,15 @@ func run() error {
 	if artifactDirectory == "" {
 		return errors.New("PARSER_ARTIFACT_DIR is required")
 	}
-	address := strings.TrimSpace(os.Getenv("PARSER_ACTIVITY_ADDR"))
+	// The RAW value matters here, not the default: with the tsnet listener on,
+	// a configured host bind means the service is not tailnet-only and must
+	// not start (tsnetlisten.GuardExclusiveBind).
+	configuredAddress := strings.TrimSpace(os.Getenv("PARSER_ACTIVITY_ADDR"))
+	tsnetEnabled := tsnetlisten.Enabled()
+	if err := tsnetlisten.GuardExclusiveBind(tsnetEnabled, configuredAddress, false); err != nil {
+		return err
+	}
+	address := configuredAddress
 	if address == "" {
 		address = defaultAddress
 	}
@@ -126,8 +136,35 @@ func run() error {
 		return err
 	}
 
+	// Tailnet-only listener (owner directive 2026-09-07; D-134). When the
+	// rollout flag is on, this process holds ONE socket and it belongs to the
+	// service's own Tailscale identity — there is no host port to publish and
+	// no Traefik router in front of it. With the flag off, the legacy
+	// PARSER_ACTIVITY_ADDR bind is used unchanged, which is what the deployed
+	// service does today.
+	var listener net.Listener
+	var closeTsnet func()
+	if tsnetEnabled {
+		tsnetListener, tsnetServer, err := tsnetlisten.ListenWith(
+			context.Background(), tsnetlisten.FromEnv(tsnetlisten.ParserRuntime))
+		if err != nil {
+			return err
+		}
+		listener = tsnetListener
+		closeTsnet = func() { _ = tsnetServer.Close() }
+		address = tsnetlisten.Describe(tsnetListener)
+	} else {
+		hostListener, err := net.Listen("tcp", address)
+		if err != nil {
+			return err
+		}
+		listener = hostListener
+		closeTsnet = func() {}
+	}
+	defer closeTsnet()
+
 	server := &http.Server{
-		Addr: address, Handler: router,
+		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       defaultReadTimeout, WriteTimeout: defaultWriteTimeout,
 		IdleTimeout: defaultIdleTimeout,
@@ -136,8 +173,9 @@ func run() error {
 	defer stop()
 	serveErrors := make(chan error, 1)
 	go func() {
-		slog.Info("parser Activity runtime listening", "address", address, "parser_count", len(capabilities))
-		serveErrors <- server.ListenAndServe()
+		slog.Info("parser Activity runtime listening",
+			"address", address, "tsnet", tsnetEnabled, "parser_count", len(capabilities))
+		serveErrors <- server.Serve(listener)
 	}()
 	select {
 	case err := <-serveErrors:

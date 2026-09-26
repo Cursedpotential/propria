@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,6 +28,7 @@ import (
 	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
+	"github.com/Cursedpotential/probata/engine/tsnetlisten"
 )
 
 const (
@@ -46,6 +48,14 @@ func main() {
 func run() error {
 	cfg, err := platformtemporal.LoadConfig()
 	if err != nil {
+		return err
+	}
+
+	// The RAW value, not LoadConfig's default: with the tsnet listener on, a
+	// configured host bind means this service is not tailnet-only and must not
+	// start (tsnetlisten.GuardExclusiveBind).
+	tsnetEnabled := tsnetlisten.Enabled()
+	if err := tsnetlisten.GuardExclusiveBind(tsnetEnabled, os.Getenv("REFERENCE_STARTER_ADDR"), false); err != nil {
 		return err
 	}
 
@@ -171,8 +181,17 @@ func run() error {
 		return err
 	}
 
+	// Tailnet-only listener (owner directive 2026-09-07; D-134). With the
+	// rollout flag on, the starter's only socket belongs to its own Tailscale
+	// identity: no host bind, no published docker port, no Traefik router. The
+	// guard above already refused to start if a host bind was also configured.
+	listener, closeTsnet, address, err := starterListener(tsnetEnabled, cfg.StarterAddr)
+	if err != nil {
+		return err
+	}
+	defer closeTsnet()
+
 	server := &http.Server{
-		Addr:              cfg.StarterAddr,
 		Handler:           routes,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       defaultReadTimeout,
@@ -184,8 +203,9 @@ func run() error {
 	defer stop()
 	serveErrors := make(chan error, 1)
 	go func() {
-		slog.Info("universal import starter listening", "address", cfg.StarterAddr, "task_queue", cfg.TemporalTaskQueue)
-		serveErrors <- server.ListenAndServe()
+		slog.Info("proffer starter listening",
+			"address", address, "tsnet", tsnetEnabled, "task_queue", cfg.TemporalTaskQueue)
+		serveErrors <- server.Serve(listener)
 	}()
 	select {
 	case err := <-serveErrors:
@@ -198,4 +218,28 @@ func run() error {
 		defer cancel()
 		return server.Shutdown(stopContext)
 	}
+}
+
+// starterListener returns the one socket this process serves on.
+//
+// tsnet mode: the service's own Tailscale identity (svc:proffer-starter by
+// default), so which host the starter lands on stops mattering — the same
+// decoupling D-132/D-134 built for the tool gateway. Legacy mode: the
+// REFERENCE_STARTER_ADDR bind the deployed app uses today.
+//
+// Byline: Claude Code subagent · Opus 5 · 2026-09-07.
+func starterListener(tsnetEnabled bool, hostAddr string) (net.Listener, func(), string, error) {
+	if !tsnetEnabled {
+		listener, err := net.Listen("tcp", hostAddr)
+		if err != nil {
+			return nil, nil, "", err
+		}
+		return listener, func() {}, hostAddr, nil
+	}
+	listener, server, err := tsnetlisten.ListenWith(
+		context.Background(), tsnetlisten.FromEnv(tsnetlisten.ProfferStarter))
+	if err != nil {
+		return nil, nil, "", err
+	}
+	return listener, func() { _ = server.Close() }, tsnetlisten.Describe(listener), nil
 }

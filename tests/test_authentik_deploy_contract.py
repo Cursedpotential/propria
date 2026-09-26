@@ -177,8 +177,15 @@ class TestWorkbenchConsumer:
         assert all("0.0.0.0" not in binding for binding in service["ports"])
 
     def test_exact_proxy_boundary_is_required_in_manifest(self) -> None:
+        # ~~The Workbench uses the same `:?`-guarded value as Authentik.~~
+        # CORRECTED 2026-09-07 (commit 16ac0fc, register section 14): Coolify
+        # renders a `:?message` default as the LITERAL VALUE, so the guard
+        # silently produced an unparseable CIDR string and every request 403'd
+        # with "Authentication gateway not configured". The manifest now passes
+        # the bare variable and auth.py owns fail-closed. Authentik's own
+        # services keep EXACT_PROXY_SETTING; only this consumer changed.
         service = _load(WORKBENCH_PATH)["services"]["workbench"]
-        assert service["environment"]["TRUSTED_AUTH_PROXY_CIDRS"] == WORKBENCH_EXACT_PROXY_SETTING
+        assert service["environment"]["TRUSTED_AUTH_PROXY_CIDRS"] == "${TRAEFIK_PROXY_CIDR}"
         text = WORKBENCH_PATH.read_text(encoding="utf-8")
         assert 'TRUSTED_AUTH_PROXY_CIDRS: "10.0.0.0/8' not in text
         assert 'TRUSTED_AUTH_PROXY_CIDRS: "172.16.0.0/12' not in text
