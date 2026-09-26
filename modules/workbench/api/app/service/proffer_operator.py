@@ -1,4 +1,8 @@
-"""Compose a truthful Proffer operator snapshot from existing read models."""
+"""Compose a truthful Proffer operator snapshot from existing read models.
+
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — the repair builder is the repair path:
+no "apply_repair" gap, and the re-entry rule names it.
+"""
 
 from __future__ import annotations
 
@@ -43,9 +47,10 @@ def _valid_actions(phase: str, lifecycle: str) -> list[OperatorAction]:
 
 
 def _unavailable_controls(phase: str, lifecycle: str) -> list[OperatorUnavailableControl]:
+    # No "apply_repair" gap any more (Claude Code · Opus 5.5 · 2026-09-26): repairs are composed,
+    # validated and run from the Review Actions repair builder (/api/proffer/repair/*) as a separate
+    # plan that re-enters as a new run; this run's repair gate stays open for the owner (decision 4A).
     gaps: list[OperatorUnavailableControl] = []
-    if phase == "awaiting_repair_decision":
-        gaps.append(OperatorUnavailableControl(control="apply_repair", reason="The preview contract does not yet return applicable repair tool IDs and bounded inputs, so the Workbench cannot safely offer a repair button."))
     if lifecycle in {"failed", "unavailable"} or phase in {"failed", "timed_out"}:
         gaps.extend(
             [
@@ -109,7 +114,7 @@ async def operator_snapshot(preview_handle: str, *, mode: MatterMode) -> Proffer
         engine_profile=_availability("unavailable", "The repair assessment DTO does not return tool engine, operating-system profile, version, or result hash."),
         proposed_action=_availability("unavailable", "The engine allowlists repair.write-derived and repair.pdf-derived after a non-clean report, but the preview DTO returns no applicable tool ID or bounded input. Detector or tool failure is an operational error, not proof that the source is damaged."),
         decision_receipt=_availability("unavailable", "The preview read model does not return the durable repair-decision receipt after the workflow resumes."),
-        reentry_rule="repair.detect then repair.preview runs before routing; only report.clean=false opens review. An approved derived repair preserves the original, writes and hashes a separate artifact, then re-enters validation, routing, and handler selection. The current browser contract cannot execute or verify that path.",
+        reentry_rule="repair.detect then repair.preview runs before routing; only report.clean=false opens review. An approved derived repair preserves the original, writes and hashes a separate artifact, then re-enters validation, routing, and handler selection. A repair plan run from Review Actions takes that path: its derived result re-enters Proffer as a new run, and this run's repair gate stays open.",
     )
     storage_state = OperatorStorageState(
         source_type=_availability("unavailable", "The current preview does not classify this package as messaging or non-messaging for D-158 storage routing."),

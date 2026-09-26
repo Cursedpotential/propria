@@ -1,6 +1,7 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-23 (C4: knowledge router — Knowledge browser + Graphiti pane)
 # Byline: Codex · GPT-5 · 2026-08-16 (neutral Portkey streaming chat)
 # Byline: Codex · GPT-5 · 2026-08-27 (durable run-event SSE proxy)
+# Byline: Claude Code · Opus 5.5 · 2026-09-26 (repair workflow builder routes, /api/proffer/repair/*)
 """Knowledge Workbench API entrypoint — the C1-C4 Operator Console backend.
 
 Stages uploaded files locally (LanceDB whole-file store + object-store copy),
@@ -34,6 +35,7 @@ from app.runtime import (
     metrics,
     proffer,
     proffer_batch,
+    proffer_repair_plan,
     proffer_resources,
     promote,
     repairs,
@@ -117,6 +119,7 @@ app.include_router(intake_discovery.router)
 app.include_router(upload.router)
 app.include_router(proffer.router)
 app.include_router(proffer_batch.router)
+app.include_router(proffer_repair_plan.router)
 app.include_router(proffer_resources.router)
 app.include_router(source_inspection.router)
 app.include_router(source_unit_marks.router)
@@ -183,6 +186,7 @@ def _cached(response, request_path: str):
         hashed_asset = request_path.startswith("/assets/")
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable" if hashed_asset else "no-cache"
     return response
+
 
 if _static_dir.is_dir():
     app.mount("/", _WorkbenchStaticFiles(directory=str(_static_dir), html=True), name="static")
