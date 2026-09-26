@@ -65,8 +65,8 @@ npm run build-storybook
 `npm run build` typechecks and writes the production bundle to `dist/`. `npm run smoke` runs the
 static contract tests and launches no browser: the four browser-driven journeys in
 `smoke/matter-flow.smoke.test.mjs` (Matter promotion and review, the Matter capability gate, and New
-Run with a staged and a fresh file) report as skipped unless `SMOKE_BROWSER` names a browser binary.
-A skipped journey is not browser proof.
+Run with a staged and a fresh file) report as skipped unless `SMOKE_BROWSER` names a browser binary,
+and always on Windows. A skipped journey is not browser proof.
 
 ### Browser journeys run on a VPS only
 
@@ -78,7 +78,9 @@ non-root user (Chromium will not start as root without `--no-sandbox`, which the
 SMOKE_BROWSER=/path/to/chromium npm run smoke:matter-flow
 ```
 
-`SMOKE_BROWSER` is the path of a Chromium-family binary on that host; there is no default path. The
+`SMOKE_BROWSER` is the path of a Chromium-family binary on that host; there is no default path.
+`npm run smoke:matter-flow` runs `smoke/browser-preflight.mjs` first and fails, instead of reporting
+four skips as a pass, on Windows, without `SMOKE_BROWSER`, or when that path does not exist. The
 journeys serve the built SPA through a same-origin fixture, drive it over the DevTools pipe, and
 leave each browser profile under the repository's `to_be_deleted/` directory for owner-only cleanup.
 No CI job or VPS runner runs them yet.

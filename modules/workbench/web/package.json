@@ -1,4 +1,5 @@
 {
+  "//": "Byline: Claude Code · Opus 5.5 · 2026-09-26 (smoke:matter-flow runs smoke/browser-preflight.mjs first; it refuses Windows and a missing SMOKE_BROWSER).",
   "name": "knowledge-workbench-web",
   "version": "0.1.0",
   "private": true,
@@ -11,7 +12,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "smoke": "npm run build && node --test --test-concurrency=1 smoke/*.test.mjs",
-    "smoke:matter-flow": "npm run build && node --test --test-concurrency=1 smoke/matter-flow.smoke.test.mjs"
+    "smoke:matter-flow": "node smoke/browser-preflight.mjs && npm run build && node --test --test-concurrency=1 smoke/matter-flow.smoke.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.69",

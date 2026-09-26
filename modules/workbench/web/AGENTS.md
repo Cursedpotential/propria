@@ -34,8 +34,9 @@
 Never launch Chrome, Edge, a headless browser or Playwright on the owner's desktop; it freezes the
 machine. The browser journeys in `smoke/matter-flow.smoke.test.mjs` run only on a VPS, through
 `npm run smoke:matter-flow` with `SMOKE_BROWSER` set (see `README.md`, "Browser journeys run on a
-VPS only"). The "live browser proof" gate above is taken from a VPS headless browser or through the
-API, never from a browser on the desktop.
+VPS only"). On Windows they skip in the default gate and `smoke:matter-flow` refuses to start. The
+"live browser proof" gate above is taken from a VPS headless browser or through the API, never from
+a browser on the desktop.
 
 ## ATOMICITY — every unit must be assignable to a Temporal Activity
 
