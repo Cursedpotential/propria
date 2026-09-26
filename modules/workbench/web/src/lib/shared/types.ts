@@ -6,6 +6,7 @@
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (Evidence Operations Desk source/context contracts)
 // Byline: Codex · GPT-5 · 2026-08-18 (native evidence search compatibility envelope)
 // Byline: Codex · GPT-5 · 2026-08-28 (proffer workflow (formerly Universal Import Workflow) contracts)
+// Byline: Claude Code · Opus 5.5 · 2026-09-26 (repair workflow builder contracts; catalog unbound_count)
 /**
  * Types for the Knowledge Workbench staged-file record.
  *
@@ -1224,6 +1225,9 @@ export interface ProfferProposalResourceCatalog {
   approval_destination: "neo4j";
   later_manual_projection: "surrealdb";
   items: ProfferProposalResource[];
+  /** Runs on this page whose Test/Live mode could not be proven: listed under neither mode.
+   * Byline: Claude Code · Opus 5.5 · 2026-09-26. */
+  unbound_count: number;
   next_cursor?: string | null;
 }
 
@@ -1963,6 +1967,119 @@ export interface ProfferBatchStatus {
   counts: ProfferBatchCounts;
   items: ProfferBatchItem[];
   matter_mode: MatterMode;
+}
+
+// Repair workflow builder: BFF /api/proffer/repair/* over the engine's /reference-import/repair/*
+// (modules/engine/repairplan/contract.go). Byline: Claude Code · Opus 5.5 · 2026-09-26.
+
+export type ProfferRepairParamValue = string | number | boolean;
+
+/** The JSON Schema subset repair tools declare: an object of scalar properties. */
+export interface ProfferRepairParamsSchema {
+  type?: "object";
+  properties?: Record<string, {
+    type: "integer" | "number" | "boolean" | "string";
+    description?: string;
+    minimum?: number;
+    maximum?: number;
+    enum?: ProfferRepairParamValue[];
+    default?: ProfferRepairParamValue;
+  }>;
+  required?: string[];
+  additionalProperties?: boolean;
+}
+
+export interface ProfferRepairTool {
+  id: string;
+  description: string;
+  input_types: string[];
+  output_types: string[];
+  params_schema: ProfferRepairParamsSchema;
+  writes: "derived" | "none";
+  needs_n8n: boolean;
+}
+
+export interface ProfferRepairToolsResponse {
+  tools: ProfferRepairTool[];
+  matter_mode: MatterMode;
+}
+
+export interface ProfferRepairStep {
+  step_id: string;
+  activity: string;
+  params: Record<string, ProfferRepairParamValue>;
+}
+
+export interface ProfferRepairProposal {
+  signature: string;
+  rationale: string;
+  /** Empty for the "wait: re-run after parse" option. */
+  steps: ProfferRepairStep[];
+  by: string;
+  agent_available: boolean;
+}
+
+export interface ProfferRepairProposeResponse {
+  signature: string;
+  proposals: ProfferRepairProposal[];
+  agent_available: boolean;
+  matter_mode: MatterMode;
+}
+
+export interface ProfferRepairPlan {
+  plan_id: string;
+  source_ref: string;
+  preview_handle: string;
+  matter_mode: MatterMode;
+  steps: ProfferRepairStep[];
+}
+
+export interface ProfferRepairCheck {
+  rule: string;
+  status: "pass" | "fail";
+  reason: string;
+}
+
+export interface ProfferRepairValidateResponse {
+  ok: boolean;
+  checks: ProfferRepairCheck[];
+  matter_mode: MatterMode;
+}
+
+export interface ProfferRepairRunResponse {
+  workflow_id: string;
+  run_id: string;
+  matter_mode: MatterMode;
+}
+
+export type ProfferRepairStepState = "pending" | "running" | "succeeded" | "failed" | "skipped";
+
+export interface ProfferRepairStepStatus {
+  step_id: string;
+  activity: string;
+  status: ProfferRepairStepState;
+  /** "" until the step's receipt is recorded. */
+  receipt_ref: string;
+  output_ref?: string | null;
+  output_sha256?: string | null;
+  summary?: unknown;
+  reason: string;
+}
+
+export interface ProfferRepairRunStatus {
+  workflow_id: string;
+  plan_id: string;
+  preview_handle: string | null;
+  matter_mode: MatterMode;
+  status: "running" | "completed" | "failed";
+  reason: string;
+  steps: ProfferRepairStepStatus[];
+  /** Set when the result re-entered as one run (open it in Review). */
+  reentry_preview_handle?: string | null;
+  /** Set instead when the result re-entered as one batch of runs. */
+  reentry_batch_id?: string | null;
+  reentry_receipt_ref?: string | null;
+  checks: ProfferRepairCheck[];
 }
 
 export interface DecodedExistsItem {

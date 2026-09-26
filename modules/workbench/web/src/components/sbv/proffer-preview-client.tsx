@@ -1,5 +1,6 @@
 // Byline: Codex · GPT-5.6 · 2026-09-12 (hydrate deep-linked preview mode and handle atomically)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25 (Actions panel wiring: re-run + gate answers; one mode indicator)
+// Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 (repair re-entry opens in Review; unbound-run count flag)
 "use client";
 
 import { ChevronLeft, CircleDot, Loader2, RefreshCw } from "lucide-react";
@@ -59,6 +60,8 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
   const [initialUrlHandle] = useState(() => initialHandle(mode));
   const [previewHandle, setPreviewHandle] = useState(initialUrlHandle);
   const [resources, setResources] = useState<ProfferProposalResource[]>([]);
+  // Runs whose Test/Live mode the server could not prove: never listed, only counted.
+  const [unboundCount, setUnboundCount] = useState(0);
   const [resourcesLoading, setResourcesLoading] = useState(true);
   const [resourcesError, setResourcesError] = useState<string | null>(null);
   const [preview, setPreview] = useState<ProfferPreviewResponse | null>(null);
@@ -150,6 +153,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
       const response = await listProfferProposalResources(mode, { limit: 50 }, controller.signal);
       if (controller.signal.aborted) return;
       setResources(response.items);
+      setUnboundCount(response.unbound_count ?? 0);
       setResourcesError(null);
       if (!activeHandleRef.current && response.items.length > 0) {
         // Land on a run the operator can actually read, not the newest — which is
@@ -533,7 +537,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
           </div>
         </header>
         {resourcesError && <div className="border-b border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert"><strong>Resource list unavailable.</strong> {resourcesError}</div>}
-        <ReviewResourceList resources={resources} loading={resourcesLoading} selectedHandle={previewHandle} onSelect={selectResource} />
+        <ReviewResourceList resources={resources} unboundCount={unboundCount} loading={resourcesLoading} selectedHandle={previewHandle} onSelect={selectResource} />
       </section>
 
       <div className="min-w-0 space-y-2">
@@ -584,6 +588,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
             onRerun={(request) => void rerun(request)}
             rerunPending={rerunStarting}
             pendingAnswers={pendingForRun}
+            onOpenRun={openStartedRun}
             decisionLockReason={APPROVAL_LOCK_REASON}
             actionPending={decisionPending}
             decisionReady={decisionEligible}

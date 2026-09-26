@@ -53,8 +53,11 @@ test("parser and repair choices answer the gate when paused, else seed a fresh r
   assert.match(rerunHook, /decideProfferRepair\(previewHandle, mode, \{ approved: true, apply_repair: false \}\)/);
   assert.match(rerunHook, /startProffer\(\{/);
   assert.match(rerunHook, /request_id: requestId/);
-  // No repair tool is invented: applying one stays disabled until the engine proposes it.
-  assert.match(panel, /the engine proposed no repair tool for this run/);
+  // AMENDED 2026-09-26 (Claude Code · Opus 5.5): the disabled "Apply the proposed repair" is
+  // replaced by the repair builder (smoke/repair-builder.contract.test.mjs). It runs a separate
+  // plan through /api/proffer/repair/*; this run's gate is never answered with apply_repair.
+  assert.doesNotMatch(panel, /Apply the proposed repair/);
+  assert.match(panel, /<RepairBuilder snapshot=\{snapshot\} onOpenRun=\{onOpenRun\} \/>/);
   assert.doesNotMatch(`${panel}\n${rerunHook}`, /apply_repair: true/);
 });
 

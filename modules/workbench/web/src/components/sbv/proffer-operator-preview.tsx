@@ -1,5 +1,6 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-25 (always-present Actions panel; one small mode flag;
 // tab dots from real row counts; portal More menu; decoded messages for derive-only runs)
+// Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 (onOpenRun for the repair builder's re-entry links)
 "use client";
 
 import { Check, ChevronDown, CircleDot, Database, Flag, RefreshCw, ShieldCheck, X } from "lucide-react";
@@ -172,6 +173,7 @@ export function ProfferOperatorPreview({
   onRerun,
   rerunPending,
   pendingAnswers,
+  onOpenRun,
   decisionLockReason,
   actionPending,
   decisionReady,
@@ -201,6 +203,8 @@ export function ProfferOperatorPreview({
   onRerun: (request: RerunRequest) => void;
   rerunPending: boolean;
   pendingAnswers?: PendingGateAnswers;
+  /** Opens another run in Review (a repair's re-entered run). */
+  onOpenRun: (previewHandle: string) => void;
   /** Why Approve is still locked; shown as one small line inside the decision block. */
   decisionLockReason: string;
   actionPending: boolean;
@@ -495,6 +499,7 @@ export function ProfferOperatorPreview({
         onRerun={onRerun}
         rerunPending={rerunPending}
         pendingAnswers={pendingAnswers}
+        onOpenRun={onOpenRun}
       />
       </div>
       </div>
