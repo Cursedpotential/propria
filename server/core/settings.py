@@ -6,10 +6,14 @@ Selection strategy (ADR-0008):
 - Global override: ``DEFAULT_MODEL_ID`` / ``DEFAULT_MODEL_PROVIDER``.
 
 Provider priority chain (when no override):
-    Ollama → NVIDIA → Kimi → OpenRouter → Anthropic → OpenAI → Google → Groq
+    NVIDIA → Ollama → Kimi → OpenRouter → Anthropic → OpenAI → Google → Groq
 
-Ollama Cloud (``glm-5.1``) is the primary provider (D7 revision).
-NVIDIA NIM is the backup — its OpenAI-compatible endpoint serves most models.
+NVIDIA NIM ``moonshotai/kimi-k3`` is the primary default (owner 2026-09-25:
+glm-5.1 banned outright; Ollama Cloud is no longer primary after its pricing
+change). ~~Ollama Cloud (``glm-5.1``) is the primary provider (D7 revision).
+NVIDIA NIM is the backup.~~ Ollama Cloud has NO pinned default model: it is
+chosen only when ``OLLAMA_MODEL_ID`` / ``DEFAULT_MODEL_ID`` or an explicit
+``model_id`` names one; otherwise the chain skips it.
 
 Embedder strategy (ADR-0010; store = Weaviate per ADR-0040):
 - One vector collection per embedder, embedder pinned at creation.
@@ -34,6 +38,8 @@ account can actually reach, not a guess) live in ``server/core/model_catalog.py`
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01 (direct-provider wiring: ANTHROPIC_AUTH_TOKEN fallback + model_catalog.py cross-ref)
 # Byline: Codex · GPT-5 · 2026-08-13 (non-null Kimi model/base resolution)
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (glm-5.1 removed — owner blanket ban; NVIDIA NIM kimi-k3 primary; no Ollama default)
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (kimi-k3 on NIM: thinking ON by default — OFF gave junk on long prompts; build_model(thinking=False) per agent)
 
 from __future__ import annotations
 
@@ -43,13 +49,16 @@ from typing import Any, Optional
 NVIDIA_BASE_URL_DEFAULT = "https://integrate.api.nvidia.com/v1"
 
 # Confirmed-available default model id per provider (override via env).
+# A provider missing from this dict has no default and is skipped unless a model is named.
 _PINNED: dict[str, str] = {
-    # Ollama Cloud — primary per D7 (rev).
-    "ollama": "glm-5.1",
-    # NVIDIA NIM (OpenAI-compatible). Backup provider.
-    "nvidia": "nvidia/nemotron-3-super-120b-a12b",
-    # Kimi K2.6 — served on NVIDIA NIM (or Moonshot direct if MOONSHOT_API_KEY set).
-    "kimi": "moonshotai/kimi-k2.6",
+    # "ollama": no default. glm-5.1 removed 2026-09-25, owner blanket ban; Ollama Cloud is a non-default option.
+    # NVIDIA NIM (OpenAI-compatible) — PRIMARY since 2026-09-25 (owner: kimi-k3 on NIM replaces glm-5.1).
+    # A reasoning model that sometimes answers with 32 junk tokens (see _nim_extra_body: thinking ON by
+    # default here). The free tier answered 429 to about 1 in 4 rapid sequential calls. nemotron-3-super-
+    # 120b-a12b, the previous pin, was intermittent (200 / 404 / 503) on 2026-09-25 and stays out of defaults.
+    "nvidia": "moonshotai/kimi-k3",
+    # Kimi — NIM (or Moonshot direct if MOONSHOT_API_KEY set). kimi-k2.6 → kimi-k3 2026-09-25: k2.6 is 404 on NIM.
+    "kimi": "moonshotai/kimi-k3",
     "openrouter": "deepseek/deepseek-chat",  # set OPENROUTER_MODEL_ID to taste
     "anthropic": "claude-sonnet-4-6",  # opus: claude-opus-4-8
     "openai": "gpt-4o",
@@ -57,10 +66,11 @@ _PINNED: dict[str, str] = {
     "groq": "llama-3.3-70b-versatile",
 }
 
-# Selection order when DEFAULT_MODEL_PROVIDER is not set. Ollama first per D7 (rev).
+# Selection order when DEFAULT_MODEL_PROVIDER is not set. NVIDIA first since 2026-09-25
+# (owner: kimi-k3 on NIM is primary); ~~Ollama first per D7 (rev)~~. Ollama is skipped unless a model is named.
 _DEFAULT_ORDER: list[str] = [
-    "ollama",
     "nvidia",
+    "ollama",
     "kimi",
     "openrouter",
     "anthropic",
@@ -68,6 +78,24 @@ _DEFAULT_ORDER: list[str] = [
     "google",
     "groq",
 ]
+
+_KIMI_K3 = "moonshotai/kimi-k3"
+
+
+def _nim_extra_body(model_id: str, thinking: Optional[bool]) -> Optional[dict[str, Any]]:
+    """Extra request body for a NIM call: kimi-k3 reasons unless *thinking* is False.
+
+    Measured 2026-09-25: with thinking OFF, kimi-k3 answered prompts of ~10k and ~43k
+    tokens with 32 '!' tokens (3 of 3); agents run long prompts, so ON is the default
+    (owner decision via the parent session). With thinking ON about 1 short prompt in 8
+    comes back empty (the same junk, in the reasoning field) and a 43k-token prompt was
+    junk once through OpenCode, so an agent must detect empty/junk replies and retry in
+    the other mode (``build_model(thinking=False)``). Other NIM models get no extra body.
+    """
+    if model_id != _KIMI_K3:
+        return None
+    return {"chat_template_kwargs": {"thinking": thinking is not False}}
+
 
 # LEGACY/NIM-fallback embedder IDs — these do NOT mirror the live contract and never did
 # ("db/session.py" here means server/core/session.py, the actual source of truth).
@@ -81,7 +109,7 @@ _EMBEDDER_IDS: dict[str, str] = {
 }
 
 
-def _model_id(provider: str, model_id: Optional[str] = None) -> str:
+def _model_id(provider: str, model_id: Optional[str] = None) -> Optional[str]:
     """Resolve a model ID for *provider*.
 
     Resolution order: explicit *model_id* argument → ``<PROVIDER>_MODEL_ID``
@@ -98,15 +126,16 @@ def _model_id(provider: str, model_id: Optional[str] = None) -> str:
 
     Returns
     -------
-    str
-        The resolved model ID.
+    str | None
+        The resolved model ID, or ``None`` when nothing names a model and the
+        provider has no pinned default (Ollama since 2026-09-25).
     """
     if model_id:
         return model_id
     per = getenv(f"{provider.upper()}_MODEL_ID")
     if per:
         return per
-    return getenv("DEFAULT_MODEL_ID") or _PINNED[provider]
+    return getenv("DEFAULT_MODEL_ID") or _PINNED.get(provider)
 
 
 def _provider_order() -> list[str]:
@@ -124,7 +153,7 @@ def _provider_order() -> list[str]:
     return [forced.strip().lower()] if forced else list(_DEFAULT_ORDER)
 
 
-def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any]:
+def _try_provider(provider: str, model_id: Optional[str] = None, thinking: Optional[bool] = None) -> Optional[Any]:
     """Construct an Agno model for *provider* if its credentials exist.
 
     Returns ``None`` when the provider has no credentials configured — the
@@ -137,12 +166,19 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
     model_id:
         Exact model ID to construct. When ``None`` the provider's usual
         env-override/pinned-default resolution applies (unchanged behaviour).
+    thinking:
+        Reasoning switch for kimi-k3 on NIM; ``None``/``True`` = on, ``False`` = off
+        (see ``_nim_extra_body``). Ignored for other models and for Moonshot direct.
 
     Returns
     -------
     Any | None
         A configured Agno model instance, or ``None``.
     """
+    resolved = _model_id(provider, model_id)
+    if resolved is None:
+        # No model named and no pinned default (Ollama: glm-5.1 removed 2026-09-25, owner blanket ban).
+        return None
     nvidia_key = getenv("NVIDIA_API_KEY")
     nvidia_base = getenv("NVIDIA_BASE_URL", NVIDIA_BASE_URL_DEFAULT)
 
@@ -151,7 +187,12 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
             return None
         from agno.models.openai.like import OpenAILike
 
-        return OpenAILike(id=_model_id("nvidia", model_id), api_key=nvidia_key, base_url=nvidia_base)
+        return OpenAILike(
+            id=resolved,
+            api_key=nvidia_key,
+            base_url=nvidia_base,
+            extra_body=_nim_extra_body(resolved, thinking),
+        )
 
     if provider == "kimi":
         # Prefer Moonshot direct if a key is set; else ride NVIDIA NIM.
@@ -161,12 +202,17 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
         if moonshot_key:
             base = getenv("MOONSHOT_BASE_URL") or "https://api.moonshot.ai/v1"
             return OpenAILike(
-                id=_model_id("kimi", model_id),
+                id=resolved,
                 api_key=moonshot_key,
                 base_url=base,
             )
         if nvidia_key:
-            return OpenAILike(id=_model_id("kimi", model_id), api_key=nvidia_key, base_url=nvidia_base)
+            return OpenAILike(
+                id=resolved,
+                api_key=nvidia_key,
+                base_url=nvidia_base,
+                extra_body=_nim_extra_body(resolved, thinking),
+            )
         return None
 
     if provider == "openrouter":
@@ -175,7 +221,7 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
             return None
         from agno.models.openai.like import OpenAILike
 
-        return OpenAILike(id=_model_id("openrouter", model_id), api_key=key, base_url="https://openrouter.ai/api/v1")
+        return OpenAILike(id=resolved, api_key=key, base_url="https://openrouter.ai/api/v1")
 
     if provider == "ollama":
         # Ollama Cloud: OLLAMA_API_KEY makes host default to https://ollama.com.
@@ -187,8 +233,8 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
         from agno.models.ollama import Ollama
 
         if ollama_host:
-            return Ollama(id=_model_id("ollama", model_id), host=ollama_host)
-        return Ollama(id=_model_id("ollama", model_id), api_key=ollama_key)
+            return Ollama(id=resolved, host=ollama_host)
+        return Ollama(id=resolved, api_key=ollama_key)
 
     if provider == "openai":
         key = getenv("OPENAI_API_KEY")
@@ -196,7 +242,7 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
             return None
         from agno.models.openai import OpenAIChat
 
-        return OpenAIChat(id=_model_id("openai", model_id), api_key=key)
+        return OpenAIChat(id=resolved, api_key=key)
 
     if provider == "anthropic":
         key = getenv("ANTHROPIC_API_KEY")
@@ -218,7 +264,7 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
             return None
         from agno.models.anthropic import Claude
 
-        return Claude(id=_model_id("anthropic", model_id), api_key=key, auth_token=auth_token)
+        return Claude(id=resolved, api_key=key, auth_token=auth_token)
 
     if provider == "google":
         key = getenv("GOOGLE_API_KEY")
@@ -226,7 +272,7 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
             return None
         from agno.models.google import Gemini
 
-        return Gemini(id=_model_id("google", model_id), api_key=key)
+        return Gemini(id=resolved, api_key=key)
 
     if provider == "groq":
         key = getenv("GROQ_API_KEY")
@@ -234,12 +280,12 @@ def _try_provider(provider: str, model_id: Optional[str] = None) -> Optional[Any
             return None
         from agno.models.groq import Groq
 
-        return Groq(id=_model_id("groq", model_id), api_key=key)
+        return Groq(id=resolved, api_key=key)
 
     return None
 
 
-def build_model(provider: Optional[str] = None, model_id: Optional[str] = None) -> Any:
+def build_model(provider: Optional[str] = None, model_id: Optional[str] = None, thinking: Optional[bool] = None) -> Any:
     """Select and construct a model by available credentials.
 
     Creates a fresh model instance on every call — do NOT cache. Each agent
@@ -254,6 +300,9 @@ def build_model(provider: Optional[str] = None, model_id: Optional[str] = None) 
         Force a specific model ID for the chosen provider. Only meaningful
         together with *provider* (the chain would otherwise apply one id to
         whichever provider happens to answer first).
+    thinking:
+        Per-agent override of kimi-k3's reasoning on NIM. Default (``None``) is
+        on; ``False`` turns it off (only safe for short prompts).
 
     Returns
     -------
@@ -267,12 +316,12 @@ def build_model(provider: Optional[str] = None, model_id: Optional[str] = None) 
     """
     order = [provider.strip().lower()] if provider else _provider_order()
     for p in order:
-        model = _try_provider(p, model_id)
+        model = _try_provider(p, model_id, thinking)
         if model is not None:
             return model
     raise ValueError(
-        "No model provider configured. Set one of: OLLAMA_API_KEY/OLLAMA_HOST, NVIDIA_API_KEY, "
-        "MOONSHOT_API_KEY, OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, "
+        "No model provider configured. Set one of: NVIDIA_API_KEY, OLLAMA_API_KEY/OLLAMA_HOST "
+        "(plus OLLAMA_MODEL_ID), MOONSHOT_API_KEY, OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, "
         "GOOGLE_API_KEY, GROQ_API_KEY (or pin DEFAULT_MODEL_PROVIDER)."
     )
 

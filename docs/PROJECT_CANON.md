@@ -46,7 +46,8 @@
 > Claude Code · Fable 5; §4/§5/§6 sync 2026-08-09 Claude Code · Sonnet 5;
 > §3/§5 chat-ingestion amendment 2026-08-13 Codex · GPT-5;
 > Phase-0 Surreal/investigation review status 2026-08-16 Codex · GPT-5;
-> drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: §1 visible_from/derived-passes (ADR-0045 §A/§B), §4+§6 Weaviate cutover-verified, §8 agno 2.8.0→2.8.7, transcript_miner topology)_
+> drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: §1 visible_from/derived-passes (ADR-0045 §A/§B), §4+§6 Weaviate cutover-verified, §8 agno 2.8.0→2.8.7, transcript_miner topology;
+> drift-fix 2026-09-25 Claude Code · Opus 5.5: PRIMARY LLM entry — glm-5.1 banned, NVIDIA NIM `moonshotai/kimi-k3` primary)_
 
 ---
 
@@ -308,10 +309,15 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
 - **Deploy on the VPS** (ADR-0009), not local podman. n8n on its own server.
 - **pg_duckdb inside Postgres** (ADR-0013, supersedes ADR-0003 no-DuckDB).
 - **Neo4j for Graphiti** (ADR-0014, supersedes FalkorDB). Bitemporal cognition substrate.
-- **Ollama Cloud `glm-5.1` = PRIMARY LLM** ~~via LiteLLM gateway~~ **via Portkey
+- ~~**Ollama Cloud `glm-5.1` = PRIMARY LLM**~~ ~~via LiteLLM gateway~~ **via Portkey
   (Corrected 2026-08-12: LiteLLM RETIRED — ADR-0042, owner ruling 2026-07-29; see
-  the Portkey entry below; glm-5.1 stays primary).** NVIDIA NIM =
-  embeddings + rerank + LLM backup only (NVIDIA rate-limited the owner).
+  the Portkey entry below; ~~glm-5.1 stays primary~~).** ~~NVIDIA NIM =
+  embeddings + rerank + LLM backup only (NVIDIA rate-limited the owner).~~
+  **Corrected 2026-09-25 (Claude Code · Opus 5.5; owner: "Stop using GLM 5.1 in general";
+  Ollama Cloud is no longer primary after its pricing change): NVIDIA NIM
+  `moonshotai/kimi-k3` = PRIMARY LLM** — first in `server/core/settings.py`'s provider
+  chain and the first target of the Portkey chat/classify lanes. glm-5.1 is banned
+  outright (no default, fallback or picker entry); Ollama Cloud remains a non-default option.
 - **Models:** ~~embedder `nvidia/llama-nemotron-embed-vl-1b-v2` (2048-d, asymmetric —
   query vs passage modes, `server/core/embedder.py`)~~ **Corrected 2026-08-12: the LIVE
   text embedder is `nvidia/nv-embed-v1` (4096-d, symmetric) — live contract since
@@ -344,7 +350,8 @@ S3 API + pg_duckdb httpfs (`read_text('s3://nexus/...')`).
   the tool-gateway adapter. The custom Workbench is the primary product UI.
 - **Serve/consume topology (locked 2026-06-13) — the layered picture; nothing here gets dropped:**
   - **Model gateway = LiteLLM** (`gateway` container): routes ALL models — remote (Gemini/Groq/
-    OpenRouter/NVIDIA/Anthropic) AND in-stack/local (Ollama Cloud primary `glm-5.1`). Every
+    OpenRouter/NVIDIA/Anthropic) AND in-stack/local (~~Ollama Cloud primary `glm-5.1`~~ —
+    glm-5.1 banned 2026-09-25, see the PRIMARY LLM entry above). Every
     agent/LLM gets its model through LiteLLM. ⚠ **Superseded 2026-07-29 → Portkey (ADR-0042)**;
     LiteLLM deprecated pending teardown — see the Portkey entry below.
   - **Tool gateway = IBM ContextForge**: serves/federates MCP tools to any MCP client — Agno

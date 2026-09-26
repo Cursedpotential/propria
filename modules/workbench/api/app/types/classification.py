@@ -1,6 +1,7 @@
 """Type definitions for classification and sentiment analysis.
 
 Byline: Codex · GPT-5 · 2026-08-16
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (request defaults: provider ollama → nvidia, max_tokens 1024 → 2048)
 """
 
 from __future__ import annotations
@@ -34,15 +35,17 @@ class SentimentLabel(str, Enum):
     MIXED = "mixed"
 
 
+# Request defaults changed 2026-09-25 (owner blanket ban on glm-5.1): provider OLLAMA (glm-5.1) → NVIDIA
+# (moonshotai/kimi-k3); max_tokens 1024 → 2048 because kimi-k3 is a reasoning model.
 class ClassificationRequest(BaseModel):
     """Request for single text classification."""
 
     text: str = Field(..., min_length=1, max_length=100000)
     categories: list[str] = Field(..., min_length=1, max_length=20)
-    provider: ProviderName = ProviderName.OLLAMA
+    provider: ProviderName = ProviderName.NVIDIA
     model_id: str | None = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=1024, ge=1, le=8192)
+    max_tokens: int = Field(default=2048, ge=1, le=8192)
     system_prompt: str | None = None
 
 
@@ -64,10 +67,10 @@ class BatchClassificationRequest(BaseModel):
 
     texts: list[str] = Field(..., min_length=1, max_length=100)
     categories: list[str] = Field(..., min_length=1, max_length=20)
-    provider: ProviderName = ProviderName.OLLAMA
+    provider: ProviderName = ProviderName.NVIDIA
     model_id: str | None = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=1024, ge=1, le=8192)
+    max_tokens: int = Field(default=2048, ge=1, le=8192)
     system_prompt: str | None = None
 
 
@@ -84,10 +87,10 @@ class SentimentRequest(BaseModel):
     """Request for single text sentiment analysis."""
 
     text: str = Field(..., min_length=1, max_length=100000)
-    provider: ProviderName = ProviderName.OLLAMA
+    provider: ProviderName = ProviderName.NVIDIA
     model_id: str | None = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=1024, ge=1, le=8192)
+    max_tokens: int = Field(default=2048, ge=1, le=8192)
     include_emotions: bool = True
 
 
@@ -109,10 +112,10 @@ class BatchSentimentRequest(BaseModel):
     """Request for batch sentiment analysis."""
 
     texts: list[str] = Field(..., min_length=1, max_length=100)
-    provider: ProviderName = ProviderName.OLLAMA
+    provider: ProviderName = ProviderName.NVIDIA
     model_id: str | None = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=1024, ge=1, le=8192)
+    max_tokens: int = Field(default=2048, ge=1, le=8192)
     include_emotions: bool = True
 
 
@@ -131,7 +134,7 @@ class ProviderConfig(BaseModel):
     provider: ProviderName
     model_id: str | None = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=1024, ge=1, le=8192)
+    max_tokens: int = Field(default=2048, ge=1, le=8192)
 
 
 class ComparisonRequest(BaseModel):

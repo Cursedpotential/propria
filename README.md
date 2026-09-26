@@ -4,6 +4,7 @@
 > drift-fix 2026-08-12 Claude Code · Kimi K3: stack line LiteLLM→Portkey/Weaviate per ADR-0040/0042; deploy section marked pre-4-box)_
 > _Current-entry-point repair: Codex · GPT-5 · 2026-08-15._
 > _Byline: Claude Code · Fable 5.1 · 2026-09-05 — renamed to **Indicia Probata** / `probata` under the **propria** umbrella (D-137, D-138); see `docs/NAMING.md`._
+> _Byline: Claude Code · Opus 5.5 · 2026-09-25 — infrastructure line: glm-5.1 banned, NVIDIA NIM `moonshotai/kimi-k3` primary._
 
 **Indicia Probata** ("proven signs"; short form `probata`) is a pro se family-law
 evidence, analysis, and legal-strategy platform, part of the **propria** umbrella
@@ -130,8 +131,9 @@ The system does not get to narrate its user either.
 
 Current infrastructure includes PostgreSQL 18 (pg_duckdb + pgvector + PostGIS, dual
 evidence/analysis schema) · Neo4j + Graphiti (bitemporal temporal graph) · Portkey model
-gateway (Ollama Cloud primary, NVIDIA embed/rerank/backup; LiteLLM RETIRED 2026-07-29,
-ADR-0042) · Weaviate vectors (locked ADR-0040) · OpenCode · Cloudflare R2 (blob storage)
+gateway (~~Ollama Cloud primary, NVIDIA embed/rerank/backup~~ **corrected 2026-09-25: NVIDIA
+NIM `moonshotai/kimi-k3` primary, NVIDIA also embed/rerank; glm-5.1 banned by the owner, Ollama
+Cloud a non-default option**; LiteLLM RETIRED 2026-07-29, ADR-0042) · Weaviate vectors (locked ADR-0040) · OpenCode · Cloudflare R2 (blob storage)
 · isolated agent sandbox · Kasm desktop · n8n (separate server). See the canon for the
 verified service map; working-tree features are not implied to be deployed.
 

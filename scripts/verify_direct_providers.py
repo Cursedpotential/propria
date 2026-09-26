@@ -22,6 +22,8 @@ Usage:
     .venv/Scripts/python.exe scripts/verify_direct_providers.py --skip-live-chat    # list-only, skip the minimal completion calls (cheaper/faster)
 """
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (Ollama chat probe no longer targets glm-5.1 — owner blanket ban;
+# NIM probe prefers moonshotai/kimi-k3 with thinking off instead of the intermittent nemotron-3-super)
 
 from __future__ import annotations
 
@@ -169,6 +171,9 @@ def nvidia_chat_probe(api_key: str, model_id: str, base_url: str = NVIDIA_BASE_U
         "max_tokens": 8,
         "stream": False,
     }
+    if model_id == "moonshotai/kimi-k3":
+        # Reasoning off: with it on, an 8-token cap is spent on reasoning and the content comes back empty.
+        payload["chat_template_kwargs"] = {"thinking": False}
     resp = requests.post(f"{base_url}/chat/completions", headers=headers, json=payload, timeout=60)
     out: dict[str, Any] = {"http_status": resp.status_code, "ok": resp.status_code == 200}
     if out["ok"]:
@@ -329,7 +334,8 @@ def main() -> int:
             for m in r["models"]:
                 print(f"  - {m}")
             if not args.skip_live_chat and r["models"]:
-                probe_model = next((m for m in r["models"] if "glm-5.1" in m), r["models"][0])
+                # Probe any non-glm-5.1 model: glm-5.1 is banned outright (owner, 2026-09-25).
+                probe_model = next((m for m in r["models"] if "glm-5.1" not in m), r["models"][0])
                 print(f"\nLive chat probe: model={probe_model!r}")
                 p = ollama_chat_probe(ollama_key, probe_model)
                 catalog["ollama"]["chat_probe"] = p
@@ -349,7 +355,8 @@ def main() -> int:
         if r["ok"]:
             print(f"{r['model_count']} total — chat={len(r['chat_models'])} embed={len(r['embed_models'])} rerank={len(r['rerank_models'])}")
             if not args.skip_live_chat and r["chat_models"]:
-                probe_model = "nvidia/nemotron-3-super-120b-a12b" if "nvidia/nemotron-3-super-120b-a12b" in r["chat_models"] else r["chat_models"][0]
+                # kimi-k3 is the NIM default since 2026-09-25; nemotron-3-super was intermittent that day.
+                probe_model = "moonshotai/kimi-k3" if "moonshotai/kimi-k3" in r["chat_models"] else r["chat_models"][0]
                 print(f"\nLive chat probe: model={probe_model!r}")
                 p = nvidia_chat_probe(nvidia_key, probe_model)
                 catalog["nvidia"]["chat_probe"] = p

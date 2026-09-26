@@ -1,12 +1,14 @@
 """Sentiment analysis runtime router for workbench API.
 
 Byline: Codex · GPT-5 · 2026-08-16
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (unusable reply → 502, provider rate limit → 429; see model_errors)
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from app.runtime.model_errors import MODEL_CALL_ERRORS, model_call_http_error
 from app.service.sentiment import sentiment_service
 from app.types.classification import (
     BatchSentimentRequest,
@@ -36,6 +38,8 @@ async def analyze_sentiment(request: SentimentRequest) -> SentimentResponse:
     """Analyze sentiment of a single text."""
     try:
         return await sentiment_service.analyze(request)
+    except MODEL_CALL_ERRORS as e:
+        raise model_call_http_error(e)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -57,6 +61,8 @@ async def analyze_batch(request: BatchSentimentRequest) -> BatchSentimentRespons
     """Analyze sentiment of multiple texts in batch."""
     try:
         return await sentiment_service.analyze_batch(request)
+    except MODEL_CALL_ERRORS as e:
+        raise model_call_http_error(e)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
