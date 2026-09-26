@@ -207,3 +207,8 @@ docs/private/
 
 # docstore plugin runtime state (per-session search flags)
 plugins/docstore/claude/.state/last_search_*.flag
+
+# Docstore 0.8 ADR projections: generated from the authoritative ADR table and written here by every
+# `client.py sync --apply`; the Docstore re-creates them, so they are not source.
+# Byline: Claude Code · Opus 5.5 · 2026-09-26
+docs/adr/generated/

@@ -59,8 +59,12 @@
         {
           "family": "http",
           "canonical_backend_port": 8072,
-          "transitional_backend_ports": [
-            8474
+          "retired_backend_ports": [
+            {
+              "port": 8474,
+              "retired": "2026-09-26",
+              "note": "The deleted docstore-worker app served it. svc:docstore-api now proxies to 8072, which the Coolify service propria-docstore-0-8-1 publishes (image 0.8.1-r2 onward). Claude Code · Opus 5.5 · 2026-09-26."
+            }
           ],
           "service": "svc:docstore-api",
           "client_endpoint": "https://docstore-api.tilapia-skilift.ts.net"

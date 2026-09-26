@@ -1,4 +1,12 @@
 # =============================================================================
+# LEGACY pre-0.8.1 surface. Correction by Claude Code · Opus 5.5 · 2026-09-26:
+#   - Clients use the 0.8.1 hosted ctl instead: ContextForge gateway ctl08, server aca1b85d..., upstream
+#     service propria-docstore-0-8-1.
+#   - This app still runs, but its DOCSTORE_API_TOKEN is empty. The 0.8.1 API on 8072 answers it only on
+#     /health; every other route returns 401.
+#   - Its DOCSTORE_API_URL is a raw IP. The addressing rule says clients use
+#     https://docstore-api.tilapia-skilift.ts.net.
+#   - Retire it or repoint it: owner decision.
 # DOCSTORE-CONTROL - the existing Docstore control MCP server, hosted remotely (HTTP/MCP).
 # Owner order 2026-09-19: plugin 0.7 pointed `ctl` at the raw SurrealDB gateway; the real control
 # server (plugins/docstore/control, FastMCP) was never hosted. This runs it unchanged in HTTP mode.
