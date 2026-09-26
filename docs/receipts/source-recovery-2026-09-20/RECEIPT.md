@@ -2,6 +2,8 @@
 
 Byline: Codex | 2026-09-20 | Owner-directed recovery and reconciliation.
 
+> **Moved 2026-09-26 (Claude Code · Opus 5.5; owner 09:32 "yes, do that").** This folder's payload files now live on ovh-files at `/data/consignatio/receipts/source-recovery-2026-09-20/`, md5-verified with `rclone check` (1,912 of 1,912 files, 0 differences). Only the tracked `.md` files stay in the repo. Every payload path named below resolves there. The local copies are staged in `to_be_deleted/2026-09-26-vps-offload/` for the owner to delete.
+
 ## Verified result: one call-backup family
 
 The original bytes of `calls-20260105063120.xml` were acquired separately from two explicit Google Drive file IDs and the retained B2 version. All three independently reread local binaries are 175,073 bytes and share SHA-256 `0091b447820470f6531be2bc54600d4c360c39dbd6bdc772f3c1c121b300d302`. Google provider metadata was captured before and after acquisition; version, checksums, size and modification time remained stable.

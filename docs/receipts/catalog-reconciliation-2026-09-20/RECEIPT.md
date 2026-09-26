@@ -2,6 +2,8 @@
 
 Byline: Codex | 2026-09-20 | Generation: `2c2ae40f-bc6a-43c6-83a7-f3d60319e4d3`
 
+> **Moved 2026-09-26 (Claude Code · Opus 5.5; owner 09:32 "yes, do that").** The Parquet generations and `generation-02/catalog.duckdb` now live on ovh-files at `/data/consignatio/receipts/catalog-reconciliation-2026-09-20/`, md5-verified with `rclone check` (58 of 58 files, 0 differences). "Local SQL" below now means that VPS path. The local copies are staged in `to_be_deleted/2026-09-26-vps-offload/` for the owner to delete.
+
 The first additive reconciliation layer is live in PostgreSQL and queryable from local Parquet. This verifies metadata linkage and conservation, not universal source quality or deletion safety.
 
 ## Live result

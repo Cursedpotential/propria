@@ -190,7 +190,7 @@ Queued owner requests. Append new items; strike through completed ones with a da
 - [x] **08:10 EDT — "where did the other 20 GB go overnight / can the pagefile be cleared without reboot":** `C:\pagefile.sys` grew to **55 GB** at 02:34:11 EDT (setting says 11.5 GB fixed; Windows expanded it under a low-virtual-memory condition). Resource-Exhaustion-Detector event 2004 at 02:34:11 names the consumer: **`duckdb.exe` (PID 6948) — 61 GB of virtual memory** (a DuckDB CLI process from another session, matching the known "DuckDB over the all-projects transcript glob OOMs"), with ChatGPT 1.1 GB and OneDrive 1 GB far behind. That commit spike is also what killed the D: hasher with `MemoryError` at 02:34 (the enclosure flap at 02:26 was real but separate). The process is gone; commit is back to 42 of 94 GB. A pagefile cannot be cleared or shrunk without a reboot (owner action; I don't change system settings). C: free 38.8 GB of 476.
 - [ ] **07:24 EDT — owner scope ruling for D:: "we only need backup and the loose root files."** In scope: `D:\Backup` (hashing) + the 22 loose files at `D:\` root (2.2 GB: phone videos, `$R…` recycle-bin remnants, recovered clips with 1970/1980 sentinel dates, `worksopace_DUPLICATE.csv`, the xxh3 manifest) as source `local/D-root`. Out of scope: `ai_tools`, `casebible`, `diskimage`, `Documentation`, `projects`, `Rclone`, `users`, `WSL`, `$RECYCLE.BIN`, `System Volume Information`. Root files hashed to `hashes/D_root_hashes.jsonl` (list `D_root.list`), planned and uploaded with Backup — 22/22 hashed 07:26 EDT. **Correction 07:26 EDT:** the persistent `[Errno 22] Invalid argument` rows on D: (704 in run 1, 8,475 in run 2, 3 on the root files) were NOT device errors — `datetime.fromtimestamp()` raises EINVAL on Windows for pre-1970/sentinel mtimes, i.e. exactly the recovered files stamped 1970-01-01 (`011320B8.mp4`, `photo_recovery/…heic`). `local_hash_inventory.py` fixed (epoch + timedelta); Backup hasher restarted 07:27 EDT on the fixed code (369,636 verified done, 362,306 to go incl. the retried rows). The `WinError 3/433` rows and the NTFS 50/140 events remain real device flaps.
 - [ ] **10:30 EDT — final corrupt-vs-recovered count (owner 10:21: "a final corrupt and missing vs corrupt and recovered count").** Tools: `casebible/tools/local_zero_rows.py` (F:/D: zero-filled rows from the 09-13 scans, 20,018), `corrupt_recovery_count.{sql,sh}` (identity = basename + size; good copy = B2 live tree outside `_quarantine/` or a catalog occurrence with a real content disposition). Corrupt set = 47,058 occurrences (R2 20,512 · D:\Backup 10,811 · F:\Disk Drill 9,166 · B2 6,362 · Drive 166 · F:\case 41). **PRELIMINARY (before D:'s rows/upload): recovered 43,295 · missing 3,763 occurrences = 1,064 distinct files** (R2 1,597 / D: 1,005 / F-DD 1,079 / B2 6 / Drive 68 / F-case 8). Missing is dominated by Takeout Google Photos (zero-filled on Drive itself: `Takeout 5/Google Photos/Photos from 2022/IMG_55xx.*`), `_backup_import/photo_recovery/…` carved photos, and `_DUPLICATE` videos. **Recovery lead:** the extracted Takeout trees are zero-filled but the 266 takeout zips on B2 (741 GB) were never opened by any inventory — their members may hold the real bytes for many of the missing photos (needs a zip member listing pass). Final run after the D: upload lands, its rows are loaded and B2 is relisted; missing list: `catalog-exports-20260914/corrupt_missing.csv` on the VPS. **14:10 EDT — D:\Backup upload DONE (143,852 carriers, 0 errors, no disk events; hash verification `rclone check` local SHA1 vs B2 **PASS 14:21 EDT: 143,852 matching, 0 differences**, log `hashes/D_Backup-check.log`), D: rows loaded (D-Backup 660,168 content_on_b2 · 143,852 copied · 35,239 zero · 21,211 junk; D-root 11 + 11), B2 relisted (530,070 objects; `b2_content` 362,562). COUNT after D:: corrupt 47,058 → recovered 43,669 · missing 3,389 occurrences = 871 distinct files** (R2 1,430 / D:\Backup 889 / F:\Disk Drill 1,070; **B2, Drive and F:\case now 0 missing** — D:\Backup held the good copies of the Drive photos). The missing set is dominated by carved `photo_recovery/…/IMG_… (0000877D).jpg` recovery outputs (each 3–4 zero-filled occurrences, no good copy anywhere), `_DUPLICATE` videos, and flet_env DLLs (junk). ~~One more pass pending…~~ **FINAL 15:05 EDT: corrupt 47,058 → recovered 43,669 · missing 3,389 occurrences = 871 distinct files (R2 1,430 · D:\Backup 889 · F:\Disk Drill 1,070 · B2 0 · Drive 0 · F:\case 0).** Closing fixes on the way: `b2_content` now unions every occurrence whose key is present on B2 (an early re-join had relabelled some `copied` rows `content_on_b2`, dropping their payloads from the truth table — an 840 MB OneDrive upload then looked "not on B2"); the plan tool prefers hashed rows on duplicate paths; 191 D: rows with empty md5 were hashed locally (47 of them zero-filled). D:\Backup final: 689,742 content_on_b2 · 143,852 copied · 35,286 zero · 21,211 junk · **0 to_copy** (527 files have no hash in any inventory — rclone read errors on 09-13 — but their keys were verified present by `rclone check`). **OneDrive Case Bible final: 316,754 content_on_b2 · 1,066 copied — `rclone check --download` 1,065 byte-matched + 1 transient read error, then a size-only pass 1,066/1,066, 0 errors (B2 validates upload SHA-1; residual risk = a corrupt read from OneDrive on one file) · 3,080 zero · 2,101 junk.** Every source (R2 ×3, F: ×2, OneDrive ×4 scopes, Drive ×2, D:\Backup, D:\ root) is on B2 and cataloged; nothing left to copy. Remaining recovery lead for the 871 missing files: the 266 takeout zips on B2 (741 GB) have never been opened — their members may hold real bytes for the zero-filled Takeout photos. Missing list pulled to ~~`E:\AI_Workspace\_receipts\corruption-hunt\catalog-exports-20260914\corrupt_missing.csv`~~ **`docs/receipts/corruption-hunt/catalog-exports-20260914/corrupt_missing.csv`** (moved into the repo 2026-09-15 00:15 EDT; 3,389 rows, columns store,container,path,size). Caveat found 00:05: some "missing" rows are venv junk in the R2 quarantine bucket (e.g. `flet_env/…/libmpv-2.dll`) because the dev-junk regex was never applied to the quarantine tranche's zero-filled manifest — a junk-filtered recount is pending.
-- [ ] **10:12 EDT — D: hashing complete, plans built, uploads running.** Backup hasher finished 09:52 EDT: 362,306 files this pass, 0 errors, 113.6 GB, no disk/NTFS events on the new bridge. **D:\Backup plan** (`20260914-100444-D_Backup-plan.tsv`, 890,091 files): 660,168 already on B2 (710 GB) · **173,473 new = 38.9 GB, 143,852 distinct contents** · 35,239 zero/zero-filled excluded (10.5 GB) · 21,211 dev-junk excluded. Upload of the 143,852 carriers launched 10:12 EDT from the laptop (`rclone copy D:/Backup → source-buckets/local/D-Backup`, 8 transfers, `--immutable --metadata`, log `hashes/D_Backup-upload.log`; disk-event watch armed). **D:\ root:** 22 files → 11 on B2 by content, 11 uploaded (1.07 GB) and byte-verified (`rclone check --download`, 11/11). After the Backup upload: `rclone check` (local SHA1 vs B2 sha1, no download) → `local_occurrences_load.py local/D-Backup` and `local/D-root`. The D: zero-file quarantine move (10,811) remains a separate owner decision — excluded from upload regardless.
+- [ ] **10:12 EDT — D: hashing complete, plans built, uploads running.** Backup hasher finished 09:52 EDT: 362,306 files this pass, 0 errors, 113.6 GB, no disk/NTFS events on the new bridge. **D:\Backup plan** (~~`20260914-100444-D_Backup-plan.tsv`~~ **2026-09-26: moved to `to_be_deleted/2026-09-26-disk-cleanup/` as a superseded re-run; newest kept `20260914-145559-D_Backup-plan.tsv`**, 890,091 files): 660,168 already on B2 (710 GB) · **173,473 new = 38.9 GB, 143,852 distinct contents** · 35,239 zero/zero-filled excluded (10.5 GB) · 21,211 dev-junk excluded. Upload of the 143,852 carriers launched 10:12 EDT from the laptop (`rclone copy D:/Backup → source-buckets/local/D-Backup`, 8 transfers, `--immutable --metadata`, log `hashes/D_Backup-upload.log`; disk-event watch armed). **D:\ root:** 22 files → 11 on B2 by content, 11 uploaded (1.07 GB) and byte-verified (`rclone check --download`, 11/11). After the Backup upload: `rclone check` (local SHA1 vs B2 sha1, no download) → `local_occurrences_load.py local/D-Backup` and `local/D-root`. The D: zero-file quarantine move (10,811) remains a separate owner decision — excluded from upload regardless.
 - [ ] **07:22 EDT — owner reseated D: ("try it"): the disk now enumerates on a different bridge ("JMicron Tech", still USB), Healthy/Online, `Ntfs 98` (volume healthy) at mount 07:21:30, no disk/NTFS errors since 04:30. `chkdsk D: /scan` refused from my non-elevated shell (owner can run it from an admin prompt; not required). Hasher resumed 07:22 EDT from 398,309 rows.** Watch for `disk 153` / `Ntfs 50/140` again; stop on the first one.
 - [x] ~~**04:31 EDT — D: hasher STOPPED on purpose: the enclosure dropped out again and NTFS logged write failures.**~~ (resumed 07:22, see above) Second episode at **04:25:22–28 EDT**: `disk 153`, then `Ntfs 50` (delayed write failed) ×3 and `Microsoft-Windows-Ntfs 140` (failed to flush the transaction log — corruption may occur) ×3, while the hasher (read-only) was running. This run's 16,917 "errors" (8,475 EINVAL + 8,442 path-not-found, e.g. `k/Katrina/IMG_5797.MP4`, `…/photo_recovery/Photos/…heic`) all exist and read fine afterwards — device flap, not missing files. Hashed so far: 388,999 rows (part2) incl. retried errors. **Do not resume until the owner has changed the USB cable/port (or moved the disk to SATA) — sustained load on a flapping enclosure risks the volume, not just the job.** Resume command unchanged (resumable; error rows are retried).
 - [ ] **D:\Backup disk logged I/O retries — owner should know (03:20 EDT).** Windows System log: six `disk` event 153 ("IO operation … was retried") on Disk 1 = `1TB_IN_SATA` in the "TO External USB 3.0" enclosure at **02:26:34 EDT**. Volume is Healthy/Online now and reads succeed; the hasher (`local_hash_inventory.py`) died 8 min later with `MemoryError` (CPython's mapping of `ERROR_NO_SYSTEM_RESOURCES`) after recording 18,313 error rows (12,678 "not found", 4,931 "device does not exist", 704 EINVAL) — the enclosure flapped, files are not gone. Hasher fixed (error rows retried on resume; backoff on WinError 433/1450/21/1167 and MemoryError) and relaunched 03:20 EDT from 119,025/731,942. **Owner action:** the USB path to D: is flaky — different cable/port before any long read, and treat D: as at-risk until its bytes are on B2.
@@ -312,6 +312,11 @@ Queued owner requests. Append new items; strike through completed ones with a da
 
 **Decided (owner)**
 - Receipts live in the repo under `docs/receipts/` (owner 00:11). No separate README/index doc: this section is the map; handoffs summarize, they never hold facts.
+  - **2026-09-26 (owner 09:32).** The payloads of three receipt folders now live on ovh-files under `/data/consignatio/receipts/<same path>/`, md5-verified:
+    - `corruption-hunt/hashes/`: 62 files.
+    - `source-recovery-2026-09-20/`: 1,912 files.
+    - `catalog-reconciliation-2026-09-20/`: 58 files.
+  - Their tracked `.md` files stay here. Every older `hashes/…` path in this log resolves on ovh-files now.
 - `fn::handoff_write` gets fixed, not worked around (owner 00:25).
 
 **Changed + verified**
@@ -2597,3 +2602,94 @@ engine deploy is waiting on the owner's go.
 - [ ] 13 recovered-disk XML fragments still fail (binary noise / broken attachment lines; several cut at exactly 256 MB). They need a line-level salvage that skips corrupt lines. Toolkit first.
 - [ ] `f850530928.xml` shows both 9302 and 9303 as the phone's own line. Investigate before relying on its `owner_line`.
 - [ ] Empty stray folders `E:/AI_Workspace/Projects/Probata/probata/scripts/jev_eval/`, left by a wrong write path and since moved. The owner deletes them (the guard blocks it).
+
+## 2026-09-26 08:42–09:25 EDT — E:/C: disk cleanup (owner: "why are we hashing on my system" · 09:10 "you can clear cache and junk files")
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-26_
+
+- [x] **Staged as same-volume moves. Nothing deleted; only the owner deletes.**
+  - `to_be_deleted/2026-09-26-disk-cleanup/` (E:, 7.7 GB):
+    - `Intake/xplorer-copilot-buildkit/xplorer-copilot/apps/intake-engine/target`: 2.4 GB Rust build cache from a desktop debug build on 09-22/23.
+    - `…/apps/src-tauri/target/debug/{deps,build,incremental,.fingerprint,examples,xplorer.pdb,xplorer.d}`: 4.2 GB Rust build cache. `xplorer.exe` (09-14 debug build) stays in place.
+    - `docs/receipts/corruption-hunt/hashes/`: 7 superseded plan re-runs, 1.1 GB (D_Backup `100444`/`142642`/`143809`, F_case `025832`/`062715`, F_Disk_Drill `030130`/`062914`). The newest plan per source stays (`145559`, `063213`, `063408`). The rows are in `raw_duck.source_occurrences` (local/D-Backup 890k, local/F-Disk-Drill 158k, local/F-case 56k). `hashes/` is now 1.5 GB.
+  - `C:\Users\matts\to_be_deleted\2026-09-26-disk-cleanup\claude-jobs\` (C:, 10 GB): temp folders of three finished Claude jobs. `~/.claude/jobs` went from 11 GB to 752 MB.
+    - `570eed3e`: a 09-10 backup copy of Probata `docs/private/claims-audit-2026-09-07/extract/codex.duckdb` (8.5 GB) and `l4.duckdb`. Byte size and mtime match the originals. Also a SurrealKV test store (0.27 GB).
+    - `68afe1c5`: a venv and SurrealKV test stores (0.5 GB).
+    - `7645ffb1`: `cat_ro.duckdb`, a read-only catalog copy (0.55 GB).
+- [ ] **Owner:** delete both `2026-09-26-disk-cleanup` folders (~7.7 GB on E:, ~10 GB on C:). The older `to_be_deleted/git-flatten-20260920/` also holds 5.2 GB (4.5 GB of it is the worktree copy `consignatio-best-copy-20260913`). It is not in this log and was not re-checked on 09-26.
+- [ ] **Owner decision (not cache, left in place):**
+  - Probata `docs/private/claims-audit-2026-09-07/extract/codex.duckdb` (8.5 GB, 09-06): the claims-audit working DB, built on the desktop from 632 Codex session files. It has `sentences`/`classified` (694k rows each) and `candidates_dedup` (8k). The source logs are still in `~/.codex/sessions` and `archived_sessions`. The audit outputs are the small `audit_*`/`a05_*` files beside it. Options: (a) move to ovh-files, (b) stage for delete, (c) keep.
+  - Receipts:
+    - `hashes/` remainder, 1.5 GB: the final plans and hash ledgers, already in the catalog.
+    - `source-recovery-2026-09-20/`, 2.6 GB: includes `native-r2-december-recovery/sms-20251206203434.xml` (1.27 GB, an evidence copy) and `analysis-artifacts.tar.gz` (1.08 GB).
+    - `catalog-reconciliation-2026-09-20/`, 1.1 GB: parquet generations 01 and 02.
+- Found: the Start-menu shortcut `Intake Dev Build.lnk` still targets the pre-`modules/` path `E:\AI_Workspace\Projects\Propria\Consignatio\…\src-tauri\target\debug\xplorer.exe`, so it has been broken since the 09-19/20 move.
+- Why these ran locally:
+  - D:\Backup and F: hashing (09-13/14) read disks attached to this desktop, so only what B2 lacked was uploaded (143,852 carriers, `rclone check` PASS).
+  - Nothing hashes now. The running rclone processes are the four mounts (V:, Y:, X:, O:), and the python processes are the browser-use MCP.
+  - The claims audit (09-06) and the intake-engine debug build (09-22/23) both ran on the desktop.
+- `xplorer-copilot/node_modules` (1.1 GB) is hard links into the shared pnpm store `E:\.pnpm-store` (1.5 GB), so moving it frees nothing.
+
+### 09:32–09:40 EDT — follow-ups (owner answers)
+- [x] Start-menu `Intake Dev Build.lnk` now points at `E:\AI_Workspace\Projects\Propria\modules\Consignatio\…\src-tauri\target\debug\xplorer.exe` (owner 09:33 "Fix or remove"). The target exists; the shortcut was not launched.
+- [x] Sprint mode removed from `~/.claude/CLAUDE.md` (owner 09:36 "We are not in Sprint mode… 09:37 Remove the Sprint mode"). Memory note `nothing-is-locked-options-to-owner` fixed too. The queue-to-TODO rule stays (owner 09:36: "you should always append to a to-do").
+- [x] **VPS offload, done 10:18** (owner 09:32 "yes, do that").
+  - Moved 2,033 files / 13.61 GiB, desktop → ovh-files over tailnet sftp. No cloud ops, $0.
+  - `rclone check` (md5) on each folder: 0 differences, 0 copy errors.
+    - `/data/consignatio/receipts/corruption-hunt/hashes`: 62/62
+    - `/data/consignatio/receipts/source-recovery-2026-09-20`: 1,912/1,912
+    - `/data/consignatio/receipts/catalog-reconciliation-2026-09-20`: 58/58
+    - `/data/probata/docs-private/claims-audit-2026-09-07/extract/codex.duckdb`: 1/1
+  - Local copies are staged, and the tracked `.md`/`.gitignore` files stay in the repo:
+    - `Consignatio/to_be_deleted/2026-09-26-vps-offload/` (5.1 GB)
+    - `Probata/probata/to_be_deleted/2026-09-26-vps-offload/` (8.6 GB)
+  - `docs/receipts` is 377 MB now (was 6.6 GB). Both `RECEIPT.md` files carry the new location.
+- [x] **Owner deleted the five quarantine folders** (~16:21, verified gone):
+  - Consignatio `to_be_deleted/{git-flatten-20260920, 2026-09-26-disk-cleanup, 2026-09-26-vps-offload}`
+  - Probata `to_be_deleted/2026-09-26-vps-offload`
+  - `C:\Users\matts\to_be_deleted\2026-09-26-disk-cleanup`
+  - Free space: E: 51 GB (18 GB at 08:43), C: 92 GB (82 GB).
+  - The two delete runs overlapped. The access-denied / path-not-found errors from the second run were that race; nothing was left behind.
+- [ ] **OpenList: show Consignatio** (owner 09:38 "Fix that").
+  - The edit is ready but uncommitted in `Propria/_worktrees/probata-openlist-consignatio/deploy/openlist.yaml`.
+    - It adds read-only mounts for `/data/consignatio/{receipts,migrations,backups,volumes}` and `/data/probata/docs-private`.
+    - `secrets/` and `config/` are not mounted.
+  - The permission classifier refused the commit and push to Probata `main` ("Out-of-Place Publication").
+  - The owner said "Yes yes" at 09:47. The classifier refused both the commit/push and the storage-table write on ovh-files again ("Remote Shell Writes"). **Owner runs both:**
+    1. Commit and push the worktree change.
+    2. After the redeploy, add five Local storages in the OpenList UI: `/consignatio/{receipts,migrations,backups,volumes}` → `/mnt/consignatio/…`, and `/probata/docs-private` → `/mnt/probata-docs-private`.
+  - Remove the worktree once it has merged.
+- [ ] **Owner:** delete `to_be_deleted/git-flatten-20260920` (5.2 GB; owner 09:33 "If I didn't then do so"). Claude cannot hard-delete files.
+- [x] OpenList storages `/consignatio/{receipts,migrations,backups,volumes}` and `/probata/docs-private` were written to `x_storages` at 17:37 (owner "try again"). They load on the next OpenList start.
+- [x] **18:46–18:52: OpenList shows Consignatio, verified live.**
+  - Pushed probata `05f65e1` (owner 18:46: the 17:37 "stop" was the system catching his comment, not a stop).
+  - Coolify did not auto-deploy on the push, so the deploy was triggered through the API (`y4s1d319…`, finished 18:51). The container is healthy with the 5 read-only mounts.
+  - The OpenList WebDAV view (the same one the O: drive uses) lists:
+    - `/consignatio/{backups,migrations,receipts,volumes}`
+    - `/consignatio/receipts/{catalog-reconciliation-2026-09-20, corruption-hunt, source-recovery-2026-09-20}`
+    - `/probata/docs-private/…/codex.duckdb`
+  - The cutover session was told the worktree is clear.
+  - Open: find out why Coolify's watch-path auto-deploy didn't fire for `deploy/openlist.yaml`.
+- [ ] ~~The Probata push of `deploy/openlist.yaml` was **stopped by the owner** (17:37). The change is still uncommitted in `Propria/_worktrees/probata-openlist-consignatio`.~~ Superseded 18:46, see above.
+  - 18:40: the monorepo cutover lists this worktree as a blocker.
+  - The diff is saved at `Propria/_worktrees/probata-openlist-consignatio-2026-09-26.patch`.
+  - The cutover session was told "in flight, preserved as patch, pending the owner's push go".
+- [x] **17:41: the 8 repos are PRIVATE again** (verified with `gh repo view`).
+  - The owner had made them public on purpose so an agent without access to his system could read them (17:40: "We can make it private again").
+  - Coolify deploys through its GitHub App, so it is unaffected (owner: "Coolify has a connection").
+  - The owner does not use GitHub Actions.
+  - The `/auto-mode-setup` environment still says `propria` is PUBLIC. Re-run it.
+- [ ] ~~**FOUND 17:40, needs an owner decision: the project repos are PUBLIC on GitHub.**~~ Resolved 17:41, see above.
+  - Repos: `propria`, `probata`, `Consignatio`, `Legal-Workspace`, `Intake-desktop`, `xplorer-copilot-buildkit`, `traceiq-rebuild`, `sbv-forensic`. In total 33 of 40 repos are public.
+  - The docs call `Intake-desktop` and `xplorer-copilot-buildkit` private.
+  - Forks, stars and watchers are all 0.
+  - This is why auto mode flags pushes as publication.
+  - The owner's 17:37 `/auto-mode-setup` recorded `propria` as PUBLIC and added a soft-deny on pushes to it.
+- [ ] **Monorepo (owner 17:37: "we were supposed to be moving towards a proper mono repo under propria"):** Probata and Consignatio are still separate repos nested inside Propria. Pushes to them read as out-of-place to auto mode. Follow `docs/monorepo-migration-manifest.json` (Propria root).
+  - **Owner 18:35–18:37 EDT (recorded by Claude Code · Opus 5.5, claude-context session):** forks the application uses (Xplorer `xplorer-copilot`, `sbv`, `timesketch`) are imported into Propria; tools used only to develop the application (memsearch, claude-context) stay outside as separate repos. "Be safe. Be comprehensive. Don't skip things. Don't delete anything that we need. I want one clean code base." Inventory agents started 18:4x; cutover plan goes to the owner before anything is moved.
+- [ ] **Discuss later (owner 09:36): OpenList vs a sync / file-drop tool.**
+  - The owner expected the storage layer to give easy desktop ↔ VPS ↔ bucket sync, and asked for Syncthing "or some other file drop type application" (09:33–09:34).
+  - This conflicts with the 2026-09-14 rulings: OpenList is a viewer only, and transfers go direct to the source. On 09-13 its WebDAV path silently copied 0 of 22,565 files.
+  - Owner: "I was unaware of this and we'll have to discuss this later."
+  - The 2026-09-07 header of `deploy/openlist.yaml` already names "the desktop via its own WebDAV/SMB share or Syncthing".
+- [x] ~~**Owner 09:40 EDT, sent to the claude-context session by mistake and queued here (Claude Code · Opus 5.5):** "note consignatio isn't visible in OpenList like probata's volumes are, but that's fine since the owner can still access it vi[a …] — Yes." It reads as the owner's "yes" to the OpenList point in the storage work above (the Consignatio volumes vs Probata's in OpenList).~~ **Covered, 17:44:** it duplicates the owner's 09:38 "Fix that" to this session. See "OpenList: show Consignatio" above: the storages were written at 17:37, and the compose push waits on the owner's go.
