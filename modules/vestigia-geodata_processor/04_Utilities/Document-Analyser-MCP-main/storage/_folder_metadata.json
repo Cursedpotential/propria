@@ -1,0 +1,22 @@
+[
+  {
+    "filename": "document_storage.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\storage\\document_storage.py",
+    "last_modified": "2025-07-04T23:23:21",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 \"\"\"Document storage and search functionality.\"\"\" import json import os from typing import Dict, List, Any, Optional from datetime import datetime import pandas as pd from sklear...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\storage",
+    "group_base_name": "document_storage"
+  },
+  {
+    "filename": "__init__.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\storage\\__init__.py",
+    "last_modified": "2025-07-04T23:23:21",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\"Document storage module.\"\"\" from .document_storage import DocumentStorage __all__ = [\"DocumentStorage\"]",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Document-Analyser-MCP-main\\storage",
+    "group_base_name": "__init__"
+  }
+]

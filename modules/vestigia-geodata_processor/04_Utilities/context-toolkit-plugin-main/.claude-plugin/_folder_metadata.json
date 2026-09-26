@@ -1,0 +1,12 @@
+[
+  {
+    "filename": "plugin.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\.claude-plugin\\plugin.json",
+    "last_modified": "2025-11-16T09:23:56",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{ \"name\": \"context-toolkit\", \"description\": \"A comprehensive toolkit implementing the CONTEXT.md workflow system for managing human-authored context and agent-ready briefings, bridging natural express...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\context-toolkit-plugin-main\\.claude-plugin",
+    "group_base_name": "plugin"
+  }
+]

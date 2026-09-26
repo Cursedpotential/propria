@@ -1,0 +1,21 @@
+# severity.yaml — default category priorities
+
+high:
+  - alcohol_risk_child
+  - parental_alienation
+  - reactive_abuse_gotcha
+  - character_assassination
+  - coercive_control
+
+medium:
+  - social_media_deception
+  - infidelity_betrayal
+  - financial_abuse
+  - healthcare_denial
+  - stonewalling_blocking
+
+low:
+  - certainty_absolutism
+  - victimhood_narrative
+  - feigned_incompetence
+  - last_minute_plan_change

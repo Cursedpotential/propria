@@ -1,0 +1,62 @@
+[
+  {
+    "filename": ".gitignore",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\.gitignore",
+    "last_modified": "2025-08-06T13:50:05",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Byte-compiled / optimized / DLL files __pycache__/ *.py[cod] *$py.class # C extensions *.so # Distribution / packaging .Python build/ develop-eggs/ dist/ downloads/ eggs/ .eggs/ lib/ lib64/ parts/ s...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main",
+    "group_base_name": ".gitignore"
+  },
+  {
+    "filename": "LICENSE",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\LICENSE",
+    "last_modified": "2025-08-06T13:50:05",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "MIT License Copyright (c) 2025 Larsen Weigle Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main",
+    "group_base_name": "license"
+  },
+  {
+    "filename": "pyproject.toml",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\pyproject.toml",
+    "last_modified": "2025-08-06T13:50:05",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "[build-system] requires = [\"hatchling\"] build-backend = \"hatchling.build\" [project] name = \"langextract-mcp\" version = \"0.1.0\" description = \"FastMCP server for Google's langextract library - extract ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main",
+    "group_base_name": "pyproject"
+  },
+  {
+    "filename": "README.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\README.md",
+    "last_modified": "2025-08-06T13:50:05",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# LangExtract MCP Server A FastMCP server for Google's [langextract](https://github.com/google/langextract) library. This server enables AI assistants like Claude Code to extract structured informatio...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main",
+    "group_base_name": "readme"
+  },
+  {
+    "filename": "SETUP.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\SETUP.md",
+    "last_modified": "2025-08-06T13:50:05",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# LangExtract MCP Server Setup Guide ## Quick Setup (No Config Files Needed!) This MCP server doesn't use separate configuration files. Everything is handled through environment variables and tool par...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main",
+    "group_base_name": "setup"
+  },
+  {
+    "filename": "uv.lock",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\uv.lock",
+    "last_modified": "2025-08-06T13:50:05",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "version = 1 revision = 1 requires-python = \">=3.10\" resolution-markers = [ \"python_full_version >= '3.12'\", \"python_full_version == '3.11.*'\", \"python_full_version < '3.11'\", ] [[package]] name = \"abs...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main",
+    "group_base_name": "uv"
+  }
+]

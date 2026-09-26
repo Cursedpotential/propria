@@ -1,0 +1,132 @@
+[
+  {
+    "filename": " (2).env",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ (2).env",
+    "last_modified": "2025-12-22T06:50:22.488381",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Supabase Database Configuration # Project: TraceIQ Timeline & Personal History Database # DO NOT COMMIT THIS FILE # Supabase Connection SUPABASE_PROJECT_REF=oflqpddqaecotsdsxbzp SUPABASE_URL=https:/...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": ""
+  },
+  {
+    "filename": ".gitignore",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\.gitignore",
+    "last_modified": "2025-12-22T06:50:24.868076",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Environment variables and secrets .env .env.local .env.*.local *.env # API keys and credentials *credentials*.json *api*key*.txt .api-keys-reference.txt # Database files *.db *.sqlite *.sqlite3 # Lo...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": ".gitignore"
+  },
+  {
+    "filename": "AI Workspace.code-workspace",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\AI Workspace.code-workspace",
+    "last_modified": "2025-12-13T03:03:04.303319",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{ \"folders\": [ { \"path\": \".\" } ] }",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "ai workspace"
+  },
+  {
+    "filename": "conversations-20251215_153247-2f08f0ab.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\conversations-20251215_153247-2f08f0ab.json",
+    "last_modified": "2025-12-15T15:37:00",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{ \"conversations\": [ { \"context_uuid\": \"51bea023-5eac-4037-a025-2fe887967a1f\", \"context_title\": \"Summarize the current webpage\", \"created_at\": \"2025-11-26T10:58:50.862897Z\", \"updated_at\": \"2025-11-26T...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "conversations-20251215_153247-2f08f0ab"
+  },
+  {
+    "filename": "docker-compose-salem-complete.yml",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\docker-compose-salem-complete.yml",
+    "last_modified": "2025-12-27T07:03:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Salem Processing Stack v3.2 - COMPLETE # All services included. No Traefik (Coolify handles routing). # R2 Mount: /mnt/r2 (set up rclone on host before deploying) services: # =======================...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "docker-compose-salem-complete"
+  },
+  {
+    "filename": "docker-compose-salem.yml",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\docker-compose-salem.yml",
+    "last_modified": "2025-12-27T02:00:46",
+    "is_latest": false,
+    "is_iteration": true,
+    "summary": "# Salem Processing Stack v3.2 - COMPLETE # All services included. No Traefik (Coolify handles routing). # R2 Mount: /mnt/r2 (set up rclone on host before deploying) services: # =======================...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "docker-compose-salem"
+  },
+  {
+    "filename": "docker-compose-salem-v3.1.yml",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\docker-compose-salem-v3.1.yml",
+    "last_modified": "2025-12-27T08:11:08",
+    "is_latest": true,
+    "is_iteration": true,
+    "summary": "# Salem Processing Stack v3.1 # Added: Ollama, LiteLLM, FastMCP, Stirling PDF services: # =========================================== # REVERSE PROXY # =========================================== trae...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "docker-compose-salem"
+  },
+  {
+    "filename": "litellm_config.yaml",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\litellm_config.yaml",
+    "last_modified": "2025-12-27T08:11:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# LiteLLM Configuration # Routes requests to appropriate LLM providers based on model name model_list: # =========================================== # ANTHROPIC (Claude) # ============================...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "litellm_config"
+  },
+  {
+    "filename": "MASTER_TIMELINE_CONSOLIDATED.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\MASTER_TIMELINE_CONSOLIDATED.md",
+    "last_modified": "2025-12-13T19:08:22.500915",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# MASTER EVIDENCE TIMELINE - MATTHEW VS. KATRINA ## Consolidated from All Documents - Court-Ready Format --- ## EXECUTIVE SUMMARY **Total Evidence Points Extracted:** 300+ **Date Range Covered:** Augu...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "master_timeline_consolidated"
+  },
+  {
+    "filename": "Salem_Workspace_Project_Prompt.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\Salem_Workspace_Project_Prompt.md",
+    "last_modified": "2025-12-07T19:55:00.569940",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# PROJECT PROMPT: SALEM WORKSPACE ## General-Purpose Assistant Configuration --- ## WHO YOU'RE WORKING WITH **Matt Salem** - Pro se litigant, electrician, 15 years IT/Low Voltage experience. Building ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "salem_workspace_project_prompt"
+  },
+  {
+    "filename": "session_export.xml",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\session_export.xml",
+    "last_modified": "2025-12-20T14:13:18.915575",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "<?xml version=\"1.0\" ?> <conversation> <turn id=\"1\" type=\"user\" timestamp=\"2025-12-20T18:35:18.519Z\"> <content> Do you want to work in this folder? C:\\Users\\matts In order to work in this folder, we ne...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "session_export"
+  },
+  {
+    "filename": "timeline_parser_prompt.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\timeline_parser_prompt.md",
+    "last_modified": "2025-12-09T22:20:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Timeline Data Parser & Normalizer - System Prompt ## ROLE You are a **Forensic Timeline Data Engineer** specializing in extracting, normalizing, and validating conversation data from heterogeneous s...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "timeline_parser_prompt"
+  },
+  {
+    "filename": "unified_deployment_v3.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\unified_deployment_v3.md",
+    "last_modified": "2025-12-27T07:03:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# SALEM FORENSIC TRINITY: UNIFIED DEPLOYMENT v3 **Purpose:** Reconcile Chronicle (therapeutic capture) + Command Center (evidence processing) into one coherent system **Date:** December 26, 2025 --- #...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder",
+    "group_base_name": "unified_deployment"
+  }
+]

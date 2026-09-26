@@ -1,0 +1,22 @@
+[
+  {
+    "filename": "server.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\src\\langextract_mcp\\server.py",
+    "last_modified": "2025-08-06T13:50:05",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\"FastMCP server for langextract - optimized for Claude Code integration.\"\"\" import os from typing import Any from pathlib import Path import hashlib import json import langextract as lx from fastmcp...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\src\\langextract_mcp",
+    "group_base_name": "server"
+  },
+  {
+    "filename": "__init__.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\src\\langextract_mcp\\__init__.py",
+    "last_modified": "2025-08-06T13:50:05",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "\"\"\"LangExtract MCP Server - FastMCP server for Google's langextract library.\"\"\" from .server import mcp, main __version__ = \"0.1.0\" __all__ = [\"mcp\", \"main\"]",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\langextract-mcp-main\\src\\langextract_mcp",
+    "group_base_name": "__init__"
+  }
+]

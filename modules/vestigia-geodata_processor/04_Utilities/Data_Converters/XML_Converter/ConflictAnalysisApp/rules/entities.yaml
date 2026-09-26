@@ -1,0 +1,26 @@
+# entities.yaml — names, places, platforms, substances
+
+people:
+  - { name: "Katrina", aliases: ["Kat"] }
+  - { name: "Salem", aliases: ["Matt", "Matthew"] }
+
+places:
+  - { name: "Huckleberry Junction", aliases: ["Huckleberry", "Huck", "Huck's"] }
+
+platforms:
+  - snapchat
+  - instagram
+  - facebook
+  - tiktok
+
+substances:
+  alcohol:
+    - fireball
+    - vodka
+    - tequila
+    - wine
+    - beer
+  stimulants:
+    - adderall
+    - addy
+    - amphetamine

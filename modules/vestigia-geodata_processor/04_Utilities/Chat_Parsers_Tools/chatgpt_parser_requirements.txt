@@ -1,0 +1,18 @@
+# ChatGPT Parser - Python Dependencies
+
+# Core NLP library for entity extraction
+spacy>=3.7.0,<4.0.0
+
+# Note: After installing spacy, run:
+# python -m spacy download en_core_web_sm
+
+# No other external dependencies required
+# Uses Python standard library for:
+# - json (parsing)
+# - hashlib (SHA256)
+# - re (regex)
+# - pathlib (file handling)
+# - dataclasses (data structures)
+# - typing (type hints)
+# - datetime (timestamp normalization)
+# - uuid (unique IDs)

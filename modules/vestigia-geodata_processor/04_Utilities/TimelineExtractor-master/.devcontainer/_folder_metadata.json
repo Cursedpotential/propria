@@ -1,0 +1,22 @@
+[
+  {
+    "filename": "devcontainer.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\.devcontainer\\devcontainer.json",
+    "last_modified": "2024-07-30T15:40:25",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at: // https://github.com/microsoft/vscode-dev-containers/tree/v0.140.1/containers/python-3 { \"name\": \"P...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\.devcontainer",
+    "group_base_name": "devcontainer"
+  },
+  {
+    "filename": "Dockerfile",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\.devcontainer\\Dockerfile",
+    "last_modified": "2024-07-30T15:40:25",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# See here for image contents: https://github.com/microsoft/vscode-dev-containers/tree/v0.140.1/containers/python-3/.devcontainer/base.Dockerfile # [Choice] Python version: 3, 3.8, 3.7, 3.6 ARG VARIAN...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\TimelineExtractor-master\\.devcontainer",
+    "group_base_name": "dockerfile"
+  }
+]

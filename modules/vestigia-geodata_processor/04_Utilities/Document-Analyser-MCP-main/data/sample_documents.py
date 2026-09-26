@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+"""Sample documents with metadata for the document analyzer."""
+
+from datetime import datetime
+from typing import Dict, List, Any
+
+SAMPLE_DOCUMENTS: List[Dict[str, Any]] = [
+    {
+        "id": "doc_001",
+        "title": "The Future of Artificial Intelligence",
+        "content": """Artificial Intelligence is rapidly transforming our world in unprecedented ways. From autonomous vehicles navigating city streets to sophisticated language models engaging in human-like conversations, AI technologies are reshaping industries and redefining what's possible. The potential benefits are enormous - improved healthcare diagnostics, more efficient energy systems, and enhanced educational tools that adapt to individual learning styles. However, we must also address the challenges: ensuring ethical AI development, protecting privacy, and managing the economic disruption that automation may bring. As we stand at this technological crossroads, it's crucial that we develop AI systems that augment human capabilities rather than replace them entirely. The future of AI should be one where technology serves humanity's best interests while preserving our core values and dignity.""",
+        "author": "Dr. Sarah Chen",
+        "category": "Technology",
+        "created_at": datetime(2024, 1, 15),
+        "tags": ["AI", "technology", "future", "ethics"],
+        "language": "en"
+    },
+    {
+        "id": "doc_002", 
+        "title": "Climate Change and Renewable Energy Solutions",
+        "content": """The urgent need for renewable energy solutions has never been more apparent. Climate change continues to accelerate, with rising global temperatures, melting ice caps, and increasingly severe weather patterns affecting communities worldwide. Solar and wind technologies have made remarkable progress, becoming more efficient and cost-effective than ever before. Battery storage systems are solving the intermittency challenge, while smart grids are optimizing energy distribution. Countries investing heavily in renewable infrastructure are seeing economic benefits alongside environmental ones. Job creation in the green energy sector is booming, offering new opportunities for workers transitioning from fossil fuel industries. The transition won't be easy, but the combination of technological innovation, policy support, and growing public awareness creates an unprecedented opportunity to build a sustainable energy future.""",
+        "author": "Prof. Michael Rodriguez",
+        "category": "Environment",
+        "created_at": datetime(2024, 1, 20),
+        "tags": ["climate", "renewable energy", "sustainability", "environment"],
+        "language": "en"
+    },
+    {
+        "id": "doc_003",
+        "title": "The Art of Mindful Living",
+        "content": """In our fast-paced digital world, the practice of mindfulness offers a pathway to inner peace and clarity. Mindful living isn't about escaping reality; it's about engaging with life more fully and consciously. When we practice mindfulness, we learn to observe our thoughts and emotions without judgment, creating space between stimulus and response. This simple yet profound shift can transform our relationships, reduce stress, and enhance our overall well-being. Daily meditation, even for just ten minutes, can rewire our brains for greater resilience and happiness. Mindful eating helps us appreciate food and develop healthier relationships with nourishment. Walking meditation connects us with nature and our bodies. The beauty of mindfulness lies in its accessibility - it requires no special equipment or location, only our willingness to be present.""",
+        "author": "Lisa Thompson",
+        "category": "Wellness",
+        "created_at": datetime(2024, 1, 25),
+        "tags": ["mindfulness", "meditation", "wellness", "mental health"],
+        "language": "en"
+    },
+    {
+        "id": "doc_004",
+        "title": "Economic Inequality in Modern Society",
+        "content": """Economic inequality has reached alarming levels in many developed nations, creating social tensions and undermining democratic institutions. The gap between the wealthy and working classes continues to widen, with consequences that extend far beyond individual financial struggles. When large segments of the population lack access to quality education, healthcare, and housing, entire communities suffer. This inequality stifles economic mobility and perpetuates cycles of poverty that can persist across generations. The concentration of wealth in the hands of a few limits consumer spending power, which ultimately hurts economic growth. Addressing this crisis requires comprehensive policy reforms: progressive taxation, increased minimum wages, universal healthcare, and significant investments in education and infrastructure. Without decisive action, we risk creating a permanently divided society where opportunity is determined by birth rather than merit.""",
+        "author": "Dr. James Wilson",
+        "category": "Economics",
+        "created_at": datetime(2024, 2, 1),
+        "tags": ["inequality", "economics", "policy", "social justice"],
+        "language": "en"
+    },
+    {
+        "id": "doc_005",
+        "title": "Breakthrough in Quantum Computing",
+        "content": """Scientists at leading research institutions have achieved a major breakthrough in quantum computing, successfully demonstrating quantum supremacy in solving complex optimization problems. This milestone represents years of collaborative effort between physicists, computer scientists, and engineers working to harness the strange properties of quantum mechanics for computational purposes. Unlike classical computers that process information in binary bits, quantum computers use quantum bits or 'qubits' that can exist in multiple states simultaneously. This parallel processing capability could revolutionize fields requiring massive computational power: drug discovery, financial modeling, cryptography, and artificial intelligence. However, significant challenges remain. Quantum systems are extremely fragile and require near-absolute-zero temperatures to function. Error rates are still high, and scaling up to practical applications will require innovative engineering solutions. Despite these hurdles, the potential impact is enormous, promising to solve problems currently beyond our computational reach.""",
+        "author": "Dr. Emily Chang",
+        "category": "Science",
+        "created_at": datetime(2024, 2, 5),
+        "tags": ["quantum computing", "science", "technology", "breakthrough"],
+        "language": "en"
+    },
+    {
+        "id": "doc_006",
+        "title": "The Renaissance Revival in Modern Art",
+        "content": """Contemporary artists are drawing unprecedented inspiration from Renaissance masters, creating a fascinating dialogue between classical techniques and modern sensibilities. This revival isn't mere imitation but rather a thoughtful reinterpretation of timeless artistic principles. Young painters are studying the sfumato techniques of Leonardo da Vinci while incorporating digital elements and contemporary themes. Sculptors are revisiting marble carving traditions while exploring new materials and abstract forms. The renewed interest in classical composition, perspective, and human anatomy reflects a desire for technical mastery in an age of digital art and instant gratification. Art schools are reporting increased enrollment in traditional drawing and painting courses. Museums are organizing exhibitions that juxtapose Renaissance works with contemporary pieces, revealing surprising connections across centuries. This movement suggests that despite technological advances, the fundamental human desire to create beauty and meaning through art remains constant.""",
+        "author": "Maria Gonzalez",
+        "category": "Arts",
+        "created_at": datetime(2024, 2, 10),
+        "tags": ["art", "renaissance", "contemporary", "culture"],
+        "language": "en"
+    },
+    {
+        "id": "doc_007",
+        "title": "Space Exploration: Mars Mission Updates",
+        "content": """The latest Mars mission has yielded fascinating discoveries about the Red Planet's geological history and potential for past life. Advanced rovers equipped with sophisticated instruments are analyzing soil samples and rock formations, providing unprecedented insights into Mars' ancient climate. Evidence suggests that liquid water once flowed abundantly across the Martian surface, creating conditions that could have supported microbial life. The discovery of organic compounds in sedimentary rocks has excited the scientific community, though researchers caution that these findings don't confirm the existence of past life. Meanwhile, plans for human missions to Mars are advancing rapidly. Space agencies are developing new propulsion systems, life support technologies, and radiation shielding to protect astronauts during the lengthy journey. The psychological challenges of long-duration space travel are also being studied intensively. Private companies are contributing innovative solutions, from reusable rockets to advanced spacesuits. The dream of becoming a multi-planetary species is closer to reality than ever before.""",
+        "author": "Dr. Robert Kim",
+        "category": "Space",
+        "created_at": datetime(2024, 2, 15),
+        "tags": ["mars", "space exploration", "science", "discovery"],
+        "language": "en"
+    },
+    {
+        "id": "doc_008",
+        "title": "Digital Privacy in the Information Age",
+        "content": """Our digital footprints reveal more about us than we realize, and protecting personal privacy has become one of the defining challenges of the information age. Every click, search, and online interaction generates data that companies collect, analyze, and monetize. Social media platforms build detailed profiles of users' preferences, relationships, and behaviors. E-commerce sites track purchasing patterns and browsing habits. Even seemingly innocent apps often request access to contacts, location data, and other sensitive information. The consequences of this data collection extend beyond targeted advertising. Data breaches expose millions of users to identity theft and financial fraud. Authoritarian governments use surveillance technologies to monitor and control their citizens. The lack of transparency in data handling practices makes it difficult for individuals to understand how their information is being used. Protecting privacy requires both individual vigilance and systemic change: stronger data protection laws, privacy-by-design principles in technology development, and greater user control over personal information.""",
+        "author": "Alex Turner",
+        "category": "Technology",
+        "created_at": datetime(2024, 2, 20),
+        "tags": ["privacy", "digital rights", "technology", "security"],
+        "language": "en"
+    },
+    {
+        "id": "doc_009",
+        "title": "The Psychology of Decision Making",
+        "content": """Human decision-making is far more complex and irrational than traditional economic models suggest. Cognitive biases, emotional influences, and social pressures all play crucial roles in how we choose between alternatives. The availability heuristic leads us to overestimate the likelihood of events we can easily recall, while confirmation bias makes us seek information that supports our existing beliefs. Loss aversion causes us to feel the pain of losing something more acutely than the pleasure of gaining something equivalent. These psychological patterns evolved to help our ancestors survive in simpler environments but can lead us astray in modern contexts. Understanding these biases can improve our decision-making abilities. Techniques like deliberate reflection, seeking diverse perspectives, and using structured decision frameworks can help counteract our natural tendencies. Organizations are applying behavioral insights to design better policies and systems. The field of behavioral economics continues to reveal new aspects of human psychology, challenging assumptions about rationality and offering practical solutions for better choices.""",
+        "author": "Dr. Rachel Green",
+        "category": "Psychology",
+        "created_at": datetime(2024, 2, 25),
+        "tags": ["psychology", "decision making", "cognitive bias", "behavior"],
+        "language": "en"
+    },
+    {
+        "id": "doc_010",
+        "title": "Sustainable Agriculture and Food Security",
+        "content": """Feeding a growing global population while protecting the environment requires a fundamental transformation in how we produce food. Traditional agriculture faces mounting challenges: soil degradation, water scarcity, climate change, and biodiversity loss. Sustainable farming practices offer promising solutions. Regenerative agriculture focuses on rebuilding soil health through cover crops, diverse rotations, and reduced tillage. Precision farming uses sensors and data analytics to optimize water and fertilizer use. Vertical farms in urban areas can produce fresh vegetables year-round with minimal water and no pesticides. Plant-based proteins and laboratory-grown meat could reduce the environmental impact of livestock production. However, transitioning to sustainable agriculture requires significant investment and policy support. Farmers need access to new technologies, training, and financial incentives to adopt environmentally friendly practices. Consumers must also embrace diverse diets and reduce food waste. The challenge is enormous, but innovative approaches to agriculture offer hope for feeding the world while preserving our planet.""",
+        "author": "Dr. Patricia Martinez",
+        "category": "Agriculture",
+        "created_at": datetime(2024, 3, 1),
+        "tags": ["agriculture", "sustainability", "food security", "environment"],
+        "language": "en"
+    },
+    {
+        "id": "doc_011",
+        "title": "The Evolution of Remote Work Culture",
+        "content": """Remote work has evolved from a rare perk to a fundamental shift in how we think about employment and productivity. The global pandemic accelerated this transformation, forcing organizations to rapidly adapt to distributed teams and digital collaboration. Many companies discovered that remote work could maintain or even improve productivity while reducing overhead costs and expanding talent pools. Employees gained flexibility to balance work and personal life, eliminating commutes and creating more comfortable work environments. However, remote work also presents challenges. Team cohesion and company culture can suffer when colleagues rarely meet face-to-face. Communication becomes more complex, requiring deliberate effort to maintain relationships and share information effectively. Some employees struggle with isolation and the blurred boundaries between work and home life. The future likely involves hybrid models that combine the benefits of both remote and in-person work. Organizations are investing in digital tools, redesigning office spaces, and developing new management approaches to support this evolution.""",
+        "author": "Jennifer Park",
+        "category": "Business",
+        "created_at": datetime(2024, 3, 5),
+        "tags": ["remote work", "business", "productivity", "culture"],
+        "language": "en"
+    },
+    {
+        "id": "doc_012",
+        "title": "Mental Health Awareness in Schools",
+        "content": """Schools are recognizing the critical importance of addressing student mental health as academic performance and emotional well-being are deeply interconnected. Rising rates of anxiety, depression, and stress among young people have prompted educators to rethink traditional approaches to student support. Progressive schools are implementing comprehensive mental health programs that include counseling services, peer support groups, and stress management workshops. Teachers are receiving training to recognize signs of mental health struggles and respond appropriately. Curriculum changes are incorporating social-emotional learning, teaching students to understand and manage their emotions, build healthy relationships, and make responsible decisions. The stigma surrounding mental health is gradually diminishing as schools create safe spaces for students to seek help. However, many institutions still lack adequate resources and trained personnel. Funding for mental health services remains insufficient, and cultural barriers can prevent students from accessing support. Creating mentally healthy school environments requires sustained commitment from administrators, teachers, parents, and communities working together.""",
+        "author": "Dr. Kevin Brown",
+        "category": "Education",
+        "created_at": datetime(2024, 3, 10),
+        "tags": ["mental health", "education", "students", "wellness"],
+        "language": "en"
+    },
+    {
+        "id": "doc_013",
+        "title": "Blockchain Technology Beyond Cryptocurrency",
+        "content": """While cryptocurrency grabbed headlines, blockchain technology's potential extends far beyond digital currencies into numerous industries and applications. At its core, blockchain provides a decentralized, tamper-resistant ledger that can record transactions and track assets without requiring a central authority. Supply chain management is being revolutionized as companies use blockchain to trace products from origin to consumer, ensuring authenticity and ethical sourcing. Healthcare systems are exploring blockchain for secure patient data sharing while maintaining privacy. Voting systems could become more transparent and secure through blockchain-based elections. Smart contracts automatically execute agreements when predetermined conditions are met, reducing the need for intermediaries. Real estate transactions could become faster and more transparent. However, challenges remain: energy consumption, scalability limitations, and regulatory uncertainty. The technology is still evolving, with new consensus mechanisms and layer-two solutions addressing these issues. As blockchain matures, its impact on how we store, verify, and exchange information could be transformative.""",
+        "author": "David Lee",
+        "category": "Technology",
+        "created_at": datetime(2024, 3, 15),
+        "tags": ["blockchain", "technology", "innovation", "applications"],
+        "language": "en"
+    },
+    {
+        "id": "doc_014",
+        "title": "Ocean Conservation and Marine Biodiversity",
+        "content": """Our oceans face unprecedented threats from pollution, overfishing, and climate change, making marine conservation more urgent than ever. Plastic waste forms massive garbage patches that harm marine life through ingestion and entanglement. Chemical pollutants disrupt marine ecosystems and accumulate in the food chain. Rising ocean temperatures and acidification from increased carbon dioxide levels are bleaching coral reefs and altering marine habitats. Overfishing has depleted many fish populations, disrupting marine food webs and threatening the livelihoods of coastal communities. However, conservation efforts are showing promising results. Marine protected areas provide safe havens for marine life to recover and reproduce. Sustainable fishing practices are being adopted by responsible fisheries. Innovative technologies are removing plastic waste from the ocean and preventing new pollution. Coral restoration projects are helping damaged reefs recover. International cooperation is essential, as ocean currents and marine life don't respect national boundaries. Individual actions also matter: reducing plastic use, choosing sustainable seafood, and supporting conservation organizations can contribute to ocean health.""",
+        "author": "Dr. Marina Santos",
+        "category": "Environment",
+        "created_at": datetime(2024, 3, 20),
+        "tags": ["ocean", "conservation", "marine life", "environment"],
+        "language": "en"
+    },
+    {
+        "id": "doc_015",
+        "title": "The Future of Transportation",
+        "content": """Transportation is undergoing a revolutionary transformation driven by electrification, automation, and new mobility concepts. Electric vehicles are becoming mainstream as battery technology improves and charging infrastructure expands. Autonomous vehicles promise to reduce accidents, improve traffic flow, and provide mobility for those unable to drive. Public transportation is being reimagined with electric buses, smart routing systems, and integrated payment platforms. Ride-sharing and micro-mobility options like e-scooters are changing urban transportation patterns. Aviation is exploring electric and hydrogen-powered aircraft for short-distance flights. The shipping industry is developing cleaner propulsion systems and optimizing routes to reduce emissions. However, this transformation faces significant challenges. The electrical grid must be upgraded to handle increased demand from electric vehicles. Autonomous vehicle technology still needs to prove its safety and reliability. Infrastructure investments require substantial public and private funding. Social equity concerns arise as new transportation options may not be accessible to all communities. Successfully navigating this transition requires coordinated planning, policy support, and technological innovation.""",
+        "author": "Carlos Rodriguez",
+        "category": "Transportation",
+        "created_at": datetime(2024, 3, 25),
+        "tags": ["transportation", "electric vehicles", "automation", "sustainability"],
+        "language": "en"
+    },
+    {
+        "id": "doc_016",
+        "title": "Artificial Intelligence in Healthcare",
+        "content": """Artificial intelligence is revolutionizing healthcare delivery, offering unprecedented opportunities to improve patient outcomes and reduce costs. Machine learning algorithms can analyze medical images with superhuman accuracy, detecting cancers and other conditions earlier than traditional methods. AI-powered diagnostic tools help physicians make more accurate diagnoses by analyzing vast amounts of patient data and medical literature. Drug discovery is being accelerated through AI models that can predict molecular behavior and identify promising compounds. Personalized medicine is becoming reality as AI analyzes genetic information to tailor treatments to individual patients. Robotic surgery systems provide greater precision and less invasive procedures. However, implementing AI in healthcare requires careful consideration of ethical and practical challenges. Patient privacy must be protected while enabling data sharing for AI training. Bias in AI systems could perpetuate healthcare disparities if not addressed. Healthcare professionals need training to work effectively with AI tools. Regulatory frameworks must balance innovation with patient safety. Despite these challenges, AI's potential to democratize healthcare access and improve outcomes worldwide is enormous.""",
+        "author": "Dr. Priya Patel",
+        "category": "Healthcare",
+        "created_at": datetime(2024, 3, 30),
+        "tags": ["AI", "healthcare", "medicine", "technology"],
+        "language": "en"
+    }
+] 

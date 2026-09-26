@@ -1,0 +1,252 @@
+[
+  {
+    "filename": "AGENT_PROMPT.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\AGENT_PROMPT.md",
+    "last_modified": "2025-08-25T16:02:58",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# AGENT_PROMPT.md \u2014 Timeline ETL Build (P1\u2192P4.5 + Resolver + Enrichment + Exports) Owner: Salem ## Scope Implement a modular, streaming ETL to: parse timeline exports (P1), sort & geokeys (P2), link/a...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "agent_prompt"
+  },
+  {
+    "filename": "anylizer.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\anylizer.py",
+    "last_modified": "2025-08-28T12:13:22",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# use this code to anaklyze the files i give you.. if you can make improvememnts or expand it do so # Let's verify which files exist and (re)generate missing ones end-to-end. import os, re, json impor...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "anylizer"
+  },
+  {
+    "filename": "app.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\app.py",
+    "last_modified": "2025-11-22T14:26:52.223316",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import os import sys import json import sqlite3 import hashlib import base64 import logging from datetime import datetime from functools import wraps from flask import Flask, render_template, request,...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "app"
+  },
+  {
+    "filename": "collect_and_zip_refs.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\collect_and_zip_refs.py",
+    "last_modified": "2025-08-25T16:02:58",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 from __future__ import annotations import os, re, json, zipfile, argparse from pathlib import Path DEFAULT_PATTERNS = [ r\"(?i)pass1_parse_json.*\\.py$\", r\"(?i)pass4_analytics.*\\....",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "collect_and_zip_refs"
+  },
+  {
+    "filename": "docker-compose.yml",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\docker-compose.yml",
+    "last_modified": "2025-11-22T16:09:44.893536",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "services: postgres: image: postgis/postgis:15-3.3 container_name: traceiq-postgres restart: unless-stopped environment: POSTGRES_USER: traceiq POSTGRES_PASSWORD: forensic123 POSTGRES_DB: traceiq ports...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "docker-compose"
+  },
+  {
+    "filename": "EXTRACTED_CONCEPTS.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\EXTRACTED_CONCEPTS.md",
+    "last_modified": "2025-12-15T20:31:47.767383",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Extracted Concepts from Old Iterations **Purpose:** This document captures useful patterns, algorithms, and design decisions from older code versions before archiving them. These concepts may be reu...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "extracted_concepts"
+  },
+  {
+    "filename": "geocoding-usage-guide.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\geocoding-usage-guide.md",
+    "last_modified": "2025-08-27T11:54:31",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Enhanced Geocoding System - Usage Guide ## Overview This comprehensive geocoding system combines Radar.io and Google Places APIs to provide enhanced location data with cross-validation, accuracy cal...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "geocoding-usage-guide"
+  },
+  {
+    "filename": "geo_timeline_tools_v_3.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\geo_timeline_tools_v_3.md",
+    "last_modified": "2025-08-27T12:47:08",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Geo/Timeline Tools v3.4 \u2014 Handoff & README > Radar\u2011first reverse geocoding + paths, Google fallback (Place IDs only), hashed UUIDs, 15 m location de\u2011dupe, column mapper, durations, cache+logs, and e...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "geo_timeline_tools_v_3"
+  },
+  {
+    "filename": "google_timeline_addendum.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\google_timeline_addendum.md",
+    "last_modified": "2025-12-09T22:20:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# ADDENDUM: Case Context & Geocoding Services **Append this to the main prompt before implementation begins.** --- ## A. CASE CONTEXT & PURPOSE ### Legal Proceeding **Case:** Salem v. Kinzel (2025-539...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "google_timeline_addendum"
+  },
+  {
+    "filename": "google_timeline_addendum_part2.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\google_timeline_addendum_part2.md",
+    "last_modified": "2025-12-09T22:20:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# ADDENDUM PART 2: Geocoding Deep Dive & Constraints **Append after Addendum Part 1** --- ## G. EXISTING GOOGLE PLACE ID CACHE A cache of Google Place ID \u2192 address lookups already exists. **Check this...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "google_timeline_addendum_part2"
+  },
+  {
+    "filename": "google_timeline_forensic_processor_prompt.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\google_timeline_forensic_processor_prompt.md",
+    "last_modified": "2025-12-09T22:20:14",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# SYSTEM PROMPT: Google Timeline Forensic Data Processor You are a forensic data engineer building a Google Timeline processor for legal proceedings. Your output must be court-admissible, meaning: ver...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "google_timeline_forensic_processor_prompt"
+  },
+  {
+    "filename": "import_cache_batches.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\import_cache_batches.py",
+    "last_modified": "2025-08-25T16:02:58",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 from __future__ import annotations import os, sys, json, argparse, re from pathlib import Path def _save(p,obj): p.parent.mkdir(parents=True,exist_ok=True); tmp=p.with_suffix(p....",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "import_cache_batches"
+  },
+  {
+    "filename": "INSTALL.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\INSTALL.md",
+    "last_modified": "2025-11-22T14:26:52.491644",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# TraceIQ Timeline Processor - Installation Summary ## Quick Start cd traceiq_timeline_processor ./launch.sh ## Access Open browser: http://localhost:5000 ## Features Included - \u2705 Complete SQLite data...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "install"
+  },
+  {
+    "filename": "launch.sh",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\launch.sh",
+    "last_modified": "2025-11-22T14:26:52.416122",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/bin/bash # TraceIQ Timeline Processor Launcher cd \"$(dirname \"$0\")\" # Check if virtual environment exists if [ ! -d \"venv\" ]; then echo \"Creating virtual environment...\" python3 -m venv venv fi # A...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "launch"
+  },
+  {
+    "filename": "markdown_schema.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\markdown_schema.md",
+    "last_modified": "2025-11-23T02:31:06.018516",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# TraceIQ Markdown Schema Guide This file describes the recommended structure for Markdown files that contain SQL schema, indexes, and views to be imported by the TraceIQ app. Principles - Only fenced...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "markdown_schema"
+  },
+  {
+    "filename": "md.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\md.md",
+    "last_modified": "2025-11-23T03:30:08.337755",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "<img src=\"https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png\" style=\"height:64px;margin-right:32px\"/> # ...... Here is the complete, authoritative TraceIQ master guide. I will now presen...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "md"
+  },
+  {
+    "filename": "md_cleaned.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\md_cleaned.md",
+    "last_modified": "2025-11-23T03:05:44.926231",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# TraceIQ Schema Export ## DATABASE SCHEMAS (DDL) ### 1. TIMELINE_ENRICHED TABLE ```sql CREATE TABLE timeline_enriched ( event_id TEXT PRIMARY KEY, serial_id TEXT NOT NULL UNIQUE, device TEXT, event_t...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "md_cleaned"
+  },
+  {
+    "filename": "md_clean_improved.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\md_clean_improved.md",
+    "last_modified": "2025-11-23T04:09:19.368561",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# TraceIQ Database Schemas - Production Ready ## Database Tables ### 1. TIMELINE_ENRICHED TABLE ```sql CREATE TABLE timeline_enriched ( event_id TEXT PRIMARY KEY, serial_id TEXT NOT NULL UNIQUE, devic...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "md_clean_improved"
+  },
+  {
+    "filename": "precision.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\precision.py",
+    "last_modified": "2025-08-25T16:02:58",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from __future__ import annotations import re, math from typing import Optional, Dict M_PER_DEG_LAT = 111_320.0 _GEOHASH_LEN_TO_CELL_M = { 1:(5_000_000.0,5_000_000.0), 2:(1_250_000.0,625_000.0), 3:(156...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "precision"
+  },
+  {
+    "filename": "quick_audit.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\quick_audit.py",
+    "last_modified": "2025-08-25T16:02:58",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "#!/usr/bin/env python3 from __future__ import annotations import os, re, json, argparse from pathlib import Path import pandas as pd def load_csv(path): try: return pd.read_csv(path) except: return No...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "quick_audit"
+  },
+  {
+    "filename": "QUICK_REFERENCE.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\QUICK_REFERENCE.md",
+    "last_modified": "2025-11-15T15:08:54.398000",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Google Timeline Schema - Implementation Guide ## \u2713 VALIDATION STATUS: APPROVED FOR IMPLEMENTATION **Validated Against:** 1,770 real segments (2018-2024) **Test Results:** \u2713 8/8 tests passed **Data Q...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "quick_reference"
+  },
+  {
+    "filename": "requirements.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\requirements.txt",
+    "last_modified": "2025-11-23T02:13:53.301156",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "Flask>=2.3 psycopg2-binary>=2.9 ijson>=3.1 sqlparse>=0.4 gunicorn>=20",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "requirements"
+  },
+  {
+    "filename": "schema_complete.sql",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\schema_complete.sql",
+    "last_modified": "2025-11-22T14:26:52.070182",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "-- ========================================= -- TRACEIQ COMPLETE SQLITE SCHEMA -- All indexes, views, and forensic features compatible with SQLite -- ========================================= -- Enabl...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "schema_complete"
+  },
+  {
+    "filename": "SCHEMA_IMPORT_SUCCESS.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\SCHEMA_IMPORT_SUCCESS.md",
+    "last_modified": "2025-11-23T03:34:23.175169",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# TraceIQ Schema Import - SUCCESS \u2705 ## Import Results **Date**: 2025-11-23 03:30:08 UTC ### Summary ```json { \"executed\": 13, \"tables_found\": 8, \"indexes_found\": 34, \"views_found\": 5, \"skipped\": 34, \"...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "schema_import_success"
+  },
+  {
+    "filename": "Timeline Processor (Rebuilt).docx.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App\\Timeline Processor (Rebuilt).docx.md",
+    "last_modified": "2025-12-05T07:12:28.611576",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# **Timeline Processor (Rebuilt)** ## **1\\. Project Overview** This project is a modular, multi-pass pipeline designed to process, clean, enrich, and analyze Google Timeline JSON exports. It is built ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\TraceIQ_Timeline_App",
+    "group_base_name": "timeline processor (rebuilt).docx"
+  }
+]

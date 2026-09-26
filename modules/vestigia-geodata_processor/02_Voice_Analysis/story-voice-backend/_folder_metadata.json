@@ -1,0 +1,12 @@
+[
+  {
+    "filename": "SETUP.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\ARCHIVE_Old_Versions\\story-voice - 1\\story-voice\\SETUP.md",
+    "last_modified": "2025-12-08T06:50:06",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Story Capture Setup ## Architecture ``` Cloudflare Pages (frontend) \u2192 HuggingFace Space (backend) \u2193 \u2193 Google OAuth2 Gemini 3 Pro analysis Gemini 2.5 Flash Supabase writes Web Speech API Qdrant write...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\ORGANIZED\\ARCHIVE_Old_Versions\\story-voice - 1\\story-voice",
+    "group_base_name": "setup"
+  }
+]

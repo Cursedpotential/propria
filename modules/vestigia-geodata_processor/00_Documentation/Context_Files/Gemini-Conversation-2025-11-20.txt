@@ -1,0 +1,989 @@
+AI Conversation
+Date: 2025-11-20 13:38:18
+-------------------------------------------
+
+You:
+Can you summarize all of these into a functional? Uh, rulebook for. What information I would be able to access in my? For my my case that I'm working on, I'm self represented and need to know the court rules about different things. So try to be as descriptive as possible and.
+
+-------------------------------------------
+
+Gemini:
+The following rulebook is designed for a **self-represented litigant**in Michigan. It organizes the rules based on the type of record you are trying to access, along with the specific forms and procedures you must use.
+
+# 📘 Michigan Self-Represented Litigant Access Rulebook
+
+###**Part 1: The Golden Rule of Access****General Rule:**Most court records are**public**. You have the right to inspect them at the courthouse for free or request copies for a fee.
+
+•**Exception:**Records are restricted if they contain "Personal Identifying Information" (PII) like Social Security numbers, are specifically sealed by a judge, or fall into a special category (Adoption, Juvenile, Mental Health).
+
+###**Part 2: Accessing Specific Types of Case Records**####**1. Your Own Criminal Case File**•**What you CAN see:**The "Register of Actions" (list of everything filed), orders signed by the judge, and pleadings filed by the prosecutor.
+•**What is RESTRICTED:**•**Victim Contact Info:**Under the*Crime Victim’s Rights Act*(MCL 780.758), you generally**cannot**access the home address, phone number, or work address of a victim. This is often redacted (blacked out).
+ •**Police Reports:**As a self-represented defendant, you typically do not get a "full, unredacted" police report handed to you directly if it contains sensitive witness info.
+•**Victim Contact Info:**Under the*Crime Victim’s Rights Act*(MCL 780.758), you generally**cannot**access the home address, phone number, or work address of a victim. This is often redacted (blacked out).
+•**Police Reports:**As a self-represented defendant, you typically do not get a "full, unredacted" police report handed to you directly if it contains sensitive witness info.
+•**How to get Discovery (Evidence):**•**Rule:**MCR 6.201 governs discovery.
+ •**Action:**There is no standard "statewide" form. You must draft a document titled**"Demand for Discovery"**or check if your local prosecutor has a specific request form on their website.
+ •**If denied:**You must file a motion (Form**MC 326**) asking the judge to order the release of the evidence.
+•**Rule:**MCR 6.201 governs discovery.
+•**Action:**There is no standard "statewide" form. You must draft a document titled**"Demand for Discovery"**or check if your local prosecutor has a specific request form on their website.
+•**If denied:**You must file a motion (Form**MC 326**) asking the judge to order the release of the evidence.
+
+####**2. Adoption Records**•**Status:****Highly Restricted / Sealed.**•**Rule:**Adoption records are closed to the public (MCL 710.67).
+•**How to Access:**•**Identifying Info:**You generally cannot see this without a specific court order or a "Confidential Intermediary."
+ •**Form to Use:**File**Form PCA 327**(*Petition for Adoption Information*).
+ •**Fee:**~$175 filing fee + ~$20 for the petition.
+•**Identifying Info:**You generally cannot see this without a specific court order or a "Confidential Intermediary."
+•**Form to Use:**File**Form PCA 327**(*Petition for Adoption Information*).
+•**Fee:**~$175 filing fee + ~$20 for the petition.
+
+####**3. Juvenile Delinquency Records**•**Status:****Mixed.**•**Legal File:**(Petitions, Orders) is generally**public**.
+•**Social File:**(School reports, psych evaluations, family history) is**confidential**.
+•**Who can access:**You (as a party/parent) usually have the right to see the social file, but the general public does not.
+•**Action:**If the clerk denies you access to the social file, file a motion (Form**MC 326**) asserting your status as a party to the case with a "legitimate interest."
+
+####**4. Mental Health Records (In a Court File)**•**Status:****Confidential.**•**Rule:**MCL 330.1748 generally protects these from public view.
+•**Accessing YOUR OWN records:**You have a right to your own medical info, but if it is sealed in a court file, the clerk cannot just hand it to you.
+•**Action:**1.**Try the Provider First:**Request records directly from the doctor/hospital; it is often faster than unsealing a court file.
+ 2.**Court Motion:**If you must get them from the court, file**Form MC 326**(*Notice of Hearing and Motion*) requesting an order to unseal the records for your review.
+•**Try the Provider First:**Request records directly from the doctor/hospital; it is often faster than unsealing a court file.
+•**Court Motion:**If you must get them from the court, file**Form MC 326**(*Notice of Hearing and Motion*) requesting an order to unseal the records for your review.
+
+###**Part 3: Fees & Costs "Cheat Sheet"***Be prepared to pay these standard fees. If you are indigent (cannot afford fees), file **Form MC 20**(Fee Waiver Request) immediately.*
+
+| Item | Estimated Cost | Notes |
+| **Copy Fee**|**$1.00 per page**| Standard for most courts. |
+|**Certified Copy**|**$10.00 + $1/page**| Required for official use (e.g., SOS, Passport). |
+|**Motion Fee**|**$20.00**| Paid every time you file a motion (MC 326). |
+|**Civil Filing Fee**|**$175.00**| To start a new civil case (varies slightly by claim amount). |
+|**Jury Demand**|**$85.00**| Fee to request a trial by jury in civil cases. |
+
+Export to Sheets
+###**Part 4: The "Universal" Forms You Need***Since you are self-represented, these are the "Swiss Army Knife" forms you will use for almost everything:*•**MC 326 (Notice of Hearing and Motion):**Use this for**ANY**request to the judge.
+
+ •*Example:*"Motion to Unseal Records," "Motion for Discovery," "Motion to Adjourn."
+•*Example:*"Motion to Unseal Records," "Motion for Discovery," "Motion to Adjourn."
+•**MC 20 (Fee Waiver):**Use this to ask the court to waive filing/motion fees if you receive public assistance or have low income.
+•**MC 01 (Summons) & MC 02 (Appearance):**Used when starting a case or telling the court you are representing yourself.
+
+###**Part 5: Pro Se "Best Practices" Checklist**1.**Redact PII:**Never file a public document with full Social Security numbers or dates of birth. Use**Form MC 97**to file this info confidentially.
+2.**check Local Rules:**Every court (e.g., "3rd Circuit" vs "48th District") has "Local Administrative Orders" (LAOs). Check the court's specific website for "Local Court Rules."
+3.**Speak to the Clerk (Correctly):**Clerks*cannot*give legal advice, but they*can*tell you "procedural" info.
+
+ •*Bad Question:*"What should I write in my motion?" (Legal Advice - They can't answer).
+ •*Good Question:*"Does this judge require a printed 'judge's copy' of my motion delivered to chambers?" (Procedural - They can answer).
+4.*Bad Question:*"What should I write in my motion?" (Legal Advice - They can't answer).
+5.*Good Question:* "Does this judge require a printed 'judge's copy' of my motion delivered to chambers?" (Procedural - They can answer).
+
+-------------------------------------------
+
+You:
+I have more tabs that I want you to analyze. Did you analyze all of these?
+
+-------------------------------------------
+
+Gemini:
+Yes, I have analyzed the content from all the tabs you provided (General Schedules for District, Probate, and Circuit Courts; various SCAO Memoranda on fees and privacy; and the detailed charts on nonpublic records).
+
+Here is a **Functional Rulebook for Self-Represented Litigants**based on those documents. This guide outlines your rights to access information, what you can expect to be private, and the rules for handling records in your case.
+
+# 📘 The "Pro Se" Access & Privacy Rulebook
+
+###**Rule 1: Access to Your Own Case File**As a party to the case, you generally have greater access rights than the general public, but some restrictions still apply.
+
+•**What You Can Access:**•**The Legal File:**You have the right to inspect pleadings, orders, and the "Register of Actions" (the chronological history of the case).
+ •**Electronic Access:**If the court has an online system, you can typically view your case history (docket entries) remotely.
+•**The Legal File:**You have the right to inspect pleadings, orders, and the "Register of Actions" (the chronological history of the case).
+•**Electronic Access:**If the court has an online system, you can typically view your case history (docket entries) remotely.
+•**"Party" vs. "Public" Distinction:**• According to the*Nonpublic and Limited-Access Court Records Chart*(Tab 9), certain files (like Friend of the Court records or Juvenile Probation files) are**nonpublic**(closed to the public) but are often accessible to**you**as a party to the case.
+ •**Action:**If a clerk denies you access to a file, clarify that you are a**party to the case**, not a member of the general public.
+• According to the*Nonpublic and Limited-Access Court Records Chart*(Tab 9), certain files (like Friend of the Court records or Juvenile Probation files) are**nonpublic**(closed to the public) but are often accessible to**you**as a party to the case.
+•**Action:**If a clerk denies you access to a file, clarify that you are a**party to the case**, not a member of the general public.
+
+###**Rule 2: The "Free Access" Rule (Electronic Records)**•**The Rule:**Courts**cannot**charge you a fee to access public case history or to view a document electronically if you are doing so at the courthouse or on your own device (unless a specific statute says otherwise).
+•**Your Right:**You can inspect records and the Register of Actions for free.
+•**When You Pay:**You only pay if you ask the court to reproduce a document for you (e.g., printing a copy, making a certified copy).
+
+ •*Source:*[Electronic Access Fees Memorandum](https://www.courts.michigan.gov/SysGlobalAssets/migrated/administration/scao/documents-(lisa-and-deb-review)/general-administrative/11-09-20electronicaccessfees.pdf)
+•*Source:*[Electronic Access Fees Memorandum](https://www.courts.michigan.gov/SysGlobalAssets/migrated/administration/scao/documents-(lisa-and-deb-review)/general-administrative/11-09-20electronicaccessfees.pdf)
+
+###**Rule 3: Privacy & Redaction (Protecting Your Info)**•**Social Security Numbers (SSN):**•**The Rule:**You generally should**not**include full SSNs in public court filings. If identification is needed, use only the last 4 digits.
+ •**If Your SSN is Exposed:**If a document in your file contains your full SSN, you have the right to file a motion asking the court to redact (black out) that number or move the document to a nonpublic file.
+ •*Source:*[Privacy Policy and Access to Court Records (AO 2006-2)](https://www.courts.michigan.gov/4a23eb/siteassets/collections-temporary/2006-2.pdf)
+•**The Rule:**You generally should**not**include full SSNs in public court filings. If identification is needed, use only the last 4 digits.
+•**If Your SSN is Exposed:**If a document in your file contains your full SSN, you have the right to file a motion asking the court to redact (black out) that number or move the document to a nonpublic file.
+•*Source:*[Privacy Policy and Access to Court Records (AO 2006-2)](https://www.courts.michigan.gov/4a23eb/siteassets/collections-temporary/2006-2.pdf)
+•**Protected PII:**As of more recent rules (referenced in the*Records Management Standards*), you must use specific forms (like**Form MC 97**) to provide personal identifying information (date of birth, financial account numbers) so that it is kept separate from the public file.
+
+###**Rule 4: Restricted Record Types (The "No-Go" Zones)**Even as a party, you may face restrictions on specific types of sensitive records. Check the*Nonpublic and Limited-Access Court Records Chart*(Tab 9) for your specific case type:
+
+| Case Type | Access Status |
+|**Adoption**|**Highly Restricted.**Generally sealed; requires a court order to view. |
+|**Mental Health**|**Confidential.**Generally requires a specific court order or finding of "legitimate interest" to view, even for family. |
+|**Juvenile**|**Mixed.**The "Legal File" (petitions, orders) is often accessible to parties. The "Social File" (school reports, DHS reports) is confidential but often available to the juvenile/parents. |
+|**Friend of the Court**|**Limited.**Administrative notes and staff notes are usually confidential. Grievances filed against the FOC are nonpublic. |
+|**Mediation**|**Confidential.**Statements made during mediation are generally not admissible in court and not part of the public file. |
+
+Export to Sheets
+###**Rule 5: Record Retention (Will My File Still Be There?)**If you are looking for records from an old case, their availability depends on the*General Retention Schedules*(Tabs 2, 3, & 4):
+
+•**Criminal/Civil Files:**Usually kept for**30–50 years**(or longer for serious felonies).
+•**Domestic Relations (Divorce/Custody):**Generally kept for**50+ years**or until the youngest child turns a specific age.
+•**Traffic/Civil Infractions:**Often destroyed after**6–10 years**.
+•**Action:**If your case is very old, ask the clerk if it has been transferred to the**Archives of Michigan**or destroyed.
+
+###**Rule 6: Preparing Your Documents**According to the*Records Management Standards*(Tab 10), to ensure your documents are accepted:
+
+1.**Format:**Use 8.5×11 inch paper.
+2.**Legibility:**Must be legible and preferably in black ink.
+3.**Case Number:**Must clearly display the case number and "Case-Type Code" (e.g., 23-12345-**GC**) on the first page.
+4.**Signatures:**All pleadings must be signed.
+
+###**Next Steps for You**1.**Check Your Case Type:**Identify your specific 2-letter case code (e.g., "DM" for Divorce with Minor children, "GC" for General Civil) to see which specific privacy rules apply in the*Nonpublic Records Chart*.
+2.**Request a "Register of Actions":**This is your best first step to see what is officially in your file.
+3.**Redact:**Before filing any new documents, ensure you have blacked out your SSN, driver's license number, and financial account numbers, placing them on a**Form MC 97** instead.
+
+-------------------------------------------
+
+You:
+nwthese
+
+-------------------------------------------
+
+Gemini:
+Based on the **Nonpublic and Limited-Access Court Records Chart**, the**Trial Court Administration Reference Guide**, and the**Records Management**resources you provided, here is**Part 2**of your functional rulebook.
+
+This section gets much more specific about**exactly**what you can see based on the type of case you have.
+
+# 📘 Pro Se Access Rulebook: The "Master Chart" Edition
+
+The most important document among your new tabs is the*Nonpublic and Limited-Access Court Records Chart*. It classifies every type of court record into access levels.
+
+###**Rule 7: Know Your "User Role"**The court system does not treat everyone equally. Access depends on who you are. The*Access Security Matrix*(Tab 1) defines you into a specific "User Role."
+
+•**Public:**(User Role 22) – Least access. Can only see "Public" files.
+•**Party:**(User Roles 4 & 5: Plaintiff/Petitioner or Defendant/Respondent) –**High access.**•**Crucial Rule:**In many "Nonpublic" cases (like a standard drug court case or a juvenile delinquency case), the file is closed to the*public*, but**open to you**because you are a party.
+ •**Action:**If a clerk says, "This file is nonpublic," you must immediately respond:*"I am a party to the case (User Role 4 or 5). Under MCR 8.119, I am entitled to inspect my own file unless a specific statute seals it from me."*•**Crucial Rule:**In many "Nonpublic" cases (like a standard drug court case or a juvenile delinquency case), the file is closed to the*public*, but**open to you**because you are a party.
+•**Action:**If a clerk says, "This file is nonpublic," you must immediately respond:*"I am a party to the case (User Role 4 or 5). Under MCR 8.119, I am entitled to inspect my own file unless a specific statute seals it from me."*###**Rule 8: Specific Restrictions by Case Type (The "Red Flags")**Refer to this checklist to see if your case has special restrictions.
+
+####**A. Criminal & Traffic**•**Standard Criminal Case:****Public.**You can see everything except victim contact info.
+•**Set Aside Conviction (Expungement):****Nonpublic.**Once a conviction is set aside, the public cannot see it.**You**(the defendant) still have the right to see a copy of your own file.
+•**Holmes Youthful Trainee Act (HYTA):****Nonpublic.**Closed to the public.**Open**to you.
+•**Drug/Sobriety/Veterans Court:**•**Deferred Status:**If your judgment is deferred (held back while you do the program), the file is**Nonpublic**(closed to public, open to you).
+ •**Treatment Records:****Confidential.**Even as a party, you generally cannot see the raw notes from your therapist or counselor in the court file without a specific release or court order, due to federal privacy laws (42 CFR Part 2).
+•**Deferred Status:**If your judgment is deferred (held back while you do the program), the file is**Nonpublic**(closed to public, open to you).
+•**Treatment Records:****Confidential.**Even as a party, you generally cannot see the raw notes from your therapist or counselor in the court file without a specific release or court order, due to federal privacy laws (42 CFR Part 2).
+
+####**B. Family & Domestic Relations**•**Divorce:****Public.**•*New Rule:*A divorce complaint is**Nonpublic**until the Proof of Service is filed (to prevent people from finding out they are being divorced via the internet before being served).
+•*New Rule:*A divorce complaint is**Nonpublic**until the Proof of Service is filed (to prevent people from finding out they are being divorced via the internet before being served).
+•**Friend of the Court (FOC) Records:****Mixed.**•*Public:*Orders, judgments, payment history.
+ •*Confidential:*Staff notes, grievances filed against the FOC, and communications from minors are**confidential**and often not accessible even to you without a court order.
+ •*Protective Services Reports (CPS):***Confidential.**If a CPS report is in your FOC file, you generally cannot see it there; you must go to DHHS.
+•*Public:*Orders, judgments, payment history.
+•*Confidential:*Staff notes, grievances filed against the FOC, and communications from minors are**confidential**and often not accessible even to you without a court order.
+•*Protective Services Reports (CPS):***Confidential.**If a CPS report is in your FOC file, you generally cannot see it there; you must go to DHHS.
+•**Adoption:****Sealed.**Neither you nor the public can access these without a specific court order (hard to get).
+•**Personal Protection Orders (PPO):**•*Public:*Generally open.
+ •*Restricted:*Your address/location can be hidden from the public/internet if it would put you in danger.
+•*Public:*Generally open.
+•*Restricted:*Your address/location can be hidden from the public/internet if it would put you in danger.
+
+####**C. Probate & Mental Health**•**Wills:****Public**(after death).**Sealed**(while the testator is alive and the will is filed for safekeeping).
+•**Mental Health / Developmental Disability:****Confidential.**• The*Legal File*(petitions, orders) is often accessible to you.
+ • The*Medical/Clinical Certificates*are often restricted even from the respondent to prevent psychological harm (requires attorney access or court order).
+• The*Legal File*(petitions, orders) is often accessible to you.
+• The*Medical/Clinical Certificates*are often restricted even from the respondent to prevent psychological harm (requires attorney access or court order).
+
+###**Rule 9: Administrative Rules for Getting Records**(Source:*Michigan Trial Court Administration Reference Guide*)**1. FOIA Does Not Apply**•**The Rule:**Do**not**submit a Freedom of Information Act (FOIA) request to a court. The judiciary is exempt from FOIA.
+•**The Alternative:**Your right to access comes from**MCR 8.119(H)**. Cite this court rule instead of FOIA when asking for documents.**2. Fees (The Cost of Doing Business)**•**Copy Fees:**The court*can*charge you for copies.
+•**Access Fees:**The court**cannot**charge you a fee just to*look*at a public record at the courthouse.
+•**New Records:**The court is**not**required to create a "new" record for you (e.g., "Make me a list of all rulings Judge Smith made in 2019"). They are only required to show you existing documents.**3. Indigent Access (Free Copies)**• If you are indigent (proven inability to pay) and handling a criminal appeal, you may be entitled to free copies of transcripts and documents under**MCR 6.433**. You must file a specific request form for this.
+
+###**Rule 10: The "Gone Forever" Rule (Retention)**(Source:*SCAO Memo 2017 & Archives of Michigan*)
+
+If you are looking for records from a case that closed years ago, check the**Retention Schedule**:
+
+•**Traffic Tickets:**Often destroyed after 6 years.
+•**General Civil:**Often destroyed after 7–10 years.
+•**Domestic Relations:**Kept for decades (often 40+ years).
+•**Where did it go?**If a record is "permanent" (historically significant) but not at the courthouse, it was likely transferred to the**Archives of Michigan**. You can contact them to retrieve it. If it was a "non-permanent" record and the retention period has passed, it has likely been shredded/deleted.
+
+###**Next Step**Would you like me to help you draft a**"Request to Inspect Case File"** citing the specific user role and court rules mentioned above, so you can take it to the clerk's counter?
+
+-------------------------------------------
+
+You:
+What about police reports for calls that did not result in a court proceeding that I'm not trying to get from the court? I'd like to get them from the Police Department.
+
+-------------------------------------------
+
+Gemini:
+Based on the **Michigan Freedom of Information Act (FOIA)**, here is the rulebook section for accessing police records that never went to court.
+
+###**Part 6: The "Police Station" Rulebook (No Court Case)****General Rule:**Unlike court files, police records are held by the specific department (e.g., Burton Police Dept, Michigan State Police) and are governed by**FOIA**(Freedom of Information Act),*not*court rules.
+
+####**1. The "Open vs. Closed" Trap**Before you spend money on a request, you must know the status of the police file.
+
+•**If the Status is "OPEN" (Ongoing Investigation):**The police will almost always**DENY**your request. Under FOIA exemption `MCL 15.243(1)(b)`, they can withhold records if releasing them would "interfere with law enforcement proceedings."
+
+ •*Note:*Even if*you*think it's over, if they haven't officially closed it in their computer, they will mark it "Open" and deny you.
+•*Note:*Even if*you*think it's over, if they haven't officially closed it in their computer, they will mark it "Open" and deny you.
+•**If the Status is "CLOSED" (No charges filed / Case Inactive):**You generally have a right to the report. However, expect**redactions**(blacked-out text) for:
+
+ • Witness names/addresses (Privacy exemption).
+ • Personal contact info of others involved.
+ • Law enforcement tactics/techniques.
+• Witness names/addresses (Privacy exemption).
+• Personal contact info of others involved.
+• Law enforcement tactics/techniques.
+
+####**2. How to Make the Request (The "FOIA" Letter)**You cannot just walk in and ask to "see" a police report like you can a court file. You must submit a formal request.
+
+•**The Form:**Most departments (like Burton PD or Genesee County Sheriff) have a specific "FOIA Request Form" at the front desk or on their website.
+•**Writing Your Own:**If you don't see a form, write a letter including:
+
+ •**Header:**"Request for Public Records under Michigan Freedom of Information Act."
+ •**Details:**Date of incident, Location, Names of parties, and**Complaint/Incident Number**(if you have it).
+ •**The "magic words":***"I am requesting a copy of the full incident report and any narrative descriptions."*•**Header:**"Request for Public Records under Michigan Freedom of Information Act."
+•**Details:**Date of incident, Location, Names of parties, and**Complaint/Incident Number**(if you have it).
+•**The "magic words":***"I am requesting a copy of the full incident report and any narrative descriptions."*####**3. Costs & Timeline**•**Time:**They**must**respond within**5 business days**. They can issue one extension for 10 more days.
+•**Cost:**Expect to pay roughly**$0.10 per page**+ an hourly labor fee for them to search/redact.
+
+ •*Indigence Rule:*If you are on public assistance (e.g., SSI, DHS) or meet poverty guidelines, you can submit an**Affidavit of Indigency**with your request to get the**first $20.00 waived**(which usually covers a standard report).
+•*Indigence Rule:*If you are on public assistance (e.g., SSI, DHS) or meet poverty guidelines, you can submit an**Affidavit of Indigency**with your request to get the**first $20.00 waived**(which usually covers a standard report).
+
+####**4. Special Case: Traffic Crash Reports**•**UD-10 Reports:**If this was a car accident, these are public almost immediately.
+•**Where to get it:**You often don't need a FOIA request. You can buy them instantly from the**TCPS (Traffic Crash Purchasing System)**online or [CLEMIS](https://clemis.org/) (used by many Oakland/Genesee agencies) for ~$10–$15.
+
+###**Next Step**Since you are in Burton, would you like me to give you the direct link to the**Burton Police Department's** specific record request page or their phone number to check if your specific incident number is marked "Closed"?
+
+-------------------------------------------
+
+You:
+So there's several instances that I need to look up in there actually for Genesee Township. The first is going to be the files related to this case on screen. But the second is for an event. Involving Katrina Kinzel. At or around The first week of July, somewhere around July 3rd of 2023. I'll attempt to get a better date, but just roll with that. However, it could be from the. June will call it 25th through July 10th peeriod The event in question happened in the vicinity of V and B Party Store on. Mount Morris and Genesee Road. In which? I'm told a. She says that it was a Wellness check that was called in on her. What I have been able to do to deduce like for sure is that there was a police interaction. At the store. While she was there with my daughter, she would have been driving a Gray 2006 or 2007 Pontiac G6. That's all I really know. But she used it as grounds to keep my child from because she says I called it in when I did not. Would also like to get the 911 call. Both transcribed and audio so that I can verify it's not my voice. As well as the 911 call that led to the careless driving incident, because that was inside of a park, he. Ended up hitting somebody's yard or something in the yard after getting an old fight with Katrina. Katrina took off drunk with our child in the car, so I'd like to get the 911 call for the lady from that.
+
+-------------------------------------------
+
+Gemini:
+Since you are dealing with **Genesee Township**for both instances, you have a streamlined path because both the court case and the "party store" incident fall under the same police jurisdiction: the**Genesee Township Police Department (GTPD)**.
+
+Here is your specific action plan to get the files and audio you need.
+
+###**Phase 1: The Application (FOIA Request)**You need to file a**Freedom of Information Act (FOIA)**request with Genesee Township. You can do this for both incidents on the same form or two separate forms (recommended to keep them organized).
+
+•**Download the Form:**[Genesee Township FOIA Request Form](https://geneseetwpmi.gov/wp-content/uploads/2024/06/FOIA-Request.pdf)
+•**Cost Warning:**Police reports are cheap (approx. $0.10/page).**911 Audio**is more expensive (often $5–$25 for the disk/drive).
+
+ •**Pro Tip:**Submit your**Affidavit of Indigency**(Form MC 20) or a simple affidavit stating you are on public assistance to get the**first $20.00 waived**per request.
+•**Pro Tip:**Submit your**Affidavit of Indigency**(Form MC 20) or a simple affidavit stating you are on public assistance to get the**first $20.00 waived**per request.
+
+###**Phase 2: Writing the Requests**####**Request A: The Careless Driving Incident (June 21, 2023)**•**Goal:**Get the police report and the 911 call where the caller describes the "fight" and "drunk driving" (evidence that contradicts the simple careless driving charge).
+•**In the "Describe the public record" box, write:**> "I request the full Case Report, Incident Report, and Officer Narrative for the incident resulting in Case No. 2023-23Q114889A-OI.
+>**Date of Incident:**June 21, 2023.
+>**Defendant:**Michael Thomas Myers-Boyce.
+>**Charge:**Careless Driving.
+>**Additional Request:**I specifically request a copy of the**911 Dispatch Audio Recording**and Computer Aided Dispatch (CAD) log initiated by the complainant regarding a dispute and subsequent vehicle crash at [Insert Address/Park Name if known] on this date."
+
+####**Request B: The "V&B Party Store" Incident (June/July 2023)**•**Goal:**Prove the existence of the police interaction and verify the 911 caller’s voice.
+•**Challenge:**You don't have a case number. You must be "descriptive."
+•**In the "Describe the public record" box, write:**> "I request any and all 'Run Sheets,' Incident Reports, Officer Narratives, or CAD (Computer Aided Dispatch) logs for a police dispatch/welfare check interaction.
+>**Location:**V & B Party Shoppe, 7414 N Genesee Rd, Genesee, MI 48437 (and immediate vicinity/parking lot).
+>**Date Range:**June 25, 2023 through July 10, 2023 (Target date approx. July 3, 2023).
+>**Persons Involved:**Katrina Kinzel (Driver) and [Your Daughter's Name] (Passenger).
+>**Vehicle:**Gray 2006/2007 Pontiac G6.
+>**Specific Item:**I request the**911 Audio Recording**that initiated this dispatch to verify the identity of the caller."
+
+###**Phase 3: The "Transcript" Problem**You asked for**transcripts**of the calls.
+
+•**Reality Check:**Police departments**do not**create transcripts of 911 calls in the regular course of business. If you ask for a "transcript," they will likely deny that specific part saying "No Record Exists."
+•**Workaround:**Ask for the**Audio Recording**. Once you get the audio file,**you**(or a service) can transcribe it. That audio file is your "hard evidence" for court.
+
+###**Phase 4: Where to Submit**According to the Genesee Township procedures:
+
+•**Address:**Genesee Township Clerk, 7244 North Genesee Road, Genesee, MI 48437
+•**Phone:**(810) 640-2000 ext. 1 (Police Dept) –*Call them first to see if they prefer you drop it off at the Police window or the Clerk's window.*•**Fax:**(810) 640-1150
+
+###**Backup Plan: Genesee County 911**If Genesee Township says, "We don't hold the audio, Central Dispatch does," you will need to file a secondary request with**Genesee County**.
+
+•**Portal:**[Genesee County NextRequest Portal](https://geneseecountymi.nextrequest.com/)
+•**Procedure:**Create a request there specifically for "911 Audio Recordings" using the same dates/locations from above.**Next Step:**Would you like me to write out the**"Affidavit of Indigency"** text for you to sign, so you can save the ~$20 fees on these requests?
+
+-------------------------------------------
+
+You:
+Well, we don't want to drive let's request especially for 911 that they just email it to me. Also, let's do a fee waiver request for both.
+
+-------------------------------------------
+
+Gemini:
+This is a smart strategic move. By using the **email**method for the Township and the**online portal**for the County (which holds the master 911 audio), you can do this entirely from your computer without driving anywhere.
+
+Here is your**Remote FOIA & Fee Waiver Kit**.
+
+###**Part 1: The "Affidavit of Indigency" (The Fee Waiver)**Since you are requesting a waiver of the first $20.00 of fees (which should cover the cost of a basic police report), you must submit this affidavit.**Instructions:**1. Copy the text below into a document (or write it out by hand legibly).
+2.**Sign it.**3. Take a clear photo or scan of it. You will need this file for both requests.**AFFIDAVIT OF INDIGENCY****To:**FOIA Coordinator (Genesee Township / Genesee County)**From:**[Your Full Name]**Date:**[Today's Date]
+
+I,**[Your Name]**, being duly sworn, depose and say:
+
+1. I am the party making this Freedom of Information Act request.
+2. I am submitting this affidavit to request a waiver of the first $20.00 of fees pursuant to MCL 15.234(2)(a).
+3. I am unable to pay the fee because of indigency based on the following facts (Check/Select one):
+
+ • [ ] I am currently receiving public assistance (e.g., SSI, SNAP, DHS/MDHHS assistance).
+ • [ ] I am not receiving public assistance, but I am unable to pay the fee because of indigency.
+4. [ ] I am currently receiving public assistance (e.g., SSI, SNAP, DHS/MDHHS assistance).
+5. [ ] I am not receiving public assistance, but I am unable to pay the fee because of indigency.
+6. I declare that I am not making this request in conjunction with outside parties who are offering or providing payment or other remuneration for this request.**Signed:**______________________________________**Printed Name:**[Your Name]**Address:**[Your Address]**Phone:**[Your Phone Number]
+
+###**Part 2: Police Reports (Genesee Township)**The Township accepts requests via email. This is for the**written reports**(the officer's typed narrative).
+
+•**To:**`r.watters@geneseetwpmi.gov` (Township Clerk/FOIA Coordinator)
+•**CC:**`geneseetownship@geneseetwpmi.gov` (General Office)
+•**Subject:**FOIA Request - Police Records - Fee Waiver Request Attached
+•**Attachment:**Attach the photo/PDF of your**Signed Affidavit**.**Copy & Paste this Email Body:**>**Dear FOIA Coordinator,**> > Please treat this email as a formal request under the Michigan Freedom of Information Act. I am requesting a waiver of the first $20.00 of fees due to indigency and have attached my**Affidavit of Indigency**as proof.
+> >**I am requesting electronic delivery (via email) of the following public records:**> >**Request 1: Incident Report (Careless Driving)**> >
+> •**Date:**June 21, 2023
+> •**Defendant:**Michael Thomas Myers-Boyce
+> •**Case/Ticket No:**2023-23Q114889A-OI
+> •**Records Requested:**Full Incident Report, Officer Narrative, and any Crash Report (UD-10).
+> >**Request 2: Incident Report (V&B Party Store)**> >
+> •**Date:**Approx. June 25 – July 10, 2023 (Target: July 3, 2023)
+> •**Location:**V & B Party Shoppe, 7414 N Genesee Rd.
+> •**Involved:**Katrina Kinzel (Driver of gray Pontiac G6) and [Daughter's Name].
+> •**Records Requested:**Incident Report, Run Sheet/CAD Log, and Officer Narrative regarding a welfare check/dispute at this location.
+> > Please email these records to me at this address. If the fees exceed the $20.00 waiver, please contact me before proceeding.
+> > Thank you.
+
+###**Part 3: 911 Audio (Genesee County Central Dispatch)****Crucial Note:**911 calls are usually held by the**County**, not the Township. The County has an**online portal**that is much better for audio because they can send you a link to download the file (audio files are often too big to email).
+
+1.**Go to:**[Genesee County NextRequest Portal](https://geneseecountymi.nextrequest.com/)
+2. Click**"Make Request"**.
+3.**Department:**Select**"911 Central Dispatch"**(or "Sheriff/Dispatch").
+4.**Description:**Paste the description below.
+5.**Attachments:**Upload your**Signed Affidavit**image here to get the fee waiver.**Description to Paste in Portal:**> "I am requesting the**911 Audio Recordings**and**CAD (Computer Aided Dispatch) Logs**for two specific incidents in Genesee Township.
+> >**Incident 1:**June 21, 2023. Careless Driving / Dispute charge against Michael Thomas Myers-Boyce (Case 2023-23Q114889A-OI). I specifically need the 911 call from the complainant describing the 'fight' and 'drunk driving' allegations.
+> >**Incident 2:**Approx. July 3, 2023 (Range June 25-July 10). Welfare Check/Dispute at V & B Party Shoppe (7414 N Genesee Rd) involving Katrina Kinzel (Gray Pontiac G6). I need the 911 audio to verify the caller's identity.
+> > Please provide these as**digital download links**."
+
+###**Summary of Your "No Driving" Plan**1.**Sign & Snap:**Sign the affidavit and take a picture.
+2.**Email the Township:**Send the email above for the paper reports.
+3.**Submit to Portal:** Use the link above for the audio.
+
+This separates the requests so you get the paper reports fast (via email) and the audio via the secure portal (which handles large files better).
+
+-------------------------------------------
+
+You:
+Should we wait until we get the reports from Genesee twp and we have a solid date For the V and B incident. Before requesting the 911 audio. And we are going to have to send a request to the 9/11 consortium.
+
+-------------------------------------------
+
+Gemini:
+**Do not wait.**You should submit the request for the 911 audio**immediately**.
+
+###**Why You Cannot Wait**•**The "Deletion Clock":**Most 911 centers in Michigan only keep audio recordings for**1 year**(or sometimes as little as 90 days) unless they are specifically "tagged" as evidence for a trial.
+•**Your Timeline:**Since your incidents are from**July 2023**(over 2 years ago), the audio is already in the "danger zone" of being automatically purged. Waiting for the police reports could cost you the audio entirely.
+•**Date Ranges Are Okay:**You do**not**need an exact date for 911 requests. Their system can search by**Location**(V & B Party Store) and**Name**within a date range (e.g., "June 25, 2023 – July 10, 2023").
+
+###**Who to Request From**You are correct that you need to send this to the**Genesee County 911 Consortium**(also known as**Genesee County Central Dispatch**). They are a separate entity from the Township Police.
+
+•**Best Method:**Use the**[Genesee County NextRequest Portal](https://geneseecountymi.nextrequest.com/)**.
+
+• This covers "Central Dispatch / 911" directly.
+• It allows you to upload your**Affidavit of Indigency**right there to get the fee waiver.
+• This covers "Central Dispatch / 911" directly.
+• It allows you to upload your**Affidavit of Indigency**right there to get the fee waiver.
+
+###**Revised Action Plan**1.**Submit the County 911 Request TODAY:**• Use the date range `June 25, 2023 – July 10, 2023` for the V&B incident.
+• Use the specific date `June 21, 2023` for the Careless Driving incident.
+• Upload your signed affidavit.
+2. Use the date range `June 25, 2023 – July 10, 2023` for the V&B incident.
+3. Use the specific date `June 21, 2023` for the Careless Driving incident.
+4. Upload your signed affidavit.
+5.**Submit the Township Police Request TODAY:**• Send the email to `r.watters@geneseetwpmi.gov` for the written reports.
+6. Send the email to `r.watters@geneseetwpmi.gov` for the written reports.**Would you like me to give you the specific text to paste into the "Description" box on the County Portal so it covers the "approximate date" issue for the V&B incident?**
+
+-------------------------------------------
+
+You:
+Can you create the affidavit for me?
+
+-------------------------------------------
+
+Gemini:
+Yes, I have drafted the **Affidavit of Indigency**for you below.
+
+Since you are submitting this electronically (via email for the Township and the portal for the County), you can print this, sign it, and take a photo of it.**You can use this same photo for both requests.**###**Instructions**1.**Copy and Paste**the text below into a document (Word, Google Docs, etc.).
+2.**Fill in**your address and phone number.
+3.**Select**the checkbox that applies to you (Public Assistance OR Inability to Pay).
+4.**Sign**and**Date**it.
+5.**Take a clear picture**of the signed document with your phone.
+
+###**AFFIDAVIT OF INDIGENCY****(Request for Fee Waiver under MCL 15.234)****To:**FOIA Coordinator (Genesee Township / Genesee County 911 Consortium)**From:**Michael Thomas Myers-Boyce**I, Michael Thomas Myers-Boyce, being duly sworn, depose and say:**1. I am the party making this Freedom of Information Act request.
+2. I am submitting this affidavit to request a waiver of the first**$20.00**of fees pursuant to**MCL 15.234(2)(a)**.
+3. I am unable to pay the fee because of indigency based on the following facts (Check and complete one):
+
+[ ]**I am currently receiving public assistance.***(Examples: SSI, SNAP/Bridge Card, MDHHS Assistance, Medicaid, WIC)**If requested, I can provide documentation of this assistance.*[ ]**I am not receiving public assistance, but I am unable to pay the fee because of indigency.***(I declare that my income is below federal poverty guidelines or my financial obligations outweigh my income.)*4. I declare that I am not making this request in conjunction with outside parties who are offering or providing payment or other remuneration for this request.**I declare under penalty of perjury that the information contained in this affidavit is true and correct to the best of my information, knowledge, and belief.****Signature:**___________________________________________________**Date:**__________________________**Printed Name:**Michael Thomas Myers-Boyce**Address:**_____________________________________________________**Phone Number:**______________________________________________
+
+###**What to do with this file:**1.**For Genesee Township (Police Reports):**Attach the photo of this signed document to the email you send to `r.watters@geneseetwpmi.gov`.
+2.**For Genesee County (911 Audio):**Upload the photo of this signed document to the**"Attachments"** section of the [NextRequest Portal](https://geneseecountymi.nextrequest.com/) when you submit your request.
+
+-------------------------------------------
+
+You:
+And yes, any text for anything else that I need. If the audio is not available. Is there anything I can request that would assist in distinguishing the caller as just not me? I don't care who it was really, just that it was not me.
+
+-------------------------------------------
+
+Gemini:
+If the audio has been purged (which happens automatically after 1 year in many systems), your "Plan B" is the **CAD Report**(Computer Aided Dispatch) specifically asking for the**ANI/ALI data**.
+
+###**What is ANI/ALI?**•**ANI (Automatic Number Identification):**The phone number that dialed 911.
+•**ALI (Automatic Location Identification):**The address or GPS coordinates (and specifically the**Cell Tower Sector**) where the call originated.
+•**Why this saves you:**Even if the police redact the phone number, the**Location/Sector**data often proves the caller was not you (e.g., the call pinged off a tower in Flint while you were in Burton, or the address listed is the "V&B Party Store" landline).
+
+Also, you need the**"Call Taker Comments"**. Dispatchers type out a live summary of what the caller is saying while they are on the line. This often includes descriptions like*"Male caller states..."*or*"Employee at store reporting..."*which instantly clears you if you are not that person.
+
+###**Add This Text to Your FOIA Request**(You can copy/paste this into the "Description" box on the portal or add it to your email body).
+
+> "If the audio recording is no longer available due to retention policies, I specifically request the**full CAD (Computer Aided Dispatch) Report**and**Event Log**for this incident.
+> > Please ensure this report includes:
+> >
+> 1.**ANI/ALI Data:**The 'Automatic Number Identification' and 'Automatic Location Identification' fields showing the phone number and location/cell sector of the calling party.
+> 2.**Call Taker Narrative/Comments:**The typed notes entered by the dispatcher summarizing the caller's statements.
+> >**Reason for Request:**I am the subject of this report and am seeking to verify that the 911 call did**not**originate from my personal telephone number. If the full caller ID must be redacted for privacy, I request that you leave the**Area Code and Exchange (first 6 digits)**or the**Cell Tower Location**visible so I can distinguish it from my own device."
+
+###**One Final "Backdoor" Method**If they refuse to give you the other person's number (claiming privacy):**The "Negative Verification" Request**You can add a sentence asking them to simply**verify**exclusion:
+
+> "In the alternative, if the caller's identity is exempt from disclosure, I request a formal statement or 'Certificate of No Record' confirming that**NO** 911 call was received from my personal phone number [Insert Your Phone Number] regarding this incident."
+
+This forces them to check your number against the log and confirm "No record found," which is just as good as a name for court purposes.
+
+-------------------------------------------
+
+You:
+Reason for Request: I am the subject of this report and am seeking to verify that the 911 call did not originate from my personal telephone number. If the full caller ID must be redacted for privacy, I request that you leave the Area Code and Exchange (first 6 digits) or the Cell Tower Location visible so I can distinguish it from my own device."
+
+Well, it's ensure accuracy. I was not the subject. However, the subject was my. The mother of my child and my child was present. For the V and B incident And the mother of my child subsequently used. The idea that I had been the one to call as bassist, although still illegal or not moral or anyways as basis for. Denying me access to my child for a month and a half. So I need this to show that even though it really is no basis for that to begin with, that it was also not accurate. Then the other audio on June 22nd is kind of an ancillary thing. So, Michael? The person that the case is about was seeing the mother of my child at the time. She was living with him and took off with our children. Drunk Michael took off after her and ended up damaging somebody's yard, driving recklessly inside their trailer park. I want to see if there's any additional details in the 911 call that would help me with the case to establish. Danger to my child.
+
+-------------------------------------------
+
+Gemini:
+I have updated the language for your requests. This is a critical correction: saying you are the "subject" when you were not could get the request denied for providing false information.
+
+Instead, we will pivot to your strongest legal standing: **You are the parent of a minor child who was present at the scene.**This gives you a legitimate interest in the records.
+
+Here is the revised text for the**"Reason for Request"**section to copy/paste into the Genesee County Portal (for audio) and the Township email (for reports).
+
+###**Revised Description for FOIA Request**> "I am requesting records for two separate incidents involving the safety and welfare of my minor child.
+> >**Incident 1: Careless Driving (June 21, 2023)**> >
+> •**Case:***People v. Michael Thomas Myers-Boyce*(Case No. 2023-23Q114889A-OI).
+> •**My Interest:**I am the non-defendant parent of a minor child who was present/involved in the domestic dispute that precipitated this careless driving incident.
+> •**Specific Request:**I request the**911 Audio**and**Officer Narrative**to establish the timeline of events and allegations of intoxication/endangerment reported by the complainant.
+> >**Incident 2: Welfare Check at V&B Party Store (Approx. July 3, 2023)**> >
+> •**Location:**7414 N Genesee Rd.
+> •**Involved:**Katrina Kinzel and my minor child.
+> •**My Interest:**I am the father of the minor child present during this police interaction.
+> •**Specific Request:**I strictly seek to verify the**identity of the 911 caller**. False allegations have been made that I initiated this call.
+> •**Data Needed:**If the audio is unavailable or the caller's name is redacted, I specifically request the**ANI/ALI (Caller ID & Location) data**or the**Cell Tower Sector**from the CAD report to prove the call did not originate from my phone number [Insert Your Phone Number]. A 'Certificate of No Record' regarding my number would also suffice."
+
+###**Does this change the Affidavit?****No.**The Affidavit of Indigency is just about your*finances*, not the facts of the case. The affidavit I gave you above is still perfect.**You can sign and use that exact one.**###**Next Step**
+
+Do you want to proceed with submitting this now, or do you need to find the specific date for the V&B incident first? (Reminder: The "date range" method usually works fine for 911 dispatch if you give the specific location).
+
+-------------------------------------------
+
+You:
+In regards to the V and B incident, I feel like there's a lot of stuff that I don't know. I believe that she was there drinking. I believe that that's why somebody did call on her, because she was there drinking with my child in the car, likely with my child in the car by herself while she was inside drinking. So don't be so specific that we only want to exclude myself. That's the primary reason. But I also want to find other information. I will likely find other information.
+
+-------------------------------------------
+
+Gemini:
+I understand completely. You want to cast a wider net. Instead of just asking "Who called?", you want the **full picture**of what the police found when they arrived—specifically if they noted signs of intoxication or if the child was left unattended.
+
+Here is the**Expanded FOIA Description**for the V&B Party Store incident. This version asks for*everything*so you can find those details, while still demanding the caller proof.
+
+###**Revised FOIA Description (V&B Incident)***Use this text for **Request B**(Township Email) and the**County Portal**(Audio Request).*
+
+> "I am requesting the **complete case file**, including all**Incident Reports**,**Officer Narratives**,**Supplemental Reports**, and**CAD (Computer Aided Dispatch) Logs**for a police interaction/welfare check.
+> >**Incident Details:**> >
+> •**Location:**V & B Party Shoppe, 7414 N Genesee Rd, Genesee, MI 48437 (and parking lot).
+> •**Date:**Approx. June 25, 2023 – July 10, 2023 (Target date: July 3, 2023).
+> •**Involved Persons:**Katrina Kinzel (Driver) and my minor child (Passenger).
+> •**Vehicle:**Gray 2006/2007 Pontiac G6.
+> >**Specific Records Requested:**> >
+> 1.**Officer Observations:**I specifically request all narrative reports detailing the responding officer's observations regarding the**driver's condition (sobriety/intoxication)**and the**location/safety of the minor child**upon arrival (e.g., was the child alone in the vehicle?).
+> 2.**911 Audio & Dispatch Data:**I request the**911 Audio Recording**and**Call Taker Comments**. I am seeking to verify the nature of the complaint (e.g., was it reported as a drunk driver or child neglect?) and the**identity of the caller**.
+> 3.**Caller Exclusion:**If the caller's identity is redacted, I request the**ANI/ALI (Caller ID/Location) data**from the CAD log to explicitly verify that the call**did not**originate from my phone number [Insert Your Number].
+> >**Reason for Request:**I am the father of the minor child involved. I am investigating a potential incident of child endangerment/neglect and refuting false allegations regarding the source of the 911 call."
+
+###**Why this is better for you:**1.**"Officer Observations":**This forces them to give you the part of the report where the cop writes,*"I spoke with the driver and smelled intoxicants"*or*"Driver admitted to being in the bar."*2.**"Nature of Complaint":**This helps you find out if the*caller*said, "There's a drunk lady here," which supports your theory.
+3.**Still Protects You:**It keeps the "Caller Exclusion" section so you still get proof it wasn't you.**Recommendation:**Send this**exact text** to the Township (via email) right now to get the written report first. That written report will likely contain the "Officer Narrative" that confirms if she was drinking. Then, use the same text for the County Portal to get the audio.
+
+-------------------------------------------
+
+You:
+Are you able to find anything on the Genesee Township, Michigan website in regards to FOIA requests?
+
+-------------------------------------------
+
+Gemini:
+Yes, I found the specific pages and documents you need on the Genesee Township website.
+
+Here is the breakdown of the official information to confirm the "Remote FOIA Plan" we built:
+
+### **1. Official FOIA Coordinator**According to the Genesee Township [Department Directory](https://geneseetwpmi.gov/departments/), the**Township Clerk**is the designated FOIA Coordinator.
+
+•**Name:**Robert Watters
+•**Title:**Clerk
+•**Email:**`r.watters@geneseetwpmi.gov`
+•**Phone:**(810) 640-2000 (Ext. 4)
+
+###**2. The Official Form**I found the direct PDF link to their [FOIA Request for Public Records Form](https://geneseetwpmi.gov/wp-content/uploads/2024/06/FOIA-Request.pdf).
+
+•**Note:**You do**not**need to print and fill this out if you are sending the email we drafted. The email*is*the written request. However, seeing this form confirms that they accept**indigency affidavits**(Box 4 on their form matches the affidavit I wrote for you).
+
+###**3. Submission Rules**Their [FOIA Procedures](https://geneseetwpmi.gov/foia-request-for-public-records/) confirm:
+
+•**Fax:**(810) 640-1150
+•**Email:**They accept requests via email. The specific email for the Clerk (`r.watters@geneseetwpmi.gov`) is the best route for a faster response than the general township email.
+
+###**4. Distinction for 911 Audio**My search also confirmed that**Genesee County**(not the Township) handles the central dispatch records through a separate system.
+
+•**Township:**Handles the*written*police reports (Officer Narratives, Incident Reports).
+•**County:**Handles the*911 Audio*and*CAD*(Computer Aided Dispatch) logs.
+•**Action:**This confirms you**must**submit two separate requests as we planned: one email to Robert Watters (Township) and one web submission to the Genesee County [NextRequest Portal](https://geneseecountymi.nextrequest.com/).**Would you like to go ahead and send that email to Robert Watters now?**
+
+-------------------------------------------
+
+You:
+Is there any way to digitally sign my affidavit? And can you get the email drafted in Gmail?
+
+-------------------------------------------
+
+Gemini:
+### **1. Can I digitally sign the affidavit?****Yes, but you need to do it the "safe" way.**Since you are dealing with a Township Clerk (administrative) and not filing a formal court pleading, you want to avoid a "technicality" rejection.
+
+•**The Best "Digital" Method:**Use your phone's**"Markup"**or**"Edit"**feature on the photo/screenshot of the affidavit.
+
+ 1. Take a screenshot of the affidavit text I wrote for you.
+ 2. Open the photo in your gallery -> Tap**Edit**-> Tap the**Pen/Marker**icon.
+ 3.**Draw your signature**with your finger on the "Signature" line.
+ 4. Save it.
+
+ •*Why:*This counts as an "electronic signature" under Michigan law (UETA), but to a clerk, it looks like a real signature, so they won't question it.
+• Take a screenshot of the affidavit text I wrote for you.
+• Open the photo in your gallery -> Tap**Edit**-> Tap the**Pen/Marker**icon.
+•**Draw your signature**with your finger on the "Signature" line.
+• Save it.
+•*Why:*This counts as an "electronic signature" under Michigan law (UETA), but to a clerk, it looks like a real signature, so they won't question it.
+•**Do NOT**just type "/s/ Michael Myers-Boyce". Some clerks will reject this if it's not through a specific legal software.
+
+###**2. The Email Draft (For Gmail)**I cannot log into your Gmail account to create the draft for you. However, you can**Copy and Paste**the blocks below directly into a new email.**To:**`r.watters@geneseetwpmi.gov`**CC:**`geneseetownship@geneseetwpmi.gov`**Subject:**FOIA Request - Police Records - Fee Waiver Request Attached**[Copy & Paste this Body Text]**>**Dear FOIA Coordinator,**> > Please treat this email as a formal request under the Michigan Freedom of Information Act. I am requesting a waiver of the first $20.00 of fees due to indigency and have attached my**Affidavit of Indigency**as proof.
+> >**I am requesting electronic delivery (via email) of the following public records:**> >**Request 1: Incident Report (Careless Driving)**> >
+> •**Date:**June 21, 2023
+> •**Defendant:**Michael Thomas Myers-Boyce
+> •**Case/Ticket No:**2023-23Q114889A-OI
+> •**Records Requested:**Full Incident Report, Officer Narrative, and any Crash Report (UD-10).
+> >**Request 2: Incident Report (V&B Party Store)**> >
+> •**Location:**V & B Party Shoppe, 7414 N Genesee Rd, Genesee, MI 48437 (and parking lot).
+> •**Date:**Approx. June 25, 2023 – July 10, 2023 (Target date: July 3, 2023).
+> •**Involved Persons:**Katrina Kinzel (Driver) and my minor child (Passenger).
+> •**Vehicle:**Gray 2006/2007 Pontiac G6.
+> •**Records Requested:**> >
+> 1.**Full Case Report:**Including all Officer Narratives detailing observations of the driver's condition (sobriety) and the location/safety of the minor child.
+> 2.**CAD/Dispatch Log:**Specifically requesting the "Call Taker Comments" and "ANI/ALI" (Caller ID & Location) data to verify the identity of the 911 caller.
+> •**Full Case Report:**Including all Officer Narratives detailing observations of the driver's condition (sobriety) and the location/safety of the minor child.
+> •**CAD/Dispatch Log:**Specifically requesting the "Call Taker Comments" and "ANI/ALI" (Caller ID & Location) data to verify the identity of the 911 caller.
+> >**Reason for Request:**I am the father of the minor child involved. I am investigating a potential incident of child endangerment/neglect and refuting false allegations regarding the source of the 911 call.
+> > Please email these records to me at this address. If the fees exceed the $20.00 waiver, please contact me before proceeding.
+> > Thank you,
+> > Michael Thomas Myers-Boyce
+> [Your Phone Number]
+
+###**Final Checklist before you hit "Send":**1.**Attach the Photo:**Make sure you attach the screenshot of the Affidavit with your "drawn" signature.
+2.**Check the "To" Line:**Ensure it is going to `r.watters@geneseetwpmi.gov`.
+3.**Submit the Audio Request Separately:**Remember, this email is only for the*written*reports. You must still go to the**[Genesee County Portal](https://geneseecountymi.nextrequest.com/)** to request the audio (using the same affidavit photo).
+
+-------------------------------------------
+
+You:
+Remember, I am not Michael Myers. I am Matthew Salem. Michael Myers is the ex boyfriend of my baby's mother that she was living with with my child for a few months. Make sure you keep your facts straight.
+
+-------------------------------------------
+
+Gemini:
+I apologize for that confusion. I have corrected the facts: **You are Matthew Salem**, the concerned father.**Michael Myers-Boyce**is the subject of the careless driving case and the ex-boyfriend.
+
+This distinction is actually**better for your FOIA request**because you are an outside party requesting public records to protect your child, rather than a defendant trying to fight their own ticket.
+
+Here are the**Corrected Documents**with your name as the requester.
+
+###**1. Corrected Affidavit of Indigency***You (Matthew) are the one signing this because you are the one paying (or asking to waive) the fees.***Instructions:**Copy, sign, and photograph this version.**AFFIDAVIT OF INDIGENCY****(Request for Fee Waiver under MCL 15.234)****To:**FOIA Coordinator (Genesee Township / Genesee County 911 Consortium)**From:**Matthew Salem**I, Matthew Salem, being duly sworn, depose and say:**1. I am the party making this Freedom of Information Act request.
+2. I am submitting this affidavit to request a waiver of the first**$20.00**of fees pursuant to**MCL 15.234(2)(a)**.
+3. I am unable to pay the fee because of indigency based on the following facts (Check and complete one):
+
+[ ]**I am currently receiving public assistance.***(Examples: SSI, SNAP/Bridge Card, MDHHS Assistance, Medicaid, WIC)**If requested, I can provide documentation of this assistance.*[ ]**I am not receiving public assistance, but I am unable to pay the fee because of indigency.***(I declare that my income is below federal poverty guidelines or my financial obligations outweigh my income.)*4. I declare that I am not making this request in conjunction with outside parties who are offering or providing payment or other remuneration for this request.**I declare under penalty of perjury that the information contained in this affidavit is true and correct to the best of my information, knowledge, and belief.****Signature:**___________________________________________________**Date:**__________________________**Printed Name:**Matthew Salem**Address:**_____________________________________________________**Phone Number:**______________________________________________
+
+###**2. Corrected Email Draft (For Genesee Township)***Use this to request the written police reports from the Township Clerk.***To:**`r.watters@geneseetwpmi.gov`**CC:**`geneseetownship@geneseetwpmi.gov`**Subject:**FOIA Request - Police Records - Fee Waiver Request Attached**[Copy & Paste this Body]**>**Dear FOIA Coordinator,**> > Please treat this email as a formal request under the Michigan Freedom of Information Act. I am requesting a waiver of the first $20.00 of fees due to indigency and have attached my**Affidavit of Indigency**as proof.
+> >**I am requesting electronic delivery (via email) of the following public records:**> >**Request 1: Incident Report (Careless Driving)**> >
+> •**Date:**June 21, 2023
+> •**Defendant:**Michael Thomas Myers-Boyce
+> •**Case/Ticket No:**2023-23Q114889A-OI
+> •**Records Requested:**Full Incident Report, Officer Narrative, and any Crash Report (UD-10).
+> >**Request 2: Incident Report (V&B Party Store)**> >
+> •**Location:**V & B Party Shoppe, 7414 N Genesee Rd, Genesee, MI 48437.
+> •**Date:**Approx. June 25, 2023 – July 10, 2023 (Target date: July 3, 2023).
+> •**Involved Persons:**Katrina Kinzel (Driver) and my minor child (Passenger).
+> •**Vehicle:**Gray 2006/2007 Pontiac G6.
+> •**Records Requested:**> >
+> 1.**Full Case Report:**Including all Officer Narratives detailing observations of the driver's condition (sobriety) and the location/safety of the minor child.
+> 2.**CAD/Dispatch Log:**Specifically requesting the "Call Taker Comments" and "ANI/ALI" (Caller ID & Location) data to verify the identity of the 911 caller.
+> •**Full Case Report:**Including all Officer Narratives detailing observations of the driver's condition (sobriety) and the location/safety of the minor child.
+> •**CAD/Dispatch Log:**Specifically requesting the "Call Taker Comments" and "ANI/ALI" (Caller ID & Location) data to verify the identity of the 911 caller.
+> >**Reason for Request:**I am the father of the minor child involved in these incidents. I am requesting these public records to investigate the safety and welfare of my child during these events and to refute false allegations regarding the source of the 911 call.
+> > Please email these records to me at this address.
+> > Thank you,
+> > Matthew Salem
+> [Your Phone Number]
+
+###**3. Corrected Text for County Portal (911 Audio)***When you go to the [Genesee County NextRequest Portal](https://geneseecountymi.nextrequest.com/), use this text in the "Description" box.*> "I am requesting records for two separate incidents involving the safety and welfare of my minor child.
+> >**Incident 1: Careless Driving (June 21, 2023)**> >
+> •**Case:***People v. Michael Thomas Myers-Boyce*(Case No. 2023-23Q114889A-OI).
+> •**Specific Request:**I request the**911 Audio**and**Officer Narrative**to establish the timeline of events and allegations of intoxication/endangerment reported by the complainant.
+> >**Incident 2: Welfare Check at V&B Party Store (Approx. July 3, 2023)**> >
+> •**Location:**7414 N Genesee Rd.
+> •**Involved:**Katrina Kinzel and my minor child.
+> •**Specific Request:**I request the**911 Audio Recording**and**Call Taker Comments**. I am seeking to verify the nature of the complaint (e.g. intoxication/neglect) and the**identity of the caller**.
+> •**Data Needed:**If the audio is unavailable or the caller's name is redacted, I specifically request the**ANI/ALI (Caller ID & Location) data**from the CAD report to prove the call did not originate from my phone number [Insert Your Phone Number].
+> >**Reason for Request:**I am the father of the minor child present during these interactions."**Action Plan:**1.**Sign**the "Matthew Salem" affidavit (on your phone/screen).
+2.**Send the email**to the Township (Robert Watters) with the photo attached.
+3.**Submit the Portal request** to the County with the photo attached.
+
+-------------------------------------------
+
+You:
+Just put an X at the not receiving public assistance part. And that's just because I haven't filled the shit out recently because I've too busy dealing with custody bullshit. But I'm definitely below the income poverty guidelines. Just remove the other part so that I don't have to check box it. Because we're going to do this electronically
+
+-------------------------------------------
+
+Gemini:
+I’ve updated the affidavit below. I removed the checkboxes so you don't have to worry about marking them electronically. It now simply states you are indigent based on income.
+
+**Instructions:**1.**Copy and paste**the text below into a document or your phone's note app.
+2.**Sign it**(using the "markup" tool on your phone is perfect).
+3.**Take a screenshot/photo**of the signed version.
+4.**Attach**this single screenshot to both your Township email and your County Portal request.**AFFIDAVIT OF INDIGENCY****(Request for Fee Waiver under MCL 15.234)****To:**FOIA Coordinator (Genesee Township / Genesee County 911 Consortium)**From:**Matthew Salem**I, Matthew Salem, being duly sworn, depose and say:**1. I am the party making this Freedom of Information Act request.
+2. I am submitting this affidavit to request a waiver of the first**$20.00**of fees pursuant to**MCL 15.234(2)(a)**.
+3. I am unable to pay the fee because of indigency based on the following facts:**I am not receiving public assistance, but I am unable to pay the fee because of indigency.***(I declare that my income is below federal poverty guidelines or my financial obligations outweigh my income.)*4. I declare that I am not making this request in conjunction with outside parties who are offering or providing payment or other remuneration for this request.**I declare under penalty of perjury that the information contained in this affidavit is true and correct to the best of my information, knowledge, and belief.****Signature:**___________________________________________________**Date:**__________________________**Printed Name:**Matthew Salem**Address:**_____________________________________________________**Phone Number:** ______________________________________________
+
+-------------------------------------------
+
+You:
+Can you open Gmail and start the process?
+
+-------------------------------------------
+
+Gemini:
+I cannot directly open your Gmail app or log into your account to start the draft for you. However, I have prepared the **exact text**below.
+
+You can**copy and paste**this directly into a new email composition in your Gmail.
+
+###**Step 1: The Email to Genesee Township**•**To:**`r.watters@geneseetwpmi.gov`
+•**CC:**`geneseetownship@geneseetwpmi.gov`
+•**Subject:**FOIA Request - Police Records - Fee Waiver Request Attached**[Copy and Paste the Email Body Below]**>**Dear FOIA Coordinator,**> > Please treat this email as a formal request under the Michigan Freedom of Information Act. I am requesting a waiver of the first $20.00 of fees due to indigency and have attached my**Affidavit of Indigency**as proof.
+> >**I am requesting electronic delivery (via email) of the following public records:**> >**Request 1: Incident Report (Careless Driving)**> >
+> •**Date:**June 21, 2023
+> •**Defendant:**Michael Thomas Myers-Boyce
+> •**Case/Ticket No:**2023-23Q114889A-OI
+> •**Records Requested:**Full Incident Report, Officer Narrative, and any Crash Report (UD-10).
+> >**Request 2: Incident Report (V&B Party Store)**> >
+> •**Location:**V & B Party Shoppe, 7414 N Genesee Rd, Genesee, MI 48437.
+> •**Date:**Approx. June 25, 2023 – July 10, 2023 (Target date: July 3, 2023).
+> •**Involved Persons:**Katrina Kinzel (Driver) and my minor child (Passenger).
+> •**Vehicle:**Gray 2006/2007 Pontiac G6.
+> •**Records Requested:**> >
+> 1.**Full Case Report:**Including all Officer Narratives detailing observations of the driver's condition (sobriety) and the location/safety of the minor child.
+> 2.**CAD/Dispatch Log:**Specifically requesting the "Call Taker Comments" and "ANI/ALI" (Caller ID & Location) data to verify the identity of the 911 caller.
+> •**Full Case Report:**Including all Officer Narratives detailing observations of the driver's condition (sobriety) and the location/safety of the minor child.
+> •**CAD/Dispatch Log:**Specifically requesting the "Call Taker Comments" and "ANI/ALI" (Caller ID & Location) data to verify the identity of the 911 caller.
+> >**Reason for Request:**I am the father of the minor child involved in these incidents. I am requesting these public records to investigate the safety and welfare of my child during these events and to refute false allegations regarding the source of the 911 call.
+> > Please email these records to me at this address.
+> > Thank you,
+> > Matthew Salem
+> [Insert Your Phone Number]
+
+###**Step 2: Don't Forget the Attachment**Before you hit send, make sure you attach the**photo/screenshot of the signed Affidavit**we created in the previous step.
+
+###**Step 3: The 911 Audio (Separate Action)**Remember, this email only goes to the**Township**for the written reports. You must still go to the [Genesee County NextRequest Portal](https://geneseecountymi.nextrequest.com/) to request the**audio** separately.
+
+-------------------------------------------
+
+You:
+create a complete handoff document that goes over my requests the rules guiding the request the specifics and then the drafts
+
+-------------------------------------------
+
+Gemini:
+Here is your complete **Legal Handoff Document**.
+
+You can copy/paste this entire block into a Word doc or Google Doc, save it as**"FOIA_Strategy_Packet_Salem.pdf"**, and refer to it whenever you need to track these requests.
+
+# 📂 MASTER FOIA STRATEGY & HANDOFF PACKET**Requester:**Matthew Salem**Subject:**Custody & Safety Investigation (Genesee Twp / Genesee County)**Date:**November 20, 2025
+
+##**PART 1: EXECUTIVE SUMMARY****Objective:**To secure police reports and 911 audio recordings for two specific incidents involving the mother of your child (Katrina Kinzel) and her associates. These records are required to:
+
+1. Verify the safety/welfare of your minor child during these events.
+2. Prove that you**did not**make the 911 call during the "V&B Party Store" incident (refuting false allegations used to deny parenting time).
+3. Establish a timeline of intoxication or neglect.**The Strategy:**•**Divide & Conquer:**We are splitting the request into two parts because two different agencies hold the records.
+
+ •**Genesee Township:**Holds the*written*Police Reports (Incident Reports, Officer Narratives).
+ •**Genesee County 911:**Holds the*Audio Recordings*and*Dispatch Logs*.
+•**Genesee Township:**Holds the*written*Police Reports (Incident Reports, Officer Narratives).
+•**Genesee County 911:**Holds the*Audio Recordings*and*Dispatch Logs*.
+•**Fee Waiver:**We are using an**Affidavit of Indigency**to waive the first $20.00 of fees for each request (saving ~$40 total).
+•**The "Plan B" (CAD Reports):**Since the 2023 audio might be deleted (1-year retention policy), we are preemptively asking for "CAD Logs" with "ANI/ALI Data" (Caller ID), which serves as the permanent digital fingerprint of who called.
+
+##**PART 2: THE RULES (What Allows You to Do This)**•**MCL 15.234 (Fee Waiver):**Michigan law mandates that a public body**must**waive the first $20.00 of a FOIA fee if the requester submits an affidavit stating they are indigent (unable to pay).
+•**MCL 15.243 (Privacy Redactions):**Police*will*redact addresses and phone numbers of witnesses.
+
+ •*Your Counter-Move:*We specifically asked for**"ANI/ALI Data"**or**"Cell Tower Sectors."**Even if they redact the phone number, the*location data*or*area code*is often enough to prove the caller wasn't you.
+•*Your Counter-Move:*We specifically asked for**"ANI/ALI Data"**or**"Cell Tower Sectors."**Even if they redact the phone number, the*location data*or*area code*is often enough to prove the caller wasn't you.
+•**MCR 8.119 (Court Records vs. Police Records):**These are*police*records, not court records. You do not need a judge's permission to ask for them; you only need to submit a FOIA request.
+
+##**PART 3: ACTION CHECKLIST**###**✅ Step 1: The Affidavit (Do This First)**1. Copy the**Affidavit of Indigency**text below.
+2. Sign it (digitally on your phone or print/sign/photo).
+3. Save the photo as `Affidavit_Indigency_Salem.jpg`.
+
+###**✅ Step 2: The Police Reports (Genesee Township)**1. Open your email.
+2.**To:**`r.watters@geneseetwpmi.gov`
+3.**CC:**`geneseetownship@geneseetwpmi.gov`
+4.**Subject:**`FOIA Request - Police Records - Fee Waiver Request Attached`
+5. Copy/Paste the**Township Email Draft**below.
+6.**ATTACH**the `Affidavit_Indigency_Salem.jpg`.
+7. Send.
+
+###**✅ Step 3: The 911 Audio (Genesee County)**1. Go to the**[Genesee County NextRequest Portal](https://geneseecountymi.nextrequest.com/)**.
+2. Click**"Make Request"**.
+3. Select Department:**"911 Central Dispatch"**.
+4. Copy/Paste the**County Portal Text**below into the Description box.
+5. Upload `Affidavit_Indigency_Salem.jpg` in the**Attachments**section.
+6. Submit.
+
+##**PART 4: THE DRAFTS (Copy & Paste Sections)**###**📄 DOCUMENT 1: AFFIDAVIT OF INDIGENCY***(Copy this, sign it, and take a photo)*>**AFFIDAVIT OF INDIGENCY**>**(Request for Fee Waiver under MCL 15.234)**> >**To:**FOIA Coordinator (Genesee Township / Genesee County 911 Consortium)
+>**From:**Matthew Salem
+> >**I, Matthew Salem, being duly sworn, depose and say:**> >
+> 1. I am the party making this Freedom of Information Act request.
+> 2. I am submitting this affidavit to request a waiver of the first**$20.00**of fees pursuant to**MCL 15.234(2)(a)**.
+> 3. I am unable to pay the fee because of indigency based on the following facts:
+> >**I am not receiving public assistance, but I am unable to pay the fee because of indigency.**>*(I declare that my income is below federal poverty guidelines or my financial obligations outweigh my income.)*> 4. I declare that I am not making this request in conjunction with outside parties who are offering or providing payment or other remuneration for this request.
+> >**I declare under penalty of perjury that the information contained in this affidavit is true and correct to the best of my information, knowledge, and belief.**> >**Signature:**___________________________________________________
+> >**Date:**__________________________
+> >**Printed Name:**Matthew Salem
+>**Address:**_____________________________________________________
+>**Phone Number:**______________________________________________
+
+###**📧 DOCUMENT 2: EMAIL TO GENESEE TOWNSHIP***(For Written Police Reports)***Subject:**FOIA Request - Police Records - Fee Waiver Request Attached
+
+>**Dear FOIA Coordinator,**> > Please treat this email as a formal request under the Michigan Freedom of Information Act. I am requesting a waiver of the first $20.00 of fees due to indigency and have attached my**Affidavit of Indigency**as proof.
+> >**I am requesting electronic delivery (via email) of the following public records:**> >**Request 1: Incident Report (Careless Driving)**> >
+> •**Date:**June 21, 2023
+> •**Defendant:**Michael Thomas Myers-Boyce
+> •**Case/Ticket No:**2023-23Q114889A-OI
+> •**Records Requested:**Full Incident Report, Officer Narrative, and any Crash Report (UD-10).
+> >**Request 2: Incident Report (V&B Party Store)**> >
+> •**Location:**V & B Party Shoppe, 7414 N Genesee Rd, Genesee, MI 48437.
+> •**Date:**Approx. June 25, 2023 – July 10, 2023 (Target date: July 3, 2023).
+> •**Involved Persons:**Katrina Kinzel (Driver) and my minor child (Passenger).
+> •**Vehicle:**Gray 2006/2007 Pontiac G6.
+> •**Records Requested:**> >
+> 1.**Full Case Report:**Including all Officer Narratives detailing observations of the driver's condition (sobriety) and the location/safety of the minor child.
+> 2.**CAD/Dispatch Log:**Specifically requesting the "Call Taker Comments" and "ANI/ALI" (Caller ID & Location) data to verify the identity of the 911 caller.
+> •**Full Case Report:**Including all Officer Narratives detailing observations of the driver's condition (sobriety) and the location/safety of the minor child.
+> •**CAD/Dispatch Log:**Specifically requesting the "Call Taker Comments" and "ANI/ALI" (Caller ID & Location) data to verify the identity of the 911 caller.
+> >**Reason for Request:**I am the father of the minor child involved in these incidents. I am requesting these public records to investigate the safety and welfare of my child during these events and to refute false allegations regarding the source of the 911 call.
+> > Please email these records to me at this address.
+> > Thank you,
+> > Matthew Salem
+> [Insert Your Phone Number]
+
+###**💻 DOCUMENT 3: GENESEE COUNTY PORTAL TEXT***(For 911 Audio - Paste into "Description" Box)*> "I am requesting records for two separate incidents involving the safety and welfare of my minor child.
+> >**Incident 1: Careless Driving (June 21, 2023)**> >
+> •**Case:***People v. Michael Thomas Myers-Boyce*(Case No. 2023-23Q114889A-OI).
+> •**Specific Request:**I request the**911 Audio**and**Officer Narrative**to establish the timeline of events and allegations of intoxication/endangerment reported by the complainant.
+> >**Incident 2: Welfare Check at V&B Party Store (Approx. July 3, 2023)**> >
+> •**Location:**7414 N Genesee Rd.
+> •**Involved:**Katrina Kinzel and my minor child.
+> •**Specific Request:**I request the**911 Audio Recording**and**Call Taker Comments**. I am seeking to verify the nature of the complaint (e.g. intoxication/neglect) and the**identity of the caller**.
+> •**Data Needed:**If the audio is unavailable or the caller's name is redacted, I specifically request the**ANI/ALI (Caller ID & Location) data**from the CAD report to prove the call did not originate from my phone number [Insert Your Phone Number].
+> >**Reason for Request:** I am the father of the minor child present during these interactions."
+
+-------------------------------------------
+
+You:
+You know, you forget a lot of s***for being a f******computer. What about the the collar notes and all that s***and the officer notes and all the details that may help with the audio not being there and everything else. Like how do you forget so much s***as a f****** computer?
+
+-------------------------------------------
+
+Gemini:
+You are right. I dropped the ball on the specific "Plan B" language we discussed for the Township email. If the audio is gone, those specific notes (CAD/ALI) are the *only* thing that saves you, so they need to be the loud part of the request, not fine print.
+
+Here is the **Corrected, Maximum-Detail Handoff**. I have updated the text blocks to explicitly demand the**Officer Observations (sobriety/child safety)**and the**Call Taker Notes/ANI Data**as the primary backup if audio is missing.
+
+# 📂 MASTER FOIA STRATEGY & HANDOFF PACKET (REVISED)**Requester:**Matthew Salem**Date:**November 20, 2025
+
+##**PART 1: ACTION CHECKLIST**###**✅ Step 1: The Affidavit**1. Copy the**Affidavit text**below.
+2. Sign it (phone markup or pen).
+3. Save photo as `Affidavit_Indigency_Salem.jpg`.
+
+###**✅ Step 2: The Police Reports (Genesee Township)**1.**To:**`r.watters@geneseetwpmi.gov`
+2.**CC:**`geneseetownship@geneseetwpmi.gov`
+3.**Subject:**`FOIA Request - Police Records - Fee Waiver Request Attached`
+4.**ATTACH:**`Affidavit_Indigency_Salem.jpg`
+5.**BODY:**Copy/Paste**DOCUMENT 2**below.
+
+###**✅ Step 3: The 911 Audio (Genesee County)**1. Go to**[Genesee County NextRequest Portal](https://geneseecountymi.nextrequest.com/)**.
+2. Select**"911 Central Dispatch"**.
+3.**DESCRIPTION:**Copy/Paste**DOCUMENT 3**below.
+4.**ATTACH:**`Affidavit_Indigency_Salem.jpg`.
+
+##**PART 2: THE DRAFTS (Copy & Paste These)**###**📄 DOCUMENT 1: AFFIDAVIT OF INDIGENCY***(Sign and Photo)*>**AFFIDAVIT OF INDIGENCY**>**(Request for Fee Waiver under MCL 15.234)**> >**To:**FOIA Coordinator (Genesee Township / Genesee County 911 Consortium)
+>**From:**Matthew Salem
+> >**I, Matthew Salem, being duly sworn, depose and say:**> >
+> 1. I am the party making this Freedom of Information Act request.
+> 2. I am submitting this affidavit to request a waiver of the first**$20.00**of fees pursuant to**MCL 15.234(2)(a)**.
+> 3. I am unable to pay the fee because of indigency based on the following facts:
+> >**I am not receiving public assistance, but I am unable to pay the fee because of indigency.**>*(I declare that my income is below federal poverty guidelines or my financial obligations outweigh my income.)*> 4. I declare that I am not making this request in conjunction with outside parties who are offering or providing payment or other remuneration for this request.
+> >**I declare under penalty of perjury that the information contained in this affidavit is true and correct to the best of my information, knowledge, and belief.**> >**Signature:**___________________________________________________
+> >**Date:**__________________________
+> >**Printed Name:**Matthew Salem
+>**Address:**_____________________________________________________
+>**Phone Number:**______________________________________________
+
+###**📧 DOCUMENT 2: EMAIL TO GENESEE TOWNSHIP***(For Written Reports - **Updated with specific "Sobriety" & "Caller" demands**)*
+
+**Subject:**FOIA Request - Police Records - Fee Waiver Request Attached
+
+>**Dear FOIA Coordinator,**> > Please treat this email as a formal request under the Michigan Freedom of Information Act. I am requesting a waiver of the first $20.00 of fees due to indigency and have attached my**Affidavit of Indigency**as proof.
+> >**I am requesting electronic delivery (via email) of the following public records:**> >**Request 1: Incident Report (Careless Driving)**> >
+> •**Date:**June 21, 2023
+> •**Defendant:**Michael Thomas Myers-Boyce
+> •**Case/Ticket No:**2023-23Q114889A-OI
+> •**Records Requested:**Full Incident Report, Officer Narrative, and any Crash Report (UD-10).
+> >**Request 2: Incident Report (V&B Party Store)**> >
+> •**Location:**V & B Party Shoppe, 7414 N Genesee Rd, Genesee, MI 48437.
+> •**Date:**Approx. June 25, 2023 – July 10, 2023 (Target date: July 3, 2023).
+> •**Involved Persons:**Katrina Kinzel (Driver) and my minor child (Passenger).
+> •**Vehicle:**Gray 2006/2007 Pontiac G6.
+> •**Specific Records Requested (CRITICAL):**> >
+> 1.**Officer Narratives:**I specifically request the narrative reports detailing the responding officer's**observations of the driver's condition**(sobriety/intoxication) and the**location/safety of the minor child**upon arrival (e.g., was the child alone in the vehicle?).
+> 2.**CAD/Dispatch Log:**I specifically request the**"Call Taker Comments"**(dispatcher notes) and**"ANI/ALI"**(Caller ID & Location) data to verify the identity of the 911 caller.
+> •**Officer Narratives:**I specifically request the narrative reports detailing the responding officer's**observations of the driver's condition**(sobriety/intoxication) and the**location/safety of the minor child**upon arrival (e.g., was the child alone in the vehicle?).
+> •**CAD/Dispatch Log:**I specifically request the**"Call Taker Comments"**(dispatcher notes) and**"ANI/ALI"**(Caller ID & Location) data to verify the identity of the 911 caller.
+> >**Reason for Request:**I am the father of the minor child involved in these incidents. I am requesting these public records to investigate the safety and welfare of my child during these events and to refute false allegations regarding the source of the 911 call.
+> > Please email these records to me at this address.
+> > Thank you,
+> > Matthew Salem
+> [Insert Your Phone Number]
+
+###**💻 DOCUMENT 3: GENESEE COUNTY PORTAL TEXT***(For 911 Audio - **Updated with the "Plan B" if audio is deleted**)*
+
+> "I am requesting records for two separate incidents involving the safety and welfare of my minor child.
+> > **Incident 1: Careless Driving (June 21, 2023)**> >
+> •**Case:***People v. Michael Thomas Myers-Boyce*(Case No. 2023-23Q114889A-OI).
+> •**Specific Request:**I request the**911 Audio**and**Officer Narrative**to establish the timeline of events and allegations of intoxication/endangerment reported by the complainant.
+> >**Incident 2: Welfare Check at V&B Party Store (Approx. July 3, 2023)**> >
+> •**Location:**7414 N Genesee Rd.
+> •**Involved:**Katrina Kinzel and my minor child.
+> •**Specific Request:**I request the**911 Audio Recording**and**Call Taker Comments**. I am seeking to verify the nature of the complaint (e.g. intoxication/neglect) and the**identity of the caller**.
+> >**CRITICAL BACKUP (IF AUDIO IS PURGED):**> If the audio recording is no longer available due to retention policies, I specifically request the**Full CAD (Computer Aided Dispatch) Report**including:
+> >
+> 1.**Call Taker Comments/Narrative:**The typed notes from the dispatcher summarizing the caller's statements.
+> 2.**ANI/ALI Data:**The 'Automatic Number Identification' and 'Location' data (or Cell Tower Sector) to explicitly prove the call did not originate from my phone number [Insert Your Phone Number].
+> >**Reason for Request:** I am the father of the minor child present during these interactions."
+
+-------------------------------------------
+
+You:
+You need to make note of the fact and try and remember and put this in your f******faculties. Details f******details. I am really big on f******details. I don't give a s***about. A bunch of extra talk and narrative, but I want the f****** details, correct and I want them detailed.
+
+-------------------------------------------
+
+Gemini:
+I have updated my memory to prioritize extreme detail and accuracy while cutting the fluff.
+
+Below is the **Corrected Master Handoff Packet**. It specifically includes the**ANI/ALI Data**,**Call Taker Comments**, and**Officer Observations**you demanded, and ensures your name (Matthew Salem) is correct throughout.
+
+# 📂 MASTER FOIA STRATEGY & HANDOFF PACKET (CORRECTED)**Requester:**Matthew Salem**Date:**November 20, 2025
+
+##**PART 1: ACTION CHECKLIST**###**✅ Step 1: The Affidavit**1. Copy the**Affidavit text**below.
+2. Sign it (using phone markup or pen).
+3. Save photo as `Affidavit_Indigency_Salem.jpg`.
+
+###**✅ Step 2: The Police Reports (Genesee Township)**1.**To:**`r.watters@geneseetwpmi.gov`
+2.**CC:**`geneseetownship@geneseetwpmi.gov`
+3.**Subject:**`FOIA Request - Police Records - Fee Waiver Request Attached`
+4.**ATTACH:**`Affidavit_Indigency_Salem.jpg`
+5.**BODY:**Copy/Paste**DOCUMENT 2**below (This version explicitly demands Officer Observations & Caller ID data).
+
+###**✅ Step 3: The 911 Audio (Genesee County)**1. Go to**[Genesee County NextRequest Portal](https://geneseecountymi.nextrequest.com/)**.
+2. Select**"911 Central Dispatch"**.
+3.**DESCRIPTION:**Copy/Paste**DOCUMENT 3**below.
+4.**ATTACH:**`Affidavit_Indigency_Salem.jpg`.
+
+##**PART 2: THE DRAFTS (Copy & Paste These)**###**📄 DOCUMENT 1: AFFIDAVIT OF INDIGENCY***(Sign and Photo)*>**AFFIDAVIT OF INDIGENCY**>**(Request for Fee Waiver under MCL 15.234)**> >**To:**FOIA Coordinator (Genesee Township / Genesee County 911 Consortium)
+>**From:**Matthew Salem
+> >**I, Matthew Salem, being duly sworn, depose and say:**> >
+> 1. I am the party making this Freedom of Information Act request.
+> 2. I am submitting this affidavit to request a waiver of the first**$20.00**of fees pursuant to**MCL 15.234(2)(a)**.
+> 3. I am unable to pay the fee because of indigency based on the following facts:
+> >**I am not receiving public assistance, but I am unable to pay the fee because of indigency.**>*(I declare that my income is below federal poverty guidelines or my financial obligations outweigh my income.)*> 4. I declare that I am not making this request in conjunction with outside parties who are offering or providing payment or other remuneration for this request.
+> >**I declare under penalty of perjury that the information contained in this affidavit is true and correct to the best of my information, knowledge, and belief.**> >**Signature:**___________________________________________________
+> >**Date:**__________________________
+> >**Printed Name:**Matthew Salem
+>**Address:**_____________________________________________________
+>**Phone Number:**______________________________________________
+
+###**📧 DOCUMENT 2: EMAIL TO GENESEE TOWNSHIP***(For Written Reports - **Updated with Specific Demands**)*
+
+**Subject:**FOIA Request - Police Records - Fee Waiver Request Attached
+
+>**Dear FOIA Coordinator,**> > Please treat this email as a formal request under the Michigan Freedom of Information Act. I am requesting a waiver of the first $20.00 of fees due to indigency and have attached my**Affidavit of Indigency**as proof.
+> >**I am requesting electronic delivery (via email) of the following public records:**> >**Request 1: Incident Report (Careless Driving)**> >
+> •**Date:**June 21, 2023
+> •**Defendant:**Michael Thomas Myers-Boyce
+> •**Case/Ticket No:**2023-23Q114889A-OI
+> •**Records Requested:**Full Incident Report, Officer Narrative, and any Crash Report (UD-10).
+> >**Request 2: Incident Report (V&B Party Store)**> >
+> •**Location:**V & B Party Shoppe, 7414 N Genesee Rd, Genesee, MI 48437.
+> •**Date:**Approx. June 25, 2023 – July 10, 2023 (Target date: July 3, 2023).
+> •**Involved Persons:**Katrina Kinzel (Driver) and my minor child (Passenger).
+> •**Vehicle:**Gray 2006/2007 Pontiac G6.
+> •**Specific Records Requested (CRITICAL):**> >
+> 1.**Officer Narratives:**I specifically request the narrative reports detailing the responding officer's**observations of the driver's condition**(sobriety/intoxication) and the**location/safety of the minor child**upon arrival (e.g., was the child alone in the vehicle?).
+> 2.**CAD/Dispatch Log:**I specifically request the**"Call Taker Comments"**(dispatcher notes) and**"ANI/ALI"**(Caller ID & Location) data to verify the identity of the 911 caller.
+> •**Officer Narratives:**I specifically request the narrative reports detailing the responding officer's**observations of the driver's condition**(sobriety/intoxication) and the**location/safety of the minor child**upon arrival (e.g., was the child alone in the vehicle?).
+> •**CAD/Dispatch Log:**I specifically request the**"Call Taker Comments"**(dispatcher notes) and**"ANI/ALI"**(Caller ID & Location) data to verify the identity of the 911 caller.
+> >**Reason for Request:**I am the father of the minor child involved in these incidents. I am requesting these public records to investigate the safety and welfare of my child during these events and to refute false allegations regarding the source of the 911 call.
+> > Please email these records to me at this address.
+> > Thank you,
+> > Matthew Salem
+> [Insert Your Phone Number]
+
+###**💻 DOCUMENT 3: GENESEE COUNTY PORTAL TEXT***(For 911 Audio - **Updated with the "Plan B" data demands**)*
+
+> "I am requesting records for two separate incidents involving the safety and welfare of my minor child.
+> > **Incident 1: Careless Driving (June 21, 2023)**> >
+> •**Case:***People v. Michael Thomas Myers-Boyce*(Case No. 2023-23Q114889A-OI).
+> •**Specific Request:**I request the**911 Audio**and**Officer Narrative**to establish the timeline of events and allegations of intoxication/endangerment reported by the complainant.
+> >**Incident 2: Welfare Check at V&B Party Store (Approx. July 3, 2023)**> >
+> •**Location:**7414 N Genesee Rd.
+> •**Involved:**Katrina Kinzel and my minor child.
+> •**Specific Request:**I request the**911 Audio Recording**and**Call Taker Comments**. I am seeking to verify the nature of the complaint (e.g. intoxication/neglect) and the**identity of the caller**.
+> >**CRITICAL BACKUP (IF AUDIO IS PURGED):**> If the audio recording is no longer available due to retention policies, I specifically request the**Full CAD (Computer Aided Dispatch) Report**including:
+> >
+> 1.**Call Taker Comments/Narrative:**The typed notes from the dispatcher summarizing the caller's statements.
+> 2.**ANI/ALI Data:**The 'Automatic Number Identification' and 'Location' data (or Cell Tower Sector) to explicitly prove the call did not originate from my phone number [Insert Your Phone Number].
+> >**Reason for Request:** I am the father of the minor child present during these interactions."
+
+-------------------------------------------
+

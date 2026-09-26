@@ -1,0 +1,42 @@
+[
+  {
+    "filename": ".env",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\n8n-local\\.env",
+    "last_modified": "2025-12-25T14:31:03.973055",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Evidence Processing Pipeline Environment Variables # Location: C:\\Users\\matts\\AI Workspace\\n8n-local\\.env # =========================================== # SUPABASE (Production Database) # ===========...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\n8n-local",
+    "group_base_name": ".env"
+  },
+  {
+    "filename": "docker-compose.yml",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\n8n-local\\docker-compose.yml",
+    "last_modified": "2025-12-25T14:20:09.161135",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# N8N + Local PostgreSQL for Processing Pipeline # This is for LOCAL PROCESSING before pushing to hosted databases # # Usage: # cd \"C:\\Users\\matts\\AI Workspace\\n8n-local\" # docker-compose up -d # # Ac...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\n8n-local",
+    "group_base_name": "docker-compose"
+  },
+  {
+    "filename": "README.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\n8n-local\\README.md",
+    "last_modified": "2025-12-25T14:22:03.352552",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Evidence Processing Pipeline Setup ## Current Status: Ready for Deployment ### Stack Overview ``` \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510 \u2502 LOCAL PROCESSING \u2502 \u2502 \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\n8n-local",
+    "group_base_name": "readme"
+  },
+  {
+    "filename": "supabase_production_schema.sql",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\n8n-local\\supabase_production_schema.sql",
+    "last_modified": "2025-12-25T14:21:38.228589",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "-- ===================================================== -- SUPABASE PRODUCTION SCHEMA -- Salem v. Kinzel Evidence Management System -- ===================================================== -- -- This...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\n8n-local",
+    "group_base_name": "supabase_production_schema"
+  }
+]

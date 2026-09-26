@@ -1,0 +1,12 @@
+[
+  {
+    "filename": "Timeline.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\google-maps-timeline-viewer-main\\sample_data\\Local_format\\Android\\Timeline.json",
+    "last_modified": "2025-07-31T10:22:59",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{ \"timelineObjects\": [ { \"placeVisit\": { \"location\": { \"latitudeE7\": 407588950, \"longitudeE7\": -739851310, \"placeId\": \"ChIJmQJIxlVYwokRLgeuocVOGVU\", \"name\": \"Times Square\" }, \"duration\": { \"startTimes...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\google-maps-timeline-viewer-main\\sample_data\\Local_format\\Android",
+    "group_base_name": "timeline"
+  }
+]

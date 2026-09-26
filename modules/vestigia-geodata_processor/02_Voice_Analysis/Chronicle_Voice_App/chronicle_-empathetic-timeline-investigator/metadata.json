@@ -1,0 +1,7 @@
+{
+  "name": "Chronicle: Empathetic Timeline Investigator",
+  "description": "An empathetic, therapeutic tool designed to help users document and organize detailed timelines for custody cases and legal preparation through natural conversation.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

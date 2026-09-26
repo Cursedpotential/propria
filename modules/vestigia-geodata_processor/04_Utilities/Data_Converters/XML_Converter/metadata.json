@@ -1,0 +1,5 @@
+{
+  "name": "Massive XML to CSV Converter",
+  "description": "A memory-safe, browser-based tool to convert multi-gigabyte XML SMS exports into CSVs using streaming technologies. Features AI-powered context analysis and granular attachment handling.",
+  "requestFramePermissions": []
+}

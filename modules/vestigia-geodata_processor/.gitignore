@@ -1,0 +1,98 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# API keys and credentials
+*credentials*.json
+*api*key*.txt
+.api-keys-reference.txt
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache files
+*.cache
+.cache/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Project-specific ignores
+05_Installers_Zips/
+05_Installer_Zips/
+AI Workspace.code-workspace
+FINAL_STATUS_REPORT.md
+gemini-cli-custom-slash-commands-main.zip
+gemini-history-learning-main.zip
+gemini-voyager-chrome-v0.9.9.zip
+IS_DOCUMENT_AI_DATASET_FOLDER
+NLP-Toxicity-Analyzer-with-TensorFlow-and-Streamlit-main.zip
+nul
+open-whispr-main.zip
+plistsubtractor-master.zip
+_MARKED_FOR_DELETE/
+00_Code_Vault/
+99_Archive/
+
+# Long filenames
+04_Utilities/Manipulative-Expression-Recognition-main/data/cache/
+
+# Large model files
+*.h5
+*.jar
+*-models.jar
+stanford-corenlp*/
+
+# Credential files
+client_secret*.json
+drive-*.json
+*credentials*.json
+
+# Context files that may contain secrets
+**/context/context.txt
+BUILD_GUIDE.md
+
+# Workspace-local data and nested-repository boundaries
+.claude/memories/project_memory.json
+Timeline.json
+Timeline.json.html
+Timeline.zip
+TraceIQ_Backups/
+TraceIQ_Evidence/
+traaceiq_mess/
+traceiq-rebuild/

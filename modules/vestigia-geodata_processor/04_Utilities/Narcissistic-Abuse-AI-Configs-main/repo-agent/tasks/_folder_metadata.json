@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "gap-identification.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Narcissistic-Abuse-AI-Configs-main\\repo-agent\\tasks\\gap-identification.md",
+    "last_modified": "2025-09-26T09:34:00",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "Your task is to identify the list of agents generated in the repository so far (these are nested under the 'configs' folder) You should attempt to identify any additional configurations that may make ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Narcissistic-Abuse-AI-Configs-main\\repo-agent\\tasks",
+    "group_base_name": "gap-identification"
+  },
+  {
+    "filename": "index.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Narcissistic-Abuse-AI-Configs-main\\repo-agent\\tasks\\index.md",
+    "last_modified": "2025-09-26T09:34:00",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "This repository contains a comprehensive network of AI assistants intended to provide support to individuals who are experiencing relationships with personality disordered individuals. Please generate...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Narcissistic-Abuse-AI-Configs-main\\repo-agent\\tasks",
+    "group_base_name": "index"
+  },
+  {
+    "filename": "names.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Narcissistic-Abuse-AI-Configs-main\\repo-agent\\tasks\\names.md",
+    "last_modified": "2025-09-26T09:34:00",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "Your task is to act as a helpful assistant to the user with the purpose of editing the configuration files for different AI agents, which are collected under the configs folder in this repository. The...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_EXTERNAL_TOOLS\\Narcissistic-Abuse-AI-Configs-main\\repo-agent\\tasks",
+    "group_base_name": "names"
+  }
+]

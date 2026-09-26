@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "index.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\frontend\\index.html",
+    "last_modified": "2025-12-16T23:40:31.796603",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "<!doctype html> <html lang=\"en\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <title>Pandoc Wizard</title> </head> <body> <div id=\"root\"></d...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\frontend",
+    "group_base_name": "index"
+  },
+  {
+    "filename": "package.json",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\frontend\\package.json",
+    "last_modified": "2025-12-16T23:40:16.278986",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "{ \"name\": \"pandoc-wizard-frontend\", \"private\": true, \"version\": \"0.0.0\", \"type\": \"module\", \"scripts\": { \"dev\": \"vite\", \"build\": \"tsc && vite build\", \"preview\": \"vite preview\" }, \"dependencies\": { \"axi...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\frontend",
+    "group_base_name": "package"
+  },
+  {
+    "filename": "vite.config.ts",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\frontend\\vite.config.ts",
+    "last_modified": "2025-12-16T23:40:24.804437",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import { defineConfig } from 'vite' import react from '@vitejs/plugin-react' // https://vitejs.dev/config/ export default defineConfig({ plugins: [react()], server: { port: 3000, proxy: { '/api': 'htt...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\pandoc_wizard\\frontend",
+    "group_base_name": "vite.config"
+  }
+]

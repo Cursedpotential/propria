@@ -1,0 +1,62 @@
+# Claude Desktop MCP Configuration
+# Add this to your claude_desktop_config.json to point to the VPS MCP gateway
+
+{
+  "mcpServers": {
+    "salem-gateway": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.mitechconsult.com/sse"
+      ],
+      "env": {
+        "MCP_AUTH_TOKEN": "your-auth-token-here"
+      }
+    }
+  }
+}
+
+# ===========================================
+# ALTERNATIVE: Direct SSE connection
+# ===========================================
+# If using a client that supports SSE directly:
+# 
+# Endpoint: https://mcp.mitechconsult.com/sse
+# Auth: Bearer token in header
+#
+# ===========================================
+
+# ===========================================
+# AVAILABLE TOOLS (from gateway)
+# ===========================================
+# 
+# DATABASE:
+#   - query_timeline: Search timeline events
+#   - search_entities: Find people/places/organizations
+#   - add_timeline_event: Create new event
+#
+# KNOWLEDGE GRAPH:
+#   - graph_add_entity: Add node to Neo4j
+#   - graph_add_relationship: Add edge between nodes
+#   - graph_query: Natural language graph query
+#
+# MEMORY:
+#   - memory_add: Store memory in Mem0
+#   - memory_search: Semantic search memories
+#
+# WORKFLOWS:
+#   - trigger_workflow: Generic N8N trigger
+#   - sync_google_drive: Pull new files
+#   - run_deduplication: Find duplicates
+#   - generate_timeline: Create timeline report
+#   - tag_legal_factors: MCL 722.23 tagging
+#
+# DOCUMENTS:
+#   - parse_document: Extract text/tables via Unstructured
+#   - ocr_image: OCR an image
+#
+# UTILITY:
+#   - get_case_summary: Case statistics
+#   - log_command: Audit logging
+#
+# ===========================================

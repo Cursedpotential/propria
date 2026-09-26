@@ -1,0 +1,129 @@
+
+from __future__ import annotations
+import re, uuid, math
+from dateutil import parser as dp
+import pandas as pd
+
+LATLNG_RE = re.compile(r"^\s*-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?\s*$")
+
+def new_uuid() -> str:
+    return str(uuid.uuid4())
+
+def to_latlng_str(v):
+    if v is None:
+        return None
+    if isinstance(v, str):
+        s = v.replace(" ", "")
+        return s if LATLNG_RE.match(s) else None
+    if isinstance(v, dict):
+        lat = v.get("latitude")
+        lng = v.get("longitude")
+        if lat is None and "latitudeE7" in v:
+            lat = v.get("latitudeE7") / 1e7
+        if lng is None and "longitudeE7" in v:
+            lng = v.get("longitudeE7") / 1e7
+        if lat is None or lng is None:
+            return None
+        return f"{lat:.6f},{lng:.6f}"
+    return None
+
+def clean_semantic(raw: str|None) -> str|None:
+    if not raw:
+        return None
+    mapping = {
+        "IN_PASSENGER_VEHICLE": "driving",
+        "INFERRED_WORK": "work",
+        "INFERRED_HOME": "home",
+        "POINTS_AND_PATH": "points_and_path"
+    }
+    return mapping.get(raw, raw.lower())
+
+def haversine_m(lat1, lon1, lat2, lon2) -> float:
+    R = 6371000.0
+    from math import radians, sin, cos, asin, sqrt
+    phi1, phi2 = radians(lat1), radians(lat2)
+    dphi = radians(lat2 - lat1)
+    dl = radians(lon2 - lon1)
+    a = sin(dphi/2)**2 + cos(phi1)*cos(phi2)*sin(dl/2)**2
+    return 2 * R * asin(sqrt(a))
+
+def parse_latlng(s: str):
+    lat, lng = map(float, s.split(","))
+    return lat, lng
+
+def ensure_columns(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    for c in columns:
+        if c not in df.columns:
+            df[c] = None
+    return df[columns]
+
+
+# --- Geohash encoding (no external deps) ---
+_BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz"
+
+def _geohash_encode(lat: float, lon: float, precision: int=8) -> str:
+    # Adapted simple encoder, standard bits interleave
+    lat_interval = [-90.0, 90.0]
+    lon_interval = [-180.0, 180.0]
+    geohash = []
+    bits = [16, 8, 4, 2, 1]
+    bit = 0
+    ch = 0
+    even = True
+    while len(geohash) < precision:
+        if even:
+            mid = (lon_interval[0] + lon_interval[1]) / 2
+            if lon > mid:
+                ch |= bits[bit]
+                lon_interval[0] = mid
+            else:
+                lon_interval[1] = mid
+        else:
+            mid = (lat_interval[0] + lat_interval[1]) / 2
+            if lat > mid:
+                ch |= bits[bit]
+                lat_interval[0] = mid
+            else:
+                lat_interval[1] = mid
+        even = not even
+        if bit < 4:
+            bit += 1
+        else:
+            geohash.append(_BASE32[ch])
+            bit = 0
+            ch = 0
+    return "".join(geohash)
+
+def round_latlng_str(latlng: str, places: int) -> str|None:
+    if not isinstance(latlng, str) or "," not in latlng:
+        return None
+    lat, lng = parse_latlng(latlng)
+    return f"{round(lat, places):.{places}f},{round(lng, places):.{places}f}"
+
+def add_rounding_columns(df: pd.DataFrame, col: str, prefix: str) -> pd.DataFrame:
+    # Adds <prefix>_lat_r3, <prefix>_lng_r3, <prefix>_lat_r4, <prefix>_lng_r4, <prefix>_geohash8, <prefix>_geohash9
+    if col not in df.columns:
+        return df
+    vals = df[col].fillna("")
+    lat_r3, lng_r3, lat_r4, lng_r4, gh8, gh9 = [], [], [], [], [], []
+    for s in vals:
+        if isinstance(s, str) and "," in s:
+            lat, lng = parse_latlng(s)
+            lat_r3.append(round(lat, 3)); lng_r3.append(round(lng, 3))
+            lat_r4.append(round(lat, 4)); lng_r4.append(round(lng, 4))
+            try:
+                gh8.append(_geohash_encode(lat, lng, 8))
+                gh9.append(_geohash_encode(lat, lng, 9))
+            except Exception:
+                gh8.append(None); gh9.append(None)
+        else:
+            lat_r3.append(None); lng_r3.append(None)
+            lat_r4.append(None); lng_r4.append(None)
+            gh8.append(None); gh9.append(None)
+    df[f"{prefix}_lat_r3"] = lat_r3
+    df[f"{prefix}_lng_r3"] = lng_r3
+    df[f"{prefix}_lat_r4"] = lat_r4
+    df[f"{prefix}_lng_r4"] = lng_r4
+    df[f"{prefix}_geohash8"] = gh8
+    df[f"{prefix}_geohash9"] = gh9
+    return df

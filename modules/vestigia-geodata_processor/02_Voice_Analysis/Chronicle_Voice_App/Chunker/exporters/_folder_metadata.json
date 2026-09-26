@@ -1,0 +1,52 @@
+[
+  {
+    "filename": "base.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters\\base.py",
+    "last_modified": "2025-12-06T00:46:15.228632",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from abc import ABC, abstractmethod from typing import List, Dict class BaseExporter(ABC): @abstractmethod def export(self, chunks: List[Dict[str, any]], output_path: str, base_name: str = \"chunks\", l...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters",
+    "group_base_name": "base"
+  },
+  {
+    "filename": "json.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters\\json.py",
+    "last_modified": "2025-12-06T00:46:15.351215",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from .base import BaseExporter from typing import List, Dict import json class JsonExporter(BaseExporter): def export(self, chunks: List[Dict[str, any]], output_path: str, base_name: str = \"chunks\", l...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters",
+    "group_base_name": "json"
+  },
+  {
+    "filename": "txt.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters\\txt.py",
+    "last_modified": "2025-12-06T15:44:22.809673",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from .base import BaseExporter from typing import List, Dict from datetime import datetime class TxtExporter(BaseExporter): def export(self, chunks: List[Dict[str, any]], output_path: str, base_name: ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters",
+    "group_base_name": "txt"
+  },
+  {
+    "filename": "zip.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters\\zip.py",
+    "last_modified": "2025-12-06T15:44:22.975772",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from .base import BaseExporter from typing import List, Dict import zipfile class ZipExporter(BaseExporter): def export(self, chunks: List[Dict[str, any]], output_path: str, base_name: str = \"chunks\",...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters",
+    "group_base_name": "zip"
+  },
+  {
+    "filename": "__init__.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters\\__init__.py",
+    "last_modified": "2025-12-06T00:38:38.867565",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "from .base import BaseExporter from .txt import TxtExporter from .json import JsonExporter from .zip import ZipExporter EXPORTERS = { 'TXT': TxtExporter(), 'JSON': JsonExporter(), 'ZIP': ZipExporter()...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\exporters",
+    "group_base_name": "__init__"
+  }
+]

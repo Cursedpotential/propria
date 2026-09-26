@@ -1,0 +1,42 @@
+[
+  {
+    "filename": "Chunker.html",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\Chunker.html",
+    "last_modified": "2025-12-06T15:45:10.287704",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "<!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"UTF-8\"> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"> <title>Markdown Document Chunker</title> <script src=\"https://cdn....",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker",
+    "group_base_name": "chunker"
+  },
+  {
+    "filename": "main.py",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\main.py",
+    "last_modified": "2025-12-06T00:46:15.619588",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "import flet as ft from pathlib import Path from parsers import get_parser, get_all_parsers from chunkers import DEFAULT_CHUNKER from exporters import EXPORTERS from utils import get_stats from schemas...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker",
+    "group_base_name": "main"
+  },
+  {
+    "filename": "README.md",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\README.md",
+    "last_modified": "2025-12-06T00:46:15.728261",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "# Smart Chunker Modular, cross-platform document chunker built with Flet. Intelligently splits large documents into AI-friendly chunks with metadata, smart labels, and custom schemas. ## Features ### ...",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker",
+    "group_base_name": "readme"
+  },
+  {
+    "filename": "requirements.txt",
+    "filepath": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker\\requirements.txt",
+    "last_modified": "2025-12-06T00:38:39.420920",
+    "is_latest": true,
+    "is_iteration": false,
+    "summary": "flet>=0.24.0 beautifulsoup4>=4.12.0",
+    "parent_dir": "C:\\Users\\matts\\AI Workspace\\Folder\\_FINAL_APPS\\Chunker",
+    "group_base_name": "requirements"
+  }
+]

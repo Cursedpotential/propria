@@ -1,0 +1,2646 @@
+================================================================================
+ALL INSTALLED SKILLS
+================================================================================
+
+
+ANTHROPIC-AGENT-SKILLS (15 skills)
+--------------------------------------------------------------------------------
+
+algorithmic-art
+  Creating algorithmic art using p5.js with seeded randomness and interactive
+  parameter exploration. Use this when users request creating art using code,
+  generative art, algorithmic art, flow fields, or particle systems. Create
+  original algorithmic art rather than copying existing artists' work to
+  avoid copyright violations.
+
+canvas-design
+  Create beautiful visual art in .png and .pdf documents using design
+  philosophy. You should use this skill when the user asks to create a
+  poster, piece of art, design, or other static piece. Create original visual
+  designs, never copying existing artists' work to avoid copyright
+  violations.
+
+docx
+  "Comprehensive document creation, editing, and analysis with support for
+  tracked changes, comments, formatting preservation, and text extraction.
+  When Claude needs to work with professional documents (.docx files) for:
+  (1) Creating new documents, (2) Modifying or editing content, (3) Working
+  with tracked changes, (4) Adding comments, or any other document tasks"
+
+frontend-design
+  Create distinctive, production-grade frontend interfaces with high design
+  quality. Use this skill when the user asks to build web components, pages,
+  or applications. Generates creative, polished code that avoids generic AI
+  aesthetics.
+
+internal-comms
+  A set of resources to help me write all kinds of internal communications,
+  using the formats that my company likes to use. Claude should use this
+  skill whenever asked to write some sort of internal communications (status
+  reports, leadership updates, 3P updates, company newsletters, FAQs,
+  incident reports, project updates, etc.).
+
+mcp-builder
+  Guide for creating high-quality MCP (Model Context Protocol) servers that
+  enable LLMs to interact with external services through well-designed tools.
+  Use when building MCP servers to integrate external APIs or services,
+  whether in Python (FastMCP) or Node/TypeScript (MCP SDK).
+
+pdf
+  Comprehensive PDF manipulation toolkit for extracting text and tables,
+  creating new PDFs, merging/splitting documents, and handling forms. When
+  Claude needs to fill in a PDF form or programmatically process, generate,
+  or analyze PDF documents at scale.
+
+pptx
+  "Presentation creation, editing, and analysis. When Claude needs to work
+  with presentations (.pptx files) for: (1) Creating new presentations, (2)
+  Modifying or editing content, (3) Working with layouts, (4) Adding comments
+  or speaker notes, or any other presentation tasks"
+
+skill-creator
+  Guide for creating effective skills. This skill should be used when users
+  want to create a new skill (or update an existing skill) that extends
+  Claude's capabilities with specialized knowledge, workflows, or tool
+  integrations.
+
+slack-gif-creator
+  Knowledge and utilities for creating animated GIFs optimized for Slack.
+  Provides constraints, validation tools, and animation concepts. Use when
+  users request animated GIFs for Slack like "make me a GIF of X doing Y for
+  Slack."
+
+template-skill
+  Replace with description of the skill and when Claude should use it.
+
+theme-factory
+  Toolkit for styling artifacts with a theme. These artifacts can be slides,
+  docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with
+  colors/fonts that you can apply to any artifact that has been creating, or
+  can generate a new theme on-the-fly.
+
+web-artifacts-builder
+  Suite of tools for creating elaborate, multi-component claude.ai HTML
+  artifacts using modern frontend web technologies (React, Tailwind CSS,
+  shadcn/ui). Use for complex artifacts requiring state management, routing,
+  or shadcn/ui components - not for simple single-file HTML/JSX artifacts.
+
+webapp-testing
+  Toolkit for interacting with and testing local web applications using
+  Playwright. Supports verifying frontend functionality, debugging UI
+  behavior, capturing browser screenshots, and viewing browser logs.
+
+xlsx
+  "Comprehensive spreadsheet creation, editing, and analysis with support for
+  formulas, formatting, data analysis, and visualization. When Claude needs
+  to work with spreadsheets (.xlsx, .xlsm, .csv, .tsv, etc) for: (1) Creating
+  new spreadsheets with formulas and formatting, (2) Reading or analyzing
+  data, (3) Modify existing spreadsheets while preserving formulas, (4) Data
+  analysis and visualization in spreadsheets, or (5) Recalculating formulas"
+
+AWESOME-CLAUDE-SKILLS (26 skills)
+--------------------------------------------------------------------------------
+
+artifacts-builder
+  Suite of tools for creating elaborate, multi-component claude.ai HTML
+  artifacts using modern frontend web technologies (React, Tailwind CSS,
+  shadcn/ui). Use for complex artifacts requiring state management, routing,
+  or shadcn/ui components - not for simple single-file HTML/JSX artifacts.
+
+canvas-design
+  Create beautiful visual art in .png and .pdf documents using design
+  philosophy. You should use this skill when the user asks to create a
+  poster, piece of art, design, or other static piece. Create original visual
+  designs, never copying existing artists' work to avoid copyright
+  violations.
+
+changelog-generator
+  Automatically creates user-facing changelogs from git commits by analyzing
+  commit history, categorizing changes, and transforming technical commits
+  into clear, customer-friendly release notes. Turns hours of manual
+  changelog writing into minutes of automated generation.
+
+competitive-ads-extractor
+  Extracts and analyzes competitors' ads from ad libraries (Facebook,
+  LinkedIn, etc.) to understand what messaging, problems, and creative
+  approaches are working. Helps inspire and improve your own ad campaigns.
+
+content-research-writer
+  Assists in writing high-quality content by conducting research, adding
+  citations, improving hooks, iterating on outlines, and providing real-time
+  feedback on each section. Transforms your writing process from solo effort
+  to collaborative partnership.
+
+developer-growth-analysis
+  Analyzes your recent Claude Code chat history to identify coding patterns,
+  development gaps, and areas for improvement, curates relevant learning
+  resources from HackerNews, and automatically sends a personalized growth
+  report to your Slack DMs.
+
+docx
+  "Comprehensive document creation, editing, and analysis with support for
+  tracked changes, comments, formatting preservation, and text extraction.
+  When Claude needs to work with professional documents (.docx files) for:
+  (1) Creating new documents, (2) Modifying or editing content, (3) Working
+  with tracked changes, (4) Adding comments, or any other document tasks"
+
+domain-name-brainstormer
+  Generates creative domain name ideas for your project and checks
+  availability across multiple TLDs (.com, .io, .dev, .ai, etc.). Saves hours
+  of brainstorming and manual checking.
+
+file-organizer
+  Intelligently organizes your files and folders across your computer by
+  understanding context, finding duplicates, suggesting better structures,
+  and automating cleanup tasks. Reduces cognitive load and keeps your digital
+  workspace tidy without manual effort.
+
+image-enhancer
+  Improves the quality of images, especially screenshots, by enhancing
+  resolution, sharpness, and clarity. Perfect for preparing images for
+  presentations, documentation, or social media posts.
+
+internal-comms
+  A set of resources to help me write all kinds of internal communications,
+  using the formats that my company likes to use. Claude should use this
+  skill whenever asked to write some sort of internal communications (status
+  reports, leadership updates, 3P updates, company newsletters, FAQs,
+  incident reports, project updates, etc.).
+
+invoice-organizer
+  Automatically organizes invoices and receipts for tax preparation by
+  reading messy files, extracting key information, renaming them
+  consistently, and sorting them into logical folders. Turns hours of manual
+  bookkeeping into minutes of automated organization.
+
+lead-research-assistant
+  Identifies high-quality leads for your product or service by analyzing your
+  business, searching for target companies, and providing actionable contact
+  strategies. Perfect for sales, business development, and marketing
+  professionals.
+
+mcp-builder
+  Guide for creating high-quality MCP (Model Context Protocol) servers that
+  enable LLMs to interact with external services through well-designed tools.
+  Use when building MCP servers to integrate external APIs or services,
+  whether in Python (FastMCP) or Node/TypeScript (MCP SDK).
+
+meeting-insights-analyzer
+  Analyzes meeting transcripts and recordings to uncover behavioral patterns,
+  communication insights, and actionable feedback. Identifies when you avoid
+  conflict, use filler words, dominate conversations, or miss opportunities
+  to listen. Perfect for professionals seeking to improve their communication
+  and leadership skills.
+
+pdf
+  Comprehensive PDF manipulation toolkit for extracting text and tables,
+  creating new PDFs, merging/splitting documents, and handling forms. When
+  Claude needs to fill in a PDF form or programmatically process, generate,
+  or analyze PDF documents at scale.
+
+pptx
+  "Presentation creation, editing, and analysis. When Claude needs to work
+  with presentations (.pptx files) for: (1) Creating new presentations, (2)
+  Modifying or editing content, (3) Working with layouts, (4) Adding comments
+  or speaker notes, or any other presentation tasks"
+
+raffle-winner-picker
+  Picks random winners from lists, spreadsheets, or Google Sheets for
+  giveaways, raffles, and contests. Ensures fair, unbiased selection with
+  transparency.
+
+skill-creator
+  Guide for creating effective skills. This skill should be used when users
+  want to create a new skill (or update an existing skill) that extends
+  Claude's capabilities with specialized knowledge, workflows, or tool
+  integrations.
+
+skill-share
+  A skill that creates new Claude skills and automatically shares them on
+  Slack using Rube for seamless team collaboration and skill discovery.
+
+slack-gif-creator
+  Toolkit for creating animated GIFs optimized for Slack, with validators for
+  size constraints and composable animation primitives. This skill applies
+  when users request animated GIFs or emoji animations for Slack from
+  descriptions like "make me a GIF for Slack of X doing Y".
+
+template-skill
+  Replace with description of the skill and when Claude should use it.
+
+theme-factory
+  Toolkit for styling artifacts with a theme. These artifacts can be slides,
+  docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with
+  colors/fonts that you can apply to any artifact that has been creating, or
+  can generate a new theme on-the-fly.
+
+video-downloader
+  Downloads videos from YouTube and other platforms for offline viewing,
+  editing, or archival. Handles various formats and quality options.
+
+webapp-testing
+  Toolkit for interacting with and testing local web applications using
+  Playwright. Supports verifying frontend functionality, debugging UI
+  behavior, capturing browser screenshots, and viewing browser logs.
+
+xlsx
+  "Comprehensive spreadsheet creation, editing, and analysis with support for
+  formulas, formatting, data analysis, and visualization. When Claude needs
+  to work with spreadsheets (.xlsx, .xlsm, .csv, .tsv, etc) for: (1) Creating
+  new spreadsheets with formulas and formatting, (2) Reading or analyzing
+  data, (3) Modify existing spreadsheets while preserving formulas, (4) Data
+  analysis and visualization in spreadsheets, or (5) Recalculating formulas"
+
+CC10X (31 skills)
+--------------------------------------------------------------------------------
+
+app-design-generation
+  Use when planning features and user request contains "app design", "design
+  doc", "create design document" - generates comprehensive application design
+  document based on deep codebase analysis and user input, providing
+  high-level overview of architecture, core features, user experience, and
+  business logic
+
+architecture-patterns
+  Context-aware architecture design covering system architecture, API design,
+  and integration patterns. Use PROACTIVELY when planning features. First
+  understands functionality requirements and existing architecture, then
+  designs architecture, APIs, and integrations to support that functionality.
+  Maps system context, containers, components, API endpoints, and integration
+  strategies based on functionality. Provides architecture decisions with
+  trade-offs and implementation roadmap. Focuses on architecture that enables
+  functionality, not generic patterns.
+
+brainstorming
+  Use when creating or developing, before writing code or implementation
+  plans - refines rough ideas into fully-formed designs through collaborative
+  questioning, alternative exploration, and incremental validation.
+  Integrated with PLAN workflow Phase 1.
+
+build-workflow
+  MUST be activated through cc10x-orchestrator - do not use directly.
+  Orchestrator coordinates this build workflow with functionality-first
+  approach. First understands functionality requirements (user flow, admin
+  flow, system flow), then builds features to implement that functionality.
+  Focuses on making functionality work first, then optimizing. Loads shared
+  skills and invokes component-builder, code-reviewer, and
+  integration-verifier sequentially. Use when orchestrator detects build
+  intent.
+
+cc10x-orchestrator
+  Use when user request contains workflow keywords
+  (plan/design/architect/roadmap/strategy,
+  build/implement/create/write/code/develop/make,
+  review/audit/analyze/assess/evaluate/inspect/examine,
+  debug/fix/error/bug/investigate/failure/issue/problem/troubleshoot/diagnose,
+  validate/verify/check/confirm). AUTO-LOAD on these keywords. CRITICAL:
+  MANDATORY entry for ALL code tasks. Coordinates subagents - do NOT write
+  directly. Phase 0: Functionality Analysis first. Enforces TDD
+  (RED→GREEN→REFACTOR), Actions Taken tracking, memory/web fetch. DO NOT
+  bypass validation.
+
+code-generation
+  Generates code with functionality-first, context-dependent approach. Use
+  PROACTIVELY when building features. First understands functionality
+  requirements using universal questions and context-dependent flows, then
+  generates code aligned with project patterns to implement that
+  functionality. Understands project codebase structure, conventions, and
+  patterns. Focuses on making functionality work first, then optimizing.
+  Provides specific implementations with examples.
+
+code-review-patterns
+  Context-aware code review analysis covering security, quality, and
+  performance. Use PROACTIVELY when reviewing code. First understands
+  functionality requirements and project patterns, then checks for security
+  vulnerabilities, code quality issues, and performance bottlenecks that
+  affect functionality. Provides specific remediation with code examples
+  aligned with project patterns. Focuses on issues that block or degrade
+  functionality, not generic checklists.
+
+component-design-patterns
+  Context-aware component design that understands component requirements from
+  flows before designing. Use PROACTIVELY when planning features that need UI
+  components. First understands functionality requirements and maps them to
+  component needs, then designs component hierarchy to support that
+  functionality. Provides specific component designs with examples aligned
+  with project component patterns. Focuses on components that enable
+  functionality.
+
+context-preset-management
+  Provides automatic context preset detection and loading. Use when
+  orchestrator needs to detect task type and load appropriate context presets
+  automatically. Detects task type from user request and file patterns,
+  selects appropriate preset (frontend/backend/app), loads rules, and stores
+  preset preference in memory. Works autonomously through orchestrator Phase
+  0 - no commands required.
+
+cursor-rules-generation
+  Use when planning features and user request contains "cursor rules",
+  "create rule", "generate cursor rules" - generates Cursor rules
+  documentation based on project patterns, conventions, and best practices
+  extracted from codebase analysis
+
+debug-workflow
+  MUST be activated through cc10x-orchestrator - do not use directly.
+  Orchestrator coordinates this debug workflow with functionality-first
+  approach. First understands what functionality is broken (user flow, admin
+  flow, system flow), then debugs bugs affecting that functionality. Focuses
+  on bugs that affect functionality, not generic debugging. Loads
+  investigation skills and delegates to bug-investigator, code-reviewer, and
+  integration-verifier sequentially. Use when orchestrator detects debug
+  intent.
+
+debugging-patterns
+  Systematic debugging with functionality-first, context-dependent approach
+  covering systematic debugging, root cause analysis, and log analysis. Use
+  PROACTIVELY when diagnosing bugs. First understands expected functionality
+  using universal questions and context-dependent flows, then maps observed
+  behavior to expected behavior, then investigates bugs systematically.
+  Enforces LOG FIRST, hypothesis-driven fixes, and regression tests. Focuses
+  on bugs that affect functionality, not generic debugging patterns.
+
+deployment-patterns
+  Plans deployment with functionality-first, context-dependent approach. Use
+  PROACTIVELY when planning feature deployments. First understands
+  functionality using universal questions and context-dependent flows, then
+  plans deployment strategy to support that functionality. Understands
+  project deployment patterns and conventions. Focuses on deployment that
+  enables functionality, not generic deployment patterns. Provides specific
+  deployment and rollback strategies with examples.
+
+design-patterns
+  Comprehensive design patterns with functionality-first approach. Use
+  PROACTIVELY when planning features. First understands functionality (user
+  flow, admin flow, system flow, integration flow), then designs
+  APIs/components/integrations to support that functionality. Focuses on
+  design that enables functionality, not generic design patterns. Provides
+  design checklists, best practices, and patterns for all three domains.
+
+frontend-patterns
+  Context-aware frontend analysis and design covering UX, UI design,
+  accessibility, and creative aesthetic excellence. Use PROACTIVELY when
+  reviewing or designing user-facing interfaces. First understands
+  functionality requirements and user flows, then checks for UX issues,
+  visual design problems, accessibility blockers, and opportunities for
+  distinctive aesthetic design. Provides specific improvements with examples
+  aligned with project patterns. Focuses on issues that prevent users from
+  using functionality AND opportunities to create distinctive, memorable
+  interfaces that avoid generic AI aesthetics.
+
+memory-tool-integration
+  Provides memory patterns with functionality-first approach. Use PROACTIVELY
+  when workflows need to remember functionality patterns, preferences, or
+  checkpoints. First understands functionality (user flow, admin flow, system
+  flow), then stores functionality-related patterns. Focuses on storing
+  functionality patterns, not generic patterns. Uses filesystem-based memory
+  (.claude/memory/) and MCP memory servers. NOTE: Converted from hooks to
+  skill - now model-invoked.
+
+parallel-agent-dispatch
+  Provides parallel subagent dispatch for independent bugs. Use when facing
+  3+ independent failures that can be investigated without shared state or
+  dependencies - orchestrator dispatches multiple bug-investigator subagents
+  to investigate and fix independent problems concurrently
+
+planning-patterns
+  Context-aware planning guidance covering requirements analysis and feature
+  planning. Use PROACTIVELY when planning features. First understands
+  functionality requirements and maps them to functionality flows, then
+  gathers requirements, identifies gaps, and creates testable acceptance
+  criteria. Focuses on planning functionality, not generic feature planning.
+  Provides structured planning templates and decision frameworks.
+
+planning-workflow
+  MUST be activated through cc10x-orchestrator - do not use directly.
+  Orchestrator coordinates this planning workflow with functionality-first
+  approach. First understands functionality (user flow, admin flow, system
+  flow, integration flow), then plans features to support that functionality.
+  Focuses on planning functionality, not generic feature planning. Runs
+  requirements intake and planning subagents, then compiles a complete plan.
+  Use when orchestrator detects plan intent.
+
+project-context-understanding
+  Provides deep project context mapping and analysis. Use PROACTIVELY before
+  any major planning/build/review to map codebase structure, dependencies,
+  connections, and patterns. Maps files, directories, modules, dependencies
+  (internal/external), imports/exports, API calls, data flows, architecture
+  patterns, and codebase conventions. Essential for context-aware analysis
+  and personalized recommendations.
+
+project-structure-generation
+  Use when planning features and user request contains "project structure",
+  "create doc", "generate project docs" - generates project structure
+  documentation describing directory organization, file patterns, and
+  architectural organization extracted from codebase analysis
+
+quick-error-fixing
+  Use when user request contains single clear error message from bash output
+  with obvious fix (syntax error, missing import, typo, type mismatch) -
+  quickly fixes simple errors without full DEBUG workflow
+
+review-workflow
+  MUST be activated through cc10x-orchestrator - do not use directly.
+  Orchestrator coordinates this review workflow with functionality-first
+  approach. First understands functionality (user flow, admin flow, system
+  flow), then reviews code for issues affecting that functionality. Focuses
+  on finding real issues that affect functionality, not generic code review.
+  Loads domain skills, runs bundled analysis subagents, and compiles an
+  evidence-backed report. Use when orchestrator detects review intent.
+
+risk-analysis
+  Identifies risks with functionality-first, context-dependent approach. Use
+  PROACTIVELY when planning features or reviewing code. First understands
+  functionality using universal questions and context-dependent flows, then
+  identifies risks specific to that functionality. Focuses on risks that
+  affect functionality, not generic risks. Provides specific mitigation
+  strategies with examples.
+
+session-summary
+  Create comprehensive session summaries before compaction to preserve
+  context. Use when approaching token limits, after major workflow phases, or
+  before final deliverables. Analyzes conversation transcript to document
+  actual accomplishments, file changes, tool usage, decisions, and next
+  steps.
+
+skill-authoring
+  Use when creating new skills, editing existing skills, or verifying skills
+  work before deployment - applies TDD to process documentation by
+  anticipating failure patterns (RED), writing skill addressing those
+  patterns (GREEN), then closing loopholes through application (REFACTOR)
+
+skill-discovery
+  Provides mandatory skill discovery workflows for orchestrator-driven
+  system. Use when starting any conversation - establishes mandatory
+  workflows for finding and using skills in orchestrator-driven system.
+  Ensures skills are discovered before workflow selection and prevents
+  rationalization.
+
+tech-stack-generation
+  Use when planning features and user request contains "tech stack",
+  "technical stack", "create tech stack" - generates comprehensive technical
+  stack documentation from codebase analysis, documenting all technologies,
+  frameworks, libraries, development tools, deployment strategies, and
+  implementation patterns with specific versions and configurations
+
+test-driven-development
+  Enforces TDD with functionality-first, context-dependent approach. Use
+  PROACTIVELY when building features. First understands functionality
+  requirements using universal questions and context-dependent flows, then
+  writes tests verifying that functionality, then implements code to make
+  tests pass. Understands project test patterns and conventions. Focuses on
+  tests that verify functionality works, not generic test coverage. Enforces
+  the RED -> GREEN -> REFACTOR loop with mandatory command execution and
+  verification. Provides specific test examples.
+
+verification-before-completion
+  Provides evidence-first verification gate with functionality-first
+  approach. Use PROACTIVELY before claiming completion, saying "done",
+  "fixed", or "ready". First verifies functionality works (user flow, admin
+  flow, system flow), then verifies other concerns. Blocks success claims
+  without fresh verification evidence. Apply before saying "done", "fixed",
+  or "ready".
+
+web-fetch-integration
+  Integrates WebFetch tool with functionality-first approach. Use PROACTIVELY
+  when workflows need external documentation for functionality. First
+  understands functionality requirements (user flow, admin flow, system flow,
+  integration flow), then fetches external docs related to that
+  functionality. Focuses on fetching functionality-related docs (API specs,
+  integration constraints), not generic documentation. Loads web pages and
+  PDFs from URLs for comprehensive context.
+
+CLAUDE-SCIENTIFIC-SKILLS (118 skills)
+--------------------------------------------------------------------------------
+
+aeon
+  This skill should be used for time series machine learning tasks including
+  classification, regression, clustering, forecasting, anomaly detection,
+  segmentation, and similarity search. Use when working with temporal data,
+  sequential patterns, or time-indexed observations requiring specialized
+  algorithms beyond standard ML approaches. Particularly suited for
+  univariate and multivariate time series analysis with scikit-learn
+  compatible APIs.
+
+alphafold-database
+  "Access AlphaFold's 200M+ AI-predicted protein structures. Retrieve
+  structures by UniProt ID, download PDB/mmCIF files, analyze confidence
+  metrics (pLDDT, PAE), for drug discovery and structural biology."
+
+anndata
+  This skill should be used when working with annotated data matrices in
+  Python, particularly for single-cell genomics analysis, managing
+  experimental measurements with metadata, or handling large-scale biological
+  datasets. Use when tasks involve AnnData objects, h5ad files, single-cell
+  RNA-seq data, or integration with scanpy/scverse tools.
+
+arboreto
+  Infer gene regulatory networks (GRNs) from gene expression data using
+  scalable algorithms (GRNBoost2, GENIE3). Use when analyzing transcriptomics
+  data (bulk RNA-seq, single-cell RNA-seq) to identify transcription
+  factor-target gene relationships and regulatory interactions. Supports
+  distributed computation for large-scale datasets.
+
+astropy
+  Comprehensive Python library for astronomy and astrophysics. This skill
+  should be used when working with astronomical data including celestial
+  coordinates, physical units, FITS files, cosmological calculations, time
+  systems, tables, world coordinate systems (WCS), and astronomical data
+  analysis. Use when tasks involve coordinate transformations, unit
+  conversions, FITS file manipulation, cosmological distance calculations,
+  time scale conversions, or astronomical data processing.
+
+benchling-integration
+  "Benchling R&D platform integration. Access registry (DNA, proteins),
+  inventory, ELN entries, workflows via API, build Benchling Apps, query Data
+  Warehouse, for lab data management automation."
+
+biomni
+  Autonomous biomedical AI agent framework for executing complex research
+  tasks across genomics, drug discovery, molecular biology, and clinical
+  analysis. Use this skill when conducting multi-step biomedical research
+  including CRISPR screening design, single-cell RNA-seq analysis, ADMET
+  prediction, GWAS interpretation, rare disease diagnosis, or lab protocol
+  optimization. Leverages LLM reasoning with code execution and integrated
+  biomedical databases.
+
+biopython
+  "Primary Python toolkit for molecular biology. Preferred for Python-based
+  PubMed/NCBI queries (Bio.Entrez), sequence manipulation, file parsing
+  (FASTA, GenBank, FASTQ, PDB), advanced BLAST workflows, structures,
+  phylogenetics. For quick BLAST, use gget. For direct REST API, use
+  pubmed-database."
+
+biorxiv-database
+  Efficient database search tool for bioRxiv preprint server. Use this skill
+  when searching for life sciences preprints by keywords, authors, date
+  ranges, or categories, retrieving paper metadata, downloading PDFs, or
+  conducting literature reviews.
+
+bioservices
+  "Primary Python tool for 40+ bioinformatics services. Preferred for
+  multi-database workflows: UniProt, KEGG, ChEMBL, PubChem, Reactome,
+  QuickGO. Unified API for queries, ID mapping, pathway analysis. For direct
+  REST control, use individual database skills (uniprot-database,
+  kegg-database)."
+
+cellxgene-census
+  "Query CZ CELLxGENE Census (61M+ cells). Filter by cell
+  type/tissue/disease, retrieve expression data, integrate with
+  scanpy/PyTorch, for population-scale single-cell analysis."
+
+chembl-database
+  "Query ChEMBL's bioactive molecules and drug discovery data. Search
+  compounds by structure/properties, retrieve bioactivity data (IC50, Ki),
+  find inhibitors, perform SAR studies, for medicinal chemistry."
+
+clinicaltrials-database
+  "Query ClinicalTrials.gov via API v2. Search trials by condition, drug,
+  location, status, or phase. Retrieve trial details by NCT ID, export data,
+  for clinical research and patient matching."
+
+clinpgx-database
+  "Access ClinPGx pharmacogenomics data (successor to PharmGKB). Query
+  gene-drug interactions, CPIC guidelines, allele functions, for precision
+  medicine and genotype-guided dosing decisions."
+
+clinvar-database
+  "Query NCBI ClinVar for variant clinical significance. Search by
+  gene/position, interpret pathogenicity classifications, access via
+  E-utilities API or FTP, annotate VCFs, for genomic medicine."
+
+cobrapy
+  "Constraint-based metabolic modeling (COBRA). FBA, FVA, gene knockouts,
+  flux sampling, SBML models, for systems biology and metabolic engineering
+  analysis."
+
+cosmic-database
+  "Access COSMIC cancer mutation database. Query somatic mutations, Cancer
+  Gene Census, mutational signatures, gene fusions, for cancer research and
+  precision oncology. Requires authentication."
+
+dask
+  "Parallel/distributed computing. Scale pandas/NumPy beyond memory, parallel
+  DataFrames/Arrays, multi-file processing, task graphs, for larger-than-RAM
+  datasets and parallel workflows."
+
+datacommons-client
+  Work with Data Commons, a platform providing programmatic access to public
+  statistical data from global sources. Use this skill when working with
+  demographic data, economic indicators, health statistics, environmental
+  data, or any public datasets available through Data Commons. Applicable for
+  querying population statistics, GDP figures, unemployment rates, disease
+  prevalence, geographic entity resolution, and exploring relationships
+  between statistical entities.
+
+datamol
+  "Pythonic wrapper around RDKit with simplified interface and sensible
+  defaults. Preferred for standard drug discovery: SMILES parsing,
+  standardization, descriptors, fingerprints, clustering, 3D conformers,
+  parallel processing. Returns native rdkit.Chem.Mol objects. For advanced
+  control or custom parameters, use rdkit directly."
+
+deepchem
+  "Molecular machine learning toolkit. Property prediction (ADMET, toxicity),
+  GNNs (GCN, MPNN), MoleculeNet benchmarks, pretrained models, featurization,
+  for drug discovery ML."
+
+deeptools
+  "NGS analysis toolkit. BAM to bigWig conversion, QC (correlation, PCA,
+  fingerprints), heatmaps/profiles (TSS, peaks), for ChIP-seq, RNA-seq,
+  ATAC-seq visualization."
+
+denario
+  Multiagent AI system for scientific research assistance that automates
+  research workflows from data analysis to publication. This skill should be
+  used when generating research ideas from datasets, developing research
+  methodologies, executing computational experiments, performing literature
+  searches, or generating publication-ready papers in LaTeX format. Supports
+  end-to-end research pipelines with customizable agent orchestration.
+
+diffdock
+  "Diffusion-based molecular docking. Predict protein-ligand binding poses
+  from PDB/SMILES, confidence scores, virtual screening, for structure-based
+  drug design. Not for affinity prediction."
+
+dnanexus-integration
+  "DNAnexus cloud genomics platform. Build apps/applets, manage data
+  (upload/download), dxpy Python SDK, run workflows, FASTQ/BAM/VCF, for
+  genomics pipeline development and execution."
+
+docx
+  "Document toolkit (.docx). Create/edit documents, tracked changes,
+  comments, formatting preservation, text extraction, for professional
+  document processing."
+
+drugbank-database
+  Access and analyze comprehensive drug information from the DrugBank
+  database including drug properties, interactions, targets, pathways,
+  chemical structures, and pharmacology data. This skill should be used when
+  working with pharmaceutical data, drug discovery research, pharmacology
+  studies, drug-drug interaction analysis, target identification, chemical
+  similarity searches, ADMET predictions, or any task requiring detailed drug
+  and drug target information from DrugBank.
+
+ena-database
+  "Access European Nucleotide Archive via API/FTP. Retrieve DNA/RNA
+  sequences, raw reads (FASTQ), genome assemblies by accession, for genomics
+  and bioinformatics pipelines. Supports multiple formats."
+
+ensembl-database
+  "Query Ensembl genome database REST API for 250+ species. Gene lookups,
+  sequence retrieval, variant analysis, comparative genomics, orthologs, VEP
+  predictions, for genomic research."
+
+esm
+  Comprehensive toolkit for protein language models including ESM3
+  (generative multimodal protein design across sequence, structure, and
+  function) and ESM C (efficient protein embeddings and representations). Use
+  this skill when working with protein sequences, structures, or function
+  prediction; designing novel proteins; generating protein embeddings;
+  performing inverse folding; or conducting protein engineering tasks.
+  Supports both local model usage and cloud-based Forge API for scalable
+  inference.
+
+etetoolkit
+  "Phylogenetic tree toolkit (ETE). Tree manipulation (Newick/NHX),
+  evolutionary event detection, orthology/paralogy, NCBI taxonomy,
+  visualization (PDF/SVG), for phylogenomics."
+
+exploratory-data-analysis
+  Perform comprehensive exploratory data analysis on scientific data files
+  across 200+ file formats. This skill should be used when analyzing any
+  scientific data file to understand its structure, content, quality, and
+  characteristics. Automatically detects file type and generates detailed
+  markdown reports with format-specific analysis, quality metrics, and
+  downstream analysis recommendations. Covers chemistry, bioinformatics,
+  microscopy, spectroscopy, proteomics, metabolomics, and general scientific
+  data formats.
+
+fda-database
+  "Query openFDA API for drugs, devices, adverse events, recalls, regulatory
+  submissions (510k, PMA), substance identification (UNII), for FDA
+  regulatory data analysis and safety research."
+
+flowio
+  "Parse FCS (Flow Cytometry Standard) files v2.0-3.1. Extract events as
+  NumPy arrays, read metadata/channels, convert to CSV/DataFrame, for flow
+  cytometry data preprocessing."
+
+fluidsim
+  Framework for computational fluid dynamics simulations using Python. Use
+  when running fluid dynamics simulations including Navier-Stokes equations
+  (2D/3D), shallow water equations, stratified flows, or when analyzing
+  turbulence, vortex dynamics, or geophysical flows. Provides pseudospectral
+  methods with FFT, HPC support, and comprehensive output analysis.
+
+gene-database
+  "Query NCBI Gene via E-utilities/Datasets API. Search by symbol/ID,
+  retrieve gene info (RefSeqs, GO, locations, phenotypes), batch lookups, for
+  gene annotation and functional analysis."
+
+geniml
+  This skill should be used when working with genomic interval data (BED
+  files) for machine learning tasks. Use for training region embeddings
+  (Region2Vec, BEDspace), single-cell ATAC-seq analysis (scEmbed), building
+  consensus peaks (universes), or any ML-based analysis of genomic regions.
+  Applies to BED file collections, scATAC-seq data, chromatin accessibility
+  datasets, and region-based genomic feature learning.
+
+geo-database
+  "Access NCBI GEO for gene expression/genomics data. Search/download
+  microarray and RNA-seq datasets (GSE, GSM, GPL), retrieve SOFT/Matrix
+  files, for transcriptomics and expression analysis."
+
+get-available-resources
+  This skill should be used at the start of any computationally intensive
+  scientific task to detect and report available system resources (CPU cores,
+  GPUs, memory, disk space). It creates a JSON file with resource information
+  and strategic recommendations that inform computational approach decisions
+  such as whether to use parallel processing (joblib, multiprocessing),
+  out-of-core computing (Dask, Zarr), GPU acceleration (PyTorch, JAX), or
+  memory-efficient strategies. Use this skill before running analyses,
+  training models, processing large datasets, or any task where resource
+  constraints matter.
+
+gget
+  "CLI/Python toolkit for rapid bioinformatics queries. Preferred for quick
+  BLAST searches. Access to 20+ databases: gene info (Ensembl/UniProt),
+  AlphaFold, ARCHS4, Enrichr, OpenTargets, COSMIC, genome downloads. For
+  advanced BLAST/batch processing, use biopython. For multi-database
+  integration, use bioservices."
+
+gtars
+  High-performance toolkit for genomic interval analysis in Rust with Python
+  bindings. Use when working with genomic regions, BED files, coverage
+  tracks, overlap detection, tokenization for ML models, or fragment analysis
+  in computational genomics and machine learning applications.
+
+gwas-database
+  "Query NHGRI-EBI GWAS Catalog for SNP-trait associations. Search variants
+  by rs ID, disease/trait, gene, retrieve p-values and summary statistics,
+  for genetic epidemiology and polygenic risk scores."
+
+histolab
+  Digital pathology image processing toolkit for whole slide images (WSI).
+  Use this skill when working with histopathology slides, processing H&E or
+  IHC stained tissue images, extracting tiles from gigapixel pathology
+  images, detecting tissue regions, segmenting tissue masks, or preparing
+  datasets for computational pathology deep learning pipelines. Applies to
+  WSI formats (SVS, TIFF, NDPI), tile-based analysis, and histological image
+  preprocessing workflows.
+
+hmdb-database
+  "Access Human Metabolome Database (220K+ metabolites). Search by
+  name/ID/structure, retrieve chemical properties, biomarker data, NMR/MS
+  spectra, pathways, for metabolomics and identification."
+
+hypogenic
+  Automated hypothesis generation and testing using large language models.
+  Use this skill when generating scientific hypotheses from datasets,
+  combining literature insights with empirical data, testing hypotheses
+  against observational data, or conducting systematic hypothesis exploration
+  for research discovery in domains like deception detection, AI content
+  detection, mental health analysis, or other empirical research tasks.
+
+hypothesis-generation
+  "Generate testable hypotheses. Formulate from observations, design
+  experiments, explore competing explanations, develop predictions, propose
+  mechanisms, for scientific inquiry across domains."
+
+kegg-database
+  "Direct REST API access to KEGG (academic use only). Pathway analysis,
+  gene-pathway mapping, metabolic pathways, drug interactions, ID conversion.
+  For Python workflows with multiple databases, prefer bioservices. Use this
+  for direct HTTP/REST work or KEGG-specific control."
+
+labarchive-integration
+  "Electronic lab notebook API integration. Access notebooks, manage
+  entries/attachments, backup notebooks, integrate with
+  Protocols.io/Jupyter/REDCap, for programmatic ELN workflows."
+
+lamindb
+  This skill should be used when working with LaminDB, an open-source data
+  framework for biology that makes data queryable, traceable, reproducible,
+  and FAIR. Use when managing biological datasets (scRNA-seq, spatial, flow
+  cytometry, etc.), tracking computational workflows, curating and validating
+  data with biological ontologies, building data lakehouses, or ensuring data
+  lineage and reproducibility in biological research. Covers data management,
+  annotation, ontologies (genes, cell types, diseases, tissues), schema
+  validation, integrations with workflow managers (Nextflow, Snakemake) and
+  MLOps platforms (W&B, MLflow), and deployment strategies.
+
+latchbio-integration
+  "Latch platform for bioinformatics workflows. Build pipelines with Latch
+  SDK, @workflow/@task decorators, deploy serverless workflows,
+  LatchFile/LatchDir, Nextflow/Snakemake integration."
+
+literature-review
+  Conduct comprehensive, systematic literature reviews using multiple
+  academic databases (PubMed, arXiv, bioRxiv, Semantic Scholar, etc.). This
+  skill should be used when conducting systematic literature reviews,
+  meta-analyses, research synthesis, or comprehensive literature searches
+  across biomedical, scientific, and technical domains. Creates
+  professionally formatted markdown documents and PDFs with verified
+  citations in multiple citation styles (APA, Nature, Vancouver, etc.).
+
+markitdown
+  Convert various file formats (PDF, Office documents, images, audio, web
+  content, structured data) to Markdown optimized for LLM processing. Use
+  when converting documents to markdown, extracting text from PDFs/Office
+  files, transcribing audio, performing OCR on images, extracting YouTube
+  transcripts, or processing batches of files. Supports 20+ formats including
+  DOCX, XLSX, PPTX, PDF, HTML, EPUB, CSV, JSON, images with OCR, and audio
+  with transcription.
+
+matchms
+  "Mass spectrometry analysis. Process mzML/MGF/MSP, spectral similarity
+  (cosine, modified cosine), metadata harmonization, compound ID, for
+  metabolomics and MS data processing."
+
+matplotlib
+  "Foundational plotting library. Create line plots, scatter, bar,
+  histograms, heatmaps, 3D, subplots, export PNG/PDF/SVG, for scientific
+  visualization and publication figures."
+
+medchem
+  "Medicinal chemistry filters. Apply drug-likeness rules (Lipinski, Veber),
+  PAINS filters, structural alerts, complexity metrics, for compound
+  prioritization and library filtering."
+
+metabolomics-workbench-database
+  "Access NIH Metabolomics Workbench via REST API (4,200+ studies). Query
+  metabolites, RefMet nomenclature, MS/NMR data, m/z searches, study
+  metadata, for metabolomics and biomarker discovery."
+
+modal
+  Run Python code in the cloud with serverless containers, GPUs, and
+  autoscaling. Use when deploying ML models, running batch processing jobs,
+  scheduling compute-intensive tasks, or serving APIs that require GPU
+  acceleration or dynamic scaling.
+
+molfeat
+  "Molecular featurization for ML (100+ featurizers). ECFP, MACCS,
+  descriptors, pretrained models (ChemBERTa), convert SMILES to features, for
+  QSAR and molecular ML."
+
+networkx
+  Comprehensive toolkit for creating, analyzing, and visualizing complex
+  networks and graphs in Python. Use when working with network/graph data
+  structures, analyzing relationships between entities, computing graph
+  algorithms (shortest paths, centrality, clustering), detecting communities,
+  generating synthetic networks, or visualizing network topologies.
+  Applicable to social networks, biological networks, transportation systems,
+  citation networks, and any domain involving pairwise relationships.
+
+neurokit2
+  Comprehensive biosignal processing toolkit for analyzing physiological data
+  including ECG, EEG, EDA, RSP, PPG, EMG, and EOG signals. Use this skill
+  when processing cardiovascular signals, brain activity, electrodermal
+  responses, respiratory patterns, muscle activity, or eye movements.
+  Applicable for heart rate variability analysis, event-related potentials,
+  complexity measures, autonomic nervous system assessment, psychophysiology
+  research, and multi-modal physiological signal integration.
+
+omero-integration
+  "Microscopy data management platform. Access images via Python, retrieve
+  datasets, analyze pixels, manage ROIs/annotations, batch processing, for
+  high-content screening and microscopy workflows."
+
+opentargets-database
+  "Query Open Targets Platform for target-disease associations, drug target
+  discovery, tractability/safety data, genetics/omics evidence, known drugs,
+  for therapeutic target identification."
+
+opentrons-integration
+  "Lab automation platform for Flex/OT-2 robots. Write Protocol API v2
+  protocols, liquid handling, hardware modules (heater-shaker, thermocycler),
+  labware management, for automated pipetting workflows."
+
+paper-2-web
+  This skill should be used when converting academic papers into promotional
+  and presentation formats including interactive websites (Paper2Web),
+  presentation videos (Paper2Video), and conference posters (Paper2Poster).
+  Use this skill for tasks involving paper dissemination, conference
+  preparation, creating explorable academic homepages, generating video
+  abstracts, or producing print-ready posters from LaTeX or PDF sources.
+
+pathml
+  Computational pathology toolkit for analyzing whole-slide images (WSI) and
+  multiparametric imaging data. Use this skill when working with
+  histopathology slides, H&E stained images, multiplex immunofluorescence
+  (CODEX, Vectra), spatial proteomics, nucleus detection/segmentation, tissue
+  graph construction, or training ML models on pathology data. Supports 160+
+  slide formats including Aperio SVS, NDPI, DICOM, OME-TIFF for digital
+  pathology workflows.
+
+pdb-database
+  "Access RCSB PDB for 3D protein/nucleic acid structures. Search by
+  text/sequence/structure, download coordinates (PDB/mmCIF), retrieve
+  metadata, for structural biology and drug discovery."
+
+pdf
+  "PDF manipulation toolkit. Extract text/tables, create PDFs, merge/split,
+  fill forms, for programmatic document processing and analysis."
+
+peer-review
+  "Systematic peer review toolkit. Evaluate methodology, statistics, design,
+  reproducibility, ethics, figure integrity, reporting standards, for
+  manuscript and grant review across disciplines."
+
+perplexity-search
+  Perform AI-powered web searches with real-time information using Perplexity
+  models via LiteLLM and OpenRouter. This skill should be used when
+  conducting web searches for current information, finding recent scientific
+  literature, getting grounded answers with source citations, or accessing
+  information beyond the model's knowledge cutoff. Provides access to
+  multiple Perplexity models including Sonar Pro, Sonar Pro Search (advanced
+  agentic search), and Sonar Reasoning Pro through a single OpenRouter API
+  key.
+
+polars
+  "Fast DataFrame library (Apache Arrow). Select, filter, group_by, joins,
+  lazy evaluation, CSV/Parquet I/O, expression API, for high-performance data
+  analysis workflows."
+
+pptx
+  "Presentation toolkit (.pptx). Create/edit slides, layouts, content,
+  speaker notes, comments, for programmatic presentation creation and
+  modification."
+
+protocolsio-integration
+  Integration with protocols.io API for managing scientific protocols. This
+  skill should be used when working with protocols.io to search, create,
+  update, or publish protocols; manage protocol steps and materials; handle
+  discussions and comments; organize workspaces; upload and manage files; or
+  integrate protocols.io functionality into workflows. Applicable for
+  protocol discovery, collaborative protocol development, experiment
+  tracking, lab protocol management, and scientific documentation.
+
+pubchem-database
+  "Query PubChem via PUG-REST API/PubChemPy (110M+ compounds). Search by
+  name/CID/SMILES, retrieve properties, similarity/substructure searches,
+  bioactivity, for cheminformatics."
+
+pubmed-database
+  "Direct REST API access to PubMed. Advanced Boolean/MeSH queries,
+  E-utilities API, batch processing, citation management. For Python
+  workflows, prefer biopython (Bio.Entrez). Use this for direct HTTP/REST
+  work or custom API implementations."
+
+pufferlib
+  This skill should be used when working with reinforcement learning tasks
+  including high-performance RL training, custom environment development,
+  vectorized parallel simulation, multi-agent systems, or integration with
+  existing RL environments (Gymnasium, PettingZoo, Atari, Procgen, etc.). Use
+  this skill for implementing PPO training, creating PufferEnv environments,
+  optimizing RL performance, or developing policies with CNNs/LSTMs.
+
+pydeseq2
+  "Differential gene expression analysis (Python DESeq2). Identify DE genes
+  from bulk RNA-seq counts, Wald tests, FDR correction, volcano/MA plots, for
+  RNA-seq analysis."
+
+pydicom
+  Python library for working with DICOM (Digital Imaging and Communications
+  in Medicine) files. Use this skill when reading, writing, or modifying
+  medical imaging data in DICOM format, extracting pixel data from medical
+  images (CT, MRI, X-ray, ultrasound), anonymizing DICOM files, working with
+  DICOM metadata and tags, converting DICOM images to other formats, handling
+  compressed DICOM data, or processing medical imaging datasets. Applies to
+  tasks involving medical image analysis, PACS systems, radiology workflows,
+  and healthcare imaging applications.
+
+pyhealth
+  Comprehensive healthcare AI toolkit for developing, testing, and deploying
+  machine learning models with clinical data. This skill should be used when
+  working with electronic health records (EHR), clinical prediction tasks
+  (mortality, readmission, drug recommendation), medical coding systems (ICD,
+  NDC, ATC), physiological signals (EEG, ECG), healthcare datasets
+  (MIMIC-III/IV, eICU, OMOP), or implementing deep learning models for
+  healthcare applications (RETAIN, SafeDrug, Transformer, GNN).
+
+pylabrobot
+  Laboratory automation toolkit for controlling liquid handlers, plate
+  readers, pumps, heater shakers, incubators, centrifuges, and analytical
+  equipment. Use this skill when automating laboratory workflows, programming
+  liquid handling robots (Hamilton STAR, Opentrons OT-2, Tecan EVO),
+  integrating lab equipment, managing deck layouts and resources (plates,
+  tips, containers), reading plates, or creating reproducible laboratory
+  protocols. Applicable for both simulated protocols and physical hardware
+  control.
+
+pymatgen
+  "Materials science toolkit. Crystal structures (CIF, POSCAR), phase
+  diagrams, band structure, DOS, Materials Project integration, format
+  conversion, for computational materials science."
+
+pymc
+  "Bayesian modeling with PyMC. Build hierarchical models, MCMC (NUTS),
+  variational inference, LOO/WAIC comparison, posterior checks, for
+  probabilistic programming and inference."
+
+pymoo
+  "Multi-objective optimization framework. NSGA-II, NSGA-III, MOEA/D, Pareto
+  fronts, constraint handling, benchmarks (ZDT, DTLZ), for engineering design
+  and optimization problems."
+
+pyopenms
+  Python interface to OpenMS for mass spectrometry data analysis. Use for
+  LC-MS/MS proteomics and metabolomics workflows including file handling
+  (mzML, mzXML, mzTab, FASTA, pepXML, protXML, mzIdentML), signal processing,
+  feature detection, peptide identification, and quantitative analysis. Apply
+  when working with mass spectrometry data, analyzing proteomics experiments,
+  or processing metabolomics datasets.
+
+pysam
+  "Genomic file toolkit. Read/write SAM/BAM/CRAM alignments, VCF/BCF
+  variants, FASTA/FASTQ sequences, extract regions, calculate coverage, for
+  NGS data processing pipelines."
+
+pytdc
+  "Therapeutics Data Commons. AI-ready drug discovery datasets (ADME,
+  toxicity, DTI), benchmarks, scaffold splits, molecular oracles, for
+  therapeutic ML and pharmacological prediction."
+
+pytorch-lightning
+  "Deep learning framework (PyTorch Lightning). Organize PyTorch code into
+  LightningModules, configure Trainers for multi-GPU/TPU, implement data
+  pipelines, callbacks, logging (W&B, TensorBoard), distributed training
+  (DDP, FSDP, DeepSpeed), for scalable neural network training."
+
+rdkit
+  "Cheminformatics toolkit for fine-grained molecular control. SMILES/SDF
+  parsing, descriptors (MW, LogP, TPSA), fingerprints, substructure search,
+  2D/3D generation, similarity, reactions. For standard workflows with
+  simpler interface, use datamol (wrapper around RDKit). Use rdkit for
+  advanced control, custom sanitization, specialized algorithms."
+
+reactome-database
+  "Query Reactome REST API for pathway analysis, enrichment, gene-pathway
+  mapping, disease pathways, molecular interactions, expression analysis, for
+  systems biology studies."
+
+reportlab
+  "PDF generation toolkit. Create invoices, reports, certificates, forms,
+  charts, tables, barcodes, QR codes, Canvas/Platypus APIs, for professional
+  document automation."
+
+scanpy
+  "Single-cell RNA-seq analysis. Load .h5ad/10X data, QC, normalization,
+  PCA/UMAP/t-SNE, Leiden clustering, marker genes, cell type annotation,
+  trajectory, for scRNA-seq analysis."
+
+scholar-evaluation
+  Systematic framework for evaluating scholarly and research work based on
+  the ScholarEval methodology. This skill should be used when assessing
+  research papers, evaluating literature reviews, scoring research
+  methodologies, analyzing scientific writing quality, or applying structured
+  evaluation criteria to academic work. Provides comprehensive assessment
+  across multiple dimensions including problem formulation, literature
+  review, methodology, data collection, analysis, results interpretation, and
+  scholarly writing quality.
+
+scientific-brainstorming
+  "Research ideation partner. Generate hypotheses, explore interdisciplinary
+  connections, challenge assumptions, develop methodologies, identify
+  research gaps, for creative scientific problem-solving."
+
+scientific-critical-thinking
+  "Evaluate research rigor. Assess methodology, experimental design,
+  statistical validity, biases, confounding, evidence quality (GRADE,
+  Cochrane ROB), for critical analysis of scientific claims."
+
+scientific-visualization
+  "Create publication figures with matplotlib/seaborn/plotly. Multi-panel
+  layouts, error bars, significance markers, colorblind-safe, export
+  PDF/EPS/TIFF, for journal-ready scientific plots."
+
+scientific-writing
+  "Write scientific manuscripts. IMRAD structure, citations
+  (APA/AMA/Vancouver), figures/tables, reporting guidelines
+  (CONSORT/STROBE/PRISMA), abstracts, for research papers and journal
+  submissions."
+
+scikit-bio
+  "Biological data toolkit. Sequence analysis, alignments, phylogenetic
+  trees, diversity metrics (alpha/beta, UniFrac), ordination (PCoA),
+  PERMANOVA, FASTA/Newick I/O, for microbiome analysis."
+
+scikit-learn
+  Machine learning in Python with scikit-learn. Use when working with
+  supervised learning (classification, regression), unsupervised learning
+  (clustering, dimensionality reduction), model evaluation, hyperparameter
+  tuning, preprocessing, or building ML pipelines. Provides comprehensive
+  reference documentation for algorithms, preprocessing techniques,
+  pipelines, and best practices.
+
+scikit-survival
+  Comprehensive toolkit for survival analysis and time-to-event modeling in
+  Python using scikit-survival. Use this skill when working with censored
+  survival data, performing time-to-event analysis, fitting Cox models,
+  Random Survival Forests, Gradient Boosting models, or Survival SVMs,
+  evaluating survival predictions with concordance index or Brier score,
+  handling competing risks, or implementing any survival analysis workflow
+  with the scikit-survival library.
+
+scvi-tools
+  This skill should be used when working with single-cell omics data analysis
+  using scvi-tools, including scRNA-seq, scATAC-seq, CITE-seq, spatial
+  transcriptomics, and other single-cell modalities. Use this skill for
+  probabilistic modeling, batch correction, dimensionality reduction,
+  differential expression, cell type annotation, multimodal integration, and
+  spatial analysis tasks.
+
+seaborn
+  "Statistical visualization. Scatter, box, violin, heatmaps, pair plots,
+  regression, correlation matrices, KDE, faceted plots, for exploratory
+  analysis and publication figures."
+
+shap
+  Model interpretability and explainability using SHAP (SHapley Additive
+  exPlanations). Use this skill when explaining machine learning model
+  predictions, computing feature importance, generating SHAP plots
+  (waterfall, beeswarm, bar, scatter, force, heatmap), debugging models,
+  analyzing model bias or fairness, comparing models, or implementing
+  explainable AI. Works with tree-based models (XGBoost, LightGBM, Random
+  Forest), deep learning (TensorFlow, PyTorch), linear models, and any
+  black-box model.
+
+simpy
+  Process-based discrete-event simulation framework in Python. Use this skill
+  when building simulations of systems with processes, queues, resources, and
+  time-based events such as manufacturing systems, service operations,
+  network traffic, logistics, or any system where entities interact with
+  shared resources over time.
+
+stable-baselines3
+  Use this skill for reinforcement learning tasks including training RL
+  agents (PPO, SAC, DQN, TD3, DDPG, A2C, etc.), creating custom Gym
+  environments, implementing callbacks for monitoring and control, using
+  vectorized environments for parallel training, and integrating with deep RL
+  workflows. This skill should be used when users request RL algorithm
+  implementation, agent training, environment design, or RL experimentation.
+
+statistical-analysis
+  "Statistical analysis toolkit. Hypothesis tests (t-test, ANOVA,
+  chi-square), regression, correlation, Bayesian stats, power analysis,
+  assumption checks, APA reporting, for academic research."
+
+statsmodels
+  "Statistical modeling toolkit. OLS, GLM, logistic, ARIMA, time series,
+  hypothesis tests, diagnostics, AIC/BIC, for rigorous statistical inference
+  and econometric analysis."
+
+string-database
+  "Query STRING API for protein-protein interactions (59M proteins, 20B
+  interactions). Network analysis, GO/KEGG enrichment, interaction discovery,
+  5000+ species, for systems biology."
+
+sympy
+  Use this skill when working with symbolic mathematics in Python. This skill
+  should be used for symbolic computation tasks including solving equations
+  algebraically, performing calculus operations (derivatives, integrals,
+  limits), manipulating algebraic expressions, working with matrices
+  symbolically, physics calculations, number theory problems, geometry
+  computations, and generating executable code from mathematical expressions.
+  Apply this skill when the user needs exact symbolic results rather than
+  numerical approximations, or when working with mathematical formulas that
+  contain variables and parameters.
+
+tooluniverse
+  Use this skill when working with scientific research tools and workflows
+  across bioinformatics, cheminformatics, genomics, structural biology,
+  proteomics, and drug discovery. This skill provides access to 600+
+  scientific tools including machine learning models, datasets, APIs, and
+  analysis packages. Use when searching for scientific tools, executing
+  computational biology workflows, composing multi-step research pipelines,
+  accessing databases like OpenTargets/PubChem/UniProt/PDB/ChEMBL, performing
+  tool discovery for research tasks, or integrating scientific computational
+  resources into LLM workflows.
+
+torch_geometric
+  "Graph Neural Networks (PyG). Node/graph classification, link prediction,
+  GCN, GAT, GraphSAGE, heterogeneous graphs, molecular property prediction,
+  for geometric deep learning."
+
+torchdrug
+  "Graph-based drug discovery toolkit. Molecular property prediction (ADMET),
+  protein modeling, knowledge graph reasoning, molecular generation,
+  retrosynthesis, GNNs (GIN, GAT, SchNet), 40+ datasets, for PyTorch-based ML
+  on molecules, proteins, and biomedical graphs."
+
+transformers
+  This skill should be used when working with pre-trained transformer models
+  for natural language processing, computer vision, audio, or multimodal
+  tasks. Use for text generation, classification, question answering,
+  translation, summarization, image classification, object detection, speech
+  recognition, and fine-tuning models on custom datasets.
+
+umap-learn
+  "UMAP dimensionality reduction. Fast nonlinear manifold learning for 2D/3D
+  visualization, clustering preprocessing (HDBSCAN), supervised/parametric
+  UMAP, for high-dimensional data."
+
+uniprot-database
+  "Direct REST API access to UniProt. Protein searches, FASTA retrieval, ID
+  mapping, Swiss-Prot/TrEMBL. For Python workflows with multiple databases,
+  prefer bioservices (unified interface to 40+ services). Use this for direct
+  HTTP/REST work or UniProt-specific control."
+
+uspto-database
+  "Access USPTO APIs for patent/trademark searches, examination history
+  (PEDS), assignments, citations, office actions, TSDR, for IP analysis and
+  prior art searches."
+
+vaex
+  Use this skill for processing and analyzing large tabular datasets
+  (billions of rows) that exceed available RAM. Vaex excels at out-of-core
+  DataFrame operations, lazy evaluation, fast aggregations, efficient
+  visualization of big data, and machine learning on large datasets. Apply
+  when users need to work with large CSV/HDF5/Arrow/Parquet files, perform
+  fast statistics on massive datasets, create visualizations of big data, or
+  build ML pipelines that don't fit in memory.
+
+xlsx
+  "Spreadsheet toolkit (.xlsx/.csv). Create/edit with formulas/formatting,
+  analyze data, visualization, recalculate formulas, for spreadsheet
+  processing and analysis."
+
+zarr-python
+  "Chunked N-D arrays for cloud storage. Compressed arrays, parallel I/O,
+  S3/GCS integration, NumPy/Dask/Xarray compatible, for large-scale
+  scientific computing pipelines."
+
+zinc-database
+  "Access ZINC (230M+ purchasable compounds). Search by ZINC ID/SMILES,
+  similarity searches, 3D-ready structures for docking, analog discovery, for
+  virtual screening and drug discovery."
+
+HIREFRANK-MARKETPLACE (16 skills)
+--------------------------------------------------------------------------------
+
+animation-interaction-validator
+  Ensures engaging user experience through validation of animations,
+  transitions, micro-interactions, and feedback states, preventing
+  flat/static interfaces that lack polish and engagement. Works with Tanstack
+  Start (React) + shadcn/ui components.
+
+auth-security-validator
+  Autonomous validation of authentication security. Checks password hashing,
+  cookie configuration, CSRF protection, and session management for OWASP
+  compliance.
+
+cloudflare-security-checker
+  Automatically validates Cloudflare Workers security patterns during
+  development, ensuring proper secret management, CORS configuration, and
+  input validation
+
+component-aesthetic-checker
+  Validates shadcn/ui component customization depth, ensuring components
+  aren't used with default props and checking for consistent design system
+  implementation across Tanstack Start applications
+
+conversation-analyzer
+  Analyzes AI conversation exports to identify recurring patterns and
+  generate custom Claude Skills. Use when analyzing conversation data,
+  identifying workflow patterns, or creating reusable AI skills from usage
+  history.
+
+cors-configuration-validator
+  Automatically validates Cloudflare Workers CORS configuration, ensuring
+  proper headers, OPTIONS handling, and origin validation for cross-origin
+  requests
+
+durable-objects-pattern-checker
+  Automatically validates Cloudflare Durable Objects usage patterns, ensuring
+  correct state management, hibernation, and strong consistency practices
+
+edge-performance-optimizer
+  Automatically optimizes Cloudflare Workers performance during development,
+  focusing on cold starts, bundle size, edge caching, and global latency
+
+gemini-imagegen
+  Generate, edit, and compose images using Google's Gemini AI API for design
+  workflows and visual content creation
+
+kv-optimization-advisor
+  Automatically optimizes Cloudflare KV storage patterns, suggesting parallel
+  operations, caching strategies, and storage choice guidance
+
+polar-integration-validator
+  Autonomous validation of Polar.sh billing integration. Checks webhook
+  endpoints, signature verification, subscription middleware, and environment
+  configuration.
+
+shadcn-ui-design-validator
+  Automatically validates frontend design patterns to prevent generic
+  aesthetics (Inter fonts, purple gradients, minimal animations) and enforce
+  distinctive, branded design during Tanstack Start (React) development with
+  shadcn/ui
+
+workers-binding-validator
+  Automatically validates Cloudflare Workers binding configuration, ensuring
+  code references match wrangler.toml setup and TypeScript interfaces are
+  accurate
+
+workers-runtime-validator
+  Automatically validates Cloudflare Workers runtime compatibility during
+  development, preventing Node.js API usage and ensuring proper Workers
+  patterns
+
+workflow-pattern-analyzer
+  Analyzes recent conversation history using chat tools to identify recurring
+  workflow patterns and generate Custom Skills recommendations with
+  statistical rigor. Use when users request workflow analysis, pattern
+  identification, skill generation suggestions, or automation opportunities
+  based on their AI usage patterns without requiring conversation exports.
+
+workflow-pattern-analyzer-web
+  Analyzes recent conversation history using chat tools to identify recurring
+  workflow patterns and generate Custom Skills recommendations with
+  statistical rigor. Use when users request workflow analysis, pattern
+  identification, skill generation suggestions, or automation opportunities
+  based on their AI usage patterns without requiring conversation exports.
+
+MHATTINGPETE-CLAUDE-SKILLS (17 skills)
+--------------------------------------------------------------------------------
+
+architecture-diagram-creator
+  Create comprehensive HTML architecture diagrams showing data flows,
+  business objectives, features, technical architecture, and deployment. Use
+  when users request system architecture, project documentation, high-level
+  overviews, or technical specifications.
+
+code-auditor
+  Performs comprehensive codebase analysis covering architecture, code
+  quality, security, performance, testing, and maintainability. Use when user
+  wants to audit code quality, identify technical debt, find security issues,
+  assess test coverage, or get a codebase health check.
+
+code-execution
+  Execute Python code locally with marketplace API access for 90%+ token
+  savings on bulk operations. Activates when user requests bulk operations
+  (10+ files), complex multi-step workflows, iterative processing, or
+  mentions efficiency/performance.
+
+code-refactor
+  Perform bulk code refactoring operations like renaming variables/functions
+  across files, replacing patterns, and updating API calls. Use when users
+  request renaming identifiers, replacing deprecated code patterns, updating
+  method calls, or making consistent changes across multiple locations.
+
+code-transfer
+  Transfer code between files with line-based precision. Use when users
+  request copying code from one location to another, moving functions or
+  classes between files, extracting code blocks, or inserting code at
+  specific line numbers.
+
+codebase-documenter
+  Generates comprehensive documentation explaining how a codebase works,
+  including architecture, key components, data flow, and development
+  guidelines. Use when user wants to understand unfamiliar code, create
+  onboarding docs, document architecture, or explain how the system works.
+
+conversation-analyzer
+  Analyzes your Claude Code conversation history to identify patterns, common
+  mistakes, and opportunities for workflow improvement. Use when user wants
+  to understand usage patterns, optimize workflow, identify automation
+  opportunities, or check if they're following best practices.
+
+dashboard-creator
+  Create HTML dashboards with KPI metric cards, bar/pie/line charts, progress
+  indicators, and data visualizations. Use when users request dashboards,
+  metrics displays, KPI visualizations, data charts, or monitoring
+  interfaces.
+
+feature-planning
+  Break down feature requests into detailed, implementable plans with clear
+  tasks. Use when user requests a new feature, enhancement, or complex
+  change.
+
+file-operations
+  Analyze files and get detailed metadata including size, line counts,
+  modification times, and content statistics. Use when users request file
+  information, statistics, or analysis without modifying files.
+
+flowchart-creator
+  Create HTML flowcharts and process diagrams with decision trees,
+  color-coded stages, arrows, and swimlanes. Use when users request
+  flowcharts, process diagrams, workflow visualizations, or decision trees.
+
+git-pushing
+  Stage, commit, and push git changes with conventional commit messages. Use
+  when user wants to commit and push changes, mentions pushing to remote, or
+  asks to save and push their work. Also activates when user says "push
+  changes", "commit and push", "push this", "push to github", or similar git
+  workflow requests.
+
+project-bootstrapper
+  Sets up new projects or improves existing projects with development best
+  practices, tooling, documentation, and workflow automation. Use when user
+  wants to start a new project, improve project structure, add development
+  tooling, or establish professional workflows.
+
+review-implementing
+  Process and implement code review feedback systematically. Use when user
+  provides reviewer comments, PR feedback, code review notes, or asks to
+  implement suggestions from reviews.
+
+technical-doc-creator
+  Create HTML technical documentation with code blocks, API workflows, system
+  architecture diagrams, and syntax highlighting. Use when users request
+  technical documentation, API docs, API references, code examples, or
+  developer documentation.
+
+test-fixing
+  Run tests and systematically fix all failing tests using smart error
+  grouping. Use when user asks to fix failing tests, mentions test failures,
+  runs test suite and failures occur, or requests to make tests pass.
+
+timeline-creator
+  Create HTML timelines and project roadmaps with Gantt charts, milestones,
+  phase groupings, and progress indicators. Use when users request timelines,
+  roadmaps, Gantt charts, project schedules, or milestone visualizations.
+
+PLAYWRIGHT-SKILL (1 skills)
+--------------------------------------------------------------------------------
+
+playwright-skill
+  Complete browser automation with Playwright. Auto-detects dev servers,
+  writes clean test scripts to /tmp. Test pages, fill forms, take
+  screenshots, check responsive design, validate UX, test login flows, check
+  links, automate any browser task. Use when user wants to test websites,
+  automate browser interactions, validate web functionality, or perform any
+  browser-based testing.
+
+ROBBYT-CLAUDE-SKILLS (6 skills)
+--------------------------------------------------------------------------------
+
+claude-md-reflect
+  Analyze chat history to identify areas for improving CLAUDE.md instruction
+  files. Use when the user says "reflect on CLAUDE.md", "improve CLAUDE.md",
+  or requests analysis of instruction files after a work session. Reviews
+  recent conversation for misunderstandings, inconsistencies, or areas where
+  instructions could be clearer.
+
+cli
+  Orchestrate Gemini CLI (v0.17.0+) for tasks requiring current web
+  information via Google Search, deep codebase analysis with
+  codebase_investigator, second AI opinions on code quality/security, or
+  parallel task processing. Trigger when user explicitly requests Gemini
+  ("use Gemini", "ask Gemini") or when needing capabilities unique to Gemini.
+
+gh-cli
+  Comprehensive GitHub CLI integration for PR management, issues, repository
+  operations, GitHub Actions, and viewing GitHub file links. Triggers on
+  explicit `gh` mentions ("use gh to create PR", "run gh issue list") or
+  natural language GitHub operations ("show me open issues", "create a pull
+  request", "view this GitHub file"). Handles GitHub URLs to view raw file
+  content without HTML/JS clutter.
+
+go-style-guide
+  Review Go code for adherence to Go Style Guide. Use when the user requests
+  a code review of completed work, pull requests, or feature branches in Go
+  projects. Focuses on critical bugs, race conditions, and important
+  maintainability issues. Trigger phrases include "review this Go code",
+  "check against style guide", "review my PR", or "review the work done so
+  far".
+
+marketplace-audit
+  Display plugin versions from marketplace.json. Use when user asks to "audit
+  versions", "show plugin versions", "list marketplace versions", or wants to
+  see the current state of plugin versioning.
+
+marketplace-bump
+  Bump a plugin version in marketplace.json using semantic versioning. Use
+  when user asks to "bump version", "increment version", "release new
+  version", or after making changes that warrant a version update.
+
+THINKIES (125 skills)
+--------------------------------------------------------------------------------
+
+analysis-alternatives
+  Generate plausible alternative explanations for observations before
+  committing to a single causal story. Use when: (1) asked to consider other
+  explanations or identify what else could cause an observation, (2)
+  presenting causal claims that have not been tested against competing
+  hypotheses, (3) evidence could reasonably support multiple interpretations,
+  (4) root cause analysis converged too quickly on a single answer.
+
+analysis-decompose
+  Break problems into manageable components for systematic analysis. Use
+  when: (1) explicit request to decompose, break down, or identify component
+  parts of a system or problem, (2) problem has multiple interdependent
+  layers or unclear boundaries that prevent understanding as a whole, (3)
+  before planning work to identify what can proceed in parallel versus
+  sequentially, (4) debugging multi-layered issues or explaining complex
+  systems where natural boundaries would clarify understanding.
+
+analysis-evidence-check
+  Evaluate the quality and strength of evidence supporting claims, useful for
+  fact-checking, research validation, or making well-supported decisions. Use
+  when: (1) asked to verify a claim, fact-check something, assess evidence
+  quality, or determine if something is true, (2) before presenting
+  quantitative claims or research findings, (3) making causal claims that
+  require distinguishing correlation from causation, (4) relying on studies
+  or reports without verified sourcing, (5) when evidence is indirect and
+  requires inferential leaps, (6) when certainty levels may exceed what the
+  evidence supports
+
+analysis-fallacy-detect
+  Identify named logical fallacies (ad hominem, false dichotomy, slippery
+  slope, appeal to authority, etc.) in arguments by pattern-matching against
+  known flawed reasoning structures. Use when: (1) asked to check for logical
+  fallacies or identify specific argumentative errors by name, (2) arguments
+  rely on emotional appeals or rhetorical techniques rather than
+  evidence-based reasoning, (3) encountering either/or framing that may
+  artificially exclude alternatives, (4) arguments attack credibility of
+  sources rather than addressing substantive claims.
+
+analysis-logic-trace
+  Validate inference chains step-by-step by examining whether each logical
+  connection from premise to conclusion is sound, making implicit reasoning
+  steps explicit and checking for gaps or leaps. Use when: (1) asked to
+  validate reasoning steps, trace the logic, or verify if conclusions follow
+  from premises, (2) arguments skip intermediate inferential steps or use
+  'therefore' without showing the reasoning path, (3) evaluating multi-step
+  proofs, mathematical reasoning, or decision frameworks where each step
+  builds on previous ones, (4) reasoning depends on unstated assumptions
+  being treated as established facts.
+
+analysis-opposite-case
+  Build the strongest argument against your current position to test whether
+  it survives serious critique. Use when: (1) asked to play devil's advocate
+  or stress-test a proposal, (2) advocating for an approach without engaging
+  its strongest objections, (3) preparing for stakeholders who will challenge
+  the position, (4) high-stakes decision where overconfidence could be
+  costly.
+
+analysis-root-cause
+  Diagnose problems by iteratively asking 'why' to drill through symptom
+  layers until reaching fundamental causes, using Five Whys methodology to
+  distinguish proximate triggers from underlying conditions. Use when: (1)
+  asked for root cause analysis, why a problem happened, or what
+  fundamentally caused a failure, (2) explanations describe symptoms or
+  triggers without addressing underlying enabling conditions, (3) problems
+  recur despite fixes, suggesting earlier solutions addressed symptoms not
+  fundamental causes, (4) transitioning from incident response to developing
+  preventive measures that address core issues.
+
+anticipating-failure-modes
+  Systematically enumerate how code can fail to prevent claiming safety
+  without evidence. Use when: (1) asked to identify failure modes, enumerate
+  risks, explore what could go wrong, or stress-test assumptions about
+  reliability, (2) describing code as safe, robust, or production-ready
+  without having enumerated specific failure scenarios, (3) reviewing code
+  where analysis focuses only on successful execution paths, (4) about to
+  approve changes without examining how they could fail in production, (5)
+  code lacks input validation, error handling, or defensive checks, (6) test
+  coverage includes only successful cases without exercising error paths
+
+anticipating-interface-stability
+  Assess interface stability and predict breaking changes by distinguishing
+  stable contracts from volatile implementation details. Use when: (1) asked
+  to evaluate dependency on an interface, library, or API, (2) code assumes
+  interface behavior beyond documented contracts, (3) depending on observed
+  behavior rather than guaranteed contracts, (4) architectural decisions
+  hinge on interface stability and long-term maintenance costs.
+
+anticipating-migration-path
+  Design safe migration strategies for breaking changes by planning how
+  systems evolve without disrupting users. Use when: (1) asked to make
+  breaking changes to APIs, schemas, or contracts without migration planning,
+  (2) proposals assume all callers can update simultaneously without
+  considering external dependencies, (3) changes lack definitions of
+  migration completion criteria or rollback strategy, (4) plans omit how old
+  and new versions will coexist during transition.
+
+anticipating-second-order-effects
+  Trace cascading consequences beyond immediate impact to understand how
+  changes propagate through systems. Use when: (1) asked to analyze changes
+  that focus only on immediate benefits without discussing downstream
+  consequences, (2) reviewing an architectural decision and needing to
+  understand how it propagates through the system over time, (3) the
+  discussion emphasizes first-order improvements without exploring what those
+  improvements enable or prevent in subsequent system interactions, (4)
+  comparing options and needing to understand their full impact radius beyond
+  the component being changed, (5) the change under consideration has
+  dependencies or is depended upon by other system components, but the
+  analysis treats it as standalone, (6) assessing whether a change is
+  worthwhile and needing to weigh direct benefits against indirect costs
+
+bump-version
+  Increment semantic version numbers using controlled preview-then-apply
+  workflow to update plugin metadata safely. Use when (1) after completing a
+  set of changes that need version increment before release, (2) when
+  preparing to sync versions across metadata files using sync-versions, (3)
+  before creating a release tag or publishing to the marketplace, (4) when
+  explicitly requested with a specific bump type, (5) after merging a pull
+  request that requires version increment according to changelog, (6) when
+  planning release schedules and need to calculate what the next version
+  would be.
+
+check-changelogs
+  Verify that each plugin has a CHANGELOG.md with an entry for the current
+  version from plugin.json. Use when (1) before creating a pull request or
+  release to ensure version history is documented, (2) after bumping version
+  numbers with bump-version, (3) when asked to verify project health or
+  release readiness, (4) during release preparation to confirm all changes
+  are documented, (5) as part of comprehensive validation alongside
+  check-versions and check-skill-counts, (6) when onboarding a new plugin to
+  ensure proper version documentation.
+
+check-skill-counts
+  Verify that README skill counts match the actual number of SKILL.md files
+  in the filesystem. Use when (1) before creating a pull request or release
+  to ensure documentation accuracy, (2) after adding or removing skills from
+  any plugin, (3) repository health verification or documentation consistency
+  checks are requested, (4) during README updates to confirm new numbers are
+  correct, (5) as part of comprehensive validation alongside check-versions
+  and check-changelogs, (6) when marketplace listing appears inconsistent
+  with actual plugin contents.
+
+check-skill-names
+  Verify that skill name fields in SKILL.md frontmatter match their directory
+  names (category-skillname format). Use when (1) before creating a pull
+  request or release to ensure naming consistency, (2) after adding new
+  skills to verify the name field was set correctly, (3) after renaming skill
+  directories to update frontmatter accordingly, (4) as part of comprehensive
+  repository validation alongside check-skill-refs and check-skill-counts,
+  (5) when debugging skill discovery issues that might stem from name
+  mismatches.
+
+check-skill-refs
+  Validate that Skill() invocations use full prefixed names. Use when (1)
+  before creating a pull request to ensure skill references resolve
+  correctly, (2) after adding new skills to verify invocations use proper
+  names, (3) when verifying repository health, (4) as part of comprehensive
+  validation alongside other check skills.
+
+check-versions
+  Verify version consistency across plugin.json and marketplace.json for all
+  plugins. Use when (1) before creating a pull request or release to ensure
+  metadata consistency, (2) after manually editing version numbers in either
+  plugin.json or marketplace.json, (3) repository health verification or
+  preflight checks are requested, (4) after using bump-version to confirm
+  both files were updated correctly, (5) during debugging if plugins aren't
+  appearing correctly in the marketplace, (6) as part of comprehensive
+  validation alongside check-skill-counts and check-changelogs.
+
+clarity-find-gaps
+  Diagnose where explanations skip steps or use unexplained terminology. Use
+  when: (1) asked to identify gaps or missing steps, (2) user asks for
+  clarification, (3) explanation uses terms before defining them, (4)
+  instructions exist but user cannot complete them, (5) asked to review
+  explanation or documentation
+
+clarity-illustrate
+  Make abstract concepts concrete through examples that reveal essential
+  properties. Use when: (1) asked to illustrate or demonstrate or show
+  examples, (2) user acknowledges explanation but asks what it looks like,
+  (3) explaining boundaries between similar concepts, (4) user can define
+  term but cannot apply it.
+
+clarity-reveal-mechanism
+  Expose causal structure to show how and why things work. Use when: (1) user
+  asks how or why something works, (2) user observes correlation and asks
+  about cause, (3) proposing solution without explaining mechanism, (4) user
+  asks what would happen if conditions changed.
+
+clarity-sequence
+  Reorganize ideas so each builds naturally on what came before. Use when:
+  (1) asked to reorder or improve flow, (2) explanation references concept
+  before introducing it, (3) conclusion appears before supporting reasoning,
+  (4) writing tutorial or educational content.
+
+clarity-streamline
+  Simplify without losing essential accuracy by identifying what is
+  load-bearing versus decorative. Use when: (1) asked to simplify or reduce
+  wordiness, (2) text repeats same concept in different words, (3) text
+  contains hedges like "it should be noted that", (4) user says explanation
+  is too long.
+
+clarity-visualize
+  Create Mermaid diagrams to visualize relationships, processes, and
+  structures. Use when: (1) asked to draw or diagram or visualize, (2)
+  explaining process with multiple interacting elements, (3) describing
+  hierarchical or network structure, (4) comparing multiple alternatives.
+
+connection-bridge
+  Connect unfamiliar concepts to familiar ones through structural analogy.
+  Use when: (1) asked to explain technical concepts to non-experts, (2)
+  accurate terminology creates comprehension barriers, (3) explaining
+  abstract or invisible mechanisms, (4) teaching counterintuitive behavior,
+  (5) user understood words but not meaning.
+
+connection-calibrate
+  Adjust explanation depth, terminology, and examples to match audience
+  knowledge. Use when: (1) asked to tailor explanations for specific
+  audience, (2) user signals confusion about assumed-clear concepts, (3) user
+  shows impatience with over-explanation, (4) same topic for different
+  expertise levels, (5) choosing between practical and comprehensive
+  explanation.
+
+consult-expert
+  Get expert perspective on a problem by synthesizing an ideal consultant.
+  Use when: (1) asked to consult expert or get specialist input, (2) problem
+  involves specialized domain, (3) analyzing from expert viewpoint, (4) right
+  expertise is not predefined.
+
+creativity-constraint-play
+  Use deliberate limitations as creative catalysts by adding, removing, or
+  manipulating constraints to discover innovative solutions that wouldn't
+  emerge from unlimited freedom. Use when: (1) explicit request to explore
+  constraints or use limitations creatively, (2) unlimited possibilities
+  create paralysis or prevent decisive action, (3) scope expansion prevents
+  distinguishing essential from optional features, (4) questioning whether
+  assumed constraints are truly fixed or actually negotiable.
+
+creativity-lateral-think
+  Make unexpected connections and creative leaps by deliberately shifting
+  perspective, seeking distant analogies, and exploring sideways
+  relationships between ideas. Use when: (1) asked to think outside the box
+  or approach from an unusual angle, (2) blocked within domain conventions
+  despite the problem persisting, (3) need fresh perspective by borrowing
+  patterns from completely different fields, (4) all solutions follow
+  standard patterns without questioning whether the stated problem is what
+  needs solving.
+
+creativity-metaphor-build
+  Construct powerful analogies and mental models to explain complex concepts,
+  reveal hidden patterns, and make abstract ideas concrete and memorable. Use
+  when: (1) explicit request to explain through analogy or build comparative
+  understanding, (2) explaining pure abstractions or invisible processes that
+  resist direct description, (3) technical terminology creates barriers
+  despite accurate explanation, (4) aligning understanding across audiences
+  with different expertise or domain backgrounds.
+
+creativity-reversal
+  Flip problems, assumptions, and approaches upside down to discover insights
+  hidden by conventional framing, often revealing solutions that forward
+  thinking misses. Use when: (1) asked to flip the problem or consider the
+  opposite approach, (2) optimizing variables without questioning whether
+  they're the right variables to optimize, (3) forcing behavior against
+  natural resistance suggests the system fights the solution, (4) current
+  framing may create the problem it attempts to solve.
+
+creativity-scamper
+  Apply 7 systematic creativity lenses (Substitute, Combine, Adapt, Modify,
+  Put to other use, Eliminate, Reverse) to generate fresh ideas and
+  innovative solutions. Use when: (1) asked to brainstorm creatively or
+  reimagine an existing concept, (2) transforming something that already
+  exists rather than creating from nothing, (3) need comprehensive
+  exploration across multiple transformation angles before settling on an
+  approach, (4) working on features, architecture, or processes where
+  structured lens application reveals non-obvious modifications.
+
+deciding-abstraction-level
+  Choose the right level of abstraction by evaluating coupling cost versus
+  duplication cost and change patterns. Use when: (1) asked to evaluate
+  whether similar code should be abstracted or kept separate, (2) suggesting
+  extraction without checking whether similar pieces change together or
+  independently, (3) unable to name an abstraction except as "common parts"
+  rather than a domain concept, (4) justification references aesthetics or
+  "might need" rather than maintenance costs and change patterns.
+
+deciding-constraint-inventory
+  Systematically identify and catalog all constraints that bound a decision
+  or solution space. Use when: (1) asked to propose solutions without first
+  identifying what constraints bound the problem, (2) treating all
+  constraints as equally immutable without distinguishing negotiable from
+  non-negotiable, (3) carrying forward constraints from past decisions
+  without validating they still apply, (4) solutions get rejected for
+  violating constraints that should have been identified upfront.
+
+deciding-good-enough-threshold
+  Determine when a solution is sufficient by distinguishing essential quality
+  from perfectionism and diminishing returns. Use when: (1) asked to evaluate
+  whether a solution meets requirements or needs additional work, (2)
+  polishing code that already works and meets requirements without
+  identifying functional deficiency, (3) cannot clearly state what would make
+  the current solution insufficient, (4) using phrases like "just in case" or
+  "might need later" without connecting to actual requirements.
+
+deciding-investment-timing
+  Decide when to invest effort by assessing whether deferral increases or
+  decreases total cost through compound effects versus learning. Use when:
+  (1) asked to choose between fixing technical debt now versus deferring it,
+  (2) advocating for immediate refactoring without considering what would be
+  learned by waiting, (3) making timing decisions based on haveings about
+  code quality rather than economics, (4) recommending quick fixes without
+  asking whether they make future fixes harder.
+
+deciding-trade-space
+  Map design trade-offs across dimensions when choosing between approaches.
+  Use when: (1) asked to compare approaches, identify trade-offs, weigh pros
+  and cons, or clarify what would be sacrificed by a choice, (2) recommending
+  an approach based on a single criterion without acknowledging what it
+  sacrifices, (3) presenting multiple options but only listing features
+  rather than explaining what each optimizes for and costs, (4) deep in
+  implementation details before establishing what qualities actually matter
+  for the decision, (5) a solution reveals significant downsides that
+  trade-off analysis should have predicted, (6) treating design choices as
+  objectively right or wrong rather than as positions in a trade-space
+
+decision-fork-detect
+  Recognize critical decision points where paths diverge significantly and
+  the choice shapes everything that follows, preventing drift into default
+  decisions. Use when: (1) explicit request to identify decision points or
+  surface hidden alternatives, (2) single path proposals lack mentioned
+  alternatives or use minimizing language like 'just' or 'simply', (3)
+  decisions described as routine actually involve resource commitment or
+  precedent-setting, (4) changes framed as upgrades or replacements may
+  reshape system or team function.
+
+decision-leverage-find
+  Find THE single highest-leverage intervention point where minimal effort
+  produces 10x or greater impact through bottleneck removal, amplification,
+  or compounding effects. Use when: (1) asked "where's the leverage point" or
+  "what's the force multiplier" to identify exceptional ROI opportunities,
+  (2) linear approaches produce inadequate results and you need to find the
+  one change that unlocks everything else, (3) repeated effort or duplicated
+  work signals a system-level leverage opportunity rather than individual
+  task optimization, (4) seeking the intervention that creates multiplicative
+  value rather than evaluating which of many items to do first
+
+decision-premortem
+  Imagine a plan has failed catastrophically, then work backwards to discover
+  what went wrong and surface preventable failure modes. Use when: (1) asked
+  "what could go catastrophically wrong" or "how might this fail
+  spectacularly" before committing to a decision, (2) before irreversible
+  decisions with significant resource commitment where failure would be
+  devastating, (3) a plan focuses only on success paths without examining how
+  it could fail badly, (4) launching complex initiatives where multiple
+  things must go right for success
+
+decision-priority-matrix
+  Rank all items in a backlog by plotting them on fixed impact/effort axes to
+  determine work sequence. Use when: (1) asked "what order should I do these
+  in" or "what should I prioritize" with 5 or more tasks or features, (2)
+  evaluating a backlog where everything haves important and needs objective
+  sequencing, (3) multiple competing initiatives need ranking against
+  consistent criteria, (4) distinguishing quick wins from strategic
+  investments across a full set of work items
+
+decision-weigh-options
+  Compare specific named alternatives by mapping what you gain and lose with
+  each choice across user-defined dimensions. Use when: (1) asked "which
+  option should I choose" between 2-5 specific alternatives like technical
+  approaches or vendor choices, (2) each alternative has distinct advantages
+  and disadvantages that need explicit comparison, (3) the decision depends
+  on which trade-offs the user is willing to accept, (4) presenting options
+  without making the recommendation, letting trade-off clarity guide the
+  choice
+
+dialogue-assess
+  Evaluate dialogue health by detecting conversation states and recommending
+  interventions. Use when: (1) asked to assess dialogue progress, (2)
+  dialogue shows stagnation or premature convergence, (3) deciding whether to
+  continue or synthesize, (4) selecting interaction type for next turn.
+
+dialogue-convene
+  Initialize a multi-persona dialogue by selecting personas and establishing
+  topic. Use when: (1) asked to explore question through multi-perspective
+  dialogue, (2) problem has multiple legitimate dimensions, (3) examining
+  trade-offs between different value systems, (4) competing priorities
+  present in problem.
+
+dialogue-progressive-reveal
+  Layer information from simple to complex, building understanding
+  incrementally so learners grasp fundamentals before adding nuance. Use
+  when: (1) asked to explain step by step or build understanding gradually,
+  (2) concepts contain nuances that overwhelm when presented all at once, (3)
+  topics appear complicated without clear entry points for explanation, (4)
+  explanations risk either oversimplifying or burying insights in excessive
+  detail.
+
+dialogue-reconsider
+  Gracefully change direction when new information emerges or initial
+  thinking proves inadequate, modeling productive revision as intellectual
+  honesty. Use when: (1) asked to revise thinking when presented with
+  contradicting information, (2) analysis contradicts earlier reasoning or
+  new information contradicts assumptions, (3) implementation requires
+  increasingly complex workarounds revealing design flaws, (4) arguments
+  shift from investigating truth to justifying positions.
+
+dialogue-synthesize
+  Extract insights from completed dialogue by finding agreements, tensions,
+  and emergent patterns. Use when: (1) asked to synthesize from completed
+  dialogue, (2) dialogue has reached closure or stagnation, (3) extracting
+  actionable insights from multi-perspective exploration, (4) documenting
+  what interaction revealed.
+
+dialogue-thinking-together
+  Frame exploration as collaborative discovery where both participants build
+  understanding together through visible shared inquiry. Use when: (1) asked
+  to think through something collaboratively, (2) user explores problems
+  through conversation rather than seeking immediate solutions, (3) complex
+  questions call for exploring multiple angles before answers, (4)
+  conversations become adversarial and joint problem-solving would restore
+  productive dialogue.
+
+dialogue-trajectory-sense
+  Anticipate where conversations are heading to navigate toward productive
+  destinations. Use when: (1) asked to understand where a discussion is
+  heading, (2) conversation circles the same topic repeatedly, (3) discussion
+  drifts from stated goal, (4) approaching a decision point that needs
+  surfacing.
+
+dialogue-turn
+  Add contribution to active dialogue by embodying a persona and selecting
+  interaction type. Use when: (1) asked to advance dialogue with specific
+  perspective, (2) building dialogue turn by turn, (3) particular perspective
+  should respond to conversation state, (4) next move is query or challenge
+  or provoke or inspire.
+
+example-skill
+  Replace with what this skill helps Claude do. Use when: (1) first trigger
+  condition, (2) second trigger condition, (3) third trigger condition
+
+exploration-branch
+  Generate multiple distinct paths or possibilities from a single idea when
+  you need alternatives, want to avoid tunnel vision, or explore different
+  approaches to a problem. Use when: (1) asked to explore alternatives or
+  generate multiple approaches, (2) at a decision point where fundamentally
+  different strategies need mapping before choosing, (3) analysis contains
+  only one solution path but comparison requires distinct options, (4)
+  recommendations emerge from a single direction without validating
+  alternative approaches.
+
+exploration-domain-transfer
+  Find insights by applying patterns from completely different fields to
+  solve problems through cross-domain analogy. Use when: (1) asked to apply
+  insights from another field or find analogies across domains, (2)
+  conventional approaches repeatedly fail and fresh perspective is needed,
+  (3) verifying whether other domains solved similar patterns before building
+  from scratch, (4) domain expertise constrains rather than enables progress.
+
+exploration-follow-intuition
+  Explore pattern recognition that hasn't been fully articulated, developing
+  vague patternes into explicit understanding. Use when: (1) asked to explore
+  a pattern or follow a thread that appears promising but unclear, (2)
+  analysis identifies concerns without articulating their source, (3) logical
+  approaches exhaust without resolving the problem, (4) solutions meet
+  requirements but something still appears off.
+
+exploration-graph-wander
+  Discover insights through non-linear, associative exploration where
+  connections emerge naturally rather than through predetermined paths. Use
+  when: (1) asked to trace unexpected connections between concepts from
+  different domains, (2) system interconnections are so thorough that linear
+  analysis misses key relationships, (3) information from diverse sources
+  resists organizing into single hierarchy, (4) understanding emerges through
+  following natural associations rather than planned structure.
+
+exploration-perspective-shift
+  View situations from multiple vantage points to gain comprehensive
+  understanding, useful for breaking out of fixed viewpoints, understanding
+  stakeholder needs, or seeing problems differently. Triggered when: (1)
+  asked to examine a situation through contrasting viewpoints or consider
+  what different roles perceive, (2) When unable to resolve a problem with
+  only one approach emerging, when making design decisions affecting multiple
+  stakeholders, when resolving disagreements between stakeholders, when
+  designing experiences bridging technical and user needs, during analysis
+  paralysis with competing priorities, when evaluating stakeholder objections
+  or concerns, when searching for solutions satisfying competing needs, when
+  stakeholder feedback conflicts with technical constraints, before
+  finalizing approaches impacting different user groups, or when tradeoffs
+  between perspectives have irreconcilable
+
+exploration-tree-explore
+  Systematically explore topics through hierarchical branching paths with
+  controlled depth to ensure comprehensive coverage. Use when: (1) asked to
+  comprehensively understand multifaceted subjects through organized
+  investigation, (2) topics contain multiple major aspects requiring coverage
+  without gaps, (3) cost of overlooking something justifies systematic rather
+  than intuitive exploration, (4) new domains lack clear emerging pattern
+  about relative importance of aspects.
+
+exploration-wonder
+  Generate curious questions and explore what-if scenarios to open up
+  possibility space before converging on solutions. Use when: (1) asked to
+  explore with curiosity, generate questions, or discover what might be
+  missing, (2) encountering unfamiliar domains without existing mental
+  models, (3) starting design discussions or brainstorming sessions before
+  making decisions, (4) discussions converge prematurely or face unexamined
+  assumptions.
+
+expression-annotate
+  Add inline comments at decision points that explain the "why" behind
+  non-obvious code using knowable information from names, tests, and history.
+  Use when: (1) committing code with non-obvious decisions where future
+  readers will ask "why this way" when reading the implementation, (2) code
+  appears wrong or overly complex but tests or history reveal deliberate
+  constraints, (3) patterns violate project conventions and inline
+  explanation would distinguish intentional deviation from technical debt,
+  (4) pull request comments contain explanations that would be more valuable
+  preserved directly in the code
+
+expression-clarify
+  Make code more expressive so logic and intent are self-evident through
+  naming, structure, flow, and locality. Use when: (1) asked to prepare code
+  for review where implementation requires translation effort to understand,
+  (2) explanations require translating from implementation details to meaning
+  like "this variable represents...", (3) function names describe mechanics
+  rather than purpose or comments explain what code does rather than why, (4)
+  choosing between working implementations based on which will be clearest to
+  future readers.
+
+expression-intent-archaeology
+  Create separate documentation that preserves discovered intent from
+  historical investigation so future readers benefit from your research. Use
+  when: (1) completing code archaeology investigation and needing to ensure
+  discoveries benefit future developers facing the same confusion, (2)
+  recurring questions from team members signal that institutional knowledge
+  needs capture in ADRs or documentation files, (3) team member departure
+  would take critical undocumented context about design decisions with them,
+  (4) creating onboarding documentation where critical context exists only in
+  git history or senior engineers' memories
+
+expression-readme-audit
+  Verify README accuracy, completeness, and audience fit by testing claims
+  against the actual codebase. Use when: (1) asked to verify documentation
+  before a release, (2) significant changes to APIs or setup procedures might
+  have invalidated documentation, (3) onboarding feedback or "it doesn't
+  work" reports suggest documentation gaps, (4) README instructions haven't
+  been verified against current codebase state.
+
+improving-complexity-surface
+  Categorize complexity as essential domain requirements versus accidental
+  implementation artifacts to avoid simplifications that break systems. Use
+  when: (1) asked to simplify code without first distinguishing which
+  complexity serves genuine domain requirements, (2) proposed simplification
+  includes "just" or "simply" without analysis of what would be lost or
+  relocated, (3) evaluating abstractions that unify disparate concepts
+  without examining whether the domain differences matter, (4) unable to
+  articulate which complexity reflects inherent problem difficulty versus
+  implementation choices
+
+improving-selective-staging
+  Stage specific line ranges in git by constructing and applying patches
+  programmatically. Use when: (1) asked to create atomic commits but a file
+  contains multiple unrelated changes, (2) part of a change is ready for
+  commit while another part needs more work, (3) separating a bug fix from
+  surrounding refactoring in the same file, (4) the user asks to commit only
+  specific lines or hunks from modified files, (5) git add -p is unavailable
+  due to non-interactive context, (6) building tooling that needs
+  programmatic control over what gets staged
+
+integrity-bound-scope
+  Define boundaries where claims or recommendations apply versus break down.
+  Use when: (1) asked to define scope or boundaries, (2) claim presented as
+  universal truth, (3) explaining why pattern works here but not there, (4)
+  advice given without specifying applicable context.
+
+integrity-signal-confidence
+  Match certainty language to actual evidence strength. Use when: (1) asked
+  to indicate certainty or confidence, (2) writing for decision-making
+  context, (3) text uses absolute language like "always" or "never", (4)
+  claims mix facts and inferences without distinction.
+
+integrity-surface-assumptions
+  Identify and make explicit the unstated premises reasoning depends on. Use
+  when: (1) asked to reveal premises or assumptions, (2) text uses
+  "obviously" or "clearly" without justification, (3) argument depends on
+  specialized knowledge, (4) recommendation presented as objective fact.
+
+interaction-challenge
+  Stress-test reasoning through substantive objection that forces defense or
+  revision. Use when: (1) asked to challenge or test claims, (2) idea has
+  visible weaknesses or gaps, (3) consensus forms without examining
+  alternatives, (4) logical flaws or contradictions present.
+
+interaction-inspire
+  Build on contributions to create momentum and discover emergent
+  possibilities. Use when: (1) asked to develop insights or build on ideas,
+  (2) multiple ideas presented without connections, (3) partial insight
+  expressed but incomplete, (4) good point made that could go further.
+
+interaction-provoke
+  Disrupt consensus or stagnation by taking unexpected positions that create
+  productive tension. Use when: (1) asked to challenge premature consensus or
+  stagnation, (2) agreement without examining underlying tensions, (3) same
+  failed solutions keep reappearing, (4) polite avoidance prevents necessary
+  challenge.
+
+interaction-query
+  Request clarification by demonstrating understanding first, then creating
+  space for elaboration. Use when: (1) asked to understand reasoning behind
+  claims, (2) abstract language used without concrete examples, (3) exploring
+  implications before arguing, (4) user response shows prior point was
+  misunderstood.
+
+introspect-keep-notes
+  Maintain working notes during extended reasoning sessions to track
+  decisions, assumptions, insights, and open questions. Use when: (1)
+  explicit request to maintain working notes or track reasoning progress, (2)
+  complex multi-step tasks will span extended exploration with many
+  hypotheses or branching paths, (3) decisions require tracking assumptions
+  for later review or justification, (4) returning to problems after
+  interruption or synthesizing insights across investigation phases.
+
+introspect-reference-notes
+  List, search, and reference prior reasoning sessions to build on previous
+  work Use when: (1) asked to reference or build on prior reasoning sessions,
+  (2) At the start of `/reason` or `/reason-session` to check for relevant
+  prior work, (3) When the user mentions something they worked on before, (4)
+  When you need context about past decisions in this repository, (5) Before
+  starting work that might duplicate prior reasoning, (6) When synthesizing
+  insights across multiple reasoning sessions
+
+introspect-self-observation
+  Track skill usage in real-time as reasoning unfolds to maintain visibility
+  into your current cognitive approach Use when: (1) asked to review which
+  reasoning skills are being applied in the active session, (2) during
+  multi-skill reasoning to understand what approach is currently being taken,
+  (3) when you want visibility into which thinking patterns are being applied
+  right now, (4) while using 3 or more skills to track the unfolding sequence
+
+introspect-session-reflect
+  Evaluate reasoning effectiveness after completing a session to learn what
+  worked, what didn't, and what to try differently in future work Use when:
+  (1) asked to learn from how a completed reasoning approach went, (2) after
+  finishing significant problem-solving, design, or decision-making tasks,
+  (3) when a completed reasoning approach worked particularly well or
+  particularly poorly, (4) after trying a new combination of skills to
+  evaluate its retrospective effectiveness
+
+introspect-working-memory
+  Manage cognitive load by explicitly identifying what needs to be held in
+  active focus and externalizing complex state. Use when: (1) explicit
+  request to track multiple elements or manage cognitive load, (2) reasoning
+  involves tracking five or more distinct elements simultaneously, (3)
+  switching between contexts or returning from tangents requires context
+  restoration, (4) responses reference earlier information that wasn't
+  carried forward or reasoning restarts without building on prior context.
+
+metacognitive-attention-anchor
+  Maintain focus points while exploring tangents when investigating requires
+  depth. Use when: (1) explicit request to track original objectives while
+  exploring related tangents or multiple investigation paths, (2) beginning
+  investigative tasks where exploration leads through multiple related
+  topics, (3) debugging interconnected problems requiring sequential
+  exploration of branching causes, (4) analyzing unfamiliar systems where
+  discovery reveals new paths that branch from initial focus.
+
+metacognitive-cognitive-load
+  Manage working memory by reducing simultaneous concerns when complexity
+  exceeds capacity. Use when: (1) working with multiple distinct subsystems
+  or concerns simultaneously, (2) tracking numerous edge cases, constraints,
+  or interconnected conditions, (3) planning work spanning many files or
+  components, (4) balancing competing optimization goals or operating
+  multiple abstraction layers deep
+
+metacognitive-confidence-calibrate
+  Align certainty levels to evidence strength to avoid overconfidence or
+  unwarranted hedging. Use when: (1) making definitive claims or
+  recommendations that others will rely on, (2) when statements rest on
+  inference or reasoning rather than verified facts, (3) before expressing
+  confidence levels about version-specific behavior or current information,
+  (4) when communicating risk, trade-offs, or reliability of conclusions
+
+metacognitive-cycle-detect
+  Recognize when thinking is going in circles - when the same reasoning
+  points recur without new conclusions or when revisions continue with
+  diminishing returns. Use when: (1) explicit request to detect reasoning
+  loops or check for circular thinking, (2) same points or decision points
+  recur in multiple responses without new conclusions, (3) information
+  gathering or analysis steps haven't changed the approach to the problem,
+  (4) revision cycles continue with diminishing returns while central
+  questions remain unresolved.
+
+metacognitive-knowledge-check
+  Inventory what information you have versus what you need to proceed safely.
+  Use when: (1) starting work with unfamiliar codebases, libraries, or
+  technical domains where you need to map knowledge gaps, (2) before making
+  recommendations that depend on system behavior, configurations, or versions
+  you haven't verified, (3) when encountering unexpected results that
+  contradict assumptions about how something works, (4) when the user's
+  request assumes you have specific domain expertise you may lack
+
+metacognitive-thinking-monitor
+  Evaluate reasoning quality by watching for logical errors, biases, and
+  flawed inferences in real-time. Use when: (1) building multi-step arguments
+  with dependent reasoning chains, (2) making claims about causation or
+  logical necessity, (3) receiving feedback that challenges your approach or
+  reasoning, (4) noticing you're pattern-matching or applying familiar
+  solutions without verification
+
+narrative-arc
+  Structure communication as narrative with tension and resolution. Use when:
+  (1) asked to structure presentations or proposals or case studies, (2)
+  writing is a list of facts, (3) building momentum toward a recommendation,
+  (4) explaining a transformation or journey, (5) persuading or convincing.
+
+narrative-diction
+  Choose words for register, connotation, and precision. Use when: (1) asked
+  to adjust formality or vocabulary, (2) text contains words like "delve" or
+  "leverage", (3) writing for technical or general audience, (4) translating
+  between casual and formal language, (5) words are vague or imprecise.
+
+narrative-rhythm
+  Vary sentence length and structure to create flow. Use when: (1) asked to
+  improve prose rhythm, (2) consecutive sentences have similar length, (3)
+  sentences start the same way repeatedly, (4) adding emphasis through
+  pacing, (5) all paragraphs follow identical structure.
+
+narrative-tone
+  Match emotional register to purpose and calibrate warmth, formality, and
+  urgency. Use when: (1) asked to adjust tone or emotional register, (2)
+  high-stakes communication requiring precise tone, (3) delivering difficult
+  news or sensitive feedback, (4) adapting message for different audiences.
+
+narrative-voice
+  Find and maintain consistent authorial voice across different contexts. Use
+  when: (1) asked to develop distinctive voice or style, (2) different
+  sections sound like different authors, (3) writing extended content like
+  blogs or documentation, (4) unifying multiple pieces under common identity,
+  (5) professional writing sounds generic.
+
+orchestrating-commit-strategy
+  Plan how to structure commits to create a coherent, reviewable history from
+  a batch of changes. Use when: (1) asked to commit or structure changes for
+  review, (2) working directory contains multiple unrelated changes, (3)
+  single commit would mix bug fixes with features, (4) changes touch multiple
+  subsystems with different purposes, (5) preparing branch for pull request
+  or merge.
+
+orchestrating-merge-conflict-topology
+  Understand the structure and relationships of merge conflicts to resolve
+  them systematically. Use when: (1) asked to resolve merge conflicts, (2)
+  git merge or rebase halted with conflicts, (3) conflict markers appear in
+  multiple files, (4) same logical change conflicts across several locations,
+  (5) resolving conflicts without understanding what both sides intended.
+
+orchestrating-rebase-safety
+  Evaluate risks and plan safe rebase operations by understanding what could
+  go wrong and how to recover. Use when: (1) asked to rebase a branch, (2)
+  branch has diverged significantly from target, (3) rebasing commits that
+  others may have pulled, (4) rebase involves many commits or complex
+  history, (5) previous rebase attempt failed or caused problems.
+
+persona-define
+  Create and save a persona definition with structured characteristics. Use
+  when: (1) asked to create or define an expert persona, (2) building
+  reusable perspective for repeated reference, (3) preparing perspectives
+  before dialogue or consultation, (4) same perspective will be used across
+  multiple sessions.
+
+persona-list
+  Browse, search, and reference saved persona definitions. Use when: (1)
+  asked to list or search existing personas, (2) starting reasoning session
+  with expert perspective, (3) finding relevant expert viewpoint for topic,
+  (4) checking for existing persona before creating new.
+
+persona-spawn
+  Create an autonomous agent reasoning from a specific persona's perspective.
+  Use when: (1) asked to spawn agent with specific expertise, (2) work
+  requires multi-step analysis from one perspective, (3) parallel analysis
+  from different perspectives needed, (4) persona judgment needed throughout
+  complex process.
+
+persona-synthesize
+  Generate an ideal expert persona by analyzing what expertise a problem
+  requires. Use when: (1) asked to create expert for specific problem, (2)
+  problem spans multiple domains, (3) uncommon expertise combination needed,
+  (4) crafting prompts for subagents.
+
+refine-convert-negations
+  Transform instructions that tell what not to do into positive guidance
+  toward what to do, since negation leaves an unbounded space of prohibited
+  actions while positive instruction provides specific direction. Use when:
+  (1) reviewing any instructional text containing "don't," "avoid," "never,"
+  or "do not", (2) constraints in a skill have arbitrary without explanation,
+  (3) instructions describe boundaries without providing direction.
+
+refine-skill-expression
+  Refine skill drafts through adaptive assessment that applies only the
+  transformations each skill actually needs, preventing overwork that can
+  bury core methodology under process. Use when: (1) after generating an
+  initial skill draft, (2) reviewing a skill that reads as items rather than
+  thinking, (3) before finalizing a skill for inclusion in a plugin, (4)
+  after feedback that a skill lacks clarity.
+
+refine-synthesize
+  Transform question-lists and disconnected fragments into flowing
+  methodology where each sentence earns its place by capturing relationships
+  that isolated pieces cannot convey. Use when: (1) a skill contains
+  "consider whether..." prompts that remain unintegrated, (2) related ideas
+  are expressed as separate bullets rather than connected prose, (3) the
+  skill reads as a checklist rather than an explanation of a way of thinking.
+
+refine-test-transfer
+  Validate that skill instructions use domain-agnostic language by mentally
+  applying them across three unrelated contexts and revising vocabulary that
+  carries meaning in one field but creates friction in others. Use when: (1)
+  a skill draft uses terminology from its origin domain, (2) reviewing a
+  skill that works well in some contexts but haves awkward in others, (3)
+  before finalizing any skill intended for general use.
+
+refine-validate-triggers
+  Ensure skill triggers reference observable conditions rather than internal
+  states by converting introspection-based language to situation-based
+  descriptions and simplifying over-qualified phrasing. Use when: (1)
+  reviewing a skill description that references haveings or internal states,
+  (2) triggers contain compound qualifiers that create multiple
+  pattern-matching hooks, (3) a skill is being prepared for plugin inclusion
+  where triggers must work without human introspection.
+
+refine-verify
+  Assess skill quality and route to the next refinement operation or conclude
+  that the skill is sufficiently clear. Use when: (1) after any refinement
+  operation completes, (2) at the start of refinement to determine what's
+  actually needed, (3) when uncertain whether further refinement would
+  improve or overwork the text.
+
+repo-add-plugin
+  Bootstrap a new plugin with complete directory structure, metadata files,
+  and marketplace integration. Use when: (1) explicitly asked to create a new
+  plugin, (2) starting a new category of skills that doesn't fit existing
+  plugins, (3) forking or extending the marketplace with custom plugins, (4)
+  setting up development environment for new skill categories, (5) creating
+  specialized plugin for specific domain (data science, security, etc.)
+
+repo-add-skill
+  Add a new skill to a plugin with automatic directory creation, version
+  bumping, and metadata updates. Use when: (1) explicitly requested to add a
+  new skill, (2) after designing a new cognitive technique that should be
+  captured, (3) expanding a plugin's capabilities, (4) during plugin
+  development to maintain consistency, (5) a reusable thinking pattern has
+  been identified and should be codified.
+
+repo-preflight
+  Establish release readiness through layered validation that automatically
+  repairs deterministic inconsistencies in versions, skill counts, and
+  changelogs while surfacing issues requiring human judgment. Use when: (1)
+  before creating any git commit in the thinkies repository, (2) after adding
+  or modifying skills to detect metadata drift, (3) after version bumps to
+  ensure consistency across all files, (4) skill counts in README files or
+  version numbers in metadata files appear inconsistent, (5) as part of
+  continuous integration validation, (6) after bulk operations that touched
+  multiple skills
+
+repo-release
+  Prepare a plugin release with version bumping, CHANGELOG validation, and
+  comprehensive consistency checks. Use when: (1) a plugin release is
+  requested, (2) after completing a set of changes worth releasing, (3)
+  before creating a git tag for a version, (4) when preparing to publish to
+  marketplace, (5) after major feature additions or bug fixes, (6) when
+  coordinating multi-plugin releases
+
+run-bats
+  Run BATS unit tests for shell scripts and report results. Use when: (1)
+  before creating commits to verify scripts work correctly, (2) after
+  modifying any shell script in .claude/scripts/ or plugin skill scripts, (3)
+  as part of release preparation to detect regressions, (4) when
+  troubleshooting script behavior, (5) after adding new test cases to verify
+  they pass
+
+synthesis-abstraction-ladder
+  Navigate between concrete details and abstract principles to find the
+  thinking altitude where problems become solvable. Use when: (1) asked to
+  zoom in on specifics, zoom out to big picture, or move between abstraction
+  levels, (2) blocked in implementation details without seeing the pattern or
+  floating in abstractions without actionable steps, (3) discussion needs
+  grounding in concrete examples or needs elevation to identify transferable
+  patterns, (4) explaining concepts to audiences at different expertise
+  levels who need different altitudes to understand.
+
+synthesis-connect-dots
+  Discover structural and causal relationships between seemingly unrelated
+  observations to reveal how things influence each other. Use when: (1) asked
+  to find relationships between separate ideas or map how observations
+  connect, (2) multiple observations seem unrelated but might share causal
+  links or common mechanisms, (3) building system models that show
+  interaction patterns and feedback loops, (4) seeking solutions by
+  recognizing analogous mechanisms from different contexts.
+
+synthesis-integrate
+  Reconcile conflicting perspectives into unified frameworks that preserve
+  what matters from each viewpoint while resolving tensions. Use when: (1)
+  asked to synthesize viewpoints or reconcile conflicting ideas into coherent
+  understanding, (2) facing perspectives that directly contradict each other
+  and require resolution rather than choosing sides, (3) dismissing
+  conflicting information as wrong instead of exploring what tensions reveal
+  about the problem, (4) constraints pull in opposite directions and need
+  alignment strategy rather than compromise.
+
+synthesis-principle-extract
+  Generalize from specific examples to distill portable rules that apply
+  across contexts and predict new situations. Use when: (1) asked to extract
+  underlying principles or identify generalizable lessons from specific
+  cases, (2) have multiple examples showing recurring patterns but no
+  explicit rule explaining why the pattern holds, (3) need to create
+  guidelines from experience that capture underlying truth rather than
+  surface similarity, (4) applying lessons from past situations to new
+  contexts and need to verify the principle actually transfers.
+
+synthesis-theme-find
+  Identify unifying concepts and common threads that run through multiple
+  observations or ideas, useful for analyzing diverse feedback, understanding
+  what really matters, or finding the signal in noise. Use when: (1) explicit
+  request to identify patterns or themes that unify diverse observations, (2)
+  numerous qualitative observations need analysis for what recurs across
+  them, (3) deciding priorities requires understanding what concerns keep
+  appearing across stakeholders, (4) multiple sources describe situations
+  using different terms but may share underlying patterns.
+
+techniques-cite-sources
+  Ensure intellectual honesty by citing verified external sources with
+  validated URLs, clearly distinguishing source material from agent
+  synthesis, useful when using web search or documentation tools to answer
+  questions requiring current information or external verification Use when:
+  (1) Asked to cite sources, provide references, back up claims with
+  evidence, verify sources, or establish credibility, (2) After invoking web
+  search or documentation lookup tools to answer questions requiring current
+  information beyond your training data, (3) When your response includes
+  URLs, references to external sources, or claims based on materials you
+  consulted during this specific task, (4) Before presenting technical
+  specifications, API behavior, or library documentation that came from
+  external lookup rather than training knowledge, (5) When synthesizing
+  multiple external sources into recommendations or explanations that blend
+  retrieved information with your analysis, (6) Before finalizing any
+  response containing URLs to verify all sources are accessible and real,
+  preventing hallucinated citations
+
+techniques-dialectic
+  Develop stronger ideas by examining thesis and antithesis to reach
+  synthesis that transcends the original opposition. Use when: (1) asked to
+  explore opposing viewpoints or find synthesis between conflicting
+  positions, (2) opposing approaches both have merit or contrary positions
+  present valid reasoning, (3) debates become polarized and people talk past
+  each other, (4) framing forces binary choice between inadequate options or
+  discussions need reframing.
+
+techniques-feynman
+  Learn deeply and validate understanding by explaining concepts in simple
+  terms. Use when: (1) explicit request to explain in simple terms or teach
+  concepts from basics, (2) learning new domains before applying them or
+  preparing for presentations where gaps would expose weaknesses, (3)
+  documentation reads clearly but application to actual problems fails, (4)
+  explanations rely on unstated expert context or include hand-waving instead
+  of describing actual mechanisms.
+
+techniques-first-principles
+  Rebuild solutions from fundamental truths by stripping away conventions and
+  reasoning up from basic constraints rather than analogy. Use when: (1)
+  asked to reason from first principles, start from fundamentals, or rebuild
+  from scratch, (2) justification is "industry standard" or "best practice"
+  without explaining why, (3) conventions don't match actual constraints of
+  the situation, (4) seeking novel approaches by challenging inherited
+  assumptions through reconstruction.
+
+techniques-scenario-planning
+  Test how a strategy performs across multiple plausible futures defined by
+  key uncertainties to build adaptive plans. Use when: (1) asked "how does
+  this hold up if X changes" or "what if the future turns out differently"
+  with long-term decisions, (2) a plan assumes a single future will unfold
+  and doesn't account for how uncertainty could change outcomes dramatically,
+  (3) building strategies that must stay viable across different scenarios
+  rather than betting on one forecast, (4) identifying early warning signals
+  that indicate which future is emerging
+
+techniques-six-hats
+  Explore problems from six distinct perspectives to achieve balanced,
+  comprehensive thinking. Use when: (1) explicit request to examine from
+  multiple angles or ensure balanced perspective coverage, (2) conversations
+  return to the same argument without progress or mix different thinking
+  modes, (3) decisions involve strong emotions or competing concerns
+  requiring separation of facts, risks, benefits, and creativity, (4)
+  proposals present single angles or previous analytical approaches haven't
+  generated new options.
+
+techniques-socratic
+  Test reasoning through disciplined questioning that reveals hidden
+  assumptions and examines logic through dialogue. Use when: (1) asked to
+  probe beliefs, examine claims, or test reasoning through questions, (2)
+  claims rest on unverified premises that need surfacing through
+  interrogation, (3) teaching through questions rather than direct answers,
+  (4) existing reasoning needs to be made visible and validated through
+  systematic inquiry.
+
+techniques-systems-thinking
+  Understand problems as interconnected systems with feedback loops and
+  emergent behavior. Use when: (1) asked to map systemic causes or feedback
+  loops, (2) simple solutions keep failing or creating side effects, (3) the
+  same problem recurs despite fixes, (4) interventions need to account for
+  how the system will respond.
+
+understanding-assumption-surface
+  Surface implicit assumptions to verify them against observable code
+  artifacts before building on unverified claims. Use when: (1) using
+  language patterns that reveal unverified claims like "this should", "the
+  system guarantees", "probably", or "I think" while asserting concrete
+  behavior, (2) making claims about current code behavior without checking
+  what the implementation actually does right now, (3) planning changes that
+  depend on properties not yet verified against tests, types, or runtime
+  behavior, (4) reasoning from how software typically works rather than how
+  this specific codebase demonstrably works
+
+understanding-code-archaeology
+  Reconstruct historical decisions from git history, commits, PRs, and issues
+  to understand why code became the way it is rather than how it should
+  ideally be. Use when: (1) code appears unnecessarily complex or
+  inconsistent with surrounding patterns without obvious reason, (2) about to
+  refactor or remove code that appears unnecessary without knowing what
+  problem it originally solved, (3) encountering workarounds or technical
+  debt without knowing if the original constraint still applies, (4)
+  proposals to change code rest on ideal design rather than evidence about
+  what decisions were made and why
+
+understanding-codebase-cartography
+  Map unfamiliar codebases by identifying landmarks, boundaries, and flows to
+  build a navigable mental model. Use when: (1) asked to explain code
+  organization, architecture, or system structure, (2) made multiple searches
+  for individual files without first examining directory structure, (3)
+  proposing changes or refactoring before analyzing what currently exists,
+  (4) knowledge is limited to individual file contents rather than
+  system-level organization.
+
+understanding-dependency-graph
+  Map architectural structure by analyzing what depends on what to reveal
+  coupling patterns, layering violations, and circular dependencies. Use
+  when: (1) making claims about tight or loose coupling without having mapped
+  actual import and call relationships, (2) reasoning about architectural
+  layers based on directory structure rather than verified dependency flow,
+  (3) before extracting or moving modules without measuring how much coupling
+  exists and in which direction, (4) unable to explain which modules are
+  central hubs versus peripheral leaves in the dependency structure
+
+understanding-trace-flow
+  Follow data movement through specific execution paths tracking
+  transformations, state changes, and control decisions to verify runtime
+  behavior. Use when: (1) making claims about runtime behavior based on
+  static reading without tracing actual execution to verify mental model, (2)
+  debugging specific input cases where knowing what happens with particular
+  data differs from general code structure understanding, (3) code that looks
+  simple has non-obvious runtime behavior due to side effects, closure
+  captures, or async timing, (4) multiple transformation paths or conditional
+  branches make mental simulation likely incomplete
+
+validating-blast-radius
+  Map change impact radius by tracing what breaks when modifying functions,
+  types, or APIs to quantify migration effort before proposing changes. Use
+  when: (1) proposing to change function signatures, rename exports, or
+  modify public APIs before checking what calls them, (2) claiming a change
+  is safe without verifying how many callers exist and where they are, (3)
+  about to modify shared types or components without analyzing type
+  propagation to distant code, (4) unable to list specific files and
+  locations that a proposed change would affect
+
+validating-claim-verify
+  Actively test and verify specific claims about correctness, safety, or
+  behavior through experiments and observable evidence. Use when: (1) asked
+  to verify a claim about code behavior, correctness, or performance, (2)
+  statements about behavior appear without verification evidence or test
+  results, (3) language includes modal uncertainty markers like "should work"
+  where verification is possible, (4) discussion analyzes implementation
+  through reading rather than execution and observation.
+
+validating-edge-finder
+  Systematically discover edge cases through boundary analysis and input
+  space exploration. Use when: (1) asked to find edge cases or validate
+  correctness, (2) correctness claims rest on happy-path testing without
+  boundary exploration, (3) code accepts inputs with implicit assumptions
+  about range, format, or type that haven't been verified, (4) before
+  shipping code or making correctness claims without having mapped the
+  boundary surface.
+
+USEFUL-SKILLS-MARKETPLACE (4 skills)
+--------------------------------------------------------------------------------
+
+marketplace-creator
+  Guide for creating and managing Claude Code marketplaces. Use when creating
+  a new marketplace, updating marketplace configuration, adding plugins to a
+  marketplace, or validating marketplace.json files.
+
+plugin-creator
+  Guide for creating and managing Claude Code plugins. Use when creating a
+  new plugin, adding plugin components (commands, agents, skills, hooks, MCP
+  servers), or validating plugin structure and configuration.
+
+skill-creator
+  Guide for creating effective skills. This skill should be used when users
+  want to create a new skill (or update an existing skill) that extends
+  Claude's capabilities with specialized knowledge, workflows, or tool
+  integrations.
+
+skill-recommender
+  Analyzes codebases and conversation context to recommend relevant existing
+  skills and suggest valuable custom skills to create. Use when exploring a
+  project for the first time, when asked what skills would be useful, or when
+  seeking to optimize workflow for a specific codebase.
+
+WEB-ASSET-GENERATOR-MARKETPLACE (1 skills)
+--------------------------------------------------------------------------------
+
+web-asset-generator
+  Generate web assets including favicons, app icons (PWA), and social media
+  meta images (Open Graph) for Facebook, Twitter, WhatsApp, and LinkedIn. Use
+  when users need icons, favicons, social sharing images, or Open Graph
+  images from logos or text slogans. Handles image resizing, text-to-image
+  generation, and provides proper HTML meta tags.
+
+================================================================================
+TOTAL: 360 skills across 11 marketplaces
+================================================================================
