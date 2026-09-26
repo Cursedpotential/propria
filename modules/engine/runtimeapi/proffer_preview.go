@@ -77,6 +77,7 @@ type PreviewPage = previewmodel.Page
 type PreviewStore = previewmodel.Store
 type PreviewContentPage = previewmodel.ContentPage
 type PreviewContentStore = previewmodel.ContentStore
+type PreviewContentTargetStore = previewmodel.ContentTargetStore
 
 type memoryPreview struct {
 	binding     PreviewBinding
@@ -103,6 +104,37 @@ func (s *MemoryPreviewStore) Content(_ context.Context, handle string, recordOff
 	page.Records, page.NextRecordOffset = contentWindow(page.Records, recordOffset, limit)
 	page.Chunks, page.NextChunkOffset = contentWindow(page.Chunks, chunkOffset, limit)
 	return page, nil
+}
+
+func (s *MemoryPreviewStore) ContentTarget(_ context.Context, handle, scope, targetID string) (string, bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	entry := s.entries[handle]
+	if entry == nil {
+		return "", false, ErrPreviewNotFound
+	}
+	if entry.content == nil {
+		return "", false, ErrPreviewNotReady
+	}
+	attempt := entry.content.Attempt.AttemptRef
+	if attempt == "" {
+		attempt = entry.content.Attempt.ProjectionRef
+	}
+	switch scope {
+	case "record":
+		for _, record := range entry.content.Records {
+			if record.RecordID == targetID {
+				return attempt, true, nil
+			}
+		}
+	case "chunk":
+		for _, chunk := range entry.content.Chunks {
+			if chunk.ChunkRef == targetID {
+				return attempt, true, nil
+			}
+		}
+	}
+	return attempt, false, nil
 }
 
 func contentWindow[T any](values []T, offset, limit int) ([]T, *int) {
@@ -577,6 +609,7 @@ func (h *PreviewHTTPHandler) Routes() http.Handler {
 	mux.HandleFunc("GET /reference-import/previews/{preview_handle}", h.auth(h.snapshot))
 	mux.HandleFunc("GET /reference-import/previews/{preview_handle}/messages", h.auth(h.messages))
 	mux.HandleFunc("GET /reference-import/previews/{preview_handle}/content", h.auth(h.content))
+	mux.HandleFunc("GET /reference-import/previews/{preview_handle}/content-target", h.auth(h.contentTarget))
 	mux.HandleFunc("GET /reference-import/previews/{preview_handle}/events", h.auth(h.events))
 	mux.HandleFunc("GET /reference-import/previews/{preview_handle}/source-context", h.auth(h.readSourceContext))
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/decision", h.auth(h.decide))
@@ -1096,6 +1129,38 @@ func (h *PreviewHTTPHandler) content(w http.ResponseWriter, r *http.Request) {
 		NextChunkCursor  *string                          `json:"next_chunk_cursor,omitempty"`
 	}{handle, page.Package, page.Attempt, page.AttemptsComplete, page.AttemptsReason, page.Records,
 		page.Attachments, page.ChunkGeneration, page.Chunks, nextRecord, nextChunk})
+}
+
+func (h *PreviewHTTPHandler) contentTarget(w http.ResponseWriter, r *http.Request) {
+	handle := r.PathValue("preview_handle")
+	if !previewHandlePattern.MatchString(handle) {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("preview handle is invalid"))
+		return
+	}
+	scope, targetID := r.URL.Query().Get("scope"), r.URL.Query().Get("target_id")
+	if (scope != "record" && scope != "chunk") || targetID == "" || len(targetID) > 512 {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("content target is invalid or unsupported"))
+		return
+	}
+	store, ok := h.store.(PreviewContentTargetStore)
+	if !ok {
+		previewError(w, http.StatusNotImplemented, errors.New("exact content target lookup is unavailable"))
+		return
+	}
+	attemptID, found, err := store.ContentTarget(r.Context(), handle, scope, targetID)
+	if err != nil {
+		if errors.Is(err, ErrPreviewNotFound) || errors.Is(err, ErrPreviewNotReady) {
+			h.storeError(w, err)
+		} else {
+			previewError(w, http.StatusServiceUnavailable, errors.New("exact preview content target is unavailable"))
+		}
+		return
+	}
+	previewJSON(w, http.StatusOK, struct {
+		PreviewHandle string `json:"preview_handle"`
+		AttemptID     string `json:"attempt_id"`
+		Found         bool   `json:"found"`
+	}{handle, attemptID, found})
 }
 
 type previewDecisionRequest struct {

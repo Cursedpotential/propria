@@ -1,0 +1,43 @@
+{
+  "schema_version": "d05-linked-ids-and-claims-v1",
+  "byline": "Codex D05 · GPT-6 · 2026-09-23",
+  "package_revision": "2026-09-23.reconciled-v1",
+  "domain": "D05 Proffer attempts, readable Review, approval and destination recovery",
+  "source_checkpoint": "agents/D05/D05_INTERIM_CHECKPOINT_2026-09-23.md",
+  "repository": {
+    "name": "probata",
+    "base_commit": "382acf6a8f1f919b6f3abc02de40f946629d8461",
+    "implementation_commit": "a195c416d1aaf6be6886ad44539d5e6eba6be7ca",
+    "branch": "codex/d05-exact-review-targets-20260923",
+    "pull_request": "https://github.com/Cursedpotential/probata/pull/30"
+  },
+  "work_item_ids": ["W06", "W07", "W08", "W09", "W10", "W11", "W12", "W35"],
+  "closure_program_links": ["CP07", "CP09", "CP10"],
+  "corrections": ["CF01", "CF08", "CF14"],
+  "bounded_slice": {
+    "claim_id": "D05-C03",
+    "finding_id": "PB05",
+    "acceptance_id": "AC-F-PB05",
+    "work_item_id": "W08",
+    "work_acceptance_id": "AC-W-W08",
+    "status": "unit_tested_partial",
+    "implemented": "Exact current-attempt lookup permits record and chunk potential-promotion annotations past the first 250 items; missing and cross-attempt targets fail before the flag write; entity targets fail before submit while no governed entity reader exists.",
+    "not_closed": "AC-W-W08 also requires correction persistence, exact mentions/source binding, unresolved alternative handling, concurrent edit tests and reviewer walkthrough. AC-F-PB05 lacks deployed proof."
+  },
+  "claim_status": [
+    {"id": "D05-C01", "status": "not_started", "summary": "Frozen proposal discovery and secured read adapter"},
+    {"id": "D05-C02", "status": "not_started", "summary": "Representation-aware Review catalog and detail"},
+    {"id": "D05-C03", "status": "unit_tested_partial", "summary": "Exact record/chunk annotation lookup only; correction and entity work open"},
+    {"id": "D05-C04", "status": "not_started", "summary": "Exact approval binding and drift denial"},
+    {"id": "D05-C05", "status": "not_started", "summary": "Idempotent destination publication and readback"},
+    {"id": "D05-C06", "status": "not_started", "summary": "Public retry, cancel, resume and execution coordinates"}
+  ],
+  "dependencies": {
+    "D01": "Principal, matter, mode and action authorization review",
+    "D02": "Immutable source/version/package/member and review target identity",
+    "D04": "Exact parser and derivation identities",
+    "D10": "Review presentation and entity controls",
+    "D12": "Independent live, fault and release verification"
+  },
+  "unread_original_scope": "Complete CP07/CP09/CP10 original records and all source acceptance rows were not exhaustively extracted in this bounded implementation slice; the listed links are routing, not closure."
+}
