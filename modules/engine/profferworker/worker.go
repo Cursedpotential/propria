@@ -352,6 +352,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	memberEnumerator, err := runtimeapi.NewZIPMemberEnumerator(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
 	hashRepo, err := platformpostgres.NewRepository(pool, openObject)
 	if err != nil {
 		return Registrations{}, err
@@ -456,7 +460,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		Extraction:            extraction,
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation: activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
-		InventoryObservation:  activities.NewSourceObservationActivities(nil, runtimeapi.NewNonContainerMemberEnumerator(), observationRepo),
+		InventoryObservation:  activities.NewSourceObservationActivities(nil, memberEnumerator, observationRepo),
 		EmbeddedObservation:   activities.NewSourceObservationActivities(embeddedExtractor, nil, observationRepo),
 		N8N:                   platformtemporal.N8NActivities{Client: n8nClient},
 		N8NFlows:              platformtemporal.FlowActivities{Client: n8nClient, Registry: flowRegistry},
