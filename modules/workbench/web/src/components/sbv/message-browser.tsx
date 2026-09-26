@@ -256,7 +256,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
           <PanelResizeHandle className={HANDLE_CLASS} />
 
           <Panel id="message-detail" order={2} defaultSize={28} minSize={18}>
-            <MessageDetailPanel row={selectedRow} participants={participants} />
+            <MessageDetailPanel row={selectedRow} participants={participants} previewHandle={previewHandle} mode={mode} />
           </Panel>
 
           <PanelResizeHandle className={HANDLE_CLASS} />

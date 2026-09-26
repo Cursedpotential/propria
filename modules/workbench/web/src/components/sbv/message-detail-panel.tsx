@@ -1,18 +1,22 @@
 // Byline: Claude Code · Opus 5 · 2026-09-20 (selection-driven message detail; no per-row detail button)
+// Byline: Claude Code · Opus 5.5 · 2026-09-26 ("Mark as event worth recalling" on the selected message; owner 2026-09-25)
 "use client";
 
 import { MessageSquareText } from "lucide-react";
 
+import { MarkEventButton } from "@/components/entities/mark-event-button";
 import { Badge } from "@/components/ui/badge";
 import type { PreviewMessageRow } from "@/hooks/use-preview-messages";
-import type { ProfferPreviewParticipant } from "@/lib/shared/types";
+import type { MatterMode, ProfferPreviewParticipant } from "@/lib/shared/types";
 
 interface MessageDetailPanelProps {
   row: PreviewMessageRow | null;
   participants: Map<string, ProfferPreviewParticipant>;
+  previewHandle: string;
+  mode: MatterMode;
 }
 
-export function MessageDetailPanel({ row, participants }: MessageDetailPanelProps) {
+export function MessageDetailPanel({ row, participants, previewHandle, mode }: MessageDetailPanelProps) {
   if (!row) {
     return (
       <div className="grid h-full place-content-center px-6 text-center">
@@ -51,6 +55,7 @@ export function MessageDetailPanel({ row, participants }: MessageDetailPanelProp
         <div className="break-all">
           other participants {otherParticipants.length ? otherParticipants.join(", ") : "none recorded"}
         </div>
+        <MarkEventButton key={message.message_id} previewHandle={previewHandle} mode={mode} recordId={message.message_id} compact />
       </footer>
     </div>
   );

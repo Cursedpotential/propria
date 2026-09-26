@@ -6,6 +6,7 @@ import { Check, ChevronDown, CircleDot, Database, Flag, RefreshCw, ShieldCheck, 
 import { useMemo, useState } from "react";
 
 import { AtomicTools } from "@/components/tools/atomic-tools";
+import { EntitiesPanel } from "@/components/entities/entities-panel";
 import { MODE_LABEL } from "@/components/intake/matter-mode-selector";
 import { CallsTable, parseCallRecords } from "@/components/sbv/calls-table";
 import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
@@ -261,10 +262,6 @@ export function ProfferOperatorPreview({
       <div className="flex flex-wrap gap-2">{actionNames.has("approve_preview") && <Button disabled={actionPending || !decisionReady} onClick={onApprove}><Check className="size-4" /> Approve this attempt</Button>}{actionNames.has("reject_preview") && <Button variant="destructive" disabled={actionPending || !decisionReady || !reason.trim()} onClick={() => onReject(reason.trim())}><X className="size-4" /> Reject with reason</Button>}</div>
     </div>
   ) : null;
-  const entityViewerAvailability: ProfferOperatorAvailability = {
-    status: "unavailable",
-    reason: snapshot.surfaces.entities.reason || "The Review API does not return attempt-bound entity rows yet.",
-  };
   const graphViewerAvailability: ProfferOperatorAvailability = {
     status: "unavailable",
     reason: snapshot.surfaces.graph.reason || "The Review API does not return attempt-bound graph rows yet.",
@@ -438,7 +435,7 @@ export function ProfferOperatorPreview({
           <ol className="space-y-3">{content.chunks.map((piece) => <li key={piece.chunk_ref} className="border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong>Chunk {piece.index}</strong><Badge variant="outline">{piece.derivation_mode}</Badge></div><p className="mt-2 break-all font-mono text-[10px] text-muted-foreground">Bytes [{piece.byte_start}, {piece.byte_end}) · {piece.locator_ref}<br />SHA-256 {piece.sha256}</p><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap border bg-muted/30 p-3 text-xs">{piece.content}</pre><PotentialPromotionControl scope="chunk" targetId={piece.chunk_ref} attemptId={attemptId} flags={potentialFlags} pending={flagPendingTarget === `chunk:${piece.chunk_ref}`} onFlag={onFlagPotentialPromotion} /></li>)}</ol>
           {content.next_chunk_cursor && <Button variant="outline" disabled={contentLoading} onClick={() => onLoadMoreContent(undefined, content.next_chunk_cursor ?? undefined)}>Load more chunks</Button>}
         </div> : <UnavailablePanel title="Chunks and context" availability={contentError ? { ...snapshot.surfaces.chunks, reason: contentError } : snapshot.surfaces.chunks} />)}
-        {tab === "entities" && <UnavailablePanel title="Extracted entities" availability={entityViewerAvailability} action="Entity rows will appear here when the backend returns an attempt-bound entity projection." />}
+        {tab === "entities" && <EntitiesPanel previewHandle={snapshot.preview_handle} mode={snapshot.matter_mode} />}
         {tab === "relationships" && <UnavailablePanel title="Proposed relationships" availability={graphViewerAvailability} action="Relationship rows will appear here when the backend returns source and target references for this attempt." />}
         {tab === "graph" && <div className="space-y-4"><UnavailablePanel title="Context graph" availability={graphViewerAvailability} action="Neo4j is the primary approved graph destination. This view needs a read API that returns attempt-bound nodes, relationships, and write receipts." /><div className="border-l-4 border-l-[#c69027] bg-[#fff4dd] p-4 text-xs leading-5 text-[#684b18] dark:bg-[#43351f] dark:text-[#ffe0a6]"><strong>SurrealDB projection is separate.</strong> It is a later, manual projection and is not run or implied by this Context review.</div></div>}
 
