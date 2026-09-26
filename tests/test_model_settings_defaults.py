@@ -1,8 +1,8 @@
 """Default model selection contract for server/core/settings.py.
 
 Owner 2026-09-25: glm-5.1 is banned outright and Ollama Cloud is no longer primary;
-NVIDIA NIM ``moonshotai/kimi-k3`` is the default and runs with reasoning off unless an
-agent asks for it (``build_model(thinking=True)``).
+NVIDIA NIM ``moonshotai/kimi-k3`` is the default and reasons unless an agent turns it off
+(``build_model(thinking=False)``) — with thinking off, long prompts came back as junk.
 
 Byline: Claude Code · Opus 5.5 · 2026-09-25
 """
@@ -45,18 +45,18 @@ def test_nvidia_is_first_and_no_glm_is_pinned() -> None:
     assert "ollama" not in settings._PINNED
 
 
-def test_default_is_kimi_k3_on_nim_with_thinking_off(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_is_kimi_k3_on_nim_with_thinking_on(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
     monkeypatch.setenv("OLLAMA_API_KEY", "test-key")  # Ollama credentials alone never make it the default
     model = settings.default_model()
     assert model.id == "moonshotai/kimi-k3"
     assert model.base_url == settings.NVIDIA_BASE_URL_DEFAULT
-    assert model.extra_body == {"chat_template_kwargs": {"thinking": False}}
+    assert model.extra_body == {"chat_template_kwargs": {"thinking": True}}
 
 
-def test_an_agent_can_turn_thinking_on(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_an_agent_can_turn_thinking_off(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
-    assert settings.build_model(thinking=True).extra_body == {"chat_template_kwargs": {"thinking": True}}
+    assert settings.build_model(thinking=False).extra_body == {"chat_template_kwargs": {"thinking": False}}
 
 
 def test_other_nim_models_get_no_extra_body(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -5,8 +5,9 @@ workbench classification/sentiment use cases.
 
 Byline: Codex · GPT-5 · 2026-08-16
 Byline: Claude Code · Opus 5.5 · 2026-09-25 (glm-5.1 removed — owner blanket ban; NVIDIA NIM kimi-k3 default; no Ollama default)
-Byline: Claude Code · Opus 5.5 · 2026-09-25 (kimi-k3 on NIM: JSON mode + thinking off; replies are read by
-app.service.model_replies, so the silent categories[0]/0.5 and neutral/0.0 fallbacks are gone)
+Byline: Claude Code · Opus 5.5 · 2026-09-25 (kimi-k3 on NIM: JSON mode, thinking mode per prompt size with
+one retry in the other mode (app.service.nim_kimi); replies are read by app.service.model_replies, so the
+silent categories[0]/0.5 and neutral/0.0 fallbacks are gone)
 """
 
 from __future__ import annotations
@@ -21,40 +22,20 @@ from agno.models.groq import Groq
 from agno.models.ollama import Ollama
 from agno.models.openai import OpenAIChat
 from agno.models.openai.like import OpenAILike
+from app.service import nim_kimi
 from app.service.model_replies import ask_json
+from app.service.nim_kimi import KIMI_K3_MODEL_ID, NVIDIA_BASE_URL_DEFAULT
 from app.types.classification import ProviderName, SentimentLabel
 
-
-NVIDIA_BASE_URL_DEFAULT = "https://integrate.api.nvidia.com/v1"
-KIMI_K3_MODEL_ID = "moonshotai/kimi-k3"
 _SENTIMENT_LABELS = frozenset(label.value for label in SentimentLabel)
-
-
-def _kimi_k3_no_thinking() -> dict[str, Any]:
-    """NIM request body that turns kimi-k3's reasoning off.
-
-    Measured 2026-09-25: with thinking on, about 1 in 8 calls stopped after 32-35 reasoning
-    tokens with EMPTY content; with ``thinking: false``, 0 of 8 did and latency fell to ~3 s.
-    """
-    return {"chat_template_kwargs": {"thinking": False}}
-
-
-def _json_mode(provider: Any) -> dict[str, Any]:
-    """``aresponse`` arguments for a JSON answer: JSON mode for kimi-k3 on NVIDIA NIM, else none."""
-    base = str(getattr(provider, "base_url", "") or "").rstrip("/")
-    nim = os.getenv("NVIDIA_BASE_URL", NVIDIA_BASE_URL_DEFAULT).rstrip("/")
-    if getattr(provider, "id", None) == KIMI_K3_MODEL_ID and base == nim:
-        return {"response_format": {"type": "json_object"}}
-    return {}
 
 
 # Pinned default models per provider (can be overridden via env).
 # A provider missing from this dict has no default: callers must name a model.
 _PINNED_MODELS: dict[ProviderName, str] = {
     # OLLAMA: no default. glm-5.1 removed 2026-09-25, owner blanket ban; Ollama Cloud is a non-default option.
-    # NVIDIA NIM is the default since 2026-09-25 (owner: kimi-k3 on NIM replaces glm-5.1). It is a reasoning
-    # model that sometimes answers with an empty reply, so this module runs it with thinking off and in JSON
-    # mode (see _kimi_k3_no_thinking and _ask_json). nemotron-3-super, the previous pin, was intermittent
+    # NVIDIA NIM is the default since 2026-09-25 (owner: kimi-k3 on NIM replaces glm-5.1). Its reasoning mode
+    # is chosen per prompt (app.service.nim_kimi). nemotron-3-super, the previous pin, was intermittent
     # (200 / 404 / 503) on 2026-09-25 and stays out of every default.
     ProviderName.NVIDIA: KIMI_K3_MODEL_ID,
     ProviderName.OPENROUTER: "deepseek/deepseek-chat",
@@ -99,14 +80,13 @@ def _try_provider(provider: ProviderName, model_id: str | None = None) -> ModelP
     if provider == ProviderName.NVIDIA:
         if not nvidia_key:
             return None
-        extra_body = _kimi_k3_no_thinking() if resolved_model == KIMI_K3_MODEL_ID else None
         # Free-tier NIM answers bursts with 429 (live 2026-09-25, after the SDK's own quick retries);
         # agno retries rate limits and 5xx with 2 s / 4 s / 8 s backoff before giving up.
+        # kimi-k3's thinking mode is chosen per call (nim_kimi.attempts), not fixed here.
         return OpenAILike(
             id=resolved_model,
             api_key=nvidia_key,
             base_url=nvidia_base,
-            extra_body=extra_body,
             retries=3,
             delay_between_retries=2,
             exponential_backoff=True,
@@ -235,7 +215,9 @@ Return ONLY a JSON object with this exact structure:
             raise ValueError(f"confidence {confidence} is outside 0-1")
         return category, confidence, str(parsed.get("reasoning") or "No reasoning provided")
 
-    (category, confidence, reasoning), raw = await ask_json(provider, messages, read, _json_mode(provider))
+    (category, confidence, reasoning), raw = await ask_json(
+        nim_kimi.attempts(provider, messages), messages, read, nim_kimi.json_mode(provider)
+    )
     return category, confidence, reasoning, raw
 
 
@@ -284,5 +266,7 @@ The emotions object should contain scores 0.0-1.0 for each emotion present."""
         emotion_scores = {str(name): float(value) for name, value in emotions.items()}
         return sentiment, score, emotion_scores, str(parsed.get("reasoning") or "No reasoning provided")
 
-    (sentiment, score, emotions, reasoning), raw = await ask_json(provider, messages, read, _json_mode(provider))
+    (sentiment, score, emotions, reasoning), raw = await ask_json(
+        nim_kimi.attempts(provider, messages), messages, read, nim_kimi.json_mode(provider)
+    )
     return sentiment, score, emotions, reasoning, raw

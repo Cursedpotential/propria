@@ -1,23 +1,23 @@
 """Read a model's JSON reply for Workbench classification and sentiment.
 
-One job: ask the model, take its reply apart, and never invent an answer. An empty
-reply, or one the caller's reader rejects, gets one retry; after that the call fails with
-ModelReplyError (the routes answer HTTP 502 naming the model) instead of a fallback such
-as the old silent ``categories[0]`` / 0.5 classification.
+One job: ask the model, take its reply apart, and never invent an answer. A reply that is
+empty, junk (one character repeated, e.g. 32 × '!' from kimi-k3 on NIM) or invalid JSON
+fails that attempt; after the last attempt the call raises ModelReplyError, which the
+routes answer with HTTP 502 naming the model and each attempt's failure. This replaces
+the old silent ``categories[0]`` / 0.5 classification fallback.
 
 Byline: Claude Code · Opus 5.5 · 2026-09-25 (owner decision relayed by the parent session:
-retry an empty reply once, then fail clearly; delete the silent fallback)
+one retry, then fail clearly; delete the silent fallback; detect empty and junk replies)
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Protocol, TypeVar
 
 from agno.models.message import Message
 
-REPLY_ATTEMPTS = 2  # the first answer plus one retry
 _T = TypeVar("_T")
 
 
@@ -29,6 +29,15 @@ class Answers(Protocol):
     """Anything with Agno's ``aresponse`` coroutine."""
 
     async def aresponse(self, messages: list[Message], **kwargs: Any) -> Any: ...
+
+
+def reply_problem(raw: str) -> str | None:
+    """Name what is wrong with a reply that carries nothing; None when there is text to parse."""
+    if not raw:
+        return "empty reply"
+    if len(raw) > 1 and len(set(raw)) == 1:
+        return f"junk reply ({len(raw)} x {raw[0]!r})"
+    return None
 
 
 def json_object(raw: str) -> dict[str, Any]:
@@ -43,29 +52,29 @@ def json_object(raw: str) -> dict[str, Any]:
 
 
 async def ask_json(
-    model: Answers,
+    attempts: Sequence[tuple[str, Answers]],
     messages: list[Message],
     read: Callable[[dict[str, Any]], _T],
     request: dict[str, Any] | None = None,
 ) -> tuple[_T, str]:
-    """Ask *model* for a JSON object and turn it into a result with *read*.
+    """Ask each ``(label, model)`` attempt in turn until one reply reads cleanly.
 
     *request* holds extra ``aresponse`` keyword arguments (e.g. ``response_format``).
     *read* raises KeyError/TypeError/ValueError for an object it cannot use. Returns
-    ``(read(object), raw_text)``; raises ModelReplyError after REPLY_ATTEMPTS attempts.
+    ``(read(object), raw_text)``; raises ModelReplyError when every attempt fails.
     """
-    problem = "empty reply"
-    for _attempt in range(REPLY_ATTEMPTS):
+    problems: list[str] = []
+    for label, model in attempts:
         response = await model.aresponse(messages, **(request or {}))
         raw = str(response.content).strip() if response.content else ""
-        if not raw:
-            problem = "empty reply"
-            continue
-        try:
-            return read(json_object(raw)), raw
-        except (KeyError, TypeError, ValueError) as error:
-            problem = f"unparseable reply ({error})"
+        problem = reply_problem(raw)
+        if problem is None:
+            try:
+                return read(json_object(raw)), raw
+            except (KeyError, TypeError, ValueError) as error:
+                problem = f"invalid JSON reply ({error})"
+        problems.append(f"{label}: {problem}")
+    model_id = getattr(attempts[0][1], "id", "unknown") if attempts else "unknown"
     raise ModelReplyError(
-        f"Model '{getattr(model, 'id', 'unknown')}' gave no usable reply in {REPLY_ATTEMPTS} attempts; "
-        f"last attempt: {problem}."
+        f"Model '{model_id}' gave no usable reply in {len(attempts)} attempts ({'; '.join(problems)})."
     )

@@ -39,7 +39,7 @@ account can actually reach, not a guess) live in ``server/core/model_catalog.py`
 # Byline: Claude Code · Sonnet (agent) · 2026-08-01 (direct-provider wiring: ANTHROPIC_AUTH_TOKEN fallback + model_catalog.py cross-ref)
 # Byline: Codex · GPT-5 · 2026-08-13 (non-null Kimi model/base resolution)
 # Byline: Claude Code · Opus 5.5 · 2026-09-25 (glm-5.1 removed — owner blanket ban; NVIDIA NIM kimi-k3 primary; no Ollama default)
-# Byline: Claude Code · Opus 5.5 · 2026-09-25 (kimi-k3 on NIM: thinking off by default; build_model(thinking=True) per agent)
+# Byline: Claude Code · Opus 5.5 · 2026-09-25 (kimi-k3 on NIM: thinking ON by default — OFF gave junk on long prompts; build_model(thinking=False) per agent)
 
 from __future__ import annotations
 
@@ -53,10 +53,9 @@ NVIDIA_BASE_URL_DEFAULT = "https://integrate.api.nvidia.com/v1"
 _PINNED: dict[str, str] = {
     # "ollama": no default. glm-5.1 removed 2026-09-25, owner blanket ban; Ollama Cloud is a non-default option.
     # NVIDIA NIM (OpenAI-compatible) — PRIMARY since 2026-09-25 (owner: kimi-k3 on NIM replaces glm-5.1).
-    # A reasoning model: with thinking on, some calls end with EMPTY content, so it runs with thinking
-    # off by default (_nim_extra_body). The free tier answered 429 to about 1 in 4 rapid sequential calls
-    # (openai SDK retries with backoff). nemotron-3-super-120b-a12b, the previous pin, was intermittent
-    # (200 / 404 / 503) on 2026-09-25 and stays out of every default.
+    # A reasoning model that sometimes answers with 32 junk tokens (see _nim_extra_body: thinking ON by
+    # default here). The free tier answered 429 to about 1 in 4 rapid sequential calls. nemotron-3-super-
+    # 120b-a12b, the previous pin, was intermittent (200 / 404 / 503) on 2026-09-25 and stays out of defaults.
     "nvidia": "moonshotai/kimi-k3",
     # Kimi — NIM (or Moonshot direct if MOONSHOT_API_KEY set). kimi-k2.6 → kimi-k3 2026-09-25: k2.6 is 404 on NIM.
     "kimi": "moonshotai/kimi-k3",
@@ -84,16 +83,18 @@ _KIMI_K3 = "moonshotai/kimi-k3"
 
 
 def _nim_extra_body(model_id: str, thinking: Optional[bool]) -> Optional[dict[str, Any]]:
-    """Extra request body for a NIM call: kimi-k3 runs with reasoning off unless *thinking* is True.
+    """Extra request body for a NIM call: kimi-k3 reasons unless *thinking* is False.
 
-    Measured 2026-09-25: with thinking on, about 1 in 8 kimi-k3 calls stopped after 32-35
-    reasoning tokens with EMPTY content; with ``thinking: false`` 0 of 8 did and latency fell
-    to ~3 s. An agent that wants reasoning builds its model with ``build_model(thinking=True)``
-    and must then retry on an empty reply itself. Other NIM models get no extra body.
+    Measured 2026-09-25: with thinking OFF, kimi-k3 answered prompts of ~10k and ~43k
+    tokens with 32 '!' tokens (3 of 3); agents run long prompts, so ON is the default
+    (owner decision via the parent session). With thinking ON about 1 short prompt in 8
+    comes back empty (the same junk, in the reasoning field) and a 43k-token prompt was
+    junk once through OpenCode, so an agent must detect empty/junk replies and retry in
+    the other mode (``build_model(thinking=False)``). Other NIM models get no extra body.
     """
     if model_id != _KIMI_K3:
         return None
-    return {"chat_template_kwargs": {"thinking": bool(thinking)}}
+    return {"chat_template_kwargs": {"thinking": thinking is not False}}
 
 
 # LEGACY/NIM-fallback embedder IDs — these do NOT mirror the live contract and never did
@@ -166,8 +167,8 @@ def _try_provider(provider: str, model_id: Optional[str] = None, thinking: Optio
         Exact model ID to construct. When ``None`` the provider's usual
         env-override/pinned-default resolution applies (unchanged behaviour).
     thinking:
-        Reasoning switch for kimi-k3 on NIM; ``None``/``False`` = off (see
-        ``_nim_extra_body``). Ignored for other models and for Moonshot direct.
+        Reasoning switch for kimi-k3 on NIM; ``None``/``True`` = on, ``False`` = off
+        (see ``_nim_extra_body``). Ignored for other models and for Moonshot direct.
 
     Returns
     -------
@@ -301,7 +302,7 @@ def build_model(provider: Optional[str] = None, model_id: Optional[str] = None, 
         whichever provider happens to answer first).
     thinking:
         Per-agent override of kimi-k3's reasoning on NIM. Default (``None``) is
-        off; ``True`` turns it on, and that agent must then retry empty replies.
+        on; ``False`` turns it off (only safe for short prompts).
 
     Returns
     -------
