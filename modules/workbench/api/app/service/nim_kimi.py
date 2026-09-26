@@ -8,11 +8,14 @@ Measured live 2026-09-25 against NIM ``moonshotai/kimi-k3``:
   reasoning field); a 43k-token prompt answered correctly once direct and was junk once
   through OpenCode.
 
-So a short prompt asks with thinking OFF first and a long one with thinking ON first; the
-one retry (``model_replies.ask_json``) uses the other mode. Every attempt gets a fresh
-model object, because a batch shares one provider across concurrent calls.
+So a short prompt asks with thinking OFF first and retries with thinking ON. A long prompt
+asks with thinking ON and retries with thinking ON again: with thinking off, 10k-57k-token
+prompts came back as junk every time (6 of 6), so switching modes never helps a long prompt
+(owner decision 2026-09-26, option B). Every attempt gets a fresh model object, because a
+batch shares one provider across concurrent calls.
 
 Byline: Claude Code · Opus 5.5 · 2026-09-25 (owner decision relayed by the parent session)
+Byline: Claude Code · Opus 5.5 · 2026-09-26 (long prompts retry thinking ON; owner option B)
 """
 
 from __future__ import annotations
@@ -56,9 +59,12 @@ def _with_thinking(model: Any, thinking: bool) -> OpenAILike:
 
 
 def attempts(model: Any, messages: list[Message]) -> list[tuple[str, Any]]:
-    """``(label, model)`` for each attempt: the mode that suits the prompt first, then the other."""
+    """``(label, model)`` for each attempt: short = thinking off, then on; long = thinking on, twice."""
     if not is_kimi_k3_on_nim(model):
         return [("first try", model), ("retry", model)]
     long_prompt = sum(len(str(message.content or "")) for message in messages) > SHORT_PROMPT_CHARS
-    order = (True, False) if long_prompt else (False, True)
-    return [(f"thinking {'on' if thinking else 'off'}", _with_thinking(model, thinking)) for thinking in order]
+    order = (True, True) if long_prompt else (False, True)
+    return [
+        (f"thinking {'on' if thinking else 'off'}{' again' if index and thinking == order[0] else ''}", _with_thinking(model, thinking))
+        for index, thinking in enumerate(order)
+    ]

@@ -175,6 +175,14 @@ func TestLongPromptsStartThinking(t *testing.T) {
 	if len(thinking.modes) != 1 || !thinking.modes[0] {
 		t.Fatalf("a long prompt must start with thinking on: %v", thinking.modes)
 	}
+	// Owner 2026-09-26 (option B): a long prompt retries with thinking on again.
+	retry := &scripted{replies: []Completion{{Content: "", FinishReason: "stop"}, {Content: validReply, FinishReason: "stop"}}}
+	if _, err := ExtractBatch(context.Background(), retry, "m", batch, entities.RunScope{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(retry.modes) != 2 || !retry.modes[0] || !retry.modes[1] {
+		t.Fatalf("a long prompt must retry with thinking on again: %v", retry.modes)
+	}
 }
 
 func TestDecodeRejectsSchemaViolations(t *testing.T) {

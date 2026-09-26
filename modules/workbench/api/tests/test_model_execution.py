@@ -192,7 +192,7 @@ def test_kimi_k3_on_nim_picks_the_thinking_mode_by_prompt_size(monkeypatch: pyte
 
     short, long = plan(1_000), plan(nim_kimi.SHORT_PROMPT_CHARS + 1)
     assert [label for label, _ in short] == ["thinking off", "thinking on"]
-    assert [label for label, _ in long] == ["thinking on", "thinking off"]
+    assert [label for label, _ in long] == ["thinking on", "thinking on again"]  # owner 2026-09-26 option B
     assert [m.extra_body["chat_template_kwargs"]["thinking"] for _, m in short] == [False, True]
     for _, model in short + long:
         assert model is not provider  # a batch shares the provider; attempts never mutate it

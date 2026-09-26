@@ -327,9 +327,12 @@ func junkReply(content string) bool {
 }
 
 // ExtractBatch asks the model in the mode that suits the prompt's length,
-// validates the reply, and on failure retries once in the other thinking
-// mode. A reply that fails twice yields an Invalid outcome and no proposals:
-// output that failed validation is never written.
+// validates the reply, and on failure retries once: a short prompt retries
+// with thinking on, a long prompt retries with thinking on again, because
+// thinking off answers long prompts with junk every time (6 of 6, 2026-09-25;
+// owner decision 2026-09-26, option B). A reply that fails twice yields an
+// Invalid outcome and no proposals: output that failed validation is never
+// written. Byline: Claude Code · Opus 5.5 · 2026-09-26
 func ExtractBatch(ctx context.Context, completer Completer, modelID string, batch Batch, scope entities.RunScope) (BatchOutcome, error) {
 	outcome := BatchOutcome{Index: batch.Index}
 	if len(batch.Messages) > 0 {
@@ -339,7 +342,7 @@ func ExtractBatch(ctx context.Context, completer Completer, modelID string, batc
 	messages := Prompt(batch)
 	primary := EstimateTokens(messages) > LongPromptTokens
 	var failure error
-	for attempt, thinking := range []bool{primary, !primary} {
+	for attempt, thinking := range []bool{primary, true} {
 		outcome.Attempts = attempt + 1
 		mode := thinking
 		outcome.Modes = append(outcome.Modes, thinkingLabel(mode))
