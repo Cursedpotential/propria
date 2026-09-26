@@ -1,0 +1,761 @@
+{
+ "generated": "2026-09-26",
+ "coolify": "v4.1.2 at http://100.98.98.38:8000",
+ "propria_repository_id": 1367548570,
+ "apps": [
+  {
+   "uuid": "f12skzwshwp85b1k4lbgm0pp",
+   "name": "superindex",
+   "current": {
+    "git_repository": "Cursedpotential/Consignatio",
+    "git_branch": "feat/superindex-service",
+    "base_directory": "/Intake/backend",
+    "docker_compose_location": "/deploy/superindex.compose.yml",
+    "watch_paths": "Intake/backend/**",
+    "repository_project_id": 1366865143
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "feat/superindex-service",
+    "base_directory": "/modules/Consignatio/Intake/backend",
+    "watch_paths": "modules/Consignatio/Intake/backend/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/superindex.compose.yml (unchanged: resolved inside base_directory)",
+   "flags": [
+    "deploys branch feat/superindex-service: merge it into the module's main before cutover, or import it as a propria branch and keep deploying that"
+   ]
+  },
+  {
+   "uuid": "dbae59tufgs5zqvb7ym9fozk",
+   "name": "intake-engine",
+   "current": {
+    "git_repository": "Cursedpotential/Intake-desktop",
+    "git_branch": "feat/hosted-intake-engine",
+    "base_directory": "/",
+    "docker_compose_location": "/docker-compose.intake-engine.yaml",
+    "watch_paths": null,
+    "repository_project_id": 1366865173
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot",
+    "watch_paths": "modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/docker-compose.intake-engine.yaml (unchanged: resolved inside base_directory)",
+   "flags": [
+    "no watch paths today: redeploys on every push; new pattern keeps it to its own module",
+    "assumes the importer brought xplorer-copilot's feat/hosted-intake-engine into propria main; confirm before repointing"
+   ]
+  },
+  {
+   "uuid": "gvghzivfmctev8dloetfssnj",
+   "name": "legal-workspace",
+   "current": {
+    "git_repository": "Cursedpotential/Legal-Workspace",
+    "git_branch": "master",
+    "base_directory": "/",
+    "docker_compose_location": "/compose.yaml",
+    "watch_paths": null,
+    "repository_project_id": 1338716830
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Legal-desktop",
+    "watch_paths": "modules/Legal-desktop/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/compose.yaml (unchanged: resolved inside base_directory)",
+   "flags": [
+    "no watch paths today: redeploys on every push; new pattern keeps it to its own module",
+    "Legal-Workspace master is what the import brought into propria main"
+   ]
+  },
+  {
+   "uuid": "ak206exj3esct2x6h8pdjo4g",
+   "name": "authentik",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/authentik.yaml",
+    "watch_paths": "deploy/authentik.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/authentik.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/authentik.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "oyzznioap03u34xz125l90oq",
+   "name": "coolify-mcp",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/coolify-mcp.yaml",
+    "watch_paths": "compose.coolify-mcp.yaml\ndocker/coolify-mcp/**",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/compose.coolify-mcp.yaml\nmodules/Probata/probata/docker/coolify-mcp/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/coolify-mcp.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "ksbq02zynhdt63b8b9ba5cpv",
+   "name": "data-neo4j",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/data-neo4j.yaml",
+    "watch_paths": "compose.data-neo4j.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/compose.data-neo4j.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/data-neo4j.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "w10gg3an43jvry4y79n6sxi1",
+   "name": "data-pg-files",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/data-pg.yaml",
+    "watch_paths": "compose.data-pg.yaml\ndocker/postgres/**",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/compose.data-pg.yaml\nmodules/Probata/probata/docker/postgres/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/data-pg.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "v43tfq25o7i561n4lnc124p2",
+   "name": "data-weaviate-native-v1",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/data-weaviate-native-v1.yaml",
+    "watch_paths": "deploy/data-weaviate-native-v1.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/data-weaviate-native-v1.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/data-weaviate-native-v1.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "pd3xc78ahqkfswq12bpfqgy1",
+   "name": "devbox",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/devbox.yaml",
+    "watch_paths": "deploy/never-auto-deploy-devbox/**",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/never-auto-deploy-devbox/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/devbox.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "k272znxpa4gh6drmolut723w",
+   "name": "exec-contextforge",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/contextforge.yaml",
+    "watch_paths": "deploy/contextforge.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/contextforge.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/contextforge.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "t130q2xn4r1tux3huee9gal1",
+   "name": "exec-desktop",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/desktop.yaml",
+    "watch_paths": "compose.desktop.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/compose.desktop.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/desktop.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "f29166r47gro6fjiq4d8ya92",
+   "name": "exec-gateway",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/gateway.yaml",
+    "watch_paths": "compose.gateway.yaml\ndocker/gateway/**",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/compose.gateway.yaml\nmodules/Probata/probata/docker/gateway/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/gateway.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "mn2autapl223gmgcpjqy7def",
+   "name": "exec-sandbox",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/sandbox.yaml",
+    "watch_paths": "compose.sandbox.yaml\ndocker/sandbox/**",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/compose.sandbox.yaml\nmodules/Probata/probata/docker/sandbox/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/sandbox.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "rz41wqhpjfh1rj796ixvjhfs",
+   "name": "exec-tier",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/exec.yaml",
+    "watch_paths": "Dockerfile\npyproject.toml\nrequirements.txt\nserver/**\nscripts/entrypoint.sh\ndeploy/exec.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/Dockerfile\nmodules/Probata/probata/pyproject.toml\nmodules/Probata/probata/requirements.txt\nmodules/Probata/probata/server/**\nmodules/Probata/probata/scripts/entrypoint.sh\nmodules/Probata/probata/deploy/exec.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/exec.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "sokv65ibdq2y8xdaqmd6p4rq",
+   "name": "family-court-console",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/family-court-console.yaml",
+    "watch_paths": null,
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/family-court-console.yaml (unchanged: resolved inside base_directory)",
+   "flags": [
+    "no watch paths today: redeploys on every push; new pattern keeps it to its own module",
+    "status exited:unhealthy: dead app, repoint or retire"
+   ]
+  },
+  {
+   "uuid": "bbmf0b7he1k14ivftiu4stry",
+   "name": "fileflows",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/fileflows.yaml",
+    "watch_paths": "deploy/fileflows.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/fileflows.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/fileflows.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "sp2ueak6dpul09ao8ul5k2z4",
+   "name": "infisical",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/infisical.yaml",
+    "watch_paths": "deploy/infisical.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/infisical.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/infisical.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "c26fveiswdhb77b6dpd7zgdp",
+   "name": "llm-probe",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/llm-probe.yaml",
+    "watch_paths": null,
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/llm-probe.yaml (unchanged: resolved inside base_directory)",
+   "flags": [
+    "no watch paths today: redeploys on every push; new pattern keeps it to its own module"
+   ]
+  },
+  {
+   "uuid": "z5rjgzn1agph1qo2jm55tr40",
+   "name": "llm-probe-ui",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/llm-probe-ui.yaml",
+    "watch_paths": null,
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/llm-probe-ui.yaml (unchanged: resolved inside base_directory)",
+   "flags": [
+    "no watch paths today: redeploys on every push; new pattern keeps it to its own module"
+   ]
+  },
+  {
+   "uuid": "d725i1io2o1dwlfjdz09lo87",
+   "name": "memsearch-milvus",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/memsearch-milvus.yaml",
+    "watch_paths": "deploy/memsearch-milvus.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/memsearch-milvus.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/memsearch-milvus.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "zb0hi2bi26vnndyw9eozn737",
+   "name": "metabase",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/metabase.yaml",
+    "watch_paths": "deploy/metabase.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/metabase.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/metabase.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "gwsmgd0sbqd9aheysa9g7xh4",
+   "name": "octopoda",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/octopoda.yaml",
+    "watch_paths": null,
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/octopoda.yaml (unchanged: resolved inside base_directory)",
+   "flags": [
+    "no watch paths today: redeploys on every push; new pattern keeps it to its own module"
+   ]
+  },
+  {
+   "uuid": "w8n50kzvgn3uzqiivvozcmbn",
+   "name": "opencode-server",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/opencode-server.yaml",
+    "watch_paths": "deploy/opencode-server.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/opencode-server.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/opencode-server.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "pn6t3nsdrhnxnueuwe7756g5",
+   "name": "openlist",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/openlist.yaml",
+    "watch_paths": "deploy/openlist.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/openlist.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/openlist.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "o11nxvzqwskxrqmtbvup7iet",
+   "name": "parser-activity-runtime",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/parser-activity-runtime.yaml",
+    "watch_paths": "modules/engine/**\ndeploy/docker/parser-activity-runtime/**\ndeploy/parser-activity-runtime.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/modules/engine/**\nmodules/Probata/probata/deploy/docker/parser-activity-runtime/**\nmodules/Probata/probata/deploy/parser-activity-runtime.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/parser-activity-runtime.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "z5787t1l7gl2zbrya8cxzapf",
+   "name": "portkey",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/portkey.yaml",
+    "watch_paths": "compose.portkey.yaml\ndocker/gateway/portkey/**",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/compose.portkey.yaml\nmodules/Probata/probata/docker/gateway/portkey/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/portkey.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "ywo2qvc5catoa79zgdur5o2j",
+   "name": "probata-docstore-control",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "docstore-control-host-20260919",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/docstore-control.yaml",
+    "watch_paths": "deploy/docstore-control.yaml\ndeploy/docker/docstore-control/**\nplugins/docstore/control/**",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "docstore-control-host-20260919",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/docstore-control.yaml\nmodules/Probata/probata/deploy/docker/docstore-control/**\nmodules/Probata/probata/plugins/docstore/control/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/docstore-control.yaml (unchanged: resolved inside base_directory)",
+   "flags": [
+    "deploys branch docstore-control-host-20260919: merge it into the module's main before cutover, or import it as a propria branch and keep deploying that"
+   ]
+  },
+  {
+   "uuid": "e1mshujml6bv8ldtoe8n7je0",
+   "name": "probata-tool-runtime",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/tool-runtime.yaml",
+    "watch_paths": "deploy/tool-runtime.yaml\ndeploy/docker/tool-runtime/**\nserver/**",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/tool-runtime.yaml\nmodules/Probata/probata/deploy/docker/tool-runtime/**\nmodules/Probata/probata/server/**"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/tool-runtime.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "r1084s1lsm80fsv4ol9ocij0",
+   "name": "proffer-starter",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/proffer-starter.yaml",
+    "watch_paths": "modules/engine/**\ndeploy/docker/proffer-starter/**\ndeploy/proffer-starter.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/modules/engine/**\nmodules/Probata/probata/deploy/docker/proffer-starter/**\nmodules/Probata/probata/deploy/proffer-starter.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/proffer-starter.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "d24bb9eoo47qtw9eq1xc6u64",
+   "name": "proffer-worker",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/proffer-worker.yaml",
+    "watch_paths": "modules/engine/**\ndeploy/docker/proffer-worker/**\ndeploy/proffer-worker.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/modules/engine/**\nmodules/Probata/probata/deploy/docker/proffer-worker/**\nmodules/Probata/probata/deploy/proffer-worker.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/proffer-worker.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "qkcbapa8ozh4ynda2u69055z",
+   "name": "surreal-case",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/surreal-case.yaml",
+    "watch_paths": "deploy/surreal-case.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/surreal-case.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/surreal-case.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "r13ehbwuw3xji8x9mibeypp0",
+   "name": "surreal-docs",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/surreal-docs.yaml",
+    "watch_paths": "deploy/surreal-docs.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/surreal-docs.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/surreal-docs.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "llv5zt8phx1xf4devwqugk3y",
+   "name": "temporal-stack",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/temporal/compose.temporal.yaml",
+    "watch_paths": "deploy/temporal/compose.temporal.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/deploy/temporal/compose.temporal.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/temporal/compose.temporal.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "ws67wgw1qxdgxo956p2k1jvi",
+   "name": "tool-gateway",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/tool-gateway.yaml",
+    "watch_paths": "modules/engine/**\ndeploy/docker/tool-gateway/**\ndeploy/tool-gateway.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/modules/engine/**\nmodules/Probata/probata/deploy/docker/tool-gateway/**\nmodules/Probata/probata/deploy/tool-gateway.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/tool-gateway.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  },
+  {
+   "uuid": "xjbuo6drbwjfby75lalk8bk7",
+   "name": "workbench",
+   "current": {
+    "git_repository": "Cursedpotential/probata",
+    "git_branch": "main",
+    "base_directory": "/",
+    "docker_compose_location": "/deploy/workbench.yaml",
+    "watch_paths": "modules/workbench/**\ndeploy/workbench.yaml",
+    "repository_project_id": 1247822292
+   },
+   "api_patch": {
+    "git_repository": "Cursedpotential/propria",
+    "git_branch": "main",
+    "base_directory": "/modules/Probata/probata",
+    "watch_paths": "modules/Probata/probata/modules/workbench/**\nmodules/Probata/probata/deploy/workbench.yaml"
+   },
+   "ui_step": "Source tab: select Cursedpotential/propria so repository_project_id becomes 1367548570 (the API cannot set it)",
+   "docker_compose_location": "/deploy/workbench.yaml (unchanged: resolved inside base_directory)",
+   "flags": []
+  }
+ ]
+}
