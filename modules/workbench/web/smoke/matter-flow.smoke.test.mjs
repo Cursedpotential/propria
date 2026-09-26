@@ -529,13 +529,15 @@ class CdpPipe {
   }
 }
 
+// Browser-driven tests are opt-in (Claude Code · Opus 5.5 · 2026-09-26). The owner's desktop must never
+// launch a browser: headless Chrome/Edge froze it (owner ban 2026-09-24), and a plain `npm run smoke`
+// started headless Edge four times per run. They run only when SMOKE_BROWSER names a browser executable,
+// e.g. on a VPS or in CI; otherwise they are skipped with that reason. There is no default browser path.
+const SMOKE_BROWSER = process.env.SMOKE_BROWSER || "";
+const BROWSER_SKIP = SMOKE_BROWSER ? false : "browser smoke is opt-in: set SMOKE_BROWSER to a browser path (never on the owner's desktop)";
+
 function browserPath() {
-  const candidates = [
-    process.env.SMOKE_BROWSER,
-    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-  ].filter(Boolean);
-  return candidates[0];
+  return SMOKE_BROWSER;
 }
 
 async function evaluate(cdp, sessionId, expression) {
@@ -565,7 +567,7 @@ function setValue(selector, value) {
   return `(() => { const node = document.querySelector(${JSON.stringify(selector)}); if (!node) return false; const setter = Object.getOwnPropertyDescriptor(node instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set; setter.call(node, ${JSON.stringify(value)}); node.dispatchEvent(new Event('input', { bubbles: true })); node.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`;
 }
 
-test("Matter-bound Knowledge promotes and reviews one exact custody record", { timeout: 60_000 }, async () => {
+test("Matter-bound Knowledge promotes and reviews one exact custody record", { timeout: 60_000, skip: BROWSER_SKIP }, async () => {
   await stat(join(OUT, "index.html"));
   const fixture = createFixtureServer();
   await new Promise((accept) => fixture.server.listen(0, "127.0.0.1", accept));
@@ -691,7 +693,7 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
   }
 });
 
-for (const inputKind of ["staged", "fresh"]) test(`New Run submits ${inputKind} SMS through Proffer and renders guided recovery`, { timeout: 60_000 }, async () => {
+for (const inputKind of ["staged", "fresh"]) test(`New Run submits ${inputKind} SMS through Proffer and renders guided recovery`, { timeout: 60_000, skip: BROWSER_SKIP }, async () => {
   const fixture = createFixtureServer({ newRunFixture: true });
   await new Promise((accept) => fixture.server.listen(0, "127.0.0.1", accept));
   const profile = await quarantineProfile("new-run-browser-profile-");
@@ -735,7 +737,7 @@ for (const inputKind of ["staged", "fresh"]) test(`New Run submits ${inputKind} 
   }
 });
 
-test("Matter registry stays usable without issuing advanced evidence calls", { timeout: 60_000 }, async () => {
+test("Matter registry stays usable without issuing advanced evidence calls", { timeout: 60_000, skip: BROWSER_SKIP }, async () => {
   await stat(join(OUT, "index.html"));
   const fixture = createFixtureServer({ advancedEvidenceAvailable: false });
   await new Promise((accept) => fixture.server.listen(0, "127.0.0.1", accept));

@@ -20,6 +20,10 @@
   filesystem, IPC, and SQLite adapters outside browser-only modules.
 - Run `npm run lint`, `npm run build`, `npm run smoke`, and `npm run build-storybook` for product
   changes. Coolify revision and live browser proof are separate required gates.
+- `npm run smoke` is browser-free by default: the four browser-driven tests in
+  `smoke/matter-flow.smoke.test.mjs` skip unless `SMOKE_BROWSER` names a browser executable. Never set it
+  on the owner's desktop (headless Chrome/Edge froze it; owner ban 2026-09-24); run them on a VPS or in CI.
+  _Byline: Claude Code · Opus 5.5 · 2026-09-26_
 
 > _Sprint-mode policy REMOVED 2026-08-25 on owner order ("you're grounded — remove it entirely"). Confirm-and-discuss-before-changing is back in force._
 
