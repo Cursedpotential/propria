@@ -50,6 +50,7 @@ Engine (proffer-starter, all under `/reference-import/repair/`, same auth as the
 - `GET  runs/{workflow_id}` → `{ "status", "steps": [ { "step_id", "status", "receipt_ref", "output_ref"? } ], "reentry_preview_handle"? }`.
 
 Workbench BFF passthrough: `/api/proffer/repair/{tools,propose,validate,run,runs/{id}}` (mode-checked like the other proffer routes).
+_Amendment — Claude Code · Opus 5.5 · 2026-09-26 (Workbench side, `feat/repair-workbench`):_ the BFF requires `preview_handle` on propose, validate and run (it proves Test/Live from that run) and does not accept `detect_report` from the browser; a refused run's 422 keeps `checks`; `runs/{id}` proves the mode from the engine's `matter_mode` echo. Build record: `docs/planning/2026-09-20-TODO.md`, entry 2026-09-26 09:45.
 
 Validator rules (engine): registered Activity per step with known types; type-checked chain (source type -> step1 in; stepN out -> stepN+1 in); no step writes the original (every write is a derived, hashed artifact); terminal output is a derived source proffer can ingest (re-entry appended implicitly — no stage skipped); destination resolves and Test/Live matches; bounded (≤ 12 steps, no cycles).
 
