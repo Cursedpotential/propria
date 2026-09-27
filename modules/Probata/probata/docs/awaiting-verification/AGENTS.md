@@ -39,3 +39,19 @@ Putting a document here does not close your task. It opens a review.
 ### Never
 
 Never delete from here. Failed items move to repo-root `to_be_deleted/` for owner review.
+
+
+<!-- Merged from CLAUDE.md on 2026-09-26: Claude Code v2.1.277+ reads AGENTS.md natively, so the separate CLAUDE.md is retired. -->
+@AGENTS.md
+
+# AWAITING VERIFICATION
+
+## **THIS IS PURGATORY. NOTHING IN HERE IS TRUSTED.**
+
+## **Every document here CLAIMS to be complete. None of those claims has been checked.**
+
+## **A DIFFERENT agent than the author must verify the claim before it moves anywhere.**
+
+Not an owner inbox. Not a decision queue. Not proof that anything works.
+
+Full rules: `AGENTS.md` in this directory.

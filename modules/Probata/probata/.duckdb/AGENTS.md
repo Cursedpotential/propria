@@ -41,3 +41,10 @@ Fuzzy/semantic hunting: the catalog markdown + JSONL live in the ccc-indexed tre
 `ccc grep`/semantic search over `docs/research/integration-audit-2026-08-24/` for concept-level
 questions ("something that dedupes files"), and `scripts/npm-catalog search` for keyword hits.
 After a rescan, refresh the index (`ccc index`) so ccc sees the new catalog.
+
+
+<!-- Merged from CLAUDE.md on 2026-09-26: Claude Code v2.1.277+ reads AGENTS.md natively, so the separate CLAUDE.md is retired. -->
+<!-- Byline: Codex · GPT-5 · 2026-08-27. -->
+@../AGENTS.md
+@../AGENT_MEMORY.md
+@AGENTS.md

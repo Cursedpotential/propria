@@ -86,3 +86,11 @@ The test before adding or editing anything here: *could this be scheduled on its
 retried, wrapped as an n8n node, and reasoned about in isolation?* If not, it is not
 finished.
 
+
+
+<!-- Merged from CLAUDE.md on 2026-09-26: Claude Code v2.1.277+ reads AGENTS.md natively, so the separate CLAUDE.md is retired. -->
+<!-- Byline: Codex · GPT-5 · 2026-08-27. -->
+@../../AGENTS.md
+@../../AGENT_MEMORY.md
+@../AGENT_MEMORY.md
+@AGENTS.md
