@@ -1,4 +1,8 @@
 # Byline: Claude Code . Sonnet 5 . 2026-09-14
+# Byline amendment: Claude Code . Opus 5.5 . 2026-09-27 (Authentik hop via svc:authentik)
+# Deployed copy: ovh-app /data/coolify/proxy/dynamic/propria-public-portal.yaml. Tracked copy:
+# Propria repo modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml. Keep them
+# byte-identical; back up the deployed copy beside itself before every edit.
 # Owner order 2026-09-14 17:21 EDT: the whole Propria Homepage portal goes
 # public with every human surface reachable behind ONE Authentik login.
 # This file is the single source of truth for that public routing. It lives
@@ -20,25 +24,19 @@
 
 http:
   middlewares:
-    # NOTE: must dial authentik-server's IP on the "probata" docker network
-    # specifically (currently 192.168.112.10), not the "authentik-server"
-    # DNS alias -- that alias can resolve to a DIFFERENT network's IP from
-    # coolify-proxy (observed: 192.168.192.4), and Authentik's
-    # AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS is pinned to the single IP
-    # coolify-proxy holds on "probata" (192.168.112.2/32). When the source
-    # IP doesn't match that /32, Authentik silently distrusts X-Forwarded-*
-    # and falls back to the raw Host header (authentik-server:9000), which
-    # matches no provider -> 404 for every real forward-auth check. If the
-    # authentik-server container is ever recreated, re-resolve this IP via
-    # docker inspect on the probata network entry for that container, then
-    # update the address below. Root fix belongs in the repo: give
-    # authentik-server a static IP on "probata" (deploy/authentik.yaml) or
-    # widen AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS to the /24 -- not done
-    # here since deploy/authentik.yaml lives in the shared Probata repo,
-    # out of scope for this pass.
+    # Traefik reaches Authentik at the Tailscale Service svc:authentik
+    # (authentik.tilapia-skilift.ts.net, VIP 100.66.241.25) on tcp:9075, a raw TCP
+    # forwarder run by tailscaled on the service host to Authentik's tailnet-only port
+    # 100.72.169.40:9075. Raw TCP keeps Traefik's X-Forwarded-* headers intact (Serve's
+    # HTTP proxy rewrites X-Forwarded-Host, measured: forward-auth then 404s), and
+    # Authentik always sees the socket peer 100.72.169.40, which is its exact trusted
+    # proxy (TRAEFIK_PROXY_CIDR=100.72.169.40/32). No container IP, Docker network or
+    # proxy restart can move either address. The VIP is used instead of the name so
+    # DNS is not on the hot path; if svc:authentik is ever re-registered, update the
+    # two addresses below (Probata deploy/tailscale/authentik-serve.sh has the VIP).
     authentik-forwardauth:
       forwardAuth:
-        address: "http://10.201.0.3:9000/outpost.goauthentik.io/auth/traefik"
+        address: "http://100.66.241.25:9075/outpost.goauthentik.io/auth/traefik"
         trustForwardHeader: true
         authResponseHeaders:
           - X-authentik-username
@@ -82,6 +80,18 @@ http:
       entryPoints: ["https"]
       service: portal-editor-svc
       middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    # Authentik's own public host. Routed here, through svc:authentik like the
+    # forward-auth checks, since 2026-09-27 (previously Authentik's docker labels over
+    # the hand-made propria-edge network). Priority 100 keeps it ahead of any leftover
+    # docker-label router for the same host.
+    authentik-public:
+      rule: "Host(`auth.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: authentik-internal
+      priority: 100
       tls:
         certResolver: letsencrypt
 
@@ -260,7 +270,7 @@ http:
     authentik-internal:
       loadBalancer:
         servers:
-          - url: "http://10.201.0.3:9000"
+          - url: "http://100.66.241.25:9075"
     homepage-public-svc:
       loadBalancer:
         servers:
