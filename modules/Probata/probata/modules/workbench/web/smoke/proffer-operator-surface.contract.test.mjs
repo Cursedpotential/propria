@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-6 · 2026-09-13 (Context Review workspace contract)
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (sidebar pin follows the Sources copy)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -27,7 +28,9 @@ const client = readFileSync(new URL("../src/lib/api-client.ts", import.meta.url)
 test("the primary surface consistently names this workspace Review", () => {
   assert.match(navigation, /title: "Review"/);
   assert.match(navigation, /pageTitle: "Review extracted context"/);
-  assert.match(sidebar, /Intake and Review/);
+  // AMENDED 2026-09-27 (Claude Code · Opus 5.5): Sources replaced Intake in the sidebar copy on
+  // 2026-09-22 (app-sidebar.tsx); this pin was stale on main.
+  assert.match(sidebar, /Sources brings files in; Review reads what came out/);
   assert.match(desk, /Open Review workspace/);
   assert.match(review, /Context Review workspace/);
   assert.match(flow, /All Review views unlock/);
