@@ -145,7 +145,8 @@ class Page {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       try {
-        const value = await this.eval(expression);
+        // A DOM node does not survive returnByValue, so it is reported as true.
+        const value = await this.eval(`(() => { const v = (${expression}); return v instanceof Node ? true : v; })()`);
         if (value) return value;
       } catch {
         // page still loading
@@ -212,13 +213,13 @@ const record = (step, pass, detail) => {
 
 const { proc, port } = await launchChrome();
 let exitCode = 0;
+const page = new Page(port);
 try {
-  const page = new Page(port);
   await page.open();
 
   // --- deploy check: the pages load, with their console errors ------------------------------
   for (const [name, path, ready] of [
-    ["desk", "/?mode=TEST", `document.querySelector("main")`],
+    ["desk", "/?mode=TEST", `document.body.innerText.includes("Context Intake Desk")`],
     ["knowledge", "/knowledge?mode=TEST", `document.querySelector("#knowledge-search-tab")`],
   ]) {
     await page.goto(path);
@@ -375,6 +376,8 @@ try {
 } catch (error) {
   console.error(`audit aborted: ${error.message}`);
   report.aborted = error.message;
+  report.aborted_console_errors = [...page.consoleErrors];
+  await page.shot("aborted").catch(() => {});
   exitCode = 1;
 } finally {
   proc.kill();
