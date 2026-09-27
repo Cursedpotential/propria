@@ -3411,3 +3411,29 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 - [ ] **Owner:** provision a VIEWER user on `fct/case`, then set `FAMILY_COURT_TOOLKIT_STORE_URL` (a tailnet name, not an IP), `_USER` and `_PASS` on Coolify `gvghzivfmctev8dloetfssnj`, and redeploy.
 - [ ] **Owner decision:** access model for the hosted toolkit web app. (A) no login on the tailnet, as briefed; (B) reads open, writes need Authentik identity or a device token; (C) Authentik everywhere.
 - [ ] Portal tile repoint, `svc:family-court`, the public router repoint and retiring `/progress/family-court/` wait on the web app.
+
+## 2026-09-27 11:15 EDT — Probata Workbench: decision-free fixes built, deployed, six-step audit 6/6
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27 (teammate `workbench-build`, relaunch of the run stopped at 09:46 EDT). Per-item status: `modules/Probata/probata/docs/planning/2026-09-27-workbench-spec-from-record.md`._
+
+- **Built and on `main`:**
+  - `4c53a3e7` DF-10: stale retry fixtures fixed. The agno `Step(on_error=)` failures appear only under agno 3.x, not the pinned 2.8.7.
+  - `c387ef61` DF-24: Graphiti removed from the Workbench. DF-23: the lost 09-26 bylines are restored, and the canonical names are kept.
+  - `008371a9` DF-29: Next.js residue removed.
+  - `4c4ccc11` DF-27: "Mark as event" now renders once, on the message detail panel.
+  - `5c1e830d` DF-18: `proffer.py` is under 300 lines, and the new root CI workflow `probata-workbench.yml` passes.
+  - `804dd393`: two defects the audit found. Sources marks broke past 200 files (422s), and the Names flag was wrong. The favicon 404 is gone.
+- **CI note:** since the monorepo import, no nested workflow runs, and that includes Probata's own `validate.yml`. Only root workflows run.
+- **Deployed:**
+  - `zh8trbgku6sq0wohrkos0j0t` (`5c1e830d`) and `bj7pdt7shdwkg75vwk2x5ele` (`f35cbd87`).
+  - Both finished, and the app is `running:healthy`.
+- **Audit (`deploy/workbench-audit/audit.sh`, devbox headless Chrome, against `f35cbd87`): 6/6 pass.**
+  - Checks: browse 836 rows, pick row 834, hash, one TEST run, Review, receipts.
+  - It created TEST runs `4s1WLWcK…` and `42MEbZOQ…` (the earlier pass) in the DEV test matter. Both are parked at the preview decision and nothing is approved. No route removes an operation.
+- **Not built:**
+  - DF-19 needs an engine change: operations carry no content identity.
+  - PR-11 is closed as option A: bouts are retired.
+  - Everything gated on an OD-* decision.
+- [ ] DF-30: the devbox (tagged `ovh-files`) gets 403 from the Workbench. The audit rode the caller's tailnet login through a one-run tunnel. Fixing this needs `TAILSCALE_DEVICE_CAPABILITY` plus a tailnet grant.
+- [ ] DF-33 (Intake lane): `/api/intake/discovery/unit-lookup` answers 503 and every Intake search mode reports false.
+- [ ] DF-34: Review calls `/api/monitored-actions/capabilities`, which has no route (404). It is part of DF-13 and OD-04.
