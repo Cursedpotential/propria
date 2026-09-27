@@ -129,7 +129,15 @@ versioned `LegalSourcePackage` data and never becomes a second writable evidence
 - `Agno-MCP-Platform-agno - alpha/` is a parts bin, not an active build.
 - `dev-resources/` and `Legal-desktop/resources/build-kit/` are references/parts bins. Port bounded useful material only;
   never revive an archived iteration wholesale.
-- Never open or ingest `dev-resources/Archives/OTHER_RESOURCES_TO_SORT/Secrets/`.
+- `dev-resources/` is indexed for local search, and so is
+  `dev-resources/Archives/OTHER_RESOURCES_TO_SORT/` — each as its **own** ccc collection,
+  separate from this repository's. Owner ruling 2026-09-26: "I would like it indexed so you can
+  find the fucking shit," with the line drawn at publication rather than indexing — "don't push
+  it to GitHub." That holds because a ccc index is a local SQLite file under `.cocoindex_code/`,
+  which is gitignored, and `dev-resources/` is not a Git repository at all. **Nothing from either
+  tree is ever committed, pushed, or quoted into a published document**, and that applies to
+  `OTHER_RESOURCES_TO_SORT/Secrets/` in particular: findable locally, never published.
+  _(Supersedes the previous "never open or ingest" line, which predates the local collections.)_
 - Ignore `*.xxh3` checksum files during discovery.
 - Historical workspace handoffs and v8.1 guides are seeds, not current product truth.
 
