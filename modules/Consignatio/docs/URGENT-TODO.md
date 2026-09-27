@@ -3219,3 +3219,32 @@ stays the public, Authentik-gated door. Checked 04:03 EDT: all 30 tailnet-portal
 with no Authentik step. The unused 21-router draft is in `to_be_deleted/2026-09-27-tailnet-int-bypass-draft/`.
 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+## 2026-09-27 — octopoda Let's Encrypt 429 loop: stray domain cleared
+
+- **Symptom:** `coolify-proxy` on ovh-app was repeatedly failing ACME issuance for
+  `octopedia.int.mitechconsult.com`, eventually rate-limited by Let's Encrypt (429).
+- **Root cause:** the Coolify app `octopoda` (uuid `gwsmgd0sbqd9aheysa9g7xh4`, project
+  `propria`, server `ovh-app`) had `docker_compose_domains` set to
+  `{"octopoda":{"domain":"https://octopedia.int.mitechconsult.com"}}` — a stray/likely
+  fat-fingered domain ("octopedia" vs. "octopoda") with no DNS record (confirmed
+  NXDOMAIN). This is not a real intended public name anywhere in the repo docs, and
+  `deploy/octopoda.yaml`'s own header documents the service as tailnet-only, bound via
+  `BIND_IP`, fronted only by ContextForge — "never bind it to 0.0.0.0/public." A public
+  Let's Encrypt domain contradicted that design, so it was cleared rather than given DNS.
+- **Fix applied:** `PATCH /applications/gwsmgd0sbqd9aheysa9g7xh4` with
+  `docker_compose_domains: [{"name":"octopoda","domain":""}]` (an empty array alone was
+  a silent no-op; a single entry with an empty domain string is what actually clears it —
+  GET afterward showed `{"octopoda":{"domain":null}}`), then `deploy_application` to
+  redeploy. New container `octopoda-gwsmgd0sbqd9aheysa9g7xh4-080444872774` carries zero
+  `traefik.*` labels (previously had `http`/`https` routers + `tls.certresolver=letsencrypt`
+  for that host).
+- **Verified live:**
+  - `docker inspect` on the new container: no `traefik.*` labels at all.
+  - `coolify-proxy` log since the new container's own `StartedAt` (2026-09-27T08:05:19Z):
+    zero mentions of "octoped" (previously erroring every 1–60 min since 04:42Z).
+  - Container status `Up ... (healthy)`; TCP connect to `100.72.169.40:8095` from the
+    ovh-app host itself succeeds — tailnet path intact, ContextForge access unaffected.
+- **Not changed:** `deploy/octopoda.yaml` itself (no domain there to begin with — this
+  was Coolify-side metadata only, not a compose-file fix).
+
+> _Byline: Claude Sonnet 5 · 2026-09-27_
