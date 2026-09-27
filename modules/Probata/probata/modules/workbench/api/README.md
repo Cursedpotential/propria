@@ -1,21 +1,23 @@
-# Knowledge Workbench API
+# Probata Workbench API
 
 > _Byline: Claude Code · Sonnet (agent) · 2026-07-19 (drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: Milvus → Weaviate per ADR-0040; note data-vector DOWN since 2026-08-10)_
 > _Current-product repair: Codex · GPT-5 · 2026-08-15._
 > _Neutral Portkey streaming chat: Codex · GPT-5 · 2026-08-16._
 > _Runtime R2 and current inbound-auth contract: Codex · GPT-5.6-Sol · 2026-08-30._
+> _Graphiti routes removed, Sources line corrected: Claude Code · Opus 5.5 · 2026-09-27 (DF-24, DD-02)._
 <!-- Updated by: Codex (migration-passes/doc-patching) | Date: 2026-08-15 | Rev: 1 | Platform: Codex / win32 | Changes: Correct deploy path, layering, vector-store, and Knowledge status | Context: Align operator documentation with current source without claiming uncommitted work is deployed -->
 
-A staging + promote surface. It stages uploaded files locally (LanceDB
-whole-file store) and promotes them through the **existing** platform
-ingestion API. It never chunks, embeds, or writes the vector/PG stores itself
+The backend of the Workbench's Sources and Review screens (the six steps,
+`docs/PURPOSE.md`). The older staging + promote routes below (LanceDB
+whole-file store) are the legacy Operator Console design, which is not the
+approved product (`../AGENT_MEMORY.md`). It never chunks, embeds, or writes the vector/PG stores itself
 (~~Milvus~~ → Weaviate per ADR-0040; `data-vector`/Milvus DOWN deliberately since 2026-08-10) —
 see `deploy/workbench.yaml` for the Coolify deployment manifest and
 `docs/PROJECT_CANON.md` for where this fits in the wider platform.
 
 > **Implementation status — 2026-08-15:** the case-scoped Knowledge page and its
 > Workbench API/service changes are committed and pushed to `main`, but not deployed or
-> verified against live Weaviate/Graphiti services. See the R9 handoff for current gates.
+> verified against live Weaviate services. See the R9 handoff for current gates.
 
 > **Additional held slice:** the Matter/CourtCase BFF and Knowledge-to-Evidence flow are
 > locally tested, committed, and pushed. Migration
@@ -43,14 +45,14 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
 | Layer | Files | Role |
 |---|---|---|
 | `config` | `settings.py` | Runtime credential paths + LanceDB path + Platform URL + MCP server list |
-| `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py`, `mcp_client.py`, `spine_client.py`, `graphiti_client.py`, `opencode_client.py` | Object storage + LanceDB + MCP/Graphiti + spine/OpenCode HTTP clients |
-| `service` | upload/files/promote/runs/inspect/flags/knowledge/Graphiti/tools/repairs/chat/Copilot/classification/sentiment/comparison modules | Business orchestration over repository clients and the neutral Portkey HTTP adapter |
+| `repo` | `object_store_client.py`, `lancedb_client.py`, `staging.py`, `mcp_client.py`, `spine_client.py`, `opencode_client.py` | Object storage + LanceDB + MCP + spine/OpenCode HTTP clients |
+| `service` | upload/files/promote/runs/inspect/flags/knowledge/tools/repairs/chat/Copilot/classification/sentiment/comparison modules | Business orchestration over repository clients and the neutral Portkey HTTP adapter |
 | `runtime` | matching FastAPI routers under `app/runtime/` | HTTP validation and error translation |
 
 ## Endpoints
 
 - `POST /api/upload` — stream-hash + stage a file (dedupes by sha256)
-- `GET /api/proffer/sources` — browse the fixed, read-only `casebible-sorted` source bucket
+- `GET /api/proffer/sources` — browse the configured object stores (`OBJECT_STORES_JSON`, `SOURCE_ROOTS_JSON`); the B2 vault is the default root, read-write
 - `GET /api/files`, `GET /api/files/{id}`, `PATCH /api/files/{id}` — list/detail/edit staged files
 - `POST /api/promote/{id}`, `POST /api/promote-all` — framework-neutral document ingest through `/v1/ingest`, tracked by the durable `/v1/runs/{run_id}` receipt; AI-chat exports remain denied by D-082
 - `POST /api/runs` (json `{staged_id, workflow, domain, mode, source_meta}` or multipart `file`), `GET /api/runs`, `GET /api/runs/{id}` — proxy to the spine's `/v1/runs` pipeline (custody → parse → store → knowledge)
@@ -67,8 +69,6 @@ present and enforces this boundary. SDK-facing clients remain under `app/repo/`.
   horizon-prefiltered route. Non-evidence and cross-lane semantic search fail closed until
   their framework-neutral projections exist.
 - `GET /api/knowledge/contents` — locally verified proxy to the Platform API's paginated knowledge-content catalog.
-- `GET /api/graphiti/search`, `GET /api/graphiti/episodes` — locally verified, read-only
-  Graphiti memory inspection; a Graphiti group is a namespace, not an authorization boundary.
 - `GET|POST /api/matters`, `GET /api/matters/{id}`, and
   `POST /api/matters/{id}/court-cases` — held Workbench proxies to neutral Matter APIs.
 - `POST /api/matters/{id}/knowledge/resolve` and

@@ -5,13 +5,17 @@
 # Byline: Codex · GPT-5.6-Sol · 2026-08-29 (private Platform API service-DNS cutover)
 # Byline: Codex · GPT-5.6-Sol · 2026-08-30 (runtime proffer (then UIW) service credential)
 # Byline: Claude Code · Opus 5.5 · 2026-09-27 (edge: one tailnet-bound door, declared publish network, no propria-edge)
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-24 Graphiti env comment removed; DD-05 header true-up)
 # =============================================================================
-# KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
-# tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
-# (see compose.data-vector.yaml for the pattern precedent).
+# PROBATA WORKBENCH — its OWN Coolify app on OVH-1 ("ovh-app", tailnet
+# 100.72.169.40), app uuid xjbuo6drbwjfby75lalk8bk7. Single-service app per the
+# one-concern-per-app rule.
 #
-# Coolify Watch Paths for this app: workbench/** + deploy/workbench.yaml
-# Branch: workbench/sprint (sprint), main after milestone merges.
+# Builds from Cursedpotential/propria, branch main, base directory
+# /modules/Probata/probata. Watch paths are repository-root paths:
+# modules/Probata/probata/modules/workbench/** and
+# modules/Probata/probata/deploy/workbench.yaml. Auto-deploy is off; every
+# deploy is an explicit POST /api/v1/deploy.
 #
 # HOST-PREP (once, before first deploy):
 #   sudo mkdir -p /data/probata/volumes/workbench/{inbox,copilot}
@@ -45,8 +49,9 @@
 # reference through Temporal. The retired LanceDB intake store is not mounted
 # or used by this deployment. PostgreSQL remains canonical.
 #
-# Case Bible Sorted is the fixed default ingestion source. Credentials are read
-# at runtime from a mounted JSON document; the bucket is not filesystem-mounted.
+# Stores and roots are configuration (OBJECT_STORES_JSON, SOURCE_ROOTS_JSON);
+# the B2 vault is the default root. Credentials are read at runtime from mounted
+# documents; no bucket is filesystem-mounted.
 #
 # Coolify gotcha: env values are rendered as literals into the materialized
 # compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
@@ -127,10 +132,6 @@ services:
       # approved Workbench activation.
       PORTKEY_CONFIG: ${PORTKEY_CONFIG:-}
       PORTKEY_ENVIRONMENT: ${PORTKEY_ENVIRONMENT:-production}
-      # --- Graphiti knowledge-graph memory (C4 Graph memory pane) ---
-      # Graphiti is retired for now (D-070). SurrealDB is the governed final
-      # temporal-graph, walk, and analysis engine (D-073/D-080).
-      # GRAPHITI_MCP_URL: ${GRAPHITI_MCP_URL:-}
       # --- Ops Copilot (C2.5) — headless OpenCode server, exec-gateway app ---
       OPENCODE_URL: ${OPENCODE_URL:-http://100.72.169.40:4096}
       OPENCODE_USERNAME: ${OPENCODE_USERNAME:-opencode}

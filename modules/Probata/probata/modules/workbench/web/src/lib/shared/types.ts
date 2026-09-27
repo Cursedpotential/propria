@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane types added 2026-07-23)
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-24: Graphiti types removed; Graphiti is retired, D-070)
 // Byline: Codex · GPT-5 · 2026-08-18 (conversation intake and governed entities)
 // Byline: Codex · GPT-5 · 2026-08-15 (durable reports and Matter court-readiness contracts)
 // Byline: Codex · GPT-5 · 2026-08-18 (message projection, realization, and chunk lineage contracts)
@@ -1846,66 +1847,6 @@ export interface EvidenceItemListResponse {
   total: number;
   limit: number;
   offset: number;
-}
-
-// ---------------------------------------------------------------------------
-// Graphiti (C4 — Graph memory pane, read-only knowledge-graph search)
-// mirrors the same three read tools the `grc` CLI (graphiti-client skill)
-// exposes over MCP (search_memory_facts / search_nodes / get_episodes),
-// proxied through app/service/graphiti.py + app/runtime/knowledge.py. This
-// is a parallel-verified contract (grc.py + its failure-modes.md were read
-// directly, not guessed) rather than an independently-built spine — same
-// posture as the Records types above re: "not independently verified" only
-// applies to spine-side contracts, NOT this one (Graphiti's tool shapes were
-// confirmed live 2026-07-19 per the graphiti-client skill).
-// ---------------------------------------------------------------------------
-
-/** One fact from `GET /api/graphiti/search?kind=facts`. */
-export interface GraphitiFact {
-  uuid: string;
-  fact: string;
-  valid_at?: string | null;
-  invalid_at?: string | null;
-  group_id?: string | null;
-  [key: string]: unknown;
-}
-
-/** `GET /api/graphiti/search?kind=facts` response. */
-export interface GraphitiFactsResponse {
-  facts: GraphitiFact[];
-  message?: string;
-}
-
-/** One entity node from `GET /api/graphiti/search?kind=nodes`. */
-export interface GraphitiNode {
-  uuid: string;
-  name: string;
-  labels?: string[];
-  summary?: string | null;
-  group_id?: string | null;
-  [key: string]: unknown;
-}
-
-/** `GET /api/graphiti/search?kind=nodes` response. */
-export interface GraphitiNodesResponse {
-  nodes: GraphitiNode[];
-  message?: string;
-}
-
-/** One episode from `GET /api/graphiti/episodes`. */
-export interface GraphitiEpisode {
-  uuid: string;
-  name?: string | null;
-  content?: string | null;
-  created_at?: string | null;
-  group_id?: string | null;
-  [key: string]: unknown;
-}
-
-/** `GET /api/graphiti/episodes` response. */
-export interface GraphitiEpisodesResponse {
-  episodes: GraphitiEpisode[];
-  message?: string;
 }
 
 // ---------------------------------------------------------------------------

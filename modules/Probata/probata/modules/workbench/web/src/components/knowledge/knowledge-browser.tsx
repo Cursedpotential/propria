@@ -2,10 +2,11 @@
 // Byline: Codex · GPT-5 · 2026-08-16 (canonical source/chunk inspector)
 // Byline: Codex · GPT-5 · 2026-08-18 (authored/derived source catalog labels)
 // Byline: Codex · GPT-5.6-Sol · 2026-08-29 (native evidence-only semantic search)
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-24: Graphiti memory pane removed; Graphiti is retired, D-070)
 "use client";
 
 import { FormEvent, useState } from "react";
-import { BookOpen, Brain, Database, Eye, Loader2, Search } from "lucide-react";
+import { BookOpen, Database, Eye, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -25,16 +26,10 @@ import { KnowledgeItemDrawer } from "@/components/knowledge/knowledge-item-drawe
 import {
   ApiError,
   getKnowledgeContent,
-  listGraphitiEpisodes,
   listKnowledgeContents,
-  searchGraphitiFacts,
-  searchGraphitiNodes,
   searchKnowledge,
 } from "@/lib/api-client";
 import type {
-  GraphitiEpisode,
-  GraphitiFact,
-  GraphitiNode,
   EvidencePromotionResult,
   KnowledgeContentRow,
   KnowledgeItemDetail,
@@ -47,12 +42,10 @@ import type {
 const PAGE_SIZE = 20;
 const LANES = ["platform", "legal", "personal_history", "context", "evidence"] as const;
 const EVIDENCE_SEARCH_LANE = "evidence" as const;
-const GRAPHITI_GROUP = "platform";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/i;
 
-type View = "search" | "contents" | "memory";
-type MemoryKind = "facts" | "nodes" | "episodes";
+type View = "search" | "contents";
 
 interface KnowledgeBrowserProps {
   matterContext?: {
@@ -133,11 +126,6 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
   const [contentDetailLoading, setContentDetailLoading] = useState(false);
   const [contentDetailOpen, setContentDetailOpen] = useState(false);
 
-  const [memoryKind, setMemoryKind] = useState<MemoryKind>("facts");
-  const [facts, setFacts] = useState<GraphitiFact[]>([]);
-  const [nodes, setNodes] = useState<GraphitiNode[]>([]);
-  const [episodes, setEpisodes] = useState<GraphitiEpisode[]>([]);
-  const [resultGroup, setResultGroup] = useState<string | null>(null);
   const activePartition = matterContext?.partitionKey ?? caseId;
 
   async function loadContents(targetOffset: number) {
@@ -224,41 +212,6 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
     }
   }
 
-  async function runMemorySearch(event?: FormEvent) {
-    event?.preventDefault();
-    if (memoryKind !== "episodes" && !query.trim()) {
-      toast.error("Enter a memory search phrase");
-      return;
-    }
-    const requestedGroup = GRAPHITI_GROUP;
-    setFacts([]);
-    setNodes([]);
-    setEpisodes([]);
-    setResultGroup(null);
-    setLoading(true);
-    try {
-      if (memoryKind === "facts") {
-        const response = await searchGraphitiFacts(query.trim(), 20, requestedGroup);
-        setFacts((response.facts ?? []).filter((fact) => !fact.invalid_at));
-      } else if (memoryKind === "nodes") {
-        const response = await searchGraphitiNodes(query.trim(), 20, requestedGroup);
-        setNodes(response.nodes ?? []);
-      } else {
-        const response = await listGraphitiEpisodes(20, requestedGroup);
-        setEpisodes(response.episodes ?? []);
-      }
-      setResultGroup(requestedGroup);
-    } catch (error) {
-      setFacts([]);
-      setNodes([]);
-      setEpisodes([]);
-      setResultGroup(null);
-      toast.error(errorMessage(error, "Graphiti read failed"));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="space-y-4">
       {!matterContext && <div className="flex flex-wrap gap-2" role="tablist" aria-label="Knowledge views">
@@ -284,23 +237,11 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
         >
           <Database /> Sources
         </Button>
-        <Button
-          id="knowledge-memory-tab"
-          type="button"
-          role="tab"
-          aria-controls="knowledge-memory-panel"
-          aria-selected={view === "memory"}
-          variant={view === "memory" ? "default" : "outline"}
-          onClick={() => setView("memory")}
-        >
-          <Brain /> Graph memory
-        </Button>
       </div>}
 
       {matterContext && (
         <aside className="rounded-md border border-blue-300 bg-blue-50 p-3 text-sm text-blue-950">
           <strong>Matter-bound knowledge projection.</strong> Searches are prefiltered to partition <code>{activePartition}</code> before vector ranking.
-          Graphiti belief memory is separate agent state and is not queried, displayed, or promoted from this pane.
         </aside>
       )}
 
@@ -509,88 +450,6 @@ export function KnowledgeBrowser({ matterContext }: KnowledgeBrowserProps = {}) 
                 <Button variant="outline" size="sm" disabled={contentOffset === 0 || loading} onClick={() => void loadContents(Math.max(0, contentOffset - PAGE_SIZE))}>Previous</Button>
                 <Button variant="outline" size="sm" disabled={contentOffset + PAGE_SIZE >= contentTotal || loading} onClick={() => void loadContents(contentOffset + PAGE_SIZE)}>Next</Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {!matterContext && view === "memory" && (
-        <Card
-          id="knowledge-memory-panel"
-          role="tabpanel"
-          aria-labelledby="knowledge-memory-tab"
-          aria-busy={loading}
-        >
-          <CardHeader>
-            <CardTitle>Graphiti memory projection</CardTitle>
-            <CardDescription>
-              Read-only agent memory. It is not canonical evidence. Access is currently restricted to the platform namespace.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <form className="grid gap-3 lg:grid-cols-[16rem_10rem_1fr_auto] lg:items-end" onSubmit={runMemorySearch}>
-              <div className="space-y-1">
-                <Label htmlFor="memory-group">Graphiti group</Label>
-                <select
-                  id="memory-group"
-                  className="h-9 w-full rounded-md border border-input bg-muted px-3 text-sm"
-                  value={GRAPHITI_GROUP}
-                  disabled
-                >
-                  <option value={GRAPHITI_GROUP}>platform (fixed)</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="memory-kind">View</Label>
-                <select id="memory-kind" className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" value={memoryKind} onChange={(e) => setMemoryKind(e.target.value as MemoryKind)}>
-                  <option value="facts">Facts</option>
-                  <option value="nodes">Entities</option>
-                  <option value="episodes">Recent episodes</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="memory-query">{memoryKind === "episodes" ? "Query not required" : "Search phrase"}</Label>
-                <Input id="memory-query" value={query} disabled={memoryKind === "episodes"} onChange={(e) => setQuery(e.target.value)} placeholder="Search accumulated agent memory" />
-              </div>
-              <Button type="submit" disabled={loading}>
-                {loading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
-                {memoryKind === "episodes" ? "Load" : "Search"}
-              </Button>
-            </form>
-
-            <div className="space-y-3">
-              {memoryKind === "facts" && (
-                <p className="text-xs text-muted-foreground">Current facts only; invalidated facts are excluded.</p>
-              )}
-              {memoryKind === "facts" && facts.map((fact) => (
-                <article key={fact.uuid} className="rounded-lg border p-4">
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    <Badge variant="outline">Namespace: {resultGroup}</Badge>
-                    <Badge variant="secondary">current</Badge>
-                  </div>
-                  <p className="text-sm leading-6">{fact.fact}</p>
-                </article>
-              ))}
-              {memoryKind === "nodes" && nodes.map((node) => (
-                <article key={node.uuid} className="rounded-lg border p-4">
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    <span className="font-medium">{node.name}</span>
-                    <Badge variant="outline">Namespace: {resultGroup}</Badge>
-                    {node.labels?.map((label) => <Badge key={label} variant="outline">{label}</Badge>)}
-                  </div>
-                  {node.summary && <p className="text-sm leading-6 text-muted-foreground">{node.summary}</p>}
-                </article>
-              ))}
-              {memoryKind === "episodes" && episodes.map((episode) => (
-                <article key={episode.uuid} className="rounded-lg border p-4">
-                  <div className="mb-2 flex flex-wrap items-center gap-2"><span className="font-medium">{episode.name || "Episode"}</span><Badge variant="outline">Namespace: {resultGroup}</Badge></div>
-                  {episode.content && <p className="whitespace-pre-wrap text-sm leading-6">{episode.content}</p>}
-                  {episode.created_at && <p className="mt-2 text-xs text-muted-foreground">{episode.created_at}</p>}
-                </article>
-              ))}
-              {!loading && ((memoryKind === "facts" && facts.length === 0) || (memoryKind === "nodes" && nodes.length === 0) || (memoryKind === "episodes" && episodes.length === 0)) && (
-                <p className="py-10 text-center text-sm text-muted-foreground">Run a read to inspect this memory namespace.</p>
-              )}
             </div>
           </CardContent>
         </Card>

@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane added 2026-07-23)
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-24: Graphiti client calls removed; Graphiti is retired, D-070)
 // Byline: Codex · GPT-5 · 2026-08-15 (run reports, review actions, and court readiness)
 // Byline: Codex · GPT-5 · 2026-08-18 (conversation intake and governed entities)
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review client)
@@ -35,9 +36,6 @@ import type {
   FlagStatus,
   FlagTargetKind,
   FlagUpdateRequest,
-  GraphitiEpisodesResponse,
-  GraphitiFactsResponse,
-  GraphitiNodesResponse,
   HealthDepsResponse,
   KnowledgeContentsResponse,
   KnowledgeItemDetail,
@@ -1102,32 +1100,6 @@ export async function listEvidenceReviews(matterId: string, evidenceItemId: stri
   return apiFetch<EvidenceReviewListResponse>(
     `/api/matters/${encodeURIComponent(matterId)}/evidence-items/${encodeURIComponent(evidenceItemId)}/reviews?${query.toString()}`,
   );
-}
-
-// ---------------------------------------------------------------------------
-// Graphiti (C4 — Graph memory pane, read-only)
-// ---------------------------------------------------------------------------
-
-export async function searchGraphitiFacts(query: string, limit?: number, groupId = "platform") {
-  const qs = new URLSearchParams({ q: query, kind: "facts" });
-  qs.set("group_id", groupId);
-  if (limit) qs.set("limit", String(limit));
-  return apiFetch<GraphitiFactsResponse>(`/api/graphiti/search?${qs.toString()}`);
-}
-
-export async function searchGraphitiNodes(query: string, limit?: number, groupId = "platform") {
-  const qs = new URLSearchParams({ q: query, kind: "nodes" });
-  qs.set("group_id", groupId);
-  if (limit) qs.set("limit", String(limit));
-  return apiFetch<GraphitiNodesResponse>(`/api/graphiti/search?${qs.toString()}`);
-}
-
-export async function listGraphitiEpisodes(last?: number, groupId = "platform") {
-  const qs = new URLSearchParams();
-  qs.set("group_id", groupId);
-  if (last) qs.set("last", String(last));
-  const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  return apiFetch<GraphitiEpisodesResponse>(`/api/graphiti/episodes${suffix}`);
 }
 
 // ---------------------------------------------------------------------------

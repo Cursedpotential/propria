@@ -2,7 +2,8 @@
 # Byline: Codex · GPT-5 · 2026-08-16 (canonical item detail boundary coverage)
 # Byline: Codex · GPT-5 · 2026-08-18 (native evidence horizon proxy coverage)
 # Byline: Codex · GPT-5.6-Sol · 2026-08-29 (retired search failure boundary)
-"""HTTP contract tests for bounded Knowledge and Graphiti query parameters."""
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-24: Graphiti routes removed)
+"""HTTP contract tests for bounded Knowledge query parameters."""
 
 from __future__ import annotations
 
@@ -131,20 +132,7 @@ def test_search_rejects_unknown_lane_and_unbounded_limit():
     assert client.get("/api/knowledge/search", params={"q": "x", "limit": 101}).status_code == 422
 
 
-def test_graphiti_rejects_unknown_kind():
-    response = _client().get("/api/graphiti/search", params={"q": "x", "kind": "episodes"})
-    assert response.status_code == 422
-
-
-def test_graphiti_denied_group_becomes_403(monkeypatch):
-    monkeypatch.setattr(
-        runtime.graphiti_service,
-        "search_facts",
-        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("Graphiti group is not authorized")),
-    )
-    response = _client().get(
-        "/api/graphiti/search",
-        params={"q": "x", "group_id": "guessed-case"},
-    )
-    assert response.status_code == 403
-    assert response.json()["detail"] == "Graphiti group is not authorized"
+def test_graphiti_routes_are_gone():
+    # Graphiti is retired (D-070); the Workbench no longer proxies it.
+    assert _client().get("/api/graphiti/search", params={"q": "x"}).status_code == 404
+    assert _client().get("/api/graphiti/episodes").status_code == 404
