@@ -55,7 +55,23 @@ if str(_REPO_ROOT) not in sys.path:
 
 from server.core import audit  # noqa: E402
 
-_MIGRATION_SQL = (_REPO_ROOT / "sql" / "0020_audit_ledger.sql").read_text(encoding="utf-8")
+_MIGRATION_PATH = _REPO_ROOT / "sql" / "0020_audit_ledger.sql"
+_MIGRATION_RETIRED_REASON = (
+    "sql/0020_audit_ledger.sql was retired into "
+    "sql/_stale/migrations-retired-20260907/ on 2026-09-07 ('the snapshot is "
+    "the database' — D-142 §3, D-152); that directory's README says retired "
+    "migrations are never referenced by code or tests. This module targets "
+    "the actual migration file BY DESIGN (see module docstring: 'not a "
+    "hand-copied schema'); ops.audit_ledger is still present in "
+    "sql/bootstrap/schema_snapshot_20260907.sql, so the feature (append-only "
+    "+ hash-chain tamper detection backing server/core/audit.py, ADR-0047 / "
+    "D-042) is very likely still live — it is the retired FILE, not the "
+    "behavior, that is gone. Needs a rewrite that sources ops.audit_ledger's "
+    "DDL from the current schema snapshot (or introspects a live migrated "
+    "database) instead of the retired numbered file — tracked in "
+    "docs/URGENT-TODO.md."
+)
+_MIGRATION_SQL = _MIGRATION_PATH.read_text(encoding="utf-8") if _MIGRATION_PATH.exists() else ""
 
 # Verbatim from sql/0017_append_only_guards.sql (see module docstring for why
 # it is reproduced here instead of running the full migration chain).
@@ -91,14 +107,17 @@ def _pg_reachable() -> bool:
         return False
 
 
-pytestmark = pytest.mark.skipif(
-    not _pg_reachable(),
-    reason=(
-        "no scratch Postgres reachable for audit-ledger tests — set AUDIT_TEST_PG_HOST/PORT/"
-        "USER/PASS (or DB_HOST/PORT/USER/PASS), or start a scratch pgvector/pg18 container "
-        "on port 55432 (see this module's docstring)."
+pytestmark = [
+    pytest.mark.skipif(not _MIGRATION_PATH.exists(), reason=_MIGRATION_RETIRED_REASON),
+    pytest.mark.skipif(
+        not _pg_reachable(),
+        reason=(
+            "no scratch Postgres reachable for audit-ledger tests — set AUDIT_TEST_PG_HOST/PORT/"
+            "USER/PASS (or DB_HOST/PORT/USER/PASS), or start a scratch pgvector/pg18 container "
+            "on port 55432 (see this module's docstring)."
+        ),
     ),
-)
+]
 
 
 @pytest.fixture
