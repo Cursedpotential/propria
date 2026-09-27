@@ -1282,7 +1282,15 @@ app = coco.App(
 async def _run_checked() -> None:
     # app.update starts this app's explicit environment. coco.runtime() would
     # start the DEFAULT environment and consume unrelated ambient state.
-    options = {"full_reprocess": True} if os.environ.get("DOCSTORE_FULL_REPROCESS", "").strip() == "1" else {}
+    # DOCSTORE_PREVIEW=1 reports what a run WOULD do and writes nothing. Use it
+    # before the first run from a new checkout or a moved state database: if the
+    # memo keys do not carry over, an ordinary run re-embeds every source against
+    # the live store, and preview is how you find that out for free.
+    options: dict[str, bool] = {}
+    if os.environ.get("DOCSTORE_FULL_REPROCESS", "").strip() == "1":
+        options["full_reprocess"] = True
+    if os.environ.get("DOCSTORE_PREVIEW", "").strip() == "1":
+        options["preview"] = True
     handle = app.update(**options)
     await handle.result()
     stats = handle.stats()

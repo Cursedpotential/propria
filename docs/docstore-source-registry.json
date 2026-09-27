@@ -39,7 +39,7 @@
       "project_id": "propria",
       "title": "Propria shared documentation (Propria/docs itself)",
       "source_root": "docs",
-      "canonical_prefix": "propria/docs",
+      "canonical_prefix": "propria/docs/",
       "domains": [
         "docs",
         "infra"
@@ -48,6 +48,7 @@
         "**/*.md"
       ],
       "excluded_patterns": [
+        "private/**",
         "probata/**",
         "consignatio/**",
         "consignatio-intake/**",
@@ -69,7 +70,7 @@
       "project_id": "probata",
       "title": "Indicia Probata",
       "source_root": "docs/probata",
-      "canonical_prefix": "docs",
+      "canonical_prefix": "docs/",
       "domains": [
         "probata",
         "proffer",
@@ -96,7 +97,7 @@
       "project_id": "consignatio",
       "title": "Consignatio",
       "source_root": "docs/consignatio",
-      "canonical_prefix": "consignatio/docs",
+      "canonical_prefix": "consignatio/docs/",
       "domains": [
         "consignatio",
         "docs"
@@ -105,6 +106,7 @@
         "**/*.md"
       ],
       "excluded_patterns": [
+        "private/**",
         "**/to_be_deleted/**",
         "**/.remember/**",
         "**/.cnf/**",
@@ -119,7 +121,7 @@
       "project_id": "consignatio-intake",
       "title": "Consignatio Intake",
       "source_root": "docs/consignatio-intake",
-      "canonical_prefix": "consignatio/Intake/docs",
+      "canonical_prefix": "consignatio/Intake/docs/",
       "domains": [
         "consignatio",
         "intake",
@@ -129,6 +131,7 @@
         "**/*.md"
       ],
       "excluded_patterns": [
+        "private/**",
         "**/to_be_deleted/**",
         "**/.remember/**",
         "**/.cnf/**",
@@ -143,7 +146,7 @@
       "project_id": "advocatio",
       "title": "Advocatio legal workbench (Legal-desktop)",
       "source_root": "docs/advocatio",
-      "canonical_prefix": "advocatio/docs",
+      "canonical_prefix": "advocatio/docs/",
       "domains": [
         "advocatio",
         "docs"
@@ -152,6 +155,7 @@
         "**/*.md"
       ],
       "excluded_patterns": [
+        "private/**",
         "planning/original-context/**",
         "**/to_be_deleted/**",
         "**/.remember/**",
@@ -167,7 +171,7 @@
       "project_id": "vestigia",
       "title": "Vestigia (formerly TraceIQ) rebuild",
       "source_root": "docs/vestigia",
-      "canonical_prefix": "vestigia/traceiq-rebuild/docs",
+      "canonical_prefix": "vestigia/traceiq-rebuild/docs/",
       "domains": [
         "vestigia",
         "docs"
@@ -176,6 +180,7 @@
         "**/*.md"
       ],
       "excluded_patterns": [
+        "private/**",
         "**/to_be_deleted/**",
         "**/.remember/**",
         "**/.cnf/**",
@@ -190,7 +195,7 @@
       "project_id": "family-court-workbench",
       "title": "Family Court Workbench (FL-MCP)",
       "source_root": "docs/family-court",
-      "canonical_prefix": "family-court-workbench/docs",
+      "canonical_prefix": "family-court-workbench/docs/",
       "domains": [
         "workbench",
         "docs"
@@ -199,6 +204,7 @@
         "**/*.md"
       ],
       "excluded_patterns": [
+        "private/**",
         "**/to_be_deleted/**",
         "**/.remember/**",
         "**/.cnf/**",
@@ -210,5 +216,5 @@
       "required": true
     }
   ],
-  "byline": "Claude Code · Opus 5 · 2026-09-19 — owner: Propria/docs is the one Docstore root for the entire project; each module docs folder is a junction under it. Prefixes keep the pre-move document IDs."
+  "byline": "Claude Code · Opus 5 · 2026-09-19 — owner: Propria/docs is the one Docstore root for the entire project; each module docs folder is a junction under it. Prefixes keep the pre-move document IDs. | Amended 2026-09-26 (Claude Code / Opus 5, owner ruling): seven roots including vestigia and family-court-workbench; canonical_prefix restored to the slash-terminated form the live store was built with, so no document is re-identified."
 }
