@@ -1,0 +1,51 @@
+# =============================================================================
+# PROPRIA PROGRESS BOARD — the /progress pages (lanes, health, Intake preview, family-court
+# preview) and the JSON API the portal's Live board widgets read (/api/lane-rollups,
+# /api/surfaces-summary, /api/health-summary, /api/todo-feed, /api/health-history, /api/timeline).
+#
+# Reached as 100.72.169.40:3020: tailscale serve svc:homepage routes /progress here on the tailnet,
+# Traefik routes progress.int.mitechconsult.com and homepage.int.mitechconsult.com/progress here
+# behind Authentik, and both portal containers fetch the widget JSON from it directly.
+#
+# Source: deploy/docker/progress-board/ (copied byte-for-byte from the running host copy
+# /data/dashboards/progress-board on 2026-09-26; file hashes in its README). Host data that is not
+# source stays on the host (absolute binds; Coolify's render directory has no repository checkout):
+#   /data/dashboards/progress-board/intake-build  Intake preview releases + current.json pointer
+#   /data/dashboards/progress-board/data          URGENT-TODO.md copy written by the to-do sync
+#   /data/dashboards/progress-board.env           Surreal, OpenList and catalog settings
+#   /data/probata/secrets/...                     catalog read-only password, repair-queue config
+#
+# Replaces the Coolify SERVICE `propria-progress-board` (uuid homv6zeg4ay2r2puxtzakf83), whose
+# compose lives only in Coolify and which runs `node server.mjs` straight from the host folder.
+# Not deployed yet: the switch takes port 3020 from the running service, so it waits on the
+# owner's go (Consignatio docs/URGENT-TODO.md, 2026-09-26 portal entry).
+# Watch paths when it becomes a Coolify application:
+#   modules/Probata/probata/deploy/progress-board.yaml
+#   modules/Probata/probata/deploy/docker/progress-board/**
+#
+# Byline: Claude Code · Opus 5.5 · 2026-09-26
+# =============================================================================
+
+services:
+  progress-board:
+    build:
+      context: ./deploy/docker/progress-board
+      dockerfile: Dockerfile
+    image: propria-progress-board:latest
+    restart: unless-stopped
+    env_file:
+      - /data/dashboards/progress-board.env
+    ports:
+      - "100.72.169.40:3020:3020"
+    volumes:
+      - /data/dashboards/progress-board/intake-build:/app/intake-build:ro
+      - /data/dashboards/progress-board/data:/app/data:ro
+      - /data/probata/secrets/progress-board/metabase-ro:/run/secrets/metabase-ro:ro
+      - /data/probata/secrets/portal-repair:/run/secrets/portal-repair:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3020/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - traefik.enable=false

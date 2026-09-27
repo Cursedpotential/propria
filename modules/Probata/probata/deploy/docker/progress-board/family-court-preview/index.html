@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Read-only preview of the Michigan Family Court Toolbox surface." />
+    <title>Michigan Family Court Toolbox — Preview</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#workspace">Skip to preview</a>
+    <header class="preview-banner" role="status" aria-label="Preview status">
+      <strong>Preview only</strong>
+      <span>No live case data · no database connection · no legal results</span>
+    </header>
+
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Toolbox preview navigation">
+        <div class="brand-block">
+          <span class="brand-mark" aria-hidden="true">FC</span>
+          <div>
+            <p class="overline">Michigan family court</p>
+            <p class="brand-name">Toolbox</p>
+          </div>
+        </div>
+
+        <nav class="view-nav" aria-label="Available preview views">
+          <button class="nav-item is-active" type="button" data-view="dashboard" aria-current="page">
+            <span class="nav-number">01</span><span>Dashboard</span>
+          </button>
+          <button class="nav-item" type="button" data-view="route">
+            <span class="nav-number">02</span><span>Issue route</span>
+          </button>
+          <button class="nav-item" type="button" data-view="deadline">
+            <span class="nav-number">03</span><span>Deadline</span>
+          </button>
+          <button class="nav-item" type="button" data-view="packet">
+            <span class="nav-number">04</span><span>Packet</span>
+          </button>
+          <button class="nav-item" type="button" data-view="checklist">
+            <span class="nav-number">05</span><span>Checklist</span>
+          </button>
+          <button class="nav-item" type="button" data-view="sources">
+            <span class="nav-number">06</span><span>Sources</span>
+          </button>
+          <button class="nav-item" type="button" data-view="search">
+            <span class="nav-number">07</span><span>Search</span>
+          </button>
+          <button class="nav-item" type="button" data-view="chronology">
+            <span class="nav-number">08</span><span>Chronology</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-note">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div>
+            <strong>Disconnected preview</strong>
+            <span>MCP + SurrealDB unavailable here</span>
+          </div>
+        </div>
+      </aside>
+
+      <main id="workspace" class="workspace" tabindex="-1">
+        <header class="workspace-header">
+          <div>
+            <p class="overline">Standalone browser surface</p>
+            <h1>Michigan Family Court Toolbox</h1>
+            <p class="lede">Inspect the planned console without opening a case or loading legal-reference data.</p>
+          </div>
+          <div class="header-actions">
+            <button id="theme-toggle" class="quiet-button" type="button" aria-pressed="false">Dark preview</button>
+            <span class="release-stamp">Not connected</span>
+          </div>
+        </header>
+
+        <section class="boundary-card" aria-labelledby="boundary-title">
+          <div class="boundary-icon" aria-hidden="true">!</div>
+          <div>
+            <h2 id="boundary-title">This surface cannot make a legal determination</h2>
+            <p>This preview is not legal advice. Inputs and action buttons are intentionally unavailable. Current rules, filing requirements, dates, and case-specific decisions must be verified in the connected tool against official primary sources and qualified legal help.</p>
+          </div>
+        </section>
+
+        <div id="view-container" class="view-container" aria-live="polite">
+          <section class="tool-view is-visible" data-panel="dashboard" aria-labelledby="dashboard-title">
+            <div class="docket-shell">
+              <aside class="docket-rail">
+                <strong>Docket<br />desk</strong>
+                <span class="stamp provisional">Preview only</span>
+              </aside>
+              <div class="docket-main">
+                <p class="eyebrow">Michigan family court · planning aid</p>
+                <h2 id="dashboard-title" class="view-title">What needs attention next?</h2>
+                <p class="muted">A connected console would show a practical next step and why it matters. This preview has no case state.</p>
+                <div class="two-column">
+                  <section>
+                    <h3>Next actions</h3>
+                    <div class="empty-state">No actions loaded. The preview does not infer work from missing facts.</div>
+                  </section>
+                  <section>
+                    <h3>Source posture</h3>
+                    <div class="empty-state">No source status loaded. The legal-source ledger was not imported.</div>
+                  </section>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="tool-view" data-panel="route" aria-labelledby="route-title" hidden>
+            <div class="route-shell">
+              <span class="color-rail" aria-hidden="true"></span>
+              <div class="view-pad">
+                <p class="eyebrow">Issue routing · informational only</p>
+                <h2 id="route-title" class="view-title">Find the right lane</h2>
+                <p class="muted">The connected tool first checks for safety-critical route-outs. This preview does not accept or classify an issue.</p>
+                <div class="route-result"><span>Likely route</span><strong>Awaiting issue details</strong></div>
+                <div class="three-column">
+                  <section><h3>Why this route</h3><div class="empty-state">No reasoning loaded.</div></section>
+                  <section><h3>Pause conditions</h3><div class="empty-state">No issue was submitted.</div></section>
+                  <section><h3>Next actions</h3><div class="empty-state">No actions loaded.</div></section>
+                </div>
+                <button class="disabled-action" type="button" disabled>Connect MCP tool to route an issue</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="tool-view" data-panel="deadline" aria-labelledby="deadline-title" hidden>
+            <div class="paper-view time-watermark">
+              <p class="eyebrow">Calendar planning · verify the governing rule</p>
+              <h2 id="deadline-title" class="view-title">Deadline check</h2>
+              <div class="date-focus"><strong>—</strong><span>No anchor date or rule selected</span></div>
+              <dl class="definition-grid">
+                <div><dt>Anchor</dt><dd>Not supplied</dd></div>
+                <div><dt>Direction</dt><dd>Not supplied</dd></div>
+                <div><dt>Rule basis</dt><dd>Must be verified</dd></div>
+                <div><dt>Result</dt><dd>Not calculated</dd></div>
+              </dl>
+              <p class="warning-note">Planning aid only. Service method, order type, weekends, holidays, and qualifying motions can change a deadline.</p>
+              <button class="disabled-action" type="button" disabled>Deadline calculator disconnected</button>
+            </div>
+          </section>
+
+          <section class="tool-view" data-panel="packet" aria-labelledby="packet-title" hidden>
+            <div class="paper-view">
+              <div class="title-row">
+                <div><p class="eyebrow">Guarded packet plan</p><h2 id="packet-title" class="view-title">Packet structure</h2></div>
+                <span class="stamp provisional">0 sections</span>
+              </div>
+              <div class="progress-track" aria-label="No packet progress"><span style="width: 0%"></span></div>
+              <div class="section-list">
+                <div class="numbered-empty"><span>01</span><div><strong>Case context required</strong><p>No case facts or packet goal are loaded.</p></div><em>blocked</em></div>
+                <div class="numbered-empty"><span>02</span><div><strong>Source support required</strong><p>No evidence references or reviewed authorities are loaded.</p></div><em>blocked</em></div>
+                <div class="numbered-empty"><span>03</span><div><strong>Human review required</strong><p>The preview cannot approve, file, serve, or transmit.</p></div><em>blocked</em></div>
+              </div>
+              <button class="disabled-action" type="button" disabled>Connect case context to build a plan</button>
+            </div>
+          </section>
+
+          <section class="tool-view" data-panel="checklist" aria-labelledby="checklist-title" hidden>
+            <div class="paper-view">
+              <div class="title-row ruled">
+                <div><p class="eyebrow">Practical checklist · review before filing</p><h2 id="checklist-title" class="view-title">Checklist</h2></div>
+                <span class="count-chip">0 of 0</span>
+              </div>
+              <div class="empty-state large">No checklist selected. A connected tool can open evidence, hearing-preparation, or source-review checklists without filing anything.</div>
+              <button class="disabled-action" type="button" disabled>Checklist tool disconnected</button>
+            </div>
+          </section>
+
+          <section class="tool-view" data-panel="sources" aria-labelledby="sources-title" hidden>
+            <div class="source-shell">
+              <aside class="source-rail"><strong>Source<br />ledger</strong><div class="legend"><span class="verified-key">verified</span><span class="provisional-key">provisional</span><span class="stop-key">stop</span></div></aside>
+              <div class="view-pad">
+                <p class="eyebrow">Authority and currentness audit</p>
+                <h2 id="sources-title" class="view-title">What supports this?</h2>
+                <p class="muted">No source audit loaded.</p>
+                <div class="empty-state large">The preview intentionally excludes the legal-source registry, verification ledger, citations, and case materials.</div>
+                <button class="disabled-action" type="button" disabled>Source audit disconnected</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="tool-view" data-panel="search" aria-labelledby="search-title" hidden>
+            <div class="search-shell">
+              <header><div><p class="eyebrow light">Custody guide index</p><h2 id="search-title" class="view-title light-title">Search results</h2></div><span class="count-chip dark-chip">0 matches</span></header>
+              <div class="search-empty">No index or legal-reference content is present in this preview.</div>
+              <div class="fake-search" aria-hidden="true"><span>Search becomes available after the reviewed guide registry is connected.</span><button type="button" disabled>Search</button></div>
+            </div>
+          </section>
+
+          <section class="tool-view" data-panel="chronology" aria-labelledby="chronology-title" hidden>
+            <div class="paper-view">
+              <div class="title-row"><div><p class="eyebrow">Chronology · occurrence is not proof</p><h2 id="chronology-title" class="view-title">Case chronology</h2></div><span class="count-chip">Horizon not set</span></div>
+              <div class="timeline-empty">
+                <span class="timeline-node" aria-hidden="true"></span>
+                <div><strong>No events loaded</strong><p>Occurrence date, knowledge date, source support, and legal significance remain separate.</p></div>
+              </div>
+              <button class="disabled-action" type="button" disabled>Chronology tool disconnected</button>
+            </div>
+          </section>
+        </div>
+
+        <footer class="provenance">
+          <span>Surface preview · family-court-console MCP App v3.0 contract</span>
+          <span>Reviewed 2026-09-12 · no live data copied</span>
+        </footer>
+      </main>
+    </div>
+    <script src="app.js" defer></script>
+  </body>
+</html>

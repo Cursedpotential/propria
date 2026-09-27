@@ -1,0 +1,130 @@
+[
+  {
+    "name": "Consignatio / Case Bible Intake",
+    "lane": "Consignatio / Case Bible Intake",
+    "url": "https://homepage.tilapia-skilift.ts.net/progress/intake/",
+    "status": "VPS component preview; shared context integration pending",
+    "updated_at": "2026-09-12T15:52:27.885Z"
+  },
+  {
+    "name": "Probata workbench",
+    "lane": "Probata",
+    "url": "https://workbench.tilapia-skilift.ts.net/"
+  },
+  {
+    "name": "Probata intake",
+    "lane": "Probata",
+    "url": "https://workbench.tilapia-skilift.ts.net/intake",
+    "status": "Governed evidence intake preview"
+  },
+  {
+    "name": "Pipeline preview",
+    "lane": "Probata",
+    "url": "https://workbench.tilapia-skilift.ts.net/evidence/preview"
+  },
+  {
+    "name": "Tool explorer",
+    "lane": "Probata",
+    "url": "https://workbench.tilapia-skilift.ts.net/tools",
+    "status": "Advanced / in process"
+  },
+  {
+    "name": "Advocatio legal workbench",
+    "lane": "Advocatio legal workbench",
+    "url": "https://legal.tilapia-skilift.ts.net/",
+    "status": "Preview available \u00b7 capability map 383/383 complete",
+    "checked_at": "2026-09-20T23:28:29.206427+00:00"
+  },
+  {
+    "name": "Michigan family court toolbox",
+    "lane": "Michigan family court toolbox",
+    "url": "https://homepage.tilapia-skilift.ts.net/progress/family-court/",
+    "status": "Eight-view read-only preview; no live case data or legal results"
+  },
+  {
+    "name": "OpenList storage browser",
+    "lane": "Storage",
+    "url": "https://files.tilapia-skilift.ts.net/"
+  },
+  {
+    "name": "Filestash",
+    "lane": "Storage",
+    "url": "http://100.72.169.40:3023/",
+    "status": "Isolated setup screen; OpenList connection pending"
+  },
+  {
+    "name": "SurrealDB Studio / Surrealist",
+    "lane": "Surreal",
+    "url": null,
+    "status": "Self-hosted viewer not deployed; saved connections required for surreal-case, surreal-docs and surreal-intake"
+  },
+  {
+    "name": "PostgreSQL data explorer",
+    "lane": "Database tools",
+    "url": "https://workbench.tilapia-skilift.ts.net/schemas",
+    "status": "Read-only advanced preview"
+  },
+  {
+    "name": "Weaviate data explorer",
+    "lane": "Database tools",
+    "url": "https://workbench.tilapia-skilift.ts.net/schemas",
+    "status": "Read-only advanced preview"
+  },
+  {
+    "name": "Neo4j Browser",
+    "lane": "Database tools",
+    "url": "https://neo4j.tilapia-skilift.ts.net/browser/"
+  },
+  {
+    "name": "Attu",
+    "lane": "Database tools",
+    "url": "http://100.91.190.107:3001/"
+  },
+  {
+    "name": "Coolify",
+    "lane": "Infrastructure",
+    "url": "http://100.98.98.38:8000/"
+  },
+  {
+    "name": "Temporal",
+    "lane": "Infrastructure",
+    "url": "https://temporal.tilapia-skilift.ts.net/"
+  },
+  {
+    "name": "n8n",
+    "lane": "Infrastructure",
+    "url": "https://n8n.tilapia-skilift.ts.net/"
+  },
+  {
+    "name": "ContextForge",
+    "lane": "Infrastructure",
+    "url": "https://contextforge.tilapia-skilift.ts.net/admin"
+  },
+  {
+    "name": "Portkey",
+    "lane": "Infrastructure",
+    "url": "https://portkey.tilapia-skilift.ts.net/"
+  },
+  {
+    "name": "LLM probe playground",
+    "lane": "Developer tools",
+    "url": "http://100.91.190.107:8031/playground"
+  },
+  {
+    "name": "OpenCode",
+    "lane": "Developer tools",
+    "url": "http://100.91.190.107:4096/",
+    "status": "Sign-in required"
+  },
+  {
+    "name": "Infisical",
+    "lane": "Infrastructure",
+    "url": "https://infisical.tilapia-skilift.ts.net/"
+  },
+  {
+    "name": "LibreChat",
+    "lane": "Developer tools",
+    "url": null,
+    "status": "Stopped; preview unavailable"
+  }
+]
