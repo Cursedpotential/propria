@@ -19,3 +19,34 @@
 *.zip binary
 *.parquet binary
 *.lance binary
+
+# Added 2026-09-26: binary types the earlier list missed. Without these a
+# renormalisation pass would treat them as text and corrupt them.
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.node binary
+*.wasm binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.ico binary
+*.gz binary
+*.tgz binary
+*.bz2 binary
+*.xz binary
+*.7z binary
+*.mp4 binary
+*.mp3 binary
+*.wav binary
+*.pyc binary
+*.db binary
+*.duckdb binary
+*.sqlite binary
+*.jar binary
+
+# Extensionless files that are actually binary (verified by NUL bytes, 2026-09-26).
+modules/vestigia-geodata_processor/03_Evidence_Analysis/ConflictAnalysisApp/data -text
+modules/vestigia-geodata_processor/05_Installers_Zips -text

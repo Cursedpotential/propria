@@ -27,3 +27,32 @@ modules/engine/vendor/github.com/tailscale/web-client-prebuilt/build/** -text
 *.zip    binary
 *.duckdb binary
 *.pdf    binary
+
+# Added 2026-09-26 before the repository-wide renormalisation. This nested file
+# overrides the root .gitattributes for everything under Probata, so the root's
+# binary list does not reach these paths — they must be repeated here or a
+# renormalisation pass treats them as text and corrupts them.
+*.exe    binary
+*.dll    binary
+*.so     binary
+*.dylib  binary
+*.node   binary
+*.wasm   binary
+*.pyc    binary
+*.ico    binary
+*.gz     binary
+*.7z     binary
+*.mp4    binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary
+*.jar    binary
+*.sqlite binary
+*.gif    binary
+*.jpeg   binary
+*.webp   binary
+*.parquet binary
+*.lance  binary
+*.class  binary
+*.bin    binary
