@@ -1,13 +1,9 @@
 ---
-description: Recall any document from the cloud docstore - hybrid keyword + vector search, reranked, compact table
-argument-hint: "<question>" [--k 8] [--status all] [--why]
-allowed-tools: Bash, Read
+description: Search and retrieve remote project documentation.
+argument-hint: <request>
 ---
 
-<!-- Byline: Claude Code · Opus 5 · 2026-09-10 — owner order: "/recall doc" pulls it up; all processing inside the tool. -->
+Load ${CLAUDE_PLUGIN_ROOT}/skills/docs/SKILL.md and carry out the user request: $ARGUMENTS
+Use the attached ctl tools and the named skill. Do not inventory unrelated plugins or use Scout for a known Docstore request.
 
-Docstore recall (any document type) for: $ARGUMENTS
-
-!`C:/Users/matts/.local/bin/python3.exe "E:/AI_Workspace/Projects/Propria/Probata/probata/scripts/docstore/recall.py" doc $ARGUMENTS 2>&1`
-
-Show the table exactly as printed. Then at most three bullets: which result answers the question, with its path. If the top score is under 0.3, say the store has no strong match rather than stretching a weak one. Add `--why` to see the matching passage, `--status all` to include superseded documents.
+<!-- Byline: Codex, 2026-09-20. Direct command retained with hosted five-tool routing. -->

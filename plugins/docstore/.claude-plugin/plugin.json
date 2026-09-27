@@ -3,7 +3,7 @@
   "name": "propria-docstore",
   "displayName": "Propria Docstore",
   "description": "Universal Propria documentation retrieval, notes, decisions, revisions, CDC verification, project registry, graph resources, and memory access. Isolated from codebase CCC indexes.",
-  "version": "0.6.5",
+  "version": "0.8.1",
   "author": {
     "name": "Matthew Salem"
   },
@@ -18,7 +18,10 @@
     "mcp"
   ],
   "defaultEnabled": true,
-  "skills": ["./control/skills/", "./claude/skills/"],
+  "skills": [
+    "./control/skills/",
+    "./claude/skills/"
+  ],
   "commands": "./claude/commands/",
   "agents": [
     "./claude/agents/docstore-librarian.md",

@@ -175,7 +175,6 @@ def register(mcp, config, read_annotations):
     @mcp.tool(annotations=annotations)
     async def docstore_handoff_write(handoff: HandoffWrite) -> dict:
         """Write and verify one governed Docstore handoff. Pass `supersedes` (document:<id> list)
-        for the specific prior handoff(s) this replaces; omitting it falls back to superseding
-        EVERY active handoff whose domain set exactly equals `domains`, which can be more than
-        one row for a common domain -- prefer an explicit list."""
+        for the specific prior handoff(s) this replaces. Omitted supersedes becomes [];
+        it never supersedes every same-domain handoff."""
         return await write_handoff(config, handoff)

@@ -10,7 +10,7 @@ the commands and agents all get identical results.
 Endpoints (JSON unless noted):
   /health                                   liveness + store reachability
   /stats                                    document/chunk/edge counts, vector index status
-  /recall?q=&kind=doc|adr|handoff|...&k=8&status=all|active|unverified|proposed|superseded|retracted (default all)&domain=&rerank=true
+  /recall?q=&kind=doc|adr|handoff|...&k=8&status=active|all&domain=&rerank=true
   /doc/{record_id}                          one document (body included)
   /graph/{ref}?limit=25&format=json|mermaid ref = ADR-NNNN, document:<id>, or a path fragment
   GET /pipeline                              live app/environment identity from durable status
@@ -52,11 +52,11 @@ RUN_STATUS = pathlib.Path(os.environ.get(
 RUN_RECEIPTS = pathlib.Path(os.environ.get("DOCSTORE_RUN_RECEIPTS", str(RUN_STATUS.parent / "runs")))
 _jobs: dict[str, subprocess.Popen] = {}
 _jobs_lock = threading.Lock()
-app = FastAPI(title="probata docstore API", version="0.2.0")
+app = FastAPI(title="Propria Docstore API", version="0.8.1")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST", "DELETE"], allow_headers=["*"])
 INDEX_IDENTITY = {"app": "ProbataDocStore", "environment": "probata-docstore", "index_kind": "docs",
                   "contract": "propria-docstore-operations/v1",
-                  "allowed_source_roots": ["docs/"], "allowed_file_classes": ["markdown"],
+                  "allowed_source_roots": ["Propria/docs","Probata/probata/docs","Consignatio/docs","Consignatio/Intake/docs","Legal-desktop/docs"], "allowed_file_classes": ["markdown"],
                   "rejected_file_classes": ["source_code", "configuration", "test"]}
 
 
@@ -88,7 +88,7 @@ def _sync_status() -> dict:
                  "worker_pid",
                  "source_scope", "requested_scope", "source_count", "source_digest_before",
                  "source_digest_after", "full_reprocess", "tracking_rebuild",
-                 "tracking_state_quarantined", "projection_retirement", "cdc_verified", "cdc_attribution")}
+                 "tracking_state_quarantined", "projection_retirement", "enrichment", "adr_projection", "cdc_verified", "cdc_attribution")}
     except FileNotFoundError:
         return {"sync": "unavailable", "cdc_verified": False}
     except (OSError, ValueError, TypeError):
@@ -100,7 +100,7 @@ def _public_status(value: dict) -> dict:
                "source_scope", "requested_scope", "requested_paths", "source_count",
                "full_reprocess",
                "tracking_rebuild", "tracking_state_quarantined", "projection_retirement",
-               "source_digest_before", "source_digest_after", "cdc_verified", "cdc_attribution")
+               "source_digest_before", "source_digest_after", "enrichment", "adr_projection", "cdc_verified", "cdc_attribution")
     result = {key: value.get(key) for key in allowed if key in value}
     state = result.get("sync")
     actions = ["docstore_run_current", "docstore_run_get", "docstore_run_list"]
@@ -228,6 +228,7 @@ def start_run(payload: dict, authorization: str | None = Header(default=None)) -
     paths = payload.get("paths", [])
     full_reprocess = payload.get("full_reprocess", False)
     tracking_rebuild = payload.get("tracking_rebuild", False)
+    retract_paths = payload.get("retract_paths") or []  # 0.8.1-r3 retraction guard
     _docs_index(payload.get("index_kind", "docs"))
     if (scope not in {"full", "selected"} or not isinstance(paths, list)
             or type(full_reprocess) is not bool or type(tracking_rebuild) is not bool):
@@ -240,8 +241,14 @@ def start_run(payload: dict, authorization: str | None = Header(default=None)) -
                                 or any(not isinstance(path, str) or not path.startswith("docs/")
                                        or ".." in pathlib.PurePosixPath(path).parts for path in paths)):
         raise HTTPException(status_code=400, detail="selected scope requires 1-20 unique docs/... paths")
+    if (not isinstance(retract_paths, list) or len(retract_paths) > 1000
+            or any(not isinstance(path, str) or not path or "\n" in path for path in retract_paths)):
+        raise HTTPException(status_code=400, detail="retract_paths must list up to 1000 stored source paths")
     run_id = uuid.uuid4().hex
     env = dict(os.environ)
+    env.pop("DOCSTORE_RETRACT_PATHS", None)
+    if retract_paths:
+        env["DOCSTORE_RETRACT_PATHS"] = "\n".join(retract_paths)
     env["DOCSTORE_RUN_ID"] = run_id
     if paths:
         env["DOCSTORE_REQUESTED_PATHS"] = "\n".join(paths)
@@ -258,7 +265,8 @@ def start_run(payload: dict, authorization: str | None = Header(default=None)) -
             "requested_paths": paths, "full_source_reconciliation": True,
             "full_reprocess": full_reprocess,
             "tracking_rebuild": tracking_rebuild,
-            "selected_paths_are_verification_targets": bool(paths)})
+            "selected_paths_are_verification_targets": bool(paths),
+            "retract_paths": retract_paths})
 
 
 @app.delete("/runs/{run_id}", status_code=202)
@@ -298,8 +306,18 @@ async def health(index_kind: str = "docs") -> dict:
         store = "up"
     except Exception as e:  # noqa: BLE001
         store = f"down: {type(e).__name__}"
+    # 0.8.1-r1 (Claude Code / Fable 5.1, 2026-09-20): provider enrichment is an optional
+    # layer over a verified index. When the ONLY degradation is pending enrichment
+    # ("Source attribution verified; provider enrichment remains pending", worker_sync.py)
+    # the service is healthy; the pending count stays visible.
+    enrichment_pending = len((sync.get("enrichment") or {}).get("failed_documents") or [])
+    enrichment_only = (
+        sync["sync"] == "degraded" and enrichment_pending > 0 and not sync.get("error_type")
+        and (sync.get("cdc_attribution") or {}).get("status") == "verified"
+    )
     return _identified({
-        "ok": store == "up" and sync["sync"] not in {"failed", "degraded", "invalid"},
+        "ok": store == "up" and (enrichment_only or sync["sync"] not in {"failed", "degraded", "invalid"}),
+        "enrichment_pending": enrichment_pending,
         "api": "up",
         "store": store,
         "startup_or_latest_sync": sync,
@@ -429,3 +447,6 @@ async def graph_query_endpoint(ref: str, relations: str = "links_to,cites,supers
     if doc is None:
         raise HTTPException(status_code=404, detail="no document matches subject")
     return _identified({"query": spec, "totals": totals, **graph_query.export_graph(doc, edges, format)})
+
+from release_api import register as register_release
+register_release(app, _auth)

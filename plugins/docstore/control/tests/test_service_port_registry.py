@@ -9,6 +9,9 @@ ROOT = Path(__file__).resolve().parents[4]
 SCRIPT = ROOT / "scripts/validate_service_ports.py"
 spec = importlib.util.spec_from_file_location("service_port_registry_test", SCRIPT)
 module = importlib.util.module_from_spec(spec)
+if not Path(spec.origin).is_file():
+    import pytest
+    pytest.skip("Repository-wide service port validator is outside this standalone release", allow_module_level=True)
 spec.loader.exec_module(module)
 
 

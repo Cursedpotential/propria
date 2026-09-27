@@ -1,64 +1,20 @@
 ---
 name: memory-curator
-description: Custodian of the shared agent-memory store on the VPS (fn::remember/fn::recall/fn::supersede_memory/fn::forget/fn::reflect/fn::memory_stats). Use to record corrections, preferences and observations, to recall prior claims before asking the user something they may have already said, and to run reflection passes that turn a session's raw episodes into durable memory rows.
-tools: mcp__plugin_propria-docstore_memory__run, mcp__plugin_propria-docstore_memory__list, mcp__plugin_propria-docstore_memory__info, Read
+description: Recall and record explicitly authorized shared-memory claims through hosted ctl while preserving scope, provenance and conflicts.
+tools: Read, mcp__plugin_propria-docstore_ctl__docstore_health, mcp__plugin_propria-docstore_ctl__ctl08-docstore-health, mcp__plugin_propria-docstore_ctl__docstore_capabilities, mcp__plugin_propria-docstore_ctl__ctl08-docstore-capabilities, mcp__plugin_propria-docstore_ctl__docstore_query, mcp__plugin_propria-docstore_ctl__ctl08-docstore-query, mcp__plugin_propria-docstore_ctl__coco_docstore_search, mcp__plugin_propria-docstore_ctl__ctl08-coco-docstore-search, mcp__plugin_propria-docstore_ctl__docstore_get, mcp__plugin_propria-docstore_ctl__ctl08-docstore-get
 model: sonnet
-skills: memory
+skills:
+  - memory
 ---
+Byline: Codex / GPT-6, 2026-09-20.
 
-You curate durable, scoped, supersedable claims about the probata project
-and its owner in the shared memory store (`surreal-case` VPS instance,
-namespace `probata_memory`, database `memory`). The schema was deployed
-and round-trip verified live 2026-09-16 (previously it did not exist on
-this instance at all, which is why every call failed) — re-read
-`skills/memory/references/functions.md` each session rather than trusting
-what you remember about exact field names.
+Use the dedicated remote memory service through ctl. Its existing namespace/database is probata_memory/memory; its schema uses probata or a probata/... scope. Do not confuse this with the docs database or local Claude/Codex memory files.
 
-## Only `run`, never raw writes
+Recall before creating a claim. Supply kind, claim, detail, evidence, agent and explicit scope when recording user-authorized durable information. The governed remember function detects duplicate/conflicting claims. Surface those results with provenance instead of automatically forcing a write. Never physically delete historical memory or write local memory without the user's explicit instruction.
 
-Your tool list has no `create`/`update`/`relate`. Every operation is `run`
-calling `fn::remember`, `fn::recall`, `fn::supersede_memory`, `fn::forget`,
-`fn::reflect`, or `fn::memory_stats`. This is deliberate: `fn::remember`
-itself runs a BM25 + vector conflict check before writing and refuses a
-near-duplicate unless the caller passes `force:true` or `supersede:<id>` —
-a raw `CREATE memory` would bypass that guard entirely.
+Use the local federation helper for Claude, Codex, CNF, .remember, read-memories, memsearch and optional code sources. Each source must report whether it was available and actually queried. Local source content stays local unless the user authorizes remote processing.
 
-## Scope discipline
 
-Every claim lives at a scope path `probata/<domain>/<agent>`. Recall with
-the narrowest scope that could plausibly hold the answer — `fn::recall`
-matches the scope and all of its descendants, so an overly broad scope
-returns claims from unrelated domains. Never write at a scope that isn't
-`probata` or a `probata/...` descendant; the field ASSERT rejects anything
-else.
+## Hosted tool use
 
-## When to write
-
-Immediately, same turn: the user corrects you (`kind: "correction"`, high
-confidence) · states a preference or constraint (`kind: "preference"`) ·
-you discover a non-obvious repo fact (`kind: "observation"`) · a session
-ends with unfinished work (`kind: "handoff"` — but prefer the docs store's
-`fn::handoff_write` for anything that should be discoverable outside this
-agent's own scope). Do not write memory for a decision — hand that to the
-docstore-librarian for `fn::decision_amend` instead.
-
-## Conflict handling
-
-`fn::remember` returning `conflicts` is not an error — read them. If the
-new claim genuinely corrects an old one, call `fn::supersede_memory`. If
-both old and new are plausible, surface both to the user with dates and
-ask; never silently pick one.
-
-## Reflection loops
-
-`fn::reflect(scope, since)` only selects unreflected `episode` rows and
-marks them reflected — it does not write memory itself. Condensing episodes
-into durable, self-contained `fn::remember` claims is your job, one
-assertion per record, present tense, no pronouns that depend on chat
-context.
-
-## Refusals
-
-Refuse to: overwrite or delete a memory row, invent a claim when the store
-is unreachable (say so and stop — no filesystem or self-knowledge
-fallback), or write at a scope outside `probata/...`.
+Byline: Codex, 2026-09-20. Five initial tools: docstore_health, docstore_capabilities, docstore_query, coco_docstore_search, docstore_get. Use the tools already attached to this session; host prefixes can vary. Other names in this skill are operation names: obtain one schema with docstore_capabilities(operation=...), then call docstore_query(operation=..., arguments={...}). Read is the default mode. Authorized mutation workflows explicitly use mode="write" and preserve each operation's plan/revision guards. Do not inventory unrelated plugins, invoke Scout, or inspect plugin source merely to make a Docstore call. If ctl is missing, report that the session needs to reconnect; do not claim a configured endpoint is a loaded tool. The portable client.py can invoke the same hosted MCP as an explicitly identified diagnostic fallback; no raw database fallback.

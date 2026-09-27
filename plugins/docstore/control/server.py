@@ -27,8 +27,6 @@ READ = {"readOnlyHint": True, "destructiveHint": False,
 DOMAINS = Literal["probata", "proffer", "consignatio", "advocatio", "vestigia",
                   "indagatio", "intake", "workbench", "knowledge", "memory", "infra", "docs"]
 KINDS = Literal["doc", "adr", "decision", "handoff", "todo", "review", "blueprint", "reference", "infrastructure"]
-# Tool annotations are evaluated in module scope by FastMCP/Pydantic.
-SEARCH_STATUSES = Literal["all", "active", "unverified", "proposed", "superseded", "retracted"]
 RECONCILE_STORE = Literal["smart_explore", "ccc", "docstore", "codex_memory",
                           "claude_memory", "cnf", "remember", "memsearch"]
 
@@ -44,7 +42,7 @@ class Config:
     native_auth: str = field(default="", repr=False)
     worker_receipts_dir: Path | None = None
     project_registry: Path | None = None
-    reconciliation_launcher: Path = Path(__file__).resolve().parents[2] / "search" / "search.cmd"
+    reconciliation_launcher: Path | None = None
 
     def __post_init__(self):
         url = urlsplit(self.api_url)
@@ -61,20 +59,16 @@ class Config:
         if any(p.lower() in {".cocoindex_code", "ccc", ".ccc"}
                for p in self.state_root.parts):
             raise ValueError("Codebase indexing state cannot be used for Docstore")
-        if os.name == "nt" and self.state_root.drive.upper() != "E:":
-            raise ValueError("Docstore control state must be on E:")
         if self.worker_receipts_dir is not None:
             if not self.worker_receipts_dir.is_absolute():
                 raise ValueError('Explicit absolute worker receipt path required')
             resolved_receipts=self.worker_receipts_dir.resolve(strict=False)
-            if os.name=='nt' and resolved_receipts.drive.upper()!='E:':
-                raise ValueError('Docstore worker receipts must be on E:')
             if resolved_receipts.is_relative_to(self.source_root.resolve()):
                 raise ValueError('Worker receipts must be outside indexed source docs')
         if self.project_registry is not None and not self.project_registry.is_absolute():
             raise ValueError('Docstore project registry must use an explicit absolute path')
-        if not self.reconciliation_launcher.is_absolute() or self.reconciliation_launcher.suffix.lower() != ".cmd":
-            raise ValueError("Reconciliation launcher must be an explicit absolute .cmd path")
+        if self.reconciliation_launcher is not None and not self.reconciliation_launcher.is_absolute():
+            raise ValueError("Reconciliation launcher must be absolute when configured")
 
     @classmethod
     def from_env(cls):
@@ -92,10 +86,17 @@ def build_server(config: Config, transport=None) -> FastMCP:
         "Cite document IDs and report unavailable services. Index plans are not executions. "
         "Do not substitute ccc's code index for this documentation system."))
 
+    # 0.8.1-r2 (Claude Code · Opus 5.5, 2026-09-26): a fixed 30 s budget turned a slow recall into a bare
+    # "unavailable". The budget is DOCSTORE_API_TIMEOUT_S (default 55 s, under ContextForge's 60 s tool
+    # timeout), and a timeout, HTTP status or unreachable API is named. Upstream bodies are never echoed.
+    api_timeout = float(os.environ.get("DOCSTORE_API_TIMEOUT_S") or 55)
+    if not 5 <= api_timeout <= 300:
+        raise ValueError("DOCSTORE_API_TIMEOUT_S must be between 5 and 300 seconds")
+
     async def request(method: str, path: str, params=None, payload=None):
         headers = {"Authorization": f"Bearer {config.token}"} if config.token else {}
         try:
-            async with httpx.AsyncClient(timeout=30, headers=headers, transport=transport,
+            async with httpx.AsyncClient(timeout=api_timeout, headers=headers, transport=transport,
                                          follow_redirects=False, trust_env=False) as client:
                 async with client.stream(method, config.api_url.rstrip("/") + path,
                                          params=params, json=payload) as response:
@@ -109,6 +110,14 @@ def build_server(config: Config, transport=None) -> FastMCP:
                     if not isinstance(value, dict):
                         raise ValueError("Expected JSON object")
                     return value
+        except httpx.TimeoutException:
+            raise ToolError(f"Docstore unavailable: the API did not answer within {api_timeout:g} s; "
+                            "no filesystem fallback") from None
+        except httpx.HTTPStatusError as exc:
+            raise ToolError(f"Docstore unavailable: the API answered HTTP {exc.response.status_code}; "
+                            "no filesystem fallback") from None
+        except httpx.TransportError:
+            raise ToolError("Docstore unavailable: the API could not be reached; no filesystem fallback") from None
         except (httpx.HTTPError, ValueError):
             raise ToolError("Docstore unavailable or invalid response; no filesystem fallback") from None
 
@@ -122,24 +131,17 @@ def build_server(config: Config, transport=None) -> FastMCP:
                 "semantic_search_tool": "coco_docstore_search",
                 "semantic_search_backend": "SurrealDB vector index with BM25 reciprocal-rank fusion",
                 "semantic_search_presentation": "DuckDB compact columns by default; no second vector store",
-                # Hosted 2026-09-19 (Claude Code · Opus 5): report the real transport; the reconciliation
-                # adapter is a desktop .cmd launcher and is absent on the VPS host.
-                "transport": os.environ.get("DOCSTORE_MCP_TRANSPORT", "stdio").strip().lower() or "stdio",
-                "reconciliation_adapter_available": config.reconciliation_launcher.is_file(),
-                "control_state": str(config.state_root),
+                "transport": os.environ.get('DOCSTORE_MCP_TRANSPORT','stdio'), "control_state": str(config.state_root),
                 "source_root": str(config.source_root), "api": config.api_url,
                 "ambient_COCOINDEX_DB_consumed": False,
                 "pipeline_app": "ProbataDocStore", "pipeline_environment": "probata-docstore",
-                "index_kind": "docs", "allowed_source_roots": ["docs/"],
+                "index_kind": "docs", "allowed_source_roots": ["Propria/docs","Probata/probata/docs","Consignatio/docs","Consignatio/Intake/docs","Legal-desktop/docs"],
                 "contract": "propria-docstore-operations/v1",
                 "allowed_file_classes": ["markdown"],
                 "rejected_file_classes": ["source_code", "configuration", "test"],
                 "codebase_index": {"manager": "cocoindex-code (ccc)", "deployment": "local per repository",
-                                   "app": None, "environment": None, "project_root": r"E:\AI_Workspace",
-                                   "settings": r"E:\AI_Workspace\.cocoindex_code\settings.yml",
-                                   "index": r"E:\AI_Workspace\.cocoindex_code\target_sqlite.db",
-                                   "identity_status": "root/settings/index tuple; no app name declared",
-                                   "docs_exclusion_verified": False},
+                                   "commands": ["ccc", "ccc init", "ccc index", "ccc search", "ccc mcp"],
+                                   "remote_proxy": False},
                 "pipeline_identity_verification_available": True,
                 "pipeline_identity_live_tool": "docstore_pipeline_identity",
                 "index_execution_available": True,
@@ -203,10 +205,8 @@ def build_server(config: Config, transport=None) -> FastMCP:
             raise ToolError("Native API schema exceeds resource size limit")
         return result
 
-    # Owner 2026-09-14: status is a classification field; search sees every status by default.
-
     async def semantic_search(query: str, domain: DOMAINS, limit: int, kind: KINDS,
-                              status: SEARCH_STATUSES, rerank: bool) -> dict:
+                              status: Literal["active", "all"], rerank: bool) -> dict:
         if not query.strip():
             raise ToolError("Query must contain text")
         from governance import list_flags
@@ -229,7 +229,7 @@ def build_server(config: Config, transport=None) -> FastMCP:
     async def coco_docstore_search(
             query: Annotated[str, Field(min_length=2, max_length=2048)], domain: DOMAINS,
             limit: Annotated[int, Field(ge=1, le=20)] = 8, kind: KINDS = "doc",
-            status: SEARCH_STATUSES = "all", rerank: bool = False,
+            status: Literal["active", "all"] = "all", rerank: bool = True,
             presentation: Literal["compact", "full"] = "compact") -> dict:
         """Primary documentation search: CocoIndex/NIM vectors searched in SurrealDB; compact uses bounded DuckDB presentation."""
         result = await semantic_search(query, domain, limit, kind, status, rerank)
@@ -245,8 +245,8 @@ def build_server(config: Config, transport=None) -> FastMCP:
     async def docstore_search(query: Annotated[str, Field(min_length=2, max_length=2048)],
                               domain: DOMAINS,
                               limit: Annotated[int, Field(ge=1, le=20)] = 8,
-                              kind: KINDS = "doc", status: SEARCH_STATUSES = "all",
-                              rerank: bool = False) -> dict:
+                              kind: KINDS = "doc", status: Literal["active", "all"] = "all",
+                              rerank: bool = True) -> dict:
         """Compatibility name for full hybrid search; prefer coco_docstore_search for agent retrieval."""
         return await semantic_search(query, domain, limit, kind, status, rerank)
 
@@ -404,12 +404,14 @@ def build_server(config: Config, transport=None) -> FastMCP:
     @mcp.tool(annotations={**WRITE_RUN, "title": "Start full-source Docstore indexing"})
     async def docstore_index_full(full_reprocess: bool = False,
                                   tracking_rebuild: bool = False,
-                                  index_kind: Literal["docs"] = "docs") -> dict:
-        """Start one governed full-source CocoIndex reconciliation."""
-        return await request("POST", "/runs", payload={
-            "scope": "full", "paths": [], "full_reprocess": full_reprocess,
-            "tracking_rebuild": tracking_rebuild,
-            "index_kind": index_kind})
+                                  index_kind: Literal["docs"] = "docs",
+                                  retract_paths: Annotated[list[str] | None, Field(max_length=1000)] = None) -> dict:
+        """Start one governed full-source CocoIndex reconciliation. 0.8.1-r3: stored documents missing from the source are held, not retracted, unless named in retract_paths."""
+        payload = {"scope": "full", "paths": [], "full_reprocess": full_reprocess,
+                   "tracking_rebuild": tracking_rebuild, "index_kind": index_kind}
+        if retract_paths:
+            payload["retract_paths"] = retract_paths
+        return await request("POST", "/runs", payload=payload)
 
     @mcp.tool(annotations={**WRITE_RUN, "title": "Start admitted selected-source Docstore indexing"})
     async def docstore_index_selected(
@@ -477,10 +479,10 @@ def build_server(config: Config, transport=None) -> FastMCP:
         if mode != "selected" and stores is not None:
             raise ToolError("store selectors are accepted only with selected mode")
         root = Path(project_root).resolve(strict=False) if project_root else config.source_root.parents[2].resolve(strict=False)
-        if not root.is_absolute() or (os.name == "nt" and root.drive.upper() != "E:"):
-            raise ToolError("Reconciliation project_root must be an explicit E: path")
+        if not root.is_absolute():
+            raise ToolError("Reconciliation project_root must be an absolute path")
         launcher = config.reconciliation_launcher
-        if not launcher.is_file():
+        if launcher is None or not launcher.is_file():
             raise ToolError("Propria reconciliation adapter is unavailable")
         command = {
             "query": ["recall"],
@@ -661,11 +663,11 @@ def build_server(config: Config, transport=None) -> FastMCP:
     register_run_status(mcp, config, READ)
     register_project_registry(mcp, config, READ)
     register_handoff(mcp, config, READ)
-    # 2026-09-19 (Claude Code · Opus 5): categorized top-level surface (read/write/run/admin).
-    from surface import register as register_surface
-    register_surface(mcp, config, {"get": get, "request": request})
+    from release_tools import register
+    register(mcp, request, READ)
     return mcp
 
 
 if __name__ == "__main__":
-    build_server(Config.from_env()).run(transport="stdio", show_banner=False)
+    from cli import mcp_runtime
+    build_server(Config.from_env()).run(**mcp_runtime(dict(os.environ)))

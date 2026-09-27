@@ -109,7 +109,8 @@ async def main() -> int:
         await db.close()
         return 0
 
-    await db.query(SCHEMA.read_text(encoding="utf-8"))
+    from upgrade import verify_required
+    await verify_required()
     await db.query("DELETE links_to; DELETE cites; DELETE supersedes WHERE reason = 'mapping' OR kind = 'mapping';")
     for table, rows in edges.items():
         for i in range(0, len(rows), BATCH):

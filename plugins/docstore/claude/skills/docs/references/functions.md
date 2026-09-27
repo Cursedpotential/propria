@@ -1,7 +1,7 @@
 # docs — function reference
 
 Source: `090_docs_api.surql` and `060_functions.surql` in the docstore
-schema (probata docs SurrealDB, local, `127.0.0.1:8462`). Signatures below
+schema (remote `probata/docs` SurrealDB service). Signatures below
 are quoted verbatim from the `DEFINE FUNCTION` statements. This file is
 **confirmed**, not provisional — the docs schema is applied and live as of
 2026-09-09.
@@ -135,4 +135,4 @@ Rules:
 3. Never pass JSON `null` for an optional. It arrives as SurrealQL `NULL` and `option<T>` rejects it loudly (`Expected none | array<float> but found NULL`). That error is intended.
 4. The same sentinel carries record ids (`{"$ql": "document:abc"}`), datetimes (`{"$ql": "d'2026-09-09T00:00:00Z'"}`), durations, decimals and uuids.
 
-Verified live 2026-09-09 07:22 EDT on the local store (3.2.x): `run fn::docs_search ["docstore ingest mapping", {"$ql": "NONE"}, {"$ql": "NONE"}, {"$ql": "NONE"}, "active", 3]` returned a hit; `run fn::docs_search ["docstore ingest mapping"]` returned a hit; `run type::is_none [{"$ql": "NONE"}]` returned `true` and `[null]` returned `false`.
+Verified live 2026-09-09 07:22 EDT against the docs store endpoint (3.2.x): `run fn::docs_search ["docstore ingest mapping", {"$ql": "NONE"}, {"$ql": "NONE"}, {"$ql": "NONE"}, "active", 3]` returned a hit; `run fn::docs_search ["docstore ingest mapping"]` returned a hit; `run type::is_none [{"$ql": "NONE"}]` returned `true` and `[null]` returned `false`.

@@ -1,13 +1,9 @@
 ---
-description: Recall agent session memory (memsearch) - compact table of what past sessions established
-argument-hint: "<question>" [--k 6]
-allowed-tools: Bash, Read
+description: Recall across local histories and independent remote memory.
+argument-hint: <request>
 ---
 
-<!-- Byline: Claude Code · Opus 5 · 2026-09-10 — owner order: "/memory" pulls it up. -->
+Load ${CLAUDE_PLUGIN_ROOT}/skills/memory/SKILL.md and carry out the user request: $ARGUMENTS
+Use the attached ctl tools and the named skill. Do not inventory unrelated plugins or use Scout for a known Docstore request.
 
-Memory recall for: $ARGUMENTS
-
-!`C:/Users/matts/.local/bin/python3.exe "E:/AI_Workspace/Projects/Propria/Probata/probata/scripts/docstore/memory.py" $ARGUMENTS 2>&1`
-
-Show the table exactly as printed. Then at most three bullets: what past sessions established, with the date. Memory is recollection, not ruling: if it conflicts with the docstore (`/recall-doc`, `/recall-adr`), the docstore wins and the conflict is reported.
+<!-- Byline: Codex, 2026-09-20. Direct command retained with hosted five-tool routing. -->
