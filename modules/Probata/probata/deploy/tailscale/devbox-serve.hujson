@@ -1,0 +1,26 @@
+// Byline: Claude Code · Fable 5.1 · 2026-09-26
+//
+// Host-local Tailscale Service config for svc:devbox: the Kasm desktop of the Coolify app `devbox`
+// (uuid pd3xc78ahqkfswq12bpfqgy1) on ovh-files. Owner 2026-09-26 23:35 ("all yes"): give the devbox a
+// proper svc:devbox Tailscale Service like the others, and tile it on the portal.
+//
+// Deployed copy: ovh-files /data/probata/config/tailscale-serve/devbox-serve.hujson (byte-identical).
+// This file is the tracked copy. Apply on ovh-files, the service host, then read it back:
+//   tailscale serve set-config --service=svc:devbox /data/probata/config/tailscale-serve/devbox-serve.hujson
+//   tailscale serve get-config --service=svc:devbox
+// The Service itself is registered with PUT /api/v2/tailnet/-/vip-services/svc:devbox (tcp:443, VIP
+// 100.109.225.212). It is untagged, like every Service registered with the OAuth client in
+// ~/.secrets/tailscale.env since 2026-09-23: that client may not assign tag:docker, and the policy's
+// grants are "*" to "*", so the tag does not gate access. ovh-files is approved as its host
+// (approved:manual). Name: https://devbox.tilapia-skilift.ts.net
+//
+// Kasm (KasmVNC) serves HTTPS with a self-signed certificate on 6901, published on the tailnet IP only
+// (BIND_IP in deploy/devbox.yaml), hence https+insecure and 100.91.190.107. Never 127.0.0.1: nothing
+// listens there, and a stale local entry pointed at it until 2026-09-26. Kasm's own login (user
+// kasm_user, password VNC_PW from Coolify env) still applies behind this name.
+{
+  "version": "0.0.1",
+  "endpoints": {
+    "tcp:443": "https+insecure://100.91.190.107:6901"
+  }
+}

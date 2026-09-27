@@ -243,6 +243,19 @@ http:
       tls:
         certResolver: letsencrypt
 
+    # Devbox Kasm desktop (Coolify app `devbox`, ovh-files:6901) -- public route, Authentik-gated
+    # like every other *.int host. Added 2026-09-26 (Claude Code · Fable 5.1), owner 23:35 "all yes"
+    # ("the devbox desktop gets a .int public route behind Authentik"). Kasm keeps its own login
+    # (kasm_user / VNC_PW) behind Authentik; its websocket needs no extra Traefik config. The
+    # upstream is self-signed HTTPS, hence serversTransport kasm-selfsigned at the end of this file.
+    devbox-public:
+      rule: "Host(`devbox.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: devbox-kasm-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
   services:
     authentik-internal:
       loadBalancer:
@@ -320,3 +333,14 @@ http:
       loadBalancer:
         servers:
           - url: "http://100.72.169.40:3022"
+    devbox-kasm-svc:
+      loadBalancer:
+        serversTransport: kasm-selfsigned
+        servers:
+          - url: "https://100.91.190.107:6901"
+
+  serversTransports:
+    # Kasm (KasmVNC) presents a self-signed certificate on 6901; verification is skipped for that
+    # one upstream only. Added 2026-09-26 (Claude Code · Fable 5.1) with devbox-public above.
+    kasm-selfsigned:
+      insecureSkipVerify: true
