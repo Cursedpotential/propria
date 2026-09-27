@@ -86,8 +86,10 @@ Point-in-time counts for `$scope` and its descendants.
 
 ## Scope
 
-Every `memory`/`episode` row's `scope` must match `^probata(/[a-z0-9_-]+)*$`
-— path form `probata/<domain>/<agent>`, e.g. `probata/docstore/librarian`.
+Every `memory`/`episode` row's `scope` must match `^propria(/[a-z0-9_-]+)*$`
+— path form `propria/<domain>/<agent>`, e.g. `propria/docstore/librarian`. The root
+moved from `probata` to `propria` on 2026-09-19 (`schema/2026-09-19-memory-root-propria.surql`);
+`propria` is the default scope for recall and remember.
 A `principal` row (agent identity) carries a `scope_prefix` grant; the
 prefix itself is enforced inside the `fn::` functions' `WHERE` clauses, not
 by `DEFINE ACCESS` alone.

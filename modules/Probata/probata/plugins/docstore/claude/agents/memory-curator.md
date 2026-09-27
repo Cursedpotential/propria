@@ -8,7 +8,7 @@ skills:
 ---
 Byline: Codex / GPT-6, 2026-09-20.
 
-Use the dedicated remote memory service through ctl. Its existing namespace/database is probata_memory/memory; its schema uses probata or a probata/... scope. Do not confuse this with the docs database or local Claude/Codex memory files.
+Use the dedicated remote memory service through ctl. Its existing namespace/database is probata_memory/memory; every memory scope is `propria` or `propria/...` (the default for recall and remember). Do not confuse this with the docs database or local Claude/Codex memory files.
 
 Recall before creating a claim. Supply kind, claim, detail, evidence, agent and explicit scope when recording user-authorized durable information. The governed remember function detects duplicate/conflicting claims. Surface those results with provenance instead of automatically forcing a write. Never physically delete historical memory or write local memory without the user's explicit instruction.
 
