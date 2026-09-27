@@ -58,11 +58,13 @@ compose.yaml    mirrored stack definition with production-facing live sections; 
                 consolidation 2026-08-10, D-043): deploy/<app>.yaml, one file per Coolify
                 application. Root also keeps compose.data-surreal.yaml (PARKED marker, see its
                 header). Dead tiers (browser/ui/data) → _stale/*.SUPERSEDED.
-                ⚠ Branch-scoped apps librechat* and nocodb (infra/* branches) still deploy
-                root-path compose files FROM THEIR BRANCHES. Workbench was repointed and live-
-                verified on 2026-08-13 at deploy/workbench.yaml with matching watch paths before
-                workbench/sprint was fast-forwarded to main. For the remaining branch-scoped apps,
-                update docker_compose_location before merging main or deployment breaks silently.
+                ⚠ The branch-scoped nocodb app (infra/nocodb) still deploys a root-path compose
+                file FROM ITS BRANCH. Workbench was repointed and live-verified on 2026-08-13 at
+                deploy/workbench.yaml with matching watch paths before workbench/sprint was
+                fast-forwarded to main. LibreChat deploys from main (deploy/librechat.yaml +
+                deploy/librechat-mongo.yaml, Coolify apps recreated 2026-09-26). For the remaining
+                branch-scoped app, update docker_compose_location before merging main or
+                deployment breaks silently.
 evals/          agno-eval cases (harness-first)
 scripts/        format.sh, validate.sh, ingest_*, generate_requirements.sh, repack_to_server_layout.py
 knowledge/      curated knowledge inputs (NEVER secrets/case-data)

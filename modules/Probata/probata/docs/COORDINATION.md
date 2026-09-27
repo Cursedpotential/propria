@@ -21,9 +21,9 @@ _Owner: Codex · GPT-5.6-Sol. Source: `docs/HANDOFF-2026-08-29-agno-role-dissect
 - **Locally implemented:** plain FastAPI host, zero-Agno startup import, runtime-file Platform API
   bearer, private `platform-api` service naming, Workbench caller/search/repair cutover,
   LibreChat tracked ContextForge/Portkey config, OpenCode ops, and activation preflight.
-- **Release HOLD:** exec/Workbench/LibreChat are not live-proven on the cutover SHA. LibreChat is
-  still branch-scoped and must be repointed from `infra/librechat` before a main-branch push can
-  deploy its new image/config.
+- **Release HOLD:** exec/Workbench are not live-proven on the cutover SHA. LibreChat deploys from
+  `main` as the Coolify apps `librechat` + `librechat-mongo` (recreated 2026-09-26; its MCP tools
+  come straight from ContextForge virtual servers; status in `docs/planning/2026-09-20-TODO.md`).
 - **Protected concurrent files:** `example.env`,
   `docs/design/CLAIM-AND-ASSERTION-CANDIDATES-2026-08-29.md`, and
   `sql/0052_claim_and_assertion_candidates.sql` are outside this lane.
@@ -140,9 +140,10 @@ listed here so Lane A can carry it through the repack:
   constructs PostgresDb or relies on the old warning behavior, re-check.
 - Coolify apps now point at `deploy/<name>.yaml` on main. Workbench was repointed to
   `deploy/workbench.yaml` (including watch paths) and live-verified before `workbench/sprint`
-  was fast-forwarded on 2026-08-13. **Merging main into `infra/librechat` or
-  `infra/nocodb` will still silently break those branch-scoped deploys** unless their Coolify
-  `docker_compose_location` is updated first (warning also in REPO_STRUCTURE.md, D-043).
+  was fast-forwarded on 2026-08-13. **Merging main into `infra/nocodb` will still silently
+  break that branch-scoped deploy** unless its Coolify `docker_compose_location` is updated
+  first (warning also in REPO_STRUCTURE.md, D-043). LibreChat deploys from `main` since
+  2026-09-26.
 
 ## FROZEN (owner mandate, 2026-07-08)
 - Live PG data: unchanged until the Lane-B brainstorm lands
