@@ -1,4 +1,31 @@
 <!-- tags: decision, owner-directive, intake, consignatio, probata, elt, duckdb, weaviate, surrealdb, neo4j, precommit, timeline, receipt -->
+> ## SUPERSEDED IN PART — verified 2026-09-26 (Claude Code · Opus 5)
+>
+> **The Addendum's four findings about the Go engine are no longer true.** They were
+> code-verified on 2026-09-18 and were correct then; work landing 2026-09-20 and 09-21
+> completed that lane. Re-verified against the code on 2026-09-26:
+>
+> - The ELT activity supports **five** templates, not CSV/NDJSON only: `csv_v1`, `ndjson_v1`,
+>   `sms_xml_v1`, `chatgpt_json_array_v1`, `imessage_text_v1`.
+> - It **is registered and has run** — `profferworker/worker.go:96`, constructed at `:468`.
+>   Live: 6 `context.raw_generation` rows by `duckdb_structured_elt 1.0.0` (4 sealed), 10,814
+>   rows in `context.raw_ndjson`, all four gates passing with reconciliation 826/826, 927/927,
+>   2,911/2,911, 3,021/3,021 and recorded row digests.
+> - The **signature registry exists** — at `postgres/handler_selection_store.go:304-331`
+>   (`handlerCandidatesForDetectedFormat`), not `parser/registry.go` where this document looked.
+> - **pg_duckdb was authorized, not rejected.** "FUCK PG" (09-18 20:06) concerns the
+>   *destination*; the owner gave explicit go on 09-20 18:07 to set `duckdb.postgres_role`.
+> - The **SMS/MMS XML blocker is closed** — an SBV streaming Go decoder chunks the XML to NDJSON
+>   which `ndjson_v1` then reads. Measured 584 MB in 4 min 27 s at ~80 MiB RAM.
+>
+> **What is actually unbuilt:** the Weaviate and Surreal steps. The engine goes extract →
+> PostgreSQL directly, inverting the ruled order of extract → Weaviate → owner review →
+> canonical PG. Also unbuilt: byte locators from DuckDB extraction, so
+> `timeline.event_candidate_source_range` is never written.
+>
+> Sections (1) through (5) of the body remain a useful record of the decided pipeline and the
+> owner statements behind it. Do not act on the Addendum's code claims.
+
 # Pipeline history and current decided process — extraction → staging → stores → timelines
 
 > _Byline: Claude Code · Opus 5 · 2026-09-18 (read-only research; nothing was changed)_
