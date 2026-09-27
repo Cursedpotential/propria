@@ -429,10 +429,18 @@ func (c VersionCommit) OrderedSources() []SourceAssertion {
 }
 
 // CommitResult names the rows one commit wrote.
+//
+// AlreadyPresent is how a retried Temporal activity reports that this exact
+// version was written by an earlier attempt. Idempotency is keyed on the natural
+// key (context_thread_id, version_ordinal) rather than on a deterministic id,
+// which is what lets the ids come from the uuidv7() column defaults. A second
+// attempt carrying a DIFFERENT assertion digest at the same ordinal is not a
+// retry, it is a changed proposal, and the store refuses it.
 type CommitResult struct {
 	ContextThreadID string
 	ThreadVersionID string
 	ThreadCreated   bool
+	AlreadyPresent  bool
 	MembersWritten  int
 	SourcesWritten  int
 	Bounds          Bounds
