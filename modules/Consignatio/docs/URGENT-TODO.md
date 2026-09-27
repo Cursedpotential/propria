@@ -3184,3 +3184,28 @@ Commit `1eb32bf4` on main.
   are left exactly as found (harmless — it's already dead).
 
 _Byline: Claude Sonnet 5 · 2026-09-27_
+
+## 2026-09-27 02:55 EDT — tailnet must not hit Authentik on `*.int` names: measured, owner design choice open
+
+Owner rule 2026-09-26 23:08 EDT: public services behind Authentik on the internet; nothing blocked by Authentik on the
+tailnet, "even if it goes through the host name". Agent `tailnet-bypass` (read-only, nothing changed):
+
+- **Only recorded patch** is option A of 2026-09-24 ("tailnet short names"): `<svc>.mitechconsult.com` → 302 →
+  `<svc>.tilapia-skilift.ts.net`, tailnet devices only; `.int` was explicitly left as the public Authentik route and
+  option B (domain end-to-end on the tailnet via tailnet DNS) was rejected then. No design for bypassing Authentik on
+  the `.int` names was ever recorded.
+- **Measured:** on the tailnet every `*.int` name resolves to the public IP 40.160.5.19, so tailnet devices arrive
+  from their public IP and get Authentik (20/20 probe). Via ovh-app's tailnet IP (`--resolve …:443:100.72.169.40`) the
+  Let's Encrypt cert verifies. ovh-app runs no tailnet DNS server; Tailscale split DNS can only forward.
+- **Blockers:** `TAILSCALE_API_KEY` in `~/.secrets/tailscale.env` is dead (401; already recorded 2026-09-23 as
+  replaced by the OAuth client); the classifier refused even a read through the OAuth helper.
+- **Options (owner):** A (default) CoreDNS responder on ovh-app 100.72.169.40:53 answering `*.int` with the tailnet
+  address + Tailscale split DNS `int.mitechconsult.com` → it + a separate Traefik file
+  `propria-tailnet-int-bypass.yaml` with ClientIP(100.64.0.0/10 | fd7a:115c:a1e0::/48) twins of every `.int` router,
+  no Authentik; B = A with a second responder on another host; C = keep today (short/ts.net names on the tailnet).
+  Limits of A/B: bypass carries no identity header, so header-trusting apps (n8n hook, Workbench) may show their own
+  login; only devices using Tailscale DNS benefit.
+- **Hardening seen:** DOCKER-USER on ovh-app accepts `-s 100.64.0.0/10` on any interface with rp_filter=0; pin it to
+  `-i tailscale0`.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
