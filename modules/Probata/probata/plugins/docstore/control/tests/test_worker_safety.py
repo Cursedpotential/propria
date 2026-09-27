@@ -104,7 +104,18 @@ def setup_worker(tmp_path,monkeypatch):
     monkeypatch.setattr(worker,'LOCK',tmp_path/'sync.lock')
     monkeypatch.setattr(worker,'RECEIPTS',tmp_path/'runs')
     monkeypatch.setattr(worker,'STATUS',tmp_path/'latest-run.json')
-    monkeypatch.setattr(worker,'snapshot_sources',lambda: ((SimpleNamespace(source_path='docs/note.md'),),'a'*64))
+    monkeypatch.setattr(worker,'snapshot_sources',lambda: ((SimpleNamespace(source_path='docs/note.md',content_hash='hash'),),'a'*64))
+    import upgrade,adr,knowledge,sq
+    async def noop(*args,**kwargs): return {}
+    class Database:
+        async def query(self,*args,**kwargs): return []
+        async def close(self): pass
+    async def connect(*args): return Database()
+    monkeypatch.setattr(upgrade,'verify_required',noop)
+    monkeypatch.setattr(adr,'refresh_projections',noop)
+    monkeypatch.setattr(knowledge,'enrich_changed',noop)
+    monkeypatch.setattr(worker,'retire_unexpected_projection',noop)
+    monkeypatch.setattr(sq,'connect',connect)
     async def verified(_snapshot):
         return {'status':'verified','missing_count':0,'unexpected_count':0,
                 'hash_mismatch_count':0,'expected_documents':1,'observed_documents':1}
@@ -156,6 +167,21 @@ def test_receipt_failure_prevents_child_launch(tmp_path,monkeypatch):
     assert worker.main()==1
 
 
+def test_adr_projection_bodies_never_enter_operational_receipts(tmp_path,monkeypatch):
+    setup_worker(tmp_path,monkeypatch)
+    import adr
+    async def projections(**kwargs):return {'projections':[{'content':'private-body'*100000,'indexed':True}]}
+    async def health():return {'hnsw':'ready','orphan_chunks':0}
+    monkeypatch.setattr(adr,'refresh_projections',projections)
+    monkeypatch.setattr(worker,'_health',health)
+    monkeypatch.setattr(worker,'_run',lambda *args:{'exit_code':0,'timed_out':False,'diagnostic_errors':[]})
+    assert worker.main()==0
+    status=json.loads(worker.STATUS.read_text())
+    assert status['adr_projection']=={'count':1,'indexed_count':1}
+    assert 'private-body' not in worker.STATUS.read_text()
+    assert worker.STATUS.stat().st_size<65536
+
+
 def test_status_failure_prevents_child_and_terminal_receipt_is_retained(tmp_path,monkeypatch):
     setup_worker(tmp_path,monkeypatch)
     monkeypatch.setattr(worker,'write_current_status',lambda *a: (_ for _ in ()).throw(OSError('disk full')))
@@ -167,17 +193,13 @@ def test_status_failure_prevents_child_and_terminal_receipt_is_retained(tmp_path
 
 def test_container_uses_python_supervisor_and_health_checks_body():
     root=PIPELINE.parents[1]
-    dockerfile=(root/'deploy/docker/docstore-worker/Dockerfile').read_text(encoding='utf-8')
-    compose=(root/'deploy/docstore-worker.yaml').read_text(encoding='utf-8')
-    assert 'CMD ["python", "scripts/docstore/container_entrypoint.py"]' in dockerfile
-    assert 'worker_sync.py & exec uvicorn' not in dockerfile
+    dockerfile=(root/'Dockerfile').read_text(encoding='utf-8')
+    compose=(root/'deploy/compose.yaml').read_text(encoding='utf-8')
+    assert 'CMD ["python", "scripts/docstore/service.py"]' in dockerfile
     assert "value.get('ok') is True" in compose
     assert 'DOCSTORE_RUN_STATUS: /data/state/latest-run.json' in compose
-    assert ':8072:8000' in compose
-    assert ':8474:8000' in compose
-    assert ':8473:8000' not in compose
-    assert 'wss://surreal-docs.tilapia-skilift.ts.net' in compose
-    assert 'ws://100.91.190.107:8472' not in compose
+    assert 'DOCSTORE_CONTROL_TOKEN:?required' in compose
+
 
 
 def flow_function(name,globals):
@@ -205,7 +227,7 @@ async def test_final_flow_stats_must_show_finished_without_errors(errors,progres
 
 
 async def test_component_error_handler_propagates():
-    fn=flow_function('_raise_component_error',{'sys':sys})
+    fn=flow_function('_raise_component_error',{'sys':sys,'_bounded_error_text':lambda exc:str(exc)})
     with pytest.raises(ValueError): await fn(ValueError('synthetic'),None)
 
 

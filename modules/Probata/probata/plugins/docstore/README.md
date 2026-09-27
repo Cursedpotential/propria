@@ -1,3 +1,11 @@
+# 0.8.1 deployment entry point
+
+Byline: Codex / GPT-6 · 2026-09-20.
+
+Use the consolidated release's [INSTALL.md](../../INSTALL.md) and UPGRADE.md for the current contract. The production entry point is `scripts/docstore/service.py`: authenticated hosted `ctl` plus the loopback worker API. The Claude plugin uses an explicit remote URL and token. Earlier operational notes below are retained as historical source material; they do not override the 0.8 five-root registry, version ledger, retention policy or remote-client configuration.
+
+---
+
 # Propria universal Docstore plugin
 
 Byline: Codex / GPT-6, 2026-09-12 — canonical Codex registration repair.

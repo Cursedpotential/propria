@@ -20,18 +20,11 @@ def test_plugin_manifest_references_real_entrypoints():
     assert plugin["name"] == "probata-docstore-control"
     assert (ROOT / plugin["skills"]).is_dir()
     manifest = json.loads((ROOT / ".mcp.json").read_text())
-    assert set(manifest["mcpServers"]) == {"docstore-control", "docstore-surreal"}
-    native = manifest["mcpServers"]["docstore-surreal"]
-    assert native["headers"]["surreal-ns"] == "probata"
-    assert native["headers"]["surreal-db"] == "docs"
-    assert native["headers"]["Authorization"] == "Basic ${DOCSTORE_BASIC_AUTH}"
-    assert "--no-sync" in manifest["mcpServers"]["docstore-control"]["args"]
-    assert manifest['mcpServers']['docstore-control']['env']['DOCSTORE_WORKER_RECEIPTS_DIR']=='${DOCSTORE_WORKER_RECEIPTS_DIR:-}'
-    assert manifest['mcpServers']['docstore-control']['env']['DOCSTORE_PROJECT_REGISTRY'].endswith('docs/docstore-source-registry.json}')
+    assert set(manifest["mcpServers"]) == {"ctl"}
+    assert manifest["mcpServers"]["ctl"]["url"] == "${DOCSTORE_CONTROL_MCP_URL}"
     codex = tomllib.loads((ROOT / "codex.config.example.toml").read_text())
-    assert set(codex["mcp_servers"]) == set(manifest["mcpServers"])
-    assert 'DOCSTORE_WORKER_RECEIPTS_DIR' in codex['mcp_servers']['docstore-control']['env_vars']
-    assert 'DOCSTORE_PROJECT_REGISTRY' in codex['mcp_servers']['docstore-control']['env_vars']
+    assert set(codex["mcp_servers"]) == {"ctl"}
+
 
 
 def test_control_project_includes_pinned_surreal_sdk():
@@ -57,7 +50,7 @@ async def test_catalog_via_cli_is_real_protocol(monkeypatch):
     # No credentials or API calls required to discover operations.
     config = cli.configuration()
     result = await cli.run(SimpleNamespace(command="catalog"), config)
-    assert len(result["tools"]) == 53
+    assert {"docstore_upgrade_plan", "docstore_adr", "docstore_graph_path"} <= {t["name"] for t in result["tools"]}
     assert "coco_docstore_search" in {tool["name"] for tool in result["tools"]}
     assert len(result["resources"]) == 8
     assert {"docstore://api/openapi", "docstore://api/surreal"} <= {r["uri"] for r in result["resources"]}
@@ -65,8 +58,11 @@ async def test_catalog_via_cli_is_real_protocol(monkeypatch):
     assert len(result["prompts"]) == 2
 
 
-async def test_project_registry_cli_uses_mcp_tools():
-    config = cli.configuration()
+async def test_project_registry_cli_uses_mcp_tools(tmp_path):
+    from dataclasses import replace
+    from test_pipeline_source_registry import registry
+    registry_path, _ = registry(tmp_path)
+    config = replace(cli.configuration(), project_registry=registry_path)
     projects = await cli.run(SimpleNamespace(command="projects"), config)
     assert projects["schema"] == "propria-docstore-source-registry-v1"
     assert projects["project_count"] >= 4

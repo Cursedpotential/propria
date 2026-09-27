@@ -19,59 +19,40 @@ load_sources = MODULE.load_sources
 
 
 def registry(tmp_path: Path) -> tuple[Path, Path]:
-    root = tmp_path / "propria"
-    current = root / "Probata" / "probata" / "docs"
-    other = root / "projects" / "consignatio"
-    current.mkdir(parents=True)
-    other.mkdir(parents=True)
-    payload = {
-        "schema": "propria-docstore-source-registry-v1",
-        "monorepo_root": str(root),
-        "projects": [
-            {
-                "project_id": "probata", "source_root": "Probata/probata/docs",
-                "canonical_prefix": "docs", "domains": ["docs"],
-                "included_patterns": ["**/*.md"], "excluded_patterns": ["private/**"],
-                "registration_status": "active", "ingestion_status": "current-full-source",
-            },
-            {
-                "project_id": "consignatio", "source_root": "projects/consignatio",
-                "canonical_prefix": "consignatio", "domains": ["consignatio", "intake"],
-                "included_patterns": ["**/*.md"], "excluded_patterns": [],
-                "registration_status": "active", "ingestion_status": "pending-multi-root-cdc",
-            },
-        ],
-    }
-    path = tmp_path / "registry.json"
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    return path, current
+    from scope import ROOTS
+    root=tmp_path/'propria'; root.mkdir()
+    projects=[]
+    for identity,(relative,prefix) in ROOTS.items():
+        (root/relative).mkdir(parents=True,exist_ok=True)
+        projects.append({'project_id':identity,'title':identity,'source_root':relative,'canonical_prefix':prefix,
+                         'domains':['docs'],'included_patterns':['**/*.md'],
+                         'excluded_patterns':['private/**','**/to_be_deleted/**'],
+                         'registration_status':'active','ingestion_status':'current-full-source' if identity=='probata' else 'pending-multi-root-cdc'})
+    path=tmp_path/'registry.json'
+    path.write_text(json.dumps({'schema':'propria-docstore-source-registry-v1','monorepo_root':str(root),'projects':projects}))
+    return path,root/'Probata/probata/docs'
 
 
-def test_legacy_mode_preserves_existing_probata_source_identity(tmp_path):
-    legacy = tmp_path / "docs"
-    legacy.mkdir()
-    sources, fingerprint = load_sources(None, legacy, multi_root_enabled=False)
-    assert fingerprint == "legacy-probata-docs-v1"
-    assert len(sources) == 1
-    assert sources[0].canonical_prefix == "docs/"
+def test_legacy_mode_is_rejected_for_complete_scope(tmp_path):
+    with pytest.raises(ValueError, match='five-root'):
+        load_sources(None,tmp_path,multi_root_enabled=False)
 
 
-def test_registry_without_activation_selects_only_current_source(tmp_path):
-    path, current = registry(tmp_path)
-    sources, _ = load_sources(path, current, multi_root_enabled=False)
-    assert [source.project_id for source in sources] == ["probata"]
-    assert sources[0].canonical_prefix == "docs/"
+def test_registry_without_activation_is_rejected(tmp_path):
+    path,current=registry(tmp_path)
+    with pytest.raises(ValueError, match='five-root'):
+        load_sources(path,current,multi_root_enabled=False)
 
 
 def test_registry_activation_declares_complete_source_set(tmp_path):
     path, current = registry(tmp_path)
     sources, fingerprint = load_sources(path, current, multi_root_enabled=True)
-    assert [source.project_id for source in sources] == ["probata", "consignatio"]
+    assert {source.project_id for source in sources} == {"propria","probata","consignatio","consignatio-intake","advocatio"}
     assert len(fingerprint) == 64
 
 
 def test_multi_root_activation_requires_explicit_registry(tmp_path):
-    with pytest.raises(ValueError, match="requires DOCSTORE_PROJECT_REGISTRY"):
+    with pytest.raises(ValueError, match="five-root"):
         load_sources(None, tmp_path, multi_root_enabled=True)
 
 
@@ -81,4 +62,4 @@ def test_docs_registry_rejects_code_file_classes(tmp_path):
     payload["projects"][0]["included_patterns"] = ["**/*.py"]
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError, match="only Markdown"):
-        load_sources(path, current, multi_root_enabled=False)
+        load_sources(path, current, multi_root_enabled=True)

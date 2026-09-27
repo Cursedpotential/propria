@@ -1,59 +1,41 @@
-# propria-docstore — universal documentation retrieval with bounded routing
+# Propria Docstore — Claude upload package 0.8.2
 
-<!-- Updated by: Codex | Date: 2026-09-12 | Rev: 1 | Platform: Codex / win32 | Changes: clarify system ownership | Context: owner request to persist CCC / Intake / Docstore distinction -->
+By Codex for Matthew Salem, 2026-09-20.
 
-Current owner scope: **Probata hosts the universal Propria Docstore: CocoIndex + NVIDIA NIM embeddings + the dedicated SurrealDB `probata/docs` database**. The memory connection below is a separate service integration. **CCC** is project-local codebase-only CocoIndex Code; **Intake** is the multifaceted CocoIndex/Weaviate/SurrealDB filesystem workstation. The `propria-search` skill routes among them without merging state or ownership. See [shared boundaries](../../../../../SYSTEM-BOUNDARIES.md).
+Upload `propria-docstore-0.8.2-claude-upload.zip` using Claude's custom **plugin** upload, not the individual-skill upload or MCP desktop-extension installer. This archive is the complete client plugin; its root contains `.claude-plugin/plugin.json`, `.mcp.json`, `skills/`, `commands/`, and `agents/`. The separate 0.8.1 consolidated release ZIP includes server/source material and is not the direct plugin-upload artifact.
 
-> _Byline: Claude Code · Fable 5.1 · 2026-09-09 (skeleton built by Claude Code · Sonnet 5 the same day; validated with `claude plugin validate --strict`)_
+## Start here
 
-Design: `docs/design/2026-09-09-docstore-memory-plugin-design.md`. Rulings: D-155 (docs local, embedded), D-156 (taxonomy), D-157/D-158 (memory = self-hosted SurrealDB Agent Memory on the VPS; NIM/Gemini via Portkey).
+Use `/propria-docstore:docstore` for the general guide. Its description allows Claude to discover it from requests about Docstore, documentation search, memory, decisions, handoffs, graphs, status, or indexing. It routes to focused skills as needed; direct commands remain available.
 
-## Install
+Examples:
 
-```
-claude --plugin-dir E:/AI_Workspace/Projects/Propria/Probata/probata/plugins/docstore/claude
-```
+- `/propria-docstore:docstore how do I use this?`
+- `/propria-docstore:query TEST`
+- `/propria-docstore:search ADR authority`
 
-Environment (never commit values):
+## Remote connection
 
-| Variable | Meaning |
-|---|---|
-| `DOCSTORE_BASIC_AUTH` | base64 of `SURREAL_USER:SURREAL_PASS` from `probata/.docstore/.env`; the local docs store listens on `http://127.0.0.1:8462/mcp` |
-| `MEMORY_MCP_URL` | the memory server's `/mcp` URL; provisional default points at the plain SurrealDB on the VPS and will move to the Agent Memory server's port once D-157 is deployed |
-| `MEMORY_BASIC_AUTH` | credentials for that server (a Bearer context key once Agent Memory is live; the `.mcp.json` header changes with it) |
+The `ctl` connection defaults to the hosted gateway at `https://mcp.mitechconsult.com/servers/aca1b85df0ef49acaf152617f043bc96/mcp`. Set `DOCSTORE_CONTROL_MCP_URL` only to override it. Authentication uses the host's `CF_MCP_CLIENT_TOKEN` environment variable. No credential is embedded in the ZIP. The portable Python client reads the same `.mcp.json` connection contract and uses the same `CF_MCP_CLIENT_TOKEN`; a separate token alias is not used.
 
-## What loads when (progressive disclosure)
+For Claude Code, make the token available to the process that launches Claude. Other Claude upload surfaces must support and configure this authenticated remote connection; importing a ZIP does not automatically transfer Windows environment variables into a cloud or Cowork runtime. Successful package validation does not prove that authentication is attached in every host.
 
-| Layer | Loads | When |
-|---|---|---|
-| 0 | bounded `SessionStart` health plus the `propria-search` routing reminder | every session |
-| 1 | the nine skill descriptions | every turn, by the harness |
-| 2 | one `SKILL.md` (≤ 60 lines): the `run` calls it wraps, exact SurrealQL, definition of done | when the skill matches |
-| 3 | `references/functions.md` under that skill: full signatures, schema, worked example, gotchas | on demand |
-| 4 | the MCP servers' generic tool schemas | deferred by the harness; never eagerly loaded |
+Five public tools provide health, capabilities, query, search, and get. Other operations are discovered with capabilities and invoked through query, preserving read/write and plan/verification controls. There is no raw-Surreal fallback and no local service launcher. Hooks are empty. CCC remains a separate local code-search tool.
 
-Skills: `propria-search` (primary Docs/CCC/mixed router), `query` (ad-hoc SurrealQL through `scripts/docstore/sq.py`, rendered as a DuckDB table), `docs` (semantic search, get, provenance), `docs-write` (register, new version in place, supersede), `decisions` (ADR banners, D-rows), `todo` (open, close), `handoff` (write and mirror), `memory` (remember, recall, supersede, forget, reflect), `reconcile` (stale candidates, ingest mapping).
+## Optional helpers and version boundary
 
-_2026-09-12 (Codex): `propria-search` added as the primary routing skill; eight skills → nine. `coco_docstore_search` is the ordinary documentation-search entry point and owns NIM query embedding plus Surreal BM25/KNN fusion._
+Install `requirements.txt` only to use the optional Python diagnostic/federation helpers. Normal attached-MCP operation does not require launching these helpers. Memory providers report their own availability.
 
-Agents: `docstore-librarian` (Sonnet, the only writer), `docstore-reconciler` (Opus, interactive, never batch-writes), `memory-curator` (Sonnet). None run on the frontier model.
+Version 0.8.2 is a client packaging/documentation update for the hosted 0.8.1 service. It adds a clearer general entry skill and corrects setup instructions. It does not redeploy or modify the server. Earlier bundled audit documents describe the original implementation, not a completed upload test on every Claude surface.
 
-## Hooks (each prints at most three lines)
+At the last verified server check, API and storage were up but the latest sync was degraded with six enrichment failures. Recheck health for current runtime status.
 
-- `SessionStart` → `bin/preflight.sh`: pings both `/health`; loud failure, no filesystem fallback.
-- `UserPromptSubmit` → `bin/read-gate.sh`: the read-gate reminder, suppressed when the last tool call was already a store search (state under `.state/`).
-- `PostToolUse` on `Write|Edit` under `docs/**` → `bin/flag-doc-write.sh`: reminds that the CocoIndex pipeline indexes the file on its next run — corrected 2026-09-16, the message no longer reads as an instruction to hand-call `docs_register`/`docs_new_version` on a pipeline-owned file (that collides on the `UNIQUE content_hash` index).
-- `PreCompact` → `bin/precompact-marker.sh`: writes a marker the next `SessionStart` reads (PreCompact cannot inject context).
+## Configuration and local state
 
-## Tool boundary
+Native connector configuration and the portable fallback share `.mcp.json` as their connection contract. The host expands its environment references; the fallback uses `connection_settings.py` to expand that same file. Endpoint and credential values come from the dedicated host environment, not from plugin-cache ancestry. Neither read-only path requires a local state directory.
 
-Ordinary document retrieval uses the typed `control` MCP tool
-`coco_docstore_search`; it owns input validation, NIM query embedding, Surreal
-BM25/KNN fusion and bounded DuckDB presentation. Exact structured records and
-database/graph inspection may use the native `docs` MCP functions. Raw arbitrary
-querying is not the semantic-search entry point. CCC remains an independent CLI
-and CocoIndex Code application for each source repository.
+This upload excludes the legacy 0.5.4 `control/cli.py` that derived state under the plugin cache and rejected it on C:. Do not run that obsolete fallback to diagnose this hosted plugin. Its old configuration defect is not proof that the remote service is unavailable.
 
-## Codex
+The client does not invent a new local database or working-state location. Source synchronization uses an explicitly supplied project root; server working state remains remote. If a future operation requires durable local state, require an explicitly configured stable E: path for this Windows deployment, validate it at that operation boundary, and never derive it from the installed plugin path.
 
-~~`.codex/docstore/` mirrors the two servers in `config.toml` and the seven skills as prompts.~~ **CORRECTED 2026-09-09 (Claude Code · Opus 5):** `config.toml` and `AGENTS.md` exist and are current, but `.codex/docstore/prompts/` is **EMPTY** — the seven prompts were never written. The Codex side is a stub, not a mirror. A stale partial duplicate `.codex/codex-docstore/` (older `AGENTS.md`, no `prompts/`) was quarantined to `to_be_deleted/2026-09-09-restructure/`. Codex has no hooks, so the read and write gates are instructions only.
+The portable command distinguishes configuration, authentication, network, and remote HTTP failures without printing credentials. Registration remains pending until a real remote record and verified readback establish success; packaging or local receipt creation is not registration proof.

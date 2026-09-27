@@ -1,0 +1,76 @@
+PASS: JSON parses: .mcp.json
+PASS: JSON parses: hooks/hooks.json
+PASS: JSON parses: .claude-plugin/plugin.json
+PASS: manifest name is propria-docstore
+PASS: manifest version is 0.7.0
+PASS: manifest uses current schema URL
+PASS: MCP server keys are exactly ctl/docs/memory [ctl,docs,memory]
+PASS: all MCP servers are remote HTTP
+PASS: no MCP server launches a local process
+PASS: frontmatter parses: agents/docstore-librarian.md
+PASS: frontmatter parses: agents/docstore-reconciler.md
+PASS: frontmatter parses: agents/memory-curator.md
+PASS: frontmatter parses: commands/recall-adr.md
+PASS: frontmatter parses: commands/recall-doc.md
+PASS: frontmatter parses: commands/update-adr.md
+PASS: frontmatter parses: skills/decisions/SKILL.md
+PASS: frontmatter parses: skills/docs/SKILL.md
+PASS: frontmatter parses: skills/docs-write/SKILL.md
+PASS: frontmatter parses: skills/docstore/SKILL.md
+PASS: frontmatter parses: skills/handoff/SKILL.md
+PASS: frontmatter parses: skills/memory/SKILL.md
+PASS: frontmatter parses: skills/propria-search/SKILL.md
+PASS: frontmatter parses: skills/query/SKILL.md
+PASS: frontmatter parses: skills/reconcile/SKILL.md
+PASS: frontmatter parses: skills/todo/SKILL.md
+PASS: skill discovered: decisions [skills/decisions/SKILL.md]
+PASS: skill discovered: docs [skills/docs/SKILL.md]
+PASS: skill discovered: docs-write [skills/docs-write/SKILL.md]
+PASS: skill discovered: docstore [skills/docstore/SKILL.md]
+PASS: skill discovered: handoff [skills/handoff/SKILL.md]
+PASS: skill discovered: memory [skills/memory/SKILL.md]
+PASS: skill discovered: propria-search [skills/propria-search/SKILL.md]
+PASS: skill discovered: query [skills/query/SKILL.md]
+PASS: skill discovered: reconcile [skills/reconcile/SKILL.md]
+PASS: skill discovered: todo [skills/todo/SKILL.md]
+PASS: no command/skill collision: update-adr [commands/update-adr.md]
+PASS: no command/skill collision: recall-adr [commands/recall-adr.md]
+PASS: no command/skill collision: recall-doc [commands/recall-doc.md]
+PASS: agent has name+description: docstore-librarian.md
+PASS: agent skills is YAML list: docstore-librarian.md ['list']
+PASS: agent preloaded skills exist: docstore-librarian.md
+PASS: agent has name+description: docstore-reconciler.md
+PASS: agent skills is YAML list: docstore-reconciler.md ['list']
+PASS: agent preloaded skills exist: docstore-reconciler.md
+PASS: agent has name+description: memory-curator.md
+PASS: agent skills is YAML list: memory-curator.md ['list']
+PASS: agent preloaded skills exist: memory-curator.md
+PASS: all plugin MCP refs use exact manifest namespace
+PASS: explicit plugin MCP refs are <= 64 chars [max=61]
+PASS: every referenced ctl tool exists in control source
+PASS: docs refs stay on run/list/info surface
+PASS: memory refs stay on run/list/info surface
+PASS: hooks limited to SessionStart/PostToolUse [SessionStart,PostToolUse]
+PASS: hook script exists: /hooks/scripts/after-compact.ps1
+PASS: hook script exists: /hooks/scripts/doc-write-guidance.ps1
+PASS: no shell hook scripts remain
+PASS: no Windows absolute path
+PASS: no local venv/python launcher
+PASS: no old plugin namespace
+PASS: no deprecated no-skill marker
+PASS: no direct local helper invocation
+PASS: no supplied secret values embedded in plugin
+PASS: exactly one plugin manifest in package [1]
+PASS: no docstore command duplicates docstore skill
+PASS: no memory command duplicates memory skill
+PASS: handoff skill documents MCP input envelope
+PASS: core skill documents explicit supersession semantics
+
+SUMMARY: 67 passed, 0 failed, 67 total checks; 17 explicit MCP tool refs; longest ref=61.
+
+POST-PACKAGE CHECKS:
+PASS: source client patch applies with `git apply --ignore-space-change` against uploaded source (CRLF-safe)
+PASS: remote control tool-description patch applies cleanly against uploaded control source
+PASS: control Python source compiles with `python -m compileall -q`
+PASS: runtime plugin files contain no machine-specific Windows launch path, local venv/uv launcher, or old plugin MCP namespace
+PASS: whole package contains none of the supplied high-entropy credential values

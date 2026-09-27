@@ -117,7 +117,9 @@ def render(rows, a, label: str | None = None) -> None:
         rel.show(max_width=a.width, max_rows=a.max_rows, max_col_width=a.cell)
         con.close()
     finally:
-        os.remove(path)
+        quarantine = REPO / "to_be_deleted" / "query-scratch"
+        quarantine.mkdir(parents=True, exist_ok=True)
+        pathlib.Path(path).replace(quarantine / pathlib.Path(path).name)
 
 
 async def connect(target: str, ns: str, db_name: str):

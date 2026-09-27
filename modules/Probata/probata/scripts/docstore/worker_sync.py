@@ -25,7 +25,6 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from run_support import WorkerBusy, worker_lock, write_current_status, write_receipt, run_child
 from cdc_verify import retire_unexpected_projection, snapshot_sources, verify_projection
-from docs_lint import lint_summary_from_env
 
 
 class WorkerCancelled(RuntimeError):
@@ -41,28 +40,6 @@ def _rows(r):
     while isinstance(r, list) and len(r) == 1 and isinstance(r[0], list):
         r = r[0]
     return r if isinstance(r, list) else ([r] if r else [])
-
-
-def _status_payload(summary: dict, run_id: str) -> dict:
-    """write_receipt() has no size limit (one JSON file per sequence step), but
-    write_current_status() enforces a hard 64 KiB ceiling on the whole payload --
-    and lint's own findings[:200] alone serialises to ~38 KB on this corpus
-    (measured 2026-09-14 against the live 6-root registry). Left uncapped here,
-    a busy summary (ingest log path, health stats, cdc_attribution samples) could
-    push the combined status over 64 KiB and make write_current_status() raise
-    from inside _sync()'s `finally` block, replacing the real sync outcome with a
-    cryptic size error. The receipt keeps the full findings[:200]; the live
-    status gets a small, safely-bounded view of the same lint result."""
-    payload = {**summary, 'run_id': run_id}
-    lint = payload.get('lint')
-    if isinstance(lint, dict):
-        trimmed = dict(lint)
-        full_findings = lint.get('findings') or []
-        trimmed['findings'] = full_findings[:20]
-        trimmed['findings_truncated'] = bool(lint.get('findings_truncated')) or len(full_findings) > 20
-        trimmed['largest_files'] = (lint.get('largest_files') or [])[:5]
-        payload['lint'] = trimmed
-    return payload
 
 
 def _run(script: str, timeout: int, log_path: pathlib.Path) -> dict:
@@ -111,6 +88,11 @@ def main() -> int:
 
 def _sync() -> int:
     t0 = time.time()
+    journal=LOCK.parent/'source-sync.json'
+    if journal.exists() and json.loads(journal.read_text()).get('state')!='verified':
+        raise RuntimeError('Incomplete source sync must be repaired before indexing')
+    from adr import refresh_projections
+    asyncio.run(refresh_projections(materialize=True))
     requested_run_id = os.environ.get('DOCSTORE_RUN_ID', '').strip()
     if requested_run_id and (len(requested_run_id) != 32 or any(c not in '0123456789abcdef' for c in requested_run_id)):
         raise ValueError('DOCSTORE_RUN_ID must be 32 lowercase hexadecimal characters')
@@ -132,11 +114,6 @@ def _sync() -> int:
                      'tracking_rebuild':rebuild_tracking,
                      'source_count':len(source_snapshot), 'source_digest_before':source_digest,
                      'cdc_verified':False}
-    # Lint findings are recorded, never fatal: the flow already skips empties and
-    # fails closed on hash collisions on its own. This is so a degraded/failed run's
-    # receipt can explain WHY (e.g. an ENC001/DUP001 the flow's own guards then hit)
-    # without a second pass over the source tree.
-    summary['lint'] = lint_summary_from_env()
     sequence = 0
     def record():
         nonlocal sequence
@@ -146,7 +123,7 @@ def _sync() -> int:
     record()  # A durable start is required before any child is launched.
     try:
         # The current status must also be durable before expensive work begins.
-        write_current_status(STATUS, _status_payload(summary, run_id))
+        write_current_status(STATUS, {**summary, 'run_id': run_id})
         if rebuild_tracking:
             state_db = pathlib.Path(os.environ.get('DOCSTORE_COCOINDEX_DB', '')).resolve(strict=False)
             if not state_db.is_absolute() or state_db.parent != STATUS.parent.resolve(strict=False):
@@ -162,20 +139,50 @@ def _sync() -> int:
             summary['tracking_state_quarantined'] = bool(moved)
             summary['tracking_quarantine_path'] = str(quarantine)
             record()
-        # Ingest ceiling is env-configurable (Claude Code · Fable 5.1 · 2026-09-14): the first
-        # multi-root run embeds ~470 new documents at ~4/min on NVIDIA NIM and cannot finish
-        # inside the old fixed 3600 s. Default unchanged.
-        ingest_timeout = int(os.environ.get('DOCSTORE_INGEST_TIMEOUT_S', '3600'))
-        for stage, script, timeout in [('ingest','flow_docs.py',ingest_timeout)]:
+        from upgrade import verify_required
+        asyncio.run(verify_required())
+        async def previous_hashes():
+            import sq
+            db=await sq.connect('docs','probata','docs')
+            try:
+                return {row['source_path']:row.get('content_hash') for row in _rows(await db.query('SELECT source_path,content_hash FROM document WHERE status != "retracted";'))}
+            finally:
+                await db.close()
+        previous=asyncio.run(previous_hashes())
+        pending_file=LOCK.parent/'pending-enrichment.json'
+        pending=set(json.loads(pending_file.read_text()) if pending_file.exists() else [])
+        pending.update(row.source_path for row in source_snapshot if previous.get(row.source_path)!=row.content_hash)
+        pending_file.write_text(json.dumps(sorted(pending)))
+        for stage, script, timeout in [('ingest','flow_docs.py',int(os.environ.get('DOCSTORE_INGEST_TIMEOUT_S','3600')))]:
             result = _run(script, timeout, RECEIPTS / f'{run_id}-{stage}.log')
             summary[stage] = result
             if result['exit_code'] != 0 or result['timed_out'] or result['diagnostic_errors']:
                 summary['sync'] = 'failed'
                 return 1
             record()
-        if rebuild_tracking:
-            summary['projection_retirement'] = asyncio.run(retire_unexpected_projection(source_snapshot))
+        if True:
+            # 0.8.1-r3 retraction guard: only the paths this run request named in retract_paths are retracted.
+            allowed = frozenset(filter(None, os.environ.get('DOCSTORE_RETRACT_PATHS', '').split('\n')))
+            summary['projection_retirement'] = asyncio.run(retire_unexpected_projection(source_snapshot, allowed=allowed))
+            held = (summary['projection_retirement'] or {}).get('held_count') or 0
+            if held:
+                summary['retraction_held'] = summary['projection_retirement']['held_paths'][:50]
+                summary['reason'] = (f'Retraction held: {held} stored document(s) are missing from the source; '
+                                     'restore them, or name them in retract_paths to retract')
             record()
+        from knowledge import enrich_changed, EnrichmentIncomplete
+        try:
+            summary['enrichment'] = asyncio.run(enrich_changed(tuple(row for row in source_snapshot if row.source_path in pending)))
+            pending_file.write_text('[]')
+        except EnrichmentIncomplete as exc:
+            failures=exc.result['failed_documents']
+            pending_file.write_text(json.dumps([item['source_path'] for item in failures]))
+            summary['enrichment']={**exc.result,'failed_documents':failures[:20],
+                                   'failed_count':len(failures),'failures_truncated':len(failures)>20}
+        from adr import refresh_projections
+        projections=asyncio.run(refresh_projections()).get('projections',[])
+        summary['adr_projection']={'count':len(projections),
+                                   'indexed_count':sum(bool(item.get('indexed')) for item in projections)}
         for stage, script, timeout in [('graph','graph_build.py',900)]:
             result = _run(script, timeout, RECEIPTS / f'{run_id}-{stage}.log')
             summary[stage] = result
@@ -197,6 +204,10 @@ def _sync() -> int:
         if summary['cdc_attribution'].get('status') != 'verified':
             summary['sync'] = 'degraded'
             return 1
+        if summary.get('enrichment',{}).get('failed_documents'):
+            summary['sync']='degraded'
+            summary['reason']='Source attribution verified; provider enrichment remains pending'
+            return 1
         summary['sync'] = 'execution_finished'
         return 0
     except BaseException as exc:
@@ -206,7 +217,7 @@ def _sync() -> int:
     finally:
         summary["seconds"] = round(time.time() - t0)
         summary['receipt_path'] = str(record())
-        write_current_status(STATUS, _status_payload(summary, run_id))
+        write_current_status(STATUS, {**summary, 'run_id': run_id})
         print(json.dumps(summary, default=str))
 
 
