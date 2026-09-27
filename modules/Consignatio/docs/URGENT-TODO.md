@@ -2880,8 +2880,9 @@ desktop tile, LibreChat pending its URLs.
   (the owner's names, product names in the descriptions). File management: FileFlows (tailnet
   only), Filestash (now monitored), OpenList. Operations gains Project progress and Service health.
   Preview pipeline becomes Development: Devbox, OpenCode (unchanged, as asked), claude.ai, LLM probe
-  playground, Sandbox desktop (tailnet only), LibreChat (placeholder until its URLs are
-  confirmed). Stale "Checked Sep 23 ·" prefixes dropped, except on OpenCode.
+  playground, Sandbox desktop (tailnet only), LibreChat (a real tile on both instances since
+  2026-09-27, after its URLs were confirmed live: `librechat.tilapia-skilift.ts.net`,
+  `librechat.int.mitechconsult.com`). Stale "Checked Sep 23 ·" prefixes dropped, except on OpenCode.
 - **Public instance:** user surfaces only. Removed Coolify, Temporal, n8n, ContextForge, Portkey,
   Infisical ("Secrets") and Edit portal; Legal Work Desk → `https://legal.int.mitechconsult.com/`;
   the two `workbench.int/.../schemas` duplicates removed. No public route exists for pgAdmin,

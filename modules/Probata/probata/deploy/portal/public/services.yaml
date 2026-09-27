@@ -210,6 +210,10 @@
         description: Model probe interface and experiments
         icon: mdi-flask-outline
         siteMonitor: http://100.91.190.107:8031/playground
+    # LibreChat: recreated and confirmed live 2026-09-27 (relayed by the parent session); the
+    # monitor checks the tailnet /login, as the container cannot pass Authentik.
     - LibreChat:
-        description: Currently stopped · preview unavailable
+        href: https://librechat.int.mitechconsult.com/
+        description: Chat over the platform tools · sign-in required
         icon: mdi-chat-processing-outline
+        siteMonitor: https://librechat.tilapia-skilift.ts.net/login

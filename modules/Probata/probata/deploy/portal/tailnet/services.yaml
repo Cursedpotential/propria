@@ -282,6 +282,9 @@
         description: Plain Kasm sandbox desktop on ovh-app (not the devbox)
         icon: mdi-monitor
         siteMonitor: https://desk.tilapia-skilift.ts.net
+    # LibreChat: recreated and confirmed live 2026-09-27 (relayed by the parent session); /login answers 200.
     - LibreChat:
-        description: Currently stopped · preview unavailable
+        href: https://librechat.tilapia-skilift.ts.net/
+        description: Chat over the platform tools · sign-in required
         icon: mdi-chat-processing-outline
+        siteMonitor: https://librechat.tilapia-skilift.ts.net/login
