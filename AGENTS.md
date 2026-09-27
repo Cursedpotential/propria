@@ -219,13 +219,19 @@ transition state.
 - The Bash tool collapses a doubled backslash to a single one before bash runs. A Windows path
   inside a Python or JSON string then turns `\t` into a tab and `\r` into a carriage return. In
   Bash, write Windows paths with forward slashes (`E:/AI_Workspace/...`); in scripts, build a
-  backslash with `chr(92)`. A quoted heredoc (`<<'EOF'`) keeps backslashes literal and is safe
-  for file content.
+  backslash with `chr(92)`. The collapse happens before bash parses anything, so it applies
+  inside a quoted heredoc (`<<'EOF'`) too: a `\\` written there arrives as `\` (verified
+  2026-09-26 — JSON and Python string escapes broke). Write content that needs doubled
+  backslashes with the Write or Edit tool.
 - Prefix commands that pass `/unix/paths` to `ssh` or `docker` with `MSYS_NO_PATHCONV=1`.
-- The Read, Write and Edit tools refuse paths outside the session's allowed working directories.
-  `permissions.additionalDirectories` in `~\.claude\settings.json` grants **Read** outside them
-  (`C:\Users\matts\.claude` was added 2026-09-26) but **not Write** — write files there with a
-  Bash heredoc or a Python heredoc instead.
+- The Claude app refuses Read, Write, Edit, Glob and Grep outside its allowed workspace folders
+  ("Path is outside the workspace folders allowed by your administrator"). The list is
+  `allowedWorkspaceFolders` in the app's local profile
+  `%LOCALAPPDATA%\Claude-3p\configLibrary\<appliedId>.json`. Since 2026-09-26 it covers
+  `E:\AI_Workspace`, all of `D:\` and `F:\`, `E:\backup`, `~\.claude`, the session scratch
+  folders (`%LOCALAPPDATA%\Temp\claude`) and the Codex, OpenCode, memsearch and Case Bible
+  folders. Adding a folder to a session does not lift the block; the owner edits that file and
+  fully quits and reopens the app. _(Claude Code · Opus 5.5 · 2026-09-26)_
 - The case-bible guard hook rejects any Bash command whose text contains a hard-delete pattern
   (the `rm` command with a force or recursive flag, or Python's file-removal call) anywhere in
   the command, including inside a quoted string or heredoc. Move material to a quarantine
