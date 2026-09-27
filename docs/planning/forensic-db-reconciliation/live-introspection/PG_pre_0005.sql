@@ -181,8 +181,8 @@ CREATE SERVER simple_s3_secret TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
 --
 
 CREATE USER MAPPING FOR ai SERVER simple_s3_secret OPTIONS (
-    key_id '9e9eb4a1f55d967f83c42dc041e37313',
-    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+    key_id '<redacted:R2_ACCESS_KEY_ID>',
+    secret '<redacted:R2_SECRET_ACCESS_KEY>'
 );
 
 
@@ -201,8 +201,8 @@ CREATE SERVER simple_s3_secret_1 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
 --
 
 CREATE USER MAPPING FOR ai SERVER simple_s3_secret_1 OPTIONS (
-    key_id '9e9eb4a1f55d967f83c42dc041e37313',
-    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+    key_id '<redacted:R2_ACCESS_KEY_ID>',
+    secret '<redacted:R2_SECRET_ACCESS_KEY>'
 );
 
 
@@ -221,8 +221,8 @@ CREATE SERVER simple_s3_secret_2 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
 --
 
 CREATE USER MAPPING FOR ai SERVER simple_s3_secret_2 OPTIONS (
-    key_id '9e9eb4a1f55d967f83c42dc041e37313',
-    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+    key_id '<redacted:R2_ACCESS_KEY_ID>',
+    secret '<redacted:R2_SECRET_ACCESS_KEY>'
 );
 
 
@@ -241,8 +241,8 @@ CREATE SERVER simple_s3_secret_3 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
 --
 
 CREATE USER MAPPING FOR ai SERVER simple_s3_secret_3 OPTIONS (
-    key_id '9e9eb4a1f55d967f83c42dc041e37313',
-    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+    key_id '<redacted:R2_ACCESS_KEY_ID>',
+    secret '<redacted:R2_SECRET_ACCESS_KEY>'
 );
 
 
@@ -261,8 +261,8 @@ CREATE SERVER simple_s3_secret_4 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
 --
 
 CREATE USER MAPPING FOR ai SERVER simple_s3_secret_4 OPTIONS (
-    key_id '9e9eb4a1f55d967f83c42dc041e37313',
-    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+    key_id '<redacted:R2_ACCESS_KEY_ID>',
+    secret '<redacted:R2_SECRET_ACCESS_KEY>'
 );
 
 
@@ -281,8 +281,8 @@ CREATE SERVER simple_s3_secret_5 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
 --
 
 CREATE USER MAPPING FOR ai SERVER simple_s3_secret_5 OPTIONS (
-    key_id '9e9eb4a1f55d967f83c42dc041e37313',
-    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+    key_id '<redacted:R2_ACCESS_KEY_ID>',
+    secret '<redacted:R2_SECRET_ACCESS_KEY>'
 );
 
 
@@ -301,8 +301,8 @@ CREATE SERVER simple_s3_secret_6 TYPE 'S3' FOREIGN DATA WRAPPER duckdb OPTIONS (
 --
 
 CREATE USER MAPPING FOR ai SERVER simple_s3_secret_6 OPTIONS (
-    key_id '9e9eb4a1f55d967f83c42dc041e37313',
-    secret 'f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878'
+    key_id '<redacted:R2_ACCESS_KEY_ID>',
+    secret '<redacted:R2_SECRET_ACCESS_KEY>'
 );
 
 

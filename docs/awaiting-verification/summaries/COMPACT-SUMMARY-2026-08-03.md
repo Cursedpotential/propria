@@ -50,13 +50,13 @@ I tested DuckDB-direct read_blob. First attempts failed:
 - TYPE R2 secret gave `NoSuchBucket` (virtual-host style)
 
 **Turn 8 (owner: "While you completely fucked up those Urls"):**
-I diagnosed the endpoint issue. The working rclone `[r2]` remote uses account `1a7406c497493a52128bb282f499e7b8`, access_key `9e9eb4a1f55d967f83c42dc041e37313`. The r2.env creds gave NoSuchBucket — but I later realized the r2.env SECRET actually matches the rclone secret, so the account was right and the issue was DuckDB's TYPE R2 URL style.
+I diagnosed the endpoint issue. The working rclone `[r2]` remote uses account `1a7406c497493a52128bb282f499e7b8`, access_key `<redacted:R2_ACCESS_KEY_ID>`. The r2.env creds gave NoSuchBucket — but I later realized the r2.env SECRET actually matches the rclone secret, so the account was right and the issue was DuckDB's TYPE R2 URL style.
 
 **Turn 9 (owner: "Bro just export the motherfucking thing"):**
-Owner manually exported R2_ACCOUNT_ID and R2_ACCESS_KEY_ID in their shell. I read the rclone `[r2]` secret from rclone.conf: `f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878`. I confirmed r2.env R2_ACCOUNT_ID IS `1a7406...` (same account). So the NoSuchBucket was DuckDB's TYPE R2 virtual-host style, not creds.
+Owner manually exported R2_ACCOUNT_ID and R2_ACCESS_KEY_ID in their shell. I read the rclone `[r2]` secret from rclone.conf: `<redacted:R2_SECRET_ACCESS_KEY>`. I confirmed r2.env R2_ACCOUNT_ID IS `1a7406...` (same account). So the NoSuchBucket was DuckDB's TYPE R2 virtual-host style, not creds.
 
 I switched to `TYPE S3` + `URL_STYLE 'path'` + explicit ENDPOINT. The owner rejected my python probe and pasted the full creds block:
-- R2_SECRET_ACCESS_KEY=f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878
+- R2_SECRET_ACCESS_KEY=<redacted:R2_SECRET_ACCESS_KEY>
 - R2_ENDPOINT_URL=https://1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com
 - CLOUDFLARE_R2_API_TOKEN=[REDACTED-CF-TOKEN]
 - R2_CATALOG_TOKEN=[REDACTED-CF-TOKEN]
@@ -70,7 +70,7 @@ Owner switched model to glm-5.2:cloud xhigh. I probed DuckDB functions (httpfs +
 **Turn 12 (current/final):**
 I attempted to pull all 3 buckets into `r2_inv` table in the catalog DB. First attempt failed with "Invalid query parameters found. Supported parameters are: 's3_region', 's3_access_key_id', ..." — because my earlier `INSTALL aws` switched the S3 secret to s3_-prefixed param names. I retried with s3_-prefixed params (`s3_access_key_id`, `s3_secret_access_key`, `s3_endpoint`, `s3_url_style`, `s3_region`), backgrounded. It completed (exit 0) but the output showed:
 - sorted: 0 rows (must have worked then? No — the inserts for raw and quarantine failed)
-- raw: 0 rows, InvalidAccessKeyId error: "The AWS Access Key Id you provided does not exist in our records. Invalid Access Key: 9e9eb4a1f55d967f83c42dc041e37313"
+- raw: 0 rows, InvalidAccessKeyId error: "The AWS Access Key Id you provided does not exist in our records. Invalid Access Key: <redacted:R2_ACCESS_KEY_ID>"
 - quarantine: 0 rows, HTTP 403 Forbidden, InvalidAccessKeyId
 - TOTAL: 0 rows
 
@@ -92,8 +92,8 @@ This worked BEFORE I ran `INSTALL aws`. After INSTALL aws, the secret params cha
 
 **Critical credentials:**
 - R2_ACCOUNT_ID: 1a7406c497493a52128bb282f499e7b8
-- R2_ACCESS_KEY_ID (rclone [r2], working): 9e9eb4a1f55d967f83c42dc041e37313
-- R2_SECRET_ACCESS_KEY: f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878
+- R2_ACCESS_KEY_ID (rclone [r2], working): <redacted:R2_ACCESS_KEY_ID>
+- R2_SECRET_ACCESS_KEY: <redacted:R2_SECRET_ACCESS_KEY>
 - R2_ENDPOINT: 1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com
 - CLOUDFLARE_R2_API_TOKEN: [REDACTED-CF-TOKEN]
 - R2_CATALOG_TOKEN: [REDACTED-CF-TOKEN]
@@ -150,9 +150,9 @@ Now let me write the summary.
 
 3. Files and Code Sections:
    - `C:/Users/matts/AppData/Local/Temp/cb_pg18_create.py` (CREATED): parses COOLIFY_API/TOKEN from `~/.secrets/coolify-ionos-api.env` + PG password from handoff doc via regex, base64-encodes the compose, POSTs /services, upserts env, deploys. Result: service created (uuid `l5lqi1c9z729w9li5oicrqm4`), deploy fired (200), but env upsert 404'd (compose services use a different env endpoint). PG password regex: `re.search(r'"value":"([0-9a-f]{40,})"', hd)`. Compose YAML baked into the script (the `casebible-pg18` service on `agno` external network, bind-mount `/data/coolify/applications/casebible-pg18/pgdata`, healthcheck, ${POSTGRES_PASSWORD}).
-   - `E:/AI_Workspace/Projects/the-platform-workspace/Agno-MCP-Platform/docs/HANDOFF-2026-08-02-pg18-migration-permission-allowlist.md` (READ): the authoritative session-state handoff (pg18 resume point, compose file, server_uuid `cn89l8801u8gsginw1rxq5qt`, project_uuid `z45vmrtvk1woiwjhr91m57b2`, env_name `production`, wrong-net DB resource to delete `fgz1n7useplhk0t91uk7k1aw`, PG password `153b6512b816403ac842d7631cd86662b8cd79dcc89d3c4c`).
+   - `E:/AI_Workspace/Projects/the-platform-workspace/Agno-MCP-Platform/docs/HANDOFF-2026-08-02-pg18-migration-permission-allowlist.md` (READ): the authoritative session-state handoff (pg18 resume point, compose file, server_uuid `cn89l8801u8gsginw1rxq5qt`, project_uuid `z45vmrtvk1woiwjhr91m57b2`, env_name `production`, wrong-net DB resource to delete `fgz1n7useplhk0t91uk7k1aw`, PG password `<redacted:POSTGRES_PASSWORD>`).
    - `C:/Users/matts/.claude/skills/casebible-catalog/cbcat` (READ): bash launcher, rclone-mediated, DB default `D:/casebible/casebible.duckdb` (CBCAT_DB override), REMOTE `r2`, uses `rclone lsjson`.
-   - `~/.config/rclone/rclone.conf` (READ partially): two Cloudflare remotes; the working `[r2]` block has `access_key_id = 9e9eb4a1f55d967f83c42dc041e37313`, `secret_access_key = f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878`, `endpoint = https://1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com`, `region = auto`. (There's also a weird `[R@]` block reading an .env file.)
+   - `~/.config/rclone/rclone.conf` (READ partially): two Cloudflare remotes; the working `[r2]` block has `access_key_id = <redacted:R2_ACCESS_KEY_ID>`, `secret_access_key = <redacted:R2_SECRET_ACCESS_KEY>`, `endpoint = https://1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com`, `region = auto`. (There's also a weird `[R@]` block reading an .env file.)
    - `C:/Users/matts/AppData/Local/Temp/cb_duckdb_r2_probe.py` (CREATED + EDITED multiple times): python script parsing r2.env / rclone.conf for creds, piping SQL to duckdb stdin.
    - `C:/Users/matts/.secrets/r2.env` (var names read): CLOUDFLARE_R2_API_TOKEN, R2_ACCESS_KEY_ID, R2_ACCOUNT_ID, R2_BUCKET_NAME, R2_CATALOG_TOKEN, R2_CATALOG_URI, R2_ENDPOINT_URL, R2_SECRET_ACCESS_KEY.
    - The WORKING DuckDB read_blob SQL (that produced columns + sample, in :memory:, BEFORE INSTALL aws):
@@ -172,7 +172,7 @@ Now let me write the summary.
    - **r2.env creds gave NoSuchBucket (apparent):** Initially thought r2.env was a different account; later confirmed r2.env R2_ACCOUNT_ID IS `1a7406...` (same as rclone). The real issue was DuckDB's URL style, not the creds. Owner feedback: "Bro just export the motherfucking thing" (wanted me to just export env vars and run, not over-engineer).
    - **read_blob `SELECT *` downloaded content:** Selecting `*` included the `content` blob column → downloaded 5 files. Fix: always select only `filename, size, last_modified`.
    - **INSTALL aws broke the S3 secret:** After `INSTALL aws; LOAD aws;`, the S3 secret rejected `KEY_ID/SECRET` params and required `s3_access_key_id`/`s3_secret_access_key` etc. ("Invalid query parameters found. Supported parameters are: 's3_region', 's3_access_key_id', ..."). Owner feedback: "That was really not owner aligned I wanted you to use the motherfucking goddamn Duck DB extension for what the fuck it's good for you dumbass."
-   - **CURRENT UNRESOLVED — r2_inv pull failed with InvalidAccessKeyId:** The backgrounded 3-bucket pull (using s3_-prefixed params, persistent catalog DB) completed exit 0 but all 3 inserts returned 0 rows with `InvalidAccessKeyId: The AWS Access Key Id you provided does not exist in our records. Invalid Access Key: "9e9eb4a1f55d967f83c42dc041e37313"` and HTTP 403, region 'us-east-1'. The SAME key worked earlier in :memory: with KEY_ID/SECRET params. Likely causes: (a) the s3_-prefixed param form didn't register the key correctly, (b) a stale persisted secret in the catalog DB conflicts, (c) the region defaulted to us-east-1 and R2 rejected. NOT YET FIXED.
+   - **CURRENT UNRESOLVED — r2_inv pull failed with InvalidAccessKeyId:** The backgrounded 3-bucket pull (using s3_-prefixed params, persistent catalog DB) completed exit 0 but all 3 inserts returned 0 rows with `InvalidAccessKeyId: The AWS Access Key Id you provided does not exist in our records. Invalid Access Key: "<redacted:R2_ACCESS_KEY_ID>"` and HTTP 403, region 'us-east-1'. The SAME key worked earlier in :memory: with KEY_ID/SECRET params. Likely causes: (a) the s3_-prefixed param form didn't register the key correctly, (b) a stale persisted secret in the catalog DB conflicts, (c) the region defaulted to us-east-1 and R2 rejected. NOT YET FIXED.
 
 5. Problem Solving:
    - Completed pg18 compose-service creation (service uuid `l5lqi1c9z729w9li5oicrqm4`, deploy fired) but env upsert failed — parked per owner redirect.
@@ -186,7 +186,7 @@ Now let me write the summary.
    - "I mean duck TV is supposed to be directly connected to the buckets so you should be able to just pull the catalog information"
    - "While you completely fucked up those Urls"
    - "Bro just export the motherfucking thing"
-   - (bash-input exports the owner ran themselves: `export R2_ACCOUNT_ID=1a7406c497493a52128bb282f499e7b8`, `export R2_ACCESS_KEY_ID=9e9eb4a1f55d967f83c42dc041e37313`, then a creds paste: R2_SECRET_ACCESS_KEY=f64180b5668fedd0db791c2d2688154a5613b66c2ff1ac12fe7b27a6896e0878, R2_ENDPOINT_URL=https://1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com, CLOUDFLARE_R2_API_TOKEN=[REDACTED-CF-TOKEN], R2_CATALOG_TOKEN=[REDACTED-CF-TOKEN])
+   - (bash-input exports the owner ran themselves: `export R2_ACCOUNT_ID=1a7406c497493a52128bb282f499e7b8`, `export R2_ACCESS_KEY_ID=<redacted:R2_ACCESS_KEY_ID>`, then a creds paste: R2_SECRET_ACCESS_KEY=<redacted:R2_SECRET_ACCESS_KEY>, R2_ENDPOINT_URL=https://1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com, CLOUDFLARE_R2_API_TOKEN=[REDACTED-CF-TOKEN], R2_CATALOG_TOKEN=[REDACTED-CF-TOKEN])
    - "You are really fucking struggling with this aren't you" + (creds paste repeated)
    - "That was really not owner aligned I wanted you to use the motherfucking goddamn Duck DB extension for what the fuck it's good for you dumbass"
    - Security constraints (still in force, from prior context — owner accepts secret values in transcript BUT keep secrets out of command lines/process listings via stdin pipes/env files; never `source` files under `~/.secrets/` — parse with tolerant regex `re.match(r"^\s*([A-Z_]+)\s*=\s*(.+?)\s*$", line)`; never hard-delete — Coolify API for resource deletion, move files to stale never rm; never `docker start/stop/rm` a Coolify-owned container; byline every artifact; verify before claiming done; confirm before destructive/architecture changes; casebible PG password `[REDACTED-CF-TOKEN]` is a live credential — reuse for pg18.)
@@ -201,7 +201,7 @@ Now let me write the summary.
    - **8 open tasks snapshotted to docs\TODO-SNAPSHOT-2026-08-03.json** (per PreCompact hook).
 
 8. Current Work:
-   Immediately before this summary, I was attempting to pull all 3 R2 buckets into a persistent `r2_inv` table in `E:/AI_Workspace/casebible/casebible.duckdb` via DuckDB read_blob, per the owner's directive to "use the DuckDB extension for what it's good for." I had just confirmed read_blob works (columns: filename, content, size, last_modified — NO ETag) and that DuckDB has no ETag function. After my `INSTALL aws` broke the secret param names, I switched to s3_-prefixed params. The backgrounded pull completed (exit 0) but FAILED — all 3 bucket inserts returned 0 rows with `InvalidAccessKeyId: The AWS Access Key Id you provided does not exist in our records. Invalid Access Key: "9e9eb4a1f55d967f83c42dc041e37313"` and HTTP 403 (region 'us-east-1'). The SAME key worked earlier in :memory: with KEY_ID/SECRET params. The s3_-prefixed secret form likely didn't register the key, OR a stale persisted secret in the catalog DB conflicts, OR the region defaulted to us-east-1 and R2 rejected. The SQL used:
+   Immediately before this summary, I was attempting to pull all 3 R2 buckets into a persistent `r2_inv` table in `E:/AI_Workspace/casebible/casebible.duckdb` via DuckDB read_blob, per the owner's directive to "use the DuckDB extension for what it's good for." I had just confirmed read_blob works (columns: filename, content, size, last_modified — NO ETag) and that DuckDB has no ETag function. After my `INSTALL aws` broke the secret param names, I switched to s3_-prefixed params. The backgrounded pull completed (exit 0) but FAILED — all 3 bucket inserts returned 0 rows with `InvalidAccessKeyId: The AWS Access Key Id you provided does not exist in our records. Invalid Access Key: "<redacted:R2_ACCESS_KEY_ID>"` and HTTP 403 (region 'us-east-1'). The SAME key worked earlier in :memory: with KEY_ID/SECRET params. The s3_-prefixed secret form likely didn't register the key, OR a stale persisted secret in the catalog DB conflicts, OR the region defaulted to us-east-1 and R2 rejected. The SQL used:
    ```sql
    LOAD httpfs;
    CREATE OR REPLACE SECRET r2 (TYPE S3, s3_access_key_id '${AWS_ACCESS_KEY_ID}', s3_secret_access_key '${AWS_SECRET_ACCESS_KEY}', s3_endpoint '${EP}', s3_url_style 'path', s3_region 'auto');
@@ -226,7 +226,7 @@ Let me chronologically work through this conversation, which is a continuation f
 - This is a continuation session. Prior work involved pg18 Postgres migration + Case Bible sorting.
 - The owner's dominant directive: consolidate Case Bible quarantine-only + raw-only objects → `casebible-sorted/_raw/`, then upload local drives D/E/F/J, dedup by content hash.
 - Most recent owner directive before this session: "use the motherfucking goddamn Duck DB extension for what the fuck it's good for" — use DuckDB read_blob to pull the R2 catalog, NOT rclone/python-S3.
-- The immediate unresolved blocker: DuckDB read_blob pull failed with `InvalidAccessKeyId` for key `9e9eb4a1f55d967f83c42dc041e37313`.
+- The immediate unresolved blocker: DuckDB read_blob pull failed with `InvalidAccessKeyId` for key `<redacted:R2_ACCESS_KEY_ID>`.
 
 **This session's chronology:**
 
@@ -324,7 +324,7 @@ This is where the conversation was interrupted for the summary request.
 - The fresh S3 creds: Access Key `f1c4688cc6e17f523a6cd28e079dcf86`, Secret `9d697db072048c030b80caebca2cde1b617260f435f06902b84517faab413bd2`, endpoint `1a7406c497493a52128bb282f499e7b8.r2.cloudflarestorage.com`, API token `[REDACTED-CF-TOKEN]`.
 - Catalog token: R2_CATALOG_TOKEN from ~/.secrets/r2.env (cfut_..., 53 chars).
 - R2 account ID: 1a7406c497493a52128bb282f499e7b8.
-- Old S3 key 9e9eb4a1f55d967f83c42dc041e37313 is DEAD (rotated/revoked) — explains prior InvalidAccessKeyId.
+- Old S3 key <redacted:R2_ACCESS_KEY_ID> is DEAD (rotated/revoked) — explains prior InvalidAccessKeyId.
 - Fresh creds stashed in `$CLAUDE_JOB_DIR/tmp/r2_fresh.env` (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY).
 
 **Security constraints (verbatim, still in force):**
@@ -335,7 +335,7 @@ This is where the conversation was interrupted for the summary request.
 - Byline every artifact.
 - Verify before claiming done.
 - Confirm before destructive/architecture changes.
-- casebible PG password `153b6512b816403ac842d7631cd86662b8cd79dcc89d3c4c` is a live credential.
+- casebible PG password `<redacted:POSTGRES_PASSWORD>` is a live credential.
 
 Let me note the owner's frustration signals: "Super hard to give any direction when you keep firing off fucking commands", "use the motherfucking goddamn Duck DB extension", repeated redirection to Iceberg catalog. The owner wants minimal command-firing and DuckDB-native approaches.
 
@@ -383,7 +383,7 @@ Let me write the summary now.
      s3 =
          addressing_style = path
      ```
-   - `docs/HANDOFF-2026-08-02-pg18-migration-permission-allowlist.md` — authoritative pg18 session-state handoff (server_uuid cn89l8801u8gsginw1rxq5qt, project_uuid z45vmrtvk1woiwjhr91m57b2, env_name production, wrong-net DB resource to delete fgz1n7useplhk0t91uk7k1aw, PG password 153b6512b816403ac842d7631cd86662b8cd79dcc89d3c4c).
+   - `docs/HANDOFF-2026-08-02-pg18-migration-permission-allowlist.md` — authoritative pg18 session-state handoff (server_uuid cn89l8801u8gsginw1rxq5qt, project_uuid z45vmrtvk1woiwjhr91m57b2, env_name production, wrong-net DB resource to delete fgz1n7useplhk0t91uk7k1aw, PG password <redacted:POSTGRES_PASSWORD>).
    - `docs/TODO-SNAPSHOT-2026-08-03.json` — 8 open tasks snapshotted (PreCompact hook).
    - The WORKING DuckDB recipe (inline, verified to return real R2 data) — the single most important code artifact of this session:
      ```sql
