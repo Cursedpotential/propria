@@ -2,10 +2,11 @@
 
 > _Byline: Codex · GPT-5.6-Sol · 2026-08-30._
 > _Byline: Claude Code · Opus 5.5 · 2026-09-26 (Verification: `npm run smoke` is browser-free; browser journeys run on a VPS only)._
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27 (DD-01 navigation and Glide true-up; DF-29 Next.js residue removed)._
 
 This is the browser-first operator surface for The Platform. It is a React + Vite application
-served same-origin by `workbench/api` and deployed as the `knowledge-workbench` Coolify service.
-It does not require Next.js, server components, server actions, or a separate JavaScript runtime in
+served same-origin by `workbench/api` and deployed as the Workbench Coolify service
+(`deploy/workbench.yaml`). It does not require Next.js, server components, server actions, or a separate JavaScript runtime in
 production.
 
 Desktop packaging is deliberately deferred. Once the browser product is complete, a Tauri host can
@@ -22,18 +23,18 @@ The separate Case Bible desktop/sorting lane is not copied into this directory.
 - FastAPI for same-origin APIs and SPA fallback serving
 - Indexed/browser state only where a feature explicitly needs it; PostgreSQL remains canonical
 
-Glide Data Grid is the selected direction for data-heavy review tables, but table migration is not
-claimed by the Vite shell release. It should be introduced one complete operational table at a time,
-with its data contract and browser smoke coverage intact.
+Glide Data Grid (`6.0.4-alpha24`, owner-approved) renders the Review message table. Further tables
+move to it one complete operational table at a time, with their data contract and browser smoke
+coverage intact.
 
 ## Product boundary
 
-The root route is the Evidence Operations Desk. The primary navigation exposes only the complete
-daily path:
+The primary navigation (`src/surfaces/primary/navigation.ts`) is:
 
-- `/` — live operational desk
-- `/intake` — governed source selection and intake
-- `/evidence/preview` — parser/message/provenance preview
+- `/` — Desk
+- `/sources` — Sources: browse the stores, inspect and hash a file, pick a handler, Process
+  (steps 1-4 of `docs/PURPOSE.md`)
+- `/review` — Review: the run's preview, gaps and the decision (steps 5-6)
 
 Existing advanced routes remain directly addressable while they are reconciled, but they are not
 advertised as finished navigation destinations. The browser must never infer a canonical write from
