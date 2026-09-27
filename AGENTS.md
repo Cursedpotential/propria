@@ -152,7 +152,7 @@ transition state.
   `~\.codex\hooks\memsearch_codex_hook.py`. Codex's own memory store is imported under
   `memory\codex\<project>\`. Both plugin copies carry a local patch that honors `.collection`;
   re-apply it after a memsearch plugin update. The `memsearch` CLI itself is the private fork
-  `~\.claude\local-plugins\forks\memsearch` (uv tool `0.4.19+propria1`, 2026-09-26): never
+  `~\.claude\local-plugins\forks\memsearch` (uv tool, a `+propria` build, 2026-09-26): never
   install memsearch from PyPI, which drops the fork's NIM fixes; reinstall steps are in the
   fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-26)_
 - **Worktrees:** `E:\AI_Workspace\Projects\Propria\_worktrees`. New Propria-owned linked
