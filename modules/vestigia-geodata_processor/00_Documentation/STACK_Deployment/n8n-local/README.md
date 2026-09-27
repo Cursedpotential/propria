@@ -34,7 +34,7 @@ docker-compose up -d
 ```
 
 Access N8N at: http://localhost:5678
-PostgreSQL at: localhost:5432 (user: n8n, pass: n8n_local_2024)
+PostgreSQL at: localhost:5432 (user: n8n, pass: <redacted:N8N_POSTGRES_PASSWORD>)
 
 ### 2. Deploy Supabase Schema
 1. Go to: https://supabase.com/dashboard/project/oflqpddqaecotsdsxbzp/sql

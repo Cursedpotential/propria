@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: n8n
-      POSTGRES_PASSWORD: n8n_local_2024
+      POSTGRES_PASSWORD: <redacted:N8N_POSTGRES_PASSWORD>
       POSTGRES_DB: n8n_processing
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -43,7 +43,7 @@ services:
       DB_POSTGRESDB_PORT: 5432
       DB_POSTGRESDB_DATABASE: n8n_processing
       DB_POSTGRESDB_USER: n8n
-      DB_POSTGRESDB_PASSWORD: n8n_local_2024
+      DB_POSTGRESDB_PASSWORD: <redacted:N8N_POSTGRES_PASSWORD>
       
       # N8N Settings
       N8N_HOST: localhost
