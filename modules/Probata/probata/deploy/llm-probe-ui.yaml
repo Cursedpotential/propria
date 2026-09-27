@@ -3,7 +3,7 @@
 # llm-probe service (see deploy/llm-probe.yaml for the backend). Own Coolify
 # app, tailnet-only. One concern per app.
 #
-# Coolify Watch Paths for this app: llm_probe_ui/** + deploy/llm-probe-ui.yaml
+# Coolify Watch Paths for this app: modules/Probata/probata/** (monorepo, 2026-09-26)
 #
 # The backend URL is baked in as a build-time default (lib/config.ts,
 # NEXT_PUBLIC_LLM_PROBE_URL) since it's a stable tailnet address, not a
@@ -15,7 +15,7 @@
 services:
   llm-probe-ui:
     build:
-      context: ./llm_probe_ui
+      context: ./modules/custom/llm_probe_ui
       dockerfile: Dockerfile
     image: agno-llm-probe-ui:latest
     container_name: llm-probe-ui
