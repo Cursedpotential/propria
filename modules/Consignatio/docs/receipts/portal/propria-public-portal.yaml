@@ -266,6 +266,18 @@ http:
       tls:
         certResolver: letsencrypt
 
+    # LibreChat (Coolify app `librechat`, ovh-files:3080) -- public route, Authentik-gated like every
+    # other *.int host. Added 2026-09-26 (Claude Code · Fable 5.1), owner 23:17/23:35/23:43 ("I want
+    # that LibreChat open and functional"). LibreChat keeps its own login behind Authentik. Chat replies
+    # stream as SSE; no buffering middleware sits on this router.
+    librechat-public:
+      rule: "Host(`librechat.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: librechat-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
   services:
     authentik-internal:
       loadBalancer:
@@ -283,10 +295,13 @@ http:
       loadBalancer:
         servers:
           - url: "http://100.72.169.40:3020"
+    # The Workbench's tailnet-bound door (Probata deploy/workbench.yaml). Docker masquerades
+    # this hop to 10.201.8.1, the declared gateway of workbench-publish, which is the
+    # Workbench's exact trusted proxy (TRAEFIK_PROXY_CIDR=10.201.8.1/32). 2026-09-27.
     workbench-svc:
       loadBalancer:
         servers:
-          - url: "http://10.201.0.4:8020"
+          - url: "http://100.72.169.40:9071"
     legal-svc:
       loadBalancer:
         servers:
@@ -348,6 +363,10 @@ http:
         serversTransport: kasm-selfsigned
         servers:
           - url: "https://100.91.190.107:6901"
+    librechat-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:3080"
 
   serversTransports:
     # Kasm (KasmVNC) presents a self-signed certificate on 6901; verification is skipped for that
