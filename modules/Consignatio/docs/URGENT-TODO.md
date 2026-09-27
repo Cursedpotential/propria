@@ -3314,3 +3314,47 @@ in-flight).
   line, because the heredoc is python's stdin. Pass the script with `python3 -c` and pipe the value on stdin.
 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+
+## 2026-09-27 — family-court-console fixed, moved off 8765, public route live (owner 02:46 EDT, "try again")
+
+> _Byline: Claude Code · Sonnet 5 · 2026-09-27_
+
+Chased the blocker from the fileflows pass above. All done; app healthy, public route live.
+
+- **Root cause was already fixed, just never redeployed.** Coolify's own deployment logs (build
+  `2341`, 2026-09-27T00:20:20Z) showed the real single build failure: `COPY mcp-app/dist ./mcp-app/dist:
+  not found` — the old single-stage Dockerfile.cloud, which needed a `dist/` built on the desktop and
+  committed, which never happened. Commit `3b545875` (2026-09-26 21:39 EDT, ~1h after that failed
+  build) had ALREADY fixed this properly — `Dockerfile.cloud` now builds `mcp-app` inside the image
+  (stage 1: `npm ci` + `node build.mjs` + `test -f dist/server.js`) — but nobody had triggered a fresh
+  deploy since.
+- **Nearly reintroduced the bug myself.** Ran the existing `scripts/sync_family_court_console.sh`
+  before checking its assumptions still held — it still implements the PRE-3b545875 pattern (sync a
+  host-built `dist/`, single-stage Dockerfile) and quarantined the fixed multi-stage source tree,
+  replacing `Dockerfile.cloud` with the broken version. Caught via `git log`/`git show` before
+  committing anything; `git restore` undid it. `scripts/sync_family_court_console.sh` now carries a
+  loud STALE/DO-NOT-RUN header.
+- **Port clash resolved without touching `superindex`.** `superindex` (Coolify app, deployed
+  2026-09-22, receipt `docs/receipts/2026-09-22-superindex-first-catalog-run.md`) has genuinely owned
+  host port 8765 on ovh-files since before family-court-console (claiming 8765 since 2026-09-07) ever
+  successfully bound anything. `family-court-console` never had a live ContextForge gateway
+  registration either (confirmed in the 2026-09-14 federation session's own notes — "no federated
+  equivalent yet"), so nothing was depending on the old port. Moved `family-court-console` to host
+  port **9077** (container port stays 8765 — `MCP_HTTP_PORT`, healthcheck, Traefik label untouched).
+  Registered as product code `77` in `deploy/service-port-registry.json`.
+- **Redeployed and verified healthy.** `POST /deploy?uuid=sokv65ibdq2y8xdaqmd6p4rq` → finished.
+  Container `family-court-console-sokv65ibdq2y8xdaqmd6p4rq-…` `Up (healthy)`. Coolify status
+  `running:healthy`. `http://100.91.190.107:9077/healthz` → `200 {"status":"ok","name":
+  "family-court-console","version":"3.0.0"}` — the `/healthz` 404 from the prior pass was
+  `superindex` answering on 8765, not this app; confirmed both apps healthy on their own ports.
+- **Public route — DNS created before the router this time** (the fileflows pass hit Traefik giving
+  up on ACME when the router raced ahead of DNS; ordered correctly here, no coolify-proxy recreate
+  needed). Cloudflare DNS-only A record for `family-court.int.mitechconsult.com`, then
+  `family-court-public` router + `family-court-console-svc` (→ `100.91.190.107:9077`) in
+  `propria-public-portal.yaml`, `authentik-forwardauth`. Cert issued clean (Let's Encrypt `YR1`)
+  within seconds, no retry needed.
+- **`public_probe.sh` now includes `fileflows`, `librechat` (the pre-existing gap from the fileflows
+  pass) and `family-court`: 23/23 OK.** Live-verified logged out: `family-court.int.mitechconsult.com`
+  → 302 → `auth.int` → 200, clean `base:`, zero mixed-content. Tailnet (`100.91.190.107:9077` direct)
+  still answers 200 with no Authentik. Tracked Traefik copy re-confirmed byte-identical to live.
+- No Authentik provider change needed (same domain-wide-SSO precedent as fileflows).

@@ -7,7 +7,7 @@
 #   public_probe.sh                 # every public route
 #   public_probe.sh homepage auth   # just these hosts
 set -u
-hosts="${*:-homepage auth workbench legal metabase filestash progress attu neo4j files n8n temporal contextforge portkey llmprobe opencode infisical databasement edit devbox fileflows}"
+hosts="${*:-homepage auth workbench legal metabase filestash progress attu neo4j files n8n temporal contextforge portkey llmprobe opencode infisical databasement edit devbox fileflows librechat family-court}"
 tmp="$(mktemp -d)"; ok=0; bad=0
 for h in $hosts; do
   out=$(curl -sS -L --max-redirs 10 -m 25 -o "$tmp/body" -w '%{http_code} %{num_redirects} %{url_effective}' "https://$h.int.mitechconsult.com/" 2>&1)

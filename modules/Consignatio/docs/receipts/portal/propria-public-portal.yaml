@@ -204,6 +204,19 @@ http:
       tls:
         certResolver: letsencrypt
 
+    # family-court-console (Coolify app sokv65ibdq2y8xdaqmd6p4rq, ovh-files:9077) -- public route,
+    # same owner decision as fileflows-public above. Fixed and moved off host port 8765 the same
+    # day (superindex owns 8765; see deploy/family-court-console.yaml). DNS record created BEFORE
+    # this router (the fileflows pass caught Traefik's ACME giving up on a router that raced ahead
+    # of its DNS record and needing a coolify-proxy recreate to retry -- avoided here by ordering).
+    family-court-public:
+      rule: "Host(`family-court.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: family-court-console-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
     n8n-public:
       rule: "Host(`n8n.int.mitechconsult.com`)"
       entryPoints: ["https"]
@@ -345,6 +358,10 @@ http:
       loadBalancer:
         servers:
           - url: "http://100.91.190.107:9076"
+    family-court-console-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:9077"
     n8n-svc:
       loadBalancer:
         servers:
