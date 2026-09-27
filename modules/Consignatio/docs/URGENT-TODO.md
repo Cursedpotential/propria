@@ -3384,3 +3384,30 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 - [ ] **Open:** the docstore container is `unhealthy` because index sync run `5356f93f…` (2026-09-27 01:02 UTC) failed. That predates r5.
 - [ ] **Open:** `release_api.invoke` still maps a plain `ValueError` to 409 for upgrade, adr, knowledge and sources. It needs a per-operation audit to split 409 from 422.
 - [ ] **Owner call:** the root `plugins/docstore/` is a stale 0.6.3 snapshot that still documents raw `fn::remember` with a `probata` scope. (A) quarantine it, (B) replace it with the canonical tree, or (C) leave it.
+
+## 2026-09-27 — Family Law Toolkit ↔ Advocatio shared records; hosted toolkit web app blocked
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27 (teammate `fc-toolkit-host`, relaunch of the run stopped
+> at 09:46 EDT). Checklist: `modules/Legal-desktop/docs/planning/2026-09-13-advocatio-reconciliation/continuation/TOOLKIT-CAPABILITY-CHECKLIST-2026-09-27.md`._
+
+- **Shared record contract live on the toolkit side:**
+  - `propria.legal-record.v1`: the case store computes each version as `sha256` of SurrealDB's sorted string form of the record.
+  - New read-only MCP tool `case_record` on `family-court-console`, deployed at `d8c6350a`.
+  - Live: `source:00-how-to-use-references` → `sha256:1e834600…a28d`.
+- **Advocatio side shipped, configured off:**
+  - `/v1/toolkit/{status,records,records/{ref}}` and the `/toolkit` page, running the same query text.
+  - Deployed at `d8c6350a`.
+- **Legal-desktop `AGENTS.md` corrected:** the data store is SQLite in the bind mount, not Postgres 18, and JSON state is debug-only.
+- **Store facts (live):**
+  - surreal-case `fct/case` holds no case records: 0 people, orders, hearings, events, messages, exhibits, notes, filings, drafts and memos.
+  - It holds 193 sources, 23 references, 12 factors, 1 court (id only) and 1 case status.
+- **Checklist:** 383 rows, 38 done / 242 callable / 103 missing.
+- **Refused by the agent's permission classifier, left for the owner:**
+  - Hosting the toolkit web app (`/` + `/api/*` on the console, no login on the tailnet; draft in `_worktrees/fc-workbench-host-20260927`, uncommitted).
+  - Un-gating widget buttons that stay disabled while the release label is STOP_AND_VERIFY.
+  - Creating a read-only surreal-case user for Advocatio and storing its secret.
+  - Loading `CHEAT-SHEET.md` as `reference:cheat-sheet-custody-guide`.
+  - The synthetic-document write proof.
+- [ ] **Owner:** provision a VIEWER user on `fct/case`, then set `FAMILY_COURT_TOOLKIT_STORE_URL` (a tailnet name, not an IP), `_USER` and `_PASS` on Coolify `gvghzivfmctev8dloetfssnj`, and redeploy.
+- [ ] **Owner decision:** access model for the hosted toolkit web app. (A) no login on the tailnet, as briefed; (B) reads open, writes need Authentik identity or a device token; (C) Authentik everywhere.
+- [ ] Portal tile repoint, `svc:family-court`, the public router repoint and retiring `/progress/family-court/` wait on the web app.
