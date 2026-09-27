@@ -1,5 +1,7 @@
 # Byline: Claude Code . Sonnet 5 . 2026-09-14
 # Byline amendment: Claude Code . Opus 5.5 . 2026-09-27 (Authentik hop via svc:authentik)
+# Byline amendment: Claude Code . Sonnet 5 . 2026-09-27 (fileflows-public router; force a reload
+# so Traefik re-attempts the ACME cert now that DNS exists -- the first attempt raced ahead of it)
 # Deployed copy: ovh-app /data/coolify/proxy/dynamic/propria-public-portal.yaml. Tracked copy:
 # Propria repo modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml. Keep them
 # byte-identical; back up the deployed copy beside itself before every edit.
@@ -189,6 +191,19 @@ http:
       tls:
         certResolver: letsencrypt
 
+    # FileFlows (Coolify app `fileflows`, ovh-files:9076) -- public route, Authentik-gated like
+    # every other *.int host. Added 2026-09-27 (Claude Code), owner decision 02:46 EDT: fileflows
+    # and family-court-console get public routes behind Authentik. Its own docker-compose label
+    # router stays disabled (traefik.enable=false in deploy/fileflows.yaml) -- this file governs,
+    # same pattern as openlist/opencode-server.
+    fileflows-public:
+      rule: "Host(`fileflows.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: fileflows-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
     n8n-public:
       rule: "Host(`n8n.int.mitechconsult.com`)"
       entryPoints: ["https"]
@@ -326,6 +341,10 @@ http:
       loadBalancer:
         servers:
           - url: "http://100.91.190.107:5244"
+    fileflows-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:9076"
     n8n-svc:
       loadBalancer:
         servers:

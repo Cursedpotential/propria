@@ -3248,3 +3248,56 @@ with no Authentik step. The unused 21-router draft is in `to_be_deleted/2026-09-
   was Coolify-side metadata only, not a compose-file fix).
 
 > _Byline: Claude Sonnet 5 · 2026-09-27_
+
+## 2026-09-27 — fileflows public route opened; family-court-console blocked (owner 02:46 EDT)
+
+> _Byline: Claude Code · Sonnet 5 · 2026-09-27_
+
+Owner decision 02:46 EDT: fileflows and family-court-console get public `*.int` routes behind
+Authentik, same pattern as openlist/opencode-server. Owner added a durable autoMode allow rule for
+exactly this (public `*.int` routes behind authentik-forwardauth, Cloudflare DNS, Traefik file
+edits). At 03:54 said "try again" (retry of the earlier attempt this session's own prior task left
+in-flight).
+
+- **Done — fileflows:**
+  - Backed up + re-read the live Traefik file first (hash `1f0725dd…`, matched the tracked copy,
+    matched right before writing — no collision with the concurrent tailnet-bypass work above).
+  - Added `fileflows-public` router (`fileflows.int.mitechconsult.com`) + `fileflows-svc`
+    (`http://100.91.190.107:9076`) to `propria-public-portal.yaml`, using `authentik-forwardauth`.
+    Applied via `tools/apply_dynamic_file.sh` (hash-checked swap, dated backup on ovh-app).
+  - Added the Cloudflare DNS-only A record (`tools/cf_dns_a_record.py --apply`), verified in Cloudflare's
+    read-back.
+  - **Hit a real snag:** the router was live before the DNS record existed, so Traefik's first ACME
+    attempt failed (`NXDOMAIN`) and got stuck serving `TRAEFIK DEFAULT CERT` — a config reload alone
+    did not make it retry. Fixed with the tracked `tools/proxy_recreate_test.sh` (`recreate` then
+    `reconnect` all 17 prior networks) — a full coolify-proxy restart is what actually re-triggers
+    ACME for a domain it already gave up on. Cert issued (Let's Encrypt `YR2`) within ~15s of the
+    recreate. All 17 reconnected networks matched the pre-recreate set exactly; every other public
+    host was re-checked immediately after (still 302, no regression).
+  - No Authentik provider/outpost change needed — confirmed against the librechat.int/devbox.int
+    precedent: the domain-wide Proxy Provider (`pk=3`, forward_domain, `cookie_domain=int.mitechconsult.com`)
+    already covers any new `*.int` host with no per-host allow-list.
+  - Updated `deploy/fileflows.yaml`'s header: no longer says "pre-wired but NOT opened"; cites this
+    decision. `traefik.enable` stays `false` — the Traefik file governs, same as openlist/opencode-server.
+  - `tools/public_probe.sh`'s default host list now includes `fileflows`: **21/21 OK** (20 prior + fileflows;
+    `librechat` was already missing from that list before this pass and is a separate, pre-existing gap,
+    not touched here).
+  - Live-verified logged out: `fileflows.int.mitechconsult.com` → 302 → `auth.int` → 200, clean `base:`
+    and zero `http://` self-references. Tailnet (`fileflows.tilapia-skilift.ts.net` and
+    `100.91.190.107:9076` direct) still answers 200 with no Authentik.
+- **Blocked — family-court-console, stopped rather than routed around:**
+  - **No container is running at all.** `docker ps -a` on ovh-files shows no `family-court-console`
+    container; Coolify reports the app `sokv65ibdq2y8xdaqmd6p4rq` as `exited:unhealthy`
+    (`updated_at` 2026-09-27T00:22:06Z — something touched it recently, but it never came up healthy).
+  - Its designated port 8765 is now held by an unrelated app, `superindex` (`running:healthy`) — the
+    404 the brief asked me to investigate on `/healthz` is `superindex` answering on that port, not
+    family-court-console; there is nothing of family-court-console's own to reach.
+  - Adding a public router pointed at a dead backend would violate "make sure the public route
+    lands on a working page," so I did not add the router, the DNS record, or the compose-header
+    change for family-court-console. Fixing the app's own deploy failure is a separate, larger task
+    (build/health investigation on a Coolify app that has apparently never come up) — flagging it
+    here rather than silently expanding scope to fix it.
+- **Owner/next:** get `family-court-console` (Coolify app `sokv65ibdq2y8xdaqmd6p4rq`) actually
+  running and off port 8765 (or move `superindex` off it), then repeat the fileflows steps above for
+  it — router + service in `propria-public-portal.yaml`, DNS record, header update, add to
+  `public_probe.sh` (→ 22/22).
