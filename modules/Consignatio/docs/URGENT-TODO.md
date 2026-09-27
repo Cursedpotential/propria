@@ -3107,3 +3107,42 @@ Owner order 02:11 EDT: "none of it is done … finish it. Fix it." Session "port
 - **Open decision for the owner:** whether fileflows and family-court-console should also get
   public `*.int` routes behind Authentik (DNS record + `traefik.enable=true`, mirroring
   openlist/opencode), or stay tailnet/ContextForge-only as their files currently document.
+
+## 2026-09-27 — Deploy-contract tests: parser tsnet regression + stale workbench/tsnet-front test
+
+Owner order, 02:11 EDT: make the six failing deploy-contract tests on Probata main pass.
+Commit `1eb32bf4` on main.
+
+- [x] **`deploy/parser-activity-runtime.yaml` had lost its tsnet identity** (owner
+  directive 2026-09-07, D-132/D-134/D-127): `TSNET_LISTENER_ENABLED`/`TSNET_HOSTNAME`/
+  `TSNET_SERVICE`/`TSNET_TAGS`/`TSNET_STATE_DIR`/`TSNET_AUTHKEY_FILE` env vars and the two
+  `/data/probata/tsnet` + auth-key volume mounts were silently deleted by `94fb0a3a`
+  ("restore seven files the canonical-index archive branch clobbered"). That commit only
+  needed to fix `devbox.yaml`'s corrupted Dockerfile; restoring the other six files "from
+  Probata main" was over-broad and stomped this file's already-shipped tsnet rollout as
+  collateral damage — unlike the workbench sidecar below, these are inert env-var
+  defaults (`TSNET_LISTENER_ENABLED` defaults false), so nothing about them could have
+  caused a production incident. Restored the deleted lines verbatim, matching
+  `proffer-starter.yaml`'s still-intact pattern. Fixed 5 of 6 failures
+  (`test_tsnet_deploy_contract` ×4, `test_proffer_deploy_contract` ×1 — the parser volume
+  mount test asserts the exact same two lines).
+- [x] **`tests/test_tsnet_deploy_contract.py` still expected a `tsnet-front` sidecar in
+  `deploy/workbench.yaml`** that was deliberately removed in `194a3603`: the archive-merge
+  copy of that sidecar shipped with no auth key on ovh-app, crash-looped
+  ("read /run/secrets/tsnet-authkey: is a directory"), and took the whole Workbench app
+  down twice (01:49, 03:01 UTC 2026-09-27) before being reverted. The edge was rewritten
+  again the same night in `b88fc2d7` (Workbench leaves a `tsnet-front` model entirely —
+  `workbench-publish` network + the host's own `svc:workbench` Tailscale Serve dialing
+  the published port). The test encoded a superseded design, not a defect in the deploy
+  manifest: dropped `workbench.yaml` from `TSNET_SERVICES` and replaced the sidecar
+  assertion with one that pins the current, deliberate shape (no `tsnet-front` service,
+  no `TSNET_*` env on the workbench container, single published door at
+  `${BIND_IP:-127.0.0.1}:9071:8020`).
+- **Verified:** `tests/test_tsnet_deploy_contract.py` + `tests/test_proffer_deploy_contract.py`
+  = 19 passed. Full `tests/test_*deploy_contract*.py` = 56 passed. Ran the whole suite too;
+  confirmed (by stashing the fix and re-running) that the ~98 other failures
+  (`psycopg`/`openai`/`ijson`/`temporalio` missing from this `--no-sync` venv, plus a few
+  unrelated pre-existing test bugs) reproduce identically on unmodified origin/main — out
+  of scope for this fix.
+
+> _Byline: Claude Sonnet 5 · 2026-09-27_
