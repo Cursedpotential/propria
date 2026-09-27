@@ -1,0 +1,23 @@
+// Byline: Claude Code · Fable 5.1 · 2026-09-26
+//
+// Host-local Tailscale Service config for svc:librechat: LibreChat, the Coolify app `librechat`
+// (deploy/librechat.yaml) on ovh-files. Owner 2026-09-26 23:17 "LibreChat needs to be fixed",
+// 23:35 "all yes", 23:43 "I want that LibreChat open and functional".
+//
+// Deployed copy: ovh-files /data/probata/config/tailscale-serve/librechat-serve.hujson (byte-identical).
+// This file is the tracked copy. Apply on ovh-files, the service host, then read it back:
+//   tailscale serve set-config --service=svc:librechat /data/probata/config/tailscale-serve/librechat-serve.hujson
+//   tailscale serve advertise svc:librechat
+//   tailscale serve get-config --service=svc:librechat
+// The Service is registered with PUT /api/v2/tailnet/-/vip-services/svc:librechat (tcp:443) and
+// ovh-files is approved as its host. Name: https://librechat.tilapia-skilift.ts.net
+//
+// LibreChat publishes 3080 on the tailnet IP only (BIND_IP in deploy/librechat.yaml), so the target
+// is 100.91.190.107, never 127.0.0.1. LibreChat's own login applies behind this name; nothing on the
+// tailnet sits behind Authentik (owner 2026-09-26 23:08).
+{
+  "version": "0.0.1",
+  "endpoints": {
+    "tcp:443": "http://100.91.190.107:3080"
+  }
+}
