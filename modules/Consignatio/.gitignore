@@ -71,11 +71,13 @@ viz/.evidence/
 Thumbs.db
 Desktop.ini
 
-# --- nested independent child repositories (2026-09-09) ---
-# xplorer-copilot-buildkit/ holds two child Git roots, ignore-only, no gitlink:
-#   xplorer-copilot-buildkit/  kit repo  -> github.com/Cursedpotential/xplorer-copilot-buildkit (private)
-#   xplorer-copilot/           fork      -> github.com/Cursedpotential/xplorer (upstream kimlimjustin/xplorer, fetch-only)
-xplorer-copilot-buildkit/
+# --- Xplorer copilot fork: tracked source, not a nested repository (2026-09-27) ---
+# Until the 2026-09-26 subtree import these were two independent child Git roots and this
+# file ignored xplorer-copilot-buildkit/ wholesale. The import made the fork tracked source
+# in the monorepo (1,257 files) and it carries its own .gitignore for node_modules, dist,
+# target and .env. The blanket rule outlived its reason: tracked files ignore .gitignore,
+# so all it still did was silently drop NEW files -- it blocked scripts/verify-sidebar-live.mjs.
+# Removed by Claude Code - Opus 5, 2026-09-27.
 
 # --- _intake exports that embed private keys / live DSNs (secret scan 2026-09-09) ---
 _intake/drive-download-20260907-deduped/conversations-20251215_153247-2f08f0ab.json
@@ -84,7 +86,6 @@ _intake/drive-download-20260907-deduped/Claude - Balancing AI guardrails with co
 # Relocated original Case Bible material: preserve previous secret exclusions.
 casebible/_intake/drive-download-20260907-deduped/conversations-20251215_153247-2f08f0ab.json
 casebible/_intake/drive-download-20260907-deduped/Claude - Balancing AI guardrails with conversational nuance - Claude.md
-Intake/xplorer-copilot-buildkit/
 
 # Private source publication: local corpus and machine state remain on disk.
 **/.claude/
