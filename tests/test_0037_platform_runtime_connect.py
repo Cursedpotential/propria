@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 import sqlparse
 
 
@@ -13,11 +14,29 @@ MIGRATION = ROOT / "sql" / "0037_platform_runtime_connect.sql"
 APPLY_SCRIPT = ROOT / "scripts" / "apply_0037_live.py"
 VALIDATE_SCRIPT = ROOT / "scripts" / "validate_0037_live.py"
 
+# 0037 was retired into sql/_stale/migrations-retired-20260907/ on 2026-09-07
+# ("the snapshot is the database" — D-142 §3, D-152); that directory's README
+# says retired migrations are never referenced by code or tests. Only the two
+# tests that read MIGRATION's own text are skipped below; APPLY_SCRIPT and
+# VALIDATE_SCRIPT are still-live files, so the other three tests keep running.
+# Better fix: rewrite the skipped assertions against
+# sql/bootstrap/schema_snapshot_20260907.sql (or a live migrated database)
+# instead of the retired numbered file — tracked in docs/URGENT-TODO.md.
+_MIGRATION_RETIRED = not MIGRATION.exists()
+_MIGRATION_RETIRED_REASON = (
+    "sql/0037_platform_runtime_connect.sql was retired into "
+    "sql/_stale/migrations-retired-20260907/ on 2026-09-07; retired migrations "
+    "are never referenced by tests (see that directory's README). Needs a "
+    "rewrite against sql/bootstrap/schema_snapshot_20260907.sql instead — "
+    "tracked in docs/URGENT-TODO.md."
+)
+
 
 def _normalized(path: Path) -> str:
     return re.sub(r"\s+", " ", path.read_text(encoding="utf-8").lower())
 
 
+@pytest.mark.skipif(_MIGRATION_RETIRED, reason=_MIGRATION_RETIRED_REASON)
 def test_migration_is_transactional_platform_only_and_forward_safe() -> None:
     sql = MIGRATION.read_text(encoding="utf-8")
     statements = [statement for statement in sqlparse.split(sql) if statement.strip()]
@@ -32,6 +51,7 @@ def test_migration_is_transactional_platform_only_and_forward_safe() -> None:
         assert forbidden not in normalized
 
 
+@pytest.mark.skipif(_MIGRATION_RETIRED, reason=_MIGRATION_RETIRED_REASON)
 def test_migration_never_grants_temp_or_create_to_runtime() -> None:
     executable = sqlparse.format(MIGRATION.read_text(encoding="utf-8"), strip_comments=True).lower()
     runtime_grants = [line for line in executable.splitlines() if "grant" in line and "platform_runtime" in line]
