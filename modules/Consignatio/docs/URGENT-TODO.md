@@ -3073,3 +3073,37 @@ Owner order 02:11 EDT: "none of it is done … finish it. Fix it." Session "port
   reads — keep/repoint/retire) and the progress-board move to its git-built image.
 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+
+## 2026-09-27 — forward-auth label fix on 4 apps (owner 02:11 EDT: "fucking finish it. Fix it.")
+
+> _Byline: Claude Code · Sonnet 5 · 2026-09-27_
+
+- **Brief (edge-authentik lane report, 04:49Z):** fileflows, openlist, opencode-server and
+  family-court-console's own docker-compose Traefik labels dialed forward-auth at
+  `http://authentik-server:9000/...`, a Docker DNS alias Authentik does not trust.
+- **Verified against the live system before editing (contradicts part of the brief):**
+  - `openlist` (files.int.mitechconsult.com) and `opencode-server` (opencode.int.mitechconsult.com)
+    are **already live and correct** — both 302 to `auth.int.mitechconsult.com` today, served by
+    the file-provider's `files-public`/`opencode-public` routers in the (uncommitted,
+    manually-deployed) `propria-public-portal.yaml`, not by these apps' own docker labels. Those
+    labels are inert: `traefik.enable=false` on both.
+  - `fileflows.int.mitechconsult.com` and `family-court.int.mitechconsult.com` have **no public
+    DNS record at all** (NXDOMAIN) — not a 404, no route was ever opened. Both files' own headers
+    say this is deliberate (fileflows: "pre-wired but NOT opened"; family-court-console:
+    ContextForge over the tailnet is the primary access path, Traefik intentionally off).
+  - No other branch already fixes these 4 files (checked `fix/edge-authentik-tailnet-20260926`,
+    which carries the real svc:authentik migration but never touches them).
+- **Fixed:** all 4 files' `forwardauth.address` now point at
+  `http://100.66.241.25:9075/outpost.goauthentik.io/auth/traefik` (svc:authentik raw TCP,
+  matching the shared `authentik-forwardauth` middleware in
+  `modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml`). Comments explain why.
+  `traefik.enable` left as `false` on all 4 — none of their own docker-label routers are live
+  today, and opening fileflows/family-court-console publicly is a scope decision the owner
+  hasn't made (their files say the opposite), not a forward-auth-address bug.
+- **Live probe after the fix** (labels inert, so no behavior change expected/observed):
+  - `opencode.int.mitechconsult.com` → 302 → `auth.int...` (unchanged, correct)
+  - `files.int.mitechconsult.com` → 302 → `auth.int...` (unchanged, correct)
+  - `fileflows.int.mitechconsult.com`, `family-court.int.mitechconsult.com` → NXDOMAIN (unchanged)
+- **Open decision for the owner:** whether fileflows and family-court-console should also get
+  public `*.int` routes behind Authentik (DNS record + `traefik.enable=true`, mirroring
+  openlist/opencode), or stay tailnet/ContextForge-only as their files currently document.
