@@ -1,0 +1,36 @@
+# Byline: Codex · 2026-09-12 — interim entry point for one integrated Propria product.
+title: Propria Project Portal (Public)
+description: Workspaces, live project progress, storage and operations
+theme: dark
+color: neutral
+headerStyle: clean
+statusStyle: dot
+target: _blank
+layout:
+  Project progress:
+    style: row
+    columns: 1
+  Live board:
+    style: row
+    columns: 3
+  Live board charts:
+    style: row
+    columns: 2
+  Workspaces:
+    style: row
+    columns: 3
+  Storage and databases:
+    style: row
+    columns: 4
+  Operations:
+    style: row
+    columns: 3
+  Secrets:
+    style: row
+    columns: 1
+  Preview pipeline:
+    style: row
+    columns: 3
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: true

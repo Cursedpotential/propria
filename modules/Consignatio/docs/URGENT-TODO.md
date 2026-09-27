@@ -2022,6 +2022,7 @@ https://github.com/Cursedpotential/probata/pull/28 (`spacedrive-ci-cache` -> `ma
 - **08:28 EDT — SPACEDRIVE RETIRED (owner 08:27: "just kill it so you stop thinking it's an option").** `docker compose down` in `/data/probata/config/spacedrive-gate` on ovh-files (container + network gone; volume `spacedrive_gate_state`, config dir, backups and the GHCR image kept, nothing deleted); `svc:spacedrive-gate` tailscale serve turned off; portal tile removed by tracked `docs/ops/spacedrive-retire-portal-tile-2026-09-17.py` (backup `services.yaml.bak-*-retire-spacedrive`; `/api/services` shows 0 Spacedrive entries). Spacedrive is NOT an option for Intake any more; the file workspace is Xplorer.
 - 08:28 owner, angry: did not know Spacedrive ran as a raw compose stack under `/data/probata/config`, outside Coolify. Correct — it violated the hosted-via-Coolify rule. Read-only audit of what else runs outside Coolify: ovh-files `opendataloader-spike` (exited), `nifty_lichterman`, `suspicious_austin` (unnamed, up 3 weeks, unidentified); ovh-app `portal-editor` (compose in `/data/probata/config/portal-editor`), `homepage`, `homepage-public` (compose in `/data/dashboards`).
 - [ ] Move `homepage`, `homepage-public`, `portal-editor` into Coolify; identify and remove/adopt the two unnamed containers on ovh-files. The Xplorer server gets built as a Coolify app from day one.
+  - **2026-09-27 (Claude Code · Opus 5.5):** `homepage` and `homepage-public` are declared in git and the Coolify app `propria-portal` exists; the cutover waits on the owner's permission. `portal-editor` is an owner decision. See the 2026-09-26 portal entry at the end of this file.
 - [ ] Still uses the old name: rclone `.spacedrive` marker retry loop on ovh-files (restart `rclone-openlist` to clear); stray `.spacedrive` files under `/b2` to list for owner-approved removal.
 
 ## 2026-09-17 08:40 EDT — Intake web-mode contract found in the donor (plan only, nothing built)
@@ -2508,6 +2509,7 @@ engine deploy is waiting on the owner's go.
 - [ ] Owner click-checks: public portal login → Probata card; tailnet Neo4j tile (Bolt over TLS; headless Chrome can't finish a live socket).
 - [ ] ~~ContextForge `/admin`, OpenCode, n8n, Temporal and Infisical still have their own app logins.~~ **2026-09-24 05:35:** OpenCode, n8n and Temporal have no app login on the tailnet; off the tailnet, the Authentik login is the only login. For n8n that works through a hook trusting Tailscale's and Authentik's identity headers. Details in Probata `docs/planning/2026-09-20-TODO.md`. **Still open (owner call):** ContextForge (its tokens also guard the public `mcp.mitechconsult.com`) and Infisical.
 - [ ] Public portal (`homepage-public`) not edited today. Codex's audit lists admin cards and a wrong-lane Advocatio link there (`Propria/docs/PORTAL-APP-LISTING-AUDIT-2026-09-23.md`).
+  - **2026-09-27 (Claude Code · Opus 5.5):** fixed in git (`deploy/portal/public/services.yaml`: user surfaces only, Advocatio on `legal.int`); live after the portal cutover. See the 2026-09-26 portal entry at the end of this file.
 
 ## 2026-09-24 — tailnet short names, ovh-app disk, portal asks (owner 05:33–05:41 EDT)
 
@@ -2525,6 +2527,7 @@ engine deploy is waiting on the owner's go.
   - top section order Case Bible Intake → Probata → Legal Work Desk → Family Law Toolbox last;
   - move FileFlows into the services section;
   - owner dislikes the widgets at the top (CPU/RAM/disk bars + clock, and the large Live board). Confirm which go.
+  - **2026-09-27 (Claude Code · Opus 5.5):** superseded by the owner's 2026-09-26 23:20 order (Case Bible, Probata, Family Law Toolkit, Legal Work Desk; FileFlows, Filestash and OpenList in a new File management section; every widget in a left column, the buttons in the right two thirds). Done in git, live after the portal cutover; see the 2026-09-26 portal entry at the end of this file.
 - [ ] **OpenCode ↔ local projects:** the owner expects OpenCode to pull/sync projects from his machine, or push out, and thinks this was part of the reason for OpenList. Check what exists: OpenCode mounts `/mnt/desktop-share` over SMB today.
 - **07:25 Registry-driven conversation extractor** (`casebible/tools/chat_extract_registry_20260924.sql`, `31074c8`; owner 07:21: record the method so every conversation can use it programmatically). Add a row to `raw_duck.chat_conversation_registry_20260924` and rerun to get the speaker rule, collapsed duplicate renderings and day bouts, all years.
   - Registered: `sms_her_phone` (third-party acquired), `fb_messenger`, `sms_9303` and `sms_3592` (first-party). 810-353-5467 is Matt's (owner 07:23).
@@ -2829,3 +2832,76 @@ recorded as parents, because a parent commit still ships its objects:
   propria. They are the rollback path until then.
 
 > _Byline: Claude Code · Opus 5 · 2026-09-26_
+
+## 2026-09-26 23:20 – 2026-09-27 01:00 EDT — Homepage portal declared in git and rebuilt (portal lane)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27._
+
+Owner, 2026-09-26: 22:52 "Nothing is supposed to be created that way. Ever." (the hand-made portal
+containers); 23:20 Workspaces order Case Bible, Probata, Family Law Toolkit, Legal Work Desk, a
+File management section with Filestash and OpenList, storage health under Operations, and "1/3 has
+all the widgets on the side running vertically ... the other 2/3 has all of the other buttons";
+23:22 preview it with headless Chrome. 23:35 (relayed): Devbox and claude.ai tiles, a Sandbox
+desktop tile, LibreChat pending its URLs.
+
+- [x] **Declared in git** (pushed to `main`): `e62ecee0` screenshot runner
+  (`modules/Probata/probata/deploy/portal/shoot.sh` + `shoot.mjs`, Chrome 135 in the devbox on
+  ovh-files, never the desktop); `ee9f3bb6` both instances, `deploy/portal.yaml` +
+  `deploy/portal/` (Homepage v1.13.2 pinned by digest, config baked into the image, shared
+  settings/widgets/css/js, one services file per instance, no Docker socket, a healthcheck that
+  re-renders the cached index). Host ports stay 3010 / 3012, so tailscale serve and the Traefik
+  route are unchanged.
+- [x] **Coolify application created, not deployed:** `propria-portal`, uuid
+  `tvnv932wjspjd6xj8uvb2r0f` (Propria / production, ovh-app, `Cursedpotential/propria@main`, base
+  `/modules/Probata/probata`, compose `/deploy/portal.yaml`, watch paths only `deploy/portal.yaml`
+  and `deploy/portal/{Dockerfile,shared,tailnet,public}`). The record is kept by
+  `deploy/portal/coolify_app.py`. The push redeployed no other app (checked the four apps that
+  watch `modules/Probata/probata/**`).
+- [ ] **Cutover — waiting on the owner's permission.** This session's auto-mode classifier refused
+  stopping the live containers ("Interfere With Workloads"). Steps, in order:
+  1. on ovh-app, `docker stop homepage homepage-public` (they hold 3010 / 3012);
+  2. `python modules/Probata/probata/deploy/portal/coolify_app.py deploy`;
+  3. verify: `deploy/portal/shoot.sh live <dir> after`, the widget JSON from inside the new
+     containers, the public host still answering 302 to Authentik;
+  4. only if 2–3 fail, restore service with `docker start homepage homepage-public`;
+  5. then `docker rename homepage homepage-handmade-20260926` and
+     `docker rename homepage-public homepage-public-handmade-20260926` (stopped, never deleted),
+     and move `/data/dashboards/compose.yml` into the host's quarantine folder under
+     `/data/dashboards/` so it cannot recreate `homepage`.
+- **Layout, measured by the runner** (preview of the committed config on the same image digest
+  with live board data; PNGs in the session scratchpad `portal-rebuild/`): before, the page was
+  3,629 px tall and the first app button sat 2,421 px down, under a three-column Live board with
+  empty bands, and the public instance served first-time browsers the build-time page (title
+  "Homepage", no layout). After, at 1600×1000 the button column is 936 px tall and fully above
+  the fold, and it stays pinned at 28 px while the widget column scrolls (checked 1,400 px down);
+  every button tile is 73 px tall; no horizontal overflow at 390 px (buttons first, then widgets)
+  or at 1366×768; the quick-launch search still opens.
+- **Tiles.** Workspaces: Case Bible Intake, Probata Workbench, Family Law Toolkit, Legal Work Desk
+  (the owner's names, product names in the descriptions). File management: FileFlows (tailnet
+  only), Filestash (now monitored), OpenList. Operations gains Project progress and Service health.
+  Preview pipeline becomes Development: Devbox, OpenCode (unchanged, as asked), claude.ai, LLM probe
+  playground, Sandbox desktop (tailnet only), LibreChat (placeholder until its URLs are
+  confirmed). Stale "Checked Sep 23 ·" prefixes dropped, except on OpenCode.
+- **Public instance:** user surfaces only. Removed Coolify, Temporal, n8n, ContextForge, Portkey,
+  Infisical ("Secrets") and Edit portal; Legal Work Desk → `https://legal.int.mitechconsult.com/`;
+  the two `workbench.int/.../schemas` duplicates removed. No public route exists for pgAdmin,
+  DbGate, CloudBeaver, Surrealist, the Weaviate UI, FileFlows or the Sandbox desktop, so they stay
+  tailnet-only tiles. Widget JSON and site monitors are fetched by the container over the tailnet.
+- [x] **Progress board source in git** (commit "feat(progress-board): bring the board's source into git"): its 29 files copied byte-for-byte from
+  `/data/dashboards/progress-board` (hashes in `deploy/docker/progress-board/README.md`), plus a
+  Dockerfile and `deploy/progress-board.yaml` with the host-only data as absolute binds.
+- [ ] **Progress board cutover — owner's go:** it still runs as the Coolify service
+  `homv6zeg4ay2r2puxtzakf83` straight from the host folder; switching it to the git-built image
+  takes port 3020 from it (the same permission gate as above). Re-check the host copy against the
+  README hashes first. `intake-build/` (251 MB of Intake preview releases) and
+  `data/URGENT-TODO.md` stay host data, written by processes outside the repo.
+- [ ] **Owner decision — the portal editor** (`portal-editor`, code-server on `/data/dashboards`,
+  `portal-edit.tilapia-skilift.ts.net`): after the cutover it edits a host copy the portal no
+  longer reads. Keep it, repoint it at a repository checkout, or retire it. Its tile says so.
+- Receipt: the retired configuration of both hand-made instances and their container settings,
+  `docs/receipts/portal/2026-09-26-handmade-homepage.md` (copies in the folder beside it).
+- Seen, not fixed (other lanes): `/progress/api/provider-limits` answers 503, so "Usage limits &
+  rerouting" shows "Saved usage settings unavailable"; the board's surface list carries
+  `*.tilapia-skilift.ts.net` URLs, so "Open app" in "Surfaces needing attention" leads to tailnet
+  names on the public portal too; Homepage's block display shows four fields, so the Health probes
+  card never shows its p95 mapping.
