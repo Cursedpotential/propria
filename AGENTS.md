@@ -195,3 +195,43 @@ transition state.
   the command, including inside a quoted string or heredoc. Move material to a quarantine
   directory instead, and use `docker stop` with a self-removing container for throwaways. Writing
   the pattern into documentation text also trips it, so describe it rather than quoting it.
+
+## Dispatching agents
+
+> _Added 2026-09-26 (Claude Code · Opus 5) after two briefs in one hour pointed an agent at the
+> wrong lane. Both were written from a dated defect report without checking which lane owns the
+> work now. This section lives here, not in one session's memory, because it has to reach every
+> session and every dispatch._
+
+**Establish the lane before writing the brief.** A defect report, receipt, ADR or memory note
+describes the code as of its own date. It does not establish which orchestrator drives the work,
+which stage it belongs to, or which store it writes. Before briefing a fix, grep for the nearest
+thing in the codebase that already does that job correctly, read it, and **name it in the brief**
+so the agent inherits the architecture instead of re-deriving it. If no sibling exists, that
+absence is the finding: it usually means a new seam, which is the owner's design decision.
+
+**Use the right agent for the question.** Reach for a read-only explorer (`feature-dev:code-explorer`,
+`Explore`, `Architect`, `Smart Explore`) to map an unfamiliar area *first*, then dispatch a builder
+with what it found. A general-purpose builder handed an architectural question will implement
+confidently in the wrong place.
+
+**Every brief carries these, or the agent cannot comply:**
+
+- **An explicit `model`.** Never leave it to inheritance. Cheapest tier that will do the job
+  correctly — mechanical passes go cheap, reasoning and design go to the strong model. A model too
+  weak for the task is not a saving.
+- **A verification clause:** "Before writing code, confirm this brief against the code. If what
+  you find contradicts it, stop and report instead of proceeding." An agent that is told the
+  problem statement is provisional will surface a wrong brief; one that is not will build it.
+- **Its own worktree** under `_worktrees/`, created from `origin/main`, never the shared checkout —
+  other sessions hold uncommitted work there. Explicit-path staging only; never `git add -A`.
+- **The machine's live constraints,** because agents rediscover these the hard way: the guard hook
+  rejects any Bash command whose text contains a hard-delete pattern (the `rm` command with a force
+  or recursive flag, or Python's file-removal call) anywhere, including inside a string, heredoc or
+  commit message; Read/Write/Edit refuse paths outside the allowed working directories; no browser
+  ever launches on this desktop; long jobs and databases live on the VPSs.
+- **How follow-ups arrive:** say that corrections come by `SendMessage` from the parent session by
+  name. Without that, an agent may treat a mid-task message as untrusted injection and refuse it.
+- **Live validation, named concretely** — which host, which disposable schema, what to read back,
+  and that test data is purged afterwards. "Verify it works" produces a claim; "insert X, read it
+  back, drop the schema" produces evidence.
