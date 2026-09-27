@@ -340,6 +340,7 @@ fn main() {
             ai::get_ai_models,
             ai::check_ollama_status,
             xplorer::filesystem_index::filesystem_index_search,
+            xplorer::intake_name_search::intake_search_names,
             ai::chat_with_ai,
             ai::analyze_file_with_ai,
             ai::get_file_help,

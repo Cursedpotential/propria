@@ -1,30 +1,58 @@
 # Propria — Monorepo Root Contract
 
-## Current checkout routing — verified 2026-09-20
+## Current checkout routing — the monorepo is one repository (2026-09-26)
 
-This dated routing supersedes historical placement text below. Propria owns the
-root governance, `modules/FL-MCP/`, and the preserved shared `scripts/` and
-`plugins/` source. The other product repositories retain independent histories:
+**Propria is now a single Git repository.** The product repositories were imported
+with `git subtree` on 2026-09-26, full history preserved, and their child `.git`
+directories retired to `.review_hold/2026-09-26-retired-child-git/`. There is one
+commit boundary: this root. Run `git rev-parse --show-toplevel` and expect
+`E:/AI_Workspace/Projects/Propria`.
 
-| Product | Current path | Commit boundary |
+| Product | Path | Local instructions |
 |---|---|---|
-| Indicia Probata | `modules/Probata/probata/` | Independent repository |
-| Consignatio / Intake | `modules/Consignatio/` | Independent repository |
-| Advocatio legal workdesk | `modules/Legal-desktop/` | Independent repository; `master` |
-| Vestigia | `modules/vestigia-geodata_processor/` | Independent outer repository |
-| TraceIQ Rebuild | `modules/vestigia-geodata_processor/traceiq-rebuild/` | Independent nested repository; `master` |
-| Family Court Workbench | `modules/FL-MCP/` | Propria root repository |
+| Indicia Probata | `modules/Probata/probata/` | its `AGENTS.md` |
+| Consignatio / Intake | `modules/Consignatio/` | its `AGENTS.md` |
+| Advocatio legal workdesk | `modules/Legal-desktop/` | its `AGENTS.md` |
+| Vestigia | `modules/vestigia-geodata_processor/` | its `AGENTS.md` |
+| TraceIQ Rebuild | `modules/vestigia-geodata_processor/traceiq-rebuild/` | its `AGENTS.md` |
+| Family Court Workbench | `modules/FL-MCP/` | its `AGENTS.md` |
+| SBV forensic fork | `modules/Probata/probata/modules/forks/sbv/` | application fork |
+| Timesketch fork | `modules/Probata/probata/modules/forks/timesketch/` | application fork |
+| Probata custom | `modules/Probata/probata/modules/custom/` | holds `llm_probe`, `llm_probe_ui` |
+| Xplorer copilot fork | `modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot/` | application fork |
+| Build crew | `modules/Probata/probata_build_crew/` | source only; its `.env` is never committed |
 
-Read the selected module's local instructions and verify its Git root before
-staging. The existing `docs/` junctions and source registry remain the Docstore
-routing surface. `docs/.docstore/` contains private credentials and database
-state, never publishable source.
+**Not in the monorepo, deliberately:** `memsearch` and `claude-context` are
+development tooling rather than application forks, and live under
+`~/.claude/local-plugins/forks/`.
 
-Root `scripts/` and `plugins/` preserve moved source, including edits. This is a
-source preservation cutover only: Probata's deployment-owned copies remain in
-its repository, and may contain newer integrated work. Do not overwrite either
-copy or repoint deployment/installed plugins until their differences and build
-contexts are reconciled. See `docs/ROOT-SOURCE-RECONCILIATION-2026-09-20.md`.
+Still read the selected module's local `AGENTS.md`. Stage by explicit path — several
+sessions share this index. The `docs/` junctions and source registry remain the
+Docstore routing surface, and `docs/.docstore/` holds private credentials and
+database state, never publishable source.
+
+**What is kept out of this history on purpose.** Evidence corpora and personal data
+stay on disk and are ignored: the Vestigia location-data folders
+(`raw_api_responses/`, `TraceIQ_*`, `traaceiq_mess/`, `Timeline.json`),
+`modules/Consignatio/_intake/`, and `vault-sorted.7z`. Two Consignatio branches were
+excluded from the import entirely rather than recorded as parents —
+`codex/casekit-ab` ("stays local" Case Bible corpus) and
+`local-archive/pre-private-publication-20260911`. Both survive in the retired
+Consignatio `.git` and in the bundles under
+`.reconciliation/2026-09-26-pre-cutover-bundles/`.
+
+**Deployment.** All 35 Coolify applications build from `Cursedpotential/propria`,
+each with its module folder as base directory. Watch paths are matched against
+repository-root paths, so every pattern carries the module prefix. See
+`docs/MONOREPO-COOLIFY-CUTOVER-PLAN-2026-09-26.md` and
+`docs/decisions/2026-09-26-monorepo-import.md`.
+
+The old per-product GitHub remotes are archives. Do not commit to them.
+
+_Superseded: the 2026-09-20 routing that listed each product as an independent
+repository, and the root source-preservation note in
+`docs/ROOT-SOURCE-RECONCILIATION-2026-09-20.md`, which described a copy rather than
+this import._
 
 
 <!-- Updated by: Codex | Date: 2026-09-12 | Rev: 3 | Platform: Codex / win32 | Changes: establish universal Docstore use | Context: explicit owner clarification -->

@@ -1,29 +1,59 @@
+"""The Coco super index pipeline: catalog or filesystem in, Parquet + Weaviate out.
+
+> Byline: Claude Code · Opus 5 · 2026-09-22 (rewritten for streaming and bucket reads;
+> original Claude Code · Opus 5 · 2026-09-18)
+
+What changed on 2026-09-22, and why:
+
+* **Catalog objects are read from the bucket**, not from a mount under
+  ``CASEBIBLE_SOURCE_DIR``. The previous build listed the catalog correctly and then
+  tried to open the object as a local path, which no deployment ever had.
+* **No caps.** The 8 MiB reject, the 1,000,000-extracted-character raise and the
+  512-chunk raise are gone (owner 2026-09-19/09-20: stream everything). Objects are read
+  in windows, chunks are flushed to Parquet shards as they are produced, and peak memory
+  is a window plus one shard regardless of object size.
+* **Hits carry the vault key**, so a result can be opened from B2.
+* **Weaviate is on by default** when a collection is configured.
+"""
+
 from __future__ import annotations
 
 import hashlib
-import json
 import os
+import sys
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import cocoindex as coco
 import httpx
 from cocoindex.connectors import localfs
 from cocoindex.ops.text import RecursiveSplitter
-from cocoindex.resources.file import FileLike, PatternFilePathMatcher
+from cocoindex.resources.file import PatternFilePathMatcher
 
-from .catalog_source import CatalogObject, iter_catalog_objects, safe_relative_key
+from .catalog_source import iter_catalog_objects, safe_relative_key
 from .config import SUPPORTED_EXTENSIONS, Settings
-from .extractors import extract_text
 from .filesystem_search import WeaviateSearchConfig
 from .models import DocumentEnrichment, SourceMetadata, TextChunk
-from .nim import NimClient, representative_excerpt
-from .parquet_store import stable_document_id, tables_for_document, write_document_bundle
+from .nim import NimClient, NimError
+from .object_store import ObjectStore, ReadCounters, configured_credentials
+from .parquet_store import (
+    SCHEMA_VERSION,
+    chunk_rows_table,
+    document_row_table,
+    stable_document_id,
+    streaming_artifact_id,
+    vault_document_id,
+    vault_version_id,
+    write_chunk_shard,
+    write_document_row,
+)
 from .run_status import RunStatus
 from .secrets import get_secret
 from .source_runtime import source_lock
+from .stream_extract import ARCHIVE_EXTENSIONS, StreamOutcome, extract_stream
+from .vault_source import OBJECT_STORE, LocalStreamFile, VaultFile
 from .weaviate_target import WEAVIATE_WRITER, ObjectSpec, WeaviateObjectWriter, declare_chunk
 
 NIM_CLIENT = coco.ContextKey[NimClient]("casebible_nim_client")
@@ -31,65 +61,14 @@ RUN_STATUS = coco.ContextKey[RunStatus]("intake_filesystem_run_status")
 CATALOG_DSN = coco.ContextKey[str]("intake_catalog_dsn")
 _splitter = RecursiveSplitter()
 _EXCLUDED_SEGMENTS = frozenset({".git", ".review_hold", "to_be_deleted", "__pycache__"})
-
-
-class BoundedLocalFile(localfs.File):
-    """Apply the read cap to CocoIndex's fingerprint reads as well as processing."""
-
-    def __init__(self, file_path, max_bytes: int):
-        super().__init__(file_path)
-        self.max_bytes = max_bytes
-
-    async def _read_impl(self, size: int = -1) -> bytes:
-        if await self.size() > self.max_bytes:
-            raise ValueError("File exceeds INTAKE_MAX_FILE_BYTES before fingerprint/read")
-        read_size = self.max_bytes + 1 if size < 0 else min(size, self.max_bytes + 1)
-        content = await super()._read_impl(read_size)
-        if len(content) > self.max_bytes:
-            raise ValueError("File grew beyond INTAKE_MAX_FILE_BYTES before fingerprint/read")
-        return content
-
-    def __coco_memo_key__(self):
-        return (super().__coco_memo_key__(), self.max_bytes)
-
-
-class CatalogFile(BoundedLocalFile):
-    """A catalog object on the mounted bucket (Byline: Claude Code · Opus 5 · 2026-09-18).
-
-    Change detection uses the catalog's size + SHA-1 and never reads or stats the object:
-    the hashing is already in the catalog (owner 2026-09-18 21:57; catalog decision
-    2026-09-16). Bytes are read only when the object is actually processed.
-    """
-
-    def __init__(self, file_path, max_bytes: int, catalog_object: CatalogObject):
-        super().__init__(file_path, max_bytes)
-        self.catalog_object = catalog_object
-
-    async def __coco_memo_state__(self, prev_state):
-        # B2 large files have no SHA-1; for those only a size change is detectable here.
-        state = ("catalog-v1", self.catalog_object.byte_size, self.catalog_object.sha1)
-        return coco.MemoStateOutcome(state=state, memo_valid=prev_state == state)
+INDEXABLE_EXTENSIONS = frozenset(SUPPORTED_EXTENSIONS) | ARCHIVE_EXTENSIONS
 
 
 def _catalog_key_is_indexable(key: str) -> bool:
     path = safe_relative_key(key)
     if path is None or _EXCLUDED_SEGMENTS.intersection(path.parts):
         return False
-    return path.suffix.casefold() in SUPPORTED_EXTENSIONS
-
-
-async def read_bounded(file: FileLike, max_bytes: int) -> bytes:
-    """Reject oversized metadata before I/O; cap the actual read against growth races."""
-    if await file.size() > max_bytes:
-        raise ValueError("File exceeds INTAKE_MAX_FILE_BYTES; source left unchanged")
-    content = await file.read(max_bytes + 1)
-    if len(content) > max_bytes:
-        raise ValueError("File grew beyond INTAKE_MAX_FILE_BYTES; source left unchanged")
-    return content
-
-
-def _utc_timestamp(value: float | None) -> datetime | None:
-    return datetime.fromtimestamp(value, tz=UTC) if value is not None else None
+    return path.suffix.casefold() in INDEXABLE_EXTENSIONS
 
 
 def _fallback_enrichment(filename: str, notes: tuple[str, ...]) -> DocumentEnrichment:
@@ -102,118 +81,316 @@ def _fallback_enrichment(filename: str, notes: tuple[str, ...]) -> DocumentEnric
     )
 
 
+class ChunkAccumulator:
+    """Turn a stream of text pieces into chunks without holding the document.
+
+    Each piece is split with the same recursive splitter the non-streaming build used.
+    A trailing overlap is carried into the next piece so a chunk boundary between two
+    windows is not a hard cut.
+    """
+
+    def __init__(self, chunk_size: int, chunk_overlap: int) -> None:
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self._carry = ""
+        self._offset = 0
+        self._ordinal = 0
+
+    def _emit(self, text: str, offset: int) -> list[TextChunk]:
+        """Emit one split as chunks, hard-wrapping it if it has no separator to split on.
+
+        A minified JSON record or a single very long line comes back from the recursive
+        splitter as ONE part far larger than ``chunk_size`` — a 341,373-character chunk in
+        the vault's 61 MB conversations.json — and the embedding provider rejects it with a
+        400. Streaming everything means never refusing such a record: it is cut on size,
+        with the same overlap. Byline: Claude Code · Opus 5 · 2026-09-22.
+        """
+        chunks: list[TextChunk] = []
+        if len(text) <= self.chunk_size:
+            chunks.append(TextChunk(self._ordinal, offset, offset + len(text), text))
+            self._ordinal += 1
+            return chunks
+        step = max(self.chunk_size - self.chunk_overlap, 1)
+        for start in range(0, len(text), step):
+            part = text[start:start + self.chunk_size]
+            if not part:
+                break
+            chunks.append(
+                TextChunk(self._ordinal, offset + start, offset + start + len(part), part)
+            )
+            self._ordinal += 1
+            if start + self.chunk_size >= len(text):
+                break
+        return chunks
+
+    def feed(self, piece: str) -> list[TextChunk]:
+        text = self._carry + ("\n" if self._carry else "") + piece
+        parts = _splitter.split(
+            text, chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap,
+            language="markdown",
+        )
+        if not parts:
+            self._carry = text
+            return []
+        # Keep the last split back: the next piece may continue it.
+        emit, self._carry = list(parts[:-1]), parts[-1].text
+        chunks: list[TextChunk] = []
+        for part in emit:
+            chunks.extend(self._emit(part.text, self._offset + part.start.char_offset))
+        # A carry that can never be split further would grow without bound; cut it now.
+        if len(self._carry) > self.chunk_size * 4:
+            carried, self._carry = self._carry, ""
+            chunks.extend(self._emit(carried, self._offset + len(text) - len(carried)))
+            self._offset += len(text)
+            return chunks
+        self._offset += max(len(text) - len(self._carry), 0)
+        return chunks
+
+    def finish(self) -> list[TextChunk]:
+        if not self._carry.strip():
+            return []
+        carried, self._carry = self._carry, ""
+        return self._emit(carried, self._offset)
+
+    @property
+    def count(self) -> int:
+        return self._ordinal
+
+
+EMBED_FLOOR_CHARS = 256
+
+
+async def _embed(
+    client: NimClient | None, texts: list[str], *, batch_size: int, dimensions: int
+) -> tuple[list[list[float]], list[str]]:
+    """Embed a batch. Returns the vectors and a per-text status.
+
+    A chunk is bounded in CHARACTERS; the provider bounds it in TOKENS. Text with almost no
+    whitespace — minified CSS or JSON inside a chat export — tokenizes far denser than prose,
+    and a 2,400-character chunk of it is rejected with a 400 that failed the whole object.
+    Streaming everything means the object survives: the batch is bisected, and a single text
+    that still fails is halved until its vector can be produced, down to a floor. The FULL
+    chunk text is still stored and still searchable lexically; only the vector covers a
+    prefix, and that is recorded as ``embedding_status="truncated"`` rather than hidden.
+    Byline: Claude Code · Opus 5 · 2026-09-22.
+    """
+    if client is None:
+        return [[0.0] * dimensions for _ in texts], ["pending"] * len(texts)
+    try:
+        return await client.embed_documents(texts, batch_size=batch_size), ["ok"] * len(texts)
+    except NimError:
+        if len(texts) > 1:
+            middle = len(texts) // 2
+            left_vectors, left_status = await _embed(
+                client, texts[:middle], batch_size=batch_size, dimensions=dimensions
+            )
+            right_vectors, right_status = await _embed(
+                client, texts[middle:], batch_size=batch_size, dimensions=dimensions
+            )
+            return left_vectors + right_vectors, left_status + right_status
+    text = texts[0]
+    while len(text) > EMBED_FLOOR_CHARS:
+        text = text[: len(text) // 2]
+        try:
+            vectors = await client.embed_documents([text], batch_size=1)
+            return vectors, ["truncated"]
+        except NimError:
+            continue
+    return [[0.0] * dimensions], ["failed"]
+
+
 @coco.fn(memo=True)
 async def process_file(
-    file: FileLike,
+    file,
     *,
-    source_dir: Path,
     source_id: str,
     output_dir: Path,
     chunk_size: int,
     chunk_overlap: int,
+    chunk_flush_size: int,
     summary_max_chars: int,
     embed_batch_size: int,
     embed_model: str,
     summary_model: str,
     embed_dimensions: int,
-    max_file_bytes: int,
-    max_extracted_chars: int,
-    max_chunks_per_file: int,
+    embed_enabled: bool,
+    summary_enabled: bool,
     weaviate_target: tuple[str, str, str] | None,
 ) -> None:
-    content = await read_bounded(file, max_file_bytes)
-    source_path = file.file_path.resolve()
-    relative_path = source_path.relative_to(source_dir.resolve()).as_posix()
-    stat = source_path.stat()
-    source = SourceMetadata(
-        relative_path=relative_path,
-        filename=source_path.name,
-        extension=source_path.suffix.casefold(),
-        byte_size=len(content),
-        created_at=_utc_timestamp(getattr(stat, "st_birthtime", stat.st_ctime)),
-        modified_at=_utc_timestamp(stat.st_mtime),
-        modified_ns=stat.st_mtime_ns,
-        content_sha256=hashlib.sha256(content).hexdigest(),
-    )
-    extracted = extract_text(source_path, content)
-    if len(extracted.text) > max_extracted_chars:
-        raise ValueError("Extracted text exceeds INTAKE_MAX_EXTRACTED_CHARS")
-    chunks: list[TextChunk] = []
-    embeddings: list[list[float]] = []
-    coverage = "no_text"
-    coverage_ratio = 0.0
+    key = file.key
+    relative_path = key if isinstance(file, VaultFile) else PurePosixPath(key).as_posix()
+    filename = PurePosixPath(key).name
+    extension = PurePosixPath(key).suffix.casefold()
+    vault_key = key if isinstance(file, VaultFile) else ""
+    resolution = file.resolution
+    byte_size = await file.size()
 
-    if extracted.status == "indexed":
-        summary_text, coverage, coverage_ratio = representative_excerpt(
-            extracted.text, summary_max_chars
-        )
-        client = coco.use_context(NIM_CLIENT)
-        enrichment = await client.summarize(
-            filename=source.filename,
-            relative_path=source.relative_path,
-            text=summary_text,
-            source_created_at=source.created_at,
-            source_modified_at=source.modified_at,
-            coverage=coverage,
-        )
-        coco_chunks = _splitter.split(
-            extracted.text,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            language="markdown",
-        )
-        for index, chunk in enumerate(coco_chunks):
-            if index >= max_chunks_per_file:
-                raise ValueError("Chunk count exceeds INTAKE_MAX_CHUNKS_PER_FILE")
-            chunks.append(TextChunk(
-                ordinal=index,
-                start=chunk.start.char_offset,
-                end=chunk.end.char_offset,
-                text=chunk.text,
-            ))
-        embeddings = await client.embed_documents(
-            [chunk.text for chunk in chunks], batch_size=embed_batch_size
-        )
+    # Identity: a vault object is identified by its CONTENT, so moving it to its final
+    # folder changes only vault_key (owner 2026-09-22 10:48). A local file keeps the
+    # path-based identity it has always had.
+    if isinstance(file, VaultFile):
+        identity = file.identity
+        document_id = vault_document_id(source_id, identity)
     else:
-        enrichment = _fallback_enrichment(source.filename, extracted.notes)
+        metadata = await file._fetch_metadata()
+        identity = f"local:{byte_size}:{metadata.modified_time.isoformat()}"
+        document_id = stable_document_id(source_id, relative_path)
+    version_id = vault_version_id(
+        document_id, identity, embed_model=embed_model, summary_model=summary_model
+    )
 
-    version_id, artifact, document_table, chunk_table = tables_for_document(
-        source_id=source_id,
-        source=source,
-        extracted=extracted,
-        enrichment=enrichment,
-        chunks=chunks,
-        embeddings=embeddings,
-        coverage=coverage,
-        coverage_ratio=coverage_ratio,
-        embed_model=embed_model,
-        summary_model=summary_model,
-        dimensions=embed_dimensions,
+    # Known before the first chunk, so shards can be WRITTEN as they are produced instead of
+    # collected. Collecting them was a defect: 30,136 chunks × 2048 floats for one 61 MB
+    # object is gigabytes of live Python objects, which is exactly the unbounded behaviour
+    # this rewrite exists to remove.
+    artifact = streaming_artifact_id(
+        version_id, chunk_size=chunk_size, chunk_overlap=chunk_overlap,
+        embed_model=embed_model, summary_model=summary_model,
     )
-    write_document_bundle(
-        output_dir,
-        document_id=stable_document_id(source_id, source.relative_path),
-        version_id=version_id,
-        artifact=artifact,
-        document_table=document_table,
-        chunk_table=chunk_table,
+    outcome = StreamOutcome()
+    accumulator = ChunkAccumulator(chunk_size, chunk_overlap)
+    summary_text: list[str] = []
+    summary_chars = 0
+    pending: list[TextChunk] = []
+    total_chars = 0
+    shard_count = 0
+    now = datetime.now(UTC)
+    client = coco.use_context(NIM_CLIENT) if embed_enabled or summary_enabled else None
+    embed_client = client if embed_enabled else None
+
+    def chunk_row(chunk: TextChunk, embedding: list[float], status: str) -> dict:
+        chunk_hash = hashlib.sha256(chunk.text.encode("utf-8")).hexdigest()
+        from uuid import NAMESPACE_URL, uuid5
+
+        return {
+            "document_id": document_id,
+            "version_id": version_id,
+            "artifact_id": artifact,
+            "chunk_id": str(uuid5(NAMESPACE_URL, f"{version_id}:{chunk.ordinal}:{chunk_hash}")),
+            "source_id": source_id,
+            "relative_path": relative_path,
+            "vault_key": vault_key,
+            "resolution": resolution,
+            "member_path": "",
+            "filename": filename,
+            "document_type": "unknown",
+            "document_date": None,
+            "title": filename,
+            "short_summary": "",
+            "chunk_ordinal": chunk.ordinal,
+            "char_start": chunk.start,
+            "char_end": chunk.end,
+            "text": chunk.text,
+            "text_sha256": chunk_hash,
+            "token_estimate": max(1, len(chunk.text) // 4),
+            "embedding": embedding,
+            "embedding_status": status,
+            "embedding_model": embed_model if embed_enabled else "",
+            "schema_version": SCHEMA_VERSION,
+            "indexed_at": now,
+        }
+
+    async def flush(final: bool = False) -> None:
+        nonlocal pending, shard_count
+        while pending and (final or len(pending) >= chunk_flush_size):
+            batch, pending = pending[:chunk_flush_size], pending[chunk_flush_size:]
+            vectors, statuses = await _embed(
+                embed_client, [chunk.text for chunk in batch],
+                batch_size=embed_batch_size, dimensions=embed_dimensions,
+            )
+            rows = [
+                chunk_row(chunk, list(vector), status)
+                for chunk, vector, status in zip(batch, vectors, statuses, strict=True)
+            ]
+            write_chunk_shard(
+                output_dir, document_id=document_id, version_id=version_id, artifact=artifact,
+                part=shard_count, table=chunk_rows_table(rows, embed_dimensions),
+            )
+            if weaviate_target is not None:
+                origin, collection, vector_name = weaviate_target
+                for row in rows:
+                    # "failed" carries a zero vector; Weaviate rejects it and it
+                    # would be a false negative anyway. "truncated" is a real vector.
+                    if row["embedding_status"] in {"pending", "failed"}:
+                        continue
+                    declare_chunk(origin, collection, row["chunk_id"], ObjectSpec(
+                        properties={
+                            "source_id": source_id, "source_path": relative_path,
+                            "vault_key": vault_key, "resolution": resolution,
+                            "document_id": row["document_id"], "chunk_id": row["chunk_id"],
+                            "filename": filename, "text": row["text"],
+                            "embed_model": embed_model,
+                        },
+                        vectors={vector_name: row["embedding"]},
+                    ))
+            shard_count += 1
+            rows.clear()
+
+    async for piece in extract_stream(key, file.windows(), outcome):
+        total_chars += len(piece)
+        if summary_chars < summary_max_chars:
+            summary_text.append(piece[: summary_max_chars - summary_chars])
+            summary_chars += len(summary_text[-1])
+        for chunk in accumulator.feed(piece):
+            pending.append(chunk)
+        await flush()
+    for chunk in accumulator.finish():
+        pending.append(chunk)
+    await flush(final=True)
+
+    enrichment = _fallback_enrichment(filename, outcome.notes)
+    coverage, coverage_ratio = ("none", 0.0)
+    if outcome.status == "indexed" and summary_enabled and client is not None and summary_text:
+        joined = "".join(summary_text)
+        coverage = "full" if summary_chars >= total_chars else "head"
+        coverage_ratio = min(1.0, summary_chars / total_chars) if total_chars else 0.0
+        try:
+            enrichment = await client.summarize(
+                filename=filename, relative_path=relative_path, text=joined,
+                source_created_at=None, source_modified_at=None, coverage=coverage,
+            )
+        except Exception:  # noqa: BLE001 - a failed summary must not lose the extraction
+            enrichment = _fallback_enrichment(filename, ("Summary pass failed for this object.",))
+
+    # Chunk shards were written during the stream, so the document's enrichment is NOT
+    # back-filled into them: the document row is the authority for title, type, date and
+    # summary, and `search.py` reads those from the document join.
+    source = SourceMetadata(
+        relative_path=relative_path, filename=filename, extension=extension,
+        byte_size=byte_size, created_at=None, modified_at=None, modified_ns=0,
+        content_sha256=identity,
     )
-    if weaviate_target is not None:
-        origin, collection, vector_name = weaviate_target
-        # Per-file cap also bounds this conversion, not the entire corpus.
-        for row in chunk_table.to_pylist():
-            declare_chunk(origin, collection, row["chunk_id"], ObjectSpec(
-                properties={
-                    "source_id": source_id, "source_path": str(source_path),
-                    "document_id": row["document_id"], "chunk_id": row["chunk_id"],
-                    "filename": source.filename, "text": row["text"],
-                    "embed_model": embed_model,
-                },
-                vectors={vector_name: row["embedding"]},
-            ))
+    write_document_row(
+        output_dir, document_id=document_id, version_id=version_id, artifact=artifact,
+        table=document_row_table({
+            "document_id": document_id, "version_id": version_id, "artifact_id": artifact,
+            "source_id": source_id, "relative_path": source.relative_path,
+            "vault_key": vault_key, "resolution": resolution, "member_path": "",
+            "filename": filename, "extension": extension, "media_type": outcome.media_type,
+            "byte_size": byte_size, "content_sha256": identity,
+            "source_created_at": None, "source_modified_at": None, "indexed_at": now,
+            "title": enrichment.title or filename, "document_type": enrichment.document_type,
+            "document_date": enrichment.document_date, "date_basis": enrichment.date_basis,
+            "short_summary": enrichment.short_summary,
+            "detailed_summary": enrichment.detailed_summary,
+            "people": enrichment.people, "organizations": enrichment.organizations,
+            "locations": enrichment.locations, "dates_mentioned": enrichment.dates_mentioned,
+            "topics": enrichment.topics, "keywords": enrichment.keywords,
+            "case_relevance": enrichment.case_relevance, "language": enrichment.language,
+            "confidence": enrichment.confidence, "review_notes": enrichment.review_notes,
+            "review_state": "unreviewed", "record_role": "machine_proposal",
+            "index_status": outcome.status, "extraction_method": outcome.method,
+            "extraction_notes": list(outcome.notes), "page_count": outcome.page_count,
+            "text_char_count": total_chars, "chunk_count": accumulator.count,
+            "summary_coverage": coverage, "summary_coverage_ratio": coverage_ratio,
+            "summary_model": summary_model if summary_enabled else "",
+            "embedding_model": embed_model if embed_enabled else "",
+            "embedding_dimensions": embed_dimensions, "schema_version": SCHEMA_VERSION,
+        }),
+    )
     status = coco.use_context(RUN_STATUS)
     status.files_transformed += 1
-    if extracted.status != "indexed":
+    if outcome.status != "indexed":
         status.files_without_usable_text += 1
     if status.files_transformed % 25 == 0:
         status.save(output_dir, "running")
@@ -226,17 +403,19 @@ async def app_main(
     source_id: str,
     chunk_size: int,
     chunk_overlap: int,
+    chunk_flush_size: int,
     summary_max_chars: int,
     embed_batch_size: int,
     embed_model: str,
     summary_model: str,
     embed_dimensions: int,
-    max_file_bytes: int,
-    max_extracted_chars: int,
-    max_chunks_per_file: int,
+    embed_enabled: bool,
+    summary_enabled: bool,
     weaviate_target: tuple[str, str, str] | None,
     source_mode: str,
     catalog_query_file: Path,
+    catalog_limit: int,
+    catalog_path_prefix: str,
 ) -> None:
     async def filesystem_items():
         patterns = [f"**/*{extension}" for extension in SUPPORTED_EXTENSIONS]
@@ -252,36 +431,39 @@ async def app_main(
         status = coco.use_context(RUN_STATUS)
         async for key, file in files.items():
             status.files_observed += 1
-            yield key, BoundedLocalFile(file.file_path, max_file_bytes)
+            yield key, LocalStreamFile(file.file_path)
 
     async def catalog_items():
-        # The object list comes from the catalog, not a walk; objects are read in place
-        # under sourcedir (the mounted bucket root) only when processed.
         status = coco.use_context(RUN_STATUS)
         dsn = coco.use_context(CATALOG_DSN)
         query = catalog_query_file.read_text(encoding="utf-8")
+        taken = 0
         async for obj in iter_catalog_objects(dsn, query):
+            if catalog_path_prefix and not obj.key.startswith(catalog_path_prefix):
+                continue
             if not _catalog_key_is_indexable(obj.key):
                 continue
             status.files_observed += 1
-            yield obj.key, CatalogFile(localfs.FilePath(sourcedir / obj.key), max_file_bytes, obj)
+            yield obj.key, VaultFile(obj)
+            taken += 1
+            if catalog_limit and taken >= catalog_limit:
+                break
 
     handle = await coco.mount_each(
         process_file,
         catalog_items() if source_mode == "catalog" else filesystem_items(),
-        source_dir=sourcedir,
         source_id=source_id,
         output_dir=output_dir,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        chunk_flush_size=chunk_flush_size,
         summary_max_chars=summary_max_chars,
         embed_batch_size=embed_batch_size,
         embed_model=embed_model,
         summary_model=summary_model,
         embed_dimensions=embed_dimensions,
-        max_file_bytes=max_file_bytes,
-        max_extracted_chars=max_extracted_chars,
-        max_chunks_per_file=max_chunks_per_file,
+        embed_enabled=embed_enabled,
+        summary_enabled=summary_enabled,
         weaviate_target=weaviate_target,
     )
     await handle.ready()
@@ -289,11 +471,28 @@ async def app_main(
 
 _settings = Settings.from_env().resolved()
 _settings.validate(require_source=False)
-_weaviate_target = (
-    os.getenv("INTAKE_WEAVIATE_URL", ""),
-    os.getenv("INTAKE_WEAVIATE_COLLECTION", ""),
-    os.getenv("INTAKE_WEAVIATE_TEXT_VECTOR", ""),
-) if os.getenv("INTAKE_WEAVIATE_INDEX_ENABLED") == "1" else None
+
+
+def _weaviate_target_from_env() -> tuple[str, str, str] | None:
+    """Weaviate is the default vector target when a collection is configured.
+
+    Owner ruling (audit item I-6, 2026-09-22): Weaviate on by default, not opt-in.
+    ``INTAKE_WEAVIATE_INDEX_ENABLED=0`` still turns it off explicitly.
+    """
+    collection = os.getenv("INTAKE_WEAVIATE_COLLECTION", "").strip()
+    enabled = os.getenv("INTAKE_WEAVIATE_INDEX_ENABLED", "1" if collection else "0")
+    if enabled != "1" or not collection:
+        return None
+    return (
+        os.getenv("INTAKE_WEAVIATE_URL", "").strip(),
+        collection,
+        os.getenv("INTAKE_WEAVIATE_TEXT_VECTOR", "text_vector").strip(),
+    )
+
+
+_weaviate_target = _weaviate_target_from_env()
+_EMBED_ENABLED = os.getenv("INTAKE_EMBED_MODE", "on").strip().casefold() != "deferred"
+_SUMMARY_ENABLED = os.getenv("INTAKE_SUMMARY_MODE", "on").strip().casefold() == "on"
 
 
 @asynccontextmanager
@@ -301,83 +500,75 @@ async def resources_lifespan(builder: coco.EnvironmentBuilder) -> AsyncIterator[
     _settings.output_dir.mkdir(parents=True, exist_ok=True)
     _settings.state_dir.mkdir(parents=True, exist_ok=True)
     builder.settings.db_path = _settings.state_dir / "cocoindex.db"
-    if _settings.source_mode == "catalog":
-        catalog_dsn = get_secret("INTAKE_CATALOG_DSN")
-        if not catalog_dsn:
-            raise ValueError("INTAKE_SOURCE_MODE=catalog needs INTAKE_CATALOG_DSN")
-        builder.provide(CATALOG_DSN, catalog_dsn)
-    api_key = get_secret("NVIDIA_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "NVIDIA_API_KEY is not configured in the process or Windows user environment"
-        )
-    async with NimClient(
-        api_key=api_key,
-        base_url=_settings.nim_base_url,
-        embed_model=_settings.embed_model,
-        summary_model=_settings.summary_model,
-        dimensions=_settings.embed_dimensions,
-        timeout_seconds=_settings.timeout_seconds,
-        max_retries=_settings.max_retries,
-        max_concurrency=_settings.max_concurrency,
-    ) as client:
+    async with AsyncExitStack() as stack:
+        if _settings.source_mode == "catalog":
+            catalog_dsn = get_secret("INTAKE_CATALOG_DSN")
+            if not catalog_dsn:
+                raise ValueError("INTAKE_SOURCE_MODE=catalog needs INTAKE_CATALOG_DSN")
+            builder.provide(CATALOG_DSN, catalog_dsn)
+            credentials = configured_credentials(_settings.object_store_scheme)
+            store_client = await stack.enter_async_context(
+                httpx.AsyncClient(timeout=120.0, follow_redirects=False)
+            )
+            builder.provide(OBJECT_STORE, ObjectStore(
+                credentials, _settings.vault_bucket, store_client, counters=READ_COUNTERS,
+            ))
+        api_key = get_secret("NVIDIA_API_KEY")
+        if not api_key and (_EMBED_ENABLED or _SUMMARY_ENABLED):
+            raise ValueError("NVIDIA_API_KEY is not configured; set INTAKE_EMBED_MODE=deferred")
+        client = await stack.enter_async_context(NimClient(
+            api_key=api_key or "unset",
+            base_url=_settings.nim_base_url,
+            embed_model=_settings.embed_model,
+            summary_model=_settings.summary_model,
+            dimensions=_settings.embed_dimensions,
+            timeout_seconds=_settings.timeout_seconds,
+            max_retries=_settings.max_retries,
+            max_concurrency=_settings.max_concurrency,
+        ))
         builder.provide(NIM_CLIENT, client)
-        async with AsyncExitStack() as stack:
-            if _weaviate_target is not None:
-                origin, collection, target_vector = _weaviate_target
-                if os.getenv("INTAKE_WEAVIATE_EMBED_MODEL") != _settings.embed_model:
-                    raise ValueError("Filesystem Weaviate embedding model must match NIM")
-                target_config = WeaviateSearchConfig(
-                    url=origin, collection=collection, target_vector=target_vector,
-                    dimensions=_settings.embed_dimensions,
-                    api_key=get_secret("INTAKE_WEAVIATE_API_KEY") or "",
-                )
-                target_config.validate()
-                headers = {"Authorization": f"Bearer {target_config.api_key}"} \
-                    if target_config.api_key else {}
-                http_client = await stack.enter_async_context(httpx.AsyncClient(
-                    headers=headers, timeout=20.0, follow_redirects=False,
-                ))
-                writer = WeaviateObjectWriter(target_config, http_client)
-                await writer.verify_schema()
-                builder.provide(WEAVIATE_WRITER, writer)
-            yield
+        if _weaviate_target is not None:
+            origin, collection, target_vector = _weaviate_target
+            target_config = WeaviateSearchConfig(
+                url=origin, collection=collection, target_vector=target_vector,
+                dimensions=_settings.embed_dimensions,
+                api_key=get_secret("INTAKE_WEAVIATE_API_KEY") or "",
+            )
+            # Validate at startup, loudly, not on the first query (audit note 2026-09-22).
+            target_config.validate()
+            declared = os.getenv("INTAKE_WEAVIATE_EMBED_MODEL", _settings.embed_model)
+            if declared != _settings.embed_model:
+                raise ValueError("Filesystem Weaviate embedding model must match NIM")
+            headers = {"Authorization": f"Bearer {target_config.api_key}"} \
+                if target_config.api_key else {}
+            http_client = await stack.enter_async_context(httpx.AsyncClient(
+                headers=headers, timeout=20.0, follow_redirects=False,
+            ))
+            writer = WeaviateObjectWriter(target_config, http_client)
+            await writer.verify_schema()
+            builder.provide(WEAVIATE_WRITER, writer)
+        yield
+
+
+READ_COUNTERS = ReadCounters()
 
 
 @coco.lifespan
 async def coco_lifespan(builder: coco.EnvironmentBuilder) -> AsyncIterator[None]:
-    # Held across runtime startup, fingerprinting, extraction and sink application.
-    # This path also covers direct `cocoindex update main.py`, not just our CLI.
     with source_lock(_settings.lock_dir, _settings.source_id):
         status = RunStatus(_settings.source_id, str(_settings.source_dir))
         builder.provide(RUN_STATUS, status)
 
         async def observe_failure(exc: BaseException, context: coco.ExceptionContext) -> None:
-            # Byline: Claude Code · Sonnet 5 · 2026-09-14 -- failure_events was a bare
-            # counter with no retained detail, so a dead run left no way to explain
-            # *why* files failed. Append one compact, path-scoped line per failure to
-            # a diagnostics log beside the run status; never touches source bytes.
             status.failure_events += 1
-            try:
-                diagnostics_path = _settings.output_dir / "run-status" / "failure-diagnostics.jsonl"
-                diagnostics_path.parent.mkdir(parents=True, exist_ok=True)
-                original = context.original_exception or exc
-                with diagnostics_path.open("a", encoding="utf-8") as handle:
-                    handle.write(
-                        json.dumps(
-                            {
-                                "reported_at": datetime.now(UTC).isoformat(),
-                                "stable_path": context.stable_path,
-                                "processor_name": context.processor_name,
-                                "source": context.source,
-                                "exception_type": type(original).__name__,
-                                "exception_message": str(original)[:2000],
-                            }
-                        )
-                        + "\n"
-                    )
-            except OSError:
-                pass
+            # "Index run did not finish cleanly" with no reason cost this build several
+            # blind rounds. The failure type and a bounded message go to stderr; provider
+            # errors carry no corpus text (Claude Code · Opus 5 · 2026-09-22).
+            print(
+                f"[superindex] failure {status.failure_events}: "
+                f"{type(exc).__name__}: {str(exc)[:400]}",
+                file=sys.stderr, flush=True,
+            )
             if status.failure_events == 1 or status.failure_events % 25 == 0:
                 status.save(_settings.output_dir, "running_with_errors")
 
@@ -407,15 +598,17 @@ app = coco.App(
     source_id=_settings.source_id,
     chunk_size=_settings.chunk_size,
     chunk_overlap=_settings.chunk_overlap,
+    chunk_flush_size=_settings.chunk_flush_size,
     summary_max_chars=_settings.summary_max_chars,
     embed_batch_size=_settings.embed_batch_size,
     embed_model=_settings.embed_model,
     summary_model=_settings.summary_model,
     embed_dimensions=_settings.embed_dimensions,
-    max_file_bytes=_settings.max_file_bytes,
-    max_extracted_chars=_settings.max_extracted_chars,
-    max_chunks_per_file=_settings.max_chunks_per_file,
+    embed_enabled=_EMBED_ENABLED,
+    summary_enabled=_SUMMARY_ENABLED,
     weaviate_target=_weaviate_target,
     source_mode=_settings.source_mode,
     catalog_query_file=_settings.catalog_query_file,
+    catalog_limit=_settings.catalog_limit,
+    catalog_path_prefix=_settings.catalog_path_prefix,
 )
