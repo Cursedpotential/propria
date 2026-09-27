@@ -44,6 +44,13 @@
           "canonical_backend_port": 8471,
           "service": "svc:surreal",
           "client_endpoint": "wss://surreal.tilapia-skilift.ts.net"
+        },
+        {
+          "family": "portal",
+          "canonical_backend_port": 9071,
+          "service": "svc:workbench",
+          "client_endpoint": "https://workbench.tilapia-skilift.ts.net",
+          "note": "Operator Workbench (Coolify app workbench on ovh-app, deploy/workbench.yaml), container port 8020, tailnet-bound 100.72.169.40:9071. svc:workbench's Serve forwarder and Traefik's public workbench.int route both dial it; it replaced the loopback 127.0.0.1:18080 door. Claude Code · Opus 5.5 · 2026-09-27."
         }
       ]
     },

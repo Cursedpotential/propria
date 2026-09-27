@@ -4,6 +4,7 @@
 # Byline: Codex · GPT-5 · 2026-08-29 (private movable Tailscale Service ingress)
 # Byline: Codex · GPT-5.6-Sol · 2026-08-29 (private Platform API service-DNS cutover)
 # Byline: Codex · GPT-5.6-Sol · 2026-08-30 (runtime proffer (then UIW) service credential)
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (edge: one tailnet-bound door, declared publish network, no propria-edge)
 # =============================================================================
 # KNOWLEDGE WORKBENCH — deploy as its OWN Coolify app on OVH-1 ("ovh-app",
 # tailnet 100.72.169.40). Single-service app per the one-concern-per-app rule
@@ -18,7 +19,22 @@
 #   sudo install -d -m 0700 /data/probata/secrets/platform
 #   sudo install -m 0400 /dev/null /data/probata/secrets/platform/api-bearer
 #   # Write the Platform API bearer without a trailing newline; never place it in env.
-#   docker network inspect probata >/dev/null 2>&1 || docker network create probata
+#
+# EDGE (Claude Code · Opus 5.5 · 2026-09-27). Two doors, one tailnet-bound port:
+#   - Public: Traefik (tracked file modules/Consignatio/docs/receipts/portal/
+#     propria-public-portal.yaml, router workbench-public-fixed) dials
+#     ${BIND_IP}:9071 behind Authentik's domain forward-auth. Docker masquerades
+#     that hop to the gateway of the declared network workbench-publish, 10.201.8.1,
+#     so Coolify env TRAEFIK_PROXY_CIDR=10.201.8.1/32 (measured, not assumed).
+#   - Tailnet: svc:workbench (deploy/tailscale/workbench-serve.sh) dials the same
+#     ${BIND_IP}:9071 from the host, so its socket peer is the host's own tailnet
+#     address: Coolify env WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS=100.72.169.40/32.
+#     No Authentik on this door (owner 2026-09-26).
+# Accepted cost (parent/owner pick A, 2026-09-27): any other container on this host
+# that dials ${BIND_IP}:9071 is masqueraded to 10.201.8.1 as well and could assert an
+# Authentik identity; tailnet clients keep their own 100.x peer and cannot. The fix
+# is for the Workbench to verify Authentik's signed X-authentik-jwt (app change).
+# No hand-made networks and no pinned container addresses (owner 2026-09-26).
 #
 # C2.5 (Ops Copilot) points at the exec-gateway service. Authentication for
 # user-facing Workbench traffic is owned by Authentik at Traefik; this manifest
@@ -48,8 +64,8 @@ services:
     restart: unless-stopped
     environment:
       APP_PORT: "8020"
-      # Exact socket peer allowed to assert Authentik identity. Set this to the
-      # Coolify Traefik address as a /32 (or /128), never a broad Docker/tailnet
+      # Exact socket peer allowed to assert Authentik identity: Traefik's hop as the
+      # Workbench sees it, 10.201.8.1/32 (see EDGE above), never a broad Docker/tailnet
       # range. Missing or malformed configuration fails closed.
       TRUSTED_AUTH_PROXY_CIDRS: ${TRAEFIK_PROXY_CIDR}  # Coolify renders a `:?` message as the literal VALUE (seen live 2026-09-07); empty still fails closed in auth.py
       # Feature-gated owner testing path. Traefik remains the trusted socket
@@ -57,7 +73,9 @@ services:
       # Authentik activation without changing application code.
       TAILNET_AUTH_BYPASS_ENABLED: ${WORKBENCH_TAILNET_AUTH_BYPASS_ENABLED:-false}
       TAILNET_AUTH_BYPASS_CIDRS: ${WORKBENCH_TAILNET_AUTH_BYPASS_CIDRS:-100.64.0.0/10}
-      TRUSTED_TAILSCALE_SERVE_PROXY_CIDRS: ${WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS:-127.0.0.1/32,172.17.0.1/32}
+      # Exact socket peer of svc:workbench's Serve forwarder = ${BIND_IP}/32 (see EDGE
+      # above). Empty fails closed for the tailnet door.
+      TRUSTED_TAILSCALE_SERVE_PROXY_CIDRS: ${WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS:-}
       # Serve strips client capability headers. Enable only with an explicit
       # tailnet app grant and --accept-app-caps on svc:workbench.
       TAILSCALE_DEVICE_CAPABILITY: ${WORKBENCH_TAILSCALE_DEVICE_CAPABILITY:-}
@@ -149,12 +167,11 @@ services:
       - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
     ports:
-      # Restored 2026-09-26 (Claude Code · Opus 5.5): archive merge 0ffb5b96 had added a tsnet-front
-      # sidecar with no auth key; its crash loop made Coolify stop the whole app (01:49, 03:01 UTC).
-      # Private door: Tailscale Serve owns the stable HTTPS identity and
-      # proxies directly to this unique loopback-only host port. Public
-      # traffic remains an independent Coolify Traefik route below.
-      - "127.0.0.1:18080:8020"
+      # The one door for both svc:workbench and Traefik (see EDGE in the header),
+      # tailnet-bound, fail-closed to loopback if BIND_IP is unset. Port registered in
+      # deploy/service-port-registry.json (probata, portal family). No tsnet-front
+      # sidecar: it crash-looped without an auth key and took the app down (194a3603).
+      - "${BIND_IP:-127.0.0.1}:9071:8020"
     healthcheck:
       # /health deliberately stays HTTP 200 while degraded; require its JSON
       # contract so missing R2 access cannot be reported healthy by Docker.
@@ -163,39 +180,28 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    # gw_priority makes workbench-publish the network the published port maps through, so
+    # the address Traefik's hop is masqueraded to is that network's declared gateway,
+    # 10.201.8.1. probata is the shared private network the PLATFORM_API_URL default
+    # (http://platform-api:8000) resolves on. Coolify also attaches its own app network.
+    # Every entry has a mapping value on purpose: Coolify 4.1.2 silently drops null-valued
+    # entries, which is why the Workbench was not actually on probata before 2026-09-27.
     networks:
-      workbench:
-      probata:
-      propria-edge:
-        # Fixed address so Traefik (fixed 10.201.0.2 on propria-edge) is the one trusted proxy;
-        # same pattern as authentik-server 10.201.0.3 (9129ac7). 2026-09-23 fix: the proxy IP on
-        # probata/xjbuo6 drifted, so every public request was 'Untrusted proxy'.
-        ipv4_address: 10.201.0.4
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=propria-edge
-      - traefik.http.routers.workbench.rule=Host(`workbench.int.mitechconsult.com`)
-      # Authentik's single-app forward-auth contract pairs the application
-      # router at priority 10 with its more-specific outpost router at 15.
-      - traefik.http.routers.workbench.priority=10
-      - traefik.http.routers.workbench.entrypoints=https
-      - traefik.http.routers.workbench.tls=true
-      - traefik.http.routers.workbench.tls.certresolver=letsencrypt
-      - traefik.http.routers.workbench.service=workbench
-      - traefik.http.routers.workbench.middlewares=workbench-authentik
-      - traefik.http.services.workbench.loadbalancer.server.port=8020
-      # A forward_single outpost is selected by the protected application's
-      # external host. Route this callback through Workbench's public host so
-      # the priority-15 outpost router reaches Authentik without re-entering
-      # the priority-10 application middleware.
-      - traefik.http.middlewares.workbench-authentik.forwardauth.address=https://workbench.int.mitechconsult.com/outpost.goauthentik.io/auth/traefik
-      - traefik.http.middlewares.workbench-authentik.forwardauth.trustForwardHeader=true
-      - traefik.http.middlewares.workbench-authentik.forwardauth.authResponseHeaders=X-authentik-username,X-authentik-groups,X-authentik-entitlements,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version
-      - coolify.traefik.middlewares=workbench-authentik
+      workbench-publish:
+        gw_priority: 1
+      probata: {}
+    # No Traefik docker labels: the public route is the tracked Traefik file's
+    # workbench-public-fixed router (Authentik domain forward-auth), see EDGE above.
 
 networks:
-  workbench:
   probata:
-    external: true   # shared cross-app net for Traefik, Authentik, and Workbench
-  propria-edge:
-    external: true   # fixed-address edge net: coolify-proxy 10.201.0.2, authentik 10.201.0.3, workbench 10.201.0.4
+    external: true   # shared private network (platform-api); Traefik does not use it
+  workbench-publish:
+    # Declared here so its gateway, the Workbench's trusted Traefik peer, is fixed by this
+    # file rather than by Docker's address pool (default pools are 10.200.0.0/16).
+    name: workbench-publish
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.201.8.0/29
+          gateway: 10.201.8.1
