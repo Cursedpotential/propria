@@ -1,0 +1,322 @@
+# Byline: Claude Code . Sonnet 5 . 2026-09-14
+# Owner order 2026-09-14 17:21 EDT: the whole Propria Homepage portal goes
+# public with every human surface reachable behind ONE Authentik login.
+# This file is the single source of truth for that public routing. It lives
+# in Traefik's file-provider watch dir (/data/coolify/proxy/dynamic/) so it
+# survives Coolify redeploys of any individual application (those only
+# regenerate each app's OWN docker-compose.yaml, never this file).
+#
+# Auth: Authentik ProxyProvider pk=3 ("Propria Portal (domain-wide SSO)") is
+# in forward_domain mode with cookie_domain=int.mitechconsult.com, bound to
+# the embedded outpost. One login on any *.int.mitechconsult.com host sets a
+# cookie valid for all of them -- no second Authentik prompt on other hosts.
+#
+# workbench-public-fixed below intentionally overrides (by higher priority)
+# the existing broken docker-label router "workbench@docker", whose
+# forwardauth middleware dials the public hostname instead of the internal
+# authentik-server alias (DNS lookup fails inside the Traefik container --
+# root cause of the long-standing public workbench.int 500). Nothing in the
+# workbench app's own Coolify config was touched.
+
+http:
+  middlewares:
+    # NOTE: must dial authentik-server's IP on the "probata" docker network
+    # specifically (currently 192.168.112.10), not the "authentik-server"
+    # DNS alias -- that alias can resolve to a DIFFERENT network's IP from
+    # coolify-proxy (observed: 192.168.192.4), and Authentik's
+    # AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS is pinned to the single IP
+    # coolify-proxy holds on "probata" (192.168.112.2/32). When the source
+    # IP doesn't match that /32, Authentik silently distrusts X-Forwarded-*
+    # and falls back to the raw Host header (authentik-server:9000), which
+    # matches no provider -> 404 for every real forward-auth check. If the
+    # authentik-server container is ever recreated, re-resolve this IP via
+    # docker inspect on the probata network entry for that container, then
+    # update the address below. Root fix belongs in the repo: give
+    # authentik-server a static IP on "probata" (deploy/authentik.yaml) or
+    # widen AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS to the /24 -- not done
+    # here since deploy/authentik.yaml lives in the shared Probata repo,
+    # out of scope for this pass.
+    authentik-forwardauth:
+      forwardAuth:
+        address: "http://10.201.0.3:9000/outpost.goauthentik.io/auth/traefik"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-authentik-username
+          - X-authentik-groups
+          - X-authentik-entitlements
+          - X-authentik-email
+          - X-authentik-name
+          - X-authentik-uid
+          - X-authentik-jwt
+          - X-authentik-meta-jwks
+          - X-authentik-meta-outpost
+          - X-authentik-meta-provider
+          - X-authentik-meta-app
+          - X-authentik-meta-version
+
+    # Added 2026-09-15 (Claude Code · Sonnet 5) for the portal editor's
+    # side-by-side live preview: the editor's Simple Browser frames
+    # homepage-public inside code-server's webview. Neither Homepage
+    # backend set any X-Frame-Options/CSP before this (verified via
+    # curl -I on both :3010 and :3012 -- no framing header present), so
+    # this is a net NEW restriction, not a relaxation: it closes an
+    # open clickjacking gap by naming only the two editor origins,
+    # never "*". The tailnet homepage (served by `tailscale serve`
+    # directly from :3010, outside Traefik) is not covered by this
+    # middleware -- tailnet membership is already its access boundary,
+    # and it carries no CSP of its own; out of scope for this pass.
+    portal-editor-frame-ancestors:
+      headers:
+        customResponseHeaders:
+          Content-Security-Policy: "frame-ancestors 'self' https://edit.int.mitechconsult.com https://portal-edit.tilapia-skilift.ts.net"
+
+  routers:
+    # Portal editor (code-server) -- public route, Authentik-gated same as
+    # every other *.int.mitechconsult.com host. Added 2026-09-15 (Claude
+    # Code · Sonnet 5) for the browser-based portal editor with live
+    # preview. Websocket upgrades (code-server's editor protocol) need no
+    # special Traefik config -- HTTP routers proxy the Upgrade/Connection
+    # headers through natively.
+    portal-editor-public:
+      rule: "Host(`edit.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: portal-editor-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    # Outpost login/callback/logout flow for the shared domain provider.
+    # external_host is homepage.int.mitechconsult.com, so this is the only
+    # host that ever needs to serve /outpost.goauthentik.io/* to a browser.
+    authentik-outpost-domain:
+      rule: "Host(`homepage.int.mitechconsult.com`) && PathPrefix(`/outpost.goauthentik.io/`)"
+      entryPoints: ["https"]
+      service: authentik-internal
+      priority: 100
+      tls:
+        certResolver: letsencrypt
+
+    homepage-progress-path:
+      rule: "Host(`homepage.int.mitechconsult.com`) && PathPrefix(`/progress`)"
+      entryPoints: ["https"]
+      service: progress-board-svc
+      middlewares: ["authentik-forwardauth"]
+      priority: 20
+      tls:
+        certResolver: letsencrypt
+
+    homepage-public:
+      rule: "Host(`homepage.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: homepage-public-svc
+      middlewares: ["authentik-forwardauth", "portal-editor-frame-ancestors"]
+      priority: 5
+      tls:
+        certResolver: letsencrypt
+
+    progress-public:
+      rule: "Host(`progress.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: progress-board-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    workbench-public-fixed:
+      rule: "Host(`workbench.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: workbench-svc
+      middlewares: ["authentik-forwardauth"]
+      priority: 50
+      tls:
+        certResolver: letsencrypt
+
+    legal-public:
+      rule: "Host(`legal.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: legal-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    metabase-public:
+      rule: "Host(`metabase.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: metabase-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    attu-public:
+      rule: "Host(`attu.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: attu-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    neo4j-public:
+      rule: "Host(`neo4j.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: neo4j-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    filestash-public:
+      rule: "Host(`filestash.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: filestash-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    files-public:
+      rule: "Host(`files.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: openlist-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    n8n-public:
+      rule: "Host(`n8n.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: n8n-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    temporal-public:
+      rule: "Host(`temporal.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: temporal-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    contextforge-public:
+      rule: "Host(`contextforge.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: contextforge-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    portkey-public:
+      rule: "Host(`portkey.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: portkey-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    llmprobe-public:
+      rule: "Host(`llmprobe.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: llmprobe-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    opencode-public:
+      rule: "Host(`opencode.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: opencode-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    infisical-public:
+      rule: "Host(`infisical.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: infisical-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+    databasement-public:
+      rule: "Host(`databasement.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: databasement-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    authentik-internal:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.3:9000"
+    homepage-public-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.72.169.40:3012"
+    portal-editor-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.72.169.40:9077"
+    progress-board-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.72.169.40:3020"
+    workbench-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.4:8020"
+    legal-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.72.169.40:3011"
+    metabase-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.72.169.40:9074"
+    attu-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:3001"
+    neo4j-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:7474"
+    filestash-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.72.169.40:3023"
+    openlist-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:5244"
+    n8n-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:5678"
+    temporal-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:8233"
+    contextforge-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.72.169.40:4444"
+    portkey-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.72.169.40:8787"
+    llmprobe-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:8031"
+    opencode-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:4096"
+    infisical-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.91.190.107:8880"
+    databasement-svc:
+      loadBalancer:
+        servers:
+          - url: "http://100.72.169.40:3022"

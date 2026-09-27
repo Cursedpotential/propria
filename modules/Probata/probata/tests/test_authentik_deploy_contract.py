@@ -137,10 +137,16 @@ class TestAuthentikProvider:
         assert "uuid-ossp" not in command
         assert all("docker-entrypoint-initdb.d" not in volume for volume in postgres["volumes"])
 
-    def test_no_host_port_or_docker_socket_bypass(self) -> None:
+    def test_only_the_tailnet_door_is_published_and_no_docker_socket(self) -> None:
+        # authentik-server publishes one port, bound to the tailnet address svc:authentik
+        # forwards to (fail-closed to loopback when BIND_IP is unset). Postgres and the
+        # worker publish nothing. Claude Code · Opus 5.5 · 2026-09-26.
         services = _load(AUTHENTIK_PATH)["services"]
-        for service in services.values():
-            assert not service.get("ports")
+        assert services["authentik-server"]["ports"] == ["${BIND_IP:-127.0.0.1}:9075:9000"]
+        for name, service in services.items():
+            if name != "authentik-server":
+                assert not service.get("ports")
+            assert all("0.0.0.0" not in str(binding) for binding in service.get("ports", []))
             assert "docker.sock" not in "\n".join(service.get("volumes", []))
 
     def test_authentik_router_uses_traefik_only(self) -> None:

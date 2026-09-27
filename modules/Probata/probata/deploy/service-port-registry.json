@@ -93,6 +93,18 @@
         }
       ]
     },
+    "authentik": {
+      "code": "75",
+      "endpoints": [
+        {
+          "family": "portal",
+          "canonical_backend_port": 9075,
+          "service": "svc:authentik",
+          "client_endpoint": "https://authentik.tilapia-skilift.ts.net",
+          "note": "Coolify compose app authentik on ovh-app (deploy/authentik.yaml), container port 9000, tailnet-bound 100.72.169.40:9075. svc:authentik also carries tcp:9075, a raw TCP forwarder that is Traefik's internal hop for auth.int and every forward-auth check (serve config deploy/tailscale/authentik-serve.hujson). Claude Code · Opus 5.5 · 2026-09-26."
+        }
+      ]
+    },
     "fileflows": {
       "code": "76",
       "endpoints": [
