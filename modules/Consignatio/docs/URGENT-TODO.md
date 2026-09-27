@@ -3301,3 +3301,16 @@ in-flight).
   running and off port 8765 (or move `superindex` off it), then repeat the fileflows steps above for
   it — router + service in `propria-public-portal.yaml`, DNS record, header update, add to
   `public_probe.sh` (→ 22/22).
+
+## 2026-09-27 08:15 EDT — provider-limits 503 fixed: n8n API key rotated
+
+- Owner minted a new n8n Public API key (no `exp` claim) at 08:09 EDT. Verified against n8n (`GET /api/v1/workflows` → 200), then
+  written to `~/.secrets/n8n-ovh2.env` (both `N8N_API_KEY` lines; backup `.bak-<stamp>`) and to `api_key` in
+  `/data/probata/secrets/portal-repair/config.json` on ovh-app (backup `.bak-…-n8n-key-rotation`). Progress board restarted through
+  the Coolify API (`homv6zeg4ay2r2puxtzakf83`).
+- Proof: `https://homepage.tilapia-skilift.ts.net/progress/api/provider-limits` → 200 `{"limits":[]}` (the settings table holds no
+  rows yet). Devbox headless Chrome (`shoot.sh live … fixed`): all seven tailnet and public views report **0 console errors**.
+- Trap hit and fixed in the same step: writing a secret over SSH with `python3 - <<heredoc` plus `sys.stdin.readline()` reads an empty
+  line, because the heredoc is python's stdin. Pass the script with `python3 -c` and pipe the value on stdin.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
