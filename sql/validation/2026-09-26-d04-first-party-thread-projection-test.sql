@@ -15,8 +15,11 @@
 --      can repair the writer;
 --   2. the four-table family (first_party_context_thread, _version, _message, _source) plus the
 --      spine working.message row is satisfiable in ONE transaction, and the rows read back joined;
---   3. working.message.id must EQUAL the corresponding working.normalized_record.id — the
---      uuid.uuid4() in the current writer is rejected by message_id_fkey;
+--   3. working.message.id must EQUAL the corresponding working.normalized_record.id. Two
+--      independent guards catch the current writer's uuid.uuid4(): message_one_per_spine_uq
+--      (one message per normalized record, so a re-projection cannot add a second) and
+--      message_id_fkey (a random id references no normalized record at all). Proof 3c then
+--      shows the same insert succeeding once the id is the normalized record's own id;
 --   4. the version's first/last_occurred_at must equal its membership's min/max(occurred_at);
 --   5. a version with no membership is rejected (so _version/_message/_source CANNOT be split
 --      across transactions — the completeness triggers are DEFERRABLE INITIALLY DEFERRED and
@@ -58,6 +61,23 @@ BEGIN
     RAISE NOTICE 'proof 1 OK: working.conversation does not exist';
 END $$;
 
+-- Proof 1b: the exact statement _write_first_party issues today, so the report can
+-- state what a first-party import actually hits rather than predicting it. The
+-- transaction it runs in is the same one that writes working.normalized_record, so
+-- this error fails the whole batch — first-party ingest is dead, not degraded.
+DO $$
+BEGIN
+    EXECUTE $q$INSERT INTO working.conversation
+                   (source_artifact_id, platform, external_thread_key, title, participants,
+                    participant_count, started_at, ended_at, message_count, platform_attrs)
+               VALUES ('0d040000-0000-7000-8000-00000000aaa1', 'sms', 'probe-thread-key-1', NULL,
+                       '[]'::jsonb, 0, now(), now(), 1, '{}'::jsonb)$q$;
+    RAISE EXCEPTION 'PROBE FAILED: the deleted-table statement was accepted';
+EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'PROBE FAILED%' THEN RAISE; END IF;
+    RAISE NOTICE 'proof 1b OK: the current writer fails with -- %', SQLERRM;
+END $$;
+
 -- ---------------------------------------------------------------------------
 -- Upstream fixtures. Not the subject of the proof: inserted with triggers and
 -- FK checks off so the probe does not have to replay custody, parse and
@@ -78,10 +98,17 @@ VALUES ('0d040000-0000-7000-8000-00000000e1e1', 'person', 'D04 probe owner');
 INSERT INTO registry.person (id, role_in_case, connection_to)
 VALUES ('0d040000-0000-7000-8000-00000000e1e1', 'user', 'petitioner');
 
--- The artifact the normalized records hang off.
-INSERT INTO evidence.evidence_hash (id, source_ref, digest)
+-- The artifact the normalized records hang off. evidence_hash_subject_ck requires
+-- an H1 hash to name its subject, so the evidence-side source row comes with it.
+-- Note for the repair: THIS is the id the Python ingest path carries as
+-- artifact_id. It is an evidence.source subject, not a context.source_version,
+-- which is why it can never satisfy _source.source_version_id (proof 8).
+INSERT INTO evidence.source (id, sha256, byte_size, source_type, acquisition_source, original_filename)
+VALUES ('0d040000-0000-7000-8000-00000000ab01', decode(repeat('11', 32), 'hex'), 4096,
+        'chat_export', 'probe', 'thread-export.xml');
+INSERT INTO evidence.evidence_hash (id, source_ref, digest, source_id)
 VALUES ('0d040000-0000-7000-8000-00000000aaa1', 'probe://d04/thread-export.xml',
-        decode(repeat('11', 32), 'hex'));
+        decode(repeat('11', 32), 'hex'), '0d040000-0000-7000-8000-00000000ab01');
 
 -- The selected source and its version: the FK _source actually requires.
 INSERT INTO context.source (id, source_key, provenance_class)
@@ -108,7 +135,12 @@ VALUES
     -- isolate the thread_ordinal unique key from the (version, message) primary key.
     ('0d040000-0000-7000-8000-000000000dd3', '0d040000-0000-7000-8000-00000000aaa1', 'message',
      'probe', 'third probe message', '2026-03-01T12:45:00Z', 'first_party',
-     '+15550000001', '[{"identity": "+15550000002", "role": "to"}]');
+     '+15550000001', '[{"identity": "+15550000002", "role": "to"}]'),
+    -- dd4 deliberately never gets a spine message, so proof 3b can isolate
+    -- message_id_fkey from the one-message-per-spine unique index.
+    ('0d040000-0000-7000-8000-000000000dd4', '0d040000-0000-7000-8000-00000000aaa1', 'message',
+     'probe', 'fourth probe message', '2026-03-01T13:50:00Z', 'first_party',
+     '+15550000002', '[{"identity": "+15550000001", "role": "to"}]');
 
 SET LOCAL session_replication_role = origin;
 
@@ -132,7 +164,11 @@ VALUES
     ('0d040000-0000-7000-8000-000000000dd2', 'first_party', 'approved',
      '{"source_parties_present": true}', 'd04-probe', 'd04-probe', now(), 'd04-probe@2026-09-26'),
     ('0d040000-0000-7000-8000-000000000dd3', 'first_party', 'approved',
-     '{"source_parties_present": true}', 'd04-probe', 'd04-probe', now(), 'd04-probe@2026-09-26');
+     '{"source_parties_present": true}', 'd04-probe', 'd04-probe', now(), 'd04-probe@2026-09-26'),
+    -- dd4's route stays 'proposed': validate_message_projection enforces exactly one
+    -- spine message per APPROVED first-party route, and dd4 must have none.
+    ('0d040000-0000-7000-8000-000000000dd4', 'first_party', 'proposed',
+     '{"source_party_review_required": true}', 'd04-probe', NULL, NULL, 'd04-probe@2026-09-26');
 
 -- The spine message rows. PROOF 3 IS ENCODED HERE: id is the normalized_record
 -- id, not a fresh uuid4. conversation_id is the per-source conversation grain;
@@ -261,7 +297,9 @@ END $$;
 -- each one so the positive rows above survive for comparison.
 -- ---------------------------------------------------------------------------
 
--- Proof 3: a fresh uuid4 spine message id (what the current writer does).
+-- Proof 3a: re-projecting a spine that already has a message. This is what the
+-- current writer's fresh uuid.uuid4() produces on a retry or re-ingest: a SECOND
+-- working.message row for one normalized record.
 SAVEPOINT neg_uuid4;
 DO $$
 BEGIN
@@ -272,12 +310,55 @@ BEGIN
             '2026-03-01T12:00:00Z', 'sms', 'probe-ext-uuid4', 'outbound', 'text',
             '0d040000-0000-7000-8000-000000000dd1', 'd04-probe@2026-09-26', now(), 'first_party');
     EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
+    RAISE EXCEPTION 'PROBE FAILED: a second spine message for one normalized record was accepted';
+EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'PROBE FAILED%' THEN RAISE; END IF;
+    RAISE NOTICE 'proof 3a OK: one spine message per normalized record -- %', SQLERRM;
+END $$;
+ROLLBACK TO SAVEPOINT neg_uuid4;
+
+-- Proof 3b: the bug in isolation. dd4 has no spine message, so the one-per-spine
+-- index cannot be what rejects this: only message_id_fkey can. A spine message id
+-- that is not its normalized record's id is unstorable, full stop.
+SAVEPOINT neg_uuid4_fk;
+DO $$
+BEGIN
+    INSERT INTO working.message
+        (id, conversation_id, ts_utc, platform, external_id, direction, message_type,
+         derived_from_record_id, deriver_version, derived_at, projection_kind)
+    VALUES ('0d040000-0000-7000-8000-00000000beef', '0d040000-0000-7000-8000-000000000cc1',
+            '2026-03-01T13:50:00Z', 'sms', 'probe-ext-uuid4-fk', 'inbound', 'text',
+            '0d040000-0000-7000-8000-000000000dd4', 'd04-probe@2026-09-26', now(), 'first_party');
+    EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
     RAISE EXCEPTION 'PROBE FAILED: a random working.message.id was accepted; message_id_fkey did not fire';
 EXCEPTION WHEN others THEN
     IF SQLERRM LIKE 'PROBE FAILED%' THEN RAISE; END IF;
-    RAISE NOTICE 'proof 3 OK: random working.message.id rejected -- %', SQLERRM;
+    RAISE NOTICE 'proof 3b OK: working.message.id must BE the normalized_record id -- %', SQLERRM;
 END $$;
-ROLLBACK TO SAVEPOINT neg_uuid4;
+ROLLBACK TO SAVEPOINT neg_uuid4_fk;
+
+-- Proof 3c: the same insert succeeds the moment the id IS the normalized record's
+-- id. This is the fix, proven positively rather than only by rejection.
+SAVEPOINT pos_spine_id;
+DO $$
+DECLARE v_ok BOOLEAN;
+BEGIN
+    INSERT INTO working.message
+        (id, conversation_id, ts_utc, platform, external_id, direction, message_type,
+         derived_from_record_id, deriver_version, derived_at, projection_kind)
+    VALUES ('0d040000-0000-7000-8000-000000000dd4', '0d040000-0000-7000-8000-000000000cc1',
+            '2026-03-01T13:50:00Z', 'sms', 'probe-ext-spine-ok', 'inbound', 'text',
+            '0d040000-0000-7000-8000-000000000dd4', 'd04-probe@2026-09-26', now(), 'first_party');
+    EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
+    SELECT (msg.id = nr.id) INTO v_ok
+      FROM working.message msg JOIN working.normalized_record nr ON nr.id = msg.id
+     WHERE msg.id = '0d040000-0000-7000-8000-000000000dd4';
+    IF v_ok IS NOT TRUE THEN
+        RAISE EXCEPTION 'PROBE FAILED: the corrected spine message did not read back joined';
+    END IF;
+    RAISE NOTICE 'proof 3c OK: the corrected spine message inserts and joins to its normalized record';
+END $$;
+ROLLBACK TO SAVEPOINT pos_spine_id;
 
 -- Proof 4: version bounds that disagree with the membership.
 SAVEPOINT neg_bounds;
