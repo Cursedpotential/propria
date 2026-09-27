@@ -3209,3 +3209,13 @@ tailnet, "even if it goes through the host name". Agent `tailnet-bypass` (read-o
   `-i tailscale0`.
 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+
+## 2026-09-27 04:03 EDT — CLOSED: no tailnet bypass for the `.int` names (owner)
+
+Owner, 04:02–04:03 EDT: tailnet devices already reach everything without Authentik through the tailnet portal
+(`homepage.tilapia-skilift.ts.net`) and the short names (`<svc>.mitechconsult.com` → `<svc>.tilapia-skilift.ts.net`);
+"I don't need to see it … I don't want it." Option A (CoreDNS + split DNS + ClientIP twin routers) is dropped. `.int`
+stays the public, Authentik-gated door. Checked 04:03 EDT: all 30 tailnet-portal links open from a tailnet device
+with no Authentik step. The unused 21-router draft is in `to_be_deleted/2026-09-27-tailnet-int-bypass-draft/`.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
