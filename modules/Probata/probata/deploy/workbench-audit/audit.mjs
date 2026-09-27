@@ -283,8 +283,9 @@ try {
   });
 
   // --- 3. inspect and hash it ---------------------------------------------------------------
+  // The panel label is upper-cased by CSS, and innerText reports it that way.
   const hash = await page
-    .waitFor(`(document.body.innerText.match(/Hash \\(sha256\\)\\s*([0-9a-f]{64})/) || [])[1]`, 120000, "the sha256")
+    .waitFor(`(document.body.innerText.match(/Hash \\(sha256\\)\\s*([0-9a-f]{64})/i) || [])[1]`, 120000, "the sha256")
     .catch(() => null);
   const inspection = await page.api(`/api/proffer/source-inspection?mode=TEST&root_id=${encodeURIComponent(located.activeRootId)}`, {
     method: "POST",
