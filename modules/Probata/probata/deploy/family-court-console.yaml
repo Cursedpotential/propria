@@ -35,10 +35,21 @@
 # Tailnet-only by BIND_IP AND by the host DOCKER-USER rules (commit 7d4583d).
 #
 # INGRESS: Traefik/Authentik labels are PRE-WIRED (same shape as
-# opencode-server.yaml) in case this is later fronted by Traefik directly —
-# but the route is NOT opened: traefik.enable=false. The primary access path
-# is ContextForge, which reaches this app over the tailnet at
-# BIND_IP:8765/mcp with the bearer token, not through Traefik.
+# opencode-server.yaml). traefik.enable stays false -- the public
+# family-court.int.mitechconsult.com route (owner decision 2026-09-27 02:46 EDT) is added to
+# modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml instead, same pattern as
+# openlist/opencode-server/fileflows: that file governs, these labels never activate.
+# ContextForge remains the tailnet access path, at BIND_IP:9077/mcp with the bearer token (never
+# registered as a gateway -- confirmed 2026-09-27, nothing to repoint).
+#
+# PORT: host port changed 8765 -> 9077 (2026-09-27, Claude Code). 8765 was this app's port since
+# 2026-09-07 but this app never once deployed successfully (see the header note below), so nothing
+# was ever listening on it; the Coolify app `superindex` (deployed 2026-09-22, healthy, live,
+# receipt docs/receipts/2026-09-22-superindex-first-catalog-run.md) has genuinely owned host port
+# 8765 on ovh-files since before this app ever bound anything. Moving family-court-console, not
+# superindex. Registered as product code 77 in deploy/service-port-registry.json. The CONTAINER
+# port stays 8765 (MCP_HTTP_PORT, healthcheck, traefik label below) -- only the host-side mapping
+# moved.
 # =============================================================================
 
 services:
@@ -51,7 +62,7 @@ services:
     cpus: 1
     mem_limit: 512m
     ports:
-      - "${BIND_IP:-127.0.0.1}:8765:8765"   # http://100.91.190.107:8765/mcp — tailnet-only
+      - "${BIND_IP:-127.0.0.1}:9077:8765"   # http://100.91.190.107:9077/mcp — tailnet-only (was :8765, moved 2026-09-27: superindex owns 8765)
     environment:
       MCP_TRANSPORT: "http"
       MCP_HTTP_HOST: "0.0.0.0"

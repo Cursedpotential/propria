@@ -123,6 +123,17 @@
           "note": "Coolify compose app on ovh-files (deploy/fileflows.yaml), container port 5000, tailnet-bound 100.91.190.107:9076. Added 2026-09-15 (Claude Code, Fable 5.1)."
         }
       ]
+    },
+    "family-court-console": {
+      "code": "77",
+      "endpoints": [
+        {
+          "family": "portal",
+          "canonical_backend_port": 9077,
+          "client_endpoint": "http://100.91.190.107:9077/mcp",
+          "note": "Coolify compose app on ovh-files (deploy/family-court-console.yaml), container port 8765, tailnet-bound 100.91.190.107:9077. Moved off host port 8765 2026-09-27 (Claude Code, Sonnet 5): the Coolify app 'superindex' (deployed 2026-09-22) genuinely owns 8765 on this host, and family-court-console had never once deployed successfully while claiming that port since 2026-09-07. No Tailscale Service (svc:) is registered for this app yet -- the primary access path is ContextForge over the tailnet, and the public route is family-court.int.mitechconsult.com behind Authentik (propria-public-portal.yaml), not a tailnet short name."
+        }
+      ]
     }
   }
 }

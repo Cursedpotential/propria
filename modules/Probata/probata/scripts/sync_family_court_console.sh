@@ -1,5 +1,16 @@
 #!/usr/bin/env bash
 # Byline: Claude Code · Sonnet 5 · 2026-09-07
+# STALE, DO NOT RUN (Claude Code · Sonnet 5 · 2026-09-27): deploy/docker/family-court-console/src/
+# was restructured on 2026-09-26 (commit 3b545875) to build mcp-app inside the Docker image
+# (Dockerfile.cloud stage 1: npm ci + node build.mjs), because a synced dist/ built on the host is
+# not committed and Coolify builds from a clean clone -- that mismatch was the exact reason this
+# app never deployed successfully. Running this script quarantines that committed source tree
+# (src/, widgets/, tests/, build.mjs, tsconfig.json) and replaces Dockerfile.cloud with the OLD
+# single-stage version that COPYs a dist/ nobody commits, reintroducing the original bug. Verified
+# live: running it on 2026-09-27 reverted the fix; `git restore deploy/docker/family-court-console/`
+# undid the damage before anything was pushed. If mcp-app/src changes again, update
+# deploy/docker/family-court-console/src/{mcp-app/src,widgets,tests,build.mjs,tsconfig.json}
+# directly (or write a new sync step that copies THOSE, never dist/), not this script.
 #
 # Copies the family-court-toolkit MCP console's runtime subset out of the
 # desktop plugin checkout — which lives OUTSIDE this repo, at
