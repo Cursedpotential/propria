@@ -1,0 +1,440 @@
+/* Byline: Claude Code · Opus 5.5 · 2026-09-26 — Propria portal styles, shared by both instances.
+   Owner 2026-09-26 23:20 EDT: "1/3 has all the widgets on the side running vertically, and then the
+   other 2/3 has all of the other buttons"; no big empty gaps. Standing brief 2026-09-07: dark, muted
+   palette, no neon. Colours are the dark tokens of Propria's design contract
+   (design-contract/tokens.json): canvas #1d252c, border #43505a, ink #f0f1ef, muted #b1b8bd,
+   action #8591f0, positive #6cc392, caution #e6b55d, destructive #e06e65, information #82bdc0.
+
+   How the split works (Homepage v1.13.2 markup): groups named in settings.yaml `layout` render in
+   #layout-groups (the app buttons); the "Live board" group is left out of `layout`, so it renders in
+   #services, and the "Reference" bookmarks (also left out) in #bookmarks. All are direct children of
+   the page wrapper, next to #information-widgets (greeting, resources, clock). At 1200px and wider
+   the wrapper becomes a two-column grid: header widgets, Live board and Reference on the left third,
+   the buttons on the right two thirds. When the window is tall enough to hold the whole button
+   column, it is sticky: it stays in view while the longer widget column scrolls, so no empty band
+   opens beside it. Below 1200px everything stacks in one column, buttons first.
+
+   Replaces the hand-made instances' custom.css (Claude Code · Sonnet 5, 2026-09-14/15; Codex,
+   2026-09-20), whose three-column Live board grid produced the empty bands. Their per-group accent
+   (a thin left edge on each tile, "not tacky, don't overdo it", owner 2026-09-14) and the one-line
+   clipping of long widget rows are kept below. */
+
+:root {
+  --portal-border: rgb(67 80 90 / 55%);
+  --portal-muted: #b1b8bd;
+  --portal-ink: #f0f1ef;
+  --portal-tile-min: 64px;
+}
+
+/* ---------------------------------------------------------------- page frame */
+#inner_wrapper > div:has(> #information-widgets) {
+  max-width: 1760px;
+  margin: 0 auto;
+  padding: 16px 16px 0;
+  /* Homepage sizes this wrapper to the window (h-full) and lets the page overflow it; auto height
+     makes the grid as tall as its content, which the sticky button column needs to travel in. */
+  height: auto;
+}
+#information-widgets,
+#layout-groups,
+#services,
+#bookmarks {
+  margin: 0 !important;
+}
+#information-widgets { order: 1; margin-bottom: 18px !important; }
+#layout-groups { order: 2; }
+#services { order: 3; }
+#bookmarks { order: 4; }
+#footer { order: 5; padding: 12px 0 16px; }
+
+@media (min-width: 1200px) {
+  #inner_wrapper > div:has(> #information-widgets) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    grid-template-rows: auto auto 1fr auto;
+    column-gap: 32px;
+    align-items: start;
+    padding: 28px 32px 0;
+  }
+  /* Quick-launch search overlay: out of the grid flow (its dialog is fixed-position). */
+  #inner_wrapper > div:has(> #information-widgets) > div[role="dialog"] {
+    position: absolute;
+  }
+  #information-widgets { grid-column: 1; grid-row: 1; }
+  #services { grid-column: 1; grid-row: 2; }
+  #bookmarks { grid-column: 1; grid-row: 3; }
+  /* The buttons span every row of the widget column; the last row is 1fr, so the widget column's
+     extra height lands there instead of opening gaps between the button sections. */
+  #layout-groups { grid-column: 2; grid-row: 1 / span 3; }
+  #footer { grid-column: 1 / -1; grid-row: 4; }
+}
+/* Pin the button column while the longer widget column scrolls, only when it fits the window. */
+@media (min-width: 1200px) and (min-height: 960px) {
+  #layout-groups {
+    position: sticky;
+    top: 28px;
+  }
+}
+
+/* ---------------------------------------------------------------- header widgets (left column top) */
+#information-widgets #widgets-wrap {
+  align-items: center;
+  row-gap: 10px;
+}
+#information-widgets .information-widget-greeting { order: 1; flex: 1 1 auto; }
+#information-widgets #information-widgets-right { order: 2; flex: 0 0 auto; margin: 0; }
+#information-widgets #widgets-wrap > :not(.information-widget-greeting):not(#information-widgets-right) {
+  order: 3;
+  flex: 1 1 100%;
+}
+#information-widgets .information-widget-greeting span {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--portal-ink);
+}
+#information-widgets .information-widget-datetime span { color: var(--portal-muted); }
+/* Resources (CPU, memory, disk of ovh-app): left-aligned under the title, label beside the bars. */
+#information-widgets #widgets-wrap > :not(.information-widget-greeting):not(#information-widgets-right) {
+  align-items: flex-start;
+  align-self: flex-start;
+}
+#information-widgets #widgets-wrap > :not(.information-widget-greeting):not(#information-widgets-right) .self-center {
+  justify-content: flex-start;
+  align-self: flex-start;
+}
+#information-widgets #widgets-wrap > :not(.information-widget-greeting):not(#information-widgets-right) .text-center {
+  margin-left: 2px;
+  text-align: left;
+  color: var(--portal-muted);
+}
+
+/* ---------------------------------------------------------------- section headers */
+.services-group,
+.bookmark-group {
+  margin-bottom: 12px;
+}
+.services-group h2.service-group-name,
+.bookmark-group h2.bookmark-group-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--portal-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.services-group h2.service-group-name::before,
+.bookmark-group h2.bookmark-group-name::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--grp, var(--portal-muted));
+  opacity: 0.85;
+}
+.services-group ul.services-list.mt-3,
+.bookmark-group ul.mt-3 {
+  margin-top: 6px;
+}
+
+/* Group accents: one muted token colour per section. */
+#services .services-group { --grp: #82bdc0; }                                   /* Live board: information */
+.services-group:has(li.service[data-name="Probata Workbench"]) { --grp: #8591f0; }   /* Workspaces: action */
+.services-group:has(li.service[data-name="OpenList"]) { --grp: #6cc392; }            /* File management: positive */
+.services-group:has(li.service[data-name="Metabase"]) { --grp: #82bdc0; }            /* Storage and databases: information */
+.services-group:has(li.service[data-name="Project progress"]) { --grp: #e6b55d; }    /* Operations: caution */
+.services-group:has(li.service[data-name="OpenCode"]) { --grp: #b1b8bd; }            /* Development: muted ink */
+
+/* ---------------------------------------------------------------- tiles (app buttons) */
+.services-group .service-card {
+  border: 1px solid var(--portal-border);
+  box-shadow: inset 3px 0 0 0 var(--grp, transparent);
+}
+.services-group .service-card:hover {
+  background-color: color-mix(in srgb, var(--grp, transparent) 10%, rgb(255 255 255 / 4%));
+}
+#layout-groups .service-card {
+  min-height: var(--portal-tile-min);
+}
+#layout-groups .service-title {
+  min-height: calc(var(--portal-tile-min) - 10px);
+}
+#layout-groups .service-icon {
+  width: 42px;
+}
+#layout-groups .service-title-text,
+#layout-groups .service-name {
+  min-width: 0;
+}
+#layout-groups .service-name {
+  padding: 6px 22px 6px 6px; /* right: room for the status dot */
+  line-height: 1.25;
+}
+.service-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+.service-tags .site-monitor-status.p-4 {
+  padding: 10px;
+}
+
+/* ---------------------------------------------------------------- live board (left column) */
+#services .services-group {
+  flex: 1 1 100% !important;
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+#services .services-list {
+  gap: 2px;
+}
+#services .service-description {
+  -webkit-line-clamp: 1;
+}
+
+/* Long dynamic-list labels clip to one line; custom.js puts the full text in a hover title.
+   min-width: 0 lets the flex child shrink so text-overflow can apply. */
+.flex.flex-row.text-right {
+  min-width: 0;
+}
+.flex.flex-row.text-right > .font-bold {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+.service-container .font-thin.pl-2 {
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+
+/* Chart cards (custom.js mounts ApexCharts into the real card). */
+.board-chart-block {
+  padding: 2px 4px 6px;
+  align-items: stretch;
+}
+.board-chart-mount {
+  min-height: 180px;
+}
+.board-chart-note {
+  padding: 18px 8px;
+}
+
+/* Pipeline lanes and Surfaces needing attention: custom.js replaces the plain list with these. */
+.portal-has-actions > .service-container {
+  display: none;
+}
+.portal-actions {
+  padding: 2px 10px 8px;
+  font-size: 0.75rem;
+}
+.portal-lane {
+  display: grid;
+  grid-template-columns: minmax(0, 36%) minmax(0, 1fr) 2em;
+  align-items: start;
+  column-gap: 8px;
+  padding: 5px 0;
+  border-top: 1px solid var(--portal-border);
+}
+.portal-lane-name {
+  min-width: 0;
+  line-height: 19px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--portal-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-lane-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.portal-lane-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.portal-lane-total {
+  white-space: nowrap;
+  opacity: 0.6;
+  font-size: 0.68rem;
+  line-height: 19px;
+  text-align: right;
+}
+.portal-status-badge {
+  display: inline-block;
+  border: 1px solid rgb(136 136 136 / 30%);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.66rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.portal-status-positive { color: #a5dfb7; background: #23362b; }
+.portal-status-information { color: #aed4ed; background: #22313c; }
+.portal-status-caution { color: #f1cc91; background: #3a3021; }
+.portal-status-neutral { color: #c9ced2; background: #2a3036; }
+
+.portal-attention-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 4px 0 6px;
+}
+.portal-provider-choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.portal-provider-choice select,
+.portal-action-controls select {
+  background: #202b33;
+  color: var(--portal-ink);
+  border: 1px solid var(--portal-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font: inherit;
+}
+.portal-surface-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  border-top: 1px solid var(--portal-border);
+  padding: 6px 0;
+}
+.portal-surface-text {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.portal-surface-text strong {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--portal-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-action-state {
+  display: block;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-action-note {
+  opacity: 0.7;
+  margin: 6px 0 0;
+}
+.portal-action-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.portal-action-button {
+  background: #202b33;
+  color: var(--portal-ink);
+  border: 1px solid var(--portal-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font: inherit;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.portal-action-button:hover {
+  border-color: #62707a;
+}
+.portal-action-button:focus-visible,
+.portal-action-controls select:focus-visible,
+.portal-provider-choice select:focus-visible {
+  outline: 2px solid #8591f0;
+  outline-offset: 2px;
+}
+.portal-action-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.portal-job-status {
+  flex: 1 1 100%;
+  overflow-wrap: anywhere;
+  opacity: 0.85;
+}
+.portal-job-status:empty {
+  display: none;
+}
+
+/* Usage limits & rerouting (custom.js, Codex 2026-09-20): a collapsed panel above the list. */
+.portal-usage-settings {
+  margin: 4px 0 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--portal-border);
+  border-radius: 6px;
+  font-size: 0.75rem;
+}
+.portal-usage-settings summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.portal-usage-settings label {
+  display: block;
+  margin: 8px 0;
+}
+.portal-usage-settings select,
+.portal-usage-settings input {
+  display: block;
+  width: 100%;
+  padding: 5px;
+  background: #18212d;
+  color: #eef2f6;
+  border: 1px solid #637083;
+  border-radius: 4px;
+}
+.portal-usage-settings [hidden] {
+  display: none;
+}
+.portal-usage-settings button {
+  padding: 5px 10px;
+  border: 1px solid #8c9ab0;
+  border-radius: 4px;
+}
+
+/* Task continuation controls (Codex, 2026-09-20), unchanged. */
+.portal-lane-link { text-decoration: underline; text-underline-offset: 3px; }
+.task-agent-actions { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid #526172; margin-top: 12px; padding-top: 12px; }
+.task-agent-actions small, .task-agent-actions p, .task-agent-actions textarea { width: 100%; }
+.task-agent-actions textarea { min-height: 180px; }
+.task-agent-actions button, .task-agent-actions a { font-size: 12px; padding: 6px 8px; border: 1px solid #637083; border-radius: 4px; }
+
+/* ---------------------------------------------------------------- reference bookmark (foot of the widget column) */
+#bookmarks .bookmark-group {
+  flex: 1 1 100% !important;
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+.bookmark-group .bookmark-description {
+  opacity: 0.7;
+}
+
+/* ---------------------------------------------------------------- phone */
+@media (max-width: 639px) {
+  #layout-groups .service-description {
+    -webkit-line-clamp: 1;
+  }
+  #layout-groups .service-card {
+    min-height: 0;
+  }
+}

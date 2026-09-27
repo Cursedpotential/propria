@@ -1,0 +1,287 @@
+# Byline: Claude Code · Opus 5.5 · 2026-09-26 — tailnet portal, https://homepage.tilapia-skilift.ts.net
+# (tailscale serve: / -> this container on 100.72.169.40:3010, /progress -> the progress board :3020).
+# On the tailnet nothing sits behind Authentik; every link here is a *.tilapia-skilift.ts.net name.
+#
+# Rules carried over from the hand-made instance (/data/dashboards/homepage, retired 2026-09-26):
+# - A site monitor is a reachability check run by this container, not proof a feature works.
+# - A preview that does not run has no href. Credentials never go in this file.
+# - Widgets are native Homepage customapi widgets, never an iframe (owner 2026-09-14). Their `url:`
+#   is fetched server-side by this container, straight from the progress board on the host's
+#   tailnet address; only the browser-facing `href:` links use the public names.
+#
+# Section order and contents: owner 2026-09-26 23:20 EDT (Workspaces: Case Bible, Probata, Family
+# Law Toolkit, Legal Work Desk; a File management section with FileFlows, Filestash and OpenList;
+# service and storage health under Operations). Development: owner decisions relayed 23:35 EDT.
+# Layout (left third widgets, right two thirds buttons): shared/settings.yaml + shared/custom.css.
+
+# ------------------------------------------------------------------ left column: the live board
+- Live board:
+    - Live surfaces:
+        href: https://homepage.tilapia-skilift.ts.net/progress/health/
+        description: Up, degraded and down across the previewed surfaces
+        icon: mdi-lan-connect
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/surfaces-summary
+          refreshInterval: 30000
+          mappings:
+            - field: up
+              label: Up
+              format: number
+            - field: degraded
+              label: Degraded
+              format: number
+            - field: down
+              label: Down
+              format: number
+            - field: total
+              label: Total
+              format: number
+    - Health probes:
+        href: https://homepage.tilapia-skilift.ts.net/progress/health/
+        description: Endpoint probe outcomes and latency percentiles
+        icon: mdi-heart-pulse
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/health-summary
+          refreshInterval: 30000
+          mappings:
+            - field: ok
+              label: OK
+              format: number
+            - field: warn
+              label: Warn
+              format: number
+            - field: fail
+              label: Fail
+              format: number
+            - field: p50_ms
+              label: p50
+              format: text
+              suffix: " ms"
+            - field: p95_ms
+              label: p95
+              format: text
+              suffix: " ms"
+    - Latency trend:
+        href: https://homepage.tilapia-skilift.ts.net/progress/health/
+        description: p50 and p95 probe latency, sampled every 30 seconds
+        icon: mdi-chart-line
+    - Surfaces needing attention:
+        href: https://homepage.tilapia-skilift.ts.net/progress/health/
+        description: Degraded or down surfaces from the live health probe
+        icon: mdi-alert-octagon-outline
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/surfaces-summary
+          refreshInterval: 30000
+          display: dynamic-list
+          mappings:
+            items: down_list
+            name: name
+            label: summary
+            limit: 8
+    - Slowest endpoints:
+        href: https://homepage.tilapia-skilift.ts.net/progress/health/
+        description: The five slowest probes in the latest poll
+        icon: mdi-speedometer-slow
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/health-summary
+          refreshInterval: 30000
+          display: dynamic-list
+          mappings:
+            items: slowest
+            name: service
+            label: summary
+            limit: 5
+    - Open to-dos:
+        description: Open URGENT-TODO.md items, newest first (synced copy)
+        icon: mdi-checkbox-marked-outline
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/todo-feed
+          refreshInterval: 30000
+          display: dynamic-list
+          mappings:
+            items: items
+            name: area
+            label: summary
+            limit: 8
+    - Pipeline lanes:
+        href: https://homepage.tilapia-skilift.ts.net/progress/
+        description: Observation counts per lane, live from Surreal
+        icon: mdi-view-list-outline
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/lane-rollups
+          refreshInterval: 30000
+          display: dynamic-list
+          mappings:
+            items: lanes
+            name: lane
+            label: summary
+            limit: 8
+    - Lane timeline:
+        href: https://homepage.tilapia-skilift.ts.net/progress/
+        description: Observations by lane, observed to updated
+        icon: mdi-chart-gantt
+
+# ------------------------------------------------------------------ right column: the app buttons
+- Workspaces:
+    - Case Bible Intake:
+        href: https://homepage.tilapia-skilift.ts.net/progress/intake/
+        description: Consignatio · Xplorer and metadata review
+        icon: mdi-folder-search-outline
+        siteMonitor: http://100.72.169.40:3020/intake/
+    - Probata Workbench:
+        href: https://workbench.tilapia-skilift.ts.net
+        description: Evidence review workspace
+        icon: mdi-briefcase-search-outline
+        siteMonitor: https://workbench.tilapia-skilift.ts.net
+    - Family Law Toolkit:
+        href: https://homepage.tilapia-skilift.ts.net/progress/family-court/
+        description: Michigan family court · read-only preview, no live case data
+        icon: mdi-gavel
+        siteMonitor: http://100.72.169.40:3020/family-court/
+    - Legal Work Desk:
+        href: https://legal.tilapia-skilift.ts.net/
+        description: Advocatio · research, drafting and review
+        icon: mdi-scale-balance
+        siteMonitor: https://legal.tilapia-skilift.ts.net/
+
+- File management:
+    - FileFlows:
+        href: https://fileflows.tilapia-skilift.ts.net
+        description: Media and file processing flows on ovh-files
+        icon: mdi-movie-filter-outline
+        siteMonitor: http://100.91.190.107:9076
+    - Filestash:
+        href: https://filestash.tilapia-skilift.ts.net/
+        description: File manager over connected storage
+        icon: mdi-folder-multiple-outline
+        siteMonitor: http://100.72.169.40:3023
+    - OpenList:
+        href: https://files.tilapia-skilift.ts.net/
+        description: Browse connected storage
+        icon: mdi-folder-network-outline
+        siteMonitor: http://100.91.190.107:5244
+
+- Storage and databases:
+    - Neo4j Browser:
+        href: https://neo4j.tilapia-skilift.ts.net/browser/?dbms=bolt%2Bs://neo4j.tilapia-skilift.ts.net:7687&db=neo4j&preselectAuthMethod=NO_AUTH
+        description: Graph database browser · no login, Bolt over TLS
+        icon: mdi-graph-outline
+        siteMonitor: http://100.91.190.107:7474/browser/
+    - Surrealist:
+        href: https://surrealist.tilapia-skilift.ts.net/
+        description: SurrealDB queries, graph and schema · connect wss://surreal, surreal-docs or surreal-intake .tilapia-skilift.ts.net
+        icon: mdi-database-eye-outline
+        siteMonitor: http://100.91.190.107:8095
+    - pgAdmin:
+        href: https://pgadmin.tilapia-skilift.ts.net/
+        description: PostgreSQL · probata-db and casebible preloaded
+        icon: mdi-elephant
+        siteMonitor: http://100.91.190.107:5050/misc/ping
+    - DbGate:
+        href: https://dbgate.tilapia-skilift.ts.net/
+        description: PostgreSQL · probata-db and casebible preloaded
+        icon: mdi-database-search-outline
+        siteMonitor: http://100.91.190.107:3002
+    - CloudBeaver:
+        href: https://cloudbeaver.tilapia-skilift.ts.net/
+        description: PostgreSQL · probata-db and casebible preloaded
+        icon: mdi-database-cog-outline
+        siteMonitor: http://100.91.190.107:8978
+    - Weaviate:
+        href: https://weaviate-ui.tilapia-skilift.ts.net/
+        description: Collections, objects, search · connect 100.91.190.107, HTTP 8082, gRPC 50052
+        icon: mdi-vector-polyline
+        siteMonitor: http://100.91.190.107:8082/v1/meta
+    - Attu:
+        href: https://attu.tilapia-skilift.ts.net/
+        description: Milvus vector database browser
+        icon: mdi-vector-square
+        siteMonitor: http://100.91.190.107:3001
+    - Metabase:
+        href: https://metabase.tilapia-skilift.ts.net/
+        description: Catalog questions and dashboards
+        icon: mdi-chart-box-outline
+        siteMonitor: http://100.72.169.40:9074/api/health
+
+- Operations:
+    - Project progress:
+        href: https://homepage.tilapia-skilift.ts.net/progress/
+        description: Lanes in flight, done and upcoming, catalog and migration reports
+        icon: mdi-view-dashboard-outline
+        siteMonitor: http://100.72.169.40:3020/healthz
+    - Service health:
+        href: https://homepage.tilapia-skilift.ts.net/progress/health/
+        description: Live HTTP and API probes, storage capacity and freshness
+        icon: mdi-heart-pulse
+        siteMonitor: http://100.72.169.40:3020/healthz
+    - Coolify:
+        href: https://coolify.tilapia-skilift.ts.net/
+        description: Deployments, logs and services
+        icon: mdi-rocket-launch-outline
+        siteMonitor: http://100.98.98.38:8000
+    - Temporal:
+        href: https://temporal.tilapia-skilift.ts.net/
+        description: Workflow runs, history and queues
+        icon: mdi-timeline-clock-outline
+        siteMonitor: http://100.91.190.107:8233
+    - n8n:
+        href: https://n8n.tilapia-skilift.ts.net/
+        description: Automation workflows and run history
+        icon: mdi-sitemap-outline
+        siteMonitor: http://100.91.190.107:5678/healthz
+    - ContextForge:
+        href: https://contextforge.tilapia-skilift.ts.net/admin
+        description: MCP tools and gateway administration
+        icon: mdi-transit-connection-variant
+        siteMonitor: http://100.72.169.40:4444/health
+    - Portkey:
+        href: https://portkey.tilapia-skilift.ts.net/public/
+        description: Model gateway console and request logs
+        icon: mdi-boom-gate
+        siteMonitor: http://100.72.169.40:8787
+    - Infisical:
+        href: https://infisical.tilapia-skilift.ts.net/
+        description: Secrets manager
+        icon: mdi-key-chain-variant
+        siteMonitor: http://100.91.190.107:8880/api/status
+    - Edit portal:
+        href: https://portal-edit.tilapia-skilift.ts.net
+        description: Edits the retired host copy; the portal now builds from git (owner decision pending)
+        icon: mdi-file-document-edit-outline
+        siteMonitor: https://portal-edit.tilapia-skilift.ts.net
+
+- Development:
+    # Devbox and claude.ai: owner decisions 2026-09-26 23:35 EDT, URLs confirmed live 04:00Z.
+    # Kasm answers 401 (its own basic auth) to the monitor; Homepage counts <= 403 as up.
+    - Devbox:
+        href: https://devbox.tilapia-skilift.ts.net/
+        description: Kasm desktop with Claude Code — claude launcher inside
+        icon: mdi-laptop
+        siteMonitor: https://devbox.tilapia-skilift.ts.net/
+    - OpenCode:
+        href: https://opencode.tilapia-skilift.ts.net/
+        description: Checked Sep 23 · development sessions, sign-in required
+        icon: mdi-console
+    - claude.ai:
+        href: https://claude.ai/
+        description: Claude on the web
+        icon: si-claude
+    - LLM probe playground:
+        href: https://llm-probe-ui.tilapia-skilift.ts.net/playground
+        description: Model probe interface and experiments
+        icon: mdi-flask-outline
+        siteMonitor: http://100.91.190.107:8031/playground
+    - Sandbox desktop:
+        href: https://desk.tilapia-skilift.ts.net
+        description: Plain Kasm sandbox desktop on ovh-app (not the devbox)
+        icon: mdi-monitor
+        siteMonitor: https://desk.tilapia-skilift.ts.net
+    - LibreChat:
+        description: Currently stopped · preview unavailable
+        icon: mdi-chat-processing-outline

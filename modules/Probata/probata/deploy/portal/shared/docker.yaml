@@ -1,0 +1,4 @@
+# Byline: Claude Code · Opus 5.5 · 2026-09-26
+# No Docker integration: no container on ovh-app carries homepage.* labels and no tile uses
+# `container:`, so the portal containers get no Docker socket (the hand-made ones mounted it for
+# nothing). Add a server here only together with a socket mount in deploy/portal.yaml.

@@ -1,0 +1,37 @@
+# Byline: Claude Code · Opus 5.5 · 2026-09-26 — shared by both portal instances (tailnet and public).
+# Page layout (owner 2026-09-26 23:20): the left third holds every widget, stacked; the right two
+# thirds hold the app buttons. custom.css builds the split: groups listed under `layout` below render
+# in Homepage's #layout-groups container (the right column, in this order); the "Live board" group is
+# deliberately NOT listed, so Homepage renders it in #services, which custom.css puts in the left
+# column under the header widgets. The "Reference" bookmark group is also left out, so it renders in
+# #bookmarks at the foot of the left column instead of lengthening the (sticky) button column.
+# The title differs per instance and comes from HOMEPAGE_VAR_PORTAL_TITLE (deploy/portal.yaml).
+title: "{{HOMEPAGE_VAR_PORTAL_TITLE}}"
+description: Workspaces, files, data, operations and development tools, beside the live project board
+theme: dark
+color: neutral
+headerStyle: clean
+statusStyle: dot
+target: _blank
+fullWidth: true
+hideVersion: true
+useEqualHeights: true
+layout:
+  Workspaces:
+    style: row
+    columns: 4
+  File management:
+    style: row
+    columns: 4
+  Storage and databases:
+    style: row
+    columns: 4
+  Operations:
+    style: row
+    columns: 4
+  Development:
+    style: row
+    columns: 4
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: true
