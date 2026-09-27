@@ -1332,23 +1332,58 @@ export function getProfferRepairRun(workflowId: string, mode: MatterMode, signal
 }
 
 /** Which of these sources already have a decode manifest. Never inferred from a name. */
-export function getDecodedExists(sourceRefs: string[], signal?: AbortSignal) {
-  return apiFetch<DecodedExistsResponse>("/api/proffer/decoded/exists", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source_refs: sourceRefs }),
-    signal,
-  });
+function chunks<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let start = 0; start < items.length; start += size) out.push(items.slice(start, start + size));
+  return out;
 }
 
-/** Catalog units for one listed page: folders that are units, keys that are members. */
-export function lookupCatalogUnits(roots: string[], keys: string[], signal?: AbortSignal) {
-  return apiFetch<CatalogUnitLookup>("/api/intake/discovery/unit-lookup", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ roots, keys }),
-    signal,
-  });
+// Server caps per request (api/app/types/proffer_decoded_exists.py, runtime/intake_discovery.py).
+// Sources loads 200 rows a page, so from the second page on the lists are split to stay under them.
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (past 200 files these calls answered 422).
+const DECODED_EXISTS_MAX = 200;
+const UNIT_LOOKUP_MAX_ROOTS = 200;
+const UNIT_LOOKUP_MAX_KEYS = 400;
+
+export async function getDecodedExists(sourceRefs: string[], signal?: AbortSignal): Promise<DecodedExistsResponse> {
+  const pages = await Promise.all(
+    chunks(sourceRefs, DECODED_EXISTS_MAX).map((batch) =>
+      apiFetch<DecodedExistsResponse>("/api/proffer/decoded/exists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_refs: batch }),
+        signal,
+      }),
+    ),
+  );
+  return { items: pages.flatMap((page) => page.items) };
+}
+
+/** Catalog units for the listed rows: folders that are units, keys that are members. */
+export async function lookupCatalogUnits(roots: string[], keys: string[], signal?: AbortSignal): Promise<CatalogUnitLookup> {
+  const rootBatches = chunks(roots, UNIT_LOOKUP_MAX_ROOTS);
+  const keyBatches = chunks(keys, UNIT_LOOKUP_MAX_KEYS);
+  const requests = Array.from({ length: Math.max(rootBatches.length, keyBatches.length, 1) }, (_, index) => ({
+    roots: rootBatches[index] ?? [],
+    keys: keyBatches[index] ?? [],
+  }));
+  const pages = await Promise.all(
+    requests.map((body) =>
+      apiFetch<CatalogUnitLookup>("/api/intake/discovery/unit-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+      }),
+    ),
+  );
+  const units = new Map(pages.flatMap((page) => page.units).map((unit) => [unit.unit_id, unit]));
+  return {
+    units: [...units.values()],
+    members: pages.flatMap((page) => page.members),
+    backend: pages[0].backend,
+    source_links_verified: pages.every((page) => page.source_links_verified),
+  };
 }
 
 /** Catalog provenance for one vault object. */
