@@ -3042,3 +3042,34 @@ Commit `abfeff75` on main.
       consumers. Audit: `modules/Probata/probata/docs/probata-surface-buildkit/STACK.md`.
 
 > _Byline: Claude Code · Opus 5 · 2026-09-27_
+
+## 2026-09-27 02:15–02:25 EDT — portal cutover done; LibreChat owner account created
+
+Owner order 02:11 EDT: "none of it is done … finish it. Fix it." Session "portal cut over".
+
+- [x] **Portal cutover (propria-portal, `tvnv932wjspjd6xj8uvb2r0f`).** Stopped the hand-made
+  `homepage` / `homepage-public`, deployed `wse4hrstafks1l3x1ojdbqe2` (finished). New containers
+  healthy on 100.72.169.40:3010 / :3012, `traefik.enable=false`, no router labels. Hand-made
+  containers renamed `homepage-handmade-20260926` / `homepage-public-handmade-20260926`, restart
+  policy set to `no`; `/data/dashboards/compose.yml` moved to
+  `/data/dashboards/to_be_deleted/2026-09-27-portal-cutover/`. Proof (devbox headless Chrome,
+  `shoot.sh live … after`): tailnet title "Propria Project Portal", 7 groups / 38 tiles, button
+  column 936 px at 1600×1000 (all above the fold), no horizontal overflow; public 302 → Authentik
+  login, logged-in content "Propria Project Portal (Public)", 24 tiles. Graphiti not listed;
+  Devbox, OpenCode, claude.ai, LibreChat tiles present. Only console error is the pre-existing
+  `/progress/api/provider-limits` 503 (agent `provider-limits-fix` on it).
+- [x] **LibreChat `msalem` account.** Created with `config/create-user.js` inside
+  `librechat-lli8dzbvgj4wdwrhx7x0foe0`, owner standard password piped over stdin from
+  `~/.secrets/owner-login.env` (never on a command line). Proof: `POST /api/auth/login` → 200,
+  token, role `ADMIN`, email verified. Then `ALLOW_REGISTRATION=false` (production row) and
+  redeploy `f13v6jfvzbt72g7gf9p5bdil` (finished); `/api/config` → `registrationEnabled: false`;
+  login re-checked 200.
+- [ ] **Tailnet must not hit Authentik on `*.int` hostnames** (owner 2026-09-26 23:08 EDT; "there
+  was supposed to be a patch"). The agent dispatch for this was refused by this session's auto-mode
+  classifier ("Security Weaken") — it needs the owner's explicit go-ahead or a permission rule.
+- In flight (own entries when done): forward-auth labels on fileflows/openlist/opencode-server/
+  family-court-console; octopedia.int LE 429; six failing deploy-contract tests; provider-limits 503.
+- Open owner calls carried from the rebuild: `portal-editor` (edits a host copy the portal no longer
+  reads — keep/repoint/retire) and the progress-board move to its git-built image.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
