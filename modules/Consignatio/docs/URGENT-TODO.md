@@ -2758,3 +2758,74 @@ engine deploy is waiting on the owner's go.
   - Owner: "I was unaware of this and we'll have to discuss this later."
   - The 2026-09-07 header of `deploy/openlist.yaml` already names "the desktop via its own WebDAV/SMB share or Syncthing".
 - [x] ~~**Owner 09:40 EDT, sent to the claude-context session by mistake and queued here (Claude Code · Opus 5.5):** "note consignatio isn't visible in OpenList like probata's volumes are, but that's fine since the owner can still access it vi[a …] — Yes." It reads as the owner's "yes" to the OpenList point in the storage work above (the Consignatio volumes vs Probata's in OpenList).~~ **Covered, 17:44:** it duplicates the owner's 09:38 "Fix that" to this session. See "OpenList: show Consignatio" above: the storages were written at 17:37, and the compose push waits on the owner's go.
+
+## 2026-09-26 — Propria monorepo conversion (completed)
+
+Owner order, repeated through the evening: finish the conversion he had been asking
+for since 2026-09-21. It is done except for one `.git` directory held by live sessions.
+
+- [x] **Nine modules imported into `Cursedpotential/propria` with `git subtree`, full history.**
+  Probata, Consignatio, Legal-desktop, Vestigia, TraceIQ Rebuild, plus the application
+  forks SBV, Timesketch, Probata custom and Xplorer copilot, plus `probata_build_crew`.
+  Owner chose full history over a flat import. memsearch and claude-context stay out as
+  development tooling. Record: `docs/decisions/2026-09-26-monorepo-import.md`.
+- [x] **Consignatio's 39-ahead / 8-behind divergence** resolved through a merged snapshot ref
+  built with `merge-tree`, so no live working tree was touched.
+- [x] **Ten `.git` directories retired** into the root holding area at
+  `2026-09-26-retired-child-git/` (every child but Probata's). Moved, never deleted.
+  Working-file counts verified identical before and after each one.
+- [x] **1.85 GB preserved before any worktree was removed**, under
+  `2026-09-26-worktree-preservation/`: `git diff --binary HEAD` patches plus untracked tars
+  for every dirty worktree, and every gitignored quarantine directory moved out first
+  (17,086 files from one worktree alone). `git worktree remove` would have destroyed those.
+- [x] **All 35 Coolify applications repointed** to propria with their module folder as base
+  directory. The cutover plan's claim that each app needed its repository re-picked in the
+  UI is wrong: a successful deploy makes Coolify set `repository_project_id` itself.
+- [x] **Every tracked `CLAUDE.md` retired** (14 files): 11 renamed to `AGENTS.md`, 3 appended
+  to the `AGENTS.md` beside them. Claude Code 2.1.277+ reads `AGENTS.md` natively.
+- [x] **Root routers rewritten** to describe one repository instead of nine.
+
+### Defects this surfaced, all pre-existing
+
+- `llm-probe` and `llm-probe-ui` built from `./llm_probe*`, paths that never existed in
+  Probata's git — that source lives in the nested `modules/custom` repository, so Probata
+  tracked zero files for it. The import makes those paths real; both composes repointed.
+- `devbox` had **never** deployed successfully. `archive/probata-canonical-index-20260913`
+  merged during the import without a single conflict and silently replaced seven current
+  files with stale copies; its Dockerfile carried a corrupted
+  `printf '...\nexec sudo ...'` whose escape had become a real newline, so Docker parsed
+  `exec` as an instruction. Seven files restored from Probata main; devbox now builds.
+- `probata-docstore-control` deployed a branch absent from propria; its content was already
+  merged, so the app was pointed at `main`.
+- `family-court-console` cannot be fixed from this repository: its source is a desktop-local
+  plugin (`~/.claude/local-plugins/plugins/family-court-toolkit/`) that was never in any git
+  repo, and its Dockerfile expects a host pre-build. Coolify builds from a clean clone, so
+  that design can never work there. **Owner decision needed.**
+
+### Content deliberately excluded from the monorepo
+
+A first import attempt committed evidence corpus and personal data and was destroyed and
+rebuilt before any push. The rebuild filters out live `.env` files, virtualenvs, build
+output, protected holding and quarantine directories, `Consignatio/_intake/`, and the
+Vestigia location-data corpora. Two Consignatio branches are excluded entirely rather than
+recorded as parents, because a parent commit still ships its objects:
+`codex/casekit-ab` (the "stays local" Case Bible corpus) and
+`local-archive/pre-private-publication-20260911`. Both survive in the retired Consignatio
+`.git` and in `.reconciliation/2026-09-26-pre-cutover-bundles/`.
+
+### Open
+
+- [ ] **Probata's `.git`** — two sessions are editing in its worktrees. Their commits are
+  folded into the monorepo continuously, so nothing is at risk; retiring it is one command
+  once they are idle.
+- [ ] **Nine stateful services** (authentik, neo4j, pg-files, weaviate, milvus, surreal ×2,
+  temporal, infisical) still carry stale webhook ids. Not broken — they simply will not
+  auto-deploy on push until each is deployed once. Held back rather than cycling databases
+  late at night.
+- [ ] **Five dangling gitlinks in Vestigia** (`Tether`, `TetherPro`, `notebooklm-mcp-source`,
+  `notebooklm-mcp-target`, `pandoc-lua-filters`) — mode 160000 with no `.gitmodules`, so a
+  recursive clone fails. Inherited from Vestigia's own history.
+- [ ] **Archive the four old GitHub repositories** read-only once every app has deployed from
+  propria. They are the rollback path until then.
+
+> _Byline: Claude Code · Opus 5 · 2026-09-26_
