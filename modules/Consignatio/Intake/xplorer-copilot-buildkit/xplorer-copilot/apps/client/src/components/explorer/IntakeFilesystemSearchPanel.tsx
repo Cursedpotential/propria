@@ -11,6 +11,12 @@ import {
 } from '@/lib/filesystem-index';
 import { searchCocoIndex, runLakeQuery, type LakeQueryResult } from '@/lib/intake-backend';
 import ResultsGrid from '@/components/panels/ResultsGrid';
+// Byline: Claude Code · Opus 5 · 2026-09-27 -- mount name search on the native path.
+// Docstore note:intake_native_invoke_reachability_20260924 recorded that LeftSidebar routes
+// Tauri users here, and that this panel never rendered IntakeNameSearch, so the magnifying
+// glass could search file CONTENT but never answer "where is that folder?". The engine
+// command intake_search_names has been registered in src-tauri/main.rs the whole time.
+import IntakeNameSearch, { type IntakeNameSearchHandle } from './IntakeNameSearch';
 
 // Byline: Claude Code · Sonnet · 2026-09-14
 // Byline: Claude Code · Sonnet 5 · 2026-09-14 -- added cocoindex + duckdb methods
@@ -85,6 +91,7 @@ const IntakeFilesystemSearchPanel = forwardRef<IntakeSearchHandle, Props>(
   ({ navigateToPath, activePaneRoot }, ref) => {
     const { t } = useTranslation();
     const inputRef = useRef<HTMLInputElement>(null);
+    const nameSearchRef = useRef<IntakeNameSearchHandle>(null);
     const requestId = useRef(0);
     const [query, setQuery] = useState('');
     const [mode, setMode] = useState<SearchMode>('hybrid');
@@ -116,7 +123,9 @@ const IntakeFilesystemSearchPanel = forwardRef<IntakeSearchHandle, Props>(
     const indexNotConnected =
       ((mode === 'keyword' || mode === 'hybrid') && fsIndexConnected === false) ||
       ((mode === 'cocoindex' || mode === 'duckdb') && !lakeReachable);
-    useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
+    // Focus lands on name search, the same as the hosted panel: the magnifying glass is a
+    // question about where something IS, not about what is inside it.
+    useImperativeHandle(ref, () => ({ focus: () => nameSearchRef.current?.focus() }));
     useEffect(
       () => () => {
         requestId.current++;
@@ -165,7 +174,15 @@ const IntakeFilesystemSearchPanel = forwardRef<IntakeSearchHandle, Props>(
         className="text-xp-text flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3"
         aria-label={t('intakeSearch.title')}
       >
-        <h2 className="text-sm font-semibold">{t('intakeSearch.title')}</h2>
+        {/* Names first: clicking the magnifying glass is asking "where is that folder?". */}
+        <IntakeNameSearch
+          ref={nameSearchRef}
+          navigateToPath={navigateToPath}
+          activePaneRoot={activePaneRoot}
+        />
+        <h2 className="border-xp-border border-t pt-3 text-sm font-semibold">
+          {t('intakeSearch.title')}
+        </h2>
         <p className="text-xp-text-muted text-xs">{t('intakeSearch.description')}</p>
         <form
           className="flex flex-col gap-2"
