@@ -15,8 +15,11 @@
 --      can repair the writer;
 --   2. the four-table family (first_party_context_thread, _version, _message, _source) plus the
 --      spine working.message row is satisfiable in ONE transaction, and the rows read back joined;
---   3. working.message.id must EQUAL the corresponding working.normalized_record.id — the
---      uuid.uuid4() in the current writer is rejected by message_id_fkey;
+--   3. working.message.id must EQUAL the corresponding working.normalized_record.id. Two
+--      independent guards catch the current writer's uuid.uuid4(): message_one_per_spine_uq
+--      (one message per normalized record, so a re-projection cannot add a second) and
+--      message_id_fkey (a random id references no normalized record at all). Proof 3c then
+--      shows the same insert succeeding once the id is the normalized record's own id;
 --   4. the version's first/last_occurred_at must equal its membership's min/max(occurred_at);
 --   5. a version with no membership is rejected (so _version/_message/_source CANNOT be split
 --      across transactions — the completeness triggers are DEFERRABLE INITIALLY DEFERRED and
@@ -27,7 +30,21 @@
 --      Python ingest path carries cannot satisfy it;
 --   9. the thread's (court_case_id, matter_id) pair must resolve in registry.court_case, so a
 --      non-UUID matter literal such as 'primary' can never be stored;
---  10. thread_ordinal is unique per version.
+--  10. thread_ordinal is unique per version;
+--  11. an approval that names no reviewer is rejected — "approved" cannot be recorded
+--      without who and when, which is what makes the confirm step auditable;
+--  12. an attributed approval is accepted and reads back (the confirm step's target state);
+--  13. re-extraction appends a NEW version that supersedes the old one rather than
+--      mutating an approved snapshot — the retry semantic the commit activity needs;
+--  14. a source assertion is corrected by appending a higher assertion_version that
+--      supersedes its predecessor, never by updating it in place;
+--  15. occurred_at, knowledge_time and disclosure_tier are all carried on the records,
+--      the spine ts_utc equals occurred_at, and the disclosure vocabulary is closed.
+--
+-- Scope note: this file proves the WRITE contract. It deliberately never names the
+-- hindsight foreshadowing relations — horizon filtering is a read-side concern with
+-- its own tripwire allowlist in modules/engine/contextreview/horizon_tripwire_test.go,
+-- and the write path carries the dates only.
 --
 -- Identity uses the D-126 pre-launch DEV sentinels (matter deadbeef-…, court case cafebabe-…)
 -- seeded by sql/0069_dev_case_registry_identity.sql and documented in
@@ -58,6 +75,23 @@ BEGIN
     RAISE NOTICE 'proof 1 OK: working.conversation does not exist';
 END $$;
 
+-- Proof 1b: the exact statement _write_first_party issues today, so the report can
+-- state what a first-party import actually hits rather than predicting it. The
+-- transaction it runs in is the same one that writes working.normalized_record, so
+-- this error fails the whole batch — first-party ingest is dead, not degraded.
+DO $$
+BEGIN
+    EXECUTE $q$INSERT INTO working.conversation
+                   (source_artifact_id, platform, external_thread_key, title, participants,
+                    participant_count, started_at, ended_at, message_count, platform_attrs)
+               VALUES ('0d040000-0000-7000-8000-00000000aaa1', 'sms', 'probe-thread-key-1', NULL,
+                       '[]'::jsonb, 0, now(), now(), 1, '{}'::jsonb)$q$;
+    RAISE EXCEPTION 'PROBE FAILED: the deleted-table statement was accepted';
+EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'PROBE FAILED%' THEN RAISE; END IF;
+    RAISE NOTICE 'proof 1b OK: the current writer fails with -- %', SQLERRM;
+END $$;
+
 -- ---------------------------------------------------------------------------
 -- Upstream fixtures. Not the subject of the proof: inserted with triggers and
 -- FK checks off so the probe does not have to replay custody, parse and
@@ -78,10 +112,17 @@ VALUES ('0d040000-0000-7000-8000-00000000e1e1', 'person', 'D04 probe owner');
 INSERT INTO registry.person (id, role_in_case, connection_to)
 VALUES ('0d040000-0000-7000-8000-00000000e1e1', 'user', 'petitioner');
 
--- The artifact the normalized records hang off.
-INSERT INTO evidence.evidence_hash (id, source_ref, digest)
+-- The artifact the normalized records hang off. evidence_hash_subject_ck requires
+-- an H1 hash to name its subject, so the evidence-side source row comes with it.
+-- Note for the repair: THIS is the id the Python ingest path carries as
+-- artifact_id. It is an evidence.source subject, not a context.source_version,
+-- which is why it can never satisfy _source.source_version_id (proof 8).
+INSERT INTO evidence.source (id, sha256, byte_size, source_type, acquisition_source, original_filename)
+VALUES ('0d040000-0000-7000-8000-00000000ab01', decode(repeat('11', 32), 'hex'), 4096,
+        'chat_export', 'probe', 'thread-export.xml');
+INSERT INTO evidence.evidence_hash (id, source_ref, digest, source_id)
 VALUES ('0d040000-0000-7000-8000-00000000aaa1', 'probe://d04/thread-export.xml',
-        decode(repeat('11', 32), 'hex'));
+        decode(repeat('11', 32), 'hex'), '0d040000-0000-7000-8000-00000000ab01');
 
 -- The selected source and its version: the FK _source actually requires.
 INSERT INTO context.source (id, source_key, provenance_class)
@@ -94,21 +135,37 @@ VALUES ('0d040000-0000-7000-8000-000000000cd2', '0d040000-0000-7000-8000-0000000
         '2026-03-02T00:00:00Z', 'registered',
         'deadbeef-dead-beef-dead-beefdeadbeef', 'cafebabe-cafe-babe-cafe-babecafebabe');
 
--- Two normalized records: the authored spine the projection is rebuilt from.
+-- The authored spine the projection is rebuilt from. The three temporal columns are
+-- set EXPLICITLY, never left to their defaults: occurred_at (when it happened),
+-- knowledge_time (when it became known) and disclosure_tier (contemporaneous /
+-- hindsight / discovered). A downstream query-time analysis agent reads all three,
+-- and the gap between occurred_at and knowledge_time is itself evidence. Proof 15
+-- reads them back; proof 15b shows the tier vocabulary is closed.
 INSERT INTO working.normalized_record
-    (id, artifact_id, record_type, source, content, occurred_at, message_corpus, sender, recipients)
+    (id, artifact_id, record_type, source, content, occurred_at, knowledge_time,
+     disclosure_tier, message_corpus, sender, recipients)
 VALUES
     ('0d040000-0000-7000-8000-000000000dd1', '0d040000-0000-7000-8000-00000000aaa1', 'message',
-     'probe', 'first probe message', '2026-03-01T10:00:00Z', 'first_party',
+     'probe', 'first probe message', '2026-03-01T10:00:00Z', '2026-03-01T10:00:00Z',
+     'contemporaneous', 'first_party',
      '+15550000001', '[{"identity": "+15550000002", "role": "to"}]'),
+    -- dd2 was learned two days after it occurred: a real knowledge gap, tier 'discovered'.
     ('0d040000-0000-7000-8000-000000000dd2', '0d040000-0000-7000-8000-00000000aaa1', 'message',
-     'probe', 'second probe message', '2026-03-01T11:30:00Z', 'first_party',
+     'probe', 'second probe message', '2026-03-01T11:30:00Z', '2026-03-03T09:00:00Z',
+     'discovered', 'first_party',
      '+15550000002', '[{"identity": "+15550000001", "role": "to"}]'),
     -- dd3 is deliberately NOT a member of the version below; proof 10 uses it to
     -- isolate the thread_ordinal unique key from the (version, message) primary key.
     ('0d040000-0000-7000-8000-000000000dd3', '0d040000-0000-7000-8000-00000000aaa1', 'message',
-     'probe', 'third probe message', '2026-03-01T12:45:00Z', 'first_party',
-     '+15550000001', '[{"identity": "+15550000002", "role": "to"}]');
+     'probe', 'third probe message', '2026-03-01T12:45:00Z', '2026-03-01T12:45:00Z',
+     'contemporaneous', 'first_party',
+     '+15550000001', '[{"identity": "+15550000002", "role": "to"}]'),
+    -- dd4 deliberately never gets a spine message, so proof 3b can isolate
+    -- message_id_fkey from the one-message-per-spine unique index.
+    ('0d040000-0000-7000-8000-000000000dd4', '0d040000-0000-7000-8000-00000000aaa1', 'message',
+     'probe', 'fourth probe message', '2026-03-01T13:50:00Z', '2026-03-01T13:50:00Z',
+     'contemporaneous', 'first_party',
+     '+15550000002', '[{"identity": "+15550000001", "role": "to"}]');
 
 SET LOCAL session_replication_role = origin;
 
@@ -132,7 +189,11 @@ VALUES
     ('0d040000-0000-7000-8000-000000000dd2', 'first_party', 'approved',
      '{"source_parties_present": true}', 'd04-probe', 'd04-probe', now(), 'd04-probe@2026-09-26'),
     ('0d040000-0000-7000-8000-000000000dd3', 'first_party', 'approved',
-     '{"source_parties_present": true}', 'd04-probe', 'd04-probe', now(), 'd04-probe@2026-09-26');
+     '{"source_parties_present": true}', 'd04-probe', 'd04-probe', now(), 'd04-probe@2026-09-26'),
+    -- dd4's route stays 'proposed': validate_message_projection enforces exactly one
+    -- spine message per APPROVED first-party route, and dd4 must have none.
+    ('0d040000-0000-7000-8000-000000000dd4', 'first_party', 'proposed',
+     '{"source_party_review_required": true}', 'd04-probe', NULL, NULL, 'd04-probe@2026-09-26');
 
 -- The spine message rows. PROOF 3 IS ENCODED HERE: id is the normalized_record
 -- id, not a fresh uuid4. conversation_id is the per-source conversation grain;
@@ -261,7 +322,9 @@ END $$;
 -- each one so the positive rows above survive for comparison.
 -- ---------------------------------------------------------------------------
 
--- Proof 3: a fresh uuid4 spine message id (what the current writer does).
+-- Proof 3a: re-projecting a spine that already has a message. This is what the
+-- current writer's fresh uuid.uuid4() produces on a retry or re-ingest: a SECOND
+-- working.message row for one normalized record.
 SAVEPOINT neg_uuid4;
 DO $$
 BEGIN
@@ -272,12 +335,55 @@ BEGIN
             '2026-03-01T12:00:00Z', 'sms', 'probe-ext-uuid4', 'outbound', 'text',
             '0d040000-0000-7000-8000-000000000dd1', 'd04-probe@2026-09-26', now(), 'first_party');
     EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
+    RAISE EXCEPTION 'PROBE FAILED: a second spine message for one normalized record was accepted';
+EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'PROBE FAILED%' THEN RAISE; END IF;
+    RAISE NOTICE 'proof 3a OK: one spine message per normalized record -- %', SQLERRM;
+END $$;
+ROLLBACK TO SAVEPOINT neg_uuid4;
+
+-- Proof 3b: the bug in isolation. dd4 has no spine message, so the one-per-spine
+-- index cannot be what rejects this: only message_id_fkey can. A spine message id
+-- that is not its normalized record's id is unstorable, full stop.
+SAVEPOINT neg_uuid4_fk;
+DO $$
+BEGIN
+    INSERT INTO working.message
+        (id, conversation_id, ts_utc, platform, external_id, direction, message_type,
+         derived_from_record_id, deriver_version, derived_at, projection_kind)
+    VALUES ('0d040000-0000-7000-8000-00000000beef', '0d040000-0000-7000-8000-000000000cc1',
+            '2026-03-01T13:50:00Z', 'sms', 'probe-ext-uuid4-fk', 'inbound', 'text',
+            '0d040000-0000-7000-8000-000000000dd4', 'd04-probe@2026-09-26', now(), 'first_party');
+    EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
     RAISE EXCEPTION 'PROBE FAILED: a random working.message.id was accepted; message_id_fkey did not fire';
 EXCEPTION WHEN others THEN
     IF SQLERRM LIKE 'PROBE FAILED%' THEN RAISE; END IF;
-    RAISE NOTICE 'proof 3 OK: random working.message.id rejected -- %', SQLERRM;
+    RAISE NOTICE 'proof 3b OK: working.message.id must BE the normalized_record id -- %', SQLERRM;
 END $$;
-ROLLBACK TO SAVEPOINT neg_uuid4;
+ROLLBACK TO SAVEPOINT neg_uuid4_fk;
+
+-- Proof 3c: the same insert succeeds the moment the id IS the normalized record's
+-- id. This is the fix, proven positively rather than only by rejection.
+SAVEPOINT pos_spine_id;
+DO $$
+DECLARE v_ok BOOLEAN;
+BEGIN
+    INSERT INTO working.message
+        (id, conversation_id, ts_utc, platform, external_id, direction, message_type,
+         derived_from_record_id, deriver_version, derived_at, projection_kind)
+    VALUES ('0d040000-0000-7000-8000-000000000dd4', '0d040000-0000-7000-8000-000000000cc1',
+            '2026-03-01T13:50:00Z', 'sms', 'probe-ext-spine-ok', 'inbound', 'text',
+            '0d040000-0000-7000-8000-000000000dd4', 'd04-probe@2026-09-26', now(), 'first_party');
+    EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
+    SELECT (msg.id = nr.id) INTO v_ok
+      FROM working.message msg JOIN working.normalized_record nr ON nr.id = msg.id
+     WHERE msg.id = '0d040000-0000-7000-8000-000000000dd4';
+    IF v_ok IS NOT TRUE THEN
+        RAISE EXCEPTION 'PROBE FAILED: the corrected spine message did not read back joined';
+    END IF;
+    RAISE NOTICE 'proof 3c OK: the corrected spine message inserts and joins to its normalized record';
+END $$;
+ROLLBACK TO SAVEPOINT pos_spine_id;
 
 -- Proof 4: version bounds that disagree with the membership.
 SAVEPOINT neg_bounds;
@@ -446,6 +552,177 @@ EXCEPTION WHEN others THEN
     RAISE NOTICE 'proof 10 OK: thread_ordinal is unique per version -- %', SQLERRM;
 END $$;
 ROLLBACK TO SAVEPOINT neg_ordinal;
+
+-- ---------------------------------------------------------------------------
+-- The confirm step. The canonical write is gated on the owner's approval:
+-- extract -> searchable -> he reads, validates, adds context, repairs -> THEN
+-- commit. The schema already encodes that gate, so the Temporal confirm step
+-- waits for a real human decision and then writes it here. Note the completeness
+-- triggers are AFTER INSERT only, so approving an existing version is an UPDATE
+-- and does not re-run the bounds validator -- but CHECK constraints still apply.
+-- ---------------------------------------------------------------------------
+
+-- Proof 11: an approval that names nobody is rejected. There is no way to record
+-- "approved" without recording who approved it and when.
+SAVEPOINT neg_approve_anon;
+DO $$
+BEGIN
+    UPDATE working.first_party_context_thread_version
+       SET review_state = 'approved'
+     WHERE id = '0d040000-0000-7000-8000-000000000fe1';
+    RAISE EXCEPTION 'PROBE FAILED: an approval with no reviewer was accepted';
+EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'PROBE FAILED%' THEN RAISE; END IF;
+    RAISE NOTICE 'proof 11 OK: approved requires reviewed_by and reviewed_at -- %', SQLERRM;
+END $$;
+ROLLBACK TO SAVEPOINT neg_approve_anon;
+
+-- Proof 12: the real confirm step. An attributed approval is accepted and reads back.
+SAVEPOINT pos_approve;
+DO $$
+DECLARE v_by TEXT; v_at TIMESTAMPTZ; v_state TEXT;
+BEGIN
+    UPDATE working.first_party_context_thread_version
+       SET review_state = 'approved', reviewed_by = 'owner', reviewed_at = now(),
+           rationale = 'owner validated the thread in the Workbench before commit'
+     WHERE id = '0d040000-0000-7000-8000-000000000fe1';
+    SELECT review_state, reviewed_by, reviewed_at INTO v_state, v_by, v_at
+      FROM working.first_party_context_thread_version
+     WHERE id = '0d040000-0000-7000-8000-000000000fe1';
+    IF v_state <> 'approved' OR v_by IS NULL OR v_at IS NULL THEN
+        RAISE EXCEPTION 'PROBE FAILED: the approval did not read back attributed';
+    END IF;
+    RAISE NOTICE 'proof 12 OK: attributed approval accepted (review_state=%, reviewed_by=%)', v_state, v_by;
+END $$;
+ROLLBACK TO SAVEPOINT pos_approve;
+
+-- Proof 13: re-running extraction produces a NEW version that supersedes the old
+-- one; it never mutates the approved snapshot. This is the append-only retry
+-- semantic the commit activity must implement instead of incrementing a counter.
+SAVEPOINT pos_supersede;
+DO $$
+DECLARE v_super UUID; v_old TEXT;
+BEGIN
+    EXECUTE 'SET CONSTRAINTS ALL DEFERRED';
+    INSERT INTO working.first_party_context_thread_version
+        (id, context_thread_id, version_ordinal, classifier_id, classifier_version, assertion_digest,
+         confidence, review_state, first_occurred_at, last_occurred_at, knowledge_available_from,
+         supersedes_id, rationale)
+    VALUES ('0d040000-0000-7000-8000-000000000fea', '0d040000-0000-7000-8000-000000000ff1', 2,
+            'd04-probe-classifier', '1.1.0', decode(repeat('ba', 32), 'hex'), 0.95, 'proposed',
+            '2026-03-01T10:00:00Z', '2026-03-01T11:30:00Z', '2026-03-01T11:30:00Z',
+            '0d040000-0000-7000-8000-000000000fe1', 'reclassified after the owner added context');
+    INSERT INTO working.first_party_context_thread_message
+        (thread_version_id, context_thread_id, message_id, thread_ordinal, occurred_at,
+         source_available_from, required_for_horizon, membership_confidence)
+    VALUES
+        ('0d040000-0000-7000-8000-000000000fea', '0d040000-0000-7000-8000-000000000ff1',
+         '0d040000-0000-7000-8000-000000000dd1', 0, '2026-03-01T10:00:00Z', '2026-03-01T10:00:00Z', true, 1.0),
+        ('0d040000-0000-7000-8000-000000000fea', '0d040000-0000-7000-8000-000000000ff1',
+         '0d040000-0000-7000-8000-000000000dd2', 1, '2026-03-01T11:30:00Z', '2026-03-01T11:30:00Z', true, 1.0);
+    INSERT INTO working.first_party_context_thread_source
+        (id, thread_version_id, context_thread_id, source_version_id, source_anchor_ordinal, platform,
+         platform_conversation_key, representation_kind, capture_kind, declared_format,
+         perspective_person_id, coverage_first_occurred_at, coverage_last_occurred_at,
+         coverage_message_count, source_available_from, required_for_horizon, metadata_clock_kind,
+         metadata_timestamp, metadata_clock_basis, metadata_confidence, metadata_review_state,
+         metadata_extractor_id, metadata_extractor_version, assertion_version, confidence,
+         review_state, provenance_digest, asserted_by)
+    VALUES ('0d040000-0000-7000-8000-000000000fda', '0d040000-0000-7000-8000-000000000fea',
+            '0d040000-0000-7000-8000-000000000ff1', '0d040000-0000-7000-8000-000000000cd2', 0, 'sms',
+            'probe-thread-key-1', 'native_export', 'device_export', 'smsbackuprestore_xml',
+            '0d040000-0000-7000-8000-00000000e1e1', '2026-03-01T10:00:00Z', '2026-03-01T11:30:00Z',
+            2, '2026-03-01T11:30:00Z', true, 'export_created', '2026-03-02T00:00:00Z',
+            'export header declared creation time', 0.95, 'unreviewed', 'd04-probe-extractor', '1.1.0',
+            1, 0.95, 'proposed', decode(repeat('cd', 32), 'hex'), 'd04-probe');
+    UPDATE working.first_party_context_thread_version
+       SET review_state = 'superseded'
+     WHERE id = '0d040000-0000-7000-8000-000000000fe1';
+    EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
+    SELECT supersedes_id INTO v_super FROM working.first_party_context_thread_version
+     WHERE id = '0d040000-0000-7000-8000-000000000fea';
+    SELECT review_state INTO v_old FROM working.first_party_context_thread_version
+     WHERE id = '0d040000-0000-7000-8000-000000000fe1';
+    IF v_super <> '0d040000-0000-7000-8000-000000000fe1' OR v_old <> 'superseded' THEN
+        RAISE EXCEPTION 'PROBE FAILED: the supersede chain did not read back';
+    END IF;
+    RAISE NOTICE 'proof 13 OK: version 2 supersedes version 1, which is marked superseded';
+END $$;
+ROLLBACK TO SAVEPOINT pos_supersede;
+
+-- Proof 14: a source assertion is corrected by APPENDING a higher assertion_version
+-- that supersedes the old one, not by updating it. Coverage is unchanged, so the
+-- version's knowledge horizon still validates.
+SAVEPOINT pos_assertion_append;
+DO $$
+DECLARE v_versions INT;
+BEGIN
+    INSERT INTO working.first_party_context_thread_source
+        (id, thread_version_id, context_thread_id, source_version_id, source_anchor_ordinal, platform,
+         platform_conversation_key, representation_kind, capture_kind, declared_format,
+         perspective_person_id, coverage_first_occurred_at, coverage_last_occurred_at,
+         coverage_message_count, source_available_from, required_for_horizon, metadata_clock_kind,
+         metadata_timestamp, metadata_clock_basis, metadata_confidence, metadata_review_state,
+         metadata_extractor_id, metadata_extractor_version, assertion_version, confidence,
+         review_state, supersedes_id, provenance_digest, asserted_by)
+    VALUES ('0d040000-0000-7000-8000-000000000fdb', '0d040000-0000-7000-8000-000000000fe1',
+            '0d040000-0000-7000-8000-000000000ff1', '0d040000-0000-7000-8000-000000000cd2', 1, 'sms',
+            'probe-thread-key-1', 'native_export', 'device_export', 'smsbackuprestore_xml',
+            '0d040000-0000-7000-8000-00000000e1e1', '2026-03-01T10:00:00Z', '2026-03-01T11:30:00Z',
+            2, '2026-03-01T11:30:00Z', true, 'export_created', '2026-03-02T00:00:00Z',
+            'owner corrected the export clock basis', 0.99, 'approved', 'd04-probe-extractor', '1.1.0',
+            2, 0.99, 'proposed', '0d040000-0000-7000-8000-000000000fd1',
+            decode(repeat('ce', 32), 'hex'), 'owner');
+    UPDATE working.first_party_context_thread_source
+       SET review_state = 'superseded'
+     WHERE id = '0d040000-0000-7000-8000-000000000fd1';
+    EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
+    SELECT count(*) INTO v_versions FROM working.first_party_context_thread_source
+     WHERE thread_version_id = '0d040000-0000-7000-8000-000000000fe1';
+    IF v_versions <> 2 THEN
+        RAISE EXCEPTION 'PROBE FAILED: expected 2 source assertions after the correction, found %', v_versions;
+    END IF;
+    RAISE NOTICE 'proof 14 OK: source assertions are append-only (v1 superseded, v2 current)';
+END $$;
+ROLLBACK TO SAVEPOINT pos_assertion_append;
+
+-- ---------------------------------------------------------------------------
+-- Proof 15: the temporal columns a downstream analysis agent depends on.
+-- ---------------------------------------------------------------------------
+SELECT 'READBACK temporal' AS what, nr.id, nr.occurred_at, nr.knowledge_time, nr.disclosure_tier,
+       (nr.knowledge_time - nr.occurred_at) AS knowledge_gap, msg.ts_utc AS spine_ts_utc
+FROM working.normalized_record nr
+JOIN working.message msg ON msg.id = nr.id
+WHERE nr.id IN ('0d040000-0000-7000-8000-000000000dd1', '0d040000-0000-7000-8000-000000000dd2')
+ORDER BY nr.occurred_at;
+
+DO $$
+DECLARE v_bad INT;
+BEGIN
+    SELECT count(*) INTO v_bad FROM working.normalized_record nr
+      JOIN working.message msg ON msg.id = nr.id
+     WHERE nr.id IN ('0d040000-0000-7000-8000-000000000dd1', '0d040000-0000-7000-8000-000000000dd2')
+       AND (nr.occurred_at IS NULL OR nr.knowledge_time IS NULL OR nr.disclosure_tier IS NULL
+            OR msg.ts_utc IS DISTINCT FROM nr.occurred_at);
+    IF v_bad <> 0 THEN
+        RAISE EXCEPTION 'PROBE FAILED: % rows lack a temporal column or the spine ts_utc diverges from occurred_at', v_bad;
+    END IF;
+    RAISE NOTICE 'proof 15 OK: occurred_at, knowledge_time and disclosure_tier all carried; spine ts_utc equals occurred_at';
+END $$;
+
+-- Proof 15b: the disclosure vocabulary is closed. Same three values as the
+-- ai.disclosure_horizon enum the analysis layer uses, enforced here as a CHECK.
+SAVEPOINT neg_tier;
+DO $$
+BEGIN
+    EXECUTE $q$UPDATE working.normalized_record SET disclosure_tier = 'later'
+                WHERE id = '0d040000-0000-7000-8000-000000000dd1'$q$;
+    RAISE EXCEPTION 'PROBE FAILED: an unknown disclosure_tier was accepted';
+EXCEPTION WHEN others THEN
+    IF SQLERRM LIKE 'PROBE FAILED%' THEN RAISE; END IF;
+    RAISE NOTICE 'proof 15b OK: disclosure_tier is closed to contemporaneous/hindsight/discovered -- %', SQLERRM;
+END $$;
+ROLLBACK TO SAVEPOINT neg_tier;
 
 DO $$ BEGIN RAISE NOTICE 'ALL D04 PROBE PROOFS PASSED'; END $$;
 
