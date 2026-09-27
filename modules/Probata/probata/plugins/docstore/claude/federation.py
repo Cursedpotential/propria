@@ -61,7 +61,7 @@ def recall(query,root,*,code=False,since=None,until=None,adapters=None):
     adapters=dict(adapters or {})
     if os.environ.get('CF_MCP_CLIENT_TOKEN'):
         launcher=[sys.executable,str(Path(__file__).with_name('client.py')),'call']
-        adapters.setdefault('remote-memory',launcher+['docstore_memory_recall','--json',json.dumps({'query':'{query}','scope':'probata','limit':10})])
+        adapters.setdefault('remote-memory',launcher+['docstore_memory_recall','--json',json.dumps({'query':'{query}','scope':'propria','limit':10})])
         adapters.setdefault('docstore',launcher+['coco_docstore_search','--json',json.dumps({'query':'{query}','domain':'docs','status':'all','presentation':'full','limit':10})])
     if code and shutil.which('ccc'):
         adapters.setdefault('ccc',['ccc','search','{query}','--limit','10','--json'])

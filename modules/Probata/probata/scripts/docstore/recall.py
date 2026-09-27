@@ -38,6 +38,7 @@ import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import sq  # noqa: E402  (same directory: connect, render, env parsing)
+from nim_input import embed_input  # noqa: E402  (NIM rejects data:image/ and blank input)
 
 KINDS = {"doc": None, "adr": "decision", "decision": "decision", "handoff": "handoff", "todo": "todo",
          "review": "review", "blueprint": "blueprint", "reference": "reference", "infrastructure": "infrastructure"}
@@ -67,7 +68,7 @@ def embed(text: str) -> list[float]:
         raise RuntimeError("NVIDIA_API_KEY not set (needed to embed the question)")
     req = urllib.request.Request(
         "https://integrate.api.nvidia.com/v1/embeddings",
-        data=json.dumps({"model": "nvidia/nemotron-3-embed-1b", "input": [text], "encoding_format": "float"}).encode(),
+        data=json.dumps({"model": "nvidia/nemotron-3-embed-1b", "input": [embed_input(text)], "encoding_format": "float"}).encode(),
         headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)["data"][0]["embedding"]

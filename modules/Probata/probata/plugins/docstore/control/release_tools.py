@@ -86,7 +86,7 @@ def register(mcp,request,read):
         return await request('POST','/surrealql/read',payload={'query':query})
 
     @mcp.tool(annotations=read)
-    async def docstore_memory_recall(query:str,scope:str='probata',limit:int=10) -> dict:
+    async def docstore_memory_recall(query:str,scope:str='propria',limit:int=10) -> dict:
         """Recall independent remote shared memory, with server-side query embedding and DuckDB packing."""
         return await request('POST','/memory/recall',payload={'query':query,'scope':scope,'limit':limit})
 

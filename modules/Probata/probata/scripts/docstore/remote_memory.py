@@ -62,7 +62,7 @@ async def operation(action,payload):
             if not 1<=len(query)<=2000 or not 1<=limit<=50:
                 raise ValueError('Invalid memory recall bounds')
             vector=await asyncio.to_thread(recall.embed,query)
-            hits=rows(await db.query('RETURN fn::recall($query,$vector,$scope,$limit);',{'query':query,'vector':vector,'scope':payload.get('scope','probata'),'limit':limit}))
+            hits=rows(await db.query('RETURN fn::recall($query,$vector,$scope,$limit);',{'query':query,'vector':vector,'scope':payload.get('scope','propria'),'limit':limit}))
             results=[]
             for hit in hits:
                 item=sq.norm(hit,True)
@@ -73,7 +73,7 @@ async def operation(action,payload):
             required={'kind','claim','detail','evidence','agent'}
             if not required<=payload.keys() or len(str(payload))>20000:
                 raise ValueError('Memory fields required or payload oversized')
-            data={**payload,'scope':payload.get('scope','probata')}
+            data={**payload,'scope':payload.get('scope','propria')}
             data['embedding']=await asyncio.to_thread(recall.embed,str(payload['claim']))
             result=await db.query('RETURN fn::remember($payload);',{'payload':data})
             return {'result':sq.norm(result,True),'available':True}

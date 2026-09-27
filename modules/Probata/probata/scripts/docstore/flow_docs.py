@@ -341,6 +341,7 @@ from source_registry import SourceSpec, load_sources
 from retention import RetainingFactory
 from cdc_verify import decode_markdown
 from chunk_batching import group_for_batching
+from nim_input import embed_input
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PROJECT_REGISTRY_PATH = (
@@ -426,7 +427,6 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 # "data:image/png;base64," example in prose survived the old "+" pattern and NIM answered 503
 # "image inputs require VLM serving" for every chunk holding it, with litellm retrying forever.
 _DATA_URI_RE = re.compile(r"data:[a-zA-Z0-9.+/-]+;base64,[A-Za-z0-9+/=]*")
-_DATA_PREFIX_RE = re.compile(r"^\s*data:", re.I)
 _NON_BMP_RE = re.compile(r"[𐀀-􏿿]")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.M)
 
@@ -666,12 +666,6 @@ def strip_data_uris(text: str) -> str:
     """NIM returns 503 'image inputs require VLM serving' for text holding a
     data: image URI."""
     return _DATA_URI_RE.sub("[data-uri-stripped]", text)
-
-
-def embed_safe(text: str) -> str:
-    """Never hand the embedder an input that starts with "data:" -- NIM parses that as a
-    data URI (an image) regardless of what follows. The stored chunk text is untouched."""
-    return _DATA_PREFIX_RE.sub("text: data:", text, count=1) if _DATA_PREFIX_RE.match(text) else text
 
 
 _TAG_TOKEN_RE = re.compile(r"[^a-z0-9]+")
@@ -968,7 +962,7 @@ async def process_chunk(
             project=project,
             status=meta.status,
             domains=list(meta.domains),
-            embedding=await coco.use_context(EMBEDDER).embed(embed_safe(chunk.text)),
+            embedding=await coco.use_context(EMBEDDER).embed(embed_input(chunk.text)),
         )
     )
 
