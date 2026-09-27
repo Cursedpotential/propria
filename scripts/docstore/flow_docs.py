@@ -52,6 +52,13 @@ text edit re-runs that file and nothing else does. The mapping CSV's own
 fingerprint is an argument too, so a metadata-only edit (doc_type/status in the
 CSV) also invalidates the memo.
 
+WHAT FIRES IT (owner order 2026-09-26). Both sources are `walk_dir(live=True)`
+and `DOCSTORE_LIVE=1` runs `app.update_blocking(live=True)`, so this application
+watches the doc roots and re-indexes on change with no commit, no schedule and no
+hand-run sync. Live mode is the normal state; the catch-up path stays for a
+forced or full reprocess. See _run_live for why a scheduled one-shot must not
+come back as the trigger.
+
 THE ONE SCHEMA DEVIATION. The built-in SurrealDB target serialises rows as
 JSON, so it cannot write `chunk.document` as `record<document>` — a JSON string
 is not coerced into a record link (verified live). The cookbook's own answers
@@ -265,6 +272,7 @@ def _install_reauth_on_reconnect() -> str:
         except Exception as exc:
             print(f"docstore: surreal reauth after reconnect FAILED: "
                   f"{type(exc).__name__}", flush=True)
+            raise
         finally:
             self._docstore_reauthing = False
 
@@ -330,6 +338,7 @@ from cocoindex.resources.chunk import Chunk
 from cocoindex.resources.file import FileLike, PatternFilePathMatcher
 from numpy.typing import NDArray
 from source_registry import SourceSpec, load_sources
+from retention import RetainingFactory
 from cdc_verify import decode_markdown
 from chunk_batching import group_for_batching
 
@@ -844,8 +853,8 @@ def _server_credentials(ns: str) -> dict[str, str]:
     cocoindex's ConnectionFactory forwards this dict verbatim to conn.signin().
     """
     creds = {
-        "username": os.environ["SURREAL_USER"],
-        "password": os.environ["SURREAL_PASS"],
+        "username": os.environ.get("SURREAL_DOCS_USER") or os.environ["SURREAL_USER"],
+        "password": os.environ.get("SURREAL_DOCS_PASS") or os.environ["SURREAL_PASS"],
     }
     signin_ns = os.environ.get("SURREAL_SIGNIN_NS")
     if signin_ns:
@@ -872,7 +881,9 @@ def configure_environment() -> coco.Environment:
     db = os.environ.get("SURREAL_DB_NAME", os.environ.get("SURREAL_DB", "docs"))
     # SURREAL_BIND in .env is the single source of truth for host:port.
     bind = os.environ.get("SURREAL_BIND", "127.0.0.1:8462")
-    url = os.environ.get("SURREAL_URL", f"ws://{bind}/rpc")
+    url = os.environ.get("SURREAL_DOCS_URL") or os.environ.get("SURREAL_URL", "")
+    if not url.startswith(("https://", "http://", "wss://", "ws://")):
+        raise ValueError("Dedicated remote Surreal endpoint required")
     # `{REPO_ROOT}` in an embedded URL expands to this checkout's root, so a
     # moved checkout does not leave .env pointing at a path that no longer
     # exists (it did on 2026-09-09: the store looked empty when it was fine).
@@ -892,14 +903,12 @@ def configure_environment() -> coco.Environment:
             provider.provide(PROJECT_BASES[source.project_id], source.root)
     provider.provide(
         SURREAL_DB,
-        SharedEmbeddedConnectionFactory(url, namespace=ns, database=db)
-        if embedded
-        else surrealdb.ConnectionFactory(
+        RetainingFactory(surrealdb.ConnectionFactory(
             url=url,
             namespace=ns,
             database=db,
             credentials=_server_credentials(ns),
-        ),
+        )),
     )
     provider.provide(
         EMBEDDER,
@@ -1186,8 +1195,14 @@ async def app_main() -> None:
         managed_by="user",
     )
 
+    # live=True makes this a LiveMapView: it scans current state first, then
+    # watches the root for changes. Documented to serve BOTH modes, so the
+    # pipeline is written once and catch-up vs live is chosen at run time
+    # (see _run_checked and _run_live). walk_dir's own rescan_interval stays at
+    # its 1-hour default as a backstop behind the watcher.
     files = localfs.walk_dir(
         DOCS_BASE,
+        live=True,
         recursive=True,
         path_matcher=PatternFilePathMatcher(
             included_patterns=["**/*.md"],
@@ -1207,6 +1222,7 @@ async def app_main() -> None:
                 continue
             project_files = localfs.walk_dir(
                 PROJECT_BASES[source.project_id],
+                live=True,
                 recursive=True,
                 path_matcher=PatternFilePathMatcher(
                     included_patterns=list(source.included_patterns),
@@ -1243,9 +1259,9 @@ async def _raise_component_error(exc: BaseException, ctx: coco.ExceptionContext)
 
 def _bounded_error_text(exc: BaseException, limit: int = 700) -> str:
     text = " ".join(str(exc).split())
-    text = re.sub(r"(?i)(bearer|token|api[_-]?key|password|pass)\s*[=:]\s*\S+", r"=<redacted>", text)
     if exc.__cause__ is not None:
         text += " | cause: " + " ".join(str(exc.__cause__).split())[:200]
+    text = re.sub(r"(?i)(bearer|token|api[_-]?key|password|pass)\s*[=: ]\s*\S+", r"\1=<redacted>", text)
     if len(text) > limit:
         # Keep both ends: the head names the failing call, the tail carries the
         # database/provider message that a traceback string buries last.
@@ -1274,14 +1290,47 @@ async def _run_checked() -> None:
         raise RuntimeError("CocoIndex execution did not finish without errors")
 
 
+def _run_live() -> None:
+    """LIVE MODE — the normal state of this application (owner order 2026-09-26).
+
+    Catch-up runs first, then this process STAYS UP and the LiveMapView sources
+    stream changes, so an edited or newly written document is re-indexed and its
+    vectors reach the hosted store within seconds. The requirement is a new
+    decision being queryable immediately -- no commit, no schedule, and nobody
+    running a sync by hand. A scheduled one-shot cannot deliver that, and it is
+    also how the index went stale: the 0.7 `docstore-worker` app owned that task
+    (deploy/docstore-worker.yaml), 0.8.1 replaced the app, the task went with it,
+    and nothing re-indexed between 2026-09-20 and 2026-09-26. Do not put the
+    scheduled trigger back.
+
+    Locality: this application runs on the desktop and reads the doc roots in
+    place, so there is no upload-then-index hop. Nothing is embedded or stored
+    locally -- embeddings are remote API calls (LiteLLMEmbedder -> NVIDIA_API_BASE)
+    and configure_environment() refuses anything but a remote Surreal endpoint.
+    Isolation is unchanged: its own CocoIndex application on its own explicit
+    environment and state database (DOCSTORE_ENV / STATE_DB_PATH), never ccc's
+    codebase tracking state.
+
+    update_blocking is synchronous and owns the event loop, so unlike
+    _run_checked it must not be wrapped in asyncio.run.
+    """
+    app.update_blocking(live=True, report_to_stdout=True)
+
+
 if __name__ == "__main__":
+    live = os.environ.get("DOCSTORE_LIVE", "").strip() == "1"
     print(
-        f"Running ProbataDocStore (full source) — max_inflight={MAX_INFLIGHT}, "
-        f"RSS ceiling {MAX_RSS_MB} MB",
+        f"Running ProbataDocStore (full source, mode={'live' if live else 'catch-up'}) — "
+        f"max_inflight={MAX_INFLIGHT}, RSS ceiling {MAX_RSS_MB} MB",
         flush=True,
     )
     try:
-        asyncio.run(_run_checked())
+        if live:
+            _run_live()
+        else:
+            asyncio.run(_run_checked())
+    except KeyboardInterrupt:
+        print("docstore: live updater stopped by signal", flush=True)
     except Exception as exc:
         print(f"docstore: execution failed; error_type={type(exc).__name__}; message={_bounded_error_text(exc)}; inspect retained worker log", file=sys.stderr)
         sys.exit(1)

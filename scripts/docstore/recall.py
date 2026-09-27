@@ -19,7 +19,7 @@ fn::docs_search is not used: it adds raw BM25 (5-10) to cosine similarity (<=1),
 Usage:
   python scripts/docstore/recall.py doc "what did we decide about migrations"
   python scripts/docstore/recall.py adr "surreal as analysis engine" --k 5 --why
-  python scripts/docstore/recall.py handoff "docstore rebuild" --status active --json
+  python scripts/docstore/recall.py handoff "docstore rebuild" --status all --json
 """
 from __future__ import annotations
 
@@ -43,6 +43,8 @@ KINDS = {"doc": None, "adr": "decision", "decision": "decision", "handoff": "han
          "review": "review", "blueprint": "blueprint", "reference": "reference", "infrastructure": "infrastructure"}
 RRF_K = 60
 RERANK_POOL = 25
+FALLBACK_CONCURRENCY = 8  # 0.8.1-r2: per-term BM25 queries in flight on the one connection
+MAX_FALLBACK_TERMS = 32  # 0.8.1-r2: bound for long (up to 2048-character) questions
 STOPWORDS = set("""a an and are as at be been but by can could did do does for from had has have how i if in into
 is it its me my no not of on or our should so than that the their them then there these they this to was we were
 what when where which who why will with would you your about any all also just more most other over same some such
@@ -168,24 +170,35 @@ async def recall(query: str, kind: str = "doc", status: str = "all", k: int = 8,
 
     db = await sq.connect("docs", "probata", "docs")
     embed_task = asyncio.create_task(asyncio.to_thread(embed, query))
+    keyword_select = ("SELECT id, text, search::score(1) AS score, (->chunk_of->document)[0] AS doc FROM chunk "
+                      "WHERE text @1@ ")
 
-    # The keyword and vector legs run concurrently on the one connection: the server executes them in
-    # parallel (measured 2026-09-10: 2.9-3.4 s sequential -> 1.4-1.5 s, identical ids per query).
-    async def keyword_leg() -> tuple[list[dict], str]:
-        kw = _rows(await db.query(
-            "SELECT id, text, search::score(1) AS score, (->chunk_of->document)[0] AS doc FROM chunk "
-            "WHERE text @1@ $q" + extra + " ORDER BY score DESC LIMIT 80;", params))
-        terms = params["q"].split()
+    # 0.8.1-r2 (Claude Code · Opus 5.5, 2026-09-26): the any-term fallback used to run one BM25 query per
+    # term, one after another, repeated terms included (16 terms: 7.7 s warm and over 30 s cold, past the
+    # ctl client's 30 s budget, which surfaced as "Docstore unavailable"). Terms are now de-duplicated and
+    # queried concurrently on the one multiplexed connection (1.7 s measured for the same 16 terms), and
+    # the vector leg (question embedding + KNN) runs alongside the keyword leg instead of after it.
+    async def keyword_leg():
+        kw = _rows(await db.query(keyword_select + "$q" + extra + " ORDER BY score DESC LIMIT 80;", params))
+        terms = []
+        for term in params["q"].split():
+            if term.lower() not in {t.lower() for t in terms}:
+                terms.append(term)
+        terms = terms[:MAX_FALLBACK_TERMS]
         if len({str(c["doc"]) for c in kw if c.get("doc") is not None}) >= 3 or len(terms) < 2:
             return kw, "all-terms"
-        # The BM25 index ANDs every term; a single OR query scores ~10k chunks (4.4 s), so run each
-        # term separately (indexed, concurrently) and sum scores per chunk instead.
+        # The BM25 index ANDs every term; a single OR query scores ~10k chunks (4.4 s), so query each
+        # term separately (fast, indexed) and sum scores per chunk instead.
+        gate = asyncio.Semaphore(FALLBACK_CONCURRENCY)
+
+        async def one_term(term):
+            async with gate:
+                return _rows(await db.query(keyword_select + "$t" + extra + " ORDER BY score DESC LIMIT 30;",
+                                            dict(params, t=term)))
+
         merged = {str(c["id"]): dict(c) for c in kw}
-        per_term = await asyncio.gather(*(db.query(
-            "SELECT id, text, search::score(1) AS score, (->chunk_of->document)[0] AS doc FROM chunk "
-            "WHERE text @1@ $t" + extra + " ORDER BY score DESC LIMIT 30;", dict(params, t=term)) for term in terms))
-        for result in per_term:
-            for c in _rows(result):
+        for chunks in await asyncio.gather(*[one_term(term) for term in terms]):
+            for c in chunks:
                 key = str(c["id"])
                 if key in merged:
                     merged[key]["score"] += c["score"]
@@ -193,21 +206,18 @@ async def recall(query: str, kind: str = "doc", status: str = "all", k: int = 8,
                     merged[key] = dict(c)
         return list(merged.values()), "any-term"
 
-    async def vector_leg() -> list[dict]:
-        vparams = dict(params, v=await embed_task)
-        if doc_type:
-            # HNSW with a doc_type filter took 4.6 s (measured 2026-09-10); one kind is a few hundred chunks, so
-            # exact cosine through the chunk_type index took 0.6 s and returned the same top 20 chunks.
-            # doc_type goes first so the planner picks chunk_type rather than the far larger chunk_status index.
-            exact = " AND ".join(["doc_type = $dt"] + [f for f in filters if f != "doc_type = $dt"])
-            return _rows(await db.query(
-                "SELECT id, text, 1 - vector::similarity::cosine(embedding, $v) AS dist, (->chunk_of->document)[0] AS doc "
-                "FROM chunk WHERE " + exact + " ORDER BY dist LIMIT 80;", vparams))
+    async def vector_leg():
+        vector = await embed_task
         return _rows(await db.query(
             "SELECT id, text, vector::distance::knn() AS dist, (->chunk_of->document)[0] AS doc FROM chunk "
-            "WHERE embedding <|80,200|> $v" + extra + " ORDER BY dist;", vparams))
+            "WHERE embedding <|80,200|> $v" + extra + " ORDER BY dist;", dict(params, v=vector)))
 
-    (kw, kw_mode), vec = await asyncio.gather(keyword_leg(), vector_leg())
+    legs = await asyncio.gather(keyword_leg(), vector_leg(), return_exceptions=True)
+    failure = next((leg for leg in legs if isinstance(leg, BaseException)), None)
+    if failure is not None:
+        await db.close()
+        raise failure
+    (kw, kw_mode), vec = legs
     t_search = time.perf_counter()
 
     def best(chunks, better):
@@ -253,7 +263,7 @@ async def recall(query: str, kind: str = "doc", status: str = "all", k: int = 8,
         e.setdefault("score", e["rrf"])
 
     results = []
-    for i, e in enumerate(pool[:k], 1):
+    for i, e in enumerate(pool, 1):
         m = meta.get(e["key"], {})
         results.append({
             "rank": i,
@@ -263,13 +273,16 @@ async def recall(query: str, kind: str = "doc", status: str = "all", k: int = 8,
             "status": m.get("status"),
             "path": (m.get("source_path") or "").removeprefix("docs/"),
             "via": "+".join(n for n, r in (("kw", e["kw"]), ("vec", e["vec"])) if r),
-            "snippet": " ".join(e["text"].split())[:300],
+            "snippet": " ".join(e["text"].split())[:2000],
             "id": e["key"],
         })
     stats = {"ms": round((time.perf_counter() - t0) * 1000), "search_ms": round((t_search - t0) * 1000),
              "kw_docs": len(kw_best), "vec_docs": len(vec_best), "reranked": reranked,
              "keyword_query": params["q"], "kw_mode": kw_mode, "rerank_note": LAST_RERANK_NOTE, "reranker": LAST_RERANKER}
-    return results, stats
+    from context_pack import pack
+    packed = pack(results, limit=k)
+    stats["packing"] = packed["packing"]
+    return packed["results"], stats
 
 
 def _clip(s: str, n: int) -> str:
@@ -281,7 +294,7 @@ def main() -> int:
     ap.add_argument("kind", choices=sorted(KINDS), help="doc = any type; adr = decision documents; or a doc_type")
     ap.add_argument("query", nargs="+")
     ap.add_argument("--k", type=int, default=8)
-    ap.add_argument("--status", default="all", help="all (default; status is a classification field, owner 2026-09-14), active, unverified, proposed, superseded, retracted")
+    ap.add_argument("--status", default="all", help="all (default), active, superseded, unverified, proposed")
     ap.add_argument("--domain", default=None)
     ap.add_argument("--no-rerank", action="store_true")
     ap.add_argument("--why", action="store_true", help="show the matching passage instead of type/via")

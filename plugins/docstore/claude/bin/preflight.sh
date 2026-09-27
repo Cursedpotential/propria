@@ -1,62 +1,7 @@
 #!/usr/bin/env bash
-# SessionStart: verify BOTH SurrealDB stores (docs = cloud surreal-docs since 2026-09-10, memory VPS) are
-# reachable before the session trusts either one. Prints <=3 lines. Loud
-# failure, no silent filesystem/invented-memory fallback — that fallback is
-# exactly the drift loop this plugin exists to break (design doc S2/S3).
+# Byline: Codex / GPT-6, 2026-09-20. Optional hosted-control diagnostic.
+# Automatic hooks are disabled in hooks.json; this remains directly callable.
 set -uo pipefail
-
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$DIR/_pybin.sh"
-PY="$(pybin)"
-
-DOCS_URL="${DOCSTORE_DOCS_URL:-https://surreal-docs.tilapia-skilift.ts.net}"
-MEM_URL="${MEMORY_MCP_URL:-http://100.91.190.107:8471/mcp}"
-MEM_URL="${MEM_URL%/mcp}"
-
-INPUT="$(cat 2>/dev/null || true)"
-
-docs_state="down"
-mem_state="down"
-
-docs_code="$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "${DOCS_URL%/}/health" 2>/dev/null || echo "000")"
-case "$docs_code" in 2*) docs_state="up" ;; esac
-
-# A bare /health ping only proves the SurrealDB process is running -- it
-# stays 2xx even with no auth configured, the wrong ns/db, or a schema that
-# was never deployed (all three happened in production 2026-09-16). The
-# real signal is an authenticated fn::memory_stats() call against the
-# actual ns/db the memory MCP entry uses (probata_memory/memory).
-mem_json="$(curl -s --max-time 5 \
-  -H "Authorization: Basic ${MEMORY_BASIC_AUTH:-}" \
-  -H "surreal-ns: probata_memory" -H "surreal-db: memory" \
-  -H "Accept: application/json" -H "Content-Type: text/plain" \
-  --data 'RETURN fn::memory_stats("probata");' \
-  "${MEM_URL%/}/sql" 2>/dev/null || echo "")"
-case "$mem_json" in *'"status":"OK"'*) mem_state="up" ;; esac
-
-# Was this session resumed after a compaction? PreCompact cannot inject
-# context (hookSpecificOutput.additionalContext is validated only for
-# UserPromptSubmit/PostToolUse/PostToolBatch/Stop/SubagentStop/SessionStart —
-# emitting it from PreCompact fails validation and drops the WHOLE hook
-# output). So PreCompact only writes a marker file; this hook is the one
-# that reads it back and surfaces the reminder, inside the 3-line budget.
-SESSION_ID="$(printf '%s' "$INPUT" | "$PY" -c "import sys,json; d=json.load(sys.stdin); print(d.get('session_id','nosession'))" 2>/dev/null || echo "nosession")"
-STATE_DIR="${CLAUDE_PLUGIN_ROOT}/.state"
-mkdir -p "$STATE_DIR" 2>/dev/null || true
-MARKER="$STATE_DIR/precompact_${SESSION_ID}.marker"
-
-if [ "$docs_state" != "up" ] || [ "$mem_state" != "up" ]; then
-  echo "DOCSTORE PREFLIGHT FAILED: docs=$docs_state memory=$mem_state — NO fallback to docs/ or invented memory."
-  echo "Do not read the filesystem or answer from memory of the subject. Tell the user the store is down and stop."
-  exit 0
-fi
-
-if [ -f "$MARKER" ]; then
-  rm -f "$MARKER" 2>/dev/null || true
-  echo "docstore: docs=up memory=up | skills: query docs docs-write decisions todo handoff memory reconcile | commands: /recall-doc /recall-adr /memory /update-adr"
-  echo "resumed after compaction — run the handoff skill now to recover the pre-compact handoff record"
-else
-  echo "docstore: docs=up memory=up | skills: query docs docs-write decisions todo handoff memory reconcile | commands: /recall-doc /recall-adr /memory /update-adr"
-  echo "search before you read: propria-docstore:propria-search routes docs to coco_docstore_search and code to separate CCC"
-fi
-exit 0
+PY="${DOCSTORE_PYTHON:-python3}"
+exec "$PY" "$DIR/../client.py" call docstore_diagnostics

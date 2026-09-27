@@ -1,12 +1,11 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "propria-docstore",
   "displayName": "Propria Docstore",
-  "description": "Universal Propria documentation retrieval, notes, decisions, revisions, CDC verification, project registry, graph resources, and memory access. Isolated from codebase CCC indexes.",
-  "version": "0.6.5",
+  "description": "Hosted Propria Docstore client with a general discovery skill, direct commands, and five public MCP tools. Remote documentation, memory, ADRs, handoffs, graphs, and governed indexing.",
+  "version": "0.8.2",
   "author": {
-    "name": "Matthew Salem",
-    "email": "matt.salem85@gmail.com"
+    "name": "Matthew Salem"
   },
   "license": "MIT",
   "keywords": [

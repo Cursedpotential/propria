@@ -53,16 +53,17 @@ async def test_discovery_and_capabilities_have_no_network_or_state_writes(config
                 "docstore_reconcile_validate", "docstore_reconcile_repair"} <= tools.keys()
         assert 'docstore_selected_update_plan' in tools
         assert 'docstore_cdc_runs' in tools
-        writes = {"write_note", "write_update", "write_memory", "write_call", "run_index", "run_call", "admin_call", "docstore_set_flags", "docstore_capture_revision", "docstore_approve_revision",
+        writes = {"docstore_set_flags", "docstore_capture_revision", "docstore_approve_revision",
                   "docstore_index_execute", "docstore_cancel_run", "docstore_index_full",
                   "docstore_index_selected", "docstore_run_cancel"}
         writes.add("docstore_reconcile_packet")
         writes.add("docstore_reconcile_repair")
         writes.add("docstore_handoff_write")
+        writes.update({"docstore_upgrade_apply", "docstore_adr", "docstore_graph_entity_upsert", "docstore_graph_relate", "docstore_source_apply", "docstore_memory_remember"})
         assert writes <= tools.keys()
         assert all(not tools[name].annotations.readOnlyHint for name in writes)
         assert all(tool.annotations.readOnlyHint for name, tool in tools.items() if name not in writes)
-        assert all(not tool.annotations.destructiveHint for name, tool in tools.items() if name != "admin_call")  # admin_call is the one gated destructive tool (2026-09-19)
+        assert all(not tool.annotations.destructiveHint for tool in tools.values())
         resources = await client.list_resources()
         assert {"docstore://capabilities", "docstore://health"} <= {str(r.uri) for r in resources}
         templates = await client.list_resource_templates()
@@ -127,7 +128,7 @@ async def test_handoff_write_is_typed_and_read_back(config, monkeypatch):
                 "status": "active",
                 "source_path": "handoff://engine-recovery/synthetic",
             },
-            "previous": [{"id": "document:old_handoff", "status": "superseded"}],
+            "previous": {"id": "document:old_handoff", "status": "superseded"},
         }
 
     original = handoff_module.write_handoff
@@ -146,8 +147,8 @@ async def test_handoff_write_is_typed_and_read_back(config, monkeypatch):
         }})).data
     assert result == {
         "id": "document:new_handoff",
-        "superseded": ["document:old_handoff"],
         "match": None,
+        "superseded": ["document:old_handoff"],
         "doc_type": "handoff",
         "domains": ["proffer", "workbench"],
         "status": "active",
@@ -156,7 +157,6 @@ async def test_handoff_write_is_typed_and_read_back(config, monkeypatch):
     }
     assert "fn::handoff_write" in calls[0][0]
     assert calls[0][1]["domains"] == ["proffer", "workbench"]
-    assert calls[0][1]["supersedes_raw"] == ["document:old_handoff"]
     assert not requests
 
 
@@ -192,7 +192,7 @@ async def test_search_defaults_and_explicit_options(config):
     async with Client(server) as client:
         await client.call_tool("docstore_search", {"query": "index isolation", "domain": "intake"})
         assert dict(requests[-1].url.params) == {
-            "q": "index isolation", "domain": "intake", "kind": "doc", "status": "all", "k": "8", "rerank": "false"}
+            "q": "index isolation", "domain": "intake", "kind": "doc", "status": "all", "k": "8", "rerank": "true"}
         await client.call_tool("docstore_search", {"query": "index isolation", "domain": "intake",
             "kind": "adr", "status": "all", "limit": 3, "rerank": True})
     assert dict(requests[-1].url.params) == {

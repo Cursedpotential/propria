@@ -1,0 +1,100 @@
+"""User-callable tools forwarded only to the authenticated Docstore service."""
+from typing import Literal
+
+
+def register(mcp,request,read):
+    write={**read,'readOnlyHint':False,'idempotentHint':False}
+
+    @mcp.tool(annotations=read)
+    async def docstore_retraction_plan() -> dict:
+        """Preview documents outside the current five-root source snapshot; no writes."""
+        return await request('GET','/sources/retraction-plan')
+
+    @mcp.tool(annotations=read)
+    async def docstore_diagnostics() -> dict:
+        """Report release, processing mode and endpoint identity. Does not start indexing."""
+        return await request('GET','/release')
+
+    @mcp.tool(annotations=read)
+    async def docstore_upgrade_status() -> dict:
+        """Read current version, migration checksums and missing schema."""
+        return await request('POST','/upgrade/status',payload={})
+
+    @mcp.tool(annotations=read)
+    async def docstore_upgrade_plan() -> dict:
+        """Dry-run additive migrations and return an exact plan ID."""
+        return await request('POST','/upgrade/plan',payload={})
+
+    @mcp.tool(annotations=write)
+    async def docstore_upgrade_apply(plan_id:str) -> dict:
+        """Apply the checksum-bound plan transactionally; no index run or legacy deletion."""
+        return await request('POST','/upgrade/apply',payload={'plan_id':plan_id})
+
+    @mcp.tool(annotations=read)
+    async def docstore_upgrade_verify() -> dict:
+        """Verify release ledger and live required schema after an upgrade."""
+        return await request('POST','/upgrade/verify',payload={})
+
+    @mcp.tool(annotations=write)
+    async def docstore_adr(action:Literal['list','create','update','migration-plan','migration-apply','projections','verify'], payload:dict|None=None) -> dict:
+        """Manage authoritative ADRs, version-checked edits, legacy imports and generated projections."""
+        return await request('POST','/adr/'+action,payload=payload or {})
+
+    @mcp.tool(annotations=read)
+    async def docstore_knowledge_graph(start:str,relation:str='about',depth:int=1,limit:int=50) -> dict:
+        """Read bounded native SurrealDB relationships across documents, entities and statements."""
+        return await request('POST','/knowledge/traverse',payload=locals_payload(start,relation,depth,limit))
+
+    @mcp.tool(annotations=read)
+    async def docstore_graph_path(start:str,end:str,relation:str='related_to',depth:int=4,limit:int=100) -> dict:
+        """Find a bounded directed graph path; not-found applies only to the requested bounds."""
+        return await request('POST','/knowledge/path',payload={**locals_payload(start,relation,depth,limit),'end':end})
+
+    @mcp.tool(annotations=write)
+    async def docstore_graph_entity_upsert(name:str,kind:str,aliases:list[str]|None=None) -> dict:
+        """Resolve/create one canonical entity using normalized names and explicit aliases."""
+        return await request('POST','/knowledge/entity-upsert',payload={'name':name,'kind':kind,'aliases':aliases or []})
+
+    @mcp.tool(annotations=write)
+    async def docstore_graph_relate(start:str,end:str,relation:str='related_to') -> dict:
+        """Create one native SurrealDB relationship; allowed types and record IDs are validated."""
+        return await request('POST','/knowledge/relate',payload={'start':start,'end':end,'relation':relation})
+
+    @mcp.tool(annotations=read)
+    async def docstore_context_pack(rows:list[dict],limit:int=20,budget:int=8000) -> dict:
+        """Normalize federated candidates through DuckDB with retained provenance and a byte budget."""
+        return await request('POST','/context/pack',payload={'rows':rows,'limit':limit,'budget':budget})
+
+    @mcp.tool(annotations=read)
+    async def docstore_source_plan(files:list[dict]) -> dict:
+        """Dry-run a complete hash-validated five-root source sync; no embedding or writes."""
+        return await request('POST','/sources/plan',payload={'files':files})
+
+    @mcp.tool(annotations=write)
+    async def docstore_source_apply(files:list[dict],plan_id:str,retract:list[str]|None=None) -> dict:
+        """Apply an exact source plan, quarantining replaced files; no index run. 0.8.1-r3: every document the plan would retract must be named in retract, or the apply is refused."""
+        return await request('POST','/sources/apply',payload={'files':files,'plan_id':plan_id,'retract':retract or []})
+
+    @mcp.tool(annotations=read)
+    async def docstore_source_read(paths:list[str]) -> dict:
+        """0.8.1-r3: exact mirror copies (content + sha256) of named project/path keys, for hash-verified restores; bounded, unsent keys return in remaining."""
+        return await request('POST','/sources/read',payload={'paths':paths})
+
+    @mcp.tool(annotations=read)
+    async def docstore_surrealql_read(query:str) -> dict:
+        """Bounded native SELECT fields/traversals FROM table_or_record LIMIT n. Expressions and writes are rejected."""
+        return await request('POST','/surrealql/read',payload={'query':query})
+
+    @mcp.tool(annotations=read)
+    async def docstore_memory_recall(query:str,scope:str='probata',limit:int=10) -> dict:
+        """Recall independent remote shared memory, with server-side query embedding and DuckDB packing."""
+        return await request('POST','/memory/recall',payload={'query':query,'scope':scope,'limit':limit})
+
+    @mcp.tool(annotations=write)
+    async def docstore_memory_remember(payload:dict) -> dict:
+        """Write through the remote memory service's governed duplicate/supersession function."""
+        return await request('POST','/memory/remember',payload=payload)
+
+
+def locals_payload(start,relation,depth,limit):
+    return {'start':start,'relation':relation,'depth':depth,'limit':limit}

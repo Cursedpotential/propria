@@ -42,23 +42,6 @@ fn::docs_supersede(
 ) -> object  -- { new: record<document>, old: record<document> }
 ```
 
-## fn::docs_retract
-
-```
-fn::docs_retract(
-  $id: record<document>,
-  $reason: string
-) -> object  -- { ok, id, original_content_hash, content_hash } | { ok: true, unchanged: true } | { ok: false, error: "not_found" }
-```
-
-Retires a row and **releases its `content_hash`** (the `document_hash` index
-is UNIQUE with no status predicate). Use it when a hand-registered row
-carries the same bytes as a file the CocoIndex pipeline owns; the pipeline
-row cannot land until the hash is released. Original digest is preserved in
-`retracted_reason`; a `decision_log` row (`document_retracted`) is appended;
-nothing is deleted. Rule (owner, 2026-09-14): do not hand-register files the
-pipeline owns in the first place.
-
 ## ASSERT lists to satisfy before calling
 
 - `$doc_type` ∈ `["blueprint","infrastructure","decision","todo","handoff","review","reference"]`
@@ -102,20 +85,3 @@ run: { function: "fn::docs_new_version", args: [{"$ql": "document:xyz"}, "<revis
    functions.** They belong to the ingestion pipeline; a document written
    through `fn::docs_register` has no chunks or embeddings until ingest
    runs over it.
-
-## Tags (required on submission — owner 2026-09-14)
-
-Files: front matter `tags: [ui-components, shadcn]` or `<!-- tags: a, b -->`;
-the pipeline stores them in `document.tags` (lower-kebab, de-duplicated).
-File-less notes/handoffs: same comment in the body, then
-
-```
-fn::docs_set_tags($id: record<document>, $tags: array<string>, $actor: string)
-  -> {ok, id, unchanged, tags}      -- content/hash untouched; decision_log "tags_set"
-fn::docs_tagged($tag: string, $query: option<string>, $domain: option<string>, $k: option<int>)
-  -> [{id, source_path, title, doc_type, domains, tags, status, project, score?, excerpt?}]
-```
-
-Old files: run `python scripts/docstore/tags_backfill.py` (reads each registry
-root's files, computes tags, writes only changed rows via fn::docs_set_tags;
-no re-embedding). Files without author tags stay untagged.
