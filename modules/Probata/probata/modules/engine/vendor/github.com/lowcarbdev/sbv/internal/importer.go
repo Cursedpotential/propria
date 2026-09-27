@@ -62,9 +62,9 @@ const (
 	// (an unescaped quote), so the scan stops early and the span is resynced
 	// instead of running to the whole-record bound.
 	maxStartElementBytes = 1 << 20
-	maxCSVFields       = 1024
-	detectPeekBytes    = 8192
-	rejectExcerptBytes = 512
+	maxCSVFields         = 1024
+	detectPeekBytes      = 8192
+	rejectExcerptBytes   = 512
 )
 
 // SourceRecord is one raw logical source record an importer encountered, plus

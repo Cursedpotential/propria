@@ -61,11 +61,8 @@ USER postgres
 
 # pg_stat_statements ships with core PG; it needs shared_preload_libraries.
 # pg_duckdb already requires its own preload, so chain both.
-#
-# duckdb.allow_community_extensions: enables installing DuckDB community
-# extensions (e.g. `webbed`, for read_xml/read_html) via pg_duckdb. This was
-# previously only set live via `ALTER SYSTEM` (lost on a data-volume rebuild
-# from this image) — baking it into the image CMD makes it survive a
-# redeploy. Do NOT also set duckdb.allow_unsigned_extensions.
-# Byline: Claude Code · Sonnet 5 · 2026-09-06
-CMD ["postgres", "-c", "shared_preload_libraries=pg_duckdb,pg_stat_statements", "-c", "duckdb.allow_community_extensions=on"]
+# duckdb.postgres_role: without it only superusers may run DuckDB, and the
+# engine connects as platform_runtime (member of platform_duckdb — created by
+# scripts/duckdb_runtime_role.sql). Postmaster-context: needs a restart.
+# Claude Code · Fable 5.1 · 2026-09-20
+CMD ["postgres", "-c", "shared_preload_libraries=pg_duckdb,pg_stat_statements", "-c", "duckdb.postgres_role=platform_duckdb"]
