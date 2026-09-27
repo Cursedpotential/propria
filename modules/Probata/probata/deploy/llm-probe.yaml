@@ -22,7 +22,7 @@
 services:
   llm-probe:
     build:
-      context: ./llm_probe
+      context: ./modules/custom/llm_probe
       dockerfile: Dockerfile
     image: agno-llm-probe:latest
     container_name: llm-probe

@@ -44,7 +44,7 @@
 services:
   family-court-console:
     build:
-      context: ./docker/family-court-console/src
+      context: ./deploy/docker/family-court-console/src
       dockerfile: Dockerfile.cloud
     container_name: family-court-console
     restart: unless-stopped
