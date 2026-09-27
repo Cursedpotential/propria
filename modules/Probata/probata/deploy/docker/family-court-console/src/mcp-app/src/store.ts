@@ -1587,6 +1587,47 @@ export async function caseSourceOf(store: StoreOk, ref: RecordRef): Promise<Case
 }
 
 // ---------------------------------------------------------------------------
+// case_record — the shared legal-record contract (propria.legal-record.v1).
+// Claude Code · Opus 5.5 · 2026-09-27.
+//
+// The Family Law Toolkit and Advocatio open the same record with the same id and
+// version (SINGLE-WORKDESK-CONVERGENCE.md, "Family Law Toolkit companion surface").
+// The store itself computes the version: sha256 over SurrealDB's own string form of
+// the record, whose object keys are always sorted, so it is deterministic and any
+// client language gets the same answer by running RECORD_VERSION_SURQL unchanged.
+// Advocatio carries a byte-identical copy of this query in
+// modules/Legal-desktop/api/legal_workspace/services/family_court_toolkit.py.
+// ---------------------------------------------------------------------------
+
+export const RECORD_CONTRACT = "propria.legal-record.v1";
+
+export const RECORD_VERSION_SURQL =
+  "LET $r = (SELECT * OMIT embedding FROM ONLY type::record($tb, $id)); " +
+  "RETURN IF $r = NONE { NONE } ELSE { { tb: record::tb($r.id), id: <string> record::id($r.id), " +
+  "version: 'sha256:' + crypto::sha256(<string> $r), record: $r } };";
+
+export interface CaseRecordResult {
+  contract: typeof RECORD_CONTRACT;
+  id: string;
+  table: string;
+  version: string;
+  record: Record<string, unknown>;
+}
+
+export async function caseRecord(store: StoreOk, ref: RecordRef): Promise<CaseRecordResult | null> {
+  const rid = parseRef(ref);
+  const full = refToString(rid);
+  const table = full.slice(0, full.indexOf(":"));
+  const id = full.slice(full.indexOf(":") + 1);
+  const rows = await store.db.query<unknown[]>(RECORD_VERSION_SURQL, { tb: table, id });
+  const row = rows.at(-1) as { tb?: string; id?: string; version?: string; record?: unknown } | null | undefined;
+  if (!row || !row.version) return null;
+  const record = normalize(row.record) as Record<string, unknown>;
+  delete record.id;
+  return { contract: RECORD_CONTRACT, id: `${table}:${id}`, table, version: row.version, record };
+}
+
+// ---------------------------------------------------------------------------
 // Sidecar compatibility aliases — `app/` (a separate, concurrently-developed
 // Tauri work surface, see app/README.md "Where the store lives") dynamically
 // dispatches store.ts exports BY NAME via app/sidecar/lib/store-client.mjs's

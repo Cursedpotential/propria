@@ -835,6 +835,7 @@ from legal_workspace.api.ops_routes import router as ops_router
 from legal_workspace.api.privilege_routes import router as privilege_router
 from legal_workspace.api.routing_routes import router as routing_router
 from legal_workspace.api.source_routes import source_router
+from legal_workspace.api.toolkit_routes import router as toolkit_router
 
 app.include_router(source_router)
 app.include_router(automation_router)
@@ -849,6 +850,7 @@ app.include_router(privilege_router)
 app.include_router(factor_router)
 app.include_router(routing_router)
 app.include_router(evidence_catalog_router)
+app.include_router(toolkit_router)
 
 # MCP face: one `advocatio` gateway for ContextForge (see api/mcp_face.py).
 app.mount("/mcp", mcp_app)

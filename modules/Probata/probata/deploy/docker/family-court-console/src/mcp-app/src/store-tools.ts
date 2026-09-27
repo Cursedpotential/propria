@@ -8,7 +8,8 @@
 // MCP tool registrations for the embedded SurrealDB case store (src/store.ts).
 // Deliberately kept out of src/server.ts (another agent is editing that file
 // concurrently) — call `registerStoreTools(server)` from server.ts to wire
-// these sixteen tools in. See README-store.md for the exact snippet.
+// these seventeen tools in. See README-store.md for the exact snippet.
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 — case_record (shared legal-record contract).
 //
 // Every handler resolves the store first and, if the native module failed to
 // load or the database failed to open, returns `{ available: false, reason }`
@@ -38,6 +39,7 @@ import {
   caseMemoPut,
   casePut,
   caseQuery,
+  caseRecord,
   caseReferenceList,
   caseReferenceLoad,
   caseReferenceMatch,
@@ -511,6 +513,29 @@ export function registerStoreTools(server: RegisterToolServer): void {
       }
       const entries = await caseReferenceList(store as StoreOk, { kind: input.kind, category: input.category });
       return toolResult({ available: true, entries });
+    },
+  );
+
+  server.registerTool(
+    "case_record",
+    {
+      title: "Open one record in the shared legal-record contract",
+      description:
+        "Given a record ref (\"table:id\"), returns { contract: \"propria.legal-record.v1\", id, table, version, record }. " +
+        "version is computed by the case store (sha256 of the record's canonical form), so the Family Law Toolkit and " +
+        "Advocatio show identical ids and versions for the same record; any correction yields a new version. " +
+        "Returns { found: false } when no such record exists.",
+      inputSchema: { id: refSchema },
+      annotations: readOnly,
+      _meta: {},
+    },
+    async (args) => {
+      const store = await getStore();
+      if (!store.available) return unavailable(store.reason);
+      const ref = (args as { id: never }).id;
+      const result = await caseRecord(store as StoreOk, ref);
+      if (!result) return toolResult({ available: true, found: false, id: typeof ref === "string" ? ref : null });
+      return toolResult({ available: true, found: true, ...result });
     },
   );
 
