@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-UV="/c/Users/matts/.local/bin/uv.exe"
+UV="$(command -v uv 2>/dev/null || echo /c/Users/matts/.local/bin/uv.exe)"
 if [[ ! -x "$UV" ]]; then
   echo "Propria Search requires uv at $UV. Install uv or set up the declared pyproject runtime." >&2
   exit 127

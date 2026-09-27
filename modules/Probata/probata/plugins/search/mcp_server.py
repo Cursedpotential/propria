@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Dependency-free MCP stdio facade for the canonical Propria Search engine."""
+"""Dependency-free MCP stdio facade for the canonical Propria Search engine.
+
+Byline: Claude Code · Opus 5.5 · 2026-09-27 — newline-delimited JSON-RPC framing (the MCP stdio
+transport), replacing Content-Length headers that no MCP client sends; answers ping.
+"""
 from __future__ import annotations
 import json, os, subprocess, sys
 from pathlib import Path
@@ -80,22 +84,24 @@ def call(name,a):
   return run_cli(args)
  raise ValueError(f"unknown tool: {name}")
 
+# MCP stdio framing is one JSON-RPC message per line. The first version framed messages with
+# LSP-style Content-Length headers, so no MCP client could connect (found 2026-09-27).
 def send(obj):
- raw=json.dumps(obj,separators=(",",":"),ensure_ascii=False).encode(); sys.stdout.buffer.write(f"Content-Length: {len(raw)}\r\n\r\n".encode()+raw);sys.stdout.buffer.flush()
+ raw=json.dumps(obj,separators=(",",":"),ensure_ascii=False).encode(); sys.stdout.buffer.write(raw+b"\n");sys.stdout.buffer.flush()
 
 def main():
  while True:
-  headers={}
-  while True:
-   line=sys.stdin.buffer.readline()
-   if not line:return
-   if line in (b"\r\n",b"\n"):break
-   k,v=line.decode().split(":",1);headers[k.lower()]=v.strip()
-  msg=json.loads(sys.stdin.buffer.read(int(headers.get("content-length","0"))))
+  line=sys.stdin.buffer.readline()
+  if not line:return
+  line=line.strip()
+  if not line:continue
+  try:msg=json.loads(line)
+  except json.JSONDecodeError:continue
   mid=msg.get("id"); method=msg.get("method")
   if mid is None:continue
   try:
    if method=="initialize":result={"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"propria-search","version":"1.0.0"}}
+   elif method=="ping":result={}
    elif method=="tools/list":result={"tools":TOOLS}
    elif method=="tools/call":
     value=call(msg["params"]["name"],msg["params"].get("arguments",{}));result={"content":[{"type":"text","text":json.dumps(value,indent=2)}],"structuredContent":value}

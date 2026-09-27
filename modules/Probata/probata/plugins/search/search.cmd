@@ -1,5 +1,7 @@
 @echo off
-set "UV=C:\Users\matts\.local\bin\uv.exe"
+set "UV="
+for /f "delims=" %%U in ('where uv 2^>nul') do if not defined UV set "UV=%%U"
+if not defined UV set "UV=C:\Users\matts\.local\bin\uv.exe"
 if not exist "%UV%" (
   echo Propria Search requires uv at %UV%. Install uv or set up the declared pyproject runtime. 1>&2
   exit /b 127

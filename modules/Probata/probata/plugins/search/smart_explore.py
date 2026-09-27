@@ -33,6 +33,9 @@ isolated diagnostics.
 
 > Byline: Claude Code · Opus 4.8 · 2026-06-21
 > Byline: Claude Code · Fable 5 · 2026-07-28 (cross-tool: central index store, moved to ~/.agents/skills)
+> Byline: Claude Code · Opus 5.5 · 2026-09-27 (git-aware file walk that honors .gitignore and skips
+  worktree/quarantine copies; outline/unfold/imports --file index one file; set-based bulk writes
+  in one transaction; pruning of files a full walk no longer yields. Full Propria index 663 s -> 33 s)
 """
 from __future__ import annotations
 
@@ -48,7 +51,15 @@ import sys
 import threading
 import time
 import urllib.parse
+import tempfile
 from pathlib import Path
+import importlib.util
+
+# DuckDB 1.5.5 checks for pandas on every bound parameter row. Without pandas each check searches
+# sys.path again (measured 2026-09-27: 8,000 filesystem lookups for 2,000 rows, 14.4 s). A None
+# entry makes the check fail at once; nothing here uses pandas.
+if importlib.util.find_spec("pandas") is None:
+    sys.modules["pandas"] = None
 
 import duckdb
 
@@ -169,6 +180,10 @@ SKIP_DIRS = {
     ".git", ".svn", ".hg", "node_modules", "__pycache__", ".venv", "venv",
     "dist", "build", ".smart-explore", ".mypy_cache", ".pytest_cache",
     "target", ".next", ".cache", "vendor",
+    # Copies of a project rather than the project: linked worktrees, quarantine, review holds and
+    # runtime state. Walking them made one Propria lookup crawl for minutes (2026-09-27).
+    "_worktrees", ".review_hold", "to_be_deleted", ".reconciliation", "_stale", ".runtime",
+    ".cocoindex_code",
 }
 
 # ---------------------------------------------------------------------------
@@ -322,7 +337,57 @@ def extract_imports(tree, src: bytes):
     return out
 
 
+def bulk_insert(con, table: str, columns: dict[str, str], rows: list, select: str = "*") -> None:
+    """Insert rows through DuckDB's own JSON reader instead of binding them one at a time.
+
+    executemany binds row by row: 38k symbols took minutes on a full Propria index (2026-09-27).
+    """
+    if not rows:
+        return
+    names = list(columns)
+    spec = "{" + ", ".join(f"'{n}': '{t}'" for n, t in columns.items()) + "}"
+    with tempfile.TemporaryDirectory(prefix="smart-explore-") as tmp:
+        src = Path(tmp) / "rows.json"
+        src.write_text(json.dumps([dict(zip(names, r)) for r in rows]), encoding="utf8")
+        con.execute(
+            f"INSERT INTO {table} SELECT {select} FROM "
+            f"read_json(?, format = 'array', columns = {spec})",
+            [str(src)],
+        )
+
+
+def git_files(root: Path) -> list[Path] | None:
+    """Files git shows under root: tracked plus untracked, minus everything .gitignore excludes.
+
+    Returns None outside a git work tree, or when git lists nothing (for example a folder the
+    repository ignores), so the caller falls back to walking the directory.
+    """
+    try:
+        cp = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            capture_output=True, timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if cp.returncode != 0:
+        return None
+    rels = [r for r in cp.stdout.decode("utf8", "replace").split("\0") if r]
+    return [root / r for r in rels] or None
+
+
 def iter_code_files(root: Path, file_pattern: str | None):
+    tracked = git_files(root)
+    if tracked is not None:
+        for p in tracked:
+            ext = p.suffix.lower()
+            if ext not in EXT_LANG:
+                continue
+            if SKIP_DIRS.intersection(p.relative_to(root).parts[:-1]):
+                continue
+            if file_pattern and file_pattern not in str(p):
+                continue
+            yield p, EXT_LANG[ext]
+        return
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for fn in filenames:
@@ -335,66 +400,102 @@ def iter_code_files(root: Path, file_pattern: str | None):
             yield p, EXT_LANG[ext]
 
 
-def index_path(con, root: Path, file_pattern: str | None = None, quiet: bool = False):
-    """Incrementally (re)index all code files under root. Returns (n_files, n_changed)."""
-    n_files = n_changed = 0
-    con.execute(
-        "INSERT INTO meta VALUES ('root', ?), ('last_indexed', ?) "
-        "ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-        [str(root), str(time.time())],
-    )
-    for p, lang in iter_code_files(root, file_pattern):
+def index_path(con, root: Path, file_pattern: str | None = None, quiet: bool = False,
+               files: list[Path] | None = None):
+    """Incrementally (re)index code files. Returns (n_files, n_changed).
+
+    With `files`, only those files are indexed; otherwise every code file under root. Files are
+    parsed first and every write then runs set-based in one transaction: row-at-a-time DuckDB
+    writes made a full Propria index run past ten minutes (2026-09-27).
+    """
+    n_files = 0
+    if files is not None:
+        targets = [(p, EXT_LANG[p.suffix.lower()]) for p in files if p.suffix.lower() in EXT_LANG]
+    else:
+        targets = iter_code_files(root, file_pattern)
+    known = dict(con.execute("SELECT path, mtime FROM files").fetchall())
+    seen: set[str] = set()
+    parsed = []  # (path, mtime, lang, symbols, imports)
+    for p, lang in targets:
         n_files += 1
         try:
             mtime = p.stat().st_mtime
         except OSError:
             continue
         rel = str(p)
-        row = con.execute("SELECT mtime FROM files WHERE path = ?", [rel]).fetchone()
-        if row and abs(row[0] - mtime) < 1e-6:
+        seen.add(rel)
+        old_mtime = known.get(rel)
+        if old_mtime is not None and abs(old_mtime - mtime) < 1e-6:
             continue  # unchanged
         try:
             src_text = p.read_text("utf8", "replace")
             src = src_text.encode("utf8")          # byte view for offset slicing
-            parser = get_parser(lang)
-            tree = parser.parse(src_text)
+            tree = get_parser(lang).parse(src_text)
             syms = extract_symbols(tree, src)
             imps = extract_imports(tree, src)
         except Exception as e:
             if not quiet:
                 sys.stderr.write(f"  skip {rel}: {e}\n")
             continue
-        if row:
-            # known file being reparsed -> record symbol-level changes
-            now = time.time()
-            old = {(n, k): s for n, k, s in con.execute(
-                "SELECT name, kind, signature FROM symbols WHERE path = ?", [rel]).fetchall()}
-            new = {(s[0], s[1]): s[5] for s in syms}
-            for (n, k) in new.keys() - old.keys():
-                con.execute("INSERT INTO history VALUES (?, ?, ?, ?, 'added')", [now, rel, n, k])
-            for (n, k) in old.keys() - new.keys():
-                con.execute("INSERT INTO history VALUES (?, ?, ?, ?, 'removed')", [now, rel, n, k])
-            for key in new.keys() & old.keys():
-                if old[key] != new[key]:
-                    con.execute("INSERT INTO history VALUES (?, ?, ?, ?, 'modified')",
-                                [now, rel, key[0], key[1]])
-        con.execute("DELETE FROM imports WHERE path = ?", [rel])
-        for (itext, iline) in imps:
-            con.execute("INSERT INTO imports VALUES (?, ?, ?)", [rel, itext, iline])
-        con.execute("DELETE FROM symbols WHERE path = ?", [rel])
-        for (name, kind, parent, sl, el, sig) in syms:
-            stext = tokenize(name, parent or "")
-            con.execute(
-                "INSERT INTO symbols VALUES (nextval('sym_id'), ?, ?, ?, ?, ?, ?, ?, ?)",
-                [rel, name, kind, parent, sl, el, sig, stext],
-            )
+        parsed.append((rel, mtime, lang, syms, imps))
+    # A full walk is the truth for this root: drop files it no longer yields (deleted, now
+    # ignored, or crawled from a worktree or quarantine copy by an older walker).
+    gone = [r for r in known if r not in seen] if files is None and not file_pattern else []
+    con.execute("BEGIN TRANSACTION")
+    try:
         con.execute(
-            "INSERT INTO files VALUES (?, ?, ?, ?) "
-            "ON CONFLICT (path) DO UPDATE SET mtime = excluded.mtime, "
-            "lang = excluded.lang, nsym = excluded.nsym",
-            [rel, mtime, lang, len(syms)],
+            "INSERT INTO meta VALUES ('root', ?), ('last_indexed', ?) "
+            "ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            [str(root), str(time.time())],
         )
-        n_changed += 1
+        reparsed = [rel for rel, *_ in parsed if rel in known]
+        if reparsed:
+            # known files being reparsed -> record symbol-level changes
+            con.execute("CREATE OR REPLACE TEMP TABLE _reparsed (path VARCHAR)")
+            bulk_insert(con, "_reparsed", {"path": "VARCHAR"}, [[r] for r in reparsed])
+            old_by_path: dict[str, dict] = {}
+            for path, n, k, s in con.execute(
+                    "SELECT s.path, s.name, s.kind, s.signature FROM symbols s "
+                    "JOIN _reparsed r USING (path)").fetchall():
+                old_by_path.setdefault(path, {})[(n, k)] = s
+            now = time.time()
+            hist = []
+            for rel, _, _, syms, _ in parsed:
+                if rel not in known:
+                    continue
+                old = old_by_path.get(rel, {})
+                new = {(s[0], s[1]): s[5] for s in syms}
+                hist += [[now, rel, n, k, "added"] for (n, k) in new.keys() - old.keys()]
+                hist += [[now, rel, n, k, "removed"] for (n, k) in old.keys() - new.keys()]
+                hist += [[now, rel, key[0], key[1], "modified"]
+                         for key in new.keys() & old.keys() if old[key] != new[key]]
+            bulk_insert(con, "history", {"ts": "DOUBLE", "path": "VARCHAR", "name": "VARCHAR",
+                                         "kind": "VARCHAR", "action": "VARCHAR"}, hist)
+        stale = [rel for rel, *_ in parsed] + gone
+        if stale:
+            con.execute("CREATE OR REPLACE TEMP TABLE _stale (path VARCHAR)")
+            bulk_insert(con, "_stale", {"path": "VARCHAR"}, [[r] for r in stale])
+            for table in ("symbols", "imports", "files"):
+                con.execute(f"DELETE FROM {table} WHERE path IN (SELECT path FROM _stale)")
+        bulk_insert(
+            con, "symbols",
+            {"path": "VARCHAR", "name": "VARCHAR", "kind": "VARCHAR", "parent": "VARCHAR",
+             "start_line": "INTEGER", "end_line": "INTEGER", "signature": "VARCHAR",
+             "search_text": "VARCHAR"},
+            [[rel, name, kind, parent, sl, el, sig, tokenize(name, parent or "")]
+             for rel, _, _, syms, _ in parsed for (name, kind, parent, sl, el, sig) in syms],
+            select="nextval('sym_id'), *",
+        )
+        bulk_insert(con, "imports", {"path": "VARCHAR", "module": "VARCHAR", "line": "INTEGER"},
+                    [[rel, itext, iline] for rel, _, _, _, imps in parsed for (itext, iline) in imps])
+        bulk_insert(con, "files",
+                    {"path": "VARCHAR", "mtime": "DOUBLE", "lang": "VARCHAR", "nsym": "INTEGER"},
+                    [[rel, mtime, lang, len(syms)] for rel, mtime, lang, syms, _ in parsed])
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    n_changed = len(parsed) + len(gone)
     if n_changed:
         # (re)build the BM25 full-text index over symbol name + signature
         con.execute(
@@ -485,7 +586,7 @@ def cmd_outline(args):
     fp = Path(args.file).resolve()
     root = fp.parent
     con = connect(db_for(root, args.db))
-    index_path(con, root, str(fp.name), quiet=True)
+    index_path(con, root, quiet=True, files=[fp])
     rows = con.execute(
         "SELECT kind, name, parent, start_line, signature FROM symbols "
         "WHERE path = ? ORDER BY start_line",
@@ -509,7 +610,7 @@ def cmd_unfold(args):
     fp = Path(args.file).resolve()
     root = fp.parent
     con = connect(db_for(root, args.db))
-    index_path(con, root, str(fp.name), quiet=True)
+    index_path(con, root, quiet=True, files=[fp])
     rows = con.execute(
         "SELECT start_line, end_line, kind, parent FROM symbols "
         "WHERE path = ? AND name = ? ORDER BY start_line",
@@ -933,7 +1034,10 @@ def cmd_imports(args):
     """List a file's imports, or find which files import a given module."""
     root = Path(args.path).resolve()
     con = connect(db_for(root, args.db))
-    index_path(con, root, None, quiet=True)
+    if args.file:
+        index_path(con, root, quiet=True, files=[Path(args.file).resolve()])
+    else:
+        index_path(con, root, None, quiet=True)
     if args.file:
         fp = str(Path(args.file).resolve())
         rows = con.execute(
