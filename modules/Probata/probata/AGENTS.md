@@ -96,66 +96,41 @@ and final verification. Trivial or inherently serial steps do not require artifi
 delegation, but agents must not avoid useful subagents merely because the current prompt did
 not repeat this authorization.
 
-## WHY THIS EXISTS — the knowledge-horizon mechanism
+## The horizon-delta analysis agent — downstream, and NOT an intake input
 
-**Read this before proposing anything about storage, retrieval, memory, agents, or
-schema. It is the point of the project, and it is counter-intuitive enough that
-designs which ignore it come out subtly wrong.** Full text:
-`docs/PROJECT_CANON.md` §1. Owner, 2026-08-01: *"this is the single most important
-aspect of this whole project."*
+> _Reframed 2026-09-26 (Claude Code · Opus 5) on owner correction. This section used to read
+> "read this before proposing anything about storage, retrieval, memory, agents or schema,"
+> and sessions duly applied it to intake and extraction work, where it does not belong. The
+> owner, 2026-09-26: it is "an agent driven by query-time analysis through Surreal that we
+> can't get to yet because you keep fucking up the intake and the ETL." Stop raising it during
+> intake, extraction, ELT, projection or schema work._
 
-The platform reconstructs **how a person realizes they were abused**, by running the
-same evidence past agents with **different knowledge horizons** and diffing them.
+**What it is.** A query-time analysis agent running over SurrealDB. It compares what was
+knowable at a point in time against what is known now, and the **delta is the deliverable** —
+"what you were led to believe vs what was true vs when you found out." Not a timeline.
 
-- **The ignorant agent** starts knowing nothing and walks forward, living events as
-  they were actually discovered. Its horizon **advances at each step** — this is a
-  walk over N horizons, not one query. Gaslighting works here, and only here.
-- **The hindsight agent** sees everything at once, including facts acquired years later.
-- **The delta between what those two agents experience IS the deceit, the manipulation,
-  and the gaslighting** — "what you were led to believe vs what was true vs when you
-  found out." That delta is the deliverable. Not a timeline; the delta.
+**Where it sits.** Downstream of everything. It is gated behind working intake and a working
+ETL, and it reads the analytical surface. It is not a store, a lane, a table or a destination,
+and it does not shape how data is extracted or committed.
 
-**A "pass" is a knowledge horizon — a retrieval filter bound to an agent, NOT a table,
-lane, or destination.** Owner, 2026-08-01: *"ultimately it's just a permissions thing,
-and which agents have hindsight."* How many passes exist is a workflow decision.
+**What intake actually owes it — dates, and nothing more.** Carry the temporal columns on the
+record and the agent does the rest at query time: `occurred_at` (when it happened),
+`knowledge_time` (when it became known), and `disclosure_tier` / `ai.disclosure_horizon`
+(`contemporaneous` / `hindsight` / `discovered`). Those columns already exist in the schema.
+Owner, 2026-09-26: "that's all in a query later. It just needs proper dates."
 
-Consequences that are easy to get wrong:
+**Two facts worth keeping for whoever builds the analysis layer** (they cost real debugging
+time and are not obvious):
 
-- **One authored spine, filtered per agent.** Do NOT design parallel AUTHORED as-lived /
-  hindsight or first-party/third-party stores. ADR-0045 §B sanctions version-pinned,
-  single-writer **DERIVED** materializations only. ADR-0059 adds separate derived
-  first-party and acquired-third-party message projections because their source clocks
-  and participant semantics differ. Preserve three concepts: `occurred_at` (event time),
-  `source_available_from` (occurrence for first-party; custody-backed acquisition for
-  acquired third-party), and zero-to-many realization links. The acquired conversation
-  keeps its actual sender/recipients/participants; the owner MUST NOT be invented as a
-  participant. Chunks/embeddings inherit the source boundary and remain derived.
-  `knowledge_time` remains row-write audit time, never a horizon predicate. ADR-0045
-  Decision C's as-built `working.normalized_record.disclosure_tier` TEXT+CHECK contract
-  remains for that evidence-spine table; horizon meaning is derived above normalized data.
-- **Healthy pause is resumable; terminal failure is not.** A healthy walk checkpoints
-  step/horizon, state+trace hashes, and belief/retrieval references, then resumes the same
-  identity only if its projection still reconciles exactly. Drift, revocation, mismatch,
-  or another terminal integrity failure seals an immutable non-resumable snapshot and
-  starts a new walk connected by an attested `rewalk_of` edge (ADR-0059).
-- **Extraction is not analysis.** Semantica may read everything; it forms no beliefs.
-  The horizon discipline belongs at the AGENT layer, never the extraction layer.
-- **Enforce the horizon as a PRE-filter in every store** — Postgres, Weaviate,
-  Graphiti, Neo4j. Vector search is the main leak: embeddings have no sense of time,
-  so a future document scores exactly as similar as a contemporaneous one. Filtering
-  after top-k silently shrinks k, sometimes to zero, with no error.
-  ⚠ **Weaviate-specific landmine (verified in agno 2.8.0 source, 2026-08-02;
-  re-verified 2.8.7, 2026-08-14 — STILL PRESENT at `weaviate.py:414-416`,
-  `:441-443`, `:883-884`):**
-  agno's Weaviate adapter SILENTLY DROPS `agno.filters` FilterExpr lists
-  (`log_warning` + `filters = None`) — only **dict filters**
-  (`{"domain": ..., "disclosure_tier": ...}`) are applied. A horizon filter
-  written as a FilterExpr passes tests on other vectordbs and applies ZERO
-  filters in prod. Dict filters only, always, on Weaviate.
-- **Contamination is silent.** One leaked future fact makes the ignorant agent merely
-  *smarter*; nothing fails and the delta is quietly worthless.
-- **Graphiti holds the ignorant agent's own accumulating belief state** as it walks —
-  it is not a filtered copy of the evidence.
+- **A horizon filter must be a PRE-filter in every store.** Vector search is the leak:
+  embeddings have no sense of time, so a later document scores as similar as a contemporaneous
+  one. Filtering after top-k silently shrinks k instead of excluding.
+- **On Weaviate, use dict filters, never a `FilterExpr`.** A FilterExpr passes tests on other
+  vector databases and applies **zero** filters in production.
+
+Contamination is silent either way — a leaked later fact does not raise an error, it just makes
+the analysis quietly worthless. That is a reason to get the filter right when the agent is
+built, not a reason to constrain extraction now.
 
 ## ATOMICITY — every unit must be assignable to a Temporal Activity
 
