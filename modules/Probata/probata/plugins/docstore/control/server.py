@@ -88,10 +88,47 @@ def build_server(config: Config, transport=None) -> FastMCP:
 
     # 0.8.1-r2 (Claude Code · Opus 5.5, 2026-09-26): a fixed 30 s budget turned a slow recall into a bare
     # "unavailable". The budget is DOCSTORE_API_TIMEOUT_S (default 55 s, under ContextForge's 60 s tool
-    # timeout), and a timeout, HTTP status or unreachable API is named. Upstream bodies are never echoed.
+    # timeout), and a timeout, HTTP status or unreachable API is named.
+    # 0.8.1-r5 (2026-09-27, owner: "the fact that it doesn't report the error also fixed"): an HTTP error
+    # carries the API's own JSON `detail` (validation errors, conflicting record ids) and is worded by kind:
+    # invalid, conflict, credentials, not found, too large, unavailable. Only 502/503/504, timeouts and
+    # unreachable APIs are "unavailable". Non-JSON bodies (proxy pages, tracebacks) are still not echoed.
     api_timeout = float(os.environ.get("DOCSTORE_API_TIMEOUT_S") or 55)
     if not 5 <= api_timeout <= 300:
         raise ValueError("DOCSTORE_API_TIMEOUT_S must be between 5 and 300 seconds")
+
+    def upstream_detail(response: httpx.Response, body: bytes) -> str:
+        if "json" not in response.headers.get("content-type", ""):
+            return ""
+        try:
+            detail = json.loads(body).get("detail")
+        except (ValueError, AttributeError):
+            return ""
+        if detail is None:
+            return ""
+        text = " ".join((detail if isinstance(detail, str)
+                         else json.dumps(detail, ensure_ascii=False, default=str)).split())
+        if config.token:
+            text = text.replace(config.token, "<redacted>")
+        return text[:4000]
+
+    def failure_message(status: int, detail: str) -> str:
+        said = f": {detail}" if detail else ""
+        if status in (400, 422):
+            return f"Docstore rejected the request as invalid (HTTP {status}){said}"
+        if status == 409:
+            return f"Docstore refused the request as a conflict (HTTP 409){said}"
+        if status in (401, 403):
+            return f"Docstore refused the ctl credentials (HTTP {status}){said}"
+        if status == 404:
+            return f"Docstore has no such operation or record (HTTP 404){said}"
+        if status == 413:
+            return f"Docstore request too large (HTTP 413){said}"
+        if status in (502, 503, 504):
+            return f"Docstore unavailable: the API answered HTTP {status}{said}; no filesystem fallback"
+        if 300 <= status < 400:
+            return f"Docstore unavailable: the API answered with a redirect (HTTP {status}), which is not followed"
+        return f"Docstore API error (HTTP {status}){said}"
 
     async def request(method: str, path: str, params=None, payload=None):
         headers = {"Authorization": f"Bearer {config.token}"} if config.token else {}
@@ -100,7 +137,14 @@ def build_server(config: Config, transport=None) -> FastMCP:
                                          follow_redirects=False, trust_env=False) as client:
                 async with client.stream(method, config.api_url.rstrip("/") + path,
                                          params=params, json=payload) as response:
-                    response.raise_for_status()
+                    if not response.is_success:
+                        body = bytearray()
+                        async for part in response.aiter_bytes():
+                            body.extend(part)
+                            if len(body) > 64 * 1024:
+                                break
+                        raise ToolError(failure_message(response.status_code,
+                                                        upstream_detail(response, bytes(body))))
                     data = bytearray()
                     async for part in response.aiter_bytes():
                         data.extend(part)
@@ -112,9 +156,6 @@ def build_server(config: Config, transport=None) -> FastMCP:
                     return value
         except httpx.TimeoutException:
             raise ToolError(f"Docstore unavailable: the API did not answer within {api_timeout:g} s; "
-                            "no filesystem fallback") from None
-        except httpx.HTTPStatusError as exc:
-            raise ToolError(f"Docstore unavailable: the API answered HTTP {exc.response.status_code}; "
                             "no filesystem fallback") from None
         except httpx.TransportError:
             raise ToolError("Docstore unavailable: the API could not be reached; no filesystem fallback") from None

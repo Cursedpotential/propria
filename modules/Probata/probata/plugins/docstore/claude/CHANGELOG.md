@@ -39,3 +39,13 @@ Claude-specific reliability repair for the remotely hosted deployment.
   from the mirror (hash-verified) by default; `--retract PROJECT/PATH` names one to retract; `--hold` / `--hold-file`
   keep the mirror's version. Docs that git does not track are flagged. Needs the server's 0.8.1-r3
   `docstore_source_read`. Record: Probata `docs/pending-review/2026-09-26-docstore-0.8.1-r2/`.
+
+## 0.8.3 — memory writes documented (2026-09-27, Claude Code · Opus 5.5)
+
+Owner, 10:01 EDT: "I want it fixed, and then I want the fact that it doesn't report the error also fixed. And then I want the fact that we have no idea how to write to it also fixed in the skill." Server side is Docstore 0.8.1-r5 (`docs/pending-review/2026-09-27-docstore-0.8.1-r5/`).
+
+- `skills/memory`: new "Write a memory" section with a worked `docstore_memory_remember` call, the field table, duplicate and supersession behaviour, and error meanings; recall usage.
+- `skills/memory/references/functions.md`: re-conformed to the live store (scope root `propria`, 0.20 duplicate cutoff, three-argument `fn::supersede_memory`).
+- `skills/docstore`: "Reading errors" table for every operation's failures.
+- `skills/recall`, `skills/docs-write`, `agents/memory-curator`: point to the write workflow; scope root `propria`.
+- `federation.py`: remote-memory recall used scope `probata`, which matched nothing after the 2026-09-19 root move and is now rejected; it uses `propria`.

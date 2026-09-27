@@ -3358,3 +3358,29 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
   → 302 → `auth.int` → 200, clean `base:`, zero mixed-content. Tailnet (`100.91.190.107:9077` direct)
   still answers 200 with no Authentik. Tracked Traefik copy re-confirmed byte-identical to live.
 - No Authentik provider change needed (same domain-wide-SSO precedent as fileflows).
+
+## 2026-09-27 10:25 EDT — Docstore memory writes fixed, errors report their reason, write schema documented (owner 10:01 EDT)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27 (subagent `docstore-memory-fix`). Receipt:
+> `modules/Probata/probata/docs/pending-review/2026-09-27-docstore-0.8.1-r5/README.md`._
+
+- **Root cause of "HTTP 409; unavailable":**
+  - The API demanded fields no caller knew and turned the `ValueError` into 409.
+  - The ctl dropped the body.
+  - Both layers defaulted to the retired `probata` scope, so recall always came back empty.
+  - Behind that, `fn::remember`'s vector guard had no distance cutoff and refused every write, and
+    `fn::supersede_memory` was called with 3 arguments but took 2.
+- **Fixed live:**
+  - Memory migration `scripts/docstore/schema/2026-09-27-memory-remember-guard.surql` (cosine cutoff 0.20).
+  - Server 0.8.1-r5, image `propria-docstore:0.8.1-r5`, 334 tests passing, Coolify service
+    `o8obobz576je1fbyygnywl83` via `POST /deploy`.
+  - Plugin `propria-docstore` 0.8.3 (memory skill "Write a memory", docstore skill "Reading errors").
+- **Proof through ctl:**
+  - owner rule written, `memory:z29uynwp9gdpj34m607t`, and read back by recall;
+  - paraphrase refused 409 naming that id;
+  - supersession works;
+  - invalid payloads list every bad field.
+  - Probe rows deleted; the store holds 17 rows.
+- [ ] **Open:** the docstore container is `unhealthy` because index sync run `5356f93f…` (2026-09-27 01:02 UTC) failed. That predates r5.
+- [ ] **Open:** `release_api.invoke` still maps a plain `ValueError` to 409 for upgrade, adr, knowledge and sources. It needs a per-operation audit to split 409 from 422.
+- [ ] **Owner call:** the root `plugins/docstore/` is a stale 0.6.3 snapshot that still documents raw `fn::remember` with a `probata` scope. (A) quarantine it, (B) replace it with the canonical tree, or (C) leave it.

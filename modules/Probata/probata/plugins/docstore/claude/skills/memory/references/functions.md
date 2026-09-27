@@ -1,10 +1,18 @@
 # memory — function reference
 
+> _Re-conformed to the live store 2026-09-27 (Claude Code · Opus 5.5)._
+
+Agents write and recall through ctl (`docstore_memory_remember`,
+`docstore_memory_recall`; see `../SKILL.md`), never by calling these
+functions directly. This page documents what the server runs.
+
 Source: `080_memory.surql` / `085_memory_functions.surql` /
-`087_memory_access.surql` (canonical copy: `probata/scripts/docstore/
-memory-schema-fallback/`, dated snapshot applied 2026-09-16 under
-`probata/scripts/docstore/schema/applied-2026-09-16-memory/`). Deployed
-and round-trip verified live 2026-09-16. Target store: `surreal-case` on
+`087_memory_access.surql` (dated snapshot applied 2026-09-16 under
+`probata/scripts/docstore/schema/applied-2026-09-16-memory/`), then the
+dated migrations `schema/2026-09-19-memory-root-propria.surql` (scope root
+`propria`) and `schema/2026-09-27-memory-remember-guard.surql` (duplicate
+cutoff, working supersession). Deployed and round-trip verified live
+2026-09-16; the 2026-09-27 write path verified live through ctl. Target store: `surreal-case` on
 the VPS, reached via the `memory` MCP server
 (`${MEMORY_MCP_URL:-http://100.91.190.107:8471/mcp}`), **namespace
 `probata_memory`, database `memory`** — the `.mcp.json` entry must send
@@ -15,8 +23,9 @@ their absence produced "Specify a namespace to use" on every call).
 
 ```
 fn::remember($payload: object) -> object
-  -- refused: { written: NONE, conflicts: array<object>, note: string }
-  -- ok:      { written: record<memory>, conflicts: [] }
+  -- refused:    { written: NONE, conflicts: array<object>, note: string }
+  -- ok:         { written: record<memory>, conflicts: [] }
+  -- supersede:  { written: record<memory>, superseded: record<memory>, conflicts: [] }
 ```
 
 `$payload` fields: `kind` (ASSERT `["correction","preference","observation",
@@ -26,21 +35,31 @@ ASSERT'd), `detail?`, `evidence?` (a plain string — doc id + source path,
 (default 0.6), `observed_at?`, `embedding?`, `force?`, `supersede?`,
 `reason?`.
 
-Runs a BM25 (`claim @@ $claim`) + vector (`<|5,40|>` literal KNN, only if
-`embedding` is supplied) conflict check against **active** claims in the
-same `scope` before writing. If conflicts exist and neither `force:true`
-nor `supersede:<id>` is set, the write is refused (soft return, not a
-throw) with the conflicting rows attached.
+Runs a BM25 (`claim @@ $claim`) + vector conflict check against **active**
+claims in the same `scope` before writing. The vector leg takes the 5
+nearest rows (`<|5,40|>`) and keeps only those within cosine distance
+**0.20** (computed as `1 - vector::similarity::cosine`). Before
+2026-09-27 there was no cutoff, so every write into a non-empty scope was
+refused. If conflicts exist and neither `force:true` nor
+`supersede:<id>` is set, the write is refused with the conflicting rows
+attached. The function returns this softly; the API turns it into HTTP 409.
+`supersede` may be a string (`"memory:abc"`); it is cast with
+`type::record`. The API embeds `claim` server-side and adds `embedding`.
 
 ## fn::supersede_memory
 
 ```
-fn::supersede_memory($old: record<memory>, $new_payload: object) -> object
-  -- { new: record<memory>, old: record<memory> }
+fn::supersede_memory($old: record<memory>, $new_payload: object, $reason: option<string>) -> object
+  -- { written: record<memory>, superseded: record<memory>, conflicts: [] }
 ```
 
-Creates the new row, `RELATE new->supersedes->old`, flips `old.status` to
-`"superseded"`.
+THROWs if `$old` does not exist or is not `active`. Creates the new row,
+`RELATE new->supersedes->old`, flips `old.status` to `"superseded"`, and
+writes a `memory_superseded` `decision_log` row carrying `$reason` (the
+status EVENT writes its own reason-less row too). Until 2026-09-27 it took
+two arguments while `fn::remember` passed three, so every supersede failed.
+The new claim text must differ from the old one: `UNIQUE(scope, claim)`
+covers every status.
 
 ## fn::forget
 
@@ -86,16 +105,18 @@ Point-in-time counts for `$scope` and its descendants.
 
 ## Scope
 
-Every `memory`/`episode` row's `scope` must match `^probata(/[a-z0-9_-]+)*$`
-— path form `probata/<domain>/<agent>`, e.g. `probata/docstore/librarian`.
+Every `memory`/`episode` row's `scope` must match `^propria(/[a-z0-9_-]+)*$`
+— path form `propria/<module>/<agent>`, e.g. `propria/intake` (root moved
+from `probata` on 2026-09-19).
 A `principal` row (agent identity) carries a `scope_prefix` grant; the
 prefix itself is enforced inside the `fn::` functions' `WHERE` clauses, not
 by `DEFINE ACCESS` alone.
 
 ## Gotchas
 
-1. **Typed optional/datetime args need the `$ql` sentinel, same as record
-   ids.** `fn::recall`'s `$vec` (`option<array<float>>`) and `fn::reflect`'s
+1. **Raw MCP calls only:** typed optional/datetime args need the `$ql`
+   sentinel, same as record ids. (ctl callers pass plain JSON; the API
+   handles it.) `fn::recall`'s `$vec` (`option<array<float>>`) and `fn::reflect`'s
    `$since` (`datetime`) both fail to coerce from bare JSON (`null`, a plain
    ISO string) over MCP `run` — reproduced live 2026-09-16. Pass
    `{"$ql": "NONE"}` for no vector and `{"$ql": "d'2026-01-01T00:00:00Z'"}`

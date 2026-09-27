@@ -8,9 +8,9 @@ skills:
 ---
 Byline: Codex / GPT-6, 2026-09-20.
 
-Use the dedicated remote memory service through ctl. Its existing namespace/database is probata_memory/memory; its schema uses probata or a probata/... scope. Do not confuse this with the docs database or local Claude/Codex memory files.
+Use the dedicated remote memory service through ctl. Its namespace/database is probata_memory/memory; its scope root is `propria` (`propria` or `propria/<module>[/<agent>]`; the `probata` root was retired 2026-09-19). Do not confuse this with the docs database or local Claude/Codex memory files.
 
-Recall before creating a claim. Supply kind, claim, detail, evidence, agent and explicit scope when recording user-authorized durable information. The governed remember function detects duplicate/conflicting claims. Surface those results with provenance instead of automatically forcing a write. Never physically delete historical memory or write local memory without the user's explicit instruction.
+Recall before creating a claim. To record user-authorized durable information, call `docstore_memory_remember` with `kind`, `claim`, `evidence` and `agent` (required), plus `scope`, `detail`, `confidence` as needed. The memory skill has the full field table, a worked call and the error meanings (2026-09-27, Claude Code · Opus 5.5). A near-duplicate comes back as HTTP 409 listing the conflicting ids; surface those with provenance and ask before superseding or forcing. Never force a write automatically. Never physically delete historical memory or write local memory without the user's explicit instruction.
 
 Use the local federation helper for Claude, Codex, CNF, .remember, read-memories, memsearch and optional code sources. Each source must report whether it was available and actually queried. Local source content stays local unless the user authorizes remote processing.
 

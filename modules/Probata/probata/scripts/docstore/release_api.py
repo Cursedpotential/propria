@@ -16,6 +16,10 @@ def register(app,auth):
     async def invoke(call):
         try:
             return await call
+        except remote_memory.MemoryFailure as exc:
+            # 0.8.1-r5 (Claude Code · Opus 5.5, 2026-09-27): memory failures keep their own status and detail
+            # (422 invalid payload, 409 near-duplicate with the conflicting ids, 502/503 memory service).
+            raise HTTPException(exc.status,exc.detail) from None
         except ValueError as exc:
             raise HTTPException(409,str(exc)) from None
 
