@@ -1,3 +1,4 @@
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-10: retry fixtures carry the NOT NULL workflow column)
 """Unit tests for the C0 operator-console run ledger.
 
 Two things under test, both DB-free (fake-engine doubles, same style as
@@ -1301,7 +1302,8 @@ def test_retry_404_unknown_run(run_routes_client, monkeypatch):
 @pytest.mark.parametrize("status", ["running", "paused", "completed"])
 def test_retry_409_when_not_failed(run_routes_client, monkeypatch, status):
     run_routes, client = run_routes_client
-    monkeypatch.setattr(run_routes, "get_run", lambda run_id: {"status": status})
+    # ops.workflow_run.workflow is NOT NULL, so every real run carries it.
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: {"status": status, "workflow": "chat-transcript"})
 
     resp = client.post("/v1/runs/run-1/retry")
     assert resp.status_code == 409
