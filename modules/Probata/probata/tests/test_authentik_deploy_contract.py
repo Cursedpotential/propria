@@ -149,22 +149,20 @@ class TestAuthentikProvider:
             assert all("0.0.0.0" not in str(binding) for binding in service.get("ports", []))
             assert "docker.sock" not in "\n".join(service.get("volumes", []))
 
-    def test_authentik_router_uses_traefik_only(self) -> None:
-        server = _load(AUTHENTIK_PATH)["services"]["authentik-server"]
-        labels = _labels(server)
-        assert "traefik.enable=true" in labels
-        assert "Host(`auth.int.mitechconsult.com`)" in labels
-        assert "entrypoints=https" in labels
-        assert "loadbalancer.server.port=9000" in labels
-        assert "basicauth" not in labels.lower()
-
-    def test_workbench_outpost_path_routes_to_embedded_outpost(self) -> None:
-        server = _load(AUTHENTIK_PATH)["services"]["authentik-server"]
-        labels = _labels(server)
-        assert "authentik-workbench-outpost.rule=Host(`workbench.int.mitechconsult.com`)" in labels
-        assert "PathPrefix(`/outpost.goauthentik.io/`)" in labels
-        assert "authentik-workbench-outpost.priority=15" in labels
-        assert "authentik-workbench-outpost.service=authentik" in labels
+    def test_no_docker_label_routing_or_fixed_edge_addresses(self) -> None:
+        # Since 2026-09-27 Traefik reaches Authentik only through svc:authentik, routed by the
+        # tracked Traefik file, so the socket peer is always the host's tailnet address. Docker
+        # labels would reach Authentik over a Docker network whose proxy address drifts, and the
+        # hand-made propria-edge network with pinned addresses is retired.
+        # Claude Code · Opus 5.5 · 2026-09-27.
+        compose = _load(AUTHENTIK_PATH)
+        for service in compose["services"].values():
+            assert "traefik." not in _labels(service)
+            networks = service.get("networks", [])
+            assert "propria-edge" not in networks
+            if isinstance(networks, dict):
+                assert all("ipv4_address" not in (cfg or {}) for cfg in networks.values())
+        assert "propria-edge" not in compose["networks"]
 
     def test_blueprint_pins_single_app_provider_and_embedded_outpost(self) -> None:
         text = AUTHENTIK_BLUEPRINT.read_text(encoding="utf-8")

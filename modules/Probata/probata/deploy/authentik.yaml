@@ -131,35 +131,11 @@ services:
       # Tailnet-only door for svc:authentik (see header). Fail-closed to loopback if
       # BIND_IP is unset, like every other ovh-app service.
       - "${BIND_IP:-127.0.0.1}:9075:9000"
-    # TRANSITION (2026-09-26, removed in the next commit once the svc:authentik path is
-    # proven): the labels and the propria-edge address below keep the old route alive.
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=propria-edge
-      - traefik.http.routers.authentik.rule=Host(`auth.int.mitechconsult.com`)
-      - traefik.http.routers.authentik.entrypoints=https
-      - traefik.http.routers.authentik.tls=true
-      - traefik.http.routers.authentik.tls.certresolver=letsencrypt
-      - traefik.http.routers.authentik.service=authentik
-      - traefik.http.services.authentik.loadbalancer.server.port=9000
-      # Single-application forward auth requires the outpost path on the
-      # protected application's host to resolve to the embedded outpost.
-      - traefik.http.routers.authentik-workbench-outpost.rule=Host(`workbench.int.mitechconsult.com`) && PathPrefix(`/outpost.goauthentik.io/`)
-      # Paired with the Workbench router's explicit priority 10. The callback
-      # path must win and route directly to the embedded outpost.
-      - traefik.http.routers.authentik-workbench-outpost.priority=15
-      - traefik.http.routers.authentik-workbench-outpost.entrypoints=https
-      - traefik.http.routers.authentik-workbench-outpost.tls=true
-      - traefik.http.routers.authentik-workbench-outpost.tls.certresolver=letsencrypt
-      - traefik.http.routers.authentik-workbench-outpost.service=authentik
+    # No Traefik docker labels: auth.int.mitechconsult.com and the domain forward-auth are
+    # routed by the tracked Traefik file through svc:authentik (see header), so Traefik never
+    # reaches Authentik over a Docker network whose proxy address can drift.
     networks:
-      probata: {}
-      # Fixed address on the hand-made edge network shared only with coolify-proxy
-      # (10.201.0.2). TRAEFIK_PROXY_CIDR and the forward-auth URL in
-      # /data/coolify/proxy/dynamic/propria-public-portal.yaml point at these two
-      # addresses, so a proxy restart or redeploy no longer moves them (2026-09-21).
-      propria-edge:
-        ipv4_address: 10.201.0.3
+      - probata
 
   authentik-worker:
     <<: *authentik-image
@@ -182,6 +158,4 @@ services:
 
 networks:
   probata:
-    external: true
-  propria-edge:
     external: true
