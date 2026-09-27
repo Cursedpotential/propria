@@ -48,13 +48,13 @@ import hashlib
 import json
 import logging
 import time
-import uuid
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, TypeVar
 
 from sqlalchemy import create_engine, text
+from uuid6 import uuid7
 
 from server.evidence.custody import ArtifactRef
 from server.contracts.records import NormalizedRecord, NormalizedRecordChunk
@@ -428,7 +428,10 @@ def store_record_batch(
                     "first_party message parties are unresolved before persistence: every message needs an actual "
                     f"sender and at least one counterparty (record indexes: {unresolved})"
                 )
-    record_ids = [str(uuid.uuid4()) for _ in records]
+    # working.normalized_record.id defaults to PG18's native uuidv7(); mint the same
+    # shape here because this id is needed before the INSERT (it is also handed to
+    # write_message_projections below, which copies it verbatim into working.message.id).
+    record_ids = [str(uuid7()) for _ in records]
     rows = [
         {
             "id": record_ids[index],
