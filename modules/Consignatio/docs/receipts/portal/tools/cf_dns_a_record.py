@@ -35,7 +35,7 @@ def _call(method: str, path: str, body: dict | None = None) -> dict:
         data=json.dumps(body).encode() if body is not None else None,
         method=method,
         headers={"Authorization": "Bearer " + _token(), "Content-Type": "application/json",
-                 "User-Agent": "propria-edge/1.0"},
+                 "User-Agent": "propria-portal-tools/1.0"},
     )
     try:
         return json.load(urllib.request.urlopen(request, timeout=30))
