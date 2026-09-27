@@ -2905,3 +2905,42 @@ desktop tile, LibreChat pending its URLs.
   `*.tilapia-skilift.ts.net` URLs, so "Open app" in "Surfaces needing attention" leads to tailnet
   names on the public portal too; Homepage's block display shows four fields, so the Health probes
   card never shows its p95 mapping.
+
+## 2026-09-26 23:30 – 2026-09-27 00:45 EDT — public-portal edge: Traefik reaches Authentik through `svc:authentik`, the Workbench through one tailnet door; `propria-edge` retired (owner 22:52 "Nothing is supposed to be created that way. Ever." · 23:05 "Fucking fix it." · 23:07 · 23:08 · 23:25)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27 (edge lane)_
+
+- **Why:** the 09-26 13:48 UTC recreate of `coolify-proxy` dropped its hand attachment to the hand-made `propria-edge` network (10.201.0.0/29), so the public portal was dark until a runtime `docker network connect` at 03:05 UTC. Coolify 4.1.2 rebuilds the proxy from its DB with the `coolify` network only and has no proxy API.
+- **Measured on ovh-app** (the socket peer each backend logs):
+  - Traefik → `100.72.169.40:<published port>` is masqueraded to the target's bridge gateway (platform-api logged `192.168.112.1`). If the target maps through the proxy's own default-route network there is no masquerade and the peer is the proxy's drifting address; that was Authentik's case (its app network `ak206…` is the proxy's default route).
+  - Traefik → a Tailscale Service VIP → Serve → `100.72.169.40:<port>` arrives as `100.72.169.40`, whatever the container IPs. The proxy can reach VIPs its own node advertises.
+  - Serve's HTTP proxy overwrites `X-Forwarded-Host`/`-For`: forward-auth through `https://authentik.tilapia-skilift.ts.net` answered 404 (Authentik logged `host=authentik.tilapia-skilift.ts.net`); through the raw TCP port it answered 302 to the `homepage.int` callback.
+- **Authentik (done):**
+  - It publishes `100.72.169.40:9075` (tailnet only; registry code 75).
+  - `svc:authentik` (VIP `100.66.241.25`, untagged like `svc:coolify`, ovh-app approved) carries two ports: `tcp:443` is the owner's tailnet admin door, `https://authentik.tilapia-skilift.ts.net`; `tcp:9075` is a raw TCP forwarder that is Traefik's hop. Tracked apply script: Probata `deploy/tailscale/authentik-serve.sh`. A `set-config` file cannot express an HTTPS listener in front of an HTTP backend on tailscale 1.102.2 (measured).
+  - Coolify env `TRAEFIK_PROXY_CIDR=100.72.169.40/32` (was `10.201.0.2/32`), plus `BIND_IP=100.72.169.40`.
+  - Traefik file: forward-auth and `authentik-internal` → `http://100.66.241.25:9075`; `auth.int` is now the file router `authentik-public`. No docker labels, no `propria-edge`.
+  - Deploys `flc42p34jmjnfguw18qrdt44` (transition, old path kept) and `iaeqizc4aw5zdcqomy1uzpdw` (final). File switched 04:08:36Z (backup `.bak-20260927T040836Z-pre-svc-authentik`).
+- **Workbench (done; parent/owner pick A):**
+  - It publishes `100.72.169.40:9071` (probata portal code 71) through the compose-declared network `workbench-publish` (`10.201.8.0/29`, `gw_priority: 1`). Traefik's hop is masqueraded to that network's declared gateway, measured `10.201.8.1` → `TRAEFIK_PROXY_CIDR=10.201.8.1/32`.
+  - `svc:workbench` Serve was re-pointed from `127.0.0.1:18080` to the same port with `AcceptAppCaps` kept (tracked `deploy/tailscale/workbench-serve.sh`). Its peer is `100.72.169.40` → `WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS=100.72.169.40/32`.
+  - Proven: from the proxy, `/tools` is refused as "Missing or invalid Authentik identity" (trusted proxy); from the host, as "Untrusted proxy".
+  - Deploy `k10cez6pnwa4fjr4h8gmpnlv`; Traefik `workbench-svc` switched 04:27:23Z (backup `.bak-20260927T042723Z-pre-workbench-9071`). Dead env `GRAPHITI_MCP_URL` deleted (both rows).
+  - `probata: {}` is now really joined: Coolify 4.1.2 silently drops null-valued network entries, which is why the Workbench was not on `probata` although its manifest said so.
+  - **Accepted cost:** another container on ovh-app that dials `100.72.169.40:9071` is also masqueraded to `10.201.8.1` and could assert an Authentik identity. Tailnet clients keep their own `100.x` peer and cannot. [ ] Long-term fix: the Workbench verifies Authentik's signed `X-authentik-jwt` (app change).
+- **Short name:** `authentik.mitechconsult.com` joined the tailnet short names (applied 04:31:56Z). Cloudflare DNS-only `A` → `40.160.5.19`. From a tailnet device with strict TLS: 302 to the ts.net name, then 200 on the Authentik flow.
+- **Proof** (logged out, following redirects, from this desktop as an external vantage):
+  - 20/20 `*.int` routes end 200 on the Authentik flow with `api.base https://auth.int.mitechconsult.com/` and no `http://` URLs to our domain. Taken after each step and after the recreate.
+  - Headless Chrome in the ovh-files devbox (`tools/shoot_edge.sh`, committed runner): `auth.int`, `workbench.int`, `homepage.int` and the tailnet admin door render the Authentik login with 0 console errors, before and after the recreate.
+  - The Workbench watch (`tools/watch_workbench.sh`) ran 04:30–04:41Z: 21/21 OK, `restarts=0`, tailnet 200, public on the Authentik flow.
+- **Survival test** (`tools/proxy_recreate_test.sh`):
+  - 04:42:02Z: `docker compose up -d --force-recreate --wait` from `/data/coolify/proxy`. The proxy came back on `coolify` only, exactly like 13:48. All 20 routes, both tailnet doors and both peer checks passed at once.
+  - Only `mcp.mitechconsult.com` (ContextForge's docker-label route) timed out until 04:43:49Z. Then Coolify's own reconnect step, emulated because 4.1.2 has no proxy API, reattached its 17 app networks and refused `propria-edge`. `mcp` returned 303, and the probes were 20/20 again.
+- **Retired:** `propria-edge` is gone from both composes, the Traefik file and the proxy. The network itself is left in place with 0 containers (not deleted).
+- **Commits on main:** `9bfecd5d` `8a0c2495` `f60f1fe8` `b88fc2d7`, plus the tools `0a7db31a` `7149f0a7` `29e95072` `f388bb0a` `d4c26cf9` `12b01697` `f1a8ed8b`. The tracked Traefik copies reached main through the devbox and LibreChat lanes' commits (`d8221719`, `e6694df5`), which carried these lines byte-identical to live.
+- **Not verified (needs the owner):** a real login through `auth.int` and each app afterwards; the Workbench receiving `X-authentik-*` after login; Authentik admin sign-in on the tailnet door; Coolify's own UI proxy restart; Serve surviving a tailscaled/host restart.
+- **Seen, not fixed (other lanes):**
+  - Six contract tests fail on origin/main before and after this change (`test_tsnet_deploy_contract` ×5 since `194a3603`, `test_proffer_deploy_contract` ×1).
+  - Docker-label forward-auth middlewares in `fileflows`, `openlist`, `opencode-server` and `family-court-console` dial `http://authentik-server:9000` over a Docker network whose proxy address Authentik does not trust. They 404 if those label routes are ever used; that was already true before tonight.
+  - `octopedia.int.mitechconsult.com` is set on octopoda in Coolify with no DNS record, so Let's Encrypt answers 429 in the proxy log.
+  - [ ] Option for the owner: a tsnet in-container listener would put `svc:authentik` inside the tracked compose and let it move with the container. It is not proven: it needs a raw-TCP mode (tsnet-front is an HTTP proxy) and an auth-key file, and tsnet-front crash-looped without one today.
