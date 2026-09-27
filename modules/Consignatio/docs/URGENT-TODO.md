@@ -335,12 +335,15 @@ Queued owner requests. Append new items; strike through completed ones with a da
 5. `V:\hash-ledger\` — the local SHA ledger mirror (input to 1; flattened copy is in 2).
 6. Docstore handoffs — summaries only.
 7. `casebible/r2-b2-migration-codex/STATUS-*.md`, coordination specs — historical; superseded by 1–3.
-- **Next (owner sign-off, billable upload):** publish the catalog tables + `corrupt_missing.csv` as dated CSV/Parquet under `b2:salem-data/consignatio/_system/lake/` next to the payloads (~215 MB server-side from PG, no laptop bytes) so 1 and 2 travel with the data; then 4/5/7 are inputs only and Intake reads 1. Dry-run first, per the transfer rule.
+8. **B2 `salem-data/consignatio/_system/lake/<date>/`**: the published Parquet copy of 1, beside `corrupt_missing.csv`, `schema.json` and `manifest.csv`.
+   - `_system/lake/LATEST` names the current date; every object is recorded in `raw_duck.lake_publish_<date>`.
+   - First publish: 2026-09-27 (see that entry).
+- **Next (owner sign-off, billable upload):** publish the catalog tables + `corrupt_missing.csv` as dated CSV/Parquet under `b2:salem-data/consignatio/_system/lake/` next to the payloads (~215 MB server-side from PG, no laptop bytes) so 1 and 2 travel with the data; then 4/5/7 are inputs only and Intake reads 1. Dry-run first, per the transfer rule. **Done 2026-09-27:** 1.52 GB rather than ~215 MB, because the set now includes the vault lineage, message and reconciliation tables (see that entry).
 
 **Open**
 - [ ] Apply `docs/ops/docstore-handoff-write-fix-2026-09-15.surql` live + land it in `090_docs_api.surql` (classifier-blocked here); update the handoff skill docs in the same change.
 - [ ] Commit by explicit path: `casebible/tools/`, `docs/URGENT-TODO.md`, `docs/receipts/` (trackable files), `docs/ops/docstore-handoff-write-fix-2026-09-15.surql`, `.gitignore`, the three repointed docs.
-- [ ] Lake publish (`_system/lake/`) — dry-run + owner GO.
+- [x] ~~Lake publish (`_system/lake/`) — dry-run + owner GO.~~ **Done 2026-09-27** on the owner's 00:09/00:14 EDT order (see that entry).
 - [ ] Junk-filtered recount of the 871 "missing" files (some are `flet_env` venv DLLs in the R2 quarantine bucket).
 - [ ] Owner asked 00:25 whether an agent changed mouse/window-focus settings: read-only check shows Windows focus-follows-mouse (`UserPreferencesMask` bit 0) is ON with `ActiveWndTrkTimeout` 100 ms; nothing this session ran touches settings; when it was switched is not recorded in the registry. One-liner to turn it off given in chat.
 
@@ -2945,3 +2948,45 @@ desktop tile, LibreChat pending its URLs.
   - Docker-label forward-auth middlewares in `fileflows`, `openlist`, `opencode-server` and `family-court-console` dial `http://authentik-server:9000` over a Docker network whose proxy address Authentik does not trust. They 404 if those label routes are ever used; that was already true before tonight.
   - `octopedia.int.mitechconsult.com` is set on octopoda in Coolify with no DNS record, so Let's Encrypt answers 429 in the proxy log.
   - [ ] Option for the owner: a tsnet in-container listener would put `svc:authentik` inside the tracked compose and let it move with the container. It is not proven: it needs a raw-TCP mode (tsnet-front is an HTTP proxy) and an auth-key file, and tsnet-front crash-looped without one today.
+
+## 2026-09-27 00:37–00:57 EDT — lakehouse published: the catalog on B2 as Parquet
+
+> _Byline: Claude Code · Fable 5.1 (supervisor); publish by agent `lake-publish-20260927` (Claude Code · Opus 5.5) · 2026-09-27._
+> Owner 00:09 EDT: "B2 is the canonical home, and that's where the index is supposed to be. That's what's supposed to be cataloged. That's what's supposed to be the lakehouse."
+> Owner 00:14 EDT: "Finish creating the lakehouse."
+
+**Changed**
+- **B2:** 102 `raw_duck` tables as Parquet (zstd) in `salem-data/consignatio/_system/lake/2026-09-27/`.
+  - Beside them: `corrupt_missing.csv`, `schema.json` and `manifest.csv`.
+  - `_system/lake/LATEST` contains `2026-09-27`.
+  - Totals: 106 objects, 1,523,156,098 bytes, 19,417,723 table rows.
+  - Add-only (`rclone --immutable`); nothing that existed on B2 was touched.
+- **Catalog:** new table `raw_duck.lake_publish_20260927`, 106 rows (object, rows, bytes, B2 key, sha256, published_at, status). `metabase_ro` can read it.
+- **Script:** `casebible/tools/lake_publish_20260927.sh` with `.sql` (the catalog table) and `.tables.txt` (the table list with each decision and reason).
+  - Run directory: ovh-files `/data/consignatio/lake-publish-20260927/`.
+  - The export is pg_duckdb 1.1.0 inside `casebible-pg18`, one thread. The upload uses the ovh-files remote `b2native-full:`; there is no `b2:` remote on that host.
+- **Receipt:** `docs/receipts/lake-publish-20260927/README.md` (per-table rows, bytes and sha256). Its CSV copy is at ovh-files `/data/consignatio/receipts/lake-publish-20260927/manifest.csv`.
+- **Probata `docs/planning/2026-09-27-TODO.md` #4:** Evidence.dev's lake path corrected to `b2:salem-data/consignatio/_system/lake/`.
+
+**Verified**
+- Export: PG count = Parquet count = PG count after, for all 108 tables exported. 102 published; 6 excluded afterwards.
+- Upload check: `rclone check` by SHA-1 found 104 of 104 matching, and by size 104 of 104, with 0 differences.
+- Readback from B2: sha256 matched for 104 of 104 objects, and Parquet rows equal PG rows for all 102 tables (19,417,723 rows).
+- Catalog vs B2: all 106 catalog keys exist on B2 with the same size.
+- S3 API: all 106 objects read over it (the path DuckDB and Evidence.dev use; `s3.us-west-004`, key `B2_KEY_ID`), 106 of 106 matching on sha256 and size.
+
+**Decided** (by the supervising session, answering the owner's 00:14 order)
+- **Published groups:**
+  - current catalog, lineage and bridge tables;
+  - the message catalog;
+  - Codex 09-20 recovery facts, the tree graph and `enrichment`;
+  - twins result tables, tagged `historical_analysis_stale_tree`;
+  - `reconcile_*_20260920` (9 tables, tagged `reconciliation_20260920`);
+  - `vault_occ_v1`, tagged `route_a_20260918`.
+- **Excluded:** 6 tables, and 73 that were never candidates (scratch, plan versions, superseded listings, staging); the receipt lists them all.
+- **Cost:** about $0.011 a month at $6.95/TB-month.
+
+**Open**
+- [ ] **Owner: local staging on ovh-files.** `/data/consignatio/lake-publish-20260927/` holds the published bytes (1.5 GB), the readback copies (1.5 GB) and the excluded exports (200 MB). Delete them or keep `2026-09-27/` as a local mirror; the guard blocks agent deletes.
+- [ ] **Evidence.dev (Probata 09-27 #4)** reads `LATEST` and then the dated folder. It needs a read-only S3 key; whether `B2_KEY_ID` is read-only was not checked. The DuckDB httpfs read itself has not run anywhere yet.
+- [ ] **Refresh:** the next publish writes a new dated folder and rewrites `LATEST`, the first change to an existing lake object. The owner picks the cadence.

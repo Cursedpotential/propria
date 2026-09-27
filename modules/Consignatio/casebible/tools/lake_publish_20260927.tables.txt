@@ -1,0 +1,109 @@
+table_name	decision	status	reason
+source_occurrences	publish	current	occurrence truth: every source x scope x path x disposition x B2 key (09-14; 09-18 audit authority for names, paths, dates, native hashes)
+b2_content	publish	bridge	(md5,size) -> b2_key for every payload on B2 on 09-14; keys are in the intake area emptied 09-16, used as the md5 -> key -> sha1 bridge (09-15 plan set)
+b2_objects	publish	bridge	09-14 B2 listing with sha1; stale as a listing (09-18 audit) but the md5/key -> sha1 bridge to vault_objects_20260916_r4 (09-15 plan set)
+graded_selection	publish	current	owner-settled grading 09-13 (oldest real date, most metadata; ties kept)
+graded_carriers	publish	bridge	carrier keys chosen by the grading (09-15 plan set, graded_carriers_keys.tsv)
+corrupt_recovery	publish	current	zero-filled corrupt vs recovered per occurrence (09-15 map)
+integrity_hold	publish	current	zero-fill detector hold list (09-18 audit state table; frozen by Codex 09-20)
+atomic_units	publish	current	atomic export/container units (09-15 map)
+atomic_unit_members	publish	current	membership of the atomic units
+export_units_v1	publish	current	source-level export units, only revision (Codex 09-20 preserved as package metadata)
+export_unit_members_v1	publish	current	export unit membership (499,712 occurrences)
+export_unit_folds_v1	publish	current	export unit folds
+vault_objects_20260916_r4	publish	current	live vault/v1 listing (key,size,sha1), newest rN; current = r4 minus vault_onecopy_pilot_delete_20260916 minus vault_moves_20260924
+vault_onecopy_pilot_delete_20260916	publish	lineage	49 vault keys deleted after r4 was listed
+vault_moves_20260924	publish	lineage	19 superseded SMS backups moved 09-24 from vault keys to intake/_quarantine/superseded-sms-backups/v1/
+vault_keep_v7	publish	lineage	canonical_key -> the one kept vault path (09-16 dedupe)
+vault_delete_v7	publish	lineage	every vault path deleted 09-16 with canonical_key; join vault_keep_v7 for deleted -> kept
+vault_onecopy_extra_20260916	publish	lineage	remaining extra copies with kept_key
+intake_delete_20260916	publish	lineage	intake-area objects deleted 09-16, with dest keys
+intake_moved_delete_20260916	publish	lineage	intake-area move-then-delete round 1
+intake_moved_delete_20260916_r2	publish	lineage	intake-area move-then-delete round 2
+intake_moved_delete_20260916_r3	publish	lineage	intake-area move-then-delete round 3
+vault_move_rest_20260916	publish	lineage	move-rest round 1 (intake -> vault)
+vault_move_rest_20260916_r2	publish	lineage	move-rest round 2
+vault_move_rest_20260916_r3	publish	lineage	move-rest round 3
+vault_index_source_20260918	publish	current	one row per current vault object + all its occurrences (the super index's catalog source, run 09-22); built on route B = intake_catalog_fs_20260917.vault_key (one key per occurrence), so extra copies of a content show occurrence_count 0
+intake_catalog_fs_20260917	publish	current	occurrence -> resolved current vault key (hosted Intake engine catalog:// tree)
+intake_catalog_dirs_20260917	publish	current	directories of the catalog:// tree
+intake_fs_ops_20260917	publish	current	overlay of Intake file operations
+ai_chat_probe_20260918	publish	current	AI-chat candidate objects over the current vault truth
+comm_events_20260918	publish	current	message/call/AI-chat events (renamed from chat_events 09-24; record_kind)
+comm_event_provenance_20260918	publish	current	event -> source file/row provenance
+comm_candidates_20260918	publish	current	communication file candidates
+comm_dir_files_20260918	publish	current	files in communication directories
+comm_directories_20260918	publish	current	communication directories
+msg_conversation_registry_20260924	publish	current	conversation registry (was chat_conversation_registry_20260924)
+msg_norm_20260924	publish	current	normalized messages with people, one row per rendering
+msg_files_20260924	publish	current	source-file citation for every normalized message
+msg_bouts_20260924	publish	current	day bouts per conversation
+msg_bout_messages_20260924	publish	current	bout -> message membership
+msg_bout_labels_20260924	publish	current	bout label passes bout-tone-v1 (Opus) and bout-q-v1 (Jev), 645 bouts each
+msg_identity_20260924	publish	current	identity/number table (confirmed numbers per person, with basis)
+msg_export_files_20260924	publish	current	message export files
+msg_extract_attempts_20260924	publish	current	extraction attempts (a1..a7) staged in the catalog
+msg_extract_rows_20260924	publish	current	extracted message rows per attempt
+msg_extract_lineage_20260924	publish	current	extraction lineage per file
+msg_extract_warnings_20260924	publish	current	extraction warnings (no_reader etc.)
+msg_corroboration_20260924	publish	current	cross-device corroboration links
+msg_cross_device_gaps_20260924	publish	current	messages on one device and not the other
+msg_matt_lines_on_her_phone_20260924	publish	current	Matt's lines found on her phone
+sms_backup_coverage_20260924	publish	current	SMS backup containment (covered_by_newer / keeper / unique)
+sms_backup_headcheck_20260924	publish	current	SMS backup header count vs parsed rows
+sms_vanished_messages_20260924	publish	current	texts deleted from the phone between backups
+catalog_renames_20260924	publish	current	old -> new names of the 09-24 chat_* -> msg_*/comm_* rename
+backup_manifests_20260920	publish	current	Codex 09-20 backup manifests (not reconcile_*)
+backup_message_records_20260920	publish	current	Codex 09-20 exact message fingerprints
+backup_message_occurrences_20260920	publish	current	Codex 09-20 message occurrences
+backup_containment_20260920	publish	current	Codex 09-20 backup containment comparisons
+missing_message_payloads_20260920	publish	current	missing-payload register (16 rows)
+recovered_artifacts_20260920	publish	current	Codex 09-20 verified recovered artifacts
+recovered_occurrences_20260920	publish	current	Codex 09-20 recovered occurrence items
+r2_candidate_preservation_20260920	publish	current	Codex 09-20 R2 TXT/XML candidates mapped to B2
+recovery_holds_20260920	publish	current	Codex 09-20 recovery holds
+evidence_quality_20260920	publish	current	Codex 09-20 evidence quality assessments
+analysis_preservation_20260920	publish	current	Codex 09-20 analysis preservation records
+recovery_dump_files_20260916	publish	current	recovery dump listing (40,304)
+recovery_integrity_20260916	publish	current	recovery dump integrity scan results
+enrichment	publish	model_inferred	model-inferred doc type/parties/relevance (15,106)
+tg_nodes	publish	current	tree graph nodes (tg_files = r4 count)
+tg_dirs	publish	current	tree graph dirs
+tg_files	publish	current	tree graph files (508,201 = vault_objects_20260916_r4)
+tg_node_content	publish	current	tree graph node content
+tg_edge_contains	publish	current	tree graph edges
+tg_edge_home	publish	current	tree graph edges
+tg_edge_overlap	publish	current	tree graph edges
+vault_units_v2	publish	plan_era	711 vault units (Codex 09-20 preserved); unit_root values are source-relative (09-17 14:50 blocker)
+dir_manifests	publish	historical_analysis_stale_tree	09-14 dir-twin analysis of B2 dirs emptied 09-16 (09-15 map lists dir twins)
+dir_identical_groups	publish	historical_analysis_stale_tree	09-14 dir-twin analysis
+dir_twin_groups	publish	historical_analysis_stale_tree	09-14 dir-twin analysis
+dir_samename_overlap	publish	historical_analysis_stale_tree	09-14 dir-twin analysis
+vault_twins_pairs	publish	historical_analysis_stale_tree	09-16 twins over the pre-dedupe vault_objects (memory vault-v1-current-listing: STALE)
+vault_twins_overlap	publish	historical_analysis_stale_tree	same lane
+vault_twins_groups	publish	historical_analysis_stale_tree	same lane
+vault_twins_group_summary	publish	historical_analysis_stale_tree	same lane
+vault_twins_unit_safety	publish	historical_analysis_stale_tree	same lane
+vault_twins_merge_plan	publish	historical_analysis_stale_tree	same lane
+vault_twins_merge_plan_groups	publish	historical_analysis_stale_tree	same lane
+vault_twins_rehome	publish	historical_analysis_stale_tree	same lane
+vault_twins_quarantine_roots	publish	historical_analysis_stale_tree	same lane
+vault_twins_copy_manifest_b1	publish	historical_analysis_stale_tree	same lane
+vault_twins_dirs	publish	historical_analysis_stale_tree	same lane
+vault_unit_roots	publish	historical_analysis_stale_tree	same lane (memory marks stale)
+vault_twins_dir_files	exclude	historical_analysis_stale_tree	bulk intermediate of the twins lane (5.69M rows)
+vault_twins_group_files	exclude	historical_analysis_stale_tree	bulk intermediate of the twins lane (1.81M rows)
+vault_occ_v1	publish	route_a_20260918	route A occurrence link (09-18 23:00): md5+size -> canonical_key; join vault_keep_v7 on canonical_key for the kept vault key (dest_key, as of the 09-16 dedupe). vault_index_source_20260918 is built on route B and does NOT supersede it
+recovery_manifest_20260917	exclude	plan	recovery sorting manifest, analysis only (materialization needed a separate GO)
+r2_files	exclude	scratch_listing	R2 listing 08-30 (09-18 audit: unlabeled scratch); R2 catalog is reconcile_r2_occurrences_20260920
+source_mount_candidates	exclude	analysis	09-13 source mount candidate analysis
+intake_versions_differ_20260916	exclude	analysis	6 intake objects whose versions differed during the 09-16 cleanup
+reconcile_objects_20260920	publish	reconciliation_20260920	Codex 09-20 reconciliation generation: B2 object versions observed 09-20 (all versions, visible + hidden): the newest B2 inventory
+reconcile_occurrences_20260920	publish	reconciliation_20260920	Codex 09-20 reconciliation generation: per source occurrence: availability against the 09-20 B2 versions (visible_exact_path / historical_exact / ...)
+reconcile_r2_occurrences_20260920	publish	reconciliation_20260920	Codex 09-20 reconciliation generation: R2 catalog occurrences (1,279,556) linked to B2 by recorded md5/sha1 bridge or version id
+reconcile_packages_20260920	publish	reconciliation_20260920	Codex 09-20 reconciliation generation: package records (atomic, export, vault units) preserved by the 09-20 generation
+reconcile_work_items_20260920	publish	reconciliation_20260920	Codex 09-20 reconciliation generation: item-level recovery worklist (146,246 tasks)
+reconcile_native_exports_20260920	publish	reconciliation_20260920	Codex 09-20 reconciliation generation: Google native source ids -> Office/PDF export representations (1,560)
+reconcile_bas_candidates_20260920	publish	reconciliation_20260920	Codex 09-20 reconciliation generation: provisional best-available-source candidates
+reconcile_generations_20260920	publish	reconciliation_20260920	Codex 09-20 reconciliation generation: the published reconciliation generation(s)
+reconcile_source_observations_20260920	publish	reconciliation_20260920	Codex 09-20 reconciliation generation: live Google source observations (probe)
