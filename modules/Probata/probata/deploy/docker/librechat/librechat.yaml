@@ -41,22 +41,28 @@ mcpSettings:
   allowedAddresses:
     - "contextforge.tilapia-skilift.ts.net:443"
 
+# requiresOAuth: false on every entry: without it, v0.8.7 probes each URL WITHOUT the configured
+# headers at startup, ContextForge answers 401 with a Bearer challenge, and LibreChat marks the
+# server OAuth-only and lists 0 tools (seen on the first boot, 2026-09-27 04:27 UTC).
 mcpServers:
   agent-memory:
     type: streamable-http
     url: "https://contextforge.tilapia-skilift.ts.net/servers/a14b17330a3d432e8eb1a87369b8af8c/mcp"
     headers:
       Authorization: "Bearer ${CONTEXTFORGE_MCP_TOKEN}"
+    requiresOAuth: false
     timeout: 120000
   dev-docs:
     type: streamable-http
     url: "https://contextforge.tilapia-skilift.ts.net/servers/e6bf594590134686a2f10990c244f97b/mcp"
     headers:
       Authorization: "Bearer ${CONTEXTFORGE_MCP_TOKEN}"
+    requiresOAuth: false
     timeout: 120000
   propria-docstore-0-8:
     type: streamable-http
     url: "https://contextforge.tilapia-skilift.ts.net/servers/aca1b85df0ef49acaf152617f043bc96/mcp"
     headers:
       Authorization: "Bearer ${CONTEXTFORGE_MCP_TOKEN}"
+    requiresOAuth: false
     timeout: 120000

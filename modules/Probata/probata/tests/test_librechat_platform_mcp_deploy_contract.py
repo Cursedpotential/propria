@@ -44,6 +44,8 @@ def test_librechat_mcp_servers_are_contextforge_virtual_servers() -> None:
         assert server["type"] == "streamable-http", name
         assert url_shape.fullmatch(server["url"]), name
         assert server["headers"] == {"Authorization": "Bearer ${CONTEXTFORGE_MCP_TOKEN}"}, name
+        # A bearer server: skip v0.8.7's header-less OAuth probe, which would list 0 tools.
+        assert server["requiresOAuth"] is False, name
     # LibreChat treats the tailnet (100.64.0.0/10) as private: the host must be exempted exactly.
     assert f"{CONTEXTFORGE_HOST}:443" in config["mcpSettings"]["allowedAddresses"]
     assert "allowedDomains" not in config["mcpSettings"]
