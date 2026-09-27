@@ -75,7 +75,7 @@ Three dispatched subagents inherited Opus because no model was set — roughly 3
 
 ### Incident 8: Standing security exposure
 
-The live Neo4j/DozerDB instance answers to `graphiti-dev-password`, the default printed in the compose file, because auth persists in the data volume and `NEO4J_AUTH` no longer governs it. The `.env` value (`graphiti-7235e9db38e03a11`) does not work. The Postgres superuser credential is `ai` / `ai` on a tailnet-reachable host holding every database. Both are live defaults in front of custody-case data.[^1]
+The live Neo4j/DozerDB instance answers to `graphiti-dev-password`, the default printed in the compose file, because auth persists in the data volume and `NEO4J_AUTH` no longer governs it. The `.env` value (`<redacted:NEO4J_PASSWORD>`) does not work. The Postgres superuser credential is `ai` / `ai` on a tailnet-reachable host holding every database. Both are live defaults in front of custody-case data.[^1]
 
 ***
 
