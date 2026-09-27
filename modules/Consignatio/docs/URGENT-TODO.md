@@ -2990,3 +2990,55 @@ desktop tile, LibreChat pending its URLs.
 - [ ] **Owner: local staging on ovh-files.** `/data/consignatio/lake-publish-20260927/` holds the published bytes (1.5 GB), the readback copies (1.5 GB) and the excluded exports (200 MB). Delete them or keep `2026-09-27/` as a local mirror; the guard blocks agent deletes.
 - [ ] **Evidence.dev (Probata 09-27 #4)** reads `LATEST` and then the dated folder. It needs a read-only S3 key; whether `B2_KEY_ID` is read-only was not checked. The DuckDB httpfs read itself has not run anywhere yet.
 - [ ] **Refresh:** the next publish writes a new dated folder and rewrites `LATEST`, the first change to an existing lake object. The owner picks the cadence.
+
+## 2026-09-27 — Intake sidebar: the file tree, and name search on the native path
+
+Owner, 2026-09-26 23:31 EDT: *"There's no file tree, like there's regression in the other
+pages."* Two separate defects, both now fixed and both proven with a real browser.
+Commit `abfeff75` on main.
+
+- [x] **Opening search deleted the sidebar.** The explorer block was gated on
+  `activeTabId === '__explorer__'`, and the magnifying glass set that to `'__search__'`,
+  so quick access, recent, bookmarks, collections, drives **and the file tree** unmounted
+  together. Search is now a bounded, resizable section above the explorer, using the same
+  grip handle as every other section. An extension tab still takes the whole sidebar,
+  which is correct: that is a separate surface, not a panel sharing live state.
+- [x] **`IntakeNameSearch` never rendered on Tauri.** `LeftSidebar` routes native users to
+  `IntakeFilesystemSearchPanel`, which searches file *content*; only the hosted
+  `IntakeChatSearchPanel` mounted the name search that answers "where is that folder?".
+  The engine was wired the whole time — `intake_search_names` is registered in
+  `apps/src-tauri/src/main.rs`, proxied in `intake_name_search.rs`, routed in the engine's
+  `routing.rs`, implemented in `name_search.rs` (48 KB). Only the JSX reference was
+  missing. This is Docstore `note:intake_native_invoke_reachability_20260924`, which
+  assigned the composition change to Claude on 09-24.
+- [x] **Falsifiable evidence, not an assertion.**
+  `xplorer-copilot/scripts/verify-sidebar-live.mjs` drives real Chrome over CDP and reports
+  which sidebar sections are in the DOM before and after the search tab is clicked. Against
+  the pre-change build it reports `sections: []` and **fails**; against this build it
+  reports `search, quickAccess, recent, favorites, collections, drives, fileTree` and
+  **passes**. Run in the devbox container on ovh-files — never on the owner's desktop.
+- [x] **Stale ignore removed.** `modules/Consignatio/.gitignore` ignored
+  `xplorer-copilot-buildkit/` wholesale, from when the fork was a nested independent
+  repository. The 2026-09-26 subtree import made it tracked source (1,257 files) with its
+  own `.gitignore`, so the rule only silently dropped **new** files — it blocked the
+  verification script. Checked afterwards: nothing but my own files became visible.
+
+### Found while looking
+
+- **The hosted Intake UI is not deployed anywhere.** `intake-engine` is up and healthy on
+  ovh-files, but it is API-only: `/`, `/index.html`, `/app` and `/ui` on `:8790` all 404,
+  and there is no `intake` entry in the tailnet shortnames. The owner is therefore running
+  Intake as the native Tauri app, which is exactly why the native-path gap mattered — and
+  why a browser can verify the sidebar restructure but cannot verify the Tauri branch.
+  Owner decision needed on whether hosted Intake should be served at all.
+
+### Still open on this surface
+
+- [ ] `GET /api/tools` returns HTTP 200 with an empty array.
+- [ ] `GET /api/monitored-actions/capabilities` returns 404; no such backend route exists.
+      Both are Docstore `note:probata_function_access_broken_20260912`, still active.
+- [ ] No shared package across 40 frontend apps (14 TypeScript, 12 React, 13 Vite
+      versions). `design-contract` is canonical by owner decision 2026-09-24 and has zero
+      consumers. Audit: `modules/Probata/probata/docs/probata-surface-buildkit/STACK.md`.
+
+> _Byline: Claude Code · Opus 5 · 2026-09-27_
