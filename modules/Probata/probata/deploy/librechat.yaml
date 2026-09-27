@@ -8,14 +8,14 @@
 #
 # Model backend = Portkey gateway (ovh-app :8787) via the chat.json failover
 # lane, sent per-request as the x-portkey-config header (see
-# docker/gateway/portkey/README.md). The header value is the MATERIALIZED
+# deploy/docker/gateway/portkey/README.md). The header value is the MATERIALIZED
 # config (secrets substituted, `_comment` dropped, one line) held in the
 # PORTKEY_CHAT_CONFIG Coolify env — LibreChat interpolates ${PORTKEY_CHAT_CONFIG}
 # from container env into the header at request time (config file itself stays
 # secret-free).
 #
 # MCP tools come straight from ContextForge virtual servers (tracked list in
-# docker/librechat/librechat.yaml), authenticated with CONTEXTFORGE_MCP_TOKEN.
+# deploy/docker/librechat/librechat.yaml), authenticated with CONTEXTFORGE_MCP_TOKEN.
 # That tracked, secret-free config is baked into the derived image, so a
 # Git-backed Coolify deploy cannot keep running a stale host-staged copy.
 #
@@ -40,12 +40,15 @@
 
 services:
   librechat:
-    # The base image is pinned by DIGEST in docker/librechat/Dockerfile, not
+    # The base image is pinned by DIGEST in deploy/docker/librechat/Dockerfile, not
     # `:latest` — this is production, and a redeploy on a floating tag silently
     # swaps the version. That digest reports v0.8.7 (config schema 1.3.13).
     build:
+      # Coolify runs compose with --project-directory = base_directory
+      # (/modules/Probata/probata), so relative build paths resolve from there,
+      # not from this file's directory (same as authentik/devbox/docstore-control).
       context: .
-      dockerfile: docker/librechat/Dockerfile
+      dockerfile: deploy/docker/librechat/Dockerfile
     image: platform-librechat:latest
     container_name: librechat
     restart: unless-stopped

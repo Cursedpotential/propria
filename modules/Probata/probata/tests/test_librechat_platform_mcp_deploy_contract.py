@@ -21,10 +21,11 @@ def test_librechat_bakes_the_tracked_mcp_config() -> None:
     manifest = yaml.safe_load(DEPLOY.read_text(encoding="utf-8"))
     service = manifest["services"]["librechat"]
 
-    assert service["build"] == {"context": ".", "dockerfile": "docker/librechat/Dockerfile"}
+    # Coolify builds with --project-directory = base_directory, so paths are module-root relative.
+    assert service["build"] == {"context": ".", "dockerfile": "deploy/docker/librechat/Dockerfile"}
     assert all("librechat.yaml:/app/librechat.yaml" not in volume for volume in service["volumes"])
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
-    assert "COPY docker/librechat/librechat.yaml /app/librechat.yaml" in dockerfile
+    assert "COPY deploy/docker/librechat/librechat.yaml /app/librechat.yaml" in dockerfile
     assert "@sha256:" in dockerfile
 
 
