@@ -37,7 +37,6 @@ the organizing index. Deduplication never grants deletion authority.
 - Do not use `ccc` as this application's launch/index command. Keep instance
   identifiers, ports, state and worker limits explicit and isolated.
 
-<<<<<<< HEAD
 <!-- Moved here from `CLAUDE.md` on 2026-09-26 when that importer was removed. The
      root guardrails it pointed at now load from `../AGENTS.md`. -->
 > _Byline: Claude Code · Opus 5 · 2026-09-26_
