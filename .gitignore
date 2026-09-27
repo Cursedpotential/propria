@@ -247,3 +247,6 @@ Secrets/
 # Preserve only the tracked placeholder in plugin runtime state.
 /plugins/docstore/claude/.state/*
 !/plugins/docstore/claude/.state/.gitkeep
+
+# Review holding area: large or sensitive material awaiting the owner, never tracked (2026-09-26).
+/.review_hold/
