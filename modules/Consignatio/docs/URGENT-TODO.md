@@ -3524,3 +3524,29 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 - **Proof:**
   - the owner-rule paraphrase is still refused 409 (dist 0.184, overlap 0.56);
   - the 04:44 claim, replayed against the live function, is written with 0 conflicts (rolled back).
+
+## 2026-09-28 05:25 EDT — Family Law Toolkit hosted: tailnet + Authentik, portal tiles, preview retired
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28 (teammate `fc-toolkit-host`). Owner decisions: A (2026-09-27
+> 22:01 "Nothing on tailnet. Authentik from web."), and 2026-09-28 04:49: use the tsnet auth every other
+> deployment uses._
+
+- **Live app:** https://family-court.tilapia-skilift.ts.net (public: family-court.int.mitechconsult.com).
+  - Served by `family-court-console` on `/` and `/api/*` over its own MCP tools, deployed at `23ecb0ee`.
+  - It covers the case, documents (add, with a file), notes, corrections (new version plus a linked `note:correction-*`), cheat sheets and references, law and sources, search, the 8 guide widgets, the library and every tool.
+- **Auth** (`src/web-auth.ts`, a port of the Workbench's `auth.py`):
+  - The Serve peer `100.91.190.107/32` is trusted for `Tailscale-User-Login`, allowlisted to `matt.salemnet@gmail.com`.
+  - The Traefik peer `100.72.169.40/32` is trusted for Authentik uid and username.
+  - Everything else gets 403; `/mcp` keeps its bearer.
+  - Live: the owner's login is admitted through the service; direct `:9077` from the desktop gets 403, even with spoofed headers.
+  - Tests: `web_auth` 7/7. The plugin suite passes 89/92; the 3 failures predate this work.
+- **Tailnet service:** `svc:family-court` is registered, served on ovh-files, and the host is approved.
+- **Public router:** `family-court-public` already pointed at `:9077`. Only its comment changed; the host file and the tracked copy are byte-identical (`ae81c3af`).
+- **Portal:** both "Family Law Toolkit" tiles now point at the hosted app (`520fb22a`), and the portal is redeployed. Devbox screenshots: the tile renders on both instances with 0 console errors.
+- **Preview retired:** `/progress/family-court/` 308-redirects to the app, to the public name when the request came in on `*.int`.
+  - The preview files were removed from git. On ovh-app they moved to `/data/dashboards/progress-board.retired-family-court-preview-20260928`.
+  - Backup: `/root/progress-board-backup-20260928-family-court`. The service was restarted through Coolify.
+- [ ] **Owner:** tag `svc:family-court` with `tag:docker`. The OAuth client cannot assign it: tagOwners gives it to autogroup:owner only.
+- [ ] **Owner:** policy grant `tag:docker → svc:family-court`, app capability `propria.mitechconsult.com/cap/family-court`, copied from the Workbench grant. The classifier refused applying it. Needed for devbox screenshots of the logged-in app; afterwards set `TAILSCALE_DEVICE_CAPABILITY` in the console env.
+- [ ] **Owner:** the autoMode line for the widget buttons. The dashboard, packet, route and search buttons stay disabled while the guide release label is STOP_AND_VERIFY.
+- [ ] Unverified: the public route while logged out. The classifier refused the read-only probe.
