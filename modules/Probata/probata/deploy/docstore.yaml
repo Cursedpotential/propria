@@ -93,7 +93,9 @@ services:
         - CMD
         - python
         - '-c'
-        - "import json,urllib.request,sys; sys.exit(0 if json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)).get('ok') is True else 1)"
+        # Health is judged on the response BODY, not the HTTP status: the API answers 200 while
+        # the pipeline is failing. test_worker_safety asserts this `value.get('ok') is True` form.
+        - "import json,urllib.request,sys; value=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)); sys.exit(0 if value.get('ok') is True else 1)"
       interval: 30s
       timeout: 10s
       retries: 5

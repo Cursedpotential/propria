@@ -55,7 +55,7 @@ def load_sources(
     source. Multi-root activation requires both the path and the enable flag.
     """
     if registry_path is None or not multi_root_enabled:
-        raise ValueError("0.8 requires the complete five-root registry and multi-root mode")
+        raise ValueError("Docstore requires the complete governed registry and multi-root mode")
     path = registry_path.resolve(strict=True)
     raw = path.read_bytes()
     if len(raw) > MAX_REGISTRY_BYTES:

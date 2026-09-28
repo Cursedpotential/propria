@@ -50,7 +50,7 @@ def test_packing_dedupe_budget_and_provenance():
 def test_scope_rejects_broadened_or_partial_roots(tmp_path):
     p=registry(tmp_path)
     sources,_=load_sources(p,tmp_path/'docs',multi_root_enabled=True)
-    assert len(sources)==5
+    assert len(sources)==len(ROOTS)  # never a literal: this read 5 while scope.py had grown to 7
     data=json.loads(p.read_text()); data['projects'][0]['source_root']='.'; p.write_text(json.dumps(data))
     with pytest.raises(ValueError): load_sources(p,tmp_path/'docs',multi_root_enabled=True)
     with pytest.raises(ValueError): load_sources(None,tmp_path/'docs',multi_root_enabled=False)
