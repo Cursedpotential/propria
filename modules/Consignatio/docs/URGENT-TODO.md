@@ -3483,31 +3483,27 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-28_
 
 ## 2026-09-28 — machine clients authenticate with Authentik service accounts (DF-30; owner option A, 04:22 EDT)
-- [ ] **Devbox → Workbench without a tunnel.** Owner 04:20 "The devbox is ours … there's got to be a better way to
-  auth with it"; 04:22 picked "Authentik service accounts: one identity system for people and machines" and ordered
-  that no Tailscale Service registration is removed until the new path works.
-  - Reproduced from the devbox: Workbench `/health` 200, `/api/proffer/sources` 403 "Untrusted proxy" (the owner's tailnet login gets 200 on the same route).
-  - **Built:** the Workbench accepts `Authorization: Bearer <JWT>` on the Serve and Traefik doors
-    (`modules/workbench/api/app/runtime/machine_jwt.py`). It checks the JWKS signature (cached 5 min), the exact
-    issuer(s), the audience, the expiry and the group `propria-machines`. The principal is `authentik-sa:<username>`.
-    An invalid Bearer gets 401 and never falls through to another path; every existing path is unchanged. 22 new
-    tests; the full API suite passes (499). The path stays off until the four `WORKBENCH_MACHINE_JWT_*` Coolify
-    values are set (`deploy/workbench.yaml`).
-  - The devbox mounts `/data/probata/secrets/devbox/authentik-machine.env` read-only (`deploy/devbox.yaml`,
-    HOST-PREP in its header). `deploy/workbench-audit/audit.sh` runs direct with that identity when the file is
-    readable in the devbox, and falls back to the one-run tunnel otherwise (`AUDIT_TUNNEL=1` forces the tunnel).
-  - **Blocked:** the auto-mode classifier refused creating the Authentik objects ("Permission Grant"): provider
-    client_id `propria-workbench-api` (RS256, client_credentials, 15 min), application `workbench-api`, group
-    `propria-machines` bound to it, service account `devbox`, and its app password. The owner either approves that
-    step or creates them in the admin UI. After that: `~/.secrets/devbox-authentik.env`, the host file, the Coolify
-    values, a devbox redeploy, the direct 200/403 proof and the six-step audit.
-  - No Authentik admin API token exists in `~/.secrets`, contrary to the brief. The domain-SSO provider has no
-    signing key (HS256, no JWKS), so machines get their own RS256 provider instead.
-  - Pattern for n8n, LibreChat, Advocatio and the toolkit: **ADR-0099** (`adr:propria_0099`, proposed) in the
-    Docstore; not wired.
-  - **Deployed** `7a991b6f` as Coolify deploy `l15hxzekok4t3w99wr7gkbvw` (finished, healthy, PyJWT 2.15.0). JWT path
-    off (no values set). Checked after deploy: owner tailnet `/api/proffer/sources` 200; public door 302 to Authentik;
-    devbox still 403, with or without a Bearer, as expected until the Authentik objects exist.
+- [x] **Devbox → Workbench without a tunnel, as its own identity.** Owner 04:20 "The devbox is ours … there's got to be a
+  better way to auth with it"; 04:22 picked "Authentik service accounts: one identity system for people and machines" and
+  ordered that no Tailscale Service registration is removed until the new path works. None was touched.
+  - Authentik objects (created by the parent session through the REST API, owner approval 04:22/04:33): provider
+    `propria-workbench-api` (RS256, `grant_types` must list `client_credentials` explicitly on 2026.8, 15-min tokens),
+    app `workbench-api`, group `propria-machines` bound to it, service account `devbox`, app password
+    `devbox-workbench-api-app-password`. Credentials: `~/.secrets/devbox-authentik.env`; host copy
+    `/data/probata/secrets/devbox/authentik-machine.env` on ovh-files, mounted read-only in the devbox.
+  - Workbench `machine_jwt.py` (`7a991b6f`): JWKS signature, exact issuer(s), audience, expiry, group; principal
+    `authentik-sa:<username>`; invalid Bearer 401 with no fall-through; Serve and Traefik doors only. 22 tests, suite 499
+    passed. Coolify values `WORKBENCH_MACHINE_JWT_*` set; deploy `l6fduwh33vnw0w5p5df3zajg`.
+  - The devbox image did not build from main (pre-existing): the bash-only mise profile hook broke `su - kasm-user`
+    (`ef7cf8ba`), then the Homebrew installer could not create `~/.cache` in the still root-owned home (`82395891`).
+    Full build verified on ovh-files, then devbox deploy `uoxbzry4j2suzcfi0sy81z45`.
+  - **Proof from inside the devbox:** `/api/proffer/sources` with the token 200; without 403 "Untrusted proxy";
+    tampered token 401; spoofed X-authentik headers 403. Owner tailnet login still 200; public door still 302 to Authentik.
+  - **Six-step audit direct from the devbox, no tunnel: 6/6 PASS** (TEST run `gTR33V2U…` left awaiting its preview
+    decision, like earlier audits). Console noise seen during the audit, not auth-related: `/api/intake/discovery/unit-lookup`
+    503 for some lookups, `/api/monitored-actions/capabilities` 404 (the owner's login gets the same 404).
+  - Pattern for n8n, LibreChat, Advocatio and the toolkit: **ADR-0099** (`adr:propria_0099`, proposed, v2); not wired.
+  - Left on ovh-files from the build diagnosis: `/tmp/devbox-diag/` and one dangling image of the verified build.
 
 > _Byline: Claude Code · Opus 5.5 (agent `machine-auth`) · 2026-09-28_
 
