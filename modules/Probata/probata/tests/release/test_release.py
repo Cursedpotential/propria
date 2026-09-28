@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 import pytest
@@ -226,3 +227,34 @@ async def test_one_provider_failure_retains_other_completed_enrichment(database,
     assert failure.value.result['changed_documents']==1
     assert failure.value.result['failed_documents']==[{'source_path':'docs/bad.md','error_type':'ValueError'}]
     assert len(upgrade.rows(await database.query('SELECT * FROM docstore_enrichment;')))==1
+
+
+def test_no_module_carries_its_own_copy_of_the_source_roots():
+    """scope.ROOTS is the only place the indexed roots may be written down.
+
+    api.py and plugins/docstore/control/server.py each kept a private five-root list on
+    pre-2026-09-20 module paths, and adr.py joined one of those paths directly. They went stale
+    the moment scope.py grew to seven roots, so /health advertised roots the pipeline had not
+    indexed for eight days -- and rebuilding from git did not help, because the copies were in
+    git. Docstrings and comments may still discuss the old paths; executable strings may not.
+    """
+    import ast
+    stale = re.compile(r'^(Propria/docs|Probata/probata(/docs)?|Consignatio(/Intake)?/docs'
+                       r'|Legal-desktop/docs)$')
+    root = Path(__file__).resolve().parents[1]
+    offenders = []
+    for directory in ('scripts/docstore', 'plugins/docstore/control'):
+        for source in sorted((root / directory).rglob('*.py')):
+            tree = ast.parse(source.read_text(encoding='utf-8'))
+            documentation = set()
+            for node in ast.walk(tree):
+                body = getattr(node, 'body', None)
+                if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) \
+                        and body and isinstance(body[0], ast.Expr) \
+                        and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+                    documentation.add(id(body[0].value))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str) \
+                        and id(node) not in documentation and stale.match(node.value.strip()):
+                    offenders.append(f'{source.relative_to(root)}:{node.lineno} {node.value!r}')
+    assert not offenders, 'source roots must come from scope.ROOTS, not a literal: ' + '; '.join(offenders)

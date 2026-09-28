@@ -11,10 +11,19 @@ import json
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote, urlsplit
+
+# The indexed roots belong to scripts/docstore/scope.py. Import them rather than repeating the
+# list: this file carried its own hard-coded five-root copy, which went stale the moment
+# scope.py grew to seven. parents[3] is the module root in the repo and /app in the image.
+_SCOPE_DIR = Path(__file__).resolve().parents[3] / 'scripts' / 'docstore'
+if str(_SCOPE_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCOPE_DIR))
+from scope import ROOTS
 
 import httpx
 import fastmcp
@@ -176,7 +185,7 @@ def build_server(config: Config, transport=None) -> FastMCP:
                 "source_root": str(config.source_root), "api": config.api_url,
                 "ambient_COCOINDEX_DB_consumed": False,
                 "pipeline_app": "ProbataDocStore", "pipeline_environment": "probata-docstore",
-                "index_kind": "docs", "allowed_source_roots": ["Propria/docs","Probata/probata/docs","Consignatio/docs","Consignatio/Intake/docs","Legal-desktop/docs"],
+                "index_kind": "docs", "allowed_source_roots": [source_root for source_root, _ in ROOTS.values()],
                 "contract": "propria-docstore-operations/v1",
                 "allowed_file_classes": ["markdown"],
                 "rejected_file_classes": ["source_code", "configuration", "test"],

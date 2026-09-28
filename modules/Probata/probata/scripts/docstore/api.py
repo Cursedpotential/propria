@@ -42,6 +42,7 @@ import recall as recall_mod  # noqa: E402
 import sq  # noqa: E402
 from run_support import read_current_status  # noqa: E402
 from cdc_verify import snapshot_sources, verify_projection  # noqa: E402
+from scope import ROOTS  # noqa: E402
 
 TOKEN = os.environ.get("DOCSTORE_API_TOKEN")
 RUN_STATUS = pathlib.Path(os.environ.get(
@@ -52,11 +53,15 @@ RUN_STATUS = pathlib.Path(os.environ.get(
 RUN_RECEIPTS = pathlib.Path(os.environ.get("DOCSTORE_RUN_RECEIPTS", str(RUN_STATUS.parent / "runs")))
 _jobs: dict[str, subprocess.Popen] = {}
 _jobs_lock = threading.Lock()
-app = FastAPI(title="Propria Docstore API", version="0.8.1")
+app = FastAPI(title="Propria Docstore API", version="0.9.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST", "DELETE"], allow_headers=["*"])
+# allowed_source_roots is DERIVED from scope.ROOTS, never listed here. It used to be a
+# hard-coded five-root copy on pre-2026-09-20 module paths, so /health advertised roots the
+# pipeline had not indexed for eight days -- and building from git did not fix it, because
+# the stale copy was in git.
 INDEX_IDENTITY = {"app": "ProbataDocStore", "environment": "probata-docstore", "index_kind": "docs",
                   "contract": "propria-docstore-operations/v1",
-                  "allowed_source_roots": ["Propria/docs","Probata/probata/docs","Consignatio/docs","Consignatio/Intake/docs","Legal-desktop/docs"], "allowed_file_classes": ["markdown"],
+                  "allowed_source_roots": [source_root for source_root, _ in ROOTS.values()], "allowed_file_classes": ["markdown"],
                   "rejected_file_classes": ["source_code", "configuration", "test"]}
 
 
