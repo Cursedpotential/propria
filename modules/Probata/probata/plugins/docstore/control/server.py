@@ -259,12 +259,16 @@ def build_server(config: Config, transport=None) -> FastMCP:
                 critical = {"status": "unavailable", "flags": [], "warning": "Critical decisions could not be verified"}
         result = await get("/recall", {"q": query, "domain": domain, "kind": kind,
                                      "status": status, "k": limit, "rerank": str(rerank).lower()})
+        # Only the critical flags that bear on THIS query, as short excerpts, with the total and
+        # a pointer to docstore_flags. Attaching every flag in full cost ~10 KB per search and
+        # buried the results (Claude Code · Opus 5.5 · 2026-09-28).
+        from flag_relevance import relevant_flags
         return {"retrieval": {"indexer": "CocoIndex", "query_embedding": "NVIDIA NIM",
                                "vector_store": "SurrealDB", "namespace": "probata",
                                "database": "docs", "ranking": "BM25+KNN RRF",
                                "duckdb_role": "result presentation/filtering only",
                                "secondary_vector_store": None},
-                "critical_context": critical, **result}
+                "critical_context": relevant_flags(critical, query), **result}
 
     @mcp.tool(annotations={**READ, "title": "CocoIndex Docstore semantic search"})
     async def coco_docstore_search(
