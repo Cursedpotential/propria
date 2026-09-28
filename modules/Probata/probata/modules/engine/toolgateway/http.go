@@ -52,6 +52,9 @@ func (h *HTTPHandler) Routes() http.Handler {
 	})
 	mux.HandleFunc("GET /tools", h.auth(h.handleIndex))
 	mux.HandleFunc("POST /tools/{tool_id}/run", h.auth(h.handleRun))
+	// One MCP tool over the whole atomic catalog (see mcp.go). Tailnet-only, no bearer token,
+	// per the owner's tailnet rule. Claude Code · Opus 5.5 · 2026-09-28.
+	mux.Handle("/mcp", h.tailnetOnly(h.mcpHandler()))
 	return mux
 }
 

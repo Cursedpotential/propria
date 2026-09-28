@@ -12,6 +12,8 @@ boto3>=1.35.0
 lancedb>=0.15.0
 pyarrow>=18.0.0
 httpx>=0.27.0
+# DF-30 (Claude Code · Opus 5.5 · 2026-09-28): verifies Authentik machine-client JWTs against JWKS
+PyJWT[crypto]>=2.10,<3
 psycopg[binary]>=3.2,<4
 duckdb==1.5.5
 pytz==2026.3.post1

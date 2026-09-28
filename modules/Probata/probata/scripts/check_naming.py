@@ -66,6 +66,12 @@ ALLOW_DIRS = (
     ".venv/",
     "node_modules/",
     "tests/_reports/",
+    # same durable-receipt pattern as tests/_reports/ above: timestamped,
+    # hash-named, machine-generated snapshots that quote whatever other files
+    # said verbatim at run time (2026-09-13's receipt here quotes an old Codex
+    # memory file's raw excerpt naming Agno-MCP-Platform). Editing a receipt to
+    # scrub a retired name would falsify what was actually found.
+    "plugins/search/receipts/",
     "docs/reports/_stale/",
     "to_be_deleted/",
     ".review_hold/",
@@ -92,6 +98,9 @@ ALLOW_FILES = {
     "scripts/check_naming.py",
     "scripts/rename_routers_2026_09_06.py",  # carries the old names as search strings by design
     "scripts/rename_siblings_2026_09_06.py",  # same: sibling-repo sweep, old names are its search strings
+    "scripts/coolify_manual_deploys.py",  # same pattern: OLD_REPO="Cursedpotential/mcp-platform-agno-mvp"
+    # is the literal search string this script uses to find and rename stale
+    # Coolify apps still pointing at the retired GitHub repo name
 }
 # Historical review/planning docs are annotated, not rewritten (D-142 alias rule for
 # history). A file is exempt if it carries the naming note.

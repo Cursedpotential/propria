@@ -33,7 +33,24 @@ from scripts.audit_ai_platform_consolidation import (
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / "sql" / "0049_ai_platform_consolidation_foundation.sql"
 AUDITOR = ROOT / "scripts" / "audit_ai_platform_consolidation.py"
-SQL = MIGRATION.read_text(encoding="utf-8")
+
+# 0049 was retired into sql/_stale/migrations-retired-20260907/ on 2026-09-07
+# ("the snapshot is the database" — D-142 §3, D-152); that directory's README
+# says retired migrations are never referenced by code or tests. Only the
+# three tests that read MIGRATION/SQL/NORMALIZED are skipped below; the other
+# seven test the still-live AUDITOR script (scripts/audit_ai_platform_consolidation.py)
+# and keep running. Better fix: rewrite the skipped assertions against
+# sql/bootstrap/schema_snapshot_20260907.sql (or a live migrated database)
+# instead of the retired numbered file — tracked in docs/URGENT-TODO.md.
+_MIGRATION_RETIRED = not MIGRATION.exists()
+_MIGRATION_RETIRED_REASON = (
+    "sql/0049_ai_platform_consolidation_foundation.sql was retired into "
+    "sql/_stale/migrations-retired-20260907/ on 2026-09-07; retired migrations "
+    "are never referenced by tests (see that directory's README). Needs a "
+    "rewrite against sql/bootstrap/schema_snapshot_20260907.sql instead — "
+    "tracked in docs/URGENT-TODO.md."
+)
+SQL = MIGRATION.read_text(encoding="utf-8") if not _MIGRATION_RETIRED else ""
 NORMALIZED = " ".join(SQL.lower().split())
 
 
@@ -122,6 +139,7 @@ def _signed_fence_payload(
     return payload
 
 
+@pytest.mark.skipif(_MIGRATION_RETIRED, reason=_MIGRATION_RETIRED_REASON)
 def test_0049_is_forward_only_platform_guarded_and_transactional() -> None:
     statements = [statement for statement in sqlparse.split(SQL) if statement.strip()]
     assert statements[0].strip().lower().endswith("begin;")
@@ -147,6 +165,7 @@ def test_0049_is_forward_only_platform_guarded_and_transactional() -> None:
     assert "migration 0049 refuses to replace an existing consolidation namespace object" in NORMALIZED
 
 
+@pytest.mark.skipif(_MIGRATION_RETIRED, reason=_MIGRATION_RETIRED_REASON)
 def test_0049_is_additive_append_only_and_has_no_cutover_or_trigger_bypass() -> None:
     for forbidden in (
         "drop table",
@@ -366,6 +385,7 @@ def test_live_config_attestation_is_time_revision_and_fence_bound(tmp_path: Path
     assert stale[0].gate_passed is False
 
 
+@pytest.mark.skipif(_MIGRATION_RETIRED, reason=_MIGRATION_RETIRED_REASON)
 def test_0049_pg18_apply_and_append_only_rollback_when_service_is_available() -> None:
     service = os.getenv("PLATFORM_0049_TEST_SERVICE")
     if not service:

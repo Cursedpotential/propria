@@ -1,5 +1,39 @@
 """User-callable tools forwarded only to the authenticated Docstore service."""
-from typing import Literal
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+# 0.8.1-r5 (Claude Code · Opus 5.5, 2026-09-27): the memory write payload is typed, so
+# docstore_capabilities(operation="docstore_memory_remember") publishes the real field list instead of
+# `payload: object`. Owner, 10:01 EDT: "we have no idea how to write to it". Mirrors the live SurrealDB
+# `memory` table (probata_memory/memory) and scripts/docstore/remote_memory.validate_remember.
+SCOPE_PATTERN = r'^propria(/[a-z0-9_-]+)*$'
+
+
+class MemoryWrite(BaseModel):
+    """One durable claim for the shared agent memory (SurrealDB probata_memory/memory)."""
+    model_config = ConfigDict(extra='forbid')
+
+    kind: Literal['correction', 'preference', 'observation', 'handoff', 'fact', 'constraint', 'decision'] = Field(
+        description='What sort of claim: an owner rule is usually constraint, preference or correction.')
+    claim: str = Field(min_length=11, max_length=599, description=(
+        'One self-contained sentence an agent can act on without the conversation. Unique per scope: the '
+        'exact text can never be written twice, even after it is superseded or retracted.'))
+    evidence: str = Field(min_length=1, max_length=2000, description=(
+        'Where the claim comes from: owner quote with date/time, doc id, file path or session anchor.'))
+    agent: str = Field(min_length=1, max_length=200, description='Who writes it, e.g. "Claude Code · Opus 5.5".')
+    scope: str = Field('propria', pattern=SCOPE_PATTERN, description=(
+        'Hierarchical scope. "propria" is the whole project; "propria/<module>[/<agent>]" narrows it. '
+        'Recall of a scope includes its descendants.'))
+    detail: str | None = Field(None, max_length=8000, description='Optional longer explanation: why, how to apply.')
+    confidence: float | None = Field(None, ge=0, le=1, description='0-1; the store defaults to 0.6. Owner rules: 0.95-1.')
+    observed_at: str | None = Field(None, description='ISO-8601 time the claim was observed; defaults to now.')
+    force: bool = Field(False, description=(
+        'Write even though near-duplicates exist, keeping both. Use only when the claims really differ.'))
+    supersede: str | None = Field(None, pattern=r'^memory:[A-Za-z0-9_]+$', description=(
+        'Replace this ACTIVE memory id: the new row is written, linked ->supersedes-> the old one, and the old '
+        'row becomes status superseded (never deleted). The claim text must differ from the old claim.'))
+    reason: str | None = Field(None, max_length=1000, description='Why a supersession happened; stored in decision_log.')
 
 
 def register(mcp,request,read):
@@ -86,14 +120,27 @@ def register(mcp,request,read):
         return await request('POST','/surrealql/read',payload={'query':query})
 
     @mcp.tool(annotations=read)
-    async def docstore_memory_recall(query:str,scope:str='probata',limit:int=10) -> dict:
-        """Recall independent remote shared memory, with server-side query embedding and DuckDB packing."""
+    async def docstore_memory_recall(query:Annotated[str,Field(min_length=1,max_length=2000)],
+                                     scope:Annotated[str,Field(pattern=SCOPE_PATTERN)]='propria',
+                                     limit:Annotated[int,Field(ge=1,le=50)]=10) -> dict:
+        """Recall independent remote shared memory (active rows in scope and its descendants), with
+        server-side query embedding, BM25 + vector fusion and DuckDB packing. Scope root is "propria"."""
         return await request('POST','/memory/recall',payload={'query':query,'scope':scope,'limit':limit})
 
     @mcp.tool(annotations=write)
-    async def docstore_memory_remember(payload:dict) -> dict:
-        """Write through the remote memory service's governed duplicate/supersession function."""
-        return await request('POST','/memory/remember',payload=payload)
+    async def docstore_memory_remember(payload:MemoryWrite) -> dict:
+        """Write one claim through the memory service's governed fn::remember. Call with
+        docstore_query(operation="docstore_memory_remember", mode="write", arguments={"payload": {...}}).
+        Required: kind, claim, evidence, agent. Optional: scope (default "propria"), detail, confidence,
+        observed_at, force, supersede, reason.
+        Duplicate guard (0.8.1-r6, 2026-09-28): an active row in the same scope conflicts if BM25 finds every
+        claim word in it, or its cosine distance is <= 0.10, or its distance is <= 0.20 AND word overlap
+        (Jaccard) is >= 0.35. Then nothing is written and the call fails HTTP 409 listing the conflicting ids
+        with dist and overlap; retry with supersede:"<id>" and a reworded claim to replace one, or force:true.
+        Success returns {outcome: "written"|"superseded", id, superseded, scope}.
+        Errors: 422 invalid payload (every problem listed), 409 near-duplicate or exact claim already stored,
+        503/502 memory service unreachable or failed."""
+        return await request('POST','/memory/remember',payload=payload.model_dump(exclude_none=True))
 
 
 def locals_payload(start,relation,depth,limit):

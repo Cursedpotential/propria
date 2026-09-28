@@ -1678,7 +1678,13 @@ func TestCancelAtChunkPreviewHoldPreventsSealAndPublish(t *testing.T) {
 		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
 		env.SignalWorkflow(HandlerSelectionDecisionSignalName, HandlerSelectionDecision{DecisionRef: "handler-decision-ref"})
 	}, time.Millisecond)
-	env.RegisterDelayedCallback(func() { env.CancelWorkflow() }, time.Hour)
+	env.RegisterDelayedCallback(func() {
+		// The starter sends the cancel receipt, then the cancellation (D05-C06).
+		env.SignalWorkflow(CancelRequestSignalName, CancelRequest{
+			ActorSubjectUID: "tailscale:owner@example.com", ActorUsername: "owner@example.com", Reason: "test run",
+		})
+		env.CancelWorkflow()
+	}, time.Hour)
 
 	env.ExecuteWorkflow(ProfferWorkflow, nonMessagingTestInput())
 	if err := env.GetWorkflowError(); err == nil {
@@ -1689,5 +1695,9 @@ func TestCancelAtChunkPreviewHoldPreventsSealAndPublish(t *testing.T) {
 	}
 	if order.contains(string(stagegraph.SealGeneration)) || order.contains(string(stagegraph.PublishGeneration)) {
 		t.Fatalf("cancelled workflow reached seal/publish: %v", order.snapshot())
+	}
+	state := queryOperation(t, env)
+	if state.Lifecycle != OperationCancelled || !state.Terminal || state.Reason != "cancelled by owner@example.com: test run" {
+		t.Fatalf("operation state = %+v, want terminal cancelled with the receipt's actor and reason", state)
 	}
 }

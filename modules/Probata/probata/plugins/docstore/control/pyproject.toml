@@ -1,6 +1,6 @@
 [project]
 name = "docstore-control"
-version = "0.6.2"
+version = "0.9.0"
 description = "Isolated CocoIndex/SurrealDB documentation control and MCP resources"
 requires-python = ">=3.11"
 dependencies = [

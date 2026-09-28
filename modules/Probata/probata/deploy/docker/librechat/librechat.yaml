@@ -4,7 +4,8 @@
 # Byline: Claude Code · Fable 5 · 2026-07-20
 # Byline: Codex · GPT-5.6-Sol · 2026-08-29 (tracked image-baked config)
 # Byline: Claude Code · Opus 5.5 · 2026-09-25 (chain comment: glm-5.1 removed, kimi-k3 on NVIDIA NIM primary)
-version: 1.2.1
+# Byline: Claude Code · Fable 5.1 · 2026-09-26 (MCP straight to ContextForge virtual servers; config version = image v0.8.7)
+version: 1.3.13
 cache: true
 
 endpoints:
@@ -25,12 +26,43 @@ endpoints:
       titleModel: "current_model"
       modelDisplayLabel: "Platform chat (failover lane)"
 
+# MCP tools come from ContextForge, the platform's one MCP front door (owner rule
+# 2026-09-14: every MCP client connects to ContextForge). Each entry below is one
+# ContextForge virtual server, addressed by its Tailscale Service name and named as
+# in ContextForge. The bearer is a ContextForge client token held only in Coolify env.
+# The 2026-08-29 design (a Portkey-published "platform-tools" endpoint) was never
+# built: this Portkey is the OSS gateway with no MCP hosting, and the owner kept keys
+# self-hosted rather than on Portkey cloud (2026-09-08).
+mcpSettings:
+  # LibreChat v0.8.7 treats 100.64.0.0/10 (the tailnet) as private and refuses MCP
+  # connections there unless the exact host:port is exempted. A hostname entry trusts
+  # whatever private address that name resolves to on this port. The list loads once
+  # at startup: restart the container after changing it.
+  allowedAddresses:
+    - "contextforge.tilapia-skilift.ts.net:443"
+
+# requiresOAuth: false on every entry: without it, v0.8.7 probes each URL WITHOUT the configured
+# headers at startup, ContextForge answers 401 with a Bearer challenge, and LibreChat marks the
+# server OAuth-only and lists 0 tools (seen on the first boot, 2026-09-27 04:27 UTC).
 mcpServers:
-  platform-tools:
+  agent-memory:
     type: streamable-http
-    # ContextForge authors this registry; Portkey publishes the audited client
-    # endpoint. Both values are runtime configuration, never embedded secrets.
-    url: "${PORTKEY_PLATFORM_TOOLS_MCP_URL}"
+    url: "https://contextforge.tilapia-skilift.ts.net/servers/a14b17330a3d432e8eb1a87369b8af8c/mcp"
     headers:
-      x-portkey-api-key: "${PORTKEY_MCP_API_KEY}"
+      Authorization: "Bearer ${CONTEXTFORGE_MCP_TOKEN}"
+    requiresOAuth: false
+    timeout: 120000
+  dev-docs:
+    type: streamable-http
+    url: "https://contextforge.tilapia-skilift.ts.net/servers/e6bf594590134686a2f10990c244f97b/mcp"
+    headers:
+      Authorization: "Bearer ${CONTEXTFORGE_MCP_TOKEN}"
+    requiresOAuth: false
+    timeout: 120000
+  propria-docstore-0-8:
+    type: streamable-http
+    url: "https://contextforge.tilapia-skilift.ts.net/servers/aca1b85df0ef49acaf152617f043bc96/mcp"
+    headers:
+      Authorization: "Bearer ${CONTEXTFORGE_MCP_TOKEN}"
+    requiresOAuth: false
     timeout: 120000

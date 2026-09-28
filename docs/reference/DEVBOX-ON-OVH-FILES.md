@@ -8,6 +8,7 @@ tags: [devbox, ovh-files, claude-code, agent-sdk, jobs, infrastructure, referenc
 # The devbox on ovh-files
 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-23. Written on owner order 14:34 ("make a note somewhere that that box exists and when and why to use it and what it has"). Facts checked live on 2026-09-23. Re-check versions before relying on them._
+> _Byline: Claude Code · Fable 5.1 · 2026-09-26. "How to reach it" rewritten for the new tailnet name `svc:devbox` and the public route `devbox.int`, both verified live 2026-09-27 04:00Z._
 
 ## What it is
 
@@ -36,7 +37,11 @@ A persistent Linux desktop and shell box (Kasm Ubuntu) that already has Claude C
 ## How to reach it
 
 - Shell: `ssh -i ~/.ssh/ovh root@100.91.190.107`, then `docker exec -it -u kasm-user devbox-pd3xc78ahqkfswq12bpfqgy1-150427235321 bash`.
-- Desktop: Kasm on `https://100.91.190.107:6901` (Kasm login); RDP on `100.91.190.107:3389`; Syncthing `:8384` / `:22000`. Tailnet IP only. No `svc:` HTTPS name yet (`svc:kasm` is pending in the handoff above).
+- Desktop (Kasm, its own login: user `kasm_user`, password `VNC_PW`):
+  - Tailnet: `https://devbox.tilapia-skilift.ts.net`, Tailscale Service `svc:devbox` on ovh-files. The short name `https://devbox.mitechconsult.com` redirects there on tailnet devices. Config: `modules/Probata/probata/deploy/tailscale/devbox-serve.hujson`.
+  - Public: `https://devbox.int.mitechconsult.com`, behind Authentik first, then Kasm's login. Router `devbox-public` in `modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml`.
+  - Direct: `https://100.91.190.107:6901` (self-signed certificate).
+- RDP on `100.91.190.107:3389`; Syncthing `:8384` / `:22000`. Tailnet IP only.
 
 ## When and why to use it
 

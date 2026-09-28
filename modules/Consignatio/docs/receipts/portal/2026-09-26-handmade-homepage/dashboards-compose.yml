@@ -1,0 +1,15 @@
+# Byline: Claude Code · Fable 5 · 2026-07-19 — Homepage dashboard (owner-chosen), tailnet-only
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    ports:
+      - "100.72.169.40:3010:3000"
+    volumes:
+      - /data/dashboards/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # Byline: Codex · 2026-09-12 — preserve tailnet HTTP and allow existing HTTPS service.
+      HOMEPAGE_ALLOWED_HOSTS: "100.72.169.40:3010,homepage.tilapia-skilift.ts.net"
+

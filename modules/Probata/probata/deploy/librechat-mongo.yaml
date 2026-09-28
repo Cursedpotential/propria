@@ -1,6 +1,9 @@
 # =============================================================================
-# LIBRECHAT MONGO — deploy as its OWN Coolify app on ovh-files (OVH-2,
-# tailnet 100.91.190.107), project "Case Bible". One-concern-per-app rule.
+# LIBRECHAT MONGO — its OWN Coolify app `librechat-mongo` on ovh-files
+# (tailnet 100.91.190.107), Coolify project "Propria" / production.
+# One-concern-per-app rule. Data: the 2026-09-19 copy from ovh-app was brought
+# here on 2026-09-26 (log: docs/planning/2026-09-20-TODO.md); the older
+# 2026-08-06 ovh-files copy sits in /data/probata/volumes/librechat/_superseded/.
 #
 # ⚠ Conscious owner override (2026-07-20): REAL MongoDB, not FerretDB — the
 # MongoDB→FerretDB substitution mandate is waived for LibreChat only (Mongoose
@@ -15,6 +18,7 @@
 # =============================================================================
 # Byline: Claude Code · Fable 5 · 2026-07-20
 # Byline: Claude Code · Opus 5 · 2026-08-05 (digest pin)
+# Byline: Claude Code · Fable 5.1 · 2026-09-26 (recreated as a Coolify app; data provenance)
 
 services:
   librechat-mongo:

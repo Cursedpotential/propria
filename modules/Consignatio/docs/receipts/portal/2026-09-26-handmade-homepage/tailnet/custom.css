@@ -1,0 +1,145 @@
+/* Byline: Claude Code · Sonnet 5 · 2026-09-14 — owner: subtle colour per app group so tiles are easier to tell apart ("not tacky, don't overdo it").
+   Colours are the accepted Propria dark-theme tokens (resources/design/tokens.json). One thin left accent + faint hover tint; nothing else changes. */
+.services-group:has(li.service[data-name="Project progress"]) {
+  --grp: #f0b45a;
+} /* focus / amber     */
+.services-group:has(li.service[data-name="Probata workbench"]) {
+  --grp: #82bdc0;
+} /* information / teal */
+.services-group:has(li.service[data-name="OpenList storage browser"]) {
+  --grp: #6cc392;
+} /* positive / green   */
+.services-group:has(li.service[data-name="Coolify"]) {
+  --grp: #f27479;
+} /* action / coral     */
+.services-group:has(li.service[data-name="LLM probe playground"]) {
+  --grp: #b8b1a5;
+} /* ink muted / stone  */
+
+.services-group .service-card {
+  box-shadow: inset 3px 0 0 0 var(--grp, transparent);
+}
+.services-group .service-card:hover {
+  background-color: color-mix(in srgb, var(--grp, transparent) 9%, transparent);
+}
+.services-group h2 {
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--grp, transparent) 35%, transparent);
+  padding-bottom: 2px;
+}
+
+/* 2026-09-14 follow-up: the "stone" token (#B8B1A5) is a near-neutral, low-saturation
+   grey. At the same 3px hairline it used for the other (fully saturated) groups it
+   verified live as visually indistinguishable from the plain unaccented cards, which
+   defeats the "easier to tell apart" goal for the Preview pipeline group specifically.
+   No new colour is introduced — same token, same mechanism (border + hover tint) —
+   just a touch more of it: a slightly wider accent plus a faint resting tint so the
+   group reads at rest, not only on hover. */
+.services-group:has(li.service[data-name="LLM probe playground"])
+  .service-card {
+  box-shadow: inset 4px 0 0 0 var(--grp, transparent);
+  background-color: color-mix(in srgb, var(--grp, transparent) 6%, transparent);
+}
+
+/* 2026-09-14 (Claude Code · Sonnet 5): native chart widget cards, replacing the
+   rejected whole-board iframe. custom.js mounts ApexCharts into
+   .board-chart-mount inside the real .service-card DOM so the card keeps every
+   theme class it already has; this only gives the mounted chart room and a
+   consistent card height so the grid doesn't jump while data loads. */
+.board-chart-block {
+  padding: 4px 6px 8px;
+  align-items: stretch;
+}
+.board-chart-mount {
+  min-height: 200px;
+}
+.board-chart-note {
+  padding: 24px 8px;
+}
+.services-group:has(li.service[data-name="Latency trend"]) {
+  --grp: #9aa5e8;
+} /* chart accent / periwinkle */
+.services-group:has(li.service[data-name="Lane timeline"]) {
+  --grp: #9aa5e8;
+}
+
+/* 2026-09-15 (Claude Code · Sonnet 5): owner rule 23:26 — native widgets must be
+   glanceable, not cramped text. Every dynamic-list customapi row (Pipeline lanes,
+   Surfaces needing attention, Slowest endpoints, Open to-dos) shares this row
+   shape: `<div class="flex flex-row text-right"><div class="font-bold ...">
+   {label}</div></div>`. Homepage's dynamic-list mapping only supports one
+   name+label pair per row (no chips/multi-field layout — checked against
+   gethomepage docs), so the real fix is a shorter label string
+   (progress-board/server.mjs now sends top-N stats, not every status found);
+   this is the safety net so a still-long label clips to one line with an
+   ellipsis instead of wrapping and blowing out the card, matching custom.js's
+   applyRowTitles() which puts the untruncated text in a hover title. min-width:0
+   on the flex child is required — without it a flex item won't shrink below its
+   content's natural width and text-overflow never triggers. */
+.flex.flex-row.text-right {
+  min-width: 0;
+}
+.flex.flex-row.text-right > .font-bold {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* Keep short health cards in one vertical column, with tall lists alongside. */
+@media (min-width: 1100px) {
+  .services-group:has(li.service[data-name="Pipeline lanes"]) .services-list {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-items: start;
+  }
+  li.service[data-name="Pipeline lanes"] { grid-column: 1; grid-row: 1 / span 3; }
+  li.service[data-name="Live surfaces"] { grid-column: 2; grid-row: 1; }
+  li.service[data-name="Health probes"] { grid-column: 2; grid-row: 2; }
+  li.service[data-name="Slowest endpoints"] { grid-column: 2; grid-row: 3; }
+  li.service[data-name="Surfaces needing attention"] { grid-column: 3; grid-row: 1 / span 3; }
+  li.service[data-name="Open to-dos"] { grid-column: 1 / -1; grid-row: 4; }
+}
+.portal-actions { padding: 0.65rem; font-size: 0.75rem; }
+.portal-lane { padding:0.7rem 0; border-top:1px solid #8884; }
+.portal-lane-heading,.portal-lane-footer { display:flex; justify-content:space-between; align-items:baseline; gap:0.6rem; }
+.portal-lane-heading strong { font-size:0.82rem; line-height:1.35; }
+.portal-lane-total { white-space:nowrap; opacity:0.6; font-size:0.68rem; }
+.portal-lane-badges { display:flex; flex-wrap:wrap; gap:0.3rem; margin:0.4rem 0; }
+.portal-status-badge { display:inline-block; border:1px solid #8885; border-radius:4px; padding:0.18rem 0.4rem; font-size:0.68rem; line-height:1.3; }
+.portal-status-positive { color:#a5dfb7; background:#23362b; }
+.portal-status-information { color:#aed4ed; background:#22313c; }
+.portal-status-caution { color:#f1cc91; background:#3a3021; }
+.portal-lane-footer details { font-size:0.68rem; opacity:0.75; max-width:50%; }
+.portal-lane-footer summary { cursor:pointer; }
+.portal-lane-footer details p { padding-top:0.35rem; overflow-wrap:anywhere; }
+.portal-lane time { opacity:0.75; font-size:0.7rem; }
+.portal-provider-choice { display:flex; align-items:center; justify-content:space-between; gap:0.5rem; }
+.portal-provider-choice select { background:#25272b; color:#eee; border:1px solid #8888; border-radius:0.3rem; padding:0.35rem; }
+.portal-times > div { display:flex; justify-content:space-between; gap:1rem; padding:0.25rem 0; }
+.portal-times dd { text-align:right; flex-shrink:0; }
+.portal-surface-action { border-top:1px solid #8885; padding:0.6rem 0; }
+.portal-surface-action strong,.portal-action-state { display:block; }
+.portal-action-state,.portal-action-note { opacity:0.8; margin:0.25rem 0; }
+.portal-action-controls { display:flex; flex-wrap:wrap; gap:0.35rem; margin-top:0.4rem; }
+.portal-action-button,.portal-action-controls select { background:#25272b; color:#eee; border:1px solid #8888; border-radius:0.3rem; padding:0.3rem 0.5rem; font:inherit; }
+.portal-action-button:focus-visible,.portal-action-controls select:focus-visible { outline:2px solid #f0b45a; outline-offset:2px; }
+.portal-action-button:disabled { opacity:0.65; cursor:wait; }
+.portal-job-status { margin-top:0.35rem; overflow-wrap:anywhere; }
+.portal-has-actions > .service-container { display:none; }
+
+/* Byline: Codex, 2026-09-20. Task continuation and manual usage controls. */
+.portal-usage-settings{padding:12px;margin:10px 0;border:1px solid #526172;border-radius:8px;font-size:13px}
+.portal-usage-settings summary{cursor:pointer;font-weight:600}
+.portal-usage-settings label{display:block;margin:10px 0}
+.portal-usage-settings select,.portal-usage-settings input{display:block;width:100%;padding:7px;background:#18212d;color:#eef2f6;border:1px solid #637083;border-radius:4px}
+.portal-usage-settings [hidden]{display:none}
+.portal-usage-settings button{padding:8px 12px;border:1px solid #8c9ab0;border-radius:4px}
+.portal-lane-link{text-decoration:underline;text-underline-offset:3px}
+.task-agent-actions{display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid #526172;margin-top:12px;padding-top:12px}
+.task-agent-actions small,.task-agent-actions p,.task-agent-actions textarea{width:100%}
+.task-agent-actions textarea{min-height:180px}
+.task-agent-actions button,.task-agent-actions a{font-size:12px;padding:6px 8px;border:1px solid #637083;border-radius:4px}

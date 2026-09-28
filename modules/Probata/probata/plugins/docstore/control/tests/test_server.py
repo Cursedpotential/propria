@@ -296,10 +296,42 @@ async def test_failures_are_sanitized(config, failure):
         result = await client.call_tool("docstore_health", {}, raise_on_error=False)
         assert result.is_error
         text = " ".join(c.text for c in result.content)
-        assert "Docstore unavailable" in text
+        # 0.8.1-r5: a 500 is an API error, not "unavailable"; a non-JSON body is still never echoed.
+        assert ("Docstore API error (HTTP 500)" if failure == "status" else "Docstore unavailable") in text
         assert secret not in text
         assert config.token not in text
     assert len(requests) == 1
+
+
+@pytest.mark.parametrize("status,wording", [
+    (422, "Docstore rejected the request as invalid (HTTP 422)"),
+    (400, "Docstore rejected the request as invalid (HTTP 400)"),
+    (409, "Docstore refused the request as a conflict (HTTP 409)"),
+    (401, "Docstore refused the ctl credentials (HTTP 401)"),
+    (404, "Docstore has no such operation or record (HTTP 404)"),
+    (413, "Docstore request too large (HTTP 413)"),
+    (503, "Docstore unavailable: the API answered HTTP 503"),
+    (500, "Docstore API error (HTTP 500)"),
+])
+async def test_http_errors_name_their_kind_and_pass_the_api_detail(config, status, wording):
+    # 0.8.1-r5 (Claude Code · Opus 5.5, 2026-09-27): owner, "the fact that it doesn't report the error also
+    # fixed". The API's JSON detail (validation messages, conflicting record ids) reaches the caller.
+    detail = {"reason": "near-duplicate", "conflicts": [{"id": "memory:abc123"}], "token": config.token}
+    server, _ = harness(config, lambda _: httpx.Response(status, json={"detail": detail}))
+    async with Client(server) as client:
+        result = await client.call_tool("docstore_health", {}, raise_on_error=False)
+    text = " ".join(c.text for c in result.content)
+    assert result.is_error and wording in text
+    assert "memory:abc123" in text and "near-duplicate" in text
+    assert config.token not in text and "<redacted>" in text
+
+
+async def test_only_unavailable_statuses_say_unavailable(config):
+    server, _ = harness(config, lambda _: httpx.Response(409, json={"detail": "plan changed"}))
+    async with Client(server) as client:
+        result = await client.call_tool("docstore_health", {}, raise_on_error=False)
+    text = " ".join(c.text for c in result.content)
+    assert "unavailable" not in text and "plan changed" in text
 
 
 async def test_oversized_response_rejected(config):

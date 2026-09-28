@@ -1,0 +1,32 @@
+// Byline: Claude Code · Fable 5.1 · 2026-09-26
+//
+// Tailscale Service svc:librechat: LibreChat, the Coolify app `librechat` (deploy/librechat.yaml)
+// on ovh-files. Owner 2026-09-26 23:17 "LibreChat needs to be fixed", 23:35 "all yes", 23:43 "I want
+// that LibreChat open and functional". Name: https://librechat.tilapia-skilift.ts.net
+//
+// APPLY on ovh-files (the service host) with the CLI, NOT with `tailscale serve set-config`:
+//   tailscale serve --service=svc:librechat --https=443 http://100.91.190.107:3080
+//   tailscale serve status --json    # Services["svc:librechat"] must equal the body below
+// Why the CLI: the Services configuration file (set-config) takes the listener type from the
+// target's scheme, so `"tcp:443": "http://…"` builds a PLAIN-HTTP listener on 443 (seen on
+// 2026-09-27 04:31 UTC: TLS clients got "wrong version number"). It cannot express TLS termination
+// in front of an HTTP backend, and `get-config` renders this service lossily as that same line.
+// svc:devbox's file works only because its target is https+insecure.
+//
+// The body below is the runtime serve config (`tailscale serve status --json`, Services entry),
+// kept for comparison; it is not a set-config file and set-config rejects it.
+// Deployed copy: ovh-files /data/probata/config/tailscale-serve/librechat-serve.hujson (byte-identical).
+// The Service is registered with PUT /api/v2/tailnet/-/vip-services/svc:librechat (tcp:443, untagged)
+// and ovh-files is approved as its host.
+//
+// LibreChat publishes 3080 on the tailnet IP only (BIND_IP in deploy/librechat.yaml), so the target
+// is 100.91.190.107, never 127.0.0.1. LibreChat's own login applies behind this name; nothing on the
+// tailnet sits behind Authentik (owner 2026-09-26 23:08).
+{
+  "TCP": { "443": { "HTTPS": true } },
+  "Web": {
+    "librechat.tilapia-skilift.ts.net:443": {
+      "Handlers": { "/": { "Proxy": "http://100.91.190.107:3080" } }
+    }
+  }
+}

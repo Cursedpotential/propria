@@ -29,7 +29,7 @@ FOLDERS = [  # id, label, desktop path, devbox path
     ("work-sync", "work sync drop", r"E:\AI_Workspace\sync", f"{P}/work/sync"),
     ("claude-skills", "~/.claude/skills", str(Path.home() / ".claude/skills"), f"{P}/.claude/skills"),
     ("agents-skills", "~/.agents/skills", str(Path.home() / ".agents/skills"), f"{P}/.agents/skills"),
-    ("local-plugins", "~/.claude/local-plugins", str(Path.home() / ".claude/local-plugins"), f"{P}/.claude/local-plugins"),
+    ("local-plugins", "plugins (E:/AI_Workspace/plugins)", r"E:\AI_Workspace\plugins", f"{P}/.claude/local-plugins"),
 ]
 
 

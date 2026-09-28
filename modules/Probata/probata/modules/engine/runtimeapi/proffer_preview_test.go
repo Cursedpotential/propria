@@ -35,6 +35,12 @@ type previewWorkflowStub struct {
 	operationErr   error
 	operationCalls int
 	order          *[]string
+	cancelled      []proffer.CancelRequest
+}
+
+func (s *previewWorkflowStub) Cancel(_ context.Context, _ string, request proffer.CancelRequest) error {
+	s.cancelled = append(s.cancelled, request)
+	return nil
 }
 
 func (s *previewWorkflowStub) Start(_ context.Context, in proffer.WorkflowInput) (string, string, error) {
@@ -747,4 +753,32 @@ func TestLoadServiceTokenRejectsInvalidFilesAndBytes(t *testing.T) {
 		_, err = loadServiceToken(link)
 		require.Error(t, err)
 	}
+}
+
+// Byline: Claude Code · Opus 5.5 · 2026-09-28 (D05-C06 run cancel)
+func TestCancelSendsTheActorBoundReceiptThroughTemporal(t *testing.T) {
+	handler, _, workflow := previewTestHandler(t)
+	handle := startPreview(t, handler)
+
+	missing := servePreview(handler.Routes(), http.MethodPost, "/reference-import/previews/"+handle+"/cancel", []byte(`{"reason":"  "}`))
+	require.Equal(t, http.StatusUnprocessableEntity, missing.Code, missing.Body.String())
+	require.Empty(t, workflow.cancelled)
+
+	recorder := servePreview(handler.Routes(), http.MethodPost, "/reference-import/previews/"+handle+"/cancel", []byte(`{"reason":"started by mistake"}`))
+	require.Equal(t, http.StatusAccepted, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), `"status":"cancel_requested"`)
+	require.Len(t, workflow.cancelled, 1)
+	require.Equal(t, "authentik-user-1", workflow.cancelled[0].ActorSubjectUID)
+	require.Equal(t, "operator", workflow.cancelled[0].ActorUsername)
+	require.Equal(t, "started by mistake", workflow.cancelled[0].Reason)
+}
+
+func TestCancelRefusesAFinishedRun(t *testing.T) {
+	handler, _, workflow := previewTestHandler(t)
+	handle := startPreview(t, handler)
+	workflow.operation = proffer.OperationState{Lifecycle: proffer.OperationCompleted, Terminal: true}
+	workflow.state.Phase = proffer.PhaseApproved
+	recorder := servePreview(handler.Routes(), http.MethodPost, "/reference-import/previews/"+handle+"/cancel", []byte(`{"reason":"too late"}`))
+	require.Equal(t, http.StatusConflict, recorder.Code, recorder.Body.String())
+	require.Empty(t, workflow.cancelled)
 }

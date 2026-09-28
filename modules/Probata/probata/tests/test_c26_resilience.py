@@ -1,3 +1,4 @@
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-10: retry fixtures carry the NOT NULL workflow column)
 """Unit tests for C2.6 "resilience + observability".
 
 Covers, all DB-free (fake-engine / stub doubles, same style as
@@ -797,7 +798,13 @@ def test_retry_from_stage_knowledge_409_missing_artifact(run_routes_client, monk
     monkeypatch.setattr(
         run_routes,
         "get_run",
-        lambda run_id: {"status": "failed", "artifact_id": None, "sha256": None, "stages": []},
+        lambda run_id: {
+            "status": "failed",
+            "workflow": "chat-transcript",
+            "artifact_id": None,
+            "sha256": None,
+            "stages": [],
+        },
     )
 
     resp = client.post("/v1/runs/run-1/retry", json={"from_stage": "knowledge"})
@@ -812,6 +819,7 @@ def test_retry_from_stage_knowledge_409_parse_not_success(run_routes_client, mon
         "get_run",
         lambda run_id: {
             "status": "failed",
+            "workflow": "chat-transcript",
             "artifact_id": "art-1",
             "sha256": "a" * 64,
             "stages": [
@@ -879,7 +887,7 @@ def test_retry_no_body_still_does_full_rerun_409_when_not_failed(run_routes_clie
     """Regression check: adding the Request/from_stage parsing must not
     break a bodyless POST (the pre-C2.6 client behavior)."""
     run_routes, client = run_routes_client
-    monkeypatch.setattr(run_routes, "get_run", lambda run_id: {"status": "running"})
+    monkeypatch.setattr(run_routes, "get_run", lambda run_id: {"status": "running", "workflow": "chat-transcript"})
 
     resp = client.post("/v1/runs/run-1/retry")
     assert resp.status_code == 409

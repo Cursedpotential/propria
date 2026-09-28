@@ -1,0 +1,91 @@
+# =============================================================================
+# PROPRIA PORTAL — the owner's Homepage (gethomepage v1.13.2): both instances, one Coolify app.
+#
+#   homepage         tailnet  https://homepage.tilapia-skilift.ts.net
+#                    tailscale serve svc:homepage on ovh-app: / -> 100.72.169.40:3010,
+#                    /progress -> the progress board on :3020.
+#   homepage-public  public    https://homepage.int.mitechconsult.com
+#                    Traefik file route `homepage-public` (ovh-app
+#                    /data/coolify/proxy/dynamic/propria-public-portal.yaml) -> 100.72.169.40:3012,
+#                    behind the one Authentik login.
+#
+# Source: deploy/portal/ — Dockerfile, shared/ (settings, widgets, bookmarks, custom.css/js, the
+# same for both), tailnet/services.yaml and public/services.yaml. The configuration is baked into
+# the image: Coolify's render directory holds no repository checkout, so a relative bind of a repo
+# file would mount an empty directory. Change the portal by committing to deploy/portal/ and
+# deploying this app; nothing is edited on the host. deploy/portal/README.md has the details.
+#
+# Replaces the hand-made containers `homepage` (docker compose in /data/dashboards) and
+# `homepage-public` (a bare docker run with no definition anywhere), retired 2026-09-26 on the
+# owner's order (22:52: "Nothing is supposed to be created that way. Ever."). They are stopped and
+# renamed <name>-handmade-20260926, not deleted.
+#
+# Coolify: application `propria-portal`, project Propria / production, server ovh-app, repository
+# Cursedpotential/propria@main, base directory /modules/Probata/probata, compose
+# /deploy/portal.yaml. Watch paths (only files that change the image or this file):
+#   modules/Probata/probata/deploy/portal.yaml
+#   modules/Probata/probata/deploy/portal/Dockerfile
+#   modules/Probata/probata/deploy/portal/shared/**
+#   modules/Probata/probata/deploy/portal/tailnet/**
+#   modules/Probata/probata/deploy/portal/public/**
+# The Coolify record is created and kept in step by deploy/portal/coolify_app.py.
+#
+# No Docker socket: no container on ovh-app carries homepage.* labels and no tile uses
+# `container:` (the hand-made containers mounted it for nothing). No Traefik labels: the public
+# route is the file-provider route above, and the tailnet name is tailscale serve.
+#
+# Byline: Claude Code · Opus 5.5 · 2026-09-26
+# =============================================================================
+
+services:
+  homepage:
+    build:
+      context: ./deploy/portal
+      dockerfile: Dockerfile
+      args:
+        INSTANCE: tailnet
+    image: propria-portal:tailnet
+    restart: unless-stopped
+    ports:
+      - "100.72.169.40:3010:3000"
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: "homepage.tilapia-skilift.ts.net,100.72.169.40:3010"
+      HOMEPAGE_VAR_PORTAL_TITLE: "Propria Project Portal"
+    healthcheck:
+      # /api/revalidate re-renders the index page from the baked configuration. Homepage serves the
+      # index as a cached static page, and a fresh container otherwise keeps serving the image's
+      # build-time render (title "Homepage", no layout) to every browser that has not visited
+      # before; seen live on the hand-made public instance on 2026-09-26. Doubling as the health
+      # check, it fails when the configuration cannot render.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:3000/api/revalidate || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      start_interval: 3s
+    labels:
+      - traefik.enable=false
+
+  homepage-public:
+    build:
+      context: ./deploy/portal
+      dockerfile: Dockerfile
+      args:
+        INSTANCE: public
+    image: propria-portal:public
+    restart: unless-stopped
+    ports:
+      - "100.72.169.40:3012:3000"
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: "homepage.int.mitechconsult.com,100.72.169.40:3012"
+      HOMEPAGE_VAR_PORTAL_TITLE: "Propria Project Portal (Public)"
+    healthcheck:
+      # Same as above: re-render the cached index from the baked configuration.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:3000/api/revalidate || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      start_interval: 3s
+    labels:
+      - traefik.enable=false

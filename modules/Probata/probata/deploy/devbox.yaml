@@ -15,10 +15,19 @@
 # host path after two failed relative/content: attempts under Coolify — see the dated comment
 # on the tailscale service's volumes: block for the full history).
 #
+# Byline: Claude Code · Opus 5.5 · 2026-09-28 (DF-30: the devbox's own Authentik machine identity,
+# service account `devbox`, mounted read-only from the host; owner option A 2026-09-28 04:22).
+#
 # Access: https://100.91.190.107:6901 from the tailnet only (BIND_IP), self-signed cert,
 # user `kasm_user`, password = VNC_PW (Coolify env, never in this file).
 # Coolify Watch Paths for this app: DISABLED ON PURPOSE — deploy manually via the API.
 # Coolify env to set: BIND_IP=100.91.190.107, VNC_PW=<strong>, (optional) DEVBOX_CPUS, DEVBOX_MEM.
+# HOST-PREP for the machine identity (DF-30), BEFORE deploying this revision — a missing host file
+# would be created by Docker as an empty directory:
+#   install -d -m 0700 /data/probata/secrets/devbox
+#   install -m 0440 -o root -g 1000 <values> /data/probata/secrets/devbox/authentik-machine.env
+# KEY=value lines: AUTHENTIK_TOKEN_URL, AUTHENTIK_CLIENT_ID, AUTHENTIK_USERNAME, AUTHENTIK_APP_PASSWORD.
+# The desktop copy with its provenance header is ~/.secrets/devbox-authentik.env. Never in git.
 # HOST-PREP (once, before first deploy of this revision): seed BOTH mapped volumes —
 # /data/probata/volumes/devbox/home from the base image's /home/kasm-user, AND
 # /data/probata/volumes/devbox/linuxbrew from the built image's /home/linuxbrew (Homebrew is
@@ -64,6 +73,9 @@ services:
       KASM_SVC_UPLOADS: "1"
       KASM_SVC_DOWNLOADS: "1"
       TZ: America/Detroit
+      # Authentik service-account credentials for machine clients (DF-30); the file, not env,
+      # holds the app password. deploy/workbench-audit/audit.mjs reads it.
+      AUTHENTIK_MACHINE_CREDENTIALS_FILE: /run/secrets/devbox-authentik.env
       # START_PULSEAUDIO: "0"   # uncomment + redeploy ONLY if the root session loops on "Creating secure
                                  # connection" (Kasm docs: fix for root sessions that fail to start)
     volumes:
@@ -80,6 +92,8 @@ services:
       # the owner's desktop `the-platform-workspace` over SMB (host automount /mnt/desktop-share, tailnet, encrypted;
       # owner 2026-09-08 10:44-10:55). Read-write. Empty when the desktop is off — nothing here may depend on it at boot.
       - /mnt/desktop-share:/home/kasm-user/desktop:rslave
+      # The devbox's Authentik machine identity (DF-30). Absolute host path; see HOST-PREP above.
+      - /data/probata/secrets/devbox/authentik-machine.env:/run/secrets/devbox-authentik.env:ro
     networks:
       - probata
 

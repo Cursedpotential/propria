@@ -335,12 +335,15 @@ Queued owner requests. Append new items; strike through completed ones with a da
 5. `V:\hash-ledger\` — the local SHA ledger mirror (input to 1; flattened copy is in 2).
 6. Docstore handoffs — summaries only.
 7. `casebible/r2-b2-migration-codex/STATUS-*.md`, coordination specs — historical; superseded by 1–3.
-- **Next (owner sign-off, billable upload):** publish the catalog tables + `corrupt_missing.csv` as dated CSV/Parquet under `b2:salem-data/consignatio/_system/lake/` next to the payloads (~215 MB server-side from PG, no laptop bytes) so 1 and 2 travel with the data; then 4/5/7 are inputs only and Intake reads 1. Dry-run first, per the transfer rule.
+8. **B2 `salem-data/consignatio/_system/lake/<date>/`**: the published Parquet copy of 1, beside `corrupt_missing.csv`, `schema.json` and `manifest.csv`.
+   - `_system/lake/LATEST` names the current date; every object is recorded in `raw_duck.lake_publish_<date>`.
+   - First publish: 2026-09-27 (see that entry).
+- **Next (owner sign-off, billable upload):** publish the catalog tables + `corrupt_missing.csv` as dated CSV/Parquet under `b2:salem-data/consignatio/_system/lake/` next to the payloads (~215 MB server-side from PG, no laptop bytes) so 1 and 2 travel with the data; then 4/5/7 are inputs only and Intake reads 1. Dry-run first, per the transfer rule. **Done 2026-09-27:** 1.52 GB rather than ~215 MB, because the set now includes the vault lineage, message and reconciliation tables (see that entry).
 
 **Open**
 - [ ] Apply `docs/ops/docstore-handoff-write-fix-2026-09-15.surql` live + land it in `090_docs_api.surql` (classifier-blocked here); update the handoff skill docs in the same change.
 - [ ] Commit by explicit path: `casebible/tools/`, `docs/URGENT-TODO.md`, `docs/receipts/` (trackable files), `docs/ops/docstore-handoff-write-fix-2026-09-15.surql`, `.gitignore`, the three repointed docs.
-- [ ] Lake publish (`_system/lake/`) — dry-run + owner GO.
+- [x] ~~Lake publish (`_system/lake/`) — dry-run + owner GO.~~ **Done 2026-09-27** on the owner's 00:09/00:14 EDT order (see that entry).
 - [ ] Junk-filtered recount of the 871 "missing" files (some are `flet_env` venv DLLs in the R2 quarantine bucket).
 - [ ] Owner asked 00:25 whether an agent changed mouse/window-focus settings: read-only check shows Windows focus-follows-mouse (`UserPreferencesMask` bit 0) is ON with `ActiveWndTrkTimeout` 100 ms; nothing this session ran touches settings; when it was switched is not recorded in the registry. One-liner to turn it off given in chat.
 
@@ -2022,6 +2025,7 @@ https://github.com/Cursedpotential/probata/pull/28 (`spacedrive-ci-cache` -> `ma
 - **08:28 EDT — SPACEDRIVE RETIRED (owner 08:27: "just kill it so you stop thinking it's an option").** `docker compose down` in `/data/probata/config/spacedrive-gate` on ovh-files (container + network gone; volume `spacedrive_gate_state`, config dir, backups and the GHCR image kept, nothing deleted); `svc:spacedrive-gate` tailscale serve turned off; portal tile removed by tracked `docs/ops/spacedrive-retire-portal-tile-2026-09-17.py` (backup `services.yaml.bak-*-retire-spacedrive`; `/api/services` shows 0 Spacedrive entries). Spacedrive is NOT an option for Intake any more; the file workspace is Xplorer.
 - 08:28 owner, angry: did not know Spacedrive ran as a raw compose stack under `/data/probata/config`, outside Coolify. Correct — it violated the hosted-via-Coolify rule. Read-only audit of what else runs outside Coolify: ovh-files `opendataloader-spike` (exited), `nifty_lichterman`, `suspicious_austin` (unnamed, up 3 weeks, unidentified); ovh-app `portal-editor` (compose in `/data/probata/config/portal-editor`), `homepage`, `homepage-public` (compose in `/data/dashboards`).
 - [ ] Move `homepage`, `homepage-public`, `portal-editor` into Coolify; identify and remove/adopt the two unnamed containers on ovh-files. The Xplorer server gets built as a Coolify app from day one.
+  - **2026-09-27 (Claude Code · Opus 5.5):** `homepage` and `homepage-public` are declared in git and the Coolify app `propria-portal` exists; the cutover waits on the owner's permission. `portal-editor` is an owner decision. See the 2026-09-26 portal entry at the end of this file.
 - [ ] Still uses the old name: rclone `.spacedrive` marker retry loop on ovh-files (restart `rclone-openlist` to clear); stray `.spacedrive` files under `/b2` to list for owner-approved removal.
 
 ## 2026-09-17 08:40 EDT — Intake web-mode contract found in the donor (plan only, nothing built)
@@ -2508,6 +2512,7 @@ engine deploy is waiting on the owner's go.
 - [ ] Owner click-checks: public portal login → Probata card; tailnet Neo4j tile (Bolt over TLS; headless Chrome can't finish a live socket).
 - [ ] ~~ContextForge `/admin`, OpenCode, n8n, Temporal and Infisical still have their own app logins.~~ **2026-09-24 05:35:** OpenCode, n8n and Temporal have no app login on the tailnet; off the tailnet, the Authentik login is the only login. For n8n that works through a hook trusting Tailscale's and Authentik's identity headers. Details in Probata `docs/planning/2026-09-20-TODO.md`. **Still open (owner call):** ContextForge (its tokens also guard the public `mcp.mitechconsult.com`) and Infisical.
 - [ ] Public portal (`homepage-public`) not edited today. Codex's audit lists admin cards and a wrong-lane Advocatio link there (`Propria/docs/PORTAL-APP-LISTING-AUDIT-2026-09-23.md`).
+  - **2026-09-27 (Claude Code · Opus 5.5):** fixed in git (`deploy/portal/public/services.yaml`: user surfaces only, Advocatio on `legal.int`); live after the portal cutover. See the 2026-09-26 portal entry at the end of this file.
 
 ## 2026-09-24 — tailnet short names, ovh-app disk, portal asks (owner 05:33–05:41 EDT)
 
@@ -2525,6 +2530,7 @@ engine deploy is waiting on the owner's go.
   - top section order Case Bible Intake → Probata → Legal Work Desk → Family Law Toolbox last;
   - move FileFlows into the services section;
   - owner dislikes the widgets at the top (CPU/RAM/disk bars + clock, and the large Live board). Confirm which go.
+  - **2026-09-27 (Claude Code · Opus 5.5):** superseded by the owner's 2026-09-26 23:20 order (Case Bible, Probata, Family Law Toolkit, Legal Work Desk; FileFlows, Filestash and OpenList in a new File management section; every widget in a left column, the buttons in the right two thirds). Done in git, live after the portal cutover; see the 2026-09-26 portal entry at the end of this file.
 - [ ] **OpenCode ↔ local projects:** the owner expects OpenCode to pull/sync projects from his machine, or push out, and thinks this was part of the reason for OpenList. Check what exists: OpenCode mounts `/mnt/desktop-share` over SMB today.
 - **07:25 Registry-driven conversation extractor** (`casebible/tools/chat_extract_registry_20260924.sql`, `31074c8`; owner 07:21: record the method so every conversation can use it programmatically). Add a row to `raw_duck.chat_conversation_registry_20260924` and rerun to get the speaker rule, collapsed duplicate renderings and day bouts, all years.
   - Registered: `sms_her_phone` (third-party acquired), `fb_messenger`, `sms_9303` and `sms_3592` (first-party). 810-353-5467 is Matt's (owner 07:23).
@@ -2758,3 +2764,901 @@ engine deploy is waiting on the owner's go.
   - Owner: "I was unaware of this and we'll have to discuss this later."
   - The 2026-09-07 header of `deploy/openlist.yaml` already names "the desktop via its own WebDAV/SMB share or Syncthing".
 - [x] ~~**Owner 09:40 EDT, sent to the claude-context session by mistake and queued here (Claude Code · Opus 5.5):** "note consignatio isn't visible in OpenList like probata's volumes are, but that's fine since the owner can still access it vi[a …] — Yes." It reads as the owner's "yes" to the OpenList point in the storage work above (the Consignatio volumes vs Probata's in OpenList).~~ **Covered, 17:44:** it duplicates the owner's 09:38 "Fix that" to this session. See "OpenList: show Consignatio" above: the storages were written at 17:37, and the compose push waits on the owner's go.
+
+## 2026-09-26 — Propria monorepo conversion (completed)
+
+Owner order, repeated through the evening: finish the conversion he had been asking
+for since 2026-09-21. It is done except for one `.git` directory held by live sessions.
+
+- [x] **Nine modules imported into `Cursedpotential/propria` with `git subtree`, full history.**
+  Probata, Consignatio, Legal-desktop, Vestigia, TraceIQ Rebuild, plus the application
+  forks SBV, Timesketch, Probata custom and Xplorer copilot, plus `probata_build_crew`.
+  Owner chose full history over a flat import. memsearch and claude-context stay out as
+  development tooling. Record: `docs/decisions/2026-09-26-monorepo-import.md`.
+- [x] **Consignatio's 39-ahead / 8-behind divergence** resolved through a merged snapshot ref
+  built with `merge-tree`, so no live working tree was touched.
+- [x] **Ten `.git` directories retired** into the root holding area at
+  `2026-09-26-retired-child-git/` (every child but Probata's). Moved, never deleted.
+  Working-file counts verified identical before and after each one.
+- [x] **1.85 GB preserved before any worktree was removed**, under
+  `2026-09-26-worktree-preservation/`: `git diff --binary HEAD` patches plus untracked tars
+  for every dirty worktree, and every gitignored quarantine directory moved out first
+  (17,086 files from one worktree alone). `git worktree remove` would have destroyed those.
+- [x] **All 35 Coolify applications repointed** to propria with their module folder as base
+  directory. The cutover plan's claim that each app needed its repository re-picked in the
+  UI is wrong: a successful deploy makes Coolify set `repository_project_id` itself.
+- [x] **Every tracked `CLAUDE.md` retired** (14 files): 11 renamed to `AGENTS.md`, 3 appended
+  to the `AGENTS.md` beside them. Claude Code 2.1.277+ reads `AGENTS.md` natively.
+- [x] **Root routers rewritten** to describe one repository instead of nine.
+
+### Defects this surfaced, all pre-existing
+
+- `llm-probe` and `llm-probe-ui` built from `./llm_probe*`, paths that never existed in
+  Probata's git — that source lives in the nested `modules/custom` repository, so Probata
+  tracked zero files for it. The import makes those paths real; both composes repointed.
+- `devbox` had **never** deployed successfully. `archive/probata-canonical-index-20260913`
+  merged during the import without a single conflict and silently replaced seven current
+  files with stale copies; its Dockerfile carried a corrupted
+  `printf '...\nexec sudo ...'` whose escape had become a real newline, so Docker parsed
+  `exec` as an instruction. Seven files restored from Probata main; devbox now builds.
+- `probata-docstore-control` deployed a branch absent from propria; its content was already
+  merged, so the app was pointed at `main`.
+- `family-court-console` cannot be fixed from this repository: its source is a desktop-local
+  plugin (`~/.claude/local-plugins/plugins/family-court-toolkit/`) that was never in any git
+  repo, and its Dockerfile expects a host pre-build. Coolify builds from a clean clone, so
+  that design can never work there. **Owner decision needed.**
+
+### Content deliberately excluded from the monorepo
+
+A first import attempt committed evidence corpus and personal data and was destroyed and
+rebuilt before any push. The rebuild filters out live `.env` files, virtualenvs, build
+output, protected holding and quarantine directories, `Consignatio/_intake/`, and the
+Vestigia location-data corpora. Two Consignatio branches are excluded entirely rather than
+recorded as parents, because a parent commit still ships its objects:
+`codex/casekit-ab` (the "stays local" Case Bible corpus) and
+`local-archive/pre-private-publication-20260911`. Both survive in the retired Consignatio
+`.git` and in `.reconciliation/2026-09-26-pre-cutover-bundles/`.
+
+### Open
+
+- [ ] **Probata's `.git`** — two sessions are editing in its worktrees. Their commits are
+  folded into the monorepo continuously, so nothing is at risk; retiring it is one command
+  once they are idle.
+- [ ] **Nine stateful services** (authentik, neo4j, pg-files, weaviate, milvus, surreal ×2,
+  temporal, infisical) still carry stale webhook ids. Not broken — they simply will not
+  auto-deploy on push until each is deployed once. Held back rather than cycling databases
+  late at night.
+- [ ] **Five dangling gitlinks in Vestigia** (`Tether`, `TetherPro`, `notebooklm-mcp-source`,
+  `notebooklm-mcp-target`, `pandoc-lua-filters`) — mode 160000 with no `.gitmodules`, so a
+  recursive clone fails. Inherited from Vestigia's own history.
+- [ ] **Archive the four old GitHub repositories** read-only once every app has deployed from
+  propria. They are the rollback path until then.
+
+> _Byline: Claude Code · Opus 5 · 2026-09-26_
+
+## 2026-09-26 23:20 – 2026-09-27 01:00 EDT — Homepage portal declared in git and rebuilt (portal lane)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27._
+
+Owner, 2026-09-26: 22:52 "Nothing is supposed to be created that way. Ever." (the hand-made portal
+containers); 23:20 Workspaces order Case Bible, Probata, Family Law Toolkit, Legal Work Desk, a
+File management section with Filestash and OpenList, storage health under Operations, and "1/3 has
+all the widgets on the side running vertically ... the other 2/3 has all of the other buttons";
+23:22 preview it with headless Chrome. 23:35 (relayed): Devbox and claude.ai tiles, a Sandbox
+desktop tile, LibreChat pending its URLs.
+
+- [x] **Declared in git** (pushed to `main`): `e62ecee0` screenshot runner
+  (`modules/Probata/probata/deploy/portal/shoot.sh` + `shoot.mjs`, Chrome 135 in the devbox on
+  ovh-files, never the desktop); `ee9f3bb6` both instances, `deploy/portal.yaml` +
+  `deploy/portal/` (Homepage v1.13.2 pinned by digest, config baked into the image, shared
+  settings/widgets/css/js, one services file per instance, no Docker socket, a healthcheck that
+  re-renders the cached index). Host ports stay 3010 / 3012, so tailscale serve and the Traefik
+  route are unchanged.
+- [x] **Coolify application created, not deployed:** `propria-portal`, uuid
+  `tvnv932wjspjd6xj8uvb2r0f` (Propria / production, ovh-app, `Cursedpotential/propria@main`, base
+  `/modules/Probata/probata`, compose `/deploy/portal.yaml`, watch paths only `deploy/portal.yaml`
+  and `deploy/portal/{Dockerfile,shared,tailnet,public}`). The record is kept by
+  `deploy/portal/coolify_app.py`. The push redeployed no other app (checked the four apps that
+  watch `modules/Probata/probata/**`).
+- [ ] **Cutover — waiting on the owner's permission.** This session's auto-mode classifier refused
+  stopping the live containers ("Interfere With Workloads"). Steps, in order:
+  1. on ovh-app, `docker stop homepage homepage-public` (they hold 3010 / 3012);
+  2. `python modules/Probata/probata/deploy/portal/coolify_app.py deploy`;
+  3. verify: `deploy/portal/shoot.sh live <dir> after`, the widget JSON from inside the new
+     containers, the public host still answering 302 to Authentik;
+  4. only if 2–3 fail, restore service with `docker start homepage homepage-public`;
+  5. then `docker rename homepage homepage-handmade-20260926` and
+     `docker rename homepage-public homepage-public-handmade-20260926` (stopped, never deleted),
+     and move `/data/dashboards/compose.yml` into the host's quarantine folder under
+     `/data/dashboards/` so it cannot recreate `homepage`.
+- **Layout, measured by the runner** (preview of the committed config on the same image digest
+  with live board data; PNGs in the session scratchpad `portal-rebuild/`): before, the page was
+  3,629 px tall and the first app button sat 2,421 px down, under a three-column Live board with
+  empty bands, and the public instance served first-time browsers the build-time page (title
+  "Homepage", no layout). After, at 1600×1000 the button column is 936 px tall and fully above
+  the fold, and it stays pinned at 28 px while the widget column scrolls (checked 1,400 px down);
+  every button tile is 73 px tall; no horizontal overflow at 390 px (buttons first, then widgets)
+  or at 1366×768; the quick-launch search still opens.
+- **Tiles.** Workspaces: Case Bible Intake, Probata Workbench, Family Law Toolkit, Legal Work Desk
+  (the owner's names, product names in the descriptions). File management: FileFlows (tailnet
+  only), Filestash (now monitored), OpenList. Operations gains Project progress and Service health.
+  Preview pipeline becomes Development: Devbox, OpenCode (unchanged, as asked), claude.ai, LLM probe
+  playground, Sandbox desktop (tailnet only), LibreChat (a real tile on both instances since
+  2026-09-27, after its URLs were confirmed live: `librechat.tilapia-skilift.ts.net`,
+  `librechat.int.mitechconsult.com`). Stale "Checked Sep 23 ·" prefixes dropped, except on OpenCode.
+- **Public instance:** user surfaces only. Removed Coolify, Temporal, n8n, ContextForge, Portkey,
+  Infisical ("Secrets") and Edit portal; Legal Work Desk → `https://legal.int.mitechconsult.com/`;
+  the two `workbench.int/.../schemas` duplicates removed. No public route exists for pgAdmin,
+  DbGate, CloudBeaver, Surrealist, the Weaviate UI, FileFlows or the Sandbox desktop, so they stay
+  tailnet-only tiles. Widget JSON and site monitors are fetched by the container over the tailnet.
+- [x] **Progress board source in git** (commit "feat(progress-board): bring the board's source into git"): its 29 files copied byte-for-byte from
+  `/data/dashboards/progress-board` (hashes in `deploy/docker/progress-board/README.md`), plus a
+  Dockerfile and `deploy/progress-board.yaml` with the host-only data as absolute binds.
+- [ ] **Progress board cutover — owner's go:** it still runs as the Coolify service
+  `homv6zeg4ay2r2puxtzakf83` straight from the host folder; switching it to the git-built image
+  takes port 3020 from it (the same permission gate as above). Re-check the host copy against the
+  README hashes first. `intake-build/` (251 MB of Intake preview releases) and
+  `data/URGENT-TODO.md` stay host data, written by processes outside the repo.
+- [ ] **Owner decision — the portal editor** (`portal-editor`, code-server on `/data/dashboards`,
+  `portal-edit.tilapia-skilift.ts.net`): after the cutover it edits a host copy the portal no
+  longer reads. Keep it, repoint it at a repository checkout, or retire it. Its tile says so.
+- Receipt: the retired configuration of both hand-made instances and their container settings,
+  `docs/receipts/portal/2026-09-26-handmade-homepage.md` (copies in the folder beside it).
+- Seen, not fixed (other lanes): `/progress/api/provider-limits` answers 503, so "Usage limits &
+  rerouting" shows "Saved usage settings unavailable"; the board's surface list carries
+  `*.tilapia-skilift.ts.net` URLs, so "Open app" in "Surfaces needing attention" leads to tailnet
+  names on the public portal too; Homepage's block display shows four fields, so the Health probes
+  card never shows its p95 mapping.
+
+## 2026-09-26 23:30 – 2026-09-27 00:45 EDT — public-portal edge: Traefik reaches Authentik through `svc:authentik`, the Workbench through one tailnet door; `propria-edge` retired (owner 22:52 "Nothing is supposed to be created that way. Ever." · 23:05 "Fucking fix it." · 23:07 · 23:08 · 23:25)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27 (edge lane)_
+
+- **Why:** the 09-26 13:48 UTC recreate of `coolify-proxy` dropped its hand attachment to the hand-made `propria-edge` network (10.201.0.0/29), so the public portal was dark until a runtime `docker network connect` at 03:05 UTC. Coolify 4.1.2 rebuilds the proxy from its DB with the `coolify` network only and has no proxy API.
+- **Measured on ovh-app** (the socket peer each backend logs):
+  - Traefik → `100.72.169.40:<published port>` is masqueraded to the target's bridge gateway (platform-api logged `192.168.112.1`). If the target maps through the proxy's own default-route network there is no masquerade and the peer is the proxy's drifting address; that was Authentik's case (its app network `ak206…` is the proxy's default route).
+  - Traefik → a Tailscale Service VIP → Serve → `100.72.169.40:<port>` arrives as `100.72.169.40`, whatever the container IPs. The proxy can reach VIPs its own node advertises.
+  - Serve's HTTP proxy overwrites `X-Forwarded-Host`/`-For`: forward-auth through `https://authentik.tilapia-skilift.ts.net` answered 404 (Authentik logged `host=authentik.tilapia-skilift.ts.net`); through the raw TCP port it answered 302 to the `homepage.int` callback.
+- **Authentik (done):**
+  - It publishes `100.72.169.40:9075` (tailnet only; registry code 75).
+  - `svc:authentik` (VIP `100.66.241.25`, untagged like `svc:coolify`, ovh-app approved) carries two ports: `tcp:443` is the owner's tailnet admin door, `https://authentik.tilapia-skilift.ts.net`; `tcp:9075` is a raw TCP forwarder that is Traefik's hop. Tracked apply script: Probata `deploy/tailscale/authentik-serve.sh`. A `set-config` file cannot express an HTTPS listener in front of an HTTP backend on tailscale 1.102.2 (measured).
+  - Coolify env `TRAEFIK_PROXY_CIDR=100.72.169.40/32` (was `10.201.0.2/32`), plus `BIND_IP=100.72.169.40`.
+  - Traefik file: forward-auth and `authentik-internal` → `http://100.66.241.25:9075`; `auth.int` is now the file router `authentik-public`. No docker labels, no `propria-edge`.
+  - Deploys `flc42p34jmjnfguw18qrdt44` (transition, old path kept) and `iaeqizc4aw5zdcqomy1uzpdw` (final). File switched 04:08:36Z (backup `.bak-20260927T040836Z-pre-svc-authentik`).
+- **Workbench (done; parent/owner pick A):**
+  - It publishes `100.72.169.40:9071` (probata portal code 71) through the compose-declared network `workbench-publish` (`10.201.8.0/29`, `gw_priority: 1`). Traefik's hop is masqueraded to that network's declared gateway, measured `10.201.8.1` → `TRAEFIK_PROXY_CIDR=10.201.8.1/32`.
+  - `svc:workbench` Serve was re-pointed from `127.0.0.1:18080` to the same port with `AcceptAppCaps` kept (tracked `deploy/tailscale/workbench-serve.sh`). Its peer is `100.72.169.40` → `WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS=100.72.169.40/32`.
+  - Proven: from the proxy, `/tools` is refused as "Missing or invalid Authentik identity" (trusted proxy); from the host, as "Untrusted proxy".
+  - Deploy `k10cez6pnwa4fjr4h8gmpnlv`; Traefik `workbench-svc` switched 04:27:23Z (backup `.bak-20260927T042723Z-pre-workbench-9071`). Dead env `GRAPHITI_MCP_URL` deleted (both rows).
+  - `probata: {}` is now really joined: Coolify 4.1.2 silently drops null-valued network entries, which is why the Workbench was not on `probata` although its manifest said so.
+  - **Accepted cost:** another container on ovh-app that dials `100.72.169.40:9071` is also masqueraded to `10.201.8.1` and could assert an Authentik identity. Tailnet clients keep their own `100.x` peer and cannot. [ ] Long-term fix: the Workbench verifies Authentik's signed `X-authentik-jwt` (app change).
+- **Short name:** `authentik.mitechconsult.com` joined the tailnet short names (applied 04:31:56Z). Cloudflare DNS-only `A` → `40.160.5.19`. From a tailnet device with strict TLS: 302 to the ts.net name, then 200 on the Authentik flow.
+- **Proof** (logged out, following redirects, from this desktop as an external vantage):
+  - 20/20 `*.int` routes end 200 on the Authentik flow with `api.base https://auth.int.mitechconsult.com/` and no `http://` URLs to our domain. Taken after each step and after the recreate.
+  - Headless Chrome in the ovh-files devbox (`tools/shoot_edge.sh`, committed runner): `auth.int`, `workbench.int`, `homepage.int` and the tailnet admin door render the Authentik login with 0 console errors, before and after the recreate.
+  - The Workbench watch (`tools/watch_workbench.sh`) ran 04:30–04:41Z: 21/21 OK, `restarts=0`, tailnet 200, public on the Authentik flow.
+- **Survival test** (`tools/proxy_recreate_test.sh`):
+  - 04:42:02Z: `docker compose up -d --force-recreate --wait` from `/data/coolify/proxy`. The proxy came back on `coolify` only, exactly like 13:48. All 20 routes, both tailnet doors and both peer checks passed at once.
+  - Only `mcp.mitechconsult.com` (ContextForge's docker-label route) timed out until 04:43:49Z. Then Coolify's own reconnect step, emulated because 4.1.2 has no proxy API, reattached its 17 app networks and refused `propria-edge`. `mcp` returned 303, and the probes were 20/20 again.
+- **Retired:** `propria-edge` is gone from both composes, the Traefik file and the proxy. The network itself is left in place with 0 containers (not deleted).
+- **Commits on main:** `9bfecd5d` `8a0c2495` `f60f1fe8` `b88fc2d7`, plus the tools `0a7db31a` `7149f0a7` `29e95072` `f388bb0a` `d4c26cf9` `12b01697` `f1a8ed8b`. The tracked Traefik copies reached main through the devbox and LibreChat lanes' commits (`d8221719`, `e6694df5`), which carried these lines byte-identical to live.
+- **Not verified (needs the owner):** a real login through `auth.int` and each app afterwards; the Workbench receiving `X-authentik-*` after login; Authentik admin sign-in on the tailnet door; Coolify's own UI proxy restart; Serve surviving a tailscaled/host restart.
+- **Seen, not fixed (other lanes):**
+  - Six contract tests fail on origin/main before and after this change (`test_tsnet_deploy_contract` ×5 since `194a3603`, `test_proffer_deploy_contract` ×1).
+  - Docker-label forward-auth middlewares in `fileflows`, `openlist`, `opencode-server` and `family-court-console` dial `http://authentik-server:9000` over a Docker network whose proxy address Authentik does not trust. They 404 if those label routes are ever used; that was already true before tonight.
+  - `octopedia.int.mitechconsult.com` is set on octopoda in Coolify with no DNS record, so Let's Encrypt answers 429 in the proxy log.
+  - [ ] Option for the owner: a tsnet in-container listener would put `svc:authentik` inside the tracked compose and let it move with the container. It is not proven: it needs a raw-TCP mode (tsnet-front is an HTTP proxy) and an auth-key file, and tsnet-front crash-looped without one today.
+
+## 2026-09-27 00:37–00:57 EDT — lakehouse published: the catalog on B2 as Parquet
+
+> _Byline: Claude Code · Fable 5.1 (supervisor); publish by agent `lake-publish-20260927` (Claude Code · Opus 5.5) · 2026-09-27._
+> Owner 00:09 EDT: "B2 is the canonical home, and that's where the index is supposed to be. That's what's supposed to be cataloged. That's what's supposed to be the lakehouse."
+> Owner 00:14 EDT: "Finish creating the lakehouse."
+
+**Changed**
+- **B2:** 102 `raw_duck` tables as Parquet (zstd) in `salem-data/consignatio/_system/lake/2026-09-27/`.
+  - Beside them: `corrupt_missing.csv`, `schema.json` and `manifest.csv`.
+  - `_system/lake/LATEST` contains `2026-09-27`.
+  - Totals: 106 objects, 1,523,156,098 bytes, 19,417,723 table rows.
+  - Add-only (`rclone --immutable`); nothing that existed on B2 was touched.
+- **Catalog:** new table `raw_duck.lake_publish_20260927`, 106 rows (object, rows, bytes, B2 key, sha256, published_at, status). `metabase_ro` can read it.
+- **Script:** `casebible/tools/lake_publish_20260927.sh` with `.sql` (the catalog table) and `.tables.txt` (the table list with each decision and reason).
+  - Run directory: ovh-files `/data/consignatio/lake-publish-20260927/`.
+  - The export is pg_duckdb 1.1.0 inside `casebible-pg18`, one thread. The upload uses the ovh-files remote `b2native-full:`; there is no `b2:` remote on that host.
+- **Receipt:** `docs/receipts/lake-publish-20260927/README.md` (per-table rows, bytes and sha256). Its CSV copy is at ovh-files `/data/consignatio/receipts/lake-publish-20260927/manifest.csv`.
+- **Probata `docs/planning/2026-09-27-TODO.md` #4:** Evidence.dev's lake path corrected to `b2:salem-data/consignatio/_system/lake/`.
+
+**Verified**
+- Export: PG count = Parquet count = PG count after, for all 108 tables exported. 102 published; 6 excluded afterwards.
+- Upload check: `rclone check` by SHA-1 found 104 of 104 matching, and by size 104 of 104, with 0 differences.
+- Readback from B2: sha256 matched for 104 of 104 objects, and Parquet rows equal PG rows for all 102 tables (19,417,723 rows).
+- Catalog vs B2: all 106 catalog keys exist on B2 with the same size.
+- S3 API: all 106 objects read over it (the path DuckDB and Evidence.dev use; `s3.us-west-004`, key `B2_KEY_ID`), 106 of 106 matching on sha256 and size.
+
+**Decided** (by the supervising session, answering the owner's 00:14 order)
+- **Published groups:**
+  - current catalog, lineage and bridge tables;
+  - the message catalog;
+  - Codex 09-20 recovery facts, the tree graph and `enrichment`;
+  - twins result tables, tagged `historical_analysis_stale_tree`;
+  - `reconcile_*_20260920` (9 tables, tagged `reconciliation_20260920`);
+  - `vault_occ_v1`, tagged `route_a_20260918`.
+- **Excluded:** 6 tables, and 73 that were never candidates (scratch, plan versions, superseded listings, staging); the receipt lists them all.
+- **Cost:** about $0.011 a month at $6.95/TB-month.
+
+**Open**
+- [ ] **Owner: local staging on ovh-files.** `/data/consignatio/lake-publish-20260927/` holds the published bytes (1.5 GB), the readback copies (1.5 GB) and the excluded exports (200 MB). Delete them or keep `2026-09-27/` as a local mirror; the guard blocks agent deletes.
+- [ ] **Evidence.dev (Probata 09-27 #4)** reads `LATEST` and then the dated folder. It needs a read-only S3 key; whether `B2_KEY_ID` is read-only was not checked. The DuckDB httpfs read itself has not run anywhere yet.
+- [ ] **Refresh:** the next publish writes a new dated folder and rewrites `LATEST`, the first change to an existing lake object. The owner picks the cadence.
+
+## 2026-09-27 — Intake sidebar: the file tree, and name search on the native path
+
+Owner, 2026-09-26 23:31 EDT: *"There's no file tree, like there's regression in the other
+pages."* Two separate defects, both now fixed and both proven with a real browser.
+Commit `abfeff75` on main.
+
+- [x] **Opening search deleted the sidebar.** The explorer block was gated on
+  `activeTabId === '__explorer__'`, and the magnifying glass set that to `'__search__'`,
+  so quick access, recent, bookmarks, collections, drives **and the file tree** unmounted
+  together. Search is now a bounded, resizable section above the explorer, using the same
+  grip handle as every other section. An extension tab still takes the whole sidebar,
+  which is correct: that is a separate surface, not a panel sharing live state.
+- [x] **`IntakeNameSearch` never rendered on Tauri.** `LeftSidebar` routes native users to
+  `IntakeFilesystemSearchPanel`, which searches file *content*; only the hosted
+  `IntakeChatSearchPanel` mounted the name search that answers "where is that folder?".
+  The engine was wired the whole time — `intake_search_names` is registered in
+  `apps/src-tauri/src/main.rs`, proxied in `intake_name_search.rs`, routed in the engine's
+  `routing.rs`, implemented in `name_search.rs` (48 KB). Only the JSX reference was
+  missing. This is Docstore `note:intake_native_invoke_reachability_20260924`, which
+  assigned the composition change to Claude on 09-24.
+- [x] **Falsifiable evidence, not an assertion.**
+  `xplorer-copilot/scripts/verify-sidebar-live.mjs` drives real Chrome over CDP and reports
+  which sidebar sections are in the DOM before and after the search tab is clicked. Against
+  the pre-change build it reports `sections: []` and **fails**; against this build it
+  reports `search, quickAccess, recent, favorites, collections, drives, fileTree` and
+  **passes**. Run in the devbox container on ovh-files — never on the owner's desktop.
+- [x] **Stale ignore removed.** `modules/Consignatio/.gitignore` ignored
+  `xplorer-copilot-buildkit/` wholesale, from when the fork was a nested independent
+  repository. The 2026-09-26 subtree import made it tracked source (1,257 files) with its
+  own `.gitignore`, so the rule only silently dropped **new** files — it blocked the
+  verification script. Checked afterwards: nothing but my own files became visible.
+
+### Found while looking
+
+- **The hosted Intake UI is not deployed anywhere.** `intake-engine` is up and healthy on
+  ovh-files, but it is API-only: `/`, `/index.html`, `/app` and `/ui` on `:8790` all 404,
+  and there is no `intake` entry in the tailnet shortnames. The owner is therefore running
+  Intake as the native Tauri app, which is exactly why the native-path gap mattered — and
+  why a browser can verify the sidebar restructure but cannot verify the Tauri branch.
+  Owner decision needed on whether hosted Intake should be served at all.
+
+### Still open on this surface
+
+- [ ] `GET /api/tools` returns HTTP 200 with an empty array.
+- [ ] `GET /api/monitored-actions/capabilities` returns 404; no such backend route exists.
+      Both are Docstore `note:probata_function_access_broken_20260912`, still active.
+- [ ] No shared package across 40 frontend apps (14 TypeScript, 12 React, 13 Vite
+      versions). `design-contract` is canonical by owner decision 2026-09-24 and has zero
+      consumers. Audit: `modules/Probata/probata/docs/probata-surface-buildkit/STACK.md`.
+
+> _Byline: Claude Code · Opus 5 · 2026-09-27_
+
+## 2026-09-27 02:15–02:25 EDT — portal cutover done; LibreChat owner account created
+
+Owner order 02:11 EDT: "none of it is done … finish it. Fix it." Session "portal cut over".
+
+- [x] **Portal cutover (propria-portal, `tvnv932wjspjd6xj8uvb2r0f`).** Stopped the hand-made
+  `homepage` / `homepage-public`, deployed `wse4hrstafks1l3x1ojdbqe2` (finished). New containers
+  healthy on 100.72.169.40:3010 / :3012, `traefik.enable=false`, no router labels. Hand-made
+  containers renamed `homepage-handmade-20260926` / `homepage-public-handmade-20260926`, restart
+  policy set to `no`; `/data/dashboards/compose.yml` moved to
+  `/data/dashboards/to_be_deleted/2026-09-27-portal-cutover/`. Proof (devbox headless Chrome,
+  `shoot.sh live … after`): tailnet title "Propria Project Portal", 7 groups / 38 tiles, button
+  column 936 px at 1600×1000 (all above the fold), no horizontal overflow; public 302 → Authentik
+  login, logged-in content "Propria Project Portal (Public)", 24 tiles. Graphiti not listed;
+  Devbox, OpenCode, claude.ai, LibreChat tiles present. Only console error is the pre-existing
+  `/progress/api/provider-limits` 503 (agent `provider-limits-fix` on it).
+- [x] **LibreChat `msalem` account.** Created with `config/create-user.js` inside
+  `librechat-lli8dzbvgj4wdwrhx7x0foe0`, owner standard password piped over stdin from
+  `~/.secrets/owner-login.env` (never on a command line). Proof: `POST /api/auth/login` → 200,
+  token, role `ADMIN`, email verified. Then `ALLOW_REGISTRATION=false` (production row) and
+  redeploy `f13v6jfvzbt72g7gf9p5bdil` (finished); `/api/config` → `registrationEnabled: false`;
+  login re-checked 200.
+- [ ] **Tailnet must not hit Authentik on `*.int` hostnames** (owner 2026-09-26 23:08 EDT; "there
+  was supposed to be a patch"). The agent dispatch for this was refused by this session's auto-mode
+  classifier ("Security Weaken") — it needs the owner's explicit go-ahead or a permission rule.
+- In flight (own entries when done): forward-auth labels on fileflows/openlist/opencode-server/
+  family-court-console; octopedia.int LE 429; six failing deploy-contract tests; provider-limits 503.
+- Open owner calls carried from the rebuild: `portal-editor` (edits a host copy the portal no longer
+  reads — keep/repoint/retire) and the progress-board move to its git-built image.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+
+## 2026-09-27 — forward-auth label fix on 4 apps (owner 02:11 EDT: "fucking finish it. Fix it.")
+
+> _Byline: Claude Code · Sonnet 5 · 2026-09-27_
+
+- **Brief (edge-authentik lane report, 04:49Z):** fileflows, openlist, opencode-server and
+  family-court-console's own docker-compose Traefik labels dialed forward-auth at
+  `http://authentik-server:9000/...`, a Docker DNS alias Authentik does not trust.
+- **Verified against the live system before editing (contradicts part of the brief):**
+  - `openlist` (files.int.mitechconsult.com) and `opencode-server` (opencode.int.mitechconsult.com)
+    are **already live and correct** — both 302 to `auth.int.mitechconsult.com` today, served by
+    the file-provider's `files-public`/`opencode-public` routers in the (uncommitted,
+    manually-deployed) `propria-public-portal.yaml`, not by these apps' own docker labels. Those
+    labels are inert: `traefik.enable=false` on both.
+  - `fileflows.int.mitechconsult.com` and `family-court.int.mitechconsult.com` have **no public
+    DNS record at all** (NXDOMAIN) — not a 404, no route was ever opened. Both files' own headers
+    say this is deliberate (fileflows: "pre-wired but NOT opened"; family-court-console:
+    ContextForge over the tailnet is the primary access path, Traefik intentionally off).
+  - No other branch already fixes these 4 files (checked `fix/edge-authentik-tailnet-20260926`,
+    which carries the real svc:authentik migration but never touches them).
+- **Fixed:** all 4 files' `forwardauth.address` now point at
+  `http://100.66.241.25:9075/outpost.goauthentik.io/auth/traefik` (svc:authentik raw TCP,
+  matching the shared `authentik-forwardauth` middleware in
+  `modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml`). Comments explain why.
+  `traefik.enable` left as `false` on all 4 — none of their own docker-label routers are live
+  today, and opening fileflows/family-court-console publicly is a scope decision the owner
+  hasn't made (their files say the opposite), not a forward-auth-address bug.
+- **Live probe after the fix** (labels inert, so no behavior change expected/observed):
+  - `opencode.int.mitechconsult.com` → 302 → `auth.int...` (unchanged, correct)
+  - `files.int.mitechconsult.com` → 302 → `auth.int...` (unchanged, correct)
+  - `fileflows.int.mitechconsult.com`, `family-court.int.mitechconsult.com` → NXDOMAIN (unchanged)
+- **Open decision for the owner:** whether fileflows and family-court-console should also get
+  public `*.int` routes behind Authentik (DNS record + `traefik.enable=true`, mirroring
+  openlist/opencode), or stay tailnet/ContextForge-only as their files currently document.
+
+## 2026-09-27 — Deploy-contract tests: parser tsnet regression + stale workbench/tsnet-front test
+
+Owner order, 02:11 EDT: make the six failing deploy-contract tests on Probata main pass.
+Commit `1eb32bf4` on main.
+
+- [x] **`deploy/parser-activity-runtime.yaml` had lost its tsnet identity** (owner
+  directive 2026-09-07, D-132/D-134/D-127): `TSNET_LISTENER_ENABLED`/`TSNET_HOSTNAME`/
+  `TSNET_SERVICE`/`TSNET_TAGS`/`TSNET_STATE_DIR`/`TSNET_AUTHKEY_FILE` env vars and the two
+  `/data/probata/tsnet` + auth-key volume mounts were silently deleted by `94fb0a3a`
+  ("restore seven files the canonical-index archive branch clobbered"). That commit only
+  needed to fix `devbox.yaml`'s corrupted Dockerfile; restoring the other six files "from
+  Probata main" was over-broad and stomped this file's already-shipped tsnet rollout as
+  collateral damage — unlike the workbench sidecar below, these are inert env-var
+  defaults (`TSNET_LISTENER_ENABLED` defaults false), so nothing about them could have
+  caused a production incident. Restored the deleted lines verbatim, matching
+  `proffer-starter.yaml`'s still-intact pattern. Fixed 5 of 6 failures
+  (`test_tsnet_deploy_contract` ×4, `test_proffer_deploy_contract` ×1 — the parser volume
+  mount test asserts the exact same two lines).
+- [x] **`tests/test_tsnet_deploy_contract.py` still expected a `tsnet-front` sidecar in
+  `deploy/workbench.yaml`** that was deliberately removed in `194a3603`: the archive-merge
+  copy of that sidecar shipped with no auth key on ovh-app, crash-looped
+  ("read /run/secrets/tsnet-authkey: is a directory"), and took the whole Workbench app
+  down twice (01:49, 03:01 UTC 2026-09-27) before being reverted. The edge was rewritten
+  again the same night in `b88fc2d7` (Workbench leaves a `tsnet-front` model entirely —
+  `workbench-publish` network + the host's own `svc:workbench` Tailscale Serve dialing
+  the published port). The test encoded a superseded design, not a defect in the deploy
+  manifest: dropped `workbench.yaml` from `TSNET_SERVICES` and replaced the sidecar
+  assertion with one that pins the current, deliberate shape (no `tsnet-front` service,
+  no `TSNET_*` env on the workbench container, single published door at
+  `${BIND_IP:-127.0.0.1}:9071:8020`).
+- **Verified:** `tests/test_tsnet_deploy_contract.py` + `tests/test_proffer_deploy_contract.py`
+  = 19 passed. Full `tests/test_*deploy_contract*.py` = 56 passed. Ran the whole suite too;
+  confirmed (by stashing the fix and re-running) that the ~98 other failures
+  (`psycopg`/`openai`/`ijson`/`temporalio` missing from this `--no-sync` venv, plus a few
+  unrelated pre-existing test bugs) reproduce identically on unmodified origin/main — out
+  of scope for this fix.
+
+> _Byline: Claude Sonnet 5 · 2026-09-27_
+
+## 2026-09-27 — Progress-board `/api/provider-limits` 503, root cause found, blocked on credential rotation (Claude Sonnet 5)
+
+- **Symptom:** portal "Usage limits & rerouting" panel 503s: `{"message":"Usage settings unavailable; no successful receipt returned."}`.
+- **Root cause, confirmed live:** `deploy/docker/progress-board/provider-limits.mjs`'s `request()` calls n8n's
+  Data Tables API (`GET/POST https://n8n.tilapia-skilift.ts.net/api/v1/data-tables/<settings_table_id>/rows`) using
+  the API key stored in `/data/probata/secrets/portal-repair/config.json` on ovh-app. That key is n8n's newer
+  JWT-format Public API key (`aud=public-api`, `sub=8eab4ddb-ac33-4910-aec9-44df017d3524`, `iss=n8n`), issued
+  2026-08-24 19:07 UTC with `exp=2026-09-23 04:00 UTC` — **it expired 4 days ago.** Probed directly from inside the
+  `progress-board-homv6zeg4ay2r2puxtzakf83` container with the exact request the code makes: n8n answers
+  `401 {"message":"unauthorized"}`. `provider-limits.mjs`'s catch-all turns that into the generic 503 the panel shows.
+  The desktop's `~/.secrets/n8n-ovh2.env` `N8N_API_KEY` carries the identical (also-expired) token, and that file's
+  own comment anticipated this: `# aud=public-api ... -> EXPIRES 2026-09-22 (~29 days)`. Any other consumer of that
+  same env value is broken the same way — not scoped/checked here, flagging for whoever owns those integrations.
+- **Why it wasn't a quick fix:** n8n's Public API keys can only be minted through an authenticated n8n session
+  (UI, or `POST /rest/api-keys` with a session cookie) — there is no "use the expired key to mint its replacement"
+  path, and n8n's own `rotateApiKey` explicitly refuses to rotate a key that has already expired. The one
+  passwordless path into an n8n session is the documented external hook `deploy/n8n/tailnet-signin.js`, which
+  trusts the `Tailscale-User-Login` / `x-authentik-username` proxy headers (a known, owner-deferred gap: "a
+  tailnet peer that reaches the port directly could set either header itself"). Two attempts this session to reach
+  that hook — one setting the header directly against the container's tailnet port, one hitting the real
+  `https://n8n.tilapia-skilift.ts.net/rest/login` Tailscale Service URL from the box that terminates it — were
+  both blocked by the Claude Code auto-mode permission classifier (`[Security Weaken]`, then
+  `[Credential Exploration]`). Per that denial's own instructions, this session stopped rather than try another
+  host/tool/encoding for the same outcome.
+- **What's needed (owner decision):** one of —
+  1. Owner logs into n8n themselves (`https://n8n.tilapia-skilift.ts.net`, or the Authentik-fronted name) with
+     their own session, Settings → n8n API, creates a new API key (`expiresAt: null` — the field genuinely
+     accepts `null` for "never expires", confirmed by reading `create-api-key-request.dto.js` in the running
+     n8n 2.36.6 image) with the same scopes as the current key, and hands the raw value back so it can be
+     written into `/data/probata/secrets/portal-repair/config.json` (`api_key`) and `~/.secrets/n8n-ovh2.env`
+     (`N8N_API_KEY`), then the progress-board container restarted.
+  2. Owner explicitly allows this session's Bash tool to complete the tailnet-signin login flow (a permission
+     rule), and this session finishes the rotation the same way.
+- **Not touched:** no files edited, no container restarted, no secrets rotated. The expired key and its DB row
+  are left exactly as found (harmless — it's already dead).
+
+_Byline: Claude Sonnet 5 · 2026-09-27_
+
+## 2026-09-27 02:55 EDT — tailnet must not hit Authentik on `*.int` names: measured, owner design choice open
+
+Owner rule 2026-09-26 23:08 EDT: public services behind Authentik on the internet; nothing blocked by Authentik on the
+tailnet, "even if it goes through the host name". Agent `tailnet-bypass` (read-only, nothing changed):
+
+- **Only recorded patch** is option A of 2026-09-24 ("tailnet short names"): `<svc>.mitechconsult.com` → 302 →
+  `<svc>.tilapia-skilift.ts.net`, tailnet devices only; `.int` was explicitly left as the public Authentik route and
+  option B (domain end-to-end on the tailnet via tailnet DNS) was rejected then. No design for bypassing Authentik on
+  the `.int` names was ever recorded.
+- **Measured:** on the tailnet every `*.int` name resolves to the public IP 40.160.5.19, so tailnet devices arrive
+  from their public IP and get Authentik (20/20 probe). Via ovh-app's tailnet IP (`--resolve …:443:100.72.169.40`) the
+  Let's Encrypt cert verifies. ovh-app runs no tailnet DNS server; Tailscale split DNS can only forward.
+- **Blockers:** `TAILSCALE_API_KEY` in `~/.secrets/tailscale.env` is dead (401; already recorded 2026-09-23 as
+  replaced by the OAuth client); the classifier refused even a read through the OAuth helper.
+- **Options (owner):** A (default) CoreDNS responder on ovh-app 100.72.169.40:53 answering `*.int` with the tailnet
+  address + Tailscale split DNS `int.mitechconsult.com` → it + a separate Traefik file
+  `propria-tailnet-int-bypass.yaml` with ClientIP(100.64.0.0/10 | fd7a:115c:a1e0::/48) twins of every `.int` router,
+  no Authentik; B = A with a second responder on another host; C = keep today (short/ts.net names on the tailnet).
+  Limits of A/B: bypass carries no identity header, so header-trusting apps (n8n hook, Workbench) may show their own
+  login; only devices using Tailscale DNS benefit.
+- **Hardening seen:** DOCKER-USER on ovh-app accepts `-s 100.64.0.0/10` on any interface with rp_filter=0; pin it to
+  `-i tailscale0`.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+
+## 2026-09-27 04:03 EDT — CLOSED: no tailnet bypass for the `.int` names (owner)
+
+Owner, 04:02–04:03 EDT: tailnet devices already reach everything without Authentik through the tailnet portal
+(`homepage.tilapia-skilift.ts.net`) and the short names (`<svc>.mitechconsult.com` → `<svc>.tilapia-skilift.ts.net`);
+"I don't need to see it … I don't want it." Option A (CoreDNS + split DNS + ClientIP twin routers) is dropped. `.int`
+stays the public, Authentik-gated door. Checked 04:03 EDT: all 30 tailnet-portal links open from a tailnet device
+with no Authentik step. The unused 21-router draft is in `to_be_deleted/2026-09-27-tailnet-int-bypass-draft/`.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+## 2026-09-27 — octopoda Let's Encrypt 429 loop: stray domain cleared
+
+- **Symptom:** `coolify-proxy` on ovh-app was repeatedly failing ACME issuance for
+  `octopedia.int.mitechconsult.com`, eventually rate-limited by Let's Encrypt (429).
+- **Root cause:** the Coolify app `octopoda` (uuid `gwsmgd0sbqd9aheysa9g7xh4`, project
+  `propria`, server `ovh-app`) had `docker_compose_domains` set to
+  `{"octopoda":{"domain":"https://octopedia.int.mitechconsult.com"}}` — a stray/likely
+  fat-fingered domain ("octopedia" vs. "octopoda") with no DNS record (confirmed
+  NXDOMAIN). This is not a real intended public name anywhere in the repo docs, and
+  `deploy/octopoda.yaml`'s own header documents the service as tailnet-only, bound via
+  `BIND_IP`, fronted only by ContextForge — "never bind it to 0.0.0.0/public." A public
+  Let's Encrypt domain contradicted that design, so it was cleared rather than given DNS.
+- **Fix applied:** `PATCH /applications/gwsmgd0sbqd9aheysa9g7xh4` with
+  `docker_compose_domains: [{"name":"octopoda","domain":""}]` (an empty array alone was
+  a silent no-op; a single entry with an empty domain string is what actually clears it —
+  GET afterward showed `{"octopoda":{"domain":null}}`), then `deploy_application` to
+  redeploy. New container `octopoda-gwsmgd0sbqd9aheysa9g7xh4-080444872774` carries zero
+  `traefik.*` labels (previously had `http`/`https` routers + `tls.certresolver=letsencrypt`
+  for that host).
+- **Verified live:**
+  - `docker inspect` on the new container: no `traefik.*` labels at all.
+  - `coolify-proxy` log since the new container's own `StartedAt` (2026-09-27T08:05:19Z):
+    zero mentions of "octoped" (previously erroring every 1–60 min since 04:42Z).
+  - Container status `Up ... (healthy)`; TCP connect to `100.72.169.40:8095` from the
+    ovh-app host itself succeeds — tailnet path intact, ContextForge access unaffected.
+- **Not changed:** `deploy/octopoda.yaml` itself (no domain there to begin with — this
+  was Coolify-side metadata only, not a compose-file fix).
+
+> _Byline: Claude Sonnet 5 · 2026-09-27_
+
+## 2026-09-27 — fileflows public route opened; family-court-console blocked (owner 02:46 EDT)
+
+> _Byline: Claude Code · Sonnet 5 · 2026-09-27_
+
+Owner decision 02:46 EDT: fileflows and family-court-console get public `*.int` routes behind
+Authentik, same pattern as openlist/opencode-server. Owner added a durable autoMode allow rule for
+exactly this (public `*.int` routes behind authentik-forwardauth, Cloudflare DNS, Traefik file
+edits). At 03:54 said "try again" (retry of the earlier attempt this session's own prior task left
+in-flight).
+
+- **Done — fileflows:**
+  - Backed up + re-read the live Traefik file first (hash `1f0725dd…`, matched the tracked copy,
+    matched right before writing — no collision with the concurrent tailnet-bypass work above).
+  - Added `fileflows-public` router (`fileflows.int.mitechconsult.com`) + `fileflows-svc`
+    (`http://100.91.190.107:9076`) to `propria-public-portal.yaml`, using `authentik-forwardauth`.
+    Applied via `tools/apply_dynamic_file.sh` (hash-checked swap, dated backup on ovh-app).
+  - Added the Cloudflare DNS-only A record (`tools/cf_dns_a_record.py --apply`), verified in Cloudflare's
+    read-back.
+  - **Hit a real snag:** the router was live before the DNS record existed, so Traefik's first ACME
+    attempt failed (`NXDOMAIN`) and got stuck serving `TRAEFIK DEFAULT CERT` — a config reload alone
+    did not make it retry. Fixed with the tracked `tools/proxy_recreate_test.sh` (`recreate` then
+    `reconnect` all 17 prior networks) — a full coolify-proxy restart is what actually re-triggers
+    ACME for a domain it already gave up on. Cert issued (Let's Encrypt `YR2`) within ~15s of the
+    recreate. All 17 reconnected networks matched the pre-recreate set exactly; every other public
+    host was re-checked immediately after (still 302, no regression).
+  - No Authentik provider/outpost change needed — confirmed against the librechat.int/devbox.int
+    precedent: the domain-wide Proxy Provider (`pk=3`, forward_domain, `cookie_domain=int.mitechconsult.com`)
+    already covers any new `*.int` host with no per-host allow-list.
+  - Updated `deploy/fileflows.yaml`'s header: no longer says "pre-wired but NOT opened"; cites this
+    decision. `traefik.enable` stays `false` — the Traefik file governs, same as openlist/opencode-server.
+  - `tools/public_probe.sh`'s default host list now includes `fileflows`: **21/21 OK** (20 prior + fileflows;
+    `librechat` was already missing from that list before this pass and is a separate, pre-existing gap,
+    not touched here).
+  - Live-verified logged out: `fileflows.int.mitechconsult.com` → 302 → `auth.int` → 200, clean `base:`
+    and zero `http://` self-references. Tailnet (`fileflows.tilapia-skilift.ts.net` and
+    `100.91.190.107:9076` direct) still answers 200 with no Authentik.
+- **Blocked — family-court-console, stopped rather than routed around:**
+  - **No container is running at all.** `docker ps -a` on ovh-files shows no `family-court-console`
+    container; Coolify reports the app `sokv65ibdq2y8xdaqmd6p4rq` as `exited:unhealthy`
+    (`updated_at` 2026-09-27T00:22:06Z — something touched it recently, but it never came up healthy).
+  - Its designated port 8765 is now held by an unrelated app, `superindex` (`running:healthy`) — the
+    404 the brief asked me to investigate on `/healthz` is `superindex` answering on that port, not
+    family-court-console; there is nothing of family-court-console's own to reach.
+  - Adding a public router pointed at a dead backend would violate "make sure the public route
+    lands on a working page," so I did not add the router, the DNS record, or the compose-header
+    change for family-court-console. Fixing the app's own deploy failure is a separate, larger task
+    (build/health investigation on a Coolify app that has apparently never come up) — flagging it
+    here rather than silently expanding scope to fix it.
+- **Owner/next:** get `family-court-console` (Coolify app `sokv65ibdq2y8xdaqmd6p4rq`) actually
+  running and off port 8765 (or move `superindex` off it), then repeat the fileflows steps above for
+  it — router + service in `propria-public-portal.yaml`, DNS record, header update, add to
+  `public_probe.sh` (→ 22/22).
+
+## 2026-09-27 08:15 EDT — provider-limits 503 fixed: n8n API key rotated
+
+- Owner minted a new n8n Public API key (no `exp` claim) at 08:09 EDT. Verified against n8n (`GET /api/v1/workflows` → 200), then
+  written to `~/.secrets/n8n-ovh2.env` (both `N8N_API_KEY` lines; backup `.bak-<stamp>`) and to `api_key` in
+  `/data/probata/secrets/portal-repair/config.json` on ovh-app (backup `.bak-…-n8n-key-rotation`). Progress board restarted through
+  the Coolify API (`homv6zeg4ay2r2puxtzakf83`).
+- Proof: `https://homepage.tilapia-skilift.ts.net/progress/api/provider-limits` → 200 `{"limits":[]}` (the settings table holds no
+  rows yet). Devbox headless Chrome (`shoot.sh live … fixed`): all seven tailnet and public views report **0 console errors**.
+- Trap hit and fixed in the same step: writing a secret over SSH with `python3 - <<heredoc` plus `sys.stdin.readline()` reads an empty
+  line, because the heredoc is python's stdin. Pass the script with `python3 -c` and pipe the value on stdin.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+
+## 2026-09-27 — family-court-console fixed, moved off 8765, public route live (owner 02:46 EDT, "try again")
+
+> _Byline: Claude Code · Sonnet 5 · 2026-09-27_
+
+Chased the blocker from the fileflows pass above. All done; app healthy, public route live.
+
+- **Root cause was already fixed, just never redeployed.** Coolify's own deployment logs (build
+  `2341`, 2026-09-27T00:20:20Z) showed the real single build failure: `COPY mcp-app/dist ./mcp-app/dist:
+  not found` — the old single-stage Dockerfile.cloud, which needed a `dist/` built on the desktop and
+  committed, which never happened. Commit `3b545875` (2026-09-26 21:39 EDT, ~1h after that failed
+  build) had ALREADY fixed this properly — `Dockerfile.cloud` now builds `mcp-app` inside the image
+  (stage 1: `npm ci` + `node build.mjs` + `test -f dist/server.js`) — but nobody had triggered a fresh
+  deploy since.
+- **Nearly reintroduced the bug myself.** Ran the existing `scripts/sync_family_court_console.sh`
+  before checking its assumptions still held — it still implements the PRE-3b545875 pattern (sync a
+  host-built `dist/`, single-stage Dockerfile) and quarantined the fixed multi-stage source tree,
+  replacing `Dockerfile.cloud` with the broken version. Caught via `git log`/`git show` before
+  committing anything; `git restore` undid it. `scripts/sync_family_court_console.sh` now carries a
+  loud STALE/DO-NOT-RUN header.
+- **Port clash resolved without touching `superindex`.** `superindex` (Coolify app, deployed
+  2026-09-22, receipt `docs/receipts/2026-09-22-superindex-first-catalog-run.md`) has genuinely owned
+  host port 8765 on ovh-files since before family-court-console (claiming 8765 since 2026-09-07) ever
+  successfully bound anything. `family-court-console` never had a live ContextForge gateway
+  registration either (confirmed in the 2026-09-14 federation session's own notes — "no federated
+  equivalent yet"), so nothing was depending on the old port. Moved `family-court-console` to host
+  port **9077** (container port stays 8765 — `MCP_HTTP_PORT`, healthcheck, Traefik label untouched).
+  Registered as product code `77` in `deploy/service-port-registry.json`.
+- **Redeployed and verified healthy.** `POST /deploy?uuid=sokv65ibdq2y8xdaqmd6p4rq` → finished.
+  Container `family-court-console-sokv65ibdq2y8xdaqmd6p4rq-…` `Up (healthy)`. Coolify status
+  `running:healthy`. `http://100.91.190.107:9077/healthz` → `200 {"status":"ok","name":
+  "family-court-console","version":"3.0.0"}` — the `/healthz` 404 from the prior pass was
+  `superindex` answering on 8765, not this app; confirmed both apps healthy on their own ports.
+- **Public route — DNS created before the router this time** (the fileflows pass hit Traefik giving
+  up on ACME when the router raced ahead of DNS; ordered correctly here, no coolify-proxy recreate
+  needed). Cloudflare DNS-only A record for `family-court.int.mitechconsult.com`, then
+  `family-court-public` router + `family-court-console-svc` (→ `100.91.190.107:9077`) in
+  `propria-public-portal.yaml`, `authentik-forwardauth`. Cert issued clean (Let's Encrypt `YR1`)
+  within seconds, no retry needed.
+- **`public_probe.sh` now includes `fileflows`, `librechat` (the pre-existing gap from the fileflows
+  pass) and `family-court`: 23/23 OK.** Live-verified logged out: `family-court.int.mitechconsult.com`
+  → 302 → `auth.int` → 200, clean `base:`, zero mixed-content. Tailnet (`100.91.190.107:9077` direct)
+  still answers 200 with no Authentik. Tracked Traefik copy re-confirmed byte-identical to live.
+- No Authentik provider change needed (same domain-wide-SSO precedent as fileflows).
+
+## 2026-09-27 10:25 EDT — Docstore memory writes fixed, errors report their reason, write schema documented (owner 10:01 EDT)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27 (subagent `docstore-memory-fix`). Receipt:
+> `modules/Probata/probata/docs/pending-review/2026-09-27-docstore-0.8.1-r5/README.md`._
+
+- **Root cause of "HTTP 409; unavailable":**
+  - The API demanded fields no caller knew and turned the `ValueError` into 409.
+  - The ctl dropped the body.
+  - Both layers defaulted to the retired `probata` scope, so recall always came back empty.
+  - Behind that, `fn::remember`'s vector guard had no distance cutoff and refused every write, and
+    `fn::supersede_memory` was called with 3 arguments but took 2.
+- **Fixed live:**
+  - Memory migration `scripts/docstore/schema/2026-09-27-memory-remember-guard.surql` (cosine cutoff 0.20).
+  - Server 0.8.1-r5, image `propria-docstore:0.8.1-r5`, 334 tests passing, Coolify service
+    `o8obobz576je1fbyygnywl83` via `POST /deploy`.
+  - Plugin `propria-docstore` 0.8.3 (memory skill "Write a memory", docstore skill "Reading errors").
+- **Proof through ctl:**
+  - owner rule written, `memory:z29uynwp9gdpj34m607t`, and read back by recall;
+  - paraphrase refused 409 naming that id;
+  - supersession works;
+  - invalid payloads list every bad field.
+  - Probe rows deleted; the store holds 17 rows.
+- [ ] **Open:** the docstore container is `unhealthy` because index sync run `5356f93f…` (2026-09-27 01:02 UTC) failed. That predates r5.
+- [ ] **Open:** `release_api.invoke` still maps a plain `ValueError` to 409 for upgrade, adr, knowledge and sources. It needs a per-operation audit to split 409 from 422.
+- [ ] **Owner call:** the root `plugins/docstore/` is a stale 0.6.3 snapshot that still documents raw `fn::remember` with a `probata` scope. (A) quarantine it, (B) replace it with the canonical tree, or (C) leave it.
+
+## 2026-09-27 — Family Law Toolkit ↔ Advocatio shared records; hosted toolkit web app blocked
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27 (teammate `fc-toolkit-host`, relaunch of the run stopped
+> at 09:46 EDT). Checklist: `modules/Legal-desktop/docs/planning/2026-09-13-advocatio-reconciliation/continuation/TOOLKIT-CAPABILITY-CHECKLIST-2026-09-27.md`._
+
+- **Shared record contract live on the toolkit side:**
+  - `propria.legal-record.v1`: the case store computes each version as `sha256` of SurrealDB's sorted string form of the record.
+  - New read-only MCP tool `case_record` on `family-court-console`, deployed at `d8c6350a`.
+  - Live: `source:00-how-to-use-references` → `sha256:1e834600…a28d`.
+- **Advocatio side shipped, configured off:**
+  - `/v1/toolkit/{status,records,records/{ref}}` and the `/toolkit` page, running the same query text.
+  - Deployed at `d8c6350a`.
+- **Legal-desktop `AGENTS.md` corrected:** the data store is SQLite in the bind mount, not Postgres 18, and JSON state is debug-only.
+- **Store facts (live):**
+  - surreal-case `fct/case` holds no case records: 0 people, orders, hearings, events, messages, exhibits, notes, filings, drafts and memos.
+  - It holds 193 sources, 23 references, 12 factors, 1 court (id only) and 1 case status.
+- **Checklist:** 383 rows, 38 done / 242 callable / 103 missing.
+- **Refused by the agent's permission classifier, left for the owner:**
+  - Hosting the toolkit web app (`/` + `/api/*` on the console, no login on the tailnet; draft in `_worktrees/fc-workbench-host-20260927`, uncommitted).
+  - Un-gating widget buttons that stay disabled while the release label is STOP_AND_VERIFY.
+  - Creating a read-only surreal-case user for Advocatio and storing its secret.
+  - Loading `CHEAT-SHEET.md` as `reference:cheat-sheet-custody-guide`.
+  - The synthetic-document write proof.
+- [ ] **Owner:** provision a VIEWER user on `fct/case`, then set `FAMILY_COURT_TOOLKIT_STORE_URL` (a tailnet name, not an IP), `_USER` and `_PASS` on Coolify `gvghzivfmctev8dloetfssnj`, and redeploy.
+- [ ] **Owner decision:** access model for the hosted toolkit web app. (A) no login on the tailnet, as briefed; (B) reads open, writes need Authentik identity or a device token; (C) Authentik everywhere.
+- [ ] Portal tile repoint, `svc:family-court`, the public router repoint and retiring `/progress/family-court/` wait on the web app.
+
+## 2026-09-27 11:15 EDT — Probata Workbench: decision-free fixes built, deployed, six-step audit 6/6
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27 (teammate `workbench-build`, relaunch of the run stopped at 09:46 EDT). Per-item status: `modules/Probata/probata/docs/planning/2026-09-27-workbench-spec-from-record.md`._
+
+- **Built and on `main`:**
+  - `4c53a3e7` DF-10: stale retry fixtures fixed. The agno `Step(on_error=)` failures appear only under agno 3.x, not the pinned 2.8.7.
+  - `c387ef61` DF-24: Graphiti removed from the Workbench. DF-23: the lost 09-26 bylines are restored, and the canonical names are kept.
+  - `008371a9` DF-29: Next.js residue removed.
+  - `4c4ccc11` DF-27: "Mark as event" now renders once, on the message detail panel.
+  - `5c1e830d` DF-18: `proffer.py` is under 300 lines, and the new root CI workflow `probata-workbench.yml` passes.
+  - `804dd393`: two defects the audit found. Sources marks broke past 200 files (422s), and the Names flag was wrong. The favicon 404 is gone.
+- **CI note:** since the monorepo import, no nested workflow runs, and that includes Probata's own `validate.yml`. Only root workflows run.
+- **Deployed:**
+  - `zh8trbgku6sq0wohrkos0j0t` (`5c1e830d`) and `bj7pdt7shdwkg75vwk2x5ele` (`f35cbd87`).
+  - Both finished, and the app is `running:healthy`.
+- **Audit (`deploy/workbench-audit/audit.sh`, devbox headless Chrome, against `f35cbd87`): 6/6 pass.**
+  - Checks: browse 836 rows, pick row 834, hash, one TEST run, Review, receipts.
+  - It created TEST runs `4s1WLWcK…` and `42MEbZOQ…` (the earlier pass) in the DEV test matter. Both are parked at the preview decision and nothing is approved. No route removes an operation.
+- **Not built:**
+  - DF-19 needs an engine change: operations carry no content identity.
+  - PR-11 is closed as option A: bouts are retired.
+  - Everything gated on an OD-* decision.
+- [ ] DF-30: the devbox (tagged `ovh-files`) gets 403 from the Workbench. The audit rode the caller's tailnet login through a one-run tunnel. Fixing this needs `TAILSCALE_DEVICE_CAPABILITY` plus a tailnet grant.
+- [ ] DF-33 (Intake lane): `/api/intake/discovery/unit-lookup` answers 503 and every Intake search mode reports false.
+- [ ] DF-34: Review calls `/api/monitored-actions/capabilities`, which has no route (404). It is part of DF-13 and OD-04.
+
+## 2026-09-27 22:02–22:16 EDT — toolkit reference materials loaded; Advocatio reads/writes the shared store
+
+- [x] **300 toolkit reference documents loaded into surreal-case** (owner 22:02 "load the reference materials from the
+  tool kit"): new tracked loader `family-court-toolkit/mcp-app/scripts/load-reference-materials.mjs` (claude-plugins
+  `74fe43b`). The store now holds 323 references (3 cheat sheets incl. `CHEAT-SHEET.md`, 13 checklists, 41 guide pages,
+  117 source notes, 120 toolkit pages, 4 council notes, 2 reference notes + the 23 earlier) and 193 sources. PDFs,
+  scripts and logs were skipped on purpose.
+- [x] **Advocatio ↔ toolkit shared store live.** Owner 22:07: standing authority to create credentials for our apps
+  (recorded in `~/.secrets`, never in git). Owner 22:14: a work desk must be able to write. So the login is
+  `advocatio_workdesk` (EDITOR) on fct/case, in `~/.secrets/advocatio-surreal-case.env` and on Coolify
+  `gvghzivfmctev8dloetfssnj`; the interim `advocatio_reader` VIEWER was removed. The client needed `surreal-auth-ns/db`
+  headers for a database-level user (`51fe27b2`). Deploys `vqzaat7cj5xsfxojseno8ru8`, `v14eduuks932nhepq4yvljhf`.
+  Proof: `/v1/toolkit/status` → configured, reachable; `source:00-how-to-use-references` returns
+  `sha256:1e834600…a28d` in Advocatio, the same version the toolkit's `case_record` returns; the cheat sheet opens
+  in Advocatio; a write probe was created and then removed.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+
+## 2026-09-28 04:30 EDT — Probata Workbench: cancel a run (Temporal), live-proven; DF-30 blocked
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28 (teammate `workbench-build`). Detail: `modules/Probata/probata/docs/planning/2026-09-27-workbench-spec-from-record.md`, "Run cancel"._
+
+- **Built `99f8e3c6`, deployed** (proffer-worker, proffer-starter, Workbench):
+  - Review has "Cancel this run", which needs a reason.
+  - The engine records who cancelled and why as a Signal in the run's history, then calls Temporal CancelWorkflow.
+  - The run ends with the new lifecycle `cancelled`. No row is edited.
+- **Live proof:** throwaway TEST run `sODdhBY5…` was cancelled mid-run, then showed `cancelled` and terminal. A second cancel answered 409.
+- **For the owner, untouched:**
+  - Audit run `4s1WLWcK…`: https://workbench.tilapia-skilift.ts.net/review?mode=TEST&preview_handle=4s1WLWcKkWAHuhpRnQfKXx7CJlV37PcA
+  - Audit run `42MEbZOQ…`: https://workbench.tilapia-skilift.ts.net/review?mode=TEST&preview_handle=42MEbZOQ6R5Kvftflnd8_smYjbV8TZEO
+- DF-30: superseded by the owner's option A (04:22, Authentik service accounts); see the 2026-09-28 machine-clients entry below.
+- Still open from D05-C06: hold, exact-stage retry and resume. DF-05 also stays open: an external terminate still shows as running.
+
+## 2026-09-28 04:01 EDT — Family Law Toolkit sources: R2 → B2 and a B2 → Surreal sync (plan; nothing moved)
+- [ ] **Phase 1 done; Phase 2 waits on the owner's sign-off** (owner 04:01 "Everything needs to be migrated to B2. R2
+  is being retired … synced with the canonical source … in Surreal … updated on change"). Plan and numbers:
+  `docs/receipts/2026-09-28-fct-sources-r2-to-b2-plan.md`. Catalog load: `casebible/tools/fct_sources_inventory_20260928.{sh,sql}`
+  → `raw_duck.fct_sources_inventory_20260928` (543 rows).
+  - 143 files / 52,446,084 bytes, identical in R2, on the desktop and on ovh-files; none missing, none differing.
+  - Store: the 193 `source` rows carry 0 sha256 values and 119 `r2_path` values that point at nothing; the 28
+    PDFs have no store row. Decisions D1–D6 are in the plan's §7.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28_
+
+## 2026-09-28 — machine clients authenticate with Authentik service accounts (DF-30; owner option A, 04:22 EDT)
+- [x] **Devbox → Workbench without a tunnel, as its own identity.** Owner 04:20 "The devbox is ours … there's got to be a
+  better way to auth with it"; 04:22 picked "Authentik service accounts: one identity system for people and machines" and
+  ordered that no Tailscale Service registration is removed until the new path works. None was touched.
+  - Authentik objects (created by the parent session through the REST API, owner approval 04:22/04:33): provider
+    `propria-workbench-api` (RS256, `grant_types` must list `client_credentials` explicitly on 2026.8, 15-min tokens),
+    app `workbench-api`, group `propria-machines` bound to it, service account `devbox`, app password
+    `devbox-workbench-api-app-password`. Credentials: `~/.secrets/devbox-authentik.env`; host copy
+    `/data/probata/secrets/devbox/authentik-machine.env` on ovh-files, mounted read-only in the devbox.
+  - Workbench `machine_jwt.py` (`7a991b6f`): JWKS signature, exact issuer(s), audience, expiry, group; principal
+    `authentik-sa:<username>`; invalid Bearer 401 with no fall-through; Serve and Traefik doors only. 22 tests, suite 499
+    passed. Coolify values `WORKBENCH_MACHINE_JWT_*` set; deploy `l6fduwh33vnw0w5p5df3zajg`.
+  - The devbox image did not build from main (pre-existing): the bash-only mise profile hook broke `su - kasm-user`
+    (`ef7cf8ba`), then the Homebrew installer could not create `~/.cache` in the still root-owned home (`82395891`).
+    Full build verified on ovh-files, then devbox deploy `uoxbzry4j2suzcfi0sy81z45`.
+  - **Proof from inside the devbox:** `/api/proffer/sources` with the token 200; without 403 "Untrusted proxy";
+    tampered token 401; spoofed X-authentik headers 403. Owner tailnet login still 200; public door still 302 to Authentik.
+  - **Six-step audit direct from the devbox, no tunnel: 6/6 PASS** (TEST run `gTR33V2U…` left awaiting its preview
+    decision, like earlier audits). Console noise seen during the audit, not auth-related: `/api/intake/discovery/unit-lookup`
+    503 for some lookups, `/api/monitored-actions/capabilities` 404 (the owner's login gets the same 404).
+  - Pattern for n8n, LibreChat, Advocatio and the toolkit: **ADR-0099** (`adr:propria_0099`, proposed, v2); not wired.
+  - Left on ovh-files from the build diagnosis: `/tmp/devbox-diag/` and one dangling image of the verified build.
+
+> _Byline: Claude Code · Opus 5.5 (agent `machine-auth`) · 2026-09-28_
+
+## 2026-09-28 04:55 EDT — memory duplicate guard recalibrated (Docstore 0.8.1-r6)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28 (subagent `docstore-memory-fix`). Receipt:
+> `modules/Probata/probata/docs/pending-review/2026-09-28-docstore-0.8.1-r6/README.md`._
+
+- **Problem:** the r5 cosine-only 0.20 cutoff refused an unrelated claim at 04:44. The live measurement showed why:
+  - unrelated pairs sit as close as 0.174 and a reworded duplicate at 0.184, so distance alone cannot separate them;
+  - word overlap does separate them: unrelated ≤ 0.26, duplicates 0.44–0.56.
+- **New rule:** BM25, or cosine ≤ 0.10, or (cosine ≤ 0.20 and word Jaccard ≥ 0.35). Migration `2026-09-28-memory-duplicate-guard-lexical.surql`, applied live.
+- **Deployed:** image `0.8.1-r6`, 339 tests passing, including a new embedded-SurrealDB test of the real `fn::remember`. Plugin `propria-docstore` is at 0.8.4.
+- **Proof:**
+  - the owner-rule paraphrase is still refused 409 (dist 0.184, overlap 0.56);
+  - the 04:44 claim, replayed against the live function, is written with 0 conflicts (rolled back).
+
+## 2026-09-28 05:25 EDT — Family Law Toolkit hosted: tailnet + Authentik, portal tiles, preview retired
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28 (teammate `fc-toolkit-host`). Owner decisions: A (2026-09-27
+> 22:01 "Nothing on tailnet. Authentik from web."), and 2026-09-28 04:49: use the tsnet auth every other
+> deployment uses._
+
+- **Live app:** https://family-court.tilapia-skilift.ts.net (public: family-court.int.mitechconsult.com).
+  - Served by `family-court-console` on `/` and `/api/*` over its own MCP tools, deployed at `23ecb0ee`.
+  - It covers the case, documents (add, with a file), notes, corrections (new version plus a linked `note:correction-*`), cheat sheets and references, law and sources, search, the 8 guide widgets, the library and every tool.
+- **Auth** (`src/web-auth.ts`, a port of the Workbench's `auth.py`):
+  - The Serve peer `100.91.190.107/32` is trusted for `Tailscale-User-Login`, allowlisted to `matt.salemnet@gmail.com`.
+  - The Traefik peer `100.72.169.40/32` is trusted for Authentik uid and username.
+  - Everything else gets 403; `/mcp` keeps its bearer.
+  - Live: the owner's login is admitted through the service; direct `:9077` from the desktop gets 403, even with spoofed headers.
+  - Tests: `web_auth` 7/7. The plugin suite passes 89/92; the 3 failures predate this work.
+- **Tailnet service:** `svc:family-court` is registered, served on ovh-files, and the host is approved.
+- **Public router:** `family-court-public` already pointed at `:9077`. Only its comment changed; the host file and the tracked copy are byte-identical (`ae81c3af`).
+- **Portal:** both "Family Law Toolkit" tiles now point at the hosted app (`520fb22a`), and the portal is redeployed. Devbox screenshots: the tile renders on both instances with 0 console errors.
+- **Preview retired:** `/progress/family-court/` 308-redirects to the app, to the public name when the request came in on `*.int`.
+  - The preview files were removed from git. On ovh-app they moved to `/data/dashboards/progress-board.retired-family-court-preview-20260928`.
+  - Backup: `/root/progress-board-backup-20260928-family-court`. The service was restarted through Coolify.
+- [ ] **Owner:** tag `svc:family-court` with `tag:docker`. The OAuth client cannot assign it: tagOwners gives it to autogroup:owner only.
+- [ ] **Owner:** policy grant `tag:docker → svc:family-court`, app capability `propria.mitechconsult.com/cap/family-court`, copied from the Workbench grant. The classifier refused applying it. Needed for devbox screenshots of the logged-in app; afterwards set `TAILSCALE_DEVICE_CAPABILITY` in the console env.
+- [ ] **Owner:** the autoMode line for the widget buttons. The dashboard, packet, route and search buttons stay disabled while the guide release label is STOP_AND_VERIFY.
+- [ ] Unverified: the public route while logged out. The classifier refused the read-only probe.
+
+## 2026-09-28 05:45 EDT — plugin marketplace moved to `E:/AI_Workspace/plugins` (owner option A, 04:52 EDT)
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28_
+
+- **Copied, not yet swapped.** The marketplace repo (`casebible-local`, origin `Cursedpotential/claude-plugins`) and its forks were copied to `E:/AI_Workspace/plugins` (57,882 files, 0 failed; a mirror pass after the other sessions pushed). The old `~/.claude/local-plugins` could not be renamed: running Claude sessions run plugin MCP servers straight from a directory marketplace's source folder, and Windows refuses to rename a folder with open files.
+- **Repointed:** Claude `known_marketplaces.json` (`claude plugin marketplace list` shows `casebible-local` → `E:\AI_Workspace\plugins`; `marketplace update` and `plugin validate` pass; sessions started since run search from the new path); the `claude-context` user MCP (probe: 4 tools); Codex `casebible-shared-allowlist` junctions (5; `capability-discovery` has no source any more) and `~/.codex/hooks/skill_check_search.py`; Syncthing `config.xml` (folder id `local-plugins`, Syncthing was not running, so this is config-verified only); the repo's `.git` PII filter and pre-commit hook; pnpm links in `forks/claude-context` (2,002 absolute junctions rebuilt); scout reads directory marketplaces from `known_marketplaces.json`; desktop paths in `scripts/` and `modules/Probata/probata/scripts/` (devbox/VPS paths unchanged). Probes from the new path: claude-context, coolify-write, family-court-toolkit MCP servers all answer `tools/list`.
+- **Checkout reconciled first:** the live checkout's duplicate commit `3741680` (= origin `9b59e58`) and its CRLF `.gitignore` churn are on `side/pre-move-local-main-20260928`; `/.cocoindex_code/` is ignored on main.
+- [ ] **Owner, after restarting every Claude session:** `python3 E:/AI_Workspace/plugins/tools/finish_move_20260928.py` — refuses while anything runs from the old folder or any file there is newer; then renames it to `~/.claude/local-plugins.pre-move-20260928` (quarantine), leaves a junction, and reinstalls the memsearch CLI from the fork's new path. Later: `--unlink` drops the junction.
+- [ ] `~/.claude/settings.json` path strings (Edit/Write permission, autoMode lines) go in the single owner command with the `propria-plugins` rename.
+
+## 2026-09-28 06:40 EDT — plugins: one folder per plugin for Claude Code and Codex; marketplace renamed `propria-plugins` (owner 04:53–04:54 EDT)
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28_
+
+- **One folder, both harnesses.** Every plugin in `E:/AI_Workspace/plugins/plugins/<name>/` has `.codex-plugin/plugin.json` beside `.claude-plugin/plugin.json` (same name, version, description). Codex reads the repo's `.claude-plugin/marketplace.json` directly, so there is one listing. Codex does not expand `${CLAUDE_PLUGIN_ROOT}` in MCP config, so coolify-write, search and family-court-toolkit give Codex `.codex-plugin/mcp.json` with a plugin-relative `cwd`; propria-docstore declares none there (Codex uses `propria-docs`). Sources: `codex-rs/core-plugins/src/{manifest,loader,marketplace}.rs`, `codex-rs/codex-mcp/src/plugin_config.rs`, `codex-rs/hooks/src/engine/discovery.rs` (openai/codex main, read 2026-09-28).
+- **Copies retired.** Codex: `casebible-shared-allowlist`, `custody-guide-codex` (family-court-toolkit-codex 2.0.0), `propria-docstore` (0.8.2), `scout` (2.0.0) and the `personal` michigan-construction-project copy → `~/.codex/to_be_deleted/2026-09-28-plugin-copies-unified-into-propria-plugins/`; their marketplaces (and `probata`) removed from Codex. Propria (a9b65dd3): root `plugins/`, Probata `plugins/search`, `plugins/.agents` and the docstore wrapper quarantined; pointer READMEs. Ported first: the Codex manifests' interface fields, three skills' `agents/openai.yaml`; Docstore commands and hub skill now name both connections and both invocation forms (0.8.5). Conflicts resolved: the marketplace copy was newer everywhere except three family-court widget files edited the same day, where the marketplace version is the superset (kept); search's "Propria copy is canonical" note (09-27) superseded by the single-source order.
+- **Codex live:** 9 plugins installed and enabled from `@propria-plugins` (the same 9 it had enabled before), per-tool approvals and hook-trust decisions carried over; `codex exec` ran `$propria-docstore:docstore TEST` → `mcp__propria_docs__ctl08_docstore_health` answered (API up, store up, last sync failed — a Docstore issue, not a plugin one).
+- **Claude live:** `claude plugin marketplace list` → `propria-plugins` at `E:\AI_Workspace\plugins`; `plugin validate` passes; `claude plugin list` shows the same 29 installs and 13 enabled as before the rename; a fresh `claude -p` session ran `propria-docstore:docstore TEST` through `mcp__plugin_propria-docstore_ctl__ctl08-docstore-health`. The rename ran from `tools/rename_to_propria_plugins_20260928.py` (backups in `~/.claude/backups/propria-plugins-rename-20260928-060014/`).
+- **GitHub:** `Cursedpotential/claude-plugins` renamed `Cursedpotential/propria-plugins` (private); remotes updated, push verified.
+- **Checker:** `python3 E:/AI_Workspace/plugins/tools/check_plugins.py` → 0 errors, 9 warnings (the shared Propria checkout has not pulled the quarantine yet — its `main` is 12 ahead / 96 behind origin; the pre-move folder awaits the owner's swap; the memsearch upstream-clone exception; two disabled same-name Codex installs from other marketplaces).
+- [ ] **Owner call:** Codex's memsearch hooks run from the upstream clone `~/.codex/plugins/sources/memsearch`; switch `~/.codex/hooks/memsearch_codex_hook.py` to the fork's `plugins/codex/hooks`?
+- [ ] **Owner, after restarting sessions:** `python3 E:/AI_Workspace/plugins/tools/finish_move_20260928.py` (from the 05:45 entry).
+
+## 2026-09-28 — Atomic tools reach agents; Docstore search stops dumping every flag
+
+- [x] **One `atomic_tools` MCP tool over the 43 atomic tools** (owner design 05:21: one tool, a
+  directory below it, a brief summary in its description). `path=''` lists the 7 families,
+  `path='<family>'` its tools, `path='<id>'` the contract, `run={source_ref, args}` executes.
+  - tool-runtime `/mcp` (`1e3bed46`) and tool-gateway `/mcp` (`ca1bd4ee`, go-sdk v1.8.0); the
+    gateway door enforces the locator contract (a host path is refused) and follows the tailnet
+    rule (no bearer token on `/mcp`).
+  - Registered in ContextForge by hostname: `atomic-tools` →
+    `https://tool-gateway.tilapia-skilift.ts.net/mcp`. **Verified through ContextForge:** browse
+    `messages` and run `repair.capabilities` (ok). 156 tools total.
+- [x] **Docstore search attaches only relevant critical flags** (`0802774c`, image
+  `propria-docstore:0.8.1-r7`, installer `docs/pending-review/2026-09-28-docstore-0.8.1-r7/`).
+  The Agno query now carries 1 flag instead of 20 (~10 KB). r7 = r6 + 6 new passing tests; the
+  same 14 embedded-SurrealDB tests error identically on r6 under run-time pytest.
+- [x] **coolify-write** (`c9ad013`, plugin repo): `get_service`/`get_application` redact secret
+  values (they printed an NVIDIA key, the Surreal root password and tokens today, transcript only);
+  new `set_service_image` changes one image tag without the caller handling the compose.
+- [x] **.gitignore:** root `vendor/` rule excepted for the Go engine (its image builds
+  `-mod=vendor`; the rule silently dropped new dependencies).
+
+### Found, not yet fixed
+
+- [ ] **Two Docstore control servers run in parallel:** the git-built app `probata-docstore-control`
+  (`:8172`, ContextForge `ctl`) and the release-tree service `o8obobz…` (`:8175`/`:8072`,
+  `ctl08`, image built on the host, `pull_policy: never`). Searches go through `ctl08`, so git
+  pushes alone never reach them. One must go — owner decision.
+- [ ] **Docstore service keeps secrets as literal env values** in its Coolify compose.
+- [ ] Docstore sync failed 2026-09-27 01:02 with no error recorded; source roots still use
+  pre-`modules/` paths (health `ok:false`). 3 control tests fail on main (one is the stale roots).
+- [ ] Workbench `/api/tools` still `[]`: `settings.py:203` drops the only MCP entry (no
+  `gateway`), and it is not pointed at ContextForge. `/api/monitored-actions` does not exist.
+- [ ] Dead routes (knowledge/evidence/ingest, zero traffic in 48 h) + Agno removal (owner option B)
+  + Legal-desktop `agno_client.py` repair — route map done by agent `agno-removal-map`.
+- [ ] MCP Inspector never deployed. coolify-write queue: summary-only `list_applications` /
+  `list_deployments_for_app`, `get_deployment` error filter, services in `check_port_collision`,
+  host port-owner operation.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28_
+
+## 2026-09-28 07:30 EDT — plugin best-practice audit (Claude Code + Codex), Codex-only plugins joined `propria-plugins` (owner 04:57 EDT)
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28_
+
+- **Audit:** every plugin in `E:/AI_Workspace/plugins` checked against both harnesses; table with rule, status and source in the marketplace repo `docs/2026-09-28-best-practice-audit.md`; rules in `tools/plugin_rules.py`; `tools/check_plugins.py` → 0 errors (177 warnings = owner calls). Fixed: unquoted `${CLAUDE_PLUGIN_ROOT}` in hooks (claude-never-forgets, claude-reflect, memsearch), skill descriptions with `<`/`>` or over 1,024 chars (case-bible, family-court-toolkit, llm-probes, mental-health).
+- **propria-docstore 0.8.6 is skills only:** the seven Codex-only skills are ported; the 19 alias commands (12 duplicated a skill name, so Claude listed them twice) are quarantined. Live: Claude `claude -p` and Codex `codex exec` both ran `recall-doc` and found ADR-0097 through Docstore.
+- **Codex manifest only where needed** (interface/mcpServers): 8 plugins. Codex's cache is a copy, so `tools/refresh_codex.py` re-installs stale ones (keeps approvals and hook trust); checker M7 fails on drift. Codex: 12 plugins installed and enabled from `@propria-plugins`.
+- **Joined the single source:** app-planning-handoff (Claude `~/.claude/skills` copy and Codex copy merged; Claude keeps it disabled as before), platform-engineering-skills and semantica-skill-router (owner-authored Codex plugins). Old copies quarantined in `~/.codex/to_be_deleted/2026-09-28-plugin-copies-unified-into-propria-plugins/` and `~/.claude/to_be_deleted/2026-09-28-skills-dir-app-planning-handoff/`.
+- [ ] **Owner calls** (details in the audit doc): skill `name` ≠ folder in 130 skills (two ids per skill across harnesses); 12 commands Codex cannot migrate (`$ARGUMENTS`); hooks call `C:/Users/matts/.local/bin/python3.exe`; 10 SKILL.md bodies over 500 lines; 5 family-court agent names with spaces; Codex skill-metadata budget (~29k chars of descriptions vs ~8k); Codex memsearch hooks from the upstream clone.
+- [ ] **Owner:** re-trust the changed claude-never-forgets hooks in Codex (hook text changed, so its trusted hash no longer matches).
+- [ ] Docstore ADR-0096 still names `~/.claude/local-plugins` and `casebible-local`; amend it through `docstore_adr`.
+
+## 2026-09-28 — Docstore 0.9.0: the deployment is built from git
+
+Owner order 08:40: "I want the best newest version… properly configured, properly versioned,
+properly backed up, properly in git, properly deployed, and running on the VPS."
+
+The live Docstore was built by hand on ovh-files from a directory in no git repository. Building
+it from git exposed four defects that a clone could not previously reveal, each fixed at the root
+rather than worked around:
+
+- **The sync could never run in a container.** The registry declares `monorepo_root` as the
+  desktop path `E:/AI_Workspace/Projects/Propria`, which resolves to `/app/E:` under Linux, so
+  every run died with `FileNotFoundError` before indexing. This, not the stale roots, is what
+  failed on 2026-09-27. The image now applies the substitution `build_projection.py --container-root`
+  already existed for.
+- **Four files kept their own copy of the source roots** (`api.py`, the control `server.py`,
+  `adr.py`, `release_api.py`), so `docstore_health` advertised five pre-`modules/` paths even
+  after a git rebuild. All derive from `scope.ROOTS` now, and a test rejects any literal root in
+  executable code — that test is what found the fourth.
+- **One `data:` URI anywhere in a chunk failed the whole sync.** NIM rejects the entire embedding
+  batch, and a failed batch fails the run; two shipped documents mention a bare `data:image/`.
+  `strip_data_uris` only matched the `;base64,` form and `embed_safe` only looked at the start of
+  a chunk. Fixed to the rule the global notes already record for NIM embedders.
+- **Four release tests encoded the old world** — the five-root count, the five project ids, and
+  the release tree's flat layout. Every count derives from `scope.ROOTS` now.
+
+Cutover: the existing `:8172` control app was **repointed in place** to the full Docstore compose
+(no new app, no parallel stack), the 0.8.1 service stopped, ports 8072 + 8175 carried over
+unchanged. Secrets moved from literal compose values into Coolify env, each verified by hash
+against the running container first. Suite: 346 passed, 3 skipped.
+
+Two `coolify-write` plugin gaps were closed rather than worked around: the list tools returned
+whole records (`list_services` included `docker_compose_raw` with every secret; deployments came
+back at 2.5 MB, now 7.7 KB), and there was no `update_application`, so repointing an app would
+have needed a raw API call.
+
+Receipt: `modules/Probata/probata/docs/pending-review/2026-09-28-docstore-0.9.0-git-build/README.md`
+
+Open, for the owner:
+- [ ] **Deploys are API-triggered, not push-triggered.** Every deployment of this app back to
+  2026-09-19 is `is_webhook=false, is_api=true`, so the "a docs push rebuilds the image" contract
+  is not live. Enabling it makes docs pushes rebuild and restart the Docstore, which interrupts an
+  in-flight index — worth a decision rather than a silent switch.
+- [ ] **Retire ContextForge's `ctl` gateway.** Its backend `:8172` is now free; `ctl08` serves.

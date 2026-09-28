@@ -16,6 +16,10 @@ def register(app,auth):
     async def invoke(call):
         try:
             return await call
+        except remote_memory.MemoryFailure as exc:
+            # 0.8.1-r5 (Claude Code · Opus 5.5, 2026-09-27): memory failures keep their own status and detail
+            # (422 invalid payload, 409 near-duplicate with the conflicting ids, 502/503 memory service).
+            raise HTTPException(exc.status,exc.detail) from None
         except ValueError as exc:
             raise HTTPException(409,str(exc)) from None
 
@@ -23,7 +27,10 @@ def register(app,auth):
     async def release(authorization: str|None=Header(default=None)):
         auth(authorization)
         return {'version':upgrade.VERSION,'control':'hosted','raw_surreal_fallback':False,
-                'source_roots':['Propria/docs', *[p[0] for k,p in source_sync.ROOTS.items() if k!='propria']],
+                # Every root from scope.ROOTS, propria included. This used to hard-code
+                # 'Propria/docs' and then exclude propria from the derived list, so /release
+                # advertised one pre-2026-09-20 module path beside six junction paths.
+                'source_roots':[p[0] for p in source_sync.ROOTS.values()],
                 'server_processing':['CocoIndex','summary','classification','embedding','entity-resolution','rerank','DuckDB'],
                 'semantic_mode':'remote-llm' if all(os.environ.get(key) for key in ('DOCSTORE_LLM_BASE_URL','DOCSTORE_LLM_MODEL','DOCSTORE_LLM_API_KEY')) else 'deterministic-extractive'}
 

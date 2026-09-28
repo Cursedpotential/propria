@@ -1,0 +1,108 @@
+# =============================================================================
+# DOCSTORE 0.9.0 — the documentation index, API and control MCP, built from git
+# =============================================================================
+# Byline: Claude Code · Opus 5 · 2026-09-28
+#
+# Replaces the Coolify SERVICE propria-docstore-0-8-1 (o8obobz576je1fbyygnywl83), whose image was
+# built by hand on ovh-files from /data/propria/releases/docstore-0.8.1 — a directory in no git
+# repository, running code older than main. Receipt:
+# docs/pending-review/2026-09-28-docstore-0.9.0-git-build/README.md.
+#
+# COOLIFY APP SETTINGS (they differ from every other Probata app, on purpose):
+#   base_directory        /                       <- the MONOREPO ROOT, not the module: this image
+#                                                    assembles documentation from seven modules.
+#   docker_compose_location  /modules/Probata/probata/deploy/docstore.yaml
+#   watch_paths           modules/Probata/probata/scripts/docstore/**
+#                         modules/Probata/probata/plugins/docstore/control/**
+#                         modules/Probata/probata/deploy/docker/docstore/**
+#                         modules/Probata/probata/deploy/docstore.yaml
+#                         modules/Probata/probata/docs/**
+#                         modules/Consignatio/docs/**
+#                         modules/Consignatio/Intake/docs/**
+#                         modules/Legal-desktop/docs/**
+#                         modules/vestigia-geodata_processor/traceiq-rebuild/docs/**
+#                         modules/FL-MCP/docs/**
+#                         docs/**
+#   A docs push in ANY of those modules rebuilds this image; the start-up pass is the change event.
+#
+# COOLIFY ENVIRONMENT (values live in Coolify, never in this file — the previous service kept them
+# as literal compose values, so the Coolify API returned every key and password in full):
+#   BIND_IP, SURREAL_DOCS_USER, SURREAL_DOCS_PASS, NVIDIA_API_KEY, DOCSTORE_API_TOKEN,
+#   DOCSTORE_CONTROL_TOKEN, MEMORY_BASIC_AUTH, DOCSTORE_LLM_API_KEY
+#
+# PORTS. 8072 is the canonical Docstore API (80 = machine HTTP, 72 = Docstore) behind
+# svc:docstore-api; 8175 is the control MCP that ContextForge's ctl08 gateway calls. Both are
+# tailnet-only. They are the same ports the release service published, so the cutover is
+# stop-then-start with no client change.
+#
+# HOST-PREP (once): install -d -m 0750 /data/probata/volumes/docstore-worker
+#                   install -d -m 0750 /data/propria/releases/docstore-0.9.0/control-state
+# =============================================================================
+
+services:
+  docstore:
+    build:
+      context: .
+      dockerfile: modules/Probata/probata/deploy/docker/docstore/Dockerfile
+    image: 'propria-docstore:0.9.0'
+    container_name: docstore
+    restart: unless-stopped
+    environment:
+      # --- stores -----------------------------------------------------------
+      SURREAL_DOCS_URL: ${SURREAL_DOCS_URL:-ws://100.91.190.107:8472/rpc}
+      SURREAL_DOCS_USER: ${SURREAL_DOCS_USER:?set SURREAL_DOCS_USER in Coolify env}
+      SURREAL_DOCS_PASS: ${SURREAL_DOCS_PASS:?set SURREAL_DOCS_PASS in Coolify env}
+      DOCSTORE_MCP_URL: ${DOCSTORE_MCP_URL:-https://surreal-docs.tilapia-skilift.ts.net/mcp}
+      MEMORY_MCP_URL: ${MEMORY_MCP_URL:-http://100.91.190.107:8471/mcp}
+      MEMORY_BASIC_AUTH: ${MEMORY_BASIC_AUTH:?set MEMORY_BASIC_AUTH in Coolify env}
+      # --- auth -------------------------------------------------------------
+      DOCSTORE_API_TOKEN: ${DOCSTORE_API_TOKEN:?set DOCSTORE_API_TOKEN in Coolify env}
+      DOCSTORE_CONTROL_TOKEN: ${DOCSTORE_CONTROL_TOKEN:?set DOCSTORE_CONTROL_TOKEN in Coolify env}
+      # --- embedding + enrichment ------------------------------------------
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:?set NVIDIA_API_KEY in Coolify env}
+      DOCSTORE_LLM_API_KEY: ${DOCSTORE_LLM_API_KEY:?set DOCSTORE_LLM_API_KEY in Coolify env}
+      DOCSTORE_LLM_BASE_URL: ${DOCSTORE_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      DOCSTORE_LLM_MODEL: ${DOCSTORE_LLM_MODEL:-nvidia/nemotron-3.5-lightning-30b-a3b}
+      DOCSTORE_LLM_DISABLE_THINKING: '1'
+      # --- sources: in the image, from git ---------------------------------
+      # /app is the monorepo root as flow_docs.py computes it (parents[2] of its own file), so the
+      # registry's roots (docs, docs/probata, …) resolve to /app/docs/*. No host mirror, no sync.
+      DOCSTORE_PROJECT_REGISTRY: /app/docs/docstore-source-registry.json
+      DOCSTORE_MULTI_ROOT_ENABLED: '1'
+      # --- run state (the one bind mount; survives redeploys) ---------------
+      DOCSTORE_COCOINDEX_DB: /data/state/cocoindex_state.db
+      DOCSTORE_SYNC_LOCK: /data/state/sync.lock
+      DOCSTORE_RUN_STATUS: /data/state/latest-run.json
+      DOCSTORE_RUN_RECEIPTS: /data/state/runs
+      DOCSTORE_WORKER_RECEIPTS_DIR: /data/state/runs
+      DOCSTORE_CONTROL_STATE_DIR: /data/control
+      # --- tunables ---------------------------------------------------------
+      DOCSTORE_API_HOST: 0.0.0.0
+      DOCSTORE_INGEST_TIMEOUT_S: ${DOCSTORE_INGEST_TIMEOUT_S:-1800}
+      DOCSTORE_CHUNK_BATCH_ROWS: ${DOCSTORE_CHUNK_BATCH_ROWS:-64}
+      COCOINDEX_MAX_INFLIGHT_COMPONENTS: ${COCOINDEX_MAX_INFLIGHT_COMPONENTS:-4}
+      DOCSTORE_MAX_RSS_MB: ${DOCSTORE_MAX_RSS_MB:-3000}
+    ports:
+      - '${BIND_IP:-127.0.0.1}:8072:8000'   # worker API, behind svc:docstore-api
+      - '${BIND_IP:-127.0.0.1}:8175:8084'   # control MCP, called by ContextForge ctl08
+    volumes:
+      - /data/probata/volumes/docstore-worker:/data/state
+      - /data/propria/releases/docstore-0.9.0/control-state:/data/control
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - '-c'
+        # Health is judged on the response BODY, not the HTTP status: the API answers 200 while
+        # the pipeline is failing. test_worker_safety asserts this `value.get('ok') is True` form.
+        - "import json,urllib.request,sys; value=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)); sys.exit(0 if value.get('ok') is True else 1)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - probata
+
+networks:
+  probata:
+    external: true

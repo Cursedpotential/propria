@@ -171,6 +171,11 @@ target/
 
 # Go (if any)
 vendor/
+# Except the Go engine: its images build with `go build -mod=vendor`
+# (deploy/docker/tool-gateway/Dockerfile), so its vendor tree must be in git. The blanket
+# rule above silently dropped new dependencies while the 4,659 already-tracked files kept
+# working. Claude Code · Opus 5.5 · 2026-09-28.
+!modules/Probata/probata/modules/engine/vendor/
 # Recall plugin auto-generated context
 .claude/recall-context.md
 

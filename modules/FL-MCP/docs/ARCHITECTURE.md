@@ -67,7 +67,7 @@ browser tab.
 ## Store access boundary
 
 `sidecar/lib/store-client.mjs` imports the **built** module from the plugin's ABSOLUTE path
-(`C:\Users\matts\.claude\local-plugins\plugins\family-court-toolkit\mcp-app\dist\store.js`) — never
+(`E:\AI_Workspace\plugins\plugins\family-court-toolkit\mcp-app\dist\store.js`) — never
 `mcp-app/src/store.ts`, and never edits anything under `mcp-app/src/`. This app moved out of the
 plugin directory on 2026-09-07 (see `../README.md`), so it is no longer a sibling of `mcp-app/`;
 the absolute path is a deliberate, documented choice for this personal, single-machine tool, not

@@ -29,6 +29,8 @@ type fakeStarter struct {
 	previewErr    error
 }
 
+func (f *fakeStarter) Cancel(context.Context, string, proffer.CancelRequest) error { return nil }
+
 func (f *fakeStarter) Start(_ context.Context, in proffer.WorkflowInput) (string, string, error) {
 	f.startIn = in
 	if f.startErr != nil {
