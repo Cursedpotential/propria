@@ -97,6 +97,10 @@ def _query(surql: str, params: dict[str, str]) -> Any:
                 "Accept": "application/json",
                 "surreal-ns": settings.family_court_toolkit_store_ns,
                 "surreal-db": settings.family_court_toolkit_store_db,
+                # The login is a database-level VIEWER user; SurrealDB authenticates it only when the
+                # request names that level too (Claude Code · Opus 5.5 · 2026-09-27, verified live: 401 without).
+                "surreal-auth-ns": settings.family_court_toolkit_store_ns,
+                "surreal-auth-db": settings.family_court_toolkit_store_db,
             },
             auth=(settings.family_court_toolkit_store_user, settings.family_court_toolkit_store_pass),
             timeout=10.0,
