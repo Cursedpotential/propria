@@ -3571,3 +3571,43 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 - **Checker:** `python3 E:/AI_Workspace/plugins/tools/check_plugins.py` → 0 errors, 9 warnings (the shared Propria checkout has not pulled the quarantine yet — its `main` is 12 ahead / 96 behind origin; the pre-move folder awaits the owner's swap; the memsearch upstream-clone exception; two disabled same-name Codex installs from other marketplaces).
 - [ ] **Owner call:** Codex's memsearch hooks run from the upstream clone `~/.codex/plugins/sources/memsearch`; switch `~/.codex/hooks/memsearch_codex_hook.py` to the fork's `plugins/codex/hooks`?
 - [ ] **Owner, after restarting sessions:** `python3 E:/AI_Workspace/plugins/tools/finish_move_20260928.py` (from the 05:45 entry).
+
+## 2026-09-28 — Atomic tools reach agents; Docstore search stops dumping every flag
+
+- [x] **One `atomic_tools` MCP tool over the 43 atomic tools** (owner design 05:21: one tool, a
+  directory below it, a brief summary in its description). `path=''` lists the 7 families,
+  `path='<family>'` its tools, `path='<id>'` the contract, `run={source_ref, args}` executes.
+  - tool-runtime `/mcp` (`1e3bed46`) and tool-gateway `/mcp` (`ca1bd4ee`, go-sdk v1.8.0); the
+    gateway door enforces the locator contract (a host path is refused) and follows the tailnet
+    rule (no bearer token on `/mcp`).
+  - Registered in ContextForge by hostname: `atomic-tools` →
+    `https://tool-gateway.tilapia-skilift.ts.net/mcp`. **Verified through ContextForge:** browse
+    `messages` and run `repair.capabilities` (ok). 156 tools total.
+- [x] **Docstore search attaches only relevant critical flags** (`0802774c`, image
+  `propria-docstore:0.8.1-r7`, installer `docs/pending-review/2026-09-28-docstore-0.8.1-r7/`).
+  The Agno query now carries 1 flag instead of 20 (~10 KB). r7 = r6 + 6 new passing tests; the
+  same 14 embedded-SurrealDB tests error identically on r6 under run-time pytest.
+- [x] **coolify-write** (`c9ad013`, plugin repo): `get_service`/`get_application` redact secret
+  values (they printed an NVIDIA key, the Surreal root password and tokens today, transcript only);
+  new `set_service_image` changes one image tag without the caller handling the compose.
+- [x] **.gitignore:** root `vendor/` rule excepted for the Go engine (its image builds
+  `-mod=vendor`; the rule silently dropped new dependencies).
+
+### Found, not yet fixed
+
+- [ ] **Two Docstore control servers run in parallel:** the git-built app `probata-docstore-control`
+  (`:8172`, ContextForge `ctl`) and the release-tree service `o8obobz…` (`:8175`/`:8072`,
+  `ctl08`, image built on the host, `pull_policy: never`). Searches go through `ctl08`, so git
+  pushes alone never reach them. One must go — owner decision.
+- [ ] **Docstore service keeps secrets as literal env values** in its Coolify compose.
+- [ ] Docstore sync failed 2026-09-27 01:02 with no error recorded; source roots still use
+  pre-`modules/` paths (health `ok:false`). 3 control tests fail on main (one is the stale roots).
+- [ ] Workbench `/api/tools` still `[]`: `settings.py:203` drops the only MCP entry (no
+  `gateway`), and it is not pointed at ContextForge. `/api/monitored-actions` does not exist.
+- [ ] Dead routes (knowledge/evidence/ingest, zero traffic in 48 h) + Agno removal (owner option B)
+  + Legal-desktop `agno_client.py` repair — route map done by agent `agno-removal-map`.
+- [ ] MCP Inspector never deployed. coolify-write queue: summary-only `list_applications` /
+  `list_deployments_for_app`, `get_deployment` error filter, services in `check_port_collision`,
+  host port-owner operation.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28_
