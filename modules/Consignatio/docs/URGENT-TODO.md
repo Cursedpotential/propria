@@ -3618,3 +3618,47 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 - [ ] **Owner calls** (details in the audit doc): skill `name` ≠ folder in 130 skills (two ids per skill across harnesses); 12 commands Codex cannot migrate (`$ARGUMENTS`); hooks call `C:/Users/matts/.local/bin/python3.exe`; 10 SKILL.md bodies over 500 lines; 5 family-court agent names with spaces; Codex skill-metadata budget (~29k chars of descriptions vs ~8k); Codex memsearch hooks from the upstream clone.
 - [ ] **Owner:** re-trust the changed claude-never-forgets hooks in Codex (hook text changed, so its trusted hash no longer matches).
 - [ ] Docstore ADR-0096 still names `~/.claude/local-plugins` and `casebible-local`; amend it through `docstore_adr`.
+
+## 2026-09-28 — Docstore 0.9.0: the deployment is built from git
+
+Owner order 08:40: "I want the best newest version… properly configured, properly versioned,
+properly backed up, properly in git, properly deployed, and running on the VPS."
+
+The live Docstore was built by hand on ovh-files from a directory in no git repository. Building
+it from git exposed four defects that a clone could not previously reveal, each fixed at the root
+rather than worked around:
+
+- **The sync could never run in a container.** The registry declares `monorepo_root` as the
+  desktop path `E:/AI_Workspace/Projects/Propria`, which resolves to `/app/E:` under Linux, so
+  every run died with `FileNotFoundError` before indexing. This, not the stale roots, is what
+  failed on 2026-09-27. The image now applies the substitution `build_projection.py --container-root`
+  already existed for.
+- **Four files kept their own copy of the source roots** (`api.py`, the control `server.py`,
+  `adr.py`, `release_api.py`), so `docstore_health` advertised five pre-`modules/` paths even
+  after a git rebuild. All derive from `scope.ROOTS` now, and a test rejects any literal root in
+  executable code — that test is what found the fourth.
+- **One `data:` URI anywhere in a chunk failed the whole sync.** NIM rejects the entire embedding
+  batch, and a failed batch fails the run; two shipped documents mention a bare `data:image/`.
+  `strip_data_uris` only matched the `;base64,` form and `embed_safe` only looked at the start of
+  a chunk. Fixed to the rule the global notes already record for NIM embedders.
+- **Four release tests encoded the old world** — the five-root count, the five project ids, and
+  the release tree's flat layout. Every count derives from `scope.ROOTS` now.
+
+Cutover: the existing `:8172` control app was **repointed in place** to the full Docstore compose
+(no new app, no parallel stack), the 0.8.1 service stopped, ports 8072 + 8175 carried over
+unchanged. Secrets moved from literal compose values into Coolify env, each verified by hash
+against the running container first. Suite: 346 passed, 3 skipped.
+
+Two `coolify-write` plugin gaps were closed rather than worked around: the list tools returned
+whole records (`list_services` included `docker_compose_raw` with every secret; deployments came
+back at 2.5 MB, now 7.7 KB), and there was no `update_application`, so repointing an app would
+have needed a raw API call.
+
+Receipt: `modules/Probata/probata/docs/pending-review/2026-09-28-docstore-0.9.0-git-build/README.md`
+
+Open, for the owner:
+- [ ] **Deploys are API-triggered, not push-triggered.** Every deployment of this app back to
+  2026-09-19 is `is_webhook=false, is_api=true`, so the "a docs push rebuilds the image" contract
+  is not live. Enabling it makes docs pushes rebuild and restart the Docstore, which interrupts an
+  in-flight index — worth a decision rather than a silent switch.
+- [ ] **Retire ContextForge's `ctl` gateway.** Its backend `:8172` is now free; `ctl08` serves.

@@ -49,12 +49,41 @@ host:
 | `plugins/docstore/control/server.py` | carried the same list, so the control MCP told clients the same wrong thing |
 | `scripts/docstore/adr.py` | joined `root/'Probata/probata'` and checked containment against `root/'Probata/probata/docs'`, so ADR materialisation wrote outside the junction layout |
 
-All three now derive from `scope.ROOTS`, and a release test rejects any literal source root in
+A fourth turned up only because that guard test was written: `scripts/docstore/release_api.py`
+derived six roots from `ROOTS` and then hard-coded `'Propria/docs'` for the seventh, so
+`/release` reported one module path beside six junction paths.
+
+All four now derive from `scope.ROOTS`, and a release test rejects any literal source root in
 executable code under `scripts/docstore` or the control plugin. Comments and docstrings may still
 discuss the old paths; strings may not. Checked against the pre-fix files, that test catches ten
 literals.
 
-### 3. The host ran older code than git, and the tests lived only on the host
+### 3. One data: URI anywhere in a chunk failed the entire sync
+
+With the path fixed, the first real run indexed for 269 s over 872 sources and then died:
+
+```
+NIM 400 — image inputs require VLM serving to be enabled on this server
+```
+
+NIM rejects the **whole embedding request** when any input in the batch introduces a `data:` URI,
+and one failed batch fails the run. Exactly two shipped documents mention a bare `data:image/`:
+`probata/adr/generated/0096.md` and `probata/planning/2026-09-27-workbench-spec-from-record.md`.
+
+Both existing guards missed them:
+
+| Guard | Why it missed |
+|---|---|
+| `strip_data_uris`, over the body | matches only the `data:…;base64,…` form, so a bare `data:image/` survives |
+| `embed_safe`, over the embedding input | matched only `^\s*data:` — the START of a chunk — and even there it prefixed the text while leaving the `data:` token in place, so it never defused anything |
+
+Checked against five representative chunks, that pair let four through to NIM, including the real
+one. `embed_safe` now puts a space after the colon of any `data:` URI introducer anywhere in the
+input and substitutes a placeholder for a blank chunk, which NIM rejects the same way. It rewrites
+the embedding input only; stored chunk text keeps its spelling. This is the failure mode the global
+rules already record for NIM embedders — it had simply never been applied here.
+
+### 4. The host ran older code than git, and the tests lived only on the host
 
 | File | Host | git |
 |---|---|---|
@@ -70,7 +99,7 @@ five project ids, and `test_worker_safety.py` read `<probata>/Dockerfile` and `d
 — the flat layout of the *release tree*, not of this repository. Every count now derives from
 `scope.ROOTS`.
 
-### 4. Two control servers ran in parallel
+### 5. Two control servers ran in parallel
 
 Against the owner's one-live-instance rule: the git-built app `probata-docstore-control` (`:8172`,
 ContextForge `ctl`) and the release service (`:8175`, ContextForge `ctl08`). Clients used `ctl08`,
