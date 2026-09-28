@@ -3607,3 +3607,14 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
   host port-owner operation.
 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-28_
+
+## 2026-09-28 07:30 EDT — plugin best-practice audit (Claude Code + Codex), Codex-only plugins joined `propria-plugins` (owner 04:57 EDT)
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28_
+
+- **Audit:** every plugin in `E:/AI_Workspace/plugins` checked against both harnesses; table with rule, status and source in the marketplace repo `docs/2026-09-28-best-practice-audit.md`; rules in `tools/plugin_rules.py`; `tools/check_plugins.py` → 0 errors (177 warnings = owner calls). Fixed: unquoted `${CLAUDE_PLUGIN_ROOT}` in hooks (claude-never-forgets, claude-reflect, memsearch), skill descriptions with `<`/`>` or over 1,024 chars (case-bible, family-court-toolkit, llm-probes, mental-health).
+- **propria-docstore 0.8.6 is skills only:** the seven Codex-only skills are ported; the 19 alias commands (12 duplicated a skill name, so Claude listed them twice) are quarantined. Live: Claude `claude -p` and Codex `codex exec` both ran `recall-doc` and found ADR-0097 through Docstore.
+- **Codex manifest only where needed** (interface/mcpServers): 8 plugins. Codex's cache is a copy, so `tools/refresh_codex.py` re-installs stale ones (keeps approvals and hook trust); checker M7 fails on drift. Codex: 12 plugins installed and enabled from `@propria-plugins`.
+- **Joined the single source:** app-planning-handoff (Claude `~/.claude/skills` copy and Codex copy merged; Claude keeps it disabled as before), platform-engineering-skills and semantica-skill-router (owner-authored Codex plugins). Old copies quarantined in `~/.codex/to_be_deleted/2026-09-28-plugin-copies-unified-into-propria-plugins/` and `~/.claude/to_be_deleted/2026-09-28-skills-dir-app-planning-handoff/`.
+- [ ] **Owner calls** (details in the audit doc): skill `name` ≠ folder in 130 skills (two ids per skill across harnesses); 12 commands Codex cannot migrate (`$ARGUMENTS`); hooks call `C:/Users/matts/.local/bin/python3.exe`; 10 SKILL.md bodies over 500 lines; 5 family-court agent names with spaces; Codex skill-metadata budget (~29k chars of descriptions vs ~8k); Codex memsearch hooks from the upstream clone.
+- [ ] **Owner:** re-trust the changed claude-never-forgets hooks in Codex (hook text changed, so its trusted hash no longer matches).
+- [ ] Docstore ADR-0096 still names `~/.claude/local-plugins` and `casebible-local`; amend it through `docstore_adr`.
