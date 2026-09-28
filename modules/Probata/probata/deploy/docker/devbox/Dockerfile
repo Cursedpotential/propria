@@ -264,7 +264,11 @@ RUN echo "kasm-user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/kasm-user && chmod 
 # /home/linuxbrew/.linuxbrew — a SEPARATE mapped volume (deploy/devbox.yaml) so brew packages
 # survive redeploys the same way /home/kasm-user does. /usr/local/bin/brew is a root-callable
 # wrapper so `brew ...` works from any shell regardless of the invoking user.
+# The installer writes ~/.cache/Homebrew, and the image's home is still root-owned at this point
+# (the chown further down comes later), so create that one directory for kasm-user first.
+# (Failed with "mkdir: cannot create directory '/home/kasm-user/.cache'", 2026-09-28.)
 RUN mkdir -p /home/linuxbrew && chown 1000:1000 /home/linuxbrew \
+    && install -d -o 1000 -g 0 /home/kasm-user/.cache \
     && su - kasm-user -c 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' \
     && printf '#!/bin/sh\nexec sudo -u kasm-user -H /home/linuxbrew/.linuxbrew/bin/brew "$@"\n' > /usr/local/bin/brew \
     && chmod +x /usr/local/bin/brew
