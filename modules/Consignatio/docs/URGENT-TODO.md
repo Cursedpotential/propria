@@ -3468,11 +3468,7 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 - **For the owner, untouched:**
   - Audit run `4s1WLWcK…`: https://workbench.tilapia-skilift.ts.net/review?mode=TEST&preview_handle=4s1WLWcKkWAHuhpRnQfKXx7CJlV37PcA
   - Audit run `42MEbZOQ…`: https://workbench.tilapia-skilift.ts.net/review?mode=TEST&preview_handle=42MEbZOQ6R5Kvftflnd8_smYjbV8TZEO
-- [ ] **DF-30 (owner):** the agent's classifier refused the Workbench change that admits tagged tailnet devices on the Serve door. Two ways forward:
-  - allow that edit;
-  - or set `TAILSCALE_DEVICE_CAPABILITY` and add a matching tailnet grant for the devbox's tag.
-
-  Until then the devbox audit needs the one-run tunnel.
+- DF-30: superseded by the owner's option A (04:22, Authentik service accounts); see the 2026-09-28 machine-clients entry below.
 - Still open from D05-C06: hold, exact-stage retry and resume. DF-05 also stays open: an external terminate still shows as running.
 
 ## 2026-09-28 04:01 EDT — Family Law Toolkit sources: R2 → B2 and a B2 → Surreal sync (plan; nothing moved)
@@ -3485,3 +3481,28 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
     PDFs have no store row. Decisions D1–D6 are in the plan's §7.
 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-28_
+
+## 2026-09-28 — machine clients authenticate with Authentik service accounts (DF-30; owner option A, 04:22 EDT)
+- [ ] **Devbox → Workbench without a tunnel.** Owner 04:20 "The devbox is ours … there's got to be a better way to
+  auth with it"; 04:22 picked "Authentik service accounts: one identity system for people and machines" and ordered
+  that no Tailscale Service registration is removed until the new path works.
+  - Reproduced from the devbox: Workbench `/health` 200, `/api/v1/sources/roots` 403 "Untrusted proxy".
+  - **Built:** the Workbench accepts `Authorization: Bearer <JWT>` on the Serve and Traefik doors
+    (`modules/workbench/api/app/runtime/machine_jwt.py`). It checks the JWKS signature (cached 5 min), the exact
+    issuer(s), the audience, the expiry and the group `propria-machines`. The principal is `authentik-sa:<username>`.
+    An invalid Bearer gets 401 and never falls through to another path; every existing path is unchanged. 22 new
+    tests; the full API suite passes (499). The path stays off until the four `WORKBENCH_MACHINE_JWT_*` Coolify
+    values are set (`deploy/workbench.yaml`).
+  - The devbox mounts `/data/probata/secrets/devbox/authentik-machine.env` read-only (`deploy/devbox.yaml`,
+    HOST-PREP in its header). `deploy/workbench-audit/audit.sh` runs direct with that identity when the file is
+    readable in the devbox, and falls back to the one-run tunnel otherwise (`AUDIT_TUNNEL=1` forces the tunnel).
+  - **Blocked:** the auto-mode classifier refused creating the Authentik objects ("Permission Grant"): provider
+    client_id `propria-workbench-api` (RS256, client_credentials, 15 min), application `workbench-api`, group
+    `propria-machines` bound to it, service account `devbox`, and its app password. The owner either approves that
+    step or creates them in the admin UI. After that: `~/.secrets/devbox-authentik.env`, the host file, the Coolify
+    values, a devbox redeploy, the direct 200/403 proof and the six-step audit.
+  - No Authentik admin API token exists in `~/.secrets`, contrary to the brief. The domain-SSO provider has no
+    signing key (HS256, no JWKS), so machines get their own RS256 provider instead.
+  - Pattern for n8n, LibreChat, Advocatio and the toolkit: proposed as an ADR in the Docstore, not wired.
+
+> _Byline: Claude Code · Opus 5.5 (agent `machine-auth`) · 2026-09-28_

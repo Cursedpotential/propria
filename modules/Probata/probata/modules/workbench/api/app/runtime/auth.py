@@ -3,6 +3,7 @@
 Byline: Codex · GPT-5 · 2026-08-15
 Byline: Codex · GPT-5 · 2026-08-29 (passwordless direct-tailnet owner access)
 Byline: Codex · GPT-5 · 2026-08-29 (strict trusted-proxy + Authentik identity headers)
+Byline: Claude Code · Opus 5.5 · 2026-09-28 (DF-30: Authentik service-account Bearer JWTs for machine clients)
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from email.header import decode_header
 from collections.abc import Awaitable, Callable
 
 from app.config import settings
+from app.runtime.machine_jwt import machine_jwt_enabled, verify_machine_token
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
@@ -22,6 +24,7 @@ _AUTHENTIK_USERNAME_HEADER = "x-authentik-username"
 _TRAEFIK_CLIENT_IP_HEADER = "x-real-ip"
 _TAILSCALE_LOGIN_HEADER = "tailscale-user-login"
 _TAILSCALE_CAPABILITIES_HEADER = "tailscale-app-capabilities"
+_AUTHORIZATION_HEADER = "authorization"
 _MAX_CAPABILITIES_HEADER_LEN = 8192
 _MAX_HEADER_VALUE_LEN = 256
 _CTRL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
@@ -90,6 +93,24 @@ def _tailscale_device_principal(value: str | None) -> str | None:
     return None
 
 
+def _bearer_token(value: str | None) -> str | None:
+    """Return the credential of an ``Authorization: Bearer`` header, else None."""
+    if not value:
+        return None
+    scheme, _, credential = value.strip().partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+    return credential.strip() or None
+
+
+def _on_machine_door(client_ip: str | None) -> bool:
+    """True when the socket peer is the Serve door or the Traefik door."""
+    if not client_ip:
+        return False
+    doors = settings.trusted_tailscale_serve_proxy_cidrs_parsed + settings.trusted_auth_proxy_cidrs_parsed
+    return bool(doors) and _ip_in_cidrs(client_ip, doors)
+
+
 async def authentication_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
@@ -97,6 +118,8 @@ async def authentication_middleware(
     """Authenticate every Workbench surface except the exact health path.
 
     1. /health is the only public exception.
+    1a. On the Serve or Traefik door, a verified Authentik Bearer JWT from an
+        allowlisted group admits a machine principal ``authentik-sa:<username>``.
     2. Every other request must have socket peer inside explicitly configured
        trusted proxy CIDRs (fail-closed on empty/invalid config).
     3. Only after trusted peer verification, require Authentik identity headers
@@ -109,6 +132,23 @@ async def authentication_middleware(
         return await call_next(request)
 
     client_ip = _client_ip(request)
+
+    # Machine clients (DF-30): an Authentik service account's access token.
+    # Accepted on either door, independent of the tailnet bypass flag, and
+    # verified cryptographically. A Bearer that fails verification is refused
+    # outright rather than falling through to a weaker identity path.
+    bearer = _bearer_token(request.headers.get(_AUTHORIZATION_HEADER))
+    if bearer and machine_jwt_enabled(settings) and _on_machine_door(client_ip):
+        machine = await verify_machine_token(bearer, settings)
+        if machine is None:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid machine token"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        request.state.principal = f"authentik-sa:{machine.username}"
+        request.state.subject_uid = f"authentik-sa:{machine.subject}"
+        return await call_next(request)
 
     # Tailscale Serve terminates the private svc:workbench HTTPS endpoint and
     # connects directly through the host-loopback port. It strips spoofed

@@ -1,4 +1,5 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-27
+// Byline: Claude Code · Opus 5.5 · 2026-09-28 (DF-30: the devbox's own Authentik machine identity)
 // The Workbench six-step live audit (PR-24 / PR-27), driven by headless Chrome INSIDE the Probata
 // devbox on ovh-files (never on the owner's desktop; owner rule 2026-09-24). Launched by audit.sh.
 // No dependencies: Node 22's fetch + WebSocket drive Chrome over the DevTools protocol, the same
@@ -11,6 +12,13 @@
 //   AUDIT_TARGET_NAME    a file in the default Sources root that sits past the first 200 rows
 //   AUDIT_RESOLVER_RULE  optional Chrome --host-resolver-rules value (see audit.sh)
 //   AUDIT_RUN_WAIT_MS    how long to wait for the TEST run to reach a reviewable state
+//   AUTHENTIK_MACHINE_CREDENTIALS_FILE  the devbox's Authentik service-account credentials
+//                        (default /run/secrets/devbox-authentik.env; KEY=value lines
+//                        AUTHENTIK_TOKEN_URL, AUTHENTIK_CLIENT_ID, AUTHENTIK_USERNAME,
+//                        AUTHENTIK_APP_PASSWORD). When present, the audit fetches an access
+//                        token by the client-credentials grant and adds it as
+//                        `Authorization: Bearer` to requests for the Workbench origin only
+//                        (DF-30), so no tunnel is needed. Absent, requests carry no token.
 //
 // Steps (docs/reviews/2026-09-23-probata-p0-function-checkpoint.md:48):
 //   1 browse more than 200 files   2 pick a later-page file   3 inspect and hash it
@@ -34,6 +42,7 @@ const BASE = (process.env.WORKBENCH_URL || "https://workbench.tilapia-skilift.ts
 const TARGET = process.env.AUDIT_TARGET_NAME || "calls-20250703043408.xml";
 const RUN_WAIT_MS = Number(process.env.AUDIT_RUN_WAIT_MS || 600000);
 const chromeBin = process.env.CHROME_BIN || "/opt/google/chrome/chrome";
+const CREDENTIALS_FILE = process.env.AUTHENTIK_MACHINE_CREDENTIALS_FILE || "/run/secrets/devbox-authentik.env";
 const ROW_HEIGHT = 30; // source-rows-grid.tsx rowHeight
 const HEADER_HEIGHT = 32; // source-rows-grid.tsx headerHeight
 const PAGE_SIZE = 200; // sources-screen.tsx pageSize
@@ -102,6 +111,44 @@ function cdpSession(wsUrl) {
   };
 }
 
+// --- machine identity (DF-30) ---------------------------------------------------------------
+function readCredentials() {
+  if (!existsSync(CREDENTIALS_FILE)) return null;
+  const values = {};
+  for (const line of readFileSync(CREDENTIALS_FILE, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
+    if (m) values[m[1]] = m[2];
+  }
+  const need = ["AUTHENTIK_TOKEN_URL", "AUTHENTIK_CLIENT_ID", "AUTHENTIK_USERNAME", "AUTHENTIK_APP_PASSWORD"];
+  const missing = need.filter((k) => !values[k]);
+  if (missing.length) throw new Error(`${CREDENTIALS_FILE} lacks ${missing.join(", ")}`);
+  return values;
+}
+
+const machine = { credentials: readCredentials(), token: null, expiresAt: 0 };
+
+async function machineToken() {
+  if (!machine.credentials) return null;
+  if (machine.token && Date.now() < machine.expiresAt - 60000) return machine.token;
+  const c = machine.credentials;
+  const response = await fetch(c.AUTHENTIK_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: c.AUTHENTIK_CLIENT_ID,
+      username: c.AUTHENTIK_USERNAME,
+      password: c.AUTHENTIK_APP_PASSWORD,
+      scope: "openid profile",
+    }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.access_token) throw new Error(`token endpoint answered ${response.status} ${body.error || ""}`.trim());
+  machine.token = body.access_token;
+  machine.expiresAt = Date.now() + Number(body.expires_in || 300) * 1000;
+  return machine.token;
+}
+
 class Page {
   constructor(port) {
     this.port = port;
@@ -125,6 +172,22 @@ class Page {
     await this.cdp.send("Runtime.enable");
     await this.cdp.send("Log.enable");
     await this.cdp.send("Page.enable");
+    if (machine.credentials) {
+      // Scope the Bearer to the Workbench origin: Fetch interception adds it to matching
+      // requests only, where Network.setExtraHTTPHeaders would send it everywhere.
+      this.cdp.on("Fetch.requestPaused", async (p) => {
+        const headers = Object.entries(p.request.headers)
+          .filter(([name]) => name.toLowerCase() !== "authorization")
+          .map(([name, value]) => ({ name, value }));
+        try {
+          headers.push({ name: "Authorization", value: `Bearer ${await machineToken()}` });
+        } catch (error) {
+          this.consoleErrors.push(`machine token: ${error.message}`);
+        }
+        await this.cdp.send("Fetch.continueRequest", { requestId: p.requestId, headers }).catch(() => {});
+      });
+      await this.cdp.send("Fetch.enable", { patterns: [{ urlPattern: `${BASE}/*`, requestStage: "Request" }] });
+    }
     await this.cdp.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
   }
 
@@ -211,6 +274,8 @@ const record = (step, pass, detail) => {
   console.log(`step ${step}: ${pass ? "PASS" : "FAIL"} ${JSON.stringify(detail)}`);
 };
 
+report.identity = machine.credentials ? `authentik-sa:${machine.credentials.AUTHENTIK_USERNAME}` : "none";
+if (machine.credentials) await machineToken(); // fail fast on bad credentials
 const { proc, port } = await launchChrome();
 let exitCode = 0;
 const page = new Page(port);
