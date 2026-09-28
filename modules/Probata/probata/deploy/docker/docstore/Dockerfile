@@ -83,17 +83,30 @@ COPY modules/Probata/probata/deploy/docstore.yaml /app/deploy/docstore.yaml
 # The documentation, assembled above.
 COPY --from=docs /sources/docs/ /app/docs/
 
-# Fail the build rather than ship an image whose roots the validator will reject at run time.
+# The registry is authored on the desktop and declares monorepo_root as a Windows path
+# (E:/AI_Workspace/Projects/Propria). source_registry.state() resolves it strict, so inside the
+# container that became '/app/E:' and every sync died with FileNotFoundError -- which is what
+# actually failed on 2026-09-27, before the stale roots were ever reached. The rewrite below is
+# the same substitution build_projection.py performs with --container-root; doing it at build
+# time keeps it out of run-time configuration.
+#
+# The gate then resolves the roots THROUGH the rewritten monorepo_root rather than assuming
+# /app, so it proves the exact path the worker will take. The build fails instead of shipping an
+# image whose first sync would die.
 RUN python -c "\
 import json, pathlib, sys; \
 sys.path.insert(0, '/app/scripts/docstore'); \
 from scope import ROOTS, validate_registry; \
-registry = json.loads(pathlib.Path('/app/docs/docstore-source-registry.json').read_text(encoding='utf-8')); \
+path = pathlib.Path('/app/docs/docstore-source-registry.json'); \
+registry = json.loads(path.read_text(encoding='utf-8')); \
+registry['monorepo_root'] = '/app'; \
+path.write_text(json.dumps(registry, indent=2) + '\n', encoding='utf-8'); \
 validate_registry(registry); \
-missing = [r for r, _ in ROOTS.values() if not (pathlib.Path('/app') / r).is_dir()]; \
-sys.exit('roots missing in image: ' + ', '.join(missing)) if missing else \
-print('registry valid;', len(ROOTS), 'roots present;', \
-      len(list(pathlib.Path('/app/docs').rglob('*.md'))), 'markdown files')"
+root = pathlib.Path(registry['monorepo_root']).resolve(strict=True); \
+missing = [r for r, _ in ROOTS.values() if not (root / r).is_dir()]; \
+sys.exit('roots missing under ' + str(root) + ': ' + ', '.join(missing)) if missing else \
+print('registry valid; monorepo_root', root, ';', len(ROOTS), 'roots resolve;', \
+      len(list((root / 'docs').rglob('*.md'))), 'markdown files')"
 
 EXPOSE 8000 8084
 CMD ["python", "scripts/docstore/service.py"]
