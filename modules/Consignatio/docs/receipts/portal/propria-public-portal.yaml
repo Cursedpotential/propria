@@ -205,6 +205,9 @@ http:
         certResolver: letsencrypt
 
     # family-court-console (Coolify app sokv65ibdq2y8xdaqmd6p4rq, ovh-files:9077) -- public route,
+    # now the Family Law Toolkit web app on / and /api/* (2026-09-28, Claude Code · Opus 5.5): the app
+    # admits only this Traefik peer (100.72.169.40) carrying X-authentik-uid/-username from the
+    # forward-auth below; /mcp on the same port keeps its bearer.
     # same owner decision as fileflows-public above. Fixed and moved off host port 8765 the same
     # day (superindex owns 8765; see deploy/family-court-console.yaml). DNS record created BEFORE
     # this router (the fileflows pass caught Traefik's ACME giving up on a router that raced ahead
