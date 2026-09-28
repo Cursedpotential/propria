@@ -86,7 +86,10 @@ RUN UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin uv tool install --p
 RUN apt-get update && apt-get install -y --no-install-recommends ruby-full wget vim nano \
     && apt-get clean && rm -r /var/lib/apt/lists \
     && curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh \
-    && mkdir -p /etc/mise && printf 'eval "$(/usr/local/bin/mise activate bash)"\n' > /etc/profile.d/mise.sh
+    && mkdir -p /etc/mise && printf '[ -n "$BASH_VERSION" ] && eval "$(/usr/local/bin/mise activate bash)"\n' > /etc/profile.d/mise.sh
+# /etc/profile.d is sourced by every login shell, including kasm-user's /bin/sh (dash) under
+# `su -`; the bash-only activation broke the Homebrew step below with "eval: Syntax error: "(""
+# (devbox deploy spe2blc2, 2026-09-28). Claude Code · Opus 5.5 · 2026-09-28.
 COPY deploy/docker/devbox/mise-config.toml /etc/mise/config.toml
 
 # Agent CLIs (owner 16:22: claude + opencode). Reinstated @anthropic-ai/claude-code 2026-09-08 11:46 —
