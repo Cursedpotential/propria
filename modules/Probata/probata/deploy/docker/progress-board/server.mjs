@@ -805,23 +805,17 @@ export function createServer({
         }
         return;
       }
-      if (path === "/family-court") {
-        res.writeHead(308, { Location: incomingPath + "/" });
+      // The read-only family-court preview is retired (2026-09-28, Claude Code · Opus 5.5): the
+      // Family Law Toolkit itself is hosted by family-court-console. Old links go to it, on the
+      // tailnet or on the public name, whichever the request came in on.
+      if (path === "/family-court" || path.startsWith("/family-court/")) {
+        const host = String(req.headers["x-forwarded-host"] || req.headers.host || "")
+          .split(",")[0].trim().replace(/:\d+$/, "").toLowerCase();
+        const target = host.endsWith(".int.mitechconsult.com")
+          ? "https://family-court.int.mitechconsult.com/"
+          : "https://family-court.tilapia-skilift.ts.net/";
+        res.writeHead(308, { Location: target });
         res.end();
-        return;
-      }
-      const familyFiles = {
-        "/family-court/": ["index.html", "text/html"],
-        "/family-court/styles.css": ["styles.css", "text/css"],
-        "/family-court/app.js": ["app.js", "text/javascript"],
-      };
-      if (familyFiles[path]) {
-        const [file, type] = familyFiles[path];
-        const content = await readFile(
-          resolve(root, "family-court-preview", file),
-        );
-        res.writeHead(200, { "Content-Type": `${type}; charset=utf-8` });
-        res.end(req.method === "HEAD" ? undefined : content);
         return;
       }
       const files = {

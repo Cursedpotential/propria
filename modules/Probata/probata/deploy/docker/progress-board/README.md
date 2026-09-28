@@ -14,9 +14,6 @@ Left on the host on purpose: `node_modules/` (rebuilt by `npm ci`), `intake-buil
 | SHA-256 (16) | File |
 |---|---|
 | `bed9599b86b9b06f` | `diagnose.mjs` |
-| `e1dcfb52c6863d6e` | `family-court-preview/app.js` |
-| `b2e9da803f5c38ce` | `family-court-preview/index.html` |
-| `d9c0104e70c4344a` | `family-court-preview/styles.css` |
 | `a40228df06f230e4` | `health-endpoints.json` |
 | `95ee77ddfdd54be1` | `health.mjs` |
 | `130fa92e62de7960` | `intake-preview/app.js` |
@@ -46,3 +43,6 @@ Left on the host on purpose: `node_modules/` (rebuilt by `npm ci`), `intake-buil
 Before the running service is switched to an image built from here, compare the host copy with
 this table again: the portal editor (code-server on `/data/dashboards`) can still change the host
 copy in place.
+
+The family-court preview (`family-court-preview/`) was retired on 2026-09-28: `/family-court` now
+redirects to the hosted Family Law Toolkit (Claude Code · Opus 5.5).

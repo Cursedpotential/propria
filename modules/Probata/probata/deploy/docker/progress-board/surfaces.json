@@ -36,10 +36,10 @@
     "checked_at": "2026-09-20T23:28:29.206427+00:00"
   },
   {
-    "name": "Michigan family court toolbox",
+    "name": "Family Law Toolkit",
     "lane": "Michigan family court toolbox",
-    "url": "https://homepage.tilapia-skilift.ts.net/progress/family-court/",
-    "status": "Eight-view read-only preview; no live case data or legal results"
+    "url": "https://family-court.tilapia-skilift.ts.net/",
+    "status": "Hosted by family-court-console: case, documents, notes, law and sources"
   },
   {
     "name": "OpenList storage browser",

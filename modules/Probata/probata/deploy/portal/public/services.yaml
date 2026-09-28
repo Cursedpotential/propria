@@ -138,10 +138,10 @@
         icon: mdi-briefcase-search-outline
         siteMonitor: https://workbench.tilapia-skilift.ts.net
     - Family Law Toolkit:
-        href: https://progress.int.mitechconsult.com/family-court/
-        description: Michigan family court · read-only preview, no live case data
+        href: https://family-court.int.mitechconsult.com/
+        description: "Family Law Toolkit: case, documents, notes, law and sources"
         icon: mdi-gavel
-        siteMonitor: http://100.72.169.40:3020/family-court/
+        siteMonitor: http://100.91.190.107:9077/healthz
     - Legal Work Desk:
         href: https://legal.int.mitechconsult.com/
         description: Advocatio · research, drafting and review
