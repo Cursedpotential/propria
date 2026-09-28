@@ -73,6 +73,13 @@ COPY modules/Probata/probata/plugins/docstore/control/ /app/plugins/docstore/con
 COPY modules/Probata/probata/tests/release/ /app/tests/
 COPY modules/Probata/probata/deploy/docker/docstore/pyproject.toml /app/pyproject.toml
 
+# The deployment definition travels with the image, at the same path it has in the repository.
+# test_worker_safety asserts the container's own build inputs (python supervisor, body health
+# check, fail-closed control token), and a running container can show what it was built from --
+# which is precisely what the hand-built host tree could not.
+COPY modules/Probata/probata/deploy/docker/docstore/Dockerfile /app/deploy/docker/docstore/Dockerfile
+COPY modules/Probata/probata/deploy/docstore.yaml /app/deploy/docstore.yaml
+
 # The documentation, assembled above.
 COPY --from=docs /sources/docs/ /app/docs/
 
