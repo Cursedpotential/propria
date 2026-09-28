@@ -3474,3 +3474,14 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 
   Until then the devbox audit needs the one-run tunnel.
 - Still open from D05-C06: hold, exact-stage retry and resume. DF-05 also stays open: an external terminate still shows as running.
+
+## 2026-09-28 04:01 EDT — Family Law Toolkit sources: R2 → B2 and a B2 → Surreal sync (plan; nothing moved)
+- [ ] **Phase 1 done; Phase 2 waits on the owner's sign-off** (owner 04:01 "Everything needs to be migrated to B2. R2
+  is being retired … synced with the canonical source … in Surreal … updated on change"). Plan and numbers:
+  `docs/receipts/2026-09-28-fct-sources-r2-to-b2-plan.md`. Catalog load: `casebible/tools/fct_sources_inventory_20260928.{sh,sql}`
+  → `raw_duck.fct_sources_inventory_20260928` (543 rows).
+  - 143 files / 52,446,084 bytes, identical in R2, on the desktop and on ovh-files; none missing, none differing.
+  - Store: the 193 `source` rows carry 0 sha256 values and 119 `r2_path` values that point at nothing; the 28
+    PDFs have no store row. Decisions D1–D6 are in the plan's §7.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28_
