@@ -737,7 +737,7 @@ async def test_functions(fns: list[str]) -> set[str]:
 def mcp_config() -> dict:
     """The installed plugin's .mcp.json is the config Claude Code actually
     uses; fall back to the repo copy."""
-    for p in (pathlib.Path.home() / ".claude/local-plugins/plugins/propria-docstore/.mcp.json",
+    for p in (pathlib.Path("E:/AI_Workspace/plugins/plugins/propria-docstore/.mcp.json"),
               REPO / "plugins/docstore/claude/.mcp.json"):
         if p.is_file():
             return json.loads(p.read_text(encoding="utf-8")), p

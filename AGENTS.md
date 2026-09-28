@@ -24,7 +24,7 @@ commit boundary: this root. Run `git rev-parse --show-toplevel` and expect
 
 **Not in the monorepo, deliberately:** `memsearch` and `claude-context` are
 development tooling rather than application forks, and live under
-`~/.claude/local-plugins/forks/`.
+`E:/AI_Workspace/plugins/forks/`.
 
 Still read the selected module's local `AGENTS.md`. Stage by explicit path — several
 sessions share this index. The `docs/` junctions and source registry remain the
@@ -180,7 +180,7 @@ transition state.
   `~\.codex\hooks\memsearch_codex_hook.py`. Codex's own memory store is imported under
   `memory\codex\<project>\`. Both plugin copies carry a local patch that honors `.collection`;
   re-apply it after a memsearch plugin update. The `memsearch` CLI itself is the private fork
-  `~\.claude\local-plugins\forks\memsearch` (uv tool, a `+propria` build, 2026-09-26): never
+  `E:\AI_Workspace\plugins\forks\memsearch` (uv tool, a `+propria` build, 2026-09-26): never
   install memsearch from PyPI, which drops the fork's NIM fixes; reinstall steps are in the
   fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-26)_
 - **Worktrees:** `E:\AI_Workspace\Projects\Propria\_worktrees`. New Propria-owned linked

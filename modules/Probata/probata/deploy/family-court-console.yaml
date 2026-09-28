@@ -11,7 +11,7 @@
 #
 # BUILD SOURCE: the family-court-toolkit plugin (this MCP server's source,
 # content/, skills/) lives OUTSIDE this repo, at
-# ~/.claude/local-plugins/plugins/family-court-toolkit/ on the desktop — a
+# E:/AI_Workspace/plugins/plugins/family-court-toolkit/ on the desktop — a
 # Claude Code local plugin checkout, not a probata module. Coolify's git-based
 # build can only see files committed here, so
 # deploy/docker/family-court-console/src/ is a COMMITTED sync of that plugin's

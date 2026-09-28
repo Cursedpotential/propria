@@ -26,7 +26,7 @@ Detects, per app:
 
 Two independent data sources, both read-only:
   1. Coolify REST API (GET /applications, GET /deployments/applications/{uuid})
-     — see ~/.claude/local-plugins/plugins/coolify-write/skills/coolify-write/
+     — see E:/AI_Workspace/plugins/plugins/coolify-write/skills/coolify-write/
      references/API.md for the endpoint contract this was written against.
   2. Local git refs (`origin/<branch>`) for the SAME checkout this script
      ships in — used to resolve "does this path exist at the tip of that

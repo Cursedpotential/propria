@@ -361,7 +361,7 @@ E:\AI_Workspace\casebible\
   gdrive\gd_net_rw.json   125,719 files, sha256+md5+sha1
 ```
 
-**Plugin:** `C:\Users\matts\.claude\local-plugins\plugins\case-bible\`
+**Plugin:** `E:\AI_Workspace\plugins\plugins\case-bible\`
 (`ENVIRONMENT.md` corrected + drift register; `tools/`, `specs/`, `agents/`)
 
 **Platform:** `E:\AI_Workspace\Projects\the-platform-workspace\Agno-MCP-Platform\sql\`
