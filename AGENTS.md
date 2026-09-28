@@ -22,8 +22,8 @@ commit boundary: this root. Run `git rev-parse --show-toplevel` and expect
 | Xplorer copilot fork | `modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot/` | application fork |
 | Build crew | `modules/Probata/probata_build_crew/` | source only; its `.env` is never committed |
 
-**Not in the monorepo, deliberately:** `memsearch` and `claude-context` are
-development tooling rather than application forks, and live under
+**Not in the monorepo, deliberately:** `memsearch`, `claude-context` and `cocoindex-code`
+(`ccc`) are development tooling rather than application forks, and live under
 `E:/AI_Workspace/plugins/forks/`.
 
 Still read the selected module's local `AGENTS.md`. Stage by explicit path — several
@@ -191,6 +191,11 @@ transition state.
   `E:\AI_Workspace\plugins\forks\memsearch` (uv tool, a `+propria` build, 2026-09-26): never
   install memsearch from PyPI, which drops the fork's NIM fixes; reinstall steps are in the
   fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-26)_
+- **ccc (local code indexes):** every local patch to `cocoindex-code` lives in the private fork
+  `E:\AI_Workspace\plugins\forks\cocoindex-code` (2026-09-28): streaming writes, the memory
+  safety guard, `respect_gitignore`, and the embedder input guards. Never install
+  `cocoindex-code` from PyPI, because that drops all of them, the safety guard included.
+  Reinstall steps are in the fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-28)_
 - **Worktrees:** `E:\AI_Workspace\Projects\Propria\_worktrees`. New Propria-owned linked
   worktrees belong here; relocate an existing linked worktree only with `git worktree move`,
   after its owner is paused and its state is captured.
