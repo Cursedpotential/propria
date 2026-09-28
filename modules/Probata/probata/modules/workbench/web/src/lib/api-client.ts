@@ -838,6 +838,24 @@ export function decideProffer(
   });
 }
 
+/**
+ * Cancel one run through the engine's Temporal cancellation (D05-C06). The actor comes from the
+ * request identity, never the browser; the engine keeps who and why in the run's own history.
+ * Byline: Claude Code · Opus 5.5 · 2026-09-28.
+ */
+export function cancelProfferRun(previewHandle: string, mode: MatterMode, reason: string) {
+  const query = new URLSearchParams({ mode });
+  return apiFetch<{ preview_handle: string; status: "cancel_requested"; matter_mode: MatterMode }>(
+    `/api/proffer/previews/${encodeURIComponent(previewHandle)}/cancel?${query.toString()}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) },
+  ).then((response) => {
+    if (response.preview_handle !== previewHandle || response.matter_mode !== mode) {
+      throw new ApiError("The cancel response crossed its preview or TEST/REAL boundary", 502);
+    }
+    return response;
+  });
+}
+
 /** Server-side filters for `getProfferPreviewMessages`. A cursor is bound to the exact
  * filter that minted it, so any change here must restart paging from the first page. */
 export interface ProfferPreviewMessageFilters {

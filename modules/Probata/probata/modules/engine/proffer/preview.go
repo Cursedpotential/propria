@@ -14,6 +14,22 @@ const PreviewDecisionSignalName = "preview_decision"
 
 const RepairDecisionSignalName = "repair_decision"
 
+// CancelRequestSignalName carries the operator's cancel receipt (who and why)
+// into the run's own history. The starter sends it immediately before asking
+// Temporal to cancel the run, so the append-only control receipt and the
+// cancellation live in the same durable history (D05-C06; decision
+// 2026-09-12: "Hold/cancel/retry are authenticated durable commands").
+// Byline: Claude Code · Opus 5.5 · 2026-09-28
+const CancelRequestSignalName = "cancel_request"
+
+// CancelRequest is CancelRequestSignalName's payload.
+type CancelRequest struct {
+	ActorSubjectUID string    `json:"actor_subject_uid"`
+	ActorUsername   string    `json:"actor_username"`
+	Reason          string    `json:"reason"`
+	RequestedAt     time.Time `json:"requested_at"`
+}
+
 // PreviewQueryName reads current repair, handler-selection, and final context
 // preview state. Queries, like Signals, are served from workflow history and
 // work against any worker, including after closure within retention.
@@ -183,6 +199,9 @@ const (
 	OperationRerunRequired OperationLifecycle = "rerun_required"
 	OperationCompleted     OperationLifecycle = "completed"
 	OperationFailed        OperationLifecycle = "failed"
+	// OperationCancelled is terminal: an operator cancelled the run through
+	// Temporal. Nothing after the cancel point ran; Reason names who and why.
+	OperationCancelled OperationLifecycle = "cancelled"
 	// OperationUnavailable is emitted by the HTTP read facade when the durable
 	// Temporal query cannot currently be served. Work is never guessed to have
 	// succeeded or failed from an incomplete projection.

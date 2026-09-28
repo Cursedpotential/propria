@@ -1154,6 +1154,7 @@ export type ProfferOperationLifecycle =
   | "awaiting_preview_decision"
   | "completed"
   | "failed"
+  | "cancelled"
   | "unavailable";
 
 export type ProfferOperationWait = "repair_decision" | "preview_decision";

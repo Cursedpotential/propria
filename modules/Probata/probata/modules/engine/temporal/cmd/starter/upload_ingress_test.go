@@ -21,6 +21,7 @@ func (uploadTestStarter) Start(context.Context, proffer.WorkflowInput) (string, 
 	return "workflow", "run", nil
 }
 func (uploadTestStarter) Decide(context.Context, string, proffer.PreviewDecision) error { return nil }
+func (uploadTestStarter) Cancel(context.Context, string, proffer.CancelRequest) error   { return nil }
 func (uploadTestStarter) DecideRepair(context.Context, string, proffer.RepairDecision) error {
 	return nil
 }

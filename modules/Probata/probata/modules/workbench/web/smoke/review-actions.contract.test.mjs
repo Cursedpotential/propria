@@ -82,3 +82,13 @@ test("a derive-only run reads its decoded conversation files on the Messages tab
   assert.match(surface, /snapshot\.parser_handler === "smsthreads_derive" \|\| snapshot\.parser_execution_path === "derive"/);
   assert.match(surface, /<DecodedSourceViewer sourceRef=\{snapshot\.source_ref\} \/>/);
 });
+
+// Byline: Claude Code · Opus 5.5 · 2026-09-28 (D05-C06: cancel a run from Review)
+test("a run that has not finished can be cancelled from Review, with a required reason", () => {
+  const cancel = source("../src/components/sbv/cancel-run-section.tsx");
+  assert.match(panel, /<CancelRunSection snapshot=\{snapshot\} \/>/);
+  assert.match(cancel, /if \(snapshot\.terminal\)/);
+  assert.match(cancel, /disabled=\{pending \|\| !reason\.trim\(\)\}/);
+  assert.match(client, /\/api\/proffer\/previews\/\$\{encodeURIComponent\(previewHandle\)\}\/cancel\?/);
+  assert.match(client, /body: JSON\.stringify\(\{ reason \}\)/);
+});

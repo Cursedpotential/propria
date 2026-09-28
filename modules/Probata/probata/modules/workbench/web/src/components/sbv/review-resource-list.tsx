@@ -1,4 +1,5 @@
 // Byline: Claude Code · Fable 5.1 · 2026-09-20
+// Byline amendment: Claude Code · Opus 5.5 · 2026-09-28 — a cancelled run is not reviewable; it shows under All only.
 // Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — one small flag, "N runs hidden: mode
 // unknown", for runs the server could not prove Test or Live (they are listed under neither).
 // Owner 2026-09-20 23:10: "Sources and proposals — this section sucks now, it's
@@ -55,6 +56,10 @@ function isFailed(resource: ProfferProposalResource) {
   return resource.lifecycle === "failed" || resource.lifecycle === "unavailable";
 }
 
+function isCancelled(resource: ProfferProposalResource) {
+  return resource.lifecycle === "cancelled";
+}
+
 function when(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
@@ -66,6 +71,7 @@ const DOT: Record<string, string> = {
   completed: "bg-emerald-500",
   failed: "bg-destructive",
   unavailable: "bg-destructive",
+  cancelled: "bg-muted-foreground",
 };
 
 export function ReviewResourceList({ resources, unboundCount = 0, loading, selectedHandle, onSelect }: ReviewResourceListProps) {
@@ -74,7 +80,8 @@ export function ReviewResourceList({ resources, unboundCount = 0, loading, selec
 
   const counts = useMemo(() => {
     const failed = resources.filter(isFailed).length;
-    return { reviewable: resources.length - failed, failed, all: resources.length };
+    const cancelled = resources.filter(isCancelled).length;
+    return { reviewable: resources.length - failed - cancelled, failed, all: resources.length };
   }, [resources]);
 
   const visible = useMemo(() => {
@@ -82,7 +89,7 @@ export function ReviewResourceList({ resources, unboundCount = 0, loading, selec
     return resources.filter((resource) => {
       // The selected run always stays visible, so a deep link to a failed attempt is never hidden.
       if (resource.preview_handle === selectedHandle) return true;
-      if (filter === "reviewable" && isFailed(resource)) return false;
+      if (filter === "reviewable" && (isFailed(resource) || isCancelled(resource))) return false;
       if (filter === "failed" && !isFailed(resource)) return false;
       return !needle || resource.source_ref.toLowerCase().includes(needle);
     });
