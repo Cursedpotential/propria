@@ -17,6 +17,7 @@ test("bundled MCP server completes the core protocol round trip", async () => {
     const STORE = [
       "case_export", "case_factor_map", "case_graph", "case_import", "case_put", "case_query", "case_search", "case_summary", "case_timeline",
       "case_status", "case_docket", "case_memo", "case_evidence_log", "case_eval", "case_reference", "case_source",
+      "case_record", // shared legal-record contract (Claude Code · Opus 5.5 · 2026-09-27)
     ];
     assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), [
       "audit_sources", "build_chronology", "calculate_planning_date", "case_facts", "court_language_review",

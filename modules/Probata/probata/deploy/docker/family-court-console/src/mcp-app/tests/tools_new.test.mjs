@@ -126,14 +126,14 @@ test("court_language_review: every doc_type has a non-empty safe_phrasebank load
   }
 });
 
-test("MCP protocol: tools/list shows 27 tools including the two new ones, and both are callable", async () => {
+test("MCP protocol: tools/list shows 28 tools including the two new ones, and both are callable", async () => {
   const transport = new StdioClientTransport({ command: process.execPath, args: [resolve("dist/server.js")] });
   const client = new Client({ name: "tools-new-test", version: "1.0.0" });
   try {
     await client.connect(transport);
     const tools = await client.listTools();
     const names = tools.tools.map((t) => t.name).sort();
-    assert.equal(names.length, 27, names.join(", "));
+    assert.equal(names.length, 28, names.join(", ")); // + case_record (Claude Code · Opus 5.5 · 2026-09-27)
     assert.ok(names.includes("survival_guide"));
     assert.ok(names.includes("court_language_review"));
     assert.ok(tools.tools.find((t) => t.name === "survival_guide").annotations?.readOnlyHint === true);

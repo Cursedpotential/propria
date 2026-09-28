@@ -21,6 +21,7 @@ import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from "@model
 import { z } from "zod";
 import { widgets } from "./generated-widgets.js";
 import { registerStoreTools } from "./store-tools.js";
+import { handleWebRequest } from "./web.js";
 import {
   DEADLINE_RULE_PRESETS,
   RELEASE_STATUS,
@@ -210,6 +211,9 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse, bear
   }
 
   if (url.pathname !== "/mcp") {
+    // The Family Law Toolkit web app (web.ts): Tailscale identity via svc:family-court or
+    // Authentik via family-court.int, checked in web-auth.ts. Claude Code · Opus 5.5 · 2026-09-28.
+    if (await handleWebRequest(req, res, url, buildServer)) return;
     sendJson(res, 404, { error: "not_found" });
     return;
   }
@@ -254,7 +258,7 @@ async function runHttpServer(): Promise<void> {
     httpServer.once("error", reject);
     httpServer.listen(port, host, () => resolve());
   });
-  console.error(`family-court-console MCP Streamable HTTP transport listening on ${host}:${port} (POST /mcp, GET /healthz, GET /version)`);
+  console.error(`family-court-console MCP Streamable HTTP transport listening on ${host}:${port} (POST /mcp, GET /healthz, GET /version, authenticated web app on / and /api/*)`);
 }
 
 if (TRANSPORT_MODE === "http") {

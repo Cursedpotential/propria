@@ -187,3 +187,31 @@ await build({
   ...commonBuildOptions,
   banner: { js: "// Byline: Claude Code · Fable 5.1 · 2026-09-07" }
 });
+// Byline: Claude Code · Opus 5.5 · 2026-09-28 — the Family Law Toolkit web app (src/web.ts,
+// served by server.js in HTTP mode). web-auth.js gets its own entry so tests/web_auth.test.mjs
+// can exercise it directly; web/host.ts is bundled for the browser with the MCP Apps
+// AppBridge; index.html and app.css are copied beside it into dist/web/.
+await build({
+  entryPoints: [join(here, "src", "web-auth.ts")],
+  outfile: join(here, "dist", "web-auth.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node20",
+  sourcemap: false,
+  banner: { js: "// Byline: Claude Code · Opus 5.5 · 2026-09-28" }
+});
+mkdirSync(join(here, "dist", "web"), { recursive: true });
+await build({
+  entryPoints: [join(here, "web", "host.ts")],
+  outfile: join(here, "dist", "web", "host.js"),
+  bundle: true,
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: false,
+  banner: { js: "// Byline: Claude Code · Opus 5.5 · 2026-09-28" }
+});
+for (const file of ["index.html", "app.css"]) {
+  writeFileSync(join(here, "dist", "web", file), readFileSync(join(here, "web", file)));
+}

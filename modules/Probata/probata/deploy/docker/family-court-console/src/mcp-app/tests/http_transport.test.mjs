@@ -4,7 +4,7 @@
 // then drives it with the SDK's own StreamableHTTPClientTransport (bearer
 // header via requestInit), plus raw fetch() probes for the auth gate and the
 // unauthenticated /healthz and /version endpoints. Mirrors the stdio round
-// trip in tests/protocol.test.mjs (27 tools) but over HTTP.
+// trip in tests/protocol.test.mjs (28 tools) but over HTTP.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer as createNetServer } from "node:net";
@@ -124,7 +124,7 @@ test("HTTP transport: full MCP round trip over StreamableHTTPClientTransport wit
     try {
       await client.connect(transport);
       const tools = await client.listTools();
-      assert.equal(tools.tools.length, 27);
+      assert.equal(tools.tools.length, 28); // + case_record (Claude Code · Opus 5.5 · 2026-09-27)
       assert.ok(tools.tools.some((tool) => tool.name === "case_summary"));
 
       const summary = await client.callTool({ name: "case_summary", arguments: {} });
