@@ -49,3 +49,12 @@ Owner, 10:01 EDT: "I want it fixed, and then I want the fact that it doesn't rep
 - `skills/docstore`: "Reading errors" table for every operation's failures.
 - `skills/recall`, `skills/docs-write`, `agents/memory-curator`: point to the write workflow; scope root `propria`.
 - `federation.py`: remote-memory recall used scope `probata`, which matched nothing after the 2026-09-19 root move and is now rejected; it uses `propria`.
+
+## 0.8.4 — memory duplicate guard recalibrated (2026-09-28, Claude Code · Opus 5.5)
+
+- `skills/memory` and `references/functions.md` describe the server 0.8.1-r6 guard. A stored row conflicts on:
+  - a BM25 match of every word;
+  - cosine distance <= 0.10;
+  - or distance <= 0.20 with word overlap >= 0.35.
+- The 0.8.3 text said cosine <= 0.20. That rule refused an unrelated claim at 04:44 EDT: unrelated claims sit as close as 0.174, and only word overlap separates them from reworded duplicates.
+- 409 conflicts now list `overlap` next to `dist`.

@@ -159,7 +159,7 @@ async def operation(action,payload):
             if not result.get('written'):
                 # A refused near-duplicate is a conflict, not a success: nothing was written.
                 raise MemoryFailure(409,{'reason':'near-duplicate: similar active memory exists in this scope; nothing was written',
-                                         'conflicts':[{k:c.get(k) for k in ('id','claim','dist','confidence')}
+                                         'conflicts':[{k:c.get(k) for k in ('id','claim','dist','overlap','confidence')}
                                                       for c in result.get('conflicts') or []],
                                          'next':'pass supersede:"<id>" with a reworded claim to replace one, or force:true to keep both'})
             return {'outcome':'superseded' if result.get('superseded') else 'written','id':result['written'],

@@ -51,8 +51,12 @@ Success: `{"outcome": "written", "id": "memory:…", "superseded": null, "scope"
 
 ### Duplicates and supersession
 
-- Before writing, the server checks active rows in the same scope. A row is a near-duplicate if it shares the claim's words (BM25) or is within cosine distance 0.20 of it.
-- On a near-duplicate nothing is written. The call fails with **HTTP 409** and lists the conflicting rows (`id`, `claim`, `dist`).
+- Before writing, the server checks active rows in the same scope. A row is a near-duplicate if:
+  - BM25 finds every word of the new claim in it, or
+  - its cosine distance is ≤ 0.10 (same meaning, any wording), or
+  - its distance is ≤ 0.20 **and** at least 35% of the two claims' words are shared (word Jaccard ≥ 0.35).
+- Distance alone is not enough: on 2026-09-28, unrelated claims sat as close as 0.174 and a reworded duplicate at 0.184. Only word overlap separated them (unrelated ≤ 0.26, duplicates 0.44–0.56).
+- On a near-duplicate nothing is written. The call fails with **HTTP 409** and lists the conflicting rows (`id`, `claim`, `dist`, `overlap`).
 - To correct or refine a stored claim, retry with `"supersede": "memory:<id>"` and a reworded claim. The new row is written and linked `->supersedes->` the old one. The old row becomes `superseded`, and the reason goes to `decision_log`. Result: `{"outcome": "superseded", "id": <new>, "superseded": <old>}`.
 - Use `"force": true` only when the two claims really say different things.
 - Nothing is ever deleted: retraction (`fn::forget`) and supersession keep the history.

@@ -37,10 +37,16 @@ ASSERT'd), `detail?`, `evidence?` (a plain string — doc id + source path,
 
 Runs a BM25 (`claim @@ $claim`) + vector conflict check against **active**
 claims in the same `scope` before writing. The vector leg takes the 5
-nearest rows (`<|5,40|>`) and keeps only those within cosine distance
-**0.20** (computed as `1 - vector::similarity::cosine`). Before
-2026-09-27 there was no cutoff, so every write into a non-empty scope was
-refused. If conflicts exist and neither `force:true` nor
+nearest rows (`<|5,40|>`), computes cosine distance
+(`1 - vector::similarity::cosine`) and word overlap (Jaccard over
+`fn::claim_words`: lowercase, split on non-alphanumerics, words over 2
+characters). It keeps a row if **dist ≤ 0.10**, or **dist ≤ 0.20 and
+overlap ≥ 0.35** (migration `schema/2026-09-28-memory-duplicate-guard-lexical.surql`).
+History:
+- before 2026-09-27 there was no cutoff, so every write into a non-empty
+  scope was refused;
+- the 2026-09-27 cosine-only 0.20 cutoff still refused unrelated claims
+  at 0.174–0.190. If conflicts exist and neither `force:true` nor
 `supersede:<id>` is set, the write is refused with the conflicting rows
 attached. The function returns this softly; the API turns it into HTTP 409.
 `supersede` may be a string (`"memory:abc"`); it is cast with

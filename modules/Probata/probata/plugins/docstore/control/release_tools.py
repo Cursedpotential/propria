@@ -133,9 +133,10 @@ def register(mcp,request,read):
         docstore_query(operation="docstore_memory_remember", mode="write", arguments={"payload": {...}}).
         Required: kind, claim, evidence, agent. Optional: scope (default "propria"), detail, confidence,
         observed_at, force, supersede, reason.
-        Duplicate guard: if an active row in the same scope shares the claim's words (BM25) or is within
-        cosine distance 0.20 of it, nothing is written and the call fails HTTP 409 listing the conflicting
-        ids; retry with supersede:"<id>" and a reworded claim to replace one, or force:true to keep both.
+        Duplicate guard (0.8.1-r6, 2026-09-28): an active row in the same scope conflicts if BM25 finds every
+        claim word in it, or its cosine distance is <= 0.10, or its distance is <= 0.20 AND word overlap
+        (Jaccard) is >= 0.35. Then nothing is written and the call fails HTTP 409 listing the conflicting ids
+        with dist and overlap; retry with supersede:"<id>" and a reworded claim to replace one, or force:true.
         Success returns {outcome: "written"|"superseded", id, superseded, scope}.
         Errors: 422 invalid payload (every problem listed), 409 near-duplicate or exact claim already stored,
         503/502 memory service unreachable or failed."""

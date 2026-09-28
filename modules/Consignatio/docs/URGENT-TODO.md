@@ -3510,3 +3510,17 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
     devbox still 403, with or without a Bearer, as expected until the Authentik objects exist.
 
 > _Byline: Claude Code · Opus 5.5 (agent `machine-auth`) · 2026-09-28_
+
+## 2026-09-28 04:55 EDT — memory duplicate guard recalibrated (Docstore 0.8.1-r6)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28 (subagent `docstore-memory-fix`). Receipt:
+> `modules/Probata/probata/docs/pending-review/2026-09-28-docstore-0.8.1-r6/README.md`._
+
+- **Problem:** the r5 cosine-only 0.20 cutoff refused an unrelated claim at 04:44. The live measurement showed why:
+  - unrelated pairs sit as close as 0.174 and a reworded duplicate at 0.184, so distance alone cannot separate them;
+  - word overlap does separate them: unrelated ≤ 0.26, duplicates 0.44–0.56.
+- **New rule:** BM25, or cosine ≤ 0.10, or (cosine ≤ 0.20 and word Jaccard ≥ 0.35). Migration `2026-09-28-memory-duplicate-guard-lexical.surql`, applied live.
+- **Deployed:** image `0.8.1-r6`, 339 tests passing, including a new embedded-SurrealDB test of the real `fn::remember`. Plugin `propria-docstore` is at 0.8.4.
+- **Proof:**
+  - the owner-rule paraphrase is still refused 409 (dist 0.184, overlap 0.56);
+  - the 04:44 claim, replayed against the live function, is written with 0 conflicts (rolled back).

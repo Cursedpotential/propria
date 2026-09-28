@@ -3,7 +3,7 @@
   "name": "propria-docstore",
   "displayName": "Propria Docstore",
   "description": "Hosted Propria Docstore client with a general discovery skill, direct commands, and five public MCP tools. Remote documentation, memory, ADRs, handoffs, graphs, and governed indexing.",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "author": {
     "name": "Matthew Salem"
   },
