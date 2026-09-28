@@ -3486,7 +3486,7 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 - [ ] **Devbox → Workbench without a tunnel.** Owner 04:20 "The devbox is ours … there's got to be a better way to
   auth with it"; 04:22 picked "Authentik service accounts: one identity system for people and machines" and ordered
   that no Tailscale Service registration is removed until the new path works.
-  - Reproduced from the devbox: Workbench `/health` 200, `/api/v1/sources/roots` 403 "Untrusted proxy".
+  - Reproduced from the devbox: Workbench `/health` 200, `/api/proffer/sources` 403 "Untrusted proxy" (the owner's tailnet login gets 200 on the same route).
   - **Built:** the Workbench accepts `Authorization: Bearer <JWT>` on the Serve and Traefik doors
     (`modules/workbench/api/app/runtime/machine_jwt.py`). It checks the JWKS signature (cached 5 min), the exact
     issuer(s), the audience, the expiry and the group `propria-machines`. The principal is `authentik-sa:<username>`.
@@ -3503,6 +3503,10 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
     values, a devbox redeploy, the direct 200/403 proof and the six-step audit.
   - No Authentik admin API token exists in `~/.secrets`, contrary to the brief. The domain-SSO provider has no
     signing key (HS256, no JWKS), so machines get their own RS256 provider instead.
-  - Pattern for n8n, LibreChat, Advocatio and the toolkit: proposed as an ADR in the Docstore, not wired.
+  - Pattern for n8n, LibreChat, Advocatio and the toolkit: **ADR-0099** (`adr:propria_0099`, proposed) in the
+    Docstore; not wired.
+  - **Deployed** `7a991b6f` as Coolify deploy `l15hxzekok4t3w99wr7gkbvw` (finished, healthy, PyJWT 2.15.0). JWT path
+    off (no values set). Checked after deploy: owner tailnet `/api/proffer/sources` 200; public door 302 to Authentik;
+    devbox still 403, with or without a Bearer, as expected until the Authentik objects exist.
 
 > _Byline: Claude Code · Opus 5.5 (agent `machine-auth`) · 2026-09-28_
