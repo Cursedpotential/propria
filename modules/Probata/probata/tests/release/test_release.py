@@ -260,21 +260,37 @@ def test_no_module_carries_its_own_copy_of_the_source_roots():
     assert not offenders, 'source roots must come from scope.ROOTS, not a literal: ' + '; '.join(offenders)
 
 
+def _embed_safe():
+    """Load embed_safe out of flow_docs without importing it.
+
+    flow_docs calls load_sources() at import time and installs a Surreal reauth patch, so
+    importing it here needs live configuration and leaks global state into every later test.
+    test_worker_safety already isolates flow_docs functions this way.
+    """
+    import ast
+    source = (Path(__file__).resolve().parents[1] / 'scripts/docstore/flow_docs.py').read_text(encoding='utf-8')
+    tree = ast.parse(source)
+    wanted = [node for node in tree.body
+              if (isinstance(node, ast.FunctionDef) and node.name == 'embed_safe')
+              or (isinstance(node, ast.Assign) and any(
+                  isinstance(t, ast.Name) and t.id.startswith('_DATA_') for t in node.targets))]
+    assert any(isinstance(n, ast.FunctionDef) for n in wanted), 'embed_safe not found in flow_docs'
+    module = ast.Module(body=[ast.Import(names=[ast.alias(name='re')])] + wanted, type_ignores=[])
+    ast.fix_missing_locations(module)
+    namespace: dict = {}
+    exec(compile(module, '<isolated-flow-docs>', 'exec'), namespace)
+    return namespace['embed_safe']
+
+
 def test_embed_safe_defuses_every_data_uri_and_never_sends_blank():
     """One data: URI in one chunk fails the whole NIM batch, and a failed batch fails the run.
 
     The 2026-09-28 sync died after 269 s on 872 sources because exactly two shipped documents
-    mention a bare `data:image/`. strip_data_uris only matches the `;base64,` form, and the old
-    embed_safe only looked at the start of a chunk -- and even there it prefixed the text while
-    leaving the `data:` token standing, so it never actually helped.
+    mention a bare `data:image/`. strip_data_uris matches only the `;base64,` form, and the old
+    embed_safe looked only at the start of a chunk -- and even there it prefixed the text while
+    leaving the `data:` token standing, so it never actually defused anything.
     """
-    import os
-    os.environ.setdefault('SURREAL_DOCS_URL', 'http://127.0.0.1:1')
-    os.environ.setdefault('SURREAL_DOCS_USER', 'synthetic')
-    os.environ.setdefault('SURREAL_DOCS_PASS', 'synthetic')
-    os.environ.setdefault('NVIDIA_API_KEY', 'synthetic')
-    from flow_docs import embed_safe
-
+    embed_safe = _embed_safe()
     introducer = re.compile(r'data:[a-zA-Z0-9.+-]+/')
     for chunk in ('see the icon data:image/png in the spec',       # the real case, mid-chunk
                   'inline data:image/svg+xml,<svg/> here',         # no base64
@@ -287,22 +303,16 @@ def test_embed_safe_defuses_every_data_uri_and_never_sends_blank():
 
 
 def test_no_shipped_document_can_break_an_embedding_batch():
-    """Every markdown root actually shipped in this image survives embed_safe.
+    """Every markdown actually shipped in this image survives embed_safe.
 
-    A unit test on invented strings would not have caught the two real documents, because the
+    A test on invented strings would not have caught the two real documents, because the
     failure depends on what is in the corpus.
     """
-    import os
-    os.environ.setdefault('SURREAL_DOCS_URL', 'http://127.0.0.1:1')
-    os.environ.setdefault('SURREAL_DOCS_USER', 'synthetic')
-    os.environ.setdefault('SURREAL_DOCS_PASS', 'synthetic')
-    os.environ.setdefault('NVIDIA_API_KEY', 'synthetic')
-    from flow_docs import embed_safe
-
+    embed_safe = _embed_safe()
     docs = Path(__file__).resolve().parents[1] / 'docs'
     if not docs.is_dir():
-        pytest.skip('documentation roots are assembled into the image, not the checkout')
+        pytest.skip('documentation roots are assembled into the image, not into the checkout')
     introducer = re.compile(r'data:[a-zA-Z0-9.+-]+/')
-    offenders = [str(f) for f in docs.rglob('*.md')
+    offenders = [str(f.relative_to(docs)) for f in docs.rglob('*.md')
                  if introducer.search(embed_safe(f.read_text(encoding='utf-8', errors='ignore')))]
     assert not offenders, 'these would fail the NIM batch: ' + '; '.join(offenders[:5])
