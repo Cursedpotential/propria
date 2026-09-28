@@ -3437,3 +3437,21 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
 - [ ] DF-30: the devbox (tagged `ovh-files`) gets 403 from the Workbench. The audit rode the caller's tailnet login through a one-run tunnel. Fixing this needs `TAILSCALE_DEVICE_CAPABILITY` plus a tailnet grant.
 - [ ] DF-33 (Intake lane): `/api/intake/discovery/unit-lookup` answers 503 and every Intake search mode reports false.
 - [ ] DF-34: Review calls `/api/monitored-actions/capabilities`, which has no route (404). It is part of DF-13 and OD-04.
+
+## 2026-09-27 22:02–22:16 EDT — toolkit reference materials loaded; Advocatio reads/writes the shared store
+
+- [x] **300 toolkit reference documents loaded into surreal-case** (owner 22:02 "load the reference materials from the
+  tool kit"): new tracked loader `family-court-toolkit/mcp-app/scripts/load-reference-materials.mjs` (claude-plugins
+  `74fe43b`). The store now holds 323 references (3 cheat sheets incl. `CHEAT-SHEET.md`, 13 checklists, 41 guide pages,
+  117 source notes, 120 toolkit pages, 4 council notes, 2 reference notes + the 23 earlier) and 193 sources. PDFs,
+  scripts and logs were skipped on purpose.
+- [x] **Advocatio ↔ toolkit shared store live.** Owner 22:07: standing authority to create credentials for our apps
+  (recorded in `~/.secrets`, never in git). Owner 22:14: a work desk must be able to write. So the login is
+  `advocatio_workdesk` (EDITOR) on fct/case, in `~/.secrets/advocatio-surreal-case.env` and on Coolify
+  `gvghzivfmctev8dloetfssnj`; the interim `advocatio_reader` VIEWER was removed. The client needed `surreal-auth-ns/db`
+  headers for a database-level user (`51fe27b2`). Deploys `vqzaat7cj5xsfxojseno8ru8`, `v14eduuks932nhepq4yvljhf`.
+  Proof: `/v1/toolkit/status` → configured, reachable; `source:00-how-to-use-references` returns
+  `sha256:1e834600…a28d` in Advocatio, the same version the toolkit's `case_record` returns; the cheat sheet opens
+  in Advocatio; a write probe was created and then removed.
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-27_
