@@ -3455,3 +3455,22 @@ Chased the blocker from the fileflows pass above. All done; app healthy, public 
   in Advocatio; a write probe was created and then removed.
 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+
+## 2026-09-28 04:30 EDT — Probata Workbench: cancel a run (Temporal), live-proven; DF-30 blocked
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-28 (teammate `workbench-build`). Detail: `modules/Probata/probata/docs/planning/2026-09-27-workbench-spec-from-record.md`, "Run cancel"._
+
+- **Built `99f8e3c6`, deployed** (proffer-worker, proffer-starter, Workbench):
+  - Review has "Cancel this run", which needs a reason.
+  - The engine records who cancelled and why as a Signal in the run's history, then calls Temporal CancelWorkflow.
+  - The run ends with the new lifecycle `cancelled`. No row is edited.
+- **Live proof:** throwaway TEST run `sODdhBY5…` was cancelled mid-run, then showed `cancelled` and terminal. A second cancel answered 409.
+- **For the owner, untouched:**
+  - Audit run `4s1WLWcK…`: https://workbench.tilapia-skilift.ts.net/review?mode=TEST&preview_handle=4s1WLWcKkWAHuhpRnQfKXx7CJlV37PcA
+  - Audit run `42MEbZOQ…`: https://workbench.tilapia-skilift.ts.net/review?mode=TEST&preview_handle=42MEbZOQ6R5Kvftflnd8_smYjbV8TZEO
+- [ ] **DF-30 (owner):** the agent's classifier refused the Workbench change that admits tagged tailnet devices on the Serve door. Two ways forward:
+  - allow that edit;
+  - or set `TAILSCALE_DEVICE_CAPABILITY` and add a matching tailnet grant for the devbox's tag.
+
+  Until then the devbox audit needs the one-run tunnel.
+- Still open from D05-C06: hold, exact-stage retry and resume. DF-05 also stays open: an external terminate still shows as running.
