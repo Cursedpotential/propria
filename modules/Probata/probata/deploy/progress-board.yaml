@@ -1,6 +1,6 @@
 # =============================================================================
-# PROPRIA PROGRESS BOARD — the /progress pages (lanes, health, Intake preview, family-court
-# preview) and the JSON API the portal's Live board widgets read (/api/lane-rollups,
+# PROPRIA PROGRESS BOARD — the /progress pages (lanes, health, Intake preview; /family-court
+# redirects to the hosted Family Law Toolkit since 2026-09-28) and the JSON API the portal's Live board widgets read (/api/lane-rollups,
 # /api/surfaces-summary, /api/health-summary, /api/todo-feed, /api/health-history, /api/timeline).
 #
 # Reached as 100.72.169.40:3020: tailscale serve svc:homepage routes /progress here on the tailnet,

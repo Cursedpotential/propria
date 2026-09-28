@@ -42,6 +42,12 @@
 # ContextForge remains the tailnet access path, at BIND_IP:9077/mcp with the bearer token (never
 # registered as a gateway -- confirmed 2026-09-27, nothing to repoint).
 #
+# WEB APP (2026-09-28, Claude Code · Opus 5.5): the same port also serves the Family Law Toolkit
+# web app on / and /api/* (src/mcp-app/src/web.ts). Tailnet: svc:family-court ->
+# https://family-court.tilapia-skilift.ts.net (tailscale serve on ovh-files -> BIND_IP:9077).
+# Public: family-court.int.mitechconsult.com via the router above. Auth is src/mcp-app/src/
+# web-auth.ts and the TRUSTED_* env below; a direct BIND_IP:9077 caller gets 403.
+#
 # PORT: host port changed 8765 -> 9077 (2026-09-27, Claude Code). 8765 was this app's port since
 # 2026-09-07 but this app never once deployed successfully (see the header note below), so nothing
 # was ever listening on it; the Coolify app `superindex` (deployed 2026-09-22, healthy, live,

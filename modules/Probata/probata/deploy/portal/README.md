@@ -51,8 +51,8 @@ A fresh container re-renders its index page from the healthcheck (`/api/revalida
 
 ## Not here
 
-- The progress board behind `/progress` (widgets' data, the lane, health, intake and family-court
-  pages) is a separate Coolify service, `propria-progress-board`, whose source is still only on
+- The progress board behind `/progress` (widgets' data, the lane, health and intake pages;
+  `/progress/family-court/` redirects to the hosted Family Law Toolkit) is a separate Coolify service, `propria-progress-board`, whose source is still only on
   ovh-app in `/data/dashboards/progress-board/`.
 - The portal editor (code-server, `portal-edit`) edits the retired host copy in `/data/dashboards`,
   which no longer feeds the portal. Keep, repoint or retire it is an open owner decision.
