@@ -55,6 +55,7 @@ TIMEOUT = 25
 
 PLACEHOLDER = re.compile(
     r"^(changeme|change_me|replace(_me)?|x{3,}|your[_-]?\w+|<.*>|true|false|\d{1,5})$", re.I)
+QUARANTINE = re.compile(r"^(_dead-\d|to_be_deleted/)")
 NOT_A_SECRET = re.compile(
     r"^([A-Z0-9_]*_)?(URL|URI|HOST|PORT|FQDN|ENDPOINT|REGION|BUCKET|PROJECT|PROJECT_ID|"
     r"ACCOUNT_ID|EMAIL|USER|USERNAME|DIR|PATH|MODEL|VERSION|ENABLED|TIMEOUT|NAMESPACE|DB|"
@@ -290,7 +291,9 @@ def collect() -> list[tuple[str, str, str, dict]]:
     found = []
     for path in sorted(p for p in SECRETS_DIR.rglob("*") if p.is_file()):
         relative = path.relative_to(SECRETS_DIR).as_posix()
-        if path.suffix.lower() == ".json":
+        # Skip the quarantine this tool's sibling creates. Re-validating the copies it holds
+        # reports its own dead credentials back as findings, which reads as if nothing was fixed.
+        if QUARANTINE.match(relative) or path.suffix.lower() == ".json":
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")

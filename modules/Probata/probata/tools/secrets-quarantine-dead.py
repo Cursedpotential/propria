@@ -97,11 +97,12 @@ def main() -> int:
         source = SECRETS_DIR / filename
         # Keep a full copy before rewriting, so a bad edit is always recoverable.
         shutil.copy2(source, quarantine / (filename.replace("/", "__") + ".original"))
-        original = source.read_bytes()
-        newline = b"\r\n" if b"\r\n" in original else b"\n"
+        text = source.read_bytes().decode("utf-8", "replace")
+        # Preserve the file's own line endings: rewriting CRLF as LF would show every line as
+        # changed and, on a credential file, obscure what actually moved.
+        newline = "\r\n" if "\r\n" in text else "\n"
         kept, removed = [], []
-        for raw in original.split(newline):
-            line = raw.decode("utf-8", "replace")
+        for line in text.split(newline):
             m = re.match(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=", line)
             if m and m.group(1) in dead_keys:
                 removed.append(line)
@@ -110,7 +111,7 @@ def main() -> int:
         if removed:
             marker = f"# {len(removed)} credential(s) rejected by their service were moved to {quarantine.name} on {stamp}"
             kept.insert(0, marker)
-            source.write_bytes(newline.join(kept))
+            source.write_bytes(newline.join(kept).encode("utf-8"))
             (quarantine / (filename.replace("/", "__") + ".dead")).write_text(
                 "\n".join(removed) + "\n", encoding="utf-8")
             cut_lines += len(removed)
