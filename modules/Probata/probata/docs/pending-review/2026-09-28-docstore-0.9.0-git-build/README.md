@@ -225,34 +225,39 @@ restarted with `start_service` on `o8obobz576je1fbyygnywl83`.
 4. `atomic_tools` and the other ContextForge gateways still answer.
 5. Nothing on the host is edited by hand; the image is rebuilt by Coolify from `main`.
 
-### Status
+### Status — all five met, 2026-09-29 02:05 UTC
 
-| # | Criterion | State |
+Verified through the client path the owner actually uses: the `propria-docstore` plugin →
+ContextForge `ctl08` → the service.
+
+| # | Criterion | Evidence |
 |---|---|---|
-| 1 | seven roots, `ok: true` | **met** — the junction roots, verified through the plugin → ContextForge `ctl08` path |
-| 2 | search returns results | **met** — 6 reranked rows over BM25+KNN fusion |
-| 3 | sync with digest + `cdc_verified` | **attribution verified**; see below |
-| 4 | ContextForge gateways answer | **met** — `ctl08` serving, tool-gateway untouched, `:8172` freed |
-| 5 | no hand edits on the host | **held** — every change through git and the Coolify plugin |
+| 1 | seven roots, `ok: true` | `ok: true`; roots are the junction paths `docs`, `docs/probata`, `docs/consignatio`, `docs/consignatio-intake`, `docs/advocatio`, `docs/vestigia`, `docs/family-court` |
+| 2 | search returns results | `coco_docstore_search` returned 6 reranked rows over BM25+KNN fusion |
+| 3 | sync with digest + `cdc_verified` | `sync: execution_finished`, **`cdc_verified: true`**, `source_digest_after` set and equal to before, run 146 s |
+| 4 | ContextForge gateways answer | `ctl08` serving; tool-gateway untouched; `:8172` freed |
+| 5 | no hand edits on the host | every change through git and the `coolify-write` plugin |
 
-**What criterion 3 actually requires.** The criterion named `cdc_verified` without recording what
-sets it. `run_support._cdc_proven` demands five things at once:
+The final run, `40b68070`:
 
-| Condition | 2026-09-29 01:51 run |
-|---|---|
-| `cdc_attribution.status == 'verified'` | ✅ |
-| `missing_count == 0` | ✅ |
-| `unexpected_count == 0` | ✅ |
-| `hash_mismatch_count == 0` | ✅ |
-| `sync == 'execution_finished'` | ❌ `degraded` |
+```
+sync                 execution_finished      cdc_verified         true
+source_count         889                     attribution status   verified
+expected_documents   889                     observed_documents   889
+missing_count        0                       unexpected_count     0
+hash_mismatch_count  0                       projection held      0
+enrichment changed   4                       enrichment failed    0
+adr_projection       99 of 99 indexed        seconds              146
+```
 
-Four of five hold, and **expected 889 against observed 889** — the 872-vs-886 gap that the held
-retraction caused is closed, and `source_digest_after` is set. The run reports `degraded` for one
-reason, which the receipt itself states: *"Source attribution verified; provider enrichment
-remains pending"* — four documents whose enrichment hit `ReadTimeout` from the NIM LLM. That is a
-provider transient, not an index fault, and the worker queues those documents for the next run.
-`/health` already treats it that way and returns `ok: true`, because `enrichment_only` is exactly
-this case: attribution verified, no error type, enrichment outstanding.
+`source_digest_after` equals `source_digest_before`, so the sources did not move under the run.
+The retraction hold is gone: `held_count` is 0 where it was 14. The four `ReadTimeout` enrichment
+failures from the previous run cleared on retry, which is what moved `sync` from `degraded` to
+`execution_finished` and flipped `cdc_verified`.
 
-So the index is proven complete and correctly attributed. `cdc_verified` flips to true on the
-first run where the enrichment provider answers for every changed document.
+### Still open
+
+- **ContextForge's `ctl` gateway** still points at `:8172`, which this cutover freed. It needs
+  retiring; doing so needs ContextForge admin credentials this session does not have.
+- **Enrichment depends on a provider that times out.** Four documents failed on one run and
+  succeeded on the next. The nightly job absorbs that: a queued document is retried next run.

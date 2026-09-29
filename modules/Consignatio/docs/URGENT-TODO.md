@@ -3656,9 +3656,17 @@ have needed a raw API call.
 
 Receipt: `modules/Probata/probata/docs/pending-review/2026-09-28-docstore-0.9.0-git-build/README.md`
 
+**Verified 2026-09-29 02:05 UTC.** `sync: execution_finished`, `cdc_verified: true`, attribution
+889 expected against 889 observed, 0 missing / 0 unexpected / 0 hash mismatches, retraction hold
+cleared from 14 to 0, ADR projections 99 of 99, run 146 s. All five acceptance criteria met
+through the plugin → ContextForge `ctl08` path.
+
+Owner ruling 2026-09-28: the gitignored session summaries are "indexed so that they're searchable"
+but must not "make it to GitHub". 17 host-only documents now reach the container through a
+read-only `/extras` mount that `service.py` merges additively -- it may only add a file the image
+lacks, never replace one built from git. Source count 872 -> 889. A nightly job at 08:15 UTC
+(04:15 local) rebuilds from git and re-indexes, and refuses to start over a running sync; that
+refusal was proven against a live one.
+
 Open, for the owner:
-- [ ] **Deploys are API-triggered, not push-triggered.** Every deployment of this app back to
-  2026-09-19 is `is_webhook=false, is_api=true`, so the "a docs push rebuilds the image" contract
-  is not live. Enabling it makes docs pushes rebuild and restart the Docstore, which interrupts an
-  in-flight index — worth a decision rather than a silent switch.
 - [ ] **Retire ContextForge's `ctl` gateway.** Its backend `:8172` is now free; `ctl08` serves.
