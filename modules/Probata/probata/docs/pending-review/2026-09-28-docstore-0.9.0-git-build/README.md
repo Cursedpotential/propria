@@ -105,6 +105,47 @@ Against the owner's one-live-instance rule: the git-built app `probata-docstore-
 ContextForge `ctl`) and the release service (`:8175`, ContextForge `ctl08`). Clients used `ctl08`,
 so a git push never reached what was serving.
 
+### 6. Building from git silently dropped every gitignored document
+
+The first clean run finished `degraded`, and `cdc_attribution` said why: **872 sources expected,
+886 documents observed**, with zero hash mismatches and zero missing. The 14 extra were documents
+whose sources were no longer in the build. All were `COMPACT-SUMMARY-*.md`, excluded by four
+separate `.gitignore` files, so an image built from a clone could never carry them.
+
+Owner ruling, 2026-09-28: *"index them so that they're searchable but make sure they don't make
+it to GitHub"* — the same line drawn for `dev-resources` on 2026-09-26, where indexing is local
+and publication is not.
+
+`service.py` now merges a read-only `/extras` mount over the git-built docs tree at start-up. The
+merge is strictly **additive**: a file the image already carries is never replaced, so nothing
+outside git can quietly change a document that came from git, and a path escaping `docs/` raises
+rather than being skipped. `tools/push-local-docstore-sources.py` fills that mount from a
+checkout.
+
+Scoping it took three corrections, each a defect rather than a preference:
+
+| Found | Effect if left |
+|---|---|
+| `Propria/docs` holds a junction per project and `rglob` follows them | the propria root pulled every other root in under a second path |
+| 454 files were one imported custody-guide tree under `original-context/` | the Docstore would hold a donor parts-bin that AGENTS.md keeps in its own ccc collection (owner: "seems ok") |
+| 95 were `docs/probata/adr/generated/` | `adr.refresh_projections` writes those inside the container every sync; pushing desktop copies gives the generator a second source of the same documents |
+
+That leaves **17** genuine host-only documents, covering all 14 held ones. Source count moved
+872 → 889.
+
+### 7. Deploys are nightly, not push-triggered
+
+Every deployment of this app back to 2026-09-19 is `is_webhook=false, is_api=true`: the "a docs
+push rebuilds the image" contract was never actually wired. Wiring it now would rebuild and
+restart the Docstore on every docs commit, and a restart kills an in-flight index — a full run
+takes about 23 minutes.
+
+Owner's call: *"Let's set up a Cron job or something ... during down time or idle time."*
+`deploy/docstore-nightly.sh` runs at 08:15 UTC (04:15 in the owner's timezone) on ovh-files. It
+refuses to start when a sync is running, deploys, waits for the new container to answer, then
+requests a full sync. The refusal was proven against a real in-flight sync before the schedule
+was trusted.
+
 ## Versioning
 
 Three sequences looked like one, which is what made "0.8.1-r7" read as a downgrade from the
@@ -188,8 +229,30 @@ restarted with `start_service` on `o8obobz576je1fbyygnywl83`.
 
 | # | Criterion | State |
 |---|---|---|
-| 1 | seven roots, `ok: true` | roots **verified** (seven, junction paths); `ok` awaits criterion 3 |
-| 2 | search returns results | pending |
-| 3 | sync with digest + cdc | in progress |
-| 4 | ContextForge gateways answer | control MCP observed serving `POST /mcp 200` from ovh-app |
-| 5 | no hand edits on the host | **held** — every change went through git and the Coolify plugin |
+| 1 | seven roots, `ok: true` | **met** — the junction roots, verified through the plugin → ContextForge `ctl08` path |
+| 2 | search returns results | **met** — 6 reranked rows over BM25+KNN fusion |
+| 3 | sync with digest + `cdc_verified` | **attribution verified**; see below |
+| 4 | ContextForge gateways answer | **met** — `ctl08` serving, tool-gateway untouched, `:8172` freed |
+| 5 | no hand edits on the host | **held** — every change through git and the Coolify plugin |
+
+**What criterion 3 actually requires.** The criterion named `cdc_verified` without recording what
+sets it. `run_support._cdc_proven` demands five things at once:
+
+| Condition | 2026-09-29 01:51 run |
+|---|---|
+| `cdc_attribution.status == 'verified'` | ✅ |
+| `missing_count == 0` | ✅ |
+| `unexpected_count == 0` | ✅ |
+| `hash_mismatch_count == 0` | ✅ |
+| `sync == 'execution_finished'` | ❌ `degraded` |
+
+Four of five hold, and **expected 889 against observed 889** — the 872-vs-886 gap that the held
+retraction caused is closed, and `source_digest_after` is set. The run reports `degraded` for one
+reason, which the receipt itself states: *"Source attribution verified; provider enrichment
+remains pending"* — four documents whose enrichment hit `ReadTimeout` from the NIM LLM. That is a
+provider transient, not an index fault, and the worker queues those documents for the next run.
+`/health` already treats it that way and returns `ok: true`, because `enrichment_only` is exactly
+this case: attribution verified, no error type, enrichment outstanding.
+
+So the index is proven complete and correctly attributed. `cdc_verified` flips to true on the
+first run where the enrichment provider answers for every changed document.
