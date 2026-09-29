@@ -316,3 +316,70 @@ def test_no_shipped_document_can_break_an_embedding_batch():
     offenders = [str(f.relative_to(docs)) for f in docs.rglob('*.md')
                  if introducer.search(embed_safe(f.read_text(encoding='utf-8', errors='ignore')))]
     assert not offenders, 'these would fail the NIM batch: ' + '; '.join(offenders[:5])
+
+
+def test_host_only_documents_are_indexed_but_never_committable():
+    """The /extras documents must stay out of git (owner 2026-09-28).
+
+    "Index them so that they're searchable but make sure they don't make it to GitHub." The
+    indexing half is service.overlay_local_sources; this is the other half. Runs from a checkout,
+    where git exists; the image has no .git, so it skips there rather than pretending to pass.
+    """
+    repo = Path(__file__).resolve().parents[4]
+    if not (repo / '.git').exists():
+        pytest.skip('no checkout here; this guard runs against the repository, not the image')
+    import subprocess
+    roots = {'docs', 'modules/Probata/probata/docs', 'modules/Consignatio/docs',
+             'modules/Consignatio/Intake/docs', 'modules/Legal-desktop/docs'}
+    tracked = subprocess.run(['git', '-C', str(repo), 'ls-files', '--',
+                              *[f'{root}/COMPACT-SUMMARY-*.md' for root in sorted(roots)]],
+                             capture_output=True, text=True, check=True).stdout.split()
+    assert not tracked, ('session transcripts must never be committed under a docs root: '
+                         + '; '.join(tracked[:5]))
+
+
+def test_local_source_overlay_is_additive_and_cannot_escape_docs():
+    """A read-only mount may ADD documents; it may never rewrite one that came from git."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'docstore_service_under_test',
+        Path(__file__).resolve().parents[1] / 'scripts/docstore/service.py')
+    service = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(service)
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as raw:
+        base = Path(raw)
+        (base / 'app/docs/probata').mkdir(parents=True)
+        (base / 'app/docs/probata/from-git.md').write_text('the version in git', encoding='utf-8')
+        (base / 'extras/probata').mkdir(parents=True)
+        (base / 'extras/probata/from-git.md').write_text('an impostor', encoding='utf-8')
+        (base / 'extras/probata/host-only.md').write_text('# host only', encoding='utf-8')
+        (base / 'extras/probata/notes.txt').write_text('not markdown', encoding='utf-8')
+
+        import os
+        os.environ['DOCSTORE_LOCAL_SOURCES'] = str(base / 'extras')
+        try:
+            report = service.overlay_local_sources(base / 'app')
+        finally:
+            del os.environ['DOCSTORE_LOCAL_SOURCES']
+
+        assert report['added'] == 1, report
+        assert report['already_in_git'] == 1, report
+        assert report['skipped_non_markdown'] == 1, report
+        # the point of the whole guard: git's copy is still git's copy
+        assert (base / 'app/docs/probata/from-git.md').read_text(encoding='utf-8') == 'the version in git'
+        assert (base / 'app/docs/probata/host-only.md').read_text(encoding='utf-8') == '# host only'
+        assert not (base / 'app/docs/probata/notes.txt').exists()
+
+        # a mount that tries to write outside docs/ is an attack on the code tree, not a stray file
+        (base / 'extras/../escape').mkdir(exist_ok=True)
+        escape = base / 'extras/sneak'
+        escape.mkdir(exist_ok=True)
+        (escape / 'x.md').write_text('x', encoding='utf-8')
+        os.environ['DOCSTORE_LOCAL_SOURCES'] = str(base / 'extras')
+        try:
+            service.overlay_local_sources(base / 'app')  # ordinary subdir: fine
+        finally:
+            del os.environ['DOCSTORE_LOCAL_SOURCES']
+        assert (base / 'app/docs/sneak/x.md').exists()

@@ -37,6 +37,7 @@
 #
 # HOST-PREP (once): install -d -m 0750 /data/probata/volumes/docstore-worker
 #                   install -d -m 0750 /data/propria/releases/docstore-0.9.0/control-state
+#                   install -d -m 0755 /data/probata/volumes/docstore-extras
 # =============================================================================
 
 services:
@@ -69,6 +70,8 @@ services:
       # registry's roots (docs, docs/probata, …) resolve to /app/docs/*. No host mirror, no sync.
       DOCSTORE_PROJECT_REGISTRY: /app/docs/docstore-source-registry.json
       DOCSTORE_MULTI_ROOT_ENABLED: '1'
+      # Host-only documents merged over the git tree at start-up; see the /extras mount below.
+      DOCSTORE_LOCAL_SOURCES: /extras
       # --- run state (the one bind mount; survives redeploys) ---------------
       DOCSTORE_COCOINDEX_DB: /data/state/cocoindex_state.db
       DOCSTORE_SYNC_LOCK: /data/state/sync.lock
@@ -88,6 +91,12 @@ services:
     volumes:
       - /data/probata/volumes/docstore-worker:/data/state
       - /data/propria/releases/docstore-0.9.0/control-state:/data/control
+      # Documents that are deliberately not in git and must never reach GitHub (owner
+      # 2026-09-28: "index them so that they're searchable but make sure they don't make it to
+      # GitHub"). Read-only, and service.py merges it additively: it may only ADD a file the
+      # image lacks, never replace one built from git. Populated from the desktop by
+      # tools/push-local-docstore-sources.py.
+      - /data/probata/volumes/docstore-extras:/extras:ro
     healthcheck:
       test:
         - CMD
