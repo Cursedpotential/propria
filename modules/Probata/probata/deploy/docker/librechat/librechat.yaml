@@ -5,6 +5,7 @@
 # Byline: Codex · GPT-5.6-Sol · 2026-08-29 (tracked image-baked config)
 # Byline: Claude Code · Opus 5.5 · 2026-09-25 (chain comment: glm-5.1 removed, kimi-k3 on NVIDIA NIM primary)
 # Byline: Claude Code · Fable 5.1 · 2026-09-26 (MCP straight to ContextForge virtual servers; config version = image v0.8.7)
+# Byline: Claude Code · Fable 5.1 · 2026-09-29 (Docstore server label is `propria-docstore`, matching the ContextForge virtual server)
 version: 1.3.13
 cache: true
 
@@ -59,7 +60,7 @@ mcpServers:
       Authorization: "Bearer ${CONTEXTFORGE_MCP_TOKEN}"
     requiresOAuth: false
     timeout: 120000
-  propria-docstore-0-8:
+  propria-docstore:
     type: streamable-http
     url: "https://contextforge.tilapia-skilift.ts.net/servers/aca1b85df0ef49acaf152617f043bc96/mcp"
     headers:
