@@ -54,14 +54,30 @@ RCLONE_CONF = pathlib.Path("C:/Users/matts/scoop/apps/rclone/current/rclone.conf
 PROJECT_NAME = "propria"
 ENVIRONMENT = "prod"
 
-EXCLUDE_FILE = re.compile(r"(\.bak|to_be_deleted|STALE|\.old$|~$|\.example$|\.sample$)", re.I)
-PLACEHOLDER = re.compile(r"^(changeme|change_me|replace(_me)?|x{3,}|your[_-]?\w+|<.*>)$", re.I)
-# Coolify build/runtime control rather than credentials.
-COOLIFY_NOISE = re.compile(
-    r"^(SERVICE_[A-Z0-9_]*|COOLIFY_[A-Z0-9_]*|NIXPACKS_[A-Z0-9_]*|PORT|HOST|BIND_IP|"
-    r"NODE_ENV|TZ|PYTHON[A-Z]*|[A-Z0-9_]*_FQDN|[A-Z0-9_]*_PORT|[A-Z0-9_]*_HOST)$")
-SECRETISH = re.compile(r"(KEY|TOKEN|SECRET|PASS|PASSWORD|AUTH|CREDENTIAL|DSN|PRIVATE|SALT|"
-                       r"SIGNING|CERT|SESSION|COOKIE|WEBHOOK|API|URI|URL|CONN)", re.I)
+EXCLUDE_FILE = re.compile(r"(\.bak|to_be_deleted|_dead-\d|STALE|\.old$|~$|\.example$|\.sample$)", re.I)
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import secret_probes  # noqa: E402
+
+# One definition of "is this a credential", shared with both validators. Keeping a private copy
+# here let plain URLs and booleans through: OPENLIST_URL, GRAPHITI_MCP_URL and a 4-character
+# SSRF_ALLOW_PRIVATE_NETWORKS were all queued for a secrets manager.
+PLACEHOLDER = secret_probes.PLACEHOLDER
+NOT_A_SECRET = secret_probes.NOT_A_SECRET
+CREDENTIAL_SHAPED = secret_probes.CREDENTIAL_SHAPED
+
+# A URL is worth storing only when it carries credentials inside it, as a DSN does.
+URL_WITH_CREDENTIALS = re.compile(r"://[^/\s:@]+:[^/\s@]+@")
+
+
+def is_secret(name: str, value: str) -> bool:
+    if not value or PLACEHOLDER.match(value):
+        return False
+    if URL_WITH_CREDENTIALS.search(value):
+        return True            # a DSN is a credential whatever its key is called
+    if NOT_A_SECRET.match(name):
+        return False
+    return bool(CREDENTIAL_SHAPED.search(name))
 
 
 def digest(value: str) -> str:
@@ -103,7 +119,8 @@ def from_desktop() -> list[tuple[str, str, str]]:
                 found.append((f"/desktop/{stem}", "CREDENTIAL_JSON", text.strip()))
             continue
         for key, value in parse_env(text).items():
-            found.append((f"/desktop/{stem}", key, value))
+            if is_secret(key, value):
+                found.append((f"/desktop/{stem}", key, value))
     return found
 
 
@@ -129,45 +146,41 @@ def from_google() -> list[tuple[str, str, str]]:
     return found
 
 
-def from_coolify(scratch: pathlib.Path) -> list[tuple[str, str, str]]:
-    """Read every Coolify resource's environment through the coolify-write plugin."""
-    caller = scratch / "coolify_call.py"
-    if not caller.is_file():
-        sys.stderr.write(f"  coolify_call.py not found at {caller}; skipping the Coolify source\n")
-        return []
+def from_coolify(_unused=None) -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Every Coolify resource's credentials. Returns (items, failures).
 
-    def plugin(tool: str, args: dict):
-        out = subprocess.run([sys.executable, str(caller), tool, json.dumps(args)],
-                             capture_output=True, text=True, timeout=300).stdout
-        decoder, index, rows = json.JSONDecoder(), 0, []
-        while index < len(out):
-            while index < len(out) and out[index] in " \r\n\t":
-                index += 1
-            if index >= len(out):
-                break
-            try:
-                obj, index = decoder.raw_decode(out, index)
-            except json.JSONDecodeError:
-                break
-            rows.append(obj)
-        return rows
+    One server process for all calls. The previous version spawned one per application and
+    returned [] when a spawn failed, so consecutive runs collected 92, 0, 84 and 101 secrets and
+    each looked like a complete answer. A partial read is now reported, and the caller refuses to
+    write on any failure -- silently migrating 84 of 101 credentials is worse than migrating none.
+    """
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import coolify_call
 
-    found = []
-    for app in plugin("list_applications", {"per_page": 100}):
-        uuid, name = app.get("uuid"), app.get("name")
-        if not uuid:
+    listing = coolify_call.call_many([("apps", "list_applications", {"per_page": 100})])
+    if listing["apps"]["error"]:
+        return [], [f"list_applications: {listing['apps']['error']}"]
+    apps = [a for a in listing["apps"]["rows"] if isinstance(a, dict) and a.get("uuid")]
+    if not apps:
+        return [], ["list_applications returned no applications"]
+
+    spec = [(a["uuid"], "list_application_envs", {"uuid": a["uuid"]}) for a in apps]
+    answers = coolify_call.call_many(spec)
+
+    items, failures = [], []
+    for app in apps:
+        answer = answers.get(app["uuid"], {"rows": [], "error": "missing from the batch"})
+        if answer["error"]:
+            failures.append(f"{app.get('name')} ({app['uuid']}): {answer['error']}")
             continue
-        folder = "/coolify/" + re.sub(r"[^A-Za-z0-9_-]+", "-", str(name)).strip("-")
-        for row in plugin("list_application_envs", {"uuid": uuid}):
+        folder = "/coolify/" + re.sub(r"[^A-Za-z0-9_-]+", "-", str(app.get("name"))).strip("-")
+        for row in answer["rows"]:
             if not isinstance(row, dict) or row.get("is_preview"):
                 continue
             key, value = row.get("key"), str(row.get("value") or "")
-            if not key or not value or PLACEHOLDER.match(value):
-                continue
-            if COOLIFY_NOISE.match(key) or not SECRETISH.search(key):
-                continue
-            found.append((folder, key, value))
-    return found
+            if key and is_secret(key, value):
+                items.append((folder, key, value))
+    return items, failures
 
 
 # --- Infisical -------------------------------------------------------------------------------
@@ -236,8 +249,10 @@ def main() -> int:
         items += from_desktop()
     if "google" in wanted:
         items += from_google()
+    coolify_failures: list[str] = []
     if "coolify" in wanted:
-        items += from_coolify(pathlib.Path(args.scratch))
+        collected, coolify_failures = from_coolify()
+        items += collected
 
     seen, unique = set(), []
     for folder, name, value in items:
