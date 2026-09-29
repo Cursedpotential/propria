@@ -3670,3 +3670,17 @@ refusal was proven against a live one.
 
 Open, for the owner:
 - [ ] **Retire ContextForge's `ctl` gateway.** Its backend `:8172` is now free; `ctl08` serves.
+
+## 2026-09-28 21:30 – 2026-09-29 04:30 EDT — ContextForge Docstore cleanup and client repoint (owner orders 21:31, 21:40, 04:13, 04:15)
+
+> _Byline: Claude Code · Fable 5.1 · 2026-09-29._
+
+- Owner: clear the dead entries, drop the "08" and the "ctl" prefix, keep the new Docstore in ContextForge; 04:15 "pretty much everything should route through ContextForge".
+- **ContextForge (API; before/after read from its own records):** gateway `ctl08` is now `docstore` (:8175); its five tools are `docstore-health`, `-capabilities`, `-query`, `-search`, `-get`; virtual server `aca1b85d…` `propria-docstore-0-8` is now `propria-docstore` (same id, client URLs unchanged). The dead gateway `ctl` (:8172) and the empty server `0745d76a…` (renamed `propria-docstore-retired-8172`) are switched OFF, not removed; removal is the owner's.
+- **Incident:** the gateway rename cleared the gateway's stored bearer (auth type kept, value emptied), so every Docstore tool call failed 401 from about 21:50 EDT until the Docstore session restored it (tool `modules/Probata/probata/tools/contextforge-restore-gateway-auth.py`, `5fa2c896`). Same gotcha as the 09-19 entry: a ContextForge gateway PUT that omits the auth fields wipes them. The rename was first reported clean from ContextForge's records; a real tool call is the check.
+- **Verified 23:10 EDT:** real `docstore-health` through the virtual server: ok, store and api up, 7 source roots, `cdc_verified` true. LibreChat restarted through Coolify: 3 servers, 44 tools.
+- **LibreChat's own label** for the server renamed `propria-docstore-0-8` to `propria-docstore` (`01f7563f`, Coolify deployment `s4fqcrhkjrrxdz647nuqbt05`). Verified 03:04 EDT on the new container: 3 servers, 44 tools, login page 200.
+- **Clients:** OpenCode and Gemini `propria-docs` entries pointed at the retired server `0745d76a…`; repointed to `aca1b85d…` (backups `*.bak-20260929-contextforge-docstore` beside each file). The public route `mcp.mitechconsult.com/servers/aca1b85d…/mcp` lists the 5 tools. Codex and the Claude plugin (0.8.5 to 0.9.1) already used it. OpenCode's `agno-gateway` entry points at server `2c60f39f…`, which does not exist in ContextForge.
+- **Gap for "everything through ContextForge":** gateways registered but offered to clients by no virtual server: `coolify-write` (21 tools), `advocatio` (5), `atomic-tools` (1), and the raw Surreal `docs` (14) and `mem` (14). Virtual servers today: `propria-docstore` (5), `agent-memory` (29), `dev-docs` (10). Claude Code sessions still load context7, n8n-docs, cloudflare docs and octopoda directly, duplicating `dev-docs` and `agent-memory`.
+- ccc: the desktop code-index daemon was stopped by its safety guard at 01:09 EDT (`system_commit_pressure`; the daemon itself held 547 MB of its 3 GB limit). The fault latch is in place and was not cleared. Index intact: 59,023 chunks, 3,193 files (Probata module).
+- [ ] Owner decision: virtual servers for coolify-write, advocatio and atomic-tools (default: one each, named as the gateway), then repoint clients and drop the direct duplicates; remove OpenCode's dead `agno-gateway` entry; remove the two switched-off ContextForge entries.
