@@ -62,228 +62,16 @@ NOT_A_SECRET = re.compile(
     r"DATABASE|COLLECTION|INDEX|TZ|LANG|ENV|NAME|PREFIX|MODE|LEVEL|FORMAT)$")
 
 
-def digest(value: str) -> str:
-    return hashlib.sha256(value.encode()).hexdigest()[:12]
+import sys as _sys
+_sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import secret_probes  # noqa: E402
 
-
-def get(url: str, headers: dict, method: str = "GET", data: bytes | None = None):
-    request = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-            return response.status, response.read(400).decode("utf-8", "replace")
-    except urllib.error.HTTPError as exc:
-        return exc.code, exc.read(300).decode("utf-8", "replace")
-    except Exception as exc:  # noqa: BLE001 - reachability, not a verdict about the credential
-        return 0, type(exc).__name__
-
-
-def verdict_from(status: int, body: str) -> str:
-    if status == 0:
-        return "unreachable"
-    if status in (401, 403):
-        return "dead"
-    if 200 <= status < 300 or status in (404, 429):
-        return "live"          # authenticated; the path may not exist or we may be throttled
-    if re.search(r"invalid.*(key|token|credential)|unauthor|expired", body, re.I):
-        return "dead"
-    if status in (400, 422):
-        return "live"          # the credential passed; the request body did not
-    return "unreachable"
-
-
-# --- probes -----------------------------------------------------------------------------------
-
-def _bearer(url, token, **kw):
-    return verdict_from(*get(url, {"Authorization": f"Bearer {token}"}, **kw))
-
-
-def p_nvidia(env, k):     return _bearer("https://integrate.api.nvidia.com/v1/models", env[k])
-def p_openrouter(env, k): return _bearer("https://openrouter.ai/api/v1/key", env[k])
-def p_openai(env, k):     return _bearer("https://api.openai.com/v1/models", env[k])
-def p_groq(env, k):       return _bearer("https://api.groq.com/openai/v1/models", env[k])
-def p_mistral(env, k):    return _bearer("https://api.mistral.ai/v1/models", env[k])
-def p_together(env, k):   return _bearer("https://api.together.xyz/v1/models", env[k])
-def p_cohere(env, k):     return _bearer("https://api.cohere.ai/v1/models", env[k])
-def p_hf(env, k):         return _bearer("https://huggingface.co/api/whoami-v2", env[k])
-def p_firecrawl(env, k):  return _bearer("https://api.firecrawl.dev/v1/team/credit-usage", env[k])
-def p_langfuse(env, k):   return _bearer("https://cloud.langfuse.com/api/public/projects", env[k])
-
-
-def p_deepgram(env, k):
-    return verdict_from(*get("https://api.deepgram.com/v1/projects",
-                             {"Authorization": f"Token {env[k]}"}))
-
-
-def p_anthropic(env, k):
-    return verdict_from(*get("https://api.anthropic.com/v1/models",
-                             {"x-api-key": env[k], "anthropic-version": "2023-06-01"}))
-
-
-def p_github(env, k):
-    return verdict_from(*get("https://api.github.com/user",
-                             {"Authorization": f"Bearer {env[k]}",
-                              "Accept": "application/vnd.github+json"}))
-
-
-def p_voyage(env, k):
-    return verdict_from(*get(
-        "https://api.voyageai.com/v1/embeddings",
-        {"Authorization": f"Bearer {env[k]}", "Content-Type": "application/json"},
-        "POST", json.dumps({"input": ["ping"], "model": "voyage-3"}).encode()))
-
-
-def p_coolify(env, k):
-    return verdict_from(*get("http://100.98.98.38:8000/api/v1/version",
-                             {"Authorization": f"Bearer {env[k]}"}))
-
-
-def p_tavily(env, k):
-    return verdict_from(*get(
-        "https://api.tavily.com/search", {"Content-Type": "application/json"}, "POST",
-        json.dumps({"api_key": env[k], "query": "ping", "max_results": 1}).encode()))
-
-
-def p_exa(env, k):
-    return verdict_from(*get(
-        "https://api.exa.ai/search", {"x-api-key": env[k], "Content-Type": "application/json"},
-        "POST", json.dumps({"query": "ping", "numResults": 1}).encode()))
-
-
-def p_perplexity(env, k):
-    return verdict_from(*get(
-        "https://api.perplexity.ai/chat/completions",
-        {"Authorization": f"Bearer {env[k]}", "Content-Type": "application/json"}, "POST",
-        json.dumps({"model": "sonar", "messages": [{"role": "user", "content": "hi"}],
-                    "max_tokens": 1}).encode()))
-
-
-def p_cloudflare(env, k):
-    return verdict_from(*get("https://api.cloudflare.com/client/v4/user/tokens/verify",
-                             {"Authorization": f"Bearer {env[k]}"}))
-
-
-def p_gemini(env, k):
-    """Google AI Studio keys travel in the query string, not a header."""
-    return verdict_from(*get(
-        "https://generativelanguage.googleapis.com/v1beta/models?key="
-        + urllib.parse.quote(env[k]), {}))
-
-
-def p_b2(env, k):
-    """Backblaze: the key id is the partner of the application key."""
-    key_id = next((env[n] for n in env
-                   if re.search(r"B2.*(KEY_?ID|ACCOUNT_?ID|APPLICATION_?KEY_?ID)", n, re.I)
-                   and env[n] != env[k]), None)
-    if not key_id:
-        return "untestable"
-    basic = base64.b64encode(f"{key_id}:{env[k]}".encode()).decode()
-    return verdict_from(*get("https://api.backblazeb2.com/b2api/v3/b2_authorize_account",
-                             {"Authorization": "Basic " + basic}))
-
-
-def p_tailscale(env, k):
-    """OAuth client credentials; the id is the partner of the secret."""
-    client_id = next((env[n] for n in env if re.search(r"TAILSCALE.*CLIENT_?ID", n, re.I)), None)
-    if not client_id:
-        return "untestable"
-    body = urllib.parse.urlencode({"client_id": client_id, "client_secret": env[k]}).encode()
-    return verdict_from(*get("https://api.tailscale.com/api/v2/oauth/token",
-                             {"Content-Type": "application/x-www-form-urlencoded"}, "POST", body))
-
-
-def _rclone(remote: str) -> str:
-    if not RCLONE.is_file():
-        return "untestable"
-    done = subprocess.run([str(RCLONE), "lsd", f"{remote}:", "--max-depth", "1",
-                           "--low-level-retries", "1", "--timeout", "30s"],
-                          capture_output=True, text=True, timeout=90)
-    if done.returncode == 0:
-        return "live"
-    err = done.stderr
-    if re.search(r"didn.t find section|unknown remote", err, re.I):
-        return "untestable"
-    if re.search(r"401|403|SignatureDoesNotMatch|InvalidAccessKeyId|Unauthorized|invalid_grant",
-                 err, re.I):
-        return "dead"
-    return "unreachable"
-
-
-def p_r2(env, k):
-    for remote in ("r2", "R2", "cloudflare-r2", "casebible-r2", "propria-r2"):
-        state = _rclone(remote)
-        if state != "untestable":
-            return state
-    return "untestable"
-
-
-def p_surreal(env, k):
-    url = next((env[n] for n in env if re.search(r"SURREAL.*(URL|HOST)", n, re.I)), None)
-    user = next((env[n] for n in env if re.search(r"SURREAL.*USER", n, re.I)), None)
-    if not (url and user):
-        return "untestable"
-    http = re.sub(r"^wss?://", "https://", url).replace("/rpc", "")
-    basic = base64.b64encode(f"{user}:{env[k]}".encode()).decode()
-    return verdict_from(*get(http + "/sql",
-                             {"Authorization": "Basic " + basic, "Accept": "application/json",
-                              "surreal-ns": "probata", "surreal-db": "docs"}, "POST", b"RETURN 1;"))
-
-
-def p_neo4j(env, k):
-    url = next((env[n] for n in env if re.search(r"NEO4J.*(URL|URI|HOST)", n, re.I)), None)
-    user = next((env[n] for n in env if re.search(r"NEO4J.*USER", n, re.I)), "neo4j")
-    if not url:
-        return "untestable"
-    http = re.sub(r"^(bolt|neo4j)(\+s)?://", "http://", url)
-    basic = base64.b64encode(f"{user}:{env[k]}".encode()).decode()
-    return verdict_from(*get(http.rstrip("/") + "/db/neo4j/tx/commit",
-                             {"Authorization": "Basic " + basic, "Content-Type": "application/json"},
-                             "POST", json.dumps({"statements": [{"statement": "RETURN 1"}]}).encode()))
-
-
-PROBES = [
-    (re.compile(r"NVIDIA|NIM_", re.I), p_nvidia),
-    (re.compile(r"OPENROUTER", re.I), p_openrouter),
-    (re.compile(r"OPENAI.*KEY", re.I), p_openai),
-    (re.compile(r"ANTHROPIC", re.I), p_anthropic),
-    (re.compile(r"GROQ", re.I), p_groq),
-    (re.compile(r"MISTRAL", re.I), p_mistral),
-    (re.compile(r"TOGETHER", re.I), p_together),
-    (re.compile(r"PERPLEX", re.I), p_perplexity),
-    (re.compile(r"COHERE", re.I), p_cohere),
-    (re.compile(r"DEEPGRAM", re.I), p_deepgram),
-    (re.compile(r"(HUGGING|^HF_).*(TOKEN|KEY)", re.I), p_hf),
-    (re.compile(r"FIRECRAWL", re.I), p_firecrawl),
-    (re.compile(r"LANGFUSE.*(SECRET|PUBLIC)?_?KEY", re.I), p_langfuse),
-    (re.compile(r"GITHUB.*(TOKEN|PAT)|GH_TOKEN", re.I), p_github),
-    (re.compile(r"VOYAGE", re.I), p_voyage),
-    (re.compile(r"COOLIFY_API_TOKEN", re.I), p_coolify),
-    (re.compile(r"TAVILY", re.I), p_tavily),
-    (re.compile(r"^EXA_|EXA_API", re.I), p_exa),
-    (re.compile(r"CLOUDFLARE.*(TOKEN|KEY)|^CF_API_TOKEN$", re.I), p_cloudflare),
-    (re.compile(r"GEMINI.*KEY|GOOGLE.*(AI|GENERATIVE).*KEY", re.I), p_gemini),
-    (re.compile(r"B2.*(APPLICATION_?KEY|APP_?KEY|SECRET)", re.I), p_b2),
-    (re.compile(r"TAILSCALE.*(CLIENT_?SECRET|API_?KEY)", re.I), p_tailscale),
-    (re.compile(r"R2.*(SECRET|ACCESS_?KEY)", re.I), p_r2),
-    (re.compile(r"SURREAL.*PASS", re.I), p_surreal),
-    (re.compile(r"NEO4J.*(PASS|AUTH)", re.I), p_neo4j),
-]
-
-
-# A probe family matching is not enough. GROQ_MODEL_PREF matched the GROQ family, was sent as a
-# key, came back 401 and was reported dead -- it is a model name. A value is only worth probing if
-# the name says it carries a credential.
-CREDENTIAL_SHAPED = re.compile(
-    r"(API_?KEY|_KEY$|^KEY$|TOKEN|SECRET|PASSWORD|PASSWD|^PASS$|_PASS$|CREDENTIAL|"
-    r"PRIVATE_?KEY|ACCESS_?KEY|AUTH$|_AUTH$|DSN|SALT|SIGNING)", re.I)
-
-
-def pick_probe(name: str):
-    if not CREDENTIAL_SHAPED.search(name):
-        return None
-    for pattern, probe in PROBES:
-        if pattern.search(name):
-            return probe
-    return None
+# The probe registry lives in secret_probes so this tool and infisical-validate.py cannot drift
+# apart on what counts as revoked. Everything below is only about reading ~/.secrets.
+digest = lambda value: __import__("hashlib").sha256(value.encode()).hexdigest()[:12]
+PLACEHOLDER = secret_probes.PLACEHOLDER
+NOT_A_SECRET = secret_probes.NOT_A_SECRET
+pick_probe = secret_probes.pick
 
 
 def collect() -> list[tuple[str, str, str, dict]]:
@@ -349,7 +137,7 @@ def main() -> int:
         futures = {}
         for value, rows in by_value.items():
             _, name, env, probe = rows[0]
-            futures[pool.submit(probe, env, name)] = value
+            futures[pool.submit(secret_probes.check, env, name)] = value
         for future in concurrent.futures.as_completed(futures):
             value = futures[future]
             try:
