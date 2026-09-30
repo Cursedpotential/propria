@@ -97,8 +97,8 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 		}
 		optional[stage.ID] = stage
 	}
-	if len(optional) != 2 {
-		t.Fatalf("optional stage count = %d, want the D-158 chunk stage and the derive stage", len(optional))
+	if len(optional) != 3 {
+		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage and the context search stage", len(optional))
 	}
 	d, ok := optional[ChunkDocument]
 	if !ok || d.Responsibility != RespChunk {
@@ -124,6 +124,30 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 	}
 	if requiredStages[DeriveSMSThreads] {
 		t.Fatal("derive stage was made mandatory for the extraction path")
+	}
+
+	// The Weaviate-first search stage runs after extraction is verified and
+	// BEFORE the canonical PostgreSQL commit, which is the whole point of the
+	// owner's ruled pipeline order. Byline: Claude Code · Opus 5 · 2026-09-26
+	search, ok := optional[PublishContextSearch]
+	if !ok || search.Responsibility != RespPublishSearch {
+		t.Fatalf("optional stage = %+v, want atomic publish_context_search_activity", search)
+	}
+	if search.Responsibility == RespPublish {
+		t.Fatal("context search write was tagged as the canonical publication responsibility")
+	}
+	if len(search.DependsOn) != 1 || search.DependsOn[0] != VerifyNormalizedGeneration {
+		t.Fatalf("context search stage dependencies = %v, want the verified normalized generation only", search.DependsOn)
+	}
+	for _, forbidden := range []StageID{SealGeneration, PublishGeneration} {
+		for _, dependency := range search.DependsOn {
+			if dependency == forbidden {
+				t.Fatalf("context search stage depends on %q; it must run BEFORE the canonical commit, not after", forbidden)
+			}
+		}
+	}
+	if requiredStages[PublishContextSearch] {
+		t.Fatal("context search stage was made mandatory: a Weaviate outage would then block every run from completing")
 	}
 }
 

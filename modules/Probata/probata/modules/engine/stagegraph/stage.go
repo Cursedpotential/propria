@@ -70,6 +70,13 @@ const (
 	// writes nothing (repair.find_other_version).
 	// Byline: Claude Code · Opus 5.5 · 2026-09-25
 	RespLocate
+	// RespPublishSearch writes to the pre-approval search surface only. It is
+	// deliberately a distinct bit from RespPublish: RespPublish is the
+	// post-approval canonical publication, while this is the searchable
+	// projection the owner validates against beforehand. Collapsing them would
+	// let a search write masquerade as a canonical commit.
+	// Byline: Claude Code · Opus 5 · 2026-09-26
+	RespPublishSearch
 )
 
 // Descriptor is the static, dependency-free description of one stage: its
@@ -111,12 +118,49 @@ const ChunkDocument StageID = "chunk_document_activity"
 // collision was found. One Activity survives; this is its name.
 const DeriveSMSThreads StageID = "derive_sms_threads_activity"
 
+// PublishContextSearch is the canon Activity name for the Weaviate-first step
+// of the owner's ruled pipeline order (2026-09-18 20:06-20:07, restated
+// 2026-09-26): extraction output is made SEARCHABLE before anything is
+// committed to the canonical PostgreSQL tables, so the owner can search, read,
+// validate, annotate, verify the extraction and repair the file first.
+//
+// Weaviate is the pre-approval search surface, so this stage asserts nothing
+// about accuracy and requires no approval to run. It is scheduled after
+// VerifyNormalizedGeneration -- the records it makes searchable must exist and
+// have passed extraction verification -- and before SealGeneration and
+// PublishGeneration, which are the post-approval canonical commit.
+//
+// Its single side-effect is writing search objects to the Weaviate context
+// collection. It never writes canonical PostgreSQL rows, never creates
+// evidence or custody state, and deliberately applies NO horizon filter: it
+// carries occurred_at, knowledge_time and disclosure_tier so a query-time
+// analysis agent can apply one. Filtering here would make it a hindsight
+// reader and trip engine/contextreview's tripwire.
+//
+// It is an OptionalStage rather than a member of Stages because promoting it
+// to a universal ancestor of PublishGeneration would make a Weaviate outage
+// block every run from completing. That coupling is an owner decision, not a
+// default.
+//
+// Byline: Claude Code · Opus 5 · 2026-09-26
+const PublishContextSearch StageID = "publish_context_search_activity"
+
 // OptionalStages describes version-gated stages that are real members of a
 // specific route but not universal ancestors of PublishGeneration. Keeping
 // these separate preserves the base graph's strong "every listed stage runs"
 // invariant while giving conditional Temporal branches a reviewable
 // dependency contract.
 var OptionalStages = []Descriptor{
+	{
+		ID:             PublishContextSearch,
+		Responsibility: RespPublishSearch,
+		Result:         "context search publication receipt reference",
+		// The records it publishes must exist and have passed extraction
+		// verification. It deliberately does NOT depend on SealGeneration or
+		// PublishGeneration: the whole point is that it runs BEFORE the
+		// canonical commit.
+		DependsOn: []StageID{VerifyNormalizedGeneration},
+	},
 	{
 		ID:             ChunkDocument,
 		Responsibility: RespChunk,
