@@ -183,6 +183,92 @@ def from_coolify(_unused=None) -> tuple[list[tuple[str, str, str]], list[str]]:
     return items, failures
 
 
+# Coolify service environments live inside docker_compose_raw, not in an env table, and many
+# entries there are ${VAR} indirections rather than values -- those resolve from Coolify's own env
+# and would be stored as the literal string "${VAR:?set}" if carried across.
+COMPOSE_INDIRECTION = re.compile(r"^\$\{[^}]*\}$")
+
+
+def from_coolify_services() -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Service credentials, read through get_service_env(reveal=True).
+
+    get_service masks every secret-looking value, which is correct for diagnosis and leaves no
+    route for a migration. get_service_env exists for this: it returns the env pairs only, so
+    revealing them does not also expose the compose, webhook secrets or volume layout.
+    """
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import coolify_call
+
+    listing = coolify_call.call_many([("svc", "list_services", {"per_page": 100})])
+    if listing["svc"]["error"]:
+        return [], [f"list_services: {listing['svc']['error']}"]
+    services = [x for x in listing["svc"]["rows"] if isinstance(x, dict) and x.get("uuid")]
+
+    answers = coolify_call.call_many(
+        [(x["uuid"], "get_service_env", {"uuid": x["uuid"], "reveal": True}) for x in services])
+
+    items, failures = [], []
+    for service in services:
+        answer = answers.get(service["uuid"], {"rows": [], "error": "missing from the batch"})
+        if answer["error"]:
+            failures.append(f"service {service.get('name')}: {answer['error']}")
+            continue
+        payload = next((r for r in answer["rows"] if isinstance(r, dict) and "services" in r), None)
+        if payload is None:
+            failures.append(f"service {service.get('name')}: no env payload returned")
+            continue
+        base = re.sub(r"[^A-Za-z0-9_-]+", "-", str(service.get("name"))).strip("-")
+        for compose_name, pairs in (payload.get("services") or {}).items():
+            for key, value in (pairs or {}).items():
+                value = str(value or "")
+                if COMPOSE_INDIRECTION.match(value.strip()):
+                    continue
+                if is_secret(key, value):
+                    items.append((f"/coolify/{base}", key, value))
+    return items, failures
+
+
+def from_coolify_databases() -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Standalone database credentials: the password and the connection URL that embeds it."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import coolify_call
+
+    listing = coolify_call.call_many([("db", "list_databases", {"per_page": 100})])
+    if listing["db"]["error"]:
+        return [], [f"list_databases: {listing['db']['error']}"]
+    databases = [x for x in listing["db"]["rows"] if isinstance(x, dict) and x.get("uuid")]
+
+    answers = coolify_call.call_many(
+        [(x["uuid"], "get_database", {"uuid": x["uuid"]}) for x in databases])
+
+    items, failures = [], []
+    for database in databases:
+        answer = answers.get(database["uuid"], {"rows": [], "error": "missing from the batch"})
+        if answer["error"]:
+            failures.append(f"database {database.get('name')}: {answer['error']}")
+            continue
+        record = next((r for r in answer["rows"] if isinstance(r, dict) and r.get("uuid")), None)
+        if record is None:
+            failures.append(f"database {database.get('name')}: no record returned")
+            continue
+        base = "/coolify/" + re.sub(r"[^A-Za-z0-9_-]+", "-", str(database.get("name"))).strip("-")
+        for field, name in (("postgres_password", "POSTGRES_PASSWORD"),
+                            ("internal_db_url", "DATABASE_URL"),
+                            ("external_db_url", "DATABASE_URL_EXTERNAL"),
+                            ("mysql_password", "MYSQL_PASSWORD"),
+                            ("mysql_root_password", "MYSQL_ROOT_PASSWORD"),
+                            ("mongo_initdb_root_password", "MONGO_ROOT_PASSWORD"),
+                            ("redis_password", "REDIS_PASSWORD"),
+                            ("mariadb_password", "MARIADB_PASSWORD"),
+                            ("keydb_password", "KEYDB_PASSWORD"),
+                            ("clickhouse_admin_password", "CLICKHOUSE_PASSWORD"),
+                            ("dragonfly_password", "DRAGONFLY_PASSWORD")):
+            value = str(record.get(field) or "")
+            if value and is_secret(name, value):
+                items.append((base, name, value))
+    return items, failures
+
+
 # --- Infisical -------------------------------------------------------------------------------
 
 class Infisical:
@@ -223,9 +309,23 @@ class Infisical:
             walked = f"{walked}/{part}"
 
     def put(self, folder: str, name: str, value: str):
-        return self.call(f"/api/v3/secrets/raw/{name}", "POST", {
-            "workspaceId": self.project, "environment": ENVIRONMENT,
-            "secretPath": folder, "secretValue": value, "type": "shared"})
+        """Create, or update in place when it already exists.
+
+        The raw-secret POST creates only and answers 400 "Secret already exist" on a re-run, so
+        a second pass reported 92 failures over secrets that were already correct. Re-running a
+        migration has to be safe, and an unchanged value must not count as an error.
+        """
+        body = {"workspaceId": self.project, "environment": ENVIRONMENT,
+                "secretPath": folder, "secretValue": value, "type": "shared"}
+        status, out = self.call(f"/api/v3/secrets/raw/{name}", "POST", body)
+        if status in (200, 201):
+            return status, "created"
+        if status == 400 and b"already exist" in (out if isinstance(out, bytes) else str(out).encode()):
+            if self.get(folder, name) == value:
+                return 200, "unchanged"
+            status, out = self.call(f"/api/v3/secrets/raw/{name}", "PATCH", body)
+            return status, ("updated" if status in (200, 201) else out)
+        return status, out
 
     def get(self, folder: str, name: str):
         status, out = self.call(
@@ -251,8 +351,10 @@ def main() -> int:
         items += from_google()
     coolify_failures: list[str] = []
     if "coolify" in wanted:
-        collected, coolify_failures = from_coolify()
-        items += collected
+        for collector in (from_coolify, from_coolify_services, from_coolify_databases):
+            collected, failed = collector()
+            items += collected
+            coolify_failures += failed
 
     seen, unique = set(), []
     for folder, name, value in items:
@@ -283,14 +385,18 @@ def main() -> int:
         api.ensure_folder(folder)
     print(f"  {len(folders)} folders ready")
 
-    loaded, failed = 0, []
+    tally = {"created": 0, "updated": 0, "unchanged": 0}
+    failed = []
     for folder, name, value in unique:
         status, out = api.put(folder, name, value)
-        if status in (200, 201):
-            loaded += 1
+        if status in (200, 201) and out in tally:
+            tally[out] += 1
+        elif status in (200, 201):
+            tally["created"] += 1
         else:
             failed.append((folder, name, status, str(out)[:90]))
-    print(f"  loaded {loaded} of {len(unique)}")
+    print(f"  created {tally['created']}, updated {tally['updated']}, "
+          f"unchanged {tally['unchanged']}, failed {len(failed)} of {len(unique)}")
     for folder, name, status, detail in failed[:15]:
         print(f"    FAILED {folder}/{name}: HTTP {status} {detail}")
     if len(failed) > 15:
