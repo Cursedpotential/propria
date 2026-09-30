@@ -3719,3 +3719,44 @@ Open, for the owner:
 - [ ] **Owner decision:** tools for surreal-intake. A: leave it without (default; Intake is isolated on purpose). B: add the allow-list to its compose and a ContextForge gateway with its runtime user.
 - [ ] **Owner:** remove the two switched-off ContextForge entries (gateway `ctl`, server `propria-docstore-retired-8172`).
 - [ ] coolify-write lane: build the hosted `coolify-mcp` from the plugin source, then refresh the gateway's tools, add them to the server, and point the plugin at it.
+
+## 2026-09-30 15:50–16:40 EDT — Case Bible: what to grab, from the catalog alone (owner 15:52)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-30. Catalog reads only: no B2, R2, Drive, OneDrive or local reads, no model calls. Script `casebible/tools/grab_plan_20260930.sql`; tables `raw_duck.best_copy_20260930`, `raw_duck.grab_plan_20260930` (new, additive). Inputs: the 09-20 reconciliation generation `2c2ae40f` (`catalog_reconcile.*`, B2 listing of 09-20) and `raw_duck.corrupt_recovery` (09-14)._
+
+**Owner rule recorded (15:53):** "The Case Bible is where it's supposed to get ingested from and live, and Probata SHOULD allow for sorting into the Bible if it's not in its home." Probata ingests from the Case Bible on B2, and a file found outside its home gets a "sort into the Bible" action in Probata, not a trip back through Intake. Same direction as Workbench N-03 (move files between buckets).
+
+**Answered from the record, no new reads**
+- **Recovery-dump copy (09-17): done and verified.** `verify_full.log` 09-17 13:00 UTC: `VERIFY PASS expected=40304 present=40304 missing=0 size_mismatch=0 extra=0`; ledger 40,304 × `ok`. The L799 item is closed.
+- **810-493-2840 is Matt's** (owner 15:50 "yes"): `msg_identity_confirm_20260930.sql`, status confirmed; Matt now 32 confirmed, 0 candidates; Katrina 7.
+- **The 09-16 per-source deletes are not recoverable as hidden B2 versions.** The 09-20 listing holds only 6,749 noncurrent versions (10.6 GB) and 6,760 hide markers, against 2.58 TiB deleted. The per-source copies are gone from B2; the originals are still at the sources.
+
+**Best copy per file (owner rule of 09-13: oldest real date, then most metadata, ties kept)** — `best_copy_20260930`
+- 434,837 distinct contents on B2 graded: 359,634 clear winners, 75,203 ties kept both.
+- Winning copy by source: D:\Backup 246,637 · OneDrive 98,306 · Drive salemnet 65,459 · F:\Disk Drill 20,382 · Drive salem85 9,937 · D:\ root 18 · F:\case 4.
+- **217,635 contents have no real date on any copy** (every date is a sentinel, pre-1990 or a batch stamp). Their winner is decided by metadata alone.
+- Bytes are identical within a content, so none of this needs a fetch. It is the metadata each file's package carries.
+
+**What needs bytes** — `grab_plan_20260930`
+
+| Kind | Result | Files | Size | Action |
+|---|---|---:|---:|---|
+| Corrupt (all-zero) files, 10,285 distinct | good copy on B2 now | 9,414 | 10.0 GB | nothing (8,527 same name, 887 renamed) |
+| | good copy only in R2 | 795 | 0.28 GB | copy R2 → B2 |
+| | no good copy anywhere | 76 | 0.10 GB | none; mostly D:\Backup `_DUPLICATE` photos, `.vcf`, `.plist` |
+| Bytes only as an old B2 version | restore on B2 | 1,450 | 0.28 GB | server-side copy of that version; no source read |
+| Files B2 cannot hash (multipart uploads) | present by exact name + size | 1,049 | 2,097 GB | nothing now |
+| | present under another name, same exact size | 267 (227 distinct) | 492 GB | nothing now; e.g. Drive `takeout-20231119T033545Z-002-069.zip` = vault `…/Takeout (1)/takeout-20231119T033545Z-002.zip` |
+| R2 objects never tied to B2 | present by name + size | 17,834 | 291 GB | nothing |
+| | on R2 only | 10,235 | 3.24 GB | copy R2 → B2 after dropping junk (venv `.py/.js/.dll/.exe`, `.obsidian/plugins`) |
+
+- Also found: **103 visible vault objects (0.07 GB) are known zero-filled** and sit outside `_quarantine/`.
+- **Nothing has to be re-pulled from Drive, OneDrive or the local disks.** The fetch is R2 → B2 for at most ~11,030 small files (≈3.5 GB, less after the junk filter) plus 1,450 on-B2 version restores.
+- **Limit:** the 1,316 hash-less large files (2.6 TB) match by size, not by bytes. B2 stores no SHA-1 for them. Their byte check belongs to the per-source package step (D-154), which has to verify before any original is cleared.
+- **CB-4 (offline reconstruction, owner "yes" 15:50):** its purpose was what is provable, the exact gaps, and the cost of each. This entry and the two tables answer that. A narrative of 09-14 → 09-16 was not written.
+
+- [ ] **Owner go (metered, small): R2 → B2 copy** of the 795 corrupt replacements and the R2-only files, junk excluded. Add-only (`--immutable`), R2 egress free, ≈11k R2 GETs, B2 uploads free, +≈3.5 GB B2 storage.
+- [ ] **Owner go: restore the 1,450 old-version files** on B2 by server-side copy into their vault paths. No egress.
+- [ ] **Owner go: move the 103 zero-filled vault objects into `consignatio/intake/_quarantine/`** (B2 server-side copy + hide; nothing deleted), each replaced where a good copy exists.
+- [ ] Google file `Google Data Export Archive Contents (0015A63D).html`: owner answered "yes" to "re-export or drop"; which one is still open.
+- [ ] Build the per-source packages (D-154), with the byte check of the 227 renamed large files and the 1,049 name+size matches.
