@@ -65,6 +65,14 @@ dependencies = [
   # D-046: CPU-only chunkers in the live ingest path. These exact extras add
   # model2vec/tree-sitter/table support without Chonkie's neural/torch extra.
   "chonkie[semantic,code,table]==1.7.0",
+  # Every persisted-row id in sql/bootstrap/schema_snapshot_20260907.sql defaults to
+  # PG18's native uuidv7() (167 columns, vs. 10 legacy gen_random_uuid() holdouts).
+  # Python code that must mint an id before INSERT (rather than let Postgres default
+  # it) needs a matching RFC 9562 v7 generator. uuid6 is pure Python (no compiled
+  # extension, so no Windows-dev/Linux-VPS build-toolchain mismatch) and does only
+  # this one job. requires-python is >=3.12, so stdlib uuid.uuid7() (3.14+) is not
+  # available yet.
+  "uuid6>=2024.7.10",
 ]
 
 [project.optional-dependencies]
