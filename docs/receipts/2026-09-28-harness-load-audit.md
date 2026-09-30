@@ -36,7 +36,7 @@
 |---|---|---|---|
 | Claude Code CLI + desktop app local sessions | 2.1.283 | docs + `claude plugin list --json` + this session's skill list | `~/.claude/skills/*/SKILL.md` (by folder name), `~/.claude/commands`, `~/.claude/agents`, project `.claude/skills` from cwd up, enabled plugins (`name@marketplace`, `name@skills-dir` for a plugin folder inside `~/.claude/skills`, `name@synced` from claude.ai), synced claude.ai skills as `anthropic-skills:<name>`. **Not** `~/.agents/skills`: its unique skills (`weaviate`, `tailscale`, `behavioral-pattern-analyzer`) never appear in the session list. |
 | Codex CLI | 0.149.1 | docs + `codex debug prompt-input` (the model-visible skill table) | `~/.codex/skills` (documented as deprecated, still scanned as root `r0`), `~/.agents/skills` (`r1`), `~/.codex/skills/.system`, repo `.agents/skills` from the git root to cwd, enabled plugins from `~/.codex/plugins/cache`. Duplicate names are not merged; both appear. |
-| OpenCode | 1.18.5 | docs + `opencode debug skill --print-logs` | `~/.config/opencode/skills`, **`~/.claude/skills` recursively** (including `synced/`, `.system/` and nested plugin folders), `~/.agents/skills`, and `~/.opencode/skills`. It logs every duplicate name and keeps the first one found. |
+| OpenCode | 1.18.5 | docs + `opencode debug skill --print-logs` | `~/.config/opencode/skills`, **`~/.claude/skills` recursively** (including `synced/`, `.system/` and nested plugin folders), `~/.agents/skills`, and `~/.opencode/skills`. It logs every duplicate name; per its source (`packages/opencode/src/skill/index.ts`) the later copy overwrites the earlier one. |
 | Gemini CLI | not installed | `which gemini` | `~/.gemini/skills` and `~/.gemini/extensions` exist but nothing loads them. Left untouched. |
 
 Two findings contradict the docs and are recorded as observed behaviour:
@@ -102,8 +102,8 @@ Two findings contradict the docs and are recorded as observed behaviour:
 
 - **O1 One source for skills that two harnesses need.** (A) **Keep the real folder in
   `~/.agents/skills` and make each `~/.claude/skills/<name>` a junction to it.** Claude Code follows
-  it, Codex and Gemini read `~/.agents`, and OpenCode still sees both paths (OpenCode's log shows it
-  keeps the first). (B) Set `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` and keep only `~/.agents/skills`
+  it, Codex and Gemini read `~/.agents`, and OpenCode still sees both paths and logs a duplicate
+  warning, but both paths hold the same content. (B) Set `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` and keep only `~/.agents/skills`
   copies for OpenCode; Claude-only skills then stay out of OpenCode. (C) Leave the copies.
 - **O2 Local skills that you also uploaded to claude.ai.** (A) **Keep the local copy and turn the
   claude.ai copy off on claude.ai** (only you can; claude.ai chat loses them, Claude Code does not).
