@@ -1,5 +1,7 @@
 # URGENT TODO
 
+Current product delivery checklist (2026-09-30): [unfinished features and completion evidence](planning/2026-09-30-UNFINISHED-FEATURES.md). This restores the full product scope alongside the September 27 toolkit checklist and September 30 central infrastructure ledger. Older entries below retain their dated evidence; they are not automatically current runtime findings. Office availability is recorded in [the September 30 Coolify receipt](receipts/2026-09-30-coolify-state-refresh.md); live document edit/save/reopen is still an open verification.
+
 > _Naming (D-138, 2026-09-05; applied 2026-09-06): this product is **advocatio** (formerly Legal-Workspace / Legal Workspace); the evidence platform it consumes is **Indicia Probata** / `probata` (formerly Agno-MCP-Platform). Directory: `probata/modules/advocatio/` (old name kept as a junction). GitHub repo name unchanged pending its own decision. Canon: `probata/docs/NAMING.md`. Historical text below is left verbatim; both names remain valid in recall stores (D-142)._
 
 
