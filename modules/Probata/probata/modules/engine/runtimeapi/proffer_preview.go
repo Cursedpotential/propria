@@ -55,6 +55,7 @@ type PreviewWorkflow interface {
 	DecideHandler(context.Context, string, proffer.HandlerSelectionDecision) error
 	Preview(context.Context, string) (proffer.PreviewState, error)
 	Operation(context.Context, string) (proffer.OperationState, error)
+	Cancel(context.Context, string, proffer.CancelRequest) error
 }
 
 type RepairDecisionWriter interface {
@@ -615,6 +616,7 @@ func (h *PreviewHTTPHandler) Routes() http.Handler {
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/decision", h.auth(h.decide))
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/repair-decision", h.auth(h.decideRepair))
 	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/handler-selection", h.auth(h.decideHandler))
+	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/cancel", h.auth(h.cancel))
 	// Repair workflow builder (repair_plan_http.go). Byline: Claude Code · Opus 5.5 · 2026-09-25
 	mux.HandleFunc("GET /reference-import/repair/tools", h.auth(h.repairTools))
 	mux.HandleFunc("POST /reference-import/repair/propose", h.auth(h.repairPropose))
@@ -950,7 +952,7 @@ func validOperationLifecycle(value proffer.OperationLifecycle) bool {
 	switch value {
 	case proffer.OperationRunning, proffer.OperationAwaitingRepairDecision,
 		proffer.OperationAwaitingPreviewDecision, proffer.OperationCompleted,
-		proffer.OperationFailed, proffer.OperationUnavailable:
+		proffer.OperationFailed, proffer.OperationCancelled, proffer.OperationUnavailable:
 		return true
 	default:
 		return false
@@ -1225,6 +1227,55 @@ func (h *PreviewHTTPHandler) decide(w http.ResponseWriter, r *http.Request) {
 		status = "approved"
 	}
 	previewJSON(w, 200, map[string]string{"preview_handle": handle, "status": status})
+}
+
+type cancelRunRequest struct {
+	Reason string `json:"reason"`
+}
+
+// cancel ends one run through Temporal's own cancellation (D05-C06). The
+// actor and reason ride into the run's history as the cancel_request Signal,
+// the append-only control receipt; nothing here edits a stored row.
+// Byline: Claude Code · Opus 5.5 · 2026-09-28
+func (h *PreviewHTTPHandler) cancel(w http.ResponseWriter, r *http.Request) {
+	handle := r.PathValue("preview_handle")
+	var req cancelRunRequest
+	if err := decodePreviewJSON(w, r, &req); err != nil {
+		previewError(w, 400, err)
+		return
+	}
+	subjectUID, username, err := authenticatedActor(r)
+	if err != nil {
+		previewError(w, http.StatusUnauthorized, err)
+		return
+	}
+	reason := strings.TrimSpace(req.Reason)
+	if reason == "" || len(req.Reason) > maxReasonBytes {
+		previewError(w, 422, errors.New("cancelling a run requires a bounded reason"))
+		return
+	}
+	binding, err := h.store.Binding(r.Context(), handle)
+	if err != nil {
+		h.storeError(w, err)
+		return
+	}
+	state, err := h.workflow.Operation(r.Context(), binding.WorkflowID)
+	if err != nil {
+		previewError(w, http.StatusServiceUnavailable, errors.New("durable workflow state is currently unavailable"))
+		return
+	}
+	if state.Terminal {
+		previewError(w, http.StatusConflict, fmt.Errorf("the run has already finished (%s)", state.Lifecycle))
+		return
+	}
+	request := proffer.CancelRequest{
+		ActorSubjectUID: subjectUID, ActorUsername: username, Reason: reason, RequestedAt: time.Now().UTC(),
+	}
+	if err := h.workflow.Cancel(r.Context(), binding.WorkflowID, request); err != nil {
+		previewError(w, http.StatusBadGateway, err)
+		return
+	}
+	previewJSON(w, http.StatusAccepted, map[string]string{"preview_handle": handle, "status": "cancel_requested"})
 }
 
 type repairDecisionRequest struct {

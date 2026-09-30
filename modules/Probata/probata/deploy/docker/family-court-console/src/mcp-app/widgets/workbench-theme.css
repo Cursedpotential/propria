@@ -1,0 +1,144 @@
+/* Byline: OpenAI Codex · GPT-5 · 2026-09-12 */
+/* Shared Family Court MCP App contract: Probata graphite + warm-paper, readable type. */
+:root {
+  color-scheme: dark;
+  --fc-workspace: var(--color-background-primary, #1d252c);
+  --fc-surface: var(--color-background-secondary, #242e36);
+  --fc-surface-soft: var(--color-background-tertiary, #2c373f);
+  --fc-text: var(--color-text-primary, #f0f1ef);
+  --fc-muted: var(--color-text-secondary, #bcc2c9);
+  --fc-border: var(--color-border-primary, #43505a);
+  --fc-border-strong: var(--color-border-secondary, #62707a);
+  --fc-primary: var(--color-text-info, #8591f0);
+  --fc-primary-soft: #313a66;
+  --fc-primary-text: #dfe3ff;
+  --fc-shell: #121a21;
+  --fc-shell-raised: #202b33;
+  --fc-shell-active: #314050;
+  --fc-shell-border: #3d4952;
+  --fc-good: #4fc184;
+  --fc-good-soft: #203d31;
+  --fc-warn: #e0a33a;
+  --fc-warn-soft: #43351f;
+  --fc-critical: #e06e65;
+  --fc-critical-soft: #452925;
+  --fc-font-sans: var(--font-sans, "CaskaydiaCove Nerd Font Propo", "CaskaydiaCove Nerd Font", "JetBrainsMono Nerd Font", "Segoe UI", sans-serif);
+  --fc-font-mono: var(--font-mono, "CaskaydiaCove Nerd Font Mono", "JetBrainsMono Nerd Font", "Cascadia Code", monospace);
+  --fc-radius: var(--border-radius-sm, 4px);
+
+  /* Compatibility aliases used by the individual widget layouts. */
+  --ink: var(--fc-shell);
+  --blue: var(--fc-primary);
+  --teal: var(--fc-good);
+  --amber: var(--fc-warn);
+  --red: var(--fc-critical);
+  --paper: var(--fc-workspace);
+  --surface: var(--fc-surface);
+  --text: var(--fc-text);
+  --muted: var(--fc-muted);
+  --line: var(--fc-border);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --fc-workspace: var(--color-background-primary, #f5f3ee);
+  --fc-surface: var(--color-background-secondary, #fffefb);
+  --fc-surface-soft: var(--color-background-tertiary, #ebe8e0);
+  --fc-text: var(--color-text-primary, #1d2228);
+  --fc-muted: var(--color-text-secondary, #5f6872);
+  --fc-border: var(--color-border-primary, #d5d1c9);
+  --fc-border-strong: var(--color-border-secondary, #b8b6b0);
+  --fc-primary: var(--color-text-info, #4051b9);
+  --fc-primary-soft: #e9ecfb;
+  --fc-primary-text: #2f3d9c;
+  --fc-shell: #151e25;
+  --fc-good: #17794b;
+  --fc-good-soft: #e2f3e9;
+  --fc-warn: #9a670d;
+  --fc-warn-soft: #fff4dd;
+  --fc-critical: #b5433b;
+  --fc-critical-soft: #fbe9e7;
+}
+
+:root[data-theme="dark"] { color-scheme: dark; }
+
+html, body { min-width: 0; min-height: 100%; }
+body {
+  background: transparent;
+  color: var(--fc-text);
+  font: 14px/1.55 var(--fc-font-sans);
+  letter-spacing: -0.005em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+.shell {
+  border: 1px solid var(--fc-border);
+  border-radius: var(--fc-radius);
+  background: var(--fc-surface);
+  color: var(--fc-text);
+  overflow: hidden;
+}
+.rail {
+  background: var(--fc-shell);
+  color: #d9dfe2;
+  border-color: var(--fc-shell-border);
+}
+.rail strong, time, code {
+  font-family: var(--fc-font-mono);
+}
+.eyebrow {
+  color: var(--fc-primary);
+  font-family: var(--fc-font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+.tag, .stamp {
+  font-family: var(--fc-font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+h1, h2, h3 {
+  color: var(--fc-text);
+  font-family: var(--fc-font-sans);
+  letter-spacing: normal;
+}
+h1 { line-height: 1.18; }
+.lede, .why, .empty, .meta, .note { color: var(--fc-muted); }
+.row, .card, .panel, header { border-color: var(--fc-border); }
+.priority, .warning, .stop { background: var(--fc-critical-soft); }
+.verified { color: var(--fc-good); }
+.provisional { color: var(--fc-warn); }
+.tag { color: var(--fc-primary); }
+button, [role="button"] {
+  min-height: 38px;
+  border: 1px solid var(--fc-primary);
+  border-radius: var(--fc-radius);
+  background: var(--fc-primary);
+  color: #111820;
+  font-family: var(--fc-font-sans);
+  font-size: 13px;
+  line-height: 1.35;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+:root[data-theme="light"] button,
+:root[data-theme="light"] [role="button"] { color: #fff; }
+button:hover, [role="button"]:hover {
+  background: color-mix(in srgb, var(--fc-primary) 86%, var(--fc-surface));
+  filter: none;
+}
+button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
+  outline: 2px solid var(--color-ring-primary, var(--fc-primary));
+  outline-offset: 2px;
+}
+button:disabled { cursor: not-allowed; opacity: .55; }
+
+@media (max-width: 600px) {
+  .main { padding: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}

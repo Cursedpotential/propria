@@ -51,6 +51,16 @@ async def native_client(config):
         yield client
 
 
+def reason(config, text) -> str:
+    """0.8.1-r5 (Claude Code · Opus 5.5, 2026-09-27): a failed statement names the database's reason
+    (owner: report the error, not a bare failure). Bounded, whitespace-folded, credentials redacted."""
+    text = " ".join(str(text).split())
+    secret = getattr(config, "native_auth", "")
+    if secret:
+        text = text.replace(secret, "<redacted>")
+    return text[:1000]
+
+
 async def query(config, sql: str, parameters: dict | None = None, *, client=None):
     try:
         if client is None:
@@ -62,7 +72,7 @@ async def query(config, sql: str, parameters: dict | None = None, *, client=None
         if result.is_error:
             if any("revision_conflict" in t for t in texts):
                 raise ToolError("Revision conflict: read the current record and review before retrying")
-            raise ToolError("Native Docstore query failed; schema/permissions may need attention")
+            raise ToolError("Native Docstore query failed: " + reason(config, " ".join(texts)))
         raw = "\n".join(texts)
         if len(raw) > 2 * 1024 * 1024:
             raise ToolError("Native Docstore response exceeds limit")
@@ -80,7 +90,7 @@ async def query(config, sql: str, parameters: dict | None = None, *, client=None
                 if header.group(2).lower() != "ok":
                     if "revision_conflict" in body:
                         raise ToolError("Revision conflict: read the current record before retrying")
-                    raise ToolError("Native Docstore statement failed")
+                    raise ToolError(f"Native Docstore statement {index} failed: " + reason(config, body))
                 values.append(json.loads(body))
             value = values[0] if len(values) == 1 else [v for v in values if v is not None]
         else:
@@ -90,15 +100,18 @@ async def query(config, sql: str, parameters: dict | None = None, *, client=None
             if any(v["status"] != "OK" for v in value):
                 if any("revision_conflict" in str(v.get("result")) for v in value):
                     raise ToolError("Revision conflict: read the current record before retrying")
-                raise ToolError("Native Docstore statement failed")
+                raise ToolError("Native Docstore statement failed: " + reason(
+                    config, "; ".join(str(v.get("result")) for v in value if v["status"] != "OK")))
             value = [v["result"] for v in value]
         while isinstance(value, list) and len(value) == 1 and isinstance(value[0], list):
             value = value[0]
         return value
     except ToolError:
         raise
-    except Exception:
-        raise ToolError("Native Docstore unavailable or invalid response") from None
+    except (httpx.HTTPError, OSError, TimeoutError) as exc:
+        raise ToolError(f"Native Docstore unavailable: {type(exc).__name__}") from None
+    except Exception as exc:
+        raise ToolError(f"Native Docstore returned an invalid response: {type(exc).__name__}") from None
 
 
 def flag_parameters(flag: FlagInput) -> dict:

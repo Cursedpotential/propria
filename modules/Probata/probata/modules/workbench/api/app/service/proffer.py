@@ -3,6 +3,8 @@
 Byline: Codex · GPT-5 · 2026-08-28.
 Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — an upstream error keeps its JSON body
 on `ProfferError.payload` (the repair run refusal relays its checks).
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-27 — preview content reads moved to
+app/service/proffer_content.py (DF-18: this module was over the 300-line cap).
 """
 
 from __future__ import annotations
@@ -251,53 +253,21 @@ async def preview_messages(
 
 
 async def preview_content(
-    preview_handle: str,
-    *,
-    mode: MatterMode,
-    record_cursor: str | None,
-    chunk_cursor: str | None,
-    limit: int,
+    preview_handle: str, *, mode: MatterMode, record_cursor: str | None, chunk_cursor: str | None, limit: int
 ) -> ProfferContentResponse:
-    """Read exact retained-package, generic-record, and pre-publication chunk data."""
-    await _require_mode(preview_handle, mode)
-    params: dict[str, str | int] = {"limit": limit}
-    if record_cursor:
-        params["record_cursor"] = record_cursor
-    if chunk_cursor:
-        params["chunk_cursor"] = chunk_cursor
-    response = await _request("GET", f"/reference-import/previews/{preview_handle}/content", params=params)
-    result = _validated(
-        ProfferContentResponse,
-        _mode_payload(_json_payload(response, "preview content page"), "preview content page", mode),
-        "preview content page",
+    from app.service.proffer_content import preview_content as implementation
+
+    return await implementation(
+        preview_handle, mode=mode, record_cursor=record_cursor, chunk_cursor=chunk_cursor, limit=limit
     )
-    if result.preview_handle != preview_handle or result.matter_mode != mode:
-        raise ProfferError("Proffer preview content correlation failed", 502)
-    return result
 
 
 async def preview_content_target(
     preview_handle: str, *, mode: MatterMode, scope: str, target_id: str
 ) -> tuple[str, bool]:
-    """Resolve one current-attempt record or chunk independently of page cursors."""
-    await _require_mode(preview_handle, mode)
-    if scope not in ("record", "chunk") or not target_id or len(target_id) > 512:
-        raise ProfferError("Preview content target is invalid or unsupported", 422)
-    response = await _request(
-        "GET",
-        f"/reference-import/previews/{preview_handle}/content-target",
-        params={"scope": scope, "target_id": target_id},
-    )
-    payload = _json_payload(response, "exact preview content target")
-    if (
-        not isinstance(payload, dict)
-        or payload.get("preview_handle") != preview_handle
-        or not isinstance(payload.get("attempt_id"), str)
-        or not payload["attempt_id"]
-        or type(payload.get("found")) is not bool
-    ):
-        raise ProfferError("Proffer starter returned an invalid exact preview content target", 502)
-    return payload["attempt_id"], payload["found"]
+    from app.service.proffer_content import preview_content_target as implementation
+
+    return await implementation(preview_handle, mode=mode, scope=scope, target_id=target_id)
 
 
 async def open_preview_event_stream(preview_handle: str, *, mode: MatterMode, last_event_id: int | None):

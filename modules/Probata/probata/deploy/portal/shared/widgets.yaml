@@ -1,0 +1,18 @@
+# Byline: Claude Code · Opus 5.5 · 2026-09-26 — header widgets, shared by both portal instances.
+# custom.css places them at the top of the left (widgets) column, above the Live board.
+- greeting:
+    text_size: 2xl
+    text: Propria
+- resources:
+    cpu: true
+    memory: true
+    disk: /
+    label: ovh-app
+- datetime:
+    text_size: md
+    format:
+      weekday: short
+      month: short
+      day: numeric
+      hour: numeric
+      minute: 2-digit

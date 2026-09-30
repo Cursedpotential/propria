@@ -12,6 +12,8 @@
 //   repair plan         -> /api/proffer/repair/{propose,tools,validate,run,runs/{id}}
 //                          (repair-builder.tsx): a separate plan whose result re-enters as a
 //                          new run; this run's repair gate stays open (owner decision 4A)
+//   cancel             -> POST /api/proffer/previews/{handle}/cancel (cancel-run-section.tsx,
+//                          2026-09-28): Temporal cancels the run; who and why stay in its history
 //   anything else       -> POST /api/proffer/start: a fresh run of the same source that
 //                          answers its own stops with the choices made here
 //                          (hooks/use-review-rerun.ts).
@@ -22,6 +24,7 @@ import { AlertTriangle, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 import { ParserSelectionPanel } from "@/components/intake/parser-selection-panel";
+import { CancelRunSection } from "@/components/sbv/cancel-run-section";
 import { RepairBuilder } from "@/components/sbv/repair-builder";
 import { RepairedLink } from "@/components/sbv/repair-run-view";
 import { ReviewContextSection } from "@/components/sbv/review-context-section";
@@ -247,6 +250,8 @@ export function ReviewActionsPanel({
         </Button>
         {blockedReason && <p className="text-[11px] text-muted-foreground">{blockedReason}</p>}
       </section>
+
+      <CancelRunSection snapshot={snapshot} />
     </aside>
   );
 }

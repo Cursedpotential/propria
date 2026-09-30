@@ -83,6 +83,7 @@ COPY deploy/docker/tool-runtime/tools/ /opt/tools/
 COPY server/ /opt/tools/server/
 RUN pip install --no-cache-dir \
         fastapi uvicorn python-multipart pydantic \
+        mcp==2.2.0 \
         beautifulsoup4==4.15.0 \
         charset-normalizer==3.4.9 \
         clevercsv==0.8.5 \
@@ -106,3 +107,5 @@ EXPOSE 8085 8090
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
 
 # Byline amendment: Codex · GPT-5 · 2026-09-12 (`platform-tools` -> `tool-runtime`)
+# Byline amendment: Claude Code · Opus 5.5 · 2026-09-28 (mcp==2.2.0 for the single `atomic_tools`
+# MCP surface at /mcp; mcp 2.x renamed FastMCP to MCPServer, so the pin is exact)

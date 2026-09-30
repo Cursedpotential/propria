@@ -1,6 +1,7 @@
 """Entity/event extraction BFF: mode-bound, actor-bound, idempotent pass-through.
 
 Byline: Claude Code · Opus 5.5 · 2026-09-25
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-27 (mount check reads the OpenAPI paths)
 """
 
 from __future__ import annotations
@@ -209,7 +210,10 @@ def test_record_and_registry_reads(engine) -> None:
 def test_main_app_mounts_the_extraction_routes_beside_governed_entities() -> None:
     import main
 
-    paths = {getattr(route, "path", "") for route in main.app.routes}
+    # The OpenAPI schema lists every mounted path. FastAPI 0.141 keeps an included
+    # router as one _IncludedRouter entry in app.routes, so route.path no longer
+    # enumerates them (DF-18, 2026-09-27).
+    paths = set(main.app.openapi()["paths"])
     assert "/api/entities" in paths  # governed search/create stays
     for path in ("/api/entities/extract", "/api/entities/proposals", "/api/entities/commit", "/api/events/from-record"):
         assert path in paths

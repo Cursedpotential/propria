@@ -14,14 +14,11 @@ writes, persist notes through governed tools, and read writes back.
 
 Plugin packaging does not merge runtimes, credentials, locks or target ownership. The documentation helper's current Markdown limits are not Intake eligibility rules. Historical memory bundling is an integration, not ownership of the independent memory service.
 
-Apply this scope in both claude/ and control/. Do not modify installed host caches as an incidental source documentation update.
+Apply this scope to control/ here and to the client plugin at `E:/AI_Workspace/plugins/plugins/propria-docstore` (its only source). Do not modify installed host caches as an incidental source documentation update.
 
-The canonical source plugin identity is `propria-docstore@propria`; the
-deployed Codex MCP server may retain its separately configured
-`probata-docstore` runtime identity while clients migrate. The old
-`docstore@probata` and `probata-docstore@probata` packages remain disabled until
-the owner chooses to quarantine them. ContextForge uses the control server's
-explicit stateless Streamable HTTP mode and must set transport
-`STREAMABLEHTTP`.
+The client plugin identity is `propria-docstore@propria-plugins` in both Claude Code and
+Codex (2026-09-28); Codex reaches the hosted server through its `propria-docs` connector.
+ContextForge uses the control server's explicit stateless Streamable HTTP mode and must set
+transport `STREAMABLEHTTP`.
 
 See [shared boundaries](../../../../SYSTEM-BOUNDARIES.md). Runtime availability is reported separately in verification receipts.

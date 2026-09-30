@@ -64,10 +64,17 @@ async def refresh_projections(materialize=False):
             projections.append({'adr_id':str(record['id']),'path':path,'sha256':sha,'content':text,'indexed':bool(matches)})
         if materialize and os.environ.get('DOCSTORE_PROJECT_REGISTRY'):
             from source_sync import state
+            from scope import ROOTS
             root,_=state()
             for projection in projections:
-                target=root/'Probata/probata'/projection['path']
-                if not target.resolve().is_relative_to((root/'Probata/probata/docs').resolve()):
+                # Probata's docs root is docs/probata via the Propria/docs junction, not the
+                # pre-2026-09-20 module path this used to join. Strip the canonical prefix
+                # from the projection path and rebuild under the root scope.py declares.
+                source_root,prefix=ROOTS['probata']
+                relative=projection['path'][len(prefix):] if projection['path'].startswith(prefix) else projection['path']
+                base=(root/source_root).resolve()
+                target=base/relative
+                if not target.resolve().is_relative_to(base):
                     raise ValueError('ADR projection path escapes docs')
                 data=projection['content'].encode()
                 target.parent.mkdir(parents=True,exist_ok=True)

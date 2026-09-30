@@ -22,9 +22,9 @@ commit boundary: this root. Run `git rev-parse --show-toplevel` and expect
 | Xplorer copilot fork | `modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot/` | application fork |
 | Build crew | `modules/Probata/probata_build_crew/` | source only; its `.env` is never committed |
 
-**Not in the monorepo, deliberately:** `memsearch` and `claude-context` are
-development tooling rather than application forks, and live under
-`~/.claude/local-plugins/forks/`.
+**Not in the monorepo, deliberately:** `memsearch`, `claude-context` and `cocoindex-code`
+(`ccc`) are development tooling rather than application forks, and live under
+`E:/AI_Workspace/plugins/forks/`.
 
 Still read the selected module's local `AGENTS.md`. Stage by explicit path — several
 sessions share this index. The `docs/` junctions and source registry remain the
@@ -188,9 +188,14 @@ transition state.
   `~\.codex\hooks\memsearch_codex_hook.py`. Codex's own memory store is imported under
   `memory\codex\<project>\`. Both plugin copies carry a local patch that honors `.collection`;
   re-apply it after a memsearch plugin update. The `memsearch` CLI itself is the private fork
-  `~\.claude\local-plugins\forks\memsearch` (uv tool, a `+propria` build, 2026-09-26): never
+  `E:\AI_Workspace\plugins\forks\memsearch` (uv tool, a `+propria` build, 2026-09-26): never
   install memsearch from PyPI, which drops the fork's NIM fixes; reinstall steps are in the
   fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-26)_
+- **ccc (local code indexes):** every local patch to `cocoindex-code` lives in the private fork
+  `E:\AI_Workspace\plugins\forks\cocoindex-code` (2026-09-28): streaming writes, the memory
+  safety guard, `respect_gitignore`, and the embedder input guards. Never install
+  `cocoindex-code` from PyPI, because that drops all of them, the safety guard included.
+  Reinstall steps are in the fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-28)_
 - **Worktrees:** `E:\AI_Workspace\Projects\Propria\_worktrees`. New Propria-owned linked
   worktrees belong here; relocate an existing linked worktree only with `git worktree move`,
   after its owner is paused and its state is captured.
@@ -232,11 +237,6 @@ transition state.
   folders (`%LOCALAPPDATA%\Temp\claude`) and the Codex, OpenCode, memsearch and Case Bible
   folders. Adding a folder to a session does not lift the block; the owner edits that file and
   fully quits and reopens the app. _(Claude Code · Opus 5.5 · 2026-09-26)_
-- The case-bible guard hook rejects any Bash command whose text contains a hard-delete pattern
-  (the `rm` command with a force or recursive flag, or Python's file-removal call) anywhere in
-  the command, including inside a quoted string or heredoc. Move material to a quarantine
-  directory instead, and use `docker stop` with a self-removing container for throwaways. Writing
-  the pattern into documentation text also trips it, so describe it rather than quoting it.
 
 ## Dispatching agents
 
@@ -267,11 +267,9 @@ confidently in the wrong place.
   problem statement is provisional will surface a wrong brief; one that is not will build it.
 - **Its own worktree** under `_worktrees/`, created from `origin/main`, never the shared checkout —
   other sessions hold uncommitted work there. Explicit-path staging only; never `git add -A`.
-- **The machine's live constraints,** because agents rediscover these the hard way: the guard hook
-  rejects any Bash command whose text contains a hard-delete pattern (the `rm` command with a force
-  or recursive flag, or Python's file-removal call) anywhere, including inside a string, heredoc or
-  commit message; Read/Write/Edit refuse paths outside the allowed working directories; no browser
-  ever launches on this desktop; long jobs and databases live on the VPSs.
+- **The machine's live constraints,** because agents rediscover these the hard way: Read/Write/Edit
+  refuse paths outside the allowed working directories; no browser ever launches on this desktop;
+  long jobs and databases live on the VPSs.
 - **How follow-ups arrive:** say that corrections come by `SendMessage` from the parent session by
   name. Without that, an agent may treat a mid-task message as untrusted injection and refuse it.
 - **Live validation, named concretely** — which host, which disposable schema, what to read back,

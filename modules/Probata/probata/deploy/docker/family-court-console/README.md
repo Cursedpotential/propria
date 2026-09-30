@@ -13,7 +13,7 @@ Coolify app; no client downloads anything).
 The family-court-toolkit plugin — including this MCP server's TypeScript
 source, its `content/` (~55 MB of curated legal-reference material), and its
 `skills/` — lives **outside** this repo, on the desktop at
-`~/.claude/local-plugins/plugins/family-court-toolkit/`. It is a Claude Code
+`E:/AI_Workspace/plugins/plugins/family-court-toolkit/`. It is a Claude Code
 local plugin checkout, not a probata module, and Coolify's git-based
 "Docker Compose" build can only see files committed to this repository.
 
@@ -41,10 +41,10 @@ with `dockerfile: Dockerfile.cloud`.
 
 Whenever the plugin's `mcp-app/src/*.ts`, `content/`, or `skills/` change:
 
-1. In the plugin checkout, rebuild: `cd ~/.claude/local-plugins/plugins/family-court-toolkit/mcp-app && node build.mjs`
+1. In the plugin checkout, rebuild: `cd E:/AI_Workspace/plugins/plugins/family-court-toolkit/mcp-app && node build.mjs`
 2. From this repo, re-sync: `bash scripts/sync_family_court_console.sh`
    (accepts an optional `PLUGIN_ROOT` argument; defaults to
-   `$HOME/.claude/local-plugins/plugins/family-court-toolkit`)
+   `E:/AI_Workspace/plugins/plugins/family-court-toolkit`)
 3. Review the diff under `deploy/docker/family-court-console/src/` and commit it
    in the same change as anything that depended on the update.
 

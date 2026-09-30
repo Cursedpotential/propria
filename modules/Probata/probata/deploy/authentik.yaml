@@ -28,10 +28,16 @@
 #   sudo install -m 0400 /dev/null /data/probata/secrets/authentik/secret-key
 #   docker network inspect probata >/dev/null 2>&1 || docker network create probata
 #
-# Required non-secret Coolify variable:
-#   TRAEFIK_PROXY_CIDR=<the exact Coolify Traefik socket address>/32
-# Do not use a Docker-private supernet or the tailnet range. Both Authentik and
-# Workbench accept identity headers only from this exact proxy boundary.
+# Required non-secret Coolify variables:
+#   BIND_IP=100.72.169.40          ovh-app's tailnet address; the one host port binds here, never 0.0.0.0
+#   TRAEFIK_PROXY_CIDR=100.72.169.40/32
+# TRAEFIK_PROXY_CIDR is the exact socket peer Authentik sees for proxied traffic. Traefik reaches
+# Authentik through the Tailscale Service svc:authentik: Serve's raw TCP forwarder (tcp:9075)
+# carries Traefik's own X-Forwarded-* headers untouched, and Serve's HTTPS endpoint (tcp:443,
+# https://authentik.tilapia-skilift.ts.net) is the tailnet admin door. Both are dialled by
+# tailscaled on the host to ${BIND_IP}:9075, so the peer is always 100.72.169.40 whatever the
+# container, network or proxy addresses are (measured on ovh-app 2026-09-27). Never use a
+# Docker-private supernet or the tailnet range here.
 #
 # One-time secret Coolify variable for initial setup only:
 #   AUTHENTIK_BOOTSTRAP_PASSWORD_HASH=<Django-compatible password hash>
@@ -43,11 +49,16 @@
 # Authentik does not require pgcrypto/uuid-ossp; PostgreSQL readiness is the
 # applicable database gate.
 #
-# No host application port is published. Tailnet and domain clients both enter
-# through Traefik and the Authentik policy boundary.
+# One host port: authentik-server's 9000 on ${BIND_IP}:9075 (tailnet only, port
+# registered in deploy/service-port-registry.json). svc:authentik forwards to it; its
+# serve config is deploy/tailscale/authentik-serve.hujson. Public *.int.mitechconsult.com
+# routing, including auth.int and every forward-auth check, lives in the tracked Traefik
+# file modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml, which dials
+# svc:authentik on tcp:9075. Tailnet routes never pass through Authentik (owner 2026-09-26).
 #
 # Byline: Codex · GPT-5 · 2026-08-29
 # Byline amendment: Codex · GPT-5 · 2026-08-29 (official 2026.8 contract)
+# Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 (edge via svc:authentik, no hand-made network)
 # =============================================================================
 
 x-authentik-environment: &authentik-environment
@@ -116,33 +127,15 @@ services:
       authentik-postgres:
         condition: service_healthy
     healthcheck: *authentik-healthcheck
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=propria-edge
-      - traefik.http.routers.authentik.rule=Host(`auth.int.mitechconsult.com`)
-      - traefik.http.routers.authentik.entrypoints=https
-      - traefik.http.routers.authentik.tls=true
-      - traefik.http.routers.authentik.tls.certresolver=letsencrypt
-      - traefik.http.routers.authentik.service=authentik
-      - traefik.http.services.authentik.loadbalancer.server.port=9000
-      # Single-application forward auth requires the outpost path on the
-      # protected application's host to resolve to the embedded outpost.
-      - traefik.http.routers.authentik-workbench-outpost.rule=Host(`workbench.int.mitechconsult.com`) && PathPrefix(`/outpost.goauthentik.io/`)
-      # Paired with the Workbench router's explicit priority 10. The callback
-      # path must win and route directly to the embedded outpost.
-      - traefik.http.routers.authentik-workbench-outpost.priority=15
-      - traefik.http.routers.authentik-workbench-outpost.entrypoints=https
-      - traefik.http.routers.authentik-workbench-outpost.tls=true
-      - traefik.http.routers.authentik-workbench-outpost.tls.certresolver=letsencrypt
-      - traefik.http.routers.authentik-workbench-outpost.service=authentik
+    ports:
+      # Tailnet-only door for svc:authentik (see header). Fail-closed to loopback if
+      # BIND_IP is unset, like every other ovh-app service.
+      - "${BIND_IP:-127.0.0.1}:9075:9000"
+    # No Traefik docker labels: auth.int.mitechconsult.com and the domain forward-auth are
+    # routed by the tracked Traefik file through svc:authentik (see header), so Traefik never
+    # reaches Authentik over a Docker network whose proxy address can drift.
     networks:
-      probata: {}
-      # Fixed address on the hand-made edge network shared only with coolify-proxy
-      # (10.201.0.2). TRAEFIK_PROXY_CIDR and the forward-auth URL in
-      # /data/coolify/proxy/dynamic/propria-public-portal.yaml point at these two
-      # addresses, so a proxy restart or redeploy no longer moves them (2026-09-21).
-      propria-edge:
-        ipv4_address: 10.201.0.3
+      - probata
 
   authentik-worker:
     <<: *authentik-image
@@ -165,6 +158,4 @@ services:
 
 networks:
   probata:
-    external: true
-  propria-edge:
     external: true

@@ -5,6 +5,7 @@ creation, DNS, and Coolify deployment remain separate release gates.
 
 Byline: Codex · GPT-5 · 2026-08-29
 Byline amendment: Codex · GPT-5 · 2026-08-29 (official 2026.8 contract)
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-27 (edge via svc:authentik and tailnet-bound doors)
 """
 
 from __future__ import annotations
@@ -30,7 +31,6 @@ AUTHENTIK_EXACT_PROXY_SETTING = "${TRAEFIK_PROXY_CIDR:?exact Traefik proxy CIDR 
 # the variable is absent. Workbench uses plain substitution and its own auth
 # boundary rejects an empty or malformed value at runtime.
 WORKBENCH_EXACT_PROXY_SETTING = "${TRAEFIK_PROXY_CIDR}"
-FORWARD_AUTH_ADDRESS = "https://workbench.int.mitechconsult.com/outpost.goauthentik.io/auth/traefik"
 
 
 def _load(path: Path) -> dict:
@@ -137,28 +137,32 @@ class TestAuthentikProvider:
         assert "uuid-ossp" not in command
         assert all("docker-entrypoint-initdb.d" not in volume for volume in postgres["volumes"])
 
-    def test_no_host_port_or_docker_socket_bypass(self) -> None:
+    def test_only_the_tailnet_door_is_published_and_no_docker_socket(self) -> None:
+        # authentik-server publishes one port, bound to the tailnet address svc:authentik
+        # forwards to (fail-closed to loopback when BIND_IP is unset). Postgres and the
+        # worker publish nothing. Claude Code · Opus 5.5 · 2026-09-26.
         services = _load(AUTHENTIK_PATH)["services"]
-        for service in services.values():
-            assert not service.get("ports")
+        assert services["authentik-server"]["ports"] == ["${BIND_IP:-127.0.0.1}:9075:9000"]
+        for name, service in services.items():
+            if name != "authentik-server":
+                assert not service.get("ports")
+            assert all("0.0.0.0" not in str(binding) for binding in service.get("ports", []))
             assert "docker.sock" not in "\n".join(service.get("volumes", []))
 
-    def test_authentik_router_uses_traefik_only(self) -> None:
-        server = _load(AUTHENTIK_PATH)["services"]["authentik-server"]
-        labels = _labels(server)
-        assert "traefik.enable=true" in labels
-        assert "Host(`auth.int.mitechconsult.com`)" in labels
-        assert "entrypoints=https" in labels
-        assert "loadbalancer.server.port=9000" in labels
-        assert "basicauth" not in labels.lower()
-
-    def test_workbench_outpost_path_routes_to_embedded_outpost(self) -> None:
-        server = _load(AUTHENTIK_PATH)["services"]["authentik-server"]
-        labels = _labels(server)
-        assert "authentik-workbench-outpost.rule=Host(`workbench.int.mitechconsult.com`)" in labels
-        assert "PathPrefix(`/outpost.goauthentik.io/`)" in labels
-        assert "authentik-workbench-outpost.priority=15" in labels
-        assert "authentik-workbench-outpost.service=authentik" in labels
+    def test_no_docker_label_routing_or_fixed_edge_addresses(self) -> None:
+        # Since 2026-09-27 Traefik reaches Authentik only through svc:authentik, routed by the
+        # tracked Traefik file, so the socket peer is always the host's tailnet address. Docker
+        # labels would reach Authentik over a Docker network whose proxy address drifts, and the
+        # hand-made propria-edge network with pinned addresses is retired.
+        # Claude Code · Opus 5.5 · 2026-09-27.
+        compose = _load(AUTHENTIK_PATH)
+        for service in compose["services"].values():
+            assert "traefik." not in _labels(service)
+            networks = service.get("networks", [])
+            assert "propria-edge" not in networks
+            if isinstance(networks, dict):
+                assert all("ipv4_address" not in (cfg or {}) for cfg in networks.values())
+        assert "propria-edge" not in compose["networks"]
 
     def test_blueprint_pins_single_app_provider_and_embedded_outpost(self) -> None:
         text = AUTHENTIK_BLUEPRINT.read_text(encoding="utf-8")
@@ -171,10 +175,24 @@ class TestAuthentikProvider:
 
 
 class TestWorkbenchConsumer:
-    def test_private_tailscale_door_is_loopback_only_and_port_translated(self) -> None:
+    def test_one_tailnet_bound_door_for_serve_and_traefik(self) -> None:
+        # svc:workbench and Traefik both dial ${BIND_IP}:9071 (fail-closed to loopback).
+        # Claude Code · Opus 5.5 · 2026-09-27.
         service = _load(WORKBENCH_PATH)["services"]["workbench"]
-        assert service.get("ports") == ["127.0.0.1:18080:8020"]
+        assert service.get("ports") == ["${BIND_IP:-127.0.0.1}:9071:8020"]
         assert all("0.0.0.0" not in binding for binding in service["ports"])
+
+    def test_publish_network_is_declared_so_the_trusted_peer_is_fixed(self) -> None:
+        # Traefik's hop is masqueraded to the gateway of the network the port maps through;
+        # that gateway (10.201.8.1) is TRAEFIK_PROXY_CIDR, so it must be declared, not pooled.
+        compose = _load(WORKBENCH_PATH)
+        service = compose["services"]["workbench"]
+        assert service["networks"]["workbench-publish"] == {"gw_priority": 1}
+        # Coolify 4.1.2 drops null-valued network entries; every entry must carry a mapping.
+        assert all(isinstance(cfg, dict) for cfg in service["networks"].values())
+        network = compose["networks"]["workbench-publish"]
+        assert network["ipam"]["config"] == [{"subnet": "10.201.8.0/29", "gateway": "10.201.8.1"}]
+        assert "propria-edge" not in compose["networks"]
 
     def test_exact_proxy_boundary_is_required_in_manifest(self) -> None:
         # ~~The Workbench uses the same `:?`-guarded value as Authentik.~~
@@ -190,22 +208,12 @@ class TestWorkbenchConsumer:
         assert 'TRUSTED_AUTH_PROXY_CIDRS: "10.0.0.0/8' not in text
         assert 'TRUSTED_AUTH_PROXY_CIDRS: "172.16.0.0/12' not in text
 
-    def test_forward_auth_is_defined_and_attached(self) -> None:
+    def test_public_route_is_not_docker_labels(self) -> None:
+        # workbench.int is the tracked Traefik file's router with Authentik's domain
+        # forward-auth; docker labels would reach the Workbench over a Docker network whose
+        # proxy address drifts. Claude Code · Opus 5.5 · 2026-09-27.
         service = _load(WORKBENCH_PATH)["services"]["workbench"]
-        labels = _labels(service)
-        assert (f"traefik.http.middlewares.workbench-authentik.forwardauth.address={FORWARD_AUTH_ADDRESS}") in labels
-        assert ("traefik.http.middlewares.workbench-authentik.forwardauth.trustForwardHeader=true") in labels
-        assert "X-authentik-uid" in labels
-        assert "X-authentik-username" in labels
-        assert "traefik.http.routers.workbench.middlewares=workbench-authentik" in labels
-        assert "coolify.traefik.middlewares=workbench-authentik" in labels
-
-    def test_https_router_targets_workbench(self) -> None:
-        labels = _labels(_load(WORKBENCH_PATH)["services"]["workbench"])
-        assert "Host(`workbench.int.mitechconsult.com`)" in labels
-        assert "traefik.http.routers.workbench.priority=10" in labels
-        assert "entrypoints=https" in labels
-        assert "loadbalancer.server.port=8020" in labels
+        assert "traefik." not in _labels(service)
 
     def test_no_basic_auth_or_password_ingress_contract(self) -> None:
         service = _load(WORKBENCH_PATH)["services"]["workbench"]
@@ -216,6 +224,8 @@ class TestWorkbenchConsumer:
 
 class TestSharedBoundary:
     def test_both_manifests_use_external_agno_network(self) -> None:
+        # probata is a shared private network for app-to-app calls; Traefik reaches neither
+        # app over it (see the edge notes in both manifests).
         for path in (AUTHENTIK_PATH, WORKBENCH_PATH):
             compose = _load(path)
             assert compose["networks"]["probata"]["external"] is True

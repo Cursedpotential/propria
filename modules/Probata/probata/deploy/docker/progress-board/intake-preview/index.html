@@ -1,0 +1,63 @@
+<!doctype html>
+<!--
+  Byline: Claude Code · Sonnet 5 · 2026-09-14
+  Xplore CB co-workspace shell, revised per owner direction (relayed 2026-09-13):
+  Xplorer and the Case Bible/Consignatio review surface are ONE tool, not two
+  side-by-side apps. This shell now hosts Explorer full-bleed as the engine;
+  Review & metadata lives INSIDE Xplorer's own right sidebar (see the fork's
+  ReviewDockPanel.tsx / VerticalExtensionsBar.tsx), reading the same selection
+  Xplorer already holds. Superseded two-iframe and dock-pane shells are kept as
+  index.html.bak-20260914-two-iframe-shell / *.bak-20260914-docked-shell.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Intake | Consignatio / Case Bible</title>
+    <link rel="stylesheet" href="./pr-tokens.css" />
+    <link rel="stylesheet" href="./pr-theme.css" />
+    <link rel="stylesheet" href="./pr-intake-adapter.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="pr-app intake-shell" data-pr-experience="general">
+      <header class="intake-header pr-shell">
+        <div class="identity">
+          <span class="eyebrow">Consignatio / Case Bible</span>
+          <h1>Intake</h1>
+        </div>
+        <div class="context-strip" aria-label="Workspace context" role="status">
+          <span class="context-field"
+            ><span class="context-label">Scope</span
+            ><span id="ctx-path">not reported yet</span></span
+          >
+          <span class="context-field"
+            ><span class="context-label">Selection</span
+            ><span id="ctx-selection">0 items</span></span
+          >
+          <span id="ctx-status" class="pr-status" data-pr-status="caution"
+            >Waiting for Explorer engine</span
+          >
+        </div>
+        <a class="portal-link pr-action pr-focusable" href="/">Project home</a>
+      </header>
+
+      <main id="workspace">
+        <iframe
+          id="engine-frame"
+          title="Intake Explorer engine (Xplorer) -- Review &amp; metadata and AI Chat are docked inside it"
+          src="./xplorer/"
+          referrerpolicy="no-referrer"
+        ></iframe>
+        <p class="fallback">
+          If the embedded view is blank or blocked,
+          <a href="./xplorer/" target="_blank" rel="noopener noreferrer"
+            >open Explorer directly</a
+          >
+          in its own tab.
+        </p>
+      </main>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

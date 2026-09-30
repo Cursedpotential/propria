@@ -87,6 +87,7 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 			Stages:       []OperationStage{},
 		},
 	}
+	r.ctx = ctx
 	if contextChunkingInput != nil {
 		r.operation.PackageRef = contextChunkingInput.PackageRef
 		r.operation.AttemptRef = contextChunkingInput.AttemptRef
@@ -815,6 +816,8 @@ type run struct {
 	sourceVersionRef Ref
 	results          []StageResult
 	operation        OperationState
+	// ctx is the workflow's root context; result() reads its cancellation.
+	ctx workflow.Context
 }
 
 // pending is an in-flight Activity future paired with the stage id that
@@ -1095,7 +1098,11 @@ func (r *run) result(publicationRef Ref) WorkflowResult {
 	r.operation.Terminal = true
 	if publicationRef == "" {
 		status = StatusFailed
-		if r.operation.Lifecycle != OperationRerunRequired {
+		if r.ctx != nil && r.ctx.Err() != nil {
+			// Temporal cancelled this run (an operator's cancel, D05-C06).
+			r.operation.Lifecycle = OperationCancelled
+			r.operation.Reason = r.cancelReason()
+		} else if r.operation.Lifecycle != OperationRerunRequired {
 			r.operation.Lifecycle = OperationFailed
 		}
 		if r.operation.Reason == "" && len(r.results) > 0 {
@@ -1111,6 +1118,20 @@ func (r *run) result(publicationRef Ref) WorkflowResult {
 		Status:           status,
 		Stages:           r.results,
 	}
+}
+
+// cancelReason reads the operator's cancel receipt, which the starter signals
+// just before it cancels the run. Reading a buffered Signal schedules nothing,
+// so this stays deterministic on replay. Byline: Claude Code · Opus 5.5 · 2026-09-28
+func (r *run) cancelReason() string {
+	var request CancelRequest
+	if !workflow.GetSignalChannel(r.ctx, CancelRequestSignalName).ReceiveAsync(&request) || request.ActorUsername == "" {
+		return "cancelled"
+	}
+	if request.Reason == "" {
+		return "cancelled by " + request.ActorUsername
+	}
+	return fmt.Sprintf("cancelled by %s: %s", request.ActorUsername, request.Reason)
 }
 
 // deriveResult is the derive route's terminal WorkflowResult. PublicationRef

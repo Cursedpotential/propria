@@ -192,13 +192,18 @@ def test_status_failure_prevents_child_and_terminal_receipt_is_retained(tmp_path
 
 
 def test_container_uses_python_supervisor_and_health_checks_body():
+    # These two paths were `<probata>/Dockerfile` and `<probata>/deploy/compose.yaml`: the flat
+    # layout of the hand-built host release tree, not of this repository. That is the drift the
+    # 0.9.0 git build removes, so the test now reads the files Coolify actually builds from.
     root=PIPELINE.parents[1]
-    dockerfile=(root/'Dockerfile').read_text(encoding='utf-8')
-    compose=(root/'deploy/compose.yaml').read_text(encoding='utf-8')
+    dockerfile=(root/'deploy/docker/docstore/Dockerfile').read_text(encoding='utf-8')
+    compose=(root/'deploy/docstore.yaml').read_text(encoding='utf-8')
     assert 'CMD ["python", "scripts/docstore/service.py"]' in dockerfile
     assert "value.get('ok') is True" in compose
     assert 'DOCSTORE_RUN_STATUS: /data/state/latest-run.json' in compose
-    assert 'DOCSTORE_CONTROL_TOKEN:?required' in compose
+    # `:?` is the fail-closed operator itself. The old literal `:?required` pinned the wording of
+    # the message after it, which is prose, not behaviour.
+    assert 'DOCSTORE_CONTROL_TOKEN:?' in compose
 
 
 

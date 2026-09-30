@@ -19,22 +19,16 @@ filesystem/evidence index.
 - `control/`: the governed FastMCP control server and its tests. It exposes 22
   tools, seven resources, four resource templates and one prompt. API resources
   `docstore://api/openapi` and `docstore://api/surreal` retrieve live schemas.
-- `claude/`: the slim Claude marketplace package. It contains the user-facing
-  skills, commands and agents and launches `control/` from the E-drive source.
-- root `.claude-plugin/plugin.json`: the skills bundle used by Codex as
-  `propria-docstore@propria`. Root `.mcp.json` is deliberately empty: Codex uses
-  one explicitly configured `probata-docstore` server with absolute source paths
-  and the canonical configuration loader. It must not also inject unresolved
-  `control`, `surreal`, or `memory` aliases. Claude uses the separate `claude/`
-  package and its own MCP manifest. Codex marketplace registration lives at
-  `../.agents/plugins/marketplace.json`.
+- The client plugin (skills, commands, agents, `client.py`) is not here. Its only source is
+  `E:/AI_Workspace/plugins/plugins/propria-docstore`, plugin `propria-docstore@propria-plugins`,
+  one folder that Claude Code and Codex both install (owner 2026-09-28: one primary source).
+  `claude/` holds only a pointer README. The former root `.claude-plugin/plugin.json` wrapper and
+  the `propria` Codex marketplace in `../.agents/` were retired to
+  `../../to_be_deleted/2026-09-28-plugin-wrappers-and-search-source/`; the older
+  `docstore@probata`, `probata-docstore@probata` and `propria-docstore@propria` identities are
+  gone from both hosts.
 
-The source marketplace entry is `propria-docstore@propria`, version 0.6.2. The
-older `docstore@probata` and `probata-docstore@probata` identities are
-superseded and must remain disabled; they are not deleted automatically. The
-deployed MCP server can retain its separately configured `probata-docstore`
-runtime identity while clients migrate; that server name does not rename the
-Propria plugin package.
+_Updated 2026-09-28 (Claude Code · Opus 5.5)._
 
 ## Transport and federation
 

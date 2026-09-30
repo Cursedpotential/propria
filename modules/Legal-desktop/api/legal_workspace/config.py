@@ -58,9 +58,17 @@ class Settings(BaseSettings):
     b2_s3_endpoint: str = Field(default="", alias="B2_S3_ENDPOINT")
     b2_region: str = Field(default="", alias="B2_REGION")
     b2_link_ttl_seconds: int = Field(default=600, alias="B2_LINK_TTL_SECONDS")
+    # Family Law Toolkit case store (read-only, shared legal-record contract). Empty URL =
+    # the toolkit desk reports "not configured". Claude Code · Opus 5.5 · 2026-09-27.
+    family_court_toolkit_store_url: str = Field(default="", alias="FAMILY_COURT_TOOLKIT_STORE_URL")
+    family_court_toolkit_store_ns: str = Field(default="fct", alias="FAMILY_COURT_TOOLKIT_STORE_NS")
+    family_court_toolkit_store_db: str = Field(default="case", alias="FAMILY_COURT_TOOLKIT_STORE_DB")
+    family_court_toolkit_store_user: str = Field(default="", alias="FAMILY_COURT_TOOLKIT_STORE_USER")
+    family_court_toolkit_store_pass: str = Field(default="", alias="FAMILY_COURT_TOOLKIT_STORE_PASS")
 
     @field_validator(
         "consignatio_catalog_url",
+        "family_court_toolkit_store_url",
         "legal_api_service",
         "legal_web_service",
         "legal_postgres_service",

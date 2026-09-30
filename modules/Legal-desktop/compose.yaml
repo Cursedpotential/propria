@@ -68,6 +68,13 @@ services:
       B2_APPLICATION_KEY: ${B2_APPLICATION_KEY:-}
       B2_S3_ENDPOINT: ${B2_S3_ENDPOINT:-}
       B2_REGION: ${B2_REGION:-}
+      # Family Law Toolkit records, read-only, shared legal-record contract (Claude Code ·
+      # Opus 5.5 · 2026-09-27). surreal-case lives on ovh-files, so this is a tailnet name,
+      # never an IP (config.py rejects IPs). Empty = the /toolkit page reports "not configured".
+      # The user must be a read-only (VIEWER) user on fct/case, provisioned by the owner.
+      FAMILY_COURT_TOOLKIT_STORE_URL: ${FAMILY_COURT_TOOLKIT_STORE_URL:-}
+      FAMILY_COURT_TOOLKIT_STORE_USER: ${FAMILY_COURT_TOOLKIT_STORE_USER:-}
+      FAMILY_COURT_TOOLKIT_STORE_PASS: ${FAMILY_COURT_TOOLKIT_STORE_PASS:-}
     volumes:
       - /var/lib/legal-workspace/workspace:/data/workspace
     healthcheck:

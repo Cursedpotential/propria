@@ -1,11 +1,11 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-25 (click a mention -> the message it came from)
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-27: "Mark as event" lives on the selected message's detail panel only)
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 
 import { formatWhen } from "@/components/entities/format";
-import { MarkEventButton } from "@/components/entities/mark-event-button";
 import { Button } from "@/components/ui/button";
 import { getExtractionRecord } from "@/lib/entity-extraction-client";
 import type { MatterMode } from "@/lib/shared/types";
@@ -55,11 +55,6 @@ export function RecordPeek({
             </>
           ) : body || "(no message body)"}
         </p>
-      )}
-      {record.data && (
-        <div className="mt-2">
-          <MarkEventButton previewHandle={previewHandle} mode={mode} recordId={recordId} compact />
-        </div>
       )}
     </div>
   );

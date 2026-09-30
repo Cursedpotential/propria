@@ -38,8 +38,9 @@ has been reviewed and accepted.
 - Released documents are immutable. Edits create a new version.
 - Agents cannot approve, file, serve, email, or transmit.
 - **Never keep domain state only in process memory.** Every mutation
-  writes `data/workspace/state.json` and appends `events.jsonl`
-  before the API returns. Restart must reload the same Matter.
+  is saved to SQLite (`WorkspaceStore.save`) before the API returns;
+  `state.json` / `events.jsonl` are written only when
+  `LEGAL_WORKSPACE_DEBUG_JSON=true`. Restart must reload the same Matter.
 - **Strategy store (`STRAT`)** is private scratch: theories, directions,
   chat extracts, unfinished drafts. `court_safe=false`, not exportable,
   never an established fact. Only persist packet material that is
@@ -109,8 +110,12 @@ has been reviewed and accepted.
 - Chat/streaming: Vercel AI SDK on Next (`web/src/app/api/chat`).
   Domain mutations stay on Python.
 - API: Python 3.12, FastAPI, Pydantic v2, uv only
-- Data: PostgreSQL 18 schemas `legal_core` / `legal_research` /
-  `legal_work_product` / `legal_release` / `legal_audit` on the existing cluster
+- Data: SQLite in the bind mount (`/var/lib/legal-workspace/workspace` →
+  `/data/workspace/legal.sqlite`) through `WorkspaceStore`
+  (`api/legal_workspace/services/workspace.py`, `db/engine.py`). Postgres is not wired:
+  `DATABASE_URL` is unset in `compose.yaml`, whose DATABASE note explains why.
+  Family Law Toolkit records stay in the toolkit's store and are read through
+  `/v1/toolkit` (`services/family_court_toolkit.py`), never copied.
 - Object bytes: R2/S3-compatible (`legal/` prefix)
 - Models: existing Portkey gateway (`model-gateway`)
 - Agents: Agno adapter behind neutral interfaces

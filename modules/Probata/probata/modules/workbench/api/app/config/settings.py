@@ -1,7 +1,9 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19 (agno 2.8 MCP door migration + Graphiti pane wiring 2026-07-23)
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-24: Graphiti settings removed; Graphiti is retired, D-070)
 # Byline: Codex · GPT-5 · 2026-08-16 (Portkey-routed neutral chat settings)
 # Byline: Codex · GPT-5 · 2026-08-18 (owner-only evidence-search capability)
 # Byline: Codex · GPT-5 · 2026-08-29 (runtime-read Platform API bearer file)
+# Byline: Claude Code · Opus 5.5 · 2026-09-28 (DF-30: machine-client JWT settings)
 """Workbench settings for the fixed Case Bible source and governed Platform services.
 
 Env var names are the pydantic-settings default (uppercase of the field name)
@@ -123,23 +125,6 @@ class Settings(BaseSettings):
     # Workbench-owned state in this data-volume file (2026-09-22). ---
     source_unit_marks_path: str = "/data/sources/unit-marks.json"
 
-    # --- Graphiti knowledge-graph memory (C4 Graph memory pane) ---
-    # The tailnet "graphiti-hostfix" nginx sidecar (compose.data-graphiti.yaml)
-    # — NOT graphiti-mcp directly. Read-only wiring only (search_memory_facts/
-    # search_nodes/get_episodes); see app/repo/graphiti_client.py for the
-    # transport quirk (server-side Host-header rewrite, nothing special
-    # needed client-side) and app/service/graphiti.py for the tool contract.
-    # No auth today (tailnet-only, matches the `grc` CLI's --via direct).
-    graphiti_mcp_url: str = "http://100.119.96.29:8071/mcp"
-    # Temporary operator boundary until authenticated Matter/Run grants land.
-    # Comma-separated namespaces; browser input never expands this allowlist.
-    graphiti_allowed_groups: str = "platform"
-
-    @property
-    def graphiti_allowed_group_set(self) -> frozenset[str]:
-        """Configured read-only Graphiti namespaces, normalized fail-closed."""
-        return frozenset(group.strip() for group in self.graphiti_allowed_groups.split(",") if group.strip())
-
     # --- Authentication: Traefik+Authentik trusted-proxy ingress ---
     # Comma-separated CIDRs of trusted proxies (e.g., Traefik). Empty/fail-closed.
     # Only socket peers inside these CIDRs are accepted for protected routes.
@@ -156,6 +141,14 @@ class Settings(BaseSettings):
     # Explicit Serve app-capability grant for tagged devices. Empty disables
     # device access. Never trust this header outside the exact Serve peer.
     tailscale_device_capability: str = ""
+    # Machine clients (DF-30): Authentik service accounts present an access
+    # token as `Authorization: Bearer <JWT>` on the Serve or Traefik door. All
+    # four must be set or the JWT path is off. Issuers are exact, comma-separated
+    # (Authentik derives `iss` from the host the token was requested through).
+    machine_jwt_issuers: str = ""
+    machine_jwt_audience: str = ""
+    machine_jwt_jwks_url: str = ""
+    machine_jwt_allowed_groups: str = ""
 
     # --- App ---
     app_port: int = 8020

@@ -12,6 +12,14 @@
 # build post-restructure — build context set to repo root so
 # deploy/docker/parser-activity-runtime/Dockerfile's `COPY modules/engine/`
 # resolves; dockerfile path made explicit and repo-root-relative)
+# Byline: Claude Sonnet 5 · 2026-09-27 (restore the tsnet identity env/mounts
+# (owner directive 2026-09-07, D-132/D-134/D-127) that commit 94fb0a3a
+# silently stripped while "restoring 7 files from Probata main" — that
+# restore was only needed for devbox.yaml's corrupted Dockerfile; this file's
+# tsnet config was collateral damage, unlike the workbench tsnet-front
+# sidecar removed in 194a3603, which was a real incident. Matches
+# proffer-starter.yaml's still-intact pattern; fixes test_tsnet_deploy_contract
+# and test_proffer_deploy_contract.)
 
 services:
   parser-activity-runtime:
@@ -20,12 +28,36 @@ services:
       dockerfile: deploy/docker/parser-activity-runtime/Dockerfile
     image: ${PARSER_ACTIVITY_RUNTIME_IMAGE:-platform-parser-activity-runtime:latest}
     restart: unless-stopped
+    # STEP 2 OF THE TSNET CUTOVER DELETES THESE TWO LINES.
+    # They are the legacy tailnet-IP publish and are only reachable while
+    # PARSER_RUNTIME_TSNET_LISTENER_ENABLED is false. Once the Coolify env is
+    # flipped to true, this service's only socket is its tsnet listener, the
+    # container listens on nothing, and this publish is dead weight. Delete it
+    # in the same commit that records the live verification.
     ports:
       - "${BIND_IP:-127.0.0.1}:8090:8090"
     environment:
       PLATFORM_DATABASE_URL: ${PLATFORM_DATABASE_URL:?set}
       PARSER_ACTIVITY_TOKEN: ${PARSER_ACTIVITY_TOKEN:?set}
+      # STEP 2 ALSO DELETES PARSER_ACTIVITY_ADDR. The binary fails closed if a
+      # host bind is configured while the tsnet listener is on
+      # (engine/tsnetlisten.GuardExclusiveBind) — "bind to TS only" is not
+      # satisfied by a process holding two sockets.
       PARSER_ACTIVITY_ADDR: :8090
+      # --- tsnet identity (owner directive 2026-09-07; D-132/D-134/D-127) ----
+      # Default FALSE on purpose: modules/engine/** is a watch path for this
+      # Coolify app, so ANY push redeploys it. A code default of true would
+      # move a live service onto a tailnet identity whose auth key and state
+      # directory may not exist yet. The flip is a deliberate per-service
+      # deploy act, done in the Coolify env after host prep.
+      # Removal condition (D-127): delete this flag and the legacy branch once
+      # every service in tsnetlisten's ServiceName block serves from tsnet.
+      TSNET_LISTENER_ENABLED: ${PARSER_RUNTIME_TSNET_LISTENER_ENABLED:-false}
+      TSNET_HOSTNAME: ${PARSER_RUNTIME_TSNET_HOSTNAME:-parser-runtime}
+      TSNET_SERVICE: ${PARSER_RUNTIME_TSNET_SERVICE:-svc:parser-runtime}
+      TSNET_TAGS: ${PARSER_RUNTIME_TSNET_TAGS:-tag:docker}
+      TSNET_STATE_DIR: /data/tsnet
+      TSNET_AUTHKEY_FILE: /run/secrets/tsnet-authkey
       PARSER_BUNDLE_DIR: /data/proffer/parser-bundles
       PARSER_ARTIFACT_DIR: /data/proffer/parser-artifacts
     volumes:
@@ -41,6 +73,16 @@ services:
         target: /data/proffer/parser-artifacts
         bind:
           create_host_path: false
+      # tsnet node state. MUST be persistent or the service re-registers as a
+      # new tailnet node on every deploy and its Service FQDN churns.
+      # Host prep (once, before flipping the flag):
+      #   install -d -o 10001 -g 10001 -m 0700 /data/probata/tsnet/parser-runtime
+      #   install -d -o root -g 10001 -m 0750 /data/probata/secrets/parser-runtime
+      #   # write a tag:docker auth key, no trailing newline, then:
+      #   chown 10001:10001 /data/probata/secrets/parser-runtime/ts-authkey
+      #   chmod 0400        /data/probata/secrets/parser-runtime/ts-authkey
+      - /data/probata/tsnet/parser-runtime:/data/tsnet
+      - /data/probata/secrets/parser-runtime/ts-authkey:/run/secrets/tsnet-authkey:ro
     networks:
       - coolify
 

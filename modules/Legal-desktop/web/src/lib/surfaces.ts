@@ -40,6 +40,7 @@ export const SURFACES: Surface[] = [
   { path: "/", label: "Case dashboard", group: "Assistant", help: "See the current matter, document counts, and recent activity.", icon: "home" },
   { path: "/assistant", label: "Ask the assistant", group: "Assistant", help: "Discuss the current page or ask for help with your case work.", icon: "message" },
   { path: "/case-search", label: "Case search", group: "Research", help: "Search CourtListener for published opinions and open the matching source records.", icon: "search" },
+  { path: "/toolkit", label: "Family Law Toolkit records", group: "Research", help: "Open the toolkit's legal sources, cheat sheets and case documents with the same ids and versions the toolkit shows.", icon: "book" },
   { path: "/laws", label: "Laws", group: "Research", help: "Browse saved Michigan legal authorities and their source links.", icon: "book" },
   { path: "/citation-check", label: "Citation check", group: "Research", help: "Parse a citation into its parts and review its normalized format.", icon: "quote" },
   { path: "/open-questions", label: "Open questions", group: "Research", help: "Record research questions and track their status.", icon: "search" },
