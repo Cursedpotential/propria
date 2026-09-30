@@ -237,11 +237,6 @@ transition state.
   folders (`%LOCALAPPDATA%\Temp\claude`) and the Codex, OpenCode, memsearch and Case Bible
   folders. Adding a folder to a session does not lift the block; the owner edits that file and
   fully quits and reopens the app. _(Claude Code · Opus 5.5 · 2026-09-26)_
-- The case-bible guard hook rejects any Bash command whose text contains a hard-delete pattern
-  (the `rm` command with a force or recursive flag, or Python's file-removal call) anywhere in
-  the command, including inside a quoted string or heredoc. Move material to a quarantine
-  directory instead, and use `docker stop` with a self-removing container for throwaways. Writing
-  the pattern into documentation text also trips it, so describe it rather than quoting it.
 
 ## Dispatching agents
 
@@ -272,11 +267,9 @@ confidently in the wrong place.
   problem statement is provisional will surface a wrong brief; one that is not will build it.
 - **Its own worktree** under `_worktrees/`, created from `origin/main`, never the shared checkout —
   other sessions hold uncommitted work there. Explicit-path staging only; never `git add -A`.
-- **The machine's live constraints,** because agents rediscover these the hard way: the guard hook
-  rejects any Bash command whose text contains a hard-delete pattern (the `rm` command with a force
-  or recursive flag, or Python's file-removal call) anywhere, including inside a string, heredoc or
-  commit message; Read/Write/Edit refuse paths outside the allowed working directories; no browser
-  ever launches on this desktop; long jobs and databases live on the VPSs.
+- **The machine's live constraints,** because agents rediscover these the hard way: Read/Write/Edit
+  refuse paths outside the allowed working directories; no browser ever launches on this desktop;
+  long jobs and databases live on the VPSs.
 - **How follow-ups arrive:** say that corrections come by `SendMessage` from the parent session by
   name. Without that, an agent may treat a mid-task message as untrusted injection and refuse it.
 - **Live validation, named concretely** — which host, which disposable schema, what to read back,
