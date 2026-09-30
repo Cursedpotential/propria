@@ -668,10 +668,29 @@ def strip_data_uris(text: str) -> str:
     return _DATA_URI_RE.sub("[data-uri-stripped]", text)
 
 
+# NIM rejects an embedding input over 65,536 characters with HTTP 400, and one
+# rejected input fails its whole component -- so a single pathological chunk takes
+# the entire run down and NOTHING gets indexed (hit live 2026-09-26 on a 1 MiB
+# file). A chunk this size means the splitter found nothing to split on, which is
+# a source problem, not an embedding problem; capping the vector input is strictly
+# better than losing the run, and the STORED chunk text is unaffected either way.
+EMBED_MAX_CHARS = 65_536
+
+
 def embed_safe(text: str) -> str:
     """Never hand the embedder an input that starts with "data:" -- NIM parses that as a
     data URI (an image) regardless of what follows. The stored chunk text is untouched."""
-    return _DATA_PREFIX_RE.sub("text: data:", text, count=1) if _DATA_PREFIX_RE.match(text) else text
+    if _DATA_PREFIX_RE.match(text):
+        text = _DATA_PREFIX_RE.sub("text: data:", text, count=1)
+    if len(text) > EMBED_MAX_CHARS:
+        print(
+            f"docstore: embedding input capped at {EMBED_MAX_CHARS} of {len(text)} characters; "
+            f"the chunk was stored in full. A chunk this large means the splitter had nothing "
+            f"to split on -- check whether the source belongs in the index at all.",
+            file=sys.stderr, flush=True,
+        )
+        return text[:EMBED_MAX_CHARS]
+    return text
 
 
 _TAG_TOKEN_RE = re.compile(r"[^a-z0-9]+")
