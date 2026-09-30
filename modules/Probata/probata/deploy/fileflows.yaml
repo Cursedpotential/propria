@@ -43,10 +43,16 @@
 #
 # Port registry: product code 76, portal family, canonical_backend_port 9076.
 # Tailscale Service svc:fileflows serves http://100.91.190.107:9076 ->
-# https://fileflows.tilapia-skilift.ts.net (tailnet only; the public
-# fileflows.int.mitechconsult.com route is pre-wired but NOT opened).
+# https://fileflows.tilapia-skilift.ts.net (tailnet only).
+#
+# PUBLIC ROUTE: owner decision 2026-09-27 02:46 EDT -- fileflows.int.mitechconsult.com is now
+# open behind Authentik (DNS-only A record + `fileflows-public` router, added to
+# modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml, same pattern as
+# openlist/opencode-server). The labels below stay traefik.enable=false on purpose -- the
+# Traefik file governs this route, not these docker labels.
 #
 # Byline: Claude Code · Fable 5.1 · 2026-09-15
+# Byline amendment: Claude Code · Sonnet 5 · 2026-09-27 (public route opened; see above)
 # =============================================================================
 
 services:
@@ -106,7 +112,14 @@ services:
       - traefik.http.routers.fileflows.service=fileflows
       - traefik.http.routers.fileflows.middlewares=fileflows-authentik
       - traefik.http.services.fileflows.loadbalancer.server.port=5000
-      - 'traefik.http.middlewares.fileflows-authentik.forwardauth.address=http://authentik-server:9000/outpost.goauthentik.io/auth/traefik'
+      # Address fixed 2026-09-27 (was http://authentik-server:9000/..., a Docker DNS alias
+      # Authentik does not trust): dial Authentik through the Tailscale Service svc:authentik
+      # (raw TCP forwarder, VIP 100.66.241.25:9075) so the socket peer Authentik sees is always
+      # the trusted proxy 100.72.169.40 (TRAEFIK_PROXY_CIDR=100.72.169.40/32). Same address the
+      # file-provider's shared `authentik-forwardauth` middleware uses
+      # (modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml). This label stays
+      # inert while traefik.enable=false above; fixed now for correctness/future-proofing.
+      - 'traefik.http.middlewares.fileflows-authentik.forwardauth.address=http://100.66.241.25:9075/outpost.goauthentik.io/auth/traefik'
       - traefik.http.middlewares.fileflows-authentik.forwardauth.trustForwardHeader=true
       - 'traefik.http.middlewares.fileflows-authentik.forwardauth.authResponseHeaders=X-authentik-username,X-authentik-groups,X-authentik-entitlements,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version'
       - coolify.traefik.middlewares=fileflows-authentik

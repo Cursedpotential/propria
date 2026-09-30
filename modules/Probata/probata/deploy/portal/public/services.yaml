@@ -1,0 +1,219 @@
+# Byline: Claude Code · Opus 5.5 · 2026-09-26 — public portal, https://homepage.int.mitechconsult.com
+# (Traefik file route homepage-public -> this container on 100.72.169.40:3012, behind the one
+# Authentik login; /progress on the same host goes to the progress board through the same gate).
+#
+# Access rule (owner 2026-09-23): off the tailnet every human surface is behind the one Authentik
+# login, and this portal lists user surfaces only. Infrastructure and admin consoles (Coolify,
+# Temporal, n8n, ContextForge, Portkey, Infisical, the portal editor) are tailnet-only and have no
+# tile here. Every href below is a *.int.mitechconsult.com route that exists in Traefik's
+# propria-public-portal.yaml; a database UI without a public route (pgAdmin, DbGate, CloudBeaver,
+# Surrealist, Weaviate UI) and FileFlows are listed only on the tailnet portal.
+# Widget `url:`s and site monitors are fetched server-side by this container over the host's
+# tailnet address; they never pass Authentik and are not links.
+# Section order and contents mirror the tailnet portal (owner 2026-09-26 23:20 EDT).
+
+# ------------------------------------------------------------------ left column: the live board
+- Live board:
+    - Live surfaces:
+        href: https://progress.int.mitechconsult.com/health/
+        description: Up, degraded and down across the previewed surfaces
+        icon: mdi-lan-connect
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/surfaces-summary
+          refreshInterval: 30000
+          mappings:
+            - field: up
+              label: Up
+              format: number
+            - field: degraded
+              label: Degraded
+              format: number
+            - field: down
+              label: Down
+              format: number
+            - field: total
+              label: Total
+              format: number
+    - Health probes:
+        href: https://progress.int.mitechconsult.com/health/
+        description: Endpoint probe outcomes and latency percentiles
+        icon: mdi-heart-pulse
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/health-summary
+          refreshInterval: 30000
+          mappings:
+            - field: ok
+              label: OK
+              format: number
+            - field: warn
+              label: Warn
+              format: number
+            - field: fail
+              label: Fail
+              format: number
+            - field: p50_ms
+              label: p50
+              format: text
+              suffix: " ms"
+            - field: p95_ms
+              label: p95
+              format: text
+              suffix: " ms"
+    - Latency trend:
+        href: https://progress.int.mitechconsult.com/health/
+        description: p50 and p95 probe latency, sampled every 30 seconds
+        icon: mdi-chart-line
+    - Surfaces needing attention:
+        href: https://progress.int.mitechconsult.com/health/
+        description: Degraded or down surfaces from the live health probe
+        icon: mdi-alert-octagon-outline
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/surfaces-summary
+          refreshInterval: 30000
+          display: dynamic-list
+          mappings:
+            items: down_list
+            name: name
+            label: summary
+            limit: 8
+    - Slowest endpoints:
+        href: https://progress.int.mitechconsult.com/health/
+        description: The five slowest probes in the latest poll
+        icon: mdi-speedometer-slow
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/health-summary
+          refreshInterval: 30000
+          display: dynamic-list
+          mappings:
+            items: slowest
+            name: service
+            label: summary
+            limit: 5
+    - Open to-dos:
+        description: Open URGENT-TODO.md items, newest first (synced copy)
+        icon: mdi-checkbox-marked-outline
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/todo-feed
+          refreshInterval: 30000
+          display: dynamic-list
+          mappings:
+            items: items
+            name: area
+            label: summary
+            limit: 8
+    - Pipeline lanes:
+        href: https://progress.int.mitechconsult.com/
+        description: Observation counts per lane, live from Surreal
+        icon: mdi-view-list-outline
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/lane-rollups
+          refreshInterval: 30000
+          display: dynamic-list
+          mappings:
+            items: lanes
+            name: lane
+            label: summary
+            limit: 8
+    - Lane timeline:
+        href: https://progress.int.mitechconsult.com/
+        description: Observations by lane, observed to updated
+        icon: mdi-chart-gantt
+
+# ------------------------------------------------------------------ right column: the app buttons
+- Workspaces:
+    - Case Bible Intake:
+        href: https://progress.int.mitechconsult.com/intake/
+        description: Consignatio · Xplorer and metadata review
+        icon: mdi-folder-search-outline
+        siteMonitor: http://100.72.169.40:3020/intake/
+    - Probata Workbench:
+        href: https://workbench.int.mitechconsult.com
+        description: Evidence review workspace
+        icon: mdi-briefcase-search-outline
+        siteMonitor: https://workbench.tilapia-skilift.ts.net
+    - Family Law Toolkit:
+        href: https://family-court.int.mitechconsult.com/
+        description: "Family Law Toolkit: case, documents, notes, law and sources"
+        icon: mdi-gavel
+        siteMonitor: http://100.91.190.107:9077/healthz
+    - Legal Work Desk:
+        href: https://legal.int.mitechconsult.com/
+        description: Advocatio · research, drafting and review
+        icon: mdi-scale-balance
+        siteMonitor: https://legal.tilapia-skilift.ts.net/
+
+- File management:
+    - Filestash:
+        href: https://filestash.int.mitechconsult.com/
+        description: File manager over connected storage
+        icon: mdi-folder-multiple-outline
+        siteMonitor: http://100.72.169.40:3023
+    - OpenList:
+        href: https://files.int.mitechconsult.com/
+        description: Browse connected storage
+        icon: mdi-folder-network-outline
+        siteMonitor: http://100.91.190.107:5244
+
+- Storage and databases:
+    - Neo4j Browser:
+        href: https://neo4j.int.mitechconsult.com/browser/
+        description: Graph database browser
+        icon: mdi-graph-outline
+        siteMonitor: http://100.91.190.107:7474/browser/
+    - Attu:
+        href: https://attu.int.mitechconsult.com/
+        description: Milvus vector database browser
+        icon: mdi-vector-square
+        siteMonitor: http://100.91.190.107:3001
+    - Metabase:
+        href: https://metabase.int.mitechconsult.com/
+        description: Catalog questions and dashboards
+        icon: mdi-chart-box-outline
+        siteMonitor: http://100.72.169.40:9074/api/health
+
+- Operations:
+    - Project progress:
+        href: https://progress.int.mitechconsult.com/
+        description: Lanes in flight, done and upcoming, catalog and migration reports
+        icon: mdi-view-dashboard-outline
+        siteMonitor: http://100.72.169.40:3020/healthz
+    - Service health:
+        href: https://progress.int.mitechconsult.com/health/
+        description: Live HTTP and API probes, storage capacity and freshness
+        icon: mdi-heart-pulse
+        siteMonitor: http://100.72.169.40:3020/healthz
+
+- Development:
+    # Devbox and claude.ai: owner decisions 2026-09-26 23:35 EDT, URLs confirmed live 04:00Z.
+    # The Sandbox desktop (svc:desk) has no public route and stays on the tailnet portal.
+    - Devbox:
+        href: https://devbox.int.mitechconsult.com/
+        description: Kasm desktop with Claude Code — claude launcher inside
+        icon: mdi-laptop
+        siteMonitor: https://devbox.tilapia-skilift.ts.net/
+    - OpenCode:
+        href: https://opencode.int.mitechconsult.com
+        description: Checked Sep 12 · development sessions, sign-in required
+        icon: mdi-console
+    - claude.ai:
+        href: https://claude.ai/
+        description: Claude on the web
+        icon: si-claude
+    - LLM probe playground:
+        href: https://llmprobe.int.mitechconsult.com/playground
+        description: Model probe interface and experiments
+        icon: mdi-flask-outline
+        siteMonitor: http://100.91.190.107:8031/playground
+    # LibreChat: recreated and confirmed live 2026-09-27 (relayed by the parent session); the
+    # monitor checks the tailnet /login, as the container cannot pass Authentik.
+    - LibreChat:
+        href: https://librechat.int.mitechconsult.com/
+        description: Chat over the platform tools · sign-in required
+        icon: mdi-chat-processing-outline
+        siteMonitor: https://librechat.tilapia-skilift.ts.net/login

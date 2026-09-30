@@ -14,6 +14,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import psycopg
+from uuid6 import uuid7
 
 from validate_0054_live import (
     REPLAY_FILES,
@@ -74,7 +75,12 @@ def _seed_preexisting_uiw_scope(cursor: psycopg.Cursor[object], manifest: dict[s
     matter = manifest["matter"]
     court_case = manifest["court_case"]
     assert isinstance(matter, dict) and isinstance(court_case, dict)
-    source_id, version_id, context_ref = uuid4(), uuid4(), uuid4()
+    # context.source.id and context.source_version.id both default to uuidv7();
+    # context_ref has no column default of its own (it is context.source_version's
+    # source_context_ref and proffer_source_context_revision's PK-equivalent), but it
+    # is minted here in the same fixture as the other two and is the same identity
+    # family, so it gets the same generator for consistency.
+    source_id, version_id, context_ref = uuid7(), uuid7(), uuid7()
     cursor.execute("SET LOCAL ROLE context_owner")
     cursor.execute(
         """INSERT INTO context.source(id,source_key,provenance_class)

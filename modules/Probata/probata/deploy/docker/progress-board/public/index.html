@@ -1,0 +1,68 @@
+<!doctype html>
+<!-- Byline: Claude Code · Sonnet · 2026-09-14 — project-management style board: KPI strip,
+     kanban + swimlanes, and a second surfaces/observations tracker view. Rebuilt on top of the
+     2026-09-12 Codex read-only projection; server.mjs and its API contract are unchanged. -->
+<html lang="en" data-pr-theme="dark" data-pr-experience="general">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Propria · Project board</title><link rel="stylesheet" href="./style.css"></head>
+<body>
+<a class="skip-link" href="#main">Skip to project board</a>
+<div class="shell">
+<aside><a class="brand" href="../">Propria<span>Project workspace</span></a>
+<nav class="workspace-nav" aria-label="Workspace"><a href="#kpi-strip">Summary</a><a href="#panel-board">Task board</a><a href="#panel-trackers">Trackers &amp; widgets</a><a href="./intake/">Open Intake</a><a href="./health/">Service health report</a></nav>
+<details class="surface-directory" open><summary>All surfaces <span id="surface-count"></span></summary><nav id="surfaces" aria-label="Project surfaces"></nav></details>
+<p class="rail-note">App updates and endpoint checks are separate observations.</p></aside>
+<main id="main">
+<header class="page-header"><div><h1>Project board</h1><p>Work across Intake, Probata, storage and the shared tools.</p></div><button id="refresh" type="button">Refresh all</button></header>
+<div id="connection" class="connection" role="status" aria-live="polite">Connecting to project reports…</div>
+
+<section id="kpi-strip" class="kpi-strip" aria-labelledby="kpi-strip-title">
+  <div class="section-heading"><h2 id="kpi-strip-title">Summary</h2><span id="kpi-freshness" class="read-only">Source read pending</span></div>
+  <div id="kpis" class="kpi-grid"></div>
+</section>
+
+<div class="view-tabs" role="tablist" aria-label="Board views">
+  <button type="button" role="tab" id="tab-board" aria-selected="true" aria-controls="panel-board" class="is-active">Board</button>
+  <button type="button" role="tab" id="tab-trackers" aria-selected="false" aria-controls="panel-trackers" tabindex="-1">Trackers &amp; widgets</button>
+</div>
+
+<section id="panel-board" role="tabpanel" aria-labelledby="tab-board" tabindex="0">
+<div class="section-heading"><h2>Work in motion</h2><span class="read-only">Read-only source reports</span></div>
+<div class="toolbar">
+<label>Lane <select id="lane"><option value="">All lanes</option></select></label>
+<label>Owner <select id="owner"><option value="">All owners</option></select></label>
+<label>Status <select id="status"><option value="">All statuses</option><option value="upcoming">Backlog / ready</option><option value="flight">In progress</option><option value="blocked">Blocked</option><option value="done">Done</option><option value="other">Other reported states</option></select></label>
+<label class="search">Search work <input id="search" type="search" placeholder="Task, worker or receipt"></label>
+<label class="toggle"><input id="group-by-lane" type="checkbox"> Group by lane</label>
+<span id="counts"></span>
+</div>
+<div id="board" aria-label="Task board"></div>
+<div id="other-states"></div>
+</section>
+
+<section id="panel-trackers" role="tabpanel" aria-labelledby="tab-trackers" tabindex="0" hidden>
+<div class="section-heading"><h2>Surfaces &amp; observations tracker</h2><span class="read-only">Compact tracker · status chips · freshness</span></div>
+<div class="toolbar">
+<label>Lane <select id="tracker-lane"><option value="">All lanes</option></select></label>
+<label>Kind <select id="tracker-kind"><option value="">All kinds</option></select></label>
+<label class="search">Search tracker <input id="tracker-search" type="search" placeholder="Name, lane or status"></label>
+<span id="tracker-counts"></span>
+</div>
+<div class="table-wrap"><table id="tracker-table"><thead><tr><th scope="col">Name</th><th scope="col">Lane</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Owner</th><th scope="col">Freshness</th></tr></thead><tbody id="tracker-body"></tbody></table></div>
+
+<div class="section-heading widgets-heading"><h2 id="widgets-title">Graphs &amp; widgets</h2><span>Independent views of the reported state</span></div>
+<div class="widget-grid">
+<section class="widget" id="task-widget" aria-labelledby="task-widget-title"><header class="widget-header"><h3 id="task-widget-title">Task distribution</h3><button class="expand" data-widget="task-widget" aria-expanded="false" aria-label="Expand task distribution">Expand</button></header><div id="distribution"></div></section>
+<section class="widget" id="lane-widget" aria-labelledby="lane-widget-title"><header class="widget-header"><h3 id="lane-widget-title">Work by lane</h3><button class="expand" data-widget="lane-widget" aria-expanded="false" aria-label="Expand work by lane">Expand</button></header><div id="lane-totals"></div></section>
+<section class="widget" id="health-widget" aria-labelledby="health-widget-title"><header class="widget-header"><h3 id="health-widget-title">Endpoint reachability</h3><button class="expand" data-widget="health-widget" aria-expanded="false" aria-label="Expand endpoint reachability">Expand</button></header><div id="health-connection" class="widget-note" role="status">Waiting for the live probe…</div><div id="health"></div><a class="widget-link" href="./health/">Full service &amp; API report</a></section>
+<section class="widget" id="storage-widget" aria-labelledby="storage-widget-title"><header class="widget-header"><h3 id="storage-widget-title">Storage capacity</h3><button class="expand" data-widget="storage-widget" aria-expanded="false" aria-label="Expand storage capacity">Expand</button></header><div id="storage"><p class="empty">Capacity has not been reported.</p></div></section>
+<section class="widget" id="workers-widget" aria-labelledby="workers-widget-title"><header class="widget-header"><h3 id="workers-widget-title">Workers &amp; heartbeats</h3><button class="expand" data-widget="workers-widget" aria-expanded="false" aria-label="Expand workers and heartbeats">Expand</button></header><div id="workers"></div></section>
+<section class="widget" id="catalog-widget" aria-labelledby="catalog-widget-title"><header class="widget-header"><h3 id="catalog-widget-title">Catalog state</h3><button class="expand" data-widget="catalog-widget" aria-expanded="false" aria-label="Expand catalog state">Expand</button></header><div id="catalog"></div></section>
+<section class="widget" id="migration-widget" aria-labelledby="migration-widget-title"><header class="widget-header"><h3 id="migration-widget-title">File migration</h3><button class="expand" data-widget="migration-widget" aria-expanded="false" aria-label="Expand file migration">Expand</button></header><div id="migration"></div></section>
+</div>
+</section>
+
+<footer>Times use America/New_York.</footer>
+</main>
+</div>
+<script type="module" src="./app.js"></script>
+</body></html>

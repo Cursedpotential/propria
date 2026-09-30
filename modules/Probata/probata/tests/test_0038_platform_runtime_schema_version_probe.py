@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 import sqlparse
 
 
@@ -13,7 +14,25 @@ MIGRATION = ROOT / "sql" / "0038_platform_runtime_schema_version_probe.sql"
 APPLY_SCRIPT = ROOT / "scripts" / "apply_0038_live.py"
 VALIDATE_SCRIPT = ROOT / "scripts" / "validate_0038_live.py"
 
+# 0038 was retired into sql/_stale/migrations-retired-20260907/ on 2026-09-07
+# ("the snapshot is the database" — D-142 §3, D-152); that directory's README
+# says retired migrations are never referenced by code or tests. Only the one
+# test that reads MIGRATION's own text is skipped below; APPLY_SCRIPT and
+# VALIDATE_SCRIPT are still-live files, so the other four tests keep running.
+# Better fix: rewrite the skipped assertion against
+# sql/bootstrap/schema_snapshot_20260907.sql (or a live migrated database)
+# instead of the retired numbered file — tracked in docs/URGENT-TODO.md.
+_MIGRATION_RETIRED = not MIGRATION.exists()
+_MIGRATION_RETIRED_REASON = (
+    "sql/0038_platform_runtime_schema_version_probe.sql was retired into "
+    "sql/_stale/migrations-retired-20260907/ on 2026-09-07; retired migrations "
+    "are never referenced by tests (see that directory's README). Needs a "
+    "rewrite against sql/bootstrap/schema_snapshot_20260907.sql instead — "
+    "tracked in docs/URGENT-TODO.md."
+)
 
+
+@pytest.mark.skipif(_MIGRATION_RETIRED, reason=_MIGRATION_RETIRED_REASON)
 def test_migration_is_platform_only_transactional_and_column_level() -> None:
     sql = MIGRATION.read_text(encoding="utf-8")
     statements = [statement for statement in sqlparse.split(sql) if statement.strip()]

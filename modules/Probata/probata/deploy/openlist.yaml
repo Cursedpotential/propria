@@ -61,7 +61,16 @@ services:
       - traefik.http.routers.openlist.service=openlist
       - traefik.http.routers.openlist.middlewares=openlist-authentik
       - traefik.http.services.openlist.loadbalancer.server.port=5244
-      - 'traefik.http.middlewares.openlist-authentik.forwardauth.address=http://authentik-server:9000/outpost.goauthentik.io/auth/traefik'
+      # Address fixed 2026-09-27 (was http://authentik-server:9000/..., a Docker DNS alias
+      # Authentik does not trust): dial Authentik through the Tailscale Service svc:authentik
+      # (raw TCP forwarder, VIP 100.66.241.25:9075) so the socket peer Authentik sees is always
+      # the trusted proxy 100.72.169.40 (TRAEFIK_PROXY_CIDR=100.72.169.40/32). Same address the
+      # file-provider's shared `authentik-forwardauth` middleware uses
+      # (modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml), whose own
+      # `files-public` router — not this disabled label — is what actually serves
+      # files.int.mitechconsult.com live today. This label stays inert while
+      # traefik.enable=false above; fixed now for correctness/future-proofing.
+      - 'traefik.http.middlewares.openlist-authentik.forwardauth.address=http://100.66.241.25:9075/outpost.goauthentik.io/auth/traefik'
       - traefik.http.middlewares.openlist-authentik.forwardauth.trustForwardHeader=true
       - coolify.traefik.middlewares=openlist-authentik
 

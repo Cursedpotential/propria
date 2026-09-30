@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-22 (C3: records, schemas, verify, parse-dryrun, flags; C4: knowledge search/browse + Graphiti pane added 2026-07-23)
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-24: Graphiti client calls removed; Graphiti is retired, D-070)
 // Byline: Codex · GPT-5 · 2026-08-15 (run reports, review actions, and court readiness)
 // Byline: Codex · GPT-5 · 2026-08-18 (conversation intake and governed entities)
 // Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review client)
@@ -35,9 +36,6 @@ import type {
   FlagStatus,
   FlagTargetKind,
   FlagUpdateRequest,
-  GraphitiEpisodesResponse,
-  GraphitiFactsResponse,
-  GraphitiNodesResponse,
   HealthDepsResponse,
   KnowledgeContentsResponse,
   KnowledgeItemDetail,
@@ -840,6 +838,24 @@ export function decideProffer(
   });
 }
 
+/**
+ * Cancel one run through the engine's Temporal cancellation (D05-C06). The actor comes from the
+ * request identity, never the browser; the engine keeps who and why in the run's own history.
+ * Byline: Claude Code · Opus 5.5 · 2026-09-28.
+ */
+export function cancelProfferRun(previewHandle: string, mode: MatterMode, reason: string) {
+  const query = new URLSearchParams({ mode });
+  return apiFetch<{ preview_handle: string; status: "cancel_requested"; matter_mode: MatterMode }>(
+    `/api/proffer/previews/${encodeURIComponent(previewHandle)}/cancel?${query.toString()}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) },
+  ).then((response) => {
+    if (response.preview_handle !== previewHandle || response.matter_mode !== mode) {
+      throw new ApiError("The cancel response crossed its preview or TEST/REAL boundary", 502);
+    }
+    return response;
+  });
+}
+
 /** Server-side filters for `getProfferPreviewMessages`. A cursor is bound to the exact
  * filter that minted it, so any change here must restart paging from the first page. */
 export interface ProfferPreviewMessageFilters {
@@ -1105,32 +1121,6 @@ export async function listEvidenceReviews(matterId: string, evidenceItemId: stri
 }
 
 // ---------------------------------------------------------------------------
-// Graphiti (C4 — Graph memory pane, read-only)
-// ---------------------------------------------------------------------------
-
-export async function searchGraphitiFacts(query: string, limit?: number, groupId = "platform") {
-  const qs = new URLSearchParams({ q: query, kind: "facts" });
-  qs.set("group_id", groupId);
-  if (limit) qs.set("limit", String(limit));
-  return apiFetch<GraphitiFactsResponse>(`/api/graphiti/search?${qs.toString()}`);
-}
-
-export async function searchGraphitiNodes(query: string, limit?: number, groupId = "platform") {
-  const qs = new URLSearchParams({ q: query, kind: "nodes" });
-  qs.set("group_id", groupId);
-  if (limit) qs.set("limit", String(limit));
-  return apiFetch<GraphitiNodesResponse>(`/api/graphiti/search?${qs.toString()}`);
-}
-
-export async function listGraphitiEpisodes(last?: number, groupId = "platform") {
-  const qs = new URLSearchParams();
-  qs.set("group_id", groupId);
-  if (last) qs.set("last", String(last));
-  const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  return apiFetch<GraphitiEpisodesResponse>(`/api/graphiti/episodes${suffix}`);
-}
-
-// ---------------------------------------------------------------------------
 // Tool Explorer (MCP servers)
 // ---------------------------------------------------------------------------
 
@@ -1360,23 +1350,58 @@ export function getProfferRepairRun(workflowId: string, mode: MatterMode, signal
 }
 
 /** Which of these sources already have a decode manifest. Never inferred from a name. */
-export function getDecodedExists(sourceRefs: string[], signal?: AbortSignal) {
-  return apiFetch<DecodedExistsResponse>("/api/proffer/decoded/exists", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source_refs: sourceRefs }),
-    signal,
-  });
+function chunks<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let start = 0; start < items.length; start += size) out.push(items.slice(start, start + size));
+  return out;
 }
 
-/** Catalog units for one listed page: folders that are units, keys that are members. */
-export function lookupCatalogUnits(roots: string[], keys: string[], signal?: AbortSignal) {
-  return apiFetch<CatalogUnitLookup>("/api/intake/discovery/unit-lookup", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ roots, keys }),
-    signal,
-  });
+// Server caps per request (api/app/types/proffer_decoded_exists.py, runtime/intake_discovery.py).
+// Sources loads 200 rows a page, so from the second page on the lists are split to stay under them.
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (past 200 files these calls answered 422).
+const DECODED_EXISTS_MAX = 200;
+const UNIT_LOOKUP_MAX_ROOTS = 200;
+const UNIT_LOOKUP_MAX_KEYS = 400;
+
+export async function getDecodedExists(sourceRefs: string[], signal?: AbortSignal): Promise<DecodedExistsResponse> {
+  const pages = await Promise.all(
+    chunks(sourceRefs, DECODED_EXISTS_MAX).map((batch) =>
+      apiFetch<DecodedExistsResponse>("/api/proffer/decoded/exists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_refs: batch }),
+        signal,
+      }),
+    ),
+  );
+  return { items: pages.flatMap((page) => page.items) };
+}
+
+/** Catalog units for the listed rows: folders that are units, keys that are members. */
+export async function lookupCatalogUnits(roots: string[], keys: string[], signal?: AbortSignal): Promise<CatalogUnitLookup> {
+  const rootBatches = chunks(roots, UNIT_LOOKUP_MAX_ROOTS);
+  const keyBatches = chunks(keys, UNIT_LOOKUP_MAX_KEYS);
+  const requests = Array.from({ length: Math.max(rootBatches.length, keyBatches.length, 1) }, (_, index) => ({
+    roots: rootBatches[index] ?? [],
+    keys: keyBatches[index] ?? [],
+  }));
+  const pages = await Promise.all(
+    requests.map((body) =>
+      apiFetch<CatalogUnitLookup>("/api/intake/discovery/unit-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+      }),
+    ),
+  );
+  const units = new Map(pages.flatMap((page) => page.units).map((unit) => [unit.unit_id, unit]));
+  return {
+    units: [...units.values()],
+    members: pages.flatMap((page) => page.members),
+    backend: pages[0].backend,
+    source_links_verified: pages.every((page) => page.source_links_verified),
+  };
 }
 
 /** Catalog provenance for one vault object. */

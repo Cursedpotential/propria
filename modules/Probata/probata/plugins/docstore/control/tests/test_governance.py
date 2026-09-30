@@ -86,14 +86,17 @@ async def test_list_binds_filters_and_indicates_truncation():
     assert "WITH NOINDEX" in calls[0][0]
 
 
-@pytest.mark.parametrize("body,is_error,match", [
-    ("private sensitive error", True, "query failed"),
-    ("revision_conflict private detail", True, "Revision conflict"),
-    ('[{"status":"ERR","result":"private sensitive error"}]', False, "statement failed"),
-    ('[{"status":"ERR","result":"revision_conflict"}]', False, "Revision conflict"),
-    ("invalid-json-private", False, "invalid response"),
+@pytest.mark.parametrize("body,is_error,match,echoed", [
+    ("field reason from the database", True, "query failed: field reason from the database", True),
+    ("revision_conflict private detail", True, "Revision conflict", False),
+    ('[{"status":"ERR","result":"field reason from the database"}]', False,
+     "statement failed: field reason from the database", True),
+    ('[{"status":"ERR","result":"revision_conflict"}]', False, "Revision conflict", False),
+    ("invalid-json-private", False, "invalid response", False),
 ])
-async def test_native_failures_sanitized(monkeypatch, body, is_error, match):
+async def test_native_failures_name_the_reason(monkeypatch, body, is_error, match, echoed):
+    # 0.8.1-r5 (Claude Code · Opus 5.5, 2026-09-27): the database's reason is reported; a body that is not
+    # a failure reason (unparseable output) is still not echoed.
     class FakeClient:
         async def call_tool(self, *args, **kwargs):
             return SimpleNamespace(is_error=is_error, content=[SimpleNamespace(type="text", text=body)])
@@ -103,7 +106,19 @@ async def test_native_failures_sanitized(monkeypatch, body, is_error, match):
     monkeypatch.setattr(g, "native_client", fake_client)
     with pytest.raises(ToolError, match=match) as error:
         await g.query(None, "RETURN $value", {"value": "test"})
-    assert "private" not in str(error.value)
+    assert echoed or "private" not in str(error.value)
+
+
+async def test_native_failure_reason_redacts_credentials(monkeypatch):
+    class FakeClient:
+        async def call_tool(self, *args, **kwargs):
+            return SimpleNamespace(is_error=True, content=[SimpleNamespace(type="text", text="denied for synthetic-basic-credential")])
+    @asynccontextmanager
+    async def fake_client(_):
+        yield FakeClient()
+    monkeypatch.setattr(g, "native_client", fake_client)
+    with pytest.raises(ToolError, match="denied for <redacted>"):
+        await g.query(SimpleNamespace(native_auth="synthetic-basic-credential"), "RETURN 1")
 
 
 async def test_native_statement_success_unwraps(monkeypatch):
@@ -205,7 +220,7 @@ async def test_native_deployed_statement_text_parsing(monkeypatch, body, expecte
 
 
 @pytest.mark.parametrize("body,message", [
-    ('Statement 0 (ok):\nnull\n\nStatement 1 (error):\nprivate-sensitive', "statement failed"),
+    ('Statement 0 (ok):\nnull\n\nStatement 1 (error):\nfield reason', "statement 1 failed: field reason"),
     ('Statement 0 (error):\nrevision_conflict private-sensitive', "Revision conflict"),
     ('Statement 0 (ok):\nnull\n\nStatement 1 (error, Thrown): An error occurred: revision_conflict\n\nStatement 2 (error, Query): Cannot COMMIT: transaction aborted', "Revision conflict"),
     ('Statement 1 (ok):\nnull', "statement sequence"),

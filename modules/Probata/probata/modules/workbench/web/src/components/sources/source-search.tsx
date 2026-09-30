@@ -1,8 +1,10 @@
 // Byline: Claude Code · Opus 5 · 2026-09-22
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (Names and paths is the B2 root search; it never waits on Intake)
 // Search on Sources, from step one (owner, 2026-09-22 09:06), in four modes.
 //
-// The modes are not four search engines in Probata. Names and paths reads the
-// pre-ingest catalog; contents, meaning and relationships call the Intake
+// The modes are not four search engines in Probata. Names and paths is the
+// server-scoped search of the B2 root being listed (sources-screen.tsx runSearch);
+// contents, meaning and relationships call the Intake
 // (Consignatio) discovery service at INTAKE_DISCOVERY_INDEX_URL through the
 // same BFF routes the Intake app uses, so nothing here has to be rebuilt when
 // the Xplorer-based Intake becomes the front door. A mode whose backend is not
@@ -27,8 +29,8 @@ export const SEARCH_MODES: Array<{ id: SearchMode; label: string; wire: string }
 
 /** True when this mode's backend is reachable right now. */
 export function modeAvailable(mode: SearchMode, capabilities: DiscoveryCapabilities | null): boolean {
+  if (mode === "names") return true;
   if (!capabilities) return false;
-  if (mode === "names") return Boolean(capabilities.modes?.filename_substring);
   if (mode === "contents") return Boolean(capabilities.modes?.contents);
   if (mode === "meaning") return Boolean(capabilities.modes?.hybrid);
   return Boolean(capabilities.graph);

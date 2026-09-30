@@ -33,9 +33,8 @@
 --  10. thread_ordinal is unique per version;
 --  11. an approval that names no reviewer is rejected — "approved" cannot be recorded
 --      without who and when, which is what makes the confirm step auditable;
---  12. an attributed approval is accepted and reads back (the confirm step's target state);
---  13. re-extraction appends a NEW version that supersedes the old one rather than
---      mutating an approved snapshot — the retry semantic the commit activity needs;
+--  13. the confirm step appends a NEW version, attributed and superseding, and leaves
+--      the proposal untouched — the retry semantic the commit activity needs;
 --  14. a source assertion is corrected by appending a higher assertion_version that
 --      supersedes its predecessor, never by updating it in place;
 --  15. occurred_at, knowledge_time and disclosure_tier are all carried on the records,
@@ -557,19 +556,31 @@ ROLLBACK TO SAVEPOINT neg_ordinal;
 -- The confirm step. The canonical write is gated on the owner's approval:
 -- extract -> searchable -> he reads, validates, adds context, repairs -> THEN
 -- commit. The schema already encodes that gate, so the Temporal confirm step
--- waits for a real human decision and then writes it here. Note the completeness
--- triggers are AFTER INSERT only, so approving an existing version is an UPDATE
--- and does not re-run the bounds validator -- but CHECK constraints still apply.
+-- waits for a real human decision and then writes it here.
+--
+-- AN APPROVAL IS AN INSERT, NOT AN UPDATE. The engine connects as
+-- platform_runtime, which holds SELECT and INSERT on these four tables and no
+-- UPDATE at all -- they are append-only by privilege, deliberately. So the
+-- confirm step appends a NEW version row carrying review_state='approved' with
+-- reviewed_by/reviewed_at and supersedes_id, and leaves the proposal exactly as
+-- it was. Currency is derived (the row nothing supersedes), never stamped onto
+-- an older row. The privilege boundary itself is proven under the real role in
+-- 2026-09-26-d04-first-party-thread-role-privileges-test.sql; this file proves
+-- the contract those appended rows must satisfy.
 -- ---------------------------------------------------------------------------
 
 -- Proof 11: an approval that names nobody is rejected. There is no way to record
--- "approved" without recording who approved it and when.
+-- "approved" without recording who approved it and when. CHECK constraints fire
+-- at the INSERT, so this needs no membership to be rejected.
 SAVEPOINT neg_approve_anon;
 DO $$
 BEGIN
-    UPDATE working.first_party_context_thread_version
-       SET review_state = 'approved'
-     WHERE id = '0d040000-0000-7000-8000-000000000fe1';
+    INSERT INTO working.first_party_context_thread_version
+        (id, context_thread_id, version_ordinal, classifier_id, classifier_version, assertion_digest,
+         confidence, review_state, first_occurred_at, last_occurred_at, knowledge_available_from)
+    VALUES ('0d040000-0000-7000-8000-000000000fe9', '0d040000-0000-7000-8000-000000000ff1', 9,
+            'd04-probe-classifier', '1.0.0', decode(repeat('bc', 32), 'hex'), 0.9, 'approved',
+            '2026-03-01T10:00:00Z', '2026-03-01T11:30:00Z', '2026-03-01T11:30:00Z');
     RAISE EXCEPTION 'PROBE FAILED: an approval with no reviewer was accepted';
 EXCEPTION WHEN others THEN
     IF SQLERRM LIKE 'PROBE FAILED%' THEN RAISE; END IF;
@@ -577,41 +588,26 @@ EXCEPTION WHEN others THEN
 END $$;
 ROLLBACK TO SAVEPOINT neg_approve_anon;
 
--- Proof 12: the real confirm step. An attributed approval is accepted and reads back.
-SAVEPOINT pos_approve;
-DO $$
-DECLARE v_by TEXT; v_at TIMESTAMPTZ; v_state TEXT;
-BEGIN
-    UPDATE working.first_party_context_thread_version
-       SET review_state = 'approved', reviewed_by = 'owner', reviewed_at = now(),
-           rationale = 'owner validated the thread in the Workbench before commit'
-     WHERE id = '0d040000-0000-7000-8000-000000000fe1';
-    SELECT review_state, reviewed_by, reviewed_at INTO v_state, v_by, v_at
-      FROM working.first_party_context_thread_version
-     WHERE id = '0d040000-0000-7000-8000-000000000fe1';
-    IF v_state <> 'approved' OR v_by IS NULL OR v_at IS NULL THEN
-        RAISE EXCEPTION 'PROBE FAILED: the approval did not read back attributed';
-    END IF;
-    RAISE NOTICE 'proof 12 OK: attributed approval accepted (review_state=%, reviewed_by=%)', v_state, v_by;
-END $$;
-ROLLBACK TO SAVEPOINT pos_approve;
-
--- Proof 13: re-running extraction produces a NEW version that supersedes the old
--- one; it never mutates the approved snapshot. This is the append-only retry
--- semantic the commit activity must implement instead of incrementing a counter.
+-- Proof 13: the confirm step's real write. Re-running extraction, or recording an
+-- approval, appends a NEW version that supersedes the old one and is attributed to
+-- a reviewer. Nothing about the earlier row is touched -- it stays 'proposed'
+-- forever, which is what the engine's INSERT-only privilege requires and what
+-- makes the history readable after the fact. This is the retry semantic the commit
+-- activity implements instead of incrementing a mutable counter.
 SAVEPOINT pos_supersede;
 DO $$
-DECLARE v_super UUID; v_old TEXT;
+DECLARE v_super UUID; v_old TEXT; v_state TEXT; v_by TEXT;
 BEGIN
     EXECUTE 'SET CONSTRAINTS ALL DEFERRED';
     INSERT INTO working.first_party_context_thread_version
         (id, context_thread_id, version_ordinal, classifier_id, classifier_version, assertion_digest,
          confidence, review_state, first_occurred_at, last_occurred_at, knowledge_available_from,
-         supersedes_id, rationale)
+         supersedes_id, reviewed_by, reviewed_at, rationale)
     VALUES ('0d040000-0000-7000-8000-000000000fea', '0d040000-0000-7000-8000-000000000ff1', 2,
-            'd04-probe-classifier', '1.1.0', decode(repeat('ba', 32), 'hex'), 0.95, 'proposed',
+            'd04-probe-classifier', '1.1.0', decode(repeat('ba', 32), 'hex'), 0.95, 'approved',
             '2026-03-01T10:00:00Z', '2026-03-01T11:30:00Z', '2026-03-01T11:30:00Z',
-            '0d040000-0000-7000-8000-000000000fe1', 'reclassified after the owner added context');
+            '0d040000-0000-7000-8000-000000000fe1', 'owner', now(),
+            'owner validated the thread in the Workbench, then approved the commit');
     INSERT INTO working.first_party_context_thread_message
         (thread_version_id, context_thread_id, message_id, thread_ordinal, occurred_at,
          source_available_from, required_for_horizon, membership_confidence)
@@ -635,18 +631,17 @@ BEGIN
             2, '2026-03-01T11:30:00Z', true, 'export_created', '2026-03-02T00:00:00Z',
             'export header declared creation time', 0.95, 'unreviewed', 'd04-probe-extractor', '1.1.0',
             1, 0.95, 'proposed', decode(repeat('cd', 32), 'hex'), 'd04-probe');
-    UPDATE working.first_party_context_thread_version
-       SET review_state = 'superseded'
-     WHERE id = '0d040000-0000-7000-8000-000000000fe1';
     EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
-    SELECT supersedes_id INTO v_super FROM working.first_party_context_thread_version
+    SELECT supersedes_id, review_state, reviewed_by INTO v_super, v_state, v_by
+      FROM working.first_party_context_thread_version
      WHERE id = '0d040000-0000-7000-8000-000000000fea';
     SELECT review_state INTO v_old FROM working.first_party_context_thread_version
      WHERE id = '0d040000-0000-7000-8000-000000000fe1';
-    IF v_super <> '0d040000-0000-7000-8000-000000000fe1' OR v_old <> 'superseded' THEN
-        RAISE EXCEPTION 'PROBE FAILED: the supersede chain did not read back';
+    IF v_super <> '0d040000-0000-7000-8000-000000000fe1' OR v_state <> 'approved'
+       OR v_by IS NULL OR v_old <> 'proposed' THEN
+        RAISE EXCEPTION 'PROBE FAILED: the appended approval did not read back (state=%, old=%)', v_state, v_old;
     END IF;
-    RAISE NOTICE 'proof 13 OK: version 2 supersedes version 1, which is marked superseded';
+    RAISE NOTICE 'proof 13 OK: version 2 appended as approved by % superseding version 1, which stays %', v_by, v_old;
 END $$;
 ROLLBACK TO SAVEPOINT pos_supersede;
 
@@ -655,7 +650,7 @@ ROLLBACK TO SAVEPOINT pos_supersede;
 -- version's knowledge horizon still validates.
 SAVEPOINT pos_assertion_append;
 DO $$
-DECLARE v_versions INT;
+DECLARE v_versions INT; v_prev TEXT;
 BEGIN
     INSERT INTO working.first_party_context_thread_source
         (id, thread_version_id, context_thread_id, source_version_id, source_anchor_ordinal, platform,
@@ -673,16 +668,15 @@ BEGIN
             'owner corrected the export clock basis', 0.99, 'approved', 'd04-probe-extractor', '1.1.0',
             2, 0.99, 'proposed', '0d040000-0000-7000-8000-000000000fd1',
             decode(repeat('ce', 32), 'hex'), 'owner');
-    UPDATE working.first_party_context_thread_source
-       SET review_state = 'superseded'
-     WHERE id = '0d040000-0000-7000-8000-000000000fd1';
     EXECUTE 'SET CONSTRAINTS ALL IMMEDIATE';
     SELECT count(*) INTO v_versions FROM working.first_party_context_thread_source
      WHERE thread_version_id = '0d040000-0000-7000-8000-000000000fe1';
-    IF v_versions <> 2 THEN
-        RAISE EXCEPTION 'PROBE FAILED: expected 2 source assertions after the correction, found %', v_versions;
+    SELECT review_state INTO v_prev FROM working.first_party_context_thread_source
+     WHERE id = '0d040000-0000-7000-8000-000000000fd1';
+    IF v_versions <> 2 OR v_prev <> 'proposed' THEN
+        RAISE EXCEPTION 'PROBE FAILED: source append did not behave (n=%, prev=%)', v_versions, v_prev;
     END IF;
-    RAISE NOTICE 'proof 14 OK: source assertions are append-only (v1 superseded, v2 current)';
+    RAISE NOTICE 'proof 14 OK: assertion_version 2 appended with supersedes_id; predecessor left as %', v_prev;
 END $$;
 ROLLBACK TO SAVEPOINT pos_assertion_append;
 

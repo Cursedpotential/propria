@@ -16,7 +16,20 @@ that a manifest can get wrong silently:
     identity whose auth key does not exist yet;
   * nothing anywhere publishes 0.0.0.0.
 
+The Workbench is deliberately NOT one of these services. A `tsnet-front`
+sidecar was tried (2026-09-07) but the archive-merge copy of it crash-looped
+in production with no auth key and took the whole app down; it was removed in
+commit 194a3603 and the Workbench's private door stays the host's own
+`svc:workbench` Tailscale Serve process proxying to a published loopback/tailnet
+port (`deploy/workbench.yaml`, edge rewritten again in b88fc2d7 2026-09-27).
+Python has no tsnet binding today, so an in-container identity for the
+Workbench remains a future D-134 step with host prep, not a default.
+
 Byline: Claude Code subagent · Opus 5 · 2026-09-07.
+Byline: Claude Sonnet 5 · 2026-09-27 (dropped the workbench/tsnet-front
+expectations: that sidecar was deliberately removed in 194a3603 and the edge
+was rewritten again in b88fc2d7 — the test encoded a superseded design, not a
+defect in the deploy manifest).
 """
 
 from __future__ import annotations
@@ -36,7 +49,6 @@ TSNET_AUTHKEY_CONTAINER = "/run/secrets/tsnet-authkey"
 TSNET_SERVICES = {
     "parser-activity-runtime.yaml": ("parser-activity-runtime", "parser-runtime"),
     "proffer-starter.yaml": ("proffer-starter", "proffer-starter"),
-    "workbench.yaml": ("tsnet-front", "workbench"),
 }
 
 # The two manifests whose Coolify apps are LIVE today and whose watch paths
@@ -116,17 +128,19 @@ def test_the_legacy_listener_is_still_configured_so_the_flag_off_path_works() ->
     assert starter["environment"]["REFERENCE_STARTER_ADDR"] == "100.91.190.107:8091"
 
 
-def test_the_workbench_front_has_no_listener_but_its_tsnet_one() -> None:
-    front = _service("workbench.yaml")
-    # No published port and no network of its own: it shares the Workbench's
-    # namespace so the proxy peer is loopback, which auth.py already trusts.
-    assert "ports" not in front
-    assert "networks" not in front
-    assert front["network_mode"] == "service:workbench"
-    assert front["environment"]["TSNET_FRONT_UPSTREAM"].endswith(":-http://127.0.0.1:8020}")
-    # Repo-root build context: Coolify builds with --project-directory <repo root>.
-    assert front["build"]["context"] == "."
-    assert front["build"]["dockerfile"] == "deploy/docker/tsnet-front/Dockerfile"
+def test_the_workbench_has_no_tsnet_front_sidecar() -> None:
+    """194a3603: the archive-merge tsnet-front sidecar had no auth key on
+    ovh-app, crash-looped, and took the whole Workbench app down with it. The
+    Workbench's private door is the HOST's own svc:workbench Tailscale Serve
+    dialing the published port below — not an in-container tsnet listener.
+    """
+    compose = _compose("workbench.yaml")
+    assert "tsnet-front" not in compose["services"]
+    workbench = compose["services"]["workbench"]
+    assert not any(key.startswith("TSNET_") for key in workbench["environment"])
+    # Single published door for both Traefik (public, Authentik-fronted) and
+    # svc:workbench Serve (tailnet): see the EDGE header in workbench.yaml.
+    assert workbench["ports"] == ["${BIND_IP:-127.0.0.1}:9071:8020"]
 
 
 def test_no_deploy_manifest_publishes_a_wildcard_address() -> None:

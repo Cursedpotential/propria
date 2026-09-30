@@ -38,6 +38,11 @@ type WorkflowStarter interface {
 	// Activity starts. It is the authoritative read for current stage, human
 	// wait, and terminal state.
 	Operation(ctx context.Context, workflowID string) (proffer.OperationState, error)
+	// Cancel records the operator's cancel receipt in the run's history (a
+	// Signal) and then asks Temporal to cancel the run: a held wait or an
+	// in-flight Activity ends, nothing downstream runs, and the Operation
+	// query reports "cancelled". Byline: Claude Code · Opus 5.5 · 2026-09-28
+	Cancel(ctx context.Context, workflowID string, request proffer.CancelRequest) error
 }
 
 // temporalStarter is the production WorkflowStarter, backed by a real
@@ -118,6 +123,20 @@ func (s *temporalStarter) DecideHandler(ctx context.Context, workflowID string, 
 	}
 	if err := s.client.SignalWorkflow(ctx, workflowID, "", proffer.HandlerSelectionDecisionSignalName, decision); err != nil {
 		return fmt.Errorf("temporal: signal handler selection decision: %w", err)
+	}
+	return nil
+}
+
+// Cancel signals the cancel receipt, then requests Temporal cancellation.
+func (s *temporalStarter) Cancel(ctx context.Context, workflowID string, request proffer.CancelRequest) error {
+	if strings.TrimSpace(workflowID) == "" || request.ActorSubjectUID == "" || request.ActorUsername == "" {
+		return errors.New("temporal: workflow_id and an authenticated actor are required to cancel a run")
+	}
+	if err := s.client.SignalWorkflow(ctx, workflowID, "", proffer.CancelRequestSignalName, request); err != nil {
+		return fmt.Errorf("temporal: signal cancel request: %w", err)
+	}
+	if err := s.client.CancelWorkflow(ctx, workflowID, ""); err != nil {
+		return fmt.Errorf("temporal: cancel workflow: %w", err)
 	}
 	return nil
 }

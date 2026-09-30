@@ -86,7 +86,10 @@ RUN UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin uv tool install --p
 RUN apt-get update && apt-get install -y --no-install-recommends ruby-full wget vim nano \
     && apt-get clean && rm -r /var/lib/apt/lists \
     && curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh \
-    && mkdir -p /etc/mise && printf 'eval "$(/usr/local/bin/mise activate bash)"\n' > /etc/profile.d/mise.sh
+    && mkdir -p /etc/mise && printf '[ -n "$BASH_VERSION" ] && eval "$(/usr/local/bin/mise activate bash)"\n' > /etc/profile.d/mise.sh
+# /etc/profile.d is sourced by every login shell, including kasm-user's /bin/sh (dash) under
+# `su -`; the bash-only activation broke the Homebrew step below with "eval: Syntax error: "(""
+# (devbox deploy spe2blc2, 2026-09-28). Claude Code · Opus 5.5 · 2026-09-28.
 COPY deploy/docker/devbox/mise-config.toml /etc/mise/config.toml
 
 # Agent CLIs (owner 16:22: claude + opencode). Reinstated @anthropic-ai/claude-code 2026-09-08 11:46 —
@@ -261,7 +264,11 @@ RUN echo "kasm-user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/kasm-user && chmod 
 # /home/linuxbrew/.linuxbrew — a SEPARATE mapped volume (deploy/devbox.yaml) so brew packages
 # survive redeploys the same way /home/kasm-user does. /usr/local/bin/brew is a root-callable
 # wrapper so `brew ...` works from any shell regardless of the invoking user.
+# The installer writes ~/.cache/Homebrew, and the image's home is still root-owned at this point
+# (the chown further down comes later), so create that one directory for kasm-user first.
+# (Failed with "mkdir: cannot create directory '/home/kasm-user/.cache'", 2026-09-28.)
 RUN mkdir -p /home/linuxbrew && chown 1000:1000 /home/linuxbrew \
+    && install -d -o 1000 -g 0 /home/kasm-user/.cache \
     && su - kasm-user -c 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' \
     && printf '#!/bin/sh\nexec sudo -u kasm-user -H /home/linuxbrew/.linuxbrew/bin/brew "$@"\n' > /usr/local/bin/brew \
     && chmod +x /usr/local/bin/brew

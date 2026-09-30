@@ -427,6 +427,9 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 # "image inputs require VLM serving" for every chunk holding it, with litellm retrying forever.
 _DATA_URI_RE = re.compile(r"data:[a-zA-Z0-9.+/-]+;base64,[A-Za-z0-9+/=]*")
 _DATA_PREFIX_RE = re.compile(r"^\s*data:", re.I)
+# Any data: URI introducer, anywhere, base64 or not. The base64-only _DATA_URI_RE above
+# leaves a bare "data:image/" standing, which is enough for NIM to reject the batch.
+_DATA_URI_INTRO_RE = re.compile(r"data:(?=[a-zA-Z0-9.+-]+/)", re.I)
 _NON_BMP_RE = re.compile(r"[𐀀-􏿿]")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.M)
 
@@ -668,10 +671,44 @@ def strip_data_uris(text: str) -> str:
     return _DATA_URI_RE.sub("[data-uri-stripped]", text)
 
 
+# NIM rejects an embedding input over 65,536 characters with HTTP 400, and one
+# rejected input fails its whole component -- so a single pathological chunk takes
+# the entire run down and NOTHING gets indexed (hit live 2026-09-26 on a 1 MiB
+# file). A chunk this size means the splitter found nothing to split on, which is
+# a source problem, not an embedding problem; capping the vector input is strictly
+# better than losing the run, and the STORED chunk text is unaffected either way.
+EMBED_MAX_CHARS = 65_536
+
+
 def embed_safe(text: str) -> str:
-    """Never hand the embedder an input that starts with "data:" -- NIM parses that as a
-    data URI (an image) regardless of what follows. The stored chunk text is untouched."""
-    return _DATA_PREFIX_RE.sub("text: data:", text, count=1) if _DATA_PREFIX_RE.match(text) else text
+    """Defuse every data: URI in an embedding input, and never send an empty one.
+
+    NIM fails the WHOLE request with 400 "image inputs require VLM serving to be enabled on
+    this server" when ANY input in the batch introduces a data: URI, and one failed batch
+    fails the run. That is how the 2026-09-28 sync died after 269 s on 872 sources: exactly
+    two documents (probata/adr/generated/0096.md and
+    probata/planning/2026-09-27-workbench-spec-from-record.md) mention a bare `data:image/`.
+
+    Neither existing guard caught it. strip_data_uris, which runs over the body, only matches
+    the `;base64,` form. This function only rewrote a `data:` at the very START of a chunk
+    (`^\\s*data:`, count=1), so the same token anywhere further in matters not at all.
+
+    One space after the colon is enough -- NIM stops reading it as a URI -- and it is applied
+    to the embedding input only, so the stored chunk text keeps its original spelling. A blank
+    input is rejected the same way, so it becomes a placeholder.
+    """
+    text = _DATA_URI_INTRO_RE.sub("data: ", text)
+    if not text.strip():
+        return "[empty chunk]"
+    if len(text) > EMBED_MAX_CHARS:
+        print(
+            f"docstore: embedding input capped at {EMBED_MAX_CHARS} of {len(text)} characters; "
+            f"the chunk was stored in full. A chunk this large means the splitter had nothing "
+            f"to split on -- check whether the source belongs in the index at all.",
+            file=sys.stderr, flush=True,
+        )
+        return text[:EMBED_MAX_CHARS]
+    return text
 
 
 _TAG_TOKEN_RE = re.compile(r"[^a-z0-9]+")

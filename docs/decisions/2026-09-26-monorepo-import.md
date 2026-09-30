@@ -30,7 +30,7 @@ Propria repository with `git subtree`, preserving every commit. Owner decision
 
 **Deliberately excluded**, by owner rulings the same day: `memsearch` and
 `claude-context` are development tooling rather than application forks, and move
-to `~/.claude/local-plugins/forks/`.
+to `E:/AI_Workspace/plugins/forks/` (the plugin marketplace, moved out of `~/.claude` on 2026-09-28).
 
 ## Why subtree rather than a flat import
 

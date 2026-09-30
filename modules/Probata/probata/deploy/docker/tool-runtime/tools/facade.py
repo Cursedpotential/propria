@@ -1,6 +1,6 @@
 """tool-runtime facade — one HTTP/OpenAPI surface over Probata tool capabilities.
 
-Two surfaces, ONE FastAPI app (so ContextForge REST-wraps a single OpenAPI):
+Three surfaces, ONE FastAPI app:
 
   1. REGISTRY-BACKED parsers (/tools/...) — the cross-domain server/tools/
      package (registry + atomic tool modules, D-026) is baked into the image at
@@ -32,6 +32,12 @@ Two surfaces, ONE FastAPI app (so ContextForge REST-wraps a single OpenAPI):
      facade (and thus over MCP via ContextForge). The facade owns the SBV
      service-account session so callers never deal with the cookie.
 
+  3. ATOMIC_TOOLS over MCP (/mcp) — ONE MCP tool, `atomic_tools`, whose description summarises
+     every family and whose `path` argument browses a directory (families -> tools -> contract);
+     `run` executes through the same tool.run() as surface 1. ContextForge federates this, so an
+     agent loads one schema instead of one per tool. Built in atomic_mcp.py from the same
+     manifest GET /tools serves. (Claude Code · Opus 5.5 · 2026-09-28, owner design 05:21.)
+
 ROBUSTNESS (the 2-day FATAL fix): the OLD facade did `from evidence.registry
 import ...` at module top, so an empty/missing evidence tree crashed uvicorn
 -> supervisord FATAL-looped -> the WHOLE container's tool surface was down. Now
@@ -46,6 +52,7 @@ Payload paths must be visible to THIS container — use the shared /r2 mount
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 from typing import Any
@@ -60,10 +67,24 @@ _TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TOOLS_DIR not in sys.path:
     sys.path.insert(0, _TOOLS_DIR)
 
+ATOMIC_MCP = None  # the single `atomic_tools` MCP server, built once the registry has loaded
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(_app):
+    """Run the MCP session manager for the app's lifetime when the atomic_tools surface loaded."""
+    if ATOMIC_MCP is None:
+        yield
+        return
+    async with ATOMIC_MCP.session_manager.run():
+        yield
+
+
 app = FastAPI(
+    lifespan=_lifespan,
     title="tool-runtime facade",
-    description="Registry-backed evidence parsers + SBV (SMS Backup Viewer) REST proxy. "
-    "One OpenAPI surface for ContextForge to REST-wrap into MCP tools.",
+    description="Registry-backed evidence parsers, SBV (SMS Backup Viewer) REST proxy, and the "
+    "single `atomic_tools` MCP entry point at /mcp.",
     version="1.1.0",
 )
 
@@ -87,6 +108,27 @@ except Exception as exc:  # incomplete image, import error, etc.
     # supervisord doesn't FATAL-loop. /tools/* will report the degradation.
 
 
+# ---------------------------------------------------------------------------
+# Surface 3: `atomic_tools` over MCP (Claude Code · Opus 5.5 · 2026-09-28)
+# ---------------------------------------------------------------------------
+# One MCP tool whose description summarises every family, with a browsable directory below it,
+# so an agent pays for one schema instead of 43 (owner design 2026-09-28). ContextForge
+# federates it from http://<tool-runtime>:8090/mcp. Generated from the same manifest GET /tools
+# serves; runs through the same tool.run() as POST /tools/{id}/run. If the MCP SDK cannot load,
+# REST keeps working and /mcp is simply absent.
+ATOMIC_MCP_ERROR = ""
+try:
+    from atomic_mcp import build_server as _build_atomic_mcp
+
+    if REGISTRY_OK and registry is not None:
+        ATOMIC_MCP = _build_atomic_mcp(registry.contract_manifest(), registry.get)
+    else:
+        ATOMIC_MCP = _build_atomic_mcp(None, None, degraded_reason=REGISTRY_ERROR)
+except Exception as exc:
+    ATOMIC_MCP = None
+    ATOMIC_MCP_ERROR = f"{type(exc).__name__}: {exc}"
+
+
 def _require_registry():
     if not REGISTRY_OK or registry is None:
         raise HTTPException(
@@ -104,6 +146,7 @@ async def health() -> dict[str, Any]:
         "registry_ok": REGISTRY_OK,
         "registry_error": REGISTRY_ERROR or None,
         "tool_count": TOOL_COUNT,
+        "atomic_mcp": {"mounted": ATOMIC_MCP is not None, "path": "/mcp", "error": ATOMIC_MCP_ERROR or None},
         "tools": sorted(t.id for t in registry.all()) if REGISTRY_OK else [],  # type: ignore[union-attr]
         "sbv": _sbv_status(),
     }
@@ -310,4 +353,18 @@ async def sbv_export(payload: dict[str, Any]) -> JSONResponse:
         w.writerows(messages)
     return JSONResponse(
         {"format": "csv", "csv": buf.getvalue(), "message_count": len(messages), "call_count": len(calls)}
+    )
+
+
+# Mounted last on purpose: FastAPI's own routes above are matched first, and the MCP app serves
+# exactly /mcp (no redirect). Stateless JSON responses: the directory holds no session state.
+if ATOMIC_MCP is not None:
+    app.mount(
+        "/",
+        ATOMIC_MCP.streamable_http_app(
+            streamable_http_path="/mcp",
+            host="0.0.0.0",
+            json_response=True,
+            stateless_http=True,
+        ),
     )

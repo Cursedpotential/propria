@@ -40,7 +40,7 @@ question about token-use terms).
 This app **never imports or edits `mcp-app/src/*`** — that stays owned by whoever maintains the
 plugin's `mcp-app/src/store.ts`. All store access goes through `sidecar/lib/store-client.mjs`,
 which dynamically imports the **built** module at the plugin's fixed absolute path
-(`C:\Users\matts\.claude\local-plugins\plugins\family-court-toolkit\mcp-app\dist\store.js` — this
+(`E:\AI_Workspace\plugins\plugins\family-court-toolkit\mcp-app\dist\store.js` — this
 app is no longer a sibling directory of `mcp-app/`, having moved out of the plugin tree on
 2026-09-07) and calls it by function name. `case_docket`, `case_memo`, `case_status`,
 `case_source`, `case_reference`, `case_evidence_log`, `case_eval`, mode-aware `case_timeline`, and

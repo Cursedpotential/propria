@@ -55,6 +55,7 @@ ProfferOperationLifecycle = Literal[
     "awaiting_preview_decision",
     "completed",
     "failed",
+    "cancelled",  # D05-C06, Claude Code · Opus 5.5 · 2026-09-28
     "unavailable",
 ]
 ProfferOperationWait = Literal["repair_decision", "preview_decision"]

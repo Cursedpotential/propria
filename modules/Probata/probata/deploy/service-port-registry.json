@@ -44,6 +44,13 @@
           "canonical_backend_port": 8471,
           "service": "svc:surreal",
           "client_endpoint": "wss://surreal.tilapia-skilift.ts.net"
+        },
+        {
+          "family": "portal",
+          "canonical_backend_port": 9071,
+          "service": "svc:workbench",
+          "client_endpoint": "https://workbench.tilapia-skilift.ts.net",
+          "note": "Operator Workbench (Coolify app workbench on ovh-app, deploy/workbench.yaml), container port 8020, tailnet-bound 100.72.169.40:9071. svc:workbench's Serve forwarder and Traefik's public workbench.int route both dial it; it replaced the loopback 127.0.0.1:18080 door. Claude Code · Opus 5.5 · 2026-09-27."
         }
       ]
     },
@@ -93,6 +100,18 @@
         }
       ]
     },
+    "authentik": {
+      "code": "75",
+      "endpoints": [
+        {
+          "family": "portal",
+          "canonical_backend_port": 9075,
+          "service": "svc:authentik",
+          "client_endpoint": "https://authentik.tilapia-skilift.ts.net",
+          "note": "Coolify compose app authentik on ovh-app (deploy/authentik.yaml), container port 9000, tailnet-bound 100.72.169.40:9075. svc:authentik also carries tcp:9075, a raw TCP forwarder that is Traefik's internal hop for auth.int and every forward-auth check (serve config deploy/tailscale/authentik-serve.hujson). Claude Code · Opus 5.5 · 2026-09-26."
+        }
+      ]
+    },
     "fileflows": {
       "code": "76",
       "endpoints": [
@@ -102,6 +121,17 @@
           "service": "svc:fileflows",
           "client_endpoint": "https://fileflows.tilapia-skilift.ts.net",
           "note": "Coolify compose app on ovh-files (deploy/fileflows.yaml), container port 5000, tailnet-bound 100.91.190.107:9076. Added 2026-09-15 (Claude Code, Fable 5.1)."
+        }
+      ]
+    },
+    "family-court-console": {
+      "code": "77",
+      "endpoints": [
+        {
+          "family": "portal",
+          "canonical_backend_port": 9077,
+          "client_endpoint": "http://100.91.190.107:9077/mcp",
+          "note": "Coolify compose app on ovh-files (deploy/family-court-console.yaml), container port 8765, tailnet-bound 100.91.190.107:9077. Moved off host port 8765 2026-09-27 (Claude Code, Sonnet 5): the Coolify app 'superindex' (deployed 2026-09-22) genuinely owns 8765 on this host, and family-court-console had never once deployed successfully while claiming that port since 2026-09-07. No Tailscale Service (svc:) is registered for this app yet -- the primary access path is ContextForge over the tailnet, and the public route is family-court.int.mitechconsult.com behind Authentik (propria-public-portal.yaml), not a tailnet short name."
         }
       ]
     }

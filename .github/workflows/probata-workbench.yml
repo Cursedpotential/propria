@@ -1,0 +1,66 @@
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-18: the Workbench suites in CI)
+#
+# The Probata Workbench (modules/Probata/probata/modules/workbench) as a CI gate.
+# Since the 2026-09-26 monorepo import, GitHub runs only workflows under the
+# repository root's .github/workflows, so the Probata validate.yml nested under
+# modules/Probata/probata/.github no longer runs. This workflow covers the
+# Workbench alone:
+#   - api: the FastAPI suite (api/tests), which Probata's pytest testpaths never
+#     collected either;
+#   - web: lint, typecheck + Vite build, the browser-free smoke contracts and the
+#     Storybook build (web/AGENTS.md). The four browser journeys skip without
+#     SMOKE_BROWSER; they run on the ovh-files devbox, never here.
+# Live proof stays a separate gate: a Coolify deploy plus a VPS headless check.
+name: Probata Workbench
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "modules/Probata/probata/modules/workbench/**"
+      - ".github/workflows/probata-workbench.yml"
+  pull_request:
+    paths:
+      - "modules/Probata/probata/modules/workbench/**"
+      - ".github/workflows/probata-workbench.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: Workbench API tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: modules/Probata/probata/modules/workbench/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+      - name: Install the Workbench API requirements (the production image's set)
+        run: uv pip install --system -r requirements.txt
+      # Probata's pyproject addopts load a reporter plugin from the Probata server
+      # package, which this suite does not install; clear them for this run.
+      - name: Run the suite
+        run: python -m pytest -q -o addopts="" tests
+
+  web:
+    name: Workbench web lint, build and smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: modules/Probata/probata/modules/workbench/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: modules/Probata/probata/modules/workbench/web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run smoke
+      - run: npm run build-storybook

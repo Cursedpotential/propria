@@ -1,16 +1,16 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-23 (C4: knowledge router — Knowledge browser + Graphiti pane)
 # Byline: Codex · GPT-5 · 2026-08-16 (neutral Portkey streaming chat)
 # Byline: Codex · GPT-5 · 2026-08-27 (durable run-event SSE proxy)
-"""Probata Workbench API entrypoint (formerly Knowledge Workbench) — the C1-C4 Operator Console backend.
+# Byline: Claude Code · Opus 5.5 · 2026-09-26 (repair workflow builder routes, /api/proffer/repair/*)
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-23 restored the byline above; DF-24 Graphiti removed, DD-06 docstring)
+"""Probata Workbench API entrypoint — the backend of Sources and Review.
 
-Stages uploaded files locally (LanceDB whole-file store + object-store copy),
-starts/lists/inspects spine runs (custody -> parse -> store -> knowledge, via
-the Platform API's /v1/runs), proxies MCP tool servers for the Tool Explorer,
-(C3) proxies the spine's record browser, PG/Milvus schema views, active hash
-verification, and corroboration flags, and (C4) proxies the spine's own
-Milvus-backed knowledge search/browse routes plus read-only Graphiti
-(knowledge-graph memory) search/episodes. Never chunks, embeds, or writes
-Milvus/Postgres/Neo4j itself — see workbench/api/README.md.
+Sources (steps 1-4) browses the configured object stores, inspects and hashes
+a file, and starts Proffer runs on the Go engine. Review (steps 5-6) reads a
+run's preview, its receipts and the owner's overlays, and proxies the run
+event stream. Knowledge search reads the Weaviate projection through the
+Platform API. Graphiti is retired (D-070) and Milvus serves memsearch only;
+the Workbench wires neither. It never chunks, embeds or writes a store itself.
 """
 
 from __future__ import annotations

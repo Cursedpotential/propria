@@ -1,0 +1,27 @@
+{
+  "_comment": "EXAMPLE FILE — every value below is a placeholder. Copy this file to ~/.config/family-court-toolkit/case.json (or set CUSTODY_CASE_FILE to a path of your choosing) and replace every value with your own case's real facts. Use initials, not full names, for parties and children. Never commit a filled-in copy of this file to a shared or public repository.",
+  "county": "Genesee",
+  "court": "7th Circuit Court, Family Division",
+  "judge": "Judge J. Example",
+  "referee": "Referee R. Example",
+  "controlling_orders": [
+    {
+      "title": "Judgment of Divorce — Custody and Parenting Time",
+      "entered": "2024-01-15",
+      "served": "2024-01-22"
+    }
+  ],
+  "next_hearing": "2026-10-01",
+  "deadlines": [
+    {
+      "label": "Referee objection window",
+      "due": "2026-09-28",
+      "rule": "referee_objection"
+    }
+  ],
+  "parties": ["A.B.", "C.D."],
+  "children": [
+    { "initials": "E.F.", "age": 7 }
+  ],
+  "flags": []
+}

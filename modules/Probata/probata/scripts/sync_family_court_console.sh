@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
 # Byline: Claude Code · Sonnet 5 · 2026-09-07
+# STALE, DO NOT RUN (Claude Code · Sonnet 5 · 2026-09-27): deploy/docker/family-court-console/src/
+# was restructured on 2026-09-26 (commit 3b545875) to build mcp-app inside the Docker image
+# (Dockerfile.cloud stage 1: npm ci + node build.mjs), because a synced dist/ built on the host is
+# not committed and Coolify builds from a clean clone -- that mismatch was the exact reason this
+# app never deployed successfully. Running this script quarantines that committed source tree
+# (src/, widgets/, tests/, build.mjs, tsconfig.json) and replaces Dockerfile.cloud with the OLD
+# single-stage version that COPYs a dist/ nobody commits, reintroducing the original bug. Verified
+# live: running it on 2026-09-27 reverted the fix; `git restore deploy/docker/family-court-console/`
+# undid the damage before anything was pushed. If mcp-app/src changes again, update
+# deploy/docker/family-court-console/src/{mcp-app/src,widgets,tests,build.mjs,tsconfig.json}
+# directly (or write a new sync step that copies THOSE, never dist/), not this script.
 #
 # Copies the family-court-toolkit MCP console's runtime subset out of the
 # desktop plugin checkout — which lives OUTSIDE this repo, at
-# ~/.claude/local-plugins/plugins/family-court-toolkit/ — into
+# E:/AI_Workspace/plugins/plugins/family-court-toolkit/ — into
 # deploy/docker/family-court-console/src/, which IS committed to this repo so
 # Coolify's git-based "Docker Compose" build (deploy/family-court-console.yaml)
 # can see it. The plugin root itself is never reachable as a Coolify build
@@ -11,7 +22,7 @@
 #
 # This script only COPIES; it does not build. Before running it, build the
 # plugin's mcp-app so dist/ is fresh:
-#   cd ~/.claude/local-plugins/plugins/family-court-toolkit/mcp-app && node build.mjs
+#   cd E:/AI_Workspace/plugins/plugins/family-court-toolkit/mcp-app && node build.mjs
 #
 # Owner rulings 2026-09-07 16:16-17:12: the console runs in the cloud as its
 # own Coolify app, federated by ContextForge — no client downloads anything.
@@ -22,12 +33,12 @@
 # under deploy/docker/family-court-console/_stale/ before a fresh copy lands.
 #
 # Usage: scripts/sync_family_court_console.sh [PLUGIN_ROOT]
-#   PLUGIN_ROOT defaults to $HOME/.claude/local-plugins/plugins/family-court-toolkit
+#   PLUGIN_ROOT defaults to E:/AI_Workspace/plugins/plugins/family-court-toolkit
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PLUGIN_ROOT="${1:-$HOME/.claude/local-plugins/plugins/family-court-toolkit}"
+PLUGIN_ROOT="${1:-E:/AI_Workspace/plugins/plugins/family-court-toolkit}"
 DEST_DIR="$REPO_ROOT/deploy/docker/family-court-console/src"
 STALE_DIR="$REPO_ROOT/deploy/docker/family-court-console/_stale"
 

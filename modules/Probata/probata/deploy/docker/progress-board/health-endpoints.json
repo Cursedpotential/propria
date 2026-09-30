@@ -1,0 +1,22 @@
+[
+ {"service":"Project progress","kind":"API","url":"http://100.72.169.40:3020/healthz","expect":"json"},
+ {"service":"Probata Platform","kind":"API","url":"https://platform-api.tilapia-skilift.ts.net/health","expect":"json"},
+ {"service":"Probata workbench","kind":"API","url":"https://workbench.tilapia-skilift.ts.net/health","expect":"json"},
+ {"service":"Advocatio","kind":"API","url":"https://legal-api.tilapia-skilift.ts.net/health","expect":"json"},
+ {"service":"ContextForge","kind":"API","url":"http://100.72.169.40:4444/health","expect":"json"},
+ {"service":"n8n","kind":"API","url":"http://100.91.190.107:5678/healthz","expect":"json"},
+ {"service":"OpenList","kind":"Storage API","url":"https://files.tilapia-skilift.ts.net/api/public/settings","expect":"json"},
+ {"service":"OpenList WebDAV","kind":"Storage endpoint","url":"https://files.tilapia-skilift.ts.net/dav/","expect":"any"},
+ {"service":"Weaviate","kind":"Database readiness","url":"http://100.91.190.107:8082/v1/.well-known/ready","expect":"any"},
+ {"service":"Weaviate metadata","kind":"Database API","url":"http://100.91.190.107:8082/v1/meta","expect":"json"},
+ {"service":"Surreal case","kind":"Database health","url":"http://100.91.190.107:8471/health","expect":"any"},
+ {"service":"Surreal docs","kind":"Database health","url":"http://100.91.190.107:8472/health","expect":"any"},
+ {"service":"Surreal Intake","kind":"Database health","url":"http://100.91.190.107:8473/health","expect":"any"},
+ {"service":"PostgreSQL","kind":"Database TCP","host":"100.91.190.107","port":5432},
+ {"service":"Neo4j Bolt","kind":"Database TCP","host":"100.91.190.107","port":7687},
+ {"service":"Milvus","kind":"Database TCP","host":"100.91.190.107","port":19530},
+ {"service":"Intake Xplorer backend","kind":"Disconnected preview","note":"VPS browser preview only; native/OpenList bridge is not connected."},
+ {"service":"Intake metadata backend","kind":"Disconnected preview","note":"Example review session; corpus backend integration is not connected."},
+ {"service":"Family court MCP runtime","kind":"Undeployed","note":"Browser view preview is deployed; live MCP runtime is not verified."},
+ {"service":"Filestash storage connection","kind":"Setup in progress","note":"Storage agent is configuring supported OpenList connection; no health claim yet."}
+]

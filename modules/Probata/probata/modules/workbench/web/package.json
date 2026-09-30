@@ -1,4 +1,5 @@
 {
+  "//": "Byline: Claude Code · Opus 5.5 · 2026-09-26 (smoke:matter-flow runs smoke/browser-preflight.mjs first; it refuses Windows and a missing SMOKE_BROWSER).",
   "name": "workbench-web",
   "version": "0.1.0",
   "private": true,

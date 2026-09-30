@@ -18,7 +18,7 @@ EXCL=(--exclude=node_modules --exclude=.git --exclude=__pycache__ --exclude=.ven
 PAIRS=(
   "$HOME/.claude/skills/|$DEST/.claude/skills/"
   "$HOME/.agents/skills/|$DEST/.agents/skills/"
-  "$HOME/.claude/local-plugins/|$DEST/.claude/local-plugins/"
+  "E:/AI_Workspace/plugins/|$DEST/.claude/local-plugins/"
   "$HOME/.claude/CLAUDE.md|$DEST/.claude/CLAUDE.md"
   "$HOME/.claude/rules/|$DEST/.claude/rules/"
   "$HOME/.config/opencode/|$DEST/.config/opencode/"
@@ -50,7 +50,7 @@ if (( OCS )); then
   PAIRS+=("$HOME/.config/opencode/|$OC/.config/opencode/"
           "$HOME/.agents/skills/|$OC/.agents/skills/"
           "$HOME/.claude/skills/|$OC/.claude/skills/"
-          "$HOME/.claude/local-plugins/|$OC/.claude/local-plugins/"
+          "E:/AI_Workspace/plugins/|$OC/.claude/local-plugins/"
           "$HOME/.local/share/opencode/mcp-auth.json|$OC/.local/share/opencode/mcp-auth.json"
           "$HOME/.local/share/opencode/account.json|$OC/.local/share/opencode/account.json"
           "$HOME/.opencode/|$OC/.opencode/")

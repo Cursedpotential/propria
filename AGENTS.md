@@ -22,9 +22,9 @@ commit boundary: this root. Run `git rev-parse --show-toplevel` and expect
 | Xplorer copilot fork | `modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot/` | application fork |
 | Build crew | `modules/Probata/probata_build_crew/` | source only; its `.env` is never committed |
 
-**Not in the monorepo, deliberately:** `memsearch` and `claude-context` are
-development tooling rather than application forks, and live under
-`~/.claude/local-plugins/forks/`.
+**Not in the monorepo, deliberately:** `memsearch`, `claude-context` and `cocoindex-code`
+(`ccc`) are development tooling rather than application forks, and live under
+`E:/AI_Workspace/plugins/forks/`.
 
 Still read the selected module's local `AGENTS.md`. Stage by explicit path — several
 sessions share this index. The `docs/` junctions and source registry remain the
@@ -129,7 +129,15 @@ versioned `LegalSourcePackage` data and never becomes a second writable evidence
 - `Agno-MCP-Platform-agno - alpha/` is a parts bin, not an active build.
 - `dev-resources/` and `Legal-desktop/resources/build-kit/` are references/parts bins. Port bounded useful material only;
   never revive an archived iteration wholesale.
-- Never open or ingest `dev-resources/Archives/OTHER_RESOURCES_TO_SORT/Secrets/`.
+- `dev-resources/` is indexed for local search, and so is
+  `dev-resources/Archives/OTHER_RESOURCES_TO_SORT/` — each as its **own** ccc collection,
+  separate from this repository's. Owner ruling 2026-09-26: "I would like it indexed so you can
+  find the fucking shit," with the line drawn at publication rather than indexing — "don't push
+  it to GitHub." That holds because a ccc index is a local SQLite file under `.cocoindex_code/`,
+  which is gitignored, and `dev-resources/` is not a Git repository at all. **Nothing from either
+  tree is ever committed, pushed, or quoted into a published document**, and that applies to
+  `OTHER_RESOURCES_TO_SORT/Secrets/` in particular: findable locally, never published.
+  _(Supersedes the previous "never open or ingest" line, which predates the local collections.)_
 - Ignore `*.xxh3` checksum files during discovery.
 - Historical workspace handoffs and v8.1 guides are seeds, not current product truth.
 
@@ -180,9 +188,14 @@ transition state.
   `~\.codex\hooks\memsearch_codex_hook.py`. Codex's own memory store is imported under
   `memory\codex\<project>\`. Both plugin copies carry a local patch that honors `.collection`;
   re-apply it after a memsearch plugin update. The `memsearch` CLI itself is the private fork
-  `~\.claude\local-plugins\forks\memsearch` (uv tool, a `+propria` build, 2026-09-26): never
+  `E:\AI_Workspace\plugins\forks\memsearch` (uv tool, a `+propria` build, 2026-09-26): never
   install memsearch from PyPI, which drops the fork's NIM fixes; reinstall steps are in the
   fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-26)_
+- **ccc (local code indexes):** every local patch to `cocoindex-code` lives in the private fork
+  `E:\AI_Workspace\plugins\forks\cocoindex-code` (2026-09-28): streaming writes, the memory
+  safety guard, `respect_gitignore`, and the embedder input guards. Never install
+  `cocoindex-code` from PyPI, because that drops all of them, the safety guard included.
+  Reinstall steps are in the fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-28)_
 - **Worktrees:** `E:\AI_Workspace\Projects\Propria\_worktrees`. New Propria-owned linked
   worktrees belong here; relocate an existing linked worktree only with `git worktree move`,
   after its owner is paused and its state is captured.
@@ -211,18 +224,19 @@ transition state.
 - The Bash tool collapses a doubled backslash to a single one before bash runs. A Windows path
   inside a Python or JSON string then turns `\t` into a tab and `\r` into a carriage return. In
   Bash, write Windows paths with forward slashes (`E:/AI_Workspace/...`); in scripts, build a
-  backslash with `chr(92)`. A quoted heredoc (`<<'EOF'`) keeps backslashes literal and is safe
-  for file content.
+  backslash with `chr(92)`. The collapse happens before bash parses anything, so it applies
+  inside a quoted heredoc (`<<'EOF'`) too: a `\\` written there arrives as `\` (verified
+  2026-09-26 — JSON and Python string escapes broke). Write content that needs doubled
+  backslashes with the Write or Edit tool.
 - Prefix commands that pass `/unix/paths` to `ssh` or `docker` with `MSYS_NO_PATHCONV=1`.
-- The Read, Write and Edit tools refuse paths outside the session's allowed working directories.
-  `permissions.additionalDirectories` in `~\.claude\settings.json` grants **Read** outside them
-  (`C:\Users\matts\.claude` was added 2026-09-26) but **not Write** — write files there with a
-  Bash heredoc or a Python heredoc instead.
-- The case-bible guard hook rejects any Bash command whose text contains a hard-delete pattern
-  (the `rm` command with a force or recursive flag, or Python's file-removal call) anywhere in
-  the command, including inside a quoted string or heredoc. Move material to a quarantine
-  directory instead, and use `docker stop` with a self-removing container for throwaways. Writing
-  the pattern into documentation text also trips it, so describe it rather than quoting it.
+- The Claude app refuses Read, Write, Edit, Glob and Grep outside its allowed workspace folders
+  ("Path is outside the workspace folders allowed by your administrator"). The list is
+  `allowedWorkspaceFolders` in the app's local profile
+  `%LOCALAPPDATA%\Claude-3p\configLibrary\<appliedId>.json`. Since 2026-09-26 it covers
+  `E:\AI_Workspace`, all of `D:\` and `F:\`, `E:\backup`, `~\.claude`, the session scratch
+  folders (`%LOCALAPPDATA%\Temp\claude`) and the Codex, OpenCode, memsearch and Case Bible
+  folders. Adding a folder to a session does not lift the block; the owner edits that file and
+  fully quits and reopens the app. _(Claude Code · Opus 5.5 · 2026-09-26)_
 
 ## Dispatching agents
 
@@ -253,11 +267,9 @@ confidently in the wrong place.
   problem statement is provisional will surface a wrong brief; one that is not will build it.
 - **Its own worktree** under `_worktrees/`, created from `origin/main`, never the shared checkout —
   other sessions hold uncommitted work there. Explicit-path staging only; never `git add -A`.
-- **The machine's live constraints,** because agents rediscover these the hard way: the guard hook
-  rejects any Bash command whose text contains a hard-delete pattern (the `rm` command with a force
-  or recursive flag, or Python's file-removal call) anywhere, including inside a string, heredoc or
-  commit message; Read/Write/Edit refuse paths outside the allowed working directories; no browser
-  ever launches on this desktop; long jobs and databases live on the VPSs.
+- **The machine's live constraints,** because agents rediscover these the hard way: Read/Write/Edit
+  refuse paths outside the allowed working directories; no browser ever launches on this desktop;
+  long jobs and databases live on the VPSs.
 - **How follow-ups arrive:** say that corrections come by `SendMessage` from the parent session by
   name. Without that, an agent may treat a mid-task message as untrusted injection and refuse it.
 - **Live validation, named concretely** — which host, which disposable schema, what to read back,

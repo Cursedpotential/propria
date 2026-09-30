@@ -1,4 +1,5 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
+// Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-27: Mark-as-event pinned to the detail panel only)
 // Owner flow 2026-09-25 19:15: "Extract Entities" proposes; the owner corrects;
 // running the workflow commits. Events follow the same pattern, and any message
 // can be marked as an event worth recalling. Nothing is written by extraction.
@@ -35,7 +36,9 @@ test("any message can be marked as an event worth recalling, and flags stay smal
   const mark = read("../src/components/entities/mark-event-button.tsx");
   assert.ok(mark.includes("Mark as event worth recalling"));
   assert.match(mark, /actions\.markEvent\(recordId, title\.trim\(\) \|\| undefined\)/);
-  assert.match(read("../src/components/entities/record-peek.tsx"), /<MarkEventButton previewHandle=\{previewHandle\} mode=\{mode\} recordId=\{recordId\} compact \/>/);
+  // DF-27 (2026-09-27): the button renders once, on the selected message's detail panel.
+  assert.match(read("../src/components/sbv/message-detail-panel.tsx"), /<MarkEventButton key=\{message\.message_id\} previewHandle=\{previewHandle\} mode=\{mode\} recordId=\{message\.message_id\} compact \/>/);
+  assert.doesNotMatch(read("../src/components/entities/record-peek.tsx"), /MarkEventButton/);
   const card = read("../src/components/entities/event-card.tsx");
   assert.ok(card.includes("worth recalling"));
   assert.ok(card.includes("visible from"), "an event shows the horizon its sources carry");

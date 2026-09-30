@@ -42,6 +42,7 @@ const OPERATION_STATUSES: readonly ProfferOperationLifecycle[] = [
   "awaiting_preview_decision",
   "completed",
   "failed",
+  "cancelled",
   "unavailable",
 ];
 
@@ -67,7 +68,7 @@ function lifecycleClass(lifecycle: ProfferOperationLifecycle) {
   if (lifecycle === "completed") return "border-[#2f9d67] bg-[#e2f3e9] text-[#17794b] dark:bg-[#203d31] dark:text-[#72d9a1]";
   if (lifecycle === "failed") return "border-[#b5433b] bg-[#fbe9e7] text-[#8f302a] dark:bg-[#442723] dark:text-[#ff9f96]";
   if (lifecycle.startsWith("awaiting_")) return "border-[#c58214] bg-[#fff4dd] text-[#684b18] dark:bg-[#43351f] dark:text-[#ffe0a6]";
-  if (lifecycle === "unavailable") return "border-border bg-muted text-muted-foreground";
+  if (lifecycle === "unavailable" || lifecycle === "cancelled") return "border-border bg-muted text-muted-foreground";
   return "border-primary/40 bg-primary/10 text-primary";
 }
 
