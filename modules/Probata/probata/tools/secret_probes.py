@@ -160,12 +160,21 @@ def p_b2(g, k):
 
 
 def p_tailscale(g, k):
+    """Two shapes: an OAuth client (id + secret) and a plain API key used as a bearer.
+
+    Only the OAuth path was implemented, so a lone TAILSCALE_API_KEY with no CLIENT_ID beside it
+    came back untestable and would have been migrated. The global notes already record that every
+    TAILSCALE_API_KEY on disk is dead, and an untestable verdict is exactly how a known-dead
+    credential slips through a validation gate.
+    """
     client_id = next((g[n] for n in g if re.search(r"TAILSCALE.*CLIENT_?ID", n, re.I)), None)
-    if not client_id:
-        return "untestable"
-    body = urllib.parse.urlencode({"client_id": client_id, "client_secret": g[k]}).encode()
-    return verdict(*http("https://api.tailscale.com/api/v2/oauth/token",
-                         {"Content-Type": "application/x-www-form-urlencoded"}, "POST", body))
+    if client_id:
+        body = urllib.parse.urlencode({"client_id": client_id, "client_secret": g[k]}).encode()
+        return verdict(*http("https://api.tailscale.com/api/v2/oauth/token",
+                             {"Content-Type": "application/x-www-form-urlencoded"}, "POST", body))
+    # A bare key authenticates directly against the API.
+    return verdict(*http("https://api.tailscale.com/api/v2/tailnet/-/devices",
+                         {"Authorization": "Bearer " + g[k]}))
 
 
 def p_r2(g, k):
