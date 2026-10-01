@@ -3816,6 +3816,6 @@ Open, for the owner:
   - a real Codex session: 42 tools, `coolify-write-list-servers` returned ovh-files, ion-control, ovh-app.
 - **Removed from the monorepo:** `deploy/coolify-mcp.yaml` and `deploy/docker/coolify-mcp/` (the stale second copy; git history keeps it).
 - **Left as found:**
-  - Coolify's API refuses to change the app's `repository_project_id`, which still names the monorepo. It only matters for push webhooks, and pushes do not start deployments on this install anyway, so `coolify-mcp` is deployed by hand after a server change.
+  - Coolify's API refuses to change the app's `repository_project_id`, which still names the monorepo. It would only matter for push-triggered deploys, which are off on purpose (owner 09-20: auto-deploy disabled on every app so builds happen only when deployed explicitly). Nothing to fix; `coolify-mcp` is deployed by hand after a server change, like every other app.
   - Codex's default model was changed to `gpt-6.1-sol` between 09-30 and 10-01 (not by this session); `codex exec` answers "not supported when using Codex with a ChatGPT account". The Codex check above ran with `-m gpt-5.6-sol`.
 - [ ] **Owner:** Codex's default model `gpt-6.1-sol` is rejected for this account; choose the model it should use.
