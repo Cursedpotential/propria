@@ -34,10 +34,13 @@ RECORD_VERSION_SURQL = (
     "version: 'sha256:' + crypto::sha256(<string> $r), record: $r } };"
 )
 
+# No row cap: the old LIMIT 200 hid 123 of the 323 reference rows (Claude Code · Opus 5.5 · 2026-10-01).
+# kind and category let the page group cheat sheets, checklists, templates and law notes.
 _LIST_SURQL = (
     "SELECT VALUE { tb: record::tb(id), id: <string> record::id(id), "
-    "title: title ?? citation ?? key ?? label ?? '' } "
-    "FROM type::table($tb) LIMIT 200;"
+    "title: title ?? citation ?? key ?? label ?? '', "
+    "kind: kind ?? authority_class ?? '', category: category ?? '' } "
+    "FROM type::table($tb);"
 )
 
 # Tables the workdesk may open through this read-through: the toolkit's legal sources,
@@ -149,7 +152,12 @@ def list_records(table: str) -> ToolkitListing:
         raise ValueError(f"table {table!r} is not shared with the workdesk")
     rows = _query(_LIST_SURQL, {"tb": table}) or []
     items = [
-        {"id": f"{row['tb']}:{row['id']}", "title": str(row.get("title") or "")}
+        {
+            "id": f"{row['tb']}:{row['id']}",
+            "title": str(row.get("title") or ""),
+            "kind": str(row.get("kind") or ""),
+            "category": str(row.get("category") or ""),
+        }
         for row in rows
         if isinstance(row, dict)
     ]
