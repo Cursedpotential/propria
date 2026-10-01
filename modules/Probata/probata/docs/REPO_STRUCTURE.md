@@ -52,7 +52,7 @@ workbench/      CUSTOM OPERATOR PRODUCT — api/ FastAPI BFF + web/ Next.js; exp
 ui/             superseded/deferred shell proposal; do not start a parallel UI
 shared/         cross-boundary contracts — created only when ui/ needs them (DEFERRED)
 sql/            bootstrap/schema_snapshot_<date>.sql IS the database (no migrations since 2026-09-07, D-153; retired chain in sql/_stale/)
-docker/         one folder per service image: postgres/ (pg_duckdb), tools/, sandbox/, gateway/, milvus/, n8n/, coolify-mcp/
+docker/         one folder per service image: postgres/ (pg_duckdb), tools/, sandbox/, gateway/, milvus/, n8n/
 compose.yaml    mirrored stack definition with production-facing live sections; never describe
                 it as laptop-only. Per-app Coolify compose files live in deploy/ (S10
                 consolidation 2026-08-10, D-043): deploy/<app>.yaml, one file per Coolify
@@ -78,11 +78,14 @@ analytics/      ~~standalone Evidence.dev reporting projects, one subdir each~~
                 platform-owned Evidence project has been re-established yet. Do not read the
                 absence of analytics/ as the tool having been dropped.
 deploy/         ONE compose file per Coolify application (S10, 2026-08-10, D-043): exec, gateway,
-                contextforge, platform-tools, sandbox, desktop, portkey, coolify-mcp, data-pg,
+                contextforge, platform-tools, sandbox, desktop, portkey, data-pg,
                 data-neo4j, data-graphiti, data-graphiti-case, data-vector, data-weaviate,
                 librechat, librechat-mongo, nocodb, workbench (.yaml each) — plus host-prep +
                 security-fix history. Old root paths compose.<name>.yaml are dead on main;
                 13 main-branch Coolify apps were repointed live the same day.
+                coolify-mcp is not here: since 2026-10-01 it builds from the plugins repository
+                (propria-plugins, plugins/coolify-write: Dockerfile + compose.hosted.yaml), so the
+                coolify-write plugin's server has one source.
 tool-skills/    agent-tool "skill" bundles (SKILL.md + scripts/) consumed by CLI agents
                 directly, e.g. tool-skills/graphiti-client/ (`grc`), tool-skills/opencode-ops/
 database/       (being retired) held SurrealDB schema DRAFTS, never applied. Its one file,

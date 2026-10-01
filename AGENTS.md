@@ -41,11 +41,14 @@ excluded from the import entirely rather than recorded as parents —
 Consignatio `.git` and in the bundles under
 `.reconciliation/2026-09-26-pre-cutover-bundles/`.
 
-**Deployment.** All 35 Coolify applications build from `Cursedpotential/propria`,
+**Deployment.** The Coolify applications build from `Cursedpotential/propria`,
 each with its module folder as base directory. Watch paths are matched against
 repository-root paths, so every pattern carries the module prefix. See
 `docs/MONOREPO-COOLIFY-CUTOVER-PLAN-2026-09-26.md` and
-`docs/decisions/2026-09-26-monorepo-import.md`.
+`docs/decisions/2026-09-26-monorepo-import.md`. One application is built elsewhere on
+purpose: `coolify-mcp` builds from `Cursedpotential/propria-plugins`
+(`plugins/coolify-write`), so the coolify-write plugin's server has a single source
+(owner 2026-10-01; Claude Code · Fable 5.1).
 
 The old per-product GitHub remotes are archives. Do not commit to them.
 
