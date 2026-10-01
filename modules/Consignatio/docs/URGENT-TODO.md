@@ -3760,3 +3760,36 @@ Open, for the owner:
 - [ ] **Owner go: move the 103 zero-filled vault objects into `consignatio/intake/_quarantine/`** (B2 server-side copy + hide; nothing deleted), each replaced where a good copy exists.
 - [ ] Google file `Google Data Export Archive Contents (0015A63D).html`: owner answered "yes" to "re-export or drop"; which one is still open.
 - [ ] Build the per-source packages (D-154), with the byte check of the 227 renamed large files and the 1,049 name+size matches.
+
+## 2026-09-30 22:21–23:10 EDT — is every vault file what it claims to be? (owner 22:21)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-30. Owner: "make sure the files are verifiably what they say they are, ready for court evaluation if need be, and that there's no funny business with any of them." Catalog reads only. Script `casebible/tools/verification_20260930.sql` → `raw_duck.verification_20260930` (one row per visible vault object, 548,121; proof level + flags)._
+
+**Proof that the bytes on B2 are the source's bytes**
+
+| Proof | Files | Size | Meaning |
+|---|---:|---:|---|
+| `independent_sha1` | 474,960 | 344 GB | The source's own SHA-1 (Google Drive or OneDrive provider hash, or our D:/F: disk hasher) equals the SHA-1 B2 computed on upload. Two independent parties hashed the same bytes. |
+| `b2_sha1_only` | 73,126 | 1,515 GB | B2 has a SHA-1, but no catalogued source copy carries one to compare with (almost all are also `no_source_link`). |
+| `no_hash` | 35 | 338 GB | B2 stores no SHA-1 (multipart uploads). |
+
+**433,210 files (326 GB) are clean:** independent SHA-1 match and no flag except a missing real date.
+
+**Flags**
+- `no_source_link`, 73,161 files / 1,853 GB:
+  - 810 objects / 1,670 GB are the large hash-less files matched to their sources by exact size (Takeout zips, SMS XMLs).
+  - 41,801 / 126 GB are `onedrive/Pictures`, which has no source occurrence in the catalog at all.
+  - About 100 GB are disk-image work files (`image_remaining.dd`, digiKam `.tmp`) and a Windows ISO, not originals.
+- `altered_twin`, 40,991 files: another copy with the same name and the same size has different bytes.
+  - About 30,000 are tiny generated files (`.sig` 14,197, `.json` 10,331, `.class` 4,589).
+  - **About 2,700 media files over 1 MB** (`.png` 781, `.heic` 637, `.mp4` 632, `.jpg` 440, `.gif` 208) have a same-size twin with different bytes. That is the pattern a same-length metadata edit, an in-place partial corruption or a re-save leaves. Not classified yet: it needs a byte comparison of each pair.
+- `future_date`, 767: recorded dates 2042–2106, the corrupt timestamps the 09-18 audit noted on recovered files. Never usable as an origin date.
+- `zero_filled`, 103 (already in the 16:40 entry).
+- `no_real_date`: 217,635 contents (`best_copy_20260930`); the 297,882 in this table also counts the unlinked objects.
+
+**Court readiness is per file and is specified, not built:** the forensic package (D-154 Mode B, `Intake/backend/docs/SOURCE-METADATA-CAPTURE-AND-FORENSIC-PACKAGE-SPEC.md`). Each file chosen as evidence gets its package: raw provider responses, revisions, permissions, SHA-256 + BLAKE3 against every provider hash, a manifest hash, then Probata custody at promotion. The corpus-wide checks above decide which files are safe to choose.
+
+- [ ] **Owner go (no cost beyond compute): hash pass** on ovh-files over the 1,351 hash-less objects (1,316 matched-by-size + 35, about 2.6 TB): stream from B2, compute SHA-256/SHA-1/MD5, compare with each source's own SHA-256. B2 egress is free at this volume; about 3k download calls (< $0.01); about 5 h.
+- [ ] **Owner go (small): byte comparison of the ~2,700 same-size media twins** (about 15 GB read from B2). Classifies each pair as metadata-only change (and which field), partial corruption, or different content.
+- [ ] `onedrive/Pictures` provenance: find the OneDrive listing those 41,801 files came from and load it as occurrences (catalog first; no new OneDrive read unless no listing exists).
+- [ ] Decide the disk-image work files and the ISO: keep as artifacts, outside evidence selection.
