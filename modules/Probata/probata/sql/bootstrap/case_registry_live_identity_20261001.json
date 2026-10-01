@@ -1,16 +1,17 @@
 {
-  "byline": "Claude Code · Opus 5.5 · 2026-10-01",
+  "byline": "Claude Code · Opus 5.5 · 2026-10-01 (prepared by agent go-live-identity; finalized and applied by the parent session where the owner answered)",
   "payload_schema_version": "live-case-registry-identity-v1",
-  "purpose": "The one real Matter and CourtCase Probata runs bind to (OD-05). This file is the approval payload the case_registry_import_receipt row points at; sql/bootstrap/seed_live_case_registry.sql writes the rows and the receipt.",
+  "purpose": "The one real Matter, CourtCase and party persons Probata runs bind to (OD-05). This file is the approval payload the analysis.case_registry_import_receipt row points at; sql/bootstrap/seed_live_case_registry_20261001.sql writes the rows and the receipt and retires the DEV placeholder identity.",
   "approval": {
     "approved_by": "owner",
     "approved_on": "2026-10-01",
     "record": [
-      "2026-10-01 07:17 EDT, owner, OD-05 answered: mint now; one real Matter and one real CourtCase with new UUIDv7 ids.",
-      "2026-10-01 07:42 EDT, owner: \"I don't really want test runs. I want you using real data with real names, and if it fucking works, we fucking leave it.\"",
-      "2026-10-01 07:46 EDT, owner: case facts taken from his own court documents in the vault, at his direction."
-    ],
-    "relayed_by": "the parent Claude Code session of 2026-10-01 (owner answers recorded there), to the go-live-identity agent"
+      "2026-10-01 07:17 EDT, owner, in the Claude Code session where this file was finalized, answering 'Live mode needs a real case identity in place of the TEST dev one. How should it be created?': 'Mint now, I approve (Recommended)' (one real Matter and one CourtCase with new UUIDv7 ids, recorded with the owner's approval).",
+      "2026-10-01 07:42 EDT, owner, same session: \"I don't really want test runs. I want you using real data with real names, and if it fucking works, we fucking leave it.\"",
+      "2026-10-01 07:46 EDT, owner, same session: the case facts are in his memory and his own court documents in the vault (\"including actual fucking court\"); they were read from those documents, listed under facts_on_record.",
+      "2026-10-01 07:42 EDT, owner, same session, on the people: dev person + real people, then 07:42 no test runs: real person records for the owner and Katrina Kinzel.",
+      "2026-10-01 08:06 EDT, owner, same session, answering 'Delete the old TEST data from Probata's database?': 'Yes, delete it (Recommended)' (the DEV placeholder identity and every TEST-run row are removed in the same transaction)."
+    ]
   },
   "registry_rows": {
     "matter": {
@@ -36,17 +37,34 @@
       "partition_key": "live",
       "matter_id": "01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
       "default_court_case_id": "01a0f751-e07b-76a1-a738-eb3e3aa3e68c"
-    }
+    },
+    "persons": [
+      {
+        "id": "01a0f751-e07b-76b6-afcb-63acfbba373e",
+        "display_name": "Matthew S. Salem",
+        "role_in_case": "user",
+        "connection_to": "plaintiff",
+        "is_party": true,
+        "verification_state": "confirmed"
+      },
+      {
+        "id": "01a0f751-e07b-76c7-8c0f-65692ad656b8",
+        "display_name": "Katrina Kinzel",
+        "role_in_case": "co_parent",
+        "connection_to": "defendant",
+        "is_party": true,
+        "verification_state": "confirmed"
+      }
+    ]
   },
   "facts_on_record": {
     "caption_and_court": "vault object consignatio/vault/v1/Gmail - 7th Judicial Circuit Court Matthew S. Salem v Katrina Kinzel Case No. 2025-53985-DC Judge Weier Notice of Presentment Temporary Order Regarding Custody, Parenting Time Child Support & Other Relief Proof of Service.pdf (email from the Law Office of Griffiths & Willing, Wed Oct 8 2025: presented for filing with the Genesee County Circuit Court, Family Division)",
     "docket_number_clerk_form": "2025-0000053985-DC, vault object consignatio/vault/v1/moved/_root-loose/2025-0000053985-DC - DAWN M. WEIER - Objection-CLK -  - 10-13-2025 - KINZEL,KATRINA, - OPRO.pdf",
     "judge": "Dawn M. Weier",
-    "parties": "Matthew S. Salem, plaintiff (the owner); Katrina Kinzel, defendant",
+    "parties": "Matthew S. Salem, plaintiff (the owner); Katrina Kinzel, defendant and the child's other parent. The 2025-10-08 email from the office representing Ms. Kinzel asks Mr. Salem to communicate 'not with the Defendant'.",
     "case_type": "custody (DC docket suffix)",
     "filed_on": "unknown; the docket number gives the year 2025",
     "matter_title": "the owner's memory note workspace-git-snapshot-recovery-asset.md calls it the Salem v. Kinzel custody case (Genesee County MI)",
     "read_copies": "ovh-files /data/consignatio/court-ready-20261001/caseid-read/ (read from B2 2026-10-01)"
-  },
-  "not_in_this_payload": "registry.person rows for the parties are held: the person enums carry no plaintiff/defendant or opposing-party value (schema_snapshot_20260907.sql:10851-10852)."
+  }
 }
