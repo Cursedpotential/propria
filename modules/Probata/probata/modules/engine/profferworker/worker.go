@@ -65,6 +65,10 @@ type Registrations struct {
 	// stage every new Proffer run schedules before the owner's approval.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	ContextSearch activities.PublishContextSearchActivities
+	// FirstPartyContext is the first-party context import (D04): propose,
+	// confirm, and the spine and thread commits.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	FirstPartyContext activities.FirstPartyContextActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -115,6 +119,7 @@ func RegisterAll(registrar interface {
 	activities.RegisterRepairActivities(registrar, registrations.Repair)
 	activities.RegisterPreviewProjectionActivity(registrar, registrations.Preview)
 	activities.RegisterPublishContextSearchActivity(registrar, registrations.ContextSearch)
+	activities.RegisterFirstPartyContextActivities(registrar, registrations.FirstPartyContext)
 }
 
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
@@ -464,8 +469,13 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	firstPartyStore, err := platformpostgres.NewFirstPartyContextStore(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
 	return Registrations{
 		ContextSearch:         contextSearch,
+		FirstPartyContext:     activities.NewFirstPartyContextActivities(firstPartyStore),
 		RepairPlan:            repairPlan,
 		Extraction:            extraction,
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),

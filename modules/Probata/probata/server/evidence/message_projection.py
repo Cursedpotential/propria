@@ -6,6 +6,7 @@ third-party rows remain proposed until a human resolves and approves identities.
 
 Byline: Codex · GPT-5 · 2026-08-18
 Byline amendment: Codex · GPT-5 · 2026-08-18 (audited review and duplicate acquisition linking)
+Byline amendment: Claude Code · Opus 5.5 · 2026-10-01 (first-party writer retired; the Go engine owns it, D04)
 """
 
 from __future__ import annotations
@@ -27,6 +28,12 @@ if TYPE_CHECKING:
 
 
 DERIVER_VERSION = "message-projection@2026-08-18"
+
+
+class FirstPartyProjectionRetiredError(ValueError):
+    """First-party message projection moved to the Go engine (D04, 2026-10-01)."""
+
+
 _SOURCE_MARKERS = {"self", "me", "owner", "ownerrole"}
 
 
@@ -150,77 +157,6 @@ def _insert_route(conn: Any, plan: ProjectionPlan, *, approved: bool) -> None:
     )
 
 
-def _write_first_party(conn: Any, plan: ProjectionPlan, record: NormalizedRecord, artifact_id: str) -> None:
-    conversation_id = str(
-        conn.execute(
-            text(
-                "INSERT INTO working.conversation "
-                "(source_artifact_id, platform, external_thread_key, title, participants, participant_count, "
-                " started_at, ended_at, message_count, platform_attrs) "
-                "VALUES (CAST(:artifact_id AS uuid), :platform, :thread_key, :title, CAST(:participants AS jsonb), "
-                " :participant_count, :occurred_at, :occurred_at, 1, CAST(:attrs AS jsonb)) "
-                "ON CONFLICT (platform, external_thread_key) DO UPDATE SET "
-                " started_at=LEAST(working.conversation.started_at, EXCLUDED.started_at), "
-                " ended_at=GREATEST(working.conversation.ended_at, EXCLUDED.ended_at), "
-                " message_count=working.conversation.message_count+1 RETURNING id"
-            ),
-            {
-                "artifact_id": artifact_id,
-                "platform": plan.platform,
-                "thread_key": plan.conversation_key,
-                "title": record.attrs.get("conversation_title"),
-                "participants": json.dumps(
-                    [value for value in [plan.sender, *(p[0] for p in plan.recipients)] if value]
-                ),
-                "participant_count": len(
-                    {value.casefold() for value in [plan.sender, *(p[0] for p in plan.recipients)] if value}
-                ),
-                "occurred_at": record.occurred_at,
-                "attrs": json.dumps({"projection_deriver": DERIVER_VERSION}),
-            },
-        ).scalar_one()
-    )
-    message_id = str(uuid.uuid4())
-    conn.execute(
-        text(
-            "INSERT INTO working.message "
-            "(id, conversation_id, ts_utc, platform, external_id, sender_raw, recipient_raw, direction, "
-            " message_type, content_sha256, platform_attrs, raw_data, derived_from_record_id, "
-            " deriver_version, derived_at, projection_kind) "
-            "VALUES (CAST(:id AS uuid), CAST(:conversation_id AS uuid), :occurred_at, :platform, :external_id, "
-            " :sender, :recipient_raw, :direction, :message_type, :content_sha256, CAST(:attrs AS jsonb), "
-            " CAST(:raw_data AS jsonb), CAST(:record_id AS uuid), :version, now(), 'first_party')"
-        ),
-        {
-            "id": message_id,
-            "conversation_id": conversation_id,
-            "occurred_at": record.occurred_at,
-            "platform": plan.platform,
-            "external_id": plan.external_id,
-            "sender": plan.sender,
-            "recipient_raw": ", ".join(identity for identity, _role in plan.recipients) or None,
-            "direction": plan.direction,
-            "message_type": record.attrs.get("message_type") or "text",
-            "content_sha256": hashlib.sha256(record.content.encode("utf-8")).digest(),
-            "attrs": json.dumps(record.attrs),
-            "raw_data": json.dumps({"content": record.content}),
-            "record_id": plan.record_id,
-            "version": DERIVER_VERSION,
-        },
-    )
-    parties = [(plan.sender, "from"), *plan.recipients]
-    for identity, role in parties:
-        if identity is not None:
-            conn.execute(
-                text(
-                    "INSERT INTO working.message_participant "
-                    "(message_id, participant_raw, role, deriver_version) "
-                    "VALUES (CAST(:message_id AS uuid), :identity, :role, :version)"
-                ),
-                {"message_id": message_id, "identity": identity, "role": role, "version": DERIVER_VERSION},
-            )
-
-
 def _write_third_party(
     conn: Any,
     plan: ProjectionPlan,
@@ -315,21 +251,29 @@ def write_message_projections(
 ) -> int:
     """Write governed projections using the caller's open PG transaction."""
 
-    written = 0
+    plans = []
     for record, record_id in zip(records, record_ids, strict=True):
         plan = build_projection_plan(record, record_id, artifact.artifact_id, request)
         if plan is None:
             continue
-        # First-party source identities can be accepted as stated by the source.
-        # Third-party projection approval additionally requires entity resolution,
-        # owner exclusion and human conversation review, so it always starts proposed.
-        _insert_route(conn, plan, approved=plan.kind is MessageCorpus.first_party and not plan.review_required)
         if plan.kind is MessageCorpus.first_party:
-            _write_first_party(conn, plan, record, artifact.artifact_id)
-        else:
-            _write_third_party(conn, plan, record, artifact, request)
-        written += 1
-    return written
+            # Retired 2026-10-01 (D04, D-161): first-party projection is the Go
+            # engine's Temporal activities (modules/engine/activities/
+            # first_party_context.go), writing the working.first_party_context_thread
+            # family with working.message.id = working.normalized_record.id. The
+            # Python writer targeted working.conversation, which the 2026-09-07
+            # snapshot deleted, so it could only fail. Refuse before any write.
+            raise FirstPartyProjectionRetiredError(
+                "first-party message projection is owned by the Go engine; import this source "
+                "through a Proffer run (owner_person_id and perspective_person_id required)"
+            )
+        plans.append((plan, record))
+    for plan, record in plans:
+        # Third-party projection approval requires entity resolution, owner
+        # exclusion and human conversation review, so it always starts proposed.
+        _insert_route(conn, plan, approved=False)
+        _write_third_party(conn, plan, record, artifact, request)
+    return len(plans)
 
 
 def link_duplicate_acquisition(

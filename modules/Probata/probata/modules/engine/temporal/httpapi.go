@@ -12,6 +12,7 @@ package temporal
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -101,6 +102,10 @@ type startRequest struct {
 	SourceRef        string `json:"source_ref"`
 	DeclaredFormat   string `json:"declared_format"`
 	ParserOptionsRef string `json:"parser_options_ref"`
+	// Explicit D04 identity; both optional, UUID-shaped when present.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	OwnerPersonID       string `json:"owner_person_id,omitempty"`
+	PerspectivePersonID string `json:"perspective_person_id,omitempty"`
 }
 
 type startResponse struct {
@@ -120,12 +125,14 @@ func (h *StarterHTTPHandler) handleStart(w http.ResponseWriter, r *http.Request)
 	}
 
 	in := proffer.WorkflowInput{
-		RequestID:        req.RequestID,
-		MatterID:         req.MatterID,
-		CourtCaseID:      req.CourtCaseID,
-		SourceRef:        proffer.Ref(req.SourceRef),
-		DeclaredFormat:   req.DeclaredFormat,
-		ParserOptionsRef: proffer.Ref(req.ParserOptionsRef),
+		RequestID:           req.RequestID,
+		MatterID:            req.MatterID,
+		CourtCaseID:         req.CourtCaseID,
+		SourceRef:           proffer.Ref(req.SourceRef),
+		DeclaredFormat:      req.DeclaredFormat,
+		ParserOptionsRef:    proffer.Ref(req.ParserOptionsRef),
+		OwnerPersonID:       strings.TrimSpace(req.OwnerPersonID),
+		PerspectivePersonID: strings.TrimSpace(req.PerspectivePersonID),
 	}
 	workflowID, runID, err := h.starter.Start(r.Context(), in)
 	if err != nil {
@@ -153,6 +160,14 @@ func validateStartRequest(req startRequest) error {
 	}
 	if _, err := uuid.Parse(strings.TrimSpace(req.CourtCaseID)); err != nil {
 		return errors.New("start request requires a valid court_case_id UUID")
+	}
+	for name, value := range map[string]string{"owner_person_id": req.OwnerPersonID, "perspective_person_id": req.PerspectivePersonID} {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		if _, err := uuid.Parse(strings.TrimSpace(value)); err != nil {
+			return fmt.Errorf("start request %s must be a UUID", name)
+		}
 	}
 	return nil
 }

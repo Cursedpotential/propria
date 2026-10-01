@@ -154,6 +154,12 @@ type BatchInput struct {
 	ParserOptionsRef Ref    `json:"parser_options_ref"`
 	SourceContextRef Ref    `json:"source_context_ref,omitempty"`
 
+	// OwnerPersonID and PerspectivePersonID pass through to every item's run
+	// for the first-party context import (D04); see WorkflowInput.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	OwnerPersonID       string `json:"owner_person_id,omitempty"`
+	PerspectivePersonID string `json:"perspective_person_id,omitempty"`
+
 	// MaxInFlight is how many items may run at once. One is the default and
 	// the owner's instruction; more only when a system is proven to take it.
 	MaxInFlight int `json:"max_in_flight,omitempty"`
@@ -380,6 +386,7 @@ func runBatchItem(ctx workflow.Context, in BatchInput, item *BatchItem) {
 		RequestID: item.RequestID, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID,
 		SourceRef: item.SourceRef, DeclaredFormat: in.DeclaredFormat,
 		ParserOptionsRef: in.ParserOptionsRef, SourceContextRef: in.SourceContextRef,
+		OwnerPersonID: in.OwnerPersonID, PerspectivePersonID: in.PerspectivePersonID,
 	})
 
 	var execution workflow.Execution

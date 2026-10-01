@@ -37,6 +37,11 @@ const (
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	contextSearchChangeID = "proffer-weaviate-first-context-search-v1"
 	contextSearchVersion  = workflow.Version(1)
+	// First-party context import (D04): propose before the preview, confirm and
+	// commit after the owner's decision, before the seal.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	firstPartyContextChangeID = "proffer-first-party-context-import-v1"
+	firstPartyContextVersion  = workflow.Version(1)
 	// SelectStructuredELTActivityName and ExecuteStructuredELTActivityName are
 	// the implementation-specific Temporal names for DuckDB execution of the
 	// logical SelectParser and ExecuteParser stages. The Activity package
@@ -641,6 +646,25 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		}
 	}
 
+	// First-party context import, EXTRACT step (D04): plan the generation's
+	// messages into conversations and record the plan digest before the owner
+	// sees the preview. A generation with no message record settles
+	// not_applicable and the confirm/commit steps below are skipped. Histories
+	// recorded before this marker replay without it.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	firstPartyContext := workflow.GetVersion(ctx, firstPartyContextChangeID, workflow.DefaultVersion, firstPartyContextVersion) != workflow.DefaultVersion
+	var contextProposalRef Ref
+	if firstPartyContext {
+		contextProposalRef, err = r.exec(ctx, stagegraph.ProposeFirstPartyContext, in.DeclaredFormat, in.personRefs(map[string]Ref{
+			"normalized_generation":   normalizedGenerationRef,
+			"normalized_verification": normalizedVerificationRef,
+		}))
+		if err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+	}
+
 	// The browser-facing preview is projected only after normalized validation
 	// and, when selected, the sealed non-messaging chunk generation exist.
 	// Publishing it before the human hold removes the former circular wait:
@@ -679,6 +703,36 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 			return r.result(""), err
 		}
 		r.running()
+	}
+
+	// First-party context import, CONFIRM and COMMIT (D04): only after the
+	// owner's decision, and before the seal, so a refused commit blocks the
+	// canonical seal and publication. Byline: Claude Code · Opus 5.5 · 2026-10-01
+	if firstPartyContext && r.lastStatus(stagegraph.ProposeFirstPartyContext) == StatusSuccess {
+		confirmationRef, err := r.exec(ctx, stagegraph.ConfirmFirstPartyContext, in.DeclaredFormat, in.personRefs(map[string]Ref{
+			"context_proposal":        contextProposalRef,
+			"normalized_verification": normalizedVerificationRef,
+		}))
+		if err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+		messagesRef, err := r.exec(ctx, stagegraph.CommitFirstPartyMessages, in.DeclaredFormat, map[string]Ref{
+			"context_confirmation":    confirmationRef,
+			"normalized_verification": normalizedVerificationRef,
+		})
+		if err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+		if _, err := r.exec(ctx, stagegraph.CommitFirstPartyContextThreads, in.DeclaredFormat, map[string]Ref{
+			"context_messages":        messagesRef,
+			"context_confirmation":    confirmationRef,
+			"normalized_verification": normalizedVerificationRef,
+		}); err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
 	}
 
 	// Stage 21: seal_generation_activity.
@@ -955,6 +1009,17 @@ func (r *run) execPreview(ctx workflow.Context, request PreviewPublicationReques
 	actCtx := workflow.WithActivityOptions(ctx, optionsFor(id))
 	future := workflow.ExecuteActivity(actCtx, string(id), request)
 	return r.settle(id, future.Get, ctx)
+}
+
+// lastStatus is the most recently recorded outcome of stage id, or empty when
+// it never ran. Byline: Claude Code · Opus 5.5 · 2026-10-01
+func (r *run) lastStatus(id stagegraph.StageID) Status {
+	for index := len(r.results) - 1; index >= 0; index-- {
+		if r.results[index].Stage == id {
+			return r.results[index].Status
+		}
+	}
+	return ""
 }
 
 func (r *run) receiptRef(id stagegraph.StageID) Ref {

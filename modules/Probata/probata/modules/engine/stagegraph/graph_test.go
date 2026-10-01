@@ -97,8 +97,8 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 		}
 		optional[stage.ID] = stage
 	}
-	if len(optional) != 3 {
-		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage and the context search stage", len(optional))
+	if len(optional) != 7 {
+		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage, the context search stage and the four first-party context stages", len(optional))
 	}
 	d, ok := optional[ChunkDocument]
 	if !ok || d.Responsibility != RespChunk {
@@ -148,6 +148,41 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 	}
 	if requiredStages[PublishContextSearch] {
 		t.Fatal("context search stage was made mandatory: a Weaviate outage would then block every run from completing")
+	}
+
+	// The first-party context import is extract -> confirm -> commit: propose
+	// after verification, confirm only after the owner's preview decision,
+	// then the spine commit and the thread commit in that order, none of them
+	// depending on seal or publish. Byline: Claude Code · Opus 5.5 · 2026-10-01
+	chain := []struct {
+		id   StageID
+		resp Responsibility
+		deps []StageID
+	}{
+		{ProposeFirstPartyContext, RespProposeContext, []StageID{VerifyNormalizedGeneration}},
+		{ConfirmFirstPartyContext, RespConfirmContext, []StageID{ProposeFirstPartyContext, PublishPreview}},
+		{CommitFirstPartyMessages, RespCommitContext, []StageID{ConfirmFirstPartyContext}},
+		{CommitFirstPartyContextThreads, RespCommitContext, []StageID{CommitFirstPartyMessages}},
+	}
+	for _, want := range chain {
+		got, ok := optional[want.id]
+		if !ok || got.Responsibility != want.resp {
+			t.Fatalf("optional stage %q = %+v, want responsibility %v", want.id, got, want.resp)
+		}
+		if len(got.DependsOn) != len(want.deps) {
+			t.Fatalf("stage %q dependencies = %v, want %v", want.id, got.DependsOn, want.deps)
+		}
+		for index := range want.deps {
+			if got.DependsOn[index] != want.deps[index] {
+				t.Fatalf("stage %q dependencies = %v, want %v", want.id, got.DependsOn, want.deps)
+			}
+		}
+		if requiredStages[want.id] {
+			t.Fatalf("first-party context stage %q was made a universal ancestor of publish", want.id)
+		}
+		if bits.OnesCount32(uint32(got.Responsibility)) != 1 {
+			t.Fatalf("stage %q carries %d responsibilities, want exactly one", want.id, bits.OnesCount32(uint32(got.Responsibility)))
+		}
 	}
 }
 

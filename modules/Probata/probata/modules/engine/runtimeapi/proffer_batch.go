@@ -62,6 +62,9 @@ type batchStartRequest struct {
 	ParserOptionsRef string `json:"parser_options_ref"`
 	SourceContextRef string `json:"source_context_ref"`
 	MaxInFlight      int    `json:"max_in_flight"`
+	// Explicit D04 identity, passed to every item's run. Byline: Claude Code · Opus 5.5 · 2026-10-01
+	OwnerPersonID       string `json:"owner_person_id"`
+	PerspectivePersonID string `json:"perspective_person_id"`
 }
 
 // startBatch validates the folder and starts one batch workflow.
@@ -111,6 +114,10 @@ func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
+	if err := validateOptionalPersonIDs(req.OwnerPersonID, req.PerspectivePersonID); err != nil {
+		previewError(w, http.StatusBadRequest, err)
+		return
+	}
 	maxInFlight := req.MaxInFlight
 	if maxInFlight == 0 {
 		maxInFlight = batchMaxInFlightFromEnv(os.Getenv("PROFFER_BATCH_MAX_IN_FLIGHT"))
@@ -120,6 +127,7 @@ func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) 
 		Scheme: scheme, Bucket: bucket, Prefix: prefix,
 		DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef),
 		SourceContextRef: proffer.Ref(req.SourceContextRef), MaxInFlight: maxInFlight,
+		OwnerPersonID: strings.TrimSpace(req.OwnerPersonID), PerspectivePersonID: strings.TrimSpace(req.PerspectivePersonID),
 	}
 	if _, _, err := h.batch.StartBatch(r.Context(), in); err != nil {
 		previewError(w, http.StatusUnprocessableEntity, err)

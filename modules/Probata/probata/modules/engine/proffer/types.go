@@ -143,6 +143,27 @@ type WorkflowInput struct {
 	ContextChunkSignature     string
 	ContextChunkPolicyID      string
 	ContextChunkPolicyVersion string
+	// OwnerPersonID and PerspectivePersonID are the registry.person ids the
+	// first-party context import (D04) writes threads for: the case owner, and
+	// whose device or export the source is. They are explicit run inputs,
+	// never derived. A run whose generation holds messages fails loudly at
+	// propose_first_party_context_activity when either is absent.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	OwnerPersonID       string `json:",omitempty"`
+	PerspectivePersonID string `json:",omitempty"`
+}
+
+// personRefs carries the explicit person ids to the first-party context
+// stages as references. Absent ids are left out, so the Activity, not the
+// workflow, reports the missing identity.
+func (in WorkflowInput) personRefs(refs map[string]Ref) map[string]Ref {
+	if id := strings.TrimSpace(in.OwnerPersonID); id != "" {
+		refs["owner_person"] = Ref(id)
+	}
+	if id := strings.TrimSpace(in.PerspectivePersonID); id != "" {
+		refs["perspective_person"] = Ref(id)
+	}
+	return refs
 }
 
 func (in WorkflowInput) contextChunkingInput() *ContextChunkingInput {

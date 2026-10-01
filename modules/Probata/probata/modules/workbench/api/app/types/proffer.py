@@ -70,6 +70,12 @@ class ProfferStartRequest(BaseModel):
     declared_format: NonBlank
     parser_options_ref: NonBlank
     source_context_ref: UUID | None = None
+    # First-party context import (D04): the case owner and whose device or
+    # export the source is, as registry.person ids. Passed through unchanged;
+    # the engine fails a message run loudly when either is absent.
+    # Byline: Claude Code · Opus 5.5 · 2026-10-01
+    owner_person_id: UUID | None = None
+    perspective_person_id: UUID | None = None
     matter_mode: MatterMode
 
     @field_validator("source_ref")

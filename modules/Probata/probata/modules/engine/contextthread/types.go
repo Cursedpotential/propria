@@ -5,16 +5,14 @@
 // Facebook and anything else, as working.first_party_context_thread and its
 // version / membership / source assertion rows.
 //
-// APPEND-ONLY BY PRIVILEGE. The engine connects as platform_runtime, which holds
-// SELECT and INSERT on the four tables and no UPDATE at all. That is intent, not
-// an oversight: the same role carries explicit column-scoped UPDATE grants on
-// working.extraction_run and working.content_chunk_generation, so the schema
-// author grants UPDATE narrowly where they mean it. Nothing in this package or
-// its store ever updates a thread row. An approval, a reclassification and a
-// corrected source assertion are all APPENDS carrying SupersedesID, and currency
-// is derived — the row nothing supersedes — never stamped onto an older row.
-// Proven live under platform_runtime in
-// sql/validation/2026-09-26-d04-first-party-thread-role-privileges-test.sql.
+// APPEND-ONLY FOR DECISIONS. An approval, a reclassification and a corrected
+// source assertion are all APPENDS carrying SupersedesID, and currency is
+// derived — the row nothing supersedes — never stamped onto an older row. The
+// engine role platform_runtime holds SELECT, INSERT and UPDATE on the four
+// tables (owner, OD-07, 2026-10-01 07:17); UPDATE is used only to extend a
+// still-proposed version in place with a later chunk of the same conversation
+// (postgres/first_party_context_store.go), never to change an approved one.
+// Byline: Claude Code · Opus 5.5 · 2026-10-01 (re-conformed to the OD-07 grant)
 //
 // The consequence is worth stating: the exact version the owner was shown when
 // he approved stays permanently readable. An in-place update would have

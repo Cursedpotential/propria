@@ -538,17 +538,23 @@ func threadIdentity(record parseonly.Record) (string, []string) {
 	if record.Kind == "call" {
 		return "calls", nil
 	}
+	if key, participants := ConversationKey(record.Participants); key != "unknown" {
+		return key, participants
+	}
+	return ConversationKey(append([]string{record.Sender}, recipientIdentities(record.Recipients)...))
+}
+
+// ConversationKey is the one definition of an SMS/MMS conversation's identity:
+// its normalized participant set, sorted and joined, with "self" (the phone's
+// owner, present in every thread) dropped. threadIdentity names derived chunk
+// files with it, and the first-party context import keys its threads with it,
+// so a thread's database key and its derived file name cannot drift apart.
+// Byline: Claude Code · Opus 5.5 · 2026-10-01 (extracted from threadIdentity, behavior unchanged)
+func ConversationKey(values []string) (string, []string) {
 	set := map[string]bool{}
-	for _, value := range record.Participants {
+	for _, value := range values {
 		if normalized := normalizeParty(value); normalized != "" {
 			set[normalized] = true
-		}
-	}
-	if len(set) == 0 {
-		for _, value := range append([]string{record.Sender}, recipientIdentities(record.Recipients)...) {
-			if normalized := normalizeParty(value); normalized != "" {
-				set[normalized] = true
-			}
 		}
 	}
 	participants := make([]string, 0, len(set))

@@ -11,6 +11,7 @@ single-start path does.
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,6 +33,10 @@ class ProfferBatchStartRequest(BaseModel):
     parser_options_ref: str = Field(min_length=1, max_length=256)
     source_context_ref: str | None = None
     max_in_flight: int = Field(default=0, ge=0, le=16)
+    # First-party context import (D04), passed to every item's run.
+    # Byline: Claude Code · Opus 5.5 · 2026-10-01
+    owner_person_id: UUID | None = None
+    perspective_person_id: UUID | None = None
     matter_mode: MatterMode
 
 

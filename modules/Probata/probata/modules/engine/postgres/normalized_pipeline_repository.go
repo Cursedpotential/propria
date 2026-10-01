@@ -441,7 +441,13 @@ func (r *NormalizedPipelineRepository) persistNormalizedRecord(ctx context.Conte
 	if err := record.Validate(); err != nil {
 		return err
 	}
-	recordID := uuid.New()
+	// UUIDv7 (owner 2026-09-30, "WE USE UUID7"): this id is copied unchanged
+	// into working.normalized_record.id and working.message.id by the
+	// first-party context import (DF-04). Byline: Claude Code · Opus 5.5 · 2026-10-01
+	recordID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("mint normalized record id: %w", err)
+	}
 	payload, err := buildNormalizedPayload(recordID, sourceVersionRef, record)
 	if err != nil {
 		return err

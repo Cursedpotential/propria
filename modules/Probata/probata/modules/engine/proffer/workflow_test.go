@@ -101,6 +101,16 @@ func succeedingContextSearchActivity(_ context.Context, _ StageRequest) (StageRe
 	return stageStub(stagegraph.PublishContextSearch), nil
 }
 
+// noMessagesProposalActivity is the first-party propose stage's default body
+// in tests that do not exercise it: the generation holds no message, so the
+// confirm and commit stages are skipped. Byline: Claude Code · Opus 5.5 · 2026-10-01
+func noMessagesProposalActivity(_ context.Context, _ StageRequest) (StageResult, error) {
+	return StageResult{
+		Status: StatusNotApplicable, ReceiptRef: Ref(string(stagegraph.ProposeFirstPartyContext) + "-receipt"),
+		Reason: "the normalized generation holds no message records",
+	}, nil
+}
+
 func placeholderHandlerRecommendation(_ context.Context, _ StageRequest) (HandlerRecommendationResult, error) {
 	return HandlerRecommendationResult{}, errors.New("proffer: placeholder handler recommendation ran unmocked")
 }
@@ -159,6 +169,10 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 		// OnActivity, which takes precedence. Byline: Claude Code · Opus 5.5 · 2026-10-01
 		if d.ID == stagegraph.PublishContextSearch {
 			env.RegisterActivityWithOptions(succeedingContextSearchActivity, activity.RegisterOptions{Name: string(d.ID)})
+			continue
+		}
+		if d.ID == stagegraph.ProposeFirstPartyContext {
+			env.RegisterActivityWithOptions(noMessagesProposalActivity, activity.RegisterOptions{Name: string(d.ID)})
 			continue
 		}
 		env.RegisterActivityWithOptions(placeholderActivity, activity.RegisterOptions{Name: string(d.ID)})
@@ -296,10 +310,12 @@ func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 		t.Errorf("result.SourceVersionRef = %q, want the register_source stage's stub ref", result.SourceVersionRef)
 	}
 
-	// Every required stage plus the Weaviate-first stage, which every new
-	// history schedules (Claude Code · Opus 5.5 · 2026-10-01).
-	if len(result.Stages) != len(stagegraph.Stages)+1 {
-		t.Fatalf("result.Stages has %d entries, want %d (every stage exactly once, plus publish_context_search)", len(result.Stages), len(stagegraph.Stages)+1)
+	// Every required stage plus the Weaviate-first stage and the first-party
+	// propose stage, which every new history schedules (the default propose
+	// body is not_applicable, so confirm/commit are skipped here).
+	// (Claude Code · Opus 5.5 · 2026-10-01).
+	if len(result.Stages) != len(stagegraph.Stages)+2 {
+		t.Fatalf("result.Stages has %d entries, want %d (every stage exactly once, plus publish_context_search and propose_first_party_context)", len(result.Stages), len(stagegraph.Stages)+2)
 	}
 	searchAt := order.indexOf(string(stagegraph.PublishContextSearch))
 	if searchAt < 0 || searchAt < order.indexOf(string(stagegraph.VerifyNormalizedGeneration)) ||
@@ -309,8 +325,13 @@ func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 	seen := make(map[stagegraph.StageID]int, len(result.Stages))
 	for _, s := range result.Stages {
 		seen[s.Stage]++
-		if s.Status != StatusSuccess {
+		if s.Status != StatusSuccess && !(s.Stage == stagegraph.ProposeFirstPartyContext && s.Status == StatusNotApplicable) {
 			t.Errorf("stage %q reported status %q on the golden path", s.Stage, s.Status)
+		}
+	}
+	for _, skipped := range []stagegraph.StageID{stagegraph.ConfirmFirstPartyContext, stagegraph.CommitFirstPartyMessages, stagegraph.CommitFirstPartyContextThreads} {
+		if order.contains(string(skipped)) {
+			t.Errorf("%s ran although the proposal was not applicable", skipped)
 		}
 	}
 	for _, d := range stagegraph.Stages {
@@ -378,7 +399,8 @@ func TestOperationQueryTracksStagesHumanWaitsAndTerminalCompletion(t *testing.T)
 	if terminal.SourceVersionRef != stageStub(stagegraph.RegisterSource).Ref {
 		t.Fatalf("terminal source version ref = %q", terminal.SourceVersionRef)
 	}
-	if want := len(stagegraph.Stages) + 1; terminal.CompletedStageCount != want || len(terminal.Stages) != want {
+	// +2: the Weaviate-first stage and the (not applicable) first-party propose stage.
+	if want := len(stagegraph.Stages) + 2; terminal.CompletedStageCount != want || len(terminal.Stages) != want {
 		t.Fatalf("terminal stages = count %d query rows %d, want %d", terminal.CompletedStageCount, len(terminal.Stages), want)
 	}
 }
@@ -1748,5 +1770,133 @@ func TestWeaviateFailureStopsTheRunBeforeTheCommit(t *testing.T) {
 	}
 	if !order.contains(string(stagegraph.VerifyNormalizedGeneration)) {
 		t.Errorf("verify_normalized_generation never ran; order = %v", order.snapshot())
+	}
+}
+
+// firstPartyInput is a run carrying the explicit D04 identity.
+func firstPartyInput() WorkflowInput {
+	in := testInput()
+	in.OwnerPersonID = "33333333-3333-4333-8333-333333333333"
+	in.PerspectivePersonID = "44444444-4444-4444-8444-444444444444"
+	return in
+}
+
+func mockFirstPartyContextSucceeds(env *testsuite.TestWorkflowEnvironment, requests map[stagegraph.StageID]*StageRequest) {
+	for _, id := range []stagegraph.StageID{
+		stagegraph.ProposeFirstPartyContext, stagegraph.ConfirmFirstPartyContext,
+		stagegraph.CommitFirstPartyMessages, stagegraph.CommitFirstPartyContextThreads,
+	} {
+		id := id
+		env.OnActivity(string(id), mock.Anything, mock.Anything).Return(
+			func(_ context.Context, req StageRequest) (StageResult, error) {
+				if requests != nil {
+					copied := req
+					requests[id] = &copied
+				}
+				return stageStub(id), nil
+			}).Once()
+	}
+}
+
+// TestFirstPartyContextIsProposedBeforeThePreviewAndCommittedAfterTheDecision
+// proves the D04 extract -> confirm -> commit order: propose after the
+// Weaviate-first stage and before the preview, then confirm, the spine commit
+// and the thread commit after the owner's decision and before the seal, each
+// handed only references -- including the explicit person ids.
+// Byline: Claude Code · Opus 5.5 · 2026-10-01
+func TestFirstPartyContextIsProposedBeforeThePreviewAndCommittedAfterTheDecision(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	requests := map[stagegraph.StageID]*StageRequest{}
+	mockFirstPartyContextSucceeds(env, requests)
+	order := newOrderRecorder(env)
+	approveHold(env)
+
+	env.ExecuteWorkflow(ProfferWorkflow, firstPartyInput())
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error = %v", err)
+	}
+	at := func(id stagegraph.StageID) int { return order.indexOf(string(id)) }
+	sequence := []stagegraph.StageID{
+		stagegraph.PublishContextSearch, stagegraph.ProposeFirstPartyContext, stagegraph.PublishPreview,
+		stagegraph.ConfirmFirstPartyContext, stagegraph.CommitFirstPartyMessages,
+		stagegraph.CommitFirstPartyContextThreads, stagegraph.SealGeneration, stagegraph.PublishGeneration,
+	}
+	for index := 1; index < len(sequence); index++ {
+		if at(sequence[index-1]) < 0 || at(sequence[index]) < 0 || at(sequence[index-1]) > at(sequence[index]) {
+			t.Fatalf("%s must run before %s; order = %v", sequence[index-1], sequence[index], order.snapshot())
+		}
+	}
+	propose := requests[stagegraph.ProposeFirstPartyContext]
+	if propose == nil || propose.Refs["owner_person"] != "33333333-3333-4333-8333-333333333333" ||
+		propose.Refs["perspective_person"] != "44444444-4444-4444-8444-444444444444" ||
+		propose.Refs["normalized_generation"] != stageStub(stagegraph.PersistNormalizedGeneration).Ref {
+		t.Fatalf("propose request = %+v, want the generation and both explicit person refs", propose)
+	}
+	confirm := requests[stagegraph.ConfirmFirstPartyContext]
+	if confirm == nil || confirm.Refs["context_proposal"] != stageStub(stagegraph.ProposeFirstPartyContext).Ref ||
+		confirm.Refs["owner_person"] == "" || confirm.Refs["perspective_person"] == "" {
+		t.Fatalf("confirm request = %+v, want the proposal and both person refs", confirm)
+	}
+	threads := requests[stagegraph.CommitFirstPartyContextThreads]
+	if threads == nil || threads.Refs["context_messages"] != stageStub(stagegraph.CommitFirstPartyMessages).Ref ||
+		threads.Refs["context_confirmation"] != stageStub(stagegraph.ConfirmFirstPartyContext).Ref {
+		t.Fatalf("thread commit request = %+v, want the spine commit and confirmation refs", threads)
+	}
+}
+
+// TestRejectedPreviewCommitsNoFirstPartyContext proves nothing is committed
+// when the owner rejects the preview. Byline: Claude Code · Opus 5.5 · 2026-10-01
+func TestRejectedPreviewCommitsNoFirstPartyContext(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	env.OnActivity(string(stagegraph.ProposeFirstPartyContext), mock.Anything, mock.Anything).
+		Return(stageStub(stagegraph.ProposeFirstPartyContext), nil).Once()
+	order := newOrderRecorder(env)
+	rejectHold(env, "wrong thread")
+
+	env.ExecuteWorkflow(ProfferWorkflow, firstPartyInput())
+	if env.GetWorkflowError() == nil {
+		t.Fatal("a rejected preview completed without error")
+	}
+	for _, later := range []stagegraph.StageID{
+		stagegraph.ConfirmFirstPartyContext, stagegraph.CommitFirstPartyMessages,
+		stagegraph.CommitFirstPartyContextThreads, stagegraph.SealGeneration,
+	} {
+		if order.contains(string(later)) {
+			t.Errorf("%s ran after the owner rejected the preview", later)
+		}
+	}
+}
+
+// TestFirstPartyCommitFailureBlocksTheSeal proves a refused spine commit
+// stops the run before the canonical seal. Byline: Claude Code · Opus 5.5 · 2026-10-01
+func TestFirstPartyCommitFailureBlocksTheSeal(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	env.OnActivity(string(stagegraph.ProposeFirstPartyContext), mock.Anything, mock.Anything).
+		Return(stageStub(stagegraph.ProposeFirstPartyContext), nil).Once()
+	env.OnActivity(string(stagegraph.ConfirmFirstPartyContext), mock.Anything, mock.Anything).
+		Return(stageStub(stagegraph.ConfirmFirstPartyContext), nil).Once()
+	env.OnActivity(string(stagegraph.CommitFirstPartyMessages), mock.Anything, mock.Anything).
+		Return(StageResult{}, temporal.NewNonRetryableApplicationError("FIRST_PARTY_PROJECTION_CARDINALITY", "pg", nil)).Once()
+	order := newOrderRecorder(env)
+	approveHold(env)
+
+	env.ExecuteWorkflow(ProfferWorkflow, firstPartyInput())
+	err := env.GetWorkflowError()
+	if err == nil || !strings.Contains(err.Error(), "FIRST_PARTY_PROJECTION_CARDINALITY") {
+		t.Fatalf("workflow error = %v, want the commit's own reason", err)
+	}
+	for _, later := range []stagegraph.StageID{stagegraph.CommitFirstPartyContextThreads, stagegraph.SealGeneration, stagegraph.PublishGeneration} {
+		if order.contains(string(later)) {
+			t.Errorf("%s ran after the spine commit failed", later)
+		}
 	}
 }

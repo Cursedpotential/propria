@@ -77,6 +77,16 @@ const (
 	// let a search write masquerade as a canonical commit.
 	// Byline: Claude Code · Opus 5 · 2026-09-26
 	RespPublishSearch
+	// RespProposeContext plans the first-party context import and records its
+	// digest; it writes no working.* row (the EXTRACT step, D04).
+	// RespConfirmContext proves, after the owner's decision, that the plan is
+	// unchanged (CONFIRM). RespCommitContext writes working.* first-party
+	// context rows (COMMIT); the spine and the thread commits share it, as the
+	// persist stages share RespPersist.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	RespProposeContext
+	RespConfirmContext
+	RespCommitContext
 )
 
 // Descriptor is the static, dependency-free description of one stage: its
@@ -148,6 +158,24 @@ const DeriveSMSThreads StageID = "derive_sms_threads_activity"
 // Byline: Claude Code · Opus 5.5 · 2026-10-01 (mandatory, scheduled)
 const PublishContextSearch StageID = "publish_context_search_activity"
 
+// The first-party context import (D04, DF-02/DF-03/DF-04): a verified message
+// generation becomes working.* spine rows and first-party context threads, on
+// the owner's extract -> confirm -> commit order (2026-09-26) and after the
+// Weaviate-first search stage. Propose runs before the preview and writes no
+// working.* row; confirm and both commits run only after the owner's preview
+// decision and before seal_generation, so a refused commit blocks the seal.
+// They are optional for the same replay reason as PublishContextSearch, and a
+// generation with no message record ends the chain at propose as
+// not_applicable. Implementation: engine/activities/first_party_context.go.
+//
+// Byline: Claude Code · Opus 5.5 · 2026-10-01
+const (
+	ProposeFirstPartyContext       StageID = "propose_first_party_context_activity"
+	ConfirmFirstPartyContext       StageID = "confirm_first_party_context_activity"
+	CommitFirstPartyMessages       StageID = "commit_first_party_messages_activity"
+	CommitFirstPartyContextThreads StageID = "commit_first_party_context_threads_activity"
+)
+
 // OptionalStages describes version-gated stages that are real members of a
 // specific route but not universal ancestors of PublishGeneration. Keeping
 // these separate preserves the base graph's strong "every listed stage runs"
@@ -179,5 +207,31 @@ var OptionalStages = []Descriptor{
 		// parser selection: it replaces extraction for this route rather
 		// than following it.
 		DependsOn: []StageID{RetainOriginal},
+	},
+	{
+		ID:             ProposeFirstPartyContext,
+		Responsibility: RespProposeContext,
+		Result:         "first-party context proposal receipt reference",
+		DependsOn:      []StageID{VerifyNormalizedGeneration},
+	},
+	{
+		ID:             ConfirmFirstPartyContext,
+		Responsibility: RespConfirmContext,
+		Result:         "first-party context confirmation receipt reference",
+		// The owner's decision on the preview is the confirmation gate.
+		DependsOn: []StageID{ProposeFirstPartyContext, PublishPreview},
+	},
+	{
+		ID:             CommitFirstPartyMessages,
+		Responsibility: RespCommitContext,
+		Result:         "first-party message spine commit receipt reference",
+		DependsOn:      []StageID{ConfirmFirstPartyContext},
+	},
+	{
+		ID:             CommitFirstPartyContextThreads,
+		Responsibility: RespCommitContext,
+		Result:         "first-party context thread commit receipt reference",
+		// Thread membership references working.message rows.
+		DependsOn: []StageID{CommitFirstPartyMessages},
 	},
 }

@@ -12749,7 +12749,7 @@ ALTER TABLE working.message ALTER COLUMN serial_number ADD GENERATED ALWAYS AS I
 
 CREATE TABLE working.normalized_record (
     id uuid DEFAULT uuidv7() NOT NULL,
-    artifact_id uuid NOT NULL,
+    artifact_id uuid,
     record_type text NOT NULL,
     source text NOT NULL,
     conversation_id text,
@@ -12791,7 +12791,9 @@ CREATE TABLE working.normalized_record (
     sender text,
     recipients jsonb DEFAULT '[]'::jsonb NOT NULL,
     message_corpus text,
+    source_version_id uuid,
     CONSTRAINT normalized_record_case_id_ck CHECK ((length(case_id) > 0)),
+    CONSTRAINT normalized_record_custody_or_context_ck CHECK (((artifact_id IS NULL) <> (source_version_id IS NULL))),
     CONSTRAINT normalized_record_disclosure_tier_check CHECK ((disclosure_tier = ANY (ARRAY['contemporaneous'::text, 'hindsight'::text, 'discovered'::text]))),
     CONSTRAINT normalized_record_domain_ck CHECK ((domain = ANY (ARRAY['evidence'::text, 'legal'::text, 'behavioral'::text, 'platform_design'::text, 'context'::text]))),
     CONSTRAINT normalized_record_message_corpus_ck CHECK (((message_corpus IS NULL) OR (message_corpus = ANY (ARRAY['first_party'::text, 'acquired_third_party'::text])))),
@@ -20203,6 +20205,15 @@ CREATE UNIQUE INDEX normalized_record_source_key_uq ON working.normalized_record
 
 
 --
+-- Name: normalized_record_source_version_key_uq; Type: INDEX; Schema: working; Owner: -
+-- The context-cited twin of normalized_record_source_key_uq: one row per record
+-- of one source version. Byline: Claude Code · Opus 5.5 · 2026-10-01
+--
+
+CREATE UNIQUE INDEX normalized_record_source_version_key_uq ON working.normalized_record USING btree (source_version_id, source, source_record_key) WHERE ((source_version_id IS NOT NULL) AND (source_record_key IS NOT NULL));
+
+
+--
 -- Name: normalized_record_topics_gin; Type: INDEX; Schema: working; Owner: -
 --
 
@@ -24183,6 +24194,17 @@ ALTER TABLE ONLY working.normalized_record
 
 ALTER TABLE ONLY working.normalized_record
     ADD CONSTRAINT normalized_record_artifact_id_fkey FOREIGN KEY (artifact_id) REFERENCES evidence.evidence_hash(id);
+
+
+--
+-- Name: normalized_record normalized_record_source_version_id_fkey; Type: FK CONSTRAINT; Schema: working; Owner: -
+-- A record the engine projects from a Proffer run cites its context source
+-- version and makes no custody claim; promotion supplies artifact_id later
+-- (owner 2026-10-01 07:42, D04 option A). Byline: Claude Code · Opus 5.5 · 2026-10-01
+--
+
+ALTER TABLE ONLY working.normalized_record
+    ADD CONSTRAINT normalized_record_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
 
 
 --
@@ -37554,6 +37576,7 @@ GRANT ALL ON TABLE analysis.vw_labeling_progress TO platform_app;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.message TO projection_refresher;
 GRANT SELECT ON TABLE working.message TO horizon_reviewer;
+GRANT SELECT,INSERT ON TABLE working.message TO platform_runtime;
 GRANT ALL ON TABLE working.message TO platform_app;
 
 
@@ -38461,6 +38484,7 @@ GRANT ALL ON TABLE duckdb.tables TO platform_app;
 GRANT SELECT ON TABLE evidence.acquisition TO projection_refresher;
 GRANT SELECT ON TABLE evidence.acquisition TO horizon_reviewer;
 GRANT SELECT ON TABLE evidence.acquisition TO pass_refresher;
+GRANT SELECT ON TABLE evidence.acquisition TO platform_runtime;
 GRANT ALL ON TABLE evidence.acquisition TO platform_app;
 
 
@@ -39083,6 +39107,7 @@ GRANT SELECT ON TABLE registry.person TO horizon_reviewer;
 GRANT SELECT ON TABLE registry.person TO platform_reader;
 GRANT SELECT ON TABLE registry.person TO platform_api;
 GRANT SELECT ON TABLE registry.person TO platform_worker;
+GRANT SELECT ON TABLE registry.person TO platform_runtime;
 GRANT ALL ON TABLE registry.person TO platform_app;
 
 
@@ -39632,7 +39657,7 @@ GRANT ALL ON TABLE working.extraction_window TO platform_app;
 -- Name: TABLE first_party_context_thread; Type: ACL; Schema: working; Owner: -
 --
 
-GRANT SELECT,INSERT ON TABLE working.first_party_context_thread TO platform_runtime;
+GRANT SELECT,INSERT,UPDATE ON TABLE working.first_party_context_thread TO platform_runtime;
 GRANT SELECT ON TABLE working.first_party_context_thread TO context_review_adjudicator;
 GRANT ALL ON TABLE working.first_party_context_thread TO platform_app;
 
@@ -39641,7 +39666,7 @@ GRANT ALL ON TABLE working.first_party_context_thread TO platform_app;
 -- Name: TABLE first_party_context_thread_message; Type: ACL; Schema: working; Owner: -
 --
 
-GRANT SELECT,INSERT ON TABLE working.first_party_context_thread_message TO platform_runtime;
+GRANT SELECT,INSERT,UPDATE ON TABLE working.first_party_context_thread_message TO platform_runtime;
 GRANT SELECT ON TABLE working.first_party_context_thread_message TO context_review_adjudicator;
 GRANT ALL ON TABLE working.first_party_context_thread_message TO platform_app;
 
@@ -39650,7 +39675,7 @@ GRANT ALL ON TABLE working.first_party_context_thread_message TO platform_app;
 -- Name: TABLE first_party_context_thread_source; Type: ACL; Schema: working; Owner: -
 --
 
-GRANT SELECT,INSERT ON TABLE working.first_party_context_thread_source TO platform_runtime;
+GRANT SELECT,INSERT,UPDATE ON TABLE working.first_party_context_thread_source TO platform_runtime;
 GRANT SELECT,INSERT ON TABLE working.first_party_context_thread_source TO context_review_adjudicator;
 GRANT ALL ON TABLE working.first_party_context_thread_source TO platform_app;
 
@@ -39659,7 +39684,7 @@ GRANT ALL ON TABLE working.first_party_context_thread_source TO platform_app;
 -- Name: TABLE first_party_context_thread_version; Type: ACL; Schema: working; Owner: -
 --
 
-GRANT SELECT,INSERT ON TABLE working.first_party_context_thread_version TO platform_runtime;
+GRANT SELECT,INSERT,UPDATE ON TABLE working.first_party_context_thread_version TO platform_runtime;
 GRANT SELECT,INSERT ON TABLE working.first_party_context_thread_version TO context_review_adjudicator;
 GRANT ALL ON TABLE working.first_party_context_thread_version TO platform_app;
 
@@ -39683,6 +39708,7 @@ GRANT ALL ON TABLE working.knowledge_gap TO platform_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.message_participant TO projection_refresher;
+GRANT SELECT,INSERT ON TABLE working.message_participant TO platform_runtime;
 GRANT SELECT ON TABLE working.message_participant TO horizon_reviewer;
 GRANT ALL ON TABLE working.message_participant TO platform_app;
 
@@ -39694,6 +39720,7 @@ GRANT ALL ON TABLE working.message_participant TO platform_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.message_projection_route TO projection_refresher;
 GRANT SELECT,UPDATE ON TABLE working.message_projection_route TO horizon_reviewer;
 GRANT SELECT ON TABLE working.message_projection_route TO pass_refresher;
+GRANT SELECT,INSERT ON TABLE working.message_projection_route TO platform_runtime;
 GRANT ALL ON TABLE working.message_projection_route TO platform_app;
 
 
@@ -39711,6 +39738,7 @@ GRANT ALL ON SEQUENCE working.message_serial_number_seq TO platform_app;
 GRANT SELECT ON TABLE working.normalized_record TO pass_refresher;
 GRANT SELECT ON TABLE working.normalized_record TO projection_refresher;
 GRANT SELECT ON TABLE working.normalized_record TO horizon_reviewer;
+GRANT SELECT,INSERT ON TABLE working.normalized_record TO platform_runtime;
 GRANT ALL ON TABLE working.normalized_record TO platform_app;
 
 
@@ -39720,6 +39748,7 @@ GRANT ALL ON TABLE working.normalized_record TO platform_app;
 
 GRANT ALL ON TABLE working.normalized_record_event TO platform_app;
 GRANT SELECT ON TABLE working.normalized_record_event TO platform_worker;
+GRANT INSERT ON TABLE working.normalized_record_event TO platform_runtime;
 
 
 --
@@ -39833,6 +39862,7 @@ GRANT ALL ON TABLE working.third_party_context_thread_version TO platform_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.third_party_conversation TO projection_refresher;
 GRANT SELECT,UPDATE ON TABLE working.third_party_conversation TO horizon_reviewer;
 GRANT SELECT ON TABLE working.third_party_conversation TO pass_refresher;
+GRANT SELECT ON TABLE working.third_party_conversation TO platform_runtime;
 GRANT ALL ON TABLE working.third_party_conversation TO platform_app;
 
 
@@ -39843,6 +39873,7 @@ GRANT ALL ON TABLE working.third_party_conversation TO platform_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.third_party_conversation_acquisition TO projection_refresher;
 GRANT SELECT,UPDATE ON TABLE working.third_party_conversation_acquisition TO horizon_reviewer;
 GRANT SELECT ON TABLE working.third_party_conversation_acquisition TO pass_refresher;
+GRANT SELECT ON TABLE working.third_party_conversation_acquisition TO platform_runtime;
 GRANT ALL ON TABLE working.third_party_conversation_acquisition TO platform_app;
 
 
@@ -39853,6 +39884,7 @@ GRANT ALL ON TABLE working.third_party_conversation_acquisition TO platform_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.third_party_message TO projection_refresher;
 GRANT SELECT,UPDATE ON TABLE working.third_party_message TO horizon_reviewer;
 GRANT SELECT ON TABLE working.third_party_message TO pass_refresher;
+GRANT SELECT ON TABLE working.third_party_message TO platform_runtime;
 GRANT ALL ON TABLE working.third_party_message TO platform_app;
 
 
@@ -39862,6 +39894,7 @@ GRANT ALL ON TABLE working.third_party_message TO platform_app;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.third_party_message_participant TO projection_refresher;
 GRANT SELECT,UPDATE ON TABLE working.third_party_message_participant TO horizon_reviewer;
+GRANT SELECT ON TABLE working.third_party_message_participant TO platform_runtime;
 GRANT ALL ON TABLE working.third_party_message_participant TO platform_app;
 
 

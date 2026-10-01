@@ -683,23 +683,27 @@ func loadServiceToken(path string) ([]byte, error) {
 
 type previewStartRequest struct {
 	RequestID, MatterID, CourtCaseID, SourceRef, DeclaredFormat, ParserOptionsRef, SourceContextRef string
+	// Explicit D04 identity. Byline: Claude Code · Opus 5.5 · 2026-10-01
+	OwnerPersonID, PerspectivePersonID string
 }
 
 func (r *previewStartRequest) UnmarshalJSON(data []byte) error {
 	type wire struct {
-		RequestID        string `json:"request_id"`
-		MatterID         string `json:"matter_id"`
-		CourtCaseID      string `json:"court_case_id"`
-		SourceRef        string `json:"source_ref"`
-		DeclaredFormat   string `json:"declared_format"`
-		ParserOptionsRef string `json:"parser_options_ref"`
-		SourceContextRef string `json:"source_context_ref"`
+		RequestID           string `json:"request_id"`
+		MatterID            string `json:"matter_id"`
+		CourtCaseID         string `json:"court_case_id"`
+		SourceRef           string `json:"source_ref"`
+		DeclaredFormat      string `json:"declared_format"`
+		ParserOptionsRef    string `json:"parser_options_ref"`
+		SourceContextRef    string `json:"source_context_ref"`
+		OwnerPersonID       string `json:"owner_person_id"`
+		PerspectivePersonID string `json:"perspective_person_id"`
 	}
 	var value wire
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
 	}
-	*r = previewStartRequest{value.RequestID, value.MatterID, value.CourtCaseID, value.SourceRef, value.DeclaredFormat, value.ParserOptionsRef, value.SourceContextRef}
+	*r = previewStartRequest{value.RequestID, value.MatterID, value.CourtCaseID, value.SourceRef, value.DeclaredFormat, value.ParserOptionsRef, value.SourceContextRef, value.OwnerPersonID, value.PerspectivePersonID}
 	return nil
 }
 
@@ -725,6 +729,10 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 		previewError(w, http.StatusUnprocessableEntity, err)
 		return
 	}
+	if err := validateOptionalPersonIDs(req.OwnerPersonID, req.PerspectivePersonID); err != nil {
+		previewError(w, 400, err)
+		return
+	}
 	if req.SourceContextRef != "" {
 		if _, err := uuid.Parse(req.SourceContextRef); err != nil {
 			previewError(w, http.StatusUnprocessableEntity, errors.New("source_context_ref must be a UUID"))
@@ -739,7 +747,8 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	in := proffer.WorkflowInput{RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID, SourceRef: proffer.Ref(req.SourceRef), DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef), SourceContextRef: proffer.Ref(req.SourceContextRef)}
+	in := proffer.WorkflowInput{RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID, SourceRef: proffer.Ref(req.SourceRef), DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef), SourceContextRef: proffer.Ref(req.SourceContextRef),
+		OwnerPersonID: strings.TrimSpace(req.OwnerPersonID), PerspectivePersonID: strings.TrimSpace(req.PerspectivePersonID)}
 	workflowID, runID, err := h.workflow.Start(r.Context(), in)
 	if err != nil {
 		previewError(w, 422, err)

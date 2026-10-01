@@ -16,6 +16,7 @@ import pytest
 from server.contracts.ingest import AcquisitionAssertion, IngestRequest
 from server.contracts.records import MessageCorpus, MessageParticipant, NormalizedRecord
 from server.evidence.message_projection import (
+    FirstPartyProjectionRetiredError,
     _validate_entity_resolutions,
     approve_third_party_conversation,
     build_projection_plan,
@@ -174,7 +175,8 @@ def test_unresolved_third_party_stays_proposed_and_retains_review_row() -> None:
     assert message_params["sender"] is None
 
 
-def test_first_party_with_explicit_parties_is_approved_projection() -> None:
+def test_first_party_projection_is_refused_before_any_write() -> None:
+    """D04 (2026-10-01): the Go engine owns first-party projection; Python refuses it."""
     conn = _Connection()
     record = NormalizedRecord(
         source="fixture",
@@ -182,18 +184,15 @@ def test_first_party_with_explicit_parties_is_approved_projection() -> None:
         recipients=[MessageParticipant(identity="friend", role="to")],
         message_corpus=MessageCorpus.first_party,
     )
-    write_message_projections(
-        conn,
-        [record],
-        ["44444444-4444-4444-4444-444444444444"],
-        _Artifact(acquisition_id=None),
-        _request("first_party"),
-    )
-    statements = "\n".join(statement for statement, _params in conn.calls)
-    route_params = next(params for statement, params in conn.calls if "message_projection_route" in statement)
-    assert route_params["state"] == "approved"
-    assert "INSERT INTO working.message " in statements
-    assert "third_party_message" not in statements
+    with pytest.raises(FirstPartyProjectionRetiredError, match="owned by the Go engine"):
+        write_message_projections(
+            conn,
+            [record],
+            ["44444444-4444-4444-4444-444444444444"],
+            _Artifact(acquisition_id=None),
+            _request("first_party"),
+        )
+    assert conn.calls == []
 
 
 def test_resolution_validation_excludes_owner_and_requires_sender_match() -> None:

@@ -17,17 +17,15 @@
 // see normalized_pipeline.go — would make each fragment fail on its own commit.
 // Do not "simplify" CommitVersion into fanned-out writes; it is one write.
 //
-// APPEND-ONLY BY PRIVILEGE. There is no UPDATE in this file, and there must never
-// be one. The engine connects as platform_runtime (deploy/docker/postgres/
-// Dockerfile), which holds SELECT and INSERT on these four tables and no UPDATE
-// at all. That is intent, not an oversight: the same role carries explicit
-// column-scoped UPDATE grants on working.extraction_run and
-// working.content_chunk_generation, so the schema author grants UPDATE narrowly
-// where they mean it. An approval, a reclassification and a corrected source
-// assertion are APPENDS carrying supersedes_id, and currency is derived — the row
-// nothing supersedes — never stamped onto an older row. A "permission denied for
-// table first_party_context_thread_version" is therefore the design working, not
-// a missing grant to request.
+// NO UPDATE IN THIS FILE. An approval, a reclassification and a corrected
+// source assertion are APPENDS carrying supersedes_id, and currency is derived —
+// the row nothing supersedes — never stamped onto an older row, so the exact
+// version the owner approved stays readable. platform_runtime also holds UPDATE
+// on these four tables (owner, OD-07, 2026-10-01 07:17: "so a thread can be
+// extended in place"); its one user is first_party_context_store.go, which
+// extends a still-PROPOSED version with a later chunk's messages and refuses to
+// touch any other review state.
+// Byline: Claude Code · Opus 5.5 · 2026-10-01 (re-conformed to the OD-07 grant)
 //
 // The whole boundary is proven live under platform_runtime in
 // sql/validation/2026-09-26-d04-first-party-thread-role-privileges-test.sql, and
@@ -165,7 +163,26 @@ func (s *FirstPartyThreadStore) CommitVersion(
 		return contextthread.CommitResult{}, fmt.Errorf("begin first-party thread transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	result, err := s.commitVersionTx(ctx, tx, commit, mode)
+	if err != nil {
+		return contextthread.CommitResult{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return contextthread.CommitResult{}, fmt.Errorf("commit first-party thread version %s: %w", result.ThreadVersionID, err)
+	}
+	return result, nil
+}
 
+// commitVersionTx is CommitVersion inside a caller's transaction, which the
+// caller commits. The first-party context import uses it so the thread is
+// created under the same conversation lock as its lookup.
+// Byline: Claude Code · Opus 5.5 · 2026-10-01 (split out of CommitVersion, behavior unchanged)
+func (s *FirstPartyThreadStore) commitVersionTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	commit contextthread.VersionCommit,
+	mode string,
+) (contextthread.CommitResult, error) {
 	threadID, created, err := s.resolveThread(ctx, tx, commit)
 	if err != nil {
 		return contextthread.CommitResult{}, err
@@ -177,11 +194,7 @@ func (s *FirstPartyThreadStore) CommitVersion(
 			return contextthread.CommitResult{}, err
 		}
 		if found {
-			// Already written by an earlier attempt. Commit so the read is not
-			// rolled back, and report it as a no-op.
-			if err := tx.Commit(ctx); err != nil {
-				return contextthread.CommitResult{}, fmt.Errorf("close idempotent first-party thread read: %w", err)
-			}
+			// Already written by an earlier attempt: report it as a no-op.
 			return contextthread.CommitResult{
 				ContextThreadID: threadID,
 				ThreadVersionID: existing,
@@ -222,19 +235,8 @@ func (s *FirstPartyThreadStore) CommitVersion(
 
 	sources := commit.OrderedSources()
 	for _, source := range sources {
-		if _, err := tx.Exec(ctx, insertSourceSQL,
-			versionID, threadID, source.SourceVersionID, source.AnchorOrdinal, source.Platform,
-			source.PlatformConversationKey, source.RepresentationKind, source.CaptureKind, source.DeclaredFormat,
-			nullableUUID(source.OriginatingDeviceID), commit.Identity.PerspectivePersonID, source.CoverageFirstOccurredAt,
-			source.CoverageLastOccurredAt, source.CoverageMessageCount,
-			source.RequiredForHorizon, source.MetadataClockKind, source.MetadataTimestamp, nullableText(source.MetadataTimezone),
-			source.MetadataClockBasis, source.MetadataConfidence, source.MetadataReviewState, nullableText(source.MetadataAmbiguity),
-			rawMetadataOrEmpty(source.RawMetadata), source.MetadataExtractorID, source.MetadataExtractorVersion, source.AssertionVersion,
-			source.Confidence, source.ReviewState, nullableUUID(source.SupersedesID), source.ProvenanceDigest, source.AssertedBy,
-		); err != nil {
-			return contextthread.CommitResult{}, fmt.Errorf(
-				"insert first-party thread source assertion for source version %s at anchor %d: %w",
-				source.SourceVersionID, source.AnchorOrdinal, err)
+		if err := insertThreadSource(ctx, tx, versionID, threadID, commit.Identity.PerspectivePersonID, source); err != nil {
+			return contextthread.CommitResult{}, err
 		}
 	}
 
@@ -244,10 +246,6 @@ func (s *FirstPartyThreadStore) CommitVersion(
 	if _, err := tx.Exec(ctx, "SET CONSTRAINTS ALL IMMEDIATE"); err != nil {
 		return contextthread.CommitResult{}, fmt.Errorf(
 			"first-party thread version %s failed its completeness validation: %w", versionID, err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return contextthread.CommitResult{}, fmt.Errorf("commit first-party thread version %s: %w", versionID, err)
 	}
 
 	return contextthread.CommitResult{
@@ -330,6 +328,25 @@ func (s *FirstPartyThreadStore) existingVersion(
 			threadID, commit.VersionOrdinal)
 	}
 	return versionID, true, nil
+}
+
+// insertThreadSource writes one source assertion row of a thread version.
+func insertThreadSource(ctx context.Context, tx pgx.Tx, versionID, threadID, perspectivePersonID string, source contextthread.SourceAssertion) error {
+	if _, err := tx.Exec(ctx, insertSourceSQL,
+		versionID, threadID, source.SourceVersionID, source.AnchorOrdinal, source.Platform,
+		source.PlatformConversationKey, source.RepresentationKind, source.CaptureKind, source.DeclaredFormat,
+		nullableUUID(source.OriginatingDeviceID), perspectivePersonID, source.CoverageFirstOccurredAt,
+		source.CoverageLastOccurredAt, source.CoverageMessageCount,
+		source.RequiredForHorizon, source.MetadataClockKind, source.MetadataTimestamp, nullableText(source.MetadataTimezone),
+		source.MetadataClockBasis, source.MetadataConfidence, source.MetadataReviewState, nullableText(source.MetadataAmbiguity),
+		rawMetadataOrEmpty(source.RawMetadata), source.MetadataExtractorID, source.MetadataExtractorVersion, source.AssertionVersion,
+		source.Confidence, source.ReviewState, nullableUUID(source.SupersedesID), source.ProvenanceDigest, source.AssertedBy,
+	); err != nil {
+		return fmt.Errorf(
+			"insert first-party thread source assertion for source version %s at anchor %d: %w",
+			source.SourceVersionID, source.AnchorOrdinal, err)
+	}
+	return nil
 }
 
 func bytesEqual(left, right []byte) bool {

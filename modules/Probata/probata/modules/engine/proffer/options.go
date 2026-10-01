@@ -191,6 +191,28 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 		HeartbeatTimeout:    2 * time.Minute,
 		RetryPolicy:         retryPolicy(10*time.Second, 4),
 	},
+	// The first-party context import (D04). Each reads one generation's
+	// message records (bounded by firstparty.MaxMessages) and plans them in
+	// memory; the commits write one transaction per conversation and are
+	// idempotent, so retries are safe. A refused identity or a changed plan is
+	// permanent and stops retrying at once.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	stagegraph.ProposeFirstPartyContext: {
+		StartToCloseTimeout: 10 * time.Minute,
+		RetryPolicy:         retryPolicy(2*time.Second, 5),
+	},
+	stagegraph.ConfirmFirstPartyContext: {
+		StartToCloseTimeout: 10 * time.Minute,
+		RetryPolicy:         retryPolicy(2*time.Second, 5),
+	},
+	stagegraph.CommitFirstPartyMessages: {
+		StartToCloseTimeout: 30 * time.Minute,
+		RetryPolicy:         retryPolicy(5*time.Second, 5),
+	},
+	stagegraph.CommitFirstPartyContextThreads: {
+		StartToCloseTimeout: 30 * time.Minute,
+		RetryPolicy:         retryPolicy(5*time.Second, 5),
+	},
 	stagegraph.PublishPreview: {
 		StartToCloseTimeout: 5 * time.Minute,
 		RetryPolicy:         retryPolicy(2*time.Second, 5),
