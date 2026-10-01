@@ -3817,5 +3817,7 @@ Open, for the owner:
 - **Removed from the monorepo:** `deploy/coolify-mcp.yaml` and `deploy/docker/coolify-mcp/` (the stale second copy; git history keeps it).
 - **Left as found:**
   - Coolify's API refuses to change the app's `repository_project_id`, which still names the monorepo. It only matters for push webhooks, and pushes do not start deployments on this install anyway, so `coolify-mcp` is deployed by hand after a server change.
+  - **Why no push deploys anything (checked 07:55):** GitHub cannot reach Coolify. The webhook endpoint `/webhooks/source/github/events` answers on the tailnet (200) and not on the public address, closed 09-14. This is fleet-wide.
+- [ ] **Owner decision: make pushes deploy again.** A (default): publish only Coolify's `/webhooks/*` path through the Cloudflare tunnel; GitHub signs each call with the app's secret, the rest of Coolify stays tailnet-only. B: a GitHub Action joins the tailnet with the `tag:docker` auth key and calls Coolify's deploy API. C: keep deploying by hand. Then repoint `coolify-mcp`'s webhook link to `propria-plugins` (UI only, or recreate the app).
   - Codex's default model was changed to `gpt-6.1-sol` between 09-30 and 10-01 (not by this session); `codex exec` answers "not supported when using Codex with a ChatGPT account". The Codex check above ran with `-m gpt-5.6-sol`.
 - [ ] **Owner:** Codex's default model `gpt-6.1-sol` is rejected for this account; choose the model it should use.
