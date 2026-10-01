@@ -110,6 +110,16 @@ services:
       # Entity/event extraction (2026-09-26): kimi-k3 on NVIDIA NIM; without the key only the
       # participant rules run. Byline: Claude Code · Opus 5.5 · 2026-09-26
       ENTITY_MODEL_API_KEY_FILE: /run/secrets/nvidia-api-key
+      # Weaviate first (owner 2026-09-18, 2026-09-26; OD-06 answered 2026-10-01 07:17):
+      # every run's extracted records become searchable in the owner-approved
+      # MsgEvents20260918 before approval and the canonical commit. Required at startup.
+      # Weaviate publishes on the ovh-files tailnet IP (coolify-proxy owns host 8080).
+      # The embedder is the collection's own (NIM nemotron-3-embed-1b, 2048-d, text_nim).
+      # Byline: Claude Code · Opus 5.5 · 2026-10-01
+      CONTEXT_SEARCH_WEAVIATE_URL: ${CONTEXT_SEARCH_WEAVIATE_URL:-http://100.91.190.107:8082}
+      CONTEXT_SEARCH_COLLECTION: MsgEvents20260918
+      CONTEXT_SEARCH_VECTOR_NAME: text_nim
+      CONTEXT_SEARCH_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
     volumes:
       - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
       - /data/probata/volumes/proffer/parser-bundles:/data/proffer/parser-bundles

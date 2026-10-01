@@ -137,12 +137,15 @@ const DeriveSMSThreads StageID = "derive_sms_threads_activity"
 // analysis agent can apply one. Filtering here would make it a hindsight
 // reader and trip engine/contextreview's tripwire.
 //
-// It is an OptionalStage rather than a member of Stages because promoting it
-// to a universal ancestor of PublishGeneration would make a Weaviate outage
-// block every run from completing. That coupling is an owner decision, not a
-// default.
+// The owner made it mandatory (OD-06, answered 2026-10-01 07:17: target
+// MsgEvents20260918, Weaviate first on every run). The workflow schedules it on
+// every new history behind the version marker
+// proffer-weaviate-first-context-search-v1, so a Weaviate failure stops the run
+// before the commit. It stays in OptionalStages, not Stages, only because
+// histories recorded before that marker never ran it and must replay.
 //
 // Byline: Claude Code · Opus 5 · 2026-09-26
+// Byline: Claude Code · Opus 5.5 · 2026-10-01 (mandatory, scheduled)
 const PublishContextSearch StageID = "publish_context_search_activity"
 
 // OptionalStages describes version-gated stages that are real members of a

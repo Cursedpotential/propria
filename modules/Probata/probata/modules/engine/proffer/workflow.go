@@ -33,6 +33,10 @@ const (
 	// Byline: Claude Code · Opus 5 · 2026-09-20
 	deriveStructuredTextChangeID = "proffer-derive-structured-text-route-v1"
 	deriveStructuredTextVersion  = workflow.Version(1)
+	// Weaviate-first publish before approval (PR-07, OD-06).
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	contextSearchChangeID = "proffer-weaviate-first-context-search-v1"
+	contextSearchVersion  = workflow.Version(1)
 	// SelectStructuredELTActivityName and ExecuteStructuredELTActivityName are
 	// the implementation-specific Temporal names for DuckDB execution of the
 	// logical SelectParser and ExecuteParser stages. The Activity package
@@ -613,6 +617,28 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		r.operation.SourceRepresentationRef = activeOriginalRef
 		r.operation.ChunkGenerationRef = chunkGenerationRef
 		r.operation.ChunkReceiptRef = chunkReceiptRef
+	}
+
+	// Weaviate first (owner 2026-09-18 "IT ALL GOES TO WEAVIATE FIRST",
+	// 2026-09-26 extract -> searchable -> confirm -> commit; OD-06 answered
+	// 2026-10-01: MsgEvents20260918). Every verified generation becomes
+	// searchable before the preview, the owner's approval and the canonical
+	// seal/publish. A failure stops the run here, before any commit, with the
+	// stage's own reason. Histories recorded before this marker replay without
+	// it. Byline: Claude Code · Opus 5.5 · 2026-10-01
+	if workflow.GetVersion(ctx, contextSearchChangeID, workflow.DefaultVersion, contextSearchVersion) != workflow.DefaultVersion {
+		extractionAttemptRef := rawBundleRef
+		if contextChunkingInput != nil && contextChunkingInput.AttemptRef != "" {
+			extractionAttemptRef = contextChunkingInput.AttemptRef
+		}
+		if _, err := r.exec(ctx, stagegraph.PublishContextSearch, in.DeclaredFormat, map[string]Ref{
+			"normalized_generation":   normalizedGenerationRef,
+			"normalized_verification": normalizedVerificationRef,
+			"extraction_attempt":      extractionAttemptRef,
+		}); err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
 	}
 
 	// The browser-facing preview is projected only after normalized validation

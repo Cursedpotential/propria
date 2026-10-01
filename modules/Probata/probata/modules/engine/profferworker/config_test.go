@@ -22,15 +22,23 @@ func setWorkerEnvironment(t *testing.T) {
 	if err := os.WriteFile(gatewayTokenFile, []byte("gateway-token-value\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	embedKeyFile := filepath.Join(root, "nvidia-api-key")
+	if err := os.WriteFile(embedKeyFile, []byte("nim-key-value"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	values := map[string]string{
-		"TEMPORAL_HOST_PORT":         "temporal:7233",
-		"TEMPORAL_NAMESPACE":         "default",
-		"TEMPORAL_TASK_QUEUE":        "proffer-v1",
-		"PLATFORM_DATABASE_URL_FILE": databaseURLFile,
-		"SOURCE_OBJECT_DIR":          filepath.Join(root, "source"),
-		"PARSER_BUNDLE_DIR":          filepath.Join(root, "parser"),
-		"NORMALIZED_BUNDLE_DIR":      filepath.Join(root, "normalized"),
-		"INVENTORY_MANIFEST_DIR":     filepath.Join(root, "inventory"),
+		// Weaviate-first stage (Claude Code · Opus 5.5 · 2026-10-01).
+		"CONTEXT_SEARCH_WEAVIATE_URL":       "http://weaviate.example.test:8082",
+		"CONTEXT_SEARCH_COLLECTION":         "MsgEvents20260918",
+		"CONTEXT_SEARCH_EMBED_API_KEY_FILE": embedKeyFile,
+		"TEMPORAL_HOST_PORT":                "temporal:7233",
+		"TEMPORAL_NAMESPACE":                "default",
+		"TEMPORAL_TASK_QUEUE":               "proffer-v1",
+		"PLATFORM_DATABASE_URL_FILE":        databaseURLFile,
+		"SOURCE_OBJECT_DIR":                 filepath.Join(root, "source"),
+		"PARSER_BUNDLE_DIR":                 filepath.Join(root, "parser"),
+		"NORMALIZED_BUNDLE_DIR":             filepath.Join(root, "normalized"),
+		"INVENTORY_MANIFEST_DIR":            filepath.Join(root, "inventory"),
 		// A fifth non-nested shared root since 2026-09-21; the deployed value
 		// is the /data/proffer/derive-scratch bind mount.
 		"DERIVE_SCRATCH_DIR":              filepath.Join(root, "derive-scratch"),

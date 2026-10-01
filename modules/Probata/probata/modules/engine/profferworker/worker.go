@@ -61,6 +61,10 @@ type Registrations struct {
 	// Extraction serves the entity/event extraction workflows (extraction.go).
 	// Byline: Claude Code · Opus 5.5 · 2026-09-25
 	Extraction activities.EntityExtractionActivities
+	// ContextSearch is publish_context_search_activity, the Weaviate-first
+	// stage every new Proffer run schedules before the owner's approval.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	ContextSearch activities.PublishContextSearchActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -110,6 +114,7 @@ func RegisterAll(registrar interface {
 	activities.RegisterNormalizedPipelineActivities(registrar, registrations.Normalized)
 	activities.RegisterRepairActivities(registrar, registrations.Repair)
 	activities.RegisterPreviewProjectionActivity(registrar, registrations.Preview)
+	activities.RegisterPublishContextSearchActivity(registrar, registrations.ContextSearch)
 }
 
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
@@ -455,7 +460,12 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	contextSearch, err := buildContextSearch(pool, cfg.ContextSearch)
+	if err != nil {
+		return Registrations{}, err
+	}
 	return Registrations{
+		ContextSearch:         contextSearch,
 		RepairPlan:            repairPlan,
 		Extraction:            extraction,
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),

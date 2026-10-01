@@ -74,6 +74,9 @@ func registerRealActivities(t *testing.T, env *testsuite.TestWorkflowEnvironment
 		}
 		env.RegisterActivityWithOptions(placeholderStageActivity, activity.RegisterOptions{Name: string(d.ID)})
 	}
+	// The Weaviate-first stage runs on every new history.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	env.RegisterActivityWithOptions(placeholderStageActivity, activity.RegisterOptions{Name: string(stagegraph.PublishContextSearch)})
 	candidate := proffer.HandlerCandidate{HandlerID: "sbv", HandlerVersion: "test", ExecutionPath: proffer.HandlerPathDecoder, CompatibilityRef: "compatibility-ref", Reason: "integration decoder"}
 	env.OnActivity(proffer.RecommendHandlerActivityName, mock.Anything, mock.Anything).Return(proffer.HandlerRecommendationResult{
 		RecommendationRef: "recommendation-ref", ReceiptRef: "recommendation-receipt", DetectedFormat: "whatsapp_export_json",
@@ -89,6 +92,7 @@ func registerRealActivities(t *testing.T, env *testsuite.TestWorkflowEnvironment
 		}
 		env.OnActivity(string(d.ID), mock.Anything, mock.Anything).Return(stageStub(d.ID), nil).Once()
 	}
+	env.OnActivity(string(stagegraph.PublishContextSearch), mock.Anything, mock.Anything).Return(stageStub(stagegraph.PublishContextSearch), nil).Maybe()
 }
 
 func integrationInput() proffer.WorkflowInput {
@@ -161,8 +165,8 @@ func TestIntegrationApprovedRunsAllStagesAndCallsRealParserHTTP(t *testing.T) {
 	if result.Status != proffer.StatusSuccess {
 		t.Errorf("result.Status = %q, want %q", result.Status, proffer.StatusSuccess)
 	}
-	if len(result.Stages) != len(stagegraph.Stages) {
-		t.Errorf("result.Stages has %d entries, want %d (every stage exactly once)", len(result.Stages), len(stagegraph.Stages))
+	if len(result.Stages) != len(stagegraph.Stages)+1 {
+		t.Errorf("result.Stages has %d entries, want %d (every stage exactly once, plus publish_context_search)", len(result.Stages), len(stagegraph.Stages)+1)
 	}
 	if got := atomic.LoadInt32(&n8n.selectCalls); got != 1 {
 		t.Errorf("fake n8n select endpoint called %d times, want exactly 1", got)

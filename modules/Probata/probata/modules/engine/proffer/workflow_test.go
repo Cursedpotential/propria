@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 
@@ -96,6 +97,10 @@ func placeholderActivity(_ context.Context, _ StageRequest) (StageResult, error)
 	return StageResult{}, errors.New("proffer: placeholder activity ran unmocked")
 }
 
+func succeedingContextSearchActivity(_ context.Context, _ StageRequest) (StageResult, error) {
+	return stageStub(stagegraph.PublishContextSearch), nil
+}
+
 func placeholderHandlerRecommendation(_ context.Context, _ StageRequest) (HandlerRecommendationResult, error) {
 	return HandlerRecommendationResult{}, errors.New("proffer: placeholder handler recommendation ran unmocked")
 }
@@ -147,6 +152,13 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 		// SDK's name-based dispatch. Byline: Claude Code · Opus 5 · 2026-09-20
 		if d.ID == stagegraph.DeriveSMSThreads {
 			env.RegisterActivityWithOptions(placeholderDeriveActivity, activity.RegisterOptions{Name: string(d.ID)})
+			continue
+		}
+		// The Weaviate-first stage runs on every new history, so tests that do
+		// not exercise it get a succeeding body; tests that do mock it with
+		// OnActivity, which takes precedence. Byline: Claude Code · Opus 5.5 · 2026-10-01
+		if d.ID == stagegraph.PublishContextSearch {
+			env.RegisterActivityWithOptions(succeedingContextSearchActivity, activity.RegisterOptions{Name: string(d.ID)})
 			continue
 		}
 		env.RegisterActivityWithOptions(placeholderActivity, activity.RegisterOptions{Name: string(d.ID)})
@@ -284,8 +296,15 @@ func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 		t.Errorf("result.SourceVersionRef = %q, want the register_source stage's stub ref", result.SourceVersionRef)
 	}
 
-	if len(result.Stages) != len(stagegraph.Stages) {
-		t.Fatalf("result.Stages has %d entries, want %d (every stage exactly once)", len(result.Stages), len(stagegraph.Stages))
+	// Every required stage plus the Weaviate-first stage, which every new
+	// history schedules (Claude Code · Opus 5.5 · 2026-10-01).
+	if len(result.Stages) != len(stagegraph.Stages)+1 {
+		t.Fatalf("result.Stages has %d entries, want %d (every stage exactly once, plus publish_context_search)", len(result.Stages), len(stagegraph.Stages)+1)
+	}
+	searchAt := order.indexOf(string(stagegraph.PublishContextSearch))
+	if searchAt < 0 || searchAt < order.indexOf(string(stagegraph.VerifyNormalizedGeneration)) ||
+		searchAt > order.indexOf(string(stagegraph.PublishPreview)) || searchAt > order.indexOf(string(stagegraph.SealGeneration)) {
+		t.Errorf("publish_context_search must run after verify_normalized_generation and before the preview and seal; order = %v", order.snapshot())
 	}
 	seen := make(map[stagegraph.StageID]int, len(result.Stages))
 	for _, s := range result.Stages {
@@ -359,8 +378,8 @@ func TestOperationQueryTracksStagesHumanWaitsAndTerminalCompletion(t *testing.T)
 	if terminal.SourceVersionRef != stageStub(stagegraph.RegisterSource).Ref {
 		t.Fatalf("terminal source version ref = %q", terminal.SourceVersionRef)
 	}
-	if terminal.CompletedStageCount != len(stagegraph.Stages) || len(terminal.Stages) != len(stagegraph.Stages) {
-		t.Fatalf("terminal stages = count %d query rows %d, want %d", terminal.CompletedStageCount, len(terminal.Stages), len(stagegraph.Stages))
+	if want := len(stagegraph.Stages) + 1; terminal.CompletedStageCount != want || len(terminal.Stages) != want {
+		t.Fatalf("terminal stages = count %d query rows %d, want %d", terminal.CompletedStageCount, len(terminal.Stages), want)
 	}
 }
 
@@ -1699,5 +1718,35 @@ func TestCancelAtChunkPreviewHoldPreventsSealAndPublish(t *testing.T) {
 	state := queryOperation(t, env)
 	if state.Lifecycle != OperationCancelled || !state.Terminal || state.Reason != "cancelled by owner@example.com: test run" {
 		t.Fatalf("operation state = %+v, want terminal cancelled with the receipt's actor and reason", state)
+	}
+}
+
+// TestWeaviateFailureStopsTheRunBeforeTheCommit proves "Weaviate first": when
+// the search publish fails, nothing after it runs -- no preview, no seal, no
+// canonical publish -- and the reason reaches the operator.
+// Byline: Claude Code · Opus 5.5 · 2026-10-01
+func TestWeaviateFailureStopsTheRunBeforeTheCommit(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	env.OnActivity(string(stagegraph.PublishContextSearch), mock.Anything, mock.Anything).
+		Return(StageResult{}, temporal.NewNonRetryableApplicationError("weaviate rejected search object", "weaviate", nil)).Once()
+	order := newOrderRecorder(env)
+	approveHold(env)
+
+	env.ExecuteWorkflow(ProfferWorkflow, testInput())
+
+	err := env.GetWorkflowError()
+	if err == nil || !strings.Contains(err.Error(), "weaviate rejected search object") {
+		t.Fatalf("workflow error = %v, want the Weaviate failure reason", err)
+	}
+	for _, later := range []stagegraph.StageID{stagegraph.PublishPreview, stagegraph.SealGeneration, stagegraph.PublishGeneration} {
+		if order.contains(string(later)) {
+			t.Errorf("%s ran after the Weaviate-first stage failed", later)
+		}
+	}
+	if !order.contains(string(stagegraph.VerifyNormalizedGeneration)) {
+		t.Errorf("verify_normalized_generation never ran; order = %v", order.snapshot())
 	}
 }

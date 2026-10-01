@@ -182,6 +182,15 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 		HeartbeatTimeout:    2 * time.Minute,
 		RetryPolicy:         retryPolicy(15*time.Second, 3),
 	},
+	stagegraph.PublishContextSearch: {
+		// Pages the generation, embeds each page through NIM and writes it to
+		// Weaviate. Every write is an idempotent upsert by deterministic id, so
+		// retries are safe; the heartbeat (one per page) detects a stall.
+		// Byline: Claude Code · Opus 5.5 · 2026-10-01
+		StartToCloseTimeout: 2 * time.Hour,
+		HeartbeatTimeout:    2 * time.Minute,
+		RetryPolicy:         retryPolicy(10*time.Second, 4),
+	},
 	stagegraph.PublishPreview: {
 		StartToCloseTimeout: 5 * time.Minute,
 		RetryPolicy:         retryPolicy(2*time.Second, 5),

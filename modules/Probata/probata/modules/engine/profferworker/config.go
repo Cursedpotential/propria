@@ -73,6 +73,10 @@ type Config struct {
 	// optional: unset, that one Activity fails closed with a clear reason and
 	// nothing else changes. Byline: Claude Code · Opus 5.5 · 2026-09-25
 	Catalog CatalogConfig
+
+	// ContextSearch configures the Weaviate-first stage (context_search.go).
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	ContextSearch ContextSearchConfig
 }
 
 // CatalogConfig is the catalog connection plus the object store its keys are
@@ -242,6 +246,9 @@ func LoadConfig() (Config, error) {
 	catalog, catalogProblems := loadCatalogConfig()
 	cfg.Catalog = catalog
 	problems = append(problems, catalogProblems...)
+	contextSearch, contextSearchProblems := loadContextSearchConfig()
+	cfg.ContextSearch = contextSearch
+	problems = append(problems, contextSearchProblems...)
 	if len(problems) > 0 {
 		return Config{}, fmt.Errorf("proffer worker: invalid configuration: %s", strings.Join(problems, "; "))
 	}

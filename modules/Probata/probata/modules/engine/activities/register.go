@@ -269,6 +269,26 @@ func RegisterStructuredELTActivities(registrar ActivityRegistrar, activities Str
 	registrar.RegisterActivityWithOptions(activities.ExecuteStructuredELT, activity.RegisterOptions{Name: ExecuteStructuredELTActivityName})
 }
 
+// NewPublishContextSearchActivities binds the Weaviate-first publish to
+// Temporal heartbeats and attempt numbers. Byline: Claude Code · Opus 5.5 · 2026-10-01
+func NewPublishContextSearchActivities(source ContextSearchSourceStore, embedder ContextSearchEmbedder, target ContextSearchTarget, collection string) PublishContextSearchActivities {
+	return PublishContextSearchActivities{
+		Source: source, Embedder: embedder, Target: target, Collection: collection,
+		Heartbeat: func(ctx context.Context, progress Progress) {
+			activity.RecordHeartbeat(ctx, progress)
+		},
+		Attempt: func(ctx context.Context) int32 {
+			return activity.GetInfo(ctx).Attempt
+		},
+	}
+}
+
+// RegisterPublishContextSearchActivity installs publish_context_search_activity
+// under its exact stage-graph identity.
+func RegisterPublishContextSearchActivity(registrar ActivityRegistrar, activities PublishContextSearchActivities) {
+	registrar.RegisterActivityWithOptions(activities.PublishContextSearch, activity.RegisterOptions{Name: PublishContextSearchActivityName})
+}
+
 // RegisterDeriveSMSThreadsActivity installs the streaming derivation Activity
 // (derive_sms_threads.go) under its exact stage-graph identity. It is a
 // separate Activity, never an alias of execute_parser_activity.

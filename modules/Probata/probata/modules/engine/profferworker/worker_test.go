@@ -54,13 +54,14 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 		t.Fatalf("named workflow registrations = %v, want %q and %q", recorder.workflowNames, proffer.BatchWorkflowName, repairplan.WorkflowName)
 	}
 	const replayAliasCount = 3
-	// 6 = 2 structured-ELT + derive_sms_threads + 3 handler/flow standalones,
-	// plus the 4 batch-by-folder Activities and the 5 repair-plan Activities.
-	const standaloneActivityCount = 6
+	// 7 = 2 structured-ELT + derive_sms_threads + publish_context_search + 3
+	// handler/flow standalones, plus the 4 batch-by-folder Activities and the 5
+	// repair-plan Activities. (publish_context_search: Claude Code · Opus 5.5 · 2026-10-01)
+	const standaloneActivityCount = 7
 	const batchActivityCount = 4
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 6 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 7 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0
@@ -112,6 +113,9 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// Byline: Claude Code · Opus 5 · 2026-09-20
 	if registered[string(stagegraph.DeriveSMSThreads)] != 1 {
 		t.Errorf("derive activity %q registered %d times", stagegraph.DeriveSMSThreads, registered[string(stagegraph.DeriveSMSThreads)])
+	}
+	if registered[string(stagegraph.PublishContextSearch)] != 1 {
+		t.Errorf("weaviate-first activity %q registered %d times", stagegraph.PublishContextSearch, registered[string(stagegraph.PublishContextSearch)])
 	}
 	if registered[proffer.RecommendHandlerActivityName] != 1 || registered[proffer.ValidateHandlerSelectionActivityName] != 1 {
 		t.Errorf("handler recommendation/validation activities were not registered exactly once: %#v", registered)
