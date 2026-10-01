@@ -3683,4 +3683,113 @@ Open, for the owner:
 - **Clients:** OpenCode and Gemini `propria-docs` entries pointed at the retired server `0745d76a…`; repointed to `aca1b85d…` (backups `*.bak-20260929-contextforge-docstore` beside each file). The public route `mcp.mitechconsult.com/servers/aca1b85d…/mcp` lists the 5 tools. Codex and the Claude plugin (0.8.5 to 0.9.1) already used it. OpenCode's `agno-gateway` entry points at server `2c60f39f…`, which does not exist in ContextForge.
 - **Gap for "everything through ContextForge":** gateways registered but offered to clients by no virtual server: `coolify-write` (21 tools), `advocatio` (5), `atomic-tools` (1), and the raw Surreal `docs` (14) and `mem` (14). Virtual servers today: `propria-docstore` (5), `agent-memory` (29), `dev-docs` (10). Claude Code sessions still load context7, n8n-docs, cloudflare docs and octopoda directly, duplicating `dev-docs` and `agent-memory`.
 - ccc: the desktop code-index daemon was stopped by its safety guard at 01:09 EDT (`system_commit_pressure`; the daemon itself held 547 MB of its 3 GB limit). The fault latch is in place and was not cleared. Index intact: 59,023 chunks, 3,193 files (Probata module).
-- [ ] Owner decision: virtual servers for coolify-write, advocatio and atomic-tools (default: one each, named as the gateway), then repoint clients and drop the direct duplicates; remove OpenCode's dead `agno-gateway` entry; remove the two switched-off ContextForge entries.
+- [x] Owner decision: virtual servers for coolify-write, advocatio and atomic-tools. Owner picked option A on 09-29; carried out in the 2026-09-30 entry below, where the items still open are listed.
+
+## 2026-09-30 07:30 – 09:50 EDT — everything through ContextForge (option A), context-mode, Morph, and the `surrealdb` plugin (owner orders 09-29 08:42, 09-30 08:20 and 08:23)
+
+> _Byline: Claude Code · Fable 5.1 · 2026-09-30._
+
+- Owner: option A ("one virtual server each for coolify-write, advocatio, atomic-tools; repoint clients; drop the direct duplicates; remove the dead agno-gateway"); 08:20 pull in the skills SurrealDB publishes, combine them with how our real Surreal deployments are reached and used, and give it tools; 08:23 bring context-mode and the Morph MCP into Claude and Codex.
+- **ContextForge virtual servers created (API):** `coolify-write` `e0bc95b5…` (21 tools), `advocatio` `48d341d4…` (5), `atomic-tools` `85016c52…` (1). Verified on the public route with a real `coolify-write-list-servers` call.
+- **ContextForge `surrealdb` server** `b67cbe99…`: ten tools, `query`, `info`, `list`, `select` and `run` for the two existing gateways `docs` (surreal-docs, `probata`/`docs`) and `mem` (surreal-case, `probata_memory`/`memory`; the case store `fct`/`case` through an inline `USE`). The 08:20 order replaces the 09-29 choice to leave those two gateways unexposed. The `use` tool is left out because a namespace switch does not survive to the next call (tested), and the six write tools are left out. Verified with real calls: row counts on `docs`, `fn::memory_stats` on `mem`, `INFO FOR DB` on `fct`/`case`.
+- **Clients repointed:**
+  - Claude Code: user entry `dev-docs` (ContextForge) added and checked with real context7 and n8n-docs calls; the direct `n8n-docs` entry removed; the `context7` plugin switched off.
+  - Codex: `propria-docs` tool names corrected to `docstore-*`; direct `context7`, `n8n-docs` and `cloudflare-docs` switched off; connectors `dev-docs` and `surrealdb` added (bearer from `CF_MCP_CLIENT_TOKEN`).
+  - OpenCode: the dead `agno-gateway` and `graphiti` entries removed.
+  - Backups beside each file: `*.bak-20260930-contextforge`, `*.bak-20260930-morph`, `~/.claude.json.bak-20260930-morph-devdocs`.
+- **Not switched: the coolify-write plugin.** The hosted `coolify-mcp` is built from the monorepo copy `modules/Probata/probata/deploy/docker/coolify-mcp/server.py` (21 tools); the plugin's own server has 39 (1.1.0, committed this morning by another session). Pointing the plugin at ContextForge now would drop 18 tools. Findings and the four steps sent to that session.
+- **context-mode 1.0.169:**
+  - Claude Code: the upstream plugin installed from its own marketplace (`mksglu/context-mode`), the form `enabledPlugins` already named. Its marketplace registration had gone missing, so the plugin was switched on but not installed; its data folder holds no session after 08-14. `claude mcp list`: Connected; a real `ctx_execute` call returned.
+  - Effect from each session's next start (tested against the hook): `curl`/`wget` that print a body and `WebFetch` are refused and pointed at the `ctx_*` tools. Status-only probes (`-o /dev/null -w %{http_code}`), curl inside `ssh`, `gh`, python and everything else run as before, some with a one-line tip.
+  - Codex: the existing MCP entry starts and lists 11 tools; a real Codex session reached `ctx_execute` and stopped at Codex's approval prompt, which `codex exec` cannot answer. Codex hooks and the routing rules file are not installed.
+- **Morph MCP:** `MORPH_API_KEY` is defined nowhere (no user variable, no file under `~/.secrets`), and the Codex, OpenCode and Gemini entries held the literal `${MORPH_API_KEY}`, which Codex and OpenCode do not expand. So Morph has been dead in all three. References fixed: Codex `env_vars = ["MORPH_API_KEY"]`, OpenCode `{env:MORPH_API_KEY}`; Claude Code got a `morph-mcp` user entry. The server connects and offers 0 tools until the variable exists. The only copy of the key on this machine is in old `~/.claude.json.bak-*` files; copying it out was refused by the permission classifier, so setting the variable is the owner's.
+- **`surrealdb` plugin 1.0.0** (`propria-plugins` `143499f`, pushed):
+  - 11 official skills, byte for byte from `surrealdb/agent-skills` and `surrealdb/ai-claude-plugin`; `scripts/sync_upstream.py` refreshes them.
+  - `surrealdb-deployments`: surreal-docs, surreal-case (case store and agent memory), surreal-intake, Surrealist: addresses, namespaces, credentials by name, writers, rules. Every address and namespace checked live today.
+  - Tools: the `surrealdb` server above. Claude Code through the plugin's `.mcp.json` (Connected), Codex through its `surrealdb` connector (a real Codex session listed the ten tools).
+  - SurrealDB's cloud sign-in skills, its `.surql` format hook and its language-server entry are left out, with the reasons in the plugin README.
+  - Loose copies moved to `~/.claude/_quarantine/pluginified-20260930/`: the eight official skills from `~/.claude/skills` and from `~/.agents/skills` (OpenCode and Gemini got them from those folders, so they no longer list them), and the community pack `24601/surreal-skills`, whose skill name `surrealdb` collided with the plugin's entry skill.
+  - `modules/Probata/probata/AGENTS.md`: the `sq.py` section said it reaches "any probata SurrealDB store" and cited a skill path that no longer exists; corrected to the Docstore store, with a pointer to the plugin.
+- **Found while mapping the instances, not changed:**
+  - surreal-intake's `/mcp` answers `403 Host header is not allowed` (no `SURREAL_MCP_ALLOWED_HOSTS` on the service) and it has no ContextForge gateway, so it has no tools.
+  - surreal-case's allow-list exists only in Coolify's environment; `deploy/surreal-case.yaml` does not declare it. The same file still caps the instance at 2 GB and 1.5 CPUs, which `deploy/surreal-docs.yaml` records as the cause of a deadlock on 2026-09-09.
+  - `scripts/docstore/memory-schema-fallback/README.md` says the memory schema was never applied (it was, 09-16); `deploy/docker/progress-board/surfaces.json` says Surrealist is not deployed (it is).
+- [ ] **Owner:** set the `MORPH_API_KEY` user variable, or tell this session to copy the key out of `~/.claude.json.bak-2026-07-31-repowire`.
+- [ ] **Owner decision:** context-mode in Codex. A: leave it as tools only (default). B: also install its hooks and routing rules, which makes Codex refuse the same commands Claude Code now refuses.
+- [ ] **Owner decision:** tools for surreal-intake. A: leave it without (default; Intake is isolated on purpose). B: add the allow-list to its compose and a ContextForge gateway with its runtime user.
+- [ ] **Owner:** remove the two switched-off ContextForge entries (gateway `ctl`, server `propria-docstore-retired-8172`).
+- [ ] coolify-write lane: build the hosted `coolify-mcp` from the plugin source, then refresh the gateway's tools, add them to the server, and point the plugin at it.
+
+## 2026-09-30 15:50–16:40 EDT — Case Bible: what to grab, from the catalog alone (owner 15:52)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-30. Catalog reads only: no B2, R2, Drive, OneDrive or local reads, no model calls. Script `casebible/tools/grab_plan_20260930.sql`; tables `raw_duck.best_copy_20260930`, `raw_duck.grab_plan_20260930` (new, additive). Inputs: the 09-20 reconciliation generation `2c2ae40f` (`catalog_reconcile.*`, B2 listing of 09-20) and `raw_duck.corrupt_recovery` (09-14)._
+
+**Owner rule recorded (15:53):** "The Case Bible is where it's supposed to get ingested from and live, and Probata SHOULD allow for sorting into the Bible if it's not in its home." Probata ingests from the Case Bible on B2, and a file found outside its home gets a "sort into the Bible" action in Probata, not a trip back through Intake. Same direction as Workbench N-03 (move files between buckets).
+
+**Answered from the record, no new reads**
+- **Recovery-dump copy (09-17): done and verified.** `verify_full.log` 09-17 13:00 UTC: `VERIFY PASS expected=40304 present=40304 missing=0 size_mismatch=0 extra=0`; ledger 40,304 × `ok`. The L799 item is closed.
+- **810-493-2840 is Matt's** (owner 15:50 "yes"): `msg_identity_confirm_20260930.sql`, status confirmed; Matt now 32 confirmed, 0 candidates; Katrina 7.
+- **The 09-16 per-source deletes are not recoverable as hidden B2 versions.** The 09-20 listing holds only 6,749 noncurrent versions (10.6 GB) and 6,760 hide markers, against 2.58 TiB deleted. The per-source copies are gone from B2; the originals are still at the sources.
+
+**Best copy per file (owner rule of 09-13: oldest real date, then most metadata, ties kept)** — `best_copy_20260930`
+- 434,837 distinct contents on B2 graded: 359,634 clear winners, 75,203 ties kept both.
+- Winning copy by source: D:\Backup 246,637 · OneDrive 98,306 · Drive salemnet 65,459 · F:\Disk Drill 20,382 · Drive salem85 9,937 · D:\ root 18 · F:\case 4.
+- **217,635 contents have no real date on any copy** (every date is a sentinel, pre-1990 or a batch stamp). Their winner is decided by metadata alone.
+- Bytes are identical within a content, so none of this needs a fetch. It is the metadata each file's package carries.
+
+**What needs bytes** — `grab_plan_20260930`
+
+| Kind | Result | Files | Size | Action |
+|---|---|---:|---:|---|
+| Corrupt (all-zero) files, 10,285 distinct | good copy on B2 now | 9,414 | 10.0 GB | nothing (8,527 same name, 887 renamed) |
+| | good copy only in R2 | 795 | 0.28 GB | copy R2 → B2 |
+| | no good copy anywhere | 76 | 0.10 GB | none; mostly D:\Backup `_DUPLICATE` photos, `.vcf`, `.plist` |
+| Bytes only as an old B2 version | restore on B2 | 1,450 | 0.28 GB | server-side copy of that version; no source read |
+| Files B2 cannot hash (multipart uploads) | present by exact name + size | 1,049 | 2,097 GB | nothing now |
+| | present under another name, same exact size | 267 (227 distinct) | 492 GB | nothing now; e.g. Drive `takeout-20231119T033545Z-002-069.zip` = vault `…/Takeout (1)/takeout-20231119T033545Z-002.zip` |
+| R2 objects never tied to B2 | present by name + size | 17,834 | 291 GB | nothing |
+| | on R2 only | 10,235 | 3.24 GB | copy R2 → B2 after dropping junk (venv `.py/.js/.dll/.exe`, `.obsidian/plugins`) |
+
+- Also found: **103 visible vault objects (0.07 GB) are known zero-filled** and sit outside `_quarantine/`.
+- **Nothing has to be re-pulled from Drive, OneDrive or the local disks.** The fetch is R2 → B2 for at most ~11,030 small files (≈3.5 GB, less after the junk filter) plus 1,450 on-B2 version restores.
+- **Limit:** the 1,316 hash-less large files (2.6 TB) match by size, not by bytes. B2 stores no SHA-1 for them. Their byte check belongs to the per-source package step (D-154), which has to verify before any original is cleared.
+- **CB-4 (offline reconstruction, owner "yes" 15:50):** its purpose was what is provable, the exact gaps, and the cost of each. This entry and the two tables answer that. A narrative of 09-14 → 09-16 was not written.
+
+- [ ] **Owner go (metered, small): R2 → B2 copy** of the 795 corrupt replacements and the R2-only files, junk excluded. Add-only (`--immutable`), R2 egress free, ≈11k R2 GETs, B2 uploads free, +≈3.5 GB B2 storage.
+- [ ] **Owner go: restore the 1,450 old-version files** on B2 by server-side copy into their vault paths. No egress.
+- [ ] **Owner go: move the 103 zero-filled vault objects into `consignatio/intake/_quarantine/`** (B2 server-side copy + hide; nothing deleted), each replaced where a good copy exists.
+- [ ] Google file `Google Data Export Archive Contents (0015A63D).html`: owner answered "yes" to "re-export or drop"; which one is still open.
+- [ ] Build the per-source packages (D-154), with the byte check of the 227 renamed large files and the 1,049 name+size matches.
+
+## 2026-09-30 22:21–23:10 EDT — is every vault file what it claims to be? (owner 22:21)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-09-30. Owner: "make sure the files are verifiably what they say they are, ready for court evaluation if need be, and that there's no funny business with any of them." Catalog reads only. Script `casebible/tools/verification_20260930.sql` → `raw_duck.verification_20260930` (one row per visible vault object, 548,121; proof level + flags)._
+
+**Proof that the bytes on B2 are the source's bytes**
+
+| Proof | Files | Size | Meaning |
+|---|---:|---:|---|
+| `independent_sha1` | 474,960 | 344 GB | The source's own SHA-1 (Google Drive or OneDrive provider hash, or our D:/F: disk hasher) equals the SHA-1 B2 computed on upload. Two independent parties hashed the same bytes. |
+| `b2_sha1_only` | 73,126 | 1,515 GB | B2 has a SHA-1, but no catalogued source copy carries one to compare with (almost all are also `no_source_link`). |
+| `no_hash` | 35 | 338 GB | B2 stores no SHA-1 (multipart uploads). |
+
+**433,210 files (326 GB) are clean:** independent SHA-1 match and no flag except a missing real date.
+
+**Flags**
+- `no_source_link`, 73,161 files / 1,853 GB:
+  - 810 objects / 1,670 GB are the large hash-less files matched to their sources by exact size (Takeout zips, SMS XMLs).
+  - 41,801 / 126 GB are `onedrive/Pictures`, which has no source occurrence in the catalog at all.
+  - About 100 GB are disk-image work files (`image_remaining.dd`, digiKam `.tmp`) and a Windows ISO, not originals.
+- `altered_twin`, 40,991 files: another copy with the same name and the same size has different bytes.
+  - About 30,000 are tiny generated files (`.sig` 14,197, `.json` 10,331, `.class` 4,589).
+  - **About 2,700 media files over 1 MB** (`.png` 781, `.heic` 637, `.mp4` 632, `.jpg` 440, `.gif` 208) have a same-size twin with different bytes. That is the pattern a same-length metadata edit, an in-place partial corruption or a re-save leaves. Not classified yet: it needs a byte comparison of each pair.
+- `future_date`, 767: recorded dates 2042–2106, the corrupt timestamps the 09-18 audit noted on recovered files. Never usable as an origin date.
+- `zero_filled`, 103 (already in the 16:40 entry).
+- `no_real_date`: 217,635 contents (`best_copy_20260930`); the 297,882 in this table also counts the unlinked objects.
+
+**Court readiness is per file and is specified, not built:** the forensic package (D-154 Mode B, `Intake/backend/docs/SOURCE-METADATA-CAPTURE-AND-FORENSIC-PACKAGE-SPEC.md`). Each file chosen as evidence gets its package: raw provider responses, revisions, permissions, SHA-256 + BLAKE3 against every provider hash, a manifest hash, then Probata custody at promotion. The corpus-wide checks above decide which files are safe to choose.
+
+- [ ] **Owner go (no cost beyond compute): hash pass** on ovh-files over the 1,351 hash-less objects (1,316 matched-by-size + 35, about 2.6 TB): stream from B2, compute SHA-256/SHA-1/MD5, compare with each source's own SHA-256. B2 egress is free at this volume; about 3k download calls (< $0.01); about 5 h.
+- [ ] **Owner go (small): byte comparison of the ~2,700 same-size media twins** (about 15 GB read from B2). Classifies each pair as metadata-only change (and which field), partial corruption, or different content.
+- [ ] `onedrive/Pictures` provenance: find the OneDrive listing those 41,801 files came from and load it as occurrences (catalog first; no new OneDrive read unless no listing exists).
+- [ ] Decide the disk-image work files and the ISO: keep as artifacts, outside evidence selection.

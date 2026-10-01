@@ -261,27 +261,15 @@ def test_no_module_carries_its_own_copy_of_the_source_roots():
 
 
 def _embed_safe():
-    """Load embed_safe out of flow_docs without importing it.
+    """The one NIM input guard every Docstore embedding call goes through (nim_input.py).
 
-    flow_docs calls load_sources() at import time and installs a Surreal reauth patch, so
-    importing it here needs live configuration and leaks global state into every later test.
-    test_worker_safety already isolates flow_docs functions this way.
+    It is import-light on purpose: flow_docs (document chunks) and recall (memory claims and
+    recall queries) both import it, and flow_docs itself cannot be imported in a test.
     """
-    import ast
+    from nim_input import embed_input
     source = (Path(__file__).resolve().parents[1] / 'scripts/docstore/flow_docs.py').read_text(encoding='utf-8')
-    tree = ast.parse(source)
-    wanted = [node for node in tree.body
-              if (isinstance(node, ast.FunctionDef) and node.name == 'embed_safe')
-              or (isinstance(node, ast.Assign) and any(
-                  isinstance(t, ast.Name) and (t.id.startswith('_DATA_') or t.id == 'EMBED_MAX_CHARS')
-                  for t in node.targets))]
-    assert any(isinstance(n, ast.FunctionDef) for n in wanted), 'embed_safe not found in flow_docs'
-    module = ast.Module(body=[ast.Import(names=[ast.alias(name='re'), ast.alias(name='sys')])] + wanted,
-                        type_ignores=[])
-    ast.fix_missing_locations(module)
-    namespace: dict = {}
-    exec(compile(module, '<isolated-flow-docs>', 'exec'), namespace)
-    return namespace['embed_safe']
+    assert '.embed(embed_input(chunk.text))' in source, 'flow_docs must embed through nim_input.embed_input'
+    return embed_input
 
 
 def test_embed_safe_defuses_every_data_uri_and_never_sends_blank():

@@ -322,10 +322,15 @@ or `<PROVIDER>_MODEL_ID`. See `server/core/settings.py` for resolution rules.
 
 ## Querying SurrealDB stores (every agent)
 
-> _Byline: Claude Code · Opus 5 · 2026-09-10 — owner order: everybody runs the same query format._
+> _Byline: Claude Code · Opus 5 · 2026-09-10 — owner order: everybody runs the same query format.
+> Scope corrected 2026-09-30 (Claude Code · Fable 5.1): `sq.py` reaches the Docstore store only._
 
-Inspect any probata SurrealDB store through `scripts/docstore/sq.py`, never a one-off script that prints raw SDK objects.
+Inspect the Docstore store (`surreal-docs`, namespace `probata`, database `docs`) through `scripts/docstore/sq.py`, never a one-off script that prints raw SDK objects.
 It normalises `RecordID`, datetimes, embeddings and bodies, then prints a DuckDB table; `--sql` runs DuckDB SQL over the result as table `r`.
+
+The other SurrealDB stores (the case store and the agent memory on `surreal-case`, the Intake graph on
+`surreal-intake`) are not reachable with `sq.py`. The map of every instance, its access rules and the
+SurrealQL tools are in the `surrealdb` plugin: `/surrealdb:surrealdb-deployments`.
 
 ```bash
 C:/Users/matts/.local/bin/python3.exe scripts/docstore/sq.py "SELECT * FROM todo LIMIT 5;"
@@ -333,7 +338,7 @@ C:/Users/matts/.local/bin/python3.exe scripts/docstore/sq.py "SELECT doc_type, s
 C:/Users/matts/.local/bin/python3.exe scripts/docstore/sq.py --target docs "INFO FOR DB;"
 ```
 
-Full usage, flags and rules: `plugins/docstore/skills/query/SKILL.md`.
+Full usage, flags and rules: the `propria-docstore` plugin's `query` skill (`/propria-docstore:query`).
 
 ## Further Reading
 
