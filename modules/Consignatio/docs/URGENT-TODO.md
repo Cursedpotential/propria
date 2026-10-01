@@ -3715,10 +3715,10 @@ Open, for the owner:
   - surreal-case's allow-list exists only in Coolify's environment; `deploy/surreal-case.yaml` does not declare it. The same file still caps the instance at 2 GB and 1.5 CPUs, which `deploy/surreal-docs.yaml` records as the cause of a deadlock on 2026-09-09.
   - `scripts/docstore/memory-schema-fallback/README.md` says the memory schema was never applied (it was, 09-16); `deploy/docker/progress-board/surfaces.json` says Surrealist is not deployed (it is).
 - [ ] **Owner:** set the `MORPH_API_KEY` user variable, or tell this session to copy the key out of `~/.claude.json.bak-2026-07-31-repowire`.
-- [ ] **Owner decision:** context-mode in Codex. A: leave it as tools only (default). B: also install its hooks and routing rules, which makes Codex refuse the same commands Claude Code now refuses.
+- [x] **Owner decision:** context-mode in Codex. A: leave it as tools only (default). B: also install its hooks and routing rules, which makes Codex refuse the same commands Claude Code now refuses. Owner 09-30 22:29 "sure", taken as A; nothing changed.
 - [ ] **Owner decision:** tools for surreal-intake. A: leave it without (default; Intake is isolated on purpose). B: add the allow-list to its compose and a ContextForge gateway with its runtime user.
 - [ ] **Owner:** remove the two switched-off ContextForge entries (gateway `ctl`, server `propria-docstore-retired-8172`).
-- [ ] coolify-write lane: build the hosted `coolify-mcp` from the plugin source, then refresh the gateway's tools, add them to the server, and point the plugin at it.
+- [x] Build the hosted `coolify-mcp` from the plugin source, then refresh the gateway's tools, add them to the server, and point the plugin at it. Done 10-01 on the owner's order; see the 2026-10-01 07:05 entry.
 
 ## 2026-09-30 15:50–16:40 EDT — Case Bible: what to grab, from the catalog alone (owner 15:52)
 
@@ -3793,3 +3793,29 @@ Open, for the owner:
 - [ ] **Owner go (small): byte comparison of the ~2,700 same-size media twins** (about 15 GB read from B2). Classifies each pair as metadata-only change (and which field), partial corruption, or different content.
 - [ ] `onedrive/Pictures` provenance: find the OneDrive listing those 41,801 files came from and load it as occurrences (catalog first; no new OneDrive read unless no listing exists).
 - [ ] Decide the disk-image work files and the ISO: keep as artifacts, outside evidence selection.
+
+## 2026-10-01 07:05–07:35 EDT — the hosted Coolify server is the plugin's own server, federated through ContextForge (owner 07:05)
+
+> _Byline: Claude Code · Fable 5.1 · 2026-10-01._
+
+- Owner, 07:05: "how about just updating the hosted one to the version that we have locally. That way it can be federated in … make the hosted one right."
+- **The difference that had built up:** the hosted `coolify-mcp` was a second copy of the server in the monorepo (`modules/Probata/probata/deploy/docker/coolify-mcp/`), last touched 09-26, with 21 tools. The plugin's `scripts/server.py` has 42, and 9 of the 21 shared tools had newer code. Missing from the hosted copy: every database and service lifecycle and create/delete tool, the project tools, `update_application`, `list_application_envs`, `delete_application_env`, `get_service_env`, `set_service_image`, `list_deployments`, `cancel_deployment`, and the `coolify_api` passthrough.
+- **Why the plugin's server could not simply be hosted:** it lacked two patches the hosted copy carried. It ignored `COOLIFY_API`/`COOLIFY_API_TOKEN` in the process environment, and its HTTP start passed `host`/`port` to `FastMCP.run()`, which the official `mcp` SDK (1.29.0) does not accept. Both are now in the plugin's `server.py`, so one file serves the desktop over stdio and the container over streamable-HTTP.
+- **One source (`propria-plugins`):**
+  - `0a97ab5` coolify-write 1.1.1: the two hosting patches, `Dockerfile` (dependencies from the plugin's `pyproject.toml` + `uv.lock`), `compose.hosted.yaml`.
+  - `3cd2370` 1.2.0: `.mcp.json` attaches the ContextForge virtual server instead of starting a local server; Codex uses a `coolify-write` connector; skill docs rewritten (42 tools; refresh with `POST /gateways/<id>/tools/refresh`, never a gateway PUT, which the old `MCP-PATH.md` instructed).
+  - `08d61b9` 1.2.1: `get_infrastructure_overview` asks Coolify for its version (`GET /version`); the hosted server had reported "unknown".
+  - `3f38fa3` tools: the install sync skips Claude Code's `.in_use` markers. One vanished mid-walk and crashed the post-commit sync.
+- **Coolify app `coolify-mcp`** (`oyzznioap03u34xz125l90oq`) repointed with `update_application`: repository `Cursedpotential/propria-plugins`, base `/plugins/coolify-write`, compose `/compose.hosted.yaml`, watch path `plugins/coolify-write/**` (the old watch paths named files that did not exist). Deployments `dl6y180xi4y0bie0zm3pxhbr` and `u7wp1nunqbsszeudbbcra8le` finished; the app is running and healthy. It is the one Coolify app that does not build from the monorepo (root `AGENTS.md` and `docs/REPO_STRUCTURE.md` say so).
+- **ContextForge:** gateway `coolify-write` refreshed (21 tools added, 8 updated, none removed); virtual server `coolify-write` now holds all 42.
+- **Clients:** Claude Code's plugin and Codex's connector both attach `https://mcp.mitechconsult.com/servers/e0bc95b5…/mcp`. Codex's 22 per-tool approvals were carried over to the federated names and the old plugin-keyed ones removed (backup `~/.codex/config.toml.bak-20261001-coolify-contextforge`).
+- **Verified:**
+  - the hosted server directly: 42 tools, real `list_servers` and `list_deployments` calls;
+  - the public ContextForge route: 42 tools, `coolify-write-get-infrastructure-overview` returns version 4.1.2 and the three servers;
+  - `claude mcp list`: `plugin:coolify-write:coolify` Connected to that URL;
+  - a real Codex session: 42 tools, `coolify-write-list-servers` returned ovh-files, ion-control, ovh-app.
+- **Removed from the monorepo:** `deploy/coolify-mcp.yaml` and `deploy/docker/coolify-mcp/` (the stale second copy; git history keeps it).
+- **Left as found:**
+  - Coolify's API refuses to change the app's `repository_project_id`, which still names the monorepo. It only matters for push webhooks, and pushes do not start deployments on this install anyway, so `coolify-mcp` is deployed by hand after a server change.
+  - Codex's default model was changed to `gpt-6.1-sol` between 09-30 and 10-01 (not by this session); `codex exec` answers "not supported when using Codex with a ChatGPT account". The Codex check above ran with `-m gpt-5.6-sol`.
+- [ ] **Owner:** Codex's default model `gpt-6.1-sol` is rejected for this account; choose the model it should use.
