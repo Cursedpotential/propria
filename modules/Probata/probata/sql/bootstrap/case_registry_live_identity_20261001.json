@@ -1,0 +1,52 @@
+{
+  "byline": "Claude Code · Opus 5.5 · 2026-10-01",
+  "payload_schema_version": "live-case-registry-identity-v1",
+  "purpose": "The one real Matter and CourtCase Probata runs bind to (OD-05). This file is the approval payload the case_registry_import_receipt row points at; sql/bootstrap/seed_live_case_registry.sql writes the rows and the receipt.",
+  "approval": {
+    "approved_by": "owner",
+    "approved_on": "2026-10-01",
+    "record": [
+      "2026-10-01 07:17 EDT, owner, OD-05 answered: mint now; one real Matter and one real CourtCase with new UUIDv7 ids.",
+      "2026-10-01 07:42 EDT, owner: \"I don't really want test runs. I want you using real data with real names, and if it fucking works, we fucking leave it.\"",
+      "2026-10-01 07:46 EDT, owner: case facts taken from his own court documents in the vault, at his direction."
+    ],
+    "relayed_by": "the parent Claude Code session of 2026-10-01 (owner answers recorded there), to the go-live-identity agent"
+  },
+  "registry_rows": {
+    "matter": {
+      "id": "01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
+      "title": "Salem v. Kinzel (custody)",
+      "status": "active",
+      "verification_state": "confirmed"
+    },
+    "court_case": {
+      "id": "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
+      "matter_id": "01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
+      "caption": "Matthew S. Salem v Katrina Kinzel",
+      "docket_number": "2025-53985-DC",
+      "court_name": "Genesee County Circuit Court, Family Division (7th Judicial Circuit)",
+      "jurisdiction": "Genesee County, Michigan",
+      "case_type": "custody",
+      "status": "active",
+      "filed_on": null,
+      "is_primary": true,
+      "verification_state": "confirmed"
+    },
+    "partition": {
+      "partition_key": "live",
+      "matter_id": "01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
+      "default_court_case_id": "01a0f751-e07b-76a1-a738-eb3e3aa3e68c"
+    }
+  },
+  "facts_on_record": {
+    "caption_and_court": "vault object consignatio/vault/v1/Gmail - 7th Judicial Circuit Court Matthew S. Salem v Katrina Kinzel Case No. 2025-53985-DC Judge Weier Notice of Presentment Temporary Order Regarding Custody, Parenting Time Child Support & Other Relief Proof of Service.pdf (email from the Law Office of Griffiths & Willing, Wed Oct 8 2025: presented for filing with the Genesee County Circuit Court, Family Division)",
+    "docket_number_clerk_form": "2025-0000053985-DC, vault object consignatio/vault/v1/moved/_root-loose/2025-0000053985-DC - DAWN M. WEIER - Objection-CLK -  - 10-13-2025 - KINZEL,KATRINA, - OPRO.pdf",
+    "judge": "Dawn M. Weier",
+    "parties": "Matthew S. Salem, plaintiff (the owner); Katrina Kinzel, defendant",
+    "case_type": "custody (DC docket suffix)",
+    "filed_on": "unknown; the docket number gives the year 2025",
+    "matter_title": "the owner's memory note workspace-git-snapshot-recovery-asset.md calls it the Salem v. Kinzel custody case (Genesee County MI)",
+    "read_copies": "ovh-files /data/consignatio/court-ready-20261001/caseid-read/ (read from B2 2026-10-01)"
+  },
+  "not_in_this_payload": "registry.person rows for the parties are held: the person enums carry no plaintiff/defendant or opposing-party value (schema_snapshot_20260907.sql:10851-10852)."
+}
