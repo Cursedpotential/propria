@@ -2339,19 +2339,49 @@ CREATE FUNCTION working.check_context_thread_version_deferred() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog', 'working'
     AS $$
+-- Validates each thread version once per constraint-check statement (owner 2026-10-02, applied live); same invariants. Byline: Claude Code · Opus 5.5 · 2026-10-02
 DECLARE
     v_version_id UUID;
+    v_family TEXT;
+    v_setting TEXT;
+    v_memo JSONB;
+    v_entry JSONB;
+    v_ordinal BIGINT;
+    v_max_message BIGINT;
+    v_max_source BIGINT;
 BEGIN
     IF TG_TABLE_NAME LIKE '%_thread_version' THEN
         v_version_id := NEW.id;
     ELSE
         v_version_id := NEW.thread_version_id;
     END IF;
-    IF TG_TABLE_NAME LIKE 'first_party_%' THEN
+    v_family := CASE WHEN TG_TABLE_NAME LIKE 'first_party_%' THEN 'first_party' ELSE 'third_party' END;
+    v_setting := 'working.thread_version_checked_' || v_family;
+    v_memo := coalesce(nullif(current_setting(v_setting, true), ''), '{}')::jsonb;
+    v_entry := v_memo -> v_version_id::text;
+    IF v_entry IS NOT NULL AND v_entry->>'at' = statement_timestamp()::text THEN
+        IF TG_TABLE_NAME LIKE '%_thread_version' THEN
+            RETURN NULL;
+        ELSIF TG_TABLE_NAME LIKE '%_thread_message' THEN
+            v_ordinal := NEW.thread_ordinal;
+            IF v_ordinal <= (v_entry->>'max_message')::bigint THEN RETURN NULL; END IF;
+        ELSE
+            v_ordinal := NEW.source_anchor_ordinal;
+            IF v_ordinal <= (v_entry->>'max_source')::bigint THEN RETURN NULL; END IF;
+        END IF;
+    END IF;
+    IF v_family = 'first_party' THEN
         PERFORM working.validate_first_party_context_thread_version(v_version_id);
+        SELECT max(thread_ordinal) INTO v_max_message FROM working.first_party_context_thread_message WHERE thread_version_id = v_version_id;
+        SELECT max(source_anchor_ordinal) INTO v_max_source FROM working.first_party_context_thread_source WHERE thread_version_id = v_version_id;
     ELSE
         PERFORM working.validate_third_party_context_thread_version(v_version_id);
+        SELECT max(thread_ordinal) INTO v_max_message FROM working.third_party_context_thread_message WHERE thread_version_id = v_version_id;
+        SELECT max(source_anchor_ordinal) INTO v_max_source FROM working.third_party_context_thread_source WHERE thread_version_id = v_version_id;
     END IF;
+    v_memo := v_memo || jsonb_build_object(v_version_id::text, jsonb_build_object(
+        'at', statement_timestamp()::text, 'max_message', coalesce(v_max_message, -1), 'max_source', coalesce(v_max_source, -1)));
+    PERFORM set_config(v_setting, v_memo::text, true);
     RETURN NULL;
 END;
 $$;

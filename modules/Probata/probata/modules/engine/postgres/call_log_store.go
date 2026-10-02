@@ -263,13 +263,17 @@ func (s *CallLogStore) readCalls(ctx context.Context, tx pgx.Tx, generationID uu
 				tier = t
 			}
 		}
+		// The device side is the run's perspective person (owner 2026-10-02:
+		// "link to my name"); registry.person ids are registry.entity ids. An
+		// unknown counterparty stays empty for the owner to fill in.
+		selfEntity := strings.TrimSpace(resolution.PerspectivePersonID)
 		sender, recipient := disclosure.SelfIdentifier, counterparty
-		fromRaw, fromE164, fromEntity := disclosure.SelfIdentifier, "", ""
+		fromRaw, fromE164, fromEntity := disclosure.SelfIdentifier, "", selfEntity
 		toRaw, toE164, toEntity := counterparty, otherE164, otherEntity
 		if direction == "inbound" {
 			sender, recipient = counterparty, disclosure.SelfIdentifier
 			fromRaw, fromE164, fromEntity = counterparty, otherE164, otherEntity
-			toRaw, toE164, toEntity = disclosure.SelfIdentifier, "", ""
+			toRaw, toE164, toEntity = disclosure.SelfIdentifier, "", selfEntity
 		}
 		participants, _ := json.Marshal(payload.Participants)
 		recipients, _ := json.Marshal([]string{recipient})
