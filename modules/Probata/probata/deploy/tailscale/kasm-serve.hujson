@@ -1,0 +1,22 @@
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+//
+// Host-local Tailscale Service config for svc:kasm: Kasm Workspaces CE (deploy/kasm/, installed by its own
+// installer under /opt/kasm on ovh-files). P-1 step 4, owner GO 2026-10-02 08:39.
+//
+// Deployed copy: ovh-files /data/probata/config/tailscale-serve/kasm-serve.hujson (byte-identical).
+// Apply on ovh-files, the service host, then read it back:
+//   tailscale serve set-config --service=svc:kasm /data/probata/config/tailscale-serve/kasm-serve.hujson
+//   tailscale serve get-config --service=svc:kasm
+// The Service is registered with PUT /api/v2/tailnet/-/vip-services/svc:kasm (tcp:443), untagged like the other
+// Services the OAuth client in ~/.secrets/tailscale.env registers, and ovh-files is approved as its host.
+// Name: https://kasm.tilapia-skilift.ts.net. The name was held by the devbox's old Tailscale sidecar device `kasm`
+// until 2026-10-02, when the sidecar was removed and the owner deleted the device.
+//
+// Kasm's proxy serves HTTPS with its own self-signed certificate on 8443 (Coolify's Traefik owns 443 on this host),
+// hence https+insecure. Kasm's own login (users in /data/probata/secrets/kasm/kasm.env) applies behind this name.
+{
+  "version": "0.0.1",
+  "endpoints": {
+    "tcp:443": "https+insecure://100.91.190.107:8443"
+  }
+}

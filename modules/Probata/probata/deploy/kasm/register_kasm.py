@@ -9,6 +9,7 @@ deploy/kasm/workspaces/, piped in on stdin as one JSON object {"<file name>": <f
   ssh root@100.91.190.107 "python3 /data/probata/kasm-installer/register_kasm.py" < bundle.json
 
 What it does, each step only if not already present (matched by friendly name / username / server name):
+  0. the zone's proxy port follows the request port (0), for the 443 front doors.
   1. user `msalem` (owner) in the Administrators group, password generated once into kasm.env (KASM_OWNER_*).
   2. one Container workspace per workspaces/*.json with "workspace_type": "Container".
   3. the Guacamole RDP server + Server workspace from workspaces/*.json with "workspace_type": "Server".
@@ -40,6 +41,17 @@ def load_env() -> dict:
         if m:
             env[m.group(1)] = m.group(2)
     return env
+
+
+def secret_value(path: str | None, key: str | None) -> str:
+    """Read one KEY=value from a host secrets file (never printed). Empty when not configured."""
+    if not path or not key:
+        return ""
+    for line in open(path, encoding="utf-8"):
+        m = re.match(rf"^\s*{re.escape(key)}\s*=\s*(.*?)\s*$", line)
+        if m:
+            return m.group(1)
+    raise SystemExit(f"{key} not found in {path}")
 
 
 def call(path: str, body: dict) -> dict:
@@ -83,6 +95,14 @@ def main() -> int:
                                        "target_group": {"group_id": groups["Administrators"]}})
         print("msalem added to Administrators")
 
+    # 0. zone: Kasm is reached through 443 front doors (svc:kasm, kasm.int behind Traefik), not its own 8443, so the
+    # zone's proxy port must follow the request port (0); with 8443 the session websocket URLs point at a port the
+    # front doors do not serve.
+    for zone in call("/admin/get_zones", dict(tok)).get("zones", []):
+        if zone.get("proxy_port") != 0:
+            call("/admin/update_zone", {**tok, "target_zone": {**zone, "proxy_port": 0}})
+            print(f"zone {zone.get('zone_name')!r}: proxy_port -> 0")
+
     # 2/3. workspaces
     images = {i.get("friendly_name"): i for i in call("/admin/get_images", dict(tok)).get("images", [])}
     for fname, d in sorted(defs.items()):
@@ -117,7 +137,8 @@ def main() -> int:
                     "connection_port": srv["connection_port"], "connection_info": json.dumps(srv.get("connection_info", {})),
                     "max_simultaneous_sessions": 1, "enabled": True, "zone_id": None,
                     "connection_username": srv.get("connection_username", "{sso_username}"),
-                    "connection_password": "", "use_user_private_key": False}})["server"]
+                    "connection_password": secret_value(srv.get("password_file"), srv.get("password_key")),
+                    "use_user_private_key": False}})["server"]
                 print(f"created server {srv['friendly_name']!r}")
             target.update(server_id=s["server_id"], name="")
         out = call("/admin/create_image", {**tok, "target_image": target})

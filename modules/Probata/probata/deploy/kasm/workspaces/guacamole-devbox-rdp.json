@@ -20,6 +20,8 @@
         }
       }
     },
-    "_credentials": "The RDP password is the devbox's kasm-user password, set at container start from /data/probata/secrets/devbox/xrdp.env (custom_startup.sh). Kasm prompts for it; it is not stored in Kasm."
+    "_credentials": "kasm-user's RDP password: devbox custom_startup.sh sets it at container start from /data/probata/secrets/devbox/xrdp.env (mounted read-only by deploy/devbox.yaml). register_kasm.py stores the same value in Kasm's server record so the owner is not prompted. Never in git.",
+    "password_file": "/data/probata/secrets/devbox/xrdp.env",
+    "password_key": "XRDP_PASSWORD"
   }
 }

@@ -297,6 +297,18 @@ http:
       tls:
         certResolver: letsencrypt
 
+    # Kasm Workspaces CE (installer-managed on ovh-files, proxy :8443) -- public route, Authentik-gated like
+    # every other *.int host. Added 2026-10-02 (Claude Code · Opus 5.5), P-1 step 4 (owner GO 08:39). Kasm keeps
+    # its own login behind Authentik. Its zone's proxy port is 0 (follow the request port), so session
+    # websockets come back through this 443 route. Self-signed upstream: serversTransport kasm-selfsigned.
+    kasm-public:
+      rule: "Host(`kasm.int.mitechconsult.com`)"
+      entryPoints: ["https"]
+      service: kasm-workspaces-svc
+      middlewares: ["authentik-forwardauth"]
+      tls:
+        certResolver: letsencrypt
+
     # LibreChat (Coolify app `librechat`, ovh-files:3080) -- public route, Authentik-gated like every
     # other *.int host. Added 2026-09-26 (Claude Code · Fable 5.1), owner 23:17/23:35/23:43 ("I want
     # that LibreChat open and functional"). LibreChat keeps its own login behind Authentik. Chat replies
@@ -402,6 +414,11 @@ http:
         serversTransport: kasm-selfsigned
         servers:
           - url: "https://100.91.190.107:6901"
+    kasm-workspaces-svc:
+      loadBalancer:
+        serversTransport: kasm-selfsigned
+        servers:
+          - url: "https://100.91.190.107:8443"
     librechat-svc:
       loadBalancer:
         servers:
