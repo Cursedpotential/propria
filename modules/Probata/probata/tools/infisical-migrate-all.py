@@ -54,7 +54,10 @@ RCLONE_CONF = pathlib.Path("C:/Users/matts/scoop/apps/rclone/current/rclone.conf
 PROJECT_NAME = "propria"
 ENVIRONMENT = "prod"
 
-EXCLUDE_FILE = re.compile(r"(\.bak|to_be_deleted|_dead-\d|STALE|\.old$|~$|\.example$|\.sample$)", re.I)
+# _backup-<date>/ holds dated copies of live env files. Each copy maps to the same Infisical folder as
+# its live file and sorts after it, so a backup's old value overwrote the live one (2026-10-02: the
+# rotated probata-db admin password was put back to the old value). Backups are not live config.
+EXCLUDE_FILE = re.compile(r"(\.bak|to_be_deleted|_dead-\d|_backup-\d|STALE|\.old$|~$|\.example$|\.sample$)", re.I)
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import secret_probes  # noqa: E402

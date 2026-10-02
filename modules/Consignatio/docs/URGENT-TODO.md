@@ -3958,14 +3958,22 @@ Open, for the owner:
   - The 2 call logs from 2026 (`calls-20260911233643`, `calls-20260912155315`). Their own number cannot be determined.
 - The source folder `Evidence/Phone Records/Messages with Katrina/SMS backup` carries U+F028 after "backup", a Windows private-use character. The earlier plan had dropped it and lost 3 files. The new plan keeps the exact key.
 
-## 2026-10-02 08:45 EDT — probata-db role `ai` is a superuser with a two-letter password; Docstore follows the Vestigia rename
+## 2026-10-02 08:45–09:25 EDT — probata-db: `casebible` gets its own login, `ai` password rotated (owner option A, 08:49); Docstore follows the Vestigia rename
 
 > _Byline: Claude Code · Opus 5.5 · 2026-10-02_
 
-- **Found (Vestigia lane, 08:41):** on probata-db the role `ai` is SUPERUSER, its password is two letters and sits in git history (old Vestigia ops scripts), and it owns the `casebible`, `postgres` and template databases. Vestigia no longer uses it: the `vestigia` role owns `traceiq` (owner approved 08:20). Not hardened yet.
-- **Possibly the same value, unchecked:** `~/.secrets/Agno-MCP-Platform.env` holds a two-character `DB_PASS` and `POSTGRES_PASSWORD`, and both were copied into Infisical `/desktop/Agno-MCP-Platform` on 09-30.
-- **Docstore side of the rename:** the Dockerfile now copies `modules/vestigia-geodata_processor/vestigia/docs/` (24 tracked files, checked). The nightly job (08:15 UTC) re-clones main and rebuilds, so the next build uses it. The registry `canonical_prefix` stays `vestigia/traceiq-rebuild/docs/`, so indexed document ids do not change.
-- [ ] **Owner:** how to harden `ai`. (A, default) find every client that logs in as `ai`, give each its own role or the new password, set a strong password kept in `~/.secrets` and Infisical, then drop SUPERUSER once nothing needs it. (B) Rotate the password only. (C) Leave it.
+- **Found (Vestigia lane, 08:41):** `ai` was SUPERUSER with a two-letter password that is in git history (old Vestigia ops scripts). It owned `casebible`, `postgres` and the template databases.
+- **Inventory** (live sessions plus every Coolify, Infisical and `~/.secrets` setting): the only client logging in as `ai` was Coolify app `llm-probe`, into `casebible`. Every other service already had its own login (contextforge, infisical, temporal, platform_*, vestigia). The catalog is the separate `casebible-pg18` on port 5475. Port 5432 answers on the tailnet only; the public IP refuses it.
+- **Done:**
+  - New login `casebible` (not a superuser) owns database `casebible`: 8 schemas, 36 tables/views/sequences, 4 functions, 10 types. Extensions stay with `ai`.
+  - `llm-probe` uses it (`LLM_PROBE_DATABASE_URL`, deployment `b6r88ez1ysbatrtbqf8eabqn`). Verified: `/health` and `/providers` answer 200 and its database sessions run as `casebible`.
+  - `ai` has a new 43-character password; the old one is refused.
+  - The logins live in `~/.secrets/probata-db.env` and Infisical `/desktop/probata-db`. Coolify `data-pg-files` `DB_PASS` is updated (not redeployed; connections inside the container use trust). `probata.env`, `Agno-MCP-Platform.env` and `MASTER_ENV_COMPILED_20260801.env.md` carry the new value. No Infisical entry holds the old one.
+- **Cannot be done:** `ai` stays a superuser. It is the bootstrap superuser, and PostgreSQL refuses: "The bootstrap superuser must have the SUPERUSER attribute" (tested inside a rolled-back transaction). No application logs in as `ai` now.
+- **Tool fix:** `tools/infisical-migrate-all.py` skips `_backup-<date>/` copies. A backup of `Agno-MCP-Platform.env` mapped to the same Infisical folder as the live file and wrote its old values over it; 4 entries were corrected.
+- **Docstore side of the rename:** the Dockerfile copies `modules/vestigia-geodata_processor/vestigia/docs/` (24 tracked files, checked). The nightly job (08:15 UTC) re-clones main and rebuilds, so the next build uses it. The registry `canonical_prefix` stays `vestigia/traceiq-rebuild/docs/`, so indexed document ids do not change.
+- [ ] **Owner, optional:** stop `ai` logging in over the network (`pg_hba.conf` in the database container), leaving local admin access only.
+- [ ] Whoever created `investigation_test_advocatio_20261002` (owned by `ai`, today): the old `ai` password no longer works; the new one is in `~/.secrets/probata-db.env`.
 - [ ] Confirm the 2026-10-03 08:15 UTC nightly build of `propria-docstore` succeeds with the new COPY path.
 
 ## 2026-10-02 08:38–09:00 EDT — automatic pre-deploy guard in coolify-write (owner 08:38, auto-guard A)
