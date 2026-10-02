@@ -1,4 +1,4 @@
-// Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 //
 // Package caseidentity is the read model and the owner's edits behind the
 // Workbench Case page: the case header, the people of the case, every
@@ -6,12 +6,12 @@
 // platform has extracted for each of them.
 //
 // Owner order 2026-10-01 07:56/07:57: registry is the ONE identity store; the
-// Case page edits it; ingest, search, the legal desk and the toolkit read it;
-// edits version, never overwrite. An identifier edit is a new
-// registry.entity_alias row that supersedes exactly the current row of its
-// chain; a case-header or person edit updates the registry row and appends its
-// before/after to registry.identity_change in the same transaction. Nothing is
-// ever deleted: retiring an identifier is a status.
+// Case page edits it; ingest, search, the legal desk and the toolkit read it.
+// Owner 2026-10-02 02:06/02:12: registry.entity_alias is a plain editable
+// table. An identifier is added, fixed in place or deleted, and every add,
+// edit and delete (like every case-header and person edit) appends one
+// registry.identity_change row with before, after, who and why, in the same
+// transaction. That log is the audit trail and is append-only.
 package caseidentity
 
 import (
@@ -97,26 +97,19 @@ type CourtCase struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
-// IdentifierVersion is one row of an alias chain.
-type IdentifierVersion struct {
-	ID           string    `json:"id"`
-	Status       string    `json:"status"`
-	Period       *string   `json:"period"`
-	Basis        *string   `json:"basis"`
-	ChangeReason *string   `json:"change_reason"`
-	RecordedBy   string    `json:"recorded_by"`
-	RecordedAt   time.Time `json:"recorded_at"`
-	SupersedesID *string   `json:"supersedes_id"`
-}
-
-// Identifier is the current row of one alias chain plus its earlier rows.
+// Identifier is one registry.entity_alias row. Its earlier values are the
+// registry.identity_change rows whose subject is this id.
 type Identifier struct {
-	IdentifierVersion
-	EntityID   string              `json:"entity_id"`
-	RawValue   string              `json:"raw_value"`
-	Kind       string              `json:"kind"`
-	Normalized string              `json:"normalized"`
-	History    []IdentifierVersion `json:"history"`
+	ID         string    `json:"id"`
+	EntityID   string    `json:"entity_id"`
+	RawValue   string    `json:"raw_value"`
+	Kind       string    `json:"kind"`
+	Normalized string    `json:"normalized"`
+	Status     string    `json:"status"`
+	Period     *string   `json:"period"`
+	Basis      *string   `json:"basis"`
+	RecordedBy string    `json:"recorded_by"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // Person is registry.person joined to its registry.entity.
@@ -202,8 +195,7 @@ func (a Actor) StoredKey(operation string) string {
 	return operation + ":" + hex.EncodeToString(sum[:])
 }
 
-// IdentifierSpec adds an identifier to a person (SupersedesID empty) or writes
-// a new version of an existing chain (SupersedesID = the chain's current row).
+// IdentifierSpec adds an identifier to a person.
 type IdentifierSpec struct {
 	EntityID     string  `json:"entity_id"`
 	RawValue     string  `json:"raw_value"`
@@ -212,7 +204,21 @@ type IdentifierSpec struct {
 	Period       *string `json:"period"`
 	Basis        string  `json:"basis"`
 	ChangeReason string  `json:"change_reason"`
-	SupersedesID string  `json:"supersedes_id"`
+}
+
+// IdentifierEditSpec fixes one identifier in place. Fields maps a field
+// (raw_value, kind, status, period, basis, entity_id) to its new value; nil
+// clears period.
+type IdentifierEditSpec struct {
+	ID           string             `json:"id"`
+	Fields       map[string]*string `json:"fields"`
+	ChangeReason string             `json:"change_reason"`
+}
+
+// IdentifierDeleteSpec removes one identifier row.
+type IdentifierDeleteSpec struct {
+	ID           string `json:"id"`
+	ChangeReason string `json:"change_reason"`
 }
 
 // HeaderSpec edits the matter or its court case. Fields maps a column to its
@@ -262,7 +268,9 @@ type Receipt struct {
 // Store is the registry boundary.
 type Store interface {
 	Read(ctx context.Context, mode Mode) (View, error)
-	WriteIdentifier(ctx context.Context, spec IdentifierSpec, actor Actor) (Receipt, error)
+	AddIdentifier(ctx context.Context, spec IdentifierSpec, actor Actor) (Receipt, error)
+	EditIdentifier(ctx context.Context, spec IdentifierEditSpec, actor Actor) (Receipt, error)
+	DeleteIdentifier(ctx context.Context, spec IdentifierDeleteSpec, actor Actor) (Receipt, error)
 	EditHeader(ctx context.Context, mode Mode, spec HeaderSpec, actor Actor) (Receipt, error)
 	EditPerson(ctx context.Context, spec PersonSpec, actor Actor) (Receipt, error)
 	AddPerson(ctx context.Context, spec NewPersonSpec, actor Actor) (Receipt, error)
@@ -330,30 +338,21 @@ func validText(label, value string, required bool, limit int) error {
 	return nil
 }
 
-// ValidateIdentifier checks an identifier write before it reaches PostgreSQL.
-// The raw spelling is kept exactly as given (no trimming of inner spacing):
-// only surrounding whitespace is refused, so what the owner typed is what is
-// stored.
+// ValidateIdentifier checks a new identifier before it reaches PostgreSQL.
+// The raw spelling is kept exactly as given: only surrounding whitespace and
+// line breaks are refused, so what the owner typed is what is stored.
 func ValidateIdentifier(spec IdentifierSpec) error {
 	if err := ValidateUUID("entity_id", spec.EntityID); err != nil {
 		return err
 	}
-	if spec.SupersedesID != "" {
-		if err := ValidateUUID("supersedes_id", spec.SupersedesID); err != nil {
-			return err
-		}
-	}
-	if err := validText("raw_value", spec.RawValue, true, MaxValueBytes); err != nil {
+	if err := validRaw(spec.RawValue); err != nil {
 		return err
 	}
-	if strings.TrimSpace(spec.RawValue) != spec.RawValue || strings.ContainsAny(spec.RawValue, "\n\t") {
-		return errors.New("raw_value cannot start or end with spaces or hold line breaks")
-	}
 	if !identifierKinds[spec.Kind] {
-		return errors.New("kind must be name, phone, email, account, handle, nickname, legal, maiden, misspelling or other")
+		return errKind
 	}
 	if !identifierStatuses[spec.Status] {
-		return errors.New("status must be confirmed, candidate or retired")
+		return errStatus
 	}
 	if spec.Period != nil {
 		if err := validText("period", *spec.Period, false, MaxPeriodBytes); err != nil {
@@ -363,10 +362,79 @@ func ValidateIdentifier(spec IdentifierSpec) error {
 	if err := validText("basis", spec.Basis, true, MaxTextBytes); err != nil {
 		return err
 	}
-	if spec.SupersedesID != "" {
-		return validText("change_reason", spec.ChangeReason, true, MaxTextBytes)
-	}
 	return validText("change_reason", spec.ChangeReason, false, MaxTextBytes)
+}
+
+var (
+	errKind   = errors.New("kind must be name, phone, email, account, handle, nickname, legal, maiden, misspelling or other")
+	errStatus = errors.New("status must be confirmed, candidate or retired")
+)
+
+func validRaw(raw string) error {
+	if err := validText("raw_value", raw, true, MaxValueBytes); err != nil {
+		return err
+	}
+	if strings.TrimSpace(raw) != raw || strings.ContainsAny(raw, "\n\t") {
+		return errors.New("raw_value cannot start or end with spaces or hold line breaks")
+	}
+	return nil
+}
+
+// IdentifierColumns maps an editable identifier field to its registry.entity_alias column.
+var IdentifierColumns = map[string]string{
+	"raw_value": "alias_text", "kind": "alias_kind", "status": "status", "period": "period", "basis": "basis", "entity_id": "entity_id",
+}
+
+// ValidateIdentifierEdit checks an in-place identifier fix.
+func ValidateIdentifierEdit(spec IdentifierEditSpec) error {
+	if err := ValidateUUID("id", spec.ID); err != nil {
+		return err
+	}
+	if len(spec.Fields) == 0 {
+		return errors.New("at least one field must change")
+	}
+	for field, value := range spec.Fields {
+		if _, ok := IdentifierColumns[field]; !ok {
+			return fmt.Errorf("%s is not an editable identifier field", field)
+		}
+		if value == nil {
+			if field != "period" {
+				return fmt.Errorf("%s cannot be empty", field)
+			}
+			continue
+		}
+		var err error
+		switch field {
+		case "raw_value":
+			err = validRaw(*value)
+		case "kind":
+			if !identifierKinds[*value] {
+				err = errKind
+			}
+		case "status":
+			if !identifierStatuses[*value] {
+				err = errStatus
+			}
+		case "entity_id":
+			err = ValidateUUID("entity_id", *value)
+		case "period":
+			err = validText("period", *value, false, MaxPeriodBytes)
+		case "basis":
+			err = validText("basis", *value, true, MaxTextBytes)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return validText("change_reason", spec.ChangeReason, true, MaxTextBytes)
+}
+
+// ValidateIdentifierDelete checks an identifier removal.
+func ValidateIdentifierDelete(spec IdentifierDeleteSpec) error {
+	if err := ValidateUUID("id", spec.ID); err != nil {
+		return err
+	}
+	return validText("change_reason", spec.ChangeReason, true, MaxTextBytes)
 }
 
 // HeaderColumns are the editable columns of the case header, per target.

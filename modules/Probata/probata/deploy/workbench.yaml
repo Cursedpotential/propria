@@ -156,8 +156,10 @@ services:
       CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
       # Byline: Codex, 2026-09-20. Read the existing pre-ingest catalog.
       INTAKE_DISCOVERY_PG_HOST: ${INTAKE_DISCOVERY_PG_HOST:-100.91.190.107}
-      # The catalog (casebible-pg18) is reached through ovh-files tailscale serve tcp 5433 -> the container;
-      # the 5475 host port was a hand edit of the rendered compose that a redeploy dropped (Claude Code · Opus 5.5 · 2026-10-02).
+      # The catalog (casebible-pg18) is reached through ovh-files tailscale serve tcp 5433 -> 127.0.0.1:5475 (the
+      # Coolify-declared port; deploy/tailscale/catalog-serve.sh);
+      # the old tailnet bind 100.91.190.107:5475 was a hand edit of the rendered compose that a redeploy dropped
+      # (Claude Code · Opus 5.5 · 2026-10-02).
       INTAKE_DISCOVERY_PG_PORT: ${INTAKE_DISCOVERY_PG_PORT:-5433}
       INTAKE_DISCOVERY_PG_DATABASE: casebible
       INTAKE_DISCOVERY_PG_USER: metabase_ro

@@ -1,8 +1,8 @@
-// Byline: Claude Code · Opus 5.5 · 2026-10-01
-// Edit dialogs for the Case page. Every save is a new version in registry: an
-// identifier save writes an alias row that supersedes the current one, a
-// header or person save appends its before/after to registry.identity_change.
-// One Idempotency-Key per opened dialog, so a retried click never writes twice.
+// Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
+// Edit dialogs for the Case page. An identifier is added, fixed in place or
+// deleted; a header or person save updates its registry row. Every save writes
+// one registry.identity_change row with before, after, who and why. One
+// Idempotency-Key per opened dialog, so a retried click never writes twice.
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,12 +16,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  addIdentifier,
   addPerson,
+  deleteIdentifier,
   editCaseHeader,
+  editIdentifier,
   editPerson,
   newIdempotencyKey,
   triageIdentifier,
-  writeIdentifier,
   type CaseCourtCase,
   type CaseIdentifier,
   type CaseMatter,
@@ -67,7 +69,7 @@ function useCaseSave<T>(save: (body: T, key: string) => Promise<CaseReceipt>, on
   return useMutation({
     mutationFn: (body: T) => save(body, key),
     onSuccess: async (receipt) => {
-      toast.success(receipt.replayed ? "Already saved (same click)" : "Saved as a new version", { description: `${receipt.kind} ${receipt.ref}` });
+      toast.success(receipt.replayed ? "Already saved (same click)" : "Saved", { description: `logged in registry.identity_change · ${receipt.kind} ${receipt.ref}` });
       await queryClient.invalidateQueries({ queryKey: ["case-identity"] });
       onDone();
     },
@@ -91,7 +93,7 @@ function Footer({ pending, disabled, onCancel, label }: { pending: boolean; disa
 // ---- identifier -------------------------------------------------------------
 
 export type IdentifierDialogTarget =
-  | { mode: "version"; person: CasePerson; identifier: CaseIdentifier; status?: "confirmed" | "candidate" | "retired" }
+  | { mode: "edit"; person: CasePerson; people: CasePerson[]; identifier: CaseIdentifier; status?: "confirmed" | "candidate" | "retired" }
   | { mode: "add"; person: CasePerson | null; people: CasePerson[]; raw?: string; kind?: string; basis?: string };
 
 export function IdentifierDialog({ target, onClose }: { target: IdentifierDialogTarget; onClose: () => void }) {
@@ -105,59 +107,69 @@ export function IdentifierDialog({ target, onClose }: { target: IdentifierDialog
 }
 
 function IdentifierForm({ target, onClose }: { target: IdentifierDialogTarget; onClose: () => void }) {
-  const existing = target.mode === "version" ? target.identifier : null;
-  const [personId, setPersonId] = useState(target.mode === "version" ? target.person.id : (target.person?.id ?? ""));
+  const existing = target.mode === "edit" ? target.identifier : null;
+  const [personId, setPersonId] = useState(target.mode === "edit" ? target.person.id : (target.person?.id ?? ""));
   const [raw, setRaw] = useState(existing?.raw_value ?? (target.mode === "add" ? (target.raw ?? "") : ""));
   const [kind, setKind] = useState(existing?.kind ?? (target.mode === "add" ? (target.kind ?? "phone") : "phone"));
-  const [status, setStatus] = useState<string>(target.mode === "version" ? (target.status ?? existing!.status) : "candidate");
+  const [status, setStatus] = useState<string>(target.mode === "edit" ? (target.status ?? existing!.status) : "candidate");
   const [period, setPeriod] = useState(existing?.period ?? "");
   const [basis, setBasis] = useState(existing?.basis ?? (target.mode === "add" ? (target.basis ?? "") : ""));
   const [reason, setReason] = useState("");
-  const save = useCaseSave(writeIdentifier, onClose);
-  const versioning = target.mode === "version";
-  const ready = personId && raw.trim() === raw && raw !== "" && basis.trim() !== "" && (!versioning || reason.trim() !== "");
-  const people = target.mode === "add" ? target.people : [target.person];
+  const add = useCaseSave(addIdentifier, onClose);
+  const edit = useCaseSave(
+    (fields: Record<string, string | null>, key: string) => editIdentifier(existing!.id, { fields, change_reason: reason }, key),
+    onClose,
+  );
+  const editing = target.mode === "edit";
+  const changed = useMemo(() => {
+    if (!existing) return {};
+    const next: Record<string, string | null> = {};
+    if (personId !== existing.entity_id) next.entity_id = personId;
+    if (raw !== existing.raw_value) next.raw_value = raw;
+    if (kind !== existing.kind) next.kind = kind;
+    if (status !== existing.status) next.status = status;
+    if ((period.trim() === "" ? null : period) !== existing.period) next.period = period.trim() === "" ? null : period;
+    if (basis !== (existing.basis ?? "")) next.basis = basis;
+    return next;
+  }, [existing, personId, raw, kind, status, period, basis]);
+  const pending = add.isPending || edit.isPending;
+  const ready =
+    personId !== "" && raw !== "" && raw.trim() === raw && basis.trim() !== "" &&
+    (!editing || (reason.trim() !== "" && Object.keys(changed).length > 0));
 
   return (
     <form
       className="grid gap-4"
       onSubmit={(event) => {
         event.preventDefault();
-        save.mutate({
-          entity_id: personId,
-          raw_value: raw,
-          kind,
-          status,
-          period: period.trim() === "" ? null : period,
-          basis,
-          change_reason: reason,
-          supersedes_id: existing?.id ?? "",
-        });
+        if (editing) {
+          edit.mutate(changed);
+        } else {
+          add.mutate({ entity_id: personId, raw_value: raw, kind, status, period: period.trim() === "" ? null : period, basis, change_reason: reason });
+        }
       }}
     >
       <DialogHeader>
-        <DialogTitle>{versioning ? `New version of ${existing!.raw_value}` : "Add an identifier"}</DialogTitle>
+        <DialogTitle>{editing ? `Edit ${existing!.raw_value}` : "Add an identifier"}</DialogTitle>
         <DialogDescription>
-          {versioning
-            ? "The current row stays in the record; this saves a new row that supersedes it, with you and the time."
+          {editing
+            ? "The row is fixed in place. Its earlier values, you and the time go into the change log."
             : "The spelling is kept exactly as typed; every reader matches on its normalized form."}
         </DialogDescription>
       </DialogHeader>
-      {!versioning && (
-        <Field label="Person">
-          <select className={selectClass} value={personId} onChange={(event) => setPersonId(event.target.value)}>
-            <option value="">Choose a person</option>
-            {people.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.display_name}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
+      <Field label="Person">
+        <select className={selectClass} name="entity_id" value={personId} onChange={(event) => setPersonId(event.target.value)}>
+          <option value="">Choose a person</option>
+          {target.people.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.display_name}
+            </option>
+          ))}
+        </select>
+      </Field>
       <div className="grid grid-cols-[1fr_9rem] gap-3">
-        <Field label="As seen" hint={versioning ? "A new version keeps the spelling; add a new identifier for a new spelling." : undefined}>
-          <Input value={raw} onChange={(event) => setRaw(event.target.value)} disabled={versioning} />
+        <Field label="As seen">
+          <Input name="raw_value" value={raw} onChange={(event) => setRaw(event.target.value)} />
         </Field>
         <Field label="Kind">
           <Select name="kind" value={kind} onChange={setKind} options={IDENTIFIER_KINDS} />
@@ -174,11 +186,41 @@ function IdentifierForm({ target, onClose }: { target: IdentifierDialogTarget; o
       <Field label="Basis — why we believe it">
         <Textarea name="basis" value={basis} onChange={(event) => setBasis(event.target.value)} rows={3} />
       </Field>
-      <Field label={versioning ? "Why this change" : "Note (optional)"}>
+      <Field label={editing ? "Why this change" : "Note (optional)"}>
         <Input name="change_reason" value={reason} onChange={(event) => setReason(event.target.value)} />
       </Field>
-      <Footer pending={save.isPending} disabled={!ready} onCancel={onClose} label={versioning ? "Save new version" : "Add"} />
+      <Footer pending={pending} disabled={!ready} onCancel={onClose} label={editing ? "Save" : "Add"} />
     </form>
+  );
+}
+
+export function DeleteIdentifierDialog({ identifier, onClose }: { identifier: CaseIdentifier; onClose: () => void }) {
+  const [reason, setReason] = useState("");
+  const save = useCaseSave((body: { change_reason: string }, key: string) => deleteIdentifier(identifier.id, body, key), onClose);
+  return (
+    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+      <DialogContent className="sm:max-w-md">
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            save.mutate({ change_reason: reason });
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Delete {identifier.raw_value}</DialogTitle>
+            <DialogDescription>
+              The row leaves the registry. The change log keeps what it was, with you, the time and the reason. To keep it but mark it
+              no longer believed, use Retire instead.
+            </DialogDescription>
+          </DialogHeader>
+          <Field label="Why">
+            <Input name="change_reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="e.g. typed into the wrong person" />
+          </Field>
+          <Footer pending={save.isPending} disabled={reason.trim() === ""} onCancel={onClose} label="Delete" />
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

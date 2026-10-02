@@ -27,7 +27,7 @@ Left on the host on purpose: `node_modules/` (rebuilt by `npm ci`), `intake-buil
 | `d04703dfdf1e187c` | `outputs/live-service-storage-health.html` |
 | `7846aafa80a0556a` | `package-lock.json` |
 | `e28e235ac3cc640e` | `package.json` |
-| `9ec9d40ff3c9c380` | `pg-catalog.mjs` |
+| `58c2de31af5173e4` | `pg-catalog.mjs` (catalog port default 5433, copied to the host again 2026-10-02) |
 | `d8292606cdeee1d2` | `provider-limits.mjs` |
 | `28693a3fb04473d5` | `public/app.js` |
 | `0caa1bc39ab38102` | `public/index.html` |

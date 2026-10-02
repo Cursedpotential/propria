@@ -1,8 +1,8 @@
-// Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 // Case page client: the registry read (engine) plus what the Case Bible catalog
-// holds per identifier, and the owner's edits. Every edit is a new version in
-// registry (an alias row that supersedes the current one, or an identity_change
-// row); the browser never holds the authority.
+// holds per identifier, and the owner's edits. An identifier is added, fixed in
+// place or deleted; every change is one registry.identity_change row (before,
+// after, who, why). The browser never holds the authority.
 import { ApiError } from "@/lib/api-client";
 import type { MatterMode } from "@/lib/shared/types";
 
@@ -32,23 +32,17 @@ export interface CaseCourtCase {
   updated_at: string;
 }
 
-export interface IdentifierVersion {
+export interface CaseIdentifier {
   id: string;
-  status: "confirmed" | "candidate" | "retired";
-  period: string | null;
-  basis: string | null;
-  change_reason: string | null;
-  recorded_by: string;
-  recorded_at: string;
-  supersedes_id: string | null;
-}
-
-export interface CaseIdentifier extends IdentifierVersion {
   entity_id: string;
   raw_value: string;
   kind: string;
   normalized: string;
-  history: IdentifierVersion[];
+  status: "confirmed" | "candidate" | "retired";
+  period: string | null;
+  basis: string | null;
+  recorded_by: string;
+  created_at: string;
 }
 
 export interface CasePerson {
@@ -168,7 +162,7 @@ export interface CaseReceipt {
   replayed: boolean;
 }
 
-export interface IdentifierWrite {
+export interface IdentifierAdd {
   entity_id: string;
   raw_value: string;
   kind: string;
@@ -176,7 +170,6 @@ export interface IdentifierWrite {
   period: string | null;
   basis: string;
   change_reason: string;
-  supersedes_id: string;
 }
 
 async function caseFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -212,8 +205,16 @@ export function getCatalogEvents(identifier: string, matchOn: string, before?: s
   return caseFetch<CatalogEventsPage>(`/api/case-identity/catalog-events?${query.toString()}`);
 }
 
-export function writeIdentifier(body: IdentifierWrite, key: string) {
+export function addIdentifier(body: IdentifierAdd, key: string) {
   return write<CaseReceipt>("/api/case-identity/identifiers", body, key);
+}
+
+export function editIdentifier(id: string, body: { fields: Record<string, string | null>; change_reason: string }, key: string) {
+  return write<CaseReceipt>(`/api/case-identity/identifiers/${encodeURIComponent(id)}`, body, key);
+}
+
+export function deleteIdentifier(id: string, body: { change_reason: string }, key: string) {
+  return write<CaseReceipt>(`/api/case-identity/identifiers/${encodeURIComponent(id)}/delete`, body, key);
 }
 
 export function editCaseHeader(

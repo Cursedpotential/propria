@@ -4,51 +4,40 @@ package postgres
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 )
 
-func caseAlias(id, entity, raw, status string, supersedes *string, at time.Time) aliasRow {
-	return aliasRow{
-		IdentifierVersion: caseidentity.IdentifierVersion{ID: id, Status: status, RecordedBy: "matt", RecordedAt: at, SupersedesID: supersedes},
-		entityID:          entity, raw: raw, kind: "phone", normalized: caseidentity.NormIdentifier(raw),
+func TestSortIdentifiersPutsPhonesFirstAndSpellingsTogether(t *testing.T) {
+	list := []caseidentity.Identifier{
+		{ID: "n", Kind: "name", Normalized: "matthew"},
+		{ID: "p2", Kind: "phone", Normalized: "8102751930"},
+		{ID: "o", Kind: "other", Normalized: "x"},
+		{ID: "p1", Kind: "phone", Normalized: "8102522779"},
+		{ID: "p3", Kind: "phone", Normalized: "8102751930"},
+	}
+	sortIdentifiers(list)
+	var got []string
+	for _, identifier := range list {
+		got = append(got, identifier.ID)
+	}
+	if want := []string{"p1", "p2", "p3", "n", "o"}; !equal(got, want) {
+		t.Fatalf("order %v, want %v", got, want)
 	}
 }
 
-func TestChainIdentifiersShowsTheNewestRowWithItsHistory(t *testing.T) {
-	t0 := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	first, second := "a1", "a2"
-	rows := []aliasRow{
-		caseAlias(first, "matt", "810-252-2779", "candidate", nil, t0),
-		caseAlias(second, "matt", "810-252-2779", "confirmed", &first, t0.Add(time.Minute)),
-		caseAlias("a3", "matt", "810-252-2779", "retired", &second, t0.Add(2*time.Minute)),
-		caseAlias("b1", "katrina", "810-268-9630", "confirmed", nil, t0),
+func equal(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
 	}
-	chains := chainIdentifiers(rows)
-	if len(chains["matt"]) != 1 {
-		t.Fatalf("matt has %d chains, want 1: %+v", len(chains["matt"]), chains["matt"])
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
 	}
-	current := chains["matt"][0]
-	if current.ID != "a3" || current.Status != "retired" || len(current.History) != 2 ||
-		current.History[0].ID != "a2" || current.History[1].ID != "a1" {
-		t.Fatalf("chain = %+v", current)
-	}
-	if len(chains["katrina"]) != 1 || len(chains["katrina"][0].History) != 0 {
-		t.Fatalf("katrina chains = %+v", chains["katrina"])
-	}
-}
-
-func TestChainIdentifiersNeverShowsACycle(t *testing.T) {
-	a, b := "a", "b"
-	rows := []aliasRow{caseAlias(a, "p", "x", "confirmed", &b, time.Now()), caseAlias(b, "p", "x", "confirmed", &a, time.Now())}
-	// Both rows are superseded, so neither is current. UNIQUE(supersedes_id)
-	// and insert order make a cycle unwritable; the reader still cannot loop.
-	if chains := chainIdentifiers(rows); len(chains["p"]) != 0 {
-		t.Fatalf("cycle produced chains %+v", chains)
-	}
+	return true
 }
 
 func TestCaseIdentityErrorsMapToThePageErrors(t *testing.T) {
@@ -69,10 +58,11 @@ func TestCaseIdentityErrorsMapToThePageErrors(t *testing.T) {
 }
 
 func TestHeaderAndPersonColumnsAreTheOnlySQLIdentifiers(t *testing.T) {
-	// Every column that reaches fmt.Sprintf in EditHeader / EditPerson comes
+	// Every column that reaches fmt.Sprintf in EditHeader / EditPerson / EditIdentifier comes
 	// from these maps; pin them so a new entry is a reviewed change that also
 	// updates the platform_runtime column grants.
-	if len(caseidentity.HeaderColumns["matter"]) != 4 || len(caseidentity.HeaderColumns["court_case"]) != 10 || len(caseidentity.PersonColumns) != 9 {
+	if len(caseidentity.HeaderColumns["matter"]) != 4 || len(caseidentity.HeaderColumns["court_case"]) != 10 ||
+		len(caseidentity.PersonColumns) != 9 || len(caseidentity.IdentifierColumns) != 6 {
 		t.Fatal("editable column sets changed; review the UPDATE builders and the platform_runtime column grants")
 	}
 }

@@ -1,4 +1,4 @@
-// Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 //
 // Case identity routes on the Proffer starter: the registry read behind the
 // Workbench Case page and the owner's edits. Same boundary as every other
@@ -7,7 +7,9 @@
 //
 //	GET  /case-identity?mode=TEST|REAL         the whole Case page
 //	GET  /case-identity/lookup?value=...       who used these identifiers (read tool for other apps)
-//	POST /case-identity/identifiers            add an identifier or write its next version
+//	POST /case-identity/identifiers            add an identifier
+//	POST /case-identity/identifiers/{alias_id} fix an identifier in place
+//	POST /case-identity/identifiers/{alias_id}/delete  remove an identifier
 //	POST /case-identity/header?mode=TEST|REAL  edit the matter or its court case
 //	POST /case-identity/people                 add a person
 //	POST /case-identity/people/{person_id}     edit a person
@@ -44,6 +46,8 @@ var CaseIdentityRoutePatterns = []string{
 	"GET /case-identity",
 	"GET /case-identity/lookup",
 	"POST /case-identity/identifiers",
+	"POST /case-identity/identifiers/{alias_id}",
+	"POST /case-identity/identifiers/{alias_id}/delete",
 	"POST /case-identity/header",
 	"POST /case-identity/people",
 	"POST /case-identity/people/{person_id}",
@@ -53,7 +57,7 @@ var CaseIdentityRoutePatterns = []string{
 // Routes returns the case identity mux.
 func (h *CaseIdentityHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
-	handlers := []http.HandlerFunc{h.read, h.lookup, h.writeIdentifier, h.editHeader, h.addPerson, h.editPerson, h.triage}
+	handlers := []http.HandlerFunc{h.read, h.lookup, h.addIdentifier, h.editIdentifier, h.deleteIdentifier, h.editHeader, h.addPerson, h.editPerson, h.triage}
 	for i, pattern := range CaseIdentityRoutePatterns {
 		mux.HandleFunc(pattern, overlayAuth(h.serviceTokenPath, "case identity", handlers[i]))
 	}
@@ -149,10 +153,41 @@ func caseWrite[T any](h *CaseIdentityHTTPHandler, w http.ResponseWriter, r *http
 	previewJSON(w, status, receipt)
 }
 
-func (h *CaseIdentityHTTPHandler) writeIdentifier(w http.ResponseWriter, r *http.Request) {
+func (h *CaseIdentityHTTPHandler) addIdentifier(w http.ResponseWriter, r *http.Request) {
 	caseWrite(h, w, r, caseidentity.ValidateIdentifier, func(spec caseidentity.IdentifierSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
-		return h.store.WriteIdentifier(r.Context(), spec, actor)
+		return h.store.AddIdentifier(r.Context(), spec, actor)
 	})
+}
+
+type identifierEditBody struct {
+	Fields       map[string]*string `json:"fields"`
+	ChangeReason string             `json:"change_reason"`
+}
+
+func (h *CaseIdentityHTTPHandler) editIdentifier(w http.ResponseWriter, r *http.Request) {
+	aliasID := r.PathValue("alias_id")
+	toSpec := func(body identifierEditBody) caseidentity.IdentifierEditSpec {
+		return caseidentity.IdentifierEditSpec{ID: aliasID, Fields: body.Fields, ChangeReason: body.ChangeReason}
+	}
+	caseWrite(h, w, r, func(body identifierEditBody) error { return caseidentity.ValidateIdentifierEdit(toSpec(body)) },
+		func(body identifierEditBody, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+			return h.store.EditIdentifier(r.Context(), toSpec(body), actor)
+		})
+}
+
+type identifierDeleteBody struct {
+	ChangeReason string `json:"change_reason"`
+}
+
+func (h *CaseIdentityHTTPHandler) deleteIdentifier(w http.ResponseWriter, r *http.Request) {
+	aliasID := r.PathValue("alias_id")
+	toSpec := func(body identifierDeleteBody) caseidentity.IdentifierDeleteSpec {
+		return caseidentity.IdentifierDeleteSpec{ID: aliasID, ChangeReason: body.ChangeReason}
+	}
+	caseWrite(h, w, r, func(body identifierDeleteBody) error { return caseidentity.ValidateIdentifierDelete(toSpec(body)) },
+		func(body identifierDeleteBody, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+			return h.store.DeleteIdentifier(r.Context(), toSpec(body), actor)
+		})
 }
 
 func (h *CaseIdentityHTTPHandler) editHeader(w http.ResponseWriter, r *http.Request) {

@@ -144,7 +144,7 @@ fn pool(user_env: &str, pass_env: &str) -> Result<Pool, String> {
             std::env::var("INTAKE_CATALOG_PG_PORT")
                 .ok()
                 .and_then(|p| p.parse().ok())
-                .unwrap_or(5475),
+                .unwrap_or(5433),
         )
         .dbname(&std::env::var("INTAKE_CATALOG_PG_DB").unwrap_or_else(|_| "casebible".into()))
         .user(&std::env::var(user_env).map_err(|_| format!("{user_env} is not configured"))?)

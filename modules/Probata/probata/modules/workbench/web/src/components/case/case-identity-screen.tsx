@@ -1,4 +1,4 @@
-// Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 // Case — who the case is about and every way they appear in the data.
 //
 // Owner order 2026-10-01 07:56: "There needs to be a case identity page. Can
@@ -6,17 +6,19 @@
 // extracted as far as what's in there." Step 6 of the six (fill in gaps and
 // missing context). One viewport, no tabs: the case header on top, the people
 // with their identifiers and counts on the left, identifiers tied to nobody on
-// the right. Ids, versions and the change log sit in the record drawer.
+// the right. Ids and the change log (every add, edit and delete) sit in the
+// record drawer.
 //
 // Registry (Probata) is the one identity store; every count names its store.
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, BookOpen, Check, History, Loader2, Pencil, Plus, UserPlus, X } from "lucide-react";
+import { AlertTriangle, BookOpen, Check, History, Loader2, Pencil, Plus, Trash2, UserPlus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { CatalogEventsSheet, type CatalogEventsTarget } from "@/components/case/catalog-events-sheet";
 import {
+  DeleteIdentifierDialog,
   DismissDialog,
   HeaderDialog,
   IdentifierDialog,
@@ -128,6 +130,7 @@ function IdentifierRow({
   person,
   identifier,
   onEdit,
+  onDelete,
   onEvents,
   onHistory,
 }: {
@@ -135,9 +138,12 @@ function IdentifierRow({
   person: CasePerson;
   identifier: CaseIdentifier;
   onEdit: (target: IdentifierDialogTarget) => void;
+  onDelete: (identifier: CaseIdentifier) => void;
   onEvents: (target: CatalogEventsTarget) => void;
   onHistory: (identifier: CaseIdentifier) => void;
 }) {
+  const people = view.people;
+  const changes = view.history.filter((change) => change.subject_id === identifier.id).length;
   const retired = identifier.status === "retired";
   return (
     <li
@@ -167,19 +173,22 @@ function IdentifierRow({
       </div>
       <div className="flex items-start gap-1">
         {identifier.status === "candidate" && (
-          <Button size="xs" variant="secondary" onClick={() => onEdit({ mode: "version", person, identifier, status: "confirmed" })}>
+          <Button size="xs" variant="secondary" onClick={() => onEdit({ mode: "edit", person, people, identifier, status: "confirmed" })}>
             <Check /> Confirm
           </Button>
         )}
         {!retired && (
-          <Button size="icon-xs" variant="ghost" aria-label="Retire" title="Retire (kept, marked no longer believed)" onClick={() => onEdit({ mode: "version", person, identifier, status: "retired" })}>
+          <Button size="icon-xs" variant="ghost" aria-label="Retire" title="Retire (kept, marked no longer believed)" onClick={() => onEdit({ mode: "edit", person, people, identifier, status: "retired" })}>
             <X />
           </Button>
         )}
-        <Button size="icon-xs" variant="ghost" aria-label="Edit" title="Edit (new version)" onClick={() => onEdit({ mode: "version", person, identifier })}>
+        <Button size="icon-xs" variant="ghost" aria-label="Edit" title="Edit in place (logged)" onClick={() => onEdit({ mode: "edit", person, people, identifier })}>
           <Pencil />
         </Button>
-        <Button size="icon-xs" variant="ghost" aria-label="Versions" title={`${identifier.history.length + 1} version(s)`} onClick={() => onHistory(identifier)}>
+        <Button size="icon-xs" variant="ghost" aria-label="Delete" title="Delete (logged)" onClick={() => onDelete(identifier)}>
+          <Trash2 />
+        </Button>
+        <Button size="icon-xs" variant="ghost" aria-label="History" title={`${changes} logged change(s)`} onClick={() => onHistory(identifier)}>
           <History />
         </Button>
       </div>
@@ -192,6 +201,7 @@ function PersonCard({
   person,
   onEditPerson,
   onEditIdentifier,
+  onDeleteIdentifier,
   onEvents,
   onHistory,
 }: {
@@ -199,6 +209,7 @@ function PersonCard({
   person: CasePerson;
   onEditPerson: (person: CasePerson) => void;
   onEditIdentifier: (target: IdentifierDialogTarget) => void;
+  onDeleteIdentifier: (identifier: CaseIdentifier) => void;
   onEvents: (target: CatalogEventsTarget) => void;
   onHistory: (identifier: CaseIdentifier) => void;
 }) {
@@ -220,7 +231,7 @@ function PersonCard({
           </p>
         </div>
         <div className="flex gap-1">
-          <Button size="sm" variant="outline" onClick={() => onEditIdentifier({ mode: "add", person, people: [person] })}>
+          <Button size="sm" variant="outline" onClick={() => onEditIdentifier({ mode: "add", person, people: view.people })}>
             <Plus /> Identifier
           </Button>
           <Button size="sm" variant="ghost" onClick={() => onEditPerson(person)}>
@@ -237,6 +248,7 @@ function PersonCard({
               person={person}
               identifier={identifier}
               onEdit={onEditIdentifier}
+              onDelete={onDeleteIdentifier}
               onEvents={onEvents}
               onHistory={onHistory}
             />
@@ -317,30 +329,51 @@ function UnknownList({
   );
 }
 
+function ChangeItem({ change }: { change: CaseIdentityView["history"][number] }) {
+  const keys = [...new Set([...Object.keys(change.before), ...Object.keys(change.after)])];
+  const verb = Object.keys(change.before).length === 0 ? "added" : Object.keys(change.after).length === 0 ? "deleted" : "edited";
+  return (
+    <li className="rounded border border-border p-2" data-testid="case-change">
+      <p>
+        <span className="font-semibold">{change.subject_table}</span> {verb} · {change.recorded_by} · {change.recorded_at.replace("T", " ").slice(0, 19)} UTC
+      </p>
+      <p>{change.change_reason}</p>
+      <pre className="mt-1 overflow-auto whitespace-pre-wrap text-[10px] text-muted-foreground">
+        {keys
+          .filter((key) => JSON.stringify(change.before[key]) !== JSON.stringify(change.after[key]))
+          .map((key) => `${key}: ${JSON.stringify(change.before[key] ?? null)} → ${JSON.stringify(change.after[key] ?? null)}`)
+          .join(String.fromCharCode(10))}
+      </pre>
+    </li>
+  );
+}
+
 function RecordDrawer({ view, open, onClose, focus }: { view: CaseIdentityView; open: boolean; onClose: () => void; focus: CaseIdentifier | null }) {
   return (
     <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
       <SheetContent side="right" className="w-[min(720px,96vw)] sm:max-w-none">
         <SheetHeader>
-          <SheetTitle>{focus ? `Versions of ${focus.raw_value}` : "Record"}</SheetTitle>
-          <SheetDescription>Registry rows behind this page. Nothing is overwritten: every edit is a row here.</SheetDescription>
+          <SheetTitle>{focus ? `History of ${focus.raw_value}` : "Record"}</SheetTitle>
+          <SheetDescription>Registry rows behind this page. Every add, edit and delete is a row in registry.identity_change.</SheetDescription>
         </SheetHeader>
         <div className="space-y-5 overflow-auto px-4 pb-6 text-xs">
           {focus && (
             <ol className="space-y-2">
-              {[focus, ...focus.history].map((version, index) => (
-                <li key={version.id} className="rounded border border-border p-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant={statusVariant(version.status)}>{version.status}</Badge>
-                    <span>{index === 0 ? "current" : `superseded`}</span>
-                    <span className="text-muted-foreground">{version.recorded_by} · {version.recorded_at.replace("T", " ").slice(0, 19)} UTC</span>
-                  </div>
-                  {version.period && <p>Period: {version.period}</p>}
-                  {version.basis && <p>Basis: {version.basis}</p>}
-                  {version.change_reason && <p>Why changed: {version.change_reason}</p>}
-                  <p className="font-mono text-[10px] text-muted-foreground">registry.entity_alias {version.id}{version.supersedes_id ? ` supersedes ${version.supersedes_id}` : ""}</p>
-                </li>
-              ))}
+              <li className="rounded border border-border p-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant={statusVariant(focus.status)}>{focus.status}</Badge>
+                  <span>now</span>
+                  <span className="text-muted-foreground">last written by {focus.recorded_by}</span>
+                </div>
+                {focus.period && <p>Period: {focus.period}</p>}
+                {focus.basis && <p>Basis: {focus.basis}</p>}
+                <p className="font-mono text-[10px] text-muted-foreground">registry.entity_alias {focus.id}</p>
+              </li>
+              {view.history
+                .filter((change) => change.subject_id === focus.id)
+                .map((change) => (
+                  <ChangeItem key={change.id} change={change} />
+                ))}
             </ol>
           )}
           {!focus && (
@@ -369,18 +402,7 @@ function RecordDrawer({ view, open, onClose, focus }: { view: CaseIdentityView; 
                 ) : (
                   <ol className="space-y-2">
                     {view.history.map((change) => (
-                      <li key={change.id} className="rounded border border-border p-2">
-                        <p>
-                          <span className="font-semibold">{change.subject_table}</span> · {change.recorded_by} · {change.recorded_at.replace("T", " ").slice(0, 19)} UTC
-                        </p>
-                        <p>{change.change_reason}</p>
-                        <pre className="mt-1 overflow-auto whitespace-pre-wrap text-[10px] text-muted-foreground">
-                          {Object.keys(change.after)
-                            .filter((key) => JSON.stringify(change.before[key]) !== JSON.stringify(change.after[key]))
-                            .map((key) => `${key}: ${JSON.stringify(change.before[key] ?? null)} → ${JSON.stringify(change.after[key])}`)
-                            .join("\n")}
-                        </pre>
-                      </li>
+                      <ChangeItem key={change.id} change={change} />
                     ))}
                   </ol>
                 )}
@@ -410,6 +432,7 @@ export function CaseIdentityScreen() {
   const [personTarget, setPersonTarget] = useState<CasePerson | null | undefined>(undefined);
   const [headerOpen, setHeaderOpen] = useState(false);
   const [dismissRaw, setDismissRaw] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CaseIdentifier | null>(null);
   const [eventsTarget, setEventsTarget] = useState<CatalogEventsTarget | null>(null);
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyFocus, setHistoryFocus] = useState<CaseIdentifier | null>(null);
@@ -479,6 +502,7 @@ export function CaseIdentityScreen() {
               person={person}
               onEditPerson={(p) => setPersonTarget(p)}
               onEditIdentifier={setIdentifierTarget}
+              onDeleteIdentifier={setDeleteTarget}
               onEvents={setEventsTarget}
               onHistory={(identifier) => { setHistoryFocus(identifier); setRecordOpen(true); }}
             />
@@ -521,6 +545,7 @@ export function CaseIdentityScreen() {
         <HeaderDialog mode={view.mode} matter={view.matter} courtCase={view.court_case} onClose={() => setHeaderOpen(false)} />
       )}
       {dismissRaw && <DismissDialog raw={dismissRaw} onClose={() => setDismissRaw(null)} />}
+      {deleteTarget && <DeleteIdentifierDialog identifier={deleteTarget} onClose={() => setDeleteTarget(null)} />}
       <CatalogEventsSheet target={eventsTarget} onClose={() => setEventsTarget(null)} />
       <RecordDrawer view={view} open={recordOpen} focus={historyFocus} onClose={() => setRecordOpen(false)} />
     </div>

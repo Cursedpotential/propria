@@ -1,18 +1,16 @@
-// Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 //
 // Registry store behind the Workbench Case page (caseidentity.Store).
 //
-// Reads: the case header, every person, every identifier chain of every
-// person, the identity change log, what Probata's working tables hold per
-// identifier, and the participants no person carries yet.
+// Reads: the case header, every person, every identifier of every person, the
+// identity change log, what Probata's working tables hold per identifier, and
+// the participants no person carries yet.
 //
-// Writes never overwrite an identifier: a new version is a new
-// registry.entity_alias row whose supersedes_id names the chain's current row
-// (UNIQUE(supersedes_id) makes a fork impossible, the append-only trigger
-// makes an UPDATE impossible). Case-header and person edits update the
-// registry row and append the row's before and after to
-// registry.identity_change in the same transaction. Every write carries an
-// actor-scoped idempotency key, so a retried click answers with the first
+// Writes (owner 2026-10-02 02:12): an identifier is added, fixed in place or
+// deleted; a case-header or person edit updates its registry row. Every one of
+// them appends exactly one registry.identity_change row (before, after, who,
+// why) in the same transaction; that table is append-only. The change row's
+// actor-scoped idempotency key makes a retried click answer with the first
 // receipt instead of writing twice.
 package postgres
 
@@ -138,58 +136,19 @@ WHERE e.merged_into_id IS NULL
 ORDER BY CASE p.role_in_case WHEN 'user' THEN 0 ELSE 1 END, e.created_at, p.id`
 
 const caseAliasesSQL = `SELECT a.id::text, a.entity_id::text, a.alias_text::text, coalesce(a.alias_kind, 'other'),
-       coalesce(a.normalized, ''), a.status, a.period, a.basis, a.change_reason, a.recorded_by, a.created_at,
-       a.supersedes_id::text
+       coalesce(a.normalized, ''), a.status, a.period, a.basis, a.recorded_by, a.created_at
 FROM registry.entity_alias a WHERE a.entity_id = ANY($1::uuid[])
 ORDER BY a.entity_id, a.created_at, a.id`
 
-type aliasRow struct {
-	caseidentity.IdentifierVersion
-	entityID, raw, kind, normalized string
-}
-
-// chainIdentifiers groups alias rows into chains: the current row of each
-// chain (no row supersedes it) carries the earlier rows, newest first.
-func chainIdentifiers(rows []aliasRow) map[string][]caseidentity.Identifier {
-	byID := make(map[string]aliasRow, len(rows))
-	superseded := make(map[string]bool, len(rows))
-	for _, row := range rows {
-		byID[row.ID] = row
-		if row.SupersedesID != nil {
-			superseded[*row.SupersedesID] = true
+// sortIdentifiers orders a person's identifiers: phones, emails, accounts,
+// names, other; then by key, so two spellings of one number sit together.
+func sortIdentifiers(list []caseidentity.Identifier) {
+	sort.SliceStable(list, func(i, j int) bool {
+		if kindRank(list[i].Kind) != kindRank(list[j].Kind) {
+			return kindRank(list[i].Kind) < kindRank(list[j].Kind)
 		}
-	}
-	out := map[string][]caseidentity.Identifier{}
-	for _, row := range rows {
-		if superseded[row.ID] {
-			continue
-		}
-		identifier := caseidentity.Identifier{
-			IdentifierVersion: row.IdentifierVersion, EntityID: row.entityID, RawValue: row.raw,
-			Kind: row.kind, Normalized: row.normalized, History: []caseidentity.IdentifierVersion{},
-		}
-		seen := map[string]bool{row.ID: true}
-		for previous := row.SupersedesID; previous != nil; {
-			earlier, ok := byID[*previous]
-			if !ok || seen[earlier.ID] {
-				break
-			}
-			seen[earlier.ID] = true
-			identifier.History = append(identifier.History, earlier.IdentifierVersion)
-			previous = earlier.SupersedesID
-		}
-		out[row.entityID] = append(out[row.entityID], identifier)
-	}
-	for entity := range out {
-		list := out[entity]
-		sort.SliceStable(list, func(i, j int) bool {
-			if kindRank(list[i].Kind) != kindRank(list[j].Kind) {
-				return kindRank(list[i].Kind) < kindRank(list[j].Kind)
-			}
-			return list[i].Normalized < list[j].Normalized
-		})
-	}
-	return out
+		return list[i].Normalized < list[j].Normalized
+	})
 }
 
 func kindRank(kind string) int {
@@ -350,23 +309,23 @@ func (s *CaseIdentityStore) readPeople(ctx context.Context, q queryer) ([]caseid
 	if err != nil {
 		return nil, caseIdentityError(err)
 	}
-	var all []aliasRow
+	byPerson := map[string][]caseidentity.Identifier{}
 	for aliasRows.Next() {
-		var row aliasRow
-		if err := aliasRows.Scan(&row.ID, &row.entityID, &row.raw, &row.kind, &row.normalized, &row.Status, &row.Period,
-			&row.Basis, &row.ChangeReason, &row.RecordedBy, &row.RecordedAt, &row.SupersedesID); err != nil {
+		var row caseidentity.Identifier
+		if err := aliasRows.Scan(&row.ID, &row.EntityID, &row.RawValue, &row.Kind, &row.Normalized, &row.Status, &row.Period,
+			&row.Basis, &row.RecordedBy, &row.CreatedAt); err != nil {
 			aliasRows.Close()
 			return nil, err
 		}
-		all = append(all, row)
+		byPerson[row.EntityID] = append(byPerson[row.EntityID], row)
 	}
 	aliasRows.Close()
 	if err := aliasRows.Err(); err != nil {
 		return nil, caseIdentityError(err)
 	}
-	chains := chainIdentifiers(all)
 	for i := range people {
-		if list, ok := chains[people[i].ID]; ok {
+		if list, ok := byPerson[people[i].ID]; ok {
+			sortIdentifiers(list)
 			people[i].Identifiers = list
 		}
 	}
@@ -462,91 +421,61 @@ func (s *CaseIdentityStore) begin(ctx context.Context, lock string) (pgx.Tx, fun
 	return tx, rollback, nil
 }
 
-const identifierByKeySQL = `SELECT a.id::text, a.entity_id::text, a.alias_text::text, coalesce(a.alias_kind, ''), a.status,
-       a.period, coalesce(a.basis, ''), coalesce(a.supersedes_id::text, ''), a.created_at
-FROM registry.entity_alias a WHERE a.idempotency_key = $1`
+// aliasStateSQL is one identifier row as the JSON the change log keeps.
+const aliasStateSQL = `SELECT jsonb_build_object('entity_id', a.entity_id, 'raw_value', a.alias_text, 'kind', a.alias_kind,
+	'normalized', a.normalized, 'status', a.status, 'period', a.period, 'basis', a.basis, 'recorded_by', a.recorded_by),
+	a.entity_id::text
+FROM registry.entity_alias a WHERE a.id = $1::uuid`
 
-// WriteIdentifier appends one identifier row: a new chain, or the next
-// version of an existing one.
-func (s *CaseIdentityStore) WriteIdentifier(ctx context.Context, spec caseidentity.IdentifierSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+func requirePerson(ctx context.Context, tx pgx.Tx, entityID string) error {
+	var isPerson bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM registry.person p JOIN registry.entity e ON e.id = p.id
+		WHERE p.id = $1::uuid AND e.merged_into_id IS NULL)`, entityID).Scan(&isPerson); err != nil {
+		return caseIdentityError(err)
+	}
+	if !isPerson {
+		return fmt.Errorf("%w: no person %s", caseidentity.ErrNotFound, entityID)
+	}
+	return nil
+}
+
+// requireNewSpelling refuses a second row with the same spelling on one person.
+func requireNewSpelling(ctx context.Context, tx pgx.Tx, entityID, raw, exceptID string) error {
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM registry.entity_alias a
+		WHERE a.entity_id = $1::uuid AND lower(a.alias_text::text) = lower($2) AND a.id::text <> $3)`, entityID, raw, exceptID).Scan(&exists); err != nil {
+		return caseIdentityError(err)
+	}
+	if exists {
+		return fmt.Errorf("%w: this person already carries %q; edit that identifier instead", caseidentity.ErrStale, raw)
+	}
+	return nil
+}
+
+// AddIdentifier inserts one identifier row and logs it (before = {}).
+func (s *CaseIdentityStore) AddIdentifier(ctx context.Context, spec caseidentity.IdentifierSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
 	if err := caseidentity.ValidateIdentifier(spec); err != nil {
 		return caseidentity.Receipt{}, err
 	}
 	if err := caseidentity.ValidateActor(actor); err != nil {
 		return caseidentity.Receipt{}, err
 	}
-	key := actor.StoredKey("identifier")
+	key := actor.StoredKey("identifier-add")
 	tx, rollback, err := s.begin(ctx, "person:"+strings.ToLower(spec.EntityID))
 	if err != nil {
 		return caseidentity.Receipt{}, err
 	}
-	var existing struct {
-		id, entity, raw, kind, status, basis, supersedes string
-		period                                           *string
-		at                                               time.Time
-	}
-	err = tx.QueryRow(ctx, identifierByKeySQL, key).Scan(&existing.id, &existing.entity, &existing.raw, &existing.kind,
-		&existing.status, &existing.period, &existing.basis, &existing.supersedes, &existing.at)
-	switch {
-	case err == nil:
+	if receipt, replayed, err := replayChange(ctx, tx, key, "registry.entity_alias", "", "registry.entity_alias"); err != nil || replayed {
 		rollback()
-		same := strings.EqualFold(existing.entity, spec.EntityID) && existing.raw == spec.RawValue && existing.kind == spec.Kind &&
-			existing.status == spec.Status && existing.basis == spec.Basis && strings.EqualFold(existing.supersedes, spec.SupersedesID) &&
-			equalOptional(existing.period, spec.Period)
-		if !same {
-			return caseidentity.Receipt{}, caseidentity.ErrIdempotencyConflict
-		}
-		return caseidentity.Receipt{Ref: existing.id, Kind: "registry.entity_alias", RecordedAt: existing.at, Replayed: true}, nil
-	case !errors.Is(err, pgx.ErrNoRows):
-		rollback()
-		return caseidentity.Receipt{}, caseIdentityError(err)
+		return receipt, err
 	}
-	var isPerson bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM registry.person p JOIN registry.entity e ON e.id = p.id
-		WHERE p.id = $1::uuid AND e.merged_into_id IS NULL)`, spec.EntityID).Scan(&isPerson); err != nil {
+	if err := requirePerson(ctx, tx, spec.EntityID); err != nil {
 		rollback()
-		return caseidentity.Receipt{}, caseIdentityError(err)
+		return caseidentity.Receipt{}, err
 	}
-	if !isPerson {
+	if err := requireNewSpelling(ctx, tx, spec.EntityID, spec.RawValue, ""); err != nil {
 		rollback()
-		return caseidentity.Receipt{}, fmt.Errorf("%w: no person %s", caseidentity.ErrNotFound, spec.EntityID)
-	}
-	var supersedes any
-	if spec.SupersedesID != "" {
-		var raw string
-		var current bool
-		err := tx.QueryRow(ctx, `SELECT a.alias_text::text,
-			NOT EXISTS (SELECT 1 FROM registry.entity_alias s WHERE s.supersedes_id = a.id)
-			FROM registry.entity_alias a WHERE a.id = $1::uuid AND a.entity_id = $2::uuid`, spec.SupersedesID, spec.EntityID).Scan(&raw, &current)
-		if errors.Is(err, pgx.ErrNoRows) {
-			rollback()
-			return caseidentity.Receipt{}, fmt.Errorf("%w: identifier %s does not belong to this person", caseidentity.ErrNotFound, spec.SupersedesID)
-		}
-		if err != nil {
-			rollback()
-			return caseidentity.Receipt{}, caseIdentityError(err)
-		}
-		if !current {
-			rollback()
-			return caseidentity.Receipt{}, caseidentity.ErrStale
-		}
-		if !strings.EqualFold(raw, spec.RawValue) {
-			rollback()
-			return caseidentity.Receipt{}, fmt.Errorf("%w: a new version keeps the raw spelling %q; add a new identifier for a new spelling", caseidentity.ErrRejected, raw)
-		}
-		spec.RawValue = raw
-		supersedes = spec.SupersedesID
-	} else {
-		var exists bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM registry.entity_alias a
-			WHERE a.entity_id = $1::uuid AND lower(a.alias_text::text) = lower($2))`, spec.EntityID, spec.RawValue).Scan(&exists); err != nil {
-			rollback()
-			return caseidentity.Receipt{}, caseIdentityError(err)
-		}
-		if exists {
-			rollback()
-			return caseidentity.Receipt{}, fmt.Errorf("%w: this person already carries %q; edit that identifier instead", caseidentity.ErrStale, spec.RawValue)
-		}
+		return caseidentity.Receipt{}, err
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -554,17 +483,24 @@ func (s *CaseIdentityStore) WriteIdentifier(ctx context.Context, spec caseidenti
 		return caseidentity.Receipt{}, err
 	}
 	at := s.clock()
-	var changeReason any
-	if strings.TrimSpace(spec.ChangeReason) != "" {
-		changeReason = spec.ChangeReason
-	}
 	if _, err := tx.Exec(ctx, `INSERT INTO registry.entity_alias
-		    (id, entity_id, alias_text, alias_kind, status, period, basis, change_reason, recorded_by, idempotency_key,
-		     supersedes_id, created_at, provenance)
-		VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11::uuid, $12,
-		        ARRAY[ROW('postgres', $13::text, 'workbench.case_identity')::ai.source_ref])`,
-		id, spec.EntityID, spec.RawValue, spec.Kind, spec.Status, spec.Period, spec.Basis, changeReason,
-		actor.Username, key, supersedes, at, id.String()); err != nil {
+		    (id, entity_id, alias_text, alias_kind, status, period, basis, recorded_by, created_at, provenance)
+		VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, ARRAY[ROW('postgres', $10::text, 'workbench.case_identity')::ai.source_ref])`,
+		id, spec.EntityID, spec.RawValue, spec.Kind, spec.Status, spec.Period, spec.Basis, actor.Username, at, id.String()); err != nil {
+		rollback()
+		return caseidentity.Receipt{}, caseIdentityWriteError(err)
+	}
+	var after []byte
+	var owner string
+	if err := tx.QueryRow(ctx, aliasStateSQL, id.String()).Scan(&after, &owner); err != nil {
+		rollback()
+		return caseidentity.Receipt{}, caseIdentityError(err)
+	}
+	reason := spec.ChangeReason
+	if strings.TrimSpace(reason) == "" {
+		reason = "added on the Case page"
+	}
+	if _, err := insertChange(ctx, tx, "registry.entity_alias", id.String(), []byte(`{}`), after, reason, actor, key, at); err != nil {
 		rollback()
 		return caseidentity.Receipt{}, caseIdentityWriteError(err)
 	}
@@ -575,15 +511,127 @@ func (s *CaseIdentityStore) WriteIdentifier(ctx context.Context, spec caseidenti
 	return caseidentity.Receipt{Ref: id.String(), Kind: "registry.entity_alias", RecordedAt: at}, nil
 }
 
-func equalOptional(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
+// EditIdentifier fixes one identifier row in place and logs before and after.
+func (s *CaseIdentityStore) EditIdentifier(ctx context.Context, spec caseidentity.IdentifierEditSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+	if err := caseidentity.ValidateIdentifierEdit(spec); err != nil {
+		return caseidentity.Receipt{}, err
 	}
-	return *a == *b
+	if err := caseidentity.ValidateActor(actor); err != nil {
+		return caseidentity.Receipt{}, err
+	}
+	key := actor.StoredKey("identifier-edit")
+	tx, rollback, err := s.begin(ctx, "alias:"+strings.ToLower(spec.ID))
+	if err != nil {
+		return caseidentity.Receipt{}, err
+	}
+	if receipt, replayed, err := replayChange(ctx, tx, key, "registry.entity_alias", spec.ID, ""); err != nil || replayed {
+		rollback()
+		return receipt, err
+	}
+	var before []byte
+	var owner string
+	if err := tx.QueryRow(ctx, aliasStateSQL, spec.ID).Scan(&before, &owner); err != nil {
+		rollback()
+		if errors.Is(err, pgx.ErrNoRows) {
+			return caseidentity.Receipt{}, fmt.Errorf("%w: no identifier %s", caseidentity.ErrNotFound, spec.ID)
+		}
+		return caseidentity.Receipt{}, caseIdentityError(err)
+	}
+	target := owner
+	if value, ok := spec.Fields["entity_id"]; ok && value != nil {
+		target = *value
+		if err := requirePerson(ctx, tx, target); err != nil {
+			rollback()
+			return caseidentity.Receipt{}, err
+		}
+	}
+	if value, ok := spec.Fields["raw_value"]; ok && value != nil {
+		if err := requireNewSpelling(ctx, tx, target, *value, spec.ID); err != nil {
+			rollback()
+			return caseidentity.Receipt{}, err
+		}
+	}
+	sets, values := []string{}, []any{spec.ID}
+	for _, field := range sortedKeys(spec.Fields) {
+		values = append(values, spec.Fields[field])
+		cast := ""
+		if field == "entity_id" {
+			cast = "::uuid"
+		}
+		// The column comes from caseidentity.IdentifierColumns (ValidateIdentifierEdit), never from input text.
+		sets = append(sets, fmt.Sprintf("%s = $%d%s", caseidentity.IdentifierColumns[field], len(values), cast))
+	}
+	values = append(values, actor.Username)
+	sets = append(sets, fmt.Sprintf("recorded_by = $%d", len(values)))
+	if _, err := tx.Exec(ctx, fmt.Sprintf("UPDATE registry.entity_alias SET %s WHERE id = $1::uuid", strings.Join(sets, ", ")), values...); err != nil {
+		rollback()
+		return caseidentity.Receipt{}, caseIdentityWriteError(err)
+	}
+	var after []byte
+	if err := tx.QueryRow(ctx, aliasStateSQL, spec.ID).Scan(&after, &owner); err != nil {
+		rollback()
+		return caseidentity.Receipt{}, caseIdentityError(err)
+	}
+	at := s.clock()
+	ref, err := insertChange(ctx, tx, "registry.entity_alias", spec.ID, before, after, spec.ChangeReason, actor, key, at)
+	if err != nil {
+		rollback()
+		return caseidentity.Receipt{}, caseIdentityWriteError(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		rollback()
+		return caseidentity.Receipt{}, caseIdentityWriteError(err)
+	}
+	return caseidentity.Receipt{Ref: ref, Kind: "registry.identity_change", RecordedAt: at}, nil
+}
+
+// DeleteIdentifier removes one identifier row; the change log keeps it (after = {}).
+func (s *CaseIdentityStore) DeleteIdentifier(ctx context.Context, spec caseidentity.IdentifierDeleteSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+	if err := caseidentity.ValidateIdentifierDelete(spec); err != nil {
+		return caseidentity.Receipt{}, err
+	}
+	if err := caseidentity.ValidateActor(actor); err != nil {
+		return caseidentity.Receipt{}, err
+	}
+	key := actor.StoredKey("identifier-delete")
+	tx, rollback, err := s.begin(ctx, "alias:"+strings.ToLower(spec.ID))
+	if err != nil {
+		return caseidentity.Receipt{}, err
+	}
+	if receipt, replayed, err := replayChange(ctx, tx, key, "registry.entity_alias", spec.ID, ""); err != nil || replayed {
+		rollback()
+		return receipt, err
+	}
+	var before []byte
+	var owner string
+	if err := tx.QueryRow(ctx, aliasStateSQL, spec.ID).Scan(&before, &owner); err != nil {
+		rollback()
+		if errors.Is(err, pgx.ErrNoRows) {
+			return caseidentity.Receipt{}, fmt.Errorf("%w: no identifier %s", caseidentity.ErrNotFound, spec.ID)
+		}
+		return caseidentity.Receipt{}, caseIdentityError(err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM registry.entity_alias WHERE id = $1::uuid`, spec.ID); err != nil {
+		rollback()
+		return caseidentity.Receipt{}, caseIdentityWriteError(err)
+	}
+	at := s.clock()
+	ref, err := insertChange(ctx, tx, "registry.entity_alias", spec.ID, before, []byte(`{}`), spec.ChangeReason, actor, key, at)
+	if err != nil {
+		rollback()
+		return caseidentity.Receipt{}, caseIdentityWriteError(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		rollback()
+		return caseidentity.Receipt{}, caseIdentityWriteError(err)
+	}
+	return caseidentity.Receipt{Ref: ref, Kind: "registry.identity_change", RecordedAt: at}, nil
 }
 
 // replayChange answers a retried header/person/new-person act.
-func replayChange(ctx context.Context, tx pgx.Tx, key, subjectTable, subjectID string) (caseidentity.Receipt, bool, error) {
+// For an act that created its subject (createdKind set) the receipt names the
+// created row, as the first answer did.
+func replayChange(ctx context.Context, tx pgx.Tx, key, subjectTable, subjectID, createdKind string) (caseidentity.Receipt, bool, error) {
 	var ref, table, subject string
 	var at time.Time
 	err := tx.QueryRow(ctx, `SELECT id::text, subject_table, subject_id::text, recorded_at FROM registry.identity_change WHERE idempotency_key = $1`, key).
@@ -596,6 +644,9 @@ func replayChange(ctx context.Context, tx pgx.Tx, key, subjectTable, subjectID s
 	}
 	if table != subjectTable || (subjectID != "" && !strings.EqualFold(subject, subjectID)) {
 		return caseidentity.Receipt{}, false, caseidentity.ErrIdempotencyConflict
+	}
+	if createdKind != "" {
+		return caseidentity.Receipt{Ref: subject, Kind: createdKind, RecordedAt: at, Replayed: true}, true, nil
 	}
 	return caseidentity.Receipt{Ref: ref, Kind: "registry.identity_change", RecordedAt: at, Replayed: true}, true, nil
 }
@@ -636,7 +687,7 @@ func (s *CaseIdentityStore) EditHeader(ctx context.Context, mode caseidentity.Mo
 	if err != nil {
 		return caseidentity.Receipt{}, err
 	}
-	if receipt, replayed, err := replayChange(ctx, tx, key, table, spec.ID); err != nil || replayed {
+	if receipt, replayed, err := replayChange(ctx, tx, key, table, spec.ID, ""); err != nil || replayed {
 		rollback()
 		return receipt, err
 	}
@@ -719,7 +770,7 @@ func (s *CaseIdentityStore) EditPerson(ctx context.Context, spec caseidentity.Pe
 	if err != nil {
 		return caseidentity.Receipt{}, err
 	}
-	if receipt, replayed, err := replayChange(ctx, tx, key, "registry.person", spec.ID); err != nil || replayed {
+	if receipt, replayed, err := replayChange(ctx, tx, key, "registry.person", spec.ID, ""); err != nil || replayed {
 		rollback()
 		return receipt, err
 	}
@@ -784,7 +835,7 @@ func (s *CaseIdentityStore) AddPerson(ctx context.Context, spec caseidentity.New
 	if err != nil {
 		return caseidentity.Receipt{}, err
 	}
-	if receipt, replayed, err := replayChange(ctx, tx, key, "registry.person", ""); err != nil || replayed {
+	if receipt, replayed, err := replayChange(ctx, tx, key, "registry.person", "", "registry.person"); err != nil || replayed {
 		rollback()
 		return receipt, err
 	}

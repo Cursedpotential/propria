@@ -18,6 +18,8 @@ type caseIdentityStoreStub struct {
 	readMode   caseidentity.Mode
 	readCalls  int
 	identifier caseidentity.IdentifierSpec
+	edit       caseidentity.IdentifierEditSpec
+	deleted    caseidentity.IdentifierDeleteSpec
 	header     caseidentity.HeaderSpec
 	person     caseidentity.PersonSpec
 	actor      caseidentity.Actor
@@ -36,8 +38,18 @@ func (s *caseIdentityStoreStub) Read(_ context.Context, mode caseidentity.Mode) 
 	return caseidentity.View{Mode: mode, People: []caseidentity.Person{}}, s.err
 }
 
-func (s *caseIdentityStoreStub) WriteIdentifier(_ context.Context, spec caseidentity.IdentifierSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+func (s *caseIdentityStoreStub) AddIdentifier(_ context.Context, spec caseidentity.IdentifierSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
 	s.identifier, s.actor = spec, actor
+	return s.receipt()
+}
+
+func (s *caseIdentityStoreStub) EditIdentifier(_ context.Context, spec caseidentity.IdentifierEditSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+	s.edit, s.actor = spec, actor
+	return s.receipt()
+}
+
+func (s *caseIdentityStoreStub) DeleteIdentifier(_ context.Context, spec caseidentity.IdentifierDeleteSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+	s.deleted, s.actor = spec, actor
 	return s.receipt()
 }
 
@@ -95,7 +107,7 @@ func TestCaseIdentityReadRequiresTailnetTokenAndMode(t *testing.T) {
 func TestCaseIdentityWriteIsActorBoundAndValidated(t *testing.T) {
 	store, routes := newCaseIdentityHandler(t)
 	body := []byte(`{"entity_id":"` + caseTestPerson + `","raw_value":"810-252-2779","kind":"phone","status":"confirmed",
-		"period":"2024-11..12","basis":"her phone saves it as Matthew Salem","change_reason":"owner confirmed","supersedes_id":"` + caseTestPerson + `"}`)
+		"period":"2024-11..12","basis":"her phone saves it as Matthew Salem","change_reason":"owner confirmed"}`)
 
 	missingKey := newPreviewRequest(http.MethodPost, "/case-identity/identifiers", body)
 	require.Equal(t, http.StatusUnauthorized, servePreviewRequest(routes, missingKey).Code)
@@ -128,6 +140,31 @@ func TestCaseIdentityWriteIsActorBoundAndValidated(t *testing.T) {
 	unknown := newPreviewRequest(http.MethodPost, "/case-identity/identifiers", []byte(`{"id":"x","entity_id":"`+caseTestPerson+`"}`))
 	unknown.Header.Set("Idempotency-Key", "unknown-field")
 	require.Equal(t, http.StatusBadRequest, servePreviewRequest(routes, unknown).Code, "unknown fields are refused")
+}
+
+func TestCaseIdentityIdentifierEditAndDelete(t *testing.T) {
+	store, routes := newCaseIdentityHandler(t)
+	const alias = "01a0f751-e07b-7000-8000-00000000a001"
+	edit := newPreviewRequest(http.MethodPost, "/case-identity/identifiers/"+alias,
+		[]byte(`{"fields":{"kind":"legal","period":null},"change_reason":"the caption names her"}`))
+	edit.Header.Set("Idempotency-Key", "edit-1")
+	require.Equal(t, http.StatusCreated, servePreviewRequest(routes, edit).Code)
+	require.Equal(t, alias, store.edit.ID)
+	require.Equal(t, "legal", *store.edit.Fields["kind"])
+	require.Nil(t, store.edit.Fields["period"])
+
+	noReason := newPreviewRequest(http.MethodPost, "/case-identity/identifiers/"+alias, []byte(`{"fields":{"kind":"legal"}}`))
+	noReason.Header.Set("Idempotency-Key", "edit-2")
+	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, noReason).Code)
+
+	remove := newPreviewRequest(http.MethodPost, "/case-identity/identifiers/"+alias+"/delete", []byte(`{"change_reason":"typed into the wrong person"}`))
+	remove.Header.Set("Idempotency-Key", "delete-1")
+	require.Equal(t, http.StatusCreated, servePreviewRequest(routes, remove).Code)
+	require.Equal(t, alias, store.deleted.ID)
+
+	badID := newPreviewRequest(http.MethodPost, "/case-identity/identifiers/not-a-uuid/delete", []byte(`{"change_reason":"x"}`))
+	badID.Header.Set("Idempotency-Key", "delete-2")
+	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, badID).Code)
 }
 
 func TestCaseIdentityPersonAndHeaderEdits(t *testing.T) {

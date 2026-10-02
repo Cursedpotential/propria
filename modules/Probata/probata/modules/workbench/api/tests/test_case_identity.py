@@ -1,6 +1,6 @@
 """Case page BFF: registry pass-through with actor + key, catalog counts labeled by store.
 
-Byline: Claude Code · Opus 5.5 · 2026-10-01
+Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 """
 
 from __future__ import annotations
@@ -132,12 +132,28 @@ def test_identifier_write_forwards_actor_and_key(engine) -> None:
         {"ref": "r1", "kind": "registry.entity_alias", "recorded_at": "2026-10-01T12:00:00Z", "replayed": False},
     )
     body = {"entity_id": MATT, "raw_value": "810-252-2779", "kind": "phone", "status": "confirmed",
-            "basis": "her phone saves it as Matthew Salem", "supersedes_id": "a1", "change_reason": "owner confirmed"}
+            "basis": "her phone saves it as Matthew Salem", "change_reason": "owner confirmed"}
     response = TestClient(_app()).post("/api/case-identity/identifiers", json=body, headers={"Idempotency-Key": "k-1"})
     assert response.status_code == 201, response.text
     call = engine.calls[0]
     assert call["json"] == body
     assert call["headers"] == {"X-authentik-uid": "subject-1", "X-authentik-username": "matt", "Idempotency-Key": "k-1"}
+
+
+def test_identifier_edit_and_delete_reach_their_engine_routes(engine) -> None:
+    alias = "01a0f751-e07b-7000-8000-00000000a001"
+    receipt = {"ref": "c1", "kind": "registry.identity_change", "recorded_at": "2026-10-02T06:00:00Z"}
+    engine.answers[("POST", f"/case-identity/identifiers/{alias}")] = (201, receipt)
+    engine.answers[("POST", f"/case-identity/identifiers/{alias}/delete")] = (201, receipt)
+    client = TestClient(_app())
+    edit = {"fields": {"kind": "legal"}, "change_reason": "the caption names her"}
+    assert client.post(f"/api/case-identity/identifiers/{alias}", json=edit, headers={"Idempotency-Key": "e"}).status_code == 201
+    removal = {"change_reason": "typed into the wrong person"}
+    response = client.post(f"/api/case-identity/identifiers/{alias}/delete", json=removal, headers={"Idempotency-Key": "d"})
+    assert response.status_code == 201 and response.json()["replayed"] is False
+    assert [call["json"] for call in engine.calls] == [edit, removal]
+    bad = client.post("/api/case-identity/identifiers/not-a-uuid/delete", json=removal, headers={"Idempotency-Key": "d2"})
+    assert bad.status_code == 422
 
 
 def test_writes_need_an_actor_and_a_key(engine) -> None:

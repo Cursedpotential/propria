@@ -27,7 +27,8 @@ services:
       NVIDIA_API_KEY_FILE: /run/secrets/intake-engine/nvidia-api-key
       INTAKE_AGENT_ROOT: /srv/openlist
       INTAKE_CATALOG_PG_HOST: 100.91.190.107
-      INTAKE_CATALOG_PG_PORT: '5475'
+      # Catalog route: tailscale serve tcp 5433 on ovh-files (deploy/tailscale/catalog-serve.sh in Probata). Claude Code · Opus 5.5 · 2026-10-02
+      INTAKE_CATALOG_PG_PORT: '5433'
       INTAKE_CATALOG_PG_DB: casebible
       INTAKE_CATALOG_RO_USER: metabase_ro
       INTAKE_CATALOG_RO_PASSWORD_FILE: /run/secrets/intake-engine/metabase-ro

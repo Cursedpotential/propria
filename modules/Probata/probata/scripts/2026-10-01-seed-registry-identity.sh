@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Seed Probata registry identifiers from the Case Bible catalog's raw_duck.msg_identity_20260924.
 #
-# Byline: Claude Code · Opus 5.5 · 2026-10-01
+# Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02 (every add logged)
 # Owner order 2026-10-01 07:57: registry is the ONE identity store. This moves the owner-confirmed
 # person <-> identifier rows (2026-09-24, Matt 32 / Katrina 7) into registry.entity_alias, every raw
 # spelling kept, with its status, period, basis and original date. After it, the catalog reads registry
@@ -10,7 +10,8 @@
 # Runs ON ovh-files (the two PostgreSQL containers are there):
 #   bash 2026-10-01-seed-registry-identity.sh            # dry run: everything inside a transaction, then ROLLBACK
 #   APPLY=1 bash 2026-10-01-seed-registry-identity.sh    # same, then COMMIT
-# Idempotent: each row's idempotency_key is derived from (person, identifier, raw_value); a re-run inserts nothing.
+# Idempotent: a person's spelling that registry already holds is skipped, so a re-run inserts nothing. Every
+# inserted identifier and the short_name label are logged in registry.identity_change (seed actor).
 # Refuses to run unless both persons exist in registry (they are minted by the go-live identity step).
 set -euo pipefail
 
@@ -48,7 +49,7 @@ BEGIN
   END IF;
 END \$\$;
 
--- The catalog label each person is filtered by (raw_duck.msg_identity_20260924.person), logged as a version.
+-- The catalog label each person is filtered by (raw_duck.msg_identity_20260924.person), logged in identity_change.
 WITH labels(id, short_name) AS (VALUES ('${MATT_ID}'::uuid, 'Matt'), ('${KATRINA_ID}'::uuid, 'Katrina')),
 before AS (
   SELECT p.id, l.short_name, to_jsonb(p) AS state FROM registry.person p JOIN labels l ON l.id = p.id
@@ -62,34 +63,43 @@ SELECT uuidv7(), 'registry.person', u.id, jsonb_build_object('short_name', b.sta
 FROM updated u JOIN before b ON b.id = u.id
 ON CONFLICT (idempotency_key) DO NOTHING;
 
-INSERT INTO registry.entity_alias (id, entity_id, alias_text, alias_kind, status, period, basis, change_reason, recorded_by,
-                                   idempotency_key, created_at, provenance)
-SELECT uuidv7(),
-       CASE s.person WHEN 'Matt' THEN '${MATT_ID}'::uuid ELSE '${KATRINA_ID}'::uuid END,
-       s.raw_value,
-       CASE WHEN s.kind IN ('name', 'phone', 'email', 'account', 'other') THEN s.kind ELSE 'other' END,
-       s.status, NULLIF(s.period, ''), s.basis,
+-- One registry.entity_alias row per catalog row, each logged once in registry.identity_change (before = {}).
+WITH inserted AS (
+  INSERT INTO registry.entity_alias (id, entity_id, alias_text, alias_kind, status, period, basis, recorded_by, created_at, provenance)
+  SELECT uuidv7(),
+         CASE s.person WHEN 'Matt' THEN '${MATT_ID}'::uuid ELSE '${KATRINA_ID}'::uuid END,
+         s.raw_value,
+         CASE WHEN s.kind IN ('name', 'phone', 'email', 'account', 'other') THEN s.kind ELSE 'other' END,
+         s.status, NULLIF(s.period, ''), s.basis,
+         'seed:raw_duck.msg_identity_20260924',
+         s.added_at,
+         ARRAY[ROW('postgres', s.person || '|' || s.identifier || '|' || s.raw_value, 'casebible.raw_duck.msg_identity_20260924')::ai.source_ref]
+  FROM seed_identity s
+  WHERE NOT EXISTS (SELECT 1 FROM registry.entity_alias a
+                    WHERE a.entity_id = CASE s.person WHEN 'Matt' THEN '${MATT_ID}'::uuid ELSE '${KATRINA_ID}'::uuid END
+                      AND lower(a.alias_text::text) = lower(s.raw_value))
+  RETURNING id, entity_id, alias_text, alias_kind, normalized, status, period, basis, recorded_by
+)
+INSERT INTO registry.identity_change (id, subject_table, subject_id, before_state, after_state, change_reason, recorded_by, recorded_by_uid, idempotency_key)
+SELECT uuidv7(), 'registry.entity_alias', i.id, '{}'::jsonb,
+       jsonb_build_object('entity_id', i.entity_id, 'raw_value', i.alias_text, 'kind', i.alias_kind, 'normalized', i.normalized,
+                          'status', i.status, 'period', i.period, 'basis', i.basis, 'recorded_by', i.recorded_by),
        'seeded from raw_duck.msg_identity_20260924 (Case Bible catalog), owner-confirmed 2026-09-23/24',
-       'seed:raw_duck.msg_identity_20260924',
-       'seed:msg_identity_20260924:' || md5(s.person || chr(31) || s.identifier || chr(31) || s.raw_value),
-       s.added_at,
-       ARRAY[ROW('postgres', s.person || '|' || s.identifier || '|' || s.raw_value, 'casebible.raw_duck.msg_identity_20260924')::ai.source_ref]
-FROM seed_identity s
-WHERE NOT EXISTS (SELECT 1 FROM registry.entity_alias a
-                  WHERE a.entity_id = CASE s.person WHEN 'Matt' THEN '${MATT_ID}'::uuid ELSE '${KATRINA_ID}'::uuid END
-                    AND lower(a.alias_text::text) = lower(s.raw_value))
-ON CONFLICT (idempotency_key) DO NOTHING;
+       'seed:2026-10-01-case-identity', 'seed',
+       'seed:msg_identity_20260924:' || md5(i.entity_id::text || chr(31) || lower(i.alias_text::text))
+FROM inserted i;
 
 -- Read-back: every catalog row has exactly one registry row with the same person, raw spelling and key.
 SELECT s.person, count(*) AS catalog_rows, count(a.id) AS registry_rows,
        count(*) FILTER (WHERE a.normalized = s.identifier) AS same_key,
        count(*) FILTER (WHERE a.status = s.status AND coalesce(a.period, '') = coalesce(s.period, '') AND a.basis = s.basis) AS same_facts
 FROM seed_identity s
-LEFT JOIN registry.entity_alias_current a
+LEFT JOIN registry.entity_alias a
   ON a.entity_id = CASE s.person WHEN 'Matt' THEN '${MATT_ID}'::uuid ELSE '${KATRINA_ID}'::uuid END
  AND a.alias_text::text = s.raw_value
 GROUP BY s.person ORDER BY s.person;
 SELECT person, kind, status, count(*) FROM registry.vw_case_identifier GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+SELECT subject_table, count(*) FROM registry.identity_change WHERE recorded_by = 'seed:2026-10-01-case-identity' GROUP BY 1 ORDER BY 1;
 ${END};
 SQL
 } | docker exec -i "$PLATFORM_CONTAINER" psql -U ai -d platform -At -F ' | '
