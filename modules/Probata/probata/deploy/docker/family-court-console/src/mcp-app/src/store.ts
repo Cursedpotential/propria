@@ -426,17 +426,19 @@ async function openStore(url: string): Promise<StoreResult> {
     const db = remote
       ? new (driver.mod.Surreal as unknown as new () => SurrealLike)()
       : new driver.mod.Surreal({ engines: createNodeEngines() });
-    await db.connect(url);
     // Shared-server mode (owner ruling 2026-09-07 15:30: one SurrealDB service in ~ so every
     // harness shares the same data). Embedded rocksdb:/mem: URLs need no auth; a remote
-    // ws://|wss://|http(s):// URL signs in with root credentials resolved from env
+    // ws://|wss://|http(s):// URL authenticates with root credentials resolved from env
     // (CUSTODY_CASE_DB_USER / CUSTODY_CASE_DB_PASS) else ~/.secrets/*.env (tolerant parse,
     // never `source`d, never printed). Missing creds -> connect stays unauthenticated so a
     // `--unauthenticated` dev server still works.
-    if (/^(wss?|https?):\/\//i.test(url) && typeof db.signin === "function") {
-      const creds = findServerCredentials();
-      if (creds) await db.signin(creds);
-    }
+    // The credentials go to connect() as the `authentication` provider, not to a one-off
+    // .signin(): a signin token expires (1 h) and the driver then has nothing to renew with,
+    // so the long-running console fell to "Anonymous access not allowed" on every store call
+    // (found 2026-10-02). The provider is re-invoked whenever the session expires or the
+    // socket reconnects. (Claude Code · Opus 5.5 · 2026-10-02)
+    const creds = remote ? findServerCredentials() : null;
+    await db.connect(url, creds ? { authentication: () => creds, namespace: "fct", database: "case" } : undefined);
     await db.use({ namespace: "fct", database: "case" });
     const dim = await migrate(db, driver.mod);
     openedConnections.add(db);
