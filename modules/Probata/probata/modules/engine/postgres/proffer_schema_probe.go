@@ -65,22 +65,22 @@ var requiredProfferColumns = []string{
 	"analysis.case_registry_import_receipt.approved_on",
 }
 
-const authoritativeMatterID = "01a03136-c5cc-71c7-ac77-5c00a29a2ea8"
-const authoritativeCourtCaseID = "01a03136-c5cc-76f9-98df-702058d423d9"
-const registrySourceMigrationURI = "sql/0030_matter_case_foundation.sql"
-const registrySourceMigrationSHA256 = "b19959119c0f040adcdc442aa7772503fd2d1439a90b1565eaa6c17e0883eb70"
-const registrySourceGitCommit = "97f48b172b1d31aa5a0005b45170d72af1299773"
-const registryPayloadSchemaVersion = "0030-platform-registry-handoff-v1"
-const registryCanonicalPayloadSHA256 = "8e0a8e2d86027add31f9470976d1378e039d6efb5312ecae4cfec0ebd10690e6"
-const registryAPIPayloadSHA256 = "cd370f6c9c00e620f39f283e2d0d7d1a83a463b14097b99537b886d438618a6d"
+// The real go-live case identity (OD-05), minted by sql/bootstrap/seed_live_case_registry_20261001.sql from the
+// owner-approved payload sql/bootstrap/case_registry_live_identity_20261001.json (owner 2026-10-01 07:17 EDT,
+// "Mint now, I approve"). Replaces the never-minted 0030 handoff values. Claude Code · Opus 5.5 · 2026-10-02.
+const authoritativeMatterID = "01a0f751-e07b-75cc-9ad5-63ad9449a8ba"
+const authoritativeCourtCaseID = "01a0f751-e07b-76a1-a738-eb3e3aa3e68c"
+const registrySourceMigrationURI = "sql/bootstrap/case_registry_live_identity_20261001.json"
+const registrySourceMigrationSHA256 = "b39561e99a111c55f86d258e97cdbffec3fa0f84efb1d97fb548aa301b8fe544"
+const registrySourceGitCommit = "5643178cf0beba05a11bd357544e0c32f170f840"
+const registryPayloadSchemaVersion = "live-case-registry-identity-v1"
+const registryCanonicalPayloadSHA256 = "e51c7fcfcc59d422255e173cbad9455ff010e8e052807190b7872b49cfaf113a"
+const registryAPIPayloadSHA256 = "b39561e99a111c55f86d258e97cdbffec3fa0f84efb1d97fb548aa301b8fe544"
 
-// The two receipt predicates that used to be hardcoded literals in the SQL
-// text below (D-126 needed a second, DEV-mode expectation for both) are now
-// bind parameters too. These three constants are STRICT mode's values --
-// unchanged from the literals Codex originally wrote inline.
-const registryReceiptPayloadByteLength = 1075
+// The receipt predicates bound in STRICT mode (DEV mode binds the devReceipt* values below).
+const registryReceiptPayloadByteLength = 4532
 const registryReceiptApprovedBy = "owner"
-const registryReceiptApprovedOn = "2026-08-23"
+const registryReceiptApprovedOn = "2026-10-01"
 
 // platformDevAuthBypassEnv is the one flag D-125 defines for every ingest
 // surface (Proffer starter, Workbench BFF, and -- as of D-126 -- this admission

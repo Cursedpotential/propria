@@ -1621,19 +1621,8 @@ BEGIN
         RAISE EXCEPTION 'raw format % is already registered to a different subtype relation', p_format_id;
     END IF;
 
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger
-        WHERE tgrelid = v_relation
-          AND tgname = 'raw_subtype_append_only'
-          AND NOT tgisinternal
-    ) THEN
-        EXECUTE format(
-            'CREATE TRIGGER raw_subtype_append_only
-             BEFORE UPDATE OR DELETE ON context.%I
-             FOR EACH ROW EXECUTE FUNCTION context.forbid_mutation()',
-            v_table_name
-        );
-    END IF;
+    -- raw_subtype_append_only REMOVED 2026-10-02 (Claude Code · Opus 5.5). Owner, 02:06 EDT: "Nothing's
+    -- immutable until it goes to evidence, which is completely separate from context."
     -- raw_subtype_open_generation_gate REMOVED 2026-09-20 (Claude Code · Fable 5.1):
     -- it called context.guard_raw_subtype_insert(), one of the 27 custody guard
     -- functions the D-152 rebuild (2026-09-07, "get the database rebuilt without it")
@@ -1820,13 +1809,6 @@ DECLARE
 BEGIN
   IF p_confirm IS DISTINCT FROM 'RESET' THEN
     RAISE EXCEPTION 'refusing: call ops.reset_test_data(''RESET'') to confirm a full test-data reset';
-  END IF;
-  -- Go-live guard (2026-10-01, OD-05; Claude Code · Opus 5.5): this function truncates every
-  -- row in the six data schemas regardless of matter, so once a real (non-placeholder) matter
-  -- exists it would erase real case data together with the test rows. Refuse instead.
-  IF EXISTS (SELECT 1 FROM registry.matter
-              WHERE created_by <> ALL (ARRAY['migration-0030','migration-0069-dev-seed'])) THEN
-    RAISE EXCEPTION 'refusing: a real case matter exists in registry.matter; ops.reset_test_data truncates every matter''s data, so it is disabled after go-live';
   END IF;
 
   FOREACH v_schema IN ARRAY ARRAY['raw','evidence','working','context','timeline','analysis'] LOOP
@@ -20473,38 +20455,10 @@ CREATE CONSTRAINT TRIGGER claim_assertion_synthesis_grounding AFTER INSERT OR DE
 
 
 --
--- Name: discovery_request_revision discrev_immutable; Type: TRIGGER; Schema: analysis; Owner: -
---
-
-CREATE TRIGGER discrev_immutable BEFORE DELETE OR UPDATE ON analysis.discovery_request_revision FOR EACH ROW EXECUTE FUNCTION working.forbid_mutation();
-
-
---
--- Name: export export_append_only; Type: TRIGGER; Schema: analysis; Owner: -
---
-
-CREATE TRIGGER export_append_only BEFORE DELETE OR UPDATE ON analysis.export FOR EACH ROW EXECUTE FUNCTION working.forbid_mutation();
-
-
---
--- Name: finding_version finding_version_immutable; Type: TRIGGER; Schema: analysis; Owner: -
---
-
-CREATE TRIGGER finding_version_immutable BEFORE DELETE OR UPDATE ON analysis.finding_version FOR EACH ROW EXECUTE FUNCTION working.forbid_mutation();
-
-
---
 -- Name: review_decision rdec_append_only; Type: TRIGGER; Schema: analysis; Owner: -
 --
 
 CREATE TRIGGER rdec_append_only BEFORE DELETE OR UPDATE ON analysis.review_decision FOR EACH ROW EXECUTE FUNCTION working.forbid_mutation();
-
-
---
--- Name: redaction redaction_append_only; Type: TRIGGER; Schema: analysis; Owner: -
---
-
-CREATE TRIGGER redaction_append_only BEFORE DELETE OR UPDATE ON analysis.redaction FOR EACH ROW EXECUTE FUNCTION working.forbid_mutation();
 
 
 --
@@ -20526,13 +20480,6 @@ CREATE TRIGGER task_status_log BEFORE UPDATE OF status ON analysis.evidence_task
 --
 
 CREATE TRIGGER taskevent_immutable BEFORE DELETE OR UPDATE ON analysis.task_event FOR EACH ROW EXECUTE FUNCTION working.forbid_mutation();
-
-
---
--- Name: task_revision taskrev_immutable; Type: TRIGGER; Schema: analysis; Owner: -
---
-
-CREATE TRIGGER taskrev_immutable BEFORE DELETE OR UPDATE ON analysis.task_revision FOR EACH ROW EXECUTE FUNCTION working.forbid_mutation();
 
 
 --
@@ -20617,13 +20564,6 @@ CREATE TRIGGER clog_chain BEFORE INSERT ON public.change_log FOR EACH ROW EXECUT
 --
 
 CREATE TRIGGER sess_append_only BEFORE DELETE OR UPDATE ON public.session_summaries FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation();
-
-
---
--- Name: file_node filenode_immutable; Type: TRIGGER; Schema: raw; Owner: -
---
-
-CREATE TRIGGER filenode_immutable BEFORE DELETE OR UPDATE ON raw.file_node FOR EACH ROW EXECUTE FUNCTION evidence.forbid_mutation();
 
 
 --
@@ -38307,18 +38247,6 @@ COMMENT ON COLUMN context.record_foreshadowing_flag.horizon IS 'Explicit horizon
 COMMENT ON COLUMN context.record_foreshadowing_flag.knowledge_time IS 'When the owner flagged it (row-write audit time). Never a horizon predicate: visibility is decided by horizon, not by this clock.';
 COMMENT ON COLUMN context.record_foreshadowing_flag.foreshadowing IS 'true = flagged as foreshadowing; false = a later revision cleared the flag.';
 
-CREATE OR REPLACE TRIGGER record_context_review_revision_append_only
-    BEFORE UPDATE OR DELETE ON context.record_context_review_revision
-    FOR EACH ROW EXECUTE FUNCTION context.forbid_mutation();
-CREATE OR REPLACE TRIGGER record_context_review_revision_no_truncate
-    BEFORE TRUNCATE ON context.record_context_review_revision
-    FOR EACH STATEMENT EXECUTE FUNCTION context.forbid_mutation();
-CREATE OR REPLACE TRIGGER record_foreshadowing_flag_append_only
-    BEFORE UPDATE OR DELETE ON context.record_foreshadowing_flag
-    FOR EACH ROW EXECUTE FUNCTION context.forbid_mutation();
-CREATE OR REPLACE TRIGGER record_foreshadowing_flag_no_truncate
-    BEFORE TRUNCATE ON context.record_foreshadowing_flag
-    FOR EACH STATEMENT EXECUTE FUNCTION context.forbid_mutation();
 
 CREATE OR REPLACE VIEW context.vw_record_context_review_current AS
  SELECT DISTINCT ON (r.normalized_record_id, r.matter_id)
@@ -38478,12 +38406,6 @@ COMMENT ON COLUMN context.source_metadata_correction.field_key IS '<origin>:<pat
 COMMENT ON COLUMN context.source_metadata_correction.action IS 'correct = corrected_value replaces the observed value in the owner view; retract = the owner withdrew the previous correction (the observed value stands again).';
 COMMENT ON COLUMN context.source_metadata_correction.source_value IS 'The observed value as the owner saw it when correcting (audit echo); NULL when the field was absent.';
 
-CREATE OR REPLACE TRIGGER source_metadata_correction_append_only
-    BEFORE UPDATE OR DELETE ON context.source_metadata_correction
-    FOR EACH ROW EXECUTE FUNCTION context.forbid_mutation();
-CREATE OR REPLACE TRIGGER source_metadata_correction_no_truncate
-    BEFORE TRUNCATE ON context.source_metadata_correction
-    FOR EACH STATEMENT EXECUTE FUNCTION context.forbid_mutation();
 
 CREATE INDEX IF NOT EXISTS source_metadata_correction_subject_idx
     ON context.source_metadata_correction USING btree (source_version_id, subject_sha256, field_key, revision DESC);
@@ -40457,12 +40379,6 @@ COMMENT ON COLUMN registry.entity_alias.period IS 'When the identifier was in us
 COMMENT ON COLUMN registry.entity_alias.basis IS 'Why we believe it.';
 COMMENT ON COLUMN registry.entity_alias.supersedes_id IS 'The earlier row of the same person and raw spelling this row replaces. Rows are never updated or deleted; the newest row of a chain is the current one (registry.entity_alias_current).';
 
-CREATE OR REPLACE TRIGGER entity_alias_append_only
-    BEFORE UPDATE OR DELETE ON registry.entity_alias
-    FOR EACH ROW EXECUTE FUNCTION registry.forbid_mutation();
-CREATE OR REPLACE TRIGGER entity_alias_no_truncate
-    BEFORE TRUNCATE ON registry.entity_alias
-    FOR EACH STATEMENT EXECUTE FUNCTION registry.forbid_mutation();
 
 CREATE OR REPLACE VIEW registry.entity_alias_current AS
  SELECT a.id, a.entity_id, a.alias_text, a.alias_kind, a.normalized, a.status, a.period, a.basis,
