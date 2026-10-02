@@ -97,6 +97,9 @@ func RegisterAll(registrar interface {
 }, registrations Registrations) {
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
+	// Back-fill of call logs imported before commit_call_log existed.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	registrar.RegisterWorkflowWithOptions(proffer.CallLogBackfillWorkflow, workflow.RegisterOptions{Name: proffer.CallLogBackfillWorkflowName})
 	activities.RegisterBatchImportActivities(registrar, registrations.BatchImport)
 	registrar.RegisterWorkflowWithOptions(repairplan.RepairPlanWorkflow, workflow.RegisterOptions{Name: repairplan.WorkflowName})
 	activities.RegisterRepairPlanActivities(registrar, registrations.RepairPlan)
