@@ -1,0 +1,56 @@
+# =============================================================================
+# CASE BIBLE CATALOG — PostgreSQL 18 + DuckDB (raw_duck schema, the catalog of record).
+#
+# Replaces the Coolify one-click standalone database `casebible-pg18`
+# (uuid fgz1n7useplhk0t91uk7k1aw, created 2026-08-03). That resource kept its port only in
+# Coolify's own database (its REST API refuses `ports_mappings`) and its 46 GB of data in a
+# Docker named volume on the root disk. This file declares both instead (owner 2026-10-02 03:01).
+#
+# DEPLOY AS its own Coolify "Docker Compose" app `casebible-pg` on ovh-files
+# (server cn89l8801u8gsginw1rxq5qt), repo Cursedpotential/propria @ main,
+# base directory /modules/Probata/probata, compose file /deploy/casebible-pg.yaml.
+# Env (Coolify, never git): POSTGRES_PASSWORD — the existing superuser password. The data
+# directory is already initialised, so it is not re-applied; it is kept equal for the record.
+#
+# Doors:
+#   - Tailnet: ovh-files tailscale serve tcp 5433 -> 127.0.0.1:5475 (deploy/tailscale/catalog-serve.sh).
+#     The port below is loopback only; tailscale serve is the one tailnet door (owner 2026-10-02 03:02).
+#   - Same host, Docker network `coolify`: the alias `fgz1n7useplhk0t91uk7k1aw` keeps the old
+#     container name, which n8n (its own database lives here) and proffer-worker dial.
+#
+# Data: /data/probata/volumes/casebible-pg18 (copied from the old named volume at cutover;
+# the image keeps PGDATA at /var/lib/postgresql/18/docker).
+#
+# Byline: Claude Code · Opus 5.5 · 2026-10-02
+# =============================================================================
+
+services:
+  casebible-pg:
+    image: ghcr.io/cursedpotential/agno-postgres:18-duckdb
+    container_name: casebible-pg18
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5475:5432"
+    volumes:
+      - /data/probata/volumes/casebible-pg18:/var/lib/postgresql
+    environment:
+      POSTGRES_USER: postgres
+      PGUSER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in Coolify}
+      POSTGRES_DB: casebible
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d casebible"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      coolify:
+        aliases:
+          - fgz1n7useplhk0t91uk7k1aw
+
+networks:
+  coolify:
+    external: true
+
+# No named volumes — absolute host bind (declared inline above).
