@@ -90,7 +90,9 @@ try {
     throw Error(`Browser did not reach expected state: ${expression}`);
   };
   const navigate = async () => {
+    const loaded = new Promise(resolve => handlers.set("Page.loadEventFired", resolve));
     await send("Page.navigate", { url: `${base}/claims?probata_kind=entity&probata_id=${identity}` });
+    await Promise.race([loaded, sleep(20000).then(() => { throw Error("Page load timed out"); })]);
     await wait("document.querySelector('h1')?.textContent === 'Claims and evidence'");
   };
   await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
@@ -105,7 +107,7 @@ try {
   assert.equal(writes.length, 1, "Reopening created a second response");
   available = false;
   await navigate();
-  await wait("document.body.innerText.includes('Probata source unavailable')");
+  await wait("document.body.innerText.includes('Source unavailable')");
   assert(await evaluate("[...document.querySelectorAll('textarea')].some(t => t.value === 'Preserved legal response')"));
   assert.equal(writes.length, 1);
   await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
