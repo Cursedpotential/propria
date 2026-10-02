@@ -208,11 +208,12 @@ def test_unavailable_scope_and_noninvestigation_never_send(setup):
         )
 
 
-def test_route_requires_verified_human_and_blocks_body_identity(setup):
+@pytest.mark.parametrize("planning_source", ["authentik", "signed-bff", "tailnet"])
+def test_route_requires_planning_principal_and_blocks_body_identity(setup, planning_source):
     service, claim, _ = setup
     principal = [
         AuthenticatedPrincipal(
-            subject="device", username=None, email=None, groups=(), source="tailnet"
+            subject="service", username=None, email=None, groups=(), source="mcp-gateway"
         )
     ]
     app = FastAPI()
@@ -234,8 +235,8 @@ def test_route_requires_verified_human_and_blocks_body_identity(setup):
             subject="verified-human",
             username=None,
             email=None,
-            groups=("advocatio-users",),
-            source="authentik",
+            groups=(),
+            source=planning_source,
         )
         assert (
             client.post(
@@ -246,7 +247,7 @@ def test_route_requires_verified_human_and_blocks_body_identity(setup):
         result = client.post(path, json={"expected_revision": claim.revision})
         assert result.status_code == 200
         saved = result.json()["followups"][0]["investigation"]
-        assert saved["actor_uid"] == saved["actor_username"] == "verified-human"
+        assert saved["actor_uid"] == saved["actor_username"] == f"{planning_source}:verified-human"
 
 
 def test_ack_merges_concurrent_owner_edit_and_native_source(setup):
@@ -313,3 +314,100 @@ def test_changed_native_source_blocks_preparation(setup):
     with pytest.raises(ValueError, match="source is unavailable"):
         send(service, claim)
     assert service.get(claim.claim_id).followups[0].investigation is None
+
+
+@pytest.mark.parametrize("source", ["mcp-gateway", "office-session", "explicit-test-bypass"])
+def test_dispatch_actor_rejects_transport_and_service_principals(source):
+    from legal_workspace.api.auth import PrincipalAuthorizationDenied, require_investigation_actor
+
+    principal = AuthenticatedPrincipal(
+        subject="device-or-service",
+        username="spoofed-name",
+        email=None,
+        groups=("advocatio-users",),
+        source=source,
+    )
+    with pytest.raises(PrincipalAuthorizationDenied):
+        require_investigation_actor(principal)
+
+
+def test_dispatch_eligibility_does_not_change_substantive_review_gate():
+    from legal_workspace.api.auth import (
+        PrincipalAuthorizationDenied,
+        require_human_review_actor,
+        require_investigation_actor,
+    )
+
+    principal = AuthenticatedPrincipal(
+        subject="verified-person", username=None, email=None, groups=(), source="authentik"
+    )
+    assert require_investigation_actor(principal) == "authentik:verified-person"
+    with pytest.raises(PrincipalAuthorizationDenied):
+        require_human_review_actor(
+            principal, settings=SimpleNamespace(authentik_review_groups="reviewers")
+        )
+
+
+@pytest.mark.parametrize("value", ["a" * 201, "actor\nheader", ""])
+def test_dispatch_identity_bounds(value):
+    from legal_workspace.api.auth import PrincipalAuthorizationDenied, require_investigation_actor
+
+    with pytest.raises(PrincipalAuthorizationDenied):
+        require_investigation_actor(
+            AuthenticatedPrincipal(
+                subject=value, username=None, email=None, groups=(), source="authentik"
+            )
+        )
+
+
+def test_native_source_exact_lookup_when_listing_truncated(setup):
+    from legal_workspace.contracts.claims import FromProbataCreate, OriginReference
+
+    service, _, scope = setup
+    native_id = str(uuid4())
+    source = OriginReference(kind="entity", record_id=native_id, record_version="version:1")
+    calls = []
+
+    def loader(kind, record_id):
+        calls.append((kind, record_id))
+        return {"origin": source.model_dump(), "title": "Synthetic lookup", "record": {}}
+
+    service.record_loader = loader
+    claim = service.from_probata(FromProbataCreate(origin=source), actor="owner")
+    claim = service.add_followup(
+        claim.claim_id,
+        FollowupCreate(
+            expected_revision=claim.revision, kind="investigate", description="Inspect exact source"
+        ),
+        actor="owner",
+    )
+    scope.truncated = True
+    service.investigation_exchange = lambda saved, write: InvestigationResponse.model_validate(
+        response(saved.request.model_dump(mode="json"), uuid4())
+    )
+    saved = send(service, claim).followups[0].investigation
+    assert (
+        saved.request.sources[0].record_id == source.record_id
+        or str(saved.request.sources[0].record_id) == source.record_id
+    )
+    assert ("entity", native_id) in calls
+
+
+@pytest.mark.parametrize(
+    "source,subject", [("signed-bff", "legal-web-bff"), ("tailnet", "tailnet-device")]
+)
+def test_planning_transport_principal_remains_truthful_and_cannot_review(source, subject):
+    from legal_workspace.api.auth import (
+        PrincipalAuthorizationDenied,
+        require_human_review_actor,
+        require_investigation_actor,
+    )
+
+    principal = AuthenticatedPrincipal(
+        subject=subject, username=None, email=None, groups=(), source=source
+    )
+    assert require_investigation_actor(principal) == f"{source}:{subject}"
+    with pytest.raises(PrincipalAuthorizationDenied):
+        require_human_review_actor(
+            principal, settings=SimpleNamespace(authentik_review_groups="reviewers")
+        )

@@ -160,13 +160,13 @@ def patch_followup(
 
 
 def investigation_principal(request: Request):
-    from legal_workspace.api.auth import PrincipalAuthorizationDenied, require_human_review_actor
+    from legal_workspace.api.auth import PrincipalAuthorizationDenied, require_investigation_actor
 
     principal = getattr(request.state, "auth", None)
     if principal is None:
         raise HTTPException(401, "Authentication required.")
     try:
-        require_human_review_actor(principal)
+        require_investigation_actor(principal)
     except PrincipalAuthorizationDenied as exc:
         raise HTTPException(403, str(exc)) from exc
     return principal
@@ -188,8 +188,8 @@ def dispatch_followup(
             followup_id,
             body.expected_revision,
             actor=identity,
-            actor_uid=principal.subject,
-            actor_username=principal.username or principal.subject,
+            actor_uid=f"{principal.source}:{principal.subject}",
+            actor_username=principal.username or f"{principal.source}:{principal.subject}",
         )
     )
 

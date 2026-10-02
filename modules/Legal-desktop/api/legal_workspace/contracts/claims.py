@@ -145,7 +145,7 @@ class InvestigationRequest(StrictModel):
     claim_id: UUID
     followup_id: UUID
     question: str = Field(min_length=1, max_length=5000)
-    sources: list[InvestigationSource] = Field(default_factory=list, max_length=50)
+    sources: list[InvestigationSource] = Field(default_factory=list, max_length=30)
 
 
 class InvestigationResponse(InvestigationRequest):
@@ -153,20 +153,20 @@ class InvestigationResponse(InvestigationRequest):
     status: Literal["received", "running", "completed", "failed", "cancelled"]
     created_at: AwareDatetime
     updated_at: AwareDatetime
-    results: list[InvestigationResult] = Field(default_factory=list, max_length=50)
+    results: list[InvestigationResult] = Field(default_factory=list, max_length=100)
 
 
 class FollowupInvestigation(StrictModel):
     state: Literal["prepared", "acknowledged"] = "prepared"
     idempotency_key: UUID
     request: InvestigationRequest
-    actor_uid: str = Field(min_length=1, max_length=250)
-    actor_username: str = Field(min_length=1, max_length=250)
+    actor_uid: str = Field(min_length=1, max_length=200)
+    actor_username: str = Field(min_length=1, max_length=200)
     request_id: UUID | None = None
     remote_status: Literal["received", "running", "completed", "failed", "cancelled"] | None = None
     remote_updated_at: datetime | None = None
     last_error: str | None = None
-    results: list[InvestigationResult] = Field(default_factory=list, max_length=50)
+    results: list[InvestigationResult] = Field(default_factory=list, max_length=100)
 
 
 class ClaimFollowup(StrictModel):

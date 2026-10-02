@@ -53,7 +53,12 @@ def exchange(
                 data.extend(chunk)
                 if len(data) > _MAX_BODY:
                     raise ProbataUnavailable("Probata returned too much investigation data.")
-            result = InvestigationResponse.model_validate(json.loads(data))
+            raw = json.loads(data)
+            if not isinstance(raw, dict):
+                raise TypeError("Unexpected response shape")
+            if len(json.dumps(raw.get("results", []), ensure_ascii=False).encode("utf-8")) > 262144:
+                raise ProbataUnavailable("Probata returned too much investigation result data.")
+            result = InvestigationResponse.model_validate(raw)
         if (
             result.model_dump(
                 mode="json", exclude={"request_id", "status", "created_at", "updated_at", "results"}

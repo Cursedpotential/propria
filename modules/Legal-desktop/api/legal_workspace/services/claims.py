@@ -521,6 +521,13 @@ class ClaimService:
                     ),
                     None,
                 )
+                if match is None and listing.truncated and self.record_loader is not None:
+                    # The current page is bounded; resolve this exact native ID
+                    # through the same validated reader instead of inventing a source.
+                    try:
+                        match = self._origin_record(current.origin)
+                    except ValueError:
+                        match = None
                 if match is None or match.origin.record_version != current.origin.record_version:
                     raise ValueError(
                         "The linked Probata source is unavailable or changed. Review it before dispatching."
