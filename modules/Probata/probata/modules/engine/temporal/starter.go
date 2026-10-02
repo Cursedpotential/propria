@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 
@@ -170,5 +171,45 @@ func (s *temporalStarter) Operation(ctx context.Context, workflowID string) (pro
 	if err := value.Get(&state); err != nil {
 		return proffer.OperationState{}, fmt.Errorf("temporal: decode operation state: %w", err)
 	}
-	return state, nil
+	if state.Terminal {
+		return state, nil
+	}
+	// A query on a closed run replays its history and reports the last stage
+	// the workflow itself recorded, so a terminated, cancelled or timed-out run
+	// still reads "running". Temporal's own execution status is the truth for
+	// whether the run can still finish. Live 2026-10-02: a terminated Facebook
+	// run made every later batch skip its source as "still running".
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	described, err := s.client.DescribeWorkflowExecution(ctx, workflowID, "")
+	if err != nil {
+		return proffer.OperationState{}, fmt.Errorf("temporal: describe workflow execution: %w", err)
+	}
+	return closedExecutionState(state, described.GetWorkflowExecutionInfo().GetStatus()), nil
+}
+
+// closedExecutionState makes a run's queried state agree with Temporal's
+// execution status: a run Temporal reports closed is terminal, whatever its
+// last recorded stage says. An open run's state is returned unchanged.
+func closedExecutionState(state proffer.OperationState, status enumspb.WorkflowExecutionStatus) proffer.OperationState {
+	var lifecycle proffer.OperationLifecycle
+	var word string
+	switch status {
+	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED:
+		lifecycle, word = proffer.OperationCompleted, "completed"
+	case enumspb.WORKFLOW_EXECUTION_STATUS_FAILED:
+		lifecycle, word = proffer.OperationFailed, "failed"
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+		lifecycle, word = proffer.OperationFailed, "timed out"
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+		lifecycle, word = proffer.OperationCancelled, "terminated"
+	case enumspb.WORKFLOW_EXECUTION_STATUS_CANCELED:
+		lifecycle, word = proffer.OperationCancelled, "cancelled"
+	default:
+		return state
+	}
+	if state.Lifecycle != lifecycle {
+		state.Reason = "Temporal reports this run " + word + "; it stopped at its last recorded stage"
+	}
+	state.Lifecycle, state.Terminal, state.Wait = lifecycle, true, ""
+	return state
 }
