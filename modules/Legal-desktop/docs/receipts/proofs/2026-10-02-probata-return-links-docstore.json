@@ -1,0 +1,12 @@
+{
+  "date": "2026-10-02",
+  "operation": "docstore_handoff_write",
+  "publication": [
+    {"path": "docs/receipts/2026-10-02-probata-return-links.md", "id": "document:hz7bw7ci2rlvmwkygjr3"},
+    {"path": "docs/planning/2026-09-30-UNFINISHED-FEATURES.md", "id": "document:t6zf543wk4xfdvusiwc6"},
+    {"path": "docs/receipts/proofs/2026-10-02-probata-return-links.json", "id": "document:6959fp1kp1lwziu8l3v5"}
+  ],
+  "independent_readback": true,
+  "body_comparison": "equal after whitespace normalization",
+  "indexing_triggered": false
+}

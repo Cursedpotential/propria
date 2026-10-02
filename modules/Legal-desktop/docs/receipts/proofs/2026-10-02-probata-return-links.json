@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-02",
+  "legal_deployment": "z0khki8ztq2dftajlmsi1efz",
+  "workbench_deployment": "e7ebqv8n30lhwrvcpty8hvdy",
+  "code_main": "00785f05",
+  "legal_page_http": 200,
+  "workbench_page_http": 200,
+  "probata_reader_mode": "REAL",
+  "native_entity_count": 2,
+  "filtered_identity_matched": true,
+  "origin_lookup_http": 200,
+  "origin_lookup_was_null": true,
+  "production_claim_count_before": 0,
+  "production_claim_count_after": 0,
+  "python_runtime": "3.12.15",
+  "runtime_smoke_passed": true,
+  "legal_browser": {
+    "remote_host": "ovh-files devbox",
+    "fixture": "synthetic API interception over deployed Legal page",
+    "no_write_on_open": true,
+    "explicit_add_only": true,
+    "existing_response_reopened": true,
+    "response_preserved_on_outage": true,
+    "mobile_no_horizontal_overflow": true,
+    "mobile_viewport": [390, 844],
+    "errors": [],
+    "production_records_written": 0
+  },
+  "workbench_browser": {
+    "api_http": 200,
+    "native_person_links_checked": 2,
+    "native_identity_preserved": true,
+    "errors": [],
+    "aborted": null,
+    "production_writes": 0
+  },
+  "investigation_receiver_implemented": false,
+  "native_event_return_button_implemented": false
+}
