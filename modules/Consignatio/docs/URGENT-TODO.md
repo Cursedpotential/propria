@@ -3879,3 +3879,17 @@ Open, for the owner:
 - **Owner choice A:** Coolify declares the database port on loopback (`Ports Mappings` = `127.0.0.1:5475:5432`), and tailscale serve tcp `5433` forwards to `127.0.0.1:5475`. Script: Probata `deploy/tailscale/catalog-serve.sh`. Coolify's API refuses `ports_mappings` on databases (422 "This field is not allowed"; the field is not in its allowed list), so the owner sets it in the Coolify UI.
 - **Callers moved to 5433:** intake-engine (`docker-compose.intake-engine.yaml`, `catalog.rs` default), superindex (Coolify env `INTAKE_CATALOG_DSN`), legal-workspace (Coolify env `CONSIGNATIO_CATALOG_URL`), progress-board (host `/data/dashboards/progress-board.env`, backup `.bak-20261002-catalog-port`, and `pg-catalog.mjs` default, host copy kept byte-identical). The Workbench moved earlier (`62f24bf9`).
 - **Not touched:** ovh-files tailscale serve tcp `5434` forwards to `172.18.0.2:5432`, which is now `coolify-proxy`. Whatever it served is unreachable there; owner to say what it was for.
+
+## 2026-10-02 02:54–03:46 EDT — Coolify: long builds, the 4.3.23 upgrade, SSH sharing back on (owner 02:54 "a", 03:41)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02._
+
+- **Why the devbox build died (05:53:36Z):** Coolify 4.1.2 replaced its shared SSH connection to a server every 30 minutes (`mux_max_age` 1800 s) without checking for commands still running on it; the build was one of them (exit 255). Proven from ovh-files' sshd log.
+- **Fix A (owner go 02:54):** `SSH_MUX_ENABLED=false` in `/data/coolify/source/.env` on ion-control, Coolify container recreated 06:59:59Z.
+- **Unplanned upgrade:** the recreate started the locally pulled `:latest` image, Coolify **4.3.23** (pulled 09-18; the nightly auto-upgrade has failed every night since at the coolify-helper pull, a ghcr rate limit). Its database migrations ran; going back to 4.1.2 is not safe. 4.3.23 is the newest stable release (4.4-rc.1 is a nightly pre-release).
+- **4.3.23 changed the API:** GET on `/deploy` and on start/stop/restart for applications, databases and services answers 405 ("changed to a POST request"). coolify-write 1.2.2 (`26b5a97`) POSTs them; deployed (`iyjams8mgihrbfrpkvsk13zw`), ContextForge refreshed (7 tools updated); a deploy call with a fake uuid now gets 404 "No resources found" instead of 405. Same release: secret names `pwd` and a standalone `PW` (VNC_PW) are masked.
+- **SSH sharing back on (owner 03:41 "Why isn't multiplexing enabled?"):** with sharing off, every Coolify command opened its own SSH login (8 a minute idle, about 500 in four minutes during one deploy). 4.3.23 no longer has the 30-minute reset (`connectionIsReusable` only checks that the connection exists and answers), so the line is commented out (backup `.env.bak-20261002-mux-reenable`), Coolify recreated 07:45Z, `mux_enabled` reads true, shared sockets exist for all three servers.
+- **Left behind by the 06:59:59Z restart:** a `workbench` deployment (06:59:44Z) still shows `in_progress`, and its build helper `hi7xdntrzrceunsv1dyxnqi5` was still running on ovh-app 43 minutes later. Not mine to cancel — the Workbench lane decides.
+- [ ] coolify-realtime still 1.0.16 (compose names a newer one); bring it in line with the next Coolify restart.
+- [ ] Devbox redeploy through Coolify, now that long builds are no longer cut at 30 minutes.
+
