@@ -109,6 +109,21 @@ func TestListBatchFolderSkipsDerivedOutputsBelowThePrefix(t *testing.T) {
 	require.Equal(t, []string{"cv/8102959302/sms-a.xml.derived/media/0a.png"}, derived.Keys, "a batch over a derived folder still lists its files")
 }
 
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestListBatchFolderKeySuffixKeepsOnlyMatchingKeys(t *testing.T) {
+	batch := BatchImportActivities{
+		Lister: func(context.Context, string, string, string, string, int32) ([]string, string, error) {
+			return []string{"fb/t/message_1.json", "fb/t/photos/a.jpg", "fb/t/videos/b.mp4", "fb/t/message_2.json"}, "", nil
+		},
+	}
+	page, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "b", Prefix: "fb/t/", KeySuffix: ".json"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"fb/t/message_1.json", "fb/t/message_2.json"}, page.Keys)
+	all, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "b", Prefix: "fb/t/"})
+	require.NoError(t, err)
+	require.Len(t, all.Keys, 4, "no suffix keeps every key")
+}
+
 func TestListBatchFolderRejectsAnIncompleteLocatorWithoutRetrying(t *testing.T) {
 	batch := BatchImportActivities{
 		Lister: func(context.Context, string, string, string, string, int32) ([]string, string, error) {

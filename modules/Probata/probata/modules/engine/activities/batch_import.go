@@ -47,6 +47,9 @@ type ListBatchFolderRequest struct {
 	Prefix string `json:"prefix"`
 	Cursor string `json:"cursor,omitempty"`
 	Limit  int32  `json:"limit,omitempty"`
+	// KeySuffix keeps only keys ending in it; empty keeps every key.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	KeySuffix string `json:"key_suffix,omitempty"`
 }
 
 // ListBatchFolderResult is one page: keys plus the cursor for the next call.
@@ -162,6 +165,9 @@ func (a BatchImportActivities) ListBatchFolder(ctx context.Context, req ListBatc
 	sources := make([]string, 0, len(keys))
 	for _, key := range keys {
 		if strings.Contains(strings.TrimPrefix(key, req.Prefix), ".derived/") {
+			continue
+		}
+		if req.KeySuffix != "" && !strings.HasSuffix(key, req.KeySuffix) {
 			continue
 		}
 		sources = append(sources, key)

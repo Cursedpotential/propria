@@ -169,6 +169,11 @@ type BatchInput struct {
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	AutoApproval string `json:"auto_approval,omitempty"`
 
+	// KeySuffix, when set, limits the batch to keys ending in it (for example
+	// ".json" for a Facebook thread folder whose photos and videos sit beside
+	// the thread files). Byline: Claude Code · Opus 5.5 · 2026-10-02
+	KeySuffix string `json:"key_suffix,omitempty"`
+
 	// MaxInFlight is how many items may run at once. One is the default and
 	// the owner's instruction; more only when a system is proven to take it.
 	MaxInFlight int `json:"max_in_flight,omitempty"`
@@ -306,6 +311,9 @@ func BatchWorkflow(ctx workflow.Context, in BatchInput) (BatchStatus, error) {
 			NextCursor string   `json:"next_cursor,omitempty"`
 		}
 		request := map[string]any{"scheme": in.Scheme, "bucket": in.Bucket, "prefix": in.Prefix, "cursor": cursor}
+		if in.KeySuffix != "" {
+			request["key_suffix"] = in.KeySuffix
+		}
 		if err := workflow.ExecuteActivity(listCtx, listBatchFolderActivityName, request).Get(ctx, &page); err != nil {
 			return state.snapshot(), fmt.Errorf("proffer batch: list %s: %w", in.Prefix, err)
 		}
