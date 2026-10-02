@@ -22,8 +22,10 @@ var hindsightOnlyNames = []string{
 // be added here deliberately, after its own horizon pre-filter is in place.
 // AGENTS.md "WHY THIS EXISTS": a leak is silent; this tripwire makes it loud.
 var hindsightReaders = map[string]bool{
-	"scripts/2026-09-25-context-review-overlay.sql":             true,
-	"sql/bootstrap/schema_snapshot_20260907.sql":                true,
+	"scripts/2026-09-25-context-review-overlay.sql": true,
+	"sql/bootstrap/schema_snapshot_20260907.sql":    true,
+	// DDL only: drops the flag table's append-only triggers at go-live; reads no rows (2026-10-02).
+	"sql/bootstrap/seed_live_case_registry_20261001.sql":        true,
 	"sql/validation/2026-09-25-context-review-horizon-test.sql": true,
 	"modules/engine/postgres/context_review_store.go":           true,
 	"modules/engine/postgres/context_review_store_test.go":      true,

@@ -6,10 +6,8 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"log/slog"
 	"strings"
 	"testing"
 
@@ -161,93 +159,19 @@ func TestProbeProfferSchemaDefaultBindsStrictAuthoritativeIdentity(t *testing.T)
 	}
 }
 
-// TestProbeProfferSchemaDevBypassBindsSentinelIdentityNotSkipsIt is the D-126
-// regression guard for the owner's exact correction: the flag must not turn
-// identity/receipt checking OFF, it must repoint both checks at the fixed
-// DEV sentinel. If this ever regresses into a bypass that removes the
-// predicates rather than retargeting them, this test fails.
-func TestProbeProfferSchemaDevBypassBindsSentinelIdentityNotSkipsIt(t *testing.T) {
-	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "1")
-	db := &capturingProbeDB{row: admittedProbeRow()}
-	if err := ProbeProfferSchema(context.Background(), db); err != nil {
-		t.Fatal(err)
-	}
-	if len(db.args) != 14 {
-		t.Fatalf("expected 14 bound query args, got %d", len(db.args))
-	}
-	if db.args[3] != devMatterID || db.args[4] != devCourtCaseID {
-		t.Fatalf("PLATFORM_DEV_AUTH_BYPASS=1 must bind the DEV sentinel identity, got matter=%v court_case=%v", db.args[3], db.args[4])
-	}
-	if db.args[12] != devReceiptApprovedBy {
-		t.Fatalf("PLATFORM_DEV_AUTH_BYPASS=1 must bind the honest dev receipt label, got approved_by=%v", db.args[12])
-	}
-	if db.args[12] == registryReceiptApprovedBy {
-		t.Fatal("dev-mode approved_by must never equal 'owner' (D-126: no fabricated owner-approval receipt)")
-	}
-	// The query text itself must be byte-identical between modes -- only the
-	// bound constants move. This is what makes it a retarget, not a skip.
-	strictDB := &capturingProbeDB{row: admittedProbeRow()}
-	// t.Setenv above is still in effect for this subtest scope; unset for
-	// the strict-mode capture by clearing the variable explicitly.
-	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "")
-	if err := ProbeProfferSchema(context.Background(), strictDB); err != nil {
-		t.Fatal(err)
-	}
-	if db.query != strictDB.query {
-		t.Fatal("dev-bypass mode must run the identical query text as strict mode -- only bound values may differ")
-	}
-}
-
-// TestProbeProfferSchemaDevBypassLogsLoudWarning: D-125/D-126 both require a
-// loud one-line warning naming the flag whenever the bypass is active.
-func TestProbeProfferSchemaDevBypassLogsLoudWarning(t *testing.T) {
-	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "true")
-	var buf bytes.Buffer
-	previous := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
-	t.Cleanup(func() { slog.SetDefault(previous) })
-
-	if err := ProbeProfferSchema(context.Background(), probeDB{row: admittedProbeRow()}); err != nil {
-		t.Fatal(err)
-	}
-	logged := buf.String()
-	if !strings.Contains(logged, "PLATFORM_DEV_AUTH_BYPASS") {
-		t.Fatalf("dev-bypass admission must log a warning naming the flag, got: %s", logged)
-	}
-	if !strings.Contains(strings.ToUpper(logged), "WARN") {
-		t.Fatalf("dev-bypass admission warning must be logged at WARN level, got: %s", logged)
-	}
-}
-
-// TestProbeProfferSchemaDevBypassEnvSpellings covers the truthy/falsy env
-// vocabulary devAuthBypassEnabled accepts, including the fail-closed default.
-func TestProbeProfferSchemaDevBypassEnvSpellings(t *testing.T) {
-	cases := map[string]bool{
-		"":        false,
-		"0":       false,
-		"false":   false,
-		"no":      false,
-		"off":     false,
-		"garbage": false,
-		"1":       true,
-		"true":    true,
-		"TRUE":    true,
-		"  1  ":   true,
-		"yes":     true,
-		"on":      true,
-	}
-	for value, want := range cases {
-		t.Run("value="+value, func(t *testing.T) {
-			t.Setenv("PLATFORM_DEV_AUTH_BYPASS", value)
-			db := &capturingProbeDB{row: admittedProbeRow()}
-			if err := ProbeProfferSchema(context.Background(), db); err != nil {
-				t.Fatal(err)
-			}
-			gotDev := db.args[3] == devMatterID
-			if gotDev != want {
-				t.Fatalf("PLATFORM_DEV_AUTH_BYPASS=%q: dev-mode active = %t, want %t", value, gotDev, want)
-			}
-		})
+// TestProbeProfferSchemaDevFlagDoesNotChangeIdentity: the dev flag only governs login (owner
+// 2026-10-02). With it on, the probe still binds the real go-live identity and receipt.
+func TestProbeProfferSchemaDevFlagDoesNotChangeIdentity(t *testing.T) {
+	for _, value := range []string{"", "1", "true"} {
+		t.Setenv("PLATFORM_DEV_AUTH_BYPASS", value)
+		db := &capturingProbeDB{row: admittedProbeRow()}
+		if err := ProbeProfferSchema(context.Background(), db); err != nil {
+			t.Fatal(err)
+		}
+		if db.args[3] != authoritativeMatterID || db.args[4] != authoritativeCourtCaseID || db.args[12] != registryReceiptApprovedBy {
+			t.Fatalf("PLATFORM_DEV_AUTH_BYPASS=%q bound matter=%v court_case=%v approved_by=%v, want the real identity",
+				value, db.args[3], db.args[4], db.args[12])
+		}
 	}
 }
 

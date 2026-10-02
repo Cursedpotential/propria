@@ -14,7 +14,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 
@@ -160,15 +159,8 @@ func ProbeProfferSchema(ctx context.Context, db SchemaProbeDB) error {
 	gitCommit, schemaVersion := registrySourceGitCommit, registryPayloadSchemaVersion
 	canonicalSHA256Hex, apiSHA256Hex := registryCanonicalPayloadSHA256, registryAPIPayloadSHA256
 	payloadByteLength, approvedBy, approvedOn := registryReceiptPayloadByteLength, registryReceiptApprovedBy, registryReceiptApprovedOn
-	if devBypass {
-		matterID, courtCaseID = devMatterID, devCourtCaseID
-		receiptURI, receiptSHA256Hex = devReceiptSourceMigrationURI, devReceiptSourceMigrationSHA256
-		gitCommit, schemaVersion = devReceiptSourceGitCommit, devReceiptPayloadSchemaVersion
-		canonicalSHA256Hex, apiSHA256Hex = devReceiptCanonicalPayloadSHA256, devReceiptAPIPayloadSHA256
-		payloadByteLength, approvedBy, approvedOn = devReceiptPayloadByteLength, devReceiptApprovedBy, devReceiptApprovedOn
-		slog.Warn("Proffer schema admission: PLATFORM_DEV_AUTH_BYPASS is set -- admitting the pre-launch DEV sentinel case-registry identity, not the real go-live identity (D-125, D-126); remove this flag before go-live",
-			"flag", platformDevAuthBypassEnv, "dev_matter_id", devMatterID, "dev_court_case_id", devCourtCaseID)
-	}
+	// The identity check no longer follows the dev flag (owner 2026-10-02: the flag only governs login).
+	// The real go-live receipt is required in every mode.
 	var database, currentUser, databaseOwner string
 	var ledgerCount, tableCount, columnCount int
 	var constraintsExact, substrateExact, roleSafe, grantsExact, receiptExact bool
