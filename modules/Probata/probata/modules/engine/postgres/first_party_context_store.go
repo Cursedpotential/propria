@@ -890,6 +890,12 @@ const upsertThirdPartyConversationSQL = `
 // insertThirdPartyMessagesSQL writes the messages and, only for messages new
 // in this statement, their participants (third_party_message_participant's
 // unique key cannot dedupe a NULL entity, so a retry must not re-add them).
+// Its ON CONFLICT: two raw identifiers of one person (for example two of his
+// phone numbers in one group thread) resolve to the same entity and role, and
+// the table keeps one row per (message, entity, role). Live 2026-10-02 the
+// second row aborted the whole conversation commit with
+// third_party_message_participant_message_id_entity_id_role_key; the first raw
+// identifier is kept. Byline: Claude Code · Opus 5.5 · 2026-10-02
 const insertThirdPartyMessagesSQL = `
 	WITH inserted AS (
 	    INSERT INTO working.third_party_message
@@ -905,7 +911,8 @@ const insertThirdPartyMessagesSQL = `
 	INSERT INTO working.third_party_message_participant (message_id, entity_id, participant_raw, role, deriver_version)
 	SELECT p.message_id, NULLIF(p.entity_id, '')::uuid, p.participant_raw, p.role, $4
 	FROM unnest($9::uuid[], $10::text[], $11::text[], $12::text[]) AS p(message_id, participant_raw, role, entity_id)
-	JOIN inserted ON inserted.id = p.message_id`
+	JOIN inserted ON inserted.id = p.message_id
+	ON CONFLICT (message_id, entity_id, role) DO NOTHING`
 
 // commitThirdPartyConversation writes one third-party conversation's rows in
 // one transaction: normalized records (acquired_third_party), PROPOSED routes,

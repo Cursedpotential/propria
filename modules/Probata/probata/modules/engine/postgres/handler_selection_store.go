@@ -94,9 +94,7 @@ func (s *HandlerSelectionStore) RecommendHandler(ctx context.Context, req proffe
 	if err != nil {
 		return proffer.HandlerRecommendationResult{}, fmt.Errorf("read retained content signature: %w", err)
 	}
-	if int64(len(head)) > handlerSignatureReadLimit {
-		head = head[:handlerSignatureReadLimit]
-	}
+	head = signatureHead(head, handlerSignatureReadLimit)
 	detected, signatureKind, err := detectHandlerContent(head)
 	if err != nil {
 		return proffer.HandlerRecommendationResult{}, err
@@ -124,6 +122,22 @@ func (s *HandlerSelectionStore) RecommendHandler(ctx context.Context, req proffe
 		result.RecommendationRef, "engine:signature-registry/v1", result.Recommended.CompatibilityRef,
 		"engine-handler:"+string(result.RecommendationRef))
 	return result, err
+}
+
+// signatureHead bounds the bytes a signature is detected on. When the read
+// stopped inside the source its last line is almost always cut short, so
+// detection runs on whole lines only: a 34 MB derived thread chunk was
+// detected as "json" because its final, truncated line was not valid JSON
+// (live 2026-10-02). Byline: Claude Code · Opus 5.5 · 2026-10-02
+func signatureHead(head []byte, limit int64) []byte {
+	if int64(len(head)) <= limit {
+		return head
+	}
+	head = head[:limit]
+	if cut := bytes.LastIndexByte(head, '\n'); cut > 0 {
+		return head[:cut+1]
+	}
+	return head
 }
 
 func handlerRequestIDs(req proffer.StageRequest) (uuid.UUID, uuid.UUID, error) {

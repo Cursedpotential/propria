@@ -66,6 +66,25 @@ func TestDetectHandlerContentKeepsEstablishedFormatsOnDecoderPath(t *testing.T) 
 	}
 }
 
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (live: a 34 MB thread chunk was detected as "json")
+func TestSignatureHeadDetectsALargeThreadChunkOnWholeLines(t *testing.T) {
+	line := `{"thread":"8102959302_8102959303","source_pos":"1","kind":"sms","body":"` + strings.Repeat("x", 90) + `"}` + "\n"
+	content := []byte(strings.Repeat(line, 200))
+	limit := int64(len(line)*150 + 37) // stops inside line 151
+	read := content[:limit+1]          // what LimitReader(limit+1) returns
+	format, _, err := detectHandlerContent(read[:limit])
+	require.NoError(t, err)
+	require.Equal(t, "json", format, "the old cut keeps a broken last line")
+	head := signatureHead(read, limit)
+	require.Equal(t, byte('\n'), head[len(head)-1])
+	format, kind, err := detectHandlerContent(head)
+	require.NoError(t, err)
+	require.Equal(t, "ndjson", format)
+	require.Equal(t, "newline_delimited_json_v1", kind)
+	small := []byte(line)
+	require.Equal(t, small, signatureHead(small, limit), "a source read whole is not cut")
+}
+
 func TestHandlerCandidatesSelectOneSignatureHandlerWithoutDecoderAlternative(t *testing.T) {
 	decoder := parser.Capability{ParserID: "sbv_csv", ParserVersion: "1.4.0"}
 	structured := handlerCandidatesForDetectedFormat("csv", decoder)
