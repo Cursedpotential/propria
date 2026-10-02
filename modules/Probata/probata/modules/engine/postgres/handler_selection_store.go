@@ -21,7 +21,6 @@ import (
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"go.temporal.io/sdk/temporal"
 )
 
 const handlerSignatureReadLimit int64 = 8 << 20
@@ -102,10 +101,6 @@ func (s *HandlerSelectionStore) RecommendHandler(ctx context.Context, req proffe
 	if err != nil {
 		return proffer.HandlerRecommendationResult{}, err
 	}
-	// AI chats are search-only (Weaviate); refuse before anything is persisted.
-	if err := refuseAIChatFormat(detected); err != nil {
-		return proffer.HandlerRecommendationResult{}, err
-	}
 	var decoderCapability parser.Capability
 	if _, templateErr := activities.StructuredELTFormatForDeclaredFormat(detected); templateErr != nil && !activities.DeriveEligibleFormat(detected) {
 		if s.parsers == nil {
@@ -129,15 +124,6 @@ func (s *HandlerSelectionStore) RecommendHandler(ctx context.Context, req proffe
 		result.RecommendationRef, "engine:signature-registry/v1", result.Recommended.CompatibilityRef,
 		"engine-handler:"+string(result.RecommendationRef))
 	return result, err
-}
-
-// refuseAIChatFormat is the handler-selection refusal: a non-retryable error for
-// every AI-chat format, nil for anything else.
-func refuseAIChatFormat(detected string) error {
-	if !proffer.IsAIChatFormat(detected) {
-		return nil
-	}
-	return temporal.NewNonRetryableApplicationError(proffer.AIChatRefusalMessage(detected), proffer.AIChatSearchOnlyType, nil)
 }
 
 func handlerRequestIDs(req proffer.StageRequest) (uuid.UUID, uuid.UUID, error) {

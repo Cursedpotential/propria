@@ -8,7 +8,6 @@ import (
 
 	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/stretchr/testify/require"
-	"go.temporal.io/sdk/temporal"
 )
 
 func TestDetectHandlerContentUsesRetainedBytesAndSeparatesCallsXML(t *testing.T) {
@@ -119,23 +118,4 @@ func TestDetectHandlerContentStreamsFirstChatGPTConversationWithoutClosingArray(
 	require.NoError(t, err)
 	require.Equal(t, "chatgpt_official_json", format)
 	require.Equal(t, "chatgpt_official_conversations_array_v1", signature)
-}
-
-// Byline: Claude Code · Sonnet · 2026-10-02
-// AI chats are search-only (Weaviate): a ChatGPT export is detected, then refused non-retryably.
-func TestAIChatExportIsRefusedAtHandlerSelection(t *testing.T) {
-	content := `[{"title":"Chat","conversation_id":"c-1","mapping":{"node":{"message":{"author":{"role":"user"},"content":{"content_type":"text","parts":["synthetic"]}}}}}]`
-	format, _, err := detectHandlerContent([]byte(content))
-	require.NoError(t, err)
-	refusal := refuseAIChatFormat(format)
-	require.Error(t, refusal)
-	require.ErrorContains(t, refusal, "search-only")
-	require.ErrorContains(t, refusal, "Weaviate")
-	var appErr *temporal.ApplicationError
-	require.ErrorAs(t, refusal, &appErr)
-	require.True(t, appErr.NonRetryable())
-	require.Equal(t, "ai_chat_search_only", appErr.Type())
-	for _, ok := range []string{"json", "ndjson", "csv", "facebook_messenger_json", "messages_transcript", "smsbackuprestore_xml"} {
-		require.NoError(t, refuseAIChatFormat(ok), ok)
-	}
 }
