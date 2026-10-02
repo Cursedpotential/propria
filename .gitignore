@@ -176,6 +176,12 @@ vendor/
 # rule above silently dropped new dependencies while the 4,659 already-tracked files kept
 # working. Claude Code · Opus 5.5 · 2026-09-28.
 !modules/Probata/probata/modules/engine/vendor/
+# The same holds for two vendored source trees that ship with their apps: the design
+# contract FL-MCP builds against, and the progress board's browser libraries.
+# Claude Code · Opus 5.5 · 2026-10-02.
+!modules/FL-MCP/vendor/
+!modules/FL-MCP/vendor/propria-design-contract/**/tokens.json
+!modules/Probata/probata/deploy/docker/progress-board/public/vendor/
 # Recall plugin auto-generated context
 .claude/recall-context.md
 
@@ -219,13 +225,6 @@ Secrets/
 /DOC_PATCH_REPORT-*.md
 /NAMING.md.lnk
 
-# Transitional source repositories. Remove each fence only through its verified
-# import step in docs/monorepo-migration-manifest.json.
-/Consignatio/
-/Probata/
-/FL-MCP/
-/Legal-desktop/
-/design-contract/
 
 # The canonical design token source is repository content. This explicit
 # inclusion overrides the user-level `*token*.json` rule; generated tokens.css

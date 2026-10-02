@@ -21,6 +21,9 @@
 backups/
 exports/
 gdrive/
+# Xplorer's Google Drive source folders share the name; they are code, not corpus.
+!Intake/xplorer-copilot-buildkit/xplorer-copilot/apps/client/src/components/gdrive/
+!Intake/xplorer-copilot-buildkit/xplorer-copilot/packages/extensions/gdrive/
 pilot/
 recovery_by_tree/
 samples/
