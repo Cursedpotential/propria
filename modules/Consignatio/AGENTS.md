@@ -116,7 +116,7 @@ a linked local worktree, not an independent repository; preserve its branch.
   and missing lists. Payloads stay gitignored; the `.md`, `.py`, `.sql` and `.txt`
   files are tracked. The tools under `casebible/tools/` write here.
 - PostgreSQL `raw_duck` on ovh-files is the only complete catalog. `docs/receipts/`
-  is its human-readable side, and `docs/URGENT-TODO.md` is the only log. Do not
+  is its human-readable side, and `docs/LOG.md` is the only log (open items: `docs/URGENT-TODO.md`; finished: `docs/COMPLETED-TODO.md`; owner 2026-10-02). Do not
   create another index or README for this — extend the log's 2026-09-15 map instead.
 
 ## Claude-Reflect Learnings
@@ -125,7 +125,8 @@ a linked local worktree, not an independent repository; preserve its branch.
 
 ### Project Conventions
 - Receipts, catalog exports, hash ledgers and missing lists live in `docs/receipts/` (payloads gitignored); never a workspace-root scratch folder. (owner 2026-09-15)
-- One log: `docs/URGENT-TODO.md`. Record a change there once; no README/memory/handoff fan-out of the same fact. (owner 2026-09-15)
+- One log: `docs/LOG.md`. Record a change there once; no README/memory/handoff fan-out of the same fact. (owner 2026-09-15)
+- To-dos: `docs/URGENT-TODO.md` holds open items only; a finished item moves to `docs/COMPLETED-TODO.md` with date and proof in the same turn. (owner 2026-10-02)
 - Fix known bugs in our own apps instead of working around them; if blocked, package the patch with proof and name the blocker. (owner 2026-09-15)
 
 <!-- End claude-reflect section -->

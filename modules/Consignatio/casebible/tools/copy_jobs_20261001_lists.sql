@@ -4,7 +4,7 @@
 --   r2        files whose only good copy is on R2 (corrupt replacements + R2-only files), junk excluded -> copy to B2
 --   zero      vault objects that are known all-zero payloads -> server-side copy into _quarantine, then hide the original
 -- Each list is printed as a block starting with '#list <name>' (tab CSV with header). Read only.
--- Log: docs/URGENT-TODO.md, 2026-10-01 entry.
+-- Log: docs/LOG.md, 2026-10-01 entry.
 
 -- One materialized, indexed copy of the 09-20 version listing (the view parses JSON payloads on every scan).
 create temp table ov as

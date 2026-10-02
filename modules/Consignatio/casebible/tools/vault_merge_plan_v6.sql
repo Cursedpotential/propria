@@ -7,7 +7,7 @@
 -- = v4b (vault_merge_plan_v4.sql) + owner ruling 2026-09-15 ~08:03 EDT (AskUserQuestion answer):
 --   "+1 level, not into cleanup" — a source folder may go ONE level deeper to join the trunk's same-named folder;
 --   never join into the trunk's cleanup folders (.review_hold, _SWEPT, _DUPLICATES, to_be_deleted) at any depth.
--- Unchanged rules (verbatim in Consignatio/docs/URGENT-TODO.md): trunk = OneDrive Case Bible, its paths never change;
+-- Unchanged rules (verbatim in Consignatio/docs/LOG.md): trunk = OneDrive Case Bible, its paths never change;
 -- Takeout / Facebook-Meta / .obsidian units sealed, never matched by members, never folded; no folder renamed into
 -- another name (a mount needs a common folder name F); collisions keep both ([<source>] on unit roots, [<md5 8>] on
 -- loose files; the trunk always keeps its name).

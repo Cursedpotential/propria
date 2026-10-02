@@ -3,7 +3,7 @@
 
 Byline: Claude Code · Opus 5.5 · 2026-10-01.
 Owner 2026-09-30 22:21 EDT: "no funny business with any of them"; 2026-10-01 07:01 EDT "go" on comparing the
-~2,700 same-size media twins (raw_duck.verification_20260930 flag altered_twin). Log: docs/URGENT-TODO.md 2026-10-01.
+~2,700 same-size media twins (raw_duck.verification_20260930 flag altered_twin). Log: docs/LOG.md 2026-10-01.
 
 Reads only: both objects are streamed side by side with `rclone cat`; nothing is written to B2 and no copy is kept.
 Per pair it records how many bytes differ, where the first and last difference sit, and whether either side holds

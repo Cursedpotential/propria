@@ -6,7 +6,7 @@
 -- Owner 2026-09-30 15:50 EDT, answering "confirm whether 810-493-2840 is your number": "yes".
 -- The candidate row came from attempt a5-unparsed-sms-20260924 (his phone's own line on 2,145 MMS,
 -- Jul-Aug 2025). Only the status and the basis change; the row keeps its identifier, raw value and period.
--- Log: modules/Consignatio/docs/URGENT-TODO.md, 2026-09-30 Case Bible entry.
+-- Log: modules/Consignatio/docs/LOG.md, 2026-09-30 Case Bible entry.
 
 begin;
 

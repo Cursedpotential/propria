@@ -9,7 +9,7 @@
 #     the Feb-2025 Takeout zips) get a QuickXorHash of their B2 bytes, compared with OneDrive's in the catalog after.
 # (2) The 9 SMS backups the first pass read as 0 bytes were moved on 2026-09-24 into
 #     consignatio/intake/_quarantine/superseded-sms-backups/v1/; they are hashed (SHA-256/SHA-1/MD5) where they are now.
-# Reads only; nothing on B2 is written. Owner "go" on the hash pass, 2026-10-01 07:01 EDT. Log: docs/URGENT-TODO.md.
+# Reads only; nothing on B2 is written. Owner "go" on the hash pass, 2026-10-01 07:01 EDT. Log: docs/LOG.md.
 set -uo pipefail
 W=/data/consignatio/court-ready-20261001/hash-pass
 CONF=/opt/casebible/rclone.conf

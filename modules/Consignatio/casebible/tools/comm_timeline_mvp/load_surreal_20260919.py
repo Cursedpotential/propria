@@ -6,7 +6,7 @@ Order: Katrina first, then daughter-tagged, then everything else (owner 2026-09-
 Idempotent: every id is derived from the event's dedup_key, so re-runs upsert instead of duplicating.
 
 Write discipline, after the 2026-09-18 hangs (RocksDB write-buffer-manager stall, see
-docs/URGENT-TODO.md "Surreal hang fix + timeline graph load"):
+docs/LOG.md "Surreal hang fix + timeline graph load"):
   * one BEGIN..COMMIT request per batch instead of seven requests, so the round trips stop dominating
   * pacing driven by the server's real RSS (/metrics), not a fixed sleep
   * ALTER TABLE .. COMPACT checkpoint every COMPACT_EVERY events (flush + history trim)

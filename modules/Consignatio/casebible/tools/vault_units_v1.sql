@@ -1,6 +1,6 @@
 -- Byline: Claude Code · Opus 5 · 2026-09-15 07:35 EDT
 -- Vault consolidation — UNITS FIRST (read-only analysis tables, NO B2 writes). Replaces the v0–v3 plans, voided by the owner.
--- Owner rules 2026-09-15 07:22–07:26 EDT (verbatim in Consignatio/docs/URGENT-TODO.md):
+-- Owner rules 2026-09-15 07:22–07:26 EDT (verbatim in Consignatio/docs/LOG.md):
 --   * Takeouts are atomic: the unit root stops at the Takeout-named folder, plus the next folder only if it is a
 --     username. A service folder (Google Photos, Voice …) is too far.
 --   * ".obsidian" is a boundary: the whole .obsidian folder is one piece.

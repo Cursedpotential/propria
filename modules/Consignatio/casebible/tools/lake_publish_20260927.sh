@@ -5,7 +5,7 @@
 # Byline: Claude Code · Opus 5.5 · 2026-09-27 (agent for the Fable 5.1 supervising session)
 # Owner 2026-09-27 00:09 EDT: "B2 is the canonical home, and that's where the index is supposed to be.
 #   That's what's supposed to be cataloged. That's what's supposed to be the lakehouse."  00:14: "Finish creating the lakehouse."
-# Log entry: modules/Consignatio/docs/URGENT-TODO.md (2026-09-27). Receipt: docs/receipts/lake-publish-20260927/.
+# Log entry: modules/Consignatio/docs/LOG.md (2026-09-27). Receipt: docs/receipts/lake-publish-20260927/.
 #
 # Runs ON ovh-files as root, one phase at a time, detached from any agent shell:
 #   nohup setsid bash lake_publish_20260927.sh <phase> >> logs/<phase>.out 2>&1 < /dev/null &

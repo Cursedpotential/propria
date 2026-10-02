@@ -3,7 +3,7 @@
 
 Byline: Claude Code · Opus 5.5 · 2026-10-01.
 Owner 2026-10-01 07:01 EDT "go" on (1) restoring the 1,450 files whose bytes exist only as an old B2 version and
-(2) moving the known all-zero vault objects into _quarantine. Log: docs/URGENT-TODO.md, 2026-10-01 entry.
+(2) moving the known all-zero vault objects into _quarantine. Log: docs/LOG.md, 2026-10-01 entry.
 
 Why the native API: rclone cannot copy one specific old version by its file ID. b2_copy_file can, server-side, with no
 download. Nothing is ever deleted: `restore` only adds a new visible version; `quarantine` copies the object to its

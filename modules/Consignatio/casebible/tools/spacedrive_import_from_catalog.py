@@ -28,7 +28,7 @@ now resolved and hardcoded as the DEFAULT (still overridable, never silent):
     (2,170,597,644,994) -- both asserted below before any write.
   - Do NOT use vault_objects_20260916_post_prune (pre-move, superseded) or the
     original b2_objects/vault_objects (stale -- see rev 1 history in
-    Consignatio/docs/URGENT-TODO.md for how that was discovered: a same-day
+    Consignatio/docs/LOG.md for how that was discovered: a same-day
     migration by a different/concurrent session deleted 526,393 of 530,070
     b2_objects rows and pruned vault_objects from 1,677,487 down through this
     same r4/pilot_delete chain).

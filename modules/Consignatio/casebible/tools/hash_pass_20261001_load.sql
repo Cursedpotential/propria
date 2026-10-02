@@ -1,14 +1,14 @@
 -- Byline: Claude Code · Opus 5.5 · 2026-10-01
 -- Load the hash pass (hash_pass_20261001.py export -> /tmp/hash_pass_20261001.tsv inside the catalog container) and
 -- match every computed SHA-256 against the sources' own SHA-256 (Google Drive's provider hash, our D:/F: disk hasher).
--- Additive: one new table raw_duck.hash_pass_20261001. Log: docs/URGENT-TODO.md, 2026-10-01 entry.
+-- Additive: one new table raw_duck.hash_pass_20261001. Log: docs/LOG.md, 2026-10-01 entry.
 \set ON_ERROR_STOP on
 begin;
 create table raw_duck.hash_pass_20261001 (
   object_key text primary key, size_expected bigint, size_read bigint,
   sha256 text, sha1 text, md5 text, status text, err text, loaded_at timestamptz not null default now());
 comment on table raw_duck.hash_pass_20261001 is
-  'SHA-256/SHA-1/MD5 of B2 vault objects that carry no B2 SHA-1 or match their sources by size only, computed by streaming each object once (casebible/tools/hash_pass_20261001.py, 2026-10-01). Log docs/URGENT-TODO.md 2026-10-01.';
+  'SHA-256/SHA-1/MD5 of B2 vault objects that carry no B2 SHA-1 or match their sources by size only, computed by streaming each object once (casebible/tools/hash_pass_20261001.py, 2026-10-01). Log docs/LOG.md 2026-10-01.';
 \copy raw_duck.hash_pass_20261001 (object_key, size_expected, size_read, sha256, sha1, md5, status, err) from '/tmp/hash_pass_20261001.tsv' with (format text, header true, null '')
 select status, count(*), round(sum(size_read) / 1e9, 1) as gb from raw_duck.hash_pass_20261001 group by 1;
 

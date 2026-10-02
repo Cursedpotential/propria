@@ -2,7 +2,7 @@
 -- What must be fetched so every file has its best copy on B2, and every corrupt file is replaced, computed from the
 -- catalog alone: no object-store, Drive, OneDrive, R2 or local reads (owner 2026-09-30 15:52: "using the catalog can you
 -- figure out what we need to grab in order to satisfy the oldest real + most meta, ensuring any corrupt files are
--- replaced without doing a full move and read of everything again"). Log: docs/URGENT-TODO.md, 2026-09-30 entry.
+-- replaced without doing a full move and read of everything again"). Log: docs/LOG.md, 2026-09-30 entry.
 --
 -- Inputs (read only):
 --   catalog_reconcile.object_versions  09-20 B2 listing (generation 2c2ae40f), visible and noncurrent versions, sha1
@@ -101,7 +101,7 @@ create table raw_duck.best_copy_20260930 as
          'owner-2026-09-13' as rule_version, now() as graded_at
   from ranked where pick_rank = 1;
 comment on table raw_duck.best_copy_20260930 is
-  'Best copy per visible B2 content (sha1+size) by the owner''s 2026-09-13 rule: oldest real date, then most metadata; ties kept. Catalog only, bytes identical within a content. Script casebible/tools/grab_plan_20260930.sql; log docs/URGENT-TODO.md 2026-09-30.';
+  'Best copy per visible B2 content (sha1+size) by the owner''s 2026-09-13 rule: oldest real date, then most metadata; ties kept. Catalog only, bytes identical within a content. Script casebible/tools/grab_plan_20260930.sql; log docs/LOG.md 2026-09-30.';
 
 select 'best copy: contents', count(distinct (sha1, size)),
        'winners', count(*) filter (where disposition = 'winner'),
@@ -122,7 +122,7 @@ create table raw_duck.grab_plan_20260930 (
   planned_at  timestamptz not null default now()
 );
 comment on table raw_duck.grab_plan_20260930 is
-  'Files that need bytes moved so every file has a good copy on B2 (catalog only). Script casebible/tools/grab_plan_20260930.sql; log docs/URGENT-TODO.md 2026-09-30.';
+  'Files that need bytes moved so every file has a good copy on B2 (catalog only). Script casebible/tools/grab_plan_20260930.sql; log docs/LOG.md 2026-09-30.';
 
 -- 2a. Bytes that survive only as an old B2 version: restore on B2 (server-side copy), no re-pull from any source.
 insert into raw_duck.grab_plan_20260930 (kind, status, name, size, item, from_where, reason)

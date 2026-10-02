@@ -1,7 +1,7 @@
 -- Byline: Claude Code · Opus 5.5 · 2026-10-01
 -- Pairs for twin_compare_20261001.py: media files over 1 MB where two copies share the exact name and size but not the
 -- bytes (verification_20260930 flag altered_twin). One row per pair: the group's first visible copy against each other
--- distinct content that is visible on B2. Read only. Log: docs/URGENT-TODO.md, 2026-10-01 entry.
+-- distinct content that is visible on B2. Read only. Log: docs/LOG.md, 2026-10-01 entry.
 create temp table src as
   select regexp_replace(coalesce(payload -> 'source_record' ->> 'path', ''), '^.*/', '') as name,
          nullif(payload -> 'source_record' ->> 'size', '')::bigint as size,

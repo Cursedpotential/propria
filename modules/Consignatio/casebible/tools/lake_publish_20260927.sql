@@ -24,4 +24,4 @@ CREATE TABLE IF NOT EXISTS raw_duck.lake_publish_20260927 (
 );
 
 COMMENT ON TABLE raw_duck.lake_publish_20260927 IS
-  'Lake publish 2026-09-27: every object written to b2://salem-data/consignatio/_system/lake/ (Parquet export of the current raw_duck catalog tables, corrupt_missing.csv, schema.json, manifest.csv, LATEST), with rows, bytes and sha256 verified by readback. Script casebible/tools/lake_publish_20260927.sh; log docs/URGENT-TODO.md 2026-09-27.';
+  'Lake publish 2026-09-27: every object written to b2://salem-data/consignatio/_system/lake/ (Parquet export of the current raw_duck catalog tables, corrupt_missing.csv, schema.json, manifest.csv, LATEST), with rows, bytes and sha256 verified by readback. Script casebible/tools/lake_publish_20260927.sh; log docs/LOG.md 2026-09-27.';

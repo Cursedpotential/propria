@@ -1,0 +1,26 @@
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+// casebible-r2-hasher: read-only SHA-1 + SHA-256 of R2 objects for the R2 -> B2 "nothing lost" proof.
+// Deploy: npx wrangler deploy (from this folder). Secret: HASHER_TOKEN (wrangler secret put, value kept in
+// /data/consignatio/secrets/r2-hasher.env on ovh-files; never in git).
+{
+  "name": "casebible-r2-hasher",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  // 5 minutes of CPU per request (Workers Paid). The driver sizes batches to stay well under it.
+  "limits": { "cpu_ms": 300000 },
+  "vars": { "CONCURRENCY": "6" },
+  "observability": { "enabled": true },
+  "r2_buckets": [
+    { "binding": "B_HASH_LEDGER", "bucket_name": "casebible-hash-ledger" },
+    { "binding": "B_LAKEHOUSE", "bucket_name": "casebible-lakehouse" },
+    { "binding": "B_QUARANTINE", "bucket_name": "casebible-quarantine" },
+    { "binding": "B_RAW", "bucket_name": "casebible-raw" },
+    { "binding": "B_SORTED", "bucket_name": "casebible-sorted" },
+    { "binding": "B_MILVUS_MEMSEARCH", "bucket_name": "milvus-memsearch" },
+    { "binding": "B_NEXUS", "bucket_name": "nexus" },
+    { "binding": "B_PHOTOS", "bucket_name": "photos" },
+    { "binding": "B_R2_EXPLORER", "bucket_name": "r2-explorer-bucket" }
+  ]
+}

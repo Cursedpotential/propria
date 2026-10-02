@@ -2,7 +2,7 @@
 -- Per vault file: how strong the proof is that it is what it claims to be, and anything that looks off.
 -- Owner 2026-09-30 22:21 EDT: "make sure the files are verifiably what they say they are, ready for court evaluation if
 -- need be, and that there's no funny business with any of them." Catalog reads only; no object-store or source reads.
--- Log: docs/URGENT-TODO.md, 2026-09-30 entries. Output: raw_duck.verification_20260930 (new, additive).
+-- Log: docs/LOG.md, 2026-09-30 entries. Output: raw_duck.verification_20260930 (new, additive).
 --
 -- Proof levels (strongest first):
 --   independent_sha1    the source's own SHA-1 (Google Drive / OneDrive provider hash, or our disk hasher on D:/F:)
@@ -88,7 +88,7 @@ select v.object_key, v.sha1, v.size,
        now() as checked_at
 from vobj v;
 comment on table raw_duck.verification_20260930 is
-  'Per vault object: proof level (independent_sha1 | b2_sha1_only | no_hash) and flags (no_source_link, zero_filled, altered_twin, date_after_capture, future_date, no_real_date). Catalog only. Script casebible/tools/verification_20260930.sql; log docs/URGENT-TODO.md 2026-09-30.';
+  'Per vault object: proof level (independent_sha1 | b2_sha1_only | no_hash) and flags (no_source_link, zero_filled, altered_twin, date_after_capture, future_date, no_real_date). Catalog only. Script casebible/tools/verification_20260930.sql; log docs/LOG.md 2026-09-30.';
 
 select proof, count(*) as files, round(sum(size) / 1e9, 1) as gb from raw_duck.verification_20260930 group by 1 order by 2 desc;
 select f as flag, count(*) as files, round(sum(size) / 1e9, 1) as gb

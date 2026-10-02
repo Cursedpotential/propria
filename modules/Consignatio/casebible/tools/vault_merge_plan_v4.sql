@@ -1,6 +1,6 @@
 -- Byline: Claude Code · Opus 5 · 2026-09-15 07:45 EDT (session propria-79)
 -- Vault step 1 (collapse sources into one root) — MERGE PLAN v4 DRY RUN, analysis table only. NO B2 writes.
--- Replaces the voided v1–v3 graft plans. Owner rules (verbatim in Consignatio/docs/URGENT-TODO.md):
+-- Replaces the voided v1–v3 graft plans. Owner rules (verbatim in Consignatio/docs/LOG.md):
 --   * "onedrive/case bible is the trunk" (07:09) — trunk paths never change.
 --   * Takeouts / Facebook-Meta exports / .obsidian are sealed units (raw_duck.vault_occ_v1.unit_root, vault_units_v2):
 --     never matched by their member files, never split, never folded ("I would rather you not even try", 07:30).

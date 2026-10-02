@@ -11,7 +11,7 @@
 # sorted folder, so each file is later sorted into its home (owner rule 2026-09-30 15:53: Probata sorts a file into the
 # Bible when it is not in its home). --immutable: an existing different object is never replaced. Nothing is deleted
 # on either side. Verify: rclone check --download (reads both copies; R2 egress is free, B2 download is free at this
-# volume). Log: docs/URGENT-TODO.md, 2026-10-01 entry.
+# volume). Log: docs/LOG.md, 2026-10-01 entry.
 set -uo pipefail
 W=/data/consignatio/court-ready-20261001/copy
 CONF=/opt/casebible/rclone.conf

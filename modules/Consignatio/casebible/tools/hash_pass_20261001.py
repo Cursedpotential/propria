@@ -4,7 +4,7 @@
 Byline: Claude Code · Opus 5.5 · 2026-10-01.
 Owner 2026-09-30 22:21 EDT: files must be "verifiably what they say they are, ready for court evaluation";
 owner 2026-10-01 07:01 EDT "go" on the hash pass for the B2 objects that carry no SHA-1 (multipart uploads)
-or that match their sources by size only. Log: modules/Consignatio/docs/URGENT-TODO.md, 2026-10-01 entry.
+or that match their sources by size only. Log: modules/Consignatio/docs/LOG.md, 2026-10-01 entry.
 
 Reads only: `rclone cat` of each key, hashed in one pass. Nothing is written to B2. No local copy is kept.
 Resumable: a SQLite ledger records every finished key; a rerun skips them. Failures are recorded, not retried

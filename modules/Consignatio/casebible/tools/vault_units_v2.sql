@@ -4,7 +4,7 @@
 -- dir): b2_key-first join, OneDrive Case Bible 317,161 occurrences. Its unit_root/unit_class columns are RECOMPUTED here.
 -- Why v2: v1's recognizer descends while the next folder says "takeout", so salem85 Takeout/Takeout became unit
 -- "Takeout/Takeout" — owner 07:26: "Google Takeout saved directly to Google. And it needed to stop at takeout."
--- Owner rules (verbatim in Consignatio/docs/URGENT-TODO.md): Takeouts are atomic; stop at Takeout, one more folder only
+-- Owner rules (verbatim in Consignatio/docs/LOG.md): Takeouts are atomic; stop at Takeout, one more folder only
 -- for a username, a service folder is too far; ".obsidian" is a boundary (whole folder); Facebook/Meta export roots are
 -- units (2026-09-14 07:35); no folding attempts ("I would rather you not even try", 07:30) — every unit stays separate.
 -- raw_duck.vault_unit_pairs_v1 (v1) and raw_duck.export_unit_folds_v1 are folding analyses and must not be used.

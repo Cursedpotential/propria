@@ -1,6 +1,6 @@
 -- Byline: Claude Code · Opus 5 · 2026-09-15 07:30 EDT
 -- Vault consolidation — EXPORT UNITS v1 (Takeout boundary), analysis tables only. NO B2 writes.
--- Owner rules 2026-09-15 07:22–07:26 EDT (verbatim in Consignatio/docs/URGENT-TODO.md):
+-- Owner rules 2026-09-15 07:22–07:26 EDT (verbatim in Consignatio/docs/LOG.md):
 --   "Take outs. Are fucking atomic. Stop when it says take out." · "You can go as far as a username. If there's no
 --   username, then stop at takeout. Service name. You've gone too far." · deeper files only as evidence that two exports
 --   belong together; "if you can't do that, then just leave it as it is" · salem85 "Google Takeout saved directly to
