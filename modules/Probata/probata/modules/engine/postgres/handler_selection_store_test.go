@@ -20,6 +20,8 @@ func TestDetectHandlerContentUsesRetainedBytesAndSeparatesCallsXML(t *testing.T)
 		{name: "sms backup and restore", content: `<?xml version="1.0"?><smses count="1"><sms address="+1"/></smses>`, wantFormat: "smsbackuprestore_xml"},
 		{name: "calls backup is not sms", content: `<?xml version="1.0"?><calls count="1"><call number="+1"/></calls>`, wantFormat: "callsbackuprestore_xml"},
 		{name: "chatgpt official", content: `[{"title":"Chat","conversation_id":"c-1","mapping":{"node":{"message":{"author":{"role":"user"},"content":{"content_type":"text","parts":["hello"]}}}}}]`, wantFormat: "chatgpt_official_json"},
+		{name: "facebook messenger thread", content: `{"participants":[{"name":"A"},{"name":"B"}],"messages":[{"sender_name":"A","timestamp_ms":1,"content":"hi"}]}`, wantFormat: "facebook_messenger_json"},
+		{name: "other json object is not messenger", content: `{"messages":[{"sender_name":"A","timestamp_ms":1}],"participants":[]}`, wantFormat: "json"},
 		{name: "message transcript", content: "[2026-09-12 8:04 PM] Matthew Salem:\nhello\n", wantFormat: "messages_transcript"},
 		{name: "filename-like text is not an sms signature", content: "sms-backup.xml\nnot actually an export", wantFormat: "text"},
 	}

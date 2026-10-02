@@ -182,6 +182,9 @@ func detectHandlerContent(head []byte) (format, signatureKind string, err error)
 			}
 		}
 	}
+	if trimmed[0] == '{' && facebookMessengerThreadSignature(trimmed) {
+		return "facebook_messenger_json", "facebook_messenger_thread_json_v1", nil
+	}
 	if detectedJSONLines(trimmed) {
 		return "ndjson", "newline_delimited_json_v1", nil
 	}
@@ -278,6 +281,27 @@ func detectedCSV(content []byte) bool {
 		records++
 	}
 	return records >= 2
+}
+
+// facebookMessengerThreadSignature recognizes one thread file of a Facebook
+// "Download your information" export: a JSON object whose first member is
+// "participants" and whose head carries the messages[] entry keys
+// sender_name and timestamp_ms. Only the head is read, so the document is not
+// decoded whole. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func facebookMessengerThreadSignature(head []byte) bool {
+	decoder := json.NewDecoder(bytes.NewReader(head))
+	if opening, err := decoder.Token(); err != nil || opening != json.Delim('{') {
+		return false
+	}
+	if key, err := decoder.Token(); err != nil || key != "participants" {
+		return false
+	}
+	for _, marker := range []string{`"messages"`, `"sender_name"`, `"timestamp_ms"`} {
+		if !bytes.Contains(head, []byte(marker)) {
+			return false
+		}
+	}
+	return true
 }
 
 func chatGPTConversationSignature(first map[string]json.RawMessage) bool {

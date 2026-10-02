@@ -229,3 +229,36 @@ func TestStructuredELTQueryEscapesSourceURL(t *testing.T) {
 		t.Fatalf("source URL was not escaped: %s", query)
 	}
 }
+
+// TestFacebookMessengerQueryLinksAttachmentsBesideTheThreadFile proves the
+// Messenger template emits the canonical three columns, the pinned template,
+// the SMS-shaped message fields, and attachment locators under the thread
+// file's own folder and scheme. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestFacebookMessengerQueryLinksAttachmentsBesideTheThreadFile(t *testing.T) {
+	query, err := structuredELTQueryFor(activities.StructuredELTFormatFacebookMessenger,
+		"s3://bucket/export/o'brien_1/message_1.json", "b2://bucket/export/o'brien_1/message_1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"stored_bytes", "native_fields", "native_metadata", "'duckdb_template', 'facebook_messenger_json_v1'",
+		"read_text('s3://bucket/export/o''brien_1/message_1.json')", "'b2://bucket/export/o''brien_1/' || attachment_paths",
+		"'$.sender_name'", "'$.timestamp_ms'", "'$.photos[*].uri'", "'record_kind', 'message'", "'recipients'", "'attachments'",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("facebook messenger query lacks %q:\n%s", fragment, query)
+		}
+	}
+	if strings.Contains(strings.ToUpper(query), "INSERT ") {
+		t.Fatal("facebook messenger query must not write tables")
+	}
+	if _, err := structuredELTQueryFor(activities.StructuredELTFormatFacebookMessenger, "s3://bucket/x.json", "no-folder"); err == nil {
+		t.Fatal("a source locator without a folder was accepted")
+	}
+	// Every other format is unchanged by the locator.
+	plain, _ := structuredELTQuery(activities.StructuredELTFormatCSV, "s3://bucket/a.csv")
+	routed, _ := structuredELTQueryFor(activities.StructuredELTFormatCSV, "s3://bucket/a.csv", "b2://bucket/a.csv")
+	if plain != routed {
+		t.Fatal("the locator changed a non-Messenger template")
+	}
+}
