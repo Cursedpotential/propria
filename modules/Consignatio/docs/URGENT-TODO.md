@@ -4015,7 +4015,7 @@ Open, for the owner:
 - **Cannot be done:** `ai` stays a superuser. It is the bootstrap superuser, and PostgreSQL refuses: "The bootstrap superuser must have the SUPERUSER attribute" (tested inside a rolled-back transaction). No application logs in as `ai` now.
 - **Tool fix:** `tools/infisical-migrate-all.py` skips `_backup-<date>/` copies. A backup of `Agno-MCP-Platform.env` mapped to the same Infisical folder as the live file and wrote its old values over it; 4 entries were corrected.
 - **Docstore side of the rename:** the Dockerfile copies `modules/vestigia-geodata_processor/vestigia/docs/` (24 tracked files, checked). The nightly job (08:15 UTC) re-clones main and rebuilds, so the next build uses it. The registry `canonical_prefix` stays `vestigia/traceiq-rebuild/docs/`, so indexed document ids do not change.
-- [ ] **Owner, optional:** stop `ai` logging in over the network (`pg_hba.conf` in the database container), leaving local admin access only.
+- `ai` network logins: refused since 13:09 EDT (see the 12:46 entry).
 - [ ] Whoever created `investigation_test_advocatio_20261002` (owned by `ai`, today): the old `ai` password no longer works; the new one is in `~/.secrets/probata-db.env`.
 - [ ] Confirm the 2026-10-03 08:15 UTC nightly build of `propria-docstore` succeeds with the new COPY path.
 
@@ -4099,14 +4099,20 @@ Open, for the owner:
   - The Coolify devbox app stays, as the always-on host.
 - **Installed plugin copies:** `tools/sync_installs.py --check` exits 0. coolify-write 1.4.0 (Claude Code and Codex) includes the guard.
 
-## 2026-10-02 12:46 EDT – ongoing — probata-db: every caller gets its own login before `ai` is shut off the network (owner 12:46)
+## 2026-10-02 12:46–13:12 EDT — probata-db: every caller has its own login; `ai` refuses network logins (owner 12:46)
 
 > _Byline: Claude Code · Opus 5.5 · 2026-10-02_
 
-- **Callers and their logins:** ContextForge `contextforge`, Infisical `infisical`, Temporal `temporal`, the Probata services `platform_api` / `platform_runtime` (plus readers `platform_reader`, `registry_catalog_reader`, `workbench_reader`), llm-probe `casebible`, Vestigia `vestigia`, the owner `matt`. Schema work and agent test databases used `ai`; they now get `platform_dba`.
-- **Temporal** was refused 41 times today at its 30-connection cap: the cap is now 50 (the server allows 100; 58 were in use).
-- **Log lines name the caller:** `log_line_prefix = '%m [%p] %q%u@%d %h '` and `log_connections = on` (ALTER SYSTEM, reloaded). Turn connection logging off again with `ALTER SYSTEM RESET log_connections` before `ai` loses network access.
-- **`platform_dba`** (CREATEDB, not a superuser, member of `platform_migrator`; its sessions run as `platform_migrator`) is in `~/.secrets/probata-db.env`. It owns the test databases `investigation_test_advocatio_20261002`, `platform_baseline_test` and `platform_preburn_20260830`.
-- [ ] **Ownership move waiting:** every platform schema, table, view, function and type (326 tables/views) is still owned by `ai`. `modules/Probata/probata/tools/probata-db-platform-ownership.py --wait 50` moves them to `platform_migrator` and copies `ai`'s 45 default grants (to `platform_app`), as soon as no transaction older than a minute holds platform tables. At 13:10 EDT two `platform_runtime` import transactions had held 51 and 75 tables for 18+ minutes.
-- **Not changed, needs a look:** 49 refusals on `context.activity_execution` (12:48–13:30 UTC). The engine's own code only reads and inserts there, which `platform_runtime` may do; the old log lines do not name the login. 10 logins as `postgres` (no such role) from an unknown client; the next attempt will name its address. `infisical_dbadmin` is a member of `platform_app`, which gives Infisical's admin login read/write on platform data and looks unintended. The container health check (`pg_isready -U ai`) logs "database ai does not exist" every 5 s; `-d postgres` fixes it but needs a probata-db redeploy.
-- [ ] Then: refuse `ai` password logins (`ALTER ROLE ai VALID UNTIL` a past date). Logins inside the container use trust and keep working; `VALID UNTIL 'infinity'` undoes it.
+- **Callers and their logins:** ContextForge `contextforge`, Infisical `infisical`, Temporal `temporal`, the Probata services `platform_api` and `platform_runtime` (readers `platform_reader`, `registry_catalog_reader`, `workbench_reader`), llm-probe `casebible`, Vestigia `vestigia`, the owner `matt` (superuser). Schema changes, test databases and new logins: `platform_dba`.
+- **Done:**
+  - Temporal's connection cap is 50 (it was refused 41 times today at 30; the server allows 100).
+  - Every platform schema, table, view, function and type moved from `ai` to `platform_migrator`: 15 schemas, 326 tables/views/sequences, 65 functions, 38 types, and `ai`'s 45 default grants copied, by `modules/Probata/probata/tools/probata-db-platform-ownership.py --wait 50` once the import released its tables. A probe table still grants to `platform_app`.
+  - Login `platform_dba`: its sessions run as `platform_migrator`, which may create databases and logins and owns the three test databases. Checked: it created and dropped a database and a login.
+  - Log lines name the caller (`log_line_prefix = '%m [%p] %q%u@%d %h '`). Connection logging ran 16:56–17:09 UTC and is off again.
+  - `ai` refuses password logins (`VALID UNTIL 2026-10-02 00:00 UTC`): a network attempt is logged as "User ai has an expired password", while logins inside the container continue. Undo with `ALTER ROLE ai VALID UNTIL 'infinity'`, run inside the container or as `matt`.
+- **Still open:**
+  - [ ] 49 refusals on `context.activity_execution` (12:48–13:30 UTC) came from a login the old log lines do not name; the engine's own code only reads and inserts there, which `platform_runtime` may do. A repeat now names the login.
+  - [ ] Something tries to log in as `postgres` (no such role), 10 times today. The next attempt names its address.
+  - [ ] `infisical_dbadmin` is a member of `platform_app` (read/write on platform data), which looks unintended. Revoking it now needs `matt` or a session inside the container.
+  - [ ] The health check `pg_isready -U ai` logs "database ai does not exist" every 5 s; `-d postgres` in the compose fixes it, with a probata-db redeploy.
+  - `matt` is still a superuser that can log in over the network.
