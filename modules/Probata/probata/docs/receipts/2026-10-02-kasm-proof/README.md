@@ -8,7 +8,8 @@ Headless Chrome ran inside the Probata devbox on ovh-files. Nothing ran on the o
 |---|---|
 | `01-login.png` | `https://kasm.tilapia-skilift.ts.net/#/login`, Kasm's sign-in page on the tailnet name (svc:kasm). |
 | `02-workspaces.png` | Signed in as `msalem`, an admin, so Kasm opens the admin dashboard. Its image list holds Devbox, Devbox (RDP) and Sandbox. |
-| `03-devbox-session.png` | A launched Devbox workspace: the XFCE desktop streaming in the browser (run 2). |
+| `03-devbox-session.png` | A launched Devbox workspace: the XFCE desktop streaming in the browser. |
+| `04-rdp-session.png` | A launched Devbox (RDP) workspace: the same desktop over RDP through Kasm's Guacamole proxy. |
 | `05-public-signed-out.png` | `https://kasm.int.mitechconsult.com` signed out: the Authentik login, the expected result. |
 | `06-devbox-session-synaptic.png` | The desktop of a Kasm Devbox session with Synaptic open, captured by ImageMagick `import`. The same session reported `synaptic`, `claude` and `ttyd` on its PATH. |
 | `proof-run2.json`, `proof-run5.json` | Per-step URL, title and what the signed-in page listed. |
@@ -19,8 +20,12 @@ Headless Chrome ran inside the Probata devbox on ovh-files. Nothing ran on the o
 
 **Sandbox:** one session launched (`kasmweb/core-ubuntu-noble:1.17.0`, no mounts) and was ended.
 
-**Not proven: Devbox (RDP).** Kasm's Guacamole proxy connects and authenticates to the devbox's xrdp (kasm-user's password comes from the mounted secret), but the desktop session inside the devbox container does not start:
-- With `~/.xsession` missing, Xsession fell back to gnome-session, which aborts with "no system bus".
-- With `~/.xsession` present, sesman timed out waiting for Xorg `:10`, which logs `dbus-core` errors.
+**Devbox (RDP), proven on the clean image** (devbox deploy `dni65rfrjh28z9vcocnsefwo`, commit `14a0493c`, with no manual changes in the container):
+- `04-rdp-session.png` is the devbox's XFCE desktop over RDP through Kasm's Guacamole proxy.
+- Three fixes made it work:
+  - `pam_systemd` is commented out, because it waited for a logind the container does not have;
+  - the image ships its own `/etc/xrdp/startwm.sh`, with an ICE authority file private to the RDP session;
+  - `custom_startup.sh` starts a system D-Bus.
+- The `03-devbox-session.png` and `proof-final.json` files are from the same final run.
 
-The screenshot of that state (black) is not kept. The open item is in Consignatio `docs/URGENT-TODO.md`.
+**Shared home:** a Kasm Devbox session has `DEVBOX_KASM_SESSION=1` and runs neither Syncthing nor the memsearch loop. The Coolify devbox container runs both (2 Syncthing processes, 1 memsearch loop), checked live.

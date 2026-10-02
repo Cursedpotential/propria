@@ -190,13 +190,13 @@
         siteMonitor: http://100.72.169.40:3020/healthz
 
 - Development:
-    # Devbox and claude.ai: owner decisions 2026-09-26 23:35 EDT, URLs confirmed live 04:00Z.
-    # The Sandbox desktop (svc:desk) has no public route and stays on the tailnet portal.
+    # Devbox: since 2026-10-02 the tile opens Kasm Workspaces behind Authentik (kasm.int), where the Devbox, its RDP
+    # view and the Sandbox are workspaces (P-1). Claude Code · Opus 5.5 · 2026-10-02.
     - Devbox:
-        href: https://devbox.int.mitechconsult.com/
-        description: Kasm desktop with Claude Code — claude launcher inside
+        href: https://kasm.int.mitechconsult.com/
+        description: Kasm Workspaces — Devbox (Claude Code inside), Devbox (RDP), Sandbox
         icon: mdi-laptop
-        siteMonitor: https://devbox.tilapia-skilift.ts.net/
+        siteMonitor: https://kasm.tilapia-skilift.ts.net/
     - OpenCode:
         href: https://opencode.int.mitechconsult.com
         description: Checked Sep 12 · development sessions, sign-in required
