@@ -274,7 +274,7 @@ func TestFacebookMessengerHTMLQueryResolvesMediaAgainstTheExportRoot(t *testing.
 	for _, fragment := range []string{
 		"'duckdb_template', 'facebook_messenger_html_v1'", "parse_html(content)", "'record_kind', 'message'",
 		"'uri', 'b2://bucket/Evidence/FB Exports/o''brien/facebook-x/' || media_paths", "'thread_dir', 'thread_123'",
-		"read_text('s3://bucket/Evidence/FB Exports/o''brien/facebook-x/your_facebook_activity/messages/inbox/thread_123/message_1.html')",
+		"read_blob('s3://bucket/Evidence/FB Exports/o''brien/facebook-x/your_facebook_activity/messages/inbox/thread_123/message_1.html')",
 		"America/Detroit", "_a6-g", "_a6-p", "_a6-o", "_a6-q",
 	} {
 		if !strings.Contains(query, fragment) {
@@ -300,7 +300,7 @@ func TestGenericHTMLDocumentQueryIsDocumentShaped(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, fragment := range []string{
-		"read_html_blocks('s3://bucket/o''brien/page.html')", "'duckdb_template', 'generic_html_document_v1'",
+		"read_blob('s3://bucket/o''brien/page.html')", "parse_html(", "'duckdb_template', 'generic_html_document_v1'",
 		"'record_kind', 'object'", "'doc_text'", "stored_bytes", "native_fields", "native_metadata",
 	} {
 		if !strings.Contains(query, fragment) {
