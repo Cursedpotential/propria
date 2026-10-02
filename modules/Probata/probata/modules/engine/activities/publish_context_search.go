@@ -12,8 +12,16 @@
 // the preview, the owner's approval, seal_generation and publish_generation.
 // A failure here stops the run before the commit: that is what "first" means.
 //
-// The target is the owner-approved MsgEvents20260918 (OD-06, 2026-10-01): one
-// place to search, Probata's objects told apart by origin_system and by run id.
+// Targets are owner-approved and routed by record kind (OD-06, 2026-10-01;
+// owner 2026-10-02): messages and calls -> MsgEvents20260918, AI chats ->
+// AiChatEvents20260918, documents -> DocEvents20261001; any other kind fails
+// closed. Probata's objects are told apart by origin_system and by run id.
+//
+// The disclosure tier is the application's one rule (engine/disclosure, owner
+// 2026-10-02): contemporaneous when the owner took part in the record,
+// discovered when he did not. It reads the run's participant resolution
+// (resolve_context_participants_activity) by reference and never re-resolves,
+// so this stage and the first-party commit cannot disagree.
 //
 // It follows the split this package already established (normalized_pipeline.go,
 // entity_extraction.go): the Activity validates and converts compact
@@ -22,10 +30,10 @@
 // time; a generation is never materialized in Go or in Temporal history.
 //
 // Three boundaries, one write:
-//   - Source (PostgreSQL) resolves provenance, pages the normalized records and
-//     writes the one durable receipt.
+//   - Source (PostgreSQL) resolves provenance, loads the participant
+//     resolution, pages the normalized records and writes the one receipt.
 //   - Embedder (NVIDIA NIM) turns each page's text into text_nim vectors.
-//   - Target (Weaviate) owns the search-object write.
+//   - Target (Weaviate) owns the search-object writes.
 //
 // It writes NO canonical PostgreSQL rows; its only PostgreSQL write is its own
 // receipt in context.activity_receipt. It carries occurred_at, knowledge_time
@@ -33,6 +41,7 @@
 //
 // Byline: Claude Code · Opus 5 · 2026-09-26
 // Byline: Claude Code · Opus 5.5 · 2026-10-01 (builds; embedder; MsgEvents20260918)
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (owner_participant tier; routing by kind)
 package activities
 
 import (
@@ -46,6 +55,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Cursedpotential/probata/engine/contextsearch"
+	"github.com/Cursedpotential/probata/engine/disclosure"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
@@ -55,9 +65,8 @@ import (
 // drift apart.
 const PublishContextSearchActivityName = string(stagegraph.PublishContextSearch)
 
-// publishContextSearchPageSize is one embed request and one target write. It
-// matches the Case Bible writers' NIM batch (32-64) and stays well inside
-// Weaviate's batch ceiling.
+// publishContextSearchPageSize is one embed request. It matches the Case Bible
+// writers' NIM batch (32-64) and stays well inside Weaviate's batch ceiling.
 const publishContextSearchPageSize = 64
 
 // PublishContextSearchSpec is the compact, already-resolved input.
@@ -73,6 +82,13 @@ type PublishContextSearchSpec struct {
 	NormalizedVerificationRef proffer.Ref
 	// ExtractionAttemptRef is carried into every object's provenance.
 	ExtractionAttemptRef proffer.Ref
+	// ParticipantResolutionRef is the run's one participant resolution
+	// (resolve_context_participants_activity). Required.
+	ParticipantResolutionRef proffer.Ref
+	// OwnerPersonRef and PerspectivePersonRef are the run's explicit person
+	// ids; when given they must match the resolution's.
+	OwnerPersonRef       proffer.Ref
+	PerspectivePersonRef proffer.Ref
 }
 
 func (s PublishContextSearchSpec) validate() error {
@@ -87,6 +103,7 @@ func (s PublishContextSearchSpec) validate() error {
 		{"normalized generation", s.NormalizedGenerationRef},
 		{"normalized verification", s.NormalizedVerificationRef},
 		{"extraction attempt", s.ExtractionAttemptRef},
+		{"participant resolution", s.ParticipantResolutionRef},
 	} {
 		if strings.TrimSpace(string(field.ref)) == "" {
 			return fmt.Errorf("%s requires a %s reference", stagegraph.PublishContextSearch, field.name)
@@ -144,7 +161,12 @@ type ContextSearchPlan struct {
 	Provenance contextsearch.Provenance
 	// Coordinates carries the generation-wide coordinates; RowID is per record.
 	Coordinates contextsearch.Coordinates
-	Reader      ContextSearchRecordReader
+	// FormatID is the raw generation's format; with Provenance.SourceFormat it
+	// decides whether the source is a conversation with AI.
+	FormatID string
+	// Resolution is the run's participant resolution.
+	Resolution disclosure.Resolution
+	Reader     ContextSearchRecordReader
 }
 
 // ContextSearchSourceStore is the PostgreSQL boundary.
@@ -161,12 +183,12 @@ type ContextSearchEmbedder interface {
 	Embed(context.Context, []string) ([][]float32, error)
 }
 
-// ContextSearchTarget is the Weaviate boundary. EnsureCollection must never
-// create, drop or alter an existing property; PublishObjects must be
-// idempotent under a repeated object id.
+// ContextSearchTarget is the Weaviate boundary. EnsureCollection never drops
+// or alters an existing property and creates only a collection the owner
+// approved for creation; PublishObjects is idempotent under a repeated id.
 type ContextSearchTarget interface {
-	EnsureCollection(context.Context) ([]string, error)
-	PublishObjects(context.Context, []contextsearch.Object) (ContextSearchPublishResult, error)
+	EnsureCollection(ctx context.Context, collection string) ([]string, error)
+	PublishObjects(ctx context.Context, collection string, objects []contextsearch.Object) (ContextSearchPublishResult, error)
 }
 
 // ContextSearchPublishResult is one target write's outcome.
@@ -178,15 +200,20 @@ type ContextSearchPublishResult struct {
 
 // ContextSearchPublicationOutcome is the durable result of one publish pass.
 type ContextSearchPublicationOutcome struct {
-	Collection           string
+	// Collections is objects written per collection.
+	Collections          map[string]int
 	Published            int
 	VectorsPublished     int
 	ObjectIDConstruction string
 	DedupKeyConstruction string
-	FirstObjectID        string
-	LastObjectID         string
-	// PropertiesAdded names collection properties this pass added.
-	PropertiesAdded []string
+	DisclosureBasis      string
+	// Tiers is objects per disclosure tier.
+	Tiers         map[string]int
+	FirstObjectID string
+	LastObjectID  string
+	// PropertiesAdded names, per collection, properties this pass added (every
+	// property, for a collection this pass created).
+	PropertiesAdded map[string][]string
 }
 
 // PublishContextSearchActivities implements publish_context_search_activity.
@@ -194,10 +221,17 @@ type PublishContextSearchActivities struct {
 	Source   ContextSearchSourceStore
 	Embedder ContextSearchEmbedder
 	Target   ContextSearchTarget
-	// Collection is recorded in the receipt; it must equal the Target's.
-	Collection string
-	Attempt    Attempt
-	Heartbeat  Heartbeat
+	// Collections routes each record kind to its owner-approved collection.
+	// Every kind must be routed; there are no defaults.
+	Collections map[string]string
+	Attempt     Attempt
+	Heartbeat   Heartbeat
+}
+
+// ContextSearchRecordKinds are the kinds that must each have a collection.
+var ContextSearchRecordKinds = []string{
+	contextsearch.RecordKindMessage, contextsearch.RecordKindCall,
+	contextsearch.RecordKindAIChat, contextsearch.RecordKindDocument,
 }
 
 func (a PublishContextSearchActivities) validate() error {
@@ -205,13 +239,15 @@ func (a PublishContextSearchActivities) validate() error {
 		return errors.New("publish context search activities: source store is required")
 	}
 	if a.Embedder == nil {
-		return errors.New("publish context search activities: embedder is required; the collection is searched by its text_nim vector")
+		return errors.New("publish context search activities: embedder is required; the collections are searched by their text_nim vector")
 	}
 	if a.Target == nil {
 		return errors.New("publish context search activities: target is required")
 	}
-	if strings.TrimSpace(a.Collection) == "" {
-		return errors.New("publish context search activities: collection name is required and has no default; vector-store collection names are owner-approved")
+	for _, kind := range ContextSearchRecordKinds {
+		if strings.TrimSpace(a.Collections[kind]) == "" {
+			return fmt.Errorf("publish context search activities: no collection is configured for record kind %q; vector-store collection names are owner-approved and have no default", kind)
+		}
 	}
 	return nil
 }
@@ -233,10 +269,13 @@ func (a PublishContextSearchActivities) heartbeat(ctx context.Context, done int6
 }
 
 // publishContextSearchSpecFrom resolves the compact spec from the StageRequest.
-// Every reference is required: a missing one means the workflow reached this
-// stage without its upstream gate.
+// A missing required reference means the workflow reached this stage without
+// its upstream gate.
 func publishContextSearchSpecFrom(req proffer.StageRequest, attempt int32) (PublishContextSearchSpec, error) {
-	spec := PublishContextSearchSpec{RequestID: req.RequestID, Attempt: attempt, SourceVersionRef: req.SourceVersionRef}
+	spec := PublishContextSearchSpec{
+		RequestID: req.RequestID, Attempt: attempt, SourceVersionRef: req.SourceVersionRef,
+		OwnerPersonRef: req.Refs["owner_person"], PerspectivePersonRef: req.Refs["perspective_person"],
+	}
 	for _, field := range []struct {
 		name   string
 		target *proffer.Ref
@@ -244,6 +283,7 @@ func publishContextSearchSpecFrom(req proffer.StageRequest, attempt int32) (Publ
 		{"normalized_generation", &spec.NormalizedGenerationRef},
 		{"normalized_verification", &spec.NormalizedVerificationRef},
 		{"extraction_attempt", &spec.ExtractionAttemptRef},
+		{"participant_resolution", &spec.ParticipantResolutionRef},
 	} {
 		ref, ok := req.Refs[field.name]
 		if !ok || strings.TrimSpace(string(ref)) == "" {
@@ -260,7 +300,7 @@ func publishContextSearchSpecFrom(req proffer.StageRequest, attempt int32) (Publ
 // PublishContextSearch makes one verified extraction output searchable in
 // Weaviate, before any canonical PostgreSQL commit. It is idempotent: object
 // ids derive from source-anchored dedup keys and the target write replaces an
-// existing id, so a retry leaves the collection count unchanged.
+// existing id, so a retry leaves every collection's count unchanged.
 func (a PublishContextSearchActivities) PublishContextSearch(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
 		return proffer.StageResult{}, err
@@ -281,17 +321,14 @@ func (a PublishContextSearchActivities) PublishContextSearch(ctx context.Context
 		return proffer.StageResult{}, errors.New("context search plan carries no record reader")
 	}
 	defer plan.Reader.Close()
-
-	added, err := a.Target.EnsureCollection(ctx)
-	if err != nil {
-		return proffer.StageResult{}, fmt.Errorf("ensure context search collection %s: %w", a.Collection, err)
+	if err := checkResolutionMatchesRun(plan.Resolution, spec); err != nil {
+		return proffer.StageResult{}, err
 	}
 
 	outcome, err := a.publishStream(ctx, spec, plan)
 	if err != nil {
 		return proffer.StageResult{}, err
 	}
-	outcome.PropertiesAdded = added
 
 	resultRef, receiptRef, err := a.Source.PersistContextSearchPublication(ctx, spec, outcome)
 	if err != nil {
@@ -303,16 +340,37 @@ func (a PublishContextSearchActivities) PublishContextSearch(ctx context.Context
 	return success(stagegraph.PublishContextSearch, resultRef, receiptRef), nil
 }
 
+// checkResolutionMatchesRun fails closed when the resolution was made for a
+// different owner or perspective than this run names.
+func checkResolutionMatchesRun(resolution disclosure.Resolution, spec PublishContextSearchSpec) error {
+	if err := resolution.Validate(); err != nil {
+		return err
+	}
+	if owner := strings.TrimSpace(string(spec.OwnerPersonRef)); owner != "" && !strings.EqualFold(owner, resolution.OwnerPersonID) {
+		return fmt.Errorf("participant resolution was made for owner %s, but the run names %s", resolution.OwnerPersonID, owner)
+	}
+	if perspective := strings.TrimSpace(string(spec.PerspectivePersonRef)); perspective != "" && !strings.EqualFold(perspective, resolution.PerspectivePersonID) {
+		return fmt.Errorf("participant resolution was made for perspective %q, but the run names %s", resolution.PerspectivePersonID, perspective)
+	}
+	return nil
+}
+
 // publishStream drains the reader a page at a time: build objects, embed the
-// page in one request, write the page. Fail-closed: one bad record, a short
-// embed response or one rejected object fails the Activity, because a silently
-// missing message is one the owner would never find.
+// page in one request, write each collection's share of the page. Fail-closed:
+// one bad record, a short embed response or one rejected object fails the
+// Activity, because a silently missing record is one the owner would never find.
 func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec PublishContextSearchSpec, plan ContextSearchPlan) (ContextSearchPublicationOutcome, error) {
 	outcome := ContextSearchPublicationOutcome{
-		Collection:           a.Collection,
+		Collections:          map[string]int{},
 		ObjectIDConstruction: contextsearch.ObjectIDConstruction,
 		DedupKeyConstruction: contextsearch.DedupKeyConstruction,
+		DisclosureBasis:      disclosure.Basis,
+		Tiers:                map[string]int{},
+		PropertiesAdded:      map[string][]string{},
 	}
+	ensured := map[string]bool{}
+	aiChat := contextsearch.IsAIChatFormat(plan.Provenance.SourceFormat) || contextsearch.IsAIChatFormat(plan.FormatID)
+	resolution := plan.Resolution
 	page := make([]contextsearch.Object, 0, publishContextSearchPageSize)
 
 	flush := func() error {
@@ -330,27 +388,51 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 		if len(vectors) != len(page) {
 			return fmt.Errorf("embedder returned %d vectors for %d records", len(vectors), len(page))
 		}
+		byCollection := map[string][]contextsearch.Object{}
+		var order []string
 		for i := range page {
 			if len(vectors[i]) == 0 {
 				return fmt.Errorf("embedder returned an empty vector for record %s", page[i].Coordinates.RowID)
 			}
 			page[i].Vector = vectors[i]
-		}
-		result, err := a.Target.PublishObjects(ctx, page)
-		if err != nil {
-			return fmt.Errorf("publish context search objects to %s: %w", a.Collection, err)
-		}
-		if result.Written != len(page) {
-			return fmt.Errorf("context search target wrote %d of %d objects", result.Written, len(page))
-		}
-		if len(result.ObjectIDs) > 0 {
-			if outcome.FirstObjectID == "" {
-				outcome.FirstObjectID = result.ObjectIDs[0]
+			collection := a.Collections[page[i].RecordKind]
+			if _, seen := byCollection[collection]; !seen {
+				order = append(order, collection)
 			}
-			outcome.LastObjectID = result.ObjectIDs[len(result.ObjectIDs)-1]
+			byCollection[collection] = append(byCollection[collection], page[i])
 		}
-		outcome.Published += result.Written
-		outcome.VectorsPublished += result.Written
+		for _, collection := range order {
+			objects := byCollection[collection]
+			if !ensured[collection] {
+				added, err := a.Target.EnsureCollection(ctx, collection)
+				if err != nil {
+					return fmt.Errorf("ensure context search collection %s: %w", collection, err)
+				}
+				ensured[collection] = true
+				if len(added) > 0 {
+					outcome.PropertiesAdded[collection] = added
+				}
+			}
+			result, err := a.Target.PublishObjects(ctx, collection, objects)
+			if err != nil {
+				return fmt.Errorf("publish context search objects to %s: %w", collection, err)
+			}
+			if result.Written != len(objects) {
+				return fmt.Errorf("context search target wrote %d of %d objects to %s", result.Written, len(objects), collection)
+			}
+			if len(result.ObjectIDs) > 0 {
+				if outcome.FirstObjectID == "" {
+					outcome.FirstObjectID = result.ObjectIDs[0]
+				}
+				outcome.LastObjectID = result.ObjectIDs[len(result.ObjectIDs)-1]
+			}
+			outcome.Collections[collection] += result.Written
+			outcome.Published += result.Written
+			outcome.VectorsPublished += result.Written
+			for _, object := range objects {
+				outcome.Tiers[object.Temporal.DisclosureTier]++
+			}
+		}
 		page = page[:0]
 		a.heartbeat(ctx, int64(outcome.Published))
 		return nil
@@ -367,7 +449,7 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 		if err != nil {
 			return outcome, fmt.Errorf("read context search record: %w", err)
 		}
-		object, err := contextSearchObjectFrom(record, plan, spec)
+		object, err := contextSearchObjectFrom(record, plan, &resolution, spec, aiChat)
 		if err != nil {
 			return outcome, err
 		}
@@ -387,6 +469,53 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 	return outcome, nil
 }
 
+// contextSearchRecordKind routes a normalized record type to a record kind.
+// Anything without an owner-approved collection fails closed.
+func contextSearchRecordKind(recordType string, aiChat bool) (string, error) {
+	switch recordType {
+	case contextsearch.RecordKindMessage:
+		if aiChat {
+			return contextsearch.RecordKindAIChat, nil
+		}
+		return contextsearch.RecordKindMessage, nil
+	case contextsearch.RecordKindCall:
+		if aiChat {
+			return "", errors.New("a call record in a conversation-with-AI source has no owner-approved collection")
+		}
+		return contextsearch.RecordKindCall, nil
+	case contextsearch.RecordKindDocument:
+		return contextsearch.RecordKindDocument, nil
+	default:
+		return "", fmt.Errorf("record type %q has no owner-approved collection (messages, calls, AI chats and documents only)", recordType)
+	}
+}
+
+// statedParticipants splits a record's participants into the sender and
+// recipients the disclosure rule takes, exactly as the source states them.
+// A participant of unknown role is a party all the same, so it counts with the
+// recipients. A call log names only the other party: the device's own owner is
+// a party to every call on it, so a call carries the device marker "self",
+// which the rule resolves through the run's perspective person.
+func statedParticipants(record ContextSearchRecord) (string, []string) {
+	var sender string
+	var recipients []string
+	for _, participant := range record.Participants {
+		identifier := strings.TrimSpace(participant.Identifier)
+		if identifier == "" {
+			continue
+		}
+		if participant.Role == "sender" && sender == "" {
+			sender = participant.Identifier
+			continue
+		}
+		recipients = append(recipients, participant.Identifier)
+	}
+	if record.RecordType == contextsearch.RecordKindCall {
+		recipients = append(recipients, disclosure.SelfIdentifier)
+	}
+	return sender, recipients
+}
+
 // contextSearchObjectFrom converts one record into a validated search object.
 //
 // The dedup discriminator is the record's ordinal within its source version:
@@ -394,7 +523,11 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 // (normalize.GenericMessageNormalizer), so re-running the same source version
 // yields the same ordinals and therefore the same object ids. The row id is
 // never used: it is re-minted on every re-extraction.
-func contextSearchObjectFrom(record ContextSearchRecord, plan ContextSearchPlan, spec PublishContextSearchSpec) (contextsearch.Object, error) {
+func contextSearchObjectFrom(record ContextSearchRecord, plan ContextSearchPlan, resolution *disclosure.Resolution, spec PublishContextSearchSpec, aiChat bool) (contextsearch.Object, error) {
+	kind, err := contextSearchRecordKind(record.RecordType, aiChat)
+	if err != nil {
+		return contextsearch.Object{}, fmt.Errorf("context search record %s: %w", record.RowID, err)
+	}
 	coordinates := plan.Coordinates
 	coordinates.RowID = record.RowID
 	dedupKey, err := contextsearch.DedupKey(coordinates.SourceVersionID, fmt.Sprintf("record_ordinal:%d", record.Ordinal), nil)
@@ -406,6 +539,12 @@ func contextSearchObjectFrom(record ContextSearchRecord, plan ContextSearchPlan,
 	provenance.RequestID = spec.RequestID
 	provenance.ExtractionAttemptRef = string(spec.ExtractionAttemptRef)
 
+	sender, recipients := statedParticipants(record)
+	_, tier, basis, err := resolution.ForMessage(sender, recipients)
+	if err != nil {
+		return contextsearch.Object{}, fmt.Errorf("context search record %s: %w", record.RowID, err)
+	}
+
 	people := contextSearchPeople(record.Participants)
 	object := contextsearch.Object{
 		DedupKey:    dedupKey,
@@ -415,13 +554,13 @@ func contextSearchObjectFrom(record ContextSearchRecord, plan ContextSearchPlan,
 			OccurredAt:           record.OccurredAt,
 			OccurredAtRaw:        record.OccurredAtRaw,
 			KnowledgeTime:        record.KnowledgeTime,
-			DisclosureTier:       contextsearch.DeriveDisclosureTier(record.OccurredAt, record.KnowledgeTime),
-			DisclosureTierBasis:  contextsearch.DisclosureTierBasis,
+			DisclosureTier:       tier,
+			DisclosureTierBasis:  basis,
 			TimestampCertainty:   record.TimestampCertainty,
 			TimestampGranularity: record.TimestampGranularity,
 		},
 		People:          people,
-		RecordKind:      record.RecordType,
+		RecordKind:      kind,
 		Direction:       record.Direction,
 		Body:            record.Body,
 		SearchText:      contextSearchText(record, people),

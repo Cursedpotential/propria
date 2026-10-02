@@ -636,11 +636,15 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		if contextChunkingInput != nil && contextChunkingInput.AttemptRef != "" {
 			extractionAttemptRef = contextChunkingInput.AttemptRef
 		}
-		if _, err := r.exec(ctx, stagegraph.PublishContextSearch, in.DeclaredFormat, map[string]Ref{
+		// The run's person ids travel as they do to the first-party stages; the
+		// participant resolution ref ("participant_resolution") is added by
+		// resolve_context_participants_activity's scheduling, and the stage fails
+		// closed without it. Byline: Claude Code · Opus 5.5 · 2026-10-02
+		if _, err := r.exec(ctx, stagegraph.PublishContextSearch, in.DeclaredFormat, in.personRefs(map[string]Ref{
 			"normalized_generation":   normalizedGenerationRef,
 			"normalized_verification": normalizedVerificationRef,
 			"extraction_attempt":      extractionAttemptRef,
-		}); err != nil {
+		})); err != nil {
 			r.operation.Reason = err.Error()
 			return r.result(""), err
 		}

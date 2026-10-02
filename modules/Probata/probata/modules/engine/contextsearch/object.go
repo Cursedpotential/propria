@@ -12,12 +12,12 @@
 // Weaviate is therefore the pre-approval SEARCH surface, not a commitment:
 // publishing here asserts nothing about accuracy and needs no approval.
 //
-// Where it publishes (owner answer OD-06, 2026-10-01 07:17): the existing
-// MsgEvents20260918 collection, "messages and calls with people". One place to
-// search, no parallel store; Probata's objects are told apart from the Case
-// Bible's by origin_system and by run id (ingest_run_id). Because that
-// collection is searched by text and by its text_nim vector, an object here
-// CARRIES the message body. The 09-18 ruling superseded D-149 item 8's
+// Where it publishes (owner answers OD-06, 2026-10-01 07:17, and 2026-10-02):
+// messages and calls with people go to the existing MsgEvents20260918, AI chats
+// to the existing AiChatEvents20260918, documents to DocEvents20261001. No
+// parallel store; Probata's objects are told apart from the Case Bible's by
+// origin_system and by run id (ingest_run_id). These collections are searched
+// by text and by their text_nim vector, so an object CARRIES the body. The 09-18 ruling superseded D-149 item 8's
 // "no text in Weaviate" (spec 2026-09-27 §4).
 //
 // This package is pure compute: it validates and derives identifiers. It
@@ -33,7 +33,9 @@
 //
 // Byline: Claude Code · Opus 5 · 2026-09-26
 // Byline: Claude Code · Opus 5.5 · 2026-10-01 (OD-06: MsgEvents20260918 mapping,
-// body carried, uuid5 ids in the collection's own namespace, derived tier)
+// body carried, uuid5 ids in the collection's own namespace)
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (owner_participant tier from
+// engine/disclosure; AI-chat and document record kinds)
 package contextsearch
 
 import (
@@ -87,35 +89,47 @@ func validDisclosureTier(tier string) bool {
 	}
 }
 
-// DeriveDisclosureTier is the parse-time tier for a record whose normalized
-// form carries occurred_at and source_available_from (the engine's knowledge
-// time) but no stored tier, which is every record in
-// context.normalized_record_identity.
-//
-// The rule is mechanical, from the two dates alone: a record knowable at the
-// moment it happened (knowledge time equal to occurred_at) is contemporaneous;
-// a record that became known later, or whose occurred_at is unknown, is
-// discovered. Hindsight is never assigned here: it is a review-time overlay
-// (engine/contextreview), not a property of extraction.
-// DisclosureTierBasis labels every tier this package derives, so a reader can
-// tell a derived tier from a stored one (owner, 2026-10-01: accepted "as long
-// as it is labelled as derived in the object").
-const DisclosureTierBasis = "derived:source_available_from-vs-occurred_at"
+// The disclosure tier itself is decided by engine/disclosure, the one rule
+// for the whole application (owner 2026-10-02: contemporaneous when the owner
+// was a participant, discovered when he was not). This package only checks
+// that a tier is in the closed set and that it names its basis.
 
-func DeriveDisclosureTier(occurredAt *time.Time, knowledgeTime time.Time) string {
-	if occurredAt != nil && !knowledgeTime.After(*occurredAt) {
-		return TierContemporaneous
-	}
-	return TierDiscovered
+// Record kinds and the collections they route to (owner 2026-10-02): messages
+// and calls with people -> MsgEvents20260918 (told apart by record_kind, owner
+// 2026-09-24 09:30); conversations with AI -> AiChatEvents20260918; documents
+// -> DocEvents20261001. Collection names are configuration (profferworker);
+// any other record kind fails closed.
+const (
+	RecordKindMessage  = "message"
+	RecordKindCall     = "call"
+	RecordKindAIChat   = "ai_chat"
+	RecordKindDocument = "document"
+)
+
+// aiChatFormats are the source formats of conversations with AI: the
+// engine's own format ids (handler selection, structured ELT templates) and
+// the Case Bible writer's (embed_weaviate.py AI_FORMATS), so one source is
+// routed the same way whichever lane imported it.
+var aiChatFormats = map[string]bool{
+	"chatgpt_official_json": true, "chatgpt_json_array": true, "chatgpt_conversations_json": true,
+	"claude_conversations_json": true, "gemini_activity_json": true, "ai_markdown_transcript": true,
+	"ai_generic_json": true, "ai_conversations_json": true, "ai_chat_file": true,
 }
 
-// Record kinds the approved collection holds (owner 2026-09-24 09:30:
-// MsgEvents20260918 holds messages AND calls with people, told apart by
-// record_kind).
-const (
-	RecordKindMessage = "message"
-	RecordKindCall    = "call"
-)
+// IsAIChatFormat reports whether a source format is a conversation with AI.
+func IsAIChatFormat(format string) bool {
+	return aiChatFormats[strings.ToLower(strings.TrimSpace(format))]
+}
+
+// ValidRecordKind reports whether a kind has an owner-approved collection.
+func ValidRecordKind(kind string) bool {
+	switch kind {
+	case RecordKindMessage, RecordKindCall, RecordKindAIChat, RecordKindDocument:
+		return true
+	default:
+		return false
+	}
+}
 
 // Coordinates are the PostgreSQL coordinates needed to get back to the exact
 // row this object stands for. All are required.
@@ -253,7 +267,7 @@ type Object struct {
 	Temporal    Temporal
 	People      People
 
-	// RecordKind is message or call (the collection's record_kind).
+	// RecordKind is message, call, ai_chat or document (record_kind).
 	RecordKind string
 	// Direction is incoming/outgoing when the source says.
 	Direction string
@@ -289,10 +303,8 @@ func (o Object) Validate() error {
 	if len(o.ContentSHA256) != sha256.Size {
 		return fmt.Errorf("context search object requires a %d-byte content digest, got %d", sha256.Size, len(o.ContentSHA256))
 	}
-	switch o.RecordKind {
-	case RecordKindMessage, RecordKindCall:
-	default:
-		return fmt.Errorf("context search record kind %q has no owner-approved collection; MsgEvents20260918 holds messages and calls only (OD-06)", o.RecordKind)
+	if !ValidRecordKind(o.RecordKind) {
+		return fmt.Errorf("context search record kind %q has no owner-approved collection (messages, calls, AI chats and documents only)", o.RecordKind)
 	}
 	if strings.TrimSpace(o.SearchText) == "" {
 		return errors.New("context search object requires search text")

@@ -271,9 +271,9 @@ func RegisterStructuredELTActivities(registrar ActivityRegistrar, activities Str
 
 // NewPublishContextSearchActivities binds the Weaviate-first publish to
 // Temporal heartbeats and attempt numbers. Byline: Claude Code · Opus 5.5 · 2026-10-01
-func NewPublishContextSearchActivities(source ContextSearchSourceStore, embedder ContextSearchEmbedder, target ContextSearchTarget, collection string) PublishContextSearchActivities {
+func NewPublishContextSearchActivities(source ContextSearchSourceStore, embedder ContextSearchEmbedder, target ContextSearchTarget, collections map[string]string) PublishContextSearchActivities {
 	return PublishContextSearchActivities{
-		Source: source, Embedder: embedder, Target: target, Collection: collection,
+		Source: source, Embedder: embedder, Target: target, Collections: collections,
 		Heartbeat: func(ctx context.Context, progress Progress) {
 			activity.RecordHeartbeat(ctx, progress)
 		},

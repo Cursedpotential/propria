@@ -12,15 +12,18 @@
 // REPLACES the object and the count does not grow. The batch endpoint is the
 // only write path used here.
 //
-// The target is the owner-approved MsgEvents20260918 (OD-06, 2026-10-01). This
-// Store never creates, drops or alters an existing property of that
-// collection. Its only schema action is to ADD a property the collection does
-// not yet have (POST /v1/schema/{class}/properties), the same additive path the
-// Case Bible writer uses (elt_run.py ensure_schema).
+// One Store writes one owner-approved collection (MsgEvents20260918,
+// AiChatEvents20260918, DocEvents20261001). A Store never drops or alters an
+// existing property. Its schema actions are to ADD a property a collection
+// lacks (POST /v1/schema/{class}/properties, the Case Bible writer's additive
+// path, elt_run.py ensure_schema) and, only when CreateIfAbsent is set, to
+// create its collection.
 //
 // Byline: Claude Code · Opus 5 · 2026-09-26
 // Byline: Claude Code · Opus 5.5 · 2026-10-01 (MsgEvents20260918 mapping, named
 // vector, additive-only schema, no collection creation)
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (one Store per routed collection;
+// creation only for a collection the owner approved for it: DocEvents20261001)
 package weaviate
 
 import (
@@ -66,6 +69,12 @@ type Store struct {
 	BatchSize int
 	// Now is injectable for tests; it stamps indexed_at.
 	Now func() time.Time
+	// CreateIfAbsent allows EnsureCollection to create this collection when it
+	// does not exist. Only a collection the owner approved for creation sets it
+	// (DocEvents20261001, owner 2026-10-02); every other collection must
+	// already exist. Description is the created collection's description.
+	CreateIfAbsent bool
+	Description    string
 }
 
 func (s Store) validate() error {
@@ -244,7 +253,10 @@ func (s Store) EnsureCollection(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if status == http.StatusNotFound {
-		return nil, fmt.Errorf("weaviate collection %s does not exist; refusing to create it (collection names are owner-approved)", s.Collection)
+		if !s.CreateIfAbsent {
+			return nil, fmt.Errorf("weaviate collection %s does not exist; refusing to create it (collection names are owner-approved)", s.Collection)
+		}
+		return s.createCollection(ctx)
 	}
 	if status != http.StatusOK {
 		return nil, fmt.Errorf("inspect weaviate collection %s returned HTTP %d: %s", s.Collection, status, truncate(payload))
@@ -287,6 +299,38 @@ func (s Store) EnsureCollection(ctx context.Context) ([]string, error) {
 		added = append(added, want.Name)
 	}
 	return added, nil
+}
+
+// createCollection creates the collection with the same vector configuration
+// as MsgEvents20260918 (one named vector text_nim, vectorizer none, HNSW,
+// cosine; the writer supplies NIM nemotron-3-embed-1b 2048-d vectors) and every
+// property this Store writes. It returns the property names it created.
+func (s Store) createCollection(ctx context.Context) ([]string, error) {
+	properties := append(ExistingProperties(), AddedProperties()...)
+	body := map[string]any{
+		"class":       s.Collection,
+		"description": s.Description,
+		"properties":  properties,
+		"vectorConfig": map[string]any{
+			s.VectorName: map[string]any{
+				"vectorizer":        map[string]any{"none": map[string]any{}},
+				"vectorIndexType":   "hnsw",
+				"vectorIndexConfig": map[string]any{"distance": "cosine"},
+			},
+		},
+	}
+	status, payload, err := s.do(ctx, http.MethodPost, "/v1/schema", body)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("create weaviate collection %s returned HTTP %d: %s", s.Collection, status, truncate(payload))
+	}
+	names := make([]string, 0, len(properties))
+	for _, property := range properties {
+		names = append(names, property.Name)
+	}
+	return names, nil
 }
 
 func sameDataType(a, b []string) bool {
