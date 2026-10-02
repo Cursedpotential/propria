@@ -3926,6 +3926,15 @@ Open, for the owner:
 - **Placement tooling:** `casebible/tools/casevault_placement.sh` (add-only same-bucket b2→b2 server-side copy, `--ignore-existing`, dry-run mode, size+SHA-1 verify from B2 metadata) and `casevault_placement_load.sql` (old→new pairs into `raw_duck.casevault_placement`).
 - [ ] Owner sign-off on the copy list (10 SMS XML, 10 call logs, 2 Facebook exports of the owner–Katrina thread with 536 attachment files; ~11.7 GB), device slugs, Facebook export ids, and which Google Voice Takeout tree.
 
+## 2026-10-02 08:21–08:38 EDT — ContextForge locked every client out; lockout removed (owner 08:33)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02._
+
+- **What broke:** at session start every ContextForge-served tool (coolify-write, Docstore, surrealdb, memsearch, dev-docs, octopoda) failed with 429 "Account locked … 15 minutes". ContextForge's own rate limiter, on defaults because `deploy/contextforge.yaml` set none: MCP calls 100/min per user and per IP (burst 20), and after 5 violations the whole account is locked for 15 minutes. Every agent, session, Codex and LibreChat share one client token and mostly the desktop's one tailnet address.
+- **Fix (owner 08:33 "get rid of the lockout"):** `RATE_LIMIT_LOCKOUT_ENABLED=false`, `RATE_LIMIT_MEDIUM_RPM=1200`, `RATE_LIMIT_MEDIUM_BURST=200` (`ce00f289`, deployment of `exec-contextforge`). Login and admin tiers keep their own strict defaults; the public route still requires the token.
+- **Verified:** the new container carries the three settings; through the public route the coolify-write server lists 42 tools, propria-docstore 5, surrealdb 10. Sessions started during the lockout need a restart (or `/mcp` reconnect) to pick the tools up.
+
+
 ## 2026-10-02 08:15 EDT – ongoing — owner's messages into Probata through Proffer (continuation of the overnight import)
 
 > _Byline: Claude Code · Opus 5.5 · 2026-10-02 (agent picking up from `overnight-import`)._

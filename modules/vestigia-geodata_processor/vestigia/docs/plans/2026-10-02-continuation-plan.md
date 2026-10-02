@@ -43,7 +43,8 @@ Built in two days (2026-07-24/25), untouched for feature work since 2026-08-01.
   `ops/validate_ingest.py` and `ops/test_load_raw.py` hard-code the database host and password, and
   `ui/BUILD_BRIEF_PHASE2.md` embeds a full connection string (`reports/README.md` names the host
   only). They were removed from the current files on 2026-10-02 (Phase 0) but remain in the
-  Propria monorepo history, so the password stays exposed until Vestigia moves off it (V-3). Docstore flag `faa916eb` (2026-09-24) also records six gitleaks
+  Propria monorepo history. Vestigia moved off that account on 2026-10-02 (V-3, done); the
+  exposed `ai` password itself is unchanged. Docstore flag `faa916eb` (2026-09-24) also records six gitleaks
   `generic-api-key` findings in this history. No record says they were reviewed.
 - **Which database server (settled 2026-10-02, live read).** The scripts pointed at ovh-data,
   which has been offline for about six weeks. The database is `traceiq` on `probata-db`
@@ -100,15 +101,16 @@ the desktop, which the hosting rule forbids.
   not a blocker).
 - B: a separate API service plus the UI, as ADR-0001 describes, now.
 
-**V-3. The credentials in history.** The `ai` password is two letters, and `ai` is probably the
-shared user for the other databases on `probata-db` (platform, temporal, contextforge, infisical,
-archive), so changing it could break those apps.
-- **A (default):** give Vestigia its own role (`vestigia`, a long generated password, rights on
-  the `traceiq` database only), switch `~/.secrets/traceiq-db.env` and later the Coolify env to it,
-  and leave history as is. Whether to strengthen the shared `ai` password is a separate question
-  for the lane that owns `probata-db`.
-- B: also rewrite monorepo history to remove the values. This is destructive, affects every
-  session and all 35 Coolify apps, and only helps if the repository is ever made public.
+**V-3. The credentials in history — answered A by the owner, 2026-10-02 08:20; done.**
+- Role `vestigia` (login, not a superuser, 43-character generated password) owns the `traceiq`
+  database, its seven schemas and all 62 relations. Ownership was moved object by object, not
+  with `REASSIGN OWNED`, which would also have moved `ai`'s other databases.
+- `~/.secrets/traceiq-db.env` and `ui/.env.local` use it. Verified live: reads, an owner-level
+  `ALTER TABLE` and a `REFRESH MATERIALIZED VIEW` (both rolled back), and the UI's URL form.
+- `vestigia` can connect to other databases on the server, as every login can, but sees only the
+  PostGIS and statistics views granted to PUBLIC there.
+- Still open, for the lane that owns `probata-db`: `ai` is a **superuser** with a two-letter
+  password that is in git history, and it owns `casebible`, `postgres` and the templates.
 
 **V-4. Backups (ADR-0004 said a local `pg_dump` to `E:\TraceIQ_Backups`).**
 - **A (default):** a scheduled `pg_dump` on the VPS, written to B2 under the case vault, with an
@@ -154,7 +156,7 @@ Each phase ends with a live check on the real database; any test rows it writes 
    `ops/db_env.py` and stops with a clear message when it is missing; no password is left in
    tracked files; `.env.example` names both variables; the value lives in
    `~/.secrets/traceiq-db.env`; `ops/validate.py` writes its report inside the repo. Verified
-   live (read-only counts through the new path). The dedicated role per V-3 is still to do.
+   live (read-only counts through the new path). The dedicated `vestigia` role (V-3) is in use.
 2. Re-conform the drifted docs (`AGENTS.md`, `AGENT_MEMORY.md`, parent router, `docs/adr/README.md`
    adding 0015/0016, `ui/README.md`) and delete `ops/FALLBACK_RESUME.md`'s stale content.
 3. **Server done 2026-10-02** (`probata-db`, recorded in `docs/SCHEMA.md` and `reports/README.md`).
@@ -200,7 +202,7 @@ Each phase ends with a live check on the real database; any test rows it writes 
 
 ## Order of work
 
-Phase 0 is under way (V-3 still open). Phase 1 needs V-4, V-5 and V-6. Phase 2 needs V-7 and
+Phase 0 is under way (V-3 done). Phase 1 needs V-4, V-5 and V-6. Phase 2 needs V-7 and
 V-8. Phase 3 needs V-2. The UI and reports in Phases 3–4 read analysis from Surreal and source
 records from Postgres. Nothing in this plan touches the Case Bible, Workbench or portal lanes, which other sessions
 own; Phase 4's Evidence.dev step coordinates with the portal lane.
