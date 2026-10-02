@@ -5,7 +5,7 @@
 import hashlib, os, sys, json
 import psycopg, ijson
 
-DSN = "host=100.119.96.29 port=5432 dbname=traceiq user=ai password=ai"
+from db_env import DSN
 REPORT = os.path.join(os.path.dirname(__file__), "INGEST_VALIDATION_REPORT.md")
 
 SECTION_KEYS = [

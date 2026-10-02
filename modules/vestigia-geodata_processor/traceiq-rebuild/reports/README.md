@@ -19,7 +19,7 @@ against the evidence-studio MCP docs live):
 ## Connect (one-time)
 
 1. Open Evidence Studio → add a **PostgreSQL** source:
-   host `100.119.96.29` · port `5432` · database `traceiq` · user `ai` (tailnet must be up)
+   host `100.91.190.107` (probata-db on ovh-files) · port `5432` · database `traceiq` · user `ai` (tailnet must be up)
 2. Point Studio at this folder (`traceiq-rebuild\reports\`) or copy the pages into your
    Studio project's pages directory.
 3. Queries reference schemas directly (`analysis.latest_events`, `working.waypoint`) —

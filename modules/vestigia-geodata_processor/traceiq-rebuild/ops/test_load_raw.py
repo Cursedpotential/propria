@@ -7,7 +7,7 @@ import json, hashlib, sys, io
 import psycopg
 
 CHUNK = sys.argv[1]
-DSN = "host=100.119.96.29 port=5432 dbname=traceiq user=ai password=ai"
+from db_env import DSN
 
 with io.open(CHUNK, "r", encoding="utf-8", errors="strict") as f:
     doc = json.load(f)
