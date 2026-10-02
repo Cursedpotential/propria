@@ -126,10 +126,9 @@ def test_unknown_numbers_list_most_frequent_first(monkeypatch):
     more = PEOPLE + [{"entity_id": "e-ph2", "person": "Unknown 313-555-0102", "display_name": "Unknown 313-555-0102",
                       "role_in_case": "unknown", "verification_state": "proposed", "identifier": "3135550102", "kind": "phone"}]
     monkeypatch.setattr(pg, "people", lambda: more)
-    monkeypatch.setattr(pg, "numbers_activity", lambda matter: [
-        {"number": "3135550101", "record_type": "message", "n": 3, "last_at": None},
-        {"number": "3135550102", "record_type": "call", "n": 9, "last_at": None},
-        {"number": "3135550102", "record_type": "message", "n": 2, "last_at": None},
+    monkeypatch.setattr(pg, "entity_activity", lambda: [
+        {"entity_id": "e-ph", "calls": 0, "msgs": 3, "last_at": None},
+        {"entity_id": "e-ph2", "calls": 9, "msgs": 2, "last_at": None},
     ])
     body = TestClient(_app()).get("/api/imported/unknown-numbers").json()
     assert [item["number"] for item in body["items"]] == ["3135550102", "3135550101"]
@@ -137,10 +136,6 @@ def test_unknown_numbers_list_most_frequent_first(monkeypatch):
 
 
 def test_unlinked_numbers_skip_anyone_the_registry_carries(monkeypatch):
-    monkeypatch.setattr(pg, "numbers_activity", lambda matter: [
-        {"number": "3135550101", "record_type": "message", "n": 3, "last_at": None},
-        {"number": "4195550123", "record_type": "message", "n": 5, "last_at": None},
-    ])
     monkeypatch.setattr(pg, "working_unlinked_numbers", lambda: [{"number": "4195550123", "n": 7}, {"number": "2485550000", "n": 1}])
     body = TestClient(_app()).get("/api/imported/unlinked-numbers").json()
     assert [(i["number"], i["total"]) for i in body["items"]] == [("4195550123", 7), ("2485550000", 1)]

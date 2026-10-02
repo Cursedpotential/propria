@@ -274,6 +274,30 @@ def numbers_activity(matter: str) -> list[dict[str, Any]]:
     )
 
 
+def entity_activity() -> list[dict[str, Any]]:
+    """Calls and messages already linked to each registry person, from the working tables.
+
+    Cheap on purpose (four small grouped scans, no JSON): the unnamed-numbers list ranks by this.
+    """
+    return _query(
+        """SELECT entity_id::text AS entity_id, sum(calls)::bigint AS calls, sum(msgs)::bigint AS msgs, max(last_at) AS last_at
+           FROM (
+             SELECT from_entity_id AS entity_id, count(*) AS calls, 0 AS msgs, max(started_at) AS last_at
+               FROM working.call_log WHERE from_entity_id IS NOT NULL GROUP BY 1
+             UNION ALL
+             SELECT to_entity_id, count(*), 0, max(started_at)
+               FROM working.call_log WHERE to_entity_id IS NOT NULL GROUP BY 1
+             UNION ALL
+             SELECT entity_id, 0, count(DISTINCT message_id), NULL::timestamptz
+               FROM working.message_participant WHERE entity_id IS NOT NULL GROUP BY 1
+             UNION ALL
+             SELECT entity_id, 0, count(DISTINCT message_id), NULL::timestamptz
+               FROM working.third_party_message_participant WHERE entity_id IS NOT NULL GROUP BY 1
+           ) u GROUP BY 1""",
+        {},
+    )
+
+
 def working_unlinked_numbers() -> list[dict[str, Any]]:
     """Numbers on working.call_log / message participants whose entity column is still NULL."""
     return _query(

@@ -569,7 +569,7 @@ async def review_queue() -> dict[str, Any]:
 
 def invalidate() -> None:
     """Forget cached registry and activity reads after an identity change."""
-    for key in [k for k in _cache if k == "people" or k.startswith("activity:") or k.startswith("sv:")]:
+    for key in [k for k in _cache if k in ("people", "entity-activity") or k.startswith("activity:") or k.startswith("sv:")]:
         _cache.pop(key, None)
 
 
@@ -619,12 +619,13 @@ async def number_status(values: list[str]) -> dict[str, Any]:
 async def unknown_numbers(*, limit: int, offset: int, q: str | None) -> dict[str, Any]:
     """Placeholders still unnamed, most frequent first, with how often each appears."""
     people = await asyncio.to_thread(_people)
-    activity = await _activity()
+    rows = await asyncio.to_thread(lambda: _cached("entity-activity", 30, pg.entity_activity))
+    activity = {row["entity_id"]: {"messages": row["msgs"], "calls": row["calls"], "last_at": row["last_at"]} for row in rows}
     items = []
     for number, who in people.by_phone.items():
         if not who["placeholder"]:
             continue
-        seen = activity.get(number, {"messages": 0, "calls": 0, "last_at": None})
+        seen = activity.get(who["entity_id"], {"messages": 0, "calls": 0, "last_at": None})
         items.append({
             "entity_id": who["entity_id"], "number": number, "label": _pretty_phone(number), "name": who["name"],
             "messages": seen["messages"], "calls": seen["calls"], "total": seen["messages"] + seen["calls"],
@@ -641,13 +642,10 @@ async def unknown_numbers(*, limit: int, offset: int, q: str | None) -> dict[str
 
 
 async def unlinked_numbers(*, limit: int, offset: int) -> dict[str, Any]:
-    """Phone numbers no registry person carries yet (not even a placeholder). Feeds the back-fill."""
+    """Phone numbers on working rows whose entity column is NULL and that no registry person carries. Feeds the back-fill."""
     people = await asyncio.to_thread(_people)
-    activity = await _activity()
     unlinked = await asyncio.to_thread(pg.working_unlinked_numbers)
-    numbers: dict[str, int] = {number: seen["messages"] + seen["calls"] for number, seen in activity.items()}
-    for row in unlinked:
-        numbers[row["number"]] = max(numbers.get(row["number"], 0), int(row["n"]))
+    numbers: dict[str, int] = {row["number"]: int(row["n"]) for row in unlinked}
     items = [{"number": number, "total": total} for number, total in numbers.items()
              if number not in people.by_phone and re.fullmatch(r"[2-9]\d{9}", number)]
     items.sort(key=lambda item: (-item["total"], item["number"]))
