@@ -3,8 +3,8 @@
 #
 # Replaces the Coolify one-click standalone database `casebible-pg18`
 # (uuid fgz1n7useplhk0t91uk7k1aw, created 2026-08-03). That resource kept its port only in
-# Coolify's own database (its REST API refuses `ports_mappings`) and its 46 GB of data in a
-# Docker named volume on the root disk. This file declares both instead (owner 2026-10-02 03:01).
+# Coolify's own database (its REST API refuses `ports_mappings`) and its 46 GB of data in an
+# undeclared Docker named volume. This file declares both instead (owner 2026-10-02 03:01).
 #
 # DEPLOY AS its own Coolify "Docker Compose" app `casebible-pg` on ovh-files
 # (server cn89l8801u8gsginw1rxq5qt), repo Cursedpotential/propria @ main,
