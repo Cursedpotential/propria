@@ -3113,23 +3113,57 @@ $$;
 CREATE FUNCTION working.validate_message_projection() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-DECLARE owner_count INTEGER;
+-- Scoped to the rows each firing touches (owner 2026-10-02, applied live); same invariants. Byline: Claude Code · Opus 5.5 · 2026-10-02
+DECLARE
+  owner_count INTEGER;
+  rows_in jsonb[] := ARRAY[]::jsonb[];
+  r jsonb;
+  ids uuid[] := ARRAY[]::uuid[];
+  full_check boolean := TG_TABLE_SCHEMA = 'registry';
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtext('working.message_projection'));
+  IF TG_OP <> 'INSERT' THEN rows_in := rows_in || to_jsonb(OLD); END IF;
+  IF TG_OP <> 'DELETE' THEN rows_in := rows_in || to_jsonb(NEW); END IF;
+  IF NOT full_check THEN
+    FOREACH r IN ARRAY rows_in LOOP
+      CASE TG_TABLE_NAME
+        WHEN 'message' THEN ids := ids || (r->>'derived_from_record_id')::uuid;
+        WHEN 'message_projection_route' THEN ids := ids || (r->>'normalized_record_id')::uuid;
+        WHEN 'normalized_record' THEN ids := ids || (r->>'id')::uuid;
+        WHEN 'third_party_message' THEN ids := ids || (r->>'normalized_record_id')::uuid;
+        WHEN 'third_party_message_participant' THEN
+          ids := ids || ARRAY(SELECT tm.normalized_record_id FROM working.third_party_message tm
+                              WHERE tm.id = (r->>'message_id')::uuid);
+        WHEN 'third_party_conversation' THEN
+          ids := ids || ARRAY(SELECT tm.normalized_record_id FROM working.third_party_message tm
+                              WHERE tm.conversation_id = (r->>'id')::uuid);
+        WHEN 'third_party_conversation_acquisition' THEN
+          ids := ids || ARRAY(SELECT tm.normalized_record_id FROM working.third_party_message tm
+                              WHERE tm.conversation_id = (r->>'conversation_id')::uuid);
+        ELSE full_check := true;
+      END CASE;
+    END LOOP;
+    ids := array_remove(ids, NULL);
+    IF NOT full_check AND cardinality(ids) = 0 THEN RETURN NULL; END IF;
+  END IF;
+
   IF EXISTS (SELECT 1 FROM working.message_projection_route r
              JOIN working.normalized_record nr ON nr.id=r.normalized_record_id
-             WHERE r.decision_state='approved' AND nr.record_type<>'message') THEN
+             WHERE (full_check OR r.normalized_record_id = ANY(ids))
+               AND r.decision_state='approved' AND nr.record_type<>'message') THEN
     RAISE EXCEPTION 'MESSAGE_ROUTE_REQUIRES_MESSAGE_RECORD';
   END IF;
   IF EXISTS (
     SELECT 1 FROM working.message_projection_route r
-    WHERE r.decision_state='approved' AND r.projection_kind='first_party'
+    WHERE (full_check OR r.normalized_record_id = ANY(ids))
+      AND r.decision_state='approved' AND r.projection_kind='first_party'
       AND ((SELECT count(*) FROM working.message m WHERE m.derived_from_record_id=r.normalized_record_id)<>1
         OR EXISTS (SELECT 1 FROM working.third_party_message tm WHERE tm.normalized_record_id=r.normalized_record_id))) THEN
     RAISE EXCEPTION 'FIRST_PARTY_PROJECTION_CARDINALITY';
   END IF;
-  IF EXISTS (SELECT 1 FROM working.message_projection_route
-             WHERE decision_state='approved' AND projection_kind='acquired_third_party') THEN
+  IF EXISTS (SELECT 1 FROM working.message_projection_route r
+             WHERE (full_check OR r.normalized_record_id = ANY(ids))
+               AND r.decision_state='approved' AND r.projection_kind='acquired_third_party') THEN
     SELECT count(*) INTO owner_count FROM registry.person WHERE role_in_case='user';
     IF owner_count<>1 THEN RAISE EXCEPTION 'OWNER_IDENTITY_NOT_CONFIGURED'; END IF;
   END IF;
@@ -3138,7 +3172,8 @@ BEGIN
     JOIN working.normalized_record nr ON nr.id=r.normalized_record_id
     LEFT JOIN working.third_party_message tm ON tm.normalized_record_id=r.normalized_record_id
     LEFT JOIN working.third_party_conversation tc ON tc.id=tm.conversation_id
-    WHERE r.decision_state='approved' AND r.projection_kind='acquired_third_party'
+    WHERE (full_check OR r.normalized_record_id = ANY(ids))
+      AND r.decision_state='approved' AND r.projection_kind='acquired_third_party'
       AND (tm.id IS NULL OR tc.review_status<>'approved' OR tc.case_id<>nr.case_id
         OR tc.source_artifact_id<>nr.artifact_id
         OR tm.occurred_at IS DISTINCT FROM nr.occurred_at
@@ -11334,7 +11369,7 @@ CREATE TABLE working.attachment (
 
 CREATE TABLE working.call_log (
     id uuid NOT NULL,
-    source_artifact_id uuid NOT NULL,
+    source_artifact_id uuid,
     conversation_id uuid,
     from_raw text,
     from_e164 text,
@@ -40514,6 +40549,8 @@ GRANT SELECT ON TABLE working.message_participant TO platform_runtime;
 GRANT SELECT ON TABLE working.third_party_message TO platform_runtime;
 GRANT SELECT ON TABLE working.third_party_message_participant TO platform_runtime;
 GRANT SELECT ON TABLE working.call_log TO platform_runtime;
+-- Calls follow the message path; no working step requires an evidence hash (owner 2026-10-02). Byline: Claude Code · Opus 5.5 · 2026-10-02
+GRANT INSERT (id, source_artifact_id, from_raw, from_e164, from_entity_id, to_raw, to_e164, to_entity_id, call_type, direction, started_at, duration_s, is_blocked, raw_data) ON TABLE working.call_log TO platform_runtime;
 GRANT SELECT ON TABLE working.entity_resolution TO platform_runtime;
 GRANT ALL ON TABLE registry.identity_change TO platform_app;
 GRANT ALL ON TABLE registry.identifier_triage TO platform_app;
