@@ -62,6 +62,10 @@ The UI's Redeploy button and the raw REST API do not run the guard. Use coolify-
 
 - Shell: `ssh -i ~/.ssh/ovh root@100.91.190.107`, then `docker exec -it -u kasm-user $(docker ps -q --filter name=devbox-pd3x) bash`.
 - Claude Code in the browser (ttyd, since 2026-10-02): `http://100.91.190.107:7681`, tailnet only. It opens `claude` in `~/work` inside a tmux session that survives a closed tab. Claude Code is signed in with the owner's own subscription through Anthropic's login; the credentials stay in `~/.claude` on the host volume.
+- As a Kasm Workspaces workspace (since 2026-10-02): https://kasm.tilapia-skilift.ts.net, short name `kasm.mitechconsult.com`, public `kasm.int.mitechconsult.com` behind Authentik.
+  - Sign in as `msalem` (password in `~/.secrets/kasm.env`) and launch **Devbox**. It is the same image and the same home, in a session Kasm starts and stops.
+  - **Sandbox** is a throwaway desktop.
+  - Setup and proofs: `modules/Probata/probata/deploy/kasm/`.
 - Desktop (Kasm, its own login: user `kasm_user`, password `VNC_PW`):
   - Tailnet: `https://devbox.tilapia-skilift.ts.net`, Tailscale Service `svc:devbox` on ovh-files. The short name `https://devbox.mitechconsult.com` redirects there on tailnet devices. Config: `modules/Probata/probata/deploy/tailscale/devbox-serve.hujson`.
   - Public: `https://devbox.int.mitechconsult.com`, behind Authentik first, then Kasm's login. Router `devbox-public` in `modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml`.
