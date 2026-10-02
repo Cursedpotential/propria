@@ -107,9 +107,6 @@ def main() -> int:
     images = {i.get("friendly_name"): i for i in call("/admin/get_images", dict(tok)).get("images", [])}
     for fname, d in sorted(defs.items()):
         name = d["friendly_name"]
-        if name in images:
-            print(f"workspace {name!r} exists (image_id {images[name]['image_id']})")
-            continue
         target = {
             "friendly_name": name,
             "description": d.get("description", ""),
@@ -131,16 +128,32 @@ def main() -> int:
             srv = d["server"]
             servers = {s.get("friendly_name"): s for s in call("/admin/get_servers", dict(tok)).get("servers", [])}
             s = servers.get(srv["friendly_name"])
+            want_info = json.dumps(srv.get("connection_info", {}))
+            have_info = s.get("connection_info") if s is not None else None
+            if isinstance(have_info, str):
+                have_info = json.loads(have_info or "{}")
+            if s is not None and have_info != srv.get("connection_info", {}):
+                # connection_info carries Guacamole's connection type ("guac": {"type": "rdp"}); without it guac
+                # logs "Selecting connection type: undefined" and the session never connects.
+                call("/admin/update_server", {**tok, "target_server": {**s, "connection_info": want_info}})
+                print(f"updated server {srv['friendly_name']!r} connection_info")
             if s is None:
+                zone_id = call("/admin/get_zones", dict(tok))["zones"][0]["zone_id"]
+                # The full record shape Kasm 1.19 expects (a partial one is refused 403 "Unauthorized Action").
                 s = call("/admin/create_server", {**tok, "target_server": {
-                    "friendly_name": srv["friendly_name"], "hostname": srv["hostname"], "connection_type": srv["connection_type"],
-                    "connection_port": srv["connection_port"], "connection_info": json.dumps(srv.get("connection_info", {})),
-                    "max_simultaneous_sessions": 1, "enabled": True, "zone_id": None,
-                    "connection_username": srv.get("connection_username", "{sso_username}"),
+                    "friendly_name": srv["friendly_name"], "hostname": srv["hostname"],
+                    "connection_type": srv["connection_type"], "connection_port": srv["connection_port"],
+                    "connection_credential_type": "STATIC", "connection_username": srv.get("connection_username", ""),
                     "connection_password": secret_value(srv.get("password_file"), srv.get("password_key")),
-                    "use_user_private_key": False}})["server"]
+                    "connection_info": json.dumps(srv.get("connection_info", {})),
+                    "server_type": "host", "zone_id": zone_id, "enabled": True,
+                    "max_simultaneous_sessions": 1, "max_simultaneous_users": 1, "use_user_private_key": False,
+                    "agent_installed": False, "server_assignment_enabled": False}})["server"]
                 print(f"created server {srv['friendly_name']!r}")
             target.update(server_id=s["server_id"], name="")
+        if name in images:  # the server (above) is still kept in sync for an existing Server workspace
+            print(f"workspace {name!r} exists (image_id {images[name]['image_id']})")
+            continue
         out = call("/admin/create_image", {**tok, "target_image": target})
         print(f"created workspace {name!r} (image_id {out.get('image', {}).get('image_id')})")
     return 0

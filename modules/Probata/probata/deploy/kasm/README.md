@@ -31,10 +31,27 @@ It stops if `/opt/kasm` exists, if 3389 or 8443 is taken, or if the host has no 
 
 ## Register the workspaces
 
-Kasm admin → Workspaces → Add Workspace, one per JSON file. Copy `docker_run_config_override` into **Docker Run Config Override**, `volume_mappings` into **Volume Mappings**, and set Cores, Memory and Persistent Profile Path from the same file. Keys starting with `_` are notes.
+`register_kasm.py` does it through Kasm's own admin API (the routes its web UI calls). Each step runs only if it has not been done yet:
+- the zone's proxy port follows the request port (0), because the front doors are on 443;
+- user `msalem` in Administrators (password generated into `kasm.env` as `KASM_OWNER_PASSWORD`);
+- one workspace per file in `workspaces/`.
 
-- **Devbox** starts at 2 CPU / 4 GB (owner 2026-10-02). It shares its home with the Coolify devbox container until that container's desktop is retired (brief step 5).
-- **Guacamole**: a Server workspace, RDP to `100.91.190.107:13389` (the devbox's xrdp). Credentials are the devbox's own; not stored here.
+```bash
+python3 -c "import json,glob,os;print(json.dumps({os.path.basename(f):json.load(open(f)) for f in glob.glob('workspaces/*.json')}))" > /tmp/kasm-bundle.json
+scp -i ~/.ssh/ovh register_kasm.py root@100.91.190.107:/data/probata/kasm-installer/
+ssh -i ~/.ssh/ovh root@100.91.190.107 python3 /data/probata/kasm-installer/register_kasm.py < /tmp/kasm-bundle.json
+```
+
+- **Devbox** (`workspaces/devbox.json`): the `probata-devbox` image, 2 CPU / 4 GB to start (owner 2026-10-02).
+  - The home `/data/probata/volumes/devbox/home` is a volume mapping onto `/home/kasm-user`, not a Kasm persistent profile. Kasm 1.19 insists on `{username}` in a profile path.
+  - It shares that home with the Coolify devbox container until that container's desktop is retired (brief step 5).
+  - The corpus read-only mounts slot is marked and waits on the owner.
+- **Sandbox** (`workspaces/sandbox.json`): Kasm's core Ubuntu Noble desktop. It is ephemeral, with no mounts.
+- **Devbox (RDP)** (`workspaces/guacamole-devbox-rdp.json`): a Server workspace. Kasm's Guacamole proxy connects over RDP to the devbox's xrdp on `100.91.190.107:13389` as `kasm-user`.
+  - The password comes from `/data/probata/secrets/devbox/xrdp.env`. The devbox sets it at start, and the register script stores it in Kasm's server record.
+- Live proofs:
+  - `session_proof.py <workspace>` launches the workspace twice and checks that a marker written in the home survives.
+  - `proof/kasm_proof.sh <label>` takes headless-Chrome screenshots from inside the devbox.
 
 ## The Claude Code listener (reserved, not built)
 

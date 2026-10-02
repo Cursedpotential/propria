@@ -13,10 +13,12 @@
     "connection_username": "kasm-user",
     "connection_info": {
       "guac": {
+        "type": "rdp",
         "settings": {
           "ignore-cert": true,
           "security": "any",
-          "resize-method": "display-update"
+          "resize-method": "display-update",
+          "enable-font-smoothing": true
         }
       }
     },

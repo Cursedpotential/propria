@@ -4019,3 +4019,42 @@ Open, for the owner:
   - Desktop stdio fallback, same code path, from the plugin worktree: `check_only` → safe.
 - [ ] The installed plugin copies follow the shared checkout `E:/AI_Workspace/plugins`. It still holds another session's uncommitted `github_app_webhook` work, so it trails `origin/main` until that session rebases.
 - [ ] Each guard run copies the container layer again, about 60 MB today, into a new `~/rescued/<stamp>/`. The owner decides whether repeated identical rescues should be de-duplicated, and when old ones go to `to_be_deleted`.
+
+## 2026-10-02 08:39–10:30 EDT — Kasm Workspaces CE live on ovh-files (P-1 steps 2–4, 6; owner GO 08:39)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02 (agent `kasm-devbox`). The tracked files are under Probata `deploy/kasm/`._
+
+- **Install** (`install_kasm.sh`, run once):
+  - Kasm CE 1.19.0, pinned to sha256 `8caaa12d…`. That hash matches Kasm's own `kasm_release_1.19.0.tar.gz.sha256sum` on kasm-static-content.s3 and the downloaded tarball. The docs FAQ lists `7b801cb0…`, which matches neither 1.19.0 tarball.
+  - Flags: `--accept-eula --proxy-port 8443`. 8 `kasm_*` containers are healthy.
+  - **Recorded exception:** Kasm's installer, not Coolify, owns `/opt/kasm` and these containers.
+  - The public IP's 8443 and 3389 are closed (DOCKER-USER drops `ens3`).
+  - Credentials: `/data/probata/secrets/kasm/kasm.env` and `~/.secrets/kasm.env`.
+- **Workspaces** (`register_kasm.py`, through Kasm's admin API):
+  - user `msalem`, in Administrators;
+  - **Devbox**: `probata-devbox`, 2 CPU / 4 GB. The home is a volume mapping (Kasm 1.19 refuses a fixed persistent-profile path). Also mounted: linuxbrew, `/root`, desktop-share. The corpus slot is marked NOT DECIDED;
+  - **Sandbox**: `kasmweb/core-ubuntu-noble:1.17.0`, ephemeral;
+  - **Devbox (RDP)**: a Server workspace with guac type `rdp` to `100.91.190.107:13389` as kasm-user.
+  - Zone proxy port 0, so sessions work through the 443 front doors.
+- **Exposure:**
+  - `svc:kasm` → https://kasm.tilapia-skilift.ts.net (200; config `deploy/tailscale/kasm-serve.hujson`, ovh-files approved).
+  - https://kasm.mitechconsult.com → 302 to ts.net → 200.
+  - https://kasm.int.mitechconsult.com → Authentik flow → 200.
+  - Cloudflare: two DNS-only A records → 40.160.5.19.
+  - Traefik on ovh-app: `kasm-public` and `kasm-workspaces-svc`, with backups `*.bak-…-add-kasm*`; the tracked copies are byte-identical.
+- **Proof** (Probata `docs/receipts/2026-10-02-kasm-proof/`):
+  - login page, signed-in dashboard, Devbox session streaming, Synaptic open inside a Kasm Devbox session;
+  - `kasm.int` signed out → Authentik;
+  - persistence: a marker's sha256 is the same across two sessions in two containers (PERSISTED), then purged;
+  - Sandbox session launched and ended.
+- **Devbox redeploy `eikdliwyymi2exsbmrzsu8sa`** (commit `957d2efd`, queued through ContextForge with the guard SAFE): finished. kasm-user now has a password, from `/data/probata/secrets/devbox/xrdp.env` (copy in `~/.secrets/devbox-xrdp.env`).
+  - The ContextForge caller saw "Tool invocation failed" although the guard and the deploy succeeded. Its tool timeout is shorter than guard plus deploy (about 35 s).
+- **Fixed on the way:**
+  - root-owned `~/.npm` and `~/.cache` in the home volume were chowned to uid 1000;
+  - `~/.xsession` was missing from the volume. Created now; `custom_startup.sh` creates it from the next deploy (`db80dd39`).
+- [ ] **Devbox (RDP) does not show a desktop yet.** Guacamole connects and xrdp authenticates. Then, inside the devbox container, sesman times out waiting for Xorg `:10` (Xorg logs `dbus-core: no system bus`), and the session closes. The devbox has no system D-Bus. Next is a declared fix (start a system dbus in `custom_startup.sh`, or point xrdp's startwm at `startxfce4` with `dbus-launch`), then a guarded redeploy. A manual test of `dbus-daemon --system` in the running container did not start one.
+- [ ] **ContextForge:** raise the `coolify-write` gateway's tool timeout above about 60 s, so guarded deploys report their real result.
+- [ ] **Owner:** rotate the Kasm `admin@kasm.local` password. My `pgrep -af` printed it from the installer's argv into the transcript (transcript only, not git).
+- [ ] **Step 5** (retire `exec-desktop`/`svc:desk` and the single-container devbox tile, by stop or rename only): Devbox and Sandbox are proven. The tile change belongs to the portal lane.
+  - Note: Kasm Devbox sessions and the Coolify devbox container share one home and both start Syncthing and the memsearch indexer. The Coolify container keeps building the image and hosts ttyd and the reserved listener.
+- [ ] Corpus read-only mounts: the owner names the paths.

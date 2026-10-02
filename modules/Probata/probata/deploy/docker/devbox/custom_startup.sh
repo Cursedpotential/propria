@@ -33,6 +33,10 @@ if [ -r /run/secrets/devbox-xrdp.env ]; then
   [ -n "$XRDP_PW" ] && printf 'kasm-user:%s\n' "$XRDP_PW" | sudo chpasswd
   unset XRDP_PW
 fi
+# xrdp starts ~/.xsession; the image writes one into /home/kasm-user, but the home is the host volume, which hides
+# it, and without it Xsession falls back to gnome-session, which aborts (no system bus): the RDP session closes at once
+# (seen 2026-10-02 through Kasm's Guacamole workspace). Create it in the volume when missing; never overwrite one.
+[ -e "$HOME/.xsession" ] || { echo 'startxfce4' > "$HOME/.xsession"; chown 1000:1000 "$HOME/.xsession" 2>/dev/null || true; }
 # xrdp needs its two daemons; sudo is passwordless for kasm-user in this sandbox image (container also runs as root now)
 sudo /usr/sbin/xrdp-sesman >/dev/null 2>&1 &
 sudo /usr/sbin/xrdp --nodaemon >/dev/null 2>&1 &
