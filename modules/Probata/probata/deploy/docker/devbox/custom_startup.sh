@@ -25,6 +25,14 @@ if command -v rclone >/dev/null 2>&1 && [[ -n "${OPENLIST_PASS:-}" ]]; then
   chmod 600 "$HOME/.config/rclone/rclone.conf"
   nohup rclone mount openlist: "$HOME/files" --vfs-cache-mode writes --dir-cache-time 30s --allow-non-empty >"$HOME/.config/rclone-mount.log" 2>&1 &
 fi
+# xrdp login password for kasm-user (2026-10-02, P-1 Guacamole step): the image ships the account locked, so RDP could
+# never log in. The password comes from a read-only secrets file mounted by deploy/devbox.yaml (never in the image or git);
+# without the file the account stays locked. Claude Code · Opus 5.5 · 2026-10-02.
+if [ -r /run/secrets/devbox-xrdp.env ]; then
+  XRDP_PW="$(sed -nE 's/^[[:space:]]*XRDP_PASSWORD[[:space:]]*=[[:space:]]*(.*)$/\1/p' /run/secrets/devbox-xrdp.env | tail -1)"
+  [ -n "$XRDP_PW" ] && printf 'kasm-user:%s\n' "$XRDP_PW" | sudo chpasswd
+  unset XRDP_PW
+fi
 # xrdp needs its two daemons; sudo is passwordless for kasm-user in this sandbox image (container also runs as root now)
 sudo /usr/sbin/xrdp-sesman >/dev/null 2>&1 &
 sudo /usr/sbin/xrdp --nodaemon >/dev/null 2>&1 &

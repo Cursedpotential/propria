@@ -1,0 +1,25 @@
+{
+  "_byline": "Claude Code · Opus 5.5 · 2026-10-02 — Kasm 'Devbox (RDP)' Server workspace: Kasm's Guacamole connection proxy opens an RDP session to the devbox's xrdp (P-1 step 3). Full remote access from the browser.",
+  "friendly_name": "Devbox (RDP)",
+  "description": "The devbox desktop over RDP through Kasm's Guacamole proxy (xrdp on the devbox, host port 13389).",
+  "workspace_type": "Server",
+  "cores": 1,
+  "memory_mb": 1024,
+  "server": {
+    "friendly_name": "devbox-xrdp",
+    "hostname": "100.91.190.107",
+    "connection_type": "RDP",
+    "connection_port": 13389,
+    "connection_username": "kasm-user",
+    "connection_info": {
+      "guac": {
+        "settings": {
+          "ignore-cert": true,
+          "security": "any",
+          "resize-method": "display-update"
+        }
+      }
+    },
+    "_credentials": "The RDP password is the devbox's kasm-user password, set at container start from /data/probata/secrets/devbox/xrdp.env (custom_startup.sh). Kasm prompts for it; it is not stored in Kasm."
+  }
+}
