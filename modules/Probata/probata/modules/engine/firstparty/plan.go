@@ -46,6 +46,7 @@ import (
 
 	"github.com/Cursedpotential/probata/engine/contextthread"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
+	"github.com/Cursedpotential/probata/engine/disclosure"
 )
 
 const (
@@ -63,7 +64,7 @@ const (
 	AssertedBy = "engine:first_party_context_projector@1.0.0"
 	// SelfMarker is the decoder's name for the device owner -- the perspective
 	// person. It is kept exactly as the source states it.
-	SelfMarker = selfMarker
+	SelfMarker = disclosure.SelfIdentifier
 	// MaxMessages bounds one generation's plan, which is held in memory. A
 	// derived SMS chunk is size-capped far below this.
 	MaxMessages = 200000
@@ -159,7 +160,7 @@ type Conversation struct {
 type Plan struct {
 	Identity      contextthread.Identity `json:"identity"`
 	Source        Source                 `json:"source"`
-	Resolution    Resolution             `json:"-"`
+	Resolution    disclosure.Resolution  `json:"-"`
 	Conversations []Conversation         `json:"conversations"`
 	MessageCount  int                    `json:"message_count"`
 	// Digest is sha256 over the canonical JSON of everything above, plus each
@@ -170,7 +171,7 @@ type Plan struct {
 // Build plans one generation against its recorded participant resolution.
 // It refuses an incomplete identity, a resolution made for other people, an
 // unregistered platform, and a record that cannot be projected.
-func Build(identity contextthread.Identity, source Source, records []SourceMessage, resolution Resolution) (Plan, error) {
+func Build(identity contextthread.Identity, source Source, records []SourceMessage, resolution disclosure.Resolution) (Plan, error) {
 	if err := identity.Validate(); err != nil {
 		return Plan{}, err
 	}
@@ -226,7 +227,7 @@ func Build(identity contextthread.Identity, source Source, records []SourceMessa
 		if key == "unknown" {
 			return Plan{}, fmt.Errorf("message record %s names no party other than the device owner; its conversation cannot be identified", id)
 		}
-		message, err := planMessage(id, record, resolution)
+		message, err := planMessage(id, record, &resolution)
 		if err != nil {
 			return Plan{}, fmt.Errorf("message record %s: %w", id, err)
 		}
@@ -262,7 +263,7 @@ func Build(identity contextthread.Identity, source Source, records []SourceMessa
 	return plan, nil
 }
 
-func planMessage(id string, record SourceMessage, resolution Resolution) (Message, error) {
+func planMessage(id string, record SourceMessage, resolution *disclosure.Resolution) (Message, error) {
 	sender := strings.TrimSpace(record.Sender)
 	recipients := uniqueTrimmed(record.Recipients)
 	sum := sha256.Sum256([]byte(record.Body))
@@ -284,6 +285,11 @@ func planMessage(id string, record SourceMessage, resolution Resolution) (Messag
 	}
 	participants := make([]Participant, 0, len(recipients)+1)
 	add := func(raw, role string) error {
+		// The device owner's own marker is the perspective person.
+		if strings.EqualFold(strings.TrimSpace(raw), SelfMarker) {
+			participants = append(participants, Participant{Raw: raw, Role: role, EntityID: resolution.PerspectivePersonID})
+			return nil
+		}
 		identifier, ok := resolution.Lookup(raw)
 		if !ok {
 			return fmt.Errorf("identifier %q is not in the participant resolution", raw)
@@ -470,7 +476,7 @@ func (p Plan) computeDigest() (string, error) {
 		Source        Source                 `json:"source"`
 		Resolution    string                 `json:"resolution_digest"`
 		Conversations []digestConversation   `json:"conversations"`
-	}{DeriverVersion, p.Identity, p.Source, resolutionDigest(p.Resolution), conversations})
+	}{DeriverVersion, p.Identity, p.Source, ResolutionDigest(p.Resolution), conversations})
 	if err != nil {
 		return "", fmt.Errorf("encode first-party context plan: %w", err)
 	}
@@ -510,4 +516,16 @@ func containsFold(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// ResolutionDigest binds a plan to the exact recorded participant resolution.
+func ResolutionDigest(resolution disclosure.Resolution) string {
+	identifiers := append([]disclosure.ResolvedIdentifier(nil), resolution.Identifiers...)
+	sort.Slice(identifiers, func(a, b int) bool { return identifiers[a].Raw < identifiers[b].Raw })
+	encoded, _ := json.Marshal(struct {
+		Basis, Owner, Perspective string
+		Identifiers               []disclosure.ResolvedIdentifier
+	}{resolution.Basis, strings.ToLower(resolution.OwnerPersonID), strings.ToLower(resolution.PerspectivePersonID), identifiers})
+	sum := sha256.Sum256(encoded)
+	return hex.EncodeToString(sum[:])
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Cursedpotential/probata/engine/contextthread"
+	"github.com/Cursedpotential/probata/engine/disclosure"
 )
 
 const (
@@ -27,10 +28,10 @@ func testIdentity() contextthread.Identity {
 
 // testResolution: the owner's phone is a confirmed identifier of the owner;
 // the other number is unknown to the registry.
-func testResolution(identity contextthread.Identity) Resolution {
-	return Resolution{
-		Basis: tierBasis, OwnerPersonID: identity.OwnerPersonID, PerspectivePersonID: identity.PerspectivePersonID,
-		Identifiers: []ResolvedIdentifier{
+func testResolution(identity contextthread.Identity) disclosure.Resolution {
+	return disclosure.Resolution{
+		Basis: disclosure.Basis, OwnerPersonID: identity.OwnerPersonID, PerspectivePersonID: identity.PerspectivePersonID,
+		Identifiers: []disclosure.ResolvedIdentifier{
 			{Raw: ownerPhone, Normalized: "8105550100", EntityID: identity.OwnerPersonID, IsOwner: true},
 			{Raw: otherPhone, Normalized: "8105550199"},
 			{Raw: "+1 (810) 555-0199", Normalized: "8105550199"},
@@ -174,7 +175,7 @@ func TestDigestIsStableAndBindsContentAndResolution(t *testing.T) {
 
 func TestBuildRefusesWhatItCannotDecide(t *testing.T) {
 	identity := testIdentity()
-	if _, err := Build(identity, testSource(), testRecords(), Resolution{OwnerPersonID: identity.OwnerPersonID}); err == nil {
+	if _, err := Build(identity, testSource(), testRecords(), disclosure.Resolution{Basis: disclosure.Basis, OwnerPersonID: identity.OwnerPersonID}); err == nil {
 		t.Fatal("a resolution without a perspective person was accepted")
 	}
 	other := testResolution(identity)

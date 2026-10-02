@@ -32,12 +32,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"go.temporal.io/sdk/activity"
 
 	"github.com/Cursedpotential/probata/engine/contextthread"
+	"github.com/Cursedpotential/probata/engine/disclosure"
 	"github.com/Cursedpotential/probata/engine/firstparty"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
@@ -60,7 +60,7 @@ type ParticipantResolutionSpec struct {
 	RequestID               string
 	SourceVersionRef        proffer.Ref
 	NormalizedGenerationRef proffer.Ref
-	Resolution              firstparty.Resolution
+	Resolution              disclosure.Resolution
 	NotApplicable           string
 	Attempt                 int32
 }
@@ -71,6 +71,10 @@ type ParticipantResolutionSpec struct {
 type FirstPartyContextInput struct {
 	Source   firstparty.Source
 	Messages []firstparty.SourceMessage
+	// StatedIdentifiers is every distinct identifier any record of the
+	// generation states (messages and calls), except the device marker "self";
+	// the participant resolution covers exactly these.
+	StatedIdentifiers []string
 	// PlatformResolved is false when the generation holds messages but traces
 	// to no registered derivation; Reason then says why.
 	PlatformResolved bool
@@ -133,9 +137,9 @@ type FirstPartyContextStore interface {
 	// ResolveParticipants resolves every stated identifier against the
 	// registry's confirmed identifiers, marking the owner's. It fails closed
 	// when the owner has no confirmed identifier.
-	ResolveParticipants(ctx context.Context, identity contextthread.Identity, raws []string) (firstparty.Resolution, error)
+	ResolveParticipants(ctx context.Context, identity contextthread.Identity, raws []string) (disclosure.Resolution, error)
 	PersistParticipantResolution(ctx context.Context, spec ParticipantResolutionSpec) (resultRef, receiptRef proffer.Ref, err error)
-	LoadParticipantResolution(ctx context.Context, ref proffer.Ref) (firstparty.Resolution, error)
+	LoadParticipantResolution(ctx context.Context, ref proffer.Ref) (disclosure.Resolution, error)
 	PersistFirstPartyReceipt(ctx context.Context, spec FirstPartyReceiptSpec) (resultRef, receiptRef proffer.Ref, err error)
 	LoadFirstPartyReceipt(ctx context.Context, kind string, ref proffer.Ref) (FirstPartyReceipt, error)
 	CommitFirstPartyMessages(ctx context.Context, spec FirstPartyCommitSpec) (resultRef, receiptRef proffer.Ref, err error)
@@ -210,8 +214,8 @@ func (a FirstPartyContextActivities) resolve(ctx context.Context, req proffer.St
 	if err != nil {
 		return proffer.StageResult{}, err
 	}
-	if len(input.Messages) == 0 {
-		const reason = "the normalized generation holds no message records"
+	if len(input.StatedIdentifiers) == 0 {
+		const reason = "the normalized generation states no participant identifier"
 		_, receiptRef, err := a.Store.PersistParticipantResolution(ctx, ParticipantResolutionSpec{
 			RequestID: req.RequestID, SourceVersionRef: req.SourceVersionRef, NormalizedGenerationRef: generationRef,
 			NotApplicable: reason, Attempt: a.attempt(ctx),
@@ -225,7 +229,7 @@ func (a FirstPartyContextActivities) resolve(ctx context.Context, req proffer.St
 	if err != nil {
 		return proffer.StageResult{}, err
 	}
-	resolution, err := a.Store.ResolveParticipants(ctx, identity, statedIdentifiers(input.Messages))
+	resolution, err := a.Store.ResolveParticipants(ctx, identity, input.StatedIdentifiers)
 	if err != nil {
 		return proffer.StageResult{}, permanent(err)
 	}
@@ -237,26 +241,6 @@ func (a FirstPartyContextActivities) resolve(ctx context.Context, req proffer.St
 		return proffer.StageResult{}, err
 	}
 	return success(stage, resultRef, receiptRef), nil
-}
-
-// statedIdentifiers is every distinct sender and recipient the messages
-// state, except the device owner's own marker, which the resolution answers
-// from the perspective person.
-func statedIdentifiers(messages []firstparty.SourceMessage) []string {
-	seen := map[string]bool{}
-	out := []string{}
-	for _, message := range messages {
-		for _, raw := range append([]string{message.Sender}, message.Recipients...) {
-			trimmed := strings.TrimSpace(raw)
-			if trimmed == "" || strings.EqualFold(trimmed, firstparty.SelfMarker) || seen[trimmed] {
-				continue
-			}
-			seen[trimmed] = true
-			out = append(out, trimmed)
-		}
-	}
-	sort.Strings(out)
-	return out
 }
 
 // ProposeFirstPartyContext is the EXTRACT step.
