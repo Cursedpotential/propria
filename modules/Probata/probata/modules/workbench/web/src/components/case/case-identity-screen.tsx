@@ -36,6 +36,7 @@ import {
   type CatalogCount,
   type CatalogUnknown,
 } from "@/lib/case-identity-client";
+import { buildAdvocatioEntityUrl } from "@/lib/advocatio-link";
 import { useFixedCase } from "@/lib/fixed-case-context";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -215,6 +216,7 @@ function PersonCard({
 }) {
   const phones = person.identifiers.filter((identifier) => identifier.kind === "phone").length;
   const names = person.identifiers.length - phones;
+  const legalResponseUrl = buildAdvocatioEntityUrl(person.id, import.meta.env.VITE_ADVOCATIO_WEB_ORIGIN);
   return (
     <section className="rounded-lg border border-border bg-card p-4" data-testid="case-person" data-person-id={person.id}>
       <header className="flex flex-wrap items-start justify-between gap-2">
@@ -230,7 +232,17 @@ function PersonCard({
             {phones} phone{phones === 1 ? "" : "s"} · {names} name{names === 1 ? "" : "s"} and accounts · <ProbataChips view={view} keyValue={person.id} />
           </p>
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
+          {legalResponseUrl && (
+            <a
+              className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+              href={legalResponseUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open legal response
+            </a>
+          )}
           <Button size="sm" variant="outline" onClick={() => onEditIdentifier({ mode: "add", person, people: view.people })}>
             <Plus /> Identifier
           </Button>
