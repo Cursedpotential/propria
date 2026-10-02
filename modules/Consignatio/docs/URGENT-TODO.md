@@ -3967,6 +3967,16 @@ Open, for the owner:
 - [ ] **Owner:** add 8102594380 as a confirmed phone of Matthew S. Salem ("Matt's current number", owner 08:40). The agent's write through the case-identity API was refused by the session's auto-mode classifier. Do it on the Workbench case identity page, or allow the write.
 - **Fixed, `retain_original_activity` heartbeat (5fb202f4, proffer-worker deploy `vpqwuapvousrfym8fzik0eak`, finished 13:01:55Z):** the store copy of a large original never heartbeat. A 2.4 GB SMS backup (`sms-20221104024709.xml`) failed all 5 attempts at the one-minute HeartbeatTimeout. The Activity now heartbeats every 20 s while the copy runs.
 - **Weaviate:** owner approved moving Proffer's entries out of the Case Bible collection `MsgEvents20260918` into `ProfferMsgEvents20261002`; another agent is doing it. The parked first batch had already published 516 objects before Review. No new Proffer run starts until the worker writes to the new collection.
+- **Resumed 13:27Z once the collection switch was live** (worker `CONTEXT_SEARCH_MESSAGE_COLLECTION=ProfferMsgEvents20261002`).
+- **Fixed, a folder batch listed derived outputs (d845379d, deployed with main b04fb7d7 after the owner-rejected AI-chat guard was reverted, 3fae954a):** a derive batch over a device folder also listed the earlier backup's `.derived/` manifest and attachments, and started a run for each. `list_batch_folder` now drops keys under a `.derived/` segment below the prefix.
+  - The mistaken batch was terminated within about 40 s. It left 2 `source_version` rows (`01a0fccc-deab-…`, `01a0fccd-2f17-…`); the owner decides on them, so they stay for now.
+- **Heartbeat fix proven live:** `retain_original_activity` passed on the 2.4 GB `sms-20221104024709.xml` (run `…8102959302-derive-03-00001`).
+- **Found, owner to decide (DB lane):** re-running a request id fails at `register_source` with "permission denied for table activity_execution". `lifecycleEnsureExecution` recovers with `SELECT … FOR UPDATE`, and `context_import_writer` holds only INSERT,SELECT. Workaround: retries go under new batch ids.
+- **Call logs imported and auto-approved through clean_checks:** 8 files (Matt 8102959302 ×3 and 8103535467 ×3, Katrina 8102689630 ×2) gave 9,183 raw records, 9,175 normalized and 9,175 Weaviate objects, with 8 automatic decisions. **Gap:** nothing projects calls into `working.call_log`; it stays 0.
+- **Blocked:** SMS thread chunks and Facebook JSON can never pass clean_checks, because `reconcile_byte_coverage` is always not_applicable for formats without byte locators.
+  - The owner chose option A: count that one check as passed for `ndjson` / `facebook_messenger_json`, while the other four must still succeed.
+  - The change is written and tested (proffer/types.go, proffer/workflow.go, activities/auto_approval.go plus a test), but the agent's commit and deploy were refused by the auto-mode classifier. It waits uncommitted in worktree `overnight-msg-import-20261002` for the owner to land it.
+  - Until then: 9 retried chunks of `threads-01r` wait at the gate, the 95 parked chunks are not signalled, and no further SMS-thread or Facebook batches start.
 
 ## 2026-10-02 08:45–09:25 EDT — probata-db: `casebible` gets its own login, `ai` password rotated (owner option A, 08:49); Docstore follows the Vestigia rename
 
