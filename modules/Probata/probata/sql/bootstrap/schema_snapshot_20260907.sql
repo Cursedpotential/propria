@@ -3143,7 +3143,7 @@ $$;
 CREATE FUNCTION working.validate_message_projection() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
--- Scoped to the rows each firing touches (owner 2026-10-02, applied live); same invariants. Byline: Claude Code · Opus 5.5 · 2026-10-02
+-- Scoped to the rows each firing touches, one indexable predicate (owner 2026-10-02, v2 applied live); same invariants. Byline: Claude Code · Opus 5.5 · 2026-10-02
 DECLARE
   owner_count INTEGER;
   rows_in jsonb[] := ARRAY[]::jsonb[];
@@ -3176,23 +3176,29 @@ BEGIN
     ids := array_remove(ids, NULL);
     IF NOT full_check AND cardinality(ids) = 0 THEN RETURN NULL; END IF;
   END IF;
+  -- One indexable predicate for both paths: a "full_check OR id = ANY(ids)" filter
+  -- planned generically (plpgsql caches the plan after five calls) scanned every route
+  -- on every firing. The full check names every approved route instead.
+  IF full_check THEN
+    ids := ARRAY(SELECT normalized_record_id FROM working.message_projection_route WHERE decision_state = 'approved');
+  END IF;
 
   IF EXISTS (SELECT 1 FROM working.message_projection_route r
              JOIN working.normalized_record nr ON nr.id=r.normalized_record_id
-             WHERE (full_check OR r.normalized_record_id = ANY(ids))
+             WHERE r.normalized_record_id = ANY(ids)
                AND r.decision_state='approved' AND nr.record_type<>'message') THEN
     RAISE EXCEPTION 'MESSAGE_ROUTE_REQUIRES_MESSAGE_RECORD';
   END IF;
   IF EXISTS (
     SELECT 1 FROM working.message_projection_route r
-    WHERE (full_check OR r.normalized_record_id = ANY(ids))
+    WHERE r.normalized_record_id = ANY(ids)
       AND r.decision_state='approved' AND r.projection_kind='first_party'
       AND ((SELECT count(*) FROM working.message m WHERE m.derived_from_record_id=r.normalized_record_id)<>1
         OR EXISTS (SELECT 1 FROM working.third_party_message tm WHERE tm.normalized_record_id=r.normalized_record_id))) THEN
     RAISE EXCEPTION 'FIRST_PARTY_PROJECTION_CARDINALITY';
   END IF;
   IF EXISTS (SELECT 1 FROM working.message_projection_route r
-             WHERE (full_check OR r.normalized_record_id = ANY(ids))
+             WHERE r.normalized_record_id = ANY(ids)
                AND r.decision_state='approved' AND r.projection_kind='acquired_third_party') THEN
     SELECT count(*) INTO owner_count FROM registry.person WHERE role_in_case='user';
     IF owner_count<>1 THEN RAISE EXCEPTION 'OWNER_IDENTITY_NOT_CONFIGURED'; END IF;
@@ -3202,7 +3208,7 @@ BEGIN
     JOIN working.normalized_record nr ON nr.id=r.normalized_record_id
     LEFT JOIN working.third_party_message tm ON tm.normalized_record_id=r.normalized_record_id
     LEFT JOIN working.third_party_conversation tc ON tc.id=tm.conversation_id
-    WHERE (full_check OR r.normalized_record_id = ANY(ids))
+    WHERE r.normalized_record_id = ANY(ids)
       AND r.decision_state='approved' AND r.projection_kind='acquired_third_party'
       AND (tm.id IS NULL OR tc.review_status<>'approved' OR tc.case_id<>nr.case_id
         OR tc.source_artifact_id<>nr.artifact_id
