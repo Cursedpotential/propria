@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { legalApiBase } from "@/lib/api/client";
+import { parseProbataLink } from "@/lib/probata-link";
 import styles from "./ClaimsWorkspace.module.css";
 
 type ClaimKind = "assertion" | "allegation" | "question" | "theory";
@@ -90,6 +91,7 @@ export function ClaimsWorkspace() {
   const [sources, setSources] = useState<SourceReference[]>([]);
   const [sourcesMessage, setSourcesMessage] = useState("");
   const [selected, setSelected] = useState<Claim | null>(null);
+  const [incomingRecord, setIncomingRecord] = useState<ProbataRecord | null>(null);
   const [creating, setCreating] = useState(false);
   const [fields, setFields] = useState<ClaimFields>(emptyFields);
   const [query, setQuery] = useState("");
@@ -174,6 +176,37 @@ export function ClaimsWorkspace() {
   }, []);
 
   useEffect(() => {
+    const link = parseProbataLink(window.location.search);
+    if (!link) {
+      if (new URLSearchParams(window.location.search).has("probata_id")) setError("The Probata link has an invalid record identity.");
+      return;
+    }
+    let active = true;
+    const current = generation.current;
+    setBusy(true);
+    const params = new URLSearchParams({ kind: link.kind, record_id: link.recordId });
+    void (async () => {
+      try {
+        const saved = await request<Claim | null>(`/v1/claims/by-origin?${params}`);
+        if (!active || current !== generation.current || dirtyRef.current) return;
+        if (saved) {
+          setSelected(saved); setFields(fieldsOf(saved)); setCreating(false); setTab("claims");
+          setNotice("Opened the saved legal response for this Probata record.");
+          return;
+        }
+        const listing = await request<{ available: boolean; records: ProbataRecord[] }>(`/v1/probata/records?${params}`);
+        if (!active || current !== generation.current || dirtyRef.current) return;
+        const source = listing.records.find(row => row.origin.kind === link.kind && row.origin.record_id === link.recordId);
+        if (!listing.available || !source) throw new Error("This Probata record is unavailable. No legal response was created.");
+        setIncomingRecord(source);
+      } catch (exc) {
+        if (active && current === generation.current) setError(exc instanceof Error ? exc.message : "Unable to open the linked Probata record.");
+      } finally { if (active && current === generation.current) setBusy(false); }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => { if (dirtyRef.current) { event.preventDefault(); event.returnValue = ""; } };
     const beforeNavigate = (event: MouseEvent) => {
       const anchor = event.target instanceof Element ? event.target.closest("a[href]") as HTMLAnchorElement | null : null;
@@ -196,13 +229,13 @@ export function ClaimsWorkspace() {
     try {
       const claim = await request<Claim>(`/v1/claims/${encodeURIComponent(id)}`);
       if (generation.current !== current) return;
-      resetForms(); setSelected(claim); setFields(fieldsOf(claim)); setCreating(false); setTab("claims");
+      resetForms(); setIncomingRecord(null); setSelected(claim); setFields(fieldsOf(claim)); setCreating(false); setTab("claims");
     } catch (exc) { if (generation.current === current) setError(exc instanceof Error ? exc.message : "Unable to open this claim."); }
     finally { if (generation.current === current) setBusy(false); }
   }
   function newClaim() {
     if (busy || (dirty && !window.confirm("Discard unsaved changes and start a new claim?"))) return;
-    generation.current += 1; resetForms(); setSelected(null); setFields(emptyFields); setCreating(true); setTab("claims");
+    generation.current += 1; resetForms(); setIncomingRecord(null); setSelected(null); setFields(emptyFields); setCreating(true); setTab("claims");
   }
   function showError(exc: unknown) {
     setConflict(exc instanceof RequestError && exc.status === 409);
@@ -256,6 +289,7 @@ export function ClaimsWorkspace() {
       const claim = await request<Claim>("/v1/claims/from-probata", json("POST", { origin: record.origin }));
       if (current !== generation.current) return;
       resetForms(); setSelected(claim); setFields(fieldsOf(claim)); setCreating(false); setTab("claims");
+      setIncomingRecord(null);
       setNotice("Legal response opened. The Probata record stays linked to its source.");
       setClaims(rows => [claim, ...rows.filter(row => row.claim_id !== claim.claim_id)]);
       try { await refresh(); } catch { setNotice("Legal response opened. The list could not refresh."); }
@@ -303,6 +337,7 @@ export function ClaimsWorkspace() {
     <div className={styles.toolbar}><label>{tab === "probata" ? "Search Probata records" : "Search claims"}<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={tab === "probata" ? "Event or person" : "Statement, person or response"} /></label>{tab === "probata" ? <label>Record category<select value={recordKind} onChange={event => { setProbataRecords([]); setRecordKind(event.target.value as "entity" | "event"); }}><option value="event">Events</option><option value="entity">People and entities</option></select></label> : <label>Evidence status<select value={filter} onChange={event => setFilter(event.target.value)}><option value="">All statuses</option>{Object.entries(evidenceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}</div>
     {error && <div className={`${styles.notice} ${styles.error}`} role="alert"><p>{conflict ? "This claim changed in another session. Your unsaved entries are still here." : error}</p>{conflict && selected && <button onClick={() => void selectClaim(selected.claim_id)} disabled={busy}>Reload latest claim</button>}</div>}
     {notice && <p className={styles.notice} role="status">{notice}</p>}
+    {incomingRecord && <section className={styles.item} aria-label="Record opened from Probata"><div className={styles.itemHeader}><h2>{incomingRecord.title || `Probata ${incomingRecord.origin.kind}`}</h2><span className={styles.badge}>Shared {incomingRecord.origin.kind}</span></div><p>This record has no legal response yet.</p><details className={styles.inspector}><summary>Source record</summary><p className={styles.locator}>{incomingRecord.origin.record_id}</p><RecordFields record={incomingRecord.record} /></details><button disabled={busy} onClick={() => void openProbata(incomingRecord)}>Add legal response</button></section>}
     {loading ? <p role="status">Loading claims…</p> : tab === "probata" ? <section aria-label="Probata shared records">
       <p className={styles.muted}>Read events and entities from Probata and add a linked legal response. {probataUpdated ? `Last refreshed ${probataUpdated}.` : ""}</p>
       {probataLoading && <p role="status">Refreshing Probata records…</p>}

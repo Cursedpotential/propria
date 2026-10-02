@@ -95,6 +95,27 @@ def test_probata_route_requires_authenticated_actor(monkeypatch):
         assert client.get("/v1/probata/records?kind=other").status_code == 422
 
 
+def test_probata_route_forwards_exact_native_identity(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from legal_workspace.api import claim_routes, probata_record_routes
+
+    calls = []
+    def listing(kind, q, **kwargs):
+        calls.append((kind, q, kwargs))
+        return reader.Listing(available=True, mode="REAL", records=[])
+    monkeypatch.setattr(probata_record_routes, "list_records", listing)
+    app = FastAPI()
+    app.include_router(probata_record_routes.router)
+    app.dependency_overrides[claim_routes.actor] = lambda: "test:owner"
+    identity = "a5aaf531-9fb9-4d35-a56e-a41b2a8a2d60"
+    with TestClient(app) as client:
+        assert client.get(f"/v1/probata/records?kind=entity&record_id={identity}").status_code == 200
+        assert calls == [("entity", "", {"record_id": identity})]
+        assert client.get("/v1/probata/records?record_id=invalid").status_code == 422
+        assert len(calls) == 1
+
+
 def test_claim_reader_reuses_one_upstream_snapshot_per_kind(monkeypatch, tmp_path):
     from legal_workspace.api import claim_routes
     from legal_workspace.services.workspace import Workspace

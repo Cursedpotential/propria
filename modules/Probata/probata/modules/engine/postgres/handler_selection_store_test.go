@@ -22,6 +22,8 @@ func TestDetectHandlerContentUsesRetainedBytesAndSeparatesCallsXML(t *testing.T)
 		{name: "chatgpt official", content: `[{"title":"Chat","conversation_id":"c-1","mapping":{"node":{"message":{"author":{"role":"user"},"content":{"content_type":"text","parts":["hello"]}}}}}]`, wantFormat: "chatgpt_official_json"},
 		{name: "facebook messenger thread", content: `{"participants":[{"name":"A"},{"name":"B"}],"messages":[{"sender_name":"A","timestamp_ms":1,"content":"hi"}]}`, wantFormat: "facebook_messenger_json"},
 		{name: "other json object is not messenger", content: `{"messages":[{"sender_name":"A","timestamp_ms":1}],"participants":[]}`, wantFormat: "json"},
+		{name: "one-message derived sms thread chunk", content: "{\"thread\":\"t1\",\"source_pos\":\"sms:1\",\"kind\":\"sms\",\"status\":\"parsed\",\"content\":\"hi\"}\n", wantFormat: "ndjson"},
+		{name: "one-line json document is not ndjson", content: "{\"a\":1}\n", wantFormat: "json"},
 		{name: "message transcript", content: "[2026-09-12 8:04 PM] Matthew Salem:\nhello\n", wantFormat: "messages_transcript"},
 		{name: "filename-like text is not an sms signature", content: "sms-backup.xml\nnot actually an export", wantFormat: "text"},
 	}

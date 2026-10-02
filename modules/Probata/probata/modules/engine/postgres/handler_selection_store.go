@@ -244,6 +244,7 @@ func detectedJSONLines(content []byte) bool {
 	scanner := bufio.NewScanner(bytes.NewReader(content))
 	scanner.Buffer(make([]byte, 4096), 1<<20)
 	values := 0
+	var first []byte
 	for scanner.Scan() {
 		line := bytes.TrimSpace(scanner.Bytes())
 		if len(line) == 0 {
@@ -252,9 +253,29 @@ func detectedJSONLines(content []byte) bool {
 		if !json.Valid(line) {
 			return false
 		}
+		if values == 0 {
+			first = append([]byte(nil), line...)
+		}
 		values++
 	}
-	return scanner.Err() == nil && values >= 2
+	if scanner.Err() != nil {
+		return false
+	}
+	// A derived SMS thread chunk with exactly one message is one line; it is
+	// still a newline-delimited thread file, not a JSON document. Only that
+	// derive/smsthreads line shape is accepted on its own, so a minified
+	// one-line JSON document keeps its own signature.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02 (live: 105-chunk backup, one-message threads failed as "json")
+	return values >= 2 || (values == 1 && smsThreadsLine(first))
+}
+
+func smsThreadsLine(line []byte) bool {
+	var fields struct {
+		Thread    *string `json:"thread"`
+		SourcePos *string `json:"source_pos"`
+		Kind      *string `json:"kind"`
+	}
+	return json.Unmarshal(line, &fields) == nil && fields.Thread != nil && fields.SourcePos != nil && fields.Kind != nil
 }
 
 func detectedCSV(content []byte) bool {

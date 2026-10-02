@@ -65,6 +65,10 @@ const (
 	// batchRegistrationLimit bounds how long an item waits for its run to
 	// register its source before it is recorded failed and left unbound.
 	batchRegistrationLimit = 30 * time.Minute
+	// batchSkipActiveChangeID versions skipping an item whose earlier run is
+	// still active (2026-10-02). Byline: Claude Code · Opus 5.5 · 2026-10-02
+	batchSkipActiveChangeID = "proffer-batch-skip-active-run-v1"
+	batchSkipActiveVersion  = workflow.Version(1)
 	// RegistrationPollInterval is how often a started run's registration is
 	// read while a caller holds its Review binding.
 	RegistrationPollInterval = 5 * time.Second
@@ -379,6 +383,18 @@ func runBatchItem(ctx workflow.Context, in BatchInput, item *BatchItem) {
 				item.Status = BatchItemSkipped
 				item.PreviewHandle = binding.PreviewHandle
 				item.Reason = "an earlier run of this exact source already completed"
+				return
+			}
+			// Re-running a batch to retry its failed items must not start a
+			// second run of an item still running or waiting in Review: that
+			// would write a second copy to Weaviate and a second preview.
+			// Histories recorded before this marker replay unchanged.
+			// Byline: Claude Code · Opus 5.5 · 2026-10-02
+			if state.Available && !state.Terminal &&
+				workflow.GetVersion(ctx, batchSkipActiveChangeID, workflow.DefaultVersion, batchSkipActiveVersion) != workflow.DefaultVersion {
+				item.Status = BatchItemSkipped
+				item.PreviewHandle = binding.PreviewHandle
+				item.Reason = "an earlier run of this exact source is still running or waiting in Review"
 				return
 			}
 		}

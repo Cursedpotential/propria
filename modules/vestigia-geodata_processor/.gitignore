@@ -87,7 +87,12 @@ drive-*.json
 **/context/context.txt
 BUILD_GUIDE.md
 
-# Workspace-local data and nested-repository boundaries
+# Wails keeps its icon and manifest sources in build/; only build/bin/ is output.
+!04_Utilities/DirectoryScanner/build/
+04_Utilities/DirectoryScanner/build/bin/
+
+# Workspace-local data. traceiq-rebuild/ is tracked in the monorepo since the 2026-09-26
+# subtree import and carries its own .gitignore.
 .claude/memories/project_memory.json
 Timeline.json
 Timeline.json.html
@@ -95,7 +100,6 @@ Timeline.zip
 TraceIQ_Backups/
 TraceIQ_Evidence/
 traaceiq_mess/
-traceiq-rebuild/
 
 # Credential downloads never belong in git (owner 2026-09-26: "not in the repo").
 Neo4j-*-Created-*.txt
