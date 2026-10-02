@@ -60,6 +60,14 @@ services:
       PLATFORM_ADMIN_FULL_NAME: "Platform Admin"
       MCPGATEWAY_UI_ENABLED: "true"
       MCPGATEWAY_ADMIN_API_ENABLED: "true"
+      # Rate limits (Claude Code · Opus 5.5 · 2026-10-02, owner 08:33 "get rid of the lockout").
+      # Every agent, session, Codex and LibreChat share one client token and mostly one tailnet
+      # address, so the defaults (MCP 100/min, burst 20; 5 violations -> 15-minute lockout of the
+      # whole account) locked every client out at once on 2026-10-02. Login/admin tiers keep
+      # their own strict defaults; the public route still requires the token.
+      RATE_LIMIT_LOCKOUT_ENABLED: "false"
+      RATE_LIMIT_MEDIUM_RPM: "1200"
+      RATE_LIMIT_MEDIUM_BURST: "200"
       SECURE_COOKIES: "false"
       CSRF_ENABLED: "false"                          # 1.0.x CSRF -> CSRF_TOKEN_INVALID for header-token API clients; tailnet-only + Bearer auth
       PASSWORD_CHANGE_ENFORCEMENT_ENABLED: "false"    # 1.0.x forces admin password change on first login (403)
