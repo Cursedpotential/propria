@@ -151,6 +151,23 @@ func (s *FirstPartyContextStore) LoadFirstPartyContext(
 		LIMIT 1`, sourceKey, string(stagegraph.DeriveSMSThreads)).Scan(&derivedFrom)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
+		// Not derived: a source whose own content signature names its
+		// platform (a Facebook Messenger thread file) resolves from the
+		// engine's persisted detected format for this source version.
+		// Byline: Claude Code · Opus 5.5 · 2026-10-02
+		var detected string
+		detectErr := s.db.QueryRow(ctx, `
+			SELECT format_id FROM context.handler_detected_format
+			WHERE source_version_id = $1::uuid
+			ORDER BY created_at DESC LIMIT 1`, sourceVersionID).Scan(&detected)
+		if detectErr != nil && !errors.Is(detectErr, pgx.ErrNoRows) {
+			return activities.FirstPartyContextInput{}, fmt.Errorf("read the source's detected format: %w", detectErr)
+		}
+		if platform, capture, representation, ok := firstparty.PlatformForDetectedFormat(detected); ok {
+			input.Source.Platform, input.Source.CaptureKind, input.Source.RepresentationKind = platform, capture, representation
+			input.PlatformResolved = true
+			return input, nil
+		}
 		input.Reason = fmt.Sprintf("source %s (declared %s) traces to no registered derivation, so its messaging platform is unknown", sourceKey, declaredFormat)
 		return input, nil
 	case err != nil:

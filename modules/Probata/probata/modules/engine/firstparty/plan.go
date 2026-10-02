@@ -495,6 +495,20 @@ func PlatformForDerivation(handlerID, declaredFormat string) (platform, captureK
 	return "", "", "", false
 }
 
+// PlatformForDetectedFormat registers the platforms a source carries in its
+// own content signature, for sources that are not derived: a Facebook
+// Messenger thread file (message_N.json of a Facebook export) is detected by
+// the engine's signature registry (facebook_messenger_thread_json_v1) and
+// stored in context.handler_detected_format. The platform comes from that
+// persisted engine decision, never from the file name.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+func PlatformForDetectedFormat(detectedFormat string) (platform, captureKind, representationKind string, ok bool) {
+	if strings.TrimSpace(detectedFormat) == "facebook_messenger_json" {
+		return "facebook_messenger", "facebook_export", "json", true
+	}
+	return "", "", "", false
+}
+
 func uniqueTrimmed(values []string) []string {
 	out := make([]string, 0, len(values))
 	seen := map[string]bool{}
