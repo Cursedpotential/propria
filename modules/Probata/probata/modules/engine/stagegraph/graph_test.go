@@ -97,8 +97,8 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 		}
 		optional[stage.ID] = stage
 	}
-	if len(optional) != 7 {
-		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage, the context search stage and the four first-party context stages", len(optional))
+	if len(optional) != 8 {
+		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage, the context search stage, the participant resolution stage and the four first-party context stages", len(optional))
 	}
 	d, ok := optional[ChunkDocument]
 	if !ok || d.Responsibility != RespChunk {
@@ -159,7 +159,8 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 		resp Responsibility
 		deps []StageID
 	}{
-		{ProposeFirstPartyContext, RespProposeContext, []StageID{VerifyNormalizedGeneration}},
+		{ResolveContextParticipants, RespResolveParticipants, []StageID{VerifyNormalizedGeneration}},
+		{ProposeFirstPartyContext, RespProposeContext, []StageID{VerifyNormalizedGeneration, ResolveContextParticipants}},
 		{ConfirmFirstPartyContext, RespConfirmContext, []StageID{ProposeFirstPartyContext, PublishPreview}},
 		{CommitFirstPartyMessages, RespCommitContext, []StageID{ConfirmFirstPartyContext}},
 		{CommitFirstPartyContextThreads, RespCommitContext, []StageID{CommitFirstPartyMessages}},
