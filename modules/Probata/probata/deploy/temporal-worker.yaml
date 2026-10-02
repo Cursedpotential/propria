@@ -5,8 +5,16 @@
 #   activities: custody / parse / store / knowledge / n8n_webhook, and
 #               build_timeline_generation_activity — the projection step the Go
 #               extraction_commit_workflow (modules/engine/extraction/flow/workflows.go,
-#               DefaultProjectionTaskQueue) schedules on this queue.
-# Without this app that queue has no poller and the projection step times out.
+#               DefaultProjectionTaskQueue) schedules on this queue, and the conversation-chunk
+#               Activities the Go ProfferWorkflow schedules after the first-party threads commit
+#               (modules/engine/proffer/context_chunks.go): chunk_context_threads_activity,
+#               publish_context_chunks_activity, publish_call_log_files_activity.
+# Without this app that queue has no poller and the projection step and the chunk step time out.
+#
+# What the chunk Activities need (server/context_chunks): the platform Postgres (read), the NIM key
+# (CONTEXT_CHUNKS_EMBED_API_KEY_FILE, the same host file the proffer-worker bind-mounts) and Weaviate
+# (CONTEXT_CHUNKS_WEAVIATE_URL, the ovh-files tailnet IP; coolify-proxy owns host 8080). The distilbert model is
+# baked into the image (deploy/docker/temporal-worker/Dockerfile) and loaded offline.
 #
 # What build_timeline_generation_activity needs (server/temporal/timeline_activities.py):
 # the platform Postgres only (server.timeline.generation.build_generation, one sealed
@@ -35,6 +43,7 @@
 # Auto-deploy is OFF on purpose; deploy explicitly.
 #
 # Byline: Claude Code · Sonnet · 2026-10-02
+# Byline: Claude Code · Sonnet 5.5 · 2026-10-02 (conversation-chunk env and the NIM key mount)
 
 services:
   temporal-worker:
@@ -52,12 +61,18 @@ services:
       TEMPORAL_TASK_QUEUE: evidence-pipeline
       TEMPORAL_ACTIVITY_THREADS: ${TEMPORAL_ACTIVITY_THREADS:-8}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Conversation chunks (owner 2026-10-02). The collection is owner-approved ProfferChunks20261002 and is the
+      # code default; the worker creates it when absent (additive schema only afterwards).
+      CONTEXT_CHUNKS_WEAVIATE_URL: ${CONTEXT_CHUNKS_WEAVIATE_URL:-http://100.91.190.107:8082}
+      CONTEXT_CHUNKS_COLLECTION: ProfferChunks20261002
+      CONTEXT_CHUNKS_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
     command:
       - sh
       - -c
       - 'PLATFORM_DB_URL="$$(tr -d "\r\n" < /run/secrets/platform-database-url | sed "s#^postgresql://#postgresql+psycopg://#")" exec python -m server.temporal.worker'
     volumes:
       - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro
+      - /data/probata/secrets/intake-engine/nvidia-api-key:/run/secrets/nvidia-api-key:ro
 
 networks:
   probata:

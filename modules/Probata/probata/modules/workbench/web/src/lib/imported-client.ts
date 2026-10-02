@@ -150,6 +150,9 @@ export interface SearchHit {
   source: string | null;
   format: string | null;
   device: string | null;
+  /** A chunk of a conversation (opens its thread at the first message) or a call-log file (opens nothing). */
+  kind?: "conversation" | "call_log";
+  message_count?: number | null;
 }
 
 export interface SearchPage {

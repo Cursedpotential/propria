@@ -42,6 +42,7 @@
 // Byline: Claude Code · Opus 5 · 2026-09-26
 // Byline: Claude Code · Opus 5.5 · 2026-10-01 (builds; embedder; MsgEvents20260918)
 // Byline: Claude Code · Opus 5.5 · 2026-10-02 (owner_participant tier; routing by kind)
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-02 (skip_record_kinds: messages and calls publish as chunks after the commit)
 package activities
 
 import (
@@ -93,6 +94,30 @@ type PublishContextSearchSpec struct {
 	// the messages it names already have a search object from an earlier source
 	// and are not published again. Optional. Byline: Claude Code · Opus 5.5 · 2026-10-02
 	MessageMatchesRef proffer.Ref
+	// SkipRecordKinds names record kinds this pass does not publish per record because the run publishes them as
+	// conversation chunks after the commit (owner 2026-10-02: Postgres holds every message, Weaviate only chunks;
+	// calls are one entry per call-log file). Set from the "skip_record_kinds" reference, a comma-separated list of
+	// message and call. AI chats and documents are never skipped. Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	SkipRecordKinds map[string]bool
+}
+
+// SkipRecordKindsRefKey is the StageRequest reference that carries SkipRecordKinds.
+const SkipRecordKindsRefKey = proffer.SkipRecordKindsRefKey
+
+// parseSkipRecordKinds reads the comma-separated list; only message and call may be skipped.
+func parseSkipRecordKinds(ref proffer.Ref) (map[string]bool, error) {
+	skip := map[string]bool{}
+	for _, kind := range strings.Split(string(ref), ",") {
+		kind = strings.TrimSpace(kind)
+		switch kind {
+		case "":
+		case contextsearch.RecordKindMessage, contextsearch.RecordKindCall:
+			skip[kind] = true
+		default:
+			return nil, fmt.Errorf("%s: record kind %q cannot be skipped (message and call only)", SkipRecordKindsRefKey, kind)
+		}
+	}
+	return skip, nil
 }
 
 func (s PublishContextSearchSpec) validate() error {
@@ -221,6 +246,9 @@ type ContextSearchPublicationOutcome struct {
 	// SkippedMatched counts messages not published because an earlier source
 	// already holds them (the match-up). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	SkippedMatched int `json:"skipped_matched,omitempty"`
+	// SkippedToChunks counts message and call records not published one by one because the run publishes them as
+	// conversation chunks and call-log files after the commit. Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	SkippedToChunks int `json:"skipped_to_chunks,omitempty"`
 }
 
 // PublishContextSearchActivities implements publish_context_search_activity.
@@ -284,10 +312,14 @@ func (a PublishContextSearchActivities) heartbeat(ctx context.Context, done int6
 // A missing required reference means the workflow reached this stage without
 // its upstream gate.
 func publishContextSearchSpecFrom(req proffer.StageRequest, attempt int32) (PublishContextSearchSpec, error) {
+	skip, err := parseSkipRecordKinds(req.Refs[SkipRecordKindsRefKey])
+	if err != nil {
+		return PublishContextSearchSpec{}, err
+	}
 	spec := PublishContextSearchSpec{
 		RequestID: req.RequestID, Attempt: attempt, SourceVersionRef: req.SourceVersionRef,
 		OwnerPersonRef: req.Refs["owner_person"], PerspectivePersonRef: req.Refs["perspective_person"],
-		MessageMatchesRef: req.Refs["message_matches"],
+		MessageMatchesRef: req.Refs["message_matches"], SkipRecordKinds: skip,
 	}
 	for _, field := range []struct {
 		name   string
@@ -475,6 +507,12 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 			outcome.SkippedMatched++
 			continue
 		}
+		// A kind the run publishes as chunks after the commit: counted, not published, not embedded. A record whose
+		// kind cannot be routed falls through so contextSearchObjectFrom reports it, exactly as before.
+		if kind, kindErr := contextSearchRecordKind(record.RecordType, aiChat); kindErr == nil && spec.SkipRecordKinds[kind] {
+			outcome.SkippedToChunks++
+			continue
+		}
 		object, err := contextSearchObjectFrom(record, plan, &resolution, spec, aiChat)
 		if err != nil {
 			return outcome, err
@@ -489,7 +527,7 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 	if err := flush(); err != nil {
 		return outcome, err
 	}
-	if outcome.Published == 0 && outcome.SkippedMatched == 0 {
+	if outcome.Published == 0 && outcome.SkippedMatched == 0 && outcome.SkippedToChunks == 0 {
 		return outcome, errors.New("context search publication produced no objects; a verified normalized generation with no publishable records is a defect, not an empty success")
 	}
 	return outcome, nil

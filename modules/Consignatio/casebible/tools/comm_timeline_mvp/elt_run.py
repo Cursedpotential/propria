@@ -58,6 +58,10 @@ MODEL = os.environ.get("NIM_EMBED_MODEL", "nvidia/nemotron-3-embed-1b")
 DIM = int(os.environ.get("NIM_EMBED_DIMENSIONS", "2048"))
 NIM = os.environ.get("NIM_BASE_URL", "https://integrate.api.nvidia.com/v1").rstrip("/") + "/embeddings"
 PUBLISH = os.environ.get("PUBLISH", "0") == "1"
+# Owner 2026-10-02: the Case Bible needs a real basic search, not one entry per message. New loads publish
+# conversation CHUNKS to CaseBibleChunks20261002 (chunk_publish.py); CHUNKED=0 keeps the old per-message upsert into
+# MsgEvents20260918. Objects already in MsgEvents20260918 stay as they are.
+CHUNKED = os.environ.get("CHUNKED", "1") == "1"
 KEY = os.environ.get("NVIDIA_API_KEY", "")
 if PUBLISH and not KEY:
     sys.exit("PUBLISH=1 needs NVIDIA_API_KEY")
@@ -385,8 +389,15 @@ def main() -> int:
         work = [w for w in work if w["format_guess"] in ONLY]
     client = httpx.Client(timeout=180)
     t0 = time.time()
-    if PUBLISH:
+    chunk_store = chunk_embedder = cp = None
+    if PUBLISH and CHUNKED:
+        import chunk_publish as cp  # noqa: PLC0415  needs the Probata chunk core on PYTHONPATH (its docstring)
+        chunk_store = cp.make_store(client, WV)
+        chunk_embedder = cp.make_embedder(client, KEY, MODEL, NIM.rsplit("/embeddings", 1)[0], BATCH)
+        print(f"chunked publish into {cp.COLLECTION}", flush=True)
+    if PUBLISH and not CHUNKED:
         ensure_schema(client)
+    if PUBLISH:
         probe = embed(client, ["batching probe a", "batching probe b", "batching probe c", "batching probe d"])
         print(f"embed batch probe: 4 texts -> {len(probe)} vectors of {len(probe[0])} dims in one call", flush=True)
     PROPOSAL.mkdir(parents=True, exist_ok=True)
@@ -436,9 +447,16 @@ def main() -> int:
                         "catrina_class, daughter_conf, custodian, source_device, platform, owner_line from ev_tagged "
                         "order by (katrina_conf = 'strong') desc, (daughter_conf is not null) desc, sort_ts_final")
                     cols = [d[0] for d in cur.description]
-                    while batch := cur.fetchmany(BATCH):
-                        n_ok += publish(client, [dict(zip(cols, b)) for b in batch])
-                        time.sleep(PACE)
+                    if CHUNKED:
+                        # the whole file at once: chunks are cut per conversation, in conversation order
+                        done_file = cp.publish_file(chunk_store, chunk_embedder, [dict(zip(cols, b)) for b in cur.fetchall()],
+                                                    run_id=RUN_ID, pace=PACE, batch=BATCH)
+                        n_ok += done_file["chunks"]
+                        print(f"  chunks: {done_file}", flush=True)
+                    else:
+                        while batch := cur.fetchmany(BATCH):
+                            n_ok += publish(client, [dict(zip(cols, b)) for b in batch])
+                            time.sleep(PACE)
                 con.close()
         except Exception as e:  # recorded per file, never silent
             status, err = "error", f"{type(e).__name__}: {e}"[:1500]
