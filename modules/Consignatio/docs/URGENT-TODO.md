@@ -3914,3 +3914,12 @@ Open, for the owner:
 - [ ] **Owner:** sign Claude Code in at `http://100.91.190.107:7681` (tailnet): `claude` opens, then `/login` with the Max subscription.
 - [ ] **Owner:** remove the stale tailnet device `kasm` (id `370062773541654`, 100.87.31.37, offline since 08:28Z) in the Tailscale admin console. The OAuth client's DELETE returned 403 because it lacks device write scope. Until then the name `kasm` is taken and `svc:kasm` cannot be registered.
 - [ ] Waiting on the owner's go: `deploy/kasm/install_kasm.sh` (3389 is now free), the auto-guard A/B choice, and the corpus read-only mount paths.
+
+## 2026-10-02 04:15 EDT – ongoing — casevault catalogued; messaging sources placed in their casevault home (owner 03:54)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02_
+
+- **casevault in the catalog:** `casebible/tools/casevault_listing_load.{sh,sql}` loads append-only listing generations into `raw_duck.casevault_objects` (view `raw_duck.casevault_objects_current`). First load 08:16Z: 131 objects, 123,326 B, the empty skeleton only (AGENTS/INDEX/MANIFEST/Dashboard/_Incoming per domain). Listing on ovh-files under systemd-run with the B2 EnvironmentFile; Class C list calls only.
+- **The catalog is stale against live B2** (found by the source-selection pass): its visible set stops 2026-09-18 and `raw_duck.b2_objects` 2026-09-14; `consignatio/intake/raw-dedupe/` no longer exists on B2; 19 SMS XMLs the catalog calls visible were already moved to `intake/_quarantine/superseded-sms-backups/v1/`. Every message source was re-checked live.
+- **Placement tooling:** `casebible/tools/casevault_placement.sh` (add-only same-bucket b2→b2 server-side copy, `--ignore-existing`, dry-run mode, size+SHA-1 verify from B2 metadata) and `casevault_placement_load.sql` (old→new pairs into `raw_duck.casevault_placement`).
+- [ ] Owner sign-off on the copy list (10 SMS XML, 10 call logs, 2 Facebook exports of the owner–Katrina thread with 536 attachment files; ~11.7 GB), device slugs, Facebook export ids, and which Google Voice Takeout tree.
