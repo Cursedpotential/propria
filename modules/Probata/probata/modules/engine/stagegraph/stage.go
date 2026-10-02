@@ -87,6 +87,10 @@ const (
 	RespProposeContext
 	RespConfirmContext
 	RespCommitContext
+	// RespResolveParticipants resolves every identifier a generation states
+	// against the registry once and records the resolution; it writes no row
+	// outside its own receipt. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	RespResolveParticipants
 )
 
 // Descriptor is the static, dependency-free description of one stage: its
@@ -169,7 +173,15 @@ const PublishContextSearch StageID = "publish_context_search_activity"
 // not_applicable. Implementation: engine/activities/first_party_context.go.
 //
 // Byline: Claude Code · Opus 5.5 · 2026-10-01
+//
+// ResolveContextParticipants (2026-10-02) runs first: it resolves every
+// identifier the generation states against registry.entity_alias_current
+// once, and both publish_context_search_activity and the propose / confirm /
+// commit stages read that one recorded resolution (ref
+// "participant_resolution"), so the disclosure tier in Weaviate and in
+// PostgreSQL is the same answer.
 const (
+	ResolveContextParticipants     StageID = "resolve_context_participants_activity"
 	ProposeFirstPartyContext       StageID = "propose_first_party_context_activity"
 	ConfirmFirstPartyContext       StageID = "confirm_first_party_context_activity"
 	CommitFirstPartyMessages       StageID = "commit_first_party_messages_activity"
@@ -189,8 +201,9 @@ var OptionalStages = []Descriptor{
 		// The records it publishes must exist and have passed extraction
 		// verification. It deliberately does NOT depend on SealGeneration or
 		// PublishGeneration: the whole point is that it runs BEFORE the
-		// canonical commit.
-		DependsOn: []StageID{VerifyNormalizedGeneration},
+		// canonical commit. It applies the run's one recorded participant
+		// resolution (2026-10-02), so it follows that stage.
+		DependsOn: []StageID{VerifyNormalizedGeneration, ResolveContextParticipants},
 	},
 	{
 		ID:             ChunkDocument,
@@ -209,10 +222,16 @@ var OptionalStages = []Descriptor{
 		DependsOn: []StageID{RetainOriginal},
 	},
 	{
+		ID:             ResolveContextParticipants,
+		Responsibility: RespResolveParticipants,
+		Result:         "participant resolution receipt reference",
+		DependsOn:      []StageID{VerifyNormalizedGeneration},
+	},
+	{
 		ID:             ProposeFirstPartyContext,
 		Responsibility: RespProposeContext,
 		Result:         "first-party context proposal receipt reference",
-		DependsOn:      []StageID{VerifyNormalizedGeneration},
+		DependsOn:      []StageID{VerifyNormalizedGeneration, ResolveContextParticipants},
 	},
 	{
 		ID:             ConfirmFirstPartyContext,

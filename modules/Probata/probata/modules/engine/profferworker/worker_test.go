@@ -58,11 +58,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// handler/flow standalones, plus the 4 batch-by-folder Activities and the 5
 	// repair-plan Activities. (publish_context_search: Claude Code · Opus 5.5 · 2026-10-01)
 	// +4: the first-party context stages (D04). Byline: Claude Code · Opus 5.5 · 2026-10-01
-	const standaloneActivityCount = 11
+	// +1: resolve_context_participants (2026-10-02).
+	const standaloneActivityCount = 12
 	const batchActivityCount = 4
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 11 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 12 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0
@@ -120,6 +121,7 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	}
 	// The four first-party context stages (D04). Byline: Claude Code · Opus 5.5 · 2026-10-01
 	for _, id := range []stagegraph.StageID{
+		stagegraph.ResolveContextParticipants,
 		stagegraph.ProposeFirstPartyContext, stagegraph.ConfirmFirstPartyContext,
 		stagegraph.CommitFirstPartyMessages, stagegraph.CommitFirstPartyContextThreads,
 	} {

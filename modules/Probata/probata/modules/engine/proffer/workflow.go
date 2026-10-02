@@ -42,6 +42,11 @@ const (
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	firstPartyContextChangeID = "proffer-first-party-context-import-v1"
 	firstPartyContextVersion  = workflow.Version(1)
+	// One participant resolution per run, before the Weaviate-first stage, read
+	// by it and by the first-party context stages (owner 2026-10-02).
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	participantResolutionChangeID = "proffer-context-participant-resolution-v1"
+	participantResolutionVersion  = workflow.Version(1)
 	// SelectStructuredELTActivityName and ExecuteStructuredELTActivityName are
 	// the implementation-specific Temporal names for DuckDB execution of the
 	// logical SelectParser and ExecuteParser stages. The Activity package
@@ -631,20 +636,44 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	// seal/publish. A failure stops the run here, before any commit, with the
 	// stage's own reason. Histories recorded before this marker replay without
 	// it. Byline: Claude Code · Opus 5.5 · 2026-10-01
+	// Participant resolution (2026-10-02): every identifier the generation
+	// states is resolved against the registry once, and the recorded
+	// resolution is what the Weaviate-first stage and the first-party context
+	// stages apply, so both write the same disclosure tier. A generation with
+	// no message records settles not_applicable and passes no resolution.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	resolutionRefs := map[string]Ref{}
+	if workflow.GetVersion(ctx, participantResolutionChangeID, workflow.DefaultVersion, participantResolutionVersion) != workflow.DefaultVersion {
+		resolutionRef, err := r.exec(ctx, stagegraph.ResolveContextParticipants, in.DeclaredFormat, in.personRefs(map[string]Ref{
+			"normalized_generation":   normalizedGenerationRef,
+			"normalized_verification": normalizedVerificationRef,
+		}))
+		if err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+		if r.lastStatus(stagegraph.ResolveContextParticipants) == StatusSuccess {
+			resolutionRefs["participant_resolution"] = resolutionRef
+		}
+	}
+
 	if workflow.GetVersion(ctx, contextSearchChangeID, workflow.DefaultVersion, contextSearchVersion) != workflow.DefaultVersion {
 		extractionAttemptRef := rawBundleRef
 		if contextChunkingInput != nil && contextChunkingInput.AttemptRef != "" {
 			extractionAttemptRef = contextChunkingInput.AttemptRef
 		}
-		// The run's person ids travel as they do to the first-party stages; the
-		// participant resolution ref ("participant_resolution") is added by
-		// resolve_context_participants_activity's scheduling, and the stage fails
-		// closed without it. Byline: Claude Code · Opus 5.5 · 2026-10-02
-		if _, err := r.exec(ctx, stagegraph.PublishContextSearch, in.DeclaredFormat, in.personRefs(map[string]Ref{
+		// The run's person ids travel as they do to the first-party stages, with
+		// the recorded participant resolution; the stage fails closed without it.
+		// Byline: Claude Code · Opus 5.5 · 2026-10-02
+		searchRefs := in.personRefs(map[string]Ref{
 			"normalized_generation":   normalizedGenerationRef,
 			"normalized_verification": normalizedVerificationRef,
 			"extraction_attempt":      extractionAttemptRef,
-		})); err != nil {
+		})
+		for name, ref := range resolutionRefs {
+			searchRefs[name] = ref
+		}
+		if _, err := r.exec(ctx, stagegraph.PublishContextSearch, in.DeclaredFormat, searchRefs); err != nil {
 			r.operation.Reason = err.Error()
 			return r.result(""), err
 		}
@@ -659,10 +688,14 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	firstPartyContext := workflow.GetVersion(ctx, firstPartyContextChangeID, workflow.DefaultVersion, firstPartyContextVersion) != workflow.DefaultVersion
 	var contextProposalRef Ref
 	if firstPartyContext {
-		contextProposalRef, err = r.exec(ctx, stagegraph.ProposeFirstPartyContext, in.DeclaredFormat, in.personRefs(map[string]Ref{
+		proposeRefs := in.personRefs(map[string]Ref{
 			"normalized_generation":   normalizedGenerationRef,
 			"normalized_verification": normalizedVerificationRef,
-		}))
+		})
+		for name, ref := range resolutionRefs {
+			proposeRefs[name] = ref
+		}
+		contextProposalRef, err = r.exec(ctx, stagegraph.ProposeFirstPartyContext, in.DeclaredFormat, proposeRefs)
 		if err != nil {
 			r.operation.Reason = err.Error()
 			return r.result(""), err

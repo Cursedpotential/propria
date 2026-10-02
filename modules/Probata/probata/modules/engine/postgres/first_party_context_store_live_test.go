@@ -1,6 +1,7 @@
 //go:build d04live
 
 // Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (participant resolution; owner-participation split)
 //
 // Live proof of the first-party context import (D04) against a real
 // PostgreSQL 18 built from sql/bootstrap/schema_snapshot_20260907.sql. Never
@@ -37,6 +38,8 @@ const (
 	liveOwner       = "0d040000-0000-7000-8000-00000000f001"
 	livePerspective = "0d040000-0000-7000-8000-00000000f002"
 	livePrefix      = "b2://d04-probe/vault/sms-2024-11-24.xml.derived/"
+	liveOwnerPhone  = "+18105550100"
+	liveOtherPhone  = "+18105550199"
 )
 
 type liveChunk struct {
@@ -76,7 +79,11 @@ func seedLive(t *testing.T, ctx context.Context, admin *pgxpool.Pool, chunks []l
 	exec(`SET LOCAL session_replication_role = replica`)
 	exec(`INSERT INTO registry.matter (id, title, created_by) VALUES ($1, 'D04 live probe matter', 'd04-live-test') ON CONFLICT DO NOTHING`, devMatterID)
 	exec(`INSERT INTO registry.court_case (id, matter_id, caption, created_by) VALUES ($1, $2, 'D04 live probe case', 'd04-live-test') ON CONFLICT DO NOTHING`, devCourtCaseID, devMatterID)
+	exec(`INSERT INTO registry.entity (id, entity_type) VALUES ($1, 'person'), ($2, 'person') ON CONFLICT DO NOTHING`, liveOwner, livePerspective)
 	exec(`INSERT INTO registry.person (id, role_in_case) VALUES ($1, 'user'), ($2, 'partner') ON CONFLICT DO NOTHING`, liveOwner, livePerspective)
+	// The owner's phone is a CONFIRMED identifier; the other number is unknown.
+	exec(`INSERT INTO registry.entity_alias (id, entity_id, alias_text, alias_kind, status, recorded_by)
+	      VALUES ($1, $2, $3, 'phone', 'confirmed', 'd04-live-test')`, mustV7(t), liveOwner, liveOwnerPhone)
 
 	// The derivation that published the chunks: one derive receipt naming the
 	// derived prefix, as derive_sms_threads_activity records it.
@@ -138,8 +145,18 @@ func runImport(t *testing.T, ctx context.Context, acts activities.FirstPartyCont
 			SourceVersionRef: proffer.Ref(chunk.sourceVersion), DeclaredFormat: "ndjson", Refs: refs,
 		}
 	}
+	resolution, err := acts.ResolveContextParticipants(ctx, base(map[string]proffer.Ref{
+		"normalized_generation": proffer.Ref(chunk.generation), "normalized_verification": proffer.Ref(chunk.verification),
+	}))
+	if err != nil {
+		return err
+	}
+	if resolution.Status != proffer.StatusSuccess {
+		return errors.New("resolution not successful: " + resolution.Reason)
+	}
 	proposal, err := acts.ProposeFirstPartyContext(ctx, base(map[string]proffer.Ref{
 		"normalized_generation": proffer.Ref(chunk.generation), "normalized_verification": proffer.Ref(chunk.verification),
+		"participant_resolution": resolution.Ref,
 	}))
 	if err != nil {
 		return err
@@ -209,12 +226,14 @@ func TestFirstPartyContextImportLive(t *testing.T) {
 	day := time.Date(2024, 11, 20, 9, 0, 0, 0, time.UTC)
 	first := liveChunk{requestID: "d04-live-" + mustV7(t), sourceVersion: mustV7(t), generation: mustV7(t), verification: mustV7(t),
 		records: []liveRecord{
-			{id: mustV7(t), sender: "self", recipients: []string{"+18105550100"}, at: day, body: "Can you take her Saturday?"},
-			{id: mustV7(t), sender: "+18105550100", recipients: []string{"self"}, at: day.Add(time.Hour), body: "Yes, 10am."},
+			{id: mustV7(t), sender: "self", recipients: []string{liveOwnerPhone}, at: day, body: "Can you take her Saturday?"},
+			{id: mustV7(t), sender: liveOwnerPhone, recipients: []string{"self"}, at: day.Add(time.Hour), body: "Yes, 10am."},
+			{id: mustV7(t), sender: "self", recipients: []string{liveOtherPhone}, at: day.Add(2 * time.Hour), body: "He said yes."},
 		}}
 	second := liveChunk{requestID: "d04-live-" + mustV7(t), sourceVersion: mustV7(t), generation: mustV7(t), verification: mustV7(t),
 		records: []liveRecord{
-			{id: mustV7(t), sender: "self", recipients: []string{"+18105550100"}, at: day.Add(48 * time.Hour), body: "Running late."},
+			{id: mustV7(t), sender: "self", recipients: []string{liveOwnerPhone}, at: day.Add(48 * time.Hour), body: "Running late."},
+			{id: mustV7(t), sender: liveOtherPhone, recipients: []string{"self"}, at: day.Add(49 * time.Hour), body: "ok"},
 		}}
 	seedLive(t, ctx, admin, []liveChunk{first, second})
 
@@ -243,14 +262,15 @@ func TestFirstPartyContextImportLive(t *testing.T) {
 	}
 
 	ids := []string{first.records[0].id, first.records[1].id, second.records[0].id}
+	thirdIDs := []string{first.records[2].id, second.records[1].id}
 	var spine, sameIDs, participants, routes int
 	if err := admin.QueryRow(ctx, `
 		SELECT count(*),
 		       count(*) FILTER (WHERE message.id = record.id AND message.derived_from_record_id = record.id
 		                        AND record.id = identity.id AND record.artifact_id IS NULL
 		                        AND record.source_version_id = identity.source_version_id
-		                        AND record.disclosure_tier = 'discovered'),
-		       (SELECT count(*) FROM working.message_participant WHERE message_id = ANY($1::uuid[])),
+		                        AND record.disclosure_tier = 'contemporaneous' AND record.message_corpus = 'first_party'),
+		       (SELECT count(*) FROM working.message_participant WHERE message_id = ANY($1::uuid[]) AND entity_id IS NOT NULL),
 		       (SELECT count(*) FROM working.message_projection_route WHERE normalized_record_id = ANY($1::uuid[]) AND decision_state = 'approved')
 		FROM working.normalized_record record
 		JOIN working.message message ON message.id = record.id
@@ -290,5 +310,30 @@ func TestFirstPartyContextImportLive(t *testing.T) {
 	if conversationMatches != 3 {
 		t.Fatalf("%d of 3 messages carry their thread as conversation_id", conversationMatches)
 	}
-	t.Logf("live D04 proof: 3 spine rows (id = normalized record id), 6 participants, 1 thread, 1 proposed version, 3 members, 2 sources, horizon %s", horizon)
+
+	// The messages between the device owner and somebody else are acquired
+	// third-party material: discovered, proposed routes, one conversation
+	// filed under the acquired backup, no first-party rows.
+	var thirdRecords, thirdMessages, proposedRoutes, conversations, counted, unresolved, firstPartyLeak int
+	if err := admin.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE record.message_corpus = 'acquired_third_party' AND record.disclosure_tier = 'discovered'),
+		       (SELECT count(*) FROM working.third_party_message WHERE id = ANY($1::uuid[]) AND normalized_record_id = id),
+		       (SELECT count(*) FROM working.message_projection_route WHERE normalized_record_id = ANY($1::uuid[])
+		          AND projection_kind = 'acquired_third_party' AND decision_state = 'proposed'),
+		       (SELECT count(DISTINCT conversation_id) FROM working.third_party_message WHERE id = ANY($1::uuid[])),
+		       (SELECT max(c.message_count) FROM working.third_party_conversation c
+		          JOIN working.third_party_message m ON m.conversation_id = c.id WHERE m.id = ANY($1::uuid[])
+		          AND c.source_artifact_id IS NULL AND c.source_version_id IS NOT NULL AND c.review_status = 'pending'),
+		       (SELECT count(*) FROM working.third_party_message_participant WHERE message_id = ANY($1::uuid[])
+		          AND participant_raw = $2 AND entity_id IS NULL),
+		       (SELECT count(*) FROM working.message WHERE id = ANY($1::uuid[]))
+		FROM working.normalized_record record WHERE record.id = ANY($1::uuid[])`, thirdIDs, liveOtherPhone).
+		Scan(&thirdRecords, &thirdMessages, &proposedRoutes, &conversations, &counted, &unresolved, &firstPartyLeak); err != nil {
+		t.Fatal(err)
+	}
+	if thirdRecords != 2 || thirdMessages != 2 || proposedRoutes != 2 || conversations != 1 || counted != 2 || unresolved != 2 || firstPartyLeak != 0 {
+		t.Fatalf("third-party: records %d messages %d proposed routes %d conversations %d count %d unresolved %d first-party leak %d; want 2,2,2,1,2,2,0",
+			thirdRecords, thirdMessages, proposedRoutes, conversations, counted, unresolved, firstPartyLeak)
+	}
+	t.Logf("live D04 proof: 3 first-party spine rows (contemporaneous, id = normalized record id, 6 resolved participants), 1 thread / 1 proposed version / 3 members / 2 sources, horizon %s; 2 third-party messages (discovered, proposed routes) in 1 conversation", horizon)
 }

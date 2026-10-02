@@ -1,4 +1,5 @@
 // Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (participant resolution stage; owner-participation split)
 //
 // The first-party context import (D04) as four Activities, on the
 // extract -> confirm -> commit pattern of entity_extraction.go and the store
@@ -36,6 +37,7 @@ import (
 	"go.temporal.io/sdk/activity"
 
 	"github.com/Cursedpotential/probata/engine/contextthread"
+	"github.com/Cursedpotential/probata/engine/disclosure"
 	"github.com/Cursedpotential/probata/engine/firstparty"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
@@ -47,7 +49,21 @@ const (
 	FirstPartyConfirmationKind = "first_party_context_confirmation"
 	FirstPartyMessagesKind     = "first_party_messages"
 	FirstPartyThreadsKind      = "first_party_context_threads"
+	// ParticipantResolutionKind is the resolve stage's receipt: result_ref is
+	// {"ref_kind":"participant_resolution","ref_id":<uuid>,"resolution":<Resolution>},
+	// the contract publish_context_search_activity reads too.
+	ParticipantResolutionKind = "participant_resolution"
 )
+
+// ParticipantResolutionSpec is one resolve-stage receipt.
+type ParticipantResolutionSpec struct {
+	RequestID               string
+	SourceVersionRef        proffer.Ref
+	NormalizedGenerationRef proffer.Ref
+	Resolution              disclosure.Resolution
+	NotApplicable           string
+	Attempt                 int32
+}
 
 // FirstPartyContextInput is what the Store resolves for one generation.
 // Messages is empty when the generation holds no message record; Source is
@@ -55,6 +71,10 @@ const (
 type FirstPartyContextInput struct {
 	Source   firstparty.Source
 	Messages []firstparty.SourceMessage
+	// StatedIdentifiers is every distinct identifier any record of the
+	// generation states (messages and calls), except the device marker "self";
+	// the participant resolution covers exactly these.
+	StatedIdentifiers []string
 	// PlatformResolved is false when the generation holds messages but traces
 	// to no registered derivation; Reason then says why.
 	PlatformResolved bool
@@ -70,7 +90,9 @@ type FirstPartyReceiptSpec struct {
 	NormalizedGenerationRef proffer.Ref
 	// ParentRef is the receipt this one follows (the proposal, for a
 	// confirmation). Empty for a proposal.
-	ParentRef     proffer.Ref
+	ParentRef proffer.Ref
+	// ResolutionRef is the participant resolution the plan was built on.
+	ResolutionRef proffer.Ref
 	Identity      contextthread.Identity
 	PlanDigest    string
 	Messages      int
@@ -86,6 +108,7 @@ type FirstPartyReceipt struct {
 	SourceVersionRef        proffer.Ref
 	NormalizedGenerationRef proffer.Ref
 	ParentRef               proffer.Ref
+	ResolutionRef           proffer.Ref
 	Identity                contextthread.Identity
 	PlanDigest              string
 }
@@ -111,6 +134,12 @@ type FirstPartyContextStore interface {
 	// ResolveFirstPartyIdentity checks the explicit owner and perspective
 	// against registry.person and the run's admitted matter and court case.
 	ResolveFirstPartyIdentity(ctx context.Context, req proffer.StageRequest, ownerPersonID, perspectivePersonID string) (contextthread.Identity, error)
+	// ResolveParticipants resolves every stated identifier against the
+	// registry's confirmed identifiers, marking the owner's. It fails closed
+	// when the owner has no confirmed identifier.
+	ResolveParticipants(ctx context.Context, identity contextthread.Identity, raws []string) (disclosure.Resolution, error)
+	PersistParticipantResolution(ctx context.Context, spec ParticipantResolutionSpec) (resultRef, receiptRef proffer.Ref, err error)
+	LoadParticipantResolution(ctx context.Context, ref proffer.Ref) (disclosure.Resolution, error)
 	PersistFirstPartyReceipt(ctx context.Context, spec FirstPartyReceiptSpec) (resultRef, receiptRef proffer.Ref, err error)
 	LoadFirstPartyReceipt(ctx context.Context, kind string, ref proffer.Ref) (FirstPartyReceipt, error)
 	CommitFirstPartyMessages(ctx context.Context, spec FirstPartyCommitSpec) (resultRef, receiptRef proffer.Ref, err error)
@@ -133,6 +162,7 @@ func NewFirstPartyContextActivities(store FirstPartyContextStore) FirstPartyCont
 // RegisterFirstPartyContextActivities installs the four Activities under their
 // exact stage-graph identities.
 func RegisterFirstPartyContextActivities(registrar ActivityRegistrar, acts FirstPartyContextActivities) {
+	registrar.RegisterActivityWithOptions(acts.ResolveContextParticipants, activity.RegisterOptions{Name: string(stagegraph.ResolveContextParticipants)})
 	registrar.RegisterActivityWithOptions(acts.ProposeFirstPartyContext, activity.RegisterOptions{Name: string(stagegraph.ProposeFirstPartyContext)})
 	registrar.RegisterActivityWithOptions(acts.ConfirmFirstPartyContext, activity.RegisterOptions{Name: string(stagegraph.ConfirmFirstPartyContext)})
 	registrar.RegisterActivityWithOptions(acts.CommitFirstPartyMessages, activity.RegisterOptions{Name: string(stagegraph.CommitFirstPartyMessages)})
@@ -157,6 +187,60 @@ func (a FirstPartyContextActivities) ready(req proffer.StageRequest, stage stage
 		return permanent(fmt.Errorf("%s requires request and source version references", stage))
 	}
 	return nil
+}
+
+// ResolveContextParticipants resolves every identifier the generation states,
+// once, and records the resolution both the Weaviate-first stage and the
+// first-party context stages read.
+func (a FirstPartyContextActivities) ResolveContextParticipants(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
+	result, err := a.resolve(ctx, req)
+	return result, stopRetryingPermanent(err)
+}
+
+func (a FirstPartyContextActivities) resolve(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
+	stage := stagegraph.ResolveContextParticipants
+	if err := a.ready(req, stage); err != nil {
+		return proffer.StageResult{}, err
+	}
+	generationRef, err := requiredRef(req, "normalized_generation")
+	if err != nil {
+		return proffer.StageResult{}, permanent(err)
+	}
+	verificationRef, err := requiredRef(req, "normalized_verification")
+	if err != nil {
+		return proffer.StageResult{}, permanent(err)
+	}
+	input, err := a.Store.LoadFirstPartyContext(ctx, req, generationRef, verificationRef)
+	if err != nil {
+		return proffer.StageResult{}, err
+	}
+	if len(input.StatedIdentifiers) == 0 {
+		const reason = "the normalized generation states no participant identifier"
+		_, receiptRef, err := a.Store.PersistParticipantResolution(ctx, ParticipantResolutionSpec{
+			RequestID: req.RequestID, SourceVersionRef: req.SourceVersionRef, NormalizedGenerationRef: generationRef,
+			NotApplicable: reason, Attempt: a.attempt(ctx),
+		})
+		if err != nil {
+			return proffer.StageResult{}, err
+		}
+		return proffer.StageResult{Stage: stage, Status: proffer.StatusNotApplicable, ReceiptRef: receiptRef, Reason: reason}, nil
+	}
+	identity, err := a.identity(ctx, req)
+	if err != nil {
+		return proffer.StageResult{}, err
+	}
+	resolution, err := a.Store.ResolveParticipants(ctx, identity, input.StatedIdentifiers)
+	if err != nil {
+		return proffer.StageResult{}, permanent(err)
+	}
+	resultRef, receiptRef, err := a.Store.PersistParticipantResolution(ctx, ParticipantResolutionSpec{
+		RequestID: req.RequestID, SourceVersionRef: req.SourceVersionRef, NormalizedGenerationRef: generationRef,
+		Resolution: resolution, Attempt: a.attempt(ctx),
+	})
+	if err != nil {
+		return proffer.StageResult{}, err
+	}
+	return success(stage, resultRef, receiptRef), nil
 }
 
 // ProposeFirstPartyContext is the EXTRACT step.
@@ -204,7 +288,15 @@ func (a FirstPartyContextActivities) propose(ctx context.Context, req proffer.St
 	if err != nil {
 		return proffer.StageResult{}, err
 	}
-	plan, err := firstparty.Build(identity, input.Source, input.Messages)
+	resolutionRef, err := requiredRef(req, "participant_resolution")
+	if err != nil {
+		return proffer.StageResult{}, permanent(err)
+	}
+	resolution, err := a.Store.LoadParticipantResolution(ctx, resolutionRef)
+	if err != nil {
+		return proffer.StageResult{}, err
+	}
+	plan, err := firstparty.Build(identity, input.Source, input.Messages, resolution)
 	if err != nil {
 		return proffer.StageResult{}, permanent(err)
 	}
@@ -214,7 +306,8 @@ func (a FirstPartyContextActivities) propose(ctx context.Context, req proffer.St
 	resultRef, receiptRef, err := a.Store.PersistFirstPartyReceipt(ctx, FirstPartyReceiptSpec{
 		Stage: stage, Kind: FirstPartyProposalKind, RequestID: req.RequestID,
 		SourceVersionRef: req.SourceVersionRef, NormalizedGenerationRef: generationRef,
-		Identity: identity, PlanDigest: plan.Digest, Messages: plan.MessageCount,
+		ResolutionRef: resolutionRef,
+		Identity:      identity, PlanDigest: plan.Digest, Messages: plan.MessageCount,
 		Threads: len(plan.Conversations), Attempt: a.attempt(ctx),
 	})
 	if err != nil {
@@ -242,7 +335,7 @@ func (a FirstPartyContextActivities) identity(ctx context.Context, req proffer.S
 // acceptable to the thread contract before anything is proposed, so a plan
 // that could never commit is refused at proposal, not after approval.
 func validatePlanThreads(plan firstparty.Plan) error {
-	for _, conversation := range plan.Conversations {
+	for _, conversation := range plan.FirstParty() {
 		if err := plan.NewThreadVersion("", conversation).Validate(); err != nil {
 			return fmt.Errorf("conversation %s cannot form a thread version: %w", conversation.Key, err)
 		}
@@ -263,7 +356,11 @@ func (a FirstPartyContextActivities) rebuild(ctx context.Context, req proffer.St
 	if !input.PlatformResolved {
 		return firstparty.Plan{}, permanent(fmt.Errorf("first-party context import refused: %s", input.Reason))
 	}
-	plan, err := firstparty.Build(receipt.Identity, input.Source, input.Messages)
+	resolution, err := a.Store.LoadParticipantResolution(ctx, receipt.ResolutionRef)
+	if err != nil {
+		return firstparty.Plan{}, err
+	}
+	plan, err := firstparty.Build(receipt.Identity, input.Source, input.Messages, resolution)
 	if err != nil {
 		return firstparty.Plan{}, permanent(err)
 	}
@@ -312,7 +409,7 @@ func (a FirstPartyContextActivities) confirm(ctx context.Context, req proffer.St
 	resultRef, receiptRef, err := a.Store.PersistFirstPartyReceipt(ctx, FirstPartyReceiptSpec{
 		Stage: stage, Kind: FirstPartyConfirmationKind, RequestID: req.RequestID,
 		SourceVersionRef: req.SourceVersionRef, NormalizedGenerationRef: proposal.NormalizedGenerationRef,
-		ParentRef: proposalRef, Identity: identity, PlanDigest: plan.Digest,
+		ParentRef: proposalRef, ResolutionRef: proposal.ResolutionRef, Identity: identity, PlanDigest: plan.Digest,
 		Messages: plan.MessageCount, Threads: len(plan.Conversations), Attempt: a.attempt(ctx),
 	})
 	if err != nil {

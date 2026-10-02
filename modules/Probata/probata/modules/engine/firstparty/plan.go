@@ -1,11 +1,22 @@
 // Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (split by owner participation; one disclosure rule)
 //
-// Package firstparty plans the first-party context import (D04): how one
-// verified normalized generation of message records becomes working.* spine
-// rows (normalized_record, message_projection_route, message,
-// message_participant) and first-party context thread rows
-// (working.first_party_context_thread and its version / membership / source
-// assertion rows).
+// Package firstparty plans the context import (D04): how one verified
+// normalized generation of message records becomes working.* rows.
+//
+// Every message is split by OWNER PARTICIPATION (owner, 2026-10-02), decided
+// against the recorded participant resolution:
+//
+//   - the owner is a stated sender or recipient: first-party context --
+//     working.normalized_record, message_projection_route, message and
+//     message_participant, plus the working.first_party_context_thread family;
+//   - he is not: acquired third-party material -- working.normalized_record
+//     (message_corpus acquired_third_party), a PROPOSED acquired_third_party
+//     route, working.third_party_conversation / third_party_message /
+//     third_party_message_participant. Third-party context threads need an
+//     evidence.acquisition and are left to promotion.
+//
+// Every message's disclosure tier comes from the one disclosure rule.
 //
 // It is pure: no SQL, no clock, no identity constants. The Activities in
 // engine/activities compute a Plan from Store-provided records, record its
@@ -35,6 +46,7 @@ import (
 
 	"github.com/Cursedpotential/probata/engine/contextthread"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
+	"github.com/Cursedpotential/probata/engine/disclosure"
 )
 
 const (
@@ -52,16 +64,16 @@ const (
 	AssertedBy = "engine:first_party_context_projector@1.0.0"
 	// SelfMarker is the decoder's name for the device owner -- the perspective
 	// person. It is kept exactly as the source states it.
-	SelfMarker = "self"
+	SelfMarker = disclosure.SelfIdentifier
 	// MaxMessages bounds one generation's plan, which is held in memory. A
 	// derived SMS chunk is size-capped far below this.
 	MaxMessages = 200000
 )
 
-// Disclosure tiers written to working.normalized_record.disclosure_tier.
+// Corpora a message is split into (working.normalized_record.message_corpus).
 const (
-	DisclosureContemporaneous = "contemporaneous"
-	DisclosureDiscovered      = "discovered"
+	CorpusFirstParty = "first_party"
+	CorpusThirdParty = "acquired_third_party"
 )
 
 // SourceMessage is one normalized message record as the Store reads it from
@@ -94,6 +106,25 @@ type Source struct {
 	DerivedFromSourceVersionID string
 }
 
+// AcquiredSourceVersionID is the source version a third-party conversation is
+// filed under: the backup that was acquired, so every chunk derived from one
+// backup files its conversations in one place.
+func (s Source) AcquiredSourceVersionID() string {
+	if strings.TrimSpace(s.DerivedFromSourceVersionID) != "" {
+		return s.DerivedFromSourceVersionID
+	}
+	return s.SourceVersionID
+}
+
+// Participant is one stated party of a message, as the registry resolved it.
+type Participant struct {
+	Raw  string `json:"raw"`
+	Role string `json:"role"`
+	// EntityID is the registry entity this identifier is confirmed for; empty
+	// when unresolved (the Case identity page's unknowns queue reads those).
+	EntityID string `json:"entity_id,omitempty"`
+}
+
 // Message is one planned spine row set.
 type Message struct {
 	RecordID      string     `json:"record_id"`
@@ -104,14 +135,21 @@ type Message struct {
 	Body          string     `json:"-"`
 	ContentSHA256 string     `json:"content_sha256"`
 	Direction     string     `json:"direction"`
+	// OwnerTookPart, DisclosureTier and DisclosureBasis are the disclosure
+	// rule's answer for this message.
+	OwnerTookPart   bool          `json:"owner_took_part"`
+	DisclosureTier  string        `json:"disclosure_tier"`
+	DisclosureBasis string        `json:"disclosure_basis"`
+	Participants    []Participant `json:"participants"`
 	// RouteApproved mirrors the governed projection rule: a first-party route
 	// is approved when the source itself names a sender and at least one
 	// recipient; otherwise it stays proposed for source-party review.
 	RouteApproved bool `json:"route_approved"`
 }
 
-// Conversation is one platform conversation within the generation.
+// Conversation is one platform conversation within the generation, in one corpus.
 type Conversation struct {
+	Corpus    string    `json:"corpus"`
 	Key       string    `json:"key"`
 	ScopedKey string    `json:"scoped_key"`
 	Parties   []string  `json:"parties"`
@@ -120,21 +158,29 @@ type Conversation struct {
 
 // Plan is the whole import of one generation.
 type Plan struct {
-	Identity       contextthread.Identity `json:"identity"`
-	Source         Source                 `json:"source"`
-	DisclosureTier string                 `json:"disclosure_tier"`
-	Conversations  []Conversation         `json:"conversations"`
-	MessageCount   int                    `json:"message_count"`
+	Identity      contextthread.Identity `json:"identity"`
+	Source        Source                 `json:"source"`
+	Resolution    disclosure.Resolution  `json:"-"`
+	Conversations []Conversation         `json:"conversations"`
+	MessageCount  int                    `json:"message_count"`
 	// Digest is sha256 over the canonical JSON of everything above, plus each
 	// message body's sha256 -- the value the owner's decision is bound to.
 	Digest string `json:"-"`
 }
 
-// Build plans one generation. It refuses an incomplete identity, an
+// Build plans one generation against its recorded participant resolution.
+// It refuses an incomplete identity, a resolution made for other people, an
 // unregistered platform, and a record that cannot be projected.
-func Build(identity contextthread.Identity, source Source, records []SourceMessage) (Plan, error) {
+func Build(identity contextthread.Identity, source Source, records []SourceMessage, resolution disclosure.Resolution) (Plan, error) {
 	if err := identity.Validate(); err != nil {
 		return Plan{}, err
+	}
+	if err := resolution.Validate(); err != nil {
+		return Plan{}, err
+	}
+	if !strings.EqualFold(resolution.OwnerPersonID, identity.OwnerPersonID) ||
+		!strings.EqualFold(resolution.PerspectivePersonID, identity.PerspectivePersonID) {
+		return Plan{}, errors.New("the participant resolution was made for a different owner or perspective person")
 	}
 	for name, value := range map[string]string{
 		"source version": source.SourceVersionID, "normalized generation": source.NormalizedGenerationID,
@@ -181,20 +227,29 @@ func Build(identity contextthread.Identity, source Source, records []SourceMessa
 		if key == "unknown" {
 			return Plan{}, fmt.Errorf("message record %s names no party other than the device owner; its conversation cannot be identified", id)
 		}
-		conversation, ok := byKey[key]
+		message, err := planMessage(id, record, &resolution)
+		if err != nil {
+			return Plan{}, fmt.Errorf("message record %s: %w", id, err)
+		}
+		corpus := CorpusThirdParty
+		if message.OwnerTookPart {
+			corpus = CorpusFirstParty
+		}
+		grouping := corpus + "/" + key
+		conversation, ok := byKey[grouping]
 		if !ok {
 			conversation = &Conversation{
-				Key: key, ScopedKey: ScopedKey(identity, source.Platform, key), Parties: parties,
+				Corpus: corpus, Key: key, ScopedKey: ScopedKey(corpus, identity, source.Platform, key), Parties: parties,
 			}
-			byKey[key] = conversation
-			keys = append(keys, key)
+			byKey[grouping] = conversation
+			keys = append(keys, grouping)
 		}
-		conversation.Messages = append(conversation.Messages, planMessage(id, record))
+		conversation.Messages = append(conversation.Messages, message)
 	}
 	sort.Strings(keys)
 
 	plan := Plan{
-		Identity: identity, Source: source, DisclosureTier: DisclosureTierFor(identity),
+		Identity: identity, Source: source, Resolution: resolution,
 		MessageCount: len(ordered), Conversations: make([]Conversation, 0, len(keys)),
 	}
 	for _, key := range keys {
@@ -208,7 +263,7 @@ func Build(identity contextthread.Identity, source Source, records []SourceMessa
 	return plan, nil
 }
 
-func planMessage(id string, record SourceMessage) Message {
+func planMessage(id string, record SourceMessage, resolution *disclosure.Resolution) (Message, error) {
 	sender := strings.TrimSpace(record.Sender)
 	recipients := uniqueTrimmed(record.Recipients)
 	sum := sha256.Sum256([]byte(record.Body))
@@ -224,41 +279,65 @@ func planMessage(id string, record SourceMessage) Message {
 		at := record.OccurredAt.UTC()
 		occurred = &at
 	}
+	took, tier, basis, err := resolution.ForMessage(sender, recipients)
+	if err != nil {
+		return Message{}, err
+	}
+	participants := make([]Participant, 0, len(recipients)+1)
+	add := func(raw, role string) error {
+		// The device owner's own marker is the perspective person.
+		if strings.EqualFold(strings.TrimSpace(raw), SelfMarker) {
+			participants = append(participants, Participant{Raw: raw, Role: role, EntityID: resolution.PerspectivePersonID})
+			return nil
+		}
+		identifier, ok := resolution.Lookup(raw)
+		if !ok {
+			return fmt.Errorf("identifier %q is not in the participant resolution", raw)
+		}
+		participants = append(participants, Participant{Raw: raw, Role: role, EntityID: identifier.EntityID})
+		return nil
+	}
+	if sender != "" {
+		if err := add(sender, "from"); err != nil {
+			return Message{}, err
+		}
+	}
+	for _, recipient := range recipients {
+		if err := add(recipient, "to"); err != nil {
+			return Message{}, err
+		}
+	}
 	return Message{
 		RecordID: id, Ordinal: record.Ordinal, OccurredAt: occurred, Sender: sender, Recipients: recipients,
 		Body: record.Body, ContentSHA256: hex.EncodeToString(sum[:]), Direction: direction,
-		RouteApproved: sender != "" && len(recipients) > 0,
-	}
+		OwnerTookPart: took, DisclosureTier: tier, DisclosureBasis: basis, Participants: participants,
+		RouteApproved: took && sender != "" && len(recipients) > 0,
+	}, nil
 }
 
-// ScopedKey is the conversation's identity across runs: one thread per
-// (matter, court case, owner, perspective, platform, conversation key). It is
+// ScopedKey is the conversation's identity across runs: one per (corpus,
+// matter, court case, owner, perspective, platform, conversation key). It is
 // stored in working.normalized_record.conversation_id so a later chunk of the
-// same conversation finds the thread an earlier chunk created.
-func ScopedKey(identity contextthread.Identity, platform, key string) string {
+// same conversation finds the thread or conversation an earlier chunk created.
+func ScopedKey(corpus string, identity contextthread.Identity, platform, key string) string {
 	return strings.Join([]string{
-		"first_party", identity.MatterID, identity.CourtCaseID, identity.OwnerPersonID,
+		corpus, identity.MatterID, identity.CourtCaseID, identity.OwnerPersonID,
 		identity.PerspectivePersonID, platform, key,
 	}, "/")
 }
 
-// DisclosureTierFor is the rule this import writes, recorded so it can be
-// vetoed: a record from the owner's own device was available to him as it
-// happened (contemporaneous); a record from anyone else's device reached him
-// only when the source was acquired (discovered).
-func DisclosureTierFor(identity contextthread.Identity) string {
-	if strings.EqualFold(identity.PerspectivePersonID, identity.OwnerPersonID) {
-		return DisclosureContemporaneous
-	}
-	return DisclosureDiscovered
-}
+// FirstParty and ThirdParty return the plan's conversations of one corpus.
+func (p Plan) FirstParty() []Conversation { return p.corpus(CorpusFirstParty) }
+func (p Plan) ThirdParty() []Conversation { return p.corpus(CorpusThirdParty) }
 
-// DisclosureBasis explains DisclosureTierFor on the row it was applied to.
-func DisclosureBasis(identity contextthread.Identity) string {
-	if DisclosureTierFor(identity) == DisclosureContemporaneous {
-		return "source is the owner's own device or export"
+func (p Plan) corpus(corpus string) []Conversation {
+	out := []Conversation{}
+	for _, conversation := range p.Conversations {
+		if conversation.Corpus == corpus {
+			out = append(out, conversation)
+		}
 	}
-	return "source is another person's device or export; known to the owner from acquisition"
+	return out
 }
 
 // MembershipDigest is a thread version's assertion digest: sha256 over the
@@ -373,6 +452,7 @@ type digestMessage struct {
 }
 
 type digestConversation struct {
+	Corpus    string          `json:"corpus"`
 	Key       string          `json:"key"`
 	ScopedKey string          `json:"scoped_key"`
 	Parties   []string        `json:"parties"`
@@ -387,16 +467,16 @@ func (p Plan) computeDigest() (string, error) {
 			messages = append(messages, digestMessage{Message: message, BodySHA256: message.ContentSHA256})
 		}
 		conversations = append(conversations, digestConversation{
-			Key: conversation.Key, ScopedKey: conversation.ScopedKey, Parties: conversation.Parties, Messages: messages,
+			Corpus: conversation.Corpus, Key: conversation.Key, ScopedKey: conversation.ScopedKey, Parties: conversation.Parties, Messages: messages,
 		})
 	}
 	encoded, err := json.Marshal(struct {
-		Contract       string                 `json:"contract"`
-		Identity       contextthread.Identity `json:"identity"`
-		Source         Source                 `json:"source"`
-		DisclosureTier string                 `json:"disclosure_tier"`
-		Conversations  []digestConversation   `json:"conversations"`
-	}{DeriverVersion, p.Identity, p.Source, p.DisclosureTier, conversations})
+		Contract      string                 `json:"contract"`
+		Identity      contextthread.Identity `json:"identity"`
+		Source        Source                 `json:"source"`
+		Resolution    string                 `json:"resolution_digest"`
+		Conversations []digestConversation   `json:"conversations"`
+	}{DeriverVersion, p.Identity, p.Source, ResolutionDigest(p.Resolution), conversations})
 	if err != nil {
 		return "", fmt.Errorf("encode first-party context plan: %w", err)
 	}
@@ -436,4 +516,16 @@ func containsFold(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// ResolutionDigest binds a plan to the exact recorded participant resolution.
+func ResolutionDigest(resolution disclosure.Resolution) string {
+	identifiers := append([]disclosure.ResolvedIdentifier(nil), resolution.Identifiers...)
+	sort.Slice(identifiers, func(a, b int) bool { return identifiers[a].Raw < identifiers[b].Raw })
+	encoded, _ := json.Marshal(struct {
+		Basis, Owner, Perspective string
+		Identifiers               []disclosure.ResolvedIdentifier
+	}{resolution.Basis, strings.ToLower(resolution.OwnerPersonID), strings.ToLower(resolution.PerspectivePersonID), identifiers})
+	sum := sha256.Sum256(encoded)
+	return hex.EncodeToString(sum[:])
 }
