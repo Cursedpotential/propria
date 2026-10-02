@@ -42,6 +42,8 @@ class Listing(BaseModel):
     mode: str = "REAL"
     refreshed_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     truncated: bool = False
+    matter_id: str | None = None
+    court_case_id: str | None = None
 
 
 def _authorization() -> dict[str, str]:
@@ -100,7 +102,8 @@ def list_records(kind: Kind, query: str = "", *, record_id: str | None = None,
         identities = [item.origin.record_id for item in records]
         if len(identities) != len(set(identities)) or (record_id is not None and len(records) > 1):
             raise ProbataUnavailable("Probata returned ambiguous record identities.")
-        return Listing(available=True, records=records, mode=mode, truncated=bool(data.get("truncated")))
+        return Listing(available=True, records=records, mode=mode, truncated=bool(data.get("truncated")),
+                       matter_id=data.get("matter_id"), court_case_id=data.get("court_case_id"))
     except (ProbataUnavailable, httpx.HTTPError, ValueError, TypeError):
         return Listing(available=False, reason="Probata records are unavailable. Saved legal responses remain accessible.", mode=mode)
     finally:

@@ -39,13 +39,24 @@ The whole home `/home/kasm-user` is the host folder `/data/probata/volumes/devbo
 - **Everything else is the container layer, and a redeploy destroys it**: `/tmp`, `/opt`, `/usr`, `/etc`, `/var`. `/tmp` is scratch only. A tool installed at runtime (`apt`, `npm -g`, `uv tool`) must also go into the Dockerfile, or it is gone after the next deploy.
 - The 2026-09-28 deploy destroyed `.npm`, `.duckdb`, the old `.claude.json` and two agent work folders (`browser-journeys-*`), because they sat outside the volume of that time. `.claude.json` came back from `~/.claude/backups/` on 2026-10-02; the rest is gone.
 
-**Before every redeploy, run the guard** (on ovh-files, from the desktop; nothing runs locally):
+**Every redeploy runs a guard first.** The guard is automatic since 2026-10-02 (owner, auto-guard A).
+- coolify-write 1.3.0 runs it before `deploy_application`, `restart_application`, `start_application` and `stop_application` on this app.
+- Nothing is sent to Coolify unless the guard reports safe. A refusal comes back as `GUARD_REFUSED` with the guard's output.
+- `check_only=true` runs only the guard.
 
-```bash
-ssh -i ~/.ssh/ovh root@100.91.190.107 python3 - < modules/Probata/probata/deploy/devbox/pre_redeploy_check.py
-```
+What the guard does (`modules/Probata/probata/deploy/devbox/pre_redeploy_check.py`):
+- Lists the running container's writable-layer changes (`docker diff`).
+- Sets aside named runtime churn: sockets, Kasm's self-extracting service binaries, bytecode caches.
+- Copies everything else into `~/rescued/<UTC stamp>/<container>/files/`, with a manifest and a list of runtime-installed tools.
+- Checks every copied file by sha256, and prints `SAFE TO REDEPLOY: yes` only when all of them match.
+- `--dry-run` classifies without copying.
 
-It lists the running container's writable-layer changes (`docker diff`), sets aside named runtime churn (sockets, Kasm's self-extracting service binaries, bytecode caches), copies everything else into `~/rescued/<UTC stamp>/<container>/files/` with a manifest and a list of runtime-installed tools, and checks every copied file by sha256. Deploy only after it prints `SAFE TO REDEPLOY: yes`. `--dry-run` classifies without copying.
+Where it runs:
+- Installed copy: `/data/probata/config/predeploy-guard/` on ovh-files (`install_predeploy_guard.sh`).
+- coolify-write reaches it with a dedicated SSH key. In root's `authorized_keys` that key is locked to `dispatch.sh`, which can only start this guard: `restrict`, no pty, no forwarding.
+- To run it by hand: `ssh -i ~/.ssh/ovh root@100.91.190.107 python3 - < modules/Probata/probata/deploy/devbox/pre_redeploy_check.py`.
+
+The UI's Redeploy button and the raw REST API do not run the guard. Use coolify-write.
 
 ## How to reach it
 

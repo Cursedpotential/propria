@@ -3934,7 +3934,6 @@ Open, for the owner:
 - **Fix (owner 08:33 "get rid of the lockout"):** `RATE_LIMIT_LOCKOUT_ENABLED=false`, `RATE_LIMIT_MEDIUM_RPM=1200`, `RATE_LIMIT_MEDIUM_BURST=200` (`ce00f289`, deployment of `exec-contextforge`). Login and admin tiers keep their own strict defaults; the public route still requires the token.
 - **Verified:** the new container carries the three settings; through the public route the coolify-write server lists 42 tools, propria-docstore 5, surrealdb 10. Sessions started during the lockout need a restart (or `/mcp` reconnect) to pick the tools up.
 
-
 ## 2026-10-02 08:15 EDT – ongoing — owner's messages into Probata through Proffer (continuation of the overnight import)
 
 > _Byline: Claude Code · Opus 5.5 · 2026-10-02 (agent picking up from `overnight-import`)._
@@ -3958,3 +3957,37 @@ Open, for the owner:
   - The 3 call logs from 2022 (`calls-20221104024324`, `calls-11-08-2022 14-46-06`, `calls-12-10-2022 13-51-13`). No SMS backup shares their backup_set. About 1,000 calls with Katrina's 8102959303 and 30–39 calls to 8102959302 itself (voicemail) point to Matt's 8102959302. That is an inference.
   - The 2 call logs from 2026 (`calls-20260911233643`, `calls-20260912155315`). Their own number cannot be determined.
 - The source folder `Evidence/Phone Records/Messages with Katrina/SMS backup` carries U+F028 after "backup", a Windows private-use character. The earlier plan had dropped it and lost 3 files. The new plan keeps the exact key.
+
+## 2026-10-02 08:45 EDT — probata-db role `ai` is a superuser with a two-letter password; Docstore follows the Vestigia rename
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02_
+
+- **Found (Vestigia lane, 08:41):** on probata-db the role `ai` is SUPERUSER, its password is two letters and sits in git history (old Vestigia ops scripts), and it owns the `casebible`, `postgres` and template databases. Vestigia no longer uses it: the `vestigia` role owns `traceiq` (owner approved 08:20). Not hardened yet.
+- **Possibly the same value, unchecked:** `~/.secrets/Agno-MCP-Platform.env` holds a two-character `DB_PASS` and `POSTGRES_PASSWORD`, and both were copied into Infisical `/desktop/Agno-MCP-Platform` on 09-30.
+- **Docstore side of the rename:** the Dockerfile now copies `modules/vestigia-geodata_processor/vestigia/docs/` (24 tracked files, checked). The nightly job (08:15 UTC) re-clones main and rebuilds, so the next build uses it. The registry `canonical_prefix` stays `vestigia/traceiq-rebuild/docs/`, so indexed document ids do not change.
+- [ ] **Owner:** how to harden `ai`. (A, default) find every client that logs in as `ai`, give each its own role or the new password, set a strong password kept in `~/.secrets` and Infisical, then drop SUPERUSER once nothing needs it. (B) Rotate the password only. (C) Leave it.
+- [ ] Confirm the 2026-10-03 08:15 UTC nightly build of `propria-docstore` succeeds with the new COPY path.
+
+## 2026-10-02 08:38–09:00 EDT — automatic pre-deploy guard in coolify-write (owner 08:38, auto-guard A)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02 (agent `kasm-devbox`)._
+
+- **coolify-write 1.3.0** (propria-plugins `5ead655`):
+  - `deploy_application`, `restart_application`, `start_application` and `stop_application` look up `guards.json`. For a listed app (today the devbox, `pd3xc78ahqkfswq12bpfqgy1`) they run its guard over SSH first.
+  - Nothing is sent to Coolify unless the guard exits 0 and prints `SAFE TO REDEPLOY: yes`. A refusal is `GUARD_REFUSED` with the guard's output.
+  - New argument `check_only` runs only the guard.
+  - Unguarded apps get Coolify's answer unchanged.
+  - The connection pins ovh-files' host key and uses paramiko, so the hosted container needs no ssh client.
+- **Key:**
+  - A dedicated ed25519 key: `~/.secrets/coolify-guard/id_ed25519` on the desktop, and Coolify env `COOLIFY_GUARD_SSH_KEY_B64` on `coolify-mcp`. Never in git.
+  - On ovh-files, root's `authorized_keys` entry is `restrict,no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="/data/probata/config/predeploy-guard/dispatch.sh"`.
+  - Proven: `id; cat /etc/shadow` → "REFUSED"; a pty request → "PTY allocation request failed"; a `-L` forward → "administratively prohibited".
+  - Host files are installed by `deploy/devbox/install_predeploy_guard.sh` (guard sha256 `f8ccf774…`, dispatcher `8a0c45cf…`).
+- **Deployed:** coolify-mcp deploy `di23tr0kiv0fyszxqb0aouxt` finished. ContextForge `POST /gateways/7f8f263a…/tools/refresh` updated 4 tools.
+- **Live proof through ContextForge:**
+  - (1) Devbox deploy with `check_only` → safe, 841/841 files verified, "the deploy was NOT sent to Coolify".
+  - (2) Real devbox deploy while a writer kept changing `/tmp/guard-proof-unsafe-marker.txt` → `GUARD_REFUSED` (exit 2, 841/842 verified, "NOT SAFE"). No devbox deployment was queued; the newest is still `4rstpgrt`. The marker and its writer were removed afterwards.
+  - (3) Unguarded fake uuid → `POST /deploy -> 404 {"message":"No resources found."}`, unchanged.
+  - Desktop stdio fallback, same code path, from the plugin worktree: `check_only` → safe.
+- [ ] The installed plugin copies follow the shared checkout `E:/AI_Workspace/plugins`. It still holds another session's uncommitted `github_app_webhook` work, so it trails `origin/main` until that session rebases.
+- [ ] Each guard run copies the container layer again, about 60 MB today, into a new `~/rescued/<stamp>/`. The owner decides whether repeated identical rescues should be de-duplicated, and when old ones go to `to_be_deleted`.

@@ -92,6 +92,27 @@ def require_human_review_actor(
     return f"authentik:{subject}"
 
 
+def require_investigation_actor(principal: AuthenticatedPrincipal) -> str:
+    """Authorize an explicit planning request under the existing portal trust lane.
+
+    Dispatch does not adopt evidence, approve a draft, or execute work. Persist
+    transport identities truthfully; they never become substantive review actors.
+    """
+    if principal.source not in {"authentik", "signed-bff", "tailnet"}:
+        raise PrincipalAuthorizationDenied(
+            "An authenticated planning portal principal is required."
+        )
+    identity = f"{principal.source}:{principal.subject.strip()}"
+    for value in (identity, principal.username or identity):
+        if (
+            not principal.subject.strip()
+            or not 1 <= len(value) <= 200
+            or re.search(r"[\x00-\x1f\x7f]", value)
+        ):
+            raise PrincipalAuthorizationDenied("Investigation actor identity is invalid.")
+    return identity
+
+
 class AuthentikTokenVerifier:
     """Verify Authentik JWTs against the provider's pinned issuer contract."""
 

@@ -18,6 +18,7 @@ from legal_workspace.contracts.claims import (
     GapReportRow,
     LinkCreate,
     LinkPatch,
+    RevisionRequest,
     SourceOptions,
 )
 from legal_workspace.services.claims import ClaimNotFound, ClaimRevisionConflict, ClaimService
@@ -35,7 +36,11 @@ router = APIRouter(dependencies=[Depends(actor)])
 
 
 def get_claim_service() -> ClaimService:
-    from legal_workspace.services.probata_records import ProbataUnavailable, get_record, list_records
+    from legal_workspace.services.probata_records import (
+        ProbataUnavailable,
+        get_record,
+        list_records,
+    )
 
     # One current upstream snapshot per kind in this request. Opening a saved
     # list must not issue one network request per claim, especially on outage.
@@ -152,3 +157,57 @@ def patch_followup(
     claim_id: UUID, followup_id: UUID, body: FollowupPatch, service: Service, identity: Actor
 ):
     return invoke(lambda: service.patch_followup(claim_id, followup_id, body, actor=identity))
+
+
+def investigation_principal(request: Request):
+    from legal_workspace.api.auth import PrincipalAuthorizationDenied, require_investigation_actor
+
+    principal = getattr(request.state, "auth", None)
+    if principal is None:
+        raise HTTPException(401, "Authentication required.")
+    try:
+        require_investigation_actor(principal)
+    except PrincipalAuthorizationDenied as exc:
+        raise HTTPException(403, str(exc)) from exc
+    return principal
+
+
+@router.post("/v1/claims/{claim_id}/followups/{followup_id}/dispatch", response_model=ClaimRecord)
+def dispatch_followup(
+    claim_id: UUID,
+    followup_id: UUID,
+    body: RevisionRequest,
+    service: Service,
+    identity: Actor,
+    request: Request,
+):
+    principal = investigation_principal(request)
+    return invoke(
+        lambda: service.dispatch_followup(
+            claim_id,
+            followup_id,
+            body.expected_revision,
+            actor=identity,
+            actor_uid=f"{principal.source}:{principal.subject}",
+            actor_username=principal.username or f"{principal.source}:{principal.subject}",
+        )
+    )
+
+
+@router.post(
+    "/v1/claims/{claim_id}/followups/{followup_id}/refresh-status", response_model=ClaimRecord
+)
+def refresh_followup(
+    claim_id: UUID,
+    followup_id: UUID,
+    body: RevisionRequest,
+    service: Service,
+    identity: Actor,
+    request: Request,
+):
+    investigation_principal(request)
+    return invoke(
+        lambda: service.refresh_followup(
+            claim_id, followup_id, body.expected_revision, actor=identity
+        )
+    )

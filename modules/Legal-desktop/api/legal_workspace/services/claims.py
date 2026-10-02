@@ -24,11 +24,14 @@ from legal_workspace.contracts.claims import (
     ClaimRevision,
     EvidenceLink,
     FollowupCreate,
+    FollowupInvestigation,
     FollowupPatch,
     FromProbataCreate,
     GapCreate,
     GapPatch,
     GapReportRow,
+    InvestigationRequest,
+    InvestigationSource,
     LinkCreate,
     LinkPatch,
     OriginRecord,
@@ -56,10 +59,14 @@ class ClaimService:
         matter_id: UUID | str,
         package_loader: Callable[[], LegalSourcePackage | None],
         record_loader: Callable[[str, str], dict | None] | None = None,
+        investigation_scope_loader=None,
+        investigation_exchange=None,
     ):
         self.matter_id = UUID(str(matter_id))
         self.package_loader = package_loader
         self.record_loader = record_loader
+        self.investigation_scope_loader = investigation_scope_loader
+        self.investigation_exchange = investigation_exchange
         Path(store_dir).mkdir(parents=True, exist_ok=True)
         self.db_path = Path(store_dir) / "legal.sqlite"
         with self._connect() as conn:
@@ -419,14 +426,179 @@ class ClaimService:
         return self._mutate(claim_id, body.expected_revision, actor, "followup_added", edit)
 
     def patch_followup(self, claim_id, followup_id, body: FollowupPatch, *, actor: str):
-        return self._mutate(
-            claim_id,
-            body.expected_revision,
-            actor,
-            "followup_updated",
-            lambda record: self._set_status(
-                record.followups, "followup_id", followup_id, body.status
-            ),
+        def edit(record):
+            plan = self._followup(record, followup_id)
+            if (
+                plan.investigation
+                and plan.investigation.state == "prepared"
+                and body.status != "open"
+            ):
+                raise ValueError(
+                    "Confirm the pending dispatch before closing this investigation plan."
+                )
+            plan.status = body.status
+
+        return self._mutate(claim_id, body.expected_revision, actor, "followup_updated", edit)
+
+    @staticmethod
+    def _followup(record, followup_id):
+        for plan in record.followups:
+            if str(plan.followup_id) == str(followup_id):
+                return plan
+        raise ClaimNotFound(str(followup_id))
+
+    def _save_investigation(self, claim_id, followup_id, key, actor, result=None, error=None):
+        # Merge the acknowledgement into the latest aggregate. Other owner edits
+        # during HTTP must neither be overwritten nor discard the remote request.
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            record = self._get(conn, claim_id)
+            plan = self._followup(record, followup_id)
+            saved = plan.investigation
+            if saved is None or saved.idempotency_key != key:
+                raise ValueError("Investigation dispatch identity changed.")
+            updated = saved.model_copy(deep=True)
+            if result is not None:
+                if saved.request_id is not None and saved.request_id != result.request_id:
+                    raise ValueError("Investigation acknowledgement identity changed.")
+                # Concurrent responses cannot regress a newer remote status.
+                if saved.remote_updated_at is None or result.updated_at >= saved.remote_updated_at:
+                    updated.state = "acknowledged"
+                    updated.request_id = result.request_id
+                    updated.remote_status = result.status
+                    updated.remote_updated_at = result.updated_at
+                    updated.results = result.results
+                updated.last_error = None
+            else:
+                updated.last_error = error
+            if updated != saved:
+                plan.investigation = updated
+                record.revision += 1
+                record.updated_at = datetime.now(UTC)
+                self._project(record, resolve_origin=False)
+                conn.execute(
+                    "UPDATE legal_claim SET revision=?,record_json=? WHERE claim_id=?",
+                    (record.revision, self._persisted(record), str(record.claim_id)),
+                )
+                self._revision(
+                    conn,
+                    record,
+                    actor,
+                    "investigation_confirmed" if result else "investigation_pending",
+                )
+        return self._project(record)
+
+    def dispatch_followup(
+        self, claim_id, followup_id, expected_revision, *, actor, actor_uid, actor_username
+    ):
+        from legal_workspace.services.probata_investigations import exchange
+        from legal_workspace.services.probata_records import ProbataUnavailable, list_records
+
+        with self._connect() as conn:
+            current = self._get(conn, claim_id)
+        plan = self._followup(current, followup_id)
+        if plan.kind != "investigate" or plan.status != "open":
+            raise ValueError("Only an open investigation plan can be dispatched.")
+        if plan.investigation is not None and plan.investigation.state == "acknowledged":
+            return self._project(current)
+        if plan.investigation is None:
+            if current.revision != expected_revision:
+                raise ClaimRevisionConflict(current.revision)
+            listing = (self.investigation_scope_loader or list_records)(
+                current.origin.kind if current.origin else "entity"
+            )
+            if not listing.available or not listing.matter_id or not listing.court_case_id:
+                raise ValueError(
+                    "Native Probata case scope is unavailable. Refresh the connection before dispatching."
+                )
+            sources = []
+            if current.origin:
+                match = next(
+                    (
+                        row
+                        for row in listing.records
+                        if row.origin.record_id == current.origin.record_id
+                    ),
+                    None,
+                )
+                if match is None and listing.truncated and self.record_loader is not None:
+                    # The current page is bounded; resolve this exact native ID
+                    # through the same validated reader instead of inventing a source.
+                    try:
+                        match = self._origin_record(current.origin)
+                    except ValueError:
+                        match = None
+                if match is None or match.origin.record_version != current.origin.record_version:
+                    raise ValueError(
+                        "The linked Probata source is unavailable or changed. Review it before dispatching."
+                    )
+                sources = [
+                    InvestigationSource(
+                        kind=current.origin.kind,
+                        record_id=current.origin.record_id,
+                        record_version=current.origin.record_version,
+                    )
+                ]
+            prepared = FollowupInvestigation(
+                idempotency_key=uuid4(),
+                actor_uid=actor_uid,
+                actor_username=actor_username,
+                request=InvestigationRequest(
+                    mode=listing.mode,
+                    matter_id=listing.matter_id,
+                    court_case_id=listing.court_case_id,
+                    legal_matter_id=self.matter_id,
+                    claim_id=current.claim_id,
+                    followup_id=plan.followup_id,
+                    question=plan.description,
+                    sources=sources,
+                ),
+            )
+
+            def prepare(record):
+                target = self._followup(record, followup_id)
+                if (
+                    target.status != "open"
+                    or target.kind != "investigate"
+                    or target.investigation is not None
+                ):
+                    raise ValueError("The investigation plan changed before dispatch.")
+                target.investigation = prepared
+
+            current = self._mutate(
+                claim_id, expected_revision, actor, "investigation_prepared", prepare
+            )
+            plan = self._followup(current, followup_id)
+        frozen = plan.investigation
+        try:
+            result = (self.investigation_exchange or exchange)(frozen, write=True)
+        except ProbataUnavailable as exc:
+            return self._save_investigation(
+                claim_id, followup_id, frozen.idempotency_key, actor, error=str(exc)
+            )
+        return self._save_investigation(
+            claim_id, followup_id, frozen.idempotency_key, actor, result=result
+        )
+
+    def refresh_followup(self, claim_id, followup_id, expected_revision, *, actor):
+        from legal_workspace.services.probata_investigations import exchange
+        from legal_workspace.services.probata_records import ProbataUnavailable
+
+        with self._connect() as conn:
+            current = self._get(conn, claim_id)
+        if current.revision != expected_revision:
+            raise ClaimRevisionConflict(current.revision)
+        frozen = self._followup(current, followup_id).investigation
+        if frozen is None or frozen.request_id is None:
+            raise ValueError("Dispatch and confirm this investigation before refreshing status.")
+        try:
+            result = (self.investigation_exchange or exchange)(frozen, write=False)
+        except ProbataUnavailable as exc:
+            return self._save_investigation(
+                claim_id, followup_id, frozen.idempotency_key, actor, error=str(exc)
+            )
+        return self._save_investigation(
+            claim_id, followup_id, frozen.idempotency_key, actor, result=result
         )
 
     @staticmethod

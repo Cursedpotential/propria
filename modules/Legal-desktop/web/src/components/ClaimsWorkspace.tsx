@@ -19,9 +19,17 @@ type EvidenceLink = {
   context_reference: string; note: string; validation_status: string; active: boolean;
 };
 type Gap = { gap_id: string; description: string; status: "open" | "resolved" };
+type Investigation = {
+  state: "prepared" | "acknowledged"; request_id: string | null;
+  remote_status: "received" | "running" | "completed" | "failed" | "cancelled" | null;
+  remote_updated_at: string | null; last_error: string | null;
+  request: { question: string; mode: string; matter_id: string; court_case_id: string };
+  results: { summary: string; sources: { kind: string; record_id: string; record_version: string }[]; tool: string; run_id: string }[];
+};
 type Followup = {
   followup_id: string; kind: FollowupKind; description: string;
   gap_id: string | null; status: "open" | "done" | "cancelled";
+  investigation?: Investigation | null;
 };
 type Claim = {
   claim_id: string; revision: number; text: string; kind: ClaimKind; claimant: string;
@@ -39,10 +47,14 @@ type History = { revision: number; actor: string; action: string; occurred_at: s
 const emptyFields: ClaimFields = { text: "", kind: "assertion", claimant: "", response: "" };
 const kinds: Record<ClaimKind, string> = { assertion: "Factual statement", allegation: "Allegation", question: "Question", theory: "Working theory" };
 const relationships: Record<Relationship, string> = { supports: "Supports", partial: "Partially supports", contradicts: "Contradicts", context: "Context" };
-const followupKinds: Record<FollowupKind, string> = { locate_document: "Locate a document", investigate: "Plan an evidence investigation", research: "Research a legal question", discovery: "Prepare discovery" };
+const followupKinds: Record<FollowupKind, string> = { locate_document: "Locate a document", investigate: "Evidence investigation", research: "Research a legal question", discovery: "Prepare discovery" };
 const evidenceLabels: Record<string, string> = {
   evidence_needed: "Evidence needed", evidence_linked: "Evidence linked", partially_supported: "Partially supported",
   conflicting_evidence: "Conflicting evidence", context_only: "Context only",
+};
+const investigationLabels: Record<string, string> = {
+  received: "Received by Probata", running: "In progress", completed: "Completed",
+  failed: "Needs attention", cancelled: "Cancelled in Probata",
 };
 function fieldsOf(claim: Claim): ClaimFields { return { text: claim.text, kind: claim.kind, claimant: claim.claimant, response: claim.response }; }
 function statusLabel(status: string) { return evidenceLabels[status] ?? "Review needed"; }
@@ -280,6 +292,37 @@ export function ClaimsWorkspace() {
     } catch (exc) { if (current === generation.current) showError(exc); }
     finally { if (current === generation.current) setBusy(false); }
   }
+  async function investigationAction(followupId: string, refreshStatus = false) {
+    if (!selected || !canMutate) return;
+    const current = generation.current;
+    const claimId = selected.claim_id;
+    listingGeneration.current += 1;
+    setBusy(true); setError(""); setConflict(false); setNotice("");
+    try {
+      const action = refreshStatus ? "refresh-status" : "dispatch";
+      const claim = await request<Claim>(`/v1/claims/${claimId}/followups/${followupId}/${action}`,
+        json("POST", { expected_revision: selected.revision }));
+      if (current !== generation.current) return;
+      setSelected(claim); setFields(fieldsOf(claim)); setHistory(null);
+      setClaims(rows => rows.map(row => row.claim_id === claimId ? claim : row));
+      const result = claim.followups.find(row => row.followup_id === followupId)?.investigation;
+      if (result?.last_error) setNotice(result.last_error);
+      else setNotice(refreshStatus ? "Investigation status refreshed." : result?.request_id ? "Probata received the investigation request." : "Request prepared. Retry sending when the connection returns.");
+      try { await refresh(); } catch { /* The returned request state is already saved. */ }
+    } catch (exc) {
+      if (current !== generation.current) return;
+      showError(exc);
+      // A lost HTTP acknowledgement can still leave a durable prepared request.
+      // Recover that state without clearing unsaved secondary forms.
+      try {
+        const latest = await request<Claim>(`/v1/claims/${claimId}`);
+        if (current === generation.current) {
+          setSelected(latest); setFields(fieldsOf(latest));
+          setClaims(rows => rows.map(row => row.claim_id === claimId ? latest : row));
+        }
+      } catch { /* Keep the current response and readable error until retry. */ }
+    } finally { if (current === generation.current) setBusy(false); }
+  }
   async function openProbata(record: ProbataRecord) {
     if (busy || (dirty && !window.confirm("Discard unsaved changes and open the legal response for this Probata record?"))) return;
     const current = ++generation.current;
@@ -379,7 +422,28 @@ export function ClaimsWorkspace() {
           <section className={styles.section} aria-label="Evidence gaps"><h2>What is missing?</h2>{selected.gaps.length === 0 && <p className={styles.muted}>Record the specific proof or answer you still need.</p>}{selected.gaps.map(gap => <article className={styles.item} key={gap.gap_id}><div className={styles.itemHeader}><strong>{gap.description}</strong><span className={styles.badge}>{gap.status === "open" ? "Open" : "Resolved"}</span></div><button disabled={!canMutate} onClick={() => void mutate(`/gaps/${gap.gap_id}`, "PATCH", { status: gap.status === "open" ? "resolved" : "open" }, gap.status === "open" ? "Gap marked resolved." : "Gap reopened.")}>{gap.status === "open" ? "Mark resolved" : "Reopen gap"}</button></article>)}
             <form className={styles.form} onSubmit={event => { event.preventDefault(); void mutate("/gaps", "POST", { description: gapText }, "Evidence gap saved.", () => setGapText("")); }}><label>Missing evidence or unanswered question<textarea rows={2} value={gapText} maxLength={5000} disabled={!canMutate} onChange={event => setGapText(event.target.value)} /></label><button disabled={!canMutate || !gapText.trim()} type="submit">Add gap</button></form>
           </section>
-          <section className={styles.section} aria-label="Follow-up plans"><h2>Follow-up</h2>{selected.followups.length === 0 && <p className={styles.muted}>Plan the next action for this claim. Investigation and discovery entries here are saved plans.</p>}{selected.followups.map(followup => <article className={styles.item} key={followup.followup_id}><div className={styles.itemHeader}><strong>{followupKinds[followup.kind]}</strong><span className={styles.badge}>{followup.status === "open" ? "Planned" : followup.status === "done" ? "Done" : "Cancelled"}</span></div><p>{followup.description}</p><div className={styles.actions}>{followup.status === "open" ? <><button disabled={!canMutate} onClick={() => void mutate(`/followups/${followup.followup_id}`, "PATCH", { status: "done" }, "Follow-up marked done.")}>Mark done</button><button disabled={!canMutate} onClick={() => void mutate(`/followups/${followup.followup_id}`, "PATCH", { status: "cancelled" }, "Follow-up cancelled.")}>Cancel plan</button></> : <button disabled={!canMutate} onClick={() => void mutate(`/followups/${followup.followup_id}`, "PATCH", { status: "open" }, "Follow-up reopened.")}>Reopen plan</button>}</div></article>)}
+          <section className={styles.section} aria-label="Follow-up plans"><h2>Follow-up</h2>{selected.followups.length === 0 && <p className={styles.muted}>Record what to find next. Send an evidence investigation to Probata when it is ready.</p>}{selected.followups.map(followup => <article className={styles.item} key={followup.followup_id}>
+            <div className={styles.itemHeader}><strong>{followupKinds[followup.kind]}</strong><span className={styles.badge}>{followup.status === "open" ? "Planned" : followup.status === "done" ? "Done" : "Cancelled"}</span></div><p>{followup.description}</p>
+            {followup.investigation && <div aria-label="Investigation request status">
+              <span className={styles.badge}>{followup.investigation.remote_status ? investigationLabels[followup.investigation.remote_status] : "Ready to retry"}</span>
+              {followup.investigation.remote_status === "received" && <p className={styles.muted}>Waiting for execution.</p>}
+              {followup.investigation.last_error && <p className={styles.muted}>{followup.investigation.last_error}</p>}
+              <details className={styles.inspector}><summary>Request details</summary><dl>
+                <dt>Request</dt><dd>{followup.investigation.request_id || "Prepared; awaiting acknowledgement"}</dd>
+                <dt>Question sent</dt><dd>{followup.investigation.request.question}</dd>
+                <dt>Case mode</dt><dd>{followup.investigation.request.mode === "REAL" ? "Current case" : "Test case"}</dd>
+                <dt>Probata matter</dt><dd>{followup.investigation.request.matter_id}</dd>
+                <dt>Court case</dt><dd>{followup.investigation.request.court_case_id}</dd>
+                {followup.investigation.remote_updated_at && <><dt>Status updated</dt><dd>{new Date(followup.investigation.remote_updated_at).toLocaleString()}</dd></>}
+              </dl></details>
+              {followup.investigation.results?.map((result, index) => <div className={styles.item} key={index}><h3>Finding {index + 1}</h3><p>{result.summary}</p><details className={styles.inspector}><summary>Linked sources and method</summary><RecordFields record={{ sources: result.sources, tool: result.tool, run: result.run_id }} /></details></div>)}
+            </div>}
+            <div className={styles.actions}>
+              {followup.kind === "investigate" && followup.status === "open" && !followup.investigation?.request_id && <button className={styles.primary} disabled={!canMutate} onClick={() => void investigationAction(followup.followup_id)}>{followup.investigation ? "Retry send" : "Send to Probata"}</button>}
+              {followup.investigation?.request_id && <button disabled={!canMutate} onClick={() => void investigationAction(followup.followup_id, true)}>Refresh request status</button>}
+              {followup.status === "open" ? <><button disabled={!canMutate || followup.investigation?.state === "prepared"} onClick={() => void mutate(`/followups/${followup.followup_id}`, "PATCH", { status: "done" }, "Follow-up marked done.")}>Mark done</button><button disabled={!canMutate || followup.investigation?.state === "prepared"} onClick={() => void mutate(`/followups/${followup.followup_id}`, "PATCH", { status: "cancelled" }, "Follow-up cancelled.")}>Cancel plan</button></> : <button disabled={!canMutate} onClick={() => void mutate(`/followups/${followup.followup_id}`, "PATCH", { status: "open" }, "Follow-up reopened.")}>Reopen plan</button>}
+            </div>
+          </article>)}
             <form className={styles.form} onSubmit={event => { event.preventDefault(); void mutate("/followups", "POST", { kind: followupKind, description: followupText, gap_id: followupGap || null }, "Follow-up plan saved.", () => { setFollowupText(""); setFollowupGap(""); }); }}><div className={styles.fields}><label>Next action<select disabled={!canMutate} value={followupKind} onChange={event => setFollowupKind(event.target.value as FollowupKind)}>{Object.entries(followupKinds).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Related gap<select disabled={!canMutate} value={followupGap} onChange={event => setFollowupGap(event.target.value)}><option value="">General follow-up for this claim</option>{selected.gaps.filter(gap => gap.status === "open").map(gap => <option key={gap.gap_id} value={gap.gap_id}>{gap.description}</option>)}</select></label></div><label>Follow-up details<textarea rows={2} disabled={!canMutate} value={followupText} maxLength={5000} onChange={event => setFollowupText(event.target.value)} /></label><button disabled={!canMutate || !followupText.trim()} type="submit">Save follow-up plan</button></form>
           </section>
           <section className={styles.section}><button disabled={busy} onClick={() => void loadHistory()}>View saved history</button>{history && <div>{history.map(version => <details className={styles.item} key={version.revision}><summary>Version {version.revision} · {new Date(version.occurred_at).toLocaleString()}</summary><p className={styles.quote}>{version.record.text}</p>{version.record.response && <p>Response: {version.record.response}</p>}<p className={styles.muted}>{version.record.links.filter(link => link.active).length} active links · {version.record.gaps.length} gaps · {version.record.followups.length} follow-up plans</p></details>)}</div>}</section>

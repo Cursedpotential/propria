@@ -133,3 +133,15 @@ def test_claim_reader_reuses_one_upstream_snapshot_per_kind(monkeypatch, tmp_pat
     assert service.record_loader("entity", "missing-entity") is None
     assert service.record_loader("entity", "native-entity") is not None
     assert calls == ["entity"]
+
+
+def test_native_scope_preserved_separately_from_record_identity(configured):
+    from uuid import uuid4
+    data = upstream()
+    data["matter_id"] = str(uuid4())
+    data["court_case_id"] = str(uuid4())
+    with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=data))) as http:
+        result = reader.list_records("entity", client=http)
+    assert result.available
+    assert result.matter_id == data["matter_id"]
+    assert result.court_case_id == data["court_case_id"]

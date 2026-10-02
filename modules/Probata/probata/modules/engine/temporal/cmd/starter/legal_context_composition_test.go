@@ -35,3 +35,19 @@ func TestLegalContextMountLeavesExistingRoutesAndNonReadMethodsIntact(t *testing
 		t.Fatal("nil reader accepted")
 	}
 }
+
+func TestInvestigationMountRoutesReachAdjacentReceiver(t *testing.T) {
+	existing := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(202) })
+	context := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
+	routes, e := mountLegalContextRoutes(existing, context)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, request := range [][2]string{{"POST", "/legal-context/investigations"}, {"GET", "/legal-context/investigations/11111111-1111-4111-8111-111111111111"}} {
+		response := httptest.NewRecorder()
+		routes.ServeHTTP(response, httptest.NewRequest(request[0], request[1], nil))
+		if response.Code != 200 {
+			t.Fatal("receiver route not mounted", response.Code)
+		}
+	}
+}
