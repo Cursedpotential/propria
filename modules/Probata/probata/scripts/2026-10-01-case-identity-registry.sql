@@ -1,33 +1,31 @@
 -- Case identity: one identity store in registry, edited from the Workbench Case page.
 --
--- Byline: Claude Code · Opus 5.5 · 2026-10-01
--- Owner order 2026-10-01 07:56: "There needs to be a case identity page. Can update things. People,
--- profiles, aliases, phone numbers, view what's been extracted ... And that data flows throughout the
--- entire application." 07:57 design approved: Probata registry is the ONE identity store; a Case page in
--- the Workbench edits it; ingest, search, the legal desk and the toolkit read from it; edits version,
--- never overwrite. Owner 2026-09-24: "entities preserved, aliases preserved -- keep every raw form";
--- an alias is a row, never an overwrite.
+-- Byline: Claude Code · Opus 5.5 · 2026-10-01; reworked 2026-10-02 to the owner's 02:12 EDT decision.
+-- Owner order 2026-10-01 07:56/07:57: registry is the ONE identity store; a Case page in the Workbench
+-- edits it; ingest, search, the legal desk and the toolkit read it.
+-- Owner 2026-10-02 02:06: nothing is immutable until it is promoted to evidence; audit trails are always
+-- locked. 02:12: registry.entity_alias is a plain editable table: a wrong identifier is fixed in place
+-- with UPDATE, a bad row is removed with DELETE, and every add, edit and delete writes one
+-- registry.identity_change row (before, after, who, why). That log stays append-only.
 --
--- What changes
+-- What this file leaves in the database
 --   registry.norm_identifier(text)   one identifier key, the same rule as the Case Bible catalog's
 --                                    raw_duck.norm_phone (Consignatio/casebible/tools/msg_identity_20260924.sql)
---   registry.entity_alias            becomes THE per-person identifier table: names, phones, emails,
---                                    accounts. New columns: normalized (generated), status, period, basis,
---                                    change_reason, recorded_by, idempotency_key, supersedes_id. Append-only:
---                                    an edit is a new row that supersedes exactly one earlier row.
---   registry.entity_alias_current    the newest row of every alias chain (any status)
---   registry.court_case.presiding_judge  the judge on the case header
+--   registry.forbid_mutation()       the append-only guard of the two audit tables
+--   registry.entity_alias            THE per-person identifier table: names, phones, emails, accounts, every raw
+--                                    spelling its own row; columns normalized (generated), status, period, basis,
+--                                    recorded_by. Editable (UPDATE, DELETE); every change is logged.
+--   registry.entity_alias_current    plain view over entity_alias (the name the engine readers use)
 --   registry.person.short_name       the label the Case Bible tools use for a person ("Matt", "Katrina")
---   registry.identity_change         append-only before/after log for every case-header and person edit
+--   registry.court_case.presiding_judge  the judge on the case header
+--   registry.identity_change         append-only before/after log of every identifier, header and person change
 --   registry.identifier_triage       append-only owner decisions on identifiers tied to nobody (dismiss / reopen)
 --   registry.vw_case_identifier      read-only projection the Case Bible catalog reads over postgres_fdw
 --   registry.vw_identifier_dismissed identifiers whose newest triage decision is "dismissed"
 --
--- The snapshot (sql/bootstrap/schema_snapshot_20260907.sql) carries the same objects in final form:
--- the function and the two table definitions are edited in place, and the new objects sit in the
--- "case-identity registry" block at the end of the file.
---
--- Idempotent: IF NOT EXISTS / OR REPLACE / DROP CONSTRAINT IF EXISTS + ADD / repeatable GRANT.
+-- The snapshot (sql/bootstrap/schema_snapshot_20260907.sql) carries the same objects in final form.
+-- Idempotent and convergent: on a database holding the 2026-10-01 version (supersede chain,
+-- append-only entity_alias) it removes that design; run again it changes nothing.
 
 BEGIN;
 
@@ -51,60 +49,53 @@ CREATE OR REPLACE FUNCTION registry.forbid_mutation() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    RAISE EXCEPTION 'registry.% is append-only: % blocked (an edit is a new row that supersedes the old one)',
+    RAISE EXCEPTION 'registry.% is an audit trail: % blocked (append a new row instead)',
         TG_TABLE_NAME, TG_OP;
 END
 $$;
 
--- entity_alias: identifiers of every kind, versioned by supersession.
+-- The two views depend on entity_alias columns; they are rebuilt below.
+DROP VIEW IF EXISTS registry.vw_case_identifier;
+DROP VIEW IF EXISTS registry.entity_alias_current;
+
+-- entity_alias: identifiers of every kind, edited in place.
+DROP TRIGGER IF EXISTS entity_alias_append_only ON registry.entity_alias;
+DROP TRIGGER IF EXISTS entity_alias_no_truncate ON registry.entity_alias;
+ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_supersedes_fk;
+ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_chain_key;
+ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_supersedes_key;
+ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_idempotency_key_key;
+ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_text_bounds_check;
+ALTER TABLE registry.entity_alias DROP COLUMN IF EXISTS supersedes_id;
+ALTER TABLE registry.entity_alias DROP COLUMN IF EXISTS idempotency_key;
+ALTER TABLE registry.entity_alias DROP COLUMN IF EXISTS change_reason;
 ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_alias_kind_check;
 ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_alias_kind_check CHECK ((alias_kind = ANY (ARRAY['name'::text, 'phone'::text, 'email'::text, 'account'::text, 'nickname'::text, 'legal'::text, 'maiden'::text, 'handle'::text, 'misspelling'::text, 'phonetic'::text, 'initials'::text, 'other'::text])));
 ALTER TABLE registry.entity_alias ADD COLUMN IF NOT EXISTS normalized text GENERATED ALWAYS AS (registry.norm_identifier((alias_text)::text)) STORED;
 ALTER TABLE registry.entity_alias ADD COLUMN IF NOT EXISTS status text DEFAULT 'candidate'::text NOT NULL;
 ALTER TABLE registry.entity_alias ADD COLUMN IF NOT EXISTS period text;
 ALTER TABLE registry.entity_alias ADD COLUMN IF NOT EXISTS basis text;
-ALTER TABLE registry.entity_alias ADD COLUMN IF NOT EXISTS change_reason text;
 ALTER TABLE registry.entity_alias ADD COLUMN IF NOT EXISTS recorded_by text DEFAULT 'system'::text NOT NULL;
-ALTER TABLE registry.entity_alias ADD COLUMN IF NOT EXISTS idempotency_key text;
-ALTER TABLE registry.entity_alias ADD COLUMN IF NOT EXISTS supersedes_id uuid;
 ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_status_check;
 ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_status_check CHECK ((status = ANY (ARRAY['confirmed'::text, 'candidate'::text, 'retired'::text])));
-ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_text_bounds_check;
-ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_text_bounds_check CHECK (((length(btrim((alias_text)::text)) > 0) AND (octet_length((alias_text)::text) <= 512) AND ((period IS NULL) OR (octet_length(period) <= 200)) AND ((basis IS NULL) OR (octet_length(basis) <= 4000)) AND ((change_reason IS NULL) OR (octet_length(change_reason) <= 4000))));
+ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_text_bounds_check CHECK (((length(btrim((alias_text)::text)) > 0) AND (octet_length((alias_text)::text) <= 512) AND ((period IS NULL) OR (octet_length(period) <= 200)) AND ((basis IS NULL) OR (octet_length(basis) <= 4000))));
 ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_recorded_by_check;
 ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_recorded_by_check CHECK ((length(btrim(recorded_by)) > 0));
--- the supersedes FK depends on the chain key, so it is dropped first on a re-run
-ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_supersedes_fk;
-ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_chain_key;
-ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_chain_key UNIQUE (id, entity_id, alias_text);
-ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_supersedes_key;
-ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_supersedes_key UNIQUE (supersedes_id);
-ALTER TABLE registry.entity_alias DROP CONSTRAINT IF EXISTS entity_alias_idempotency_key_key;
-ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_idempotency_key_key UNIQUE (idempotency_key);
-ALTER TABLE registry.entity_alias ADD CONSTRAINT entity_alias_supersedes_fk FOREIGN KEY (supersedes_id, entity_id, alias_text) REFERENCES registry.entity_alias(id, entity_id, alias_text) ON DELETE RESTRICT;
 CREATE INDEX IF NOT EXISTS idx_alias_normalized ON registry.entity_alias USING btree (normalized);
 
-COMMENT ON COLUMN registry.entity_alias.alias_text IS 'The identifier exactly as it was seen (raw spelling kept: 810-295-9302, Matthew Salem, Me).';
+COMMENT ON COLUMN registry.entity_alias.alias_text IS 'The identifier exactly as it was seen (raw spelling kept: 810-295-9302, Matthew Salem, Me). Each spelling is its own row.';
 COMMENT ON COLUMN registry.entity_alias.normalized IS 'registry.norm_identifier(alias_text): the key every reader matches on.';
-COMMENT ON COLUMN registry.entity_alias.status IS 'confirmed = the owner said so; candidate = the data suggests it, owner to confirm; retired = no longer believed (kept, never deleted).';
+COMMENT ON COLUMN registry.entity_alias.status IS 'confirmed = the owner said so; candidate = the data suggests it, owner to confirm; retired = no longer believed.';
 COMMENT ON COLUMN registry.entity_alias.period IS 'When the identifier was in use, as known (free text, e.g. 2021-2024).';
 COMMENT ON COLUMN registry.entity_alias.basis IS 'Why we believe it.';
-COMMENT ON COLUMN registry.entity_alias.supersedes_id IS 'The earlier row of the same person and raw spelling this row replaces. Rows are never updated or deleted; the newest row of a chain is the current one (registry.entity_alias_current).';
+COMMENT ON COLUMN registry.entity_alias.recorded_by IS 'Who last wrote this row. Every add, edit and delete is logged in registry.identity_change with before, after, who and why.';
 
-CREATE OR REPLACE TRIGGER entity_alias_append_only
-    BEFORE UPDATE OR DELETE ON registry.entity_alias
-    FOR EACH ROW EXECUTE FUNCTION registry.forbid_mutation();
-CREATE OR REPLACE TRIGGER entity_alias_no_truncate
-    BEFORE TRUNCATE ON registry.entity_alias
-    FOR EACH STATEMENT EXECUTE FUNCTION registry.forbid_mutation();
-
-CREATE OR REPLACE VIEW registry.entity_alias_current AS
+CREATE VIEW registry.entity_alias_current AS
  SELECT a.id, a.entity_id, a.alias_text, a.alias_kind, a.normalized, a.status, a.period, a.basis,
-    a.change_reason, a.confidence, a.recorded_by, a.created_at, a.supersedes_id, a.provenance
-   FROM registry.entity_alias a
-  WHERE NOT EXISTS (SELECT 1 FROM registry.entity_alias s WHERE s.supersedes_id = a.id);
+    a.confidence, a.recorded_by, a.created_at, a.provenance
+   FROM registry.entity_alias a;
 
-COMMENT ON VIEW registry.entity_alias_current IS 'Newest row of every alias chain, any status. Participant resolution matches normalized against rows whose status is not retired.';
+COMMENT ON VIEW registry.entity_alias_current IS 'Every identifier row (entity_alias is edited in place). Participant resolution matches normalized against rows whose status is confirmed (or not retired).';
 
 -- person: the short label the Case Bible tools use.
 ALTER TABLE registry.person ADD COLUMN IF NOT EXISTS short_name text;
@@ -118,7 +109,7 @@ ALTER TABLE registry.court_case DROP CONSTRAINT IF EXISTS court_case_presiding_j
 ALTER TABLE registry.court_case ADD CONSTRAINT court_case_presiding_judge_check CHECK (((presiding_judge IS NULL) OR ((length(btrim(presiding_judge)) > 0) AND (length(presiding_judge) <= 200))));
 COMMENT ON COLUMN registry.court_case.presiding_judge IS 'The judge assigned to the case, as captioned (e.g. Hon. Dawn M. Weier).';
 
--- >>> BEGIN case-identity registry block (Claude Code · Opus 5.5 · 2026-10-01) >>>
+-- >>> BEGIN case-identity registry block (Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02) >>>
 
 CREATE TABLE IF NOT EXISTS registry.identity_change (
     id uuid NOT NULL,
@@ -133,14 +124,15 @@ CREATE TABLE IF NOT EXISTS registry.identity_change (
     recorded_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT identity_change_pkey PRIMARY KEY (id),
     CONSTRAINT identity_change_idempotency_key_key UNIQUE (idempotency_key),
-    CONSTRAINT identity_change_subject_table_check CHECK ((subject_table = ANY (ARRAY['registry.matter'::text, 'registry.court_case'::text, 'registry.person'::text, 'registry.entity'::text]))),
     CONSTRAINT identity_change_state_check CHECK (((jsonb_typeof(before_state) = 'object'::text) AND (jsonb_typeof(after_state) = 'object'::text))),
     CONSTRAINT identity_change_change_reason_check CHECK (((length(btrim(change_reason)) > 0) AND (octet_length(change_reason) <= 4000))),
     CONSTRAINT identity_change_recorded_by_check CHECK (((length(btrim(recorded_by)) > 0) AND (length(btrim(recorded_by_uid)) > 0))),
     CONSTRAINT identity_change_idempotency_key_check CHECK ((length(btrim(idempotency_key)) > 0))
 );
+ALTER TABLE registry.identity_change DROP CONSTRAINT IF EXISTS identity_change_subject_table_check;
+ALTER TABLE registry.identity_change ADD CONSTRAINT identity_change_subject_table_check CHECK ((subject_table = ANY (ARRAY['registry.matter'::text, 'registry.court_case'::text, 'registry.person'::text, 'registry.entity'::text, 'registry.entity_alias'::text])));
 
-COMMENT ON TABLE registry.identity_change IS 'Append-only version log for case-header and person edits from the Workbench Case page: the row before, the row after, who and why. The registry row holds the current value; this table holds every earlier one. Byline: Claude Code · Opus 5.5 · 2026-10-01.';
+COMMENT ON TABLE registry.identity_change IS 'Append-only audit trail of every change made from the Workbench Case page (and the seed): an identifier added, edited or deleted, a case-header or person edit. before_state = {} for an add, after_state = {} for a delete. The registry row holds the current value; this table holds every earlier one. Byline: Claude Code · Opus 5.5 · 2026-10-01/02.';
 
 CREATE OR REPLACE TRIGGER identity_change_append_only
     BEFORE UPDATE OR DELETE ON registry.identity_change
@@ -183,7 +175,7 @@ CREATE OR REPLACE VIEW registry.vw_identifier_dismissed AS
 
 COMMENT ON VIEW registry.vw_identifier_dismissed IS 'Identifiers whose newest owner triage decision is dismissed; the unknowns queue leaves them out.';
 
-CREATE OR REPLACE VIEW registry.vw_case_identifier AS
+CREATE VIEW registry.vw_case_identifier AS
  SELECT a.entity_id,
     COALESCE(p.short_name, (e.display_name)::text, (e.canonical_name)::text) AS person,
     COALESCE((e.display_name)::text, (e.canonical_name)::text) AS display_name,
@@ -203,32 +195,33 @@ CREATE OR REPLACE VIEW registry.vw_case_identifier AS
     a.created_at AS added_at,
     a.recorded_by,
     a.id AS alias_id
-   FROM registry.entity_alias_current a
+   FROM registry.entity_alias a
      JOIN registry.entity e ON e.id = a.entity_id
      JOIN registry.person p ON p.id = a.entity_id
   WHERE e.merged_into_id IS NULL;
 
-COMMENT ON VIEW registry.vw_case_identifier IS 'Read-only projection of every person identifier (current version of each alias chain, retired rows included with their status). The Case Bible catalog reads it over postgres_fdw as raw_duck.msg_identity_20260924, so the catalog never holds a second editable copy.';
+COMMENT ON VIEW registry.vw_case_identifier IS 'Read-only projection of every person identifier, retired rows included with their status. The Case Bible catalog reads it over postgres_fdw as raw_duck.msg_identity_20260924, so the catalog never holds a second editable copy.';
 
 -- Grants. The Proffer starter connects as platform_runtime: it reads the case and its people,
--- inserts alias / change / triage rows, and updates only the documented editable columns.
+-- writes identifiers (insert, update, delete), appends change and triage rows, and updates only the
+-- documented editable columns of the case header and the person.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE registry.entity_alias TO platform_runtime;
 GRANT SELECT, INSERT ON TABLE registry.identity_change TO platform_runtime;
 GRANT SELECT, INSERT ON TABLE registry.identifier_triage TO platform_runtime;
 GRANT SELECT ON TABLE registry.entity_alias_current TO platform_runtime;
 GRANT SELECT ON TABLE registry.vw_identifier_dismissed TO platform_runtime;
 GRANT SELECT ON TABLE registry.vw_case_identifier TO platform_runtime;
-GRANT SELECT ON TABLE registry.person TO platform_runtime;
-GRANT INSERT ON TABLE registry.person TO platform_runtime;
+GRANT SELECT, INSERT ON TABLE registry.person TO platform_runtime;
 GRANT UPDATE (title, description, status, verification_state) ON TABLE registry.matter TO platform_runtime;
 GRANT UPDATE (caption, docket_number, court_name, jurisdiction, case_type, presiding_judge, status, filed_on, closed_on, verification_state) ON TABLE registry.court_case TO platform_runtime;
-GRANT SELECT ON TABLE working.call_log TO platform_runtime;
-GRANT SELECT ON TABLE working.entity_resolution TO platform_runtime;
 GRANT UPDATE (role_in_case, connection_to, relationship_type, short_name, is_minor, notes, verification_state) ON TABLE registry.person TO platform_runtime;
 GRANT UPDATE (display_name, canonical_name, is_party) ON TABLE registry.entity TO platform_runtime;
 GRANT SELECT ON TABLE working.message TO platform_runtime;
 GRANT SELECT ON TABLE working.message_participant TO platform_runtime;
 GRANT SELECT ON TABLE working.third_party_message TO platform_runtime;
 GRANT SELECT ON TABLE working.third_party_message_participant TO platform_runtime;
+GRANT SELECT ON TABLE working.call_log TO platform_runtime;
+GRANT SELECT ON TABLE working.entity_resolution TO platform_runtime;
 GRANT ALL ON TABLE registry.identity_change TO platform_app;
 GRANT ALL ON TABLE registry.identifier_triage TO platform_app;
 GRANT ALL ON TABLE registry.entity_alias_current TO platform_app;
@@ -240,9 +233,8 @@ GRANT SELECT ON TABLE registry.vw_identifier_dismissed TO platform_reader;
 GRANT SELECT ON TABLE registry.identity_change TO platform_reader;
 GRANT EXECUTE ON FUNCTION registry.norm_identifier(text) TO PUBLIC;
 
--- The catalog's postgres_fdw login reads the projection and nothing else. The role itself is
--- created (with its password) by the apply step, outside this file: roles are cluster objects
--- and the password never enters git.
+-- The catalog's postgres_fdw login reads the projection and nothing else. The role itself (with its
+-- password) is created outside this file: roles are cluster objects and the password never enters git.
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'registry_catalog_reader') THEN
@@ -264,6 +256,8 @@ WHERE n.nspname = 'registry'
 ORDER BY c.relkind, c.relname;
 SELECT column_name, data_type, is_generated FROM information_schema.columns
 WHERE table_schema = 'registry' AND table_name = 'entity_alias' ORDER BY ordinal_position;
+SELECT privilege_type FROM information_schema.role_table_grants
+WHERE grantee = 'platform_runtime' AND table_schema = 'registry' AND table_name = 'entity_alias' ORDER BY 1;
 SELECT registry.norm_identifier('+1 (810) 268-9630') AS a, registry.norm_identifier('18102689630') AS b,
        registry.norm_identifier('810.268.9630') AS c, registry.norm_identifier('*678103533592') AS d,
        registry.norm_identifier('34428') AS e, registry.norm_identifier('Katrina Kinzel') AS f;
