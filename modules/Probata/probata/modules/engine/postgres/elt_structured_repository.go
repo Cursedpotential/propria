@@ -102,16 +102,17 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 	}()
 
 	var sourceKey, workflowID, sourceStatus, declaredFormat string
+	var byteLength int64
 	if err := session.QueryRow(ctx, `
 		SELECT CASE WHEN object.object_uri LIKE 'r2://%' OR object.object_uri LIKE 's3://%'
 		            THEN object.object_uri ELSE source.source_key END,
-		       version.workflow_id, version.status, version.declared_format
+		       version.workflow_id, version.status, version.declared_format, object.byte_length
 		FROM context.source_version version
 		JOIN context.source source ON source.id = version.source_id
 		JOIN context.retained_object object ON object.id = version.original_object_id
 		WHERE version.id = $1::uuid AND version.original_object_id = $2::uuid`,
 		sourceID, originalID,
-	).Scan(&sourceKey, &workflowID, &sourceStatus, &declaredFormat); err != nil {
+	).Scan(&sourceKey, &workflowID, &sourceStatus, &declaredFormat, &byteLength); err != nil {
 		return nil, fmt.Errorf("resolve structured elt source locator: %w", err)
 	}
 	if workflowID != req.RequestID || sourceStatus != "retained" {
@@ -123,6 +124,13 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 	sourceURL, err := duckDBSourceURL(sourceKey)
 	if err != nil {
 		return nil, err
+	}
+	if isHTMLFormat(format) && byteLength > htmlMaximumFileSize() {
+		// Measured 2026-10-02: parse_html + XPath over a 62 MB page ran past 300 s and 960 MB. The
+		// document is parsed whole inside the shared PostgreSQL, so a larger page fails closed here
+		// rather than starving every other session; it is for a streaming Activity, not this template.
+		return nil, activities.PermanentSourceError(fmt.Errorf(
+			"html source is %d bytes; the DuckDB html templates read at most %d bytes (DUCKDB_HTML_MAX_BYTES)", byteLength, htmlMaximumFileSize()))
 	}
 	if structuredELTRequiresWebbed(format) {
 		if err := ensureWebbedLoaded(ctx, session); err != nil {
@@ -165,6 +173,19 @@ func xmlMaximumFileSize() int64 {
 		}
 	}
 	return defaultXMLMaximumFileSize
+}
+
+// defaultHTMLMaximumFileSize bounds the page the html templates parse in memory inside PostgreSQL.
+const defaultHTMLMaximumFileSize = 24 << 20
+
+// htmlMaximumFileSize is configuration (DUCKDB_HTML_MAX_BYTES), like DUCKDB_XML_MAX_BYTES.
+func htmlMaximumFileSize() int64 {
+	if raw := strings.TrimSpace(os.Getenv("DUCKDB_HTML_MAX_BYTES")); raw != "" {
+		if value, err := strconv.ParseInt(raw, 10, 64); err == nil && value > 0 {
+			return value
+		}
+	}
+	return defaultHTMLMaximumFileSize
 }
 
 func structuredELTRequiresWebbed(format activities.StructuredELTFormat) bool {

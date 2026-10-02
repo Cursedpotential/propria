@@ -29,6 +29,10 @@ func permanent(err error) error {
 	return permanentFailure{err: err}
 }
 
+// PermanentSourceError is permanent for callers outside this package: a repository
+// that proves, before running anything, that the source cannot be read by its template.
+func PermanentSourceError(err error) error { return permanent(err) }
+
 // duckDBDeterministicErrors are DuckDB error classes raised by the query or the
 // content it reads. "IO Error", "HTTP Error" and out-of-memory are deliberately
 // absent: storage, network and capacity trouble can clear on its own.

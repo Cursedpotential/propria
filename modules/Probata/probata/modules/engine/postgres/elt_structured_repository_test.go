@@ -318,3 +318,18 @@ func TestGenericHTMLDocumentQueryIsDocumentShaped(t *testing.T) {
 		t.Fatal("HTML templates need the webbed extension check")
 	}
 }
+
+func TestHTMLMaximumFileSizeIsConfigurableAndBounded(t *testing.T) {
+	t.Setenv("DUCKDB_HTML_MAX_BYTES", "")
+	if htmlMaximumFileSize() != 24<<20 {
+		t.Fatalf("default = %d", htmlMaximumFileSize())
+	}
+	t.Setenv("DUCKDB_HTML_MAX_BYTES", "1048576")
+	if htmlMaximumFileSize() != 1<<20 {
+		t.Fatalf("override = %d", htmlMaximumFileSize())
+	}
+	t.Setenv("DUCKDB_HTML_MAX_BYTES", "not-a-number")
+	if htmlMaximumFileSize() != 24<<20 {
+		t.Fatalf("invalid value must fall back, got %d", htmlMaximumFileSize())
+	}
+}
