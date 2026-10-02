@@ -40,7 +40,7 @@ create table if not exists raw_duck.bucket_objects (
 comment on table raw_duck.bucket_objects is
   'Every object of every bucket (B2 and R2), one row per object per listing generation. Loaded by casebible/tools/bucket_objects_load.py from rclone lsjson of the WHOLE bucket. Use bucket_objects_current for the newest listing of each bucket. Supersedes b2_objects (intake only, 2026-09-14), vault_objects_20260916_rN and casevault_objects for new work.';
 create temp table bo_in (key text, size bigint, sha1 text, md5 text, modtime text);
-\copy bo_in from '/tmp/bucket_objects_in.tsv' with (format text)
+\copy bo_in from '@INFILE@' with (format text)
 insert into raw_duck.bucket_objects (provider, bucket, key, size, sha1, md5, modtime, listed_at)
 select :'provider', :'bucket', key, size, nullif(sha1, ''), nullif(md5, ''), nullif(modtime, '')::timestamptz,
        :'listed_at'::timestamptz
@@ -85,12 +85,13 @@ def main() -> int:
     os.chmod(tsv, 0o644)  # docker cp keeps the mode; psql runs as the postgres user
     pg = subprocess.run("docker ps --format '{{.Names}}' | grep ^casebible-pg", shell=True, capture_output=True,
                         text=True, check=True).stdout.split()[0]
-    subprocess.run(["docker", "cp", tsv, f"{pg}:/tmp/bucket_objects_in.tsv"], check=True)
+    infile = f"/tmp/bucket_objects_in_{provider}_{bucket}_{os.getpid()}.tsv"  # parallel loads must not share a file
+    subprocess.run(["docker", "cp", tsv, f"{pg}:{infile}"], check=True)
     os.unlink(tsv)
     r = subprocess.run(["docker", "exec", "-i", pg, "psql", "-U", "postgres", "-d", "casebible", "-At",
                         "-v", f"provider={provider}", "-v", f"bucket={bucket}", "-v", f"listed_at={listed_at}"],
-                       input=SQL, text=True, capture_output=True)
-    subprocess.run(["docker", "exec", "-u", "root", pg, "rm", "-f", "/tmp/bucket_objects_in.tsv"])
+                       input=SQL.replace("@INFILE@", infile), text=True, capture_output=True)
+    subprocess.run(["docker", "exec", "-u", "root", pg, "rm", "-f", infile])
     sys.stdout.write(f"parsed {n} objects from {listing} (listed_at {listed_at})\n{r.stdout}")
     sys.stderr.write(r.stderr)
     return r.returncode
