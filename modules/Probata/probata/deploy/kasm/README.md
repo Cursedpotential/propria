@@ -44,10 +44,10 @@ ssh -i ~/.ssh/ovh root@100.91.190.107 python3 /data/probata/kasm-installer/regis
 
 - **Devbox** (`workspaces/devbox.json`): the `probata-devbox` image, 2 CPU / 4 GB to start (owner 2026-10-02).
   - The home `/data/probata/volumes/devbox/home` is a volume mapping onto `/home/kasm-user`, not a Kasm persistent profile. Kasm 1.19 insists on `{username}` in a profile path.
-  - It shares that home with the Coolify devbox container until that container's desktop is retired (brief step 5).
+  - It shares that home with the always-on Coolify devbox container. The workspace sets `DEVBOX_KASM_SESSION=1`, so its sessions skip Syncthing and the memsearch indexer, which only the Coolify container runs.
   - The corpus read-only mounts slot is marked and waits on the owner.
 - **Sandbox** (`workspaces/sandbox.json`): Kasm's core Ubuntu Noble desktop. It is ephemeral, with no mounts.
-- **Devbox (RDP)** (`workspaces/guacamole-devbox-rdp.json`): a Server workspace. Kasm's Guacamole proxy connects over RDP to the devbox's xrdp on `100.91.190.107:13389` as `kasm-user`.
+- **Devbox (RDP)** (`workspaces/guacamole-devbox-rdp.json`): a Server workspace. Kasm's Guacamole proxy connects over RDP to the devbox's xrdp on `100.91.190.107:13389` as `kasm-user`, and shows the XFCE desktop (proven 2026-10-02). The xrdp fixes are in the devbox image: no `pam_systemd`, `xrdp-startwm.sh`, and a system D-Bus.
   - The password comes from `/data/probata/secrets/devbox/xrdp.env`. The devbox sets it at start, and the register script stores it in Kasm's server record.
 - Live proofs:
   - `session_proof.py <workspace>` launches the workspace twice and checks that a marker written in the home survives.

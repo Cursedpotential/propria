@@ -4052,9 +4052,26 @@ Open, for the owner:
 - **Fixed on the way:**
   - root-owned `~/.npm` and `~/.cache` in the home volume were chowned to uid 1000;
   - `~/.xsession` was missing from the volume. Created now; `custom_startup.sh` creates it from the next deploy (`db80dd39`).
-- [ ] **Devbox (RDP) does not show a desktop yet.** Guacamole connects and xrdp authenticates. Then, inside the devbox container, sesman times out waiting for Xorg `:10` (Xorg logs `dbus-core: no system bus`), and the session closes. The devbox has no system D-Bus. Next is a declared fix (start a system dbus in `custom_startup.sh`, or point xrdp's startwm at `startxfce4` with `dbus-launch`), then a guarded redeploy. A manual test of `dbus-daemon --system` in the running container did not start one.
+- [x] **Devbox (RDP) works:** see the 10:30–11:00 entry below.
 - [ ] **ContextForge:** raise the `coolify-write` gateway's tool timeout above about 60 s, so guarded deploys report their real result.
 - [ ] **Owner:** rotate the Kasm `admin@kasm.local` password. My `pgrep -af` printed it from the installer's argv into the transcript (transcript only, not git).
-- [ ] **Step 5** (retire `exec-desktop`/`svc:desk` and the single-container devbox tile, by stop or rename only): Devbox and Sandbox are proven. The tile change belongs to the portal lane.
-  - Note: Kasm Devbox sessions and the Coolify devbox container share one home and both start Syncthing and the memsearch indexer. The Coolify container keeps building the image and hosts ttyd and the reserved listener.
+- [x] **Step 5:** done in the 10:30–11:00 entry below.
 - [ ] Corpus read-only mounts: the owner names the paths.
+
+## 2026-10-02 10:30–11:00 EDT — Devbox (RDP) desktop, shared-home services, step 5 retirements (parent order, owner GO 08:39)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02 (agent `kasm-devbox`)._
+
+- **Devbox (RDP) works on the clean image.** Devbox deploy `dni65rfrjh28z9vcocnsefwo` (commit `14a0493c`, guard SAFE first) carries three fixes:
+  - `pam_systemd` is commented out in `/etc/pam.d/common-session`. It waited for logind, so every RDP login timed out on the X server.
+  - Our own `/etc/xrdp/startwm.sh` gives XFCE a private ICE authority file, because root-run KasmVNC desktops rewrite `~/.ICEauthority`.
+  - A system D-Bus starts in `custom_startup.sh`.
+  - Screenshot: Probata `docs/receipts/2026-10-02-kasm-proof/04-rdp-session.png`, Kasm's Guacamole showing the XFCE desktop. The Guacamole server record needed `connection_info.guac.type = rdp`, which `register_kasm.py` now keeps in sync.
+- **Shared home:** the Kasm Devbox workspace sets `DEVBOX_KASM_SESSION=1`, and `custom_startup.sh` then skips Syncthing and the memsearch loop.
+  - Live check: in a Kasm session syncthing=0 and memsearch loop=0; the Coolify devbox has syncthing=2 and memsearch loop=1.
+  - `register_kasm.py` now updates an existing workspace's run config and volume mappings.
+- **Step 5:**
+  - `exec-desktop` (`t130q2xn4r1tux3huee9gal1`, ovh-app) is stopped with no cleanup and renamed `retired-2026-10-02-exec-desktop`, with a description. Not deleted. `https://desk.tilapia-skilift.ts.net` now answers 502. The `svc:desk` registration is left as it was.
+  - Portal (`be85587d`, deploy `njf80a6u5lu4o0atfedphkkd`): the Devbox tile opens `https://kasm.tilapia-skilift.ts.net/` on the tailnet portal and `https://kasm.int.mitechconsult.com/` on the public one (checked through each instance's `/api/services`). The Sandbox desktop tile is removed.
+  - The Coolify devbox app stays, as the always-on host.
+- **Installed plugin copies:** `tools/sync_installs.py --check` exits 0. coolify-write 1.4.0 (Claude Code and Codex) includes the guard.
