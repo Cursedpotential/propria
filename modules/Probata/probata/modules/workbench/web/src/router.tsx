@@ -32,6 +32,8 @@ function applicationRoute(path: string, importer: () => Promise<{ default: React
 
 const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/", component: HomePage }),
+  // The Case page over registry, the one identity store (Claude Code · Opus 5.5 · 2026-10-01).
+  applicationRoute("case", () => import("@/app/case/page")),
   applicationRoute("classification-test", () => import("@/app/classification-test/page")),
   applicationRoute("copilot", () => import("@/app/copilot/page")),
   applicationRoute("evidence-queue", () => import("@/app/evidence-queue/page")),
