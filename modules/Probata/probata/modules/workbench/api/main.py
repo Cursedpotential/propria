@@ -3,6 +3,7 @@
 # Byline: Codex · GPT-5 · 2026-08-27 (durable run-event SSE proxy)
 # Byline: Claude Code · Opus 5.5 · 2026-09-26 (repair workflow builder routes, /api/proffer/repair/*)
 # Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-23 restored the byline above; DF-24 Graphiti removed, DD-06 docstring)
+# Byline: Claude Code · Opus 5.5 · 2026-10-01 (case identity routes, /api/case-identity/*)
 """Probata Workbench API entrypoint — the backend of Sources and Review.
 
 Sources (steps 1-4) browses the configured object stores, inspects and hashes
@@ -20,6 +21,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.runtime import (
+    case_identity,
     case_management,
     chat,
     classification,
@@ -134,6 +136,7 @@ app.include_router(run_events.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
 app.include_router(case_management.router)
+app.include_router(case_identity.router)  # /api/case-identity/* — the Case page over registry (Claude Code · Opus 5.5 · 2026-10-01)
 app.include_router(chat.router)
 app.include_router(tools.router)
 app.include_router(repairs.router)

@@ -180,6 +180,15 @@ func run() error {
 	if routes, err = mountEntityExtractionRoutes(routes, extractionRoutes); err != nil {
 		return err
 	}
+	// Case identity: the Workbench Case page reads and edits registry, the one
+	// identity store. Byline: Claude Code · Opus 5.5 · 2026-10-01
+	caseIdentityRoutes, err := caseIdentityHandler(pool, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountCaseIdentityRoutes(routes, caseIdentityRoutes); err != nil {
+		return err
+	}
 
 	// Tailnet-only listener (owner directive 2026-09-07; D-134). With the
 	// rollout flag on, the starter's only socket belongs to its own Tailscale

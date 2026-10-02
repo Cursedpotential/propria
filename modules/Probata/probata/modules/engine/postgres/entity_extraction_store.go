@@ -744,11 +744,15 @@ ORDER BY occurred_at, id LIMIT $3`, generationScopeTable, generationID, maxCurre
 }
 
 // ---- registry reads --------------------------------------------------------
+//
+// Aliases are read from registry.entity_alias_current (the newest row of each
+// alias chain the Workbench Case page writes) and retired ones are left out.
+// Claude Code · Opus 5.5 · 2026-10-01
 
 const registrySelectSQL = `SELECT e.id::text, coalesce(e.display_name::text, e.canonical_name::text, ''), e.entity_type::text,
        coalesce(e.normalized_name::text, ''),
        coalesce((SELECT json_agg(json_build_object('text', a.alias_text::text, 'kind', coalesce(a.alias_kind, 'other')) ORDER BY a.alias_text::text)
-                 FROM registry.entity_alias a WHERE a.entity_id = e.id), '[]'::json)
+                 FROM registry.entity_alias_current a WHERE a.entity_id = e.id AND a.status <> 'retired'), '[]'::json)
 FROM registry.entity e`
 
 func scanRegistry(rows pgx.Rows) ([]entities.RegistryEntity, error) {
@@ -784,7 +788,7 @@ func (s *EntityExtractionStore) Registry(ctx context.Context, lookup service.Reg
 	rows, err := s.db.Query(ctx, registrySelectSQL+`
 WHERE e.merged_into_id IS NULL
   AND (e.id = ANY($1::uuid[]) OR e.normalized_name::text = ANY($2::text[])
-       OR EXISTS (SELECT 1 FROM registry.entity_alias a WHERE a.entity_id = e.id AND lower(a.alias_text::text) = ANY($3::text[])))
+       OR EXISTS (SELECT 1 FROM registry.entity_alias_current a WHERE a.entity_id = e.id AND a.status <> 'retired' AND lower(a.alias_text::text) = ANY($3::text[])))
 ORDER BY e.id LIMIT 5000`, ids, uniqueStrings(lookup.NormalizedNames), uniqueStrings(lookup.AliasTexts))
 	if err != nil {
 		return nil, err
@@ -801,7 +805,7 @@ func (s *EntityExtractionStore) SearchRegistry(ctx context.Context, query string
 	rows, err := s.db.Query(ctx, registrySelectSQL+`
 WHERE e.merged_into_id IS NULL
   AND ($1 = '%%' OR coalesce(e.display_name::text, e.canonical_name::text, '') ILIKE $1
-       OR EXISTS (SELECT 1 FROM registry.entity_alias a WHERE a.entity_id = e.id AND a.alias_text::text ILIKE $1))
+       OR EXISTS (SELECT 1 FROM registry.entity_alias_current a WHERE a.entity_id = e.id AND a.status <> 'retired' AND a.alias_text::text ILIKE $1))
 ORDER BY coalesce(e.display_name::text, e.canonical_name::text, ''), e.id LIMIT $2`, pattern, limit)
 	if err != nil {
 		return nil, err
