@@ -16,7 +16,19 @@ func legalContextHandler(pool platformpostgres.DB, serviceTokenFile string) (htt
 	if err != nil {
 		return nil, err
 	}
-	return handler.Routes(), nil
+	investigations, err := platformpostgres.NewInvestigationRequestStore(pool)
+	if err != nil {
+		return nil, err
+	}
+	receiver, err := runtimeapi.NewInvestigationHTTPHandler(investigations, serviceTokenFile)
+	if err != nil {
+		return nil, err
+	}
+	mux := http.NewServeMux()
+	mux.Handle(runtimeapi.LegalContextRoutePattern, handler.Routes())
+	mux.Handle(runtimeapi.InvestigationCreateRoutePattern, receiver.Routes())
+	mux.Handle(runtimeapi.InvestigationReadRoutePattern, receiver.Routes())
+	return mux, nil
 }
 
 func mountLegalContextRoutes(existing, legalContext http.Handler) (http.Handler, error) {
@@ -25,6 +37,8 @@ func mountLegalContextRoutes(existing, legalContext http.Handler) (http.Handler,
 	}
 	mux := http.NewServeMux()
 	mux.Handle(runtimeapi.LegalContextRoutePattern, legalContext)
+	mux.Handle(runtimeapi.InvestigationCreateRoutePattern, legalContext)
+	mux.Handle(runtimeapi.InvestigationReadRoutePattern, legalContext)
 	mux.Handle("/", existing)
 	return mux, nil
 }
