@@ -736,6 +736,11 @@ Items moved off [URGENT-TODO.md](URGENT-TODO.md) (owner 2026-10-02 19:18 EDT: "c
 - **Step 5:** done in the 10:30–11:00 entry below.
   - _Proof (2026-10-02 triage):_ Checked box; points to 10:30-11:00 entry (step 5 retirements)
 
+### 2026-10-02 — Intake test data from 2026-09-17/18 purged (owner 19:31 EDT "fix")
+
+- Purge the Intake engine and UI test data of 2026-09-17/18 (was two open items under "From: 2026-09-17" and one under "From: 2026-09-18"): the overlay rows in `raw_duck.intake_fs_ops_20260917`, B2 `salem-data/_intake-engine-test-20260917/` and `salem-data/intake-catalog-added/`, `/data/probata/build/intake-verify/` (incl. `v18/`), `/data/probata/build/intake-ui-base-20260918/`, the empty `/data/probata/build/intake-ui/src/apps/client/node_modules/`, and the `engine.env` smoke copy.
+  - _Proof (2026-10-02 19:40 EDT, Claude Code · Opus 5.5):_ all 5 overlay rows were test ops on the test files (`tone.mp3`, `notes.md`, a copy of `Loyalty Gift Cards and Offers.pdf`; the vault original untouched) and were deleted (`DELETE 5`, table now 0 rows); `rclone purge` of both B2 prefixes, re-listing shows 0 objects under each; both build folders and the empty `node_modules` removed (`ls /data/probata/build` = ghcr_push.sh, intake-engine, intake-ui, platform, weaviate-ui); `engine.env` was already gone (`find` over /data/probata, /data/consignatio, /root finds none). See LOG.md, 2026-10-02 19:18 entry.
+
 ## Superseded or cancelled
 
 Replaced by a later owner decision; not done as written.

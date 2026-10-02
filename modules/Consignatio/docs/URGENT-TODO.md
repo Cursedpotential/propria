@@ -140,10 +140,6 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 
 ### From: 2026-09-17 09:57 EDT — merge and move `Propria/projects/consignatio` (owner: "merge and move", "ensure we don't lose anything")
 
-- [ ] TEST DATA NOT PURGED: the guard hook refuses every removal or quarantine command. Owner removes: `b2/salem-data/_intake-engine-test-20260917/` (test files, a copy of the vault PDF, the relocated imports), the empty `b2/salem-data/intake-catalog-added/` tree, the overlay rows in `raw_duck.intake_fs_ops_20260917` (all from this test; the catalog listing is already back to its original state), `/data/probata/build/intake-verify/` (headless profile and screenshots showing catalog paths) and `/data/probata/secrets/intake-engine/engine.env` (smoke-run copy of the Ollama key).
-
-- [ ] Owner-only removals (guard hook blocks agents): `b2/salem-data/_intake-engine-test-20260917/`, empty `b2/salem-data/intake-catalog-added/`, test rows in `raw_duck.intake_fs_ops_20260917`, `/data/probata/build/intake-verify/` and `/data/probata/secrets/intake-engine/engine.env` on ovh-files.
-
 - [ ] Chat model quality (nemotron via Portkey: reasoning leaks, wrong tool picks) — owner model choice.
 
 - [ ] Owner-only: remove `Propria/Consignatio.junction-2026-09-18-undo` and, once satisfied, the six `memory.pre-merge-20260918` backups.
@@ -153,8 +149,6 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 ### From: 2026-09-18 — Intake v1 follow-ups
 
 - [ ] Open: Chat model choice (owner). Sort-order live proof for unknown dates. `rg` content mode reads B2 objects over FUSE, so decide whether to cap or disable it in hosted mode. Deploy and wire the filesystem search service when approved.
-
-- [ ] Owner-only removals (guard hook / no-delete rule): `/data/probata/build/intake-ui-base-20260918/` (12 MB baseline source copy for the test comparison), the empty `/data/probata/build/intake-ui/src/apps/client/node_modules/` (created by a docker bind), `/data/probata/build/intake-verify/v18/` (headless profile + screenshots showing catalog paths), and the quarantined `engine.env` smoke copy above.
 
 ### From: 2026-09-18 — Intake chat model switch
 
