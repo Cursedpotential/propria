@@ -151,10 +151,22 @@ func (a BatchImportActivities) ListBatchFolder(ctx context.Context, req ListBatc
 	if err != nil {
 		return ListBatchFolderResult{}, err
 	}
-	if keys == nil {
-		keys = []string{}
+	// A derivation publishes beside its source (<source>.derived/...), so a
+	// folder that already holds one derived source lists its manifest, thread
+	// chunks and attachment files too. Those are outputs of an earlier run,
+	// never sources of this folder's batch: importing them made a run per
+	// attachment (live 2026-10-02). Keys under a ".derived/" segment below the
+	// batch prefix are dropped; a batch whose prefix IS a derived folder (the
+	// threads batch) still lists its own files, because the segment is above
+	// the prefix there. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	sources := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if strings.Contains(strings.TrimPrefix(key, req.Prefix), ".derived/") {
+			continue
+		}
+		sources = append(sources, key)
 	}
-	return ListBatchFolderResult{Keys: keys, NextCursor: nextCursor}, nil
+	return ListBatchFolderResult{Keys: sources, NextCursor: nextCursor}, nil
 }
 
 // BindImportOperation records the preview binding for one started run.

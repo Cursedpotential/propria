@@ -81,6 +81,34 @@ func TestListBatchFolderReturnsOnePageAndNeverNil(t *testing.T) {
 	require.NotNil(t, page.Keys, "a nil slice marshals to null and the BFF rejects it")
 }
 
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestListBatchFolderSkipsDerivedOutputsBelowThePrefix(t *testing.T) {
+	keys := []string{
+		"cv/8102959302/sms-a.xml",
+		"cv/8102959302/sms-a.xml.derived/manifest.json",
+		"cv/8102959302/sms-a.xml.derived/media/0a.png",
+		"cv/8102959302/sms-b.xml",
+	}
+	batch := BatchImportActivities{
+		Lister: func(_ context.Context, _, _, prefix, _ string, _ int32) ([]string, string, error) {
+			out := []string{}
+			for _, k := range keys {
+				if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
+					out = append(out, k)
+				}
+			}
+			return out, "", nil
+		},
+	}
+	folder, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "b", Prefix: "cv/8102959302/"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"cv/8102959302/sms-a.xml", "cv/8102959302/sms-b.xml"}, folder.Keys)
+
+	derived, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "b", Prefix: "cv/8102959302/sms-a.xml.derived/media/"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"cv/8102959302/sms-a.xml.derived/media/0a.png"}, derived.Keys, "a batch over a derived folder still lists its files")
+}
+
 func TestListBatchFolderRejectsAnIncompleteLocatorWithoutRetrying(t *testing.T) {
 	batch := BatchImportActivities{
 		Lister: func(context.Context, string, string, string, string, int32) ([]string, string, error) {
