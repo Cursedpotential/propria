@@ -95,6 +95,10 @@ def main(wait_minutes: int) -> int:
     if status != "finished":
         return 1
 
+    return verify(cw)
+
+
+def verify(cw) -> int:
     app_status = None
     for _ in range(20):
         app_status = cw.get_application(APP).get("status")
@@ -104,14 +108,24 @@ def main(wait_minutes: int) -> int:
     print(f"  app status: {app_status}")
 
     with dba("postgres") as c, c.cursor() as cur:
-        cur.execute("select pg_postmaster_start_time()::timestamp(0), current_setting('duckdb.postgres_role', true)")
-        start, role = cur.fetchone()
+        cur.execute("select pg_postmaster_start_time()::timestamp(0)")
+        start = cur.fetchone()[0]
         cur.execute("select rolvaliduntil from pg_roles where rolname = 'ai'")
         valid = cur.fetchone()[0]
         cur.execute("select usename, count(*) from pg_stat_activity where usename is not null group by 1 order by 1")
         sessions = cur.fetchall()
-    print(f"  server started {start} UTC; duckdb.postgres_role = {role}; ai password valid until {valid}")
+    print(f"  server started {start} UTC; ai password valid until {valid}")
     print(f"  sessions by login: {sessions}")
+
+    # duckdb.postgres_role can only be read with pg_read_all_settings, so test its effect instead:
+    # platform_dba is not in platform_duckdb, and pg_duckdb's refusal names the role when one is set.
+    with dba("platform") as c, c.cursor() as cur:
+        try:
+            cur.execute("select * from duckdb.query('select 42')")
+            print("  duckdb: platform_dba may run DuckDB (unexpected for a non-member)")
+        except psycopg2.Error as e:
+            msg = (e.pgerror or str(e)).strip().splitlines()[0]
+            print(f"  duckdb refusal for a non-member: {msg[:150]}")
 
     time.sleep(20)
     log = (cw.get_application_logs(APP, lines=400).get("logs") or "").splitlines()
@@ -123,5 +137,8 @@ def main(wait_minutes: int) -> int:
 
 
 if __name__ == "__main__":
+    # --verify-only: skip the wait and the deploy, run only the checks against the running server.
+    if "--verify-only" in sys.argv:
+        sys.exit(verify(plugin()))
     wait = int(sys.argv[sys.argv.index("--wait") + 1]) if "--wait" in sys.argv else 40
     sys.exit(main(wait))
