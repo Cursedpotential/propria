@@ -3957,6 +3957,14 @@ Open, for the owner:
   - The 3 call logs from 2022 (`calls-20221104024324`, `calls-11-08-2022 14-46-06`, `calls-12-10-2022 13-51-13`). No SMS backup shares their backup_set. About 1,000 calls with Katrina's 8102959303 and 30–39 calls to 8102959302 itself (voicemail) point to Matt's 8102959302. That is an inference.
   - The 2 call logs from 2026 (`calls-20260911233643`, `calls-20260912155315`). Their own number cannot be determined.
 - The source folder `Evidence/Phone Records/Messages with Katrina/SMS backup` carries U+F028 after "backup", a Windows private-use character. The earlier plan had dropped it and lost 3 files. The new plan keeps the exact key.
+- **Owner 08:40–08:41 EDT (relayed):**
+  - The three 2022 call logs are Matt's. They are placed under `telephony/sms-backup-restore-calls/8102959302/`, 3/3 ok at `b2_stored_sha1` (plan `casevault-20261002-calls2022`; basis `owner_confirmed_20261002`).
+  - "There's been no communication in 2026 that is relevant to the case." Every 2026 file is skipped: no placement, import or salvage, originals untouched. That covers the two 2026 call logs and the salvage of the unclosed 2026 SMS backups.
+  - The two 8102594380 SMS backups were copied into casevault at 12:36Z, before the ruling. They are left as add-only copies and are not imported.
+  - `sms-20260524134346.xml` (8103535467; records 2025-06-01..2026-01-07) waits on the owner's answer: skip it, or import it whole.
+- [ ] **Owner:** add 8102594380 as a confirmed phone of Matthew S. Salem ("Matt's current number", owner 08:40). The agent's write through the case-identity API was refused by the session's auto-mode classifier. Do it on the Workbench case identity page, or allow the write.
+- **Fixed, `retain_original_activity` heartbeat (5fb202f4, proffer-worker deploy `vpqwuapvousrfym8fzik0eak`, finished 13:01:55Z):** the store copy of a large original never heartbeat. A 2.4 GB SMS backup (`sms-20221104024709.xml`) failed all 5 attempts at the one-minute HeartbeatTimeout. The Activity now heartbeats every 20 s while the copy runs.
+- **Weaviate:** owner approved moving Proffer's entries out of the Case Bible collection `MsgEvents20260918` into `ProfferMsgEvents20261002`; another agent is doing it. The parked first batch had already published 516 objects before Review. No new Proffer run starts until the worker writes to the new collection.
 
 ## 2026-10-02 08:45 EDT — probata-db role `ai` is a superuser with a two-letter password; Docstore follows the Vestigia rename
 
