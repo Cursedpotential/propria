@@ -248,7 +248,30 @@ type NewPersonSpec struct {
 	IsMinor      bool    `json:"is_minor"`
 	Notes        *string `json:"notes"`
 	ChangeReason string  `json:"change_reason"`
+	// VerificationState is "confirmed" (the default, a person the owner adds by hand) or "proposed"
+	// (unconfirmed, for example a person known only from a contact export or by an email address).
+	VerificationState string `json:"verification_state"`
 }
+
+// ContactPerson is one person a contact export names: the display name (the most recent export's
+// name), every name any export gave as a candidate, and the numbers and emails it carries.
+type ContactPerson struct {
+	DisplayName    string   `json:"display_name"`
+	Numbers        []string `json:"numbers"`
+	Emails         []string `json:"emails"`
+	CandidateNames []string `json:"candidate_names"`
+	Source         string   `json:"source"`
+}
+
+// ContactPeopleSpec creates unconfirmed people from contact exports and links their numbers' rows.
+type ContactPeopleSpec struct {
+	People       []ContactPerson `json:"people"`
+	ChangeReason string          `json:"change_reason"`
+	DryRun       bool            `json:"dry_run"`
+}
+
+// MaxContactPeople bounds one batch.
+const MaxContactPeople = 100
 
 // TriageSpec records the owner's decision on an identifier tied to nobody.
 type TriageSpec struct {
@@ -277,6 +300,7 @@ type Store interface {
 	EditPerson(ctx context.Context, spec PersonSpec, actor Actor) (Receipt, error)
 	AddPerson(ctx context.Context, spec NewPersonSpec, actor Actor) (Receipt, error)
 	AddPlaceholders(ctx context.Context, spec PlaceholderSpec, actor Actor) (Receipt, error)
+	AddContactPeople(ctx context.Context, spec ContactPeopleSpec, actor Actor) (Receipt, error)
 	MergePerson(ctx context.Context, spec MergeSpec, actor Actor) (Receipt, error)
 	Triage(ctx context.Context, spec TriageSpec, actor Actor) (Receipt, error)
 	Lookup(ctx context.Context, values []string) ([]Match, error)
@@ -598,6 +622,38 @@ func ValidateNewPerson(spec NewPersonSpec) error {
 	}
 	if spec.Notes != nil {
 		if err := validText("notes", *spec.Notes, false, MaxTextBytes); err != nil {
+			return err
+		}
+	}
+	if spec.VerificationState != "" && spec.VerificationState != "proposed" && spec.VerificationState != "confirmed" {
+		return errors.New("verification_state must be proposed or confirmed")
+	}
+	return validText("change_reason", spec.ChangeReason, true, MaxTextBytes)
+}
+
+// ValidateContactPeople checks a contact-people batch.
+func ValidateContactPeople(spec ContactPeopleSpec) error {
+	if len(spec.People) == 0 || len(spec.People) > MaxContactPeople {
+		return fmt.Errorf("between 1 and %d people are required", MaxContactPeople)
+	}
+	for _, person := range spec.People {
+		if err := validText("display_name", person.DisplayName, true, MaxValueBytes); err != nil {
+			return err
+		}
+		if len(person.Numbers) == 0 && len(person.Emails) == 0 {
+			return errors.New("each person needs at least one number or email")
+		}
+		if len(person.Numbers) > 20 || len(person.Emails) > 20 || len(person.CandidateNames) > 20 {
+			return errors.New("a person carries at most 20 numbers, 20 emails and 20 candidate names")
+		}
+		for _, list := range [][]string{person.Numbers, person.Emails, person.CandidateNames} {
+			for _, value := range list {
+				if err := validText("value", value, true, MaxValueBytes); err != nil {
+					return err
+				}
+			}
+		}
+		if err := validText("source", person.Source, true, 380); err != nil {
 			return err
 		}
 	}

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Back-fill one placeholder person per unidentified number, through the governed case-identity API.
+"""Back-fill a placeholder person for every number that STILL has no person, through the governed API.
 
 Byline: Claude Code · Sonnet · 2026-10-02
 
-Owner 2026-10-02 14:32: no party is ever NULL. This reads every phone number in the imported calls and
-messages that no registry person carries (GET /api/imported/unlinked-numbers), then asks the Workbench's
+Owner 2026-10-02 14:32: no party is ever NULL. Owner 15:34: run tools/import_contacts.py FIRST, because a
+number a contact names becomes a person with that name, not a placeholder. This reads every phone number in
+the imported calls and messages that no registry person carries (GET /api/imported/unknown-numbers?kind=no_person;
+the contacts import has already given a person to every number it names), then asks the Workbench's
 case-identity API (POST /api/case-identity/placeholders -> the engine) to create a placeholder person
 for each, 200 numbers per request. The engine links every NULL call_log / message-participant entity
 column for those numbers in the same transaction and appends registry.identity_change rows. A number
@@ -56,14 +58,14 @@ def main() -> int:
     numbers: list[str] = []
     offset = 0
     while True:
-        page = call(args.base, "GET", f"/api/imported/unlinked-numbers?limit=1000&offset={offset}")
+        page = call(args.base, "GET", f"/api/imported/unknown-numbers?kind=no_person&limit=1000&offset={offset}")
         numbers += [item["number"] for item in page["items"]]
         if page.get("next_offset") is None:
             break
         offset = page["next_offset"]
     if args.limit:
         numbers = numbers[: args.limit]
-    print(f"{len(numbers)} numbers are carried by no registry person ({'APPLY' if args.apply else 'dry run'})")
+    print(f"{len(numbers)} numbers still have no person ({'APPLY' if args.apply else 'dry run'})")
 
     totals = {"created": 0, "already_carried": 0, "not_a_phone_number": 0}
     linked: dict[str, int] = {}

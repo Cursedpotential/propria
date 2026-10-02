@@ -155,6 +155,15 @@ async def placeholders_endpoint(body: JsonObject, request: Request, key: Idempot
         raise _translate(error) from None
 
 
+@router.post("/contact-people", status_code=201)
+async def contact_people_endpoint(body: JsonObject, request: Request, key: IdempotencyKey):
+    actor = _actor(request)
+    try:
+        return await service.add_contact_people(body, actor, key)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
 @router.post("/people/{person_id}/merge", status_code=201)
 async def merge_person_endpoint(person_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey):
     actor = _actor(request)

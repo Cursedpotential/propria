@@ -110,14 +110,24 @@ class _People:
         self.by_phone: dict[str, dict[str, str]] = {}
         self.by_person: dict[str, dict[str, str]] = {}
         self.candidates: dict[str, list[str]] = {}
+        # Every person still marked unconfirmed (verification_state 'proposed'): a placeholder for a number
+        # nobody named, or a person only a contact export named. Keyed by entity.
+        self.unconfirmed: dict[str, dict[str, Any]] = {}
         self.names: list[tuple[str, dict[str, str]]] = []
         for row in rows:
-            placeholder = row.get("role_in_case") == "unknown" and row.get("verification_state") == "proposed"
+            unconfirmed = row.get("verification_state") == "proposed"
             who = {
                 "person": row["person"], "name": row["display_name"], "role": row["role_in_case"] or "",
-                "entity_id": row.get("entity_id"), "placeholder": placeholder,
+                "entity_id": row.get("entity_id"), "unconfirmed": unconfirmed,
             }
-            if not placeholder:
+            if unconfirmed:
+                entry = self.unconfirmed.setdefault(
+                    who["entity_id"], {"entity_id": who["entity_id"], "name": who["name"], "numbers": [], "emails": []})
+                if row["kind"] == "phone" and _digits(row["identifier"] or "") not in entry["numbers"]:
+                    entry["numbers"].append(_digits(row["identifier"] or ""))
+                elif row["kind"] == "email" and row["identifier"] not in entry["emails"]:
+                    entry["emails"].append(row["identifier"])
+            else:
                 self.by_person.setdefault(who["person"], who)
             if row["kind"] == "name" and row.get("alias_status") == "candidate" and row.get("entity_id"):
                 # Names a contact export gave this number, kept unconfirmed for the owner to pick from.
@@ -209,8 +219,8 @@ def _participant(identifier: str, people: _People, owner: str | None) -> dict[st
         # The registry person this number belongs to, whether it is still a placeholder, and the
         # 10-digit number when nobody carries it yet (the "Who is this?" control starts from these).
         "entity_id": who.get("entity_id") if who else None,
-        "placeholder": bool(who and who.get("placeholder")),
-        "number": number if (number and (not who or who.get("placeholder"))) else None,
+        "unconfirmed": bool(who and who.get("unconfirmed")),
+        "number": number if (number and (not who or who.get("unconfirmed"))) else None,
     }
 
 
@@ -569,7 +579,7 @@ async def review_queue() -> dict[str, Any]:
 
 def invalidate() -> None:
     """Forget cached registry and activity reads after an identity change."""
-    for key in [k for k in _cache if k in ("people", "entity-activity") or k.startswith("activity:") or k.startswith("sv:")]:
+    for key in [k for k in _cache if k in ("people", "entity-activity", "unlinked") or k.startswith("activity:") or k.startswith("sv:")]:
         _cache.pop(key, None)
 
 
@@ -591,10 +601,10 @@ async def identity() -> dict[str, Any]:
     people = await asyncio.to_thread(_people)
     seen: dict[str, dict[str, Any]] = {}
     for who in people.by_phone.values():
-        if not who["placeholder"]:
+        if not who["unconfirmed"]:
             seen.setdefault(who["entity_id"], {"entity_id": who["entity_id"], "name": who["name"], "short": who["person"], "role": who["role"]})
     for who in people.by_person.values():
-        if who.get("entity_id") and not who["placeholder"]:
+        if who.get("entity_id") and not who["unconfirmed"]:
             seen.setdefault(who["entity_id"], {"entity_id": who["entity_id"], "name": who["name"], "short": who["person"], "role": who["role"]})
     return {"people": sorted(seen.values(), key=lambda p: (p["role"] != "user", p["name"].lower()))}
 
@@ -611,44 +621,52 @@ async def number_status(values: list[str]) -> dict[str, Any]:
         if who is None:
             out[value] = {"state": "unknown", "number": number, "entity_id": None, "label": _pretty_phone(number)}
         else:
-            out[value] = {"state": "placeholder" if who["placeholder"] else "known", "number": number,
+            out[value] = {"state": "unconfirmed" if who["unconfirmed"] else "known", "number": number,
                           "entity_id": who["entity_id"], "label": who["name"]}
     return {"items": out}
 
 
-async def unknown_numbers(*, limit: int, offset: int, q: str | None) -> dict[str, Any]:
-    """Placeholders still unnamed, most frequent first, with how often each appears."""
+async def unknown_numbers(*, kind: str, limit: int, offset: int, q: str | None) -> dict[str, Any]:
+    """ONE list of who still needs naming, most frequent first.
+
+    - kind "no_person": phone numbers on imported rows that no registry person carries yet (the contacts
+      import and the back-fill work from these); total is how many rows carry the number.
+    - kind "unconfirmed": people still marked unconfirmed (a placeholder for a number nobody named, or
+      a person only a contact export named), ranked by the calls and messages linked to them.
+    """
     people = await asyncio.to_thread(_people)
-    rows = await asyncio.to_thread(lambda: _cached("entity-activity", 30, pg.entity_activity))
-    activity = {row["entity_id"]: {"messages": row["msgs"], "calls": row["calls"], "last_at": row["last_at"]} for row in rows}
-    items = []
-    for number, who in people.by_phone.items():
-        if not who["placeholder"]:
-            continue
-        seen = activity.get(who["entity_id"], {"messages": 0, "calls": 0, "last_at": None})
-        items.append({
-            "entity_id": who["entity_id"], "number": number, "label": _pretty_phone(number), "name": who["name"],
-            "messages": seen["messages"], "calls": seen["calls"], "total": seen["messages"] + seen["calls"],
-            "last_at": _iso(seen["last_at"]),
-            "candidates": people.candidates.get(who["entity_id"], []),
-        })
+    items: list[dict[str, Any]] = []
+    if kind in ("all", "unconfirmed"):
+        rows = await asyncio.to_thread(lambda: _cached("entity-activity", 30, pg.entity_activity))
+        activity = {row["entity_id"]: row for row in rows}
+        for entity_id, person in people.unconfirmed.items():
+            seen = activity.get(entity_id, {"msgs": 0, "calls": 0, "last_at": None})
+            first = person["numbers"][0] if person["numbers"] else None
+            items.append({
+                "kind": "unconfirmed", "entity_id": entity_id, "number": first,
+                "label": _pretty_phone(first) if first else (person["emails"][0] if person["emails"] else person["name"]),
+                "name": person["name"], "named": not person["name"].startswith("Unknown "),
+                "messages": int(seen["msgs"]), "calls": int(seen["calls"]), "total": int(seen["msgs"]) + int(seen["calls"]),
+                "last_at": _iso(seen["last_at"]), "candidates": people.candidates.get(entity_id, []),
+            })
+    if kind in ("all", "no_person"):
+        unlinked = await asyncio.to_thread(lambda: _cached("unlinked", 30, pg.working_unlinked_numbers))
+        for row in unlinked:
+            number = row["number"]
+            if number in people.by_phone or not re.fullmatch(r"[2-9][0-9]{9}", number):
+                continue
+            items.append({
+                "kind": "no_person", "entity_id": None, "number": number, "label": _pretty_phone(number), "name": None, "named": False,
+                "messages": 0, "calls": 0, "total": int(row["n"]), "last_at": None, "candidates": [],
+            })
     if q:
-        needle = re.sub(r"\D", "", q)
+        needle = re.sub(r"[^0-9]", "", q)
         if needle:
-            items = [item for item in items if needle in item["number"]]
-    items.sort(key=lambda item: (-item["total"], item["number"]))
-    return {"items": items[offset: offset + limit], "total": len(items),
-            "next_offset": offset + limit if offset + limit < len(items) else None}
-
-
-async def unlinked_numbers(*, limit: int, offset: int) -> dict[str, Any]:
-    """Phone numbers on working rows whose entity column is NULL and that no registry person carries. Feeds the back-fill."""
-    people = await asyncio.to_thread(_people)
-    unlinked = await asyncio.to_thread(pg.working_unlinked_numbers)
-    numbers: dict[str, int] = {row["number"]: int(row["n"]) for row in unlinked}
-    items = [{"number": number, "total": total} for number, total in numbers.items()
-             if number not in people.by_phone and re.fullmatch(r"[2-9]\d{9}", number)]
-    items.sort(key=lambda item: (-item["total"], item["number"]))
+            items = [item for item in items if item["number"] and needle in item["number"]]
+        else:
+            lowered = q.strip().lower()
+            items = [item for item in items if lowered in (item["name"] or "").lower()]
+    items.sort(key=lambda item: (-item["total"], item["number"] or item["label"]))
     return {"items": items[offset: offset + limit], "total": len(items),
             "next_offset": offset + limit if offset + limit < len(items) else None}
 

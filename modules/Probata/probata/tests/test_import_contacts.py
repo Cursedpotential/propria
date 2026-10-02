@@ -60,10 +60,24 @@ def test_social_json_any_nesting():
     assert [(c.name, c.phones) for c in contacts] == [("Jordan Reyes", ["8105550142"]), ("Lee", [])]
 
 
-def test_a_number_named_differently_keeps_every_name_as_a_candidate():
-    contacts = ic.parse_vcard(VCF, "k1") + ic.parse_csv("Name,Phone\nJ. Reyes,810-555-0142\n", "k2")
-    plan = ic.build_plan(contacts)
-    names = plan["8105550142"]["names"]
-    assert set(names) == {"Jordan Reyes", "Sam Ng", "J. Reyes"}
-    assert names["Jordan Reyes"] == {"k1"} and names["J. Reyes"] == {"k2"}
-    assert set(plan["3135550199"]["names"]) == {"Jordan Reyes"}
+def test_contacts_that_share_a_number_are_one_person_named_by_the_most_recent_export():
+    old = ic.parse_vcard(VCF, "b2://x/old.vcf")
+    for card in old:
+        card.listed_at = "2026-01-01T00:00:00Z"
+    newer = ic.parse_csv("Name,Phone\nJ. Reyes,810-555-0142\nSolo Person,419-555-0100\n", "b2://x/new.csv")
+    for card in newer:
+        card.listed_at = "2026-09-01T00:00:00Z"
+    people = {p["display_name"]: p for p in ic.build_people(old + newer)}
+    # 8105550142 is shared by Jordan Reyes, Sam Ng and J. Reyes; Jordan's card also carries 3135550199.
+    merged = people["J. Reyes"]
+    assert merged["numbers"] == ["3135550199", "8105550142"]
+    assert merged["candidate_names"] == ["J. Reyes", "Jordan Reyes", "Sam Ng"]
+    assert merged["source"] == "b2://x/new.csv" and merged["emails"] == ["jordan@example.com"]
+    assert people["Solo Person"]["numbers"] == ["4195550100"] and people["Solo Person"]["candidate_names"] == ["Solo Person"]
+    assert len(people) == 2
+
+
+def test_an_email_only_contact_is_still_a_person():
+    cards = ic.parse_csv("Name,E-mail\nEmail Only,e@example.com\n", "k")
+    (person,) = ic.build_people(cards)
+    assert person["numbers"] == [] and person["emails"] == ["e@example.com"] and person["display_name"] == "Email Only"

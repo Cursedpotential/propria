@@ -74,15 +74,15 @@ def test_participants_mark_the_users_own_side():
     assert stranger["number"] == "3135550177"
 
 
-def test_a_placeholder_is_not_a_confirmed_person_and_offers_who_is_this():
+def test_an_unconfirmed_person_is_not_confirmed_and_offers_who_is_this():
     people = service._People(PEOPLE)
-    placeholder = service._participant("+13135550101", people, "Matt")
-    assert placeholder["placeholder"] is True and placeholder["entity_id"] == "e-ph"
-    assert placeholder["label"] == "Unknown 313-555-0101" and placeholder["number"] == "3135550101"
+    unconfirmed = service._participant("+13135550101", people, "Matt")
+    assert unconfirmed["unconfirmed"] is True and unconfirmed["entity_id"] == "e-ph"
+    assert unconfirmed["label"] == "Unknown 313-555-0101" and unconfirmed["number"] == "3135550101"
     nobody = service._participant("+13135550199", people, "Matt")
-    assert nobody["placeholder"] is False and nobody["entity_id"] is None and nobody["number"] == "3135550199"
+    assert nobody["unconfirmed"] is False and nobody["entity_id"] is None and nobody["number"] == "3135550199"
     named = service._participant("+18102689630", people, "Matt")
-    assert named["placeholder"] is False and named["number"] is None
+    assert named["unconfirmed"] is False and named["number"] is None
     assert "Unknown 313-555-0101" not in people.by_person
 
 
@@ -122,23 +122,34 @@ def test_sources_group_derived_files_under_their_export(monkeypatch):
     assert item["format"] == "SMS" and item["owner"] == "Katrina"
 
 
-def test_unknown_numbers_list_most_frequent_first(monkeypatch):
-    more = PEOPLE + [{"entity_id": "e-ph2", "person": "Unknown 313-555-0102", "display_name": "Unknown 313-555-0102",
-                      "role_in_case": "unknown", "verification_state": "proposed", "identifier": "3135550102", "kind": "phone"}]
+def test_one_unknown_numbers_list_merges_people_without_a_person_and_unconfirmed_people(monkeypatch):
+    more = PEOPLE + [
+        {"entity_id": "e-ph2", "person": "Jordan Reyes", "display_name": "Jordan Reyes", "role_in_case": "unknown", "verification_state": "proposed",
+         "identifier": "3135550102", "kind": "phone", "alias_status": "confirmed"},
+        {"entity_id": "e-ph2", "person": "Jordan Reyes", "display_name": "Jordan Reyes", "role_in_case": "unknown", "verification_state": "proposed",
+         "identifier": "j. reyes", "kind": "name", "alias_status": "candidate", "alias_text_raw": "J. Reyes"},
+        {"entity_id": "e-mail", "person": "Email Only", "display_name": "Email Only", "role_in_case": "unknown", "verification_state": "proposed",
+         "identifier": "e@example.com", "kind": "email"},
+    ]
     monkeypatch.setattr(pg, "people", lambda: more)
     monkeypatch.setattr(pg, "entity_activity", lambda: [
         {"entity_id": "e-ph", "calls": 0, "msgs": 3, "last_at": None},
         {"entity_id": "e-ph2", "calls": 9, "msgs": 2, "last_at": None},
     ])
-    body = TestClient(_app()).get("/api/imported/unknown-numbers").json()
-    assert [item["number"] for item in body["items"]] == ["3135550102", "3135550101"]
-    assert body["items"][0]["total"] == 11 and body["total"] == 2
-
-
-def test_unlinked_numbers_skip_anyone_the_registry_carries(monkeypatch):
-    monkeypatch.setattr(pg, "working_unlinked_numbers", lambda: [{"number": "4195550123", "n": 7}, {"number": "2485550000", "n": 1}])
-    body = TestClient(_app()).get("/api/imported/unlinked-numbers").json()
-    assert [(i["number"], i["total"]) for i in body["items"]] == [("4195550123", 7), ("2485550000", 1)]
+    monkeypatch.setattr(pg, "working_unlinked_numbers", lambda: [
+        {"number": "4195550123", "n": 7}, {"number": "2485550000", "n": 1}, {"number": "3135550101", "n": 99}, {"number": "1115", "n": 5},
+    ])
+    client = TestClient(_app())
+    body = client.get("/api/imported/unknown-numbers").json()
+    assert [(i["kind"], i["number"] or i["label"], i["total"]) for i in body["items"]] == [
+        ("unconfirmed", "3135550102", 11), ("no_person", "4195550123", 7), ("unconfirmed", "3135550101", 3),
+        ("no_person", "2485550000", 1), ("unconfirmed", "e@example.com", 0)]
+    named = next(i for i in body["items"] if i["entity_id"] == "e-ph2")
+    assert named["named"] is True and named["candidates"] == ["J. Reyes"]
+    assert next(i for i in body["items"] if i["entity_id"] == "e-ph")["named"] is False
+    only = client.get("/api/imported/unknown-numbers", params={"kind": "no_person"}).json()
+    assert [i["number"] for i in only["items"]] == ["4195550123", "2485550000"]
+    assert client.get("/api/imported/unlinked-numbers").status_code == 404
 
 
 def test_the_view_has_no_write_route():
@@ -163,6 +174,6 @@ def test_number_status_tells_named_placeholder_and_unknown_apart():
     body = TestClient(_app()).get("/api/imported/number-status", params=[
         ("numbers", "+18102689630"), ("numbers", "3135550101"), ("numbers", "+13135550177"), ("numbers", "Katrina")]).json()["items"]
     assert body["+18102689630"]["state"] == "known" and body["+18102689630"]["label"] == "Katrina Kinzel"
-    assert body["3135550101"]["state"] == "placeholder" and body["3135550101"]["entity_id"] == "e-ph"
+    assert body["3135550101"]["state"] == "unconfirmed" and body["3135550101"]["entity_id"] == "e-ph"
     assert body["+13135550177"] == {"state": "unknown", "number": "3135550177", "entity_id": None, "label": "(313) 555-0177"}
     assert "Katrina" not in body

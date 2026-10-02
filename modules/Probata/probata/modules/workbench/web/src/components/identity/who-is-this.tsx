@@ -27,8 +27,12 @@ export function prettyNumber(number: string) {
 }
 
 interface WhoIsThisProps {
-  /** 10-digit number. */
-  number: string;
+  /** 10-digit number; null for a person known only by an email. */
+  number: string | null;
+  /** What to show in the header when there is no number. */
+  label?: string;
+  /** The name a contact export gave, when the person is already named but not confirmed. */
+  currentName?: string | null;
   /** The placeholder person already carrying it, when there is one. */
   entityId?: string | null;
   /** Names a contact export gave this number; one tap puts it in the name field. */
@@ -38,7 +42,7 @@ interface WhoIsThisProps {
   className?: string;
 }
 
-export function WhoIsThis({ number, entityId, candidates, context = "the imported records", className }: WhoIsThisProps) {
+export function WhoIsThis({ number, label, currentName, entityId, candidates, context = "the imported records", className }: WhoIsThisProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -50,17 +54,17 @@ export function WhoIsThis({ number, entityId, candidates, context = "the importe
           className,
         )}
       >
-        <UserRoundSearch className="size-4" aria-hidden="true" /> Who is this?
+        <UserRoundSearch className="size-4" aria-hidden="true" /> {currentName ? "Confirm" : "Who is this?"}
       </button>
-      {open ? <WhoIsThisSheet number={number} entityId={entityId ?? null} candidates={candidates ?? []} context={context} onClose={() => setOpen(false)} /> : null}
+      {open ? <WhoIsThisSheet number={number} label={label} currentName={currentName ?? null} entityId={entityId ?? null} candidates={candidates ?? []} context={context} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
 
-function WhoIsThisSheet({ number, entityId, candidates, context, onClose }: { number: string; entityId: string | null; candidates: string[]; context: string; onClose: () => void }) {
+function WhoIsThisSheet({ number, label, currentName, entityId, candidates, context, onClose }: { number: string | null; label?: string; currentName: string | null; entityId: string | null; candidates: string[]; context: string; onClose: () => void }) {
   const client = useQueryClient();
   const [mode, setMode] = useState<"name" | "same">("name");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(currentName ?? "");
   const [role, setRole] = useState("third_party");
   const [note, setNote] = useState("");
   const [target, setTarget] = useState("");
@@ -78,14 +82,15 @@ function WhoIsThisSheet({ number, entityId, candidates, context, onClose }: { nu
     try {
       let personId = entityId;
       if (!personId) {
+        if (!number) throw new Error("This person has no number to start from.");
         // Nobody carries the number yet: it becomes a placeholder first, then is named or merged.
         const made = await addPlaceholders(
-          { numbers: [number], change_reason: `number seen in ${context}, identified from the Workbench` },
+          { numbers: [number as string], change_reason: `number seen in ${context}, identified from the Workbench` },
           newIdempotencyKey("placeholder"),
         );
-        personId = made.detail?.entity_ids?.[number] ?? null;
+        personId = made.detail?.entity_ids?.[number as string] ?? null;
         if (!personId) {
-          const status = await importedApi.numberStatus([number]);
+          const status = await importedApi.numberStatus([number as string]);
           personId = Object.values(status.items)[0]?.entity_id ?? null;
         }
         if (!personId) throw new Error("The placeholder for this number could not be found. Try again.");
@@ -101,15 +106,15 @@ function WhoIsThisSheet({ number, entityId, candidates, context, onClose }: { nu
         };
         if (note.trim()) fields.relationship_type = note.trim().slice(0, 200);
         await editPerson(personId, { fields, change_reason: `named by the owner (seen in ${context})` }, newIdempotencyKey("name"));
-        setDone(`Saved. ${prettyNumber(number)} is ${name.trim()}.`);
+        setDone(`Saved. ${number ? prettyNumber(number) : (label ?? "This person")} is ${name.trim()}.`);
       } else {
         await mergePerson(
           personId,
-          { into_id: target, change_reason: `owner: ${prettyNumber(number)} is this person${note.trim() ? ` (${note.trim()})` : ""} (seen in ${context})` },
+          { into_id: target, change_reason: `owner: ${number ? prettyNumber(number) : (label ?? "this person")} is this person${note.trim() ? ` (${note.trim()})` : ""} (seen in ${context})` },
           newIdempotencyKey("merge"),
         );
         const chosen = people.data?.people.find((person) => person.entity_id === target);
-        setDone(`Saved. ${prettyNumber(number)} is now ${chosen?.name ?? "that person"}.`);
+        setDone(`Saved. ${number ? prettyNumber(number) : (label ?? "This person")} is now ${chosen?.name ?? "that person"}.`);
       }
       await client.invalidateQueries();
     } catch (error) {
@@ -120,12 +125,13 @@ function WhoIsThisSheet({ number, entityId, candidates, context, onClose }: { nu
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true" aria-label={`Who is ${prettyNumber(number)}?`}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true" aria-label={`Who is ${number ? prettyNumber(number) : (label ?? "this")}?`}>
       <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-card p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-card-foreground shadow-xl sm:rounded-2xl">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Who is this?</h2>
-            <p className="text-2xl font-bold tabular-nums">{prettyNumber(number)}</p>
+            <p className="text-2xl font-bold tabular-nums">{number ? prettyNumber(number) : (label ?? "Unknown")}</p>
+            {currentName ? <p className="text-sm text-muted-foreground">A contact export says: {currentName}. Confirm it, or change it.</p> : null}
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="flex size-12 items-center justify-center rounded-full active:bg-muted">
             <X className="size-6" />

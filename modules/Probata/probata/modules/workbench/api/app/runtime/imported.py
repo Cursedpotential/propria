@@ -9,8 +9,8 @@ Byline: Claude Code · Sonnet · 2026-10-02
     GET /api/imported/calls                         calls (working.call_log when filled, else normalized records)
     GET /api/imported/search?q=                     message search (Weaviate)
     GET /api/imported/identity                      named people a number can be merged into
-    GET /api/imported/unknown-numbers               placeholders still unnamed, most frequent first
-    GET /api/imported/unlinked-numbers              numbers with no registry person at all (back-fill feed)
+    GET /api/imported/unknown-numbers?kind=         who still needs naming, most frequent first, as ONE list: numbers with no
+                                                    person (no_person) and people still unconfirmed (unconfirmed)
     GET /api/imported/review-queue                  previews waiting for a decision (decide on the Review routes)
 
 Always the live case (the configured live matter); there is no matter or mode parameter. The
@@ -121,23 +121,13 @@ async def identity_endpoint():
 
 @router.get("/unknown-numbers")
 async def unknown_numbers_endpoint(
-    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    kind: Annotated[Literal["all", "no_person", "unconfirmed"], Query()] = "all",
+    limit: Annotated[int, Query(ge=1, le=1000)] = 30,
     offset: Annotated[int, Query(ge=0, le=100000)] = 0,
     q: Annotated[str | None, Query(max_length=40)] = None,
 ):
     try:
-        return await service.unknown_numbers(limit=limit, offset=offset, q=q)
-    except service.ImportedError as error:
-        raise _translate(error) from None
-
-
-@router.get("/unlinked-numbers")
-async def unlinked_numbers_endpoint(
-    limit: Annotated[int, Query(ge=1, le=1000)] = 500,
-    offset: Annotated[int, Query(ge=0, le=100000)] = 0,
-):
-    try:
-        return await service.unlinked_numbers(limit=limit, offset=offset)
+        return await service.unknown_numbers(kind=kind, limit=limit, offset=offset, q=q)
     except service.ImportedError as error:
         raise _translate(error) from None
 

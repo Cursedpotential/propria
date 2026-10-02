@@ -73,6 +73,11 @@ func (s *caseIdentityStoreStub) AddPlaceholders(_ context.Context, _ caseidentit
 	return s.receipt()
 }
 
+func (s *caseIdentityStoreStub) AddContactPeople(_ context.Context, _ caseidentity.ContactPeopleSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+	s.actor = actor
+	return s.receipt()
+}
+
 func (s *caseIdentityStoreStub) MergePerson(_ context.Context, _ caseidentity.MergeSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
 	s.actor = actor
 	return s.receipt()
@@ -247,4 +252,18 @@ func TestCaseIdentityPlaceholdersAndMergeAreActorBoundWrites(t *testing.T) {
 		[]byte(`{"into_id":"`+caseTestPerson+`","change_reason":"x"}`))
 	self.Header.Set("Idempotency-Key", "merge-2")
 	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, self).Code)
+}
+
+// Byline: Claude Code · Sonnet · 2026-10-02
+func TestCaseIdentityContactPeopleIsAnActorBoundBatch(t *testing.T) {
+	_, routes := newCaseIdentityHandler(t)
+	body := []byte(`{"people":[{"display_name":"Jordan Reyes","numbers":["8105550142"],"emails":[],"candidate_names":["J. Reyes"],"source":"b2://k/contacts.vcf"}],"change_reason":"contacts import","dry_run":true}`)
+	noKey := newPreviewRequest(http.MethodPost, "/case-identity/contact-people", body)
+	require.Equal(t, http.StatusUnauthorized, servePreviewRequest(routes, noKey).Code)
+	req := newPreviewRequest(http.MethodPost, "/case-identity/contact-people", body)
+	req.Header.Set("Idempotency-Key", "contacts-1")
+	require.Equal(t, http.StatusCreated, servePreviewRequest(routes, req).Code)
+	bad := newPreviewRequest(http.MethodPost, "/case-identity/contact-people", []byte(`{"people":[],"change_reason":"x"}`))
+	bad.Header.Set("Idempotency-Key", "contacts-2")
+	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, bad).Code)
 }
