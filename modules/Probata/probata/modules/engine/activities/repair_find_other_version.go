@@ -125,6 +125,10 @@ type findSummary struct {
 	// ZeroFilled the candidates rejected because theirs was all zero bytes.
 	ZeroCheckBytes int      `json:"zero_check_bytes"`
 	ZeroFilled     []string `json:"zero_filled"`
+	// OriginalScrambled is set when the source's own head is scrambled bytes (see scramble_detect.go);
+	// the same-size copy of a different hash is then preferred, because that is the intact twin of
+	// a scrambled copy, not a larger different file. Byline: Claude Code · Sonnet · 2026-10-02
+	OriginalScrambled bool `json:"original_scrambled"`
 }
 
 // FindOtherVersion names the largest verified other copy of the source.
@@ -186,6 +190,13 @@ func (a RepairFindOtherVersionActivity) find(ctx context.Context, request repair
 		}
 	}
 
+	// Is the source itself scrambled? One ranged read of its head, the same cost as one candidate's.
+	if capable, ok := mustStore(a.Stores, source.Scheme); ok {
+		if head, readErr := capable.ReadRange(ctx, source.Bucket, source.Key, 0, scrambleHeadBytes); readErr == nil {
+			summary.OriginalScrambled = looksScrambled(basename, head)
+		}
+	}
+
 	rows, err := a.Catalog.FindByBasename(ctx, basename, maxCatalogRowsByName)
 	if err != nil {
 		return repairplan.StepResult{}, fmt.Errorf("find copies of %s in the catalog: %w", basename, err)
@@ -212,6 +223,14 @@ func (a RepairFindOtherVersionActivity) find(ctx context.Context, request repair
 		}
 	}
 	sort.SliceStable(eligible, func(i, j int) bool {
+		if summary.OriginalScrambled && summary.OriginalSize >= 0 {
+			// The intact twin of a scrambled copy has the same size and a different hash: it comes
+			// before any larger, different file.
+			iTwin, jTwin := eligible[i].Size == summary.OriginalSize, eligible[j].Size == summary.OriginalSize
+			if iTwin != jTwin {
+				return iTwin
+			}
+		}
 		if eligible[i].Size != eligible[j].Size {
 			return eligible[i].Size > eligible[j].Size
 		}
@@ -257,6 +276,10 @@ func (a RepairFindOtherVersionActivity) find(ctx context.Context, request repair
 			if len(summary.ZeroFilled) < maxReportedZeroFilled {
 				summary.ZeroFilled = append(summary.ZeroFilled, candidate.URI())
 			}
+			continue
+		}
+		if looksScrambled(basename, head) {
+			summary.Rejected[rejectScrambled]++
 			continue
 		}
 		summary.Candidates = append(summary.Candidates, findCandidate{
@@ -327,6 +350,16 @@ func (a RepairFindOtherVersionActivity) candidateStore(scheme string) (candidate
 		return nil, fmt.Errorf("object store %q cannot report object size and read a byte range", scheme)
 	}
 	return capable, nil
+}
+
+// mustStore returns the scheme's store when it can read a byte range.
+func mustStore(stores func(string) (smsthreads.ObjectStore, error), scheme string) (candidateStore, bool) {
+	store, err := stores(scheme)
+	if err != nil {
+		return nil, false
+	}
+	capable, ok := store.(candidateStore)
+	return capable, ok
 }
 
 func (a RepairFindOtherVersionActivity) statter(scheme string) (smsthreads.ObjectStatter, error) {

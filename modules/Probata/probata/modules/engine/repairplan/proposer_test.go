@@ -137,3 +137,43 @@ func TestSignatureTableIsOneEntryPerSignature(t *testing.T) {
 		t.Fatalf("the run's own assessment must win over detect_report: %q", signature)
 	}
 }
+
+// Shapes measured 2026-10-02 by running repair.detect and the lxml-html engine on a scrambled Facebook
+// your_friends.html and on its intact twin (server/tools/repair): the scrambled file is "html" only by its
+// extension hint (confidence 0.30, content inconclusive) and its preview reports dozens of lossy repairs.
+// Byline: Claude Code · Sonnet · 2026-10-02
+const (
+	scrambledHTMLDetection = `{"detection": {"fmt": "html", "notes": ["content inconclusive; fell back to the 'html' extension hint", "encoding confidence only 0.30"], "engine": "lxml-html", "had_bom": false, "encoding": "utf-8", "confidence": 0.3}, "cloud_only": false}`
+	scrambledHTMLReport    = `{"clean": false, "lossy": 61, "format": "unknown", "by_kind": {"xml_recovery_error": 61}, "repairs": 61, "chunks_ok": 20, "truncated": false, "chunks_failed": 0}`
+	intactHTMLDetection    = `{"detection": {"fmt": "html", "notes": [], "engine": "lxml-html", "had_bom": false, "encoding": "utf-8", "confidence": 0.97}, "cloud_only": false}`
+	intactHTMLReport       = `{"clean": false, "lossy": 6, "format": "unknown", "by_kind": {"xml_recovery_error": 6}, "repairs": 6, "chunks_ok": 854, "truncated": false, "chunks_failed": 0}`
+)
+
+func TestScrambledHTMLIsUnreadableAndOffersTheIntactTwin(t *testing.T) {
+	anchor := &Anchor{DetectedFormat: "binary", DeclaredFormat: "html", RepairDetection: json.RawMessage(scrambledHTMLDetection), RepairReport: json.RawMessage(scrambledHTMLReport)}
+	signature, sourceType, basis := Signature(ProposalEvidence{SourceRef: "b2://salem-data/consignatio/vault/v1/moved/court/fb/x-NXPlelIY/connections/friends/your_friends.html", Anchor: anchor})
+	if signature != "html:unreadable" || sourceType != TypeHTML || basis == "" {
+		t.Fatalf("signature = %q (%s)", signature, basis)
+	}
+	proposals, covered := TableProposals(signature)
+	got := proposalActivities(proposals)
+	if !covered || len(got) != 2 || len(got[0]) != 1 || got[0][0] != string(stagegraph.RepairFindOtherVersion) || got[1] != nil {
+		t.Fatalf("proposals = %v", got)
+	}
+	if proposals[0].Rationale != rationaleFindTwin {
+		t.Fatalf("the unreadable proposal must say the file is scrambled: %q", proposals[0].Rationale)
+	}
+}
+
+func TestIntactHTMLWithLossyRecoveryIsOrdinaryDamageNotUnreadable(t *testing.T) {
+	anchor := &Anchor{DetectedFormat: "generic_html_document", RepairDetection: json.RawMessage(intactHTMLDetection), RepairReport: json.RawMessage(intactHTMLReport)}
+	signature, sourceType, _ := Signature(ProposalEvidence{SourceRef: "b2://salem-data/x/your_friends.html", Anchor: anchor})
+	if signature != "html:damaged" || sourceType != TypeHTML {
+		t.Fatalf("signature = %q", signature)
+	}
+	if clean := (ProposalEvidence{SourceRef: "b2://b/x.html", DetectReport: json.RawMessage(`{"detection":{"fmt":"html","notes":[],"confidence":0.97},"clean":true}`)}); true {
+		if sig, _, _ := Signature(clean); sig != "html:clean" {
+			t.Fatalf("clean html = %q", sig)
+		}
+	}
+}

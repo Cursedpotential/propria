@@ -303,6 +303,9 @@ func TestFindOtherVersionRefusesZeroFilledCopiesWithARangedRead(t *testing.T) {
 		t.Fatalf("zero-filled = %v rejected = %v", summary.ZeroFilled, summary.Rejected)
 	}
 	for _, read := range store.ranges {
+		if read == vaultKey+"@0+4096" {
+			continue // the source's own head, read once to tell whether the source is scrambled
+		}
 		if !strings.HasSuffix(read, "@0+65536") {
 			t.Fatalf("head read %q is not one ranged read of the first 64 KiB", read)
 		}
@@ -558,5 +561,113 @@ func TestRepairPlanActivitiesRegisterUnderTheirStageGraphNames(t *testing.T) {
 func TestValidatePlanActivityFailsClosedWithoutAnAnchorResolver(t *testing.T) {
 	if _, err := (RepairPlanValidateActivity{}).ValidatePlan(context.Background(), repairplan.ValidatePlanRequest{}); err == nil {
 		t.Fatal("validation without an anchor resolver must fail")
+	}
+}
+
+// Scrambled-bytes repair (2026-10-02). Byline: Claude Code · Sonnet · 2026-10-02
+func scrambledBytes(seed int64, n int) []byte {
+	out := make([]byte, n)
+	state := uint64(seed)*6364136223846793005 + 1442695040888963407
+	for i := range out {
+		state = state*6364136223846793005 + 1442695040888963407
+		out[i] = byte(state >> 33)
+	}
+	return out
+}
+
+func htmlPage(n int) []byte {
+	page := []byte("<html><head><title>Your friends</title></head><body>")
+	for len(page) < n {
+		page = append(page, []byte("<div class=\"_a6-g\">Matt Salem</div>")...)
+	}
+	return page[:n]
+}
+
+func TestLooksScrambledJudgesTheHeadNotTheName(t *testing.T) {
+	random := scrambledBytes(1, 8000)
+	if !looksScrambled("your_friends.html", random) {
+		t.Fatal("random bytes were not judged scrambled")
+	}
+	for name, head := range map[string][]byte{
+		"html":          htmlPage(8000),
+		"jpeg":          append([]byte{0xff, 0xd8, 0xff, 0xe0}, scrambledBytes(2, 8000)...), // compressed data behind its marker
+		"zip":           append([]byte("PK\x03\x04"), scrambledBytes(3, 8000)...),
+		"mp4":           append([]byte("\x00\x00\x00\x18ftypisom"), scrambledBytes(4, 8000)...),
+		"short random":  scrambledBytes(5, 500), // too short to prove anything
+		"zeros":         make([]byte, 8000),
+		"utf16 text":    append([]byte{0xff, 0xfe}, scrambledBytes(6, 8000)...),
+		"plain english": []byte(strings.Repeat("the quick brown fox ", 400)),
+	} {
+		if looksScrambled("x", head) {
+			t.Fatalf("%s was judged scrambled", name)
+		}
+	}
+}
+
+func TestFindOtherVersionPrefersTheSameSizeTwinOfAScrambledSourceAndRefusesScrambledCopies(t *testing.T) {
+	const size = 6000
+	source := "consignatio/vault/v1/moved/court/fb/facebook-NXPlelIY/connections/friends/your_friends.html"
+	twin := "consignatio/vault/v1/social backup/fb/Facebook-2025-08-18/connections/friends/your_friends.html"
+	larger := "consignatio/vault/v1/fb/other-export/connections/friends/your_friends.html"
+	scrambledToo := "consignatio/vault/v1/moved/court/fb/facebook-local-F-case/connections/friends/your_friends.html"
+	store := newRepairStore(map[string][]byte{
+		"salem-data/" + source:       scrambledBytes(7, size),
+		"salem-data/" + twin:         htmlPage(size),
+		"salem-data/" + larger:       htmlPage(size + 900),
+		"salem-data/" + scrambledToo: scrambledBytes(8, size),
+	})
+	catalog := &fakeCatalog{
+		byKey: map[string]CatalogObject{source: {Key: source, Size: size, SHA1: "aaaa"}},
+		rows: []CatalogObject{
+			{Key: larger, Size: size + 900, SHA1: "cccc"},
+			{Key: scrambledToo, Size: size, SHA1: "dddd"},
+			{Key: twin, Size: size, SHA1: "bbbb"},
+		},
+	}
+	result, err := findActivity(t, store, catalog).FindOtherVersion(context.Background(), repairplan.StepRequest{
+		SourceRef: "b2://salem-data/" + source, SourceType: repairplan.TypeAny,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OutputRef != "b2://salem-data/"+twin {
+		t.Fatalf("chose %s, want the same-size intact twin", result.OutputRef)
+	}
+	var summary struct {
+		OriginalScrambled bool           `json:"original_scrambled"`
+		Rejected          map[string]int `json:"rejected"`
+		Candidates        []struct {
+			SourceRef string `json:"source_ref"`
+		} `json:"candidates"`
+	}
+	if err := json.Unmarshal(result.Summary, &summary); err != nil {
+		t.Fatal(err)
+	}
+	if !summary.OriginalScrambled || summary.Rejected[rejectScrambled] != 1 || len(summary.Candidates) != 2 ||
+		summary.Candidates[1].SourceRef != "b2://salem-data/"+larger {
+		t.Fatalf("summary = %s", result.Summary)
+	}
+}
+
+// An intact source keeps the established rule: the largest verified copy first.
+func TestFindOtherVersionKeepsLargestFirstForAnIntactSource(t *testing.T) {
+	source := "consignatio/vault/v1/a/your_friends.html"
+	twin := "consignatio/vault/v1/b/your_friends.html"
+	larger := "consignatio/vault/v1/c/your_friends.html"
+	store := newRepairStore(map[string][]byte{
+		"salem-data/" + source: htmlPage(5000), "salem-data/" + twin: htmlPage(5000), "salem-data/" + larger: htmlPage(6000),
+	})
+	catalog := &fakeCatalog{
+		byKey: map[string]CatalogObject{source: {Key: source, Size: 5000, SHA1: "aaaa"}},
+		rows:  []CatalogObject{{Key: twin, Size: 5000, SHA1: "bbbb"}, {Key: larger, Size: 6000, SHA1: "cccc"}},
+	}
+	result, err := findActivity(t, store, catalog).FindOtherVersion(context.Background(), repairplan.StepRequest{
+		SourceRef: "b2://salem-data/" + source, SourceType: repairplan.TypeAny,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OutputRef != "b2://salem-data/"+larger {
+		t.Fatalf("chose %s, want the larger copy for an intact source", result.OutputRef)
 	}
 }

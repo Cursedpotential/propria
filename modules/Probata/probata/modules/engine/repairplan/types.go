@@ -16,6 +16,10 @@ const (
 	TypeSMSBackupXML = "sms_backup_xml"
 	// TypeXML is any other XML document.
 	TypeXML = "xml"
+	// TypeHTML is an HTML document: whichever HTML content signature the handler selection found
+	// (facebook_messenger_html, generic_html_document), or bytes that sit under an HTML name but carry no
+	// readable markup (scrambled files, 2026-10-02).
+	TypeHTML = "html"
 	// TypeDerivedThreads is a published per-thread NDJSON derivation: a
 	// manifest plus a threads/ folder of chunks, re-entered as a batch.
 	TypeDerivedThreads = "derived_ndjson_threads"
@@ -34,6 +38,10 @@ const DerivedThreadsDeclaredFormat = "ndjson"
 
 // backupFileName matches the names SMS Backup & Restore gives its files.
 var backupFileName = regexp.MustCompile(`(?i)^(sms|calls)-[^/]*\.xml$`)
+
+var htmlFormats = map[string]bool{
+	"html": true, "facebook_messenger_html": true, "generic_html_document": true,
+}
 
 var smsBackupFormats = map[string]bool{
 	"smsbackuprestore_xml": true, "callsbackuprestore_xml": true,
@@ -66,12 +74,21 @@ func InferSourceType(evidence TypeEvidence) (string, string) {
 		return TypeSMSBackupXML, "content signature " + detected
 	case detected == "xml":
 		return xmlByName(name), "content signature xml"
+	case htmlFormats[detected]:
+		return TypeHTML, "content signature " + detected
+	case detected == "binary" && (family == "html" || isHTMLName(name)):
+		// The handler found opaque bytes where the name and the repair detector say HTML.
+		return TypeHTML, "opaque content under an html name"
 	case detected != "":
 		return detected, "content signature " + detected
 	case smsBackupFormats[declared]:
 		return TypeSMSBackupXML, "declared format " + declared
 	case declared == "xml":
 		return xmlByName(name), "declared format xml"
+	case htmlFormats[declared]:
+		return TypeHTML, "declared format " + declared
+	case family == "html":
+		return TypeHTML, "repair detector family html"
 	case family == "xml":
 		return xmlByName(name), "repair detector family xml"
 	case strings.EqualFold(path.Ext(name), ".xml"):
@@ -82,6 +99,14 @@ func InferSourceType(evidence TypeEvidence) (string, string) {
 		return family, "repair detector family " + family
 	}
 	return TypeUnknown, "nothing identified the source"
+}
+
+func isHTMLName(name string) bool {
+	switch strings.ToLower(path.Ext(name)) {
+	case ".html", ".htm", ".xhtml":
+		return true
+	}
+	return false
 }
 
 // xmlByName keeps a generic XML finding generic unless the file carries the
@@ -95,9 +120,13 @@ func xmlByName(name string) string {
 
 // Conditions a repair report can put a source in.
 const (
-	ConditionTruncated  = "truncated"
-	ConditionDamaged    = "damaged"
-	ConditionClean      = "clean"
+	ConditionTruncated = "truncated"
+	ConditionDamaged   = "damaged"
+	ConditionClean     = "clean"
+	// ConditionUnreadable is a source whose content the detector could not recognize at all
+	// (confidence below 0.5, "content inconclusive") and whose repair preview is lossy or missing:
+	// scrambled bytes rather than damaged markup.
+	ConditionUnreadable = "unreadable"
 	ConditionUnassessed = "unassessed"
 )
 
@@ -109,6 +138,9 @@ type RepairReport struct {
 	Lossy        int64
 	ChunksFailed int64
 	DetectionFmt string
+	// ContentInconclusive is repair.detect saying the content gave no format evidence and the answer
+	// fell back to the extension hint.
+	ContentInconclusive bool
 }
 
 // ParseRepairEvidence reads repair.detect / repair.preview output in any of
@@ -122,7 +154,9 @@ func ParseRepairEvidence(documents ...json.RawMessage) RepairReport {
 		}
 		var payload struct {
 			Detection *struct {
-				Fmt string `json:"fmt"`
+				Fmt        string   `json:"fmt"`
+				Confidence *float64 `json:"confidence"`
+				Notes      []string `json:"notes"`
 			} `json:"detection"`
 			Report *struct {
 				Clean        *bool `json:"clean"`
@@ -142,6 +176,16 @@ func ParseRepairEvidence(documents ...json.RawMessage) RepairReport {
 		if payload.Detection != nil && out.DetectionFmt == "" {
 			out.DetectionFmt = strings.TrimSpace(payload.Detection.Fmt)
 		}
+		if payload.Detection != nil {
+			for _, note := range payload.Detection.Notes {
+				if strings.HasPrefix(strings.ToLower(strings.TrimSpace(note)), "content inconclusive") {
+					out.ContentInconclusive = true
+				}
+			}
+			if payload.Detection.Confidence != nil && *payload.Detection.Confidence >= 0.5 {
+				out.ContentInconclusive = false
+			}
+		}
 		switch {
 		case payload.Report != nil && payload.Report.Clean != nil:
 			out.Present, out.Clean = true, *payload.Report.Clean
@@ -160,6 +204,8 @@ func ParseRepairEvidence(documents ...json.RawMessage) RepairReport {
 // Condition names what the repair report says about the source.
 func (r RepairReport) Condition() string {
 	switch {
+	case r.ContentInconclusive && (!r.Present || !r.Clean):
+		return ConditionUnreadable
 	case !r.Present:
 		return ConditionUnassessed
 	case r.Truncated:
