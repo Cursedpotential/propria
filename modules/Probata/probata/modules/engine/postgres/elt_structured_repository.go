@@ -129,7 +129,9 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 			return nil, err
 		}
 	}
-	innerSQL, err := structuredELTQuery(format, sourceURL)
+	// The Facebook Messenger template also needs the source locator itself.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	innerSQL, err := structuredELTQueryFor(format, sourceURL, sourceKey)
 	if err != nil {
 		return nil, err
 	}

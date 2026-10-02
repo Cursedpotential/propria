@@ -26,6 +26,11 @@ const (
 	StructuredELTFormatSMSXML       StructuredELTFormat = "sms_xml"
 	StructuredELTFormatChatGPTJSON  StructuredELTFormat = "chatgpt_json_array"
 	StructuredELTFormatIMessageText StructuredELTFormat = "imessage_text"
+	// StructuredELTFormatFacebookMessenger is one Facebook Messenger thread
+	// file (message_N.json) of a "Download your information" export. Its
+	// attachments are plain files beside it in the export, linked by locator.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	StructuredELTFormatFacebookMessenger StructuredELTFormat = "facebook_messenger_json"
 )
 
 const (
@@ -181,6 +186,8 @@ func StructuredELTFormatForDeclaredFormat(declared string) (StructuredELTFormat,
 		return StructuredELTFormatChatGPTJSON, nil
 	case "messages_transcript":
 		return StructuredELTFormatIMessageText, nil
+	case "facebook_messenger_json":
+		return StructuredELTFormatFacebookMessenger, nil
 	default:
 		return "", fmt.Errorf("declared format %q has no DuckDB structured-ELT template", declared)
 	}
@@ -202,6 +209,8 @@ func StructuredELTTemplateForFormat(format StructuredELTFormat) (string, error) 
 		return "chatgpt_json_array_v1", nil
 	case StructuredELTFormatIMessageText:
 		return "imessage_text_v1", nil
+	case StructuredELTFormatFacebookMessenger:
+		return "facebook_messenger_json_v1", nil
 	default:
 		return "", fmt.Errorf("structured elt format %q has no pinned template", format)
 	}

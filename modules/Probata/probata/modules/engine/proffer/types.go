@@ -151,6 +151,54 @@ type WorkflowInput struct {
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	OwnerPersonID       string `json:",omitempty"`
 	PerspectivePersonID string `json:",omitempty"`
+	// AutoApproval names the preview-approval policy for this run only; a
+	// batch sets it on each item it starts. Empty (the default) means the owner
+	// decides every preview. AutoApprovalCleanChecks is the owner's
+	// "auto-approve clean runs" policy: when every check in AutoApprovalChecks
+	// settled success, the run records an automatic approval
+	// (record_auto_approval_activity) instead of waiting; otherwise it waits for
+	// the owner exactly as it does when the policy is off.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	AutoApproval string `json:",omitempty"`
+}
+
+// AutoApprovalCleanChecks is the only automatic approval policy (owner
+// 2026-10-02). Byline: Claude Code · Opus 5.5 · 2026-10-02
+const AutoApprovalCleanChecks = "clean_checks"
+
+// ValidAutoApproval reports whether policy is empty or a known policy name.
+func ValidAutoApproval(policy string) bool {
+	return policy == "" || policy == AutoApprovalCleanChecks
+}
+
+// AutoApprovalChecks are the checks the pipeline already computes that must
+// all settle success before a run may approve itself (owner 2026-10-02):
+// record accounting, byte coverage, raw coverage against the source,
+// normalized verification, and participant resolution. A not_applicable
+// outcome counts as not passed.
+var AutoApprovalChecks = []stagegraph.StageID{
+	stagegraph.ReconcileRecordAccounting,
+	stagegraph.ReconcileByteCoverage,
+	stagegraph.VerifyRawCoverageAgainstSource,
+	stagegraph.VerifyNormalizedGeneration,
+	stagegraph.ResolveContextParticipants,
+}
+
+// AutoApprovalCheck is one passed check, by reference.
+type AutoApprovalCheck struct {
+	Stage      ActivityName `json:"stage"`
+	Status     Status       `json:"status"`
+	ReceiptRef Ref          `json:"receipt_ref"`
+}
+
+// AutoApprovalRequest is record_auto_approval_activity's compact input.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+type AutoApprovalRequest struct {
+	RequestID        string              `json:"request_id"`
+	PreviewHandle    Ref                 `json:"preview_handle"`
+	SelectionRef     Ref                 `json:"selection_ref"`
+	ParserOptionsRef Ref                 `json:"parser_options_ref"`
+	Checks           []AutoApprovalCheck `json:"checks"`
 }
 
 // personRefs carries the explicit person ids to the first-party context

@@ -3893,3 +3893,33 @@ Open, for the owner:
 - [ ] coolify-realtime still 1.0.16 (compose names a newer one); bring it in line with the next Coolify restart.
 - [ ] Devbox redeploy through Coolify, now that long builds are no longer cut at 30 minutes.
 
+
+## 2026-10-02 07:44–08:35 EDT — Devbox redeployed through Coolify; step 1 of P-1 verified live
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02 (agent `kasm-devbox`). Continues the 01:19 P-1 entry above; the Coolify SSH fix and the 4.3.23 upgrade are in the entry from fdb5415e._
+
+- **Guard before the deploy** (07:44Z): SAFE, 1316/1316 files verified. Rescued to `~/rescued/2026-10-02T074439Z/`, including other sessions' leftover headless Chrome folders under `/tmp`. No agent process was running.
+- **Deploy `4rstpgrt9hqzcsxyh3zvziw6`** (forced, through coolify-write, commit `fdb5415e`): queued 07:45:54Z, **finished** about 08:29Z, about 43 min.
+  - It passed the 30-minute mark that killed the 4.1.2 builds (still building at 30 min 23 s).
+  - New container `devbox-pd3xc78ahqkfswq12bpfqgy1-074630529109`, image `cb8d9bcb`.
+- **Verified live** (08:29–08:33Z):
+  - One container; the Tailscale sidecar is gone.
+  - Mounts include `/root` → `/data/probata/volumes/devbox/root`.
+  - Host listeners are 6901, 13389, 7681, 8384 and 61208; nothing on 3389.
+  - ttyd 1.7.7 runs as kasm-user and `http://100.91.190.107:7681/` answers 200. Kasm desktop :6901 answers 401, its own login.
+  - Home intact: `.claude` 766 MB, `.claude.json` 42,350 B, `work`, `jev-eval`.
+  - Claude Code 2.1.287 is installed and not signed in yet.
+  - Fixed on the way: `~/.cache` in the volume was root-owned since the 09-28 deploy (mise could not write), so it was chowned to uid 1000.
+- `docs/reference/DEVBOX-ON-OVH-FILES.md` "What it has" now lists the live versions.
+- [ ] **Owner:** sign Claude Code in at `http://100.91.190.107:7681` (tailnet): `claude` opens, then `/login` with the Max subscription.
+- [ ] **Owner:** remove the stale tailnet device `kasm` (id `370062773541654`, 100.87.31.37, offline since 08:28Z) in the Tailscale admin console. The OAuth client's DELETE returned 403 because it lacks device write scope. Until then the name `kasm` is taken and `svc:kasm` cannot be registered.
+- [ ] Waiting on the owner's go: `deploy/kasm/install_kasm.sh` (3389 is now free), the auto-guard A/B choice, and the corpus read-only mount paths.
+
+## 2026-10-02 04:15 EDT – ongoing — casevault catalogued; messaging sources placed in their casevault home (owner 03:54)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02_
+
+- **casevault in the catalog:** `casebible/tools/casevault_listing_load.{sh,sql}` loads append-only listing generations into `raw_duck.casevault_objects` (view `raw_duck.casevault_objects_current`). First load 08:16Z: 131 objects, 123,326 B, the empty skeleton only (AGENTS/INDEX/MANIFEST/Dashboard/_Incoming per domain). Listing on ovh-files under systemd-run with the B2 EnvironmentFile; Class C list calls only.
+- **The catalog is stale against live B2** (found by the source-selection pass): its visible set stops 2026-09-18 and `raw_duck.b2_objects` 2026-09-14; `consignatio/intake/raw-dedupe/` no longer exists on B2; 19 SMS XMLs the catalog calls visible were already moved to `intake/_quarantine/superseded-sms-backups/v1/`. Every message source was re-checked live.
+- **Placement tooling:** `casebible/tools/casevault_placement.sh` (add-only same-bucket b2→b2 server-side copy, `--ignore-existing`, dry-run mode, size+SHA-1 verify from B2 metadata) and `casevault_placement_load.sql` (old→new pairs into `raw_duck.casevault_placement`).
+- [ ] Owner sign-off on the copy list (10 SMS XML, 10 call logs, 2 Facebook exports of the owner–Katrina thread with 536 attachment files; ~11.7 GB), device slugs, Facebook export ids, and which Google Voice Takeout tree.

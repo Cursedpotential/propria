@@ -91,6 +91,10 @@ const (
 	// against the registry once and records the resolution; it writes no row
 	// outside its own receipt. Byline: Claude Code · Opus 5.5 · 2026-10-02
 	RespResolveParticipants
+	// RespRecordDecision records a preview decision in the same durable
+	// decision record a human approval writes; it writes nothing else.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	RespRecordDecision
 )
 
 // Descriptor is the static, dependency-free description of one stage: its
@@ -188,6 +192,19 @@ const (
 	CommitFirstPartyContextThreads StageID = "commit_first_party_context_threads_activity"
 )
 
+// RecordAutoApproval (owner 2026-10-02, "auto-approve clean runs") records the
+// automatic approval of a run whose every computed check passed, in the same
+// context.proffer_preview_decision record a human approval writes, with the
+// actor "auto:clean-checks" and the passed checks as its reason. It is
+// scheduled only when the run was started with auto-approval switched on (per
+// batch, never globally) and only after the preview is published; a run with
+// any check that did not pass never reaches it and waits for the owner.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+const RecordAutoApproval StageID = "record_auto_approval_activity"
+
+// AutoApprovalActor is the decided_by value of every automatic approval.
+const AutoApprovalActor = "auto:clean-checks"
+
 // OptionalStages describes version-gated stages that are real members of a
 // specific route but not universal ancestors of PublishGeneration. Keeping
 // these separate preserves the base graph's strong "every listed stage runs"
@@ -252,5 +269,13 @@ var OptionalStages = []Descriptor{
 		Result:         "first-party context thread commit receipt reference",
 		// Thread membership references working.message rows.
 		DependsOn: []StageID{CommitFirstPartyMessages},
+	},
+	{
+		ID:             RecordAutoApproval,
+		Responsibility: RespRecordDecision,
+		Result:         "automatic preview decision receipt reference",
+		// It decides on the published preview, using the outcomes of the checks
+		// the run already computed. Byline: Claude Code · Opus 5.5 · 2026-10-02
+		DependsOn: []StageID{PublishPreview},
 	},
 }

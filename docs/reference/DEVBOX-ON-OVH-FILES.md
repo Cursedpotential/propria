@@ -18,16 +18,16 @@ A persistent Linux desktop and shell box (Kasm Ubuntu) that already has Claude C
 - Container: the one named `devbox-pd3xc78ahqkfswq12bpfqgy1-<deploy stamp>`; find it with `docker ps --filter name=devbox-pd3x`. Image `probata-devbox:latest`, built by Coolify from `modules/Probata/probata/deploy/docker/devbox/Dockerfile` (compose `deploy/devbox.yaml`). Coolify auto-deploy is off on purpose: deploy explicitly, after the guard below.
 - User: `kasm-user` (uid 1000).
 
-## What it has (checked 2026-09-23)
+## What it has (checked 2026-10-02, image built by Coolify deploy `4rstpgrt9hqzcsxyh3zvziw6`)
 
 | Tool | Version / state |
 |---|---|
-| Claude Code | 2.1.263 at `/usr/bin/claude` |
-| Python | 3.12.3, with `pip3` and `uv` |
-| Node | 22.23.2 |
-| Also present | `git`, `gh`, `opencode`, `duckdb`, `rclone`, `jq` |
-| Not present | Docker CLI, `psql`, Codex, Tailscale |
-| Resources | 8 CPUs, ~22 GB RAM (host shared). Root disk was 89% used (22 GB free) on 2026-09-23 |
+| Claude Code | 2.1.287 at `/usr/bin/claude`; signed in with the owner's own subscription once he runs `/login` |
+| Python | 3.12.3, with `uv`; shared venv `/opt/venv` (duckdb, httpx, pyarrow, pypdf, pypdfium2, pytz) |
+| Node | 22.23.3 |
+| Also present | `git`, `gh`, `opencode`, `codex` 0.160.0, `duckdb`, Docker CLI 29.8.2 (no daemon), `psql` 16.15, `rclone`, `jq`, `ttyd` 1.7.7, Synaptic, Chrome |
+| Not present | Tailscale (the box is reached through the host's Tailscale Services) |
+| Resources | Capped at 4 CPUs / 8 GB by `deploy/devbox.yaml`; host ovh-files has 8 cores, ~22 GB RAM |
 
 ## Where work lives
 

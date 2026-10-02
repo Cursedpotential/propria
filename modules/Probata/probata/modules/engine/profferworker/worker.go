@@ -69,6 +69,9 @@ type Registrations struct {
 	// confirm, and the spine and thread commits.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	FirstPartyContext activities.FirstPartyContextActivities
+	// AutoApproval is record_auto_approval_activity (owner 2026-10-02,
+	// "auto-approve clean runs"). Byline: Claude Code · Opus 5.5 · 2026-10-02
+	AutoApproval activities.AutoApprovalActivity
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -120,6 +123,7 @@ func RegisterAll(registrar interface {
 	activities.RegisterPreviewProjectionActivity(registrar, registrations.Preview)
 	activities.RegisterPublishContextSearchActivity(registrar, registrations.ContextSearch)
 	activities.RegisterFirstPartyContextActivities(registrar, registrations.FirstPartyContext)
+	activities.RegisterAutoApprovalActivity(registrar, registrations.AutoApproval)
 }
 
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
@@ -514,6 +518,9 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		Normalized: activities.NewNormalizedPipelineActivities(normalizedRepo, normalize.GenericMessageNormalizer{}),
 		Repair:     activities.NewRepairActivities(toolsClient, repairStore),
 		Preview:    activities.PreviewProjectionActivity{Store: previewStore},
+		// The automatic approval writes the same decision record Review does.
+		// Byline: Claude Code · Opus 5.5 · 2026-10-02
+		AutoApproval: activities.AutoApprovalActivity{Store: previewStore},
 	}, nil
 }
 

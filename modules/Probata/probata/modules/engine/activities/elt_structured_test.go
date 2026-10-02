@@ -225,9 +225,10 @@ func TestExecuteStructuredELTRejectsNonDuckDBAuthorization(t *testing.T) {
 
 func TestStructuredELTFormatForDeclaredFormat(t *testing.T) {
 	tests := map[string]StructuredELTFormat{
-		"smsbackuprestore_xml":  StructuredELTFormatSMSXML,
-		"chatgpt_official_json": StructuredELTFormatChatGPTJSON,
-		"messages_transcript":   StructuredELTFormatIMessageText,
+		"smsbackuprestore_xml":    StructuredELTFormatSMSXML,
+		"chatgpt_official_json":   StructuredELTFormatChatGPTJSON,
+		"messages_transcript":     StructuredELTFormatIMessageText,
+		"facebook_messenger_json": StructuredELTFormatFacebookMessenger,
 	}
 	for declared, want := range tests {
 		got, err := StructuredELTFormatForDeclaredFormat(declared)
@@ -244,11 +245,12 @@ func TestStructuredELTFormatForDeclaredFormat(t *testing.T) {
 
 func TestStructuredELTTemplateForFormat(t *testing.T) {
 	tests := map[StructuredELTFormat]string{
-		StructuredELTFormatCSV:          "csv_v1",
-		StructuredELTFormatNDJSON:       "ndjson_v1",
-		StructuredELTFormatSMSXML:       "sms_xml_v1",
-		StructuredELTFormatChatGPTJSON:  "chatgpt_json_array_v1",
-		StructuredELTFormatIMessageText: "imessage_text_v1",
+		StructuredELTFormatCSV:               "csv_v1",
+		StructuredELTFormatNDJSON:            "ndjson_v1",
+		StructuredELTFormatSMSXML:            "sms_xml_v1",
+		StructuredELTFormatChatGPTJSON:       "chatgpt_json_array_v1",
+		StructuredELTFormatIMessageText:      "imessage_text_v1",
+		StructuredELTFormatFacebookMessenger: "facebook_messenger_json_v1",
 	}
 	for format, want := range tests {
 		got, err := StructuredELTTemplateForFormat(format)

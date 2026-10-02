@@ -160,6 +160,11 @@ type BatchInput struct {
 	OwnerPersonID       string `json:"owner_person_id,omitempty"`
 	PerspectivePersonID string `json:"perspective_person_id,omitempty"`
 
+	// AutoApproval switches an approval policy on for every item of this batch
+	// (and only this batch); see WorkflowInput.AutoApproval.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	AutoApproval string `json:"auto_approval,omitempty"`
+
 	// MaxInFlight is how many items may run at once. One is the default and
 	// the owner's instruction; more only when a system is proven to take it.
 	MaxInFlight int `json:"max_in_flight,omitempty"`
@@ -177,6 +182,9 @@ func (in BatchInput) validate() error {
 	}
 	if !strings.HasSuffix(in.Prefix, "/") {
 		return errors.New("batch input prefix must name a folder and end in /")
+	}
+	if !ValidAutoApproval(in.AutoApproval) {
+		return fmt.Errorf("batch input names an unknown auto_approval policy %q", in.AutoApproval)
 	}
 	if in.MaxInFlight < 0 {
 		return errors.New("batch max_in_flight cannot be negative")
@@ -387,6 +395,7 @@ func runBatchItem(ctx workflow.Context, in BatchInput, item *BatchItem) {
 		SourceRef: item.SourceRef, DeclaredFormat: in.DeclaredFormat,
 		ParserOptionsRef: in.ParserOptionsRef, SourceContextRef: in.SourceContextRef,
 		OwnerPersonID: in.OwnerPersonID, PerspectivePersonID: in.PerspectivePersonID,
+		AutoApproval: in.AutoApproval,
 	})
 
 	var execution workflow.Execution
