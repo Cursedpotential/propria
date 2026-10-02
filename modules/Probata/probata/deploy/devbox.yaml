@@ -17,6 +17,9 @@
 #
 # Byline: Claude Code · Opus 5.5 · 2026-09-28 (DF-30: the devbox's own Authentik machine identity,
 # service account `devbox`, mounted read-only from the host; owner option A 2026-09-28 04:22).
+# Byline: Claude Code · Opus 5.5 · 2026-10-02 (P-1 step 1 of the Kasm Workspaces brief, 2026-09-27-TODO.md #1:
+# xrdp off host port 3389 -> 13389, ttyd web terminal :7681 (P-3), Tailscale sidecar removed, reserved slot for
+# the Claude Code listener the legal desk will call).
 #
 # Access: https://100.91.190.107:6901 from the tailnet only (BIND_IP), self-signed cert,
 # user `kasm_user`, password = VNC_PW (Coolify env, never in this file).
@@ -60,7 +63,11 @@ services:
     mem_limit: ${DEVBOX_MEM:-8g}
     ports:
       - "${BIND_IP:-127.0.0.1}:6901:6901"   # KasmVNC HTTPS — tailnet-only (primary access)
-      - "${BIND_IP:-127.0.0.1}:3389:3389"   # xrdp — backup access via mstsc (owner 16:23)
+      # xrdp moved off host port 3389 (2026-10-02, P-1 step 1): Kasm Workspaces' installer needs 3389 for its
+      # own RDP gateway and aborted its pre-flight on 2026-09-08 because this publish held it. 13389 keeps
+      # mstsc backup access and is the target of Kasm's Guacamole connection to the devbox.
+      - "${BIND_IP:-127.0.0.1}:13389:3389"  # xrdp — backup access via mstsc (owner 16:23), Kasm Guacamole target
+      - "${BIND_IP:-127.0.0.1}:7681:7681"   # ttyd web terminal landing in `claude` (P-3) — tailnet-only
       - "${BIND_IP:-127.0.0.1}:8384:8384"   # Syncthing UI — desktop<->devbox file link (owner 16:22)
       - "${BIND_IP:-127.0.0.1}:22000:22000" # Syncthing sync
       - "${BIND_IP:-127.0.0.1}:61208:61208" # glances web dashboard (owner 11:52 "dashboard monitor")
@@ -89,6 +96,13 @@ services:
       # from the built image the same way as /home/kasm-user (see TOOLING-REPAIRS.md), so brew packages
       # survive redeploys too.
       - /data/probata/volumes/devbox/linuxbrew:/home/linuxbrew
+      # root's home on the host too (2026-10-02, owner "address the loss of the agents' work so that doesn't
+      # happen again"): the container runs as root, so a `docker exec` without -u lands in /root, and anything a
+      # tool writes there (a Claude/npm/uv config, a work folder) would otherwise die with the container. Seeded
+      # once from the image's /root before the first deploy of this revision. Agents still work as kasm-user in
+      # ~/work (docs/reference/DEVBOX-ON-OVH-FILES.md, "Where work lives"); /tmp stays scratch, and
+      # deploy/devbox/pre_redeploy_check.py rescues whatever is left in the container layer before a redeploy.
+      - /data/probata/volumes/devbox/root:/root
       # the owner's desktop `the-platform-workspace` over SMB (host automount /mnt/desktop-share, tailnet, encrypted;
       # owner 2026-09-08 10:44-10:55). Read-write. Empty when the desktop is off — nothing here may depend on it at boot.
       - /mnt/desktop-share:/home/kasm-user/desktop:rslave
@@ -97,39 +111,19 @@ services:
     networks:
       - probata
 
-  # Tailscale sidecar (owner 2026-09-08 11:07 "tag it in docker and it just works"): its own tailnet identity `kasm`,
-  # tag:docker, shares the devbox network namespace, serves https://kasm.tilapia-skilift.ts.net (Kasm) and :8384
-  # (Syncthing UI) with real certs. State in /data/probata/tsnet/kasm; auth key file installed by the root session.
-  tailscale:
-    image: tailscale/tailscale:stable
-    container_name: devbox-tailscale
-    restart: unless-stopped
-    network_mode: "service:devbox"
-    depends_on:
-      - devbox
-    environment:
-      TS_HOSTNAME: kasm
-      TS_AUTHKEY: file:/run/secrets/ts-authkey
-      TS_EXTRA_ARGS: --advertise-tags=tag:docker
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_SERVE_CONFIG: /config/serve.json
-      TS_USERSPACE: "true"
-    volumes:
-      - /data/probata/tsnet/kasm:/var/lib/tailscale
-      - /data/probata/secrets/tsnet/authkey:/run/secrets/ts-authkey:ro
-      # CORRECTED TWICE 2026-09-08 (matches the identical fix for opencode-server.yaml / openlist.yaml):
-      # (1) a relative bind of deploy/docker/tailscale-serve/kasm.json became an EMPTY DIRECTORY on the
-      #     host, because Coolify's "up" phase runs against its own persistent
-      #     /data/coolify/applications/<uuid>/, which holds only the rendered docker-compose.yaml + .env,
-      #     not a repo checkout (verified live: `file` reported "directory"; the stray directory was
-      #     quarantined to /data/probata/to_be_deleted/devbox-coolify-empty-dir-artifact-20260908/).
-      # (2) Coolify's inline `content:` bind (the compose-spec long-form with a `content:` field) does
-      #     NOT work on this Coolify install either — it rendered the path but never wrote the file
-      #     (verified live 13:31). The actual fix is a plain bind to an ABSOLUTE host path, which bypasses
-      #     Coolify's relative-path resolution entirely: /data/probata/config/tailscale-serve/kasm.json
-      #     staged on ovh-files (hostname hard-coded to kasm.tilapia-skilift.ts.net; Coolify interpolates
-      #     `${...}` at its own render pass, before docker compose ever sees the file).
-      - /data/probata/config/tailscale-serve/kasm.json:/config/serve.json:ro
+  # The Tailscale sidecar `kasm` (node kasm.tilapia-skilift.ts.net, 100.87.31.37) was REMOVED 2026-10-02 (P-1 step 1;
+  # owner ruling 2026-09-08 17:40: no Tailscale sidecars, a Tailscale Service for every name). The devbox desktop is
+  # reached through svc:devbox (deploy/tailscale/devbox-serve.hujson, served by ovh-files' own tailscaled), and the
+  # name `kasm` goes to svc:kasm for Kasm Workspaces (deploy/kasm/). Its state dir /data/probata/tsnet/kasm stays on
+  # the host untouched; the stale tailnet device is removed by the owner. Claude Code · Opus 5.5 · 2026-10-02.
+
+  # RESERVED, NOT BUILT (owner 2026-10-02 01:14-01:17): the legal work desk's "consult/escalate to Claude" backend.
+  # It will be a second service here, `devbox-claude`, built from the SAME probata-devbox image and mounting the SAME
+  # /data/probata/volumes/devbox/home at /home/kasm-user, running as uid 1000 with no desktop: a small listener that
+  # runs the unmodified `claude -p` with the owner's own signed-in subscription (credentials stay in ~/.claude on this
+  # volume; the desk never sees them). Tailnet-only: published on ${BIND_IP} and named by a Tailscale Service
+  # (reserved name svc:devbox-claude), never public, never behind Authentik. It lives in this Coolify app, not in a Kasm
+  # session, because Kasm sessions start and stop on demand and the listener must always be up. Another lane builds it.
 
 networks:
   probata:

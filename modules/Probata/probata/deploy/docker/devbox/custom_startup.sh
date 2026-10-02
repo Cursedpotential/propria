@@ -7,6 +7,7 @@
 # bind + symlink indirection. All state paths below are real directories in the volume.)
 # Byline: Claude Code · Sonnet 5 · 2026-09-08 (devbox v2: glances web dashboard + ollama serve
 # added, both tailnet-only via the sidecar; plan "rosy-wibbling-cosmos", owner-approved 12:10 EDT).
+# Byline: Claude Code · Opus 5.5 · 2026-10-02 (ttyd web terminal for P-3, below).
 set -u
 mkdir -p "$HOME/work/sync" "$HOME/.claude" "$HOME/.agents" "$HOME/.ssh" "$HOME/.config/opencode" \
          "$HOME/.config/syncthing" "$HOME/.local/share" "$HOME/.memsearch/memory"
@@ -35,6 +36,13 @@ fi
 # ollama (CPU-only, no models baked — owner addition): loopback-only, not published on any port
 if command -v ollama >/dev/null 2>&1; then
   OLLAMA_HOST=127.0.0.1:11434 nohup ollama serve >"$HOME/.config/ollama.log" 2>&1 &
+fi
+# ttyd web terminal (P-3) on :7681, published on the tailnet IP only (deploy/devbox.yaml). It runs as
+# kasm-user (uid 1000, the owner of ~/.claude in the host volume), never as root, and lands in Claude
+# Code inside a re-attachable tmux session. Claude Code · Opus 5.5 · 2026-10-02.
+if command -v ttyd >/dev/null 2>&1; then
+  sudo -u kasm-user -H nohup ttyd -W -p 7681 -t titleFixed="Claude Code · devbox" \
+    tmux new-session -A -s claude /usr/local/bin/claude-terminal >"$HOME/.config/ttyd.log" 2>&1 &
 fi
 # (OpenCode's headless server is its own container — deploy/opencode-server.yaml, owner 17:24 — not run here.)
 # Syncthing: GUI on 0.0.0.0:8384 (published on the tailnet IP only), config under the persistent home

@@ -273,10 +273,22 @@ RUN mkdir -p /home/linuxbrew && chown 1000:1000 /home/linuxbrew \
     && printf '#!/bin/sh\nexec sudo -u kasm-user -H /home/linuxbrew/.linuxbrew/bin/brew "$@"\n' > /usr/local/bin/brew \
     && chmod +x /usr/local/bin/brew
 
-# Kasm startup hook: starts xrdp + syncthing beside the desktop session
+# ttyd web terminal (portal item P-3, owner order #3 2026-09-26 23:35 "all yes"): a one-click browser
+# terminal that lands in `claude` on the devbox. Static upstream release, pinned by version AND sha256
+# (the sha256 matches upstream's SHA256SUMS for 1.7.7, checked on ovh-files 2026-10-02). Started by
+# custom_startup.sh as kasm-user inside tmux, so closing the browser tab does not end the Claude session.
+# Byline: Claude Code · Opus 5.5 · 2026-10-02
+ARG TTYD_VERSION=1.7.7
+ARG TTYD_SHA256=8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55
+RUN curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" -o /usr/local/bin/ttyd \
+    && echo "${TTYD_SHA256}  /usr/local/bin/ttyd" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/ttyd && ttyd --version
+
+# Kasm startup hook: starts xrdp + syncthing + ttyd beside the desktop session
 COPY deploy/docker/devbox/custom_startup.sh /dockerstartup/custom_startup.sh
 COPY deploy/docker/devbox/claude-rc.sh /usr/local/bin/claude-rc
-RUN chmod +x /dockerstartup/custom_startup.sh /usr/local/bin/claude-rc
+COPY deploy/docker/devbox/claude-terminal.sh /usr/local/bin/claude-terminal
+RUN chmod +x /dockerstartup/custom_startup.sh /usr/local/bin/claude-rc /usr/local/bin/claude-terminal
 
 # Desktop launchers for the agent CLIs (codex added devbox v2, same pattern as claude/opencode)
 RUN for a in claude opencode codex; do printf '[Desktop Entry]\nType=Application\nName=%s\nExec=xfce4-terminal -e %s\nTerminal=false\nCategories=Development;\n' "$a" "$a" > "/usr/share/applications/$a.desktop"; done
