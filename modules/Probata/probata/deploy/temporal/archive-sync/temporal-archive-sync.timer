@@ -1,0 +1,11 @@
+# Byline: Claude Code · Opus 5.5 · 2026-10-02 — see temporal-archive-sync.sh
+[Unit]
+Description=Hourly copy of the Temporal history archive to B2
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

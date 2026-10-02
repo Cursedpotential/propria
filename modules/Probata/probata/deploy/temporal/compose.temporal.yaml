@@ -79,6 +79,14 @@ services:
     ports:
       # gRPC frontend — tailnet-only; never 0.0.0.0 beyond the container bind above
       - "100.91.190.107:7233:7233"
+    volumes:
+      # History archival (owner 2026-10-02 02:55 EDT: keep every run's history, B2 for now, later a
+      # sync location to B2 + Google Drive / his machine). The image's built-in filestore archiver
+      # writes here; a host sync job copies the folder out add-only. The namespace archival URIs
+      # (file:///etc/temporal/archive/history and .../visibility) can be set only once per namespace,
+      # which is why they point at this fixed folder rather than at a cloud store.
+      # Host prep: mkdir -p /data/probata/volumes/temporal-archive && chown 1000:1000 it.
+      - /data/probata/volumes/temporal-archive:/etc/temporal/archive
     # ~~healthcheck via `temporal operator cluster health`~~ REMOVED 2026-08-24: the
     # auto-setup image does NOT reliably carry the `temporal` CLI — the check failed on
     # every boot and gated the whole deploy (verified live, deploy kiv41fzepblu).
@@ -111,5 +119,5 @@ networks:
   probata:
     external: true          # pre-created on ovh-files (`docker network create probata`)
 
-# No named volumes — Temporal's only state is the two Postgres databases on
-# the existing, operated PG18 (100.91.190.107). Nothing to bind-mount here.
+# No named volumes. Temporal's live state is the two Postgres databases on the existing PG18
+# (100.91.190.107); the one bind mount is the history archive above (2026-10-02, Claude Code · Opus 5.5).

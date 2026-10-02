@@ -1,0 +1,10 @@
+# Byline: Claude Code · Opus 5.5 · 2026-10-02 — see temporal-archive-sync.sh
+# Install on ovh-files: copy this file, the .timer and the .sh to /etc/systemd/system/ and
+# /opt/propria/temporal-archive-sync.sh, then `systemctl daemon-reload && systemctl enable --now temporal-archive-sync.timer`.
+[Unit]
+Description=Copy the Temporal history archive to B2 (add-only)
+
+[Service]
+Type=oneshot
+EnvironmentFile=/data/consignatio/secrets/rclone-b2-intake.env
+ExecStart=/bin/bash /opt/propria/temporal-archive-sync.sh
