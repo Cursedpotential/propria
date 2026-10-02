@@ -13,7 +13,7 @@ Previous handoff for this session: `docs/HANDOFF-2026-10-01-contextforge-coolify
 | Legal desk (Advocatio) `legal-workspace` `gvghzivfmctev8dloetfssnj` | API under `https://legal.tilapia-skilift.ts.net/api/legal/...`. Toolkit listing uncapped (was `LIMIT 200`): 323→now 321 references, 193 sources (`7a19caf7`). Builder `df34bd44` (deployment `i252mowmvanp9v11794hh50x`): `/v1/mcp/connections`, `/v1/mcp/tools` (28 tools), `/v1/mcp/invocations`; web `/toolkit/tools` (schema forms, call shown before Run, writes need a "reviewed" tick); factors `/toolkit?table=factor` (12). `search_guide` live call returned 12 results. Writes classed: 9 tools incl. `case_query` (it allows CREATE/UPDATE). |
 | Toolkit store `surreal-case` fct/case | 321 references, 193 sources (every source has a file or an official/alternate URL; ICWA and Sullivan v Gray official_url restored), 12 factors, 1 court, 0 case_status (probe removed). No case data yet. Removed rows saved in `modules/Legal-desktop/docs/receipts/2026-10-01-toolkit-store-test-rows-removed.json`. |
 | Toolkit content vs originals | Originals: `F:/Users/matts/Downloads/custodyguide_v1complete_20260812` (+ donor copy, + `plugins/_stale/family-court-toolkit-2.1.0-pre-rebuild-20260907`). `verification_ledger.md` and `sources/README.md` restored from 08-12 (were older) and rewritten into their store rows. Everything else is equal or a later edit. The plugin's `content/` is gitignored (no history). |
-| Hosted toolkit console `family-court-console` `sokv65ibdq2y8xdaqmd6p4rq` | Running healthy BUT every store tool answers "Anonymous access not allowed": `store.ts` signed in once with `.signin()`; the 1 h token expired with nothing to renew. Fix written (credentials passed as `connect(url, {authentication, namespace, database})`), builds, typechecks; NOT committed, NOT deployed. A console restart by the builder failed in Coolify (helper container name conflict, deployment `thps5mhdb35wkmnm2ytiv2co`). |
+| Hosted toolkit console `family-court-console` `sokv65ibdq2y8xdaqmd6p4rq` | Store login fixed 01:54 EDT (toolkit 3.2.4 `4443005`, build copy `b322c9b2`, deployment `m10iwrd487j1p0iht0p9y7cy`). Verified through the desk: `case_summary` reads the store; a marked test note was written, read back and purged (0 before, 0 after). |
 | Docs store `surreal-docs` `r13ehbwuw3xji8x9mibeypp0` | RocksDB block cache 2 GiB + 2×64 MiB write buffers (`542efd1c`, deployment `mp1md6u4s1713kzyn4tk6crf`). RSS 7.5 GiB → 105 MiB after restart; ovh-files available RAM 7→14 GB. Docstore health ok, store up. Growth should stop near ~2.5 GiB; not yet observed over time. |
 | Devbox `pd3xc78ahqkfswq12bpfqgy1` (Kasm agent) | `fae5ff12`: xrdp → 13389, ttyd 1.7.7 on 7681 into `claude` in `~/work`, tailscale sidecar removed, `/root` on the volume, `deploy/devbox/pre_redeploy_check.py` (ran: 501 files rescued to `~/rescued/2026-10-02T053415Z/`, verified). `~/.claude.json` restored from the 09-25 backup; Claude Code not signed in. 09-28 deploy had already destroyed container-layer content (two agent work dirs ~1.1 GB, `.npm`, `.duckdb`, `portal-work`) — no copy exists. Owner triggered the force redeploy 01:36 EDT; agent watching. |
 
@@ -28,7 +28,6 @@ Previous handoff for this session: `docs/HANDOFF-2026-10-01-contextforge-coolify
 
 ## UNRESOLVED (mandatory)
 
-- Toolkit console auth fix — written, not committed/deployed. Commit in `propria-plugins` (bump 3.2.4, check_plugins --fix), then deploy `family-court-console` (resolve the helper-container name conflict), then re-run the desk's ephemeral write test (`note:zz-ephemeral-test-*`, read back, purge, count back).
 - Devbox redeploy in flight; owner must sign in to Claude Code there afterwards (`claude`, then `/login`).
 - Kasm Workspaces install/registration/exposure (brief steps 2–6) not started; `deploy/kasm/` being written.
 - Desk chat: wire kimi-k3 + toolkit skills/agents/tools; build the devbox Claude listener + "Ask Claude".
@@ -45,8 +44,7 @@ Previous handoff for this session: `docs/HANDOFF-2026-10-01-contextforge-coolify
 
 ## Next steps (work in order)
 
-1. Commit + deploy the toolkit console auth fix; prove a store tool from the desk; run the ephemeral write test.
-2. Follow the devbox redeploy to healthy; owner signs in; verify ttyd and `claude auth status`.
+1. Follow the devbox redeploy to healthy; owner signs in; verify ttyd and `claude auth status`.
 3. Load legal-desk case facts (option A) from the case-identity record — real data, read back.
 4. Desk chat B (kimi-k3 + skills/agents/tools), then C (devbox listener + Ask Claude).
 5. Kasm steps 2–6 per `modules/Probata/probata/docs/planning/2026-09-27-TODO.md` brief.
