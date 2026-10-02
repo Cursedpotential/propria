@@ -18,8 +18,9 @@
 #   - Same host, Docker network `coolify`: the alias `fgz1n7useplhk0t91uk7k1aw` keeps the old
 #     container name, which n8n (its own database lives here) and proffer-worker dial.
 #
-# Data: /data/probata/volumes/casebible-pg18 (copied from the old named volume at cutover;
-# the image keeps PGDATA at /var/lib/postgresql/18/docker).
+# Data: /data/probata/volumes/casebible-pg18 (copied from the old named volume at the 2026-10-02
+# 09:08 EDT cutover, rsync checksum pass 0 differences; the image keeps PGDATA at
+# /var/lib/postgresql/18/docker).
 #
 # Byline: Claude Code · Opus 5.5 · 2026-10-02
 # =============================================================================
@@ -27,7 +28,8 @@
 services:
   casebible-pg:
     image: ghcr.io/cursedpotential/agno-postgres:18-duckdb
-    container_name: casebible-pg18
+    # No container_name: Coolify 4.3.23 replaces it with casebible-pg-<uuid>-<timestamp>. Dial the
+    # network alias below (same host) or tailnet 5433, never the container name.
     restart: unless-stopped
     ports:
       - "127.0.0.1:5475:5432"
