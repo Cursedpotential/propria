@@ -3,11 +3,12 @@
 # coverage gaps, schema drift census, raw-pair comparisons, geocode-cache vintages.
 # Emits docs/VALIDATION_REPORT.md sections; synthesis section appended by hand.
 import json, hashlib, os, glob, io
+import pathlib
 import psycopg
 
-DSN = "host=100.119.96.29 port=5432 dbname=traceiq user=ai password=ai"
+from db_env import DSN
 EXTRACT = r"E:\AI_Workspace\Projects\traaceiq_mess\_extracted_data"
-OUT = r"E:\AI_Workspace\Projects\traceiq-rebuild\docs\VALIDATION_REPORT_data.md"
+OUT = str(pathlib.Path(__file__).resolve().parent.parent / "docs" / "VALIDATION_REPORT_data.md")
 
 sections = []
 

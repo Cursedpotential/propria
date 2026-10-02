@@ -335,10 +335,10 @@
     {
       "id": "traceiq-rebuild",
       "source": "modules/vestigia-geodata_processor/traceiq-rebuild",
-      "target": "modules/vestigia-geodata_processor/traceiq-rebuild",
-      "state": "independent_repository_relocated",
+      "target": "modules/vestigia-geodata_processor/vestigia",
+      "state": "imported",
       "ownership": "owned",
-      "recommended_strategy": "preserve linked worktrees and reconcile before import",
+      "recommended_strategy": "none: imported by git subtree 2026-09-26",
       "historical_snapshots": [
         {
           "recorded_before": "2026-09-20",
@@ -351,8 +351,15 @@
       ],
       "path_exists": true,
       "verification_scope": "Current local path and Git boundary; historical validation and import receipts above are dated prior evidence.",
-      "current_git_root": "E:/AI_Workspace/Projects/Propria/modules/vestigia-geodata_processor/traceiq-rebuild",
-      "current_branch": "master"
+      "current_git_root": "E:/AI_Workspace/Projects/Propria",
+      "current_branch": "main",
+      "renamed": {
+        "from": "modules/vestigia-geodata_processor/traceiq-rebuild",
+        "to": "modules/vestigia-geodata_processor/vestigia",
+        "date": "2026-10-02",
+        "by": "Claude Code · Opus 5.5",
+        "owner_order": "2026-10-02 08:10 the rebuild product moves to the new name"
+      }
     }
   ],
   "prohibited_content": [

@@ -39,7 +39,7 @@ COPY modules/Probata/probata/docs/ /sources/docs/probata/
 COPY modules/Consignatio/docs/ /sources/docs/consignatio/
 COPY modules/Consignatio/Intake/docs/ /sources/docs/consignatio-intake/
 COPY modules/Legal-desktop/docs/ /sources/docs/advocatio/
-COPY modules/vestigia-geodata_processor/traceiq-rebuild/docs/ /sources/docs/vestigia/
+COPY modules/vestigia-geodata_processor/vestigia/docs/ /sources/docs/vestigia/
 COPY modules/FL-MCP/docs/ /sources/docs/family-court/
 
 # Drop what the registry excludes, at assembly time, and anything that is not Markdown or the

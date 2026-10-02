@@ -19,8 +19,7 @@ from datetime import datetime, timezone
 import psycopg
 from provider_http import build_request
 
-DSN = os.environ.get("TRACEIQ_DSN_KV",
-                     "host=100.119.96.29 port=5432 dbname=traceiq user=ai password=ai")
+from db_env import DSN
 
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 

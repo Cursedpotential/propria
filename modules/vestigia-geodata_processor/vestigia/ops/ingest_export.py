@@ -6,7 +6,7 @@
 import json, hashlib, sys, os
 import psycopg
 
-DSN = "host=100.119.96.29 port=5432 dbname=traceiq user=ai password=ai"
+from db_env import DSN
 
 def ingest(path, subject_name, subject_role, google_account, export_label,
            format_gen, produced_at, chunk_note):

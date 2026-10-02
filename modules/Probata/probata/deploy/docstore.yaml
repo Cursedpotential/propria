@@ -20,7 +20,7 @@
 #                         modules/Consignatio/docs/**
 #                         modules/Consignatio/Intake/docs/**
 #                         modules/Legal-desktop/docs/**
-#                         modules/vestigia-geodata_processor/traceiq-rebuild/docs/**
+#                         modules/vestigia-geodata_processor/vestigia/docs/**
 #                         modules/FL-MCP/docs/**
 #                         docs/**
 #   A docs push in ANY of those modules rebuilds this image; the start-up pass is the change event.

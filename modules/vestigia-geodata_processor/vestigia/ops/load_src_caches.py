@@ -9,8 +9,7 @@ from datetime import datetime, timezone
 
 import psycopg
 
-DSN = os.environ.get("TRACEIQ_DSN_KV",
-                     "host=100.119.96.29 port=5432 dbname=traceiq user=ai password=ai")
+from db_env import DSN
 
 CACHES = r"E:\AI_Workspace\Projects\traaceiq_mess\traceiq\caches"
 GOOGLE_PLACE = os.path.join(CACHES, "place_id_db_REPAIRED.json")

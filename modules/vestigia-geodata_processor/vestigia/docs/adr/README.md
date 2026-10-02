@@ -1,10 +1,11 @@
-# Architecture Decision Records — TraceIQ rebuild
+# Architecture Decision Records — Vestigia
 
-> _Naming (D-140, 2026-09-05; applied 2026-09-06): this product is **vestigia** (formerly traceIQ / TraceIQ - Latin: footprints, tracks). Working copy: `probata/modules/vestigia/` (directory rename from `modules/traceIQ/` landed 2026-09-06; old name kept as a junction). GitHub repo name unchanged pending its own decision. Canon: `probata/docs/NAMING.md`. Historical text below is left verbatim; both names remain valid in recall stores (D-142)._
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02 (index re-conformed: 0015 and 0016 added, the
+> pre-repository location note removed). Product name per D-140; old name TraceIQ._
 
-
-> Lives in `_unfuck\adr\` during the restructure discussion; migrates to the fresh repo's
-> `docs/adr/` when Phase C begins. Companion agenda: `../RESTRUCTURE_LEDGER.md`.
+**Owner direction 2026-10-02:** PostgreSQL is the source-of-truth data holder only and all
+analysis moves to SurrealDB on a mirror. That changes 0002, 0012 and 0013; the superseding ADR
+follows the open choices in `../plans/2026-10-02-continuation-plan.md` (V-7, V-8).
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -22,3 +23,5 @@
 | [0012](0012-analysis-waves-homebase-durability.md) | Analysis first wave (overnight/home-base + anomalies); home_base durability | accepted | 2026-07-24 |
 | [0013](0013-fresh-thin-web-ui.md) | Fresh thin web UI over the API; Evidence.dev reporting layer; old UIs mined | accepted | 2026-07-24 |
 | [0014](0014-provider-configuration-subsystem.md) | Provider configuration subsystem; no hardcoded credentials | accepted | 2026-07-24 |
+| [0015](0015-dual-use-agent-native-workspace.md) | Dual-use agent-native workspace (unified surface) | proposed | 2026-07-24 |
+| [0016](0016-path-model-overnight-verification-scope.md) | Path segmentation, overnight definition, verification scope, "geodata" clarified | accepted | 2026-07-25 |

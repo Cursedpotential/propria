@@ -9,7 +9,7 @@
 #   python flag.py list            # show all labels + annotations
 import argparse, psycopg
 
-DSN = "host=100.119.96.29 port=5432 dbname=traceiq user=ai password=ai"
+from db_env import DSN
 
 p = argparse.ArgumentParser()
 sub = p.add_subparsers(dest="cmd", required=True)

@@ -51,7 +51,7 @@ ROOTS = {
     "consignatio": "modules/Consignatio/docs",
     "consignatio-intake": "modules/Consignatio/Intake/docs",
     "advocatio": "modules/Legal-desktop/docs",
-    "vestigia": "modules/vestigia-geodata_processor/traceiq-rebuild/docs",
+    "vestigia": "modules/vestigia-geodata_processor/vestigia/docs",
     "family-court": "modules/FL-MCP/docs",
 }
 

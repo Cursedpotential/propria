@@ -14,7 +14,7 @@ commit boundary: this root. Run `git rev-parse --show-toplevel` and expect
 | Consignatio / Intake | `modules/Consignatio/` | its `AGENTS.md` |
 | Advocatio legal workdesk | `modules/Legal-desktop/` | its `AGENTS.md` |
 | Vestigia | `modules/vestigia-geodata_processor/` | its `AGENTS.md` |
-| TraceIQ Rebuild | `modules/vestigia-geodata_processor/traceiq-rebuild/` | its `AGENTS.md` |
+| Vestigia app (formerly TraceIQ Rebuild) | `modules/vestigia-geodata_processor/vestigia/` | its `AGENTS.md` |
 | Family Court Workbench | `modules/FL-MCP/` | its `AGENTS.md` |
 | SBV forensic fork | `modules/Probata/probata/modules/forks/sbv/` | application fork |
 | Timesketch fork | `modules/Probata/probata/modules/forks/timesketch/` | application fork |

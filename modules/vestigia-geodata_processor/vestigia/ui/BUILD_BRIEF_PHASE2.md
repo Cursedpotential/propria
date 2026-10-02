@@ -9,7 +9,7 @@
 
 ## State handed to you (already done, committed at 179496f)
 
-- Live data path wired: `ui/.env.local` (TRACEIQ_DSN=postgresql://ai:ai@100.119.96.29:5432/traceiq,
+- Live data path wired: `ui/.env.local` (TRACEIQ_DSN=$TRACEIQ_DSN
   gitignored), `src/lib/db.ts` (pg Pool), `src/app/api/events/route.ts` (queries
   analysis.latest_events + ref.known_place tags), `src/lib/pgAdapter.ts` (client adapter),
   `getAdapter()` now returns pgAdapter unless NEXT_PUBLIC_DATA_MODE=mock.

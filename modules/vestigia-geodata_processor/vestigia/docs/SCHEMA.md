@@ -3,7 +3,7 @@
 > _Naming (D-140, 2026-09-05; applied 2026-09-06): this product is **vestigia** (formerly traceIQ / TraceIQ - Latin: footprints, tracks). Working copy: `probata/modules/vestigia/` (directory rename from `modules/traceIQ/` landed 2026-09-06; old name kept as a junction). GitHub repo name unchanged pending its own decision. Canon: `probata/docs/NAMING.md`. Historical text below is left verbatim; both names remain valid in recall stores (D-142)._
 
 
-> _Byline: Claude Code · Fable 5 · 2026-07-24 · **This is deployed and running** on data-pg (ovh-data), database `traceiq`, PostgreSQL 18.1 + PostGIS 3.6.4 + pg_duckdb 1.1.0. Test-loaded with 1,641 real records. First verified backup at `E:\TraceIQ_Backups\`._
+> _Byline: Claude Code · Fable 5 · 2026-07-24 · **This is deployed and running** on `probata-db` (ovh-files; ovh-data is offline; checked live 2026-10-02 by Claude Code · Opus 5.5), database `traceiq`, PostgreSQL 18.1 + PostGIS 3.6.4 + pg_duckdb 1.1.0. Test-loaded with 1,641 real records. First verified backup at `E:\TraceIQ_Backups\`._
 
 ## The big picture
 
@@ -135,6 +135,6 @@ erDiagram
 | **Test load: real corpus chunk `2024-03_2024-06.json.txt`** | ✅ 1,641 records — 626 visits, 516 activities, 498 timelinePaths, **1 `timelineMemory`** (the rare trip type — fail-loud caught it, exactly as designed) |
 | First backup, hash-registered + restore-verified | ✅ `E:\TraceIQ_Backups\traceiq_2026-07-24_milestone-schema-init-testload.dump` |
 
-Connection (tailnet): `host=100.119.96.29 port=5432 dbname=traceiq` · repo: `E:\AI_Workspace\Projects\traceiq-rebuild` (migration `db\migrations\0001_init.sql`, ADRs in `docs\adr\`)
+Connection (tailnet): `host=100.91.190.107 port=5432 dbname=traceiq`, credentials in `TRACEIQ_DSN_KV` / `TRACEIQ_DSN` (see `.env.example`) · repo: `modules/vestigia-geodata_processor/vestigia` in the Propria monorepo (migration `db\migrations\0001_init.sql`, ADRs in `docs\adr\`)
 
 Test data is clearly labeled (subject `TEST`) and rebuilds freely — real ingest starts with her export under proper provenance rows.

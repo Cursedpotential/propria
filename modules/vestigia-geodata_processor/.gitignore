@@ -91,7 +91,7 @@ BUILD_GUIDE.md
 !04_Utilities/DirectoryScanner/build/
 04_Utilities/DirectoryScanner/build/bin/
 
-# Workspace-local data. traceiq-rebuild/ is tracked in the monorepo since the 2026-09-26
+# Workspace-local data. vestigia/ (formerly traceiq-rebuild/) is tracked in the monorepo since the 2026-09-26
 # subtree import and carries its own .gitignore.
 .claude/memories/project_memory.json
 Timeline.json
