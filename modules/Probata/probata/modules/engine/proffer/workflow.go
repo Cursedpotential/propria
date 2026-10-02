@@ -60,6 +60,10 @@ const (
 	locatorlessArrivalChangeID = "proffer-auto-approve-locatorless-arrival-v1"
 	locatorlessSignalChangeID  = "proffer-auto-approve-locatorless-signal-v1"
 	locatorlessVersion         = workflow.Version(1)
+	// Message match-up across sources (owner 2026-10-02, "both Facebook
+	// exports, deduped"). Byline: Claude Code · Opus 5.5 · 2026-10-02
+	messageMatchChangeID = "proffer-message-match-up-v1"
+	messageMatchVersion  = workflow.Version(1)
 	// Calls follow the message path (owner 2026-10-02): commit_call_log after
 	// the preview decision, before the seal. Byline: Claude Code · Opus 5.5 · 2026-10-02
 	callLogChangeID = "proffer-commit-call-log-v1"
@@ -674,6 +678,27 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		}
 	}
 
+	// Message match-up (owner 2026-10-02, decision C): find the messages
+	// another source version already committed, so the Weaviate-first stage
+	// skips them and the commit records them as further occurrences.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	var messageMatchRef Ref
+	if resolution := resolutionRefs["participant_resolution"]; resolution != "" &&
+		workflow.GetVersion(ctx, messageMatchChangeID, workflow.DefaultVersion, messageMatchVersion) != workflow.DefaultVersion {
+		matchRef, err := r.exec(ctx, stagegraph.MatchMessageOccurrences, in.DeclaredFormat, in.personRefs(map[string]Ref{
+			"normalized_generation":   normalizedGenerationRef,
+			"normalized_verification": normalizedVerificationRef,
+			"participant_resolution":  resolution,
+		}))
+		if err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+		if r.lastStatus(stagegraph.MatchMessageOccurrences) == StatusSuccess {
+			messageMatchRef = matchRef
+		}
+	}
+
 	if workflow.GetVersion(ctx, contextSearchChangeID, workflow.DefaultVersion, contextSearchVersion) != workflow.DefaultVersion {
 		extractionAttemptRef := rawBundleRef
 		if contextChunkingInput != nil && contextChunkingInput.AttemptRef != "" {
@@ -689,6 +714,9 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		})
 		for name, ref := range resolutionRefs {
 			searchRefs[name] = ref
+		}
+		if messageMatchRef != "" {
+			searchRefs["message_matches"] = messageMatchRef
 		}
 		if _, err := r.exec(ctx, stagegraph.PublishContextSearch, in.DeclaredFormat, searchRefs); err != nil {
 			r.operation.Reason = err.Error()

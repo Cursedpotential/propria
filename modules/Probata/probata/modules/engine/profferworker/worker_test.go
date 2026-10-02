@@ -63,11 +63,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: resolve_context_participants (2026-10-02).
 	// +1: record_auto_approval (Claude Code · Opus 5.5 · 2026-10-02).
 	// +1: commit_call_log (Claude Code · Opus 5.5 · 2026-10-02).
-	const standaloneActivityCount = 14
+	// +1: match_message_occurrences (Claude Code · Opus 5.5 · 2026-10-02).
+	const standaloneActivityCount = 15
 	const batchActivityCount = 4
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 14 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 15 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0
