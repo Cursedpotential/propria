@@ -43,8 +43,8 @@ Built in two days (2026-07-24/25), untouched for feature work since 2026-08-01.
   `ops/validate_ingest.py` and `ops/test_load_raw.py` hard-code the database host and password, and
   `ui/BUILD_BRIEF_PHASE2.md` embeds a full connection string (`reports/README.md` names the host
   only). They were removed from the current files on 2026-10-02 (Phase 0) but remain in the
-  Propria monorepo history. Vestigia moved off that account on 2026-10-02 (V-3, done); the
-  exposed `ai` password itself is unchanged. Docstore flag `faa916eb` (2026-09-24) also records six gitleaks
+  Propria monorepo history. Vestigia moved off that account on 2026-10-02 (V-3, done), and the
+  `ai` password was changed the same day, so the value in history no longer works. Docstore flag `faa916eb` (2026-09-24) also records six gitleaks
   `generic-api-key` findings in this history. No record says they were reviewed.
 - **Which database server (settled 2026-10-02, live read).** The scripts pointed at ovh-data,
   which has been offline for about six weeks. The database is `traceiq` on `probata-db`
@@ -109,8 +109,10 @@ the desktop, which the hosting rule forbids.
   `ALTER TABLE` and a `REFRESH MATERIALIZED VIEW` (both rolled back), and the UI's URL form.
 - `vestigia` can connect to other databases on the server, as every login can, but sees only the
   PostGIS and statistics views granted to PUBLIC there.
-- Still open, for the lane that owns `probata-db`: `ai` is a **superuser** with a two-letter
-  password that is in git history, and it owns `casebible`, `postgres` and the templates.
+- `ai` itself was hardened the same day by the `probata-db` lane (owner option A): new strong
+  password, llm-probe moved to its own `casebible` login; `ai` stays a superuser because
+  PostgreSQL will not demote the bootstrap superuser. Record: Consignatio `docs/URGENT-TODO.md`
+  (`5c2e2155`).
 
 **V-4. Backups (ADR-0004 said a local `pg_dump` to `E:\TraceIQ_Backups`).**
 - **A (default):** a scheduled `pg_dump` on the VPS, written to B2 under the case vault, with an
