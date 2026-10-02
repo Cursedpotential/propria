@@ -17,7 +17,8 @@
 # host secret the proffer-worker bind-mounts (/data/probata/secrets/platform/database-url,
 # mode 0400, owner 10001), so no secret value lives in Coolify env or in git. The
 # container runs as 10001 to read it, and the entrypoint rewrites the scheme to
-# postgresql+psycopg:// (psycopg 3 is what requirements.txt installs).
+# postgresql+psycopg:// (psycopg 3 is what requirements.txt installs) and strips the
+# CR/LF the secret file carries (without that the database name ends in a carriage return).
 #
 # Build: Coolify base directory modules/Probata/probata, compose location
 # /deploy/temporal-worker.yaml, repo Cursedpotential/propria, branch main. The
@@ -53,7 +54,7 @@ services:
     command:
       - sh
       - -c
-      - 'PLATFORM_DB_URL="$$(sed "s#^postgresql://#postgresql+psycopg://#" /run/secrets/platform-database-url)" exec python -m server.temporal.worker'
+      - 'PLATFORM_DB_URL="$$(tr -d "\r\n" < /run/secrets/platform-database-url | sed "s#^postgresql://#postgresql+psycopg://#")" exec python -m server.temporal.worker'
     volumes:
       - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro
 
