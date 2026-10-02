@@ -392,7 +392,7 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 
 ### From: 2026-10-02 01:19 EDT – ongoing — Devbox becomes a Kasm Workspaces workspace (P-1), and agent work stops dying with the container (owner 01:19, 01:27)
 
-- [ ] Owner: VNC_PW appeared in two tool outputs: Kasm service argv in `ps`, and coolify-write `get_application`, which returns the rendered compose with VNC_PW unredacted. Transcript only, not in git. The coolify-write redaction gap is a plugin bug.
+- [ ] Owner: VNC_PW appeared in the Kasm service argv in `ps` (transcript only, not in git). The coolify-write half is fixed and moved to COMPLETED-TODO.md (2026-10-02).
 
 ### From: 2026-10-02 02:54–03:46 EDT — Coolify: long builds, the 4.3.23 upgrade, SSH sharing back on (owner 02:54 "a", 03:41)
 
