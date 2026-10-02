@@ -266,6 +266,9 @@ func (a FirstPartyContextActivities) propose(ctx context.Context, req proffer.St
 	if err != nil {
 		return proffer.StageResult{}, err
 	}
+	if proffer.IsAIChatFormat(input.Source.DeclaredFormat) {
+		return proffer.StageResult{}, permanent(errors.New(proffer.AIChatRefusalMessage(input.Source.DeclaredFormat)))
+	}
 	if len(input.Messages) == 0 {
 		// Nothing to import is a recorded outcome, not a silent skip.
 		_, receiptRef, err := a.Store.PersistFirstPartyReceipt(ctx, FirstPartyReceiptSpec{
@@ -355,6 +358,10 @@ func (a FirstPartyContextActivities) rebuild(ctx context.Context, req proffer.St
 	}
 	if !input.PlatformResolved {
 		return firstparty.Plan{}, permanent(fmt.Errorf("first-party context import refused: %s", input.Reason))
+	}
+	// Backstop: AI chats are search-only and never write working.message.
+	if proffer.IsAIChatFormat(input.Source.DeclaredFormat) {
+		return firstparty.Plan{}, permanent(errors.New(proffer.AIChatRefusalMessage(input.Source.DeclaredFormat)))
 	}
 	resolution, err := a.Store.LoadParticipantResolution(ctx, receipt.ResolutionRef)
 	if err != nil {

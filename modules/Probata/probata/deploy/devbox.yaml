@@ -108,6 +108,9 @@ services:
       - /mnt/desktop-share:/home/kasm-user/desktop:rslave
       # The devbox's Authentik machine identity (DF-30). Absolute host path; see HOST-PREP above.
       - /data/probata/secrets/devbox/authentik-machine.env:/run/secrets/devbox-authentik.env:ro
+      # kasm-user's xrdp password (XRDP_PASSWORD=...), for Kasm's Guacamole RDP workspace (2026-10-02). HOST-PREP: the file
+      # must exist before a deploy (install -m 0440 -o root -g 1000), or Docker creates an empty directory in its place.
+      - /data/probata/secrets/devbox/xrdp.env:/run/secrets/devbox-xrdp.env:ro
     networks:
       - probata
 

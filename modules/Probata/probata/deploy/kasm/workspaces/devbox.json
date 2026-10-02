@@ -10,15 +10,21 @@
   "memory_mb": 4096,
   "_sizing_note": "Owner 2026-10-02 01:27: start at 2 CPU / 4 GB. ovh-files has 8 cores / 22 GB with swap fully used.",
   "gpu_count": 0,
-  "persistent_profile_path": "/data/probata/volumes/devbox/home",
-  "_persistent_profile_note": "Fixed path, not /{username}/{image_id}: single-user devbox, and the SAME home the Coolify devbox and the reserved claude listener use. Kasm docs advise per-user paths for multi-user setups; this box has one user (msalem).",
+  "persistent_profile_path": null,
+  "_persistent_profile_note": "Not a Kasm persistent profile: Kasm 1.19 requires {username} or {user_id} in that path, and this desktop's home already lives at the fixed host path the Coolify devbox and the reserved claude listener use. The home is therefore a plain volume mapping onto /home/kasm-user (below), the same bind deploy/devbox.yaml makes.",
   "docker_run_config_override": {
     "hostname": "devbox",
     "user": "root",
     "shm_size": "1g",
-    "cap_add": ["SYS_ADMIN"],
-    "devices": ["/dev/fuse:/dev/fuse:rwm"],
-    "security_opt": ["apparmor:unconfined"],
+    "cap_add": [
+      "SYS_ADMIN"
+    ],
+    "devices": [
+      "/dev/fuse:/dev/fuse:rwm"
+    ],
+    "security_opt": [
+      "apparmor:unconfined"
+    ],
     "environment": {
       "TZ": "America/Detroit",
       "KASM_SVC_AUDIO": "0",
@@ -27,21 +33,42 @@
     }
   },
   "volume_mappings": {
+    "/data/probata/volumes/devbox/home": {
+      "bind": "/home/kasm-user",
+      "mode": "rw",
+      "uid": 1000,
+      "gid": 1000,
+      "required": true,
+      "skip_check": true
+    },
     "/data/probata/volumes/devbox/linuxbrew": {
-      "bind": "/home/linuxbrew", "mode": "rw", "uid": 1000, "gid": 1000, "required": true, "skip_check": false
+      "bind": "/home/linuxbrew",
+      "mode": "rw",
+      "uid": 1000,
+      "gid": 1000,
+      "required": true,
+      "skip_check": false
     },
     "/data/probata/volumes/devbox/root": {
-      "bind": "/root", "mode": "rw", "uid": 0, "gid": 0, "required": true, "skip_check": false
+      "bind": "/root",
+      "mode": "rw",
+      "uid": 0,
+      "gid": 0,
+      "required": true,
+      "skip_check": false
     },
     "/mnt/desktop-share": {
-      "bind": "/home/kasm-user/desktop", "mode": "rw", "uid": 1000, "gid": 1000, "required": false, "skip_check": true
-    },
-    "/data/probata/secrets/devbox/authentik-machine.env": {
-      "bind": "/run/secrets/devbox-authentik.env", "mode": "ro", "uid": 0, "gid": 1000, "required": true, "skip_check": true
+      "bind": "/home/kasm-user/desktop",
+      "mode": "rw",
+      "uid": 1000,
+      "gid": 1000,
+      "required": false,
+      "skip_check": true
     }
   },
   "_volume_notes": [
     "Kasm volume mappings take no mount-propagation option, so /mnt/desktop-share is a plain bind here, not rslave as in deploy/devbox.yaml: an SMB automount that appears after the session starts is not seen until the next session.",
-    "Corpus mounts (read-only) from the 09-27 brief are not listed: no corpus path is defined for the devbox yet. Add each as {bind, mode: ro} once the owner names it."
+    "The devbox's Authentik machine identity file stays with the Coolify devbox container only: Kasm volume mappings are directories, and the always-on Coolify service is where machine clients run.",
+    "CORPUS MOUNTS SLOT — NOT DECIDED (owner 2026-10-02 08:39): read-only corpus mappings go here as {\"<host path>\": {\"bind\": \"<path in the desktop>\", \"mode\": \"ro\", \"uid\": 1000, \"gid\": 1000, \"required\": false, \"skip_check\": true}} once the owner names the paths. Until then the Devbox workspace has no corpus mounts."
   ]
 }

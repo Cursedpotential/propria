@@ -29,7 +29,7 @@ func setWorkerEnvironment(t *testing.T) {
 	values := map[string]string{
 		// Weaviate-first stage (Claude Code · Opus 5.5 · 2026-10-01).
 		"CONTEXT_SEARCH_WEAVIATE_URL":          "http://weaviate.example.test:8082",
-		"CONTEXT_SEARCH_MESSAGE_COLLECTION":    "MsgEvents20260918",
+		"CONTEXT_SEARCH_MESSAGE_COLLECTION":    "ProfferMsgEvents20261002",
 		"CONTEXT_SEARCH_AI_CHAT_COLLECTION":    "AiChatEvents20260918",
 		"CONTEXT_SEARCH_DOCUMENT_COLLECTION":   "DocEvents20261001",
 		"CONTEXT_SEARCH_CREATABLE_COLLECTIONS": "DocEvents20261001",

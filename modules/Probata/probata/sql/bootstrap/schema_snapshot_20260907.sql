@@ -40566,7 +40566,7 @@ CREATE TABLE ops.legal_investigation_request (
  CHECK (payload->>'mode'=mode AND payload->>'matter_id'=matter_id::text AND payload->>'court_case_id'=court_case_id::text AND payload->>'legal_matter_id'=legal_matter_id::text AND payload->>'claim_id'=claim_id::text AND payload->>'followup_id'=followup_id::text)
 );
 COMMENT ON TABLE ops.legal_investigation_request IS 'Native investigation request receipts; received means awaiting execution, not evidence or an executed result. Legal IDs are opaque correlation. Registry entity references do not imply case participation.';
-GRANT SELECT, INSERT, UPDATE ON TABLE ops.legal_investigation_request TO platform_app;
+GRANT SELECT, INSERT, UPDATE ON TABLE ops.legal_investigation_request TO platform_app, platform_runtime;
 
 -- <<< legal investigation request final-form definition <<<
 

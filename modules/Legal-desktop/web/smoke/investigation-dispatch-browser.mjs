@@ -104,13 +104,16 @@ try {
   await send("Fetch.enable", { patterns: [{ urlPattern: `${base}/api/legal/*`, requestStage: "Request" }] });
   const evaluate = async expression => {
     const r = await send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
-    assert(!r.exceptionDetails, r.exceptionDetails?.text); return r.result.value;
+    assert(!r.exceptionDetails, r.exceptionDetails?.exception?.description || r.exceptionDetails?.text); return r.result.value;
   };
   const wait = async expression => {
     for (let i = 0; i < 80; i++) { if (await evaluate(expression).catch(() => false)) return; await sleep(250); }
     throw Error(`Browser did not reach expected state: ${expression}`);
   };
-  const click = label => evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent === ${JSON.stringify(label)} && !b.disabled).click()`);
+  const click = async label => {
+    await wait(`[...document.querySelectorAll('button')].some(b => b.textContent === ${JSON.stringify(label)} && !b.disabled)`);
+    return evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent === ${JSON.stringify(label)} && !b.disabled).click()`);
+  };
   const navigate = async () => {
     await send("Page.navigate", { url: `${base}/claims?probata_kind=entity&probata_id=${identity}` });
     await wait("[...document.querySelectorAll('textarea')].some(t => t.value === 'Preserved legal response')");
@@ -131,6 +134,10 @@ try {
   await click("Refresh request status"); await wait("document.body.innerText.includes('Synthetic finding with a native source reference.')");
   await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await sleep(500);
+  await evaluate("document.querySelector('[aria-label=\"Follow-up plans\"]').scrollIntoView()");
+  await click("Refresh request status");
+  await wait("document.body.innerText.includes('Investigation status refreshed.')");
+  assert.equal(refreshes, 3, "Phone refresh did not run");
   assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false, "Mobile page overflows");
   assert.deepEqual(errors, []);
   const screenshot = await send("Page.captureScreenshot", { format: "png" });
@@ -138,7 +145,7 @@ try {
   const proof = { passed: true, no_dispatch_on_open: true, timeout_prepared_reopened: true,
     retry_then_acknowledgement: true, request_id_preserved_on_refresh_outage: true,
     acknowledged_request_not_resent: true, typed_result_rendered: true, plan_remains_open: true,
-    mobile_no_overflow: true, dispatches, refreshes, errors, production_records_written: 0,
+    mobile_no_overflow: true, mobile_status_refresh: true, dispatches, refreshes, errors, production_records_written: 0,
     scope: "Deployed Legal UI, intercepted synthetic API responses in remote devbox; backend persistence proved separately" };
   writeFileSync(join(out, "proof.json"), JSON.stringify(proof, null, 2)); console.log(JSON.stringify(proof));
 } finally { ws?.close(); chrome.kill(); }

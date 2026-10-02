@@ -112,15 +112,17 @@ services:
       ENTITY_MODEL_API_KEY_FILE: /run/secrets/nvidia-api-key
       # Weaviate first (owner 2026-09-18, 2026-09-26; OD-06 answered 2026-10-01 07:17):
       # every run's extracted records become searchable in the owner-approved
-      # MsgEvents20260918 before approval and the canonical commit. Required at startup.
+      # the owner-approved collection of its kind before approval and the canonical commit. Required at startup.
       # Weaviate publishes on the ovh-files tailnet IP (coolify-proxy owns host 8080).
       # The embedder is the collection's own (NIM nemotron-3-embed-1b, 2048-d, text_nim).
       # Byline: Claude Code · Opus 5.5 · 2026-10-01
       CONTEXT_SEARCH_WEAVIATE_URL: ${CONTEXT_SEARCH_WEAVIATE_URL:-http://100.91.190.107:8082}
       # One owner-approved collection per record kind (owner 2026-10-02): messages and calls,
       # AI chats, documents. Only DocEvents20261001 may be created by the worker.
-      # Byline: Claude Code · Opus 5.5 · 2026-10-02
-      CONTEXT_SEARCH_MESSAGE_COLLECTION: MsgEvents20260918
+      # Messages and calls go to Proffer's own ProfferMsgEvents20261002, apart from the Case Bible's
+      # MsgEvents20260918 (owner 2026-10-02: separate jobs, no duplicates).
+      # Byline: Claude Code · Opus 5.5 · 2026-10-02; Claude Code · Sonnet · 2026-10-02
+      CONTEXT_SEARCH_MESSAGE_COLLECTION: ProfferMsgEvents20261002
       CONTEXT_SEARCH_AI_CHAT_COLLECTION: AiChatEvents20260918
       CONTEXT_SEARCH_DOCUMENT_COLLECTION: DocEvents20261001
       CONTEXT_SEARCH_CREATABLE_COLLECTIONS: DocEvents20261001

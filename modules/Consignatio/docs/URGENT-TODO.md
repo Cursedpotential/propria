@@ -3873,12 +3873,13 @@ Open, for the owner:
 - The console builds from a committed copy of the plugin (`deploy/docker/family-court-console/src`), the same two-copies pattern the owner ended for `coolify-mcp` on 10-01. Its `content/` copy is committed to the monorepo while `propria-plugins` keeps `content/` out of git under the owner's no-real-PII rule — owner decision pending.
 
 
-## 2026-10-02 02:15 EDT – ongoing — catalog route: every caller on 5433, the forward on a declared port (owner option A, 02:20)
+## 2026-10-02 02:15–09:30 EDT — catalog: every caller on 5433, the database a compose app on /data (owner 02:20, 03:01, 03:02)
 
 > _Byline: Claude Code · Opus 5.5 · 2026-10-02_
 
 - **Found:** `casebible-pg18` (Coolify database `fgz1n7useplhk0t91uk7k1aw`) refuses on `100.91.190.107:5475`; that bind was the 09-14 hand edit of the rendered compose, lost on a redeploy. The live route is the ovh-files tailscale serve tcp `5433`. That forward pointed at the container IP `172.18.0.3:5432`, which Docker reassigns on any recreate, so it was not durable either.
-- **Owner choice A:** Coolify declares the database port on loopback (`Ports Mappings` = `127.0.0.1:5475:5432`), and tailscale serve tcp `5433` forwards to `127.0.0.1:5475`. Script: Probata `deploy/tailscale/catalog-serve.sh`. Coolify's API refuses `ports_mappings` on databases (422 "This field is not allowed"; the field is not in its allowed list), so the owner sets it in the Coolify UI.
+- **Rebuilt as a compose app (owner 03:01 "it's all wrong… going to run out of space, fix it"):** `casebible-pg18` was a Coolify one-click standalone database: its port lived only in Coolify's own database (the API refuses `ports_mappings`, 422) and its 49 GB sat in a Docker named volume on the root disk. It is now the Coolify compose app `casebible-pg` (`oli1nf8wmj5atb9o7oylj4um`, Probata `deploy/casebible-pg.yaml`): bind mount `/data/probata/volumes/casebible-pg18`, port `127.0.0.1:5475` declared in the file, network alias `fgz1n7useplhk0t91uk7k1aw` so n8n (its own database lives here) and proffer-worker keep dialling the old name. Tailscale serve tcp `5433` -> `127.0.0.1:5475` is the one tailnet door (owner 03:02; `deploy/tailscale/catalog-serve.sh`). Cutover 09:08: old database stopped, data copied with an rsync checksum pass, app deployed, serve repointed. The old standalone resource is stopped and its volume `postgres-data-fgz1n7useplhk0t91uk7k1aw` (root disk) is left for the owner to delete.
+- **Verified after cutover (09:25):** every user table in every database counted before (08:32) and after. `n8n` identical (131 tables, 1,527 rows); `casebible` identical except writes made between the baseline and the 09:08 stop (new `raw_duck.casevault_device_basis`, 18 rows; `raw_duck.casevault_placement` 545 -> 563), and the copy itself was checksum-identical. n8n reconnected on its own through the alias; proffer-worker resolves `fgz1n7useplhk0t91uk7k1aw` to the new container; progress-board and legal-workspace read the catalog live through 5433. Coolify 4.3.23 ignores `container_name` (the container is `casebible-pg-oli1nf8wmj5atb9o7oylj4um-<timestamp>`), so nothing may dial a container name except the alias.
 - **Callers moved to 5433:** intake-engine (`docker-compose.intake-engine.yaml`, `catalog.rs` default), superindex (Coolify env `INTAKE_CATALOG_DSN`), legal-workspace (Coolify env `CONSIGNATIO_CATALOG_URL`), progress-board (host `/data/dashboards/progress-board.env`, backup `.bak-20261002-catalog-port`, and `pg-catalog.mjs` default, host copy kept byte-identical). The Workbench moved earlier (`62f24bf9`).
 - **Not touched:** ovh-files tailscale serve tcp `5434` forwards to `172.18.0.2:5432`, which is now `coolify-proxy`. Whatever it served is unreachable there; owner to say what it was for.
 
@@ -3966,14 +3967,22 @@ Open, for the owner:
 - **Fixed, `retain_original_activity` heartbeat (5fb202f4, proffer-worker deploy `vpqwuapvousrfym8fzik0eak`, finished 13:01:55Z):** the store copy of a large original never heartbeat. A 2.4 GB SMS backup (`sms-20221104024709.xml`) failed all 5 attempts at the one-minute HeartbeatTimeout. The Activity now heartbeats every 20 s while the copy runs.
 - **Weaviate:** owner approved moving Proffer's entries out of the Case Bible collection `MsgEvents20260918` into `ProfferMsgEvents20261002`; another agent is doing it. The parked first batch had already published 516 objects before Review. No new Proffer run starts until the worker writes to the new collection.
 
-## 2026-10-02 08:45 EDT — probata-db role `ai` is a superuser with a two-letter password; Docstore follows the Vestigia rename
+## 2026-10-02 08:45–09:25 EDT — probata-db: `casebible` gets its own login, `ai` password rotated (owner option A, 08:49); Docstore follows the Vestigia rename
 
 > _Byline: Claude Code · Opus 5.5 · 2026-10-02_
 
-- **Found (Vestigia lane, 08:41):** on probata-db the role `ai` is SUPERUSER, its password is two letters and sits in git history (old Vestigia ops scripts), and it owns the `casebible`, `postgres` and template databases. Vestigia no longer uses it: the `vestigia` role owns `traceiq` (owner approved 08:20). Not hardened yet.
-- **Possibly the same value, unchecked:** `~/.secrets/Agno-MCP-Platform.env` holds a two-character `DB_PASS` and `POSTGRES_PASSWORD`, and both were copied into Infisical `/desktop/Agno-MCP-Platform` on 09-30.
-- **Docstore side of the rename:** the Dockerfile now copies `modules/vestigia-geodata_processor/vestigia/docs/` (24 tracked files, checked). The nightly job (08:15 UTC) re-clones main and rebuilds, so the next build uses it. The registry `canonical_prefix` stays `vestigia/traceiq-rebuild/docs/`, so indexed document ids do not change.
-- [ ] **Owner:** how to harden `ai`. (A, default) find every client that logs in as `ai`, give each its own role or the new password, set a strong password kept in `~/.secrets` and Infisical, then drop SUPERUSER once nothing needs it. (B) Rotate the password only. (C) Leave it.
+- **Found (Vestigia lane, 08:41):** `ai` was SUPERUSER with a two-letter password that is in git history (old Vestigia ops scripts). It owned `casebible`, `postgres` and the template databases.
+- **Inventory** (live sessions plus every Coolify, Infisical and `~/.secrets` setting): the only client logging in as `ai` was Coolify app `llm-probe`, into `casebible`. Every other service already had its own login (contextforge, infisical, temporal, platform_*, vestigia). The catalog is the separate `casebible-pg18` on port 5475. Port 5432 answers on the tailnet only; the public IP refuses it.
+- **Done:**
+  - New login `casebible` (not a superuser) owns database `casebible`: 8 schemas, 36 tables/views/sequences, 4 functions, 10 types. Extensions stay with `ai`.
+  - `llm-probe` uses it (`LLM_PROBE_DATABASE_URL`, deployment `b6r88ez1ysbatrtbqf8eabqn`). Verified: `/health` and `/providers` answer 200 and its database sessions run as `casebible`.
+  - `ai` has a new 43-character password; the old one is refused.
+  - The logins live in `~/.secrets/probata-db.env` and Infisical `/desktop/probata-db`. Coolify `data-pg-files` `DB_PASS` is updated (not redeployed; connections inside the container use trust). `probata.env`, `Agno-MCP-Platform.env` and `MASTER_ENV_COMPILED_20260801.env.md` carry the new value. No Infisical entry holds the old one.
+- **Cannot be done:** `ai` stays a superuser. It is the bootstrap superuser, and PostgreSQL refuses: "The bootstrap superuser must have the SUPERUSER attribute" (tested inside a rolled-back transaction). No application logs in as `ai` now.
+- **Tool fix:** `tools/infisical-migrate-all.py` skips `_backup-<date>/` copies. A backup of `Agno-MCP-Platform.env` mapped to the same Infisical folder as the live file and wrote its old values over it; 4 entries were corrected.
+- **Docstore side of the rename:** the Dockerfile copies `modules/vestigia-geodata_processor/vestigia/docs/` (24 tracked files, checked). The nightly job (08:15 UTC) re-clones main and rebuilds, so the next build uses it. The registry `canonical_prefix` stays `vestigia/traceiq-rebuild/docs/`, so indexed document ids do not change.
+- [ ] **Owner, optional:** stop `ai` logging in over the network (`pg_hba.conf` in the database container), leaving local admin access only.
+- [ ] Whoever created `investigation_test_advocatio_20261002` (owned by `ai`, today): the old `ai` password no longer works; the new one is in `~/.secrets/probata-db.env`.
 - [ ] Confirm the 2026-10-03 08:15 UTC nightly build of `propria-docstore` succeeds with the new COPY path.
 
 ## 2026-10-02 08:38–09:00 EDT — automatic pre-deploy guard in coolify-write (owner 08:38, auto-guard A)
