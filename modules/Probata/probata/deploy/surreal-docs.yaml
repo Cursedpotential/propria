@@ -45,6 +45,18 @@ services:
       # localhost is re-added. Without it every /mcp call is 403 "Host header is not allowed"
       # (verified 2026-09-10). Source: docs/reference/2026-09-09-surrealdb-native-http-mcp-brief.md
       SURREAL_MCP_ALLOWED_HOSTS: ${SURREAL_MCP_ALLOWED_HOSTS:-surreal-docs.tilapia-skilift.ts.net,100.91.190.107,localhost,127.0.0.1}
+      # RocksDB memory sized for the data, not the host (Claude Code · Opus 5.5 · 2026-10-02).
+      # Uncapped, SurrealDB derives its block cache from host RAM (max(mem/2 - 1 GiB, 16 MiB), about
+      # 10.4 GiB on ovh-files) and its write buffers likewise; the 1 GB store sat at 7.5 GiB RSS with
+      # the host's swap full. This caps memory only: no CPU/mem_limit, so the 2026-09-09
+      # available_parallelism deadlock above cannot recur. The name changed across 3.x releases, so
+      # both spellings are set. Source: SurrealDB environment-variable and observability docs.
+      SURREAL_ROCKSDB_BLOCK_CACHE_SIZE: "2147483648"        # 2 GiB, twice the store's on-disk size
+      SURREAL_DS_ROCKSDB_BLOCK_CACHE_SIZE: "2147483648"
+      SURREAL_ROCKSDB_MAX_WRITE_BUFFER_NUMBER: "2"          # memtable ceiling 2 x 64 MiB x 4 column families
+      SURREAL_DS_ROCKSDB_MAX_WRITE_BUFFER_NUMBER: "2"
+      SURREAL_ROCKSDB_WRITE_BUFFER_SIZE: "67108864"         # 64 MiB
+      SURREAL_DS_ROCKSDB_WRITE_BUFFER_SIZE: "67108864"
     ports:
       - "${BIND_IP:-127.0.0.1}:8472:8000"   # ws://100.91.190.107:8472 - tailnet-only
     volumes:
