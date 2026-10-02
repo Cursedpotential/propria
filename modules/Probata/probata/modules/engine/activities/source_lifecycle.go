@@ -66,7 +66,18 @@ type SourceLifecycleStore interface {
 type SourceLifecycleActivities struct {
 	Store   SourceLifecycleStore
 	Attempt Attempt
+	// Heartbeat reports liveness while RetainOriginal copies a large original
+	// into immutable storage. retain_original_activity carries a one-minute
+	// HeartbeatTimeout; without a heartbeat every attempt on a multi-GB SMS
+	// backup timed out (live 2026-10-02, a 2.4 GB backup failed all 5 attempts
+	// at exactly one minute each). Nil in direct tests.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	Heartbeat func(context.Context, string)
 }
+
+// retainHeartbeatInterval keeps well inside the one-minute HeartbeatTimeout of
+// retain_original_activity, the same cadence ExecuteParser uses.
+const retainHeartbeatInterval = 20 * time.Second
 
 func (a SourceLifecycleActivities) validate() error {
 	if a.Store == nil {
@@ -145,6 +156,24 @@ func (a SourceLifecycleActivities) RetainOriginal(ctx context.Context, req proff
 	acquisitionRef, err := requiredSourceRef(req, stagegraph.RetainOriginal, "acquisition")
 	if err != nil {
 		return proffer.StageResult{}, err
+	}
+	if a.Heartbeat != nil {
+		stop := make(chan struct{})
+		defer close(stop)
+		go func() {
+			ticker := time.NewTicker(retainHeartbeatInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					a.Heartbeat(ctx, "retaining original")
+				case <-stop:
+					return
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 	}
 	resultRef, receiptRef, err := a.Store.RetainOriginal(ctx, OriginalRetentionSpec{
 		RequestID:        req.RequestID,

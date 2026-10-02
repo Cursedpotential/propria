@@ -53,6 +53,9 @@ func NewSourceLifecycleActivities(store SourceLifecycleStore) SourceLifecycleAct
 		Attempt: func(ctx context.Context) int32 {
 			return activity.GetInfo(ctx).Attempt
 		},
+		Heartbeat: func(ctx context.Context, detail string) {
+			activity.RecordHeartbeat(ctx, detail)
+		},
 	}
 }
 
