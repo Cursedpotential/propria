@@ -14,6 +14,18 @@ const PreviewDecisionSignalName = "preview_decision"
 
 const RepairDecisionSignalName = "repair_decision"
 
+// AutoApprovalSignalName asks a run already waiting at the preview to apply an
+// automatic approval policy now (owner 2026-10-02). The run records an
+// approval only when every AutoApprovalChecks stage passed; otherwise it keeps
+// waiting for the owner. Byline: Claude Code · Opus 5.5 · 2026-10-02
+const AutoApprovalSignalName = "auto_approval_request"
+
+// AutoApprovalSignal is AutoApprovalSignalName's payload.
+type AutoApprovalSignal struct {
+	Policy      string `json:"policy"`
+	RequestedBy string `json:"requested_by,omitempty"`
+}
+
 // CancelRequestSignalName carries the operator's cancel receipt (who and why)
 // into the run's own history. The starter sends it immediately before asking
 // Temporal to cancel the run, so the append-only control receipt and the

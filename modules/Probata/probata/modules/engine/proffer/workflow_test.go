@@ -2027,3 +2027,58 @@ func TestCleanRunWaitsForTheOwnerWhenThePolicyIsOff(t *testing.T) {
 		t.Fatal("a run started without the policy approved itself")
 	}
 }
+
+// TestParkedCleanRunApprovesOnTheAutoApprovalSignal proves a run started
+// without the policy and parked at the preview approves itself through
+// record_auto_approval_activity when the auto_approval_request Signal arrives
+// and every check passed. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestParkedCleanRunApprovesOnTheAutoApprovalSignal(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	mockFirstPartyContextSucceeds(env, nil)
+	env.OnActivity(string(stagegraph.RecordAutoApproval), mock.Anything, mock.Anything).
+		Return(stageStub(stagegraph.RecordAutoApproval), nil).Once()
+	order := newOrderRecorder(env)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
+		env.SignalWorkflow(HandlerSelectionDecisionSignalName, HandlerSelectionDecision{DecisionRef: "handler-decision-ref"})
+		env.SignalWorkflow(AutoApprovalSignalName, AutoApprovalSignal{Policy: AutoApprovalCleanChecks, RequestedBy: "test"})
+	}, time.Millisecond)
+
+	env.ExecuteWorkflow(ProfferWorkflow, firstPartyInput())
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error = %v", err)
+	}
+	if !order.contains(string(stagegraph.RecordAutoApproval)) || !order.contains(string(stagegraph.PublishGeneration)) {
+		t.Fatalf("order = %v, want an automatic approval and the publish", order.snapshot())
+	}
+}
+
+// TestParkedRunWithANotPassedCheckIgnoresTheAutoApprovalSignal proves the
+// Signal never approves a run whose checks did not all pass; the owner's
+// decision still does. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestParkedRunWithANotPassedCheckIgnoresTheAutoApprovalSignal(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	order := newOrderRecorder(env)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
+		env.SignalWorkflow(HandlerSelectionDecisionSignalName, HandlerSelectionDecision{DecisionRef: "handler-decision-ref"})
+		env.SignalWorkflow(AutoApprovalSignalName, AutoApprovalSignal{Policy: AutoApprovalCleanChecks})
+	}, time.Millisecond)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(PreviewDecisionSignalName, PreviewDecision{Approved: true, Decider: "owner"})
+	}, time.Hour)
+
+	env.ExecuteWorkflow(ProfferWorkflow, firstPartyInput())
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error = %v", err)
+	}
+	if order.contains(string(stagegraph.RecordAutoApproval)) {
+		t.Fatal("a run whose participant resolution was not_applicable approved itself on the Signal")
+	}
+}

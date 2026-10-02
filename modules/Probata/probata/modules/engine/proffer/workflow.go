@@ -756,7 +756,26 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		}
 		if !autoApproved {
 			r.awaiting(OperationAwaitingPreviewDecision, OperationWaitPreviewDecision)
-			if err := awaitPreviewDecision(ctx, &preview, durableReviewWait); err != nil {
+			// A run already parked here can have the same policy applied by the
+			// auto_approval_request Signal (owner 2026-10-02: apply clean_checks to
+			// the parked chunks without re-running them). It approves only when
+			// every check passed, through the same record_auto_approval_activity;
+			// otherwise the run keeps waiting. Byline: Claude Code · Opus 5.5 · 2026-10-02
+			applyAuto := func() (bool, error) {
+				checks, clean := r.cleanChecks()
+				if !clean {
+					preview.Reason = "automatic approval withheld: not every check passed; waiting for the owner"
+					return false, nil
+				}
+				if _, err := r.execAutoApproval(ctx, AutoApprovalRequest{
+					RequestID: in.RequestID, PreviewHandle: previewHandle,
+					SelectionRef: activeSelectionRef, ParserOptionsRef: activeParserOptionsRef, Checks: checks,
+				}); err != nil {
+					return false, err
+				}
+				return true, nil
+			}
+			if err := awaitPreviewDecisionOrAutoApproval(ctx, &preview, durableReviewWait, applyAuto); err != nil {
 				r.operation.Reason = err.Error()
 				if errors.Is(err, ErrPreviewRerunRequired) {
 					r.operation.Lifecycle = OperationRerunRequired
@@ -878,6 +897,56 @@ func awaitPreviewDecision(ctx workflow.Context, state *PreviewState, waitVersion
 		}
 		state.Phase, state.Reason = PhaseApproved, ""
 		return nil
+	}
+}
+
+// awaitPreviewDecisionOrAutoApproval is awaitPreviewDecision plus the
+// AutoApprovalSignalName Signal: whichever arrives is handled; an automatic
+// request that finds a check not passed leaves the run waiting. A history that
+// predates the durable wait keeps the original timer path unchanged, and a
+// history that never received the new Signal replays exactly as before
+// (waiting on a Signal channel schedules no command).
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+func awaitPreviewDecisionOrAutoApproval(ctx workflow.Context, state *PreviewState, waitVersion workflow.Version, applyAuto func() (bool, error)) error {
+	if waitVersion == workflow.DefaultVersion {
+		return awaitPreviewDecision(ctx, state, waitVersion)
+	}
+	decisions := workflow.GetSignalChannel(ctx, PreviewDecisionSignalName)
+	autos := workflow.GetSignalChannel(ctx, AutoApprovalSignalName)
+	for {
+		if err := workflow.Await(ctx, func() bool { return decisions.Len() > 0 || autos.Len() > 0 }); err != nil {
+			return fmt.Errorf("proffer: await preview decision: %w", err)
+		}
+		if decisions.Len() > 0 {
+			var decision PreviewDecision
+			decisions.Receive(ctx, &decision)
+			selectionChanged := decision.RepairedSelectionRef != "" && decision.RepairedSelectionRef != state.SelectRef
+			optionsChanged := decision.RepairedParserOptionsRef != "" && decision.RepairedParserOptionsRef != state.ParserOptionsRef
+			if selectionChanged || optionsChanged {
+				state.Phase, state.Reason = PhaseRerunRequired, ErrPreviewRerunRequired.Error()
+				return ErrPreviewRerunRequired
+			}
+			if !decision.Approved {
+				state.Phase, state.Reason = PhaseRejected, decision.Reason
+				continue
+			}
+			state.Phase, state.Reason = PhaseApproved, ""
+			return nil
+		}
+		var request AutoApprovalSignal
+		autos.Receive(ctx, &request)
+		if request.Policy != AutoApprovalCleanChecks {
+			state.Reason = fmt.Sprintf("automatic approval request names an unknown policy %q; waiting for the owner", request.Policy)
+			continue
+		}
+		approved, err := applyAuto()
+		if err != nil {
+			return err
+		}
+		if approved {
+			state.Phase, state.Reason = PhaseApproved, stagegraph.AutoApprovalActor
+			return nil
+		}
 	}
 }
 
