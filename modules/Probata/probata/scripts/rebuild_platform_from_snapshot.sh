@@ -32,8 +32,11 @@ SSH=(ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=15 "root@$HOST")
 # (keep_data_20260906.sql held 4 COPY blocks) and a rebuild would have dropped every
 # reference/media/knowledge/canon/registry/ops row. Keep schemas are therefore -t patterns, and
 # `verify-keep` must print KEEP-SET OK before `rebuild` will touch the database.
-KEEP_TABLES='-t "reference.*" -t "media.*" -t "knowledge.*" -t "canon.*" -t "registry.*" -t "ops.*" -t public.canon_registry -t public.schema_version'
-KEEP_WHERE="(n.nspname in ('reference','media','knowledge','canon','registry','ops') or (n.nspname='public' and c.relname in ('canon_registry','schema_version')))"
+# 2026-10-01 (Claude Code · Opus 5.5, go-live OD-05): the case identity's partition and its owner
+# receipt live in `analysis`, outside the keep schemas, so a rebuild would drop them and the proffer
+# admission probe would refuse to boot. Both tables are kept explicitly.
+KEEP_TABLES='-t "reference.*" -t "media.*" -t "knowledge.*" -t "canon.*" -t "registry.*" -t "ops.*" -t public.canon_registry -t public.schema_version -t analysis.matter_knowledge_partition -t analysis.case_registry_import_receipt'
+KEEP_WHERE="(n.nspname in ('reference','media','knowledge','canon','registry','ops') or (n.nspname='public' and c.relname in ('canon_registry','schema_version')) or (n.nspname='analysis' and c.relname in ('matter_knowledge_partition','case_registry_import_receipt')))"
 COUNT_SQL="select n.nspname||'.'||c.relname, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', n.nspname, c.relname), false, true, '')))[1]::text::bigint from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.relkind='r' and $KEEP_WHERE order by 1"
 
 verify_keep() {

@@ -1821,6 +1821,13 @@ BEGIN
   IF p_confirm IS DISTINCT FROM 'RESET' THEN
     RAISE EXCEPTION 'refusing: call ops.reset_test_data(''RESET'') to confirm a full test-data reset';
   END IF;
+  -- Go-live guard (2026-10-01, OD-05; Claude Code · Opus 5.5): this function truncates every
+  -- row in the six data schemas regardless of matter, so once a real (non-placeholder) matter
+  -- exists it would erase real case data together with the test rows. Refuse instead.
+  IF EXISTS (SELECT 1 FROM registry.matter
+              WHERE created_by <> ALL (ARRAY['migration-0030','migration-0069-dev-seed'])) THEN
+    RAISE EXCEPTION 'refusing: a real case matter exists in registry.matter; ops.reset_test_data truncates every matter''s data, so it is disabled after go-live';
+  END IF;
 
   FOREACH v_schema IN ARRAY ARRAY['raw','evidence','working','context','timeline','analysis'] LOOP
     SELECT string_agg(format('%I.%I', nn.nspname, c.relname), ', '), count(*)::INTEGER
@@ -10904,8 +10911,8 @@ CREATE TABLE registry.person (
     identification_signal text,
     short_name text,
     CONSTRAINT person_short_name_check CHECK (((short_name IS NULL) OR ((length(btrim(short_name)) > 0) AND (length(short_name) <= 64)))),
-    CONSTRAINT person_connection_to_check CHECK ((connection_to = ANY (ARRAY['petitioner'::text, 'respondent'::text, 'child'::text, 'mutual'::text, 'third_party'::text, 'unknown'::text]))),
-    CONSTRAINT person_role_in_case_check CHECK ((role_in_case = ANY (ARRAY['user'::text, 'partner'::text, 'child'::text, 'witness'::text, 'evaluator'::text, 'attorney'::text, 'third_party'::text, 'neutral'::text, 'unknown'::text]))),
+    CONSTRAINT person_connection_to_check CHECK ((connection_to = ANY (ARRAY['petitioner'::text, 'respondent'::text, 'plaintiff'::text, 'defendant'::text, 'child'::text, 'mutual'::text, 'third_party'::text, 'unknown'::text]))),
+    CONSTRAINT person_role_in_case_check CHECK ((role_in_case = ANY (ARRAY['user'::text, 'partner'::text, 'co_parent'::text, 'child'::text, 'witness'::text, 'evaluator'::text, 'attorney'::text, 'third_party'::text, 'neutral'::text, 'unknown'::text]))),
     CONSTRAINT person_verification_state_check CHECK ((verification_state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'disputed'::text])))
 );
 
