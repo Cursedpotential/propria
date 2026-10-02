@@ -2,7 +2,8 @@
 //
 // Read-only Case Bible catalog lookup: OpenList path -> B2 key -> raw_duck.b2_content
 // / raw_duck.source_occurrences on casebible-pg18 (Coolify database, ovh-files),
-// reached over the tailnet at PGCATALOG_HOST:PGCATALOG_PORT. Credentials never
+// reached over the tailnet at PGCATALOG_HOST:PGCATALOG_PORT (ovh-files tailscale serve tcp 5433,
+// deploy/tailscale/catalog-serve.sh; Claude Code · Opus 5.5 · 2026-10-02). Credentials never
 // reach the browser bundle -- this module runs server-side only, inside
 // progress-board's Node process, and the password is read once at startup from
 // a file (never an env var, never logged).
@@ -44,7 +45,7 @@ export function b2KeyFromOpenListPath(openlistPath) {
 
 export function createCatalog({
   host = process.env.PGCATALOG_HOST || "100.91.190.107",
-  port = Number(process.env.PGCATALOG_PORT || 5475),
+  port = Number(process.env.PGCATALOG_PORT || 5433),
   user = process.env.PGCATALOG_USER || "metabase_ro",
   database = process.env.PGCATALOG_DATABASE || "casebible",
   passwordFile = process.env.PGCATALOG_PASSWORD_FILE ||
