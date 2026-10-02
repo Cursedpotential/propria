@@ -4116,3 +4116,11 @@ Open, for the owner:
   - [ ] `infisical_dbadmin` is a member of `platform_app` (read/write on platform data), which looks unintended. Revoking it now needs `matt` or a session inside the container.
   - [ ] The health check `pg_isready -U ai` logs "database ai does not exist" every 5 s; `-d postgres` in the compose fixes it, with a probata-db redeploy.
   - `matt` is still a superuser that can log in over the network.
+
+## 2026-10-02 12:00–16:30 EDT — scrambled files in the vault: survey, twins, quarantine list (owner 14:41 "Quarantine the messed-up files")
+- Five casevault HTML files (Facebook `account_activity`, `your_friends`, `your_post_audiences`, `30.html`, a Takeout `MyActivity.html`) are scrambled bytes (entropy 7.99 bits/byte, no format marker, no compression); their catalog sha1 equals the scrambled bytes. Each has an intact same-size twin of another hash in B2 (owner: "use the twins").
+- Survey (read-only): first 4 KiB of 22,163 distinct objects (every name+size group with more than one sha1, plus the whole NXPlelIY export folder), then B2 confirmed each key (size and sha1). Result and method: `docs/receipts/2026-10-02-scrambled-files-README.md`; lists: `...-scrambled-files-all.csv` (16,812 rows) and `...-scrambled-files-no-twin.csv` (949). Source of truth: `raw_duck.scrambled_objects_20261002`, `raw_duck.scramble_head_probe_20261002`.
+- In B2 now: **A** 3,393 scrambled with an intact twin (4.17 GB); **B** 918 unreadable with no twin (1.52 GB); **C** 31 suspect (0.13 GB, never moved). 12,554 further catalog rows are stale (not in B2).
+- Quarantine apply set A+B = 4,311 objects / 5.69 GB to `consignatio/_quarantine/scrambled-20261002/<original key>` with `b2_version_ops_20261001.py quarantine` (server-side copy, verify, hide; versions kept). Its `--dry-run` over the list: 4,311 `would_copy`, 0 refused, 0 failed. **Apply is NOT yet run** (the session that owns the deploy window runs it); afterwards `scrambled_quarantine_20261002_mark.py` marks the catalog.
+- [ ] Look for the 949 no-twin files elsewhere (export zips, D:/F:, Drive, OneDrive) by sha1 and name.
+- Repair path: HTML signatures added to the Go repair proposer, and `repair.find_other_version` now refuses scrambled copies and prefers the same-size twin of a scrambled source (pushed; live with the next proffer-worker deploy).
