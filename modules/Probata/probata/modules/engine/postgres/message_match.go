@@ -1,8 +1,11 @@
 // Byline: Claude Code · Opus 5.5 · 2026-10-02
 //
 // Message match-up across sources (owner 2026-10-02: "both Facebook exports,
-// deduped"; decision C). A message whose platform, parties, sender, sent time
-// to the second and body hash already exist from a different source version is
+// deduped"; decision C; narrowed at 15:40 to the same device: "we don't want
+// any duplicates unless it's a completely separate medium or person or backup
+// device"). A message whose device (the casevault phone folder, else the
+// platform and the account's owner), platform, parties, sender, sent time to
+// the second and body hash already exist from a different source version is
 // recorded in working.message_occurrence as a further occurrence of the
 // existing working row instead of a second row. The key is computed by one SQL
 // function, working.message_match_key, for new messages here and for the
@@ -114,9 +117,10 @@ func matchKeys(ctx context.Context, q rowQueryer, plan firstparty.Plan, messages
 		shas[index] = sum
 	}
 	rows, err := q.Query(ctx, `
-		SELECT u.id::text, working.message_match_key($1, string_to_array(u.parties, chr(31)), NULLIF(u.sender, ''), u.occurred_at, u.sha)
+		SELECT u.id::text, working.message_match_key($1, string_to_array(u.parties, chr(31)), NULLIF(u.sender, ''), u.occurred_at, u.sha,
+		       working.message_device_key($7, $1, NULLIF($8, '')::uuid))
 		FROM unnest($2::uuid[], $3::text[], $4::text[], $5::timestamptz[], $6::bytea[]) AS u(id, parties, sender, occurred_at, sha)`,
-		plan.Source.Platform, ids, parties, senders, occurred, shas)
+		plan.Source.Platform, ids, parties, senders, occurred, shas, plan.Source.SourceKey, strings.TrimSpace(plan.Identity.PerspectivePersonID))
 	if err != nil {
 		return nil, fmt.Errorf("compute message match keys: %w", err)
 	}
