@@ -2,7 +2,7 @@
 -- What the Case Bible catalog holds per identifier, for the Workbench Case page (owner order 2026-10-01 07:56:
 -- "view what's been extracted as far as what's in there"). Read-only to the Workbench (metabase_ro); rebuilt by
 -- re-running this file. Identities themselves are NOT here: they live in Probata registry and the catalog reads them
--- through raw_duck.msg_identity_20260924 (a postgres_fdw view since 2026-10-01, identity_registry_fdw_20261001.sql).
+-- through raw_duck.msg_identity_20260924 (a postgres_fdw view since 2026-10-02, identity_registry_fdw_20261001.sql).
 --
 -- raw_duck.identity_event_counts_20261001: one row per (identifier, match_on, event_kind) over
 -- raw_duck.comm_events_20260918 (messages, calls, AI chats; 551,877 rows on 2026-10-01).

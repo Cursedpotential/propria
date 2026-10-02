@@ -1,3 +1,7 @@
+-- RETIRED 2026-10-02 (Claude Code · Opus 5.5): identities live in Probata registry, edited on the Workbench Case page.
+-- raw_duck.msg_identity_20260924 is now a read-only postgres_fdw view over registry.vw_case_identifier
+-- (identity_registry_fdw_20261001.sql); the table this file wrote is raw_duck.msg_identity_20260924_retired_20261001.
+-- Do not re-run: a write to the view is refused. Add or fix an identifier on the Case page instead.
 -- Byline: Claude Code · Opus 5.5 · 2026-09-24
 -- One phone-number rule and one people <-> identifiers table for every message reader and report.
 -- Owner 09:27: numbers come as +1XXXXXXXXXX, 1XXXXXXXXXX and XXXXXXXXXX (plus dashes, dots, parentheses);

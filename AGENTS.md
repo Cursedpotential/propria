@@ -187,13 +187,19 @@ transition state.
 - **memsearch (shared agent memory):** ONE folder for every agent and project,
   `C:\Users\matts\.memsearch\memory`, and ONE Milvus collection,
   `agent_session_memory_nemotron3`, pinned by `C:\Users\matts\.memsearch\.collection`. Claude
-  gets it from `MEMSEARCH_DIR` in `~\.claude\settings.json`; Codex from
-  `~\.codex\hooks\memsearch_codex_hook.py`. Codex's own memory store is imported under
-  `memory\codex\<project>\`. Both plugin copies carry a local patch that honors `.collection`;
-  re-apply it after a memsearch plugin update. The `memsearch` CLI itself is the private fork
-  `E:\AI_Workspace\plugins\forks\memsearch` (uv tool, a `+propria` build, 2026-09-26): never
+  Code and Codex install ONE plugin, `memsearch@propria-plugins` (source
+  `E:\AI_Workspace\plugins\forks\memsearch\plugins\claude-code`): the same hook scripts, journal
+  and skills, and each note's heading names its agent (`### HH:MM · Codex`). Claude gets
+  `MEMSEARCH_DIR` from `~\.claude\settings.json`; Codex from `shell_environment_policy.set` in
+  `~\.codex\config.toml`, and runs the hooks through the plugin's `scripts/codex_hook.py`. How
+  each app is wired is in the plugin's `UPSTREAM.md`. Codex's own memory store is imported under
+  `memory\codex\<project>\` (indexed). The `memsearch` CLI itself is the private fork
+  `E:\AI_Workspace\plugins\forks\memsearch` (uv tool, `0.4.19+propria8` since 2026-10-02): never
   install memsearch from PyPI, which drops the fork's NIM fixes; reinstall steps are in the
-  fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-26)_
+  fork's `propria/README.md`. The same collection is also served as MCP tools (`memsearch-search`,
+  `-expand`, `-recall`, `-status`) by the Coolify app `memsearch-mcp` on ovh-files, federated by
+  ContextForge as virtual server `memsearch`; both apps reach it there (the plugin's `UPSTREAM.md`,
+  "Hosted MCP server"). _(Claude Code · Opus 5.5 · 2026-09-26, one plugin and hosted MCP 2026-10-02)_
 - **ccc (local code indexes):** every local patch to `cocoindex-code` lives in the private fork
   `E:\AI_Workspace\plugins\forks\cocoindex-code` (2026-09-28): streaming writes, the memory
   safety guard, `respect_gitignore`, and the embedder input guards. Never install
