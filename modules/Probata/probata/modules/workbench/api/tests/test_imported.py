@@ -17,9 +17,10 @@ from fastapi.testclient import TestClient
 MATTER = "01a0f751-e07b-75cc-9ad5-63ad9449a8ba"
 KEY = "b2://salem-data/consignatio/casevault/SourceCorpus/messaging/sms-backup-restore/8102689630/sms-2024-11-24.xml"
 PEOPLE = [
-    {"person": "Matt", "display_name": "Matthew S. Salem", "role_in_case": "user", "identifier": "8103535467", "kind": "phone"},
-    {"person": "Katrina", "display_name": "Katrina Kinzel", "role_in_case": "co_parent", "identifier": "8102689630", "kind": "phone"},
-    {"person": "Katrina", "display_name": "Katrina Kinzel", "role_in_case": "co_parent", "identifier": "katrina", "kind": "name"},
+    {"entity_id": "e-matt", "person": "Matt", "display_name": "Matthew S. Salem", "role_in_case": "user", "verification_state": "confirmed", "identifier": "8103535467", "kind": "phone"},
+    {"entity_id": "e-kat", "person": "Katrina", "display_name": "Katrina Kinzel", "role_in_case": "co_parent", "verification_state": "confirmed", "identifier": "8102689630", "kind": "phone"},
+    {"entity_id": "e-kat", "person": "Katrina", "display_name": "Katrina Kinzel", "role_in_case": "co_parent", "verification_state": "confirmed", "identifier": "katrina", "kind": "name"},
+    {"entity_id": "e-ph", "person": "Unknown 313-555-0101", "display_name": "Unknown 313-555-0101", "role_in_case": "unknown", "verification_state": "proposed", "identifier": "3135550101", "kind": "phone"},
 ]
 
 
@@ -68,8 +69,21 @@ def test_participants_mark_the_users_own_side():
     assert (me["label"], me["mine"]) == ("Matthew S. Salem", True)
     her = service._participant("+18102689630", people, "Matt")
     assert (her["label"], her["mine"]) == ("Katrina Kinzel", False)
-    stranger = service._participant("+13135550101", people, "Matt")
-    assert stranger["label"] == "(313) 555-0101" and stranger["person"] is None
+    stranger = service._participant("+13135550177", people, "Matt")
+    assert stranger["label"] == "(313) 555-0177" and stranger["person"] is None
+    assert stranger["number"] == "3135550177"
+
+
+def test_a_placeholder_is_not_a_confirmed_person_and_offers_who_is_this():
+    people = service._People(PEOPLE)
+    placeholder = service._participant("+13135550101", people, "Matt")
+    assert placeholder["placeholder"] is True and placeholder["entity_id"] == "e-ph"
+    assert placeholder["label"] == "Unknown 313-555-0101" and placeholder["number"] == "3135550101"
+    nobody = service._participant("+13135550199", people, "Matt")
+    assert nobody["placeholder"] is False and nobody["entity_id"] is None and nobody["number"] == "3135550199"
+    named = service._participant("+18102689630", people, "Matt")
+    assert named["placeholder"] is False and named["number"] is None
+    assert "Unknown 313-555-0101" not in people.by_person
 
 
 def test_status_prefers_the_committed_fact_and_never_guesses_without_run_state():
@@ -108,6 +122,30 @@ def test_sources_group_derived_files_under_their_export(monkeypatch):
     assert item["format"] == "SMS" and item["owner"] == "Katrina"
 
 
+def test_unknown_numbers_list_most_frequent_first(monkeypatch):
+    more = PEOPLE + [{"entity_id": "e-ph2", "person": "Unknown 313-555-0102", "display_name": "Unknown 313-555-0102",
+                      "role_in_case": "unknown", "verification_state": "proposed", "identifier": "3135550102", "kind": "phone"}]
+    monkeypatch.setattr(pg, "people", lambda: more)
+    monkeypatch.setattr(pg, "numbers_activity", lambda matter: [
+        {"number": "3135550101", "record_type": "message", "n": 3, "last_at": None},
+        {"number": "3135550102", "record_type": "call", "n": 9, "last_at": None},
+        {"number": "3135550102", "record_type": "message", "n": 2, "last_at": None},
+    ])
+    body = TestClient(_app()).get("/api/imported/unknown-numbers").json()
+    assert [item["number"] for item in body["items"]] == ["3135550102", "3135550101"]
+    assert body["items"][0]["total"] == 11 and body["total"] == 2
+
+
+def test_unlinked_numbers_skip_anyone_the_registry_carries(monkeypatch):
+    monkeypatch.setattr(pg, "numbers_activity", lambda matter: [
+        {"number": "3135550101", "record_type": "message", "n": 3, "last_at": None},
+        {"number": "4195550123", "record_type": "message", "n": 5, "last_at": None},
+    ])
+    monkeypatch.setattr(pg, "working_unlinked_numbers", lambda: [{"number": "4195550123", "n": 7}, {"number": "2485550000", "n": 1}])
+    body = TestClient(_app()).get("/api/imported/unlinked-numbers").json()
+    assert [(i["number"], i["total"]) for i in body["items"]] == [("4195550123", 7), ("2485550000", 1)]
+
+
 def test_the_view_has_no_write_route():
     methods = {method for route in _app().routes for method in getattr(route, "methods", set())}
     assert methods <= {"GET", "HEAD"}
@@ -124,3 +162,12 @@ def test_search_failure_is_a_clean_503(monkeypatch):
     monkeypatch.setattr(service.httpx, "AsyncClient", Boom)
     response = TestClient(_app()).get("/api/imported/search", params={"q": "title"})
     assert response.status_code == 503 and "unavailable" in response.json()["detail"]
+
+
+def test_number_status_tells_named_placeholder_and_unknown_apart():
+    body = TestClient(_app()).get("/api/imported/number-status", params=[
+        ("numbers", "+18102689630"), ("numbers", "3135550101"), ("numbers", "+13135550177"), ("numbers", "Katrina")]).json()["items"]
+    assert body["+18102689630"]["state"] == "known" and body["+18102689630"]["label"] == "Katrina Kinzel"
+    assert body["3135550101"]["state"] == "placeholder" and body["3135550101"]["entity_id"] == "e-ph"
+    assert body["+13135550177"] == {"state": "unknown", "number": "3135550177", "entity_id": None, "label": "(313) 555-0177"}
+    assert "Katrina" not in body

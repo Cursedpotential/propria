@@ -17,6 +17,7 @@
 
 import { Phone, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOff, PhoneOutgoing } from "lucide-react";
 
+import { NumberIdentity } from "@/components/identity/number-status";
 import { Badge } from "@/components/ui/badge";
 import type { ProfferGenericRecord } from "@/lib/shared/types";
 
@@ -141,6 +142,7 @@ export function CallsTable({ rows }: CallsTableProps) {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{row.number}</p>
                 <p className="text-xs text-muted-foreground">Duration: {row.durationLabel}</p>
+                <NumberIdentity value={row.number} context="a call" />
               </div>
             </div>
             <div className="shrink-0 text-right">

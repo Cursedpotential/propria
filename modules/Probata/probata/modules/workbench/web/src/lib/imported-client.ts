@@ -41,6 +41,38 @@ export interface Participant {
   label: string;
   mine: boolean;
   person: string | null;
+  /** The registry person this number belongs to (a placeholder until the owner names it). */
+  entity_id?: string | null;
+  placeholder?: boolean;
+  /** The 10-digit number when nobody, or only a placeholder, carries it: "Who is this?" starts here. */
+  number?: string | null;
+}
+
+export interface KnownPerson {
+  entity_id: string;
+  name: string;
+  short: string;
+  role: string;
+}
+
+export interface UnknownNumber {
+  entity_id: string;
+  number: string;
+  label: string;
+  name: string;
+  messages: number;
+  calls: number;
+  total: number;
+  last_at: string | null;
+  /** Names a contact export gave this number; unconfirmed. */
+  candidates: string[];
+}
+
+export interface NumberStatus {
+  state: "known" | "placeholder" | "unknown";
+  number: string;
+  entity_id: string | null;
+  label: string;
 }
 
 export interface ImportedThread {
@@ -174,5 +206,13 @@ export const importedApi = {
     }, signal),
   calls: (cursor: string | null, signal?: AbortSignal) => getJson<CallsPage>("/api/imported/calls", { limit: 40, cursor }, signal),
   search: (q: string, offset: number, signal?: AbortSignal) => getJson<SearchPage>("/api/imported/search", { q, limit: 20, offset }, signal),
+  identity: (signal?: AbortSignal) => getJson<{ people: KnownPerson[] }>("/api/imported/identity", {}, signal),
+  unknownNumbers: (offset: number, q?: string, signal?: AbortSignal) =>
+    getJson<{ items: UnknownNumber[]; total: number; next_offset: number | null }>("/api/imported/unknown-numbers", { limit: 30, offset, q }, signal),
+  numberStatus: (numbers: string[], signal?: AbortSignal) => {
+    const query = new URLSearchParams();
+    numbers.forEach((value) => query.append("numbers", value));
+    return getJson<{ items: Record<string, NumberStatus> }>(`/api/imported/number-status?${query.toString()}`, {}, signal);
+  },
   reviewQueue: (signal?: AbortSignal) => getJson<{ items: ReviewQueueItem[]; total: number }>("/api/imported/review-queue", {}, signal),
 };

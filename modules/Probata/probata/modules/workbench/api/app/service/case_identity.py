@@ -19,7 +19,7 @@ from typing import Any
 from urllib.parse import quote
 
 from app.repo import case_identity_catalog as catalog
-from app.service import proffer
+from app.service import imported, proffer
 from app.service.proffer_errors import ProfferError
 from app.types.matter_mode import MatterMode
 from app.types.proffer import ProfferDecisionActor
@@ -97,6 +97,7 @@ async def _write(path: str, body: dict[str, Any], actor: ProfferDecisionActor, k
     response = await proffer._request("POST", path, json=body, headers=_headers(actor, key), params=params)
     receipt = _object(response, "case identity receipt", _RECEIPT_KEYS)
     receipt["replayed"] = bool(receipt.get("replayed"))
+    imported.invalidate()  # the mobile view's name and activity caches follow an identity change
     return receipt
 
 
@@ -126,3 +127,13 @@ async def edit_person(person_id: str, body: dict[str, Any], actor: ProfferDecisi
 
 async def triage(body: dict[str, Any], actor: ProfferDecisionActor, key: str) -> dict[str, Any]:
     return await _write("/case-identity/triage", body, actor, key)
+
+
+async def add_placeholders(body: dict[str, Any], actor: ProfferDecisionActor, key: str) -> dict[str, Any]:
+    """One placeholder person per unidentified number (Claude Code · Sonnet · 2026-10-02); dry_run rolls back."""
+    return await _write("/case-identity/placeholders", body, actor, key)
+
+
+async def merge_person(person_id: str, body: dict[str, Any], actor: ProfferDecisionActor, key: str) -> dict[str, Any]:
+    """Merge a placeholder into an existing person; identifiers and linked rows move, nothing is deleted."""
+    return await _write(f"/case-identity/people/{quote(person_id)}/merge", body, actor, key)

@@ -144,3 +144,21 @@ async def triage_endpoint(body: JsonObject, request: Request, key: IdempotencyKe
         return await service.triage(body, actor, key)
     except ProfferError as error:
         raise _translate(error) from None
+
+
+@router.post("/placeholders", status_code=201)
+async def placeholders_endpoint(body: JsonObject, request: Request, key: IdempotencyKey):
+    actor = _actor(request)
+    try:
+        return await service.add_placeholders(body, actor, key)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.post("/people/{person_id}/merge", status_code=201)
+async def merge_person_endpoint(person_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey):
+    actor = _actor(request)
+    try:
+        return await service.merge_person(person_id, body, actor, key)
+    except ProfferError as error:
+        raise _translate(error) from None

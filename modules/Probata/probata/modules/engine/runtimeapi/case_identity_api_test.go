@@ -68,6 +68,16 @@ func (s *caseIdentityStoreStub) AddPerson(_ context.Context, _ caseidentity.NewP
 	return s.receipt()
 }
 
+func (s *caseIdentityStoreStub) AddPlaceholders(_ context.Context, _ caseidentity.PlaceholderSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+	s.actor = actor
+	return s.receipt()
+}
+
+func (s *caseIdentityStoreStub) MergePerson(_ context.Context, _ caseidentity.MergeSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+	s.actor = actor
+	return s.receipt()
+}
+
 func (s *caseIdentityStoreStub) Triage(_ context.Context, _ caseidentity.TriageSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
 	s.actor = actor
 	return s.receipt()
@@ -212,4 +222,29 @@ func TestCaseIdentityErrorMappingAndLookup(t *testing.T) {
 	require.Equal(t, "8102689630", payload.Matches[0].Normalized)
 	require.Equal(t, "probata.registry", payload.Store)
 	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, newPreviewRequest(http.MethodGet, "/case-identity/lookup", nil)).Code)
+}
+
+// Byline: Claude Code · Sonnet · 2026-10-02
+func TestCaseIdentityPlaceholdersAndMergeAreActorBoundWrites(t *testing.T) {
+	store, routes := newCaseIdentityHandler(t)
+	batch := []byte(`{"numbers":["810-555-0142"],"change_reason":"seen in imported calls","dry_run":true}`)
+	noKey := newPreviewRequest(http.MethodPost, "/case-identity/placeholders", batch)
+	require.Equal(t, http.StatusUnauthorized, servePreviewRequest(routes, noKey).Code)
+	req := newPreviewRequest(http.MethodPost, "/case-identity/placeholders", batch)
+	req.Header.Set("Idempotency-Key", "placeholders-1")
+	require.Equal(t, http.StatusCreated, servePreviewRequest(routes, req).Code)
+	require.Equal(t, "placeholders-1", store.actor.IdempotencyKey)
+
+	empty := newPreviewRequest(http.MethodPost, "/case-identity/placeholders", []byte(`{"numbers":[],"change_reason":"x"}`))
+	empty.Header.Set("Idempotency-Key", "placeholders-2")
+	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, empty).Code)
+
+	merge := newPreviewRequest(http.MethodPost, "/case-identity/people/"+caseTestPerson+"/merge",
+		[]byte(`{"into_id":"01a0f751-e07b-76c7-8c0f-65692ad656b8","change_reason":"her other phone"}`))
+	merge.Header.Set("Idempotency-Key", "merge-1")
+	require.Equal(t, http.StatusCreated, servePreviewRequest(routes, merge).Code)
+	self := newPreviewRequest(http.MethodPost, "/case-identity/people/"+caseTestPerson+"/merge",
+		[]byte(`{"into_id":"`+caseTestPerson+`","change_reason":"x"}`))
+	self.Header.Set("Idempotency-Key", "merge-2")
+	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, self).Code)
 }
