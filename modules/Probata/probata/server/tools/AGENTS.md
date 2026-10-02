@@ -21,7 +21,10 @@ parsers/
   ai_chat/                  chatgpt_{official,share}, claude_{ai_export,code,code_jsonl,md},
                             gemini_{chrome,json}, perplexity_{gdpr,md,plugin}
   generic/                  generic_md, whole_file_fallback
-extractors/                extract_text (capability extract.text)
+extractors/                extract_text, docling_extract (capability extract.text);
+                            html_text/ (capability extract.html_text: one tool per HTML library —
+                            docling, unstructured, markitdown, html2text, beautifulsoup4, lxml,
+                            selectolax; per-file-type default = the `primary` rank in _ranks.py)
 visualizers/               geo_map (capability viz.geo_map) + vendored Leaflet assets
 gateway/                   G4 progressive-disclosure tool gateway (moved here from
                             server/evidence/tool_finder/, ADR-0035) — see below

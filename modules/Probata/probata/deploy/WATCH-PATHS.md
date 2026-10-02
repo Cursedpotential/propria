@@ -85,6 +85,7 @@ modules/Probata/probata/server/**
 modules/Probata/probata/scripts/**
 modules/Probata/probata/sql/**
 modules/Probata/probata/requirements.txt
+modules/Probata/probata/requirements-html-tools.txt
 modules/Probata/probata/deploy/docker/temporal-worker/**
 modules/Probata/probata/deploy/temporal-worker.yaml
 ```

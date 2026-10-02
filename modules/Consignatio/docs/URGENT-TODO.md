@@ -3385,7 +3385,7 @@ Open, for the owner:
   - 1 had no python parser;
   - 13 owner-aborted "clear queue" retries.
   Nothing to re-run. They are dev leftovers, left in place.
-- **The one-message chunk failures are in Temporal instead.** Batch `overnight-20261002-sms-8102689630-threads-01` holds 96 runs waiting on the gate and 9 failed with "no parser adapter declares format json" (fixed by ade084fa). They are re-run after the owner's preview decision.
+- **The one-message chunk failures are in Temporal instead.** Batch `overnight-20261002-sms-8102689630-threads-01` holds 96 runs waiting on the gate and 9 failed with "no parser adapter declares format json" (fixed by ade084fa). They were re-run (batch `threads-01r`) and the parked runs signalled clean_checks.
 - **SMS and call backups placed by device number** (owner decision A, plan `casevault-20261002-devices`): 15 objects / 11.3 GB, all ok at `b2_stored_sha1`, server-side. Why each file sits where it does is in `raw_duck.casevault_device_basis` (`casebible/tools/casevault_device_basis_load.sql`):
   - 8102959302, Matt: 2 SMS from 2022.
   - 8102689630, Katrina: 2 SMS and 2 call logs. This includes `sms-20250218025955.xml`, from the sent-MMS from-address.
@@ -3399,20 +3399,17 @@ Open, for the owner:
   - The three 2022 call logs are Matt's. They are placed under `telephony/sms-backup-restore-calls/8102959302/`, 3/3 ok at `b2_stored_sha1` (plan `casevault-20261002-calls2022`; basis `owner_confirmed_20261002`).
   - "There's been no communication in 2026 that is relevant to the case." Every 2026 file is skipped: no placement, import or salvage, originals untouched. That covers the two 2026 call logs and the salvage of the unclosed 2026 SMS backups.
   - The two 8102594380 SMS backups were copied into casevault at 12:36Z, before the ruling. They are left as add-only copies and are not imported.
-  - `sms-20260524134346.xml` (8103535467; records 2025-06-01..2026-01-07) waits on the owner's answer: skip it, or import it whole.
+  - `sms-20260524134346.xml` (8103535467; records 2025-06-01..2026-01-07) is imported whole as Matt's (owner 09:08 "yes its mine", option B).
 - [ ] **Owner:** add 8102594380 as a confirmed phone of Matthew S. Salem ("Matt's current number", owner 08:40). The agent's write through the case-identity API was refused by the session's auto-mode classifier. Do it on the Workbench case identity page, or allow the write.
 - **Fixed, `retain_original_activity` heartbeat (5fb202f4, proffer-worker deploy `vpqwuapvousrfym8fzik0eak`, finished 13:01:55Z):** the store copy of a large original never heartbeat. A 2.4 GB SMS backup (`sms-20221104024709.xml`) failed all 5 attempts at the one-minute HeartbeatTimeout. The Activity now heartbeats every 20 s while the copy runs.
-- **Weaviate:** owner approved moving Proffer's entries out of the Case Bible collection `MsgEvents20260918` into `ProfferMsgEvents20261002`; another agent is doing it. The parked first batch had already published 516 objects before Review. No new Proffer run starts until the worker writes to the new collection.
+- **Weaviate:** owner approved moving Proffer's entries out of the Case Bible collection `MsgEvents20260918` into `ProfferMsgEvents20261002`; another agent moved it. The parked first batch had already published 516 objects before Review.
 - **Resumed 13:27Z once the collection switch was live** (worker `CONTEXT_SEARCH_MESSAGE_COLLECTION=ProfferMsgEvents20261002`).
 - **Fixed, a folder batch listed derived outputs (d845379d, deployed with main b04fb7d7 after the owner-rejected AI-chat guard was reverted, 3fae954a):** a derive batch over a device folder also listed the earlier backup's `.derived/` manifest and attachments, and started a run for each. `list_batch_folder` now drops keys under a `.derived/` segment below the prefix.
   - The mistaken batch was terminated within about 40 s. It left 2 `source_version` rows (`01a0fccc-deab-…`, `01a0fccd-2f17-…`); the owner decides on them, so they stay for now.
 - **Heartbeat fix proven live:** `retain_original_activity` passed on the 2.4 GB `sms-20221104024709.xml` (run `…8102959302-derive-03-00001`).
 - **Found, owner to decide (DB lane):** re-running a request id fails at `register_source` with "permission denied for table activity_execution". `lifecycleEnsureExecution` recovers with `SELECT … FOR UPDATE`, and `context_import_writer` holds only INSERT,SELECT. Workaround: retries go under new batch ids.
-- **Call logs imported and auto-approved through clean_checks:** 8 files (Matt 8102959302 ×3 and 8103535467 ×3, Katrina 8102689630 ×2) gave 9,183 raw records, 9,175 normalized and 9,175 Weaviate objects, with 8 automatic decisions. **Gap:** nothing projects calls into `working.call_log`; it stays 0.
-- **Blocked:** SMS thread chunks and Facebook JSON can never pass clean_checks, because `reconcile_byte_coverage` is always not_applicable for formats without byte locators.
-  - The owner chose option A: count that one check as passed for `ndjson` / `facebook_messenger_json`, while the other four must still succeed.
-  - The change is written and tested (proffer/types.go, proffer/workflow.go, activities/auto_approval.go plus a test), but the agent's commit and deploy were refused by the auto-mode classifier. It waits uncommitted in worktree `overnight-msg-import-20261002` for the owner to land it.
-  - Until then: 9 retried chunks of `threads-01r` wait at the gate, the 95 parked chunks are not signalled, and no further SMS-thread or Facebook batches start.
+- **Call logs imported and auto-approved through clean_checks:** 8 files (Matt 8102959302 ×3 and 8103535467 ×3, Katrina 8102689630 ×2) gave 9,183 raw records, 9,175 normalized and 9,175 Weaviate objects, with 8 automatic decisions. Calls follow the message path (owner): the `commit_call_log` stage (0d36e48f) and the back-fill workflow `proffer_call_log_backfill_workflow` (eb6e29af) put all 9,175 calls into `working.call_log`; a call's device side links to the perspective person (6e8a198d).
+- **clean_checks for formats without byte locators** (owner option A, db834afa): `reconcile_byte_coverage` is always not_applicable for `ndjson` / `facebook_messenger_json`, so that one check counts as passed for them; the other four must still succeed.
 - **14:20–16:30Z, import running unattended** (proffer-worker 25808d3f):
   - Option A landed as db834afa.
   - 103 parked runs were signalled clean_checks.
@@ -3421,20 +3418,23 @@ Open, for the owner:
     - 1ab2edce: optional batch `key_suffix` (".json" for Facebook).
     - 92af17b6: `facebook_messenger_json` added to `context.handler_detected_format`'s CHECK, snapshot and live.
     - 25808d3f: a Facebook thread file resolves platform `facebook_messenger` from its persisted detected format.
-  - Live at 16:30Z:
-    - working.message 7,009, message_participant 18,684, first_party_context_thread 49 (sources 59, thread messages 7,009).
-    - third_party_message 661; working.normalized_record 7,670.
-    - Weaviate `ProfferMsgEvents20261002` 97,042 objects (SMS and calls).
-  - Call logs: 8 files, 9,175 normalized records, all auto-approved.
+- **Commit speed fixed:** the message-projection validator checks only the rows of its own statement with one indexable predicate (v2, 38a54082), and the context-thread check validates each thread version once per statement (4a94c226). Both are live and in the snapshot. No evidence hash is required in working tables (owner 11:57 "That's for everything").
+- **16:30–20:30Z — one message, many sources (match-up, owner decision C, narrowed 15:40 EDT):**
+  - New stage `match_message_occurrences` (5acf1a10) runs before the Weaviate stage. A message already in `working.message` / `working.third_party_message` with the same match key is not inserted again; the new source is recorded in `working.message_occurrence` (primary when `normalized_record_id = primary_record_id`) and is not published to Weaviate again.
+  - Owner 15:40 EDT: "we don't want any duplicates unless it's a completely separate medium or person or backup device. If it's a real duplicate from the exact same type of file from the exact same device, then we don't need it." So the key also names the device (2e2c43cb, `working.message_device_key`): the SMS Backup & Restore device folder, or for any other source the platform and the perspective person. The same message from another phone or medium stays its own row. Scripts, all applied live: `probata/scripts/2026-10-02-message-occurrence*.sql` (table, back-fill, same-device key, re-key).
+  - a19003e6: a generation whose every message matched records its search publication (it failed "requires at least one published object" before).
+- **Import complete at 21:00Z** (every placed SMS backup, call log and Facebook thread file, except the open items below):
+  - working.message 165,233 (SMS 98,031, Facebook Messenger 67,202), message_participant 397,473, third_party_message 4,843, first_party_context_thread 209, normalized_record (proffer) 179,251, call_log 9,175.
+  - message_occurrence 219,148 (53,918 further occurrences, all on the same device by construction).
+  - Weaviate `ProfferMsgEvents20261002`: 233,486 objects.
+  - SMS thread batches, all terminal: 8102689630 `sms-2024-11-24` (105 files) and `sms-20250218025955` (334); 8102959302 both 2022 backups; 8103535467 `new_sms-20250703043427` (73), `sms-20250703043427` (2), `sms-20260524134346` (172). Failed runs were re-run under `-02` batch ids, which skip every source already completed.
+  - Facebook: the Feb export, all 7 thread files done; the Aug export 6 of 7 done.
 - **Open, owner:**
-  - (a) **Commit validator is quadratic.** `working.validate_message_projection()` re-checks the whole table on every row firing and holds one advisory lock, so large-thread commits take 20–30 min each, one at a time.
-    - The scoped rewrite (option A, owner-approved) is proven in a rolled-back transaction (6/6 cases: violations 1, 2, 4, 5 still raise; a valid insert and the full registry.person check pass).
-    - The agent's live `CREATE OR REPLACE` was refused by the session classifier. The file is on ovh-files at `/tmp/validate_message_projection_scoped.sql`; the snapshot still needs the same body.
-  - (b) **`commit_call_log_activity` is not built.** The classifier refused creating its store file. Uncommitted pieces sit in the worktree: `activities/call_log.go`, the stagegraph and options entries.
-    - `working.call_log.source_artifact_id` is still NOT NULL with an FK to evidence.evidence_hash, and platform_runtime has only SELECT on it.
+  - (a) **Same-device duplicates inserted before the match-up existed.** Dry run (rolled back): 17,082 copies (16,863 first-party, 219 third-party; 8102959302 16,581, 8103535467 282, 8102689630 219); no cross-device row is touched. Owner order: keep the earliest, record the copies as occurrences, remove the extra working rows. The removal script was refused by the session classifier; it waits on the owner or parent to apply. Their Weaviate objects would also remain.
+  - (b) **Aug Facebook `message_3`** is skipped because the terminated run's operation still reads `running`.
   - (c) **The 8102594380 alias**, owner via Workbench.
-  - (d) **The 2 stray source_version rows** from the terminated mistaken derive.
-  - (e) **Batch retries hit "permission denied for table activity_execution"** (`SELECT … FOR UPDATE` without UPDATE). Workaround: new batch ids.
+  - (d) **The 2 stray source_version rows** from the terminated mistaken derive (owner: leave).
+  - (e) **Batch retries hit "permission denied for table activity_execution"** (`SELECT … FOR UPDATE` without UPDATE). Owner: no grant change; retries go under new batch ids.
 - **`sms-002-031.xml`** (8103535467, 2.8 GB, 2025-06) fails derive twice with "SBV smsbackuprestore_xml parse: unexpected EOF", although its tail closes cleanly. The fault is inside the file. Not salvaged; owner to decide.
 
 ## 2026-10-02 08:45–09:25 EDT — probata-db: `casebible` gets its own login, `ai` password rotated (owner option A, 08:49); Docstore follows the Vestigia rename
@@ -3551,3 +3551,18 @@ Open, for the owner:
   - Health check fixed and live: probata-db redeployed at 15:47 EDT when the import had finished (deployment `iehw9rb4cg6z3dnh6rn2uebh`, `modules/Probata/probata/tools/probata-db-redeploy-when-quiet.py`). The log has no "database ai does not exist" lines since; `duckdb.postgres_role=platform_duckdb` is live (a non-member is refused by role); `ai` still refuses network logins; ContextForge, Infisical, Temporal, the Probata runtime and llm-probe reconnected. exec-tier (`platform_api`) reconnects on its next database request.
   - [ ] llm-probe answered one request with 500 after the restart (`AdminShutdown` from a pooled connection the restart closed); later requests are 200. Its pool does not check connections before use, so every database restart costs one failed request per pooled connection.
   - `matt` is still a superuser that can log in over the network.
+
+## 2026-10-02 12:00–16:30 EDT — scrambled files in the vault: survey, twins, quarantine list (owner 14:41 "Quarantine the messed-up files")
+- Five casevault HTML files (Facebook `account_activity`, `your_friends`, `your_post_audiences`, `30.html`, a Takeout `MyActivity.html`) are scrambled bytes (entropy 7.99 bits/byte, no format marker, no compression); their catalog sha1 equals the scrambled bytes. Each has an intact same-size twin of another hash in B2 (owner: "use the twins").
+- Survey (read-only): first 4 KiB of 22,163 distinct objects (every name+size group with more than one sha1, plus the whole NXPlelIY export folder), then B2 confirmed each key (size and sha1). Result and method: `docs/receipts/2026-10-02-scrambled-files-README.md`; lists: `...-scrambled-files-all.csv` (16,812 rows) and `...-scrambled-files-no-twin.csv` (949). Source of truth: `raw_duck.scrambled_objects_20261002`, `raw_duck.scramble_head_probe_20261002`.
+- In B2 now: **A** 3,393 scrambled with an intact twin (4.17 GB); **B** 918 unreadable with no twin (1.52 GB); **C** 31 suspect (0.13 GB, never moved). 12,554 further catalog rows are stale (not in B2).
+- Quarantine apply set A+B = 4,311 objects / 5.69 GB to `consignatio/_quarantine/scrambled-20261002/<original key>` with `b2_version_ops_20261001.py quarantine` (server-side copy, verify, hide; versions kept). Its `--dry-run` over the list: 4,311 `would_copy`, 0 refused, 0 failed. **Apply is NOT yet run** (the session that owns the deploy window runs it); afterwards `scrambled_quarantine_20261002_mark.py` marks the catalog.
+- [ ] Look for the 949 no-twin files elsewhere (export zips, D:/F:, Drive, OneDrive) by sha1 and name.
+- Repair path: HTML signatures added to the Go repair proposer, and `repair.find_other_version` now refuses scrambled copies and prefers the same-size twin of a scrambled source (pushed; live with the next proffer-worker deploy).
+
+## 2026-10-02 12:00–17:00 EDT — HTML parsing tool for Facebook and other files (owner 11:59 "We need an HTML parsing tool", 12:00 "find the best one")
+- Built and pushed (not yet deployed; deploy window is the parent session's): Proffer detects `facebook_messenger_html` (message_N.html thread) and `generic_html_document`, and runs the DuckDB webbed templates `facebook_messenger_html_v1` and `generic_html_document_v1`. Proven in the live pg_duckdb on real threads (10,003 blocks, emoji, ZWJ, reactions intact); live import proof waits for the deploy and the live `handler_detected_format` CHECK widening (one transaction, dry run first).
+- Tool bench per file type, on real casevault files: `modules/Probata/probata/docs/receipts/2026-10-02-html-tool-bench/`. Seven HTML tools registered as selectable `html.*` tools and Temporal Activities (docling, unstructured, markitdown, html2text, beautifulsoup4, lxml, selectolax) with per-file-type ranks; the worker image gets pinned libraries on the next temporal-worker deploy (watch path `requirements-html-tools.txt` must be added in Coolify).
+- No off-the-shelf Facebook parser reads a current export (surveyed 9). The repo's Python `facebook_messenger_html.py` returned no messages from any current file and is fixed.
+- [ ] iMessage HTML export (messages inside a JavaScript string) needs its own template (sibling: Case Bible `elt_imessage_html_v3`).
+- [ ] Routing a Proffer run to a Python HTML tool needs a fourth execution path; an owner decision, not built.
