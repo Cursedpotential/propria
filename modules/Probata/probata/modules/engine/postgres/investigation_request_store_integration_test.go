@@ -1,12 +1,17 @@
-package postgres
+package postgres_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/investigation"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
+	"github.com/Cursedpotential/probata/engine/runtimeapi"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
@@ -34,21 +39,79 @@ func TestInvestigationPostgresIsolated(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer pool.Close()
-	identity, _ := NewCaseIdentityStore(pool)
+	identity, _ := platformpostgres.NewCaseIdentityStore(pool)
 	view, e := identity.Read(ctx, caseidentity.ModeTest)
 	if e != nil || view.Matter == nil || view.CourtCase == nil {
 		t.Fatalf("canonical TEST case fixture required: %v", e)
 	}
-	store, _ := NewInvestigationRequestStore(pool)
+	store, _ := platformpostgres.NewInvestigationRequestStore(pool)
 	r := investigation.Request{Scope: investigation.Scope{Mode: caseidentity.ModeTest, MatterID: view.Matter.ID, CourtCaseID: view.CourtCase.ID}, LegalMatterID: uuid.NewString(), ClaimID: uuid.NewString(), FollowupID: uuid.NewString(), Question: "Synthetic isolated investigation receipt proof", Sources: []investigation.Source{}}
 	actor := investigation.Actor{UID: "synthetic-isolated-proof", Username: "synthetic-isolated-proof", Key: uuid.NewString()}
-	first, e := store.Create(ctx, r, actor)
+	token := strings.Repeat("synthetic-isolated-proof-token-", 2)
+	tokenFile, e := os.CreateTemp("", "probata-investigation-synthetic-token-")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = tokenFile.WriteString(token); e != nil {
+		t.Fatal(e)
+	}
+	if e = tokenFile.Close(); e != nil {
+		t.Fatal(e)
+	}
+	t.Logf("retained synthetic token fixture=%s", tokenFile.Name())
+	handler, e := runtimeapi.NewInvestigationHTTPHandler(store, tokenFile.Name())
+	if e != nil {
+		t.Fatal(e)
+	}
+	routes := handler.Routes()
+	httpRequest := func(method, path string, body []byte, key string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(method, path, strings.NewReader(string(body))).WithContext(ctx)
+		request.RemoteAddr = "100.64.0.5:4242"
+		request.Header.Set("Authorization", "Bearer "+token)
+		request.Header.Set("X-authentik-uid", actor.UID)
+		request.Header.Set("X-authentik-username", actor.Username)
+		request.Header.Set("Idempotency-Key", key)
+		response := httptest.NewRecorder()
+		routes.ServeHTTP(response, request)
+		return response
+	}
+	raw, _ := json.Marshal(r)
+	created := httpRequest(http.MethodPost, "/legal-context/investigations", raw, actor.Key)
+	if created.Code != 200 {
+		t.Fatalf("HTTP creation %d: %s", created.Code, created.Body.String())
+	}
+	var first investigation.Receipt
+	e = json.Unmarshal(created.Body.Bytes(), &first)
 	if e != nil {
 		t.Fatal(e)
 	}
 	if first.Status != "received" || len(first.Results) != 0 {
 		t.Fatal("receipt incorrectly implies execution")
 	}
+	retry := httpRequest(http.MethodPost, "/legal-context/investigations", raw, actor.Key)
+	var retryReceipt investigation.Receipt
+	if retry.Code != 200 || json.Unmarshal(retry.Body.Bytes(), &retryReceipt) != nil || retryReceipt.RequestID != first.RequestID {
+		t.Fatalf("HTTP replay %d: %s", retry.Code, retry.Body.String())
+	}
+	getPath := "/legal-context/investigations/" + first.RequestID + "?mode=TEST&matter_id=" + r.MatterID + "&court_case_id=" + r.CourtCaseID
+	gotHTTP := httpRequest(http.MethodGet, getPath, nil, "")
+	if gotHTTP.Code != 200 {
+		t.Fatalf("HTTP scoped read %d: %s", gotHTTP.Code, gotHTTP.Body.String())
+	}
+	badPath := "/legal-context/investigations/" + first.RequestID + "?mode=TEST&matter_id=" + uuid.NewString() + "&court_case_id=" + r.CourtCaseID
+	if response := httpRequest(http.MethodGet, badPath, nil, ""); response.Code != 409 {
+		t.Fatalf("HTTP wrong-scope read %d", response.Code)
+	}
+	if response := httpRequest(http.MethodPost, "/legal-context/investigations", append(raw, []byte(" {}")...), actor.Key); response.Code != 422 {
+		t.Fatalf("HTTP malformed JSON %d", response.Code)
+	}
+	altered := r
+	altered.Question = "altered HTTP payload"
+	alteredRaw, _ := json.Marshal(altered)
+	if response := httpRequest(http.MethodPost, "/legal-context/investigations", alteredRaw, actor.Key); response.Code != 409 {
+		t.Fatalf("HTTP altered-key payload %d", response.Code)
+	}
+	t.Log("actual HTTP + PostgreSQL proof: POST=200 replay=200 scopedGET=200 wrongscope=409 malformed=422 changedpayload=409")
 	var wg sync.WaitGroup
 	failures := make(chan error, 8)
 	for i := 0; i < 8; i++ {
@@ -101,6 +164,29 @@ func TestInvestigationPostgresIsolated(t *testing.T) {
 	actor.Key = uuid.NewString()
 	if _, e = store.Create(ctx, missing, actor); !errors.Is(e, investigation.ErrSource) {
 		t.Fatal("missing source admitted", e)
+	}
+	if len(view.People) > 0 {
+		contextStore, _ := platformpostgres.NewLegalContextStore(pool)
+		native, e := contextStore.ReadLegalContext(ctx, platformpostgres.LegalContextQuery{Mode: caseidentity.ModeTest, Kind: "entity", RecordID: view.People[0].ID, Limit: 1})
+		if e != nil || len(native.Records) != 1 {
+			t.Fatalf("native source read %v", e)
+		}
+		source := native.Records[0].Origin
+		sourced := r
+		sourced.FollowupID = uuid.NewString()
+		sourced.Sources = []investigation.Source{{Kind: "entity", RecordID: source.RecordID, RecordVersion: source.RecordVersion}}
+		sourceActor := actor
+		sourceActor.Key = uuid.NewString()
+		if _, e = store.Create(ctx, sourced, sourceActor); e != nil {
+			t.Fatalf("native entity source admission %v", e)
+		}
+		sourced.FollowupID = uuid.NewString()
+		sourced.Sources[0].RecordVersion = "view-sha256:stale"
+		sourceActor.Key = uuid.NewString()
+		if _, e = store.Create(ctx, sourced, sourceActor); !errors.Is(e, investigation.ErrSource) {
+			t.Fatalf("stale native source admitted %v", e)
+		}
+		t.Log("native entity source fingerprint accepted; stale fingerprint rejected")
 	}
 	var count int
 	e = pool.QueryRow(ctx, `SELECT count(*) FROM ops.legal_investigation_request WHERE mode=$1 AND matter_id=$2::uuid AND court_case_id=$3::uuid AND legal_matter_id=$4::uuid AND claim_id=$5::uuid AND followup_id=$6::uuid`, r.Mode, r.MatterID, r.CourtCaseID, r.LegalMatterID, r.ClaimID, r.FollowupID).Scan(&count)
