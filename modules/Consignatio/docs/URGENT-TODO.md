@@ -4113,6 +4113,6 @@ Open, for the owner:
 - **Still open:**
   - [ ] 49 refusals on `context.activity_execution` (12:48–13:30 UTC) came from a login the old log lines do not name; the engine's own code only reads and inserts there, which `platform_runtime` may do. A repeat now names the login.
   - [ ] Something tries to log in as `postgres` (no such role), 10 times today. The next attempt names its address.
-  - [ ] `infisical_dbadmin` is a member of `platform_app` (read/write on platform data), which looks unintended. Revoking it now needs `matt` or a session inside the container.
-  - [ ] The health check `pg_isready -U ai` logs "database ai does not exist" every 5 s; `-d postgres` in the compose fixes it, with a probata-db redeploy.
+  - `infisical_dbadmin` belongs to `platform_app` on purpose: a 2026-09-02 session created it (CREATEROLE, ADMIN OPTION on `platform_app`) so Infisical can issue short-lived platform database logins (dynamic secrets). Left as is (owner 14:40).
+  - [ ] Health check: `-d postgres` is committed (`5def6983`; the 09-20 fix used `DB_DATABASE`, which is also `ai`). The redeploy also brings the 09-20 `duckdb.postgres_role=platform_duckdb` live. It waits for a quiet window: at 15:14 EDT four `platform_runtime` import sessions held 104–142 platform tables each. Run `uv run --quiet --project E:/AI_Workspace/plugins/plugins/coolify-write --with psycopg2-binary python modules/Probata/probata/tools/probata-db-redeploy-when-quiet.py --wait 0` when the import is done.
   - `matt` is still a superuser that can log in over the network.
