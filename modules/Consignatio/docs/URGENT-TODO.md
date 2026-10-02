@@ -4075,3 +4075,15 @@ Open, for the owner:
   - Portal (`be85587d`, deploy `njf80a6u5lu4o0atfedphkkd`): the Devbox tile opens `https://kasm.tilapia-skilift.ts.net/` on the tailnet portal and `https://kasm.int.mitechconsult.com/` on the public one (checked through each instance's `/api/services`). The Sandbox desktop tile is removed.
   - The Coolify devbox app stays, as the always-on host.
 - **Installed plugin copies:** `tools/sync_installs.py --check` exits 0. coolify-write 1.4.0 (Claude Code and Codex) includes the guard.
+
+## 2026-10-02 12:46 EDT – ongoing — probata-db: every caller gets its own login before `ai` is shut off the network (owner 12:46)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02_
+
+- **Callers and their logins:** ContextForge `contextforge`, Infisical `infisical`, Temporal `temporal`, the Probata services `platform_api` / `platform_runtime` (plus readers `platform_reader`, `registry_catalog_reader`, `workbench_reader`), llm-probe `casebible`, Vestigia `vestigia`, the owner `matt`. Schema work and agent test databases used `ai`; they now get `platform_dba`.
+- **Temporal** was refused 41 times today at its 30-connection cap: the cap is now 50 (the server allows 100; 58 were in use).
+- **Log lines name the caller:** `log_line_prefix = '%m [%p] %q%u@%d %h '` and `log_connections = on` (ALTER SYSTEM, reloaded). Turn connection logging off again with `ALTER SYSTEM RESET log_connections` before `ai` loses network access.
+- **`platform_dba`** (CREATEDB, not a superuser, member of `platform_migrator`; its sessions run as `platform_migrator`) is in `~/.secrets/probata-db.env`. It owns the test databases `investigation_test_advocatio_20261002`, `platform_baseline_test` and `platform_preburn_20260830`.
+- [ ] **Ownership move waiting:** every platform schema, table, view, function and type (326 tables/views) is still owned by `ai`. `modules/Probata/probata/tools/probata-db-platform-ownership.py --wait 50` moves them to `platform_migrator` and copies `ai`'s 45 default grants (to `platform_app`), as soon as no transaction older than a minute holds platform tables. At 13:10 EDT two `platform_runtime` import transactions had held 51 and 75 tables for 18+ minutes.
+- **Not changed, needs a look:** 49 refusals on `context.activity_execution` (12:48–13:30 UTC). The engine's own code only reads and inserts there, which `platform_runtime` may do; the old log lines do not name the login. 10 logins as `postgres` (no such role) from an unknown client; the next attempt will name its address. `infisical_dbadmin` is a member of `platform_app`, which gives Infisical's admin login read/write on platform data and looks unintended. The container health check (`pg_isready -U ai`) logs "database ai does not exist" every 5 s; `-d postgres` fixes it but needs a probata-db redeploy.
+- [ ] Then: refuse `ai` password logins (`ALTER ROLE ai VALID UNTIL` a past date). Logins inside the container use trust and keep working; `VALID UNTIL 'infinity'` undoes it.
