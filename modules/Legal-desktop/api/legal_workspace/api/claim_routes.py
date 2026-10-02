@@ -1,6 +1,6 @@
 """Authenticated claims, evidence relationships, gaps and local follow-ups."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -100,6 +100,11 @@ def create_claim(body: ClaimCreate, service: Service, identity: Actor):
 @router.post("/v1/claims/from-probata", response_model=ClaimRecord)
 def from_probata(body: FromProbataCreate, service: Service, identity: Actor):
     return invoke(lambda: service.from_probata(body, actor=identity))
+
+
+@router.get("/v1/claims/by-origin", response_model=ClaimRecord | None)
+def claim_by_origin(kind: Literal["entity", "event"], record_id: UUID, service: Service):
+    return service.by_origin(kind, str(record_id))
 
 
 @router.get("/v1/claims/{claim_id}", response_model=ClaimRecord)

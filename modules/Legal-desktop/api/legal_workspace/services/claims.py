@@ -201,6 +201,16 @@ class ClaimService:
         with self._connect() as conn:
             return self._project(self._get(conn, claim_id))
 
+    def by_origin(self, kind: str, record_id: str) -> ClaimRecord | None:
+        """Read the legal overlay for a native ID without creating one."""
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT record_json FROM legal_claim WHERE matter_id=?
+                AND origin_system='probata' AND origin_kind=? AND origin_id=?""",
+                (str(self.matter_id), kind, record_id),
+            ).fetchone()
+        return self._project(ClaimRecord.model_validate_json(row[0])) if row else None
+
     def history(self, claim_id: UUID | str) -> list[ClaimRevision]:
         with self._connect() as conn:
             self._get(conn, claim_id)

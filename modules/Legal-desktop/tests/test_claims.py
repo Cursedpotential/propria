@@ -436,6 +436,44 @@ def test_remote_source_refresh_does_not_hold_writer_lock(origin_context):
     assert updated.response == "Preserved response"
 
 
+def test_origin_lookup_is_scoped_read_only_and_survives_source_outage(origin_context):
+    service, origin, current = origin_context
+    assert service.by_origin(origin.kind, origin.record_id) is None
+    assert service.list() == []
+    saved = service.from_probata(FromProbataCreate(origin=origin, response="Saved legal response"), actor="owner")
+    current["descriptor"] = None
+    found = service.by_origin(origin.kind, origin.record_id)
+    assert found.claim_id == saved.claim_id
+    assert found.response == "Saved legal response" and found.origin_state == "unavailable"
+    assert len(service.history(saved.claim_id)) == 1
+    assert service.by_origin("entity", origin.record_id) is None
+    other = ClaimService(service.db_path.parent, uuid4(), lambda: None)
+    assert other.by_origin(origin.kind, origin.record_id) is None
+
+
+def test_origin_lookup_http_auth_identity_and_no_mutation(origin_context):
+    from legal_workspace.api import claim_routes
+
+    service, origin, current = origin_context
+    identity = str(uuid4())
+    native = OriginReference(kind="event", record_id=identity, record_version="synthetic-v1")
+    current["descriptor"]["origin"] = native.model_dump()
+    app = FastAPI()
+    app.include_router(claim_routes.router)
+    app.dependency_overrides[claim_routes.get_claim_service] = lambda: service
+    path = f"/v1/claims/by-origin?kind=event&record_id={identity}"
+    with TestClient(app) as client:
+        assert client.get(path).status_code == 401
+        app.dependency_overrides[claim_routes.actor] = lambda: "test:owner"
+        assert client.get(path).json() is None
+        assert service.list() == []
+        saved = service.from_probata(FromProbataCreate(origin=native), actor="owner")
+        assert client.get(path).json()["claim_id"] == str(saved.claim_id)
+        assert client.get(path.replace("kind=event", "kind=other")).status_code == 422
+        assert client.get(path.replace(identity, "../../different")).status_code == 422
+        assert len(service.history(saved.claim_id)) == 1
+
+
 @pytest.mark.parametrize("problem", ["type", "id", "version", "missing"])
 def test_probata_overlay_requires_real_matching_record_before_creation(origin_context, problem):
     service, origin, current = origin_context
