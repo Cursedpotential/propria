@@ -240,7 +240,10 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 	if err != nil {
 		return "", "", fmt.Errorf("source version reference %q: %w", spec.SourceVersionRef, err)
 	}
-	if outcome.Published < 1 || len(outcome.Collections) == 0 {
+	// A generation whose every message an earlier source of the same device
+	// already published (the match-up) publishes nothing and is still a
+	// recorded outcome. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	if (outcome.Published < 1 || len(outcome.Collections) == 0) && outcome.SkippedMatched < 1 {
 		return "", "", errors.New("context search receipt requires at least one published object and its collection")
 	}
 	key := fmt.Sprintf("publish-context-search:%s:%s:%s", spec.RequestID, spec.NormalizedGenerationRef, spec.NormalizedVerificationRef)
@@ -301,6 +304,8 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 		"normalized_generation":  string(spec.NormalizedGenerationRef),
 		"origin_system":          contextsearch.OriginSystem,
 		"ingest_run_id":          spec.RequestID,
+		"skipped_matched":        outcome.SkippedMatched,
+		"message_matches":        string(spec.MessageMatchesRef),
 	})
 	if err != nil {
 		return "", "", err
