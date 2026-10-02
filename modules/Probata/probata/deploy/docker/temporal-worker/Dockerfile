@@ -38,6 +38,14 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir temporalio duckdb==1.5.6
 
+# HTML text-extraction libraries, one Activity each (html_tool_activities.py). Pinned exactly in
+# requirements-html-tools.txt; libmagic1 is the system library unstructured's file detection loads.
+# Byline: Claude Code · Sonnet · 2026-10-02
+RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements-html-tools.txt ./
+RUN pip install --no-cache-dir -r requirements-html-tools.txt
+
 # Activities call into the existing pipeline code, so the worker needs the
 # same application surface as agentos-api, not just an SDK stub.
 COPY server/ ./server/

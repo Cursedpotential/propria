@@ -1,0 +1,15 @@
+# Byline: Claude Code · Sonnet · 2026-10-02
+# The HTML text-extraction libraries the temporal-worker runs as Activities
+# (server/tools/extractors/html_text/, server/temporal/html_tool_activities.py).
+# Every pin is exact so an Activity result is always tied to one library version.
+# beautifulsoup4 and lxml are already pinned in requirements.txt.
+#
+# docling-slim with only the convert-core and format-html extras is Docling's HTML
+# backend WITHOUT torch, transformers, OCR or layout models (the full `docling` wheel
+# adds ~900 MB of them). PDF/Office extraction (documents.extract-docling) needs the
+# full `document-ai` extra and is not installed here.
+docling-slim[convert-core,format-html]==2.132.0
+unstructured==0.27.10
+markitdown==0.1.8
+html2text==2025.4.15
+selectolax==0.4.13

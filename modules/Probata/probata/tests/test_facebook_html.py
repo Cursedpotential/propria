@@ -74,12 +74,12 @@ def test_card_layout_2024_timestamp_inside_card(tmp_path):
 def test_card_layout_2025_section_h2_footer_and_reactions(tmp_path):
     # Current 2025 export: section card, h2 sender, footer timestamp, reactions in ul._a6-q kept out of the body.
     html = """<html><body><main><section class="_3-95 _a6-g"><h2 class="_2ph_ _a6-h _a6-i">Aleksandrs Petrovs</h2>
-      <div class="_2ph_ _a6-p"><div><div></div><div>\U0001F602\U0001F602 same here</div>
-      <div><ul class="_a6-q"><li><span>\U0001F606Jeffery Cooper (Jun 01, 2025 3:32:01 pm)</span></li></ul></div></div></div>
+      <div class="_2ph_ _a6-p"><div><div></div><div>\U0001f602\U0001f602 same here</div>
+      <div><ul class="_a6-q"><li><span>\U0001f606Jeffery Cooper (Jun 01, 2025 3:32:01 pm)</span></li></ul></div></div></div>
       <footer class="_3-94 _a6-o"><div class="_a72d">Jun 01, 2025 3:31:29 pm</div></footer></section></main></body></html>"""
     result = _run(tmp_path, html)
     record = result["records"][0]
-    assert record["content"] == "\U0001F602\U0001F602 same here"  # emoji intact, reaction not merged into the body
+    assert record["content"] == "\U0001f602\U0001f602 same here"  # emoji intact, reaction not merged into the body
     assert record["role"] == "Aleksandrs Petrovs"
     assert record["occurred_at"].startswith("2025-06-01T15:31:29")
     assert "Jeffery Cooper" in record["attrs"]["meta"]

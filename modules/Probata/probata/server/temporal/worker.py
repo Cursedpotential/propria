@@ -8,7 +8,8 @@ and registers:
 
   workflows:  ChatTranscriptIngest (P1), P0DurabilityProbe (the P0 exit test)
   activities: custody_activity, parse_activity, store_activity (sync — run in
-              a thread pool), knowledge_activity (async)
+              a thread pool), knowledge_activity (async), plus one
+              extract_html_<tool>_activity per HTML library (html_tool_activities.py)
 
 Env:
   TEMPORAL_ADDRESS    frontend address (default temporal-server:7233 on the
@@ -36,6 +37,7 @@ from server.temporal.activities import (
     store_activity,
 )
 from server.temporal.classification_workflow import ClassificationBatchPipeline
+from server.temporal.html_tool_activities import HTML_TOOL_ACTIVITIES
 from server.temporal.n8n_activities import n8n_webhook_activity
 from server.temporal.timeline_activities import build_timeline_generation_activity
 from server.temporal.workflows import ChatTranscriptIngest, P0DurabilityProbe
@@ -73,6 +75,8 @@ async def main() -> None:
                 knowledge_activity,
                 n8n_webhook_activity,
                 build_timeline_generation_activity,
+                # One Activity per HTML text-extraction library (Claude Code · Sonnet · 2026-10-02).
+                *HTML_TOOL_ACTIVITIES,
             ],
             activity_executor=executor,
         )

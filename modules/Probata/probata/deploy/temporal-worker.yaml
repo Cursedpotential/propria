@@ -29,6 +29,7 @@
 #   modules/Probata/probata/scripts/**
 #   modules/Probata/probata/sql/**
 #   modules/Probata/probata/requirements.txt
+#   modules/Probata/probata/requirements-html-tools.txt
 #   modules/Probata/probata/deploy/docker/temporal-worker/**
 #   modules/Probata/probata/deploy/temporal-worker.yaml
 # Auto-deploy is OFF on purpose; deploy explicitly.
