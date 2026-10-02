@@ -2,7 +2,7 @@
 # =============================================================================
 # docstore-nightly — rebuild the Docstore from git and re-index, while nobody is working
 # =============================================================================
-# Byline: Claude Code · Opus 5 · 2026-09-28
+# Byline: Claude Code · Opus 5 · 2026-09-28; deploy call switched to POST by Claude Code · Opus 5.5 · 2026-10-02
 #
 # Owner 2026-09-28, on the "a docs push rebuilds the image" contract: "Let's set up a Cron job
 # or something ... during down time or idle time."
@@ -64,8 +64,9 @@ if [ "$STATE" = "running" ]; then
 fi
 log "START previous sync state=$STATE container=$BEFORE"
 
-# 2. Rebuild from main.
-CODE=$(curl -s -o /tmp/docstore-nightly-deploy.json -w '%{http_code}' --max-time 60 \
+# 2. Rebuild from main. POST, not GET: Coolify 4.3.23 (upgraded 2026-10-02 ~07:00 UTC) answers
+#    405 to GET /deploy, and the 2026-10-02 run aborted on exactly that.
+CODE=$(curl -s -X POST -o /tmp/docstore-nightly-deploy.json -w '%{http_code}' --max-time 60 \
   -H "Authorization: Bearer $TOKEN" "$COOLIFY_API/deploy?uuid=$APP_UUID&force=false")
 if [ "$CODE" != "200" ]; then
   log "ABORT deploy request returned HTTP $CODE"
