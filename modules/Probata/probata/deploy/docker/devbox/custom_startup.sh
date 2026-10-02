@@ -14,7 +14,11 @@ mkdir -p "$HOME/work/sync" "$HOME/.claude" "$HOME/.agents" "$HOME/.ssh" "$HOME/.
 chmod 700 "$HOME/.ssh" 2>/dev/null || true
 # memsearch (owner 2026-09-08 "both systems"): persistent config + digests, and a 30-min indexer into the shared
 # Zilliz collection — same cadence as the desktop's `memsearch-index` scheduled task
-if command -v memsearch >/dev/null 2>&1; then
+# DEVBOX_KASM_SESSION=1 is set by the Kasm "Devbox" workspace (deploy/kasm/workspaces/devbox.json). Those sessions share
+# this home with the always-on Coolify devbox container, so only that container runs the home's background services
+# (the memsearch indexer and Syncthing below); a second copy would fight it over the same state. 2026-10-02.
+KASM_SESSION="${DEVBOX_KASM_SESSION:-0}"
+if [ "$KASM_SESSION" != 1 ] && command -v memsearch >/dev/null 2>&1; then
   ( while true; do memsearch index "$HOME/.memsearch/memory" >>"$HOME/.memsearch/index.log" 2>&1; sleep 1800; done ) &
 fi
 # OpenList (R2/B2/VPS volumes/desktop share) mounted as a filesystem at ~/files via rclone WebDAV (owner 2026-09-08)
@@ -33,10 +37,10 @@ if [ -r /run/secrets/devbox-xrdp.env ]; then
   [ -n "$XRDP_PW" ] && printf 'kasm-user:%s\n' "$XRDP_PW" | sudo chpasswd
   unset XRDP_PW
 fi
-# xrdp starts ~/.xsession; the image writes one into /home/kasm-user, but the home is the host volume, which hides
-# it, and without it Xsession falls back to gnome-session, which aborts (no system bus): the RDP session closes at once
-# (seen 2026-10-02 through Kasm's Guacamole workspace). Create it in the volume when missing; never overwrite one.
-[ -e "$HOME/.xsession" ] || { echo 'startxfce4' > "$HOME/.xsession"; chown 1000:1000 "$HOME/.xsession" 2>/dev/null || true; }
+# A system D-Bus for the xrdp desktop (Xorg and XFCE look for one; the container has no init). 2026-10-02.
+if [ ! -S /run/dbus/system_bus_socket ]; then
+  sudo mkdir -p /run/dbus && sudo dbus-daemon --system --fork >/dev/null 2>&1 || true
+fi
 # xrdp needs its two daemons; sudo is passwordless for kasm-user in this sandbox image (container also runs as root now)
 sudo /usr/sbin/xrdp-sesman >/dev/null 2>&1 &
 sudo /usr/sbin/xrdp --nodaemon >/dev/null 2>&1 &
@@ -58,5 +62,5 @@ if command -v ttyd >/dev/null 2>&1; then
 fi
 # (OpenCode's headless server is its own container — deploy/opencode-server.yaml, owner 17:24 — not run here.)
 # Syncthing: GUI on 0.0.0.0:8384 (published on the tailnet IP only), config under the persistent home
-nohup syncthing serve --no-browser --gui-address=0.0.0.0:8384 --home="$HOME/.config/syncthing" >"$HOME/.config/syncthing.log" 2>&1 &
+[ "$KASM_SESSION" = 1 ] || nohup syncthing serve --no-browser --gui-address=0.0.0.0:8384 --home="$HOME/.config/syncthing" >"$HOME/.config/syncthing.log" 2>&1 &
 exit 0

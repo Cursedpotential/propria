@@ -152,7 +152,18 @@ def main() -> int:
                 print(f"created server {srv['friendly_name']!r}")
             target.update(server_id=s["server_id"], name="")
         if name in images:  # the server (above) is still kept in sync for an existing Server workspace
-            print(f"workspace {name!r} exists (image_id {images[name]['image_id']})")
+            have = images[name]
+            changed = {}
+            for key in ("run_config", "volume_mappings"):
+                cur = have.get(key)
+                cur = json.loads(cur) if isinstance(cur, str) and cur else (cur or {})
+                if cur != json.loads(target[key]):
+                    changed[key] = target[key]
+            if changed:
+                call("/admin/update_image", {**tok, "target_image": {"image_id": have["image_id"], **changed}})
+                print(f"workspace {name!r} updated: {sorted(changed)}")
+            else:
+                print(f"workspace {name!r} exists (image_id {have['image_id']})")
             continue
         out = call("/admin/create_image", {**tok, "target_image": target})
         print(f"created workspace {name!r} (image_id {out.get('image', {}).get('image_id')})")
