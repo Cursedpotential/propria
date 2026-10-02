@@ -53,13 +53,14 @@ var CaseIdentityRoutePatterns = []string{
 	"POST /case-identity/people/{person_id}",
 	"POST /case-identity/triage",
 	"POST /case-identity/placeholders",
+	"POST /case-identity/contact-people",
 	"POST /case-identity/people/{person_id}/merge",
 }
 
 // Routes returns the case identity mux.
 func (h *CaseIdentityHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
-	handlers := []http.HandlerFunc{h.read, h.lookup, h.addIdentifier, h.editIdentifier, h.deleteIdentifier, h.editHeader, h.addPerson, h.editPerson, h.triage, h.addPlaceholders, h.mergePerson}
+	handlers := []http.HandlerFunc{h.read, h.lookup, h.addIdentifier, h.editIdentifier, h.deleteIdentifier, h.editHeader, h.addPerson, h.editPerson, h.triage, h.addPlaceholders, h.addContactPeople, h.mergePerson}
 	for i, pattern := range CaseIdentityRoutePatterns {
 		mux.HandleFunc(pattern, overlayAuth(h.serviceTokenPath, "case identity", handlers[i]))
 	}
@@ -227,6 +228,12 @@ func (h *CaseIdentityHTTPHandler) editPerson(w http.ResponseWriter, r *http.Requ
 func (h *CaseIdentityHTTPHandler) addPlaceholders(w http.ResponseWriter, r *http.Request) {
 	caseWrite(h, w, r, caseidentity.ValidatePlaceholders, func(spec caseidentity.PlaceholderSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
 		return h.store.AddPlaceholders(r.Context(), spec, actor)
+	})
+}
+
+func (h *CaseIdentityHTTPHandler) addContactPeople(w http.ResponseWriter, r *http.Request) {
+	caseWrite(h, w, r, caseidentity.ValidateContactPeople, func(spec caseidentity.ContactPeopleSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+		return h.store.AddContactPeople(r.Context(), spec, actor)
 	})
 }
 

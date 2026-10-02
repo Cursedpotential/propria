@@ -820,6 +820,28 @@ func beginConversation(ctx context.Context, db DB, conversation firstparty.Conve
 	return tx, nil
 }
 
+// matchUnderLock serializes match-up for the conversation's parties, then
+// splits the conversation into the messages this source commits and the ones
+// another source already committed. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func (s *FirstPartyContextStore) matchUnderLock(ctx context.Context, tx pgx.Tx, plan firstparty.Plan, conversation firstparty.Conversation) (conversationMatch, error) {
+	if err := lockParties(ctx, tx, plan, conversation); err != nil {
+		return conversationMatch{}, fmt.Errorf("lock the conversation's parties: %w", err)
+	}
+	return matchConversation(ctx, tx, plan, conversation)
+}
+
+// finishMatchedOnly commits a conversation whose every message an earlier
+// source already holds: only the occurrence rows are written.
+func finishMatchedOnly(ctx context.Context, tx pgx.Tx, plan firstparty.Plan, kind string, match conversationMatch) error {
+	if err := recordOccurrences(ctx, tx, plan, kind, match); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, "SET CONSTRAINTS ALL IMMEDIATE"); err != nil {
+		return fmt.Errorf("message occurrence validation: %w", err)
+	}
+	return tx.Commit(ctx)
+}
+
 // commitConversationSpine writes one first-party conversation's spine rows in
 // one transaction and returns its thread id and how many records were new.
 func (s *FirstPartyContextStore) commitConversationSpine(ctx context.Context, plan firstparty.Plan, conversation firstparty.Conversation) (string, int64, error) {
@@ -828,6 +850,17 @@ func (s *FirstPartyContextStore) commitConversationSpine(ctx context.Context, pl
 		return "", 0, err
 	}
 	defer func() { cleanup, cancel := boundedCleanup(ctx); defer cancel(); _ = tx.Rollback(cleanup) }()
+	// Match-up (owner 2026-10-02): a message another source already committed
+	// is recorded as a further occurrence of that row, not inserted again.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	match, err := s.matchUnderLock(ctx, tx, plan, conversation)
+	if err != nil {
+		return "", 0, err
+	}
+	conversation = match.Kept
+	if len(conversation.Messages) == 0 {
+		return "", 0, finishMatchedOnly(ctx, tx, plan, firstparty.CorpusFirstParty, match)
+	}
 	// One thread per scoped conversation: reuse the id an earlier run of the
 	// same conversation committed, else mint a UUIDv7.
 	var threadID string
@@ -880,6 +913,9 @@ func (s *FirstPartyContextStore) commitConversationSpine(ctx context.Context, pl
 	}
 	if matching != len(rows.ids) {
 		return "", 0, fmt.Errorf("%d of %d records are this plan's spine rows; an existing row disagrees", matching, len(rows.ids))
+	}
+	if err := recordOccurrences(ctx, tx, plan, firstparty.CorpusFirstParty, match); err != nil {
+		return "", 0, err
 	}
 	if _, err := tx.Exec(ctx, "SET CONSTRAINTS ALL IMMEDIATE"); err != nil {
 		return "", 0, fmt.Errorf("message projection validation: %w", err)
@@ -940,6 +976,15 @@ func (s *FirstPartyContextStore) commitThirdPartyConversation(ctx context.Contex
 		return "", 0, err
 	}
 	defer func() { cleanup, cancel := boundedCleanup(ctx); defer cancel(); _ = tx.Rollback(cleanup) }()
+	// Match-up, as for the first-party spine. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	match, err := s.matchUnderLock(ctx, tx, plan, conversation)
+	if err != nil {
+		return "", 0, err
+	}
+	conversation = match.Kept
+	if len(conversation.Messages) == 0 {
+		return "", 0, finishMatchedOnly(ctx, tx, plan, firstparty.CorpusThirdParty, match)
+	}
 	rows, err := buildSpineRows(plan, conversation)
 	if err != nil {
 		return "", 0, err
@@ -998,6 +1043,9 @@ func (s *FirstPartyContextStore) commitThirdPartyConversation(ctx context.Contex
 	if matching != len(rows.ids) {
 		return "", 0, fmt.Errorf("%d of %d records are this plan's third-party rows; an existing row disagrees", matching, len(rows.ids))
 	}
+	if err := recordOccurrences(ctx, tx, plan, firstparty.CorpusThirdParty, match); err != nil {
+		return "", 0, err
+	}
 	if _, err := tx.Exec(ctx, "SET CONSTRAINTS ALL IMMEDIATE"); err != nil {
 		return "", 0, fmt.Errorf("message projection validation: %w", err)
 	}
@@ -1050,6 +1098,41 @@ func (s *FirstPartyContextStore) commitConversationThread(ctx context.Context, p
 	if err := lockConversation(ctx, tx, conversation.ScopedKey); err != nil {
 		return nil, fmt.Errorf("lock conversation: %w", err)
 	}
+	// Only messages this source committed join its thread; a message an
+	// earlier source holds (the match-up) is already a member of that
+	// source's thread. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	planned := make([]string, 0, len(conversation.Messages))
+	for _, message := range conversation.Messages {
+		planned = append(planned, message.RecordID)
+	}
+	own := map[string]bool{}
+	ownRows, err := tx.Query(ctx, `SELECT id::text FROM working.message WHERE id = ANY($1::uuid[])`, planned)
+	if err != nil {
+		return nil, fmt.Errorf("read this source's spine rows: %w", err)
+	}
+	for ownRows.Next() {
+		var id string
+		if err := ownRows.Scan(&id); err != nil {
+			ownRows.Close()
+			return nil, err
+		}
+		own[strings.ToLower(id)] = true
+	}
+	ownRows.Close()
+	if err := ownRows.Err(); err != nil {
+		return nil, err
+	}
+	kept := conversation
+	kept.Messages = make([]firstparty.Message, 0, len(conversation.Messages))
+	for _, message := range conversation.Messages {
+		if own[strings.ToLower(message.RecordID)] {
+			kept.Messages = append(kept.Messages, message)
+		}
+	}
+	if len(kept.Messages) == 0 {
+		return map[string]any{"thread": "", "matched_only": true, "members_added": 0, "sources_added": 0}, tx.Commit(ctx)
+	}
+	conversation = kept
 	ids := make([]string, 0, len(conversation.Messages))
 	for _, message := range conversation.Messages {
 		ids = append(ids, message.RecordID)

@@ -134,6 +134,11 @@ async def add_placeholders(body: dict[str, Any], actor: ProfferDecisionActor, ke
     return await _write("/case-identity/placeholders", body, actor, key)
 
 
+async def add_contact_people(body: dict[str, Any], actor: ProfferDecisionActor, key: str) -> dict[str, Any]:
+    """Unconfirmed people named by contact exports (Claude Code · Sonnet · 2026-10-02); dry_run rolls back."""
+    return await _write("/case-identity/contact-people", body, actor, key)
+
+
 async def merge_person(person_id: str, body: dict[str, Any], actor: ProfferDecisionActor, key: str) -> dict[str, Any]:
     """Merge a placeholder into an existing person; identifiers and linked rows move, nothing is deleted."""
     return await _write(f"/case-identity/people/{quote(person_id)}/merge", body, actor, key)

@@ -226,3 +226,39 @@ func TestNamingAPlaceholderIsAPersonEdit(t *testing.T) {
 		t.Fatal("an unknown verification state must be refused")
 	}
 }
+
+// Byline: Claude Code · Sonnet · 2026-10-02 (contact people, unconfirmed new people)
+func TestContactPeopleValidationAndUnconfirmedNewPerson(t *testing.T) {
+	ok := ContactPeopleSpec{ChangeReason: "contacts import", People: []ContactPerson{
+		{DisplayName: "Jordan Reyes", Numbers: []string{"8105550142"}, CandidateNames: []string{"J. Reyes"}, Source: "b2://salem-data/contacts.vcf"},
+		{DisplayName: "Email Only", Emails: []string{"e@example.com"}, Source: "b2://salem-data/contacts.csv"},
+	}}
+	if err := ValidateContactPeople(ok); err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*ContactPeopleSpec){
+		"empty":      func(s *ContactPeopleSpec) { s.People = nil },
+		"no contact": func(s *ContactPeopleSpec) { s.People[0].Numbers, s.People[0].Emails = nil, nil },
+		"no source":  func(s *ContactPeopleSpec) { s.People[0].Source = "" },
+		"no reason":  func(s *ContactPeopleSpec) { s.ChangeReason = "" },
+		"no name":    func(s *ContactPeopleSpec) { s.People[0].DisplayName = " " },
+		"too many":   func(s *ContactPeopleSpec) { s.People = make([]ContactPerson, MaxContactPeople+1) },
+	} {
+		spec := ContactPeopleSpec{ChangeReason: ok.ChangeReason, People: append([]ContactPerson(nil), ok.People...)}
+		mutate(&spec)
+		if ValidateContactPeople(spec) == nil {
+			t.Fatalf("%s must be refused", name)
+		}
+	}
+	base := NewPersonSpec{DisplayName: "Pat Doe", RoleInCase: "unknown", ConnectionTo: "unknown", ChangeReason: "from an email address"}
+	for _, state := range []string{"", "proposed", "confirmed"} {
+		base.VerificationState = state
+		if err := ValidateNewPerson(base); err != nil {
+			t.Fatalf("verification_state %q: %v", state, err)
+		}
+	}
+	base.VerificationState = "disputed"
+	if ValidateNewPerson(base) == nil {
+		t.Fatal("a new person can only be proposed or confirmed")
+	}
+}

@@ -171,6 +171,13 @@ func noCallsCommitActivity(context.Context, StageRequest) (StageResult, error) {
 		Reason: "the normalized generation holds no call records"}, nil
 }
 
+// noMatchesActivity is match_message_occurrences on a generation no earlier
+// source holds. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func noMatchesActivity(context.Context, StageRequest) (StageResult, error) {
+	return StageResult{Stage: stagegraph.MatchMessageOccurrences, Status: StatusNotApplicable, ReceiptRef: "message-match-receipt",
+		Reason: "no message is held by another source"}, nil
+}
+
 // registerAllStages registers placeholderActivity under every canon stage
 // name so OnActivity(name, ...) mocks below have somewhere to attach.
 func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
@@ -205,6 +212,10 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 		// Byline: Claude Code · Opus 5.5 · 2026-10-02
 		if d.ID == stagegraph.CommitCallLog {
 			env.RegisterActivityWithOptions(noCallsCommitActivity, activity.RegisterOptions{Name: string(d.ID)})
+			continue
+		}
+		if d.ID == stagegraph.MatchMessageOccurrences {
+			env.RegisterActivityWithOptions(noMatchesActivity, activity.RegisterOptions{Name: string(d.ID)})
 			continue
 		}
 		if d.ID == stagegraph.ResolveContextParticipants {
@@ -2095,5 +2106,48 @@ func TestParkedRunWithANotPassedCheckIgnoresTheAutoApprovalSignal(t *testing.T) 
 	}
 	if order.contains(string(stagegraph.RecordAutoApproval)) {
 		t.Fatal("a run whose participant resolution was not_applicable approved itself on the Signal")
+	}
+}
+
+// TestMessageMatchUpRunsBeforeTheWeaviateFirstStageAndReachesIt proves the
+// match-up stage runs after participant resolution and before
+// publish_context_search, and hands its receipt to it as message_matches.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestMessageMatchUpRunsBeforeTheWeaviateFirstStageAndReachesIt(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	requests := map[stagegraph.StageID]*StageRequest{}
+	mockFirstPartyContextSucceeds(env, requests)
+	for _, id := range []stagegraph.StageID{stagegraph.MatchMessageOccurrences, stagegraph.PublishContextSearch} {
+		id := id
+		env.OnActivity(string(id), mock.Anything, mock.Anything).Return(
+			func(_ context.Context, req StageRequest) (StageResult, error) {
+				copied := req
+				requests[id] = &copied
+				return stageStub(id), nil
+			}).Once()
+	}
+	order := newOrderRecorder(env)
+	approveHold(env)
+
+	env.ExecuteWorkflow(ProfferWorkflow, firstPartyInput())
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error = %v", err)
+	}
+	at := func(id stagegraph.StageID) int { return order.indexOf(string(id)) }
+	if at(stagegraph.ResolveContextParticipants) > at(stagegraph.MatchMessageOccurrences) || at(stagegraph.MatchMessageOccurrences) < 0 ||
+		at(stagegraph.MatchMessageOccurrences) > at(stagegraph.PublishContextSearch) {
+		t.Fatalf("match-up must run after the resolution and before the Weaviate-first stage; order = %v", order.snapshot())
+	}
+	match := requests[stagegraph.MatchMessageOccurrences]
+	if match == nil || match.Refs["participant_resolution"] != stageStub(stagegraph.ResolveContextParticipants).Ref ||
+		match.Refs["perspective_person"] == "" || match.Refs["normalized_generation"] == "" {
+		t.Fatalf("match request = %+v, want the resolution, generation and person refs", match)
+	}
+	search := requests[stagegraph.PublishContextSearch]
+	if search == nil || search.Refs["message_matches"] != stageStub(stagegraph.MatchMessageOccurrences).Ref {
+		t.Fatalf("context search request = %+v, want the match-up receipt as message_matches", search)
 	}
 }

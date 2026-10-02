@@ -95,6 +95,10 @@ const (
 	// decision record a human approval writes; it writes nothing else.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	RespRecordDecision
+	// RespMatchOccurrences looks up which of a generation's messages another
+	// source already committed and records that list; it writes no working row.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	RespMatchOccurrences
 )
 
 // Descriptor is the static, dependency-free description of one stage: its
@@ -211,6 +215,12 @@ const RecordAutoApproval StageID = "record_auto_approval_activity"
 // Byline: Claude Code · Opus 5.5 · 2026-10-02
 const CommitCallLog StageID = "commit_call_log_activity"
 
+// MatchMessageOccurrences (owner 2026-10-02: "both Facebook exports, deduped")
+// finds the generation's messages another source version already committed,
+// before the Weaviate-first stage, so neither search nor commit makes a second
+// copy. Byline: Claude Code · Opus 5.5 · 2026-10-02
+const MatchMessageOccurrences StageID = "match_message_occurrences_activity"
+
 // AutoApprovalActor is the decided_by value of every automatic approval.
 const AutoApprovalActor = "auto:clean-checks"
 
@@ -286,6 +296,14 @@ var OptionalStages = []Descriptor{
 		// It decides on the published preview, using the outcomes of the checks
 		// the run already computed. Byline: Claude Code · Opus 5.5 · 2026-10-02
 		DependsOn: []StageID{PublishPreview},
+	},
+	{
+		ID:             MatchMessageOccurrences,
+		Responsibility: RespMatchOccurrences,
+		Result:         "message match-up receipt reference",
+		// The plan it matches on is built from the recorded participant
+		// resolution. Byline: Claude Code · Opus 5.5 · 2026-10-02
+		DependsOn: []StageID{ResolveContextParticipants},
 	},
 	{
 		ID:             CommitCallLog,

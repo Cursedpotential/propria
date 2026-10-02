@@ -834,6 +834,10 @@ func (s *CaseIdentityStore) AddPerson(ctx context.Context, spec caseidentity.New
 	if err := caseidentity.ValidateActor(actor); err != nil {
 		return caseidentity.Receipt{}, err
 	}
+	verification := spec.VerificationState
+	if verification == "" {
+		verification = "confirmed"
+	}
 	key := actor.StoredKey("new-person")
 	tx, rollback, err := s.begin(ctx, "new-person")
 	if err != nil {
@@ -856,7 +860,7 @@ func (s *CaseIdentityStore) AddPerson(ctx context.Context, spec caseidentity.New
 		return caseidentity.Receipt{}, caseIdentityWriteError(err)
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO registry.person (id, role_in_case, connection_to, short_name, is_minor, notes, verification_state)
-		VALUES ($1, $2, $3, $4, $5, $6, 'confirmed')`, id, spec.RoleInCase, spec.ConnectionTo, spec.ShortName, spec.IsMinor, spec.Notes); err != nil {
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`, id, spec.RoleInCase, spec.ConnectionTo, spec.ShortName, spec.IsMinor, spec.Notes, verification); err != nil {
 		rollback()
 		return caseidentity.Receipt{}, caseIdentityWriteError(err)
 	}
