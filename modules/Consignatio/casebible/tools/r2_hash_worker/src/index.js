@@ -12,6 +12,7 @@
 //
 // POST /hash  {"bucket": "<name>", "keys": ["k1", ...]}
 //   -> {"results": [{"key", "size", "etag", "version", "uploaded", "sha1", "sha256", "error"}]}
+// POST /list  {"bucket": "<name>", "cursor": null} -> {"objects": [...], "truncated", "cursor"}
 // GET  /buckets -> the bucket names this Worker can read.
 
 const BINDINGS = {
@@ -57,6 +58,28 @@ export default {
 
     if (url.pathname === "/buckets" && request.method === "GET") {
       return Response.json(Object.keys(BINDINGS).filter((name) => env[BINDINGS[name]]));
+    }
+    // POST /list {"bucket", "cursor"?} -> one page (up to 1000) of objects with size, ETag and stored checksums.
+    // rclone's listing of these buckets needed a HEAD per multipart object (hours per bucket); the binding's list
+    // returns the same metadata 1000 at a time (2026-10-02).
+    if (url.pathname === "/list" && request.method === "POST") {
+      const { bucket: name, cursor } = await request.json();
+      const bucket = env[BINDINGS[name]];
+      if (!bucket) return Response.json({ error: `unknown bucket ${name}` }, { status: 400 });
+      const page = await bucket.list({ limit: 1000, cursor: cursor || undefined });
+      return Response.json({
+        truncated: page.truncated,
+        cursor: page.truncated ? page.cursor : null,
+        objects: page.objects.map((o) => ({
+          key: o.key,
+          size: o.size,
+          etag: o.etag.replaceAll('"', ""),
+          uploaded: o.uploaded.toISOString(),
+          md5: o.checksums?.md5 ? hex(o.checksums.md5) : null,
+          sha1: o.checksums?.sha1 ? hex(o.checksums.sha1) : null,
+          sha256: o.checksums?.sha256 ? hex(o.checksums.sha256) : null,
+        })),
+      });
     }
     if (url.pathname !== "/hash" || request.method !== "POST") return new Response("not found", { status: 404 });
 
