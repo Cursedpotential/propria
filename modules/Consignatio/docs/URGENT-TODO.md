@@ -3860,3 +3860,13 @@ Open, for the owner:
   - owner signs Claude Code in;
   - run `install_kasm.sh`.
 - [ ] Owner: VNC_PW appeared in two tool outputs: Kasm service argv in `ps`, and coolify-write `get_application`, which returns the rendered compose with VNC_PW unredacted. Transcript only, not in git. The coolify-write redaction gap is a plugin bug.
+
+## 2026-10-02 01:30–01:56 EDT — hosted toolkit console keeps its store login; docs store memory capped
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02._
+
+- **Console store tools were all failing** ("Anonymous access not allowed"): `store.ts` signed in once with `.signin()`; the token expired after an hour with nothing to renew it. Credentials now go to `connect()` as the driver's `authentication` provider, re-invoked on expiry and reconnect (`propria-plugins` `4443005`, toolkit 3.2.4; console build copy `b322c9b2`; deployment `m10iwrd487j1p0iht0p9y7cy`).
+- **Verified through the live desk:** `case_summary` answers from the store; one marked test note (`note:zz-ephemeral-test-20261002T055523Z`, `ephemeral_test: true`) written with `case_put`, read back through `/v1/toolkit/records`, then deleted; notes 0 before, 0 after, no `ephemeral_test` rows left.
+- **Docs store memory:** RocksDB block cache 2 GiB and 2 x 64 MiB write buffers (`542efd1c`, deployment `mp1md6u4s1713kzyn4tk6crf`); it was sized from host RAM (cache up to ~10.4 GiB) and sat at 7.5 GiB. After restart 105 MiB; ovh-files available memory 7 → 14 GB; Docstore health ok.
+- The console builds from a committed copy of the plugin (`deploy/docker/family-court-console/src`), the same two-copies pattern the owner ended for `coolify-mcp` on 10-01. Its `content/` copy is committed to the monorepo while `propria-plugins` keeps `content/` out of git under the owner's no-real-PII rule — owner decision pending.
+
