@@ -11,20 +11,6 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 
 ### From: 2026-09-13
 
-- [ ] **Quarantine zero-filled payloads (in progress).**
-  - Owner decisions: flag and exclude in catalogs, keeping the rows. Null the hash for zero-filled rows; 0-byte files carry no hash. A zero-filled file must never match a good file.
-  - Moves: B2 objects to `consignatio/intake/_quarantine/zero-filled/v1/`; Google Drive to `_Quarantine - zero filled/`; local D:\Backup, F: and J: to `_quarantine_zero_filled\`.
-  - R2 rows are flagged in the catalog, not moved.
-  - Migration is blocked by a hash hold list plus a resume gate.
-  - Evidence: ~~`E:/AI_Workspace/_receipts/corruption-hunt/`~~ → `docs/receipts/corruption-hunt/` (moved into the repo 2026-09-15 00:15 EDT, owner: "under docs makes sense").
-  - Progress, 2026-09-13 11:56 EDT, one step at a time:
-    1. ✅ PG catalog flag, hash null and audit (read-back verified)
-    2. ✅ Local DuckDB, same change (read-back verified)
-    3. ✅ VPS transfer list filtered and hold manifest published to `controls/`
-    4. ✅ B2 move of 6,362 objects to `_quarantine/zero-filled/v1/`, 12:02 EDT. Verified PASS at 12:11: 6,362/6,362 present, 0 size mismatches, all SHA-1s all-zero, 0 left at source. Receipt: `quarantine/b2_move_VERIFY.receipt.txt`.
-    5. ✅ Google Drive: 166 files moved to `My Drive/_Quarantine - zero filled/`, 12:13–12:20 EDT. 64 moved by path; 102 moved by file ID, because My Drive has two top-level `Takeout` folders and path lookup silently skipped them. Verified PASS: 166/166 present, every size and all-zero MD5 correct, IDs match, 0 left at the original locations. Receipt: `quarantine/gdrive_move_VERIFY.receipt.txt`.
-    6. ☐ Local D:\Backup, F: and J: moves once scans finish; quarantine stays inside each root
-
 - [ ] **One file has no good copy anywhere:** `Google Data Export Archive Contents (0015A63D).html` (179,200 bytes, all zeros). Owner to decide whether to re-export it from Google.
 
 ### From: 2026-09-14
