@@ -3977,6 +3977,29 @@ Open, for the owner:
   - The owner chose option A: count that one check as passed for `ndjson` / `facebook_messenger_json`, while the other four must still succeed.
   - The change is written and tested (proffer/types.go, proffer/workflow.go, activities/auto_approval.go plus a test), but the agent's commit and deploy were refused by the auto-mode classifier. It waits uncommitted in worktree `overnight-msg-import-20261002` for the owner to land it.
   - Until then: 9 retried chunks of `threads-01r` wait at the gate, the 95 parked chunks are not signalled, and no further SMS-thread or Facebook batches start.
+- **14:20–16:30Z, import running unattended** (proffer-worker 25808d3f):
+  - Option A landed as db834afa.
+  - 103 parked runs were signalled clean_checks.
+  - Fixed and deployed:
+    - b384d46d: large thread chunks detect as ndjson (whole-line signature read); a duplicate third-party participant no longer aborts a commit.
+    - 1ab2edce: optional batch `key_suffix` (".json" for Facebook).
+    - 92af17b6: `facebook_messenger_json` added to `context.handler_detected_format`'s CHECK, snapshot and live.
+    - 25808d3f: a Facebook thread file resolves platform `facebook_messenger` from its persisted detected format.
+  - Live at 16:30Z:
+    - working.message 7,009, message_participant 18,684, first_party_context_thread 49 (sources 59, thread messages 7,009).
+    - third_party_message 661; working.normalized_record 7,670.
+    - Weaviate `ProfferMsgEvents20261002` 97,042 objects (SMS and calls).
+  - Call logs: 8 files, 9,175 normalized records, all auto-approved.
+- **Open, owner:**
+  - (a) **Commit validator is quadratic.** `working.validate_message_projection()` re-checks the whole table on every row firing and holds one advisory lock, so large-thread commits take 20–30 min each, one at a time.
+    - The scoped rewrite (option A, owner-approved) is proven in a rolled-back transaction (6/6 cases: violations 1, 2, 4, 5 still raise; a valid insert and the full registry.person check pass).
+    - The agent's live `CREATE OR REPLACE` was refused by the session classifier. The file is on ovh-files at `/tmp/validate_message_projection_scoped.sql`; the snapshot still needs the same body.
+  - (b) **`commit_call_log_activity` is not built.** The classifier refused creating its store file. Uncommitted pieces sit in the worktree: `activities/call_log.go`, the stagegraph and options entries.
+    - `working.call_log.source_artifact_id` is still NOT NULL with an FK to evidence.evidence_hash, and platform_runtime has only SELECT on it.
+  - (c) **The 8102594380 alias**, owner via Workbench.
+  - (d) **The 2 stray source_version rows** from the terminated mistaken derive.
+  - (e) **Batch retries hit "permission denied for table activity_execution"** (`SELECT … FOR UPDATE` without UPDATE). Workaround: new batch ids.
+- **`sms-002-031.xml`** (8103535467, 2.8 GB, 2025-06) fails derive twice with "SBV smsbackuprestore_xml parse: unexpected EOF", although its tail closes cleanly. The fault is inside the file. Not salvaged; owner to decide.
 
 ## 2026-10-02 08:45–09:25 EDT — probata-db: `casebible` gets its own login, `ai` password rotated (owner option A, 08:49); Docstore follows the Vestigia rename
 
