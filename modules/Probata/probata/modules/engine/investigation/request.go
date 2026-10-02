@@ -64,6 +64,9 @@ func ValidID(s string) bool {
 	return e == nil && id != uuid.Nil && id.String() == s
 }
 func ValidateScope(s Scope) error {
+	if s.Mode != caseidentity.ModeReal && s.Mode != caseidentity.ModeTest {
+		return errors.New("mode must be exactly REAL or TEST")
+	}
 	if _, e := caseidentity.ParseMode(string(s.Mode)); e != nil {
 		return e
 	}
