@@ -7,6 +7,7 @@
 # Byline: Claude Code · Opus 5.5 · 2026-09-27 (edge: one tailnet-bound door, declared publish network, no propria-edge)
 # Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-24 Graphiti env comment removed; DD-05 header true-up)
 # Byline: Claude Code · Opus 5.5 · 2026-09-28 (DF-30 machine-client JWT env)
+# Byline: Claude Code · Sonnet · 2026-10-02 (mobile Imported view: read-only platform login + Weaviate env)
 # =============================================================================
 # PROBATA WORKBENCH — its OWN Coolify app on OVH-1 ("ovh-app", tailnet
 # 100.72.169.40), app uuid xjbuo6drbwjfby75lalk8bk7. Single-service app per the
@@ -169,6 +170,17 @@ services:
       INTAKE_DISCOVERY_PG_USER: metabase_ro
       INTAKE_DISCOVERY_PG_PASSWORD_FILE: /run/secrets/intake-catalog-readonly
       INTAKE_DISCOVERY_INDEX_URL: ${INTAKE_DISCOVERY_INDEX_URL:-}
+      # Mobile Imported view (/m, Claude Code · Sonnet · 2026-10-02): reads context.* and working.* on the
+      # platform database (ovh-files) through its own SELECT-only login, workbench_reader
+      # (sql/bootstrap/workbench_reader_20261002.sql), and searches the Weaviate projection of the imported
+      # messages. The password is runtime-read from the mount below.
+      IMPORTED_PG_HOST: ${IMPORTED_PG_HOST:-100.91.190.107}
+      IMPORTED_PG_PORT: ${IMPORTED_PG_PORT:-5432}
+      IMPORTED_PG_DATABASE: platform
+      IMPORTED_PG_USER: workbench_reader
+      IMPORTED_PG_PASSWORD_FILE: /run/secrets/workbench-pg-reader
+      IMPORTED_WEAVIATE_URL: ${IMPORTED_WEAVIATE_URL:-http://100.91.190.107:8082}
+      IMPORTED_WEAVIATE_CLASS: ProfferMsgEvents20261002
       # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
       # store: scheme -> credential file. Switching provider = a credential file + these two
       # values, identical in every Proffer/Workbench service. The first root is the default.
@@ -190,6 +202,7 @@ services:
       - /data/probata/secrets/progress-board/metabase-ro:/run/secrets/intake-catalog-readonly:ro
       - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
+      - /data/probata/secrets/workbench/pg-reader:/run/secrets/workbench-pg-reader:ro
     ports:
       # The one door for both svc:workbench and Traefik (see EDGE in the header),
       # tailnet-bound, fail-closed to loopback if BIND_IP is unset. Port registered in

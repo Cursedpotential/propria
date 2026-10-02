@@ -3878,11 +3878,11 @@ Open, for the owner:
 > _Byline: Claude Code · Opus 5.5 · 2026-10-02_
 
 - **Found:** `casebible-pg18` (Coolify database `fgz1n7useplhk0t91uk7k1aw`) refuses on `100.91.190.107:5475`; that bind was the 09-14 hand edit of the rendered compose, lost on a redeploy. The live route is the ovh-files tailscale serve tcp `5433`. That forward pointed at the container IP `172.18.0.3:5432`, which Docker reassigns on any recreate, so it was not durable either.
-- **Rebuilt as a compose app (owner 03:01 "it's all wrong… going to run out of space, fix it"):** `casebible-pg18` was a Coolify one-click standalone database: its port lived only in Coolify's own database (the API refuses `ports_mappings`, 422) and its 49 GB sat in a Docker named volume on the root disk. It is now the Coolify compose app `casebible-pg` (`oli1nf8wmj5atb9o7oylj4um`, Probata `deploy/casebible-pg.yaml`): bind mount `/data/probata/volumes/casebible-pg18`, port `127.0.0.1:5475` declared in the file, network alias `fgz1n7useplhk0t91uk7k1aw` so n8n (its own database lives here) and proffer-worker keep dialling the old name. Tailscale serve tcp `5433` -> `127.0.0.1:5475` is the one tailnet door (owner 03:02; `deploy/tailscale/catalog-serve.sh`). Cutover 09:08: old database stopped, data copied with an rsync checksum pass, app deployed, serve repointed. The old standalone resource is stopped and its volume `postgres-data-fgz1n7useplhk0t91uk7k1aw` (root disk) is left for the owner to delete.
+- **Rebuilt as a compose app (owner 03:01 "it's all wrong… going to run out of space, fix it"):** `casebible-pg18` was a Coolify one-click standalone database: its port lived only in Coolify's own database (the API refuses `ports_mappings`, 422) and its 49 GB sat in an undeclared Docker named volume (under `/var/lib/docker`, which is on the same data disk `sdb` as `/data`). It is now the Coolify compose app `casebible-pg` (`oli1nf8wmj5atb9o7oylj4um`, Probata `deploy/casebible-pg.yaml`): bind mount `/data/probata/volumes/casebible-pg18`, port `127.0.0.1:5475` declared in the file, network alias `fgz1n7useplhk0t91uk7k1aw` so n8n (its own database lives here) and proffer-worker keep dialling the old name. Tailscale serve tcp `5433` -> `127.0.0.1:5475` is the one tailnet door (owner 03:02; `deploy/tailscale/catalog-serve.sh`). Cutover 09:08: old database stopped, data copied with an rsync checksum pass, app deployed, serve repointed. The old standalone resource and its volume `postgres-data-fgz1n7useplhk0t91uk7k1aw` were deleted 12:45 on the owner's go ("sure"); data disk `sdb` now 244 GB used, 223 GB free.
 - **Verified after cutover (09:25):** every user table in every database counted before (08:32) and after. `n8n` identical (131 tables, 1,527 rows); `casebible` identical except writes made between the baseline and the 09:08 stop (new `raw_duck.casevault_device_basis`, 18 rows; `raw_duck.casevault_placement` 545 -> 563), and the copy itself was checksum-identical. n8n reconnected on its own through the alias; proffer-worker resolves `fgz1n7useplhk0t91uk7k1aw` to the new container; progress-board and legal-workspace read the catalog live through 5433. Coolify 4.3.23 ignores `container_name` (the container is `casebible-pg-oli1nf8wmj5atb9o7oylj4um-<timestamp>`), so nothing may dial a container name except the alias.
 - **Callers moved to 5433:** intake-engine (`docker-compose.intake-engine.yaml`, `catalog.rs` default), superindex (Coolify env `INTAKE_CATALOG_DSN`), legal-workspace (Coolify env `CONSIGNATIO_CATALOG_URL`), progress-board (host `/data/dashboards/progress-board.env`, backup `.bak-20261002-catalog-port`, and `pg-catalog.mjs` default, host copy kept byte-identical). The Workbench moved earlier (`62f24bf9`).
 - **intake-engine (09:33):** its 06:51 and 06:55 builds died mid-compile: Coolify 4.1.2's 30-minute SSH reset and the 06:59:59Z Coolify restart (02:54–03:46 entry). Redeployed on 4.3.23 (`bwd7u75d7yx21xak3gtc2c0s`, finished); `intake_engine_info` reports `catalog: true`, no error, and its startup runs a real query on the catalog through 5433. Every caller is now verified live.
-- **Not touched:** ovh-files tailscale serve tcp `5434` forwards to `172.18.0.2:5432`, which is now `coolify-proxy`. Whatever it served is unreachable there; owner to say what it was for.
+- **Second door retired (12:45):** ovh-files tailscale serve tcp `5434` was an older forward to the same catalog (its only user, `/home/ubuntu/.pgpass` from 2026-08-27, logs in as `cb_agent` to `casebible`), pointed at a container IP that later became `coolify-proxy`. Removed; the `.pgpass` line now says 5433 (backup `.pgpass.bak-20261002-5434`). 5433 is the catalog's only tailnet door.
 
 ## 2026-10-02 02:54–03:46 EDT — Coolify: long builds, the 4.3.23 upgrade, SSH sharing back on (owner 02:54 "a", 03:41)
 
@@ -3977,6 +3977,29 @@ Open, for the owner:
   - The owner chose option A: count that one check as passed for `ndjson` / `facebook_messenger_json`, while the other four must still succeed.
   - The change is written and tested (proffer/types.go, proffer/workflow.go, activities/auto_approval.go plus a test), but the agent's commit and deploy were refused by the auto-mode classifier. It waits uncommitted in worktree `overnight-msg-import-20261002` for the owner to land it.
   - Until then: 9 retried chunks of `threads-01r` wait at the gate, the 95 parked chunks are not signalled, and no further SMS-thread or Facebook batches start.
+- **14:20–16:30Z, import running unattended** (proffer-worker 25808d3f):
+  - Option A landed as db834afa.
+  - 103 parked runs were signalled clean_checks.
+  - Fixed and deployed:
+    - b384d46d: large thread chunks detect as ndjson (whole-line signature read); a duplicate third-party participant no longer aborts a commit.
+    - 1ab2edce: optional batch `key_suffix` (".json" for Facebook).
+    - 92af17b6: `facebook_messenger_json` added to `context.handler_detected_format`'s CHECK, snapshot and live.
+    - 25808d3f: a Facebook thread file resolves platform `facebook_messenger` from its persisted detected format.
+  - Live at 16:30Z:
+    - working.message 7,009, message_participant 18,684, first_party_context_thread 49 (sources 59, thread messages 7,009).
+    - third_party_message 661; working.normalized_record 7,670.
+    - Weaviate `ProfferMsgEvents20261002` 97,042 objects (SMS and calls).
+  - Call logs: 8 files, 9,175 normalized records, all auto-approved.
+- **Open, owner:**
+  - (a) **Commit validator is quadratic.** `working.validate_message_projection()` re-checks the whole table on every row firing and holds one advisory lock, so large-thread commits take 20–30 min each, one at a time.
+    - The scoped rewrite (option A, owner-approved) is proven in a rolled-back transaction (6/6 cases: violations 1, 2, 4, 5 still raise; a valid insert and the full registry.person check pass).
+    - The agent's live `CREATE OR REPLACE` was refused by the session classifier. The file is on ovh-files at `/tmp/validate_message_projection_scoped.sql`; the snapshot still needs the same body.
+  - (b) **`commit_call_log_activity` is not built.** The classifier refused creating its store file. Uncommitted pieces sit in the worktree: `activities/call_log.go`, the stagegraph and options entries.
+    - `working.call_log.source_artifact_id` is still NOT NULL with an FK to evidence.evidence_hash, and platform_runtime has only SELECT on it.
+  - (c) **The 8102594380 alias**, owner via Workbench.
+  - (d) **The 2 stray source_version rows** from the terminated mistaken derive.
+  - (e) **Batch retries hit "permission denied for table activity_execution"** (`SELECT … FOR UPDATE` without UPDATE). Workaround: new batch ids.
+- **`sms-002-031.xml`** (8103535467, 2.8 GB, 2025-06) fails derive twice with "SBV smsbackuprestore_xml parse: unexpected EOF", although its tail closes cleanly. The fault is inside the file. Not salvaged; owner to decide.
 
 ## 2026-10-02 08:45–09:25 EDT — probata-db: `casebible` gets its own login, `ai` password rotated (owner option A, 08:49); Docstore follows the Vestigia rename
 
@@ -3992,7 +4015,7 @@ Open, for the owner:
 - **Cannot be done:** `ai` stays a superuser. It is the bootstrap superuser, and PostgreSQL refuses: "The bootstrap superuser must have the SUPERUSER attribute" (tested inside a rolled-back transaction). No application logs in as `ai` now.
 - **Tool fix:** `tools/infisical-migrate-all.py` skips `_backup-<date>/` copies. A backup of `Agno-MCP-Platform.env` mapped to the same Infisical folder as the live file and wrote its old values over it; 4 entries were corrected.
 - **Docstore side of the rename:** the Dockerfile copies `modules/vestigia-geodata_processor/vestigia/docs/` (24 tracked files, checked). The nightly job (08:15 UTC) re-clones main and rebuilds, so the next build uses it. The registry `canonical_prefix` stays `vestigia/traceiq-rebuild/docs/`, so indexed document ids do not change.
-- [ ] **Owner, optional:** stop `ai` logging in over the network (`pg_hba.conf` in the database container), leaving local admin access only.
+- `ai` network logins: refused since 13:09 EDT (see the 12:46 entry).
 - [ ] Whoever created `investigation_test_advocatio_20261002` (owned by `ai`, today): the old `ai` password no longer works; the new one is in `~/.secrets/probata-db.env`.
 - [ ] Confirm the 2026-10-03 08:15 UTC nightly build of `propria-docstore` succeeds with the new COPY path.
 
@@ -4075,3 +4098,21 @@ Open, for the owner:
   - Portal (`be85587d`, deploy `njf80a6u5lu4o0atfedphkkd`): the Devbox tile opens `https://kasm.tilapia-skilift.ts.net/` on the tailnet portal and `https://kasm.int.mitechconsult.com/` on the public one (checked through each instance's `/api/services`). The Sandbox desktop tile is removed.
   - The Coolify devbox app stays, as the always-on host.
 - **Installed plugin copies:** `tools/sync_installs.py --check` exits 0. coolify-write 1.4.0 (Claude Code and Codex) includes the guard.
+
+## 2026-10-02 12:46–13:12 EDT — probata-db: every caller has its own login; `ai` refuses network logins (owner 12:46)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02_
+
+- **Callers and their logins:** ContextForge `contextforge`, Infisical `infisical`, Temporal `temporal`, the Probata services `platform_api` and `platform_runtime` (readers `platform_reader`, `registry_catalog_reader`, `workbench_reader`), llm-probe `casebible`, Vestigia `vestigia`, the owner `matt` (superuser). Schema changes, test databases and new logins: `platform_dba`.
+- **Done:**
+  - Temporal's connection cap is 50 (it was refused 41 times today at 30; the server allows 100).
+  - Every platform schema, table, view, function and type moved from `ai` to `platform_migrator`: 15 schemas, 326 tables/views/sequences, 65 functions, 38 types, and `ai`'s 45 default grants copied, by `modules/Probata/probata/tools/probata-db-platform-ownership.py --wait 50` once the import released its tables. A probe table still grants to `platform_app`.
+  - Login `platform_dba`: its sessions run as `platform_migrator`, which may create databases and logins and owns the three test databases. Checked: it created and dropped a database and a login.
+  - Log lines name the caller (`log_line_prefix = '%m [%p] %q%u@%d %h '`). Connection logging ran 16:56–17:09 UTC and is off again.
+  - `ai` refuses password logins (`VALID UNTIL 2026-10-02 00:00 UTC`): a network attempt is logged as "User ai has an expired password", while logins inside the container continue. Undo with `ALTER ROLE ai VALID UNTIL 'infinity'`, run inside the container or as `matt`.
+- **Still open:**
+  - [ ] 49 refusals on `context.activity_execution` (12:48–13:30 UTC) came from a login the old log lines do not name; the engine's own code only reads and inserts there, which `platform_runtime` may do. A repeat now names the login.
+  - [ ] Something tries to log in as `postgres` (no such role), 10 times today. The next attempt names its address.
+  - [ ] `infisical_dbadmin` is a member of `platform_app` (read/write on platform data), which looks unintended. Revoking it now needs `matt` or a session inside the container.
+  - [ ] The health check `pg_isready -U ai` logs "database ai does not exist" every 5 s; `-d postgres` in the compose fixes it, with a probata-db redeploy.
+  - `matt` is still a superuser that can log in over the network.

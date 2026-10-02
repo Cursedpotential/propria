@@ -4,6 +4,7 @@
 # Byline: Codex · GPT-5 · 2026-08-18 (owner-only evidence-search capability)
 # Byline: Codex · GPT-5 · 2026-08-29 (runtime-read Platform API bearer file)
 # Byline: Claude Code · Opus 5.5 · 2026-09-28 (DF-30: machine-client JWT settings)
+# Byline: Claude Code · Sonnet · 2026-10-02 (mobile Imported view: read-only platform login + Weaviate settings)
 """Workbench settings for the fixed Case Bible source and governed Platform services.
 
 Env var names are the pydantic-settings default (uppercase of the field name)
@@ -149,6 +150,18 @@ class Settings(BaseSettings):
     machine_jwt_audience: str = ""
     machine_jwt_jwks_url: str = ""
     machine_jwt_allowed_groups: str = ""
+
+    # --- Imported view (mobile /m): read-only reads of what has been imported ---
+    # Its own SELECT-only login (sql/bootstrap/workbench_reader_20261002.sql). Non-secret
+    # location only; the password is read from the mounted file on every connection.
+    imported_pg_host: str = "100.91.190.107"
+    imported_pg_port: int = 5432
+    imported_pg_database: str = "platform"
+    imported_pg_user: str = "workbench_reader"
+    imported_pg_password_file: str = "/run/secrets/workbench-pg-reader"
+    # Message search reads the Weaviate projection of the imported messages directly.
+    imported_weaviate_url: str = "http://100.91.190.107:8082"
+    imported_weaviate_class: str = "ProfferMsgEvents20261002"
 
     # --- App ---
     app_port: int = 8020

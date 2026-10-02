@@ -165,6 +165,12 @@ func handlerValidation(recommendation HandlerRecommendationResult) HandlerSelect
 	}
 }
 
+// noCallsCommitActivity is commit_call_log on a generation with no call record.
+func noCallsCommitActivity(context.Context, StageRequest) (StageResult, error) {
+	return StageResult{Stage: stagegraph.CommitCallLog, Status: StatusNotApplicable, ReceiptRef: "call-log-receipt",
+		Reason: "the normalized generation holds no call records"}, nil
+}
+
 // registerAllStages registers placeholderActivity under every canon stage
 // name so OnActivity(name, ...) mocks below have somewhere to attach.
 func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
@@ -192,6 +198,13 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 		}
 		if d.ID == stagegraph.RecordAutoApproval {
 			env.RegisterActivityWithOptions(placeholderAutoApprovalActivity, activity.RegisterOptions{Name: string(d.ID)})
+			continue
+		}
+		// commit_call_log runs on every approved new history; tests that do not
+		// exercise it get a not_applicable body (no call records).
+		// Byline: Claude Code · Opus 5.5 · 2026-10-02
+		if d.ID == stagegraph.CommitCallLog {
+			env.RegisterActivityWithOptions(noCallsCommitActivity, activity.RegisterOptions{Name: string(d.ID)})
 			continue
 		}
 		if d.ID == stagegraph.ResolveContextParticipants {
@@ -337,8 +350,9 @@ func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 	// propose stage, which every new history schedules (the default propose
 	// body is not_applicable, so confirm/commit are skipped here).
 	// (Claude Code · Opus 5.5 · 2026-10-01).
-	if len(result.Stages) != len(stagegraph.Stages)+3 {
-		t.Fatalf("result.Stages has %d entries, want %d (every stage exactly once, plus resolve_context_participants, publish_context_search and propose_first_party_context)", len(result.Stages), len(stagegraph.Stages)+3)
+	// +1: commit_call_log (not applicable here; Claude Code · Opus 5.5 · 2026-10-02).
+	if len(result.Stages) != len(stagegraph.Stages)+4 {
+		t.Fatalf("result.Stages has %d entries, want %d (every stage exactly once, plus resolve_context_participants, publish_context_search, propose_first_party_context and commit_call_log)", len(result.Stages), len(stagegraph.Stages)+4)
 	}
 	searchAt := order.indexOf(string(stagegraph.PublishContextSearch))
 	if searchAt < 0 || searchAt < order.indexOf(string(stagegraph.VerifyNormalizedGeneration)) ||
@@ -348,7 +362,7 @@ func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 	seen := make(map[stagegraph.StageID]int, len(result.Stages))
 	for _, s := range result.Stages {
 		seen[s.Stage]++
-		if s.Status != StatusSuccess && !((s.Stage == stagegraph.ProposeFirstPartyContext || s.Stage == stagegraph.ResolveContextParticipants) && s.Status == StatusNotApplicable) {
+		if s.Status != StatusSuccess && !((s.Stage == stagegraph.ProposeFirstPartyContext || s.Stage == stagegraph.ResolveContextParticipants || s.Stage == stagegraph.CommitCallLog) && s.Status == StatusNotApplicable) {
 			t.Errorf("stage %q reported status %q on the golden path", s.Stage, s.Status)
 		}
 	}
@@ -424,7 +438,8 @@ func TestOperationQueryTracksStagesHumanWaitsAndTerminalCompletion(t *testing.T)
 	}
 	// +3: the (not applicable) participant resolution, the Weaviate-first stage
 	// and the (not applicable) first-party propose stage.
-	if want := len(stagegraph.Stages) + 3; terminal.CompletedStageCount != want || len(terminal.Stages) != want {
+	// +1: the (not applicable) call-log commit (2026-10-02).
+	if want := len(stagegraph.Stages) + 4; terminal.CompletedStageCount != want || len(terminal.Stages) != want {
 		t.Fatalf("terminal stages = count %d query rows %d, want %d", terminal.CompletedStageCount, len(terminal.Stages), want)
 	}
 }

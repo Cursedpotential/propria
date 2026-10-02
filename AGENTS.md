@@ -212,6 +212,7 @@ transition state.
   `2026-09-20-TODO.md`.
 - **Handoffs:** `modules\Probata\probata\docs\handoffs\HANDOFF-<date>-<topic>.md`.
 - **Secrets:** `C:\Users\matts\.secrets`. Parse with a regex and never `source` these files.
+- **probata-db** (PostgreSQL 18 on ovh-files, `100.91.190.107:5432`, tailnet only): every client has its own login, kept in `~/.secrets/probata-db.env` and Infisical `/desktop/probata-db`. Schema changes, test databases and new logins use `platform_dba`, whose sessions run as `platform_migrator`, the owner of the platform objects. `ai` is the bootstrap superuser and refuses password logins since 2026-10-02; it works only inside the database container. _(Claude Code · Opus 5.5 · 2026-10-02)_
 - **rclone:** the binary is the scoop shim `C:\Users\matts\scoop\shims\rclone.exe`, and the
   config is `C:\Users\matts\scoop\apps\rclone\current\rclone.conf`.
 

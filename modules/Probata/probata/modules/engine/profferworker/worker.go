@@ -69,6 +69,9 @@ type Registrations struct {
 	// confirm, and the spine and thread commits.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	FirstPartyContext activities.FirstPartyContextActivities
+	// CallLog commits a generation's call records to working.call_log (owner
+	// 2026-10-02). Byline: Claude Code · Opus 5.5 · 2026-10-02
+	CallLog activities.CallLogActivities
 	// AutoApproval is record_auto_approval_activity (owner 2026-10-02,
 	// "auto-approve clean runs"). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	AutoApproval activities.AutoApprovalActivity
@@ -94,6 +97,9 @@ func RegisterAll(registrar interface {
 }, registrations Registrations) {
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
+	// Back-fill of call logs imported before commit_call_log existed.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	registrar.RegisterWorkflowWithOptions(proffer.CallLogBackfillWorkflow, workflow.RegisterOptions{Name: proffer.CallLogBackfillWorkflowName})
 	activities.RegisterBatchImportActivities(registrar, registrations.BatchImport)
 	registrar.RegisterWorkflowWithOptions(repairplan.RepairPlanWorkflow, workflow.RegisterOptions{Name: repairplan.WorkflowName})
 	activities.RegisterRepairPlanActivities(registrar, registrations.RepairPlan)
@@ -124,6 +130,7 @@ func RegisterAll(registrar interface {
 	activities.RegisterPublishContextSearchActivity(registrar, registrations.ContextSearch)
 	activities.RegisterFirstPartyContextActivities(registrar, registrations.FirstPartyContext)
 	activities.RegisterAutoApprovalActivity(registrar, registrations.AutoApproval)
+	activities.RegisterCallLogActivities(registrar, registrations.CallLog)
 }
 
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
@@ -477,9 +484,14 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	callLogStore, err := platformpostgres.NewCallLogStore(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
 	return Registrations{
 		ContextSearch:         contextSearch,
 		FirstPartyContext:     activities.NewFirstPartyContextActivities(firstPartyStore),
+		CallLog:               activities.NewCallLogActivities(callLogStore),
 		RepairPlan:            repairPlan,
 		Extraction:            extraction,
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),

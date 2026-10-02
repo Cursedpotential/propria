@@ -60,6 +60,10 @@ const (
 	locatorlessArrivalChangeID = "proffer-auto-approve-locatorless-arrival-v1"
 	locatorlessSignalChangeID  = "proffer-auto-approve-locatorless-signal-v1"
 	locatorlessVersion         = workflow.Version(1)
+	// Calls follow the message path (owner 2026-10-02): commit_call_log after
+	// the preview decision, before the seal. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	callLogChangeID = "proffer-commit-call-log-v1"
+	callLogVersion  = workflow.Version(1)
 	// SelectStructuredELTActivityName and ExecuteStructuredELTActivityName are
 	// the implementation-specific Temporal names for DuckDB execution of the
 	// logical SelectParser and ExecuteParser stages. The Activity package
@@ -825,6 +829,25 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 			"context_confirmation":    confirmationRef,
 			"normalized_verification": normalizedVerificationRef,
 		}); err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+	}
+
+	// Calls follow the message path (owner 2026-10-02): the generation's call
+	// records go to working.call_log after the same preview decision, before
+	// the seal. A generation with no call record settles not_applicable.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	if callLog := workflow.GetVersion(ctx, callLogChangeID, workflow.DefaultVersion, callLogVersion) != workflow.DefaultVersion; callLog &&
+		integratedPreview != workflow.DefaultVersion && preview.PreviewHandle != "" {
+		callRefs := in.personRefs(map[string]Ref{
+			"normalized_generation": normalizedGenerationRef,
+			"preview_handle":        preview.PreviewHandle,
+		})
+		if ref := resolutionRefs["participant_resolution"]; ref != "" {
+			callRefs["participant_resolution"] = ref
+		}
+		if _, err := r.exec(ctx, stagegraph.CommitCallLog, in.DeclaredFormat, callRefs); err != nil {
 			r.operation.Reason = err.Error()
 			return r.result(""), err
 		}

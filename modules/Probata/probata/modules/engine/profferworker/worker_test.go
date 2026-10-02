@@ -47,11 +47,13 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// workflow that starts one child run per object, and the repair plan
 	// workflow (Byline: Claude Code · Opus 5.5 · 2026-09-25).
 	// Byline: Claude Code · Opus 5 · 2026-09-21
-	if recorder.workflowCount != 3 {
-		t.Fatalf("workflow registration count = %d, want 3", recorder.workflowCount)
+	// +1: the call-log back-fill workflow. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	if recorder.workflowCount != 4 {
+		t.Fatalf("workflow registration count = %d, want 4", recorder.workflowCount)
 	}
-	if len(recorder.workflowNames) != 2 || recorder.workflowNames[0] != proffer.BatchWorkflowName || recorder.workflowNames[1] != repairplan.WorkflowName {
-		t.Fatalf("named workflow registrations = %v, want %q and %q", recorder.workflowNames, proffer.BatchWorkflowName, repairplan.WorkflowName)
+	if len(recorder.workflowNames) != 3 || recorder.workflowNames[0] != proffer.BatchWorkflowName ||
+		recorder.workflowNames[1] != proffer.CallLogBackfillWorkflowName || recorder.workflowNames[2] != repairplan.WorkflowName {
+		t.Fatalf("named workflow registrations = %v, want %q, %q and %q", recorder.workflowNames, proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, repairplan.WorkflowName)
 	}
 	const replayAliasCount = 3
 	// 7 = 2 structured-ELT + derive_sms_threads + publish_context_search + 3
@@ -60,11 +62,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +4: the first-party context stages (D04). Byline: Claude Code · Opus 5.5 · 2026-10-01
 	// +1: resolve_context_participants (2026-10-02).
 	// +1: record_auto_approval (Claude Code · Opus 5.5 · 2026-10-02).
-	const standaloneActivityCount = 13
+	// +1: commit_call_log (Claude Code · Opus 5.5 · 2026-10-02).
+	const standaloneActivityCount = 14
 	const batchActivityCount = 4
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 13 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 14 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0

@@ -215,6 +215,12 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Minute,
 		RetryPolicy:         retryPolicy(5*time.Second, 5),
 	},
+	stagegraph.CommitCallLog: {
+		// One bulk insert per generation; a call log is a few thousand rows.
+		// Byline: Claude Code · Opus 5.5 · 2026-10-02
+		StartToCloseTimeout: 30 * time.Minute,
+		RetryPolicy:         retryPolicy(5*time.Second, 5),
+	},
 	stagegraph.CommitFirstPartyContextThreads: {
 		StartToCloseTimeout: 30 * time.Minute,
 		RetryPolicy:         retryPolicy(5*time.Second, 5),
