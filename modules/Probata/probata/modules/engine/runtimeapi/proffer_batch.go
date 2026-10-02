@@ -65,6 +65,10 @@ type batchStartRequest struct {
 	// Explicit D04 identity, passed to every item's run. Byline: Claude Code · Opus 5.5 · 2026-10-01
 	OwnerPersonID       string `json:"owner_person_id"`
 	PerspectivePersonID string `json:"perspective_person_id"`
+	// "clean_checks" switches the owner's "auto-approve clean runs" policy on
+	// for this batch only. Absent means every item waits for the owner.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	AutoApproval string `json:"auto_approval"`
 }
 
 // startBatch validates the folder and starts one batch workflow.
@@ -118,6 +122,10 @@ func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) 
 		previewError(w, http.StatusBadRequest, err)
 		return
 	}
+	if !proffer.ValidAutoApproval(strings.TrimSpace(req.AutoApproval)) {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("auto_approval must be empty or \"clean_checks\""))
+		return
+	}
 	maxInFlight := req.MaxInFlight
 	if maxInFlight == 0 {
 		maxInFlight = batchMaxInFlightFromEnv(os.Getenv("PROFFER_BATCH_MAX_IN_FLIGHT"))
@@ -128,6 +136,7 @@ func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) 
 		DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef),
 		SourceContextRef: proffer.Ref(req.SourceContextRef), MaxInFlight: maxInFlight,
 		OwnerPersonID: strings.TrimSpace(req.OwnerPersonID), PerspectivePersonID: strings.TrimSpace(req.PerspectivePersonID),
+		AutoApproval: strings.TrimSpace(req.AutoApproval),
 	}
 	if _, _, err := h.batch.StartBatch(r.Context(), in); err != nil {
 		previewError(w, http.StatusUnprocessableEntity, err)
