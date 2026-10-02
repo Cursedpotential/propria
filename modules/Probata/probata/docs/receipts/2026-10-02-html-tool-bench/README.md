@@ -11,7 +11,7 @@
 
 | Question | Answer |
 |---|---|
-| Facebook Messenger thread (`message_N.html`) | **DuckDB webbed XPath template `facebook_messenger_html_v1`.** 100% of messages exact (sender, time, body), every emoji message and every reaction emoji intact, 10,000-message thread in about 2 s inside the live pg_duckdb. The Python tools below only return text; this one returns records. |
+| Facebook Messenger thread (`message_N.html`) | **DuckDB webbed XPath template `facebook_messenger_html_v1`.** every message matched on sender, time and body (the bench query shape 100%; the shipped template 9,997 to 10,000 of 10,000 per big thread against the oracle, the 0 to 3 differences being a block-nesting corner of the oracle), every emoji message and every reaction emoji intact, a 10,000-message thread in about 2 to 9 s inside the live pg_duckdb. The Python tools below only return text; this one returns records. |
 | Other HTML (saved pages, docs, Google Voice, WhatsApp, Snapchat, Facebook section pages) | **DuckDB webbed template `generic_html_document_v1`** as the engine default (text blocks into the document path); the seven Python tools are selectable alternatives and fallbacks, ranked per file type below. |
 | Best text tool, per file type | `html2text` for Facebook threads and sections, WhatsApp, Snapchat and Takeout My Activity; `markitdown` for generic documents; `docling` for Google Voice. The full per-type tables are below; every tool stays selectable. |
 | The iMessage HTML export | No HTML text tool reads it: the whole conversation is an HTML string inside a JavaScript template literal (`const rawHtml = ...`). It needs its own template (the Case Bible `elt_imessage_html_v3` is the sibling). Not built here. |
