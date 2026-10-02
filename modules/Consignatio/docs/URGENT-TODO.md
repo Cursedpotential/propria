@@ -3925,3 +3925,27 @@ Open, for the owner:
 - **The catalog is stale against live B2** (found by the source-selection pass): its visible set stops 2026-09-18 and `raw_duck.b2_objects` 2026-09-14; `consignatio/intake/raw-dedupe/` no longer exists on B2; 19 SMS XMLs the catalog calls visible were already moved to `intake/_quarantine/superseded-sms-backups/v1/`. Every message source was re-checked live.
 - **Placement tooling:** `casebible/tools/casevault_placement.sh` (add-only same-bucket b2→b2 server-side copy, `--ignore-existing`, dry-run mode, size+SHA-1 verify from B2 metadata) and `casevault_placement_load.sql` (old→new pairs into `raw_duck.casevault_placement`).
 - [ ] Owner sign-off on the copy list (10 SMS XML, 10 call logs, 2 Facebook exports of the owner–Katrina thread with 536 attachment files; ~11.7 GB), device slugs, Facebook export ids, and which Google Voice Takeout tree.
+
+## 2026-10-02 08:15 EDT – ongoing — owner's messages into Probata through Proffer (continuation of the overnight import)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02 (agent picking up from `overnight-import`)._
+
+- **Already on main from the overnight agent:** clean-run auto-approval (57baffc9), Facebook Messenger JSON parser (d1cb113a), one-message SMS thread chunks detected as ndjson plus a batch re-run that skips active runs (ade084fa), and the `auto_approval_request` Signal (9e64c99c). The Proffer worker runs 9e64c99c (Coolify deployment finished 11:52Z).
+- **Placement verification is strict now (Codex audit):** `casevault_placement.sh` passes an object only when sizes AND SHA-1s match. The SHA-1 comes from B2's stored metadata, or the VPS streams and hashes the object when B2 has none. The script has a `verify` mode. `raw_duck.casevault_placement` gained `proof_level` and `verified_at`, accepts `unverified`, and has a check that refuses an `ok` row without a hash match. Re-verified 545/545 earlier copies ok at `b2_stored_sha1`: the first SMS file, and Facebook 544 objects / 336 MB (both exports, plan `casevault-20261002-fb-meta-both`).
+- **The 19 `ops.workflow_run` auto/failed rows are not Proffer runs.** All are from 2026-09-12, in the retired Python `framework-neutral-ingest` lane, on the dev fixture matter `deadbeef…`:
+  - 2 retired chunk writer;
+  - 2 AI-chat exports denied by D-082;
+  - 1 unresolved parties;
+  - 1 had no python parser;
+  - 13 owner-aborted "clear queue" retries.
+  Nothing to re-run. They are dev leftovers, left in place.
+- **The one-message chunk failures are in Temporal instead.** Batch `overnight-20261002-sms-8102689630-threads-01` holds 96 runs waiting on the gate and 9 failed with "no parser adapter declares format json" (fixed by ade084fa). They are re-run after the owner's preview decision.
+- **SMS and call backups placed by device number** (owner decision A, plan `casevault-20261002-devices`): 15 objects / 11.3 GB, all ok at `b2_stored_sha1`, server-side. Why each file sits where it does is in `raw_duck.casevault_device_basis` (`casebible/tools/casevault_device_basis_load.sql`):
+  - 8102959302, Matt: 2 SMS from 2022.
+  - 8102689630, Katrina: 2 SMS and 2 call logs. This includes `sms-20250218025955.xml`, from the sent-MMS from-address.
+  - 8103535467, Matt: 4 SMS and 3 call logs.
+  - 8102594380: 2 SMS from 2026. **This number is not in the registry.**
+- **Held and not placed, owner to decide:**
+  - The 3 call logs from 2022 (`calls-20221104024324`, `calls-11-08-2022 14-46-06`, `calls-12-10-2022 13-51-13`). No SMS backup shares their backup_set. About 1,000 calls with Katrina's 8102959303 and 30–39 calls to 8102959302 itself (voicemail) point to Matt's 8102959302. That is an inference.
+  - The 2 call logs from 2026 (`calls-20260911233643`, `calls-20260912155315`). Their own number cannot be determined.
+- The source folder `Evidence/Phone Records/Messages with Katrina/SMS backup` carries U+F028 after "backup", a Windows private-use character. The earlier plan had dropped it and lost 3 files. The new plan keeps the exact key.
