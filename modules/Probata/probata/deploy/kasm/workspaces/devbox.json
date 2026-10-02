@@ -1,0 +1,47 @@
+{
+  "_byline": "Claude Code · Opus 5.5 · 2026-10-02 — Kasm Workspaces 'Devbox' workspace (P-1 step 3). Field names follow the Kasm admin UI (Workspaces > Add Workspace); README.md says how they are entered.",
+  "friendly_name": "Devbox",
+  "description": "The owner's persistent Ubuntu XFCE devbox: Claude Code, OpenCode, Codex, the full toolchain, Synaptic. Home on /data/probata/volumes/devbox/home.",
+  "workspace_type": "Container",
+  "docker_image": "probata-devbox:latest",
+  "docker_registry": null,
+  "pull_image": false,
+  "cores": 2,
+  "memory_mb": 4096,
+  "_sizing_note": "Owner 2026-10-02 01:27: start at 2 CPU / 4 GB. ovh-files has 8 cores / 22 GB with swap fully used.",
+  "gpu_count": 0,
+  "persistent_profile_path": "/data/probata/volumes/devbox/home",
+  "_persistent_profile_note": "Fixed path, not /{username}/{image_id}: single-user devbox, and the SAME home the Coolify devbox and the reserved claude listener use. Kasm docs advise per-user paths for multi-user setups; this box has one user (msalem).",
+  "docker_run_config_override": {
+    "hostname": "devbox",
+    "user": "root",
+    "shm_size": "1g",
+    "cap_add": ["SYS_ADMIN"],
+    "devices": ["/dev/fuse:/dev/fuse:rwm"],
+    "security_opt": ["apparmor:unconfined"],
+    "environment": {
+      "TZ": "America/Detroit",
+      "KASM_SVC_AUDIO": "0",
+      "KASM_SVC_UPLOADS": "1",
+      "KASM_SVC_DOWNLOADS": "1"
+    }
+  },
+  "volume_mappings": {
+    "/data/probata/volumes/devbox/linuxbrew": {
+      "bind": "/home/linuxbrew", "mode": "rw", "uid": 1000, "gid": 1000, "required": true, "skip_check": false
+    },
+    "/data/probata/volumes/devbox/root": {
+      "bind": "/root", "mode": "rw", "uid": 0, "gid": 0, "required": true, "skip_check": false
+    },
+    "/mnt/desktop-share": {
+      "bind": "/home/kasm-user/desktop", "mode": "rw", "uid": 1000, "gid": 1000, "required": false, "skip_check": true
+    },
+    "/data/probata/secrets/devbox/authentik-machine.env": {
+      "bind": "/run/secrets/devbox-authentik.env", "mode": "ro", "uid": 0, "gid": 1000, "required": true, "skip_check": true
+    }
+  },
+  "_volume_notes": [
+    "Kasm volume mappings take no mount-propagation option, so /mnt/desktop-share is a plain bind here, not rslave as in deploy/devbox.yaml: an SMB automount that appears after the session starts is not seen until the next session.",
+    "Corpus mounts (read-only) from the 09-27 brief are not listed: no corpus path is defined for the devbox yet. Add each as {bind, mode: ro} once the owner names it."
+  ]
+}

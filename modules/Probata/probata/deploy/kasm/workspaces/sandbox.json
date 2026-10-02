@@ -1,0 +1,19 @@
+{
+  "_byline": "Claude Code · Opus 5.5 · 2026-10-02 — Kasm Workspaces 'Sandbox' workspace (P-1 step 3): a plain, ephemeral desktop for agents, the role exec-desktop/svc:desk on ovh-app plays today.",
+  "friendly_name": "Sandbox",
+  "description": "Ephemeral Ubuntu desktop for agents and throwaway work. Nothing persists: no profile, no volume mappings.",
+  "workspace_type": "Container",
+  "docker_image": "kasmweb/core-ubuntu-noble:1.17.0",
+  "_image_note": "Same Kasm core image the devbox is built FROM (deploy/docker/devbox/Dockerfile), so no extra base is pulled. Re-check the tag against Kasm's 1.19 image list before registering.",
+  "docker_registry": "https://index.docker.io/v1/",
+  "pull_image": true,
+  "cores": 1,
+  "memory_mb": 2048,
+  "gpu_count": 0,
+  "persistent_profile_path": null,
+  "docker_run_config_override": {
+    "hostname": "sandbox",
+    "environment": { "TZ": "America/Detroit" }
+  },
+  "volume_mappings": {}
+}
