@@ -202,6 +202,15 @@ const (
 // Byline: Claude Code · Opus 5.5 · 2026-10-02
 const RecordAutoApproval StageID = "record_auto_approval_activity"
 
+// CommitCallLog (owner 2026-10-02: "calls follow the same path as
+// messages") writes the generation's committed call records into
+// working.normalized_record (record_type 'call') and working.call_log, after
+// the same preview decision (the owner's or clean_checks) and with the same
+// recorded participant resolution and perspective as the message commit. A
+// generation with no call record settles not_applicable.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+const CommitCallLog StageID = "commit_call_log_activity"
+
 // AutoApprovalActor is the decided_by value of every automatic approval.
 const AutoApprovalActor = "auto:clean-checks"
 
@@ -277,5 +286,13 @@ var OptionalStages = []Descriptor{
 		// It decides on the published preview, using the outcomes of the checks
 		// the run already computed. Byline: Claude Code · Opus 5.5 · 2026-10-02
 		DependsOn: []StageID{PublishPreview},
+	},
+	{
+		ID:             CommitCallLog,
+		Responsibility: RespCommitContext,
+		Result:         "call log commit receipt reference",
+		// The preview decision is the gate; the participant resolution names the
+		// parties. Byline: Claude Code · Opus 5.5 · 2026-10-02
+		DependsOn: []StageID{ResolveContextParticipants, PublishPreview},
 	},
 }

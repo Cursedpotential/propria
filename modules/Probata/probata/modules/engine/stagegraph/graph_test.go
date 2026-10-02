@@ -97,8 +97,8 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 		}
 		optional[stage.ID] = stage
 	}
-	if len(optional) != 9 {
-		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage, the context search stage, the participant resolution stage, the four first-party context stages and the automatic approval stage", len(optional))
+	if len(optional) != 10 {
+		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage, the context search stage, the participant resolution stage, the four first-party context stages, the automatic approval stage and the call log commit", len(optional))
 	}
 	// Automatic approval decides on the published preview and writes only the
 	// decision record. Byline: Claude Code · Opus 5.5 · 2026-10-02
@@ -170,6 +170,8 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 		{ConfirmFirstPartyContext, RespConfirmContext, []StageID{ProposeFirstPartyContext, PublishPreview}},
 		{CommitFirstPartyMessages, RespCommitContext, []StageID{ConfirmFirstPartyContext}},
 		{CommitFirstPartyContextThreads, RespCommitContext, []StageID{CommitFirstPartyMessages}},
+		// Calls follow the message path (owner 2026-10-02). Byline: Claude Code · Opus 5.5 · 2026-10-02
+		{CommitCallLog, RespCommitContext, []StageID{ResolveContextParticipants, PublishPreview}},
 	}
 	for _, want := range chain {
 		got, ok := optional[want.id]
