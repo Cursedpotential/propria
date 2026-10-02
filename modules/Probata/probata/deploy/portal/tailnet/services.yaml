@@ -257,13 +257,14 @@
         siteMonitor: https://portal-edit.tilapia-skilift.ts.net
 
 - Development:
-    # Devbox and claude.ai: owner decisions 2026-09-26 23:35 EDT, URLs confirmed live 04:00Z.
-    # Kasm answers 401 (its own basic auth) to the monitor; Homepage counts <= 403 as up.
+    # Devbox: since 2026-10-02 the tile opens Kasm Workspaces (svc:kasm), where the Devbox, its RDP view and the
+    # throwaway Sandbox are workspaces (P-1). The single-container desktop at devbox.tilapia-skilift.ts.net still runs
+    # (the always-on host) but is no longer the portal's way in. Claude Code · Opus 5.5 · 2026-10-02.
     - Devbox:
-        href: https://devbox.tilapia-skilift.ts.net/
-        description: Kasm desktop with Claude Code — claude launcher inside
+        href: https://kasm.tilapia-skilift.ts.net/
+        description: Kasm Workspaces — Devbox (Claude Code inside), Devbox (RDP), Sandbox
         icon: mdi-laptop
-        siteMonitor: https://devbox.tilapia-skilift.ts.net/
+        siteMonitor: https://kasm.tilapia-skilift.ts.net/
     - OpenCode:
         href: https://opencode.tilapia-skilift.ts.net/
         description: Checked Sep 23 · development sessions, sign-in required
@@ -277,11 +278,8 @@
         description: Model probe interface and experiments
         icon: mdi-flask-outline
         siteMonitor: http://100.91.190.107:8031/playground
-    - Sandbox desktop:
-        href: https://desk.tilapia-skilift.ts.net
-        description: Plain Kasm sandbox desktop on ovh-app (not the devbox)
-        icon: mdi-monitor
-        siteMonitor: https://desk.tilapia-skilift.ts.net
+    # Sandbox desktop tile removed 2026-10-02: exec-desktop (svc:desk) is stopped and renamed
+    # retired-2026-10-02-exec-desktop in Coolify; the Sandbox is a Kasm workspace behind the Devbox tile.
     # LibreChat: recreated and confirmed live 2026-09-27 (relayed by the parent session); /login answers 200.
     - LibreChat:
         href: https://librechat.tilapia-skilift.ts.net/
