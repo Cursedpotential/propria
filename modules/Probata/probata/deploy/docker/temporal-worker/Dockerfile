@@ -23,10 +23,8 @@
 # Multi-stage is unnecessary here — no compiled frontend/build step, just the
 # existing pure-Python server/ package plus the temporalio SDK.
 #
-# NOTE: `python -m server.temporal.worker` is the P1 entrypoint module (not
-# yet written — P0 ships infra only, per plan §2). Until that module exists
-# this image builds but the CMD will fail at runtime; that is expected for a
-# P0 scaffold and is tracked as the first P1 task, not a defect in this file.
+# `python -m server.temporal.worker` exists (server/temporal/worker.py); the app is
+# declared in deploy/temporal-worker.yaml. Byline: Claude Code · Sonnet · 2026-10-02
 # =============================================================================
 FROM python:3.12-slim
 

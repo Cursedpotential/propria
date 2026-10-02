@@ -1,0 +1,62 @@
+# Temporal worker (Python) — dedicated Coolify application.
+#
+# Polls task queue `evidence-pipeline` and registers (server/temporal/worker.py):
+#   workflows:  ChatTranscriptIngest, P0DurabilityProbe, ClassificationBatchPipeline
+#   activities: custody / parse / store / knowledge / n8n_webhook, and
+#               build_timeline_generation_activity — the projection step the Go
+#               extraction_commit_workflow (modules/engine/extraction/flow/workflows.go,
+#               DefaultProjectionTaskQueue) schedules on this queue.
+# Without this app that queue has no poller and the projection step times out.
+#
+# What build_timeline_generation_activity needs (server/temporal/timeline_activities.py):
+# the platform Postgres only (server.timeline.generation.build_generation, one sealed
+# generation of timeline.* rows). It does NOT call Timesketch or OpenSearch; the
+# Timesketch fork's importer reads the generation later. So no Timesketch env here.
+#
+# Database credential: server/core/url.py reads PLATFORM_DB_URL. The URL is the same
+# host secret the proffer-worker bind-mounts (/data/probata/secrets/platform/database-url,
+# mode 0400, owner 10001), so no secret value lives in Coolify env or in git. The
+# container runs as 10001 to read it, and the entrypoint rewrites the scheme to
+# postgresql+psycopg:// (psycopg 3 is what requirements.txt installs).
+#
+# Build: Coolify base directory modules/Probata/probata, compose location
+# /deploy/temporal-worker.yaml, repo Cursedpotential/propria, branch main. The
+# Dockerfile is the existing deploy/docker/temporal-worker/Dockerfile.
+#
+# Coolify watch paths (module prefix, matched against repository-root paths):
+#   modules/Probata/probata/server/**
+#   modules/Probata/probata/scripts/**
+#   modules/Probata/probata/sql/**
+#   modules/Probata/probata/requirements.txt
+#   modules/Probata/probata/deploy/docker/temporal-worker/**
+#   modules/Probata/probata/deploy/temporal-worker.yaml
+# Auto-deploy is OFF on purpose; deploy explicitly.
+#
+# Byline: Claude Code · Sonnet · 2026-10-02
+
+services:
+  temporal-worker:
+    build:
+      context: .
+      dockerfile: deploy/docker/temporal-worker/Dockerfile
+    image: ${TEMPORAL_WORKER_IMAGE:-platform-temporal-worker:latest}
+    restart: unless-stopped
+    user: "10001:10001"
+    networks:
+      - probata
+    environment:
+      TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal-server:7233}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: evidence-pipeline
+      TEMPORAL_ACTIVITY_THREADS: ${TEMPORAL_ACTIVITY_THREADS:-8}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    command:
+      - sh
+      - -c
+      - 'PLATFORM_DB_URL="$$(sed "s#^postgresql://#postgresql+psycopg://#" /run/secrets/platform-database-url)" exec python -m server.temporal.worker'
+    volumes:
+      - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro
+
+networks:
+  probata:
+    external: true

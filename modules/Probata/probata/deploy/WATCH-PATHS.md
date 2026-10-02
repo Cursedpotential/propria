@@ -75,6 +75,20 @@ deploy/docker/parser-activity-runtime/**
 deploy/parser-activity-runtime.yaml
 ```
 
+### `temporal-worker` (`deploy/temporal-worker.yaml`)
+
+Python worker for task queue `evidence-pipeline`. Not a Go service; its watch
+paths carry the full module prefix, as Coolify matches repository-root paths.
+
+```
+modules/Probata/probata/server/**
+modules/Probata/probata/scripts/**
+modules/Probata/probata/sql/**
+modules/Probata/probata/requirements.txt
+modules/Probata/probata/deploy/docker/temporal-worker/**
+modules/Probata/probata/deploy/temporal-worker.yaml
+```
+
 ## Notes
 
 - These lists intentionally do **not** include `modules/forks/sbv/**` — see
