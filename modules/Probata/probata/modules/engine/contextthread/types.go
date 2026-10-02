@@ -5,20 +5,15 @@
 // Facebook and anything else, as working.first_party_context_thread and its
 // version / membership / source assertion rows.
 //
-// APPEND-ONLY FOR DECISIONS. An approval, a reclassification and a corrected
-// source assertion are all APPENDS carrying SupersedesID, and currency is
-// derived — the row nothing supersedes — never stamped onto an older row. The
-// engine role platform_runtime holds SELECT, INSERT and UPDATE on the four
-// tables (owner, OD-07, 2026-10-01 07:17); UPDATE is used only to extend a
-// still-proposed version in place with a later chunk of the same conversation
-// (postgres/first_party_context_store.go), never to change an approved one.
-// Byline: Claude Code · Opus 5.5 · 2026-10-01 (re-conformed to the OD-07 grant)
-//
-// The consequence is worth stating: the exact version the owner was shown when
-// he approved stays permanently readable. An in-place update would have
-// destroyed the record of what he consented to, which on custody-case evidence
-// is the difference between an auditable approval and an assertion that one
-// happened.
+// A VersionCommit is a whole version; a reclassification or a corrected source
+// assertion may be written as a new version carrying SupersedesID, and currency
+// is derived from the row nothing supersedes. The engine role platform_runtime
+// holds SELECT, INSERT and UPDATE on the four tables (owner, OD-07,
+// 2026-10-01 07:17); UPDATE extends a thread's current version in place, in any
+// review state, with a later chunk of the same conversation
+// (postgres/first_party_context_store.go). Owner 2026-10-02: nothing is
+// immutable until it is promoted to evidence.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (re-conformed to the 10-02 rule)
 //
 // This package is pure: it validates a proposed commit and derives the bounds
 // and knowledge horizon the deferred database validator will recompute. It holds

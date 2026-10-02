@@ -17,15 +17,13 @@
 // see normalized_pipeline.go — would make each fragment fail on its own commit.
 // Do not "simplify" CommitVersion into fanned-out writes; it is one write.
 //
-// NO UPDATE IN THIS FILE. An approval, a reclassification and a corrected
-// source assertion are APPENDS carrying supersedes_id, and currency is derived —
-// the row nothing supersedes — never stamped onto an older row, so the exact
-// version the owner approved stays readable. platform_runtime also holds UPDATE
-// on these four tables (owner, OD-07, 2026-10-01 07:17: "so a thread can be
-// extended in place"); its one user is first_party_context_store.go, which
-// extends a still-PROPOSED version with a later chunk's messages and refuses to
-// touch any other review state.
-// Byline: Claude Code · Opus 5.5 · 2026-10-01 (re-conformed to the OD-07 grant)
+// NO UPDATE IN THIS FILE: it writes a whole new version. platform_runtime holds
+// UPDATE on these four tables (owner, OD-07, 2026-10-01 07:17: "so a thread can
+// be extended in place"); its one user is first_party_context_store.go, which
+// extends a thread's current version with a later chunk's messages in any
+// review state (owner 2026-10-02: nothing is immutable until it is promoted to
+// evidence; no append-only triggers outside evidence).
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (re-conformed to the 10-02 rule)
 //
 // The whole boundary is proven live under platform_runtime in
 // sql/validation/2026-09-26-d04-first-party-thread-role-privileges-test.sql, and

@@ -257,6 +257,14 @@ func TestFirstPartyContextImportLive(t *testing.T) {
 	if err := runImport(t, ctx, acts, first, liveOwner, livePerspective); err != nil {
 		t.Fatalf("first chunk import: %v", err)
 	}
+	// Owner 2026-10-02: nothing is immutable until promoted to evidence, so an
+	// APPROVED version is extended in place by a later chunk too.
+	if _, err := admin.Exec(ctx, `
+		UPDATE working.first_party_context_thread_version
+		SET review_state = 'approved', reviewed_by = 'd04-live-test', reviewed_at = now()
+		WHERE context_thread_id IN (SELECT context_thread_id FROM working.first_party_context_thread WHERE owner_person_id = $1::uuid)`, liveOwner); err != nil {
+		t.Fatalf("approve version 1: %v", err)
+	}
 	if err := runImport(t, ctx, acts, second, liveOwner, livePerspective); err != nil {
 		t.Fatalf("second chunk import (extends the thread): %v", err)
 	}
@@ -294,8 +302,8 @@ func TestFirstPartyContextImportLive(t *testing.T) {
 		WHERE thread.owner_person_id = $1::uuid`, liveOwner).Scan(&threads, &versions, &members, &sources, &firstAt, &lastAt, &horizon, &state); err != nil {
 		t.Fatal(err)
 	}
-	if threads != 1 || versions != 1 || members != 3 || sources != 2 || state != "proposed" {
-		t.Fatalf("threads %d versions %d members %d sources %d state %s; want one proposed thread version with 3 members from 2 sources", threads, versions, members, sources, state)
+	if threads != 1 || versions != 1 || members != 3 || sources != 2 || state != "approved" {
+		t.Fatalf("threads %d versions %d members %d sources %d state %s; want one approved thread version extended in place to 3 members from 2 sources", threads, versions, members, sources, state)
 	}
 	if !firstAt.Equal(day) || !lastAt.Equal(day.Add(48*time.Hour)) || !horizon.Equal(day.Add(48*time.Hour)) {
 		t.Fatalf("bounds %s..%s horizon %s", firstAt, lastAt, horizon)
@@ -335,5 +343,5 @@ func TestFirstPartyContextImportLive(t *testing.T) {
 		t.Fatalf("third-party: records %d messages %d proposed routes %d conversations %d count %d unresolved %d first-party leak %d; want 2,2,2,1,2,2,0",
 			thirdRecords, thirdMessages, proposedRoutes, conversations, counted, unresolved, firstPartyLeak)
 	}
-	t.Logf("live D04 proof: 3 first-party spine rows (contemporaneous, id = normalized record id, 6 resolved participants), 1 thread / 1 proposed version / 3 members / 2 sources, horizon %s; 2 third-party messages (discovered, proposed routes) in 1 conversation", horizon)
+	t.Logf("live D04 proof: 3 first-party spine rows (contemporaneous, id = normalized record id, 6 resolved participants), 1 thread / 1 approved version extended in place / 3 members / 2 sources, horizon %s; 2 third-party messages (discovered, proposed routes) in 1 conversation", horizon)
 }

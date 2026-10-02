@@ -19,8 +19,9 @@
 //     membership and source assertion rows, one transaction per conversation.
 //     A conversation first seen here gets version 1 through
 //     FirstPartyThreadStore; a later chunk of the same conversation extends
-//     the current version in place while it is still PROPOSED (OD-07 granted
-//     UPDATE for exactly this). Any other review state is refused.
+//     the current version in place, whatever its review state (OD-07 granted
+//     UPDATE for this; owner 2026-10-02: nothing is immutable until it is
+//     promoted to evidence).
 //
 // Ids are copied, never minted for records: working.normalized_record.id and
 // working.message.id are the context.normalized_record_identity id (DF-04).
@@ -1080,22 +1081,21 @@ func (s *FirstPartyContextStore) commitConversationThread(ctx context.Context, p
 }
 
 // extendThread adds this generation's messages and source assertion to the
-// thread's current version, which must still be proposed, and recomputes the
-// version's bounds, horizon and digest from its rows.
+// thread's current version, in any review state (owner 2026-10-02: nothing
+// is immutable until promoted to evidence), and recomputes the version's
+// bounds, horizon and digest from its rows.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
 func (s *FirstPartyContextStore) extendThread(ctx context.Context, tx pgx.Tx, plan firstparty.Plan, conversation firstparty.Conversation, threadID string) (map[string]any, error) {
-	var versionID, reviewState string
+	var versionID string
 	var versionOrdinal int
 	if err := tx.QueryRow(ctx, `
-		SELECT version.id::text, version.version_ordinal, version.review_state
+		SELECT version.id::text, version.version_ordinal
 		FROM working.first_party_context_thread_version version
 		WHERE version.context_thread_id = $1::uuid
 		  AND NOT EXISTS (SELECT 1 FROM working.first_party_context_thread_version later WHERE later.supersedes_id = version.id)
 		ORDER BY version.version_ordinal DESC LIMIT 1
-		FOR UPDATE`, threadID).Scan(&versionID, &versionOrdinal, &reviewState); err != nil {
+		FOR UPDATE`, threadID).Scan(&versionID, &versionOrdinal); err != nil {
 		return nil, fmt.Errorf("read thread %s's current version: %w", threadID, err)
-	}
-	if reviewState != contextthread.ReviewProposed {
-		return nil, fmt.Errorf("thread %s version %d is %s; only a proposed version is extended in place, and this import does not write superseding versions", threadID, versionOrdinal, reviewState)
 	}
 
 	rows, err := tx.Query(ctx, `
