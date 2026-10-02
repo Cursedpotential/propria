@@ -4,6 +4,8 @@ Source locators refer to the currently imported package. No evidence bytes or
 acceptance receipts are created here. Every mutation and revision is one commit.
 """
 
+from __future__ import annotations
+
 import sqlite3
 from collections.abc import Callable
 from contextlib import contextmanager
