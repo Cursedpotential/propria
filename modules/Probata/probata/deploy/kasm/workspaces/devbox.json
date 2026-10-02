@@ -29,7 +29,8 @@
       "TZ": "America/Detroit",
       "KASM_SVC_AUDIO": "0",
       "KASM_SVC_UPLOADS": "1",
-      "KASM_SVC_DOWNLOADS": "1"
+      "KASM_SVC_DOWNLOADS": "1",
+      "DEVBOX_KASM_SESSION": "1"
     }
   },
   "volume_mappings": {
@@ -70,5 +71,6 @@
     "Kasm volume mappings take no mount-propagation option, so /mnt/desktop-share is a plain bind here, not rslave as in deploy/devbox.yaml: an SMB automount that appears after the session starts is not seen until the next session.",
     "The devbox's Authentik machine identity file stays with the Coolify devbox container only: Kasm volume mappings are directories, and the always-on Coolify service is where machine clients run.",
     "CORPUS MOUNTS SLOT — NOT DECIDED (owner 2026-10-02 08:39): read-only corpus mappings go here as {\"<host path>\": {\"bind\": \"<path in the desktop>\", \"mode\": \"ro\", \"uid\": 1000, \"gid\": 1000, \"required\": false, \"skip_check\": true}} once the owner names the paths. Until then the Devbox workspace has no corpus mounts."
-  ]
+  ],
+  "_session_env_note": "DEVBOX_KASM_SESSION=1 tells custom_startup.sh this is a Kasm session: it skips Syncthing and the memsearch indexer, which only the always-on Coolify devbox container runs on the shared home (2026-10-02)."
 }

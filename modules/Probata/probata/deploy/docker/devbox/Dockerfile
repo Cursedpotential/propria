@@ -284,6 +284,15 @@ RUN curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION
     && echo "${TTYD_SHA256}  /usr/local/bin/ttyd" | sha256sum -c - \
     && chmod 0755 /usr/local/bin/ttyd && ttyd --version
 
+# xrdp inside a container (2026-10-02, P-1 Guacamole workspace): pam_systemd in common-session waits for a logind
+# that does not exist here, which held every RDP login until xrdp-sesman gave up on the X server ("Timed out waiting
+# for X server"); it is commented out (optional module, useless without systemd). The session itself starts from our
+# own startwm (xrdp-startwm.sh): XFCE with a private ICE authority file, because root-run KasmVNC desktops share the
+# home and keep rewriting ~/.ICEauthority as root. Claude Code · Opus 5.5 · 2026-10-02.
+RUN sed -i '/pam_systemd.so/s/^/# devbox: no logind in a container # /' /etc/pam.d/common-session
+COPY deploy/docker/devbox/xrdp-startwm.sh /etc/xrdp/startwm.sh
+RUN chmod 0755 /etc/xrdp/startwm.sh
+
 # Kasm startup hook: starts xrdp + syncthing + ttyd beside the desktop session
 COPY deploy/docker/devbox/custom_startup.sh /dockerstartup/custom_startup.sh
 COPY deploy/docker/devbox/claude-rc.sh /usr/local/bin/claude-rc
