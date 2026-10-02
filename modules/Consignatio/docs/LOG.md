@@ -3391,3 +3391,20 @@ Open, for the owner:
 - **19:40 — whole B2 bucket in the catalog:** `casebible/tools/bucket_objects_load.py` loaded `b2:salem-data` (listing 23:07Z) into new `raw_duck.bucket_objects`: 567,757 objects, 2,229,142,751,368 bytes, 567,720 with SHA-1. View `raw_duck.bucket_objects_current` = newest listing per bucket. (The listing predates the 19:38 test-data purge, so it still shows the two test prefixes until the next listing.)
 - **Found:** the Probata engine (`postgres/catalog_versions.go`) and `tools/contacts_manifest.py` read `raw_duck.b2_objects` as "the B2 listing", but it is the 09-14 intake-only snapshot; open item added. coolify-write 1.4.1 redaction verified through the hosted tool by the parent (VNC_PW, OPENLIST_PASS show `<redacted N chars>`). D:\Backup quarantine verified by count (10,811 files in `D:\Backup\_quarantine_zero_filled\`).
 
+
+### 2026-10-02 — Docstore index sync: nightly job fixed for Coolify 4.3.23 (owner go 19:31 EDT; Claude Code · Opus 5.5)
+
+- **The 09-27 failure was already fixed.** Run `5356f93f…` died because the container resolved the desktop path `E:/AI_Workspace/...` as `/app/E:` (FileNotFoundError). `4122ad88` (2026-09-28) fixed it. Clean runs followed on 09-29 and 09-30. The open item was never closed.
+- **The live failure was new.** The nightly job (`deploy/docstore-nightly.sh`, cron 08:15 UTC on ovh-files) logged `ABORT deploy request returned HTTP 405` at 2026-10-02 08:15 UTC. So no rebuild and no re-index ran on 10-02, and the store stayed on the 10-01 run.
+  - Cause: Coolify was upgraded to 4.3.23 about an hour earlier (LOG 02:54–03:46 EDT). 4.3.23 answers 405 to `GET /deploy`, and the script's `curl` sent a GET.
+  - The 10-01 run was `degraded` only because two enrichment calls failed (one ReadTimeout, one ValueError). Indexing itself was complete (893 of 893).
+- **Fix:** `0c0f3938` adds `-X POST` to the deploy call. This is the same change coolify-write made in 1.2.2.
+  - Installed on ovh-files at `/data/probata/bin/docstore-nightly.sh`. Its sha256 `efe0534f…` matches the commit.
+  - The previous copy was kept as `docstore-nightly.sh.bak-20261002-get`.
+  - No other root cron job on ovh-files or ovh-app calls the Coolify lifecycle API.
+- **Verified live (2026-10-02 23:39–23:47 UTC):**
+  - The fixed script was run once, detached on the VPS. It logged DEPLOY requested, a new container answering at 23:43:23, and 17 host-only documents merged.
+  - Run `bf529f03…`: `execution_finished`, `cdc_verified` true, 908 of 908 documents, 0 enrichment failures, 99 of 99 ADR projections.
+  - `docstore-health` reports `ok: true` with `enrichment_pending` 0.
+  - A search in the `consignatio` domain returns `consignatio/docs/COMPLETED-TODO.md`, which was created today.
+- **Still true:** the index follows git `main` once a night. A document reaches search after it is pushed and after the next 08:15 UTC run, unless a run is started by hand.

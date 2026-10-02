@@ -312,8 +312,6 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 
 ### From: 2026-09-27 10:25 EDT — Docstore memory writes fixed, errors report their reason, write schema documented (owner 10:01 EDT)
 
-- [ ] **Open:** the docstore container is `unhealthy` because index sync run `5356f93f…` (2026-09-27 01:02 UTC) failed. That predates r5.
-
 - [ ] **Open:** `release_api.invoke` still maps a plain `ValueError` to 409 for upgrade, adr, knowledge and sources. It needs a per-operation audit to split 409 from 422.
 
 - [ ] **Owner call:** the root `plugins/docstore/` is a stale 0.6.3 snapshot that still documents raw `fn::remember` with a `probata` scope. (A) quarantine it, (B) replace it with the canonical tree, or (C) leave it.

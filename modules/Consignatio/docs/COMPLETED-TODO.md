@@ -1064,3 +1064,9 @@ Replaced by a later owner decision; not done as written.
 - **The coolify-write `get_application` tool showed the VNC_PW password unredacted. DONE 2026-10-02 — plugin 1.4.1 (commit `efe2d34`), hosted `coolify-mcp` redeployed (deployment `hquu0egpav3amm0riijom1zf`) and ContextForge refreshed.**
   - Original text: "VNC_PW appeared in two tool outputs: Kasm service argv in `ps`, and coolify-write `get_application`, which returns the rendered compose with VNC_PW unredacted." (the `ps` half stays open)
   - _Proof:_ through the `coolify-write` virtual server, `get-application`, `list-application-envs` and `coolify-api` on the devbox app return 0 of 4 secret env values, with `<redacted N chars>` markers and the rest of the record intact. Details in LOG.md, 2026-10-02.
+
+### 2026-10-02 — Docstore index sync (owner go 19:31 EDT)
+
+- **The docstore container is `unhealthy` because index sync run `5356f93f…` (2026-09-27 01:02 UTC) failed. DONE 2026-10-02 — the 09-27 cause was fixed 09-28; the live failure on 10-02 (nightly deploy refused with HTTP 405) is fixed in `0c0f3938`.**
+  - From: 2026-09-27 10:25 EDT — Docstore memory writes fixed, errors report their reason, write schema documented.
+  - _Proof:_ run `bf529f03…` (2026-10-02 23:43–23:46 UTC): `execution_finished`, `cdc_verified` true, 908 of 908 documents, 0 missing / unexpected / hash mismatches, 0 enrichment failures. `docstore-health` `ok: true`. Search returns `consignatio/docs/COMPLETED-TODO.md`, created 2026-10-02. Details in LOG 2026-10-02.
