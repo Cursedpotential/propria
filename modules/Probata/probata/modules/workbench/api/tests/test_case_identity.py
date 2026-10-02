@@ -202,3 +202,21 @@ def test_router_is_mounted_on_the_application() -> None:
 
     paths = set(app.openapi()["paths"])
     assert {"/api/case-identity", "/api/case-identity/identifiers", "/api/case-identity/lookup"} <= paths
+
+
+
+# Byline: Claude Code · Sonnet · 2026-10-02
+def test_placeholders_and_merge_pass_through_with_actor_and_key(engine) -> None:
+    receipt = {"ref": "k", "kind": "registry.placeholders", "recorded_at": "2026-10-02T00:00:00Z", "replayed": False,
+               "detail": {"created": 1, "dry_run": True}}
+    engine.answers[("POST", "/case-identity/placeholders")] = (201, receipt)
+    engine.answers[("POST", f"/case-identity/people/{MATT}/merge")] = (201, {**receipt, "kind": "registry.identity_change", "detail": {"rows_moved": {}}})
+    client = TestClient(_app())
+    batch = {"numbers": ["8105550142"], "change_reason": "seen in calls", "dry_run": True}
+    response = client.post("/api/case-identity/placeholders", json=batch, headers={"Idempotency-Key": "p1"})
+    assert response.status_code == 201 and response.json()["detail"]["created"] == 1
+    merge = {"into_id": "01a0f751-e07b-76c7-8c0f-65692ad656b8", "change_reason": "her other phone"}
+    assert client.post(f"/api/case-identity/people/{MATT}/merge", json=merge, headers={"Idempotency-Key": "m1"}).status_code == 201
+    assert [call["json"] for call in engine.calls] == [batch, merge]
+    assert client.post("/api/case-identity/people/not-a-uuid/merge", json=merge, headers={"Idempotency-Key": "m2"}).status_code == 422
+    assert TestClient(_app(actor=False)).post("/api/case-identity/placeholders", json=batch, headers={"Idempotency-Key": "p2"}).status_code == 401

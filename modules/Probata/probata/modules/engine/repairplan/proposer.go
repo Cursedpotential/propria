@@ -30,6 +30,9 @@ type tableProposal struct {
 const (
 	rationaleFind = "Look in the Case Bible catalog for another copy with the same file name that is larger or has a different " +
 		"hash. If one exists and can be opened, it becomes the source and is imported instead; this copy is left as it is."
+	rationaleFindTwin = "The bytes of this file are scrambled: they look random and hold no readable markup, so no repair can read them. " +
+		"Look in the Case Bible catalog for another copy with the same file name; the copy of the same size and a different hash " +
+		"is the intact twin, and it becomes the source and is imported instead. This copy is left as it is."
 	rationaleSalvage = "Keep every record up to the last complete one before the cut-off, close the document, and import that " +
 		"salvaged copy. Nothing after the cut-off can be recovered this way; the original stays untouched."
 	rationaleLenient = "Decode the backup leniently: records that decode are kept, records that do not are set aside as rejects, " +
@@ -39,10 +42,11 @@ const (
 )
 
 var (
-	find    = tableProposal{rationale: rationaleFind, activities: []stagegraph.StageID{stagegraph.RepairFindOtherVersion}}
-	salvage = tableProposal{rationale: rationaleSalvage, activities: []stagegraph.StageID{stagegraph.RepairSalvageTruncatedXML}}
-	lenient = tableProposal{rationale: rationaleLenient, activities: []stagegraph.StageID{stagegraph.RepairLenientDecode}}
-	wait    = tableProposal{rationale: rationaleWait}
+	findTwin = tableProposal{rationale: rationaleFindTwin, activities: []stagegraph.StageID{stagegraph.RepairFindOtherVersion}}
+	find     = tableProposal{rationale: rationaleFind, activities: []stagegraph.StageID{stagegraph.RepairFindOtherVersion}}
+	salvage  = tableProposal{rationale: rationaleSalvage, activities: []stagegraph.StageID{stagegraph.RepairSalvageTruncatedXML}}
+	lenient  = tableProposal{rationale: rationaleLenient, activities: []stagegraph.StageID{stagegraph.RepairLenientDecode}}
+	wait     = tableProposal{rationale: rationaleWait}
 )
 
 // signatureTable is the whole rule proposer. Order inside an entry is the
@@ -56,6 +60,13 @@ var signatureTable = map[string][]tableProposal{
 	TypeXML + ":" + ConditionDamaged:             {find, wait},
 	TypeXML + ":" + ConditionUnassessed:          {wait, find},
 	TypeXML + ":" + ConditionClean:               {},
+	// HTML (2026-10-02). There is no markup repair engine worth running on scrambled bytes; the way
+	// forward is another copy of the same file.
+	TypeHTML + ":" + ConditionUnreadable: {findTwin, wait},
+	TypeHTML + ":" + ConditionTruncated:  {find, wait},
+	TypeHTML + ":" + ConditionDamaged:    {find, wait},
+	TypeHTML + ":" + ConditionUnassessed: {wait, find},
+	TypeHTML + ":" + ConditionClean:      {},
 }
 
 // ProposalEvidence is everything the proposer reads about one source.

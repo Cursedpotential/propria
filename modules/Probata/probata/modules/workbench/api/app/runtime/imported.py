@@ -8,6 +8,9 @@ Byline: Claude Code · Sonnet · 2026-10-02
     GET /api/imported/threads/{thread_id}/messages  one page of a thread, chat order
     GET /api/imported/calls                         calls (working.call_log when filled, else normalized records)
     GET /api/imported/search?q=                     message search (Weaviate)
+    GET /api/imported/identity                      named people a number can be merged into
+    GET /api/imported/unknown-numbers               placeholders still unnamed, most frequent first
+    GET /api/imported/unlinked-numbers              numbers with no registry person at all (back-fill feed)
     GET /api/imported/review-queue                  previews waiting for a decision (decide on the Review routes)
 
 Always the live case (the configured live matter); there is no matter or mode parameter. The
@@ -104,5 +107,44 @@ async def search_endpoint(
 async def review_queue_endpoint():
     try:
         return await service.review_queue()
+    except service.ImportedError as error:
+        raise _translate(error) from None
+
+
+@router.get("/identity")
+async def identity_endpoint():
+    try:
+        return await service.identity()
+    except service.ImportedError as error:
+        raise _translate(error) from None
+
+
+@router.get("/unknown-numbers")
+async def unknown_numbers_endpoint(
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    offset: Annotated[int, Query(ge=0, le=100000)] = 0,
+    q: Annotated[str | None, Query(max_length=40)] = None,
+):
+    try:
+        return await service.unknown_numbers(limit=limit, offset=offset, q=q)
+    except service.ImportedError as error:
+        raise _translate(error) from None
+
+
+@router.get("/unlinked-numbers")
+async def unlinked_numbers_endpoint(
+    limit: Annotated[int, Query(ge=1, le=1000)] = 500,
+    offset: Annotated[int, Query(ge=0, le=100000)] = 0,
+):
+    try:
+        return await service.unlinked_numbers(limit=limit, offset=offset)
+    except service.ImportedError as error:
+        raise _translate(error) from None
+
+
+@router.get("/number-status")
+async def number_status_endpoint(numbers: Annotated[list[str], Query(max_length=50)]):
+    try:
+        return await service.number_status([value[:40] for value in numbers])
     except service.ImportedError as error:
         raise _translate(error) from None

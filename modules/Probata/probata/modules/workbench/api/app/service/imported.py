@@ -109,10 +109,21 @@ class _People:
     def __init__(self, rows: list[dict[str, Any]]):
         self.by_phone: dict[str, dict[str, str]] = {}
         self.by_person: dict[str, dict[str, str]] = {}
+        self.candidates: dict[str, list[str]] = {}
         self.names: list[tuple[str, dict[str, str]]] = []
         for row in rows:
-            who = {"person": row["person"], "name": row["display_name"], "role": row["role_in_case"] or ""}
-            self.by_person.setdefault(who["person"], who)
+            placeholder = row.get("role_in_case") == "unknown" and row.get("verification_state") == "proposed"
+            who = {
+                "person": row["person"], "name": row["display_name"], "role": row["role_in_case"] or "",
+                "entity_id": row.get("entity_id"), "placeholder": placeholder,
+            }
+            if not placeholder:
+                self.by_person.setdefault(who["person"], who)
+            if row["kind"] == "name" and row.get("alias_status") == "candidate" and row.get("entity_id"):
+                # Names a contact export gave this number, kept unconfirmed for the owner to pick from.
+                names = self.candidates.setdefault(row["entity_id"], [])
+                if row.get("alias_text_raw") and row["alias_text_raw"] not in names:
+                    names.append(row["alias_text_raw"])
             ident = (row["identifier"] or "").strip().lower()
             if row["kind"] == "phone":
                 self.by_phone[_digits(ident)] = who
@@ -136,7 +147,12 @@ def _digits(value: str) -> str:
 
 
 def _people() -> _People:
-    return _cached("people", 60, lambda: _People(pg.people()))
+    return _cached("people", 10, lambda: _People(pg.people()))
+
+
+def looks_like_phone_value(value: str) -> bool:
+    digits = re.sub(r"\D", "", value)
+    return bool(re.fullmatch(r"\+?[\d\s().-]{10,16}", value)) and (len(digits) == 10 or (len(digits) == 11 and digits[0] == "1"))
 
 
 def _pretty_phone(value: str) -> str:
@@ -184,11 +200,17 @@ def _participant(identifier: str, people: _People, owner: str | None) -> dict[st
         label = who["name"] if who else "This phone"
     else:
         who = people.phone(identifier)
-        looks_like_phone = bool(re.fullmatch(r"\+?[\d\s().-]{10,16}", identifier))
+        looks_like_phone = looks_like_phone_value(identifier)
         label = who["name"] if who else (_pretty_phone(identifier) if looks_like_phone else identifier)
+    number = _digits(identifier) if identifier != "self" and looks_like_phone_value(identifier) else None
     return {
         "id": identifier, "label": label, "mine": bool(who and who["role"] == "user"),
         "person": who["person"] if who else None,
+        # The registry person this number belongs to, whether it is still a placeholder, and the
+        # 10-digit number when nobody carries it yet (the "Who is this?" control starts from these).
+        "entity_id": who.get("entity_id") if who else None,
+        "placeholder": bool(who and who.get("placeholder")),
+        "number": number if (number and (not who or who.get("placeholder"))) else None,
     }
 
 
@@ -541,6 +563,96 @@ async def review_queue() -> dict[str, Any]:
             "records": row["records"], "waiting_since": _iso(row["waiting_since"]),
         })
     return {"items": items, "total": len(items)}
+
+
+# --------------------------------------------------------------------------- who is this
+
+def invalidate() -> None:
+    """Forget cached registry and activity reads after an identity change."""
+    for key in [k for k in _cache if k == "people" or k.startswith("activity:") or k.startswith("sv:")]:
+        _cache.pop(key, None)
+
+
+async def _activity() -> dict[str, dict[str, Any]]:
+    """number -> {messages, calls, last_at} over the live case's imported records."""
+    matter = live_matter()
+    rows = await asyncio.to_thread(lambda: _cached(f"activity:{matter}", 60, lambda: pg.numbers_activity(matter)))
+    out: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        entry = out.setdefault(row["number"], {"messages": 0, "calls": 0, "last_at": None})
+        entry["calls" if row["record_type"] == "call" else "messages"] += row["n"]
+        if row["last_at"] and (entry["last_at"] is None or row["last_at"] > entry["last_at"]):
+            entry["last_at"] = row["last_at"]
+    return out
+
+
+async def identity() -> dict[str, Any]:
+    """Named people (never placeholders) a number can be merged into, from the registry."""
+    people = await asyncio.to_thread(_people)
+    seen: dict[str, dict[str, Any]] = {}
+    for who in people.by_phone.values():
+        if not who["placeholder"]:
+            seen.setdefault(who["entity_id"], {"entity_id": who["entity_id"], "name": who["name"], "short": who["person"], "role": who["role"]})
+    for who in people.by_person.values():
+        if who.get("entity_id") and not who["placeholder"]:
+            seen.setdefault(who["entity_id"], {"entity_id": who["entity_id"], "name": who["name"], "short": who["person"], "role": who["role"]})
+    return {"people": sorted(seen.values(), key=lambda p: (p["role"] != "user", p["name"].lower()))}
+
+
+async def number_status(values: list[str]) -> dict[str, Any]:
+    """For the desktop thread and calls views: is each number a named person, a placeholder, or nobody yet?"""
+    people = await asyncio.to_thread(_people)
+    out: dict[str, Any] = {}
+    for value in values[:50]:
+        if not looks_like_phone_value(value):
+            continue
+        number = _digits(value)
+        who = people.by_phone.get(number)
+        if who is None:
+            out[value] = {"state": "unknown", "number": number, "entity_id": None, "label": _pretty_phone(number)}
+        else:
+            out[value] = {"state": "placeholder" if who["placeholder"] else "known", "number": number,
+                          "entity_id": who["entity_id"], "label": who["name"]}
+    return {"items": out}
+
+
+async def unknown_numbers(*, limit: int, offset: int, q: str | None) -> dict[str, Any]:
+    """Placeholders still unnamed, most frequent first, with how often each appears."""
+    people = await asyncio.to_thread(_people)
+    activity = await _activity()
+    items = []
+    for number, who in people.by_phone.items():
+        if not who["placeholder"]:
+            continue
+        seen = activity.get(number, {"messages": 0, "calls": 0, "last_at": None})
+        items.append({
+            "entity_id": who["entity_id"], "number": number, "label": _pretty_phone(number), "name": who["name"],
+            "messages": seen["messages"], "calls": seen["calls"], "total": seen["messages"] + seen["calls"],
+            "last_at": _iso(seen["last_at"]),
+            "candidates": people.candidates.get(who["entity_id"], []),
+        })
+    if q:
+        needle = re.sub(r"\D", "", q)
+        if needle:
+            items = [item for item in items if needle in item["number"]]
+    items.sort(key=lambda item: (-item["total"], item["number"]))
+    return {"items": items[offset: offset + limit], "total": len(items),
+            "next_offset": offset + limit if offset + limit < len(items) else None}
+
+
+async def unlinked_numbers(*, limit: int, offset: int) -> dict[str, Any]:
+    """Phone numbers no registry person carries yet (not even a placeholder). Feeds the back-fill."""
+    people = await asyncio.to_thread(_people)
+    activity = await _activity()
+    unlinked = await asyncio.to_thread(pg.working_unlinked_numbers)
+    numbers: dict[str, int] = {number: seen["messages"] + seen["calls"] for number, seen in activity.items()}
+    for row in unlinked:
+        numbers[row["number"]] = max(numbers.get(row["number"], 0), int(row["n"]))
+    items = [{"number": number, "total": total} for number, total in numbers.items()
+             if number not in people.by_phone and re.fullmatch(r"[2-9]\d{9}", number)]
+    items.sort(key=lambda item: (-item["total"], item["number"]))
+    return {"items": items[offset: offset + limit], "total": len(items),
+            "next_offset": offset + limit if offset + limit < len(items) else None}
 
 
 # --------------------------------------------------------------------------- summary

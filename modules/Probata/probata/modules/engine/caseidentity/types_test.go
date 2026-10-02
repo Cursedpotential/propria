@@ -167,3 +167,62 @@ func TestValidateTriageLookupAndMode(t *testing.T) {
 		t.Fatal("unknown mode accepted")
 	}
 }
+
+// Byline: Claude Code · Sonnet · 2026-10-02 (placeholders, merge, rename fields)
+func TestPlaceholderNumbersAndNames(t *testing.T) {
+	for in, want := range map[string]string{"+1 (810) 555-0142": "8105550142", "18105550142": "8105550142", "810.555.0142": "8105550142"} {
+		got, ok := NormalizePhone(in)
+		if !ok || got != want {
+			t.Fatalf("NormalizePhone(%q) = %q, %v", in, got, ok)
+		}
+	}
+	for _, bad := range []string{"34428", "1115", "someone@example.com", "Katrina", "", "0105550142", "+44 20 7946 0958"} {
+		if _, ok := NormalizePhone(bad); ok {
+			t.Fatalf("NormalizePhone(%q) accepted a non-US-phone value", bad)
+		}
+	}
+	if got := PlaceholderName("8105550142"); got != "Unknown 810-555-0142" {
+		t.Fatalf("PlaceholderName = %q", got)
+	}
+}
+
+func TestPlaceholderAndMergeValidation(t *testing.T) {
+	if err := ValidatePlaceholders(PlaceholderSpec{Numbers: []string{"8105550142"}, ChangeReason: "seen in calls"}); err != nil {
+		t.Fatal(err)
+	}
+	if ValidatePlaceholders(PlaceholderSpec{ChangeReason: "x"}) == nil {
+		t.Fatal("an empty batch must be refused")
+	}
+	if ValidatePlaceholders(PlaceholderSpec{Numbers: make([]string, MaxPlaceholderNumbers+1), ChangeReason: "x"}) == nil {
+		t.Fatal("an oversized batch must be refused")
+	}
+	if ValidatePlaceholders(PlaceholderSpec{Numbers: []string{"8105550142"}}) == nil {
+		t.Fatal("a reason is required")
+	}
+	a, b := "01a0f751-e07b-76b6-afcb-63acfbba373e", "01a0f751-e07b-76c7-8c0f-65692ad656b8"
+	if err := ValidateMerge(MergeSpec{FromID: a, IntoID: b, ChangeReason: "her other phone"}); err != nil {
+		t.Fatal(err)
+	}
+	if ValidateMerge(MergeSpec{FromID: a, IntoID: a, ChangeReason: "x"}) == nil {
+		t.Fatal("merging a person into itself must be refused")
+	}
+	if ValidateMerge(MergeSpec{FromID: a, IntoID: "nope", ChangeReason: "x"}) == nil {
+		t.Fatal("a bad uuid must be refused")
+	}
+}
+
+func TestNamingAPlaceholderIsAPersonEdit(t *testing.T) {
+	yes, no := "true", "false"
+	name, state, status := "Jordan Reyes", "confirmed", "approved"
+	if err := ValidatePerson(PersonSpec{ID: "01a0f751-e07b-76b6-afcb-63acfbba373e", ChangeReason: "named by the owner", Fields: map[string]*string{
+		"display_name": &name, "verification_state": &state, "requires_human_review": &no, "review_status": &status}}); err != nil {
+		t.Fatal(err)
+	}
+	badStatus := "maybe"
+	if ValidatePerson(PersonSpec{ID: "01a0f751-e07b-76b6-afcb-63acfbba373e", ChangeReason: "x", Fields: map[string]*string{"review_status": &badStatus}}) == nil {
+		t.Fatal("an unknown review status must be refused")
+	}
+	if ValidatePerson(PersonSpec{ID: "01a0f751-e07b-76b6-afcb-63acfbba373e", ChangeReason: "x", Fields: map[string]*string{"requires_human_review": &yes, "verification_state": &badStatus}}) == nil {
+		t.Fatal("an unknown verification state must be refused")
+	}
+}

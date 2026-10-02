@@ -53,6 +53,7 @@ const mobileTree = mobileRoute.addChildren([
   mobileChild("source/$sourceId", () => import("@/app/m/source-page")),
   mobileChild("thread/$threadId", () => import("@/app/m/thread-page")),
   mobileChild("calls", () => import("@/app/m/calls-page")),
+  mobileChild("unknown", () => import("@/app/m/unknown-page")),
   mobileChild("search", () => import("@/app/m/search-page")),
   mobileChild("review", () => import("@/app/m/review-page")),
   mobileChild("review/$handle", () => import("@/app/m/review-detail-page")),
@@ -80,6 +81,8 @@ const desktopTree = desktopRoute.addChildren([
   applicationRoute("sources", () => import("@/app/sources/page")),
   applicationRoute("surreal", () => import("@/app/surreal/page")),
   applicationRoute("tools", () => import("@/app/tools/page")),
+  // Unnamed numbers (placeholder people), most frequent first (Claude Code · Sonnet · 2026-10-02).
+  applicationRoute("unknown-numbers", () => import("@/app/unknown-numbers/page")),
 ]);
 
 const routeTree = rootRoute.addChildren([desktopTree, mobileTree]);

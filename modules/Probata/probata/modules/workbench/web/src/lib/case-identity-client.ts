@@ -236,6 +236,27 @@ export function addPerson(
   return write<CaseReceipt>("/api/case-identity/people", body, key);
 }
 
+export interface PlaceholderReceipt extends CaseReceipt {
+  detail?: {
+    created: number;
+    already_carried: number;
+    not_a_phone_number: number;
+    linked: Record<string, number>;
+    dry_run: boolean;
+    entity_ids: Record<string, string>;
+  };
+}
+
+/** One placeholder person per unidentified number; the engine links every NULL row for it. */
+export function addPlaceholders(body: { numbers: string[]; change_reason: string; dry_run?: boolean }, key: string) {
+  return write<PlaceholderReceipt>("/api/case-identity/placeholders", body, key);
+}
+
+/** Merge a placeholder into an existing person: identifiers and linked rows move, nothing is deleted. */
+export function mergePerson(fromId: string, body: { into_id: string; change_reason: string }, key: string) {
+  return write<CaseReceipt>(`/api/case-identity/people/${encodeURIComponent(fromId)}/merge`, body, key);
+}
+
 export function triageIdentifier(body: { raw_value: string; decision: "dismissed" | "reopened"; basis: string }, key: string) {
   return write<CaseReceipt>("/api/case-identity/triage", body, key);
 }
