@@ -114,6 +114,7 @@ func TestHandlerDetectedFormatConstraintCoversEveryDetectorOutput(t *testing.T) 
 	expected := []string{
 		"smsbackuprestore_xml", "chatgpt_official_json", "messages_transcript",
 		"pdf", "docx", "archive", "callsbackuprestore_xml", "xml", "ndjson", "json", "csv", "text", "binary",
+		"facebook_messenger_json", // d1cb113a's detector output; missing from the CHECK until 2026-10-02 (Claude Code · Opus 5.5)
 	}
 	for _, format := range expected {
 		require.Contains(t, constraint, "'"+format+"'::text", format)
