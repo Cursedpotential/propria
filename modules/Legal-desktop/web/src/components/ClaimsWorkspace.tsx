@@ -22,7 +22,7 @@ type Gap = { gap_id: string; description: string; status: "open" | "resolved" };
 type Investigation = {
   state: "prepared" | "acknowledged"; request_id: string | null;
   remote_status: "received" | "running" | "completed" | "failed" | "cancelled" | null;
-  remote_updated_at: string | null; last_error: string;
+  remote_updated_at: string | null; last_error: string | null;
   request: { question: string; mode: string; matter_id: string; court_case_id: string };
   results: { summary: string; sources: { kind: string; record_id: string; record_version: string }[]; tool: string; run_id: string }[];
 };
@@ -47,7 +47,7 @@ type History = { revision: number; actor: string; action: string; occurred_at: s
 const emptyFields: ClaimFields = { text: "", kind: "assertion", claimant: "", response: "" };
 const kinds: Record<ClaimKind, string> = { assertion: "Factual statement", allegation: "Allegation", question: "Question", theory: "Working theory" };
 const relationships: Record<Relationship, string> = { supports: "Supports", partial: "Partially supports", contradicts: "Contradicts", context: "Context" };
-const followupKinds: Record<FollowupKind, string> = { locate_document: "Locate a document", investigate: "Plan an evidence investigation", research: "Research a legal question", discovery: "Prepare discovery" };
+const followupKinds: Record<FollowupKind, string> = { locate_document: "Locate a document", investigate: "Evidence investigation", research: "Research a legal question", discovery: "Prepare discovery" };
 const evidenceLabels: Record<string, string> = {
   evidence_needed: "Evidence needed", evidence_linked: "Evidence linked", partially_supported: "Partially supported",
   conflicting_evidence: "Conflicting evidence", context_only: "Context only",
