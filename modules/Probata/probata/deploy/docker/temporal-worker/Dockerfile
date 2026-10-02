@@ -45,6 +45,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements-html-tools.txt ./
 RUN pip install --no-cache-dir -r requirements-html-tools.txt
+# Conversation chunking (owner 2026-10-02): Chonkie's Neural chunker on distilbert, CPU-only torch, the model baked
+# in at build time and loaded offline at run time (no download from the worker, no HF token, nothing fetched when a
+# run starts). The model revision is pinned: it is the snapshot the head-to-head used (devbox cache,
+# models--mirth--chonky_distilbert_base_uncased_1/snapshots/01d8aae0...). Image growth: about +1.1 GB on disk
+# (torch 0.74, transformers and friends 0.15, model 0.27); about +0.5 GB to pull.
+# Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+COPY deploy/docker/temporal-worker/requirements-chunking.txt ./requirements-chunking.txt
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements-chunking.txt
+ENV HF_HOME=/opt/hf-cache
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('mirth/chonky_distilbert_base_uncased_1', revision='01d8aae08726368a1b1645de2a7086610f2e86a5')" \
+    && chmod -R a+rX /opt/hf-cache
+ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+# Prove at build time that the baked model loads offline and classifies, so a bad image never reaches a run.
+RUN python -c "import chonkie; c = chonkie.NeuralChunker(model='mirth/chonky_distilbert_base_uncased_1', min_characters_per_chunk=1); print('neural chunker ok,', len(c.chunk('see you at six sounds good did you eat yes thanks')), 'chunk(s)')"
 
 # Activities call into the existing pipeline code, so the worker needs the
 # same application surface as agentos-api, not just an SDK stub.

@@ -226,6 +226,9 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 	}
 	env.RegisterActivityWithOptions(placeholderHandlerRecommendation, activity.RegisterOptions{Name: RecommendHandlerActivityName})
 	env.RegisterActivityWithOptions(placeholderHandlerValidation, activity.RegisterOptions{Name: ValidateHandlerSelectionActivityName})
+	// The conversation-chunk Activities live on the Python worker; here they take their no-thread, no-file body,
+	// and the tests that exercise them mock them with OnActivity. Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	registerContextChunkActivities(env)
 }
 
 func mockContextChunkSucceeds(env *testsuite.TestWorkflowEnvironment) {

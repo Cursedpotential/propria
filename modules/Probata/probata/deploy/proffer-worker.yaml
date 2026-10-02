@@ -122,6 +122,9 @@ services:
       # Messages and calls go to Proffer's own ProfferMsgEvents20261002, apart from the Case Bible's
       # MsgEvents20260918 (owner 2026-10-02: separate jobs, no duplicates).
       # Byline: Claude Code · Opus 5.5 · 2026-10-02; Claude Code · Sonnet · 2026-10-02
+      # (2026-10-02, owner: Postgres holds every message and call; Weaviate holds only chunks.) On a run with the
+      # conversation-chunk marker this stage skips messages and calls; the Python worker publishes ProfferChunks20261002
+      # after the commit. This setting still serves older histories and the objects already in the collection.
       CONTEXT_SEARCH_MESSAGE_COLLECTION: ProfferMsgEvents20261002
       CONTEXT_SEARCH_AI_CHAT_COLLECTION: AiChatEvents20260918
       CONTEXT_SEARCH_DOCUMENT_COLLECTION: DocEvents20261001

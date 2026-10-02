@@ -1,0 +1,17 @@
+# Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+# What the conversation chunker needs beyond requirements.txt (which already pins chonkie==1.7.0,
+# chonkie-core, httpx and numpy): Chonkie's Neural chunker (mirth/chonky_distilbert_base_uncased_1) runs on
+# transformers + torch. Installed here, not in requirements.txt, so agentos-api's image does not grow.
+#
+# torch is the CPU-only build (no CUDA wheels; the VPS has no GPU). It exists only on PyTorch's CPU index, so the
+# Dockerfile installs this file with --extra-index-url https://download.pytorch.org/whl/cpu; the exact
+# `+cpu` pin cannot resolve to the CUDA wheel on PyPI.
+# Versions are the ones the 2026-10-02 head-to-head ran on (the ovh-files devbox: transformers 5.17, torch 2.14.0+cpu,
+# chonkie 1.7.0) moved to the current patch releases, tested together on 2026-10-02.
+torch==2.14.1+cpu
+transformers==5.18.0
+tokenizers==0.23.2
+huggingface-hub==1.33.0
+safetensors==0.8.0
+# transformers 5.x refuses any device_map (Chonkie's NeuralChunker passes device_map="auto") without accelerate.
+accelerate==1.15.0

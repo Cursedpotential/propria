@@ -699,6 +699,12 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		}
 	}
 
+	// Conversation chunks (owner 2026-10-02): Postgres holds every message and call; Weaviate holds only chunks and
+	// one entry per call-log file, published after the commit (below). On this path the Weaviate-first stage leaves
+	// messages and calls to it. Histories recorded before this marker replay unchanged.
+	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	chunksOn := workflow.GetVersion(ctx, contextChunksChangeID, workflow.DefaultVersion, contextChunksVersion) != workflow.DefaultVersion
+
 	if workflow.GetVersion(ctx, contextSearchChangeID, workflow.DefaultVersion, contextSearchVersion) != workflow.DefaultVersion {
 		extractionAttemptRef := rawBundleRef
 		if contextChunkingInput != nil && contextChunkingInput.AttemptRef != "" {
@@ -717,6 +723,9 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		}
 		if messageMatchRef != "" {
 			searchRefs["message_matches"] = messageMatchRef
+		}
+		if chunksOn {
+			searchRefs[SkipRecordKindsRefKey] = Ref(skippedRecordKinds)
 		}
 		if _, err := r.exec(ctx, stagegraph.PublishContextSearch, in.DeclaredFormat, searchRefs); err != nil {
 			r.operation.Reason = err.Error()
@@ -878,6 +887,26 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		if _, err := r.exec(ctx, stagegraph.CommitCallLog, in.DeclaredFormat, callRefs); err != nil {
 			r.operation.Reason = err.Error()
 			return r.result(""), err
+		}
+	}
+
+	// Conversation chunks and call-log files, after the commit (owner 2026-10-02): the committed threads are chunked
+	// (Chonkie Neural distilbert, every chunk overlapping the next by at least two messages), embedded and written to
+	// ProfferChunks20261002 with their Postgres message ids; each call-log file becomes one entry. A failure stops the
+	// run before the seal with the Activity's own reason; every write is idempotent, so a re-run repairs it.
+	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	if chunksOn {
+		chunkThreads := firstPartyContext && r.lastStatus(stagegraph.ProposeFirstPartyContext) == StatusSuccess
+		chunkCalls := r.lastStatus(stagegraph.CommitCallLog) == StatusSuccess
+		if chunkThreads || chunkCalls {
+			summary, err := r.execContextChunks(ctx, string(r.sourceVersionRef), chunkThreads, chunkCalls)
+			if err != nil {
+				r.operation.Reason = err.Error()
+				return r.result(""), err
+			}
+			workflow.GetLogger(ctx).Info("conversation chunks published", "threads", summary.Threads, "chunks", summary.Chunks,
+				"stale_deleted", summary.StaleDeleted, "embed_requests", summary.EmbedRequests,
+				"call_files", summary.CallFiles, "calls", summary.Calls)
 		}
 	}
 

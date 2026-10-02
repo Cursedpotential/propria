@@ -10,7 +10,8 @@ Step 5 of the six steps (Preview). What it reads, and from where:
 - Run state (running, awaiting review, parked, failed): the Proffer starter's operation list, the
   same read the desktop Review queue uses. A source with an approved decision is committed whatever
   the operation list says; if the list is unreachable the view says so instead of guessing.
-- Message search: Weaviate ProfferMsgEvents20261002, queried with a dict `where` filter.
+- Message search: Weaviate ProfferChunks20261002 (conversation chunks and call-log files; the messages themselves
+  stay in Postgres), queried with a dict `where` filter.
 
 An export is the original file (for example one SMS Backup & Restore XML); the Proffer run split it
 into one derived file per conversation, and each derived file is its own source version. The view
@@ -511,18 +512,38 @@ async def calls(*, cursor: str | None, limit: int) -> dict[str, Any]:
 
 # --------------------------------------------------------------------------- search
 
+def _snippet(text: str, query: str, width: int = 420) -> str:
+    """The lines of a chunk around the first line that holds a query word (or its first lines), one line per message."""
+    lines = [line for line in (text or "").split("\n") if line.strip()]
+    words = [w.lower() for w in query.split() if len(w) > 1]
+    at = next((i for i, line in enumerate(lines) if any(w in line.lower() for w in words)), 0)
+    out = "\n".join(lines[max(0, at - 1):at + 3])
+    return out if len(out) <= width else out[:width].rsplit(" ", 1)[0] + "..."
+
+
+def _names_label(names: list[str]) -> str:
+    unique = list(dict.fromkeys(n for n in names if n))
+    if not unique:
+        return "Unknown"
+    return ", ".join(unique[:3]) + (f" +{len(unique) - 3}" if len(unique) > 3 else "")
+
+
 async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
+    """Search the conversation chunks (and the call-log files) of the live case.
+
+    One hit is a chunk: a run of consecutive messages that the Proffer chunker kept together, each line one message.
+    It opens its thread at the chunk's first message. A call-log file is one entry per file and opens no thread.
+    """
     text = " ".join(query.split())[:200]
     if not text:
         raise ImportedError("Type something to search for", 422)
     matter = live_matter()
     graph = (
         "{ Get { %s(limit: %d, offset: %d, "
-        "hybrid: {query: %s, alpha: 0, properties: [\"body\"]}, "
-        "where: {operator: And, operands: ["
-        "{path: [\"matter_id\"], operator: Equal, valueText: %s}, "
-        "{path: [\"event_kind\"], operator: Equal, valueText: \"message\"}]}) "
-        "{ body sender participants occurred_at sort_ts pg_row_id source_version_id _additional { score } } } }"
+        "hybrid: {query: %s, alpha: 0, properties: [\"text\"]}, "
+        "where: {path: [\"matter_id\"], operator: Equal, valueText: %s}) "
+        "{ text participant_names start_at first_message_id source_version_ids source_version_id record_kind "
+        "message_count _additional { score } } } }"
     ) % (settings.imported_weaviate_class, limit + 1, offset, json.dumps(text), json.dumps(matter))
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -535,24 +556,34 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
         raise ImportedError("Message search is unavailable right now") from None
     more = len(hits) > limit
     hits = hits[:limit]
+
+    def version_of(hit: dict[str, Any]) -> str | None:
+        versions = hit.get("source_version_ids") or []
+        return (versions[0] if versions else None) or hit.get("source_version_id")
+
     people = await asyncio.to_thread(_people)
-    where = await asyncio.to_thread(pg.versions_to_threads, matter, sorted({h["source_version_id"] for h in hits if h.get("source_version_id")}))
+    where = await asyncio.to_thread(pg.versions_to_threads, matter, sorted({v for v in map(version_of, hits) if v}))
     place = {row["id"]: row for row in where}
     items = []
     for hit in hits:
-        row = place.get(hit.get("source_version_id"))
+        is_calls = hit.get("record_kind") == "call_log_file"
+        row = place.get(version_of(hit))
         desc = describe_export(row["export_key"], people) if row else None
-        sender = hit.get("sender") or ""
         items.append({
-            "id": hit.get("pg_row_id"), "body": hit.get("body") or "", "sender": _participant(sender, people, desc["owner"] if desc else None)["label"] if sender else "Unknown",
-            "at": hit.get("occurred_at") or hit.get("sort_ts"),
+            "id": hit.get("first_message_id") or version_of(hit) or "",
+            "body": _snippet(hit.get("text") or "", text),
+            "sender": ("Call log: " if is_calls else "") + _names_label(hit.get("participant_names") or []),
+            "at": hit.get("start_at"),
             "score": float((hit.get("_additional") or {}).get("score") or 0),
-            "thread_id": encode_id(row["export_key"], row["conv"]) if row else None,
-            "source": desc["file_name"] if desc else None, "format": desc["format"] if desc else None,
+            "thread_id": None if is_calls or not row else encode_id(row["export_key"], row["conv"]),
+            "source": desc["file_name"] if desc else None, "format": "Calls" if is_calls else desc["format"] if desc else None,
             "device": desc["device"] if desc else None,
+            "kind": "call_log" if is_calls else "conversation",
+            "message_count": hit.get("message_count"),
         })
     return {"query": text, "mode": "keyword", "items": items, "next_offset": offset + limit if more else None,
-            "note": "Keyword match on message text. Meaning-based matching needs an embedding credential the Workbench does not hold yet."}
+            "note": "Keyword match on conversation text; each result is a run of messages, and opens the thread at its first message. "
+                    "Meaning-based matching needs an embedding credential the Workbench does not hold yet."}
 
 
 # --------------------------------------------------------------------------- review queue

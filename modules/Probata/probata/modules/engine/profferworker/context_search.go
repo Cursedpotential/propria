@@ -10,8 +10,15 @@
 // MsgEvents20260918), AiChatEvents20260918 (2026-09-24) and DocEvents20261001
 // (2026-10-02, the one collection this worker may create).
 //
+// Messages and calls no longer publish one object each from this stage on a run that carries the conversation-chunk
+// marker (owner 2026-10-02: Postgres holds every message and call, Weaviate only chunks and one entry per call-log
+// file): proffer.ProfferWorkflow passes skip_record_kinds=message,call and publishes the chunks after the commit
+// (proffer/context_chunks.go, server/context_chunks). The message collection setting stays: histories recorded before
+// the marker, and the objects already in it, still use it. AI chats and documents are unchanged.
+//
 // Byline: Claude Code · Opus 5.5 · 2026-10-01
 // Byline: Claude Code · Opus 5.5 · 2026-10-02 (one collection per record kind)
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-02 (messages and calls leave this stage; see above)
 // Byline: Claude Code · Sonnet · 2026-10-02 (message collection renamed)
 package profferworker
 
