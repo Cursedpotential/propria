@@ -1,11 +1,11 @@
 # Message flow: decided vs built vs running — 2026-10-02
 
-> _Byline: Claude Code · Opus 5.5 · 2026-10-02. A read-only analysis by the session's flow-analysis agent: code, the decision log, Docstore, memory, session logs and live read-only queries on the platform DB, the catalog, Weaviate and Temporal. Codex's peer audit (`~/.codex/.chatgpt-projects/…/reports/2026-10-02-Propria-current-state.md`) was folded in. Owner decisions A–F below are open until he answers._
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02; collection split Claude Code · Sonnet · 2026-10-02. A read-only analysis by the session's flow-analysis agent: code, the decision log, Docstore, memory, session logs and live read-only queries on the platform DB, the catalog, Weaviate and Temporal. Codex's peer audit (`~/.codex/.chatgpt-projects/…/reports/2026-10-02-Propria-current-state.md`) was folded in. Owner decisions A–F below are open until he answers._
 
 ## Answer first
 
 - **Built and deployed; never run on the real case.** The Proffer worker polls `proffer-v1`. All 47 Temporal workflows so far are test runs. Since the 10-02 purge, `working.*`, `raw.*` and `timeline.*` are empty; `registry.*` holds 2 people and 39 aliases.
-- **Weaviate holds only Case Bible data.** `MsgEvents20260918` has 366,912 objects, all from the Case Bible DuckDB scripts (`elt_run.py`, `publish_bundle.py`), outside Temporal. `AiChatEvents20260918` has 446 and `DocEvents20261001` has 0.
+- **Weaviate holds Case Bible data and, apart from it, Proffer's.** `MsgEvents20260918` has 366,912 objects, all from the Case Bible DuckDB scripts (`elt_run.py`, `publish_bundle.py`), outside Temporal. Proffer's test-run messages live in their own `ProfferMsgEvents20261002` (516 at the 10-02 separation, vectors copied, not re-embedded). `AiChatEvents20260918` has 446 and `DocEvents20261001` has 0.
 - **Weaviate is written first (decided, built). Nothing updates it afterwards.** The change-detection outbox exists only as triggers: no sinks, no cursors, no consumer.
 - **No CocoIndex, LlamaIndex or LangGraph in the message flow.** CocoIndex runs Intake and Docstore. LlamaIndex and LangGraph are decided (D-143, D-144) but not in code.
 - **Timeline projection:** the step is built, but its Python worker (`evidence-pipeline`) has 0 pollers.
@@ -16,7 +16,7 @@
 - **Weaviate first:**
   - 09-18 "IT ALL GOES TO WEAVIATE FIRST";
   - 09-19: Weaviate, then DuckDB extraction, then timelines, entities and graphs in Surreal;
-  - OD-06, answered 10-01: reuse `MsgEvents20260918`; the stage is mandatory.
+  - OD-06, answered 10-01 and revised 10-02 (owner: two different jobs, never duplicates): Proffer writes messages and calls to its own `ProfferMsgEvents20261002`; the stage is mandatory.
 - **Extract → confirm → commit, all through Temporal** (D-161).
 - **Change detection:** an outbox per table, a NOTIFY wakeup, cursors per sink and a dead-letter table (D-054; "Implement it" 09-26).
 - **Entities and timeline copied at once to Surreal and Neo4j** through that outbox (09-26, spec G-08). Decided, not built.
@@ -62,7 +62,7 @@
 | | SMS, Messenger, calls, email | AI chats, notes, derived, reference |
 |---|---|---|
 | casevault home | `SourceCorpus/messaging`, `telephony` | `KnowledgeBase/ai-chats`, `DerivedKnowledge` |
-| Weaviate | `MsgEvents` | `AiChatEvents` / `DocEvents` |
+| Weaviate | `MsgEvents20260918` (Case Bible), `ProfferMsgEvents20261002` (Proffer) | `AiChatEvents` / `DocEvents` |
 | Promotion to evidence | applies (D-145/146); lane not designed | should never apply; **nothing in code stops it** |
 | Blur | — | the first-party commit has no format check, so AI turns can land in `working.message` |
 
@@ -72,7 +72,7 @@
   - the projection worker isn't deployed;
   - outbox rows would pile up with no consumer;
   - rejected runs stay searchable.
-- **Duplication:** two writers to `MsgEvents` with two dedup schemes.
+- **Duplication:** two writers with two dedup schemes, each in its own collection.
 - **Single points of failure:** one Weaviate instance; NIM for every embedding.
 - **Drift:**
   - the catalog listing is 18 days old;
@@ -85,10 +85,7 @@
   - **(a) One Temporal-scheduled change-feed worker over the existing outbox. Add triggers on `working.message`, `registry.*` and `timeline.*`. Sinks: Weaviate (upsert, same uuid5) and Surreal; Neo4j later.**
   - (b) Rerun `publish_context_search` after each correction.
   - (c) Return to Postgres first.
-- **B. Case Bible vs Proffer objects in `MsgEvents`.**
-  - **(a) Keep both, filter by origin, and retire the Case Bible copy of each file once Proffer has imported it (`publish_bundle.retire_old`).**
-  - (b) Proffer adopts the Case Bible key.
-  - (c) Separate collection.
+- **B. Case Bible vs Proffer objects: answered 10-02 by the owner, a separate collection (`ProfferMsgEvents20261002`).**
 - **C. Extractor now.**
   - **(a) Go + kimi-k3 (built). LlamaIndex and LangGraph later, per D-144 timing.**
   - (b) Build LlamaIndex extraction now.
@@ -113,7 +110,8 @@ flowchart TD
   CV[B2 casevault/SourceCorpus/messaging<br/>KnowledgeBase/ai-chats]
   CBELT[Case Bible DuckDB ELT scripts<br/>outside Temporal]
   LAKE[(Parquet lake _system/lake/2026-09-27)]
-  MSG[(Weaviate MsgEvents 366,912)]
+  MSG[(Weaviate MsgEvents20260918 366,912)]
+  PMSG[(Weaviate ProfferMsgEvents20261002)]
   AIC[(AiChatEvents 446)]
   DOC[(DocEvents 0)]
   B2OLD --> CBELT
@@ -126,7 +124,7 @@ flowchart TD
   PW --> NORM[(context.* + working.normalized_record)]
   NORM --> RES[resolve participants<br/>registry.entity_alias 39]
   RES --> PCS[publish_context_search<br/>Weaviate FIRST]
-  PCS -->|Probata uuid5 key, adds copies| MSG
+  PCS -->|Probata uuid5 key| PMSG
   PCS --> AIC
   PCS --> DOC
   PCS --> PREV[propose + preview]
@@ -139,7 +137,7 @@ flowchart TD
   REG -.->|built, worker NOT deployed| TS[timeline projection<br/>Python evidence-pipeline]
   NORM -.->|outbox triggers, no consumer| CDC[change-feed worker<br/>decided D-054]
   REG -.->|no trigger yet| CDC
-  CDC -.-> MSG
+  CDC -.-> PMSG
   CDC -.-> SC[(SurrealDB analytical)]
   REG -.->|Parquet export, discussed| LAKE
   REG -.->|send to Surreal, owner click D-145| SC

@@ -5,12 +5,14 @@
 // startup contract: a worker that cannot reach the search surface must not
 // poll the queue and fail every run at that stage. Collection names have no
 // default (owner 2026-09-24: "from now on i approve collection names"). The
-// deployed values are the owner-approved MsgEvents20260918 (OD-06,
-// 2026-10-01), AiChatEvents20260918 (2026-09-24) and DocEvents20261001
+// deployed values are the owner-approved ProfferMsgEvents20261002 (OD-06
+// revised 2026-10-02: Proffer's messages and calls stay apart from the Case Bible's
+// MsgEvents20260918), AiChatEvents20260918 (2026-09-24) and DocEvents20261001
 // (2026-10-02, the one collection this worker may create).
 //
 // Byline: Claude Code · Opus 5.5 · 2026-10-01
 // Byline: Claude Code · Opus 5.5 · 2026-10-02 (one collection per record kind)
+// Byline: Claude Code · Sonnet · 2026-10-02 (message collection renamed)
 package profferworker
 
 import (
