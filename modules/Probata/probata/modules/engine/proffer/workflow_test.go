@@ -101,6 +101,15 @@ func succeedingContextSearchActivity(_ context.Context, _ StageRequest) (StageRe
 	return stageStub(stagegraph.PublishContextSearch), nil
 }
 
+// noMessagesResolutionActivity is the participant resolution stage's default
+// body: no message records, nothing to resolve. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func noMessagesResolutionActivity(_ context.Context, _ StageRequest) (StageResult, error) {
+	return StageResult{
+		Status: StatusNotApplicable, ReceiptRef: Ref(string(stagegraph.ResolveContextParticipants) + "-receipt"),
+		Reason: "the normalized generation holds no message records",
+	}, nil
+}
+
 // noMessagesProposalActivity is the first-party propose stage's default body
 // in tests that do not exercise it: the generation holds no message, so the
 // confirm and commit stages are skipped. Byline: Claude Code · Opus 5.5 · 2026-10-01
@@ -173,6 +182,10 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 		}
 		if d.ID == stagegraph.ProposeFirstPartyContext {
 			env.RegisterActivityWithOptions(noMessagesProposalActivity, activity.RegisterOptions{Name: string(d.ID)})
+			continue
+		}
+		if d.ID == stagegraph.ResolveContextParticipants {
+			env.RegisterActivityWithOptions(noMessagesResolutionActivity, activity.RegisterOptions{Name: string(d.ID)})
 			continue
 		}
 		env.RegisterActivityWithOptions(placeholderActivity, activity.RegisterOptions{Name: string(d.ID)})
@@ -314,8 +327,8 @@ func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 	// propose stage, which every new history schedules (the default propose
 	// body is not_applicable, so confirm/commit are skipped here).
 	// (Claude Code · Opus 5.5 · 2026-10-01).
-	if len(result.Stages) != len(stagegraph.Stages)+2 {
-		t.Fatalf("result.Stages has %d entries, want %d (every stage exactly once, plus publish_context_search and propose_first_party_context)", len(result.Stages), len(stagegraph.Stages)+2)
+	if len(result.Stages) != len(stagegraph.Stages)+3 {
+		t.Fatalf("result.Stages has %d entries, want %d (every stage exactly once, plus resolve_context_participants, publish_context_search and propose_first_party_context)", len(result.Stages), len(stagegraph.Stages)+3)
 	}
 	searchAt := order.indexOf(string(stagegraph.PublishContextSearch))
 	if searchAt < 0 || searchAt < order.indexOf(string(stagegraph.VerifyNormalizedGeneration)) ||
@@ -325,7 +338,7 @@ func TestGoldenPathRunsEveryStageExactlyOnce(t *testing.T) {
 	seen := make(map[stagegraph.StageID]int, len(result.Stages))
 	for _, s := range result.Stages {
 		seen[s.Stage]++
-		if s.Status != StatusSuccess && !(s.Stage == stagegraph.ProposeFirstPartyContext && s.Status == StatusNotApplicable) {
+		if s.Status != StatusSuccess && !((s.Stage == stagegraph.ProposeFirstPartyContext || s.Stage == stagegraph.ResolveContextParticipants) && s.Status == StatusNotApplicable) {
 			t.Errorf("stage %q reported status %q on the golden path", s.Stage, s.Status)
 		}
 	}
@@ -399,8 +412,9 @@ func TestOperationQueryTracksStagesHumanWaitsAndTerminalCompletion(t *testing.T)
 	if terminal.SourceVersionRef != stageStub(stagegraph.RegisterSource).Ref {
 		t.Fatalf("terminal source version ref = %q", terminal.SourceVersionRef)
 	}
-	// +2: the Weaviate-first stage and the (not applicable) first-party propose stage.
-	if want := len(stagegraph.Stages) + 2; terminal.CompletedStageCount != want || len(terminal.Stages) != want {
+	// +3: the (not applicable) participant resolution, the Weaviate-first stage
+	// and the (not applicable) first-party propose stage.
+	if want := len(stagegraph.Stages) + 3; terminal.CompletedStageCount != want || len(terminal.Stages) != want {
 		t.Fatalf("terminal stages = count %d query rows %d, want %d", terminal.CompletedStageCount, len(terminal.Stages), want)
 	}
 }
@@ -1783,6 +1797,7 @@ func firstPartyInput() WorkflowInput {
 
 func mockFirstPartyContextSucceeds(env *testsuite.TestWorkflowEnvironment, requests map[stagegraph.StageID]*StageRequest) {
 	for _, id := range []stagegraph.StageID{
+		stagegraph.ResolveContextParticipants,
 		stagegraph.ProposeFirstPartyContext, stagegraph.ConfirmFirstPartyContext,
 		stagegraph.CommitFirstPartyMessages, stagegraph.CommitFirstPartyContextThreads,
 	} {
@@ -1820,7 +1835,7 @@ func TestFirstPartyContextIsProposedBeforeThePreviewAndCommittedAfterTheDecision
 	}
 	at := func(id stagegraph.StageID) int { return order.indexOf(string(id)) }
 	sequence := []stagegraph.StageID{
-		stagegraph.PublishContextSearch, stagegraph.ProposeFirstPartyContext, stagegraph.PublishPreview,
+		stagegraph.ResolveContextParticipants, stagegraph.PublishContextSearch, stagegraph.ProposeFirstPartyContext, stagegraph.PublishPreview,
 		stagegraph.ConfirmFirstPartyContext, stagegraph.CommitFirstPartyMessages,
 		stagegraph.CommitFirstPartyContextThreads, stagegraph.SealGeneration, stagegraph.PublishGeneration,
 	}
@@ -1829,8 +1844,15 @@ func TestFirstPartyContextIsProposedBeforeThePreviewAndCommittedAfterTheDecision
 			t.Fatalf("%s must run before %s; order = %v", sequence[index-1], sequence[index], order.snapshot())
 		}
 	}
+	resolve := requests[stagegraph.ResolveContextParticipants]
+	if resolve == nil || resolve.Refs["perspective_person"] != "44444444-4444-4444-8444-444444444444" {
+		t.Fatalf("resolve request = %+v, want the explicit person refs", resolve)
+	}
 	propose := requests[stagegraph.ProposeFirstPartyContext]
-	if propose == nil || propose.Refs["owner_person"] != "33333333-3333-4333-8333-333333333333" ||
+	if propose == nil || propose.Refs["participant_resolution"] != stageStub(stagegraph.ResolveContextParticipants).Ref {
+		t.Fatalf("propose request = %+v, want the recorded participant resolution", propose)
+	}
+	if propose.Refs["owner_person"] != "33333333-3333-4333-8333-333333333333" ||
 		propose.Refs["perspective_person"] != "44444444-4444-4444-8444-444444444444" ||
 		propose.Refs["normalized_generation"] != stageStub(stagegraph.PersistNormalizedGeneration).Ref {
 		t.Fatalf("propose request = %+v, want the generation and both explicit person refs", propose)

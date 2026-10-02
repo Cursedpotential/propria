@@ -1,6 +1,7 @@
 """Read-only pre-ingest Case Bible catalog; never walks the storage corpus.
 
 Byline: Codex · 2026-09-20.
+Byline: Claude Code · Opus 5.5 · 2026-10-02 (catalog port 5475 -> 5433, the tailscale serve forward).
 """
 from __future__ import annotations
 
@@ -61,7 +62,7 @@ def _query(sql: str, parameters: tuple) -> list[dict[str, Any]]:
         password = Path(os.environ["INTAKE_DISCOVERY_PG_PASSWORD_FILE"]).read_text().strip()
         with psycopg.connect(
             host=os.getenv("INTAKE_DISCOVERY_PG_HOST", "100.91.190.107"),
-            port=int(os.getenv("INTAKE_DISCOVERY_PG_PORT", "5475")),
+            port=int(os.getenv("INTAKE_DISCOVERY_PG_PORT", "5433")),  # tailscale serve tcp on ovh-files (2026-10-02)
             dbname=os.getenv("INTAKE_DISCOVERY_PG_DATABASE", "casebible"),
             user=os.getenv("INTAKE_DISCOVERY_PG_USER", "metabase_ro"),
             password=password, connect_timeout=5, row_factory=dict_row,

@@ -197,6 +197,12 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 	// idempotent, so retries are safe. A refused identity or a changed plan is
 	// permanent and stops retrying at once.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
+	stagegraph.ResolveContextParticipants: {
+		// One registry read per distinct stated identifier; bounded and cheap.
+		// Byline: Claude Code · Opus 5.5 · 2026-10-02
+		StartToCloseTimeout: 5 * time.Minute,
+		RetryPolicy:         retryPolicy(2*time.Second, 5),
+	},
 	stagegraph.ProposeFirstPartyContext: {
 		StartToCloseTimeout: 10 * time.Minute,
 		RetryPolicy:         retryPolicy(2*time.Second, 5),

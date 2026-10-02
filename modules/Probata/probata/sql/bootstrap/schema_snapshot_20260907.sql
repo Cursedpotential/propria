@@ -13294,7 +13294,7 @@ COMMENT ON COLUMN working.third_party_context_thread_version.knowledge_available
 CREATE TABLE working.third_party_conversation (
     id uuid DEFAULT uuidv7() NOT NULL,
     case_id text DEFAULT 'primary'::text NOT NULL,
-    source_artifact_id uuid NOT NULL,
+    source_artifact_id uuid,
     platform text NOT NULL,
     external_thread_key text NOT NULL,
     title text,
@@ -13312,7 +13312,9 @@ CREATE TABLE working.third_party_conversation (
     CONSTRAINT third_party_conversation_message_count_check CHECK ((message_count >= 0)),
     CONSTRAINT third_party_conversation_platform_attrs_check CHECK ((jsonb_typeof(platform_attrs) = 'object'::text)),
     CONSTRAINT third_party_conversation_platform_check CHECK ((length(platform) > 0)),
-    CONSTRAINT third_party_conversation_review_status_check CHECK ((review_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))
+    CONSTRAINT third_party_conversation_review_status_check CHECK ((review_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text]))),
+    source_version_id uuid,
+    CONSTRAINT third_party_conversation_custody_or_context_ck CHECK (((source_artifact_id IS NULL) <> (source_version_id IS NULL)))
 );
 
 
@@ -24440,6 +24442,27 @@ ALTER TABLE ONLY working.third_party_conversation_acquisition
 
 ALTER TABLE ONLY working.third_party_conversation
     ADD CONSTRAINT third_party_conversation_source_artifact_id_fkey FOREIGN KEY (source_artifact_id) REFERENCES evidence.evidence_hash(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: third_party_conversation third_party_conversation_source_version_id_fkey; Type: FK CONSTRAINT; Schema: working; Owner: -
+-- Option A extended to the third-party side (owner 2026-10-02 02:12 EDT,
+-- "store them fully", after the normalized_record ruling of 2026-10-01): a
+-- conversation projected from a Proffer run is filed under the acquired
+-- source version and makes no custody claim; promotion supplies
+-- source_artifact_id. Byline: Claude Code · Opus 5.5 · 2026-10-02
+--
+
+ALTER TABLE ONLY working.third_party_conversation
+    ADD CONSTRAINT third_party_conversation_source_version_id_fkey FOREIGN KEY (source_version_id) REFERENCES context.source_version(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: third_party_conversation_source_version_key_uq; Type: INDEX; Schema: working; Owner: -
+-- Byline: Claude Code · Opus 5.5 · 2026-10-02
+--
+
+CREATE UNIQUE INDEX third_party_conversation_source_version_key_uq ON working.third_party_conversation USING btree (source_version_id, platform, external_thread_key) WHERE (source_version_id IS NOT NULL);
 
 
 --
@@ -39847,7 +39870,8 @@ GRANT ALL ON TABLE working.third_party_context_thread_version TO platform_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.third_party_conversation TO projection_refresher;
 GRANT SELECT,UPDATE ON TABLE working.third_party_conversation TO horizon_reviewer;
 GRANT SELECT ON TABLE working.third_party_conversation TO pass_refresher;
-GRANT SELECT ON TABLE working.third_party_conversation TO platform_runtime;
+GRANT SELECT,INSERT ON TABLE working.third_party_conversation TO platform_runtime;
+GRANT UPDATE (started_at, ended_at, message_count) ON TABLE working.third_party_conversation TO platform_runtime;
 GRANT ALL ON TABLE working.third_party_conversation TO platform_app;
 
 
@@ -39869,7 +39893,7 @@ GRANT ALL ON TABLE working.third_party_conversation_acquisition TO platform_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.third_party_message TO projection_refresher;
 GRANT SELECT,UPDATE ON TABLE working.third_party_message TO horizon_reviewer;
 GRANT SELECT ON TABLE working.third_party_message TO pass_refresher;
-GRANT SELECT ON TABLE working.third_party_message TO platform_runtime;
+GRANT SELECT,INSERT ON TABLE working.third_party_message TO platform_runtime;
 GRANT ALL ON TABLE working.third_party_message TO platform_app;
 
 
@@ -39879,7 +39903,7 @@ GRANT ALL ON TABLE working.third_party_message TO platform_app;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE working.third_party_message_participant TO projection_refresher;
 GRANT SELECT,UPDATE ON TABLE working.third_party_message_participant TO horizon_reviewer;
-GRANT SELECT ON TABLE working.third_party_message_participant TO platform_runtime;
+GRANT SELECT,INSERT ON TABLE working.third_party_message_participant TO platform_runtime;
 GRANT ALL ON TABLE working.third_party_message_participant TO platform_app;
 
 

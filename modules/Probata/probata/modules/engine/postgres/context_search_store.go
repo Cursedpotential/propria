@@ -11,6 +11,7 @@
 // while a page is embedded and written to Weaviate.
 //
 // Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-02 (participant resolution by ref; routing fields)
 package postgres
 
 import (
@@ -20,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -83,19 +83,20 @@ func (s *ContextSearchStore) OpenContextSearchRecords(ctx context.Context, spec 
 		generationSourceID                uuid.UUID
 		normalizerID, normalizerVersion   string
 		parserID, parserVersion, declared string
+		formatID                          string
 		originalObjectID, matterID        uuid.NullUUID
 		originalDigest                    []byte
 	)
 	if err := s.db.QueryRow(ctx, `
 		SELECT generation.source_version_id, generation.normalizer_id, generation.normalizer_version,
-		       raw.parser_id, raw.parser_version, version.declared_format,
+		       raw.parser_id, raw.parser_version, version.declared_format, coalesce(raw.format_id, ''),
 		       version.original_object_id, version.matter_id, original.content_sha256
 		FROM context.normalized_generation generation
 		JOIN context.raw_generation raw ON raw.id = generation.raw_generation_id
 		JOIN context.source_version version ON version.id = generation.source_version_id
 		LEFT JOIN context.retained_object original ON original.id = version.original_object_id
 		WHERE generation.id = $1::uuid`, generationID).Scan(
-		&generationSourceID, &normalizerID, &normalizerVersion, &parserID, &parserVersion, &declared,
+		&generationSourceID, &normalizerID, &normalizerVersion, &parserID, &parserVersion, &declared, &formatID,
 		&originalObjectID, &matterID, &originalDigest); err != nil {
 		return activities.ContextSearchPlan{}, fmt.Errorf("resolve context search provenance: %w", err)
 	}
@@ -115,7 +116,13 @@ func (s *ContextSearchStore) OpenContextSearchRecords(ctx context.Context, spec 
 	if matterID.Valid {
 		coordinates.MatterID = matterID.UUID
 	}
+	resolution, err := LoadParticipantResolution(ctx, s.db, string(spec.ParticipantResolutionRef))
+	if err != nil {
+		return activities.ContextSearchPlan{}, err
+	}
 	return activities.ContextSearchPlan{
+		FormatID:   formatID,
+		Resolution: resolution,
 		Provenance: contextsearch.Provenance{
 			SourceObjectSHA256: originalDigest, SourceFormat: declared,
 			ParserID: parserID, ParserVersion: parserVersion,
@@ -141,7 +148,7 @@ const contextSearchPageSQL = `
 	       coalesce(normalized_payload->>'provenance_class', ''),
 	       coalesce(normalized_payload->>'timestamp_certainty', ''),
 	       coalesce(normalized_payload->>'timestamp_granularity', ''),
-	       coalesce(normalized_payload->'content'->>'body', ''),
+	       coalesce(normalized_payload->'content'->>'body', normalized_payload->'content'->>'text', ''),
 	       coalesce(normalized_payload->'content'->>'direction', ''),
 	       coalesce(normalized_payload->'content'->>'disposition', ''),
 	       coalesce(normalized_payload->'content'->>'duration_seconds', ''),
@@ -233,8 +240,8 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 	if err != nil {
 		return "", "", fmt.Errorf("source version reference %q: %w", spec.SourceVersionRef, err)
 	}
-	if outcome.Published < 1 || strings.TrimSpace(outcome.Collection) == "" {
-		return "", "", errors.New("context search receipt requires a collection and at least one published object")
+	if outcome.Published < 1 || len(outcome.Collections) == 0 {
+		return "", "", errors.New("context search receipt requires at least one published object and its collection")
 	}
 	key := fmt.Sprintf("publish-context-search:%s:%s:%s", spec.RequestID, spec.NormalizedGenerationRef, spec.NormalizedVerificationRef)
 	activityName := string(stagegraph.PublishContextSearch)
@@ -280,7 +287,7 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 	result, err := json.Marshal(map[string]any{
 		"ref_kind":               "context_search_publication",
 		"ref_id":                 publicationID.String(),
-		"collection":             outcome.Collection,
+		"collections":            outcome.Collections,
 		"published":              outcome.Published,
 		"vectors_published":      outcome.VectorsPublished,
 		"object_id_construction": outcome.ObjectIDConstruction,
@@ -288,6 +295,9 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 		"first_object_id":        outcome.FirstObjectID,
 		"last_object_id":         outcome.LastObjectID,
 		"properties_added":       outcome.PropertiesAdded,
+		"disclosure_basis":       outcome.DisclosureBasis,
+		"disclosure_tiers":       outcome.Tiers,
+		"participant_resolution": string(spec.ParticipantResolutionRef),
 		"normalized_generation":  string(spec.NormalizedGenerationRef),
 		"origin_system":          contextsearch.OriginSystem,
 		"ingest_run_id":          spec.RequestID,

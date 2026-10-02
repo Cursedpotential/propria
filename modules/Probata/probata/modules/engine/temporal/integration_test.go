@@ -81,6 +81,7 @@ func registerRealActivities(t *testing.T, env *testsuite.TestWorkflowEnvironment
 	// no messages it is not applicable and confirm/commit are skipped.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	env.RegisterActivityWithOptions(placeholderStageActivity, activity.RegisterOptions{Name: string(stagegraph.ProposeFirstPartyContext)})
+	env.RegisterActivityWithOptions(placeholderStageActivity, activity.RegisterOptions{Name: string(stagegraph.ResolveContextParticipants)})
 	candidate := proffer.HandlerCandidate{HandlerID: "sbv", HandlerVersion: "test", ExecutionPath: proffer.HandlerPathDecoder, CompatibilityRef: "compatibility-ref", Reason: "integration decoder"}
 	env.OnActivity(proffer.RecommendHandlerActivityName, mock.Anything, mock.Anything).Return(proffer.HandlerRecommendationResult{
 		RecommendationRef: "recommendation-ref", ReceiptRef: "recommendation-receipt", DetectedFormat: "whatsapp_export_json",
@@ -97,6 +98,9 @@ func registerRealActivities(t *testing.T, env *testsuite.TestWorkflowEnvironment
 		env.OnActivity(string(d.ID), mock.Anything, mock.Anything).Return(stageStub(d.ID), nil).Once()
 	}
 	env.OnActivity(string(stagegraph.PublishContextSearch), mock.Anything, mock.Anything).Return(stageStub(stagegraph.PublishContextSearch), nil).Maybe()
+	env.OnActivity(string(stagegraph.ResolveContextParticipants), mock.Anything, mock.Anything).Return(proffer.StageResult{
+		Status: proffer.StatusNotApplicable, ReceiptRef: "resolve-participants-receipt", Reason: "no message records",
+	}, nil).Maybe()
 	env.OnActivity(string(stagegraph.ProposeFirstPartyContext), mock.Anything, mock.Anything).Return(proffer.StageResult{
 		Status: proffer.StatusNotApplicable, ReceiptRef: "propose-first-party-receipt", Reason: "no message records",
 	}, nil).Maybe()
@@ -172,8 +176,8 @@ func TestIntegrationApprovedRunsAllStagesAndCallsRealParserHTTP(t *testing.T) {
 	if result.Status != proffer.StatusSuccess {
 		t.Errorf("result.Status = %q, want %q", result.Status, proffer.StatusSuccess)
 	}
-	if len(result.Stages) != len(stagegraph.Stages)+2 {
-		t.Errorf("result.Stages has %d entries, want %d (every stage exactly once, plus publish_context_search and propose_first_party_context)", len(result.Stages), len(stagegraph.Stages)+2)
+	if len(result.Stages) != len(stagegraph.Stages)+3 {
+		t.Errorf("result.Stages has %d entries, want %d (every stage exactly once, plus resolve_context_participants, publish_context_search and propose_first_party_context)", len(result.Stages), len(stagegraph.Stages)+3)
 	}
 	if got := atomic.LoadInt32(&n8n.selectCalls); got != 1 {
 		t.Errorf("fake n8n select endpoint called %d times, want exactly 1", got)

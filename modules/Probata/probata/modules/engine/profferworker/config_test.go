@@ -28,17 +28,20 @@ func setWorkerEnvironment(t *testing.T) {
 	}
 	values := map[string]string{
 		// Weaviate-first stage (Claude Code · Opus 5.5 · 2026-10-01).
-		"CONTEXT_SEARCH_WEAVIATE_URL":       "http://weaviate.example.test:8082",
-		"CONTEXT_SEARCH_COLLECTION":         "MsgEvents20260918",
-		"CONTEXT_SEARCH_EMBED_API_KEY_FILE": embedKeyFile,
-		"TEMPORAL_HOST_PORT":                "temporal:7233",
-		"TEMPORAL_NAMESPACE":                "default",
-		"TEMPORAL_TASK_QUEUE":               "proffer-v1",
-		"PLATFORM_DATABASE_URL_FILE":        databaseURLFile,
-		"SOURCE_OBJECT_DIR":                 filepath.Join(root, "source"),
-		"PARSER_BUNDLE_DIR":                 filepath.Join(root, "parser"),
-		"NORMALIZED_BUNDLE_DIR":             filepath.Join(root, "normalized"),
-		"INVENTORY_MANIFEST_DIR":            filepath.Join(root, "inventory"),
+		"CONTEXT_SEARCH_WEAVIATE_URL":          "http://weaviate.example.test:8082",
+		"CONTEXT_SEARCH_MESSAGE_COLLECTION":    "MsgEvents20260918",
+		"CONTEXT_SEARCH_AI_CHAT_COLLECTION":    "AiChatEvents20260918",
+		"CONTEXT_SEARCH_DOCUMENT_COLLECTION":   "DocEvents20261001",
+		"CONTEXT_SEARCH_CREATABLE_COLLECTIONS": "DocEvents20261001",
+		"CONTEXT_SEARCH_EMBED_API_KEY_FILE":    embedKeyFile,
+		"TEMPORAL_HOST_PORT":                   "temporal:7233",
+		"TEMPORAL_NAMESPACE":                   "default",
+		"TEMPORAL_TASK_QUEUE":                  "proffer-v1",
+		"PLATFORM_DATABASE_URL_FILE":           databaseURLFile,
+		"SOURCE_OBJECT_DIR":                    filepath.Join(root, "source"),
+		"PARSER_BUNDLE_DIR":                    filepath.Join(root, "parser"),
+		"NORMALIZED_BUNDLE_DIR":                filepath.Join(root, "normalized"),
+		"INVENTORY_MANIFEST_DIR":               filepath.Join(root, "inventory"),
 		// A fifth non-nested shared root since 2026-09-21; the deployed value
 		// is the /data/proffer/derive-scratch bind mount.
 		"DERIVE_SCRATCH_DIR":              filepath.Join(root, "derive-scratch"),
