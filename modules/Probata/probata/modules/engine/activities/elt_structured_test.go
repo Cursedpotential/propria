@@ -229,6 +229,8 @@ func TestStructuredELTFormatForDeclaredFormat(t *testing.T) {
 		"chatgpt_official_json":   StructuredELTFormatChatGPTJSON,
 		"messages_transcript":     StructuredELTFormatIMessageText,
 		"facebook_messenger_json": StructuredELTFormatFacebookMessenger,
+		"facebook_messenger_html": StructuredELTFormatFacebookMessengerHTML,
+		"generic_html_document":   StructuredELTFormatGenericHTML,
 	}
 	for declared, want := range tests {
 		got, err := StructuredELTFormatForDeclaredFormat(declared)
@@ -245,12 +247,14 @@ func TestStructuredELTFormatForDeclaredFormat(t *testing.T) {
 
 func TestStructuredELTTemplateForFormat(t *testing.T) {
 	tests := map[StructuredELTFormat]string{
-		StructuredELTFormatCSV:               "csv_v1",
-		StructuredELTFormatNDJSON:            "ndjson_v1",
-		StructuredELTFormatSMSXML:            "sms_xml_v1",
-		StructuredELTFormatChatGPTJSON:       "chatgpt_json_array_v1",
-		StructuredELTFormatIMessageText:      "imessage_text_v1",
-		StructuredELTFormatFacebookMessenger: "facebook_messenger_json_v1",
+		StructuredELTFormatCSV:                   "csv_v1",
+		StructuredELTFormatNDJSON:                "ndjson_v1",
+		StructuredELTFormatSMSXML:                "sms_xml_v1",
+		StructuredELTFormatChatGPTJSON:           "chatgpt_json_array_v1",
+		StructuredELTFormatIMessageText:          "imessage_text_v1",
+		StructuredELTFormatFacebookMessenger:     "facebook_messenger_json_v1",
+		StructuredELTFormatFacebookMessengerHTML: "facebook_messenger_html_v1",
+		StructuredELTFormatGenericHTML:           "generic_html_document_v1",
 	}
 	for format, want := range tests {
 		got, err := StructuredELTTemplateForFormat(format)

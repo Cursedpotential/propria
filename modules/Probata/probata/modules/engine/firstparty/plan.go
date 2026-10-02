@@ -503,8 +503,12 @@ func PlatformForDerivation(handlerID, declaredFormat string) (platform, captureK
 // persisted engine decision, never from the file name.
 // Byline: Claude Code · Opus 5.5 · 2026-10-02
 func PlatformForDetectedFormat(detectedFormat string) (platform, captureKind, representationKind string, ok bool) {
-	if strings.TrimSpace(detectedFormat) == "facebook_messenger_json" {
+	switch strings.TrimSpace(detectedFormat) {
+	case "facebook_messenger_json":
 		return "facebook_messenger", "facebook_export", "json", true
+	case "facebook_messenger_html":
+		// Same platform and capture as the JSON flavor; only the representation differs.
+		return "facebook_messenger", "facebook_export", "html", true
 	}
 	return "", "", "", false
 }

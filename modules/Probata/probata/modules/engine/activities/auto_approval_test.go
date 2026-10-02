@@ -85,7 +85,7 @@ func TestAutoApprovalPassesNotApplicableByteCoverageOnlyForLocatorlessFormats(t 
 		request.DetectedFormat = format
 		return request
 	}
-	for _, format := range []string{"ndjson", "facebook_messenger_json"} {
+	for _, format := range []string{"ndjson", "facebook_messenger_json", "facebook_messenger_html", "generic_html_document"} {
 		store := &decisionRecorder{}
 		if _, err := (AutoApprovalActivity{Store: store}).Record(context.Background(), byteCoverageNA(format)); err != nil {
 			t.Fatalf("%s: a receipted not_applicable byte-coverage check was refused: %v", format, err)

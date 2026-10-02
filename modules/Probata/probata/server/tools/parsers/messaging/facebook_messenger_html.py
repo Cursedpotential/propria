@@ -30,6 +30,9 @@ from ._source_parties import enrich_message_parties
 
 # strptime patterns covering Facebook's HTML timestamp variants.
 _DATE_FORMATS = (
+    "%b %d, %Y %I:%M:%S %p",  # current exports: "Jul 12, 2024 4:55:32pm" / "Jun 01, 2025 3:31:29 pm"
+    "%B %d, %Y %I:%M:%S %p",
+    "%b %d, %Y, %I:%M:%S %p",
     "%b %d, %Y, %I:%M %p",
     "%B %d, %Y, %I:%M %p",
     "%b %d, %Y at %I:%M %p",
@@ -94,25 +97,38 @@ def _structure_legacy(soup) -> list[tuple]:
 
 
 def _structure_card(soup) -> list[tuple]:
+    """Card layouts. Current exports (2024 and 2025) hold the sender, body and timestamp INSIDE the card:
+    2024 ``div._a6-g > div._a6-h / div._a6-p / div._a6-o``, 2025 ``section._a6-g > h2._a6-h / div._a6-p /
+    footer._a6-o``. The pre-2024 export wrote the timestamp in a SIBLING ``div._a6-o`` after the card; that
+    stays as the fallback. Fixed 2026-10-02: the earlier version read only the sibling form and the ``div``
+    tags, so it returned no message at all from a current export (bench: receipts/2026-10-02-html-tool-bench).
+    Reactions (``ul._a6-q > li``) are carried in the raw meta, never merged into the body."""
     rows: list[tuple] = []
-    for card in soup.select("div._a6-g"):
-        header = card.find("div", class_="_a6-h")
+    for card in soup.select("._a6-g"):
+        header = card.select_one("._a6-h")
         sender = header.get_text(" ", strip=True) if header else ""
         if not sender:
             continue
-        body_el = card.find("div", class_="_a6-p")
-        body = body_el.get_text(" ", strip=True) if body_el else ""
+        body_el = card.select_one("._a6-p")
+        if body_el is None:
+            continue
+        reactions = [li.get_text(" ", strip=True) for li in body_el.select("ul._a6-q li")]
+        for reaction_list in body_el.select("ul._a6-q"):
+            reaction_list.extract()
+        body = body_el.get_text(" ", strip=True)
         if not body:
             continue
         ts = None
-        sib = card.find_next_sibling("div", class_="_a6-o")
-        if sib:
-            tstag = sib.find("div", class_="_a72d")
-            if tstag:
-                ts = _parse_fuzzy_date(tstag.get_text(" ", strip=True))
+        stamp = card.select_one("._a6-o")
+        if stamp is None:
+            sibling = card.find_next_sibling(class_="_a6-o")
+            stamp = sibling
+        if stamp is not None:
+            tstag = stamp.find(class_="_a72d")
+            ts = _parse_fuzzy_date((tstag or stamp).get_text(" ", strip=True))
         if not ts:
             continue
-        rows.append((sender, body, ts, "card"))
+        rows.append((sender, body, ts, "card" + (f"; reactions: {' | '.join(reactions)}" if reactions else "")))
     return rows
 
 
@@ -139,7 +155,7 @@ def parse(payload: dict[str, Any]) -> dict[str, Any]:
         rows = _structure_card(soup)
         layout = "card"
     if not rows:
-        raise ValueError("not a Facebook HTML export (neither div.message nor div._a6-g messages found)")
+        raise ValueError("not a Facebook HTML export (neither div.message nor ._a6-g message cards found)")
 
     participants: list[str] = []
     for sender, *_ in rows:

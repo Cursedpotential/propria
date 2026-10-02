@@ -262,3 +262,59 @@ func TestFacebookMessengerQueryLinksAttachmentsBesideTheThreadFile(t *testing.T)
 		t.Fatal("the locator changed a non-Messenger template")
 	}
 }
+
+// HTML templates. Byline: Claude Code · Sonnet · 2026-10-02
+func TestFacebookMessengerHTMLQueryResolvesMediaAgainstTheExportRoot(t *testing.T) {
+	locator := "b2://bucket/Evidence/FB Exports/o'brien/facebook-x/your_facebook_activity/messages/inbox/thread_123/message_1.html"
+	query, err := structuredELTQueryFor(activities.StructuredELTFormatFacebookMessengerHTML,
+		"s3://bucket/Evidence/FB Exports/o'brien/facebook-x/your_facebook_activity/messages/inbox/thread_123/message_1.html", locator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"'duckdb_template', 'facebook_messenger_html_v1'", "parse_html(content)", "'record_kind', 'message'",
+		"'uri', 'b2://bucket/Evidence/FB Exports/o''brien/facebook-x/' || media_paths", "'thread_dir', 'thread_123'",
+		"read_text('s3://bucket/Evidence/FB Exports/o''brien/facebook-x/your_facebook_activity/messages/inbox/thread_123/message_1.html')",
+		"America/Detroit", "_a6-g", "_a6-p", "_a6-o", "_a6-q",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("facebook messenger html query lacks %q:\n%s", fragment, query)
+		}
+	}
+	if strings.Contains(query, "{{") || strings.Contains(strings.ToUpper(query), "INSERT ") {
+		t.Fatal("facebook messenger html query has an unfilled marker or writes a table")
+	}
+	// Without a marker folder the thread file's own folder is the root.
+	query, err = structuredELTQueryFor(activities.StructuredELTFormatFacebookMessengerHTML, "s3://b/x/message_1.html", "b2://b/x/message_1.html")
+	if err != nil || !strings.Contains(query, "'b2://b/x/' || media_paths") {
+		t.Fatalf("fallback export root: %v\n%s", err, query)
+	}
+	if _, err := structuredELTQueryFor(activities.StructuredELTFormatFacebookMessengerHTML, "s3://b/x.html", "no-folder"); err == nil {
+		t.Fatal("a source locator without a folder was accepted")
+	}
+}
+
+func TestGenericHTMLDocumentQueryIsDocumentShaped(t *testing.T) {
+	query, err := structuredELTQueryFor(activities.StructuredELTFormatGenericHTML, "s3://bucket/o'brien/page.html", "b2://bucket/o'brien/page.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"read_html_blocks('s3://bucket/o''brien/page.html')", "'duckdb_template', 'generic_html_document_v1'",
+		"'record_kind', 'object'", "'doc_text'", "stored_bytes", "native_fields", "native_metadata",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("generic html query lacks %q:\n%s", fragment, query)
+		}
+	}
+	// The text must never travel under the key the generic normalizer reads as a message body.
+	if strings.Contains(query, "'body'") {
+		t.Fatal("document text must not use the message body key")
+	}
+	if strings.Contains(query, "{{") || strings.Contains(strings.ToUpper(query), "INSERT ") {
+		t.Fatal("generic html query has an unfilled marker or writes a table")
+	}
+	if !structuredELTRequiresWebbed(activities.StructuredELTFormatGenericHTML) || !structuredELTRequiresWebbed(activities.StructuredELTFormatFacebookMessengerHTML) {
+		t.Fatal("HTML templates need the webbed extension check")
+	}
+}

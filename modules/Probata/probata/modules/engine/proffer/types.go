@@ -187,13 +187,16 @@ var AutoApprovalChecks = []stagegraph.StageID{
 // LocatorlessFormats are the detected formats whose raw records carry no byte
 // locators into the retained original, so reconcile_byte_coverage always
 // settles not_applicable for them: the derived SMS thread chunks (ndjson) and
-// Facebook Messenger thread JSON. For these formats alone a receipted
+// Facebook Messenger thread JSON and HTML, and generic HTML documents. For these formats alone a receipted
 // not_applicable byte-coverage check counts as passed (owner 2026-10-02,
 // option A: "This is all supposed to be programmatic"); every other check must
 // still be a receipted success. Byline: Claude Code · Opus 5.5 · 2026-10-02
 var LocatorlessFormats = map[string]bool{
 	"ndjson":                  true,
 	"facebook_messenger_json": true,
+	// The HTML flavors are re-serialized blocks, not byte ranges of the original.
+	"facebook_messenger_html": true,
+	"generic_html_document":   true,
 }
 
 // AutoApprovalCheckPasses reports whether one check satisfies the clean_checks

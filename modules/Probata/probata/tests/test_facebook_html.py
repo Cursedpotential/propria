@@ -56,3 +56,30 @@ def test_card_layout(tmp_path):
 def test_rejects_non_facebook_html(tmp_path):
     with pytest.raises(ValueError, match="not a Facebook HTML export"):
         _run(tmp_path, "<html><body><p>just a webpage</p></body></html>")
+
+
+def test_card_layout_2024_timestamp_inside_card(tmp_path):
+    # Current 2024 export: sender/body/timestamp are all inside the card; seconds present, "pm" glued to the time.
+    html = """<html><body><div class="_a6-g"><div class="_2ph_ _a6-h _a6-i">Matt Salem</div>
+      <div class="_2ph_ _a6-p"><div><div></div><div>Hi, is this available?</div></div></div>
+      <div class="_3-94 _a6-o"><div class="_a72d">Jul 12, 2024 4:54:10pm</div></div></div></body></html>"""
+    result = _run(tmp_path, html)
+    assert result["stats"]["layout"] == "card"
+    record = result["records"][0]
+    assert record["content"] == "Hi, is this available?"
+    assert record["role"] == "Matt Salem"
+    assert record["occurred_at"].startswith("2024-07-12T16:54:10")
+
+
+def test_card_layout_2025_section_h2_footer_and_reactions(tmp_path):
+    # Current 2025 export: section card, h2 sender, footer timestamp, reactions in ul._a6-q kept out of the body.
+    html = """<html><body><main><section class="_3-95 _a6-g"><h2 class="_2ph_ _a6-h _a6-i">Aleksandrs Petrovs</h2>
+      <div class="_2ph_ _a6-p"><div><div></div><div>\U0001F602\U0001F602 same here</div>
+      <div><ul class="_a6-q"><li><span>\U0001F606Jeffery Cooper (Jun 01, 2025 3:32:01 pm)</span></li></ul></div></div></div>
+      <footer class="_3-94 _a6-o"><div class="_a72d">Jun 01, 2025 3:31:29 pm</div></footer></section></main></body></html>"""
+    result = _run(tmp_path, html)
+    record = result["records"][0]
+    assert record["content"] == "\U0001F602\U0001F602 same here"  # emoji intact, reaction not merged into the body
+    assert record["role"] == "Aleksandrs Petrovs"
+    assert record["occurred_at"].startswith("2025-06-01T15:31:29")
+    assert "Jeffery Cooper" in record["attrs"]["meta"]

@@ -8,7 +8,11 @@ func TestPlatformForDetectedFormatNamesOnlyFacebookMessenger(t *testing.T) {
 	if !ok || platform != "facebook_messenger" || capture != "facebook_export" || representation != "json" {
 		t.Fatalf("facebook_messenger_json = %q %q %q %v", platform, capture, representation, ok)
 	}
-	for _, format := range []string{"json", "ndjson", "smsbackuprestore_xml", "chatgpt_official_json", ""} {
+	platform, capture, representation, ok = PlatformForDetectedFormat("facebook_messenger_html")
+	if !ok || platform != "facebook_messenger" || capture != "facebook_export" || representation != "html" {
+		t.Fatalf("facebook_messenger_html = %q %q %q %v", platform, capture, representation, ok)
+	}
+	for _, format := range []string{"generic_html_document", "json", "ndjson", "smsbackuprestore_xml", "chatgpt_official_json", ""} {
 		if _, _, _, ok := PlatformForDetectedFormat(format); ok {
 			t.Fatalf("%q must not resolve a platform from its signature", format)
 		}

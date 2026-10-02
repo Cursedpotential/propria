@@ -31,6 +31,13 @@ const (
 	// attachments are plain files beside it in the export, linked by locator.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	StructuredELTFormatFacebookMessenger StructuredELTFormat = "facebook_messenger_json"
+	// StructuredELTFormatFacebookMessengerHTML is the same thread file in the
+	// HTML flavor of the export (message_N.html), read with the DuckDB webbed
+	// extension. Byline: Claude Code · Sonnet · 2026-10-02
+	StructuredELTFormatFacebookMessengerHTML StructuredELTFormat = "facebook_messenger_html"
+	// StructuredELTFormatGenericHTML is any other HTML file: one OBJECT row per
+	// structural block, so the text reaches the document path.
+	StructuredELTFormatGenericHTML StructuredELTFormat = "generic_html_document"
 )
 
 const (
@@ -188,6 +195,10 @@ func StructuredELTFormatForDeclaredFormat(declared string) (StructuredELTFormat,
 		return StructuredELTFormatIMessageText, nil
 	case "facebook_messenger_json":
 		return StructuredELTFormatFacebookMessenger, nil
+	case "facebook_messenger_html":
+		return StructuredELTFormatFacebookMessengerHTML, nil
+	case "generic_html_document":
+		return StructuredELTFormatGenericHTML, nil
 	default:
 		return "", fmt.Errorf("declared format %q has no DuckDB structured-ELT template", declared)
 	}
@@ -211,6 +222,10 @@ func StructuredELTTemplateForFormat(format StructuredELTFormat) (string, error) 
 		return "imessage_text_v1", nil
 	case StructuredELTFormatFacebookMessenger:
 		return "facebook_messenger_json_v1", nil
+	case StructuredELTFormatFacebookMessengerHTML:
+		return "facebook_messenger_html_v1", nil
+	case StructuredELTFormatGenericHTML:
+		return "generic_html_document_v1", nil
 	default:
 		return "", fmt.Errorf("structured elt format %q has no pinned template", format)
 	}

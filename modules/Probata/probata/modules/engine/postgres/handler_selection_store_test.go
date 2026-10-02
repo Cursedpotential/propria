@@ -114,7 +114,8 @@ func TestHandlerDetectedFormatConstraintCoversEveryDetectorOutput(t *testing.T) 
 	expected := []string{
 		"smsbackuprestore_xml", "chatgpt_official_json", "messages_transcript",
 		"pdf", "docx", "archive", "callsbackuprestore_xml", "xml", "ndjson", "json", "csv", "text", "binary",
-		"facebook_messenger_json", // d1cb113a's detector output; missing from the CHECK until 2026-10-02 (Claude Code · Opus 5.5)
+		"facebook_messenger_json",                          // d1cb113a's detector output; missing from the CHECK until 2026-10-02 (Claude Code · Opus 5.5)
+		"facebook_messenger_html", "generic_html_document", // HTML detectors (Claude Code · Sonnet · 2026-10-02)
 	}
 	for _, format := range expected {
 		require.Contains(t, constraint, "'"+format+"'::text", format)
@@ -138,4 +139,32 @@ func TestDetectHandlerContentStreamsFirstChatGPTConversationWithoutClosingArray(
 	require.NoError(t, err)
 	require.Equal(t, "chatgpt_official_json", format)
 	require.Equal(t, "chatgpt_official_conversations_array_v1", signature)
+}
+
+// HTML signatures. Byline: Claude Code · Sonnet · 2026-10-02
+func TestDetectHandlerContentRecognizesHTMLFamilies(t *testing.T) {
+	card2024 := `<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><style>._a6-g{x:y}</style></head><body><div class="_a6-g"><div class="_2ph_ _a6-h _a6-i">A</div><div class="_2ph_ _a6-p"><div>hi</div></div><div class="_3-94 _a6-o"><div class="_a72d">Jul 12, 2024 4:55:32pm</div></div></div></body></html>`
+	card2025 := `<html><body><main><section class="_3-95 _a6-g"><h2 class="_2ph_ _a6-h _a6-i">A</h2><div class="_2ph_ _a6-p"><div>hi</div></div><footer class="_3-94 _a6-o"><div class="_a72d">Jun 01, 2025 3:31:29 pm</div></footer></section></main></body></html>`
+	section := `<html><body><header><h1>Logins and Logouts</h1><p class="_a70f">A history of your logins</p></header><main><section class="_a6-g"><h2 class="_2ph_ _a6-h _a6-i">Login</h2><div class="_2ph_ _a6-p">x</div><footer class="_3-94 _a6-o">t</footer></section></main></body></html>`
+	xhtml := `<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><body><div>Aug 19, 2025: Me: hi</div></body></html>`
+	tests := []struct{ name, content, wantFormat, wantSignature string }{
+		{"facebook thread 2024 layout", card2024, "facebook_messenger_html", "facebook_messenger_thread_html_v1"},
+		{"facebook thread 2025 layout", card2025, "facebook_messenger_html", "facebook_messenger_thread_html_v1"},
+		{"facebook section page shares the card classes but is not a thread", section, "generic_html_document", "html_document_root_v1"},
+		{"google voice xhtml behind an xml prolog", xhtml, "generic_html_document", "html_document_root_v1"},
+		{"plain doctype page", "<!DOCTYPE html>\n<html lang=\"en\"><head><title>t</title></head><body><p>x</p></body></html>", "generic_html_document", "html_document_root_v1"},
+		{"upper-case legacy doctype", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n<HTML><BODY>x</BODY></HTML>", "generic_html_document", "html_document_root_v1"},
+		{"sms backup xml is still sms", `<?xml version="1.0"?><smses count="1"><sms address="+1"/></smses>`, "smsbackuprestore_xml", "sms_backup_restore_smses_root_v1"},
+		{"non-html xml is still xml", `<?xml version="1.0"?><root><a/></root>`, "xml", "xml_root_v1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			format, signature, err := detectHandlerContent([]byte(tt.content))
+			require.NoError(t, err)
+			require.Equal(t, tt.wantFormat, format)
+			require.Equal(t, tt.wantSignature, signature)
+		})
+	}
 }

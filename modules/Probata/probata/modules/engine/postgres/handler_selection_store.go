@@ -167,6 +167,9 @@ func detectHandlerContent(head []byte) (format, signatureKind string, err error)
 		return "archive", "archive_magic_v1", nil
 	}
 	if trimmed[0] == '<' {
+		if format, kind, ok := detectHTMLContent(trimmed); ok {
+			return format, kind, nil
+		}
 		decoder := xml.NewDecoder(bytes.NewReader(trimmed))
 		for {
 			token, tokenErr := decoder.Token()

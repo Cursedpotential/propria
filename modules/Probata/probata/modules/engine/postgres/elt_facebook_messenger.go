@@ -27,7 +27,16 @@ import (
 // structuredELTQueryFor is structuredELTQuery plus the source's own locator,
 // which only the Facebook Messenger template needs.
 func structuredELTQueryFor(format activities.StructuredELTFormat, sourceURL, sourceLocator string) (string, error) {
-	if format != activities.StructuredELTFormatFacebookMessenger {
+	switch format {
+	case activities.StructuredELTFormatFacebookMessengerHTML:
+		if strings.TrimSpace(sourceURL) == "" {
+			return "", errors.New("structured elt requires a non-empty DuckDB source url")
+		}
+		return facebookMessengerHTMLQuery(sourceURL, sourceLocator)
+	case activities.StructuredELTFormatGenericHTML:
+		return genericHTMLDocumentQuery(sourceURL)
+	case activities.StructuredELTFormatFacebookMessenger:
+	default:
 		return structuredELTQuery(format, sourceURL)
 	}
 	if strings.TrimSpace(sourceURL) == "" {

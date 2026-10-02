@@ -8212,7 +8212,7 @@ CREATE TABLE context.handler_detected_format (
     content_signature_id uuid NOT NULL,
     format_id text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT handler_detected_format_format_id_check CHECK ((format_id = ANY (ARRAY['smsbackuprestore_xml'::text, 'chatgpt_official_json'::text, 'messages_transcript'::text, 'pdf'::text, 'docx'::text, 'archive'::text, 'callsbackuprestore_xml'::text, 'xml'::text, 'ndjson'::text, 'json'::text, 'csv'::text, 'text'::text, 'binary'::text, 'facebook_messenger_json'::text])))
+    CONSTRAINT handler_detected_format_format_id_check CHECK ((format_id = ANY (ARRAY['smsbackuprestore_xml'::text, 'chatgpt_official_json'::text, 'messages_transcript'::text, 'pdf'::text, 'docx'::text, 'archive'::text, 'callsbackuprestore_xml'::text, 'xml'::text, 'ndjson'::text, 'json'::text, 'csv'::text, 'text'::text, 'binary'::text, 'facebook_messenger_json'::text, 'facebook_messenger_html'::text, 'generic_html_document'::text])))
 );
 
 

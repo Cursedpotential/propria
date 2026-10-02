@@ -168,7 +168,7 @@ func xmlMaximumFileSize() int64 {
 }
 
 func structuredELTRequiresWebbed(format activities.StructuredELTFormat) bool {
-	return format == activities.StructuredELTFormatSMSXML
+	return format == activities.StructuredELTFormatSMSXML || isHTMLFormat(format)
 }
 
 // ensureWebbedLoaded verifies, from DuckDB itself and on the exact leased
