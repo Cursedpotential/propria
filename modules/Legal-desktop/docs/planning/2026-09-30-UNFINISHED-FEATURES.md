@@ -10,6 +10,7 @@ Advocatio is partially implemented. A reachable application, office service, ref
 - September 30 central ledger records 323 references and a shared record contract; full collection correctness/completeness and human workflow proof remain separate.
 - Original scope: docs/planning/2026-09-13-advocatio-reconciliation/REQUIREMENTS.md (R01–R52), ROADMAP.md, REDISCUSSION.md; original build-kit handoffs; September 24 DOCUMENT-WORKFLOW-AND-DELIVERY-GAPS.md.
 - September 30 source check: domain/support_map.py still assigns supported to every non-instruction paragraph when section-level citation_count and citations_ok are truthy. Passage-level factual support is not established by that code.
+- October 2 update supersedes that support-map finding: section citations no longer confer paragraph support. Claims, exact evidence links, gaps, planned follow-up, revision history and live Probata entity/event read-through are implemented. See [bounded delivery receipt](../receipts/2026-10-02-claims-probata-interface.md) for verification and remaining transport/dispatch/passage integrations.
 
 ## Open delivery areas
 
@@ -21,7 +22,7 @@ Advocatio is partially implemented. A reachable application, office service, ref
 | Write first, apply template later | Blank writing and office template entry points | Map rough writing to selected template as proposals; retain unplaced text; separate structural moves from meaning changes | Full original retained; mappings reviewable; accepted output opens as an actual office document |
 | Court-language translator | Toolkit methods and routed role foundations | Original/proposed wording together, observable behavior wording, source links, individual decisions | Rewrite preserves meaning and original; additions and unsupported claims identified; decisions persisted |
 | Four independent checks | Existing citation/review concepts | Distinct structure/method, legal-source, factual-support and substantive-reasoning/relief findings, versioned and stale-aware | Separate outcomes on one document; no universal validated badge |
-| Claims and evidence | Packages, citations, catalog and investigation foundations | Exact claim/passage-to-source links, partial/contradictory support, claims-without-evidence report; correct support-map false positives | A citation supporting one claim cannot support an unrelated claim; gaps/contradictions survive reload |
+| Claims and evidence | Durable claims/responses, exact accepted-span links, partial/contradictory states, gap/follow-up reports, revision history; support-map false positive corrected; linked Probata identities/events | Accepted source-package producer/transport, document passage mappings, dispatch and return links from Probata | Core domain/auth/revision checks pass; complete accepted-source handoff and document/phone interaction still need proof |
 | Evidence workflow | Catalog and internal investigation routes | Clear import handoff to evidence intake, promotion linkage, actionable gap follow-up; discovery RFAs/RFPs plainly separate | Follow an import through its actual intake status; accepted item linked to a claim; separate discovery and investigation paths |
 | Timelines and graphs | Local docket/calendar and retained fork plans | Shared relationship/claim/contact/court chronology, evidence indicators, filters, Timesketch adapter and named visualization dispositions | Same event/source/version across views; unsupported events visible; no second authored evidence store |
 | Personal context and strategy | Private notes/strategy/red-team foundations | Structured case/relationship context, vulnerabilities, anticipated accusations, defenses, saved strategy decisions/playbooks and analysis follow-up | Private context retained and retrievable; theories remain distinguishable from accepted facts |
@@ -48,5 +49,5 @@ Do not treat incomplete work as needing renewed permission merely because a hist
 
 ## Status and scope of this update
 
-No application feature is marked completed by this document. No application code was changed in this reconciliation. The immediate next engineering target is the support-map false positive; office live workflow proof can run in an independent lane. Existing older TODO entries are historical until reverified; this checklist supplements rather than deletes them.
+The September 30 reconciliation itself changed no application code. The October 2 engineering slice now delivers the bounded claims workflow and removes the support-map false positive. The next shared-record work is investigation dispatch and return links into Probata; office workflow proof and durable proposals remain independent lanes. Existing older TODO entries are historical until reverified; this checklist supplements rather than deletes them.
 

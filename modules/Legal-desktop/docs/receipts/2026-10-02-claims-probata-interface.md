@@ -27,8 +27,8 @@ Source outages leave saved legal work accessible with a Source unavailable flag.
 Request-scoped reader snapshots avoid one remote request per saved claim. Remote
 source reads occur outside the SQLite writer transaction.
 
-Entities retain the native global identity-registry scope, including identifier
-chains. Their version is explicitly a `view-sha256` descriptor fingerprint.
+Entities retain the native global identity-registry scope, including current
+identifier descriptors. Their version is explicitly a `view-sha256` fingerprint.
 Events retain their committed candidate ID and native source-record version.
 The reader selects included `candidate_context` events only where the native
 event locator joins a durable preview snapshot and source version belonging to
@@ -73,6 +73,48 @@ The broader Python run found four existing tests that still expected superseded
 Motion writer/Evidence requests labels; those expectations were updated to the
 already-shipped Documents and writing/Discovery requests labels. Final regression,
 current-main integration and live results are recorded below after deployment.
+
+### Final verification and live receipt
+
+- Code commits: `1b40e984` (workflow and reader), `53e97a1d` (Python 3.12
+  annotation compatibility). Both were integrated into main and pushed.
+- Full Python suite: **280 passed, 1 xpassed**, one existing asyncio deprecation
+  warning. After the compatibility repair, **44 focused claims/reader tests**
+  passed again. The three Go reader/runtime/composition packages passed after
+  rebasing onto current main; no dependencies were installed.
+- Final Next Webpack production build, TypeScript and smoke syntax checks passed.
+  Webpack was used locally because the dependency junction lies outside
+  Turbopack's worktree filesystem root; the normal Coolify build also passed.
+- Proffer starter deployment `ip8zdoclninvmhevc5hei0mg`: finished and container
+  healthy. The prior deployment `q1bwmjll030qipyxgkdy5ncv` was still marked building
+  with no active build/compiler process and an idle helper. It was cancelled
+  through Coolify to unblock the new deployment; no application stop was used.
+- Initial Legal deployment `2nusggeeut7at9ilfubinqia` failed API startup: Python
+  3.12 eagerly evaluated `list[GapReportRow]` inside the service after its `list`
+  method shadowed the builtin. The future-annotations import corrects this.
+- Legal retry `bqb17uyr6bqtupumlfagcoym`: finished; legal-api and office healthy,
+  web/gateway/renderer running. `/claims` returned HTTP 200 with the Claims and
+  evidence heading and Probata records tab. `/v1/claims`, `/v1/claim-gaps` and
+  `/v1/claim-sources` returned 200 through the actual browser API adapter.
+- Independent authenticated upstream reads and the live browser API adapter
+  both returned **two entities and zero selected-case context events** in REAL
+  mode. Both selected matter and court case exist. Zero does not establish that
+  older timelines or other event families have already been integrated.
+- An unauthenticated upstream reader request returned **401**.
+- Direct authenticated MCP `tools/list` returned all five new claim tools;
+  `tools/call case_claims` succeeded. ContextForge's own discovery cache was not
+  independently refreshed or verified in this receipt.
+- The installed **Python 3.12.15** runtime passed
+  `web/smoke/claims-service-runtime-smoke.py`: durable claim/evidence/gap/follow-up,
+  history/reopen, stale-write rejection, idempotent Probata opening, changed-source
+  flag, preserved legal response and exclusion of source payloads from history.
+  Retained fixture: `/tmp/advocatio-claims-runtime-qdzqm1bq` in the API container;
+  **zero production records written** by the smoke.
+- No interactive browser acceptance or phone viewport run was performed. The
+  disposable CDP smoke is checked in for that remaining proof; HTTP/HTML/runtime
+  checks above are not presented as browser interaction proof.
+
+Live entry: https://legal.tilapia-skilift.ts.net/claims .
 
 ## Bounded remaining integrations
 
