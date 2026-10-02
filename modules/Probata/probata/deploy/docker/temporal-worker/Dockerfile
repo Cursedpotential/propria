@@ -32,8 +32,11 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 
 COPY requirements.txt ./
+# DuckDB runs the ELT steps the Go workflows hand to this worker (owner 2026-10-02).
+# zipfs reads inside ZIP exports and is loaded at first use (INSTALL zipfs FROM community).
+# Byline: Claude Code · Opus 5.5 · 2026-10-02
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir temporalio
+    && pip install --no-cache-dir temporalio duckdb==1.5.6
 
 # Activities call into the existing pipeline code, so the worker needs the
 # same application surface as agentos-api, not just an SDK stub.
