@@ -44,9 +44,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASS:-ai}
       POSTGRES_DB: ${DB_DATABASE:-platform}
     healthcheck:
-      # -d is required: without it pg_isready targets a database named after the
-      # user ("ai"), which does not exist -> one FATAL log line every 5 s (2026-09-20).
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai} -d ${DB_DATABASE:-platform}"]
+      # -d postgres: without -d, pg_isready targets a database named after the user, and
+      # DB_DATABASE is "ai" in Coolify too. Database "ai" does not exist, so every check
+      # (every 5 s) logged a FATAL line (2026-09-20, 2026-10-02). The maintenance database
+      # always exists. Claude Code · Opus 5.5 · 2026-10-02
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai} -d postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
