@@ -3934,3 +3934,12 @@ Open, for the owner:
 - **Fix (owner 08:33 "get rid of the lockout"):** `RATE_LIMIT_LOCKOUT_ENABLED=false`, `RATE_LIMIT_MEDIUM_RPM=1200`, `RATE_LIMIT_MEDIUM_BURST=200` (`ce00f289`, deployment of `exec-contextforge`). Login and admin tiers keep their own strict defaults; the public route still requires the token.
 - **Verified:** the new container carries the three settings; through the public route the coolify-write server lists 42 tools, propria-docstore 5, surrealdb 10. Sessions started during the lockout need a restart (or `/mcp` reconnect) to pick the tools up.
 
+## 2026-10-02 08:45 EDT — probata-db role `ai` is a superuser with a two-letter password; Docstore follows the Vestigia rename
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02_
+
+- **Found (Vestigia lane, 08:41):** on probata-db the role `ai` is SUPERUSER, its password is two letters and sits in git history (old Vestigia ops scripts), and it owns the `casebible`, `postgres` and template databases. Vestigia no longer uses it: the `vestigia` role owns `traceiq` (owner approved 08:20). Not hardened yet.
+- **Possibly the same value, unchecked:** `~/.secrets/Agno-MCP-Platform.env` holds a two-character `DB_PASS` and `POSTGRES_PASSWORD`, and both were copied into Infisical `/desktop/Agno-MCP-Platform` on 09-30.
+- **Docstore side of the rename:** the Dockerfile now copies `modules/vestigia-geodata_processor/vestigia/docs/` (24 tracked files, checked). The nightly job (08:15 UTC) re-clones main and rebuilds, so the next build uses it. The registry `canonical_prefix` stays `vestigia/traceiq-rebuild/docs/`, so indexed document ids do not change.
+- [ ] **Owner:** how to harden `ai`. (A, default) find every client that logs in as `ai`, give each its own role or the new password, set a strong password kept in `~/.secrets` and Infisical, then drop SUPERUSER once nothing needs it. (B) Rotate the password only. (C) Leave it.
+- [ ] Confirm the 2026-10-03 08:15 UTC nightly build of `propria-docstore` succeeds with the new COPY path.
