@@ -1,0 +1,65 @@
+{
+  "base": "https://kasm.tilapia-skilift.ts.net",
+  "public": "https://kasm.int.mitechconsult.com",
+  "user": "msalem",
+  "steps": [
+    {
+      "name": "01-login",
+      "url": "https://kasm.tilapia-skilift.ts.net/#/login",
+      "title": "Kasm Workspaces"
+    },
+    {
+      "name": "02-workspaces",
+      "url": "https://kasm.tilapia-skilift.ts.net/#/dashboard",
+      "title": "Kasm Workspaces",
+      "sees": [
+        "Devbox",
+        "Sandbox",
+        "Devbox (RDP)"
+      ]
+    },
+    {
+      "name": "03-devbox-session",
+      "url": "https://kasm.tilapia-skilift.ts.net/#/dashboard",
+      "title": "Kasm Workspaces",
+      "workspace": "Devbox"
+    },
+    {
+      "name": "04-rdp-session",
+      "url": "https://kasm.tilapia-skilift.ts.net/#/session/f9eed188-9182-4b0b-a179-f9d3c0374872",
+      "title": "Devbox (RDP)",
+      "workspace": "Devbox (RDP)"
+    },
+    {
+      "name": "05-public-signed-out",
+      "url": "https://auth.int.mitechconsult.com/if/flow/default-authentication-flow/?client_id=MFiWnuNyKlIq5puyGRJ7Z7hFGXbA5WjfYF3riEaD&redirect_uri=https%3A%2F%2Fhomepage.int.mitechconsult.com%2Foutpost.goauthentik.io%2Fcallback%3FX-authentik-auth-callback%3Dtrue&response_type=code&scope=openid+ak_proxy+email+entitlements+profile&state=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnb2F1dGhlbnRpay5pby9vdXRwb3N0L01GaVdudU55S2xJcTVwdXlHUko3WjdoRkdYYkE1V2pmWUYzcmlFYUQiLCJzaWQiOiJjNjdkNDQ2OC0zOGRiLTQyZDQtOGRmZC0xZDBkNWEwNTE5ZDAiLCJzdGF0ZSI6IjI4NTc0MTE3LWE5MjQtNDg5NS1hMTQwLWVjYTgxNDBkNjdiNSIsInJlZGlyZWN0IjoiaHR0cHM6Ly9rYXNtLmludC5taXRlY2hjb25zdWx0LmNvbS8ifQ.GsT4oTef46mGu_V1ZQgr8dvs4fuXfDa-b4jtOX3Tmxw&next=%2Fapplication%2Fo%2Fauthorize%2F%3Fclient_id%3DMFiWnuNyKlIq5puyGRJ7Z7hFGXbA5WjfYF3riEaD%26redirect_uri%3Dhttps%253A%252F%252Fhomepage.int.mitechconsult.com%252Foutpost.goauthentik.io%252Fcallback%253FX-authentik-auth-callback%253Dtrue%26response_type%3Dcode%26scope%3Dopenid%2Bak_proxy%2Bemail%2Bentitlements%2Bprofile%26state%3DeyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnb2F1dGhlbnRpay5pby9vdXRwb3N0L01GaVdudU55S2xJcTVwdXlHUko3WjdoRkdYYkE1V2pmWUYzcmlFYUQiLCJzaWQiOiJjNjdkNDQ2OC0zOGRiLTQyZDQtOGRmZC0xZDBkNWEwNTE5ZDAiLCJzdGF0ZSI6IjI4NTc0MTE3LWE5MjQtNDg5NS1hMTQwLWVjYTgxNDBkNjdiNSIsInJlZGlyZWN0IjoiaHR0cHM6Ly9rYXNtLmludC5taXRlY2hjb25zdWx0LmNvbS8ifQ.GsT4oTef46mGu_V1ZQgr8dvs4fuXfDa-b4jtOX3Tmxw",
+      "title": "Welcome to authentik! - authentik",
+      "authentik": true
+    }
+  ],
+  "console_errors_signed_in": [
+    "Cannot parse user info. No user info stored",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 502 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "A VideoFrame was garbage collected without being closed. Applications should call close() on frames when done with them to prevent stalls."
+  ]
+}
