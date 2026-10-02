@@ -19,7 +19,7 @@ export type TaskNavigationGroup = (typeof TASK_NAVIGATION_GROUPS)[number];
 // remain reachable through the digital-firm bucket until they receive an intentional home.
 const GROUP_PATHS: Record<TaskNavigationGroup, readonly string[]> = {
   "Case overview": ["/"],
-  "Reference library": ["/case-search", "/laws", "/toolkit", "/external-sources"],
+  "Reference library": ["/case-search", "/laws", "/toolkit", "/toolkit/tools", "/external-sources"],
   "Documents and drafting": [
     "/documents",
     "/file-tools",

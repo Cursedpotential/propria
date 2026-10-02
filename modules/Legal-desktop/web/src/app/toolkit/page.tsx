@@ -1,4 +1,4 @@
-// Byline: Claude Code · Opus 5.5 · 2026-09-27
+// Byline: Claude Code · Opus 5.5 · 2026-09-27; factors and tools link 2026-10-02
 // Family Law Toolkit records, read through the shared legal-record contract
 // (propria.legal-record.v1). The toolkit's case store owns them; this page never
 // copies them, and shows the same id and version the toolkit shows.
@@ -24,6 +24,7 @@ const TABLES = [
   { id: "draft", label: "Drafts" },
   { id: "exhibit", label: "Exhibits" },
   { id: "note", label: "Notes" },
+  { id: "factor", label: "Best-interest factors" },
 ] as const;
 
 const muted = { color: "var(--text-muted)" } as const;
@@ -83,6 +84,9 @@ export default async function ToolkitPage({
           </Link>
         ))}
       </nav>
+      <p>
+        <Link href="/toolkit/tools">Run toolkit tools →</Link>
+      </p>
       {error ? <p>{error}</p> : null}
       {status && !status.configured ? <p>Toolkit store connection is not configured.</p> : null}
       {status?.configured && !status.reachable ? <p>Toolkit store unreachable. {status.detail}</p> : null}
@@ -106,12 +110,22 @@ export default async function ToolkitPage({
         </article>
       ) : null}
 
+      {listing && listing.table === "factor" ? (
+        <section aria-label="Best-interest factors">
+          <h2 style={{ fontFamily: "Georgia, serif", fontWeight: 500 }}>Best-interest factors (MCL 722.23)</h2>
+          <p style={muted}>The {listing.items.length} factors the court weighs, as the toolkit store holds them.</p>
+        </section>
+      ) : null}
+
       {listing ? (
         <>
           {listing.items.length === 0 ? <p>No {table} records in the toolkit store.</p> : null}
           {listing.items.map((item) => (
             <article key={item.id} style={{ borderTop: "1px solid var(--border)", padding: "8px 0" }}>
-              <Link href={href({ table, id: item.id })}>{item.title || item.id}</Link>
+              <Link href={href({ table, id: item.id })}>
+                {table === "factor" ? `(${item.id.split(":")[1]}) ` : ""}
+                {item.title || item.id}
+              </Link>
               <p style={{ ...muted, ...mono, margin: 0 }}>{item.id}</p>
             </article>
           ))}

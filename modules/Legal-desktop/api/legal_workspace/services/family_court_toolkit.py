@@ -44,8 +44,9 @@ _LIST_SURQL = (
 )
 
 # Tables the workdesk may open through this read-through: the toolkit's legal sources,
-# reference rows (cheat sheets, templates, event packs) and case-document registers.
-TOOLKIT_TABLES = ("source", "reference", "filing", "draft", "exhibit", "order", "note", "memo")
+# reference rows (cheat sheets, templates, event packs), case-document registers, and the
+# 12 MCL 722.23 best-interest factors, factor:a .. factor:l (Claude Code · Opus 5.5 · 2026-10-02).
+TOOLKIT_TABLES = ("source", "reference", "filing", "draft", "exhibit", "order", "note", "memo", "factor")
 
 _REF = re.compile(r"^(?P<tb>[a-z_]+):(?P<id>.+)$")
 
@@ -161,4 +162,6 @@ def list_records(table: str) -> ToolkitListing:
         for row in rows
         if isinstance(row, dict)
     ]
+    if table == "factor":  # statutory order, a through l
+        items.sort(key=lambda item: item["id"])
     return ToolkitListing(table=table, items=items)

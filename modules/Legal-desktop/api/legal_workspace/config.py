@@ -65,10 +65,16 @@ class Settings(BaseSettings):
     family_court_toolkit_store_db: str = Field(default="case", alias="FAMILY_COURT_TOOLKIT_STORE_DB")
     family_court_toolkit_store_user: str = Field(default="", alias="FAMILY_COURT_TOOLKIT_STORE_USER")
     family_court_toolkit_store_pass: str = Field(default="", alias="FAMILY_COURT_TOOLKIT_STORE_PASS")
+    # Family Law Toolkit hosted MCP console (family-court-console on ovh-files), called by the
+    # desk's server-side MCP client. Empty URL = the tools page reports "not configured". The token
+    # is the console's MCP_BEARER_TOKEN and never leaves the API. Claude Code · Opus 5.5 · 2026-10-02.
+    family_court_console_mcp_url: str = Field(default="", alias="FAMILY_COURT_CONSOLE_MCP_URL")
+    family_court_console_mcp_token: str = Field(default="", alias="FAMILY_COURT_CONSOLE_MCP_TOKEN")
 
     @field_validator(
         "consignatio_catalog_url",
         "family_court_toolkit_store_url",
+        "family_court_console_mcp_url",
         "legal_api_service",
         "legal_web_service",
         "legal_postgres_service",
