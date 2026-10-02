@@ -3833,3 +3833,30 @@ Open, for the owner:
 - **Test data removed from the live store** (saved first to `modules/Legal-desktop/docs/receipts/2026-10-01-toolkit-store-test-rows-removed.json`): `case_status:current` (an agent probe, posture "probe-from-plugin …", 09-07) and two toolkit test fixtures loaded as references. The loader now skips `toolkit/tests/` (`propria-plugins` `9541682`, toolkit 3.2.3). The worked examples marked "synthetic" are the toolkit's own teaching examples and stay.
 - **Still not in the desk:** the toolkit's tools (35 MCP tools), its 66 skills, agents and commands, the 12 best-interest factors, CourtListener; 74 of 193 sources carry neither a file location nor a URL; the case store holds no case data (people, messages, orders, hearings).
 - The toolkit's `content/` folder is gitignored in `propria-plugins`, so the restored files have no git history. The Codex copy of the toolkit did not refresh (a running Codex process holds the folder); `python3 tools/sync_installs.py` once it is closed.
+
+## 2026-10-02 01:19 EDT – ongoing — Devbox becomes a Kasm Workspaces workspace (P-1), and agent work stops dying with the container (owner 01:19, 01:27)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02 (agent `kasm-devbox`, dispatched by the portal session). Brief: Probata `docs/planning/2026-09-27-TODO.md` "Brief for #1"; P-1 row in `2026-09-30-TODO.md`._
+
+- **State found (05:20Z):** image `a31c5f79` built 09-28 10:21Z from `82395891`, deploy `uoxbzry4j2suzcfi0sy81z45`. The whole-home layout is live (`/data/probata/volumes/devbox/home` → `/home/kasm-user`). Port 3389 is still published. The Tailscale sidecar `kasm` (100.87.31.37, `kasm.tilapia-skilift.ts.net`) is alive, not dead as the 09-27 brief said. The linuxbrew volume is empty. Host: 8 cores, 22 GB (7 GB available), 8 GB swap fully used, 119 GB free on `/`.
+- **Lost in the 09-28 deploy (the container was recreated):** `.npm`, `.duckdb`, the agent work folders `browser-journeys-01419f0` and `browser-journeys-audit-0a6662ca`, `portal-work/`, and the container-layer `.config`/`.local`/`.cache`. No copy survives anywhere on the host.
+- **`.claude.json` restored** (owner OK 01:27) from `~/.claude/backups/.claude.json.backup.1790359915451` (09-25 18:11Z, 42,350 B, byte-identical). The minimal file a `claude auth status` probe had created, and its backup, are in `/data/probata/to_be_deleted/2026-10-02-devbox-claude-json-probe/`. Claude Code 2.1.283 is installed but not signed in (no `.credentials.json`). The owner signs in after the redeploy.
+- **Guard against losing agent work (owner 01:27):**
+  - `deploy/devbox/pre_redeploy_check.py` rescues the writable layer into `~/rescued/<stamp>/` and verifies every file by sha256. Commits `fae5ff12`, `844ed5a7`.
+  - Run 05:34Z: 2693 diff entries; 1688 set aside as named churn; 6 rescue roots (including `/tmp/workbench-audit-9H4CdE`, 58 MB). 501/501 files verified. Result: SAFE.
+  - `/root` now maps to `/data/probata/volumes/devbox/root`, seeded from the image's `/root`.
+  - Agent convention: work as `kasm-user` in `~/work/<job>`. Recorded in `docs/reference/DEVBOX-ON-OVH-FILES.md`, "Where work lives".
+- **Step 1 committed** (`fae5ff12`, on main):
+  - xrdp moved to host port `13389`, freeing 3389 for Kasm's RDP gateway.
+  - ttyd 1.7.7 (sha256-pinned) on `:7681`, tailnet only, opening `claude` in tmux.
+  - Sidecar removed (owner OK 01:27).
+  - Reserved, not built: the legal desk's `claude -p` listener, as service `devbox-claude` in `deploy/devbox.yaml` with `svc:devbox-claude`.
+- **Step 2–3 prepared, not run** (`6e153252`): `deploy/kasm/install_kasm.sh`, Kasm CE 1.19.0 pinned to sha256 `8caaa12d…`. It is the recorded exception: Kasm's installer, not Coolify, owns `/opt/kasm`. Also `deploy/kasm/workspaces/{devbox,sandbox}.json` (Devbox 2 CPU / 4 GB, owner 01:27) and `deploy/kasm/README.md`. Kasm's docs FAQ hash `7b801cb0…` matches neither published 1.19.0 tarball.
+- **Exposure checked:** the host's `DOCKER-USER` chain drops public-interface (`ens3`) traffic to every Docker-published port, so Kasm's 8443/3389 stay private.
+- [ ] Devbox redeploy (force) for `fae5ff12`+. The owner's 01:36 trigger never reached Coolify, and my own deploy call was refused by the session's permission classifier, so the owner retriggers it.
+- [ ] After the redeploy:
+  - verify ports, ttyd, the sidecar gone and `/root` mounted;
+  - remove the stale `kasm` tailnet device (OAuth client);
+  - owner signs Claude Code in;
+  - run `install_kasm.sh`.
+- [ ] Owner: VNC_PW appeared in two tool outputs: Kasm service argv in `ps`, and coolify-write `get_application`, which returns the rendered compose with VNC_PW unredacted. Transcript only, not in git. The coolify-write redaction gap is a plugin bug.
