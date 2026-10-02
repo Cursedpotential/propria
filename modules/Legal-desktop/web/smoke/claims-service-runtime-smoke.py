@@ -45,9 +45,12 @@ except ClaimRevisionConflict:
     pass
 else:
     raise AssertionError("Stale write was accepted")
+assert service.by_origin(origin.kind, origin.record_id) is None
 linked = service.from_probata(FromProbataCreate(origin=origin, response="Retained legal response"), actor="synthetic:test")
 again = service.from_probata(FromProbataCreate(origin=origin), actor="synthetic:test")
 assert again.claim_id == linked.claim_id and again.response == "Retained legal response"
+assert service.by_origin(origin.kind, origin.record_id).claim_id == linked.claim_id
+assert len(service.history(linked.claim_id)) == 1
 descriptor["origin"]["record_version"] = "synthetic-v2"
 current = service.get(linked.claim_id)
 assert current.origin_state == "changed" and current.origin.record_version == "synthetic-v1"
@@ -58,5 +61,6 @@ assert all("Synthetic upstream title" not in row[0] and "Never persisted" not in
 reopened = ClaimService(root, matter_id, lambda: package)
 assert reopened.get(claim.claim_id).followups[0].status == "open"
 assert reopened.get(linked.claim_id).origin_state == "unavailable"
+assert reopened.by_origin(origin.kind, origin.record_id).response == "Retained legal response"
 print(json.dumps({"python": sys.version.split()[0], "passed": True,
                   "synthetic_store": str(root), "production_records_written": 0}))
