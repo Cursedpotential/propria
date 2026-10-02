@@ -87,4 +87,4 @@ Current use: the Jev Tier-1 eval. Its work dir is `~/jev-eval` (host `/data/prob
 | Box | Where | Has | Use |
 |---|---|---|---|
 | `opencode-server` | ovh-files, `https://opencode.tilapia-skilift.ts.net` | OpenCode headless server; Python 3.14.7 and Node 26 through mise; **no Claude Code** | Delegated agents on OpenCode (NIM and other models) |
-| `desktop-…` (Kasm) | ovh-app, `svc:desk` | Python 3.8 only | A remote desktop; not a job runner |
+| Kasm Workspaces | ovh-files, `svc:kasm` (https://kasm.tilapia-skilift.ts.net) | Devbox (this box's image and home), Devbox (RDP), Sandbox (throwaway) | Desktops in the browser. `exec-desktop`/`svc:desk` on ovh-app was retired for it on 2026-10-02 (stopped and renamed, not deleted) |
