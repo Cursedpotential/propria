@@ -30,6 +30,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
 // Matter modes, exactly as the Workbench spells them.
@@ -45,6 +47,20 @@ type Plan struct {
 	PreviewHandle *string `json:"preview_handle"`
 	MatterMode    string  `json:"matter_mode"`
 	Steps         []Step  `json:"steps"`
+	// Reentry carries the run settings the re-entry import needs and no table
+	// stores: whose records they are, whose phone or account they come from,
+	// and the approval policy. Absent, re-entry runs as before (no perspective,
+	// every preview waits in Review). Owner 2026-10-02 19:42 EDT: "Run it
+	// through the repair workflow", imported like the device's other files.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	Reentry *ReentryOptions `json:"reentry,omitempty"`
+}
+
+// ReentryOptions are passed unchanged to the re-entry run or batch.
+type ReentryOptions struct {
+	OwnerPersonID       string `json:"owner_person_id,omitempty"`
+	PerspectivePersonID string `json:"perspective_person_id,omitempty"`
+	AutoApproval        string `json:"auto_approval,omitempty"`
 }
 
 // Step is one registered Activity with its parameters.
@@ -66,6 +82,7 @@ var (
 	planIDPattern        = regexp.MustCompile(`^[A-Za-z0-9_-]{8,96}$`)
 	stepIDPattern        = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
 	previewHandlePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{32,128}$`)
+	personIDPattern      = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 	// WorkflowIDPattern is what a repair run's workflow id looks like; the
 	// runs/{workflow_id} route refuses anything else.
 	WorkflowIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,160}$`)
@@ -92,6 +109,16 @@ func (p Plan) ShapeError() error {
 	}
 	if p.Steps == nil {
 		return errors.New("steps must be a list")
+	}
+	if r := p.Reentry; r != nil {
+		for name, id := range map[string]string{"owner_person_id": r.OwnerPersonID, "perspective_person_id": r.PerspectivePersonID} {
+			if id != "" && !personIDPattern.MatchString(id) {
+				return fmt.Errorf("reentry.%s must be a person UUID", name)
+			}
+		}
+		if r.AutoApproval != "" && r.AutoApproval != proffer.AutoApprovalCleanChecks {
+			return fmt.Errorf("reentry.auto_approval names an unknown policy %q", r.AutoApproval)
+		}
 	}
 	for index, step := range p.Steps {
 		if len(step.Params) > maxParamsBytes {

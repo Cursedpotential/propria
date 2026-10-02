@@ -154,6 +154,14 @@ func WorkflowIDFor(plan Plan) string {
 		canonical.Steps = append(canonical.Steps, [3]string{step.StepID, step.Activity, canonicalParams(step.Params)})
 	}
 	encoded, _ := json.Marshal(canonical)
+	// A plan with re-entry options is a different run from the same plan
+	// without them; a plan without them keeps the id it always had.
+	if plan.Reentry != nil {
+		encoded, _ = json.Marshal(struct {
+			Plan    json.RawMessage
+			Reentry ReentryOptions
+		}{encoded, *plan.Reentry})
+	}
 	digest := sha256.Sum256(encoded)
 	return "repair-plan-" + plan.PlanID + "-" + hex.EncodeToString(digest[:])[:12]
 }
@@ -442,6 +450,8 @@ func reenter(ctx workflow.Context, workflowID, runID string, validated Validated
 			RequestID: requestID, MatterID: reentry.MatterID, CourtCaseID: reentry.CourtCaseID,
 			SourceRef: proffer.Ref(terminal.OutputRef), DeclaredFormat: reentry.DeclaredFormat,
 			ParserOptionsRef: proffer.Ref(reentry.ParserOptionsRef),
+			OwnerPersonID:    reentry.OwnerPersonID, PerspectivePersonID: reentry.PerspectivePersonID,
+			AutoApproval: reentry.AutoApproval,
 		})
 		var execution workflow.Execution
 		if err := child.GetChildWorkflowExecution().Get(ctx, &execution); err != nil {
@@ -481,7 +491,9 @@ func reenter(ctx workflow.Context, workflowID, runID string, validated Validated
 			BatchID: batchID, MatterID: reentry.MatterID, CourtCaseID: reentry.CourtCaseID,
 			Scheme: scheme, Bucket: bucket, Prefix: prefix,
 			DeclaredFormat: reentry.DeclaredFormat, ParserOptionsRef: proffer.Ref(reentry.ParserOptionsRef),
-			MaxInFlight: 1,
+			MaxInFlight:   1,
+			OwnerPersonID: reentry.OwnerPersonID, PerspectivePersonID: reentry.PerspectivePersonID,
+			AutoApproval: reentry.AutoApproval,
 		})
 		var execution workflow.Execution
 		if err := child.GetChildWorkflowExecution().Get(ctx, &execution); err != nil {

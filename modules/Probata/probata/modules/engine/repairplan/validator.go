@@ -128,6 +128,11 @@ type Reentry struct {
 	ParserOptionsRef string `json:"parser_options_ref"`
 	MatterID         string `json:"matter_id"`
 	CourtCaseID      string `json:"court_case_id"`
+	// From the plan's reentry options (empty when the plan names none).
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	OwnerPersonID       string `json:"owner_person_id,omitempty"`
+	PerspectivePersonID string `json:"perspective_person_id,omitempty"`
+	AutoApproval        string `json:"auto_approval,omitempty"`
 }
 
 // Response projects the result onto the contract.
@@ -435,6 +440,10 @@ func checkReentry(plan Plan, specs []*ToolSpec, anchor *Anchor, types [][2]strin
 	}
 	reentry := Reentry{
 		ParserOptionsRef: anchor.ParserOptionsRef, MatterID: anchor.MatterID, CourtCaseID: anchor.CourtCaseID,
+	}
+	if options := plan.Reentry; options != nil {
+		reentry.OwnerPersonID, reentry.PerspectivePersonID, reentry.AutoApproval =
+			options.OwnerPersonID, options.PerspectivePersonID, options.AutoApproval
 	}
 	terminal := types[len(types)-1][1]
 	switch last.OutputKind {

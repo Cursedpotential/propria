@@ -387,3 +387,45 @@ func TestAnN8NStepRunsThroughTheFlowActivity(t *testing.T) {
 	require.Equal(t, salvagedRef, status.Steps[0].OutputRef)
 	require.Equal(t, digestA, status.Steps[0].OutputSHA256)
 }
+
+// The plan's re-entry options reach the re-entry batch, so a repaired SMS
+// backup imports as the device owner's, under the approval policy the owner
+// named (owner 2026-10-02 19:42 EDT). Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestReentryOptionsReachTheReentryBatch(t *testing.T) {
+	const matt = "01a0f751-e07b-76b6-afcb-63acfbba373e"
+	plan := testPlan(lenientID)
+	plan.Reentry = &ReentryOptions{OwnerPersonID: matt, PerspectivePersonID: matt, AutoApproval: proffer.AutoApprovalCleanChecks}
+	require.NoError(t, plan.ShapeError())
+	env, _ := newRepairEnv(t, plan)
+	env.OnActivity(lenientID, mock.Anything, mock.Anything).Return(StepResult{
+		OutputRef: lenientRef, OutputType: TypeDerivedThreads, OutputKind: OutputDerivedChunkFolder,
+		OutputSHA256: digestA, ReentryRef: threadsRef,
+	}, nil).Once()
+	var batch proffer.BatchInput
+	env.OnWorkflow(proffer.BatchWorkflowName, mock.Anything, mock.Anything).
+		Return(func(_ workflow.Context, in proffer.BatchInput) (proffer.BatchStatus, error) {
+			batch = in
+			return proffer.BatchStatus{BatchID: in.BatchID, Terminal: true, Items: []proffer.BatchItem{}}, nil
+		})
+	status, err := runRepair(t, env, plan)
+	require.NoError(t, err)
+	require.Equal(t, RunCompleted, status.Status)
+	require.Equal(t, matt, batch.OwnerPersonID)
+	require.Equal(t, matt, batch.PerspectivePersonID)
+	require.Equal(t, proffer.AutoApprovalCleanChecks, batch.AutoApproval)
+}
+
+func TestReentryOptionsShapeAndRunIdentity(t *testing.T) {
+	plan := testPlan(lenientID)
+	before := WorkflowIDFor(plan)
+	plan.Reentry = &ReentryOptions{PerspectivePersonID: "01a0f751-e07b-76b6-afcb-63acfbba373e"}
+	require.NotEqual(t, before, WorkflowIDFor(plan), "a plan with re-entry options is a different run")
+	plan.Reentry = nil
+	require.Equal(t, before, WorkflowIDFor(plan), "a plan without them keeps its id")
+
+	for _, bad := range []ReentryOptions{{OwnerPersonID: "matt"}, {PerspectivePersonID: "01a0f751"}, {AutoApproval: "always"}} {
+		bad := bad
+		plan.Reentry = &bad
+		require.Error(t, plan.ShapeError(), "%+v", bad)
+	}
+}
