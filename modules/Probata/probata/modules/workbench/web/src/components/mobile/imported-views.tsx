@@ -5,6 +5,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Chip, Empty, ErrorBox, LoadMore, Loading, PageBar, StatusBadge } from "@/components/mobile/mobile-ui";
 import { formatCount, formatDate, formatDateTime, formatDuration, formatRange, formatTime, statusLabel } from "@/components/mobile/mobile-format";
+import { WhoIsThis } from "@/components/identity/who-is-this";
 import { importedApi, type ImportedMessage, type ImportedSource, type ImportedThread, type SourceStatus } from "@/lib/imported-client";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 import { cn } from "@/lib/utils";
@@ -187,6 +188,11 @@ function Bubble({ message, focused }: { message: ImportedMessage; focused: boole
         {message.sender.label} · {formatTime(message.at)}
         {message.party ? ` · ${message.party === "first_party" ? "first-party" : "third-party"}` : ""}
       </p>
+      {message.sender.number && !message.outgoing ? (
+        <div className="mt-1 px-1">
+          <WhoIsThis number={message.sender.number} entityId={message.sender.entity_id} context="a text message" />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -273,6 +279,10 @@ export function CallsView() {
   return (
     <div>
       <PageBar title="Calls" subtitle={query.data ? `Read from ${query.data.pages[0].read_from}` : undefined} />
+      <AppLink href="/m/unknown" className="mx-4 mt-3 flex min-h-12 items-center justify-between rounded-lg border border-amber-500/60 bg-amber-100 px-4 text-sm font-semibold text-amber-950 active:opacity-80 dark:bg-amber-950 dark:text-amber-100">
+        <span>Unnamed numbers, most frequent first</span>
+        <span aria-hidden="true">&rsaquo;</span>
+      </AppLink>
       {query.isPending ? <Loading /> : query.isError ? <ErrorBox error={query.error} onRetry={() => void query.refetch()} /> : (
         <>
           {summary ? (
@@ -299,7 +309,10 @@ export function CallsView() {
                     {call.device ? ` · ${call.device}` : ""}
                   </p>
                 </div>
-                <p className="shrink-0 text-right text-xs text-muted-foreground">{formatDateTime(call.at)}</p>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <p className="text-right text-xs text-muted-foreground">{formatDateTime(call.at)}</p>
+                  {call.with.number ? <WhoIsThis number={call.with.number} entityId={call.with.entity_id} context="a call" /> : null}
+                </div>
               </li>
             ))}
           </ul>

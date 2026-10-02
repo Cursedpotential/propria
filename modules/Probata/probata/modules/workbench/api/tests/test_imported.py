@@ -17,9 +17,10 @@ from fastapi.testclient import TestClient
 MATTER = "01a0f751-e07b-75cc-9ad5-63ad9449a8ba"
 KEY = "b2://salem-data/consignatio/casevault/SourceCorpus/messaging/sms-backup-restore/8102689630/sms-2024-11-24.xml"
 PEOPLE = [
-    {"person": "Matt", "display_name": "Matthew S. Salem", "role_in_case": "user", "identifier": "8103535467", "kind": "phone"},
-    {"person": "Katrina", "display_name": "Katrina Kinzel", "role_in_case": "co_parent", "identifier": "8102689630", "kind": "phone"},
-    {"person": "Katrina", "display_name": "Katrina Kinzel", "role_in_case": "co_parent", "identifier": "katrina", "kind": "name"},
+    {"entity_id": "e-matt", "person": "Matt", "display_name": "Matthew S. Salem", "role_in_case": "user", "verification_state": "confirmed", "identifier": "8103535467", "kind": "phone"},
+    {"entity_id": "e-kat", "person": "Katrina", "display_name": "Katrina Kinzel", "role_in_case": "co_parent", "verification_state": "confirmed", "identifier": "8102689630", "kind": "phone"},
+    {"entity_id": "e-kat", "person": "Katrina", "display_name": "Katrina Kinzel", "role_in_case": "co_parent", "verification_state": "confirmed", "identifier": "katrina", "kind": "name"},
+    {"entity_id": "e-ph", "person": "Unknown 313-555-0101", "display_name": "Unknown 313-555-0101", "role_in_case": "unknown", "verification_state": "proposed", "identifier": "3135550101", "kind": "phone"},
 ]
 
 
@@ -68,8 +69,21 @@ def test_participants_mark_the_users_own_side():
     assert (me["label"], me["mine"]) == ("Matthew S. Salem", True)
     her = service._participant("+18102689630", people, "Matt")
     assert (her["label"], her["mine"]) == ("Katrina Kinzel", False)
-    stranger = service._participant("+13135550101", people, "Matt")
-    assert stranger["label"] == "(313) 555-0101" and stranger["person"] is None
+    stranger = service._participant("+13135550177", people, "Matt")
+    assert stranger["label"] == "(313) 555-0177" and stranger["person"] is None
+    assert stranger["number"] == "3135550177"
+
+
+def test_an_unconfirmed_person_is_not_confirmed_and_offers_who_is_this():
+    people = service._People(PEOPLE)
+    unconfirmed = service._participant("+13135550101", people, "Matt")
+    assert unconfirmed["unconfirmed"] is True and unconfirmed["entity_id"] == "e-ph"
+    assert unconfirmed["label"] == "Unknown 313-555-0101" and unconfirmed["number"] == "3135550101"
+    nobody = service._participant("+13135550199", people, "Matt")
+    assert nobody["unconfirmed"] is False and nobody["entity_id"] is None and nobody["number"] == "3135550199"
+    named = service._participant("+18102689630", people, "Matt")
+    assert named["unconfirmed"] is False and named["number"] is None
+    assert "Unknown 313-555-0101" not in people.by_person
 
 
 def test_status_prefers_the_committed_fact_and_never_guesses_without_run_state():
@@ -108,6 +122,36 @@ def test_sources_group_derived_files_under_their_export(monkeypatch):
     assert item["format"] == "SMS" and item["owner"] == "Katrina"
 
 
+def test_one_unknown_numbers_list_merges_people_without_a_person_and_unconfirmed_people(monkeypatch):
+    more = PEOPLE + [
+        {"entity_id": "e-ph2", "person": "Jordan Reyes", "display_name": "Jordan Reyes", "role_in_case": "unknown", "verification_state": "proposed",
+         "identifier": "3135550102", "kind": "phone", "alias_status": "confirmed"},
+        {"entity_id": "e-ph2", "person": "Jordan Reyes", "display_name": "Jordan Reyes", "role_in_case": "unknown", "verification_state": "proposed",
+         "identifier": "j. reyes", "kind": "name", "alias_status": "candidate", "alias_text_raw": "J. Reyes"},
+        {"entity_id": "e-mail", "person": "Email Only", "display_name": "Email Only", "role_in_case": "unknown", "verification_state": "proposed",
+         "identifier": "e@example.com", "kind": "email"},
+    ]
+    monkeypatch.setattr(pg, "people", lambda: more)
+    monkeypatch.setattr(pg, "entity_activity", lambda: [
+        {"entity_id": "e-ph", "calls": 0, "msgs": 3, "last_at": None},
+        {"entity_id": "e-ph2", "calls": 9, "msgs": 2, "last_at": None},
+    ])
+    monkeypatch.setattr(pg, "working_unlinked_numbers", lambda: [
+        {"number": "4195550123", "n": 7}, {"number": "2485550000", "n": 1}, {"number": "3135550101", "n": 99}, {"number": "1115", "n": 5},
+    ])
+    client = TestClient(_app())
+    body = client.get("/api/imported/unknown-numbers").json()
+    assert [(i["kind"], i["number"] or i["label"], i["total"]) for i in body["items"]] == [
+        ("unconfirmed", "3135550102", 11), ("no_person", "4195550123", 7), ("unconfirmed", "3135550101", 3),
+        ("no_person", "2485550000", 1), ("unconfirmed", "e@example.com", 0)]
+    named = next(i for i in body["items"] if i["entity_id"] == "e-ph2")
+    assert named["named"] is True and named["candidates"] == ["J. Reyes"]
+    assert next(i for i in body["items"] if i["entity_id"] == "e-ph")["named"] is False
+    only = client.get("/api/imported/unknown-numbers", params={"kind": "no_person"}).json()
+    assert [i["number"] for i in only["items"]] == ["4195550123", "2485550000"]
+    assert client.get("/api/imported/unlinked-numbers").status_code == 404
+
+
 def test_the_view_has_no_write_route():
     methods = {method for route in _app().routes for method in getattr(route, "methods", set())}
     assert methods <= {"GET", "HEAD"}
@@ -124,3 +168,12 @@ def test_search_failure_is_a_clean_503(monkeypatch):
     monkeypatch.setattr(service.httpx, "AsyncClient", Boom)
     response = TestClient(_app()).get("/api/imported/search", params={"q": "title"})
     assert response.status_code == 503 and "unavailable" in response.json()["detail"]
+
+
+def test_number_status_tells_named_placeholder_and_unknown_apart():
+    body = TestClient(_app()).get("/api/imported/number-status", params=[
+        ("numbers", "+18102689630"), ("numbers", "3135550101"), ("numbers", "+13135550177"), ("numbers", "Katrina")]).json()["items"]
+    assert body["+18102689630"]["state"] == "known" and body["+18102689630"]["label"] == "Katrina Kinzel"
+    assert body["3135550101"]["state"] == "unconfirmed" and body["3135550101"]["entity_id"] == "e-ph"
+    assert body["+13135550177"] == {"state": "unknown", "number": "3135550177", "entity_id": None, "label": "(313) 555-0177"}
+    assert "Katrina" not in body

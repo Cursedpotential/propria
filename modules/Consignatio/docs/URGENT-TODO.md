@@ -4113,8 +4113,9 @@ Open, for the owner:
 - **Still open:**
   - [ ] 49 refusals on `context.activity_execution` (12:48–13:30 UTC) came from a login the old log lines do not name; the engine's own code only reads and inserts there, which `platform_runtime` may do. A repeat now names the login.
   - [ ] Something tries to log in as `postgres` (no such role), 10 times today. The next attempt names its address.
-  - [ ] `infisical_dbadmin` is a member of `platform_app` (read/write on platform data), which looks unintended. Revoking it now needs `matt` or a session inside the container.
-  - [ ] The health check `pg_isready -U ai` logs "database ai does not exist" every 5 s; `-d postgres` in the compose fixes it, with a probata-db redeploy.
+  - `infisical_dbadmin` belongs to `platform_app` on purpose: a 2026-09-02 session created it (CREATEROLE, ADMIN OPTION on `platform_app`) so Infisical can issue short-lived platform database logins (dynamic secrets). Left as is (owner 14:40).
+  - Health check fixed and live: probata-db redeployed at 15:47 EDT when the import had finished (deployment `iehw9rb4cg6z3dnh6rn2uebh`, `modules/Probata/probata/tools/probata-db-redeploy-when-quiet.py`). The log has no "database ai does not exist" lines since; `duckdb.postgres_role=platform_duckdb` is live (a non-member is refused by role); `ai` still refuses network logins; ContextForge, Infisical, Temporal, the Probata runtime and llm-probe reconnected. exec-tier (`platform_api`) reconnects on its next database request.
+  - [ ] llm-probe answered one request with 500 after the restart (`AdminShutdown` from a pooled connection the restart closed); later requests are 200. Its pool does not check connections before use, so every database restart costs one failed request per pooled connection.
   - `matt` is still a superuser that can log in over the network.
 
 ## 2026-10-02 12:00–16:30 EDT — scrambled files in the vault: survey, twins, quarantine list (owner 14:41 "Quarantine the messed-up files")

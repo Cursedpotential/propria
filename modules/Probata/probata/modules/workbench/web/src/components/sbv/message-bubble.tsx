@@ -11,6 +11,7 @@
 // Byline: Claude Code · Opus 5 · 2026-09-20
 "use client";
 
+import { NumberIdentity } from "@/components/identity/number-status";
 import { AttachmentPreview } from "@/components/sbv/attachment-preview";
 import type { PreviewMessageRow } from "@/hooks/use-preview-messages";
 import type { MatterMode } from "@/lib/shared/types";
@@ -58,6 +59,11 @@ export function MessageBubble({ row, previewHandle, mode, showSenderLabel, highl
                   onOpen={onOpenAttachment ? () => onOpenAttachment(attachment.attachment_id) : undefined}
                 />
               ))}
+            </div>
+          )}
+          {!isSent && (
+            <div className="mt-1" data-testid="message-bubble-identity">
+              <NumberIdentity value={row.senderAddress ?? row.senderName} context="a text message" />
             </div>
           )}
           <div

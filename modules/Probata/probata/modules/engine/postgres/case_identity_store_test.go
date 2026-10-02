@@ -62,7 +62,14 @@ func TestHeaderAndPersonColumnsAreTheOnlySQLIdentifiers(t *testing.T) {
 	// from these maps; pin them so a new entry is a reviewed change that also
 	// updates the platform_runtime column grants.
 	if len(caseidentity.HeaderColumns["matter"]) != 4 || len(caseidentity.HeaderColumns["court_case"]) != 10 ||
-		len(caseidentity.PersonColumns) != 9 || len(caseidentity.IdentifierColumns) != 6 {
+		len(caseidentity.PersonColumns) != 11 || len(caseidentity.IdentifierColumns) != 6 {
 		t.Fatal("editable column sets changed; review the UPDATE builders and the platform_runtime column grants")
+	}
+	// The two entries added 2026-10-02 (a placeholder or contact person is named and confirmed by the
+	// owner) are covered by the column grants in sql/bootstrap/placeholders_20261002.sql.
+	for _, column := range []string{"requires_human_review", "review_status"} {
+		if caseidentity.PersonColumns[column] != "entity" {
+			t.Fatalf("%s must be an entity column", column)
+		}
 	}
 }

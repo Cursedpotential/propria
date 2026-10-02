@@ -56,3 +56,14 @@ test("phone ergonomics: 16px inputs, 48px+ targets, safe-area insets, dynamic vi
   assert.match(search, /h-12 min-w-0 flex-1[^"]*text-base/);
   assert.match(read("../index.html"), /viewport-fit=cover/);
 });
+
+test("Who is this? writes only through the governed case-identity API, never a registry table or a second path", () => {
+  const sheet = read("../src/components/identity/who-is-this.tsx");
+  assert.match(sheet, /import \{ addPlaceholders, editPerson, mergePerson, newIdempotencyKey \} from "@\/lib\/case-identity-client"/);
+  assert.doesNotMatch(sheet, /fetch\(|method:\s*["']POST/);
+  assert.match(sheet, /verification_state: "confirmed"/);
+  const status = read("../src/components/identity/number-status.tsx");
+  assert.match(status, /importedApi\.numberStatus/);
+  const list = read("../src/components/identity/unknown-numbers-list.tsx");
+  assert.match(list, /most frequent first/);
+});

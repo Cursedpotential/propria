@@ -3143,7 +3143,7 @@ $$;
 CREATE FUNCTION working.validate_message_projection() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
--- Scoped to the rows each firing touches (owner 2026-10-02, applied live); same invariants. Byline: Claude Code · Opus 5.5 · 2026-10-02
+-- Scoped to the rows each firing touches, one indexable predicate (owner 2026-10-02, v2 applied live); same invariants. Byline: Claude Code · Opus 5.5 · 2026-10-02
 DECLARE
   owner_count INTEGER;
   rows_in jsonb[] := ARRAY[]::jsonb[];
@@ -3176,23 +3176,29 @@ BEGIN
     ids := array_remove(ids, NULL);
     IF NOT full_check AND cardinality(ids) = 0 THEN RETURN NULL; END IF;
   END IF;
+  -- One indexable predicate for both paths: a "full_check OR id = ANY(ids)" filter
+  -- planned generically (plpgsql caches the plan after five calls) scanned every route
+  -- on every firing. The full check names every approved route instead.
+  IF full_check THEN
+    ids := ARRAY(SELECT normalized_record_id FROM working.message_projection_route WHERE decision_state = 'approved');
+  END IF;
 
   IF EXISTS (SELECT 1 FROM working.message_projection_route r
              JOIN working.normalized_record nr ON nr.id=r.normalized_record_id
-             WHERE (full_check OR r.normalized_record_id = ANY(ids))
+             WHERE r.normalized_record_id = ANY(ids)
                AND r.decision_state='approved' AND nr.record_type<>'message') THEN
     RAISE EXCEPTION 'MESSAGE_ROUTE_REQUIRES_MESSAGE_RECORD';
   END IF;
   IF EXISTS (
     SELECT 1 FROM working.message_projection_route r
-    WHERE (full_check OR r.normalized_record_id = ANY(ids))
+    WHERE r.normalized_record_id = ANY(ids)
       AND r.decision_state='approved' AND r.projection_kind='first_party'
       AND ((SELECT count(*) FROM working.message m WHERE m.derived_from_record_id=r.normalized_record_id)<>1
         OR EXISTS (SELECT 1 FROM working.third_party_message tm WHERE tm.normalized_record_id=r.normalized_record_id))) THEN
     RAISE EXCEPTION 'FIRST_PARTY_PROJECTION_CARDINALITY';
   END IF;
   IF EXISTS (SELECT 1 FROM working.message_projection_route r
-             WHERE (full_check OR r.normalized_record_id = ANY(ids))
+             WHERE r.normalized_record_id = ANY(ids)
                AND r.decision_state='approved' AND r.projection_kind='acquired_third_party') THEN
     SELECT count(*) INTO owner_count FROM registry.person WHERE role_in_case='user';
     IF owner_count<>1 THEN RAISE EXCEPTION 'OWNER_IDENTITY_NOT_CONFIGURED'; END IF;
@@ -3202,7 +3208,7 @@ BEGIN
     JOIN working.normalized_record nr ON nr.id=r.normalized_record_id
     LEFT JOIN working.third_party_message tm ON tm.normalized_record_id=r.normalized_record_id
     LEFT JOIN working.third_party_conversation tc ON tc.id=tm.conversation_id
-    WHERE (full_check OR r.normalized_record_id = ANY(ids))
+    WHERE r.normalized_record_id = ANY(ids)
       AND r.decision_state='approved' AND r.projection_kind='acquired_third_party'
       AND (tm.id IS NULL OR tc.review_status<>'approved' OR tc.case_id<>nr.case_id
         OR tc.source_artifact_id<>nr.artifact_id
@@ -40636,6 +40642,109 @@ COMMENT ON TABLE ops.legal_investigation_request IS 'Native investigation reques
 GRANT SELECT, INSERT, UPDATE ON TABLE ops.legal_investigation_request TO platform_app, platform_runtime;
 
 -- <<< legal investigation request final-form definition <<<
+
+--
+-- working.message_occurrence and working.message_match_key (message match-up across sources, owner 2026-10-02).
+-- Byline: Claude Code · Opus 5.5 · 2026-10-02
+--
+
+-- Byline: Claude Code · Opus 5.5 · 2026-10-02
+-- Message match-up across sources (owner 2026-10-02: "both Facebook exports, deduped"; decision C, messages
+-- present in more than one source match up). One working row per message; every further source that holds
+-- the same message is recorded here as an occurrence of that row. Nothing is deleted; every source stays cited.
+--
+-- Match rule: the same platform, the same set of parties (resolved registry entity, else the registry-normalized
+-- identifier, else the raw identifier), the same sender, the same sent time to the second and the same body
+-- hash, from a different source version. Two phones (Matt's and Katrina's) that hold the same message resolve
+-- to the same two people and so produce the same key: a cross-device match.
+--
+-- Applied the same way to the platform snapshot (sql/bootstrap/schema_snapshot_20260907.sql) and live.
+
+CREATE FUNCTION working.message_match_key(p_platform text, p_parties text[], p_sender text, p_occurred timestamptz, p_body_sha256 bytea)
+RETURNS text
+LANGUAGE sql STABLE
+SET search_path TO 'pg_catalog'
+AS $$
+    SELECT encode(sha256(convert_to(
+        coalesce(p_platform, '') || '|' ||
+        coalesce((SELECT string_agg(DISTINCT party, ',' ORDER BY party) FROM unnest(p_parties) AS party WHERE party <> ''), '') || '|' ||
+        coalesce(p_sender, '') || '|' ||
+        coalesce(to_char(date_trunc('second', p_occurred AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), '') || '|' ||
+        coalesce(encode(p_body_sha256, 'hex'), ''),
+    'UTF8')), 'hex')
+$$;
+
+CREATE TABLE working.message_occurrence (
+    normalized_record_id uuid NOT NULL,
+    match_key text NOT NULL,
+    source_version_id uuid NOT NULL,
+    primary_record_id uuid NOT NULL,
+    projection_kind text NOT NULL,
+    perspective_person_id uuid,
+    cross_device boolean DEFAULT false NOT NULL,
+    deriver_version text NOT NULL,
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT message_occurrence_pkey PRIMARY KEY (normalized_record_id),
+    CONSTRAINT message_occurrence_match_key_check CHECK ((length(match_key) = 64)),
+    CONSTRAINT message_occurrence_projection_kind_check CHECK ((projection_kind = ANY (ARRAY['first_party'::text, 'acquired_third_party'::text]))),
+    CONSTRAINT message_occurrence_deriver_version_check CHECK ((length(deriver_version) > 0)),
+    CONSTRAINT message_occurrence_primary_record_id_fkey FOREIGN KEY (primary_record_id)
+        REFERENCES working.normalized_record(id) DEFERRABLE INITIALLY DEFERRED
+);
+
+COMMENT ON TABLE working.message_occurrence IS
+    'One row per source occurrence of a message. normalized_record_id = primary_record_id is the source that committed the working row; any other row is a further source (another backup, export or phone) holding the same message, recorded instead of a second working row.';
+
+CREATE INDEX message_occurrence_match_key_idx ON working.message_occurrence USING btree (match_key, recorded_at);
+CREATE INDEX message_occurrence_primary_idx ON working.message_occurrence USING btree (primary_record_id);
+
+GRANT SELECT, INSERT ON TABLE working.message_occurrence TO platform_runtime;
+GRANT ALL ON TABLE working.message_occurrence TO platform_app;
+GRANT EXECUTE ON FUNCTION working.message_match_key(text, text[], text, timestamptz, bytea) TO platform_runtime;
+
+--
+-- Device-aware message match-up (owner ruling 2026-10-02 15:40). Byline: Claude Code · Opus 5.5 · 2026-10-02
+--
+
+-- Byline: Claude Code · Opus 5.5 · 2026-10-02
+-- Owner ruling 2026-10-02 15:40 EDT: "we don't want any duplicates unless it's a completely separate medium or
+-- person or backup device. If it's a real duplicate from the exact same type of file from the exact same device,
+-- then we don't need it." The match-up key therefore also names the device the source came from:
+--   * an SMS Backup & Restore source: its casevault device folder (the phone's own number);
+--   * any other source (a Facebook export): the platform and the perspective person (the account's owner).
+-- The same message from a different phone, person or medium gets a different key and stays its own row.
+-- Applied to the snapshot and live; then every existing occurrence is re-keyed under the new rule.
+
+CREATE FUNCTION working.message_device_key(p_source_key text, p_platform text, p_perspective uuid)
+RETURNS text
+LANGUAGE sql IMMUTABLE
+SET search_path TO 'pg_catalog'
+AS $$
+    SELECT CASE
+        WHEN substring(p_source_key FROM '/sms-backup-restore/([0-9]+)/') IS NOT NULL
+            THEN 'sms-backup-restore:' || substring(p_source_key FROM '/sms-backup-restore/([0-9]+)/')
+        ELSE coalesce(p_platform, '') || ':' || coalesce(p_perspective::text, '')
+    END
+$$;
+
+CREATE FUNCTION working.message_match_key(p_platform text, p_parties text[], p_sender text, p_occurred timestamptz, p_body_sha256 bytea, p_device text)
+RETURNS text
+LANGUAGE sql STABLE
+SET search_path TO 'pg_catalog'
+AS $$
+    SELECT encode(sha256(convert_to(
+        coalesce(p_device, '') || '|' ||
+        coalesce(p_platform, '') || '|' ||
+        coalesce((SELECT string_agg(DISTINCT party, ',' ORDER BY party) FROM unnest(p_parties) AS party WHERE party <> ''), '') || '|' ||
+        coalesce(p_sender, '') || '|' ||
+        coalesce(to_char(date_trunc('second', p_occurred AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), '') || '|' ||
+        coalesce(encode(p_body_sha256, 'hex'), ''),
+    'UTF8')), 'hex')
+$$;
+
+GRANT EXECUTE ON FUNCTION working.message_device_key(text, text, uuid) TO platform_runtime;
+GRANT EXECUTE ON FUNCTION working.message_match_key(text, text[], text, timestamptz, bytea, text) TO platform_runtime;
+
 
 -- PostgreSQL database dump complete
 --

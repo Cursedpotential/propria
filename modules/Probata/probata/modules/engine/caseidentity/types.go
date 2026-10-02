@@ -248,7 +248,30 @@ type NewPersonSpec struct {
 	IsMinor      bool    `json:"is_minor"`
 	Notes        *string `json:"notes"`
 	ChangeReason string  `json:"change_reason"`
+	// VerificationState is "confirmed" (the default, a person the owner adds by hand) or "proposed"
+	// (unconfirmed, for example a person known only from a contact export or by an email address).
+	VerificationState string `json:"verification_state"`
 }
+
+// ContactPerson is one person a contact export names: the display name (the most recent export's
+// name), every name any export gave as a candidate, and the numbers and emails it carries.
+type ContactPerson struct {
+	DisplayName    string   `json:"display_name"`
+	Numbers        []string `json:"numbers"`
+	Emails         []string `json:"emails"`
+	CandidateNames []string `json:"candidate_names"`
+	Source         string   `json:"source"`
+}
+
+// ContactPeopleSpec creates unconfirmed people from contact exports and links their numbers' rows.
+type ContactPeopleSpec struct {
+	People       []ContactPerson `json:"people"`
+	ChangeReason string          `json:"change_reason"`
+	DryRun       bool            `json:"dry_run"`
+}
+
+// MaxContactPeople bounds one batch.
+const MaxContactPeople = 100
 
 // TriageSpec records the owner's decision on an identifier tied to nobody.
 type TriageSpec struct {
@@ -263,6 +286,8 @@ type Receipt struct {
 	Kind       string    `json:"kind"`
 	RecordedAt time.Time `json:"recorded_at"`
 	Replayed   bool      `json:"replayed"`
+	// Detail carries what a batch act did (counts, created ids); empty for single-row acts.
+	Detail map[string]any `json:"detail,omitempty"`
 }
 
 // Store is the registry boundary.
@@ -274,6 +299,9 @@ type Store interface {
 	EditHeader(ctx context.Context, mode Mode, spec HeaderSpec, actor Actor) (Receipt, error)
 	EditPerson(ctx context.Context, spec PersonSpec, actor Actor) (Receipt, error)
 	AddPerson(ctx context.Context, spec NewPersonSpec, actor Actor) (Receipt, error)
+	AddPlaceholders(ctx context.Context, spec PlaceholderSpec, actor Actor) (Receipt, error)
+	AddContactPeople(ctx context.Context, spec ContactPeopleSpec, actor Actor) (Receipt, error)
+	MergePerson(ctx context.Context, spec MergeSpec, actor Actor) (Receipt, error)
 	Triage(ctx context.Context, spec TriageSpec, actor Actor) (Receipt, error)
 	Lookup(ctx context.Context, values []string) ([]Match, error)
 }
@@ -486,6 +514,57 @@ var PersonColumns = map[string]string{
 	"display_name": "entity", "canonical_name": "entity",
 	"short_name": "person", "role_in_case": "person", "connection_to": "person",
 	"relationship_type": "person", "notes": "person", "is_minor": "person", "verification_state": "person",
+	// A placeholder is named by the owner: the entity leaves the review queue and the person is confirmed.
+	"requires_human_review": "entity", "review_status": "entity",
+}
+
+var (
+	reviewStatuses        = map[string]bool{"unreviewed": true, "in_review": true, "approved": true, "rejected": true, "needs_more_evidence": true}
+	verificationStates    = map[string]bool{"proposed": true, "confirmed": true, "disputed": true}
+	placeholderNumberRE   = regexp.MustCompile(`^[2-9][0-9]{9}$`)
+	MaxPlaceholderNumbers = 500
+)
+
+// NormalizePhone returns the 10-digit US form of a phone number, or false for anything else (short
+// codes, names, foreign numbers). It is the same rule as registry.norm_identifier for a phone.
+func NormalizePhone(raw string) (string, bool) {
+	digits := make([]rune, 0, 12)
+	for _, r := range raw {
+		if r >= '0' && r <= '9' {
+			digits = append(digits, r)
+		} else if unicode.IsLetter(r) || r == '@' {
+			return "", false
+		}
+	}
+	d := string(digits)
+	if len(d) == 11 && d[0] == '1' {
+		d = d[1:]
+	}
+	if !placeholderNumberRE.MatchString(d) {
+		return "", false
+	}
+	return d, true
+}
+
+// PlaceholderName is the display name a placeholder person carries until the owner names it.
+func PlaceholderName(number string) string {
+	return "Unknown " + number[:3] + "-" + number[3:6] + "-" + number[6:]
+}
+
+// PlaceholderSpec asks for one placeholder person per unidentified number. A number that any
+// identifier already carries is skipped. DryRun does everything and rolls back.
+type PlaceholderSpec struct {
+	Numbers      []string `json:"numbers"`
+	ChangeReason string   `json:"change_reason"`
+	DryRun       bool     `json:"dry_run"`
+}
+
+// MergeSpec merges a placeholder into an existing person: its identifiers and linked rows move, and
+// the placeholder is marked merged (never deleted).
+type MergeSpec struct {
+	FromID       string `json:"from_id"`
+	IntoID       string `json:"into_id"`
+	ChangeReason string `json:"change_reason"`
 }
 
 // ValidatePerson checks a person edit.
@@ -501,7 +580,7 @@ func ValidatePerson(spec PersonSpec) error {
 			return fmt.Errorf("%s is not an editable person field", column)
 		}
 		if value == nil {
-			if column == "display_name" || column == "is_minor" || column == "verification_state" {
+			if column == "display_name" || column == "is_minor" || column == "verification_state" || column == "requires_human_review" || column == "review_status" {
 				return fmt.Errorf("%s cannot be empty", column)
 			}
 			continue
@@ -509,8 +588,14 @@ func ValidatePerson(spec PersonSpec) error {
 		if err := validText(column, *value, column == "display_name", MaxTextBytes); err != nil {
 			return err
 		}
-		if column == "is_minor" && *value != "true" && *value != "false" {
-			return errors.New("is_minor must be true or false")
+		if (column == "is_minor" || column == "requires_human_review") && *value != "true" && *value != "false" {
+			return fmt.Errorf("%s must be true or false", column)
+		}
+		if column == "review_status" && !reviewStatuses[*value] {
+			return errors.New("review_status is not a known review state")
+		}
+		if column == "verification_state" && !verificationStates[*value] {
+			return errors.New("verification_state must be proposed, confirmed or disputed")
 		}
 		if column == "short_name" && utf8.RuneCountInString(*value) > MaxShortNameRunes {
 			return fmt.Errorf("short_name is longer than %d characters", MaxShortNameRunes)
@@ -539,6 +624,65 @@ func ValidateNewPerson(spec NewPersonSpec) error {
 		if err := validText("notes", *spec.Notes, false, MaxTextBytes); err != nil {
 			return err
 		}
+	}
+	if spec.VerificationState != "" && spec.VerificationState != "proposed" && spec.VerificationState != "confirmed" {
+		return errors.New("verification_state must be proposed or confirmed")
+	}
+	return validText("change_reason", spec.ChangeReason, true, MaxTextBytes)
+}
+
+// ValidateContactPeople checks a contact-people batch.
+func ValidateContactPeople(spec ContactPeopleSpec) error {
+	if len(spec.People) == 0 || len(spec.People) > MaxContactPeople {
+		return fmt.Errorf("between 1 and %d people are required", MaxContactPeople)
+	}
+	for _, person := range spec.People {
+		if err := validText("display_name", person.DisplayName, true, MaxValueBytes); err != nil {
+			return err
+		}
+		if len(person.Numbers) == 0 && len(person.Emails) == 0 {
+			return errors.New("each person needs at least one number or email")
+		}
+		if len(person.Numbers) > 20 || len(person.Emails) > 20 || len(person.CandidateNames) > 20 {
+			return errors.New("a person carries at most 20 numbers, 20 emails and 20 candidate names")
+		}
+		for _, list := range [][]string{person.Numbers, person.Emails, person.CandidateNames} {
+			for _, value := range list {
+				if err := validText("value", value, true, MaxValueBytes); err != nil {
+					return err
+				}
+			}
+		}
+		if err := validText("source", person.Source, true, 380); err != nil {
+			return err
+		}
+	}
+	return validText("change_reason", spec.ChangeReason, true, MaxTextBytes)
+}
+
+// ValidatePlaceholders checks a placeholder batch.
+func ValidatePlaceholders(spec PlaceholderSpec) error {
+	if len(spec.Numbers) == 0 || len(spec.Numbers) > MaxPlaceholderNumbers {
+		return fmt.Errorf("between 1 and %d numbers are required", MaxPlaceholderNumbers)
+	}
+	for _, number := range spec.Numbers {
+		if err := validText("number", number, true, 64); err != nil {
+			return err
+		}
+	}
+	return validText("change_reason", spec.ChangeReason, true, MaxTextBytes)
+}
+
+// ValidateMerge checks a placeholder merge.
+func ValidateMerge(spec MergeSpec) error {
+	if err := ValidateUUID("from_id", spec.FromID); err != nil {
+		return err
+	}
+	if err := ValidateUUID("into_id", spec.IntoID); err != nil {
+		return err
+	}
+	if strings.EqualFold(spec.FromID, spec.IntoID) {
+		return errors.New("a person cannot be merged into itself")
 	}
 	return validText("change_reason", spec.ChangeReason, true, MaxTextBytes)
 }

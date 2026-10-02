@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/m", match: (path: string) => path === "/m" || path.startsWith("/m/source") || path.startsWith("/m/thread"), label: "Imported", Icon: Inbox },
-  { href: "/m/calls", match: (path: string) => path.startsWith("/m/calls"), label: "Calls", Icon: Phone },
+  { href: "/m/calls", match: (path: string) => path.startsWith("/m/calls") || path.startsWith("/m/unknown"), label: "Calls", Icon: Phone },
   { href: "/m/search", match: (path: string) => path.startsWith("/m/search"), label: "Search", Icon: Search },
   { href: "/m/review", match: (path: string) => path.startsWith("/m/review"), label: "Review", Icon: ClipboardCheck },
 ] as const;

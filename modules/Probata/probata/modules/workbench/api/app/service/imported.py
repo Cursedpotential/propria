@@ -109,10 +109,31 @@ class _People:
     def __init__(self, rows: list[dict[str, Any]]):
         self.by_phone: dict[str, dict[str, str]] = {}
         self.by_person: dict[str, dict[str, str]] = {}
+        self.candidates: dict[str, list[str]] = {}
+        # Every person still marked unconfirmed (verification_state 'proposed'): a placeholder for a number
+        # nobody named, or a person only a contact export named. Keyed by entity.
+        self.unconfirmed: dict[str, dict[str, Any]] = {}
         self.names: list[tuple[str, dict[str, str]]] = []
         for row in rows:
-            who = {"person": row["person"], "name": row["display_name"], "role": row["role_in_case"] or ""}
-            self.by_person.setdefault(who["person"], who)
+            unconfirmed = row.get("verification_state") == "proposed"
+            who = {
+                "person": row["person"], "name": row["display_name"], "role": row["role_in_case"] or "",
+                "entity_id": row.get("entity_id"), "unconfirmed": unconfirmed,
+            }
+            if unconfirmed:
+                entry = self.unconfirmed.setdefault(
+                    who["entity_id"], {"entity_id": who["entity_id"], "name": who["name"], "numbers": [], "emails": []})
+                if row["kind"] == "phone" and _digits(row["identifier"] or "") not in entry["numbers"]:
+                    entry["numbers"].append(_digits(row["identifier"] or ""))
+                elif row["kind"] == "email" and row["identifier"] not in entry["emails"]:
+                    entry["emails"].append(row["identifier"])
+            else:
+                self.by_person.setdefault(who["person"], who)
+            if row["kind"] == "name" and row.get("alias_status") == "candidate" and row.get("entity_id"):
+                # Names a contact export gave this number, kept unconfirmed for the owner to pick from.
+                names = self.candidates.setdefault(row["entity_id"], [])
+                if row.get("alias_text_raw") and row["alias_text_raw"] not in names:
+                    names.append(row["alias_text_raw"])
             ident = (row["identifier"] or "").strip().lower()
             if row["kind"] == "phone":
                 self.by_phone[_digits(ident)] = who
@@ -136,7 +157,12 @@ def _digits(value: str) -> str:
 
 
 def _people() -> _People:
-    return _cached("people", 60, lambda: _People(pg.people()))
+    return _cached("people", 10, lambda: _People(pg.people()))
+
+
+def looks_like_phone_value(value: str) -> bool:
+    digits = re.sub(r"\D", "", value)
+    return bool(re.fullmatch(r"\+?[\d\s().-]{10,16}", value)) and (len(digits) == 10 or (len(digits) == 11 and digits[0] == "1"))
 
 
 def _pretty_phone(value: str) -> str:
@@ -184,11 +210,17 @@ def _participant(identifier: str, people: _People, owner: str | None) -> dict[st
         label = who["name"] if who else "This phone"
     else:
         who = people.phone(identifier)
-        looks_like_phone = bool(re.fullmatch(r"\+?[\d\s().-]{10,16}", identifier))
+        looks_like_phone = looks_like_phone_value(identifier)
         label = who["name"] if who else (_pretty_phone(identifier) if looks_like_phone else identifier)
+    number = _digits(identifier) if identifier != "self" and looks_like_phone_value(identifier) else None
     return {
         "id": identifier, "label": label, "mine": bool(who and who["role"] == "user"),
         "person": who["person"] if who else None,
+        # The registry person this number belongs to, whether it is still a placeholder, and the
+        # 10-digit number when nobody carries it yet (the "Who is this?" control starts from these).
+        "entity_id": who.get("entity_id") if who else None,
+        "unconfirmed": bool(who and who.get("unconfirmed")),
+        "number": number if (number and (not who or who.get("unconfirmed"))) else None,
     }
 
 
@@ -541,6 +573,102 @@ async def review_queue() -> dict[str, Any]:
             "records": row["records"], "waiting_since": _iso(row["waiting_since"]),
         })
     return {"items": items, "total": len(items)}
+
+
+# --------------------------------------------------------------------------- who is this
+
+def invalidate() -> None:
+    """Forget cached registry and activity reads after an identity change."""
+    for key in [k for k in _cache if k in ("people", "entity-activity", "unlinked") or k.startswith("activity:") or k.startswith("sv:")]:
+        _cache.pop(key, None)
+
+
+async def _activity() -> dict[str, dict[str, Any]]:
+    """number -> {messages, calls, last_at} over the live case's imported records."""
+    matter = live_matter()
+    rows = await asyncio.to_thread(lambda: _cached(f"activity:{matter}", 60, lambda: pg.numbers_activity(matter)))
+    out: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        entry = out.setdefault(row["number"], {"messages": 0, "calls": 0, "last_at": None})
+        entry["calls" if row["record_type"] == "call" else "messages"] += row["n"]
+        if row["last_at"] and (entry["last_at"] is None or row["last_at"] > entry["last_at"]):
+            entry["last_at"] = row["last_at"]
+    return out
+
+
+async def identity() -> dict[str, Any]:
+    """Named people (never placeholders) a number can be merged into, from the registry."""
+    people = await asyncio.to_thread(_people)
+    seen: dict[str, dict[str, Any]] = {}
+    for who in people.by_phone.values():
+        if not who["unconfirmed"]:
+            seen.setdefault(who["entity_id"], {"entity_id": who["entity_id"], "name": who["name"], "short": who["person"], "role": who["role"]})
+    for who in people.by_person.values():
+        if who.get("entity_id") and not who["unconfirmed"]:
+            seen.setdefault(who["entity_id"], {"entity_id": who["entity_id"], "name": who["name"], "short": who["person"], "role": who["role"]})
+    return {"people": sorted(seen.values(), key=lambda p: (p["role"] != "user", p["name"].lower()))}
+
+
+async def number_status(values: list[str]) -> dict[str, Any]:
+    """For the desktop thread and calls views: is each number a named person, a placeholder, or nobody yet?"""
+    people = await asyncio.to_thread(_people)
+    out: dict[str, Any] = {}
+    for value in values[:50]:
+        if not looks_like_phone_value(value):
+            continue
+        number = _digits(value)
+        who = people.by_phone.get(number)
+        if who is None:
+            out[value] = {"state": "unknown", "number": number, "entity_id": None, "label": _pretty_phone(number)}
+        else:
+            out[value] = {"state": "unconfirmed" if who["unconfirmed"] else "known", "number": number,
+                          "entity_id": who["entity_id"], "label": who["name"]}
+    return {"items": out}
+
+
+async def unknown_numbers(*, kind: str, limit: int, offset: int, q: str | None) -> dict[str, Any]:
+    """ONE list of who still needs naming, most frequent first.
+
+    - kind "no_person": phone numbers on imported rows that no registry person carries yet (the contacts
+      import and the back-fill work from these); total is how many rows carry the number.
+    - kind "unconfirmed": people still marked unconfirmed (a placeholder for a number nobody named, or
+      a person only a contact export named), ranked by the calls and messages linked to them.
+    """
+    people = await asyncio.to_thread(_people)
+    items: list[dict[str, Any]] = []
+    if kind in ("all", "unconfirmed"):
+        rows = await asyncio.to_thread(lambda: _cached("entity-activity", 30, pg.entity_activity))
+        activity = {row["entity_id"]: row for row in rows}
+        for entity_id, person in people.unconfirmed.items():
+            seen = activity.get(entity_id, {"msgs": 0, "calls": 0, "last_at": None})
+            first = person["numbers"][0] if person["numbers"] else None
+            items.append({
+                "kind": "unconfirmed", "entity_id": entity_id, "number": first,
+                "label": _pretty_phone(first) if first else (person["emails"][0] if person["emails"] else person["name"]),
+                "name": person["name"], "named": not person["name"].startswith("Unknown "),
+                "messages": int(seen["msgs"]), "calls": int(seen["calls"]), "total": int(seen["msgs"]) + int(seen["calls"]),
+                "last_at": _iso(seen["last_at"]), "candidates": people.candidates.get(entity_id, []),
+            })
+    if kind in ("all", "no_person"):
+        unlinked = await asyncio.to_thread(lambda: _cached("unlinked", 30, pg.working_unlinked_numbers))
+        for row in unlinked:
+            number = row["number"]
+            if number in people.by_phone or not re.fullmatch(r"[2-9][0-9]{9}", number):
+                continue
+            items.append({
+                "kind": "no_person", "entity_id": None, "number": number, "label": _pretty_phone(number), "name": None, "named": False,
+                "messages": 0, "calls": 0, "total": int(row["n"]), "last_at": None, "candidates": [],
+            })
+    if q:
+        needle = re.sub(r"[^0-9]", "", q)
+        if needle:
+            items = [item for item in items if item["number"] and needle in item["number"]]
+        else:
+            lowered = q.strip().lower()
+            items = [item for item in items if lowered in (item["name"] or "").lower()]
+    items.sort(key=lambda item: (-item["total"], item["number"] or item["label"]))
+    return {"items": items[offset: offset + limit], "total": len(items),
+            "next_offset": offset + limit if offset + limit < len(items) else None}
 
 
 # --------------------------------------------------------------------------- summary

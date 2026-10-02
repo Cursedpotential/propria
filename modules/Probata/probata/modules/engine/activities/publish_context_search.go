@@ -89,6 +89,10 @@ type PublishContextSearchSpec struct {
 	// ids; when given they must match the resolution's.
 	OwnerPersonRef       proffer.Ref
 	PerspectivePersonRef proffer.Ref
+	// MessageMatchesRef is the match-up receipt (match_message_occurrences_activity);
+	// the messages it names already have a search object from an earlier source
+	// and are not published again. Optional. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	MessageMatchesRef proffer.Ref
 }
 
 func (s PublishContextSearchSpec) validate() error {
@@ -214,6 +218,9 @@ type ContextSearchPublicationOutcome struct {
 	// PropertiesAdded names, per collection, properties this pass added (every
 	// property, for a collection this pass created).
 	PropertiesAdded map[string][]string
+	// SkippedMatched counts messages not published because an earlier source
+	// already holds them (the match-up). Byline: Claude Code · Opus 5.5 · 2026-10-02
+	SkippedMatched int `json:"skipped_matched,omitempty"`
 }
 
 // PublishContextSearchActivities implements publish_context_search_activity.
@@ -226,6 +233,11 @@ type PublishContextSearchActivities struct {
 	Collections map[string]string
 	Attempt     Attempt
 	Heartbeat   Heartbeat
+	// Matches loads a match-up receipt's record ids; required only when a run
+	// passes one. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	Matches interface {
+		LoadMatchedRecords(ctx context.Context, ref proffer.Ref) (map[string]bool, error)
+	}
 }
 
 // ContextSearchRecordKinds are the kinds that must each have a collection.
@@ -275,6 +287,7 @@ func publishContextSearchSpecFrom(req proffer.StageRequest, attempt int32) (Publ
 	spec := PublishContextSearchSpec{
 		RequestID: req.RequestID, Attempt: attempt, SourceVersionRef: req.SourceVersionRef,
 		OwnerPersonRef: req.Refs["owner_person"], PerspectivePersonRef: req.Refs["perspective_person"],
+		MessageMatchesRef: req.Refs["message_matches"],
 	}
 	for _, field := range []struct {
 		name   string
@@ -325,7 +338,16 @@ func (a PublishContextSearchActivities) PublishContextSearch(ctx context.Context
 		return proffer.StageResult{}, err
 	}
 
-	outcome, err := a.publishStream(ctx, spec, plan)
+	matched := map[string]bool{}
+	if spec.MessageMatchesRef != "" {
+		if a.Matches == nil {
+			return proffer.StageResult{}, errors.New("the run passes a message match-up receipt but this worker has no reader for it")
+		}
+		if matched, err = a.Matches.LoadMatchedRecords(ctx, spec.MessageMatchesRef); err != nil {
+			return proffer.StageResult{}, err
+		}
+	}
+	outcome, err := a.publishStream(ctx, spec, plan, matched)
 	if err != nil {
 		return proffer.StageResult{}, err
 	}
@@ -359,7 +381,7 @@ func checkResolutionMatchesRun(resolution disclosure.Resolution, spec PublishCon
 // page in one request, write each collection's share of the page. Fail-closed:
 // one bad record, a short embed response or one rejected object fails the
 // Activity, because a silently missing record is one the owner would never find.
-func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec PublishContextSearchSpec, plan ContextSearchPlan) (ContextSearchPublicationOutcome, error) {
+func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec PublishContextSearchSpec, plan ContextSearchPlan, matched map[string]bool) (ContextSearchPublicationOutcome, error) {
 	outcome := ContextSearchPublicationOutcome{
 		Collections:          map[string]int{},
 		ObjectIDConstruction: contextsearch.ObjectIDConstruction,
@@ -449,6 +471,10 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 		if err != nil {
 			return outcome, fmt.Errorf("read context search record: %w", err)
 		}
+		if matched[strings.ToLower(record.RowID.String())] {
+			outcome.SkippedMatched++
+			continue
+		}
 		object, err := contextSearchObjectFrom(record, plan, &resolution, spec, aiChat)
 		if err != nil {
 			return outcome, err
@@ -463,7 +489,7 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 	if err := flush(); err != nil {
 		return outcome, err
 	}
-	if outcome.Published == 0 {
+	if outcome.Published == 0 && outcome.SkippedMatched == 0 {
 		return outcome, errors.New("context search publication produced no objects; a verified normalized generation with no publishable records is a defect, not an empty success")
 	}
 	return outcome, nil

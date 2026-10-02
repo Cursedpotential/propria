@@ -132,7 +132,7 @@ const casePeopleSQL = `SELECT p.id::text, coalesce(e.display_name::text, e.canon
        p.short_name, p.role_in_case, p.connection_to, p.relationship_type, p.is_minor, e.is_party, p.notes,
        p.verification_state
 FROM registry.person p JOIN registry.entity e ON e.id = p.id
-WHERE e.merged_into_id IS NULL
+WHERE e.merged_into_id IS NULL AND NOT (p.role_in_case = 'unknown' AND p.verification_state = 'proposed')
 ORDER BY CASE p.role_in_case WHEN 'user' THEN 0 ELSE 1 END, e.created_at, p.id`
 
 const caseAliasesSQL = `SELECT a.id::text, a.entity_id::text, a.alias_text::text, coalesce(a.alias_kind, 'other'),
@@ -754,7 +754,8 @@ func (s *CaseIdentityStore) EditHeader(ctx context.Context, mode caseidentity.Mo
 const personStateSQL = `SELECT jsonb_build_object('display_name', e.display_name, 'canonical_name', e.canonical_name,
 	'short_name', p.short_name, 'role_in_case', p.role_in_case, 'connection_to', p.connection_to,
 	'relationship_type', p.relationship_type, 'notes', p.notes, 'is_minor', p.is_minor,
-	'verification_state', p.verification_state)
+	'verification_state', p.verification_state, 'requires_human_review', e.requires_human_review,
+	'review_status', e.review_status)
 FROM registry.person p JOIN registry.entity e ON e.id = p.id WHERE p.id = $1::uuid AND e.merged_into_id IS NULL`
 
 // EditPerson updates one person's entity/person columns and logs before/after.
@@ -790,8 +791,11 @@ func (s *CaseIdentityStore) EditPerson(ctx context.Context, spec caseidentity.Pe
 			}
 			values = append(values, spec.Fields[column])
 			cast := ""
-			if column == "is_minor" {
+			switch column {
+			case "is_minor", "requires_human_review":
 				cast = "::boolean"
+			case "review_status":
+				cast = "::ai.review_state"
 			}
 			// column comes from caseidentity.PersonColumns (ValidatePerson), never from input text.
 			sets = append(sets, fmt.Sprintf("%s = $%d%s", column, len(values), cast))
@@ -830,6 +834,10 @@ func (s *CaseIdentityStore) AddPerson(ctx context.Context, spec caseidentity.New
 	if err := caseidentity.ValidateActor(actor); err != nil {
 		return caseidentity.Receipt{}, err
 	}
+	verification := spec.VerificationState
+	if verification == "" {
+		verification = "confirmed"
+	}
 	key := actor.StoredKey("new-person")
 	tx, rollback, err := s.begin(ctx, "new-person")
 	if err != nil {
@@ -852,7 +860,7 @@ func (s *CaseIdentityStore) AddPerson(ctx context.Context, spec caseidentity.New
 		return caseidentity.Receipt{}, caseIdentityWriteError(err)
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO registry.person (id, role_in_case, connection_to, short_name, is_minor, notes, verification_state)
-		VALUES ($1, $2, $3, $4, $5, $6, 'confirmed')`, id, spec.RoleInCase, spec.ConnectionTo, spec.ShortName, spec.IsMinor, spec.Notes); err != nil {
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`, id, spec.RoleInCase, spec.ConnectionTo, spec.ShortName, spec.IsMinor, spec.Notes, verification); err != nil {
 		rollback()
 		return caseidentity.Receipt{}, caseIdentityWriteError(err)
 	}
