@@ -1,0 +1,60 @@
+{
+  "code_commit": "c5906393342c8a7e0808db704eb7c1e2d1c4d545",
+  "legal_focused_tests_passed": 90,
+  "next_production_build_passed": true,
+  "receiver_targeted_tests_and_vet_passed": true,
+  "isolated_postgres_http": {
+    "passed": true,
+    "database": "investigation_test_advocatio_20261002",
+    "post": 200,
+    "identical_replay": 200,
+    "scoped_get": 200,
+    "wrong_scope": 409,
+    "malformed_json": 422,
+    "changed_payload_key": 409,
+    "concurrent_retries": 8,
+    "logical_count_per_request": 1,
+    "native_fingerprint_accepted": true,
+    "stale_fingerprint_rejected": true,
+    "actual_runtime_role_http_harness_passed": true,
+    "retained_request_ids": ["9a4295bd-45d8-466d-bc48-f943560806f5", "ef385445-2bed-4cbd-b4e8-b27ae5243ba4", "8052d97e-4fd0-4747-9a03-318a72daf6c3"]
+  },
+  "deployed_legal_browser": {
+    "passed": true,
+    "no_dispatch_on_open": true,
+    "timeout_prepared_reopened": true,
+    "retry_then_acknowledgement": true,
+    "request_id_preserved_on_refresh_outage": true,
+    "acknowledged_request_not_resent": true,
+    "typed_result_rendered": true,
+    "plan_remains_open": true,
+    "mobile_no_overflow": true,
+    "mobile_status_refresh": true,
+    "dispatches": 2,
+    "refreshes": 3,
+    "errors": [],
+    "scope": "Deployed UI with intercepted synthetic API responses in remote devbox; backend persistence proved separately"
+  },
+  "live_legal_portal": {
+    "passed": true,
+    "claims_page": 200,
+    "native_scope_carried": true,
+    "nonexistent_claim_get": 404,
+    "authenticated_nonexistent_claim_dispatch": 404,
+    "api_and_office_healthy": true
+  },
+  "live_receiver": {
+    "passed": true,
+    "deployment": "z4d9ni8kjuywbjg2mfcnhidt",
+    "deployed_main_commit": "cbeaf54d9a82feec35de696cf16d5ea99ac0289e",
+    "healthy": true,
+    "native_reader": 200,
+    "missing_request": 404,
+    "wrong_case": 409,
+    "unauthenticated": 401,
+    "actual_database_role": "platform_runtime",
+    "production_request_count_after_proof": 0
+  },
+  "production_investigations_created_by_proof": 0,
+  "execution_enabled": false
+}
