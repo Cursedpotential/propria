@@ -83,7 +83,7 @@ function CatalogChips({
   onOpen: (target: CatalogEventsTarget) => void;
 }) {
   const mine = counts.filter((count) => count.identifier === identifier.normalized);
-  if (!mine.length) return <span className="text-xs text-muted-foreground">Case Bible: nothing</span>;
+  if (!mine.length) return <div className="text-xs text-muted-foreground">Case Bible: nothing in the catalog for this identifier</div>;
   const byMatch = new Map<string, CatalogCount[]>();
   for (const count of mine) byMatch.set(count.match_on, [...(byMatch.get(count.match_on) ?? []), count]);
   return (
@@ -116,7 +116,7 @@ function CatalogChips({
 
 function ProbataChips({ view, keyValue }: { view: CaseIdentityView; keyValue: string }) {
   const rows = view.probata_counts.filter((count) => count.key === keyValue);
-  if (!rows.length) return <span className="text-xs text-muted-foreground">Probata: nothing ingested yet</span>;
+  if (!rows.length) return <span className="block text-xs text-muted-foreground">Probata: nothing ingested yet</span>;
   return (
     <span className="text-xs">
       Probata:{" "}

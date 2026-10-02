@@ -1,3 +1,7 @@
+-- RETIRED 2026-10-02 (Claude Code · Opus 5.5): identities live in Probata registry, edited on the Workbench Case page.
+-- raw_duck.msg_identity_20260924 is now a read-only postgres_fdw view over registry.vw_case_identifier
+-- (identity_registry_fdw_20261001.sql); the table this file wrote is raw_duck.msg_identity_20260924_retired_20261001.
+-- Do not re-run: a write to the view is refused. Add or fix an identifier on the Case page instead.
 -- Byline: Claude Code · Opus 5.5 · 2026-09-24
 -- Candidate Matt numbers proven by CONTENT: a thread on Katrina's phone whose messages are Matt's own messages, found
 -- word for word on his side at the same time (msg_matt_lines_on_her_phone_20260924, >= 3 linked messages of >= 20
