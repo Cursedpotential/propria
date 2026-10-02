@@ -5,6 +5,24 @@
 Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it to [COMPLETED-TODO.md](COMPLETED-TODO.md) with its date and proof in the same turn; never tick it and leave it here. What happened and why goes in [LOG.md](LOG.md). Each item names the log section it came from.
 
 <!-- MAP:START -->
+## Map: where everything is (owner 2026-10-02 19:30, option A)
+
+> _Claude Code · Opus 5.5 · 2026-10-02. Keep this short; the detail lives in the registry._
+
+**Start here: `raw_duck.catalog_registry`** (PG `casebible`, container `casebible-pg-*` on ovh-files). One row per catalog table and per outside object (buckets, Workers, ledgers, VPS folders, Weaviate collections): what it covers, as of when, `current` / `superseded` / `historical` / `unknown`, what replaced it, which script made it. Every table's own comment starts with `[registry: STATUS, as of …]`. Rebuild: `casebible/tools/catalog_registry_build.py`.
+
+| Question | Where |
+|---|---|
+| What exists in which bucket (B2 and R2)? | `raw_duck.bucket_objects_current` (whole-bucket listings; loader `casebible/tools/bucket_objects_load.py`, raw listings in ovh-files `/data/consignatio/listings/`) |
+| Where did each file come from? | `raw_duck.source_occurrences` (frozen 2026-09-14) and `catalog_reconcile.*` (2026-09-20) |
+| Vault: kept copy vs deleted copy | `raw_duck.vault_keep_v7` ⋈ `vault_delete_v7` |
+| Stale tables | schema `raw_duck_superseded` (moved 2026-10-02; nothing deleted) |
+| Published copy of the catalog | B2 `salem-data/consignatio/_system/lake/<date>/` (last 2026-09-27; `raw_duck.lake_publish_20260927`) |
+| Searchable content | Weaviate: messages yes (`MsgEvents20260918`, `ProfferMsgEvents20261002`), documents no (`DocEvents20261001` = 0) |
+| R2 hashing | Worker `casebible-r2-hasher` (`casebible/tools/r2_hash_worker/`); older SHA-256 ledger in R2 `casebible-hash-ledger` |
+| What happened and why | [LOG.md](LOG.md) · finished items [COMPLETED-TODO.md](COMPLETED-TODO.md) · receipts `docs/receipts/` |
+
+**Still read by live code although superseded** (fix the readers, then rename): `raw_duck.b2_objects` (Probata engine `postgres/catalog_versions.go`, `tools/contacts_manifest.py`, `catalog_reconcile/run.py`), `raw_duck.vault_objects` (`catalog_reconcile/run.py`, `scrambled_survey_20261002_*.sql`), `raw_duck.vault_content_v0`.
 <!-- MAP:END -->
 
 ## Open items
@@ -392,7 +410,7 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 
 ### From: 2026-10-02 01:19 EDT – ongoing — Devbox becomes a Kasm Workspaces workspace (P-1), and agent work stops dying with the container (owner 01:19, 01:27)
 
-- [ ] Owner: VNC_PW appeared in two tool outputs: Kasm service argv in `ps`, and coolify-write `get_application`, which returns the rendered compose with VNC_PW unredacted. Transcript only, not in git. The coolify-write redaction gap is a plugin bug.
+- [ ] Owner: VNC_PW appeared in the Kasm service argv in `ps` (transcript only, not in git). The coolify-write half is fixed and moved to COMPLETED-TODO.md (2026-10-02).
 
 ### From: 2026-10-02 02:54–03:46 EDT — Coolify: long builds, the 4.3.23 upgrade, SSH sharing back on (owner 02:54 "a", 03:41)
 
@@ -450,3 +468,15 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 - [ ] iMessage HTML export (messages inside a JavaScript string) needs its own template (sibling: Case Bible `elt_imessage_html_v3`).
 
 - [ ] Routing a Proffer run to a Python HTML tool needs a fourth execution path; an owner decision, not built.
+
+### From: 2026-10-02 19:00–19:55 EDT — catalog registry, whole-bucket listings, R2 nothing-lost proof
+
+- [ ] **Repoint the live readers of the stale `raw_duck.b2_objects` (09-14 intake-only listing) at `raw_duck.bucket_objects_current`**, then rename it `b2_intake_objects_20260914` (owner 19:04: the name must match what it lists). Readers: Probata engine `modules/engine/postgres/catalog_versions.go` (+ tests), `tools/contacts_manifest.py`, `casebible/catalog_reconcile/run.py`. The engine today checks B2 keys against the stale intake snapshot, so keys outside `intake/` read as missing.
+- [ ] Same for `raw_duck.vault_objects` (pre-dedupe 09-16 08:10): `catalog_reconcile/run.py` and today's `scrambled_survey_20261002_candidates.sql` / `_classify.sql` read it; `scrambled_objects_20261002` was keyed against it (its keys were existence-checked on B2, but review before reuse).
+- [ ] **R2 nothing-lost proof:** load the R2 listings (`/data/consignatio/listings/r2-all-20261002/`, running) into `raw_duck.bucket_objects`; match each R2 object to B2 by hash (R2 MD5 = a B2 content MD5 with B2 SHA-1, or SHA-1 from `casebible-r2-hasher` for the rest); deliver three lists (safe / missing / deliberately excluded) for owner sign-off before R2 is released.
+- [ ] **Move `milvus-memsearch` off R2** before the R2 account is released (live memsearch storage).
+- [ ] Republish the catalog to B2 `_system/lake/` (last 2026-09-27) once the R2 load and the registry settle.
+- [ ] Owner: record a "moved to quarantine" disposition in the catalog for the D:\Backup (10,811) and F: (9,207) zero-filled files? (flag and null hash already set 09-13).
+- [ ] Owner: hosted Intake UI — A rebuild/release from current code (default), B also make it a Coolify app, C also turn on content search.
+- [ ] 33 registry rows are `unknown` status (mostly `inventory.*`, `llm_eval.*`, `media.*`, `knowledge.*`): classify.
+

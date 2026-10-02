@@ -140,6 +140,16 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	if registered["run_n8n_flow_activity"] != 1 {
 		t.Errorf("generic n8n flow activity registered %d times", registered["run_n8n_flow_activity"])
 	}
+	// The conversation-chunk Activities run on the Python worker's queue (server/temporal/worker.py); the Go worker
+	// registers none of them, so the total above is unchanged and the Python worker alone polls them.
+	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	for _, name := range []string{
+		proffer.ChunkContextThreadsActivityName, proffer.PublishContextChunksActivityName, proffer.PublishCallLogFilesActivityName,
+	} {
+		if registered[name] != 0 {
+			t.Errorf("python-queue activity %q is registered on the Go worker %d times; it belongs to the Python worker", name, registered[name])
+		}
+	}
 	for name, count := range registered {
 		if count != 1 {
 			t.Errorf("activity name %q registered %d times", name, count)

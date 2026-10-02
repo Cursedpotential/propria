@@ -1,6 +1,6 @@
 // Byline: Claude Code · Sonnet · 2026-10-02
-// One search box across the imported messages (Weaviate ProfferMsgEvents20261002 through /api/imported/search).
-// Each hit opens its thread at that message.
+// One search box across the imported conversations (Weaviate ProfferChunks20261002 through /api/imported/search).
+// A hit is a run of messages, one line per message; it opens its thread at the first of them.
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useState } from "react";
@@ -39,7 +39,7 @@ export function SearchView() {
   const hits = query.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <div>
-      <PageBar title="Search" subtitle="Across every imported message" />
+      <PageBar title="Search" subtitle="Across every imported conversation" />
       <form
         className="flex gap-2 p-4"
         onSubmit={(event) => {
@@ -68,15 +68,16 @@ export function SearchView() {
         <>
           <p className="px-4 pb-2 text-xs text-muted-foreground">{query.data?.pages[0]?.note}</p>
           <ul className="space-y-3 px-4 pb-4">
-            {hits.length === 0 ? <Empty>No imported message matches “{submitted}”.</Empty> : hits.map((hit) => {
+            {hits.length === 0 ? <Empty>No imported conversation matches “{submitted}”.</Empty> : hits.map((hit) => {
               const body = hit.body.length > 320 ? `${hit.body.slice(0, 320)}...` : hit.body;
               const card = (
                 <>
-                  <p className="text-[15px] leading-snug"><Highlighted text={body} query={submitted} /></p>
+                  <p className="whitespace-pre-line text-[15px] leading-snug"><Highlighted text={body} query={submitted} /></p>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span className="font-semibold text-foreground/80">{hit.sender}</span>
                     <span>{formatDateTime(hit.at)}</span>
                     {hit.format ? <Chip>{hit.format}</Chip> : null}
+                    {hit.kind === "conversation" && (hit.message_count ?? 0) > 1 ? <span>{hit.message_count} messages</span> : null}
                     {hit.device ? <span>{hit.device}</span> : null}
                   </div>
                 </>

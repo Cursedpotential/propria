@@ -159,9 +159,10 @@ class Settings(BaseSettings):
     imported_pg_database: str = "platform"
     imported_pg_user: str = "workbench_reader"
     imported_pg_password_file: str = "/run/secrets/workbench-pg-reader"
-    # Message search reads the Weaviate projection of the imported messages directly.
+    # Search reads the Weaviate chunks of the imported conversations directly (Postgres holds every message;
+    # Weaviate holds only chunks and one entry per call-log file; owner 2026-10-02).
     imported_weaviate_url: str = "http://100.91.190.107:8082"
-    imported_weaviate_class: str = "ProfferMsgEvents20261002"
+    imported_weaviate_class: str = "ProfferChunks20261002"
 
     # --- App ---
     app_port: int = 8020

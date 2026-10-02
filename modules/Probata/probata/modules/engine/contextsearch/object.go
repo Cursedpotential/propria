@@ -12,6 +12,11 @@
 // Weaviate is therefore the pre-approval SEARCH surface, not a commitment:
 // publishing here asserts nothing about accuracy and needs no approval.
 //
+// Messages and calls (owner 2026-10-02): a run that carries the conversation-chunk marker no longer publishes them
+// here one object each. Postgres holds every message and call; Weaviate holds conversation chunks and one entry per
+// call-log file (ProfferChunks20261002, written after the commit by server/context_chunks). The routing below still
+// serves histories recorded before that marker, and the objects already published.
+//
 // Where it publishes (owner answers OD-06, 2026-10-01 07:17, and 2026-10-02):
 // messages and calls with people go to the existing MsgEvents20260918, AI chats
 // to the existing AiChatEvents20260918, documents to DocEvents20261001. No
