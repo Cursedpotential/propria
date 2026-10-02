@@ -1,41 +1,38 @@
-# TraceIQ Rebuild — Agent Entry Point
+# Vestigia application (traceiq-rebuild) — Agent Entry Point
 
-> _Naming (D-140, 2026-09-05; applied 2026-09-06): this product is **vestigia** (formerly traceIQ / TraceIQ - Latin: footprints, tracks). Working copy: `probata/modules/vestigia/` (directory rename from `modules/traceIQ/` landed 2026-09-06; old name kept as a junction). GitHub repo name unchanged pending its own decision. Canon: `probata/docs/NAMING.md`. Historical text below is left verbatim; both names remain valid in recall stores (D-142)._
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02. Rewritten for the monorepo layout; the earlier
+> independent-repository text (Codex · GPT-5, 2026-08-27) is in git history._
 
+The folder keeps its old name, `traceiq-rebuild`; the product is Vestigia (D-140).
 
-> _Byline: Codex · GPT-5 · 2026-08-27._
+## Repository
 
-This file governs the independent repository at
-`E:\AI_Workspace\Projects\traceIQ\traceiq-rebuild`. Before staging or committing, run
-`git rev-parse --show-toplevel` from the target file's directory and require that exact root.
-Stage only explicit owned files; never use `git add .` or `git add -A`.
+Part of the Propria monorepo since the 2026-09-26 subtree import. `git rev-parse --show-toplevel`
+must print `E:/AI_Workspace/Projects/Propria`. Stage explicit paths only; never `git add -A`.
+New worktrees go under `Propria/_worktrees/`.
 
-## Repository boundary
+## Where things are
 
-The parent `traceIQ/` directory is a different, reconciled repository that intentionally ignores
-this nested child. Never stage, commit, or otherwise mutate the parent repository while working here. Git
-worktrees under `.claude/worktrees/` belong to this repository but are separate working trees;
-always verify the active worktree and branch before acting.
+- **Plan:** `docs/plans/2026-10-02-continuation-plan.md` (phases, open owner decisions V-1…V-8).
+- **Decisions:** `docs/adr/README.md`.
+- **Database:** `traceiq` on `probata-db` (ovh-files `100.91.190.107:5432`). Shape in
+  `docs/SCHEMA.md`; executable history in `db/migrations/` and `db/transformations/`.
+- **Owner direction 2026-10-02:** PostgreSQL is the source-of-truth data holder only; all analysis
+  moves to SurrealDB on a mirror, once the data is right (see the plan).
+- **Credentials:** never in tracked files. Ops scripts read `TRACEIQ_DSN_KV` (via `ops/db_env.py`),
+  the UI reads `TRACEIQ_DSN`; values in `~/.secrets/traceiq-db.env`, names in `.env.example`.
+- **Ops:** `ops/` (ingest, validation, providers); validation reports `docs/VALIDATION_REPORT*.md`
+  and `ops/*REPORT.md`.
+- **UI:** `ui/` (Next.js, its own `AGENTS.md` and `README.md`). **Reports:** `reports/README.md`.
 
-## Authority and navigation
-
-- `docs/adr/README.md` indexes accepted architecture decisions.
-- `docs/SCHEMA.md` documents the database shape; numbered files under `db/migrations/` are the
-  executable schema history.
-- `docs/VALIDATION_REPORT.md` and `docs/VALIDATION_REPORT_data.md` record bounded validation.
-- `ops/` contains ingestion, provider, and validation operations.
-- `ui/` contains the Next.js workspace UI and has its own `AGENTS.md`; closest instructions win.
-- `reports/README.md` indexes the reporting surface.
-
-Read `AGENT_MEMORY.md` after this file. Treat tool-generated memories as context only, never as
-authority over current source, ADRs, data custody, or Git state.
+Read `AGENT_MEMORY.md` next. Tool memories (`.claude/`, `.remember/`, `.memsearch/`) are context,
+never authority over source, ADRs, data custody or git state.
 
 ## Safety
 
-- Preserve unrelated and untracked work; never reset, clean, stash, or overwrite it.
-- Never delete evidence, data, or repository content. If an approved repository file must be removed,
-  move it to this repository's `to_be_deleted/` boundary; only the owner permanently deletes there.
-  Stop and ask before any evidence/data move or migration.
-- Do not place secrets, credentials, private evidence content, or copied evidence text in source,
-  instructions, memory routers, logs, commits, or reports.
-- Verification claims must identify whether they are static, local, integration, or live.
+- Never delete evidence or data. Approved repository removals go to `to_be_deleted/`; only the
+  owner deletes there. Stop and ask before any evidence or data move or migration.
+- No secrets, credentials or evidence content in source, instructions, memory, logs, commits or
+  reports.
+- Every verification claim says whether it is static, local, integration or live.
+- Nothing runs on the owner's desktop: services and long jobs belong on the VPSs via Coolify.

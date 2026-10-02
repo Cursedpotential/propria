@@ -1,32 +1,33 @@
-# vestigia (formerly TraceIQ) Outer Repository — Agent Entry Point
+# Vestigia (formerly TraceIQ) — Agent Entry Point
 
-> _Naming (D-140, 2026-09-05; applied 2026-09-06): this product is **vestigia** (formerly traceIQ / TraceIQ - Latin: footprints, tracks). Working copy: `probata/modules/vestigia/` (directory rename from `modules/traceIQ/` landed 2026-09-06; old name kept as a junction). GitHub repo name unchanged pending its own decision. Canon: `probata/docs/NAMING.md`. Historical text below is left verbatim; both names remain valid in recall stores (D-142)._
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02. Rewritten for the monorepo layout; the earlier
+> independent-repository text (Codex · GPT-5, 2026-08-27/29) is in git history._
 
+Vestigia is the geodata product of Propria (D-140, 2026-09-05: "the Geo space"; old name TraceIQ,
+both names valid in recall stores per D-142; canon `modules/Probata/probata/docs/NAMING.md`).
 
-> _Byline: Codex · GPT-5 · 2026-08-27; reconciliation resolved 2026-08-29._
+## Where things are
 
-This file governs `E:\AI_Workspace\Projects\traceIQ`. Before any Git action, run
-`git rev-parse --show-toplevel` from the target file's directory and require that it equals this
-directory. Stage only an explicit file allowlist; never use broad staging.
+- This folder lives in the Propria monorepo at `modules/vestigia-geodata_processor/`, imported by
+  `git subtree` on 2026-09-26. The commit boundary is the monorepo root: `git rev-parse
+  --show-toplevel` must print `E:/AI_Workspace/Projects/Propria`. Stage by explicit path only.
+- `traceiq-rebuild/` is the live application (database schema, ops scripts, UI, reports). It is
+  tracked here like any other folder; read its `AGENTS.md` before working in it.
+- The numbered folders (`00_Documentation` … `05_Installers_Zips`, `Utilities/`) are the legacy
+  TraceIQ pipeline and tools: reference material, not the current build.
+- The current plan: `traceiq-rebuild/docs/plans/2026-10-02-continuation-plan.md`.
+- `REPOSITORY_RECONCILIATION.md` records the 2026-08-29 two-repository reconciliation. It is
+  history; the two repositories no longer exist as such.
 
-## Reconciled boundary
+## Data that never enters git
 
-The former tracked-missing/untracked collision hold was resolved on 2026-08-29. Read
-`REPOSITORY_RECONCILIATION.md` for proof. The child checkout is clean and pushed; the workspace
-router represents it as one raw Gitlink. Local dumps, evidence files, timelines, tool memory, and
-`traceiq-rebuild/` remain physically present but are intentionally ignored by this repository.
+Location evidence stays on disk and ignored: `Timeline.json*`, `raw_api_responses/`,
+`TraceIQ_Backups/`, `TraceIQ_Evidence/`, `traaceiq_mess/`. Do not open, summarize or quote their
+contents unless the owner places them in scope. `00_Documentation/Secrets_Work_Area/` is sensitive.
 
-## Nested repository boundary
-
-`traceiq-rebuild/` is a separate Git repository with its own remote and commit history. Work on
-that project from its own root and follow its own `AGENTS.md` and `AGENT_MEMORY.md`. Never stage
-the nested repository, its files, or a pointer to it from this outer repository.
-
-## Context rules
+## Rules
 
 - Closest `AGENTS.md` wins for subtree-specific instructions.
-- Read `AGENT_MEMORY.md` as a context router, not as authority over current files or Git state.
-- Do not place secrets, credentials, private evidence content, or copied evidence text in agent
-  instructions, memory routers, commit messages, or status documents.
-- Preserve all existing data. Never hard-delete; approved removals go to this repository's
-  `to_be_deleted/` boundary and only the owner permanently deletes there.
+- No secrets, credentials or evidence content in instructions, memory routers, commits or reports.
+- Never hard-delete owner data; approved removals go to `to_be_deleted/`, and only the owner
+  deletes there.

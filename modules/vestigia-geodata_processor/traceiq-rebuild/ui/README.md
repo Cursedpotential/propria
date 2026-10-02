@@ -1,74 +1,46 @@
-# TraceIQ Workspace UI Scaffold
+# Vestigia workspace UI
 
-> _Naming (D-140, 2026-09-05; applied 2026-09-06): this product is **vestigia** (formerly traceIQ / TraceIQ - Latin: footprints, tracks). Working copy: `probata/modules/vestigia/` (directory rename from `modules/traceIQ/` landed 2026-09-06; old name kept as a junction). GitHub repo name unchanged pending its own decision. Canon: `probata/docs/NAMING.md`. Historical text below is left verbatim; both names remain valid in recall stores (D-142)._
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02. Re-conformed to the code: server app over live
+> data, not the static mock scaffold the earlier README described._
 
-
-This directory contains the **TraceIQ workspace UI scaffold** — a front-end prototype for the dual-use (manual + agent-native) analysis workspace described in `BUILD_BRIEF.md` and `docs/adr/0015-dual-use-agent-native-workspace.md`.
-
-It implements **Variant A** from `docs/mockups/traceiq-workspace-mockups.html`: a left rail for query controls and chat, a central deck.gl-over-MapLibre map, and a right-hand results table.
+The dual-use (manual + agent-assisted) analysis workspace from `BUILD_BRIEF.md`,
+`BUILD_BRIEF_PHASE2.md` and ADR-0015 (proposed). Layout is Variant A of
+`../docs/mockups/traceiq-workspace-mockups.html`: query rail and chat on the left, map in the
+centre, results table on the right.
 
 ## Stack
 
-- Next.js (App Router) + TypeScript
-- Tailwind CSS v4 with custom light/dark tokens
-- deck.gl over MapLibre GL via `react-map-gl` / `@vis.gl/react-maplibre`
-- Mock data shaped like `analysis.latest_events`
-- Local mock chat with receipt chips (no live LLM in this scaffold)
+- Next.js 16.2 (App Router, server app; `pg` is a server external), React 19, TypeScript
+- Tailwind CSS v4 with light/dark tokens
+- deck.gl 9 over MapLibre GL 5 via `@vis.gl/react-maplibre`
+- `pg` against the live `traceiq` database (`src/lib/db.ts`, reads `TRACEIQ_DSN`; see
+  `../.env.example`)
 
-## Getting started
-
-```bash
-npm install
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-## Available scripts
+## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev` | Start the Next.js dev server |
-| `npm run build` | Static export to `dist/` |
-| `npm run lint` | Run ESLint |
+| `npm run dev` | Next.js dev server |
+| `npm run build` | Production build (server app) |
+| `npm run start` | Serve the production build |
+| `npm run lint` | ESLint |
 
-## Project layout (inside `ui/`)
+The UI has only ever run as a desktop dev server. Hosting it on a VPS is plan item V-2
+(`../docs/plans/2026-10-02-continuation-plan.md`).
 
-```
-src/
-  app/              Next.js pages + global styles
-  components/
-    shell/          AppTopBar, QueryPanel
-    map/            MapView, MapControls, MapLegend, TimeScrubber
-    table/          ResultsTable
-    chat/           ChatPane
-  lib/              WorkspaceContext, useTheme
-  mock/             generateMockEvents + DataAdapter stub
-  types/            TraceEvent, FilterState, DataAdapter, etc.
-```
+## What works
 
-## Current scope
+- Live data: `/api/events` and `/api/events/bounds` with windowed loading (`src/lib/pgAdapter.ts`).
+- Known-place editing: `/api/known-place`, `KnownPlaceEditor`.
+- Filters, map modes (pins, paths, heatmap, time of day), table ↔ map selection sync, themes.
 
-- Variant A shell layout with light/dark theme toggle
-- Working filters (query, date, type, tags, overnight, probability)
-- Map modes: Pins, Paths, Heatmap, Time-of-day
-- Results table with sort, row selection, and map fly-to sync
-- Agent chat stub with deterministic receipt chips
-- Placeholder pages for Analytics / Tables / Export / Config
+## Not built yet
 
-## TODO / stubs for future phases
+- Analytics, Tables, Export and Config tabs (placeholders).
+- Chat: canned answers from `src/mock/adapter.ts`; no model wired.
+- Kepler.gl pop-out, evidence drawer with receipts, keyboard and accessibility pass, filter/theme
+  persistence, phone layout.
+- Authentication.
 
-- [ ] Wire real `analysis.latest_events` data from the backend
-- [ ] Replace mock `DataAdapter` with HTTP adapter + caching
-- [ ] Integrate real assistant-ui backend or LLM with receipt grounding
-- [ ] Add Kepler.gl pop-out / deep-link
-- [ ] Implement Analytics, Tables, Export, and Config modules
-- [ ] Add row-level evidence drawer and deterministic receipts
-- [ ] Keyboard shortcuts and accessibility pass
-- [ ] Persist filters/theme in URL / localStorage
-- [ ] Mobile/responsive refinement
-
-## Notes
-
-- Do not push this branch (`ui-scaffold`) to the remote repository.
-- Keep all UI work inside the `ui/` directory.
+Owner direction 2026-10-02: analysis moves to SurrealDB; the UI will read analysis from there and
+source records from Postgres (plan Phase 3).
