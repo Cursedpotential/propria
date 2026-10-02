@@ -140,7 +140,12 @@ function IdentifierRow({
 }) {
   const retired = identifier.status === "retired";
   return (
-    <li className={`grid grid-cols-[minmax(9rem,13rem)_1fr_auto] gap-3 border-t border-border/60 py-2 first:border-t-0 ${retired ? "opacity-60" : ""}`}>
+    <li
+      className={`grid grid-cols-[minmax(9rem,13rem)_1fr_auto] gap-3 border-t border-border/60 py-2 first:border-t-0 ${retired ? "opacity-60" : ""}`}
+      data-testid="case-identifier"
+      data-identifier={identifier.raw_value}
+      data-status={identifier.status}
+    >
       <div className="min-w-0">
         <div className={`truncate font-mono text-sm ${retired ? "line-through" : ""}`} title={identifier.raw_value}>
           {identifier.raw_value}
@@ -167,14 +172,14 @@ function IdentifierRow({
           </Button>
         )}
         {!retired && (
-          <Button size="icon-xs" variant="ghost" title="Retire (kept, marked no longer believed)" onClick={() => onEdit({ mode: "version", person, identifier, status: "retired" })}>
+          <Button size="icon-xs" variant="ghost" aria-label="Retire" title="Retire (kept, marked no longer believed)" onClick={() => onEdit({ mode: "version", person, identifier, status: "retired" })}>
             <X />
           </Button>
         )}
-        <Button size="icon-xs" variant="ghost" title="Edit (new version)" onClick={() => onEdit({ mode: "version", person, identifier })}>
+        <Button size="icon-xs" variant="ghost" aria-label="Edit" title="Edit (new version)" onClick={() => onEdit({ mode: "version", person, identifier })}>
           <Pencil />
         </Button>
-        <Button size="icon-xs" variant="ghost" title={`${identifier.history.length + 1} version(s)`} onClick={() => onHistory(identifier)}>
+        <Button size="icon-xs" variant="ghost" aria-label="Versions" title={`${identifier.history.length + 1} version(s)`} onClick={() => onHistory(identifier)}>
           <History />
         </Button>
       </div>

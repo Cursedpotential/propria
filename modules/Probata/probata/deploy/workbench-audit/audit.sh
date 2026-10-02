@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Byline: Claude Code · Opus 5.5 · 2026-09-27
 # Byline: Claude Code · Opus 5.5 · 2026-09-28 (DF-30: direct by default with the devbox's Authentik identity)
+# Byline: Claude Code · Opus 5.5 · 2026-10-01 (AUDIT_SCRIPT runs another committed script, e.g. case-page.mjs; CASE_* passed through)
 # The Workbench six-step live audit (PR-24 / PR-27), run by headless Chrome inside the Probata
 # devbox on ovh-files. Nothing browser-related runs on the calling machine (owner rule 2026-09-24).
 #
@@ -32,6 +33,7 @@ set -euo pipefail
 
 out="${1:?usage: audit.sh <local-out-dir> [label]}"
 label="${2:-audit}"
+script="${AUDIT_SCRIPT:-audit.mjs}"
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(git -C "$here" rev-parse --show-toplevel)"
 rel="$(git -C "$here" rev-parse --show-prefix)"; rel="${rel%/}"
@@ -48,8 +50,8 @@ work="/home/kasm-user/workbench-audit/$label-$(date +%Y%m%dT%H%M%S)"
 echo "workbench audit as $label in $box:$work"
 
 stage="$(mktemp -d)"
-git -c core.autocrlf=false -C "$repo" archive --format=tar "HEAD:$rel" audit.mjs forward.py | tar -x -C "$stage"
-tar -c -C "$stage" audit.mjs | vps "docker exec -i -u 1000 $box sh -c 'mkdir -p $work && tar -x -C $work'"
+git -c core.autocrlf=false -C "$repo" archive --format=tar "HEAD:$rel" "$script" forward.py | tar -x -C "$stage"
+tar -c -C "$stage" "$script" | vps "docker exec -i -u 1000 $box sh -c 'mkdir -p $work && tar -x -C $work'"
 
 tunnel_pid=""
 cleanup() {
@@ -78,7 +80,7 @@ if [ "$direct" != 1 ]; then
 fi
 
 status=0
-vps "docker exec -u 1000 -e AUDIT_RESOLVER_RULE='$rule' -e AUTHENTIK_MACHINE_CREDENTIALS_FILE='$([ "$direct" = 1 ] && echo "$creds" || echo /nonexistent)' -e AUDIT_TARGET_NAME='${AUDIT_TARGET_NAME:-calls-20250703043408.xml}' $box node $work/audit.mjs $work/out" || status=$?
+vps "docker exec -u 1000 -e AUDIT_RESOLVER_RULE='$rule' -e AUTHENTIK_MACHINE_CREDENTIALS_FILE='$([ "$direct" = 1 ] && echo "$creds" || echo /nonexistent)' -e AUDIT_TARGET_NAME='${AUDIT_TARGET_NAME:-calls-20250703043408.xml}' -e CASE_MODE='${CASE_MODE:-REAL}' -e CASE_EDIT_RAW='${CASE_EDIT_RAW:-}' -e CASE_EDIT_PERSON='${CASE_EDIT_PERSON:-}' -e CASE_EDIT_KIND='${CASE_EDIT_KIND:-}' -e CASE_EDIT_STATUS='${CASE_EDIT_STATUS:-}' -e CASE_EDIT_BASIS='${CASE_EDIT_BASIS:-}' -e CASE_EDIT_REASON='${CASE_EDIT_REASON:-}' $box node $work/$script $work/out" || status=$?
 mkdir -p "$out"
 vps "docker exec -u 1000 $box tar -c -C $work/out ." | tar -x --force-local -C "$out"
 ls -1 "$out"

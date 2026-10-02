@@ -47,10 +47,10 @@ function Field({ label, children, hint }: { label: string; children: ReactNode; 
   );
 }
 
-function Select({ value, onChange, options, allowEmpty }: { value: string; onChange: (v: string) => void; options: string[]; allowEmpty?: boolean }) {
+function Select({ value, onChange, options, allowEmpty, name }: { value: string; onChange: (v: string) => void; options: string[]; allowEmpty?: boolean; name?: string }) {
   const all = options.includes(value) || value === "" ? options : [value, ...options];
   return (
-    <select className={selectClass} value={value} onChange={(event) => onChange(event.target.value)}>
+    <select className={selectClass} name={name} value={value} onChange={(event) => onChange(event.target.value)}>
       {allowEmpty && <option value="">—</option>}
       {all.map((option) => (
         <option key={option} value={option}>
@@ -160,22 +160,22 @@ function IdentifierForm({ target, onClose }: { target: IdentifierDialogTarget; o
           <Input value={raw} onChange={(event) => setRaw(event.target.value)} disabled={versioning} />
         </Field>
         <Field label="Kind">
-          <Select value={kind} onChange={setKind} options={IDENTIFIER_KINDS} />
+          <Select name="kind" value={kind} onChange={setKind} options={IDENTIFIER_KINDS} />
         </Field>
       </div>
       <div className="grid grid-cols-[9rem_1fr] gap-3">
         <Field label="Status">
-          <Select value={status} onChange={setStatus} options={["confirmed", "candidate", "retired"]} />
+          <Select name="status" value={status} onChange={setStatus} options={["confirmed", "candidate", "retired"]} />
         </Field>
         <Field label="In use (period)">
-          <Input value={period} onChange={(event) => setPeriod(event.target.value)} placeholder="e.g. 2021-2024" />
+          <Input name="period" value={period} onChange={(event) => setPeriod(event.target.value)} placeholder="e.g. 2021-2024" />
         </Field>
       </div>
       <Field label="Basis — why we believe it">
-        <Textarea value={basis} onChange={(event) => setBasis(event.target.value)} rows={3} />
+        <Textarea name="basis" value={basis} onChange={(event) => setBasis(event.target.value)} rows={3} />
       </Field>
       <Field label={versioning ? "Why this change" : "Note (optional)"}>
-        <Input value={reason} onChange={(event) => setReason(event.target.value)} />
+        <Input name="change_reason" value={reason} onChange={(event) => setReason(event.target.value)} />
       </Field>
       <Footer pending={save.isPending} disabled={!ready} onCancel={onClose} label={versioning ? "Save new version" : "Add"} />
     </form>
