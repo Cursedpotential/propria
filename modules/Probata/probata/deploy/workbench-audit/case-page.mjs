@@ -251,6 +251,7 @@ const readPage = `(() => {
     people: [...document.querySelectorAll('[data-testid="case-person"]')].map((card) => ({
       id: card.dataset.personId,
       name: card.querySelector("h2")?.innerText,
+      legal_response: [...card.querySelectorAll("a")].find((a) => a.innerText.trim() === "Open legal response")?.href ?? null,
       summary: card.querySelector("header")?.innerText,
       identifiers: [...card.querySelectorAll('[data-testid="case-identifier"]')].map((row) => ({
         raw: row.dataset.identifier,
@@ -286,6 +287,19 @@ try {
     detail: r.status === 200 ? null : r.body,
   }));
   report.before = await page.eval(readPage);
+  if (process.env.CASE_REQUIRE_ADVOCATIO_LINKS === "yes") {
+    const people = report.before.people;
+    if (!people.length) throw new Error("No native people available for return-link proof");
+    for (const person of people) {
+      const destination = new URL(person.legal_response);
+      if (destination.origin !== "https://legal.tilapia-skilift.ts.net" || destination.pathname !== "/claims"
+        || destination.searchParams.get("probata_kind") !== "entity"
+        || destination.searchParams.get("probata_id") !== person.id) {
+        throw new Error("Native person return link does not preserve record identity");
+      }
+    }
+    report.advocatio_return_links = { checked: people.length, native_identity_preserved: true, production_writes: 0 };
+  }
   report.console_errors_read = [...page.consoleErrors];
   await page.shot("case-page");
 
