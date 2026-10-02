@@ -136,8 +136,8 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 	if search.Responsibility == RespPublish {
 		t.Fatal("context search write was tagged as the canonical publication responsibility")
 	}
-	if len(search.DependsOn) != 1 || search.DependsOn[0] != VerifyNormalizedGeneration {
-		t.Fatalf("context search stage dependencies = %v, want the verified normalized generation only", search.DependsOn)
+	if len(search.DependsOn) != 2 || search.DependsOn[0] != VerifyNormalizedGeneration || search.DependsOn[1] != ResolveContextParticipants {
+		t.Fatalf("context search stage dependencies = %v, want the verified normalized generation and the participant resolution", search.DependsOn)
 	}
 	for _, forbidden := range []StageID{SealGeneration, PublishGeneration} {
 		for _, dependency := range search.DependsOn {

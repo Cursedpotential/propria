@@ -82,8 +82,8 @@ func seedLive(t *testing.T, ctx context.Context, admin *pgxpool.Pool, chunks []l
 	exec(`INSERT INTO registry.entity (id, entity_type) VALUES ($1, 'person'), ($2, 'person') ON CONFLICT DO NOTHING`, liveOwner, livePerspective)
 	exec(`INSERT INTO registry.person (id, role_in_case) VALUES ($1, 'user'), ($2, 'partner') ON CONFLICT DO NOTHING`, liveOwner, livePerspective)
 	// The owner's phone is a CONFIRMED identifier; the other number is unknown.
-	exec(`INSERT INTO registry.entity_alias (id, entity_id, alias_text, alias_kind, normalized, status, recorded_by)
-	      VALUES ($1, $2, $3, 'phone', registry.norm_identifier($3), 'confirmed', 'd04-live-test')`, mustV7(t), liveOwner, liveOwnerPhone)
+	exec(`INSERT INTO registry.entity_alias (id, entity_id, alias_text, alias_kind, status, recorded_by)
+	      VALUES ($1, $2, $3, 'phone', 'confirmed', 'd04-live-test')`, mustV7(t), liveOwner, liveOwnerPhone)
 
 	// The derivation that published the chunks: one derive receipt naming the
 	// derived prefix, as derive_sms_threads_activity records it.

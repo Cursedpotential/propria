@@ -201,8 +201,9 @@ var OptionalStages = []Descriptor{
 		// The records it publishes must exist and have passed extraction
 		// verification. It deliberately does NOT depend on SealGeneration or
 		// PublishGeneration: the whole point is that it runs BEFORE the
-		// canonical commit.
-		DependsOn: []StageID{VerifyNormalizedGeneration},
+		// canonical commit. It applies the run's one recorded participant
+		// resolution (2026-10-02), so it follows that stage.
+		DependsOn: []StageID{VerifyNormalizedGeneration, ResolveContextParticipants},
 	},
 	{
 		ID:             ChunkDocument,
