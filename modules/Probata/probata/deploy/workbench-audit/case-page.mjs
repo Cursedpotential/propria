@@ -1,4 +1,4 @@
-// Byline: Claude Code · Opus 5.5 · 2026-10-01
+// Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 // Live proof of the Workbench Case page (case identity over registry), driven by headless Chrome
 // INSIDE the Probata devbox on ovh-files (never on the owner's desktop; owner rule 2026-09-24).
 // Launched by audit.sh with AUDIT_SCRIPT=case-page.mjs. The browser plumbing (Chrome over the
@@ -9,8 +9,8 @@
 // Read: opens /case?mode=REAL and records the case header and every person with their identifiers
 // and counts. Edit (only when CASE_EDIT_RAW is set): opens that identifier's "Edit" dialog ON THE
 // PAGE, sets CASE_EDIT_KIND / CASE_EDIT_STATUS / CASE_EDIT_BASIS / CASE_EDIT_REASON, saves, and
-// records the version the page shows afterwards. The new registry row is read back in PostgreSQL by
-// the caller. Writes <out>/case-*.png and <out>/case-page.json.
+// records what the page shows afterwards. The edited registry row and its identity_change row are
+// read back in PostgreSQL by the caller. Writes <out>/case-*.png and <out>/case-page.json.
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -315,17 +315,17 @@ try {
       return true;
     })()`);
     if (!submitted) throw new Error("the save button is disabled");
-    await page.waitFor(`!document.querySelector('[role="dialog"] textarea[name="basis"]') && document.body.innerText.includes("Saved as a new version")`, 30000, "saved toast");
+    await page.waitFor(`!document.querySelector('[role="dialog"] textarea[name="basis"]') && document.body.innerText.includes("logged in registry.identity_change")`, 30000, "saved toast");
     await sleep(2500);
     report.after = await page.eval(readPage);
     await page.shot("case-page-after-edit");
     const versions = await page.eval(`(() => {
       const row = [...document.querySelectorAll('[data-testid="case-identifier"]')].find((r) => r.dataset.identifier === ${JSON.stringify(EDIT.raw)});
-      row?.querySelector('button[aria-label="Versions"]')?.click();
+      row?.querySelector('button[aria-label="History"]')?.click();
       return Boolean(row);
     })()`);
     if (versions) {
-      await page.waitFor(`document.body.innerText.includes("Versions of")`, 15000, "versions drawer");
+      await page.waitFor(`document.body.innerText.includes("History of")`, 15000, "versions drawer");
       await sleep(1000);
       report.versions_drawer = await page.eval(`document.querySelector('[role="dialog"]')?.innerText.slice(0, 2000)`);
       await page.shot("case-versions");

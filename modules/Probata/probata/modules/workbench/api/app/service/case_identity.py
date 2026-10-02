@@ -1,9 +1,11 @@
 """Case page: the registry read and the owner's edits, plus catalog counts.
 
-Byline: Claude Code · Opus 5.5 · 2026-10-01
+Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 
 Owner order 2026-10-01 07:56/07:57: Probata registry is the ONE identity
-store; the Case page edits it; edits version, never overwrite. The engine
+store; the Case page edits it. Owner 2026-10-02 02:12: identifiers are fixed
+in place or deleted, and every change is one registry.identity_change row
+(before, after, who, why). The engine
 (Proffer starter, `/case-identity/*`) owns every registry read and write; this
 module forwards the Authentik actor and the Idempotency-Key, checks the shape
 of what comes back, and adds what the Case Bible catalog holds per identifier,
@@ -98,8 +100,16 @@ async def _write(path: str, body: dict[str, Any], actor: ProfferDecisionActor, k
     return receipt
 
 
-async def write_identifier(body: dict[str, Any], actor: ProfferDecisionActor, key: str) -> dict[str, Any]:
+async def add_identifier(body: dict[str, Any], actor: ProfferDecisionActor, key: str) -> dict[str, Any]:
     return await _write("/case-identity/identifiers", body, actor, key)
+
+
+async def edit_identifier(alias_id: str, body: dict[str, Any], actor: ProfferDecisionActor, key: str) -> dict[str, Any]:
+    return await _write(f"/case-identity/identifiers/{quote(alias_id, safe='')}", body, actor, key)
+
+
+async def delete_identifier(alias_id: str, body: dict[str, Any], actor: ProfferDecisionActor, key: str) -> dict[str, Any]:
+    return await _write(f"/case-identity/identifiers/{quote(alias_id, safe='')}/delete", body, actor, key)
 
 
 async def edit_header(body: dict[str, Any], actor: ProfferDecisionActor, key: str, *, mode: MatterMode) -> dict[str, Any]:

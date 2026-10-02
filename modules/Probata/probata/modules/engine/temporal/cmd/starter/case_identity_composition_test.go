@@ -19,6 +19,8 @@ func TestMountCaseIdentityRoutesOwnsOnlyItsExactPaths(t *testing.T) {
 		{http.MethodGet, "/case-identity?mode=REAL", "case-identity"},
 		{http.MethodGet, "/case-identity/lookup?value=8102689630", "case-identity"},
 		{http.MethodPost, "/case-identity/identifiers", "case-identity"},
+		{http.MethodPost, "/case-identity/identifiers/01a0f751-e07b-7000-8000-00000000a001", "case-identity"},
+		{http.MethodPost, "/case-identity/identifiers/01a0f751-e07b-7000-8000-00000000a001/delete", "case-identity"},
 		{http.MethodPost, "/case-identity/header?mode=REAL", "case-identity"},
 		{http.MethodPost, "/case-identity/people", "case-identity"},
 		{http.MethodPost, "/case-identity/people/01a0f751-e07b-76b6-afcb-63acfbba373e", "case-identity"},

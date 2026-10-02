@@ -1,11 +1,13 @@
 """Workbench BFF routes for the Case page (case identity).
 
-Byline: Claude Code · Opus 5.5 · 2026-10-01
+Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 
     GET  /api/case-identity?mode=TEST|REAL       case header, people, identifiers, counts, unknowns
     GET  /api/case-identity/lookup?value=...     who used these identifiers (read tool for other apps)
     GET  /api/case-identity/catalog-events       the Case Bible events behind one catalog count
-    POST /api/case-identity/identifiers          add an identifier or write its next version
+    POST /api/case-identity/identifiers          add an identifier
+    POST /api/case-identity/identifiers/{id}     fix an identifier in place
+    POST /api/case-identity/identifiers/{id}/delete  remove an identifier
     POST /api/case-identity/header?mode=         edit the matter or its court case
     POST /api/case-identity/people               add a person
     POST /api/case-identity/people/{person_id}   edit a person
@@ -78,11 +80,32 @@ async def catalog_events_endpoint(
         raise _translate(error) from None
 
 
+UuidPath = Annotated[str, Path(pattern="^[0-9a-fA-F-]{36}$")]
+
+
 @router.post("/identifiers", status_code=201)
 async def identifier_endpoint(body: JsonObject, request: Request, key: IdempotencyKey):
     actor = _actor(request)
     try:
-        return await service.write_identifier(body, actor, key)
+        return await service.add_identifier(body, actor, key)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.post("/identifiers/{alias_id}", status_code=201)
+async def identifier_edit_endpoint(alias_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey):
+    actor = _actor(request)
+    try:
+        return await service.edit_identifier(alias_id, body, actor, key)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.post("/identifiers/{alias_id}/delete", status_code=201)
+async def identifier_delete_endpoint(alias_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey):
+    actor = _actor(request)
+    try:
+        return await service.delete_identifier(alias_id, body, actor, key)
     except ProfferError as error:
         raise _translate(error) from None
 
@@ -106,9 +129,7 @@ async def add_person_endpoint(body: JsonObject, request: Request, key: Idempoten
 
 
 @router.post("/people/{person_id}", status_code=201)
-async def edit_person_endpoint(
-    person_id: Annotated[str, Path(pattern="^[0-9a-fA-F-]{36}$")], body: JsonObject, request: Request, key: IdempotencyKey
-):
+async def edit_person_endpoint(person_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey):
     actor = _actor(request)
     try:
         return await service.edit_person(person_id, body, actor, key)

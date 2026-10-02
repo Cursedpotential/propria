@@ -50,8 +50,6 @@ func TestValidateIdentifierKeepsTheRawSpellingAndRequiresABasis(t *testing.T) {
 		"unknown status":     func(s *IdentifierSpec) { s.Status = "maybe" },
 		"no basis":           func(s *IdentifierSpec) { s.Basis = " " },
 		"long raw":           func(s *IdentifierSpec) { s.RawValue = strings.Repeat("9", MaxValueBytes+1) },
-		"version, no reason": func(s *IdentifierSpec) { s.SupersedesID = "01a0f751-e07b-76b6-afcb-63acfbba373e" },
-		"bad supersedes":     func(s *IdentifierSpec) { s.SupersedesID = "previous"; s.ChangeReason = "x" },
 		"control char basis": func(s *IdentifierSpec) { s.Basis = "a\x07b" },
 	}
 	for name, mutate := range cases {
@@ -61,10 +59,36 @@ func TestValidateIdentifierKeepsTheRawSpellingAndRequiresABasis(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
-	version := validIdentifier()
-	version.SupersedesID, version.ChangeReason = "01a0f751-e07b-76b6-afcb-63acfbba373e", "owner confirmed on the Case page"
-	if err := ValidateIdentifier(version); err != nil {
-		t.Fatalf("valid version rejected: %v", err)
+}
+
+func TestValidateIdentifierEditAndDelete(t *testing.T) {
+	id := "01a0f751-e07b-76b6-afcb-63acfbba373e"
+	ok := IdentifierEditSpec{ID: id, Fields: map[string]*string{"kind": ptr("legal"), "period": nil, "basis": ptr("the caption names her")}, ChangeReason: "her legal name"}
+	if err := ValidateIdentifierEdit(ok); err != nil {
+		t.Fatalf("valid edit rejected: %v", err)
+	}
+	for name, spec := range map[string]IdentifierEditSpec{
+		"bad id":          {ID: "x", Fields: ok.Fields, ChangeReason: "x"},
+		"no fields":       {ID: id, ChangeReason: "x"},
+		"no reason":       {ID: id, Fields: ok.Fields},
+		"unknown field":   {ID: id, Fields: map[string]*string{"normalized": ptr("x")}, ChangeReason: "x"},
+		"injection field": {ID: id, Fields: map[string]*string{"status = 'x' --": ptr("x")}, ChangeReason: "x"},
+		"clear raw":       {ID: id, Fields: map[string]*string{"raw_value": nil}, ChangeReason: "x"},
+		"padded raw":      {ID: id, Fields: map[string]*string{"raw_value": ptr(" 810")}, ChangeReason: "x"},
+		"bad kind":        {ID: id, Fields: map[string]*string{"kind": ptr("fax")}, ChangeReason: "x"},
+		"bad status":      {ID: id, Fields: map[string]*string{"status": ptr("sure")}, ChangeReason: "x"},
+		"bad person":      {ID: id, Fields: map[string]*string{"entity_id": ptr("Matt")}, ChangeReason: "x"},
+		"empty basis":     {ID: id, Fields: map[string]*string{"basis": ptr(" ")}, ChangeReason: "x"},
+	} {
+		if err := ValidateIdentifierEdit(spec); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	if err := ValidateIdentifierDelete(IdentifierDeleteSpec{ID: id, ChangeReason: "typed into the wrong person"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateIdentifierDelete(IdentifierDeleteSpec{ID: id}); err == nil {
+		t.Fatal("delete without a reason accepted")
 	}
 }
 
