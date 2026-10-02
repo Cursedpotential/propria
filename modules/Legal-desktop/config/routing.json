@@ -61,6 +61,7 @@
     "research": ["research", "statute", "vodvarka", "law"]
   },
   "surfaces": [
+    { "path": "/claims", "label": "Claims and evidence", "group": "Operations", "help": "Record claims and responses, link evidence, and track gaps and follow-up actions." },
     { "path": "/", "label": "Case dashboard", "group": "Assistant", "help": "See the current matter, document counts, and recent activity." },
     { "path": "/assistant", "label": "Ask the assistant", "group": "Assistant", "help": "Discuss the current page or ask for help with your case work." },
     { "path": "/case-search", "label": "Case search", "group": "Research", "help": "Search CourtListener for published opinions and open the matching source records." },

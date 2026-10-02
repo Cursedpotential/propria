@@ -32,6 +32,7 @@ const GROUP_PATHS: Record<TaskNavigationGroup, readonly string[]> = {
   ],
   Evidence: [
     "/evidence-catalog",
+    "/claims",
     "/evidence",
     "/missing-evidence",
     "/evidence-requests",

@@ -1,12 +1,14 @@
-"""Paragraph-level support map. Not sentence-level OCR.
+"""Paragraph-level evidence needs, independent of section citation validity.
 
-> _Byline: Grok · grok-4.6 · 2026-08-18_
-A paragraph is supported only if the section carries approved
-citations. Outline/instruction lines are not treated as facts.
+A section citation check establishes that cited records resolve; it does not
+establish that those records support each paragraph. Until explicit passage
+support is provided, factual paragraphs remain unsupported. The DTO retains
+the supported state for compatibility with a future passage support check.
 """
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 
 from pydantic import BaseModel
@@ -47,10 +49,10 @@ _INSTRUCTION = (
 
 
 def is_instruction(text: str) -> bool:
-    lowered = text.lower()
-    if lowered[:1].isdigit() and ". " in lowered[:4]:
-        return True
-    return any(marker in lowered for marker in _INSTRUCTION)
+    # Numbered facts are common in affidavits. Strip the list prefix only to
+    # recognize an explicit instruction, never to classify numbering as one.
+    lowered = re.sub(r"^\d+[.)]\s+", "", text.strip().lower())
+    return any(lowered.startswith(marker) for marker in _INSTRUCTION)
 
 
 def build_support_map(
@@ -66,9 +68,10 @@ def build_support_map(
     for index, text in enumerate(chunks):
         if is_instruction(text):
             state = SupportState.NOT_FACTUAL
-        elif citation_count and citations_ok:
-            state = SupportState.SUPPORTED
         else:
+            # citations_ok belongs to the independent source-resolution check.
+            # This function receives no paragraph-to-evidence relationship, so
+            # neither a valid citation nor its count can establish support.
             state = SupportState.UNSUPPORTED
         paragraphs.append(SupportParagraph(index=index, text=text, state=state))
     return SupportMap(

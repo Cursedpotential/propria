@@ -44,6 +44,9 @@ services:
       EVIDENCE_PLATFORM_SERVICE: contextforge
       MODEL_GATEWAY_SERVICE: model-gateway
       EVIDENCE_PLATFORM_BASE_URL: ${EVIDENCE_PLATFORM_BASE_URL:-http://contextforge:4444}
+      PROBATA_RECORDS_BASE_URL: ${PROBATA_RECORDS_BASE_URL:-http://ovh-files.tilapia-skilift.ts.net:8091}
+      PROBATA_RECORDS_TOKEN_FILE: /run/secrets/probata-records-token
+      PROBATA_RECORDS_MODE: REAL
       MODEL_GATEWAY_BASE_URL: ${MODEL_GATEWAY_BASE_URL:-http://model-gateway:4000}
       LEGAL_RENDERER_BASE_URL: http://legal-renderer:3000
       OFFICE_EDITOR_PUBLIC_URL: https://legal.tilapia-skilift.ts.net/office
@@ -81,6 +84,7 @@ services:
       FAMILY_COURT_CONSOLE_MCP_TOKEN: ${FAMILY_COURT_CONSOLE_MCP_TOKEN:-}
     volumes:
       - /var/lib/legal-workspace/workspace:/data/workspace
+      - /data/probata/secrets/proffer/service-token:/run/secrets/probata-records-token:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8010/health',timeout=4).status==200 else 1)\""]
       interval: 15s

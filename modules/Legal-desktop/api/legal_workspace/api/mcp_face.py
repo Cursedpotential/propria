@@ -130,4 +130,58 @@ def ocr_image(
     ).model_dump()
 
 
+def _claims_service():
+    from legal_workspace.api.claim_routes import get_claim_service
+    return get_claim_service()
+
+
+def _claims_actor() -> str:
+    from fastmcp.server.dependencies import get_http_request
+    from legal_workspace.api.claim_routes import actor
+    return actor(get_http_request())
+
+
+@mcp.tool
+def case_claims() -> list[dict]:
+    """Read the same saved claims, legal responses and live Probata source pointers as the workdesk."""
+    return [row.model_dump(mode="json") for row in _claims_service().list()]
+
+
+@mcp.tool
+def case_claim_gaps() -> list[dict]:
+    """Read claim-specific evidence gaps and planned follow-up actions."""
+    return [row.model_dump(mode="json") for row in _claims_service().gap_report()]
+
+
+@mcp.tool
+def create_case_claim(text: str, kind: str = "assertion", claimant: str = "", response: str = "") -> dict:
+    """Save a private claim or response. This does not accept evidence or send a request."""
+    from legal_workspace.contracts.claims import ClaimCreate
+    return _claims_service().create(
+        ClaimCreate(text=text, kind=kind, claimant=claimant, response=response),
+        actor=_claims_actor(),
+    ).model_dump(mode="json")
+
+
+@mcp.tool
+def open_probata_legal_response(origin: dict, response: str = "") -> dict:
+    """Open one legal response over an existing Probata entity/event ID and pinned version."""
+    from legal_workspace.contracts.claims import FromProbataCreate
+    return _claims_service().from_probata(
+        FromProbataCreate(origin=origin, response=response), actor=_claims_actor(),
+    ).model_dump(mode="json")
+
+
+@mcp.tool
+def plan_claim_followup(claim_id: str, expected_revision: int, kind: str, description: str,
+                        gap_id: str | None = None) -> dict:
+    """Save a planned document search, investigation, legal research or discovery action for a claim."""
+    from legal_workspace.contracts.claims import FollowupCreate
+    return _claims_service().add_followup(
+        claim_id, FollowupCreate(expected_revision=expected_revision, kind=kind,
+                                description=description, gap_id=gap_id),
+        actor=_claims_actor(),
+    ).model_dump(mode="json")
+
+
 mcp_app = mcp.http_app(path="/", stateless_http=True, json_response=True)

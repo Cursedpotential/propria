@@ -33,7 +33,7 @@ def test_routing_surfaces_use_handoff_english_labels() -> None:
     groups = {item["group"] for item in body["surfaces"]}
     assert groups == {"Assistant", "Research", "Contracts", "Drafting", "Operations"}
     assert "Case search" in labels
-    assert "Motion writer" in labels
+    assert "Documents and writing" in labels
     assert "Ask the assistant" in labels
     assert "Cases and statutes" not in labels
     assert "Write a paper" not in labels

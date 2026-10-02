@@ -31,4 +31,4 @@ def test_audit_and_triggers_are_lists(tmp_path) -> None:
     assert all("cmd" not in item for item in home.json()["next_surfaces"])
     labels = [item["label"] for item in home.json()["next_surfaces"]]
     assert "Case search" in labels
-    assert "Motion writer" in labels
+    assert "Documents and writing" in labels

@@ -55,11 +55,11 @@ export default async function DraftPage() {
             body={draft.body}
           />
           <p style={{ color: "var(--text-muted)" }}>
-            Factor ({draft.factor_letter}) · {draft.citation_count} citations
-            {draft.support ? ` · unsupported paragraphs: ${draft.support.unsupported_count}` : ""}
+            {draft.factor_letter ? `Factor (${draft.factor_letter}) · ` : ""}{draft.citation_count} citation links
+            {draft.support ? ` · ${draft.support.unsupported_count} paragraphs need evidence links` : ""}
           </p>
           <details>
-            <summary>Citation support</summary>
+            <summary>Paragraph evidence needs</summary>
           {draft.support
             ? draft.support.paragraphs.map((paragraph) => (
                 <p
@@ -69,7 +69,9 @@ export default async function DraftPage() {
                     fontSize: 13,
                   }}
                 >
-                  [{paragraph.state}] {paragraph.text}
+                  <span className="pr-status" data-pr-status={paragraph.state === "unsupported" ? "caution" : "information"}>
+                    {paragraph.state === "unsupported" ? "Evidence needed" : paragraph.state === "not_factual" ? "Drafting guidance" : "Evidence linked"}
+                  </span>{" "}{paragraph.text}
                 </p>
               ))
             : <p>No support assessment is available yet.</p>}

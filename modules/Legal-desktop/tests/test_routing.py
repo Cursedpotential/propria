@@ -44,7 +44,7 @@ def test_overlay_file_changes_which_agent_is_called(tmp_path, monkeypatch) -> No
         AgentRunCreate(intent="research Vodvarka lookback", prompt="outline only")
     )
     assert run.role is AgentRole.DRAFTER
-    assert "Motion writer" in run.output
+    assert "Documents and writing" in run.output
 
 
 def test_mapping_edit_retargets_dispatch_and_keeps_forbidden_blocked(

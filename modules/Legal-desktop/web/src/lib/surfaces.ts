@@ -66,6 +66,7 @@ export const SURFACES: Surface[] = [
   { path: "/evidence-requests", label: "Discovery requests", group: "Operations", help: "Draft requests for production, admissions, interrogatories, and subpoenas.", icon: "folder" },
   { path: "/evidence", label: "Evidence list", group: "Operations", help: "Review case evidence candidates and add annotations.", icon: "paperclip" },
   { path: "/evidence-catalog", label: "Evidence catalog", group: "Operations", help: "Browse catalog records and inspect their evidence-processing status.", icon: "folder" },
+  { path: "/claims", label: "Claims and evidence", group: "Operations", help: "Record claims and responses, link evidence, and track gaps and follow-up actions.", icon: "list" },
   { path: "/missing-evidence", label: "Missing evidence", group: "Operations", help: "Describe missing support and create an investigation request.", icon: "help" },
   { path: "/tasks", label: "Your tasks", group: "Operations", help: "Add personal tasks and track their status.", icon: "check" },
   { path: "/timeline", label: "Timeline", group: "Operations", help: "View recorded case events in date order.", icon: "clock" },
@@ -96,7 +97,12 @@ export function enrichSurface(row: Surface): Surface {
 }
 
 export function enrichCatalog(rows: Surface[]): Surface[] {
-  return rows.map(enrichSurface);
+  const enriched = rows.map(enrichSurface);
+  // Older saved routing overlays must not hide the newly delivered claims workspace.
+  if (!enriched.some((item) => item.path === "/claims")) {
+    enriched.push(SURFACES.find((item) => item.path === "/claims")!);
+  }
+  return enriched;
 }
 
 let catalog: Surface[] = SURFACES;

@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     legal_api_port: int = Field(default=8010)
     display_timezone: str = Field(default="America/New_York")
     evidence_platform_base_url: str = Field(default="http://evidence-platform:8000")
+    probata_records_base_url: str = Field(default="", alias="PROBATA_RECORDS_BASE_URL")
+    probata_records_token_file: str = Field(default="", alias="PROBATA_RECORDS_TOKEN_FILE")
+    probata_records_mode: str = Field(default="REAL", pattern="^(REAL|TEST)$", alias="PROBATA_RECORDS_MODE")
     model_gateway_base_url: str = Field(default="http://model-gateway:4000")
     legal_renderer_base_url: str = Field(default="http://legal-renderer:3000")
     database_url: str = Field(default_factory=default_sqlite_url)
@@ -82,6 +85,7 @@ class Settings(BaseSettings):
         "model_gateway_service",
         "legal_renderer_service",
         "evidence_platform_base_url",
+        "probata_records_base_url",
         "model_gateway_base_url",
         "legal_renderer_base_url",
         "database_url",

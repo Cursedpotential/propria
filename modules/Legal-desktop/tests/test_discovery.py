@@ -78,5 +78,5 @@ def test_http_discovery(tmp_path) -> None:
     )
     assert blocked.status_code == 409
     home = client.get("/v1/matter")
-    assert any(row["path"] == "/evidence-requests" and row["label"] == "Evidence requests" for row in home.json()["next_surfaces"])
+    assert any(row["path"] == "/evidence-requests" and row["label"] == "Discovery requests" for row in home.json()["next_surfaces"])
     assert home.json()["discovery_count"] >= 3
