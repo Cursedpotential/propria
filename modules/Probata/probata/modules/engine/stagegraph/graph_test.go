@@ -97,8 +97,14 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 		}
 		optional[stage.ID] = stage
 	}
-	if len(optional) != 8 {
-		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage, the context search stage, the participant resolution stage and the four first-party context stages", len(optional))
+	if len(optional) != 9 {
+		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage, the context search stage, the participant resolution stage, the four first-party context stages and the automatic approval stage", len(optional))
+	}
+	// Automatic approval decides on the published preview and writes only the
+	// decision record. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	if auto, ok := optional[RecordAutoApproval]; !ok || auto.Responsibility != RespRecordDecision ||
+		len(auto.DependsOn) != 1 || auto.DependsOn[0] != PublishPreview || requiredStages[RecordAutoApproval] {
+		t.Fatalf("automatic approval stage = %+v, want an optional decision record after the preview", auto)
 	}
 	d, ok := optional[ChunkDocument]
 	if !ok || d.Responsibility != RespChunk {

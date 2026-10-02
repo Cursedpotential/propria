@@ -223,6 +223,12 @@ var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
 		StartToCloseTimeout: 5 * time.Minute,
 		RetryPolicy:         retryPolicy(2*time.Second, 5),
 	},
+	// One idempotent decision insert (ON CONFLICT DO NOTHING on the decision
+	// key). Byline: Claude Code · Opus 5.5 · 2026-10-02
+	stagegraph.RecordAutoApproval: {
+		StartToCloseTimeout: 2 * time.Minute,
+		RetryPolicy:         retryPolicy(2*time.Second, 5),
+	},
 	stagegraph.SealGeneration: {
 		// Sealing atomically freezes the generation; keep it short and
 		// retry-bounded so a stuck seal fails the workflow instead of

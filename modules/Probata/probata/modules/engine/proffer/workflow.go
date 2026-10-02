@@ -47,6 +47,10 @@ const (
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	participantResolutionChangeID = "proffer-context-participant-resolution-v1"
 	participantResolutionVersion  = workflow.Version(1)
+	// Automatic approval of clean runs (owner 2026-10-02), switched on per run
+	// by WorkflowInput.AutoApproval. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	autoApprovalChangeID = "proffer-auto-approve-clean-checks-v1"
+	autoApprovalVersion  = workflow.Version(1)
 	// SelectStructuredELTActivityName and ExecuteStructuredELTActivityName are
 	// the implementation-specific Temporal names for DuckDB execution of the
 	// logical SelectParser and ExecuteParser stages. The Activity package
@@ -730,16 +734,38 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		preview.Phase, preview.PreviewHandle = PhaseAwaitingDecision, previewHandle
 		preview.SelectRef, preview.ParserOptionsRef = activeSelectionRef, activeParserOptionsRef
 		preview.Reason = ""
-		r.awaiting(OperationAwaitingPreviewDecision, OperationWaitPreviewDecision)
-		if err := awaitPreviewDecision(ctx, &preview, durableReviewWait); err != nil {
-			r.operation.Reason = err.Error()
-			if errors.Is(err, ErrPreviewRerunRequired) {
-				r.operation.Lifecycle = OperationRerunRequired
-				r.operation.Wait = ""
+		// Owner 2026-10-02 "auto-approve clean runs": a run started with the
+		// policy on approves itself only when every computed check passed, and
+		// records that approval as automatic. Anything else waits for the owner.
+		// Byline: Claude Code · Opus 5.5 · 2026-10-02
+		autoApproved := false
+		if in.AutoApproval == AutoApprovalCleanChecks && workflow.GetVersion(ctx, autoApprovalChangeID, workflow.DefaultVersion, autoApprovalVersion) != workflow.DefaultVersion {
+			if checks, clean := r.cleanChecks(); clean {
+				if _, err := r.execAutoApproval(ctx, AutoApprovalRequest{
+					RequestID: in.RequestID, PreviewHandle: previewHandle,
+					SelectionRef: activeSelectionRef, ParserOptionsRef: activeParserOptionsRef, Checks: checks,
+				}); err != nil {
+					r.operation.Reason = err.Error()
+					return r.result(""), err
+				}
+				preview.Phase, preview.Reason = PhaseApproved, stagegraph.AutoApprovalActor
+				autoApproved = true
+			} else {
+				preview.Reason = "automatic approval withheld: not every check passed; waiting for the owner"
 			}
-			return r.result(""), err
 		}
-		r.running()
+		if !autoApproved {
+			r.awaiting(OperationAwaitingPreviewDecision, OperationWaitPreviewDecision)
+			if err := awaitPreviewDecision(ctx, &preview, durableReviewWait); err != nil {
+				r.operation.Reason = err.Error()
+				if errors.Is(err, ErrPreviewRerunRequired) {
+					r.operation.Lifecycle = OperationRerunRequired
+					r.operation.Wait = ""
+				}
+				return r.result(""), err
+			}
+			r.running()
+		}
 	}
 
 	// First-party context import, CONFIRM and COMMIT (D04): only after the
@@ -1042,6 +1068,32 @@ func (r *run) execDerive(ctx workflow.Context, declaredFormat string, refs map[s
 
 func (r *run) execPreview(ctx workflow.Context, request PreviewPublicationRequest) (Ref, error) {
 	id := stagegraph.PublishPreview
+	r.markStageStarted(id)
+	actCtx := workflow.WithActivityOptions(ctx, optionsFor(id))
+	future := workflow.ExecuteActivity(actCtx, string(id), request)
+	return r.settle(id, future.Get, ctx)
+}
+
+// cleanChecks reports whether every AutoApprovalChecks stage settled success
+// in this run, and returns them by reference for the decision record. A check
+// that never ran, or settled not_applicable, is not clean.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+func (r *run) cleanChecks() ([]AutoApprovalCheck, bool) {
+	checks := make([]AutoApprovalCheck, 0, len(AutoApprovalChecks))
+	for _, id := range AutoApprovalChecks {
+		status, receipt := r.lastStatus(id), r.receiptRef(id)
+		if status != StatusSuccess || receipt == "" {
+			return nil, false
+		}
+		checks = append(checks, AutoApprovalCheck{Stage: id, Status: status, ReceiptRef: receipt})
+	}
+	return checks, true
+}
+
+// execAutoApproval runs record_auto_approval_activity and settles it like
+// every other stage. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func (r *run) execAutoApproval(ctx workflow.Context, request AutoApprovalRequest) (Ref, error) {
+	id := stagegraph.RecordAutoApproval
 	r.markStageStarted(id)
 	actCtx := workflow.WithActivityOptions(ctx, optionsFor(id))
 	future := workflow.ExecuteActivity(actCtx, string(id), request)

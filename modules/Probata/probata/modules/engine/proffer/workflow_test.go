@@ -120,6 +120,12 @@ func noMessagesProposalActivity(_ context.Context, _ StageRequest) (StageResult,
 	}, nil
 }
 
+// placeholderAutoApprovalActivity gives record_auto_approval_activity its own
+// signature for the SDK's name-based dispatch. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func placeholderAutoApprovalActivity(_ context.Context, _ AutoApprovalRequest) (StageResult, error) {
+	return StageResult{}, errors.New("proffer: placeholder automatic approval ran unmocked")
+}
+
 func placeholderHandlerRecommendation(_ context.Context, _ StageRequest) (HandlerRecommendationResult, error) {
 	return HandlerRecommendationResult{}, errors.New("proffer: placeholder handler recommendation ran unmocked")
 }
@@ -182,6 +188,10 @@ func registerAllStages(env *testsuite.TestWorkflowEnvironment) {
 		}
 		if d.ID == stagegraph.ProposeFirstPartyContext {
 			env.RegisterActivityWithOptions(noMessagesProposalActivity, activity.RegisterOptions{Name: string(d.ID)})
+			continue
+		}
+		if d.ID == stagegraph.RecordAutoApproval {
+			env.RegisterActivityWithOptions(placeholderAutoApprovalActivity, activity.RegisterOptions{Name: string(d.ID)})
 			continue
 		}
 		if d.ID == stagegraph.ResolveContextParticipants {
@@ -1023,9 +1033,10 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 		reflect.Bool: true, reflect.Int: true, reflect.Int64: true, reflect.Uint64: true,
 	}
 	nestable := map[reflect.Type]bool{
-		reflect.TypeOf(StageResult{}):     true,
-		reflect.TypeOf(DeriveResult{}):    true,
-		reflect.TypeOf(DerivedChunkRef{}): true,
+		reflect.TypeOf(AutoApprovalCheck{}): true,
+		reflect.TypeOf(StageResult{}):       true,
+		reflect.TypeOf(DeriveResult{}):      true,
+		reflect.TypeOf(DerivedChunkRef{}):   true,
 	}
 
 	var checkStruct func(t *testing.T, rt reflect.Type)
@@ -1077,6 +1088,7 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 		reflect.TypeOf(WorkflowResult{}),
 		reflect.TypeOf(DeriveResult{}),
 		reflect.TypeOf(DerivedChunkRef{}),
+		reflect.TypeOf(AutoApprovalRequest{}),
 	} {
 		checkStruct(t, wireType)
 	}
@@ -1920,5 +1932,98 @@ func TestFirstPartyCommitFailureBlocksTheSeal(t *testing.T) {
 		if order.contains(string(later)) {
 			t.Errorf("%s ran after the spine commit failed", later)
 		}
+	}
+}
+
+// TestCleanRunApprovesItselfWhenThePolicyIsOn proves the owner's
+// "auto-approve clean runs" policy (2026-10-02): with the policy switched on
+// and every check a receipted success, the run records an automatic approval
+// with every check by receipt and goes on to commit and seal with no human
+// signal at all. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestCleanRunApprovesItselfWhenThePolicyIsOn(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	mockFirstPartyContextSucceeds(env, nil)
+	var recorded *AutoApprovalRequest
+	env.OnActivity(string(stagegraph.RecordAutoApproval), mock.Anything, mock.Anything).Return(
+		func(_ context.Context, req AutoApprovalRequest) (StageResult, error) {
+			copied := req
+			recorded = &copied
+			return stageStub(stagegraph.RecordAutoApproval), nil
+		}).Once()
+	order := newOrderRecorder(env)
+	// Only the earlier gates are answered; the preview decision is never signaled.
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(RepairDecisionSignalName, RepairDecision{DecisionRef: "repair-decision-ref"})
+		env.SignalWorkflow(HandlerSelectionDecisionSignalName, HandlerSelectionDecision{DecisionRef: "handler-decision-ref"})
+	}, time.Millisecond)
+
+	in := firstPartyInput()
+	in.AutoApproval = AutoApprovalCleanChecks
+	env.ExecuteWorkflow(ProfferWorkflow, in)
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error = %v", err)
+	}
+	if recorded == nil {
+		t.Fatal("a clean run with the policy on did not record an automatic approval")
+	}
+	if recorded.PreviewHandle != stageStub(stagegraph.PublishPreview).Ref || len(recorded.Checks) != len(AutoApprovalChecks) {
+		t.Fatalf("automatic approval request = %+v, want the preview handle and every check", recorded)
+	}
+	for index, check := range recorded.Checks {
+		if check.Stage != AutoApprovalChecks[index] || check.Status != StatusSuccess || check.ReceiptRef != stageStub(check.Stage).ReceiptRef {
+			t.Fatalf("check %d = %+v, want a receipted success of %s", index, check, AutoApprovalChecks[index])
+		}
+	}
+	at := func(id stagegraph.StageID) int { return order.indexOf(string(id)) }
+	if at(stagegraph.PublishPreview) > at(stagegraph.RecordAutoApproval) || at(stagegraph.RecordAutoApproval) > at(stagegraph.ConfirmFirstPartyContext) ||
+		at(stagegraph.SealGeneration) < 0 || at(stagegraph.PublishGeneration) < 0 {
+		t.Fatalf("order = %v, want preview -> automatic approval -> confirm -> seal -> publish", order.snapshot())
+	}
+}
+
+// TestRunWithANotPassedCheckWaitsForTheOwnerEvenWithThePolicyOn proves a
+// not_applicable check (here: no participant to resolve) withholds the
+// automatic approval; the run waits for the owner's decision as usual.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestRunWithANotPassedCheckWaitsForTheOwnerEvenWithThePolicyOn(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	order := newOrderRecorder(env)
+	approveHold(env)
+
+	in := firstPartyInput()
+	in.AutoApproval = AutoApprovalCleanChecks
+	env.ExecuteWorkflow(ProfferWorkflow, in)
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error = %v", err)
+	}
+	if order.contains(string(stagegraph.RecordAutoApproval)) {
+		t.Fatal("a run whose participant resolution was not_applicable approved itself")
+	}
+}
+
+// TestCleanRunWaitsForTheOwnerWhenThePolicyIsOff proves the policy is off by
+// default: a clean run started without it records no automatic approval.
+// Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestCleanRunWaitsForTheOwnerWhenThePolicyIsOff(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ProfferWorkflow)
+	mockAllStagesSucceed(env)
+	mockFirstPartyContextSucceeds(env, nil)
+	order := newOrderRecorder(env)
+	approveHold(env)
+
+	env.ExecuteWorkflow(ProfferWorkflow, firstPartyInput())
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error = %v", err)
+	}
+	if order.contains(string(stagegraph.RecordAutoApproval)) {
+		t.Fatal("a run started without the policy approved itself")
 	}
 }
