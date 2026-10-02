@@ -4,6 +4,7 @@
 # Byline: Claude Code · Opus 5.5 · 2026-09-26 (repair workflow builder routes, /api/proffer/repair/*)
 # Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-23 restored the byline above; DF-24 Graphiti removed, DD-06 docstring)
 # Byline: Claude Code · Opus 5.5 · 2026-10-01 (case identity routes, /api/case-identity/*)
+# Byline: Claude Code · Sonnet · 2026-10-02 (mobile Imported view routes, /api/imported/*)
 """Probata Workbench API entrypoint — the backend of Sources and Review.
 
 Sources (steps 1-4) browses the configured object stores, inspects and hashes
@@ -31,6 +32,7 @@ from app.runtime import (
     entity_extraction,
     files,
     health,
+    imported,
     inspect,
     intake_discovery,
     knowledge,
@@ -135,6 +137,7 @@ app.include_router(runs.router)
 app.include_router(run_events.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
+app.include_router(imported.router)  # /api/imported/* — the mobile Imported view, read-only (Claude Code · Sonnet · 2026-10-02)
 app.include_router(case_management.router)
 app.include_router(case_identity.router)  # /api/case-identity/* — the Case page over registry (Claude Code · Opus 5.5 · 2026-10-01)
 app.include_router(chat.router)
@@ -145,6 +148,17 @@ app.include_router(metrics.router)
 app.include_router(classification.router)
 app.include_router(sentiment.router)
 app.include_router(compare.router)
+
+@app.on_event("startup")
+async def _warm_imported_run_state() -> None:
+    # The mobile Imported view's run-state read takes ~10 s; start it before the first phone asks.
+    from app.service import imported as imported_service
+
+    try:
+        imported_service.warm()
+    except Exception:  # never block boot on a read that only decorates a status label
+        logger.warning("Imported run-state warm-up did not start", exc_info=True)
+
 
 # Static frontend (built separately) mounted LAST so /api + /health always win.
 _static_dir = Path(settings.static_dir)
