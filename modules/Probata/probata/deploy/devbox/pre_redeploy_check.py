@@ -196,10 +196,10 @@ def check_container(name: str, home_volume: str, stamp: str, dry_run: bool) -> t
         if bad:
             problems.append(f"{len(bad)} files differ or are missing in the copy (first: /{bad[0]}); "
                             "a live program may still be writing them — stop it and re-run")
-    sh(["chown", "-R", "1000:1000", os.path.join(home_volume, "rescued")], check=False)
     report.append(f"rescue folder: {rescue_dir}")
     with open(os.path.join(rescue_dir, "report.txt"), "w") as f:
         f.write("\n".join(report + [f"PROBLEM: {p}" for p in problems]) + "\n")
+    sh(["chown", "-R", "1000:1000", os.path.join(home_volume, "rescued")], check=False)
     return (not problems), report
 
 
