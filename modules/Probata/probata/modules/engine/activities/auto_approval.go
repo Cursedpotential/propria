@@ -7,7 +7,9 @@
 // same context.proffer_preview_decision record (and its decision_recorded
 // event) a human approval in Review writes, with actor "auto:clean-checks" and
 // the passed checks, by receipt, as the reason. It decides nothing itself; it
-// refuses a request whose checks are incomplete or not all success.
+// refuses a request whose checks are incomplete or do not all pass
+// (proffer.AutoApprovalCheckPasses: success, or a receipted not_applicable
+// byte-coverage check for a locator-less format).
 package activities
 
 import (
@@ -61,8 +63,8 @@ func (a AutoApprovalActivity) Record(ctx context.Context, request proffer.AutoAp
 	}
 	for index, want := range proffer.AutoApprovalChecks {
 		check := request.Checks[index]
-		if check.Stage != want || check.Status != proffer.StatusSuccess || strings.TrimSpace(string(check.ReceiptRef)) == "" {
-			return proffer.StageResult{}, stopRetryingPermanent(permanent(fmt.Errorf("automatic approval refused: check %s is %q, not a receipted success", want, check.Status)))
+		if check.Stage != want || !proffer.AutoApprovalCheckPasses(want, check.Status, check.ReceiptRef, request.DetectedFormat) {
+			return proffer.StageResult{}, stopRetryingPermanent(permanent(fmt.Errorf("automatic approval refused: check %s is %q, not a receipted pass for format %q", want, check.Status, request.DetectedFormat)))
 		}
 	}
 	reason := AutoApprovalReason(request.Checks)

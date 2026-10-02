@@ -51,6 +51,15 @@ const (
 	// by WorkflowInput.AutoApproval. Byline: Claude Code · Opus 5.5 · 2026-10-02
 	autoApprovalChangeID = "proffer-auto-approve-clean-checks-v1"
 	autoApprovalVersion  = workflow.Version(1)
+	// Owner 2026-10-02 (option A): reconcile_byte_coverage settled
+	// not_applicable passes clean_checks only for a detected format that never
+	// produces byte locators. One marker for the arrival-time decision and one
+	// for the Signal path, so a run that already decided at arrival under the
+	// old rule can still take the new rule when the Signal arrives later.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	locatorlessArrivalChangeID = "proffer-auto-approve-locatorless-arrival-v1"
+	locatorlessSignalChangeID  = "proffer-auto-approve-locatorless-signal-v1"
+	locatorlessVersion         = workflow.Version(1)
 	// SelectStructuredELTActivityName and ExecuteStructuredELTActivityName are
 	// the implementation-specific Temporal names for DuckDB execution of the
 	// logical SelectParser and ExecuteParser stages. The Activity package
@@ -740,10 +749,12 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		// Byline: Claude Code · Opus 5.5 · 2026-10-02
 		autoApproved := false
 		if in.AutoApproval == AutoApprovalCleanChecks && workflow.GetVersion(ctx, autoApprovalChangeID, workflow.DefaultVersion, autoApprovalVersion) != workflow.DefaultVersion {
-			if checks, clean := r.cleanChecks(); clean {
+			locatorless := workflow.GetVersion(ctx, locatorlessArrivalChangeID, workflow.DefaultVersion, locatorlessVersion) != workflow.DefaultVersion
+			if checks, clean := r.cleanChecks(preview.DetectedFormat, locatorless); clean {
 				if _, err := r.execAutoApproval(ctx, AutoApprovalRequest{
 					RequestID: in.RequestID, PreviewHandle: previewHandle,
 					SelectionRef: activeSelectionRef, ParserOptionsRef: activeParserOptionsRef, Checks: checks,
+					DetectedFormat: preview.DetectedFormat,
 				}); err != nil {
 					r.operation.Reason = err.Error()
 					return r.result(""), err
@@ -762,7 +773,8 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 			// every check passed, through the same record_auto_approval_activity;
 			// otherwise the run keeps waiting. Byline: Claude Code · Opus 5.5 · 2026-10-02
 			applyAuto := func() (bool, error) {
-				checks, clean := r.cleanChecks()
+				locatorless := workflow.GetVersion(ctx, locatorlessSignalChangeID, workflow.DefaultVersion, locatorlessVersion) != workflow.DefaultVersion
+				checks, clean := r.cleanChecks(preview.DetectedFormat, locatorless)
 				if !clean {
 					preview.Reason = "automatic approval withheld: not every check passed; waiting for the owner"
 					return false, nil
@@ -770,6 +782,7 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 				if _, err := r.execAutoApproval(ctx, AutoApprovalRequest{
 					RequestID: in.RequestID, PreviewHandle: previewHandle,
 					SelectionRef: activeSelectionRef, ParserOptionsRef: activeParserOptionsRef, Checks: checks,
+					DetectedFormat: preview.DetectedFormat,
 				}); err != nil {
 					return false, err
 				}
@@ -1147,10 +1160,19 @@ func (r *run) execPreview(ctx workflow.Context, request PreviewPublicationReques
 // in this run, and returns them by reference for the decision record. A check
 // that never ran, or settled not_applicable, is not clean.
 // Byline: Claude Code · Opus 5.5 · 2026-10-02
-func (r *run) cleanChecks() ([]AutoApprovalCheck, bool) {
+//
+// Owner 2026-10-02 (option A): reconcile_byte_coverage settled
+// not_applicable counts as passed when allowLocatorless is set and the detected
+// format is one that never produces byte locators (LocatorlessFormats). Every
+// other check must still be success. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func (r *run) cleanChecks(detectedFormat string, allowLocatorless bool) ([]AutoApprovalCheck, bool) {
 	checks := make([]AutoApprovalCheck, 0, len(AutoApprovalChecks))
 	for _, id := range AutoApprovalChecks {
 		status, receipt := r.lastStatus(id), r.receiptRef(id)
+		if allowLocatorless && status == StatusNotApplicable && AutoApprovalCheckPasses(id, status, receipt, detectedFormat) {
+			checks = append(checks, AutoApprovalCheck{Stage: id, Status: status, ReceiptRef: receipt})
+			continue
+		}
 		if status != StatusSuccess || receipt == "" {
 			return nil, false
 		}

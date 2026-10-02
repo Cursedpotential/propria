@@ -76,3 +76,44 @@ func TestAutoApprovalRefusesAnyCheckThatDidNotPass(t *testing.T) {
 		}
 	}
 }
+
+// Owner 2026-10-02 option A. Byline: Claude Code · Opus 5.5 · 2026-10-02
+func TestAutoApprovalPassesNotApplicableByteCoverageOnlyForLocatorlessFormats(t *testing.T) {
+	byteCoverageNA := func(format string) proffer.AutoApprovalRequest {
+		request := cleanApprovalRequest()
+		request.Checks[1].Status = proffer.StatusNotApplicable
+		request.DetectedFormat = format
+		return request
+	}
+	for _, format := range []string{"ndjson", "facebook_messenger_json"} {
+		store := &decisionRecorder{}
+		if _, err := (AutoApprovalActivity{Store: store}).Record(context.Background(), byteCoverageNA(format)); err != nil {
+			t.Fatalf("%s: a receipted not_applicable byte-coverage check was refused: %v", format, err)
+		}
+		if len(store.calls) != 1 || !strings.Contains(store.calls[0].reason, "reconcile_byte_coverage_activity=not_applicable(") {
+			t.Fatalf("%s: decision = %+v", format, store.calls)
+		}
+	}
+	for _, format := range []string{"smsbackuprestore_xml", "xml", "pdf", ""} {
+		store := &decisionRecorder{}
+		if _, err := (AutoApprovalActivity{Store: store}).Record(context.Background(), byteCoverageNA(format)); err == nil || len(store.calls) != 0 {
+			t.Fatalf("%s: not_applicable byte coverage passed for a format that has byte locators", format)
+		}
+	}
+	// Every other check must still be a success, even for a locator-less format.
+	for _, index := range []int{0, 2, 3, 4} {
+		request := cleanApprovalRequest()
+		request.DetectedFormat = "ndjson"
+		request.Checks[index].Status = proffer.StatusNotApplicable
+		store := &decisionRecorder{}
+		if _, err := (AutoApprovalActivity{Store: store}).Record(context.Background(), request); err == nil || len(store.calls) != 0 {
+			t.Fatalf("check %s not_applicable passed for ndjson", request.Checks[index].Stage)
+		}
+	}
+	// A not_applicable byte-coverage check still needs its receipt.
+	request := byteCoverageNA("ndjson")
+	request.Checks[1].ReceiptRef = ""
+	if _, err := (AutoApprovalActivity{Store: &decisionRecorder{}}).Record(context.Background(), request); err == nil {
+		t.Fatalf("an unreceipted not_applicable check passed")
+	}
+}

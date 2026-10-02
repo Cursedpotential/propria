@@ -175,13 +175,37 @@ func ValidAutoApproval(policy string) bool {
 // all settle success before a run may approve itself (owner 2026-10-02):
 // record accounting, byte coverage, raw coverage against the source,
 // normalized verification, and participant resolution. A not_applicable
-// outcome counts as not passed.
+// outcome counts as not passed, with one exception: LocatorlessFormats.
 var AutoApprovalChecks = []stagegraph.StageID{
 	stagegraph.ReconcileRecordAccounting,
 	stagegraph.ReconcileByteCoverage,
 	stagegraph.VerifyRawCoverageAgainstSource,
 	stagegraph.VerifyNormalizedGeneration,
 	stagegraph.ResolveContextParticipants,
+}
+
+// LocatorlessFormats are the detected formats whose raw records carry no byte
+// locators into the retained original, so reconcile_byte_coverage always
+// settles not_applicable for them: the derived SMS thread chunks (ndjson) and
+// Facebook Messenger thread JSON. For these formats alone a receipted
+// not_applicable byte-coverage check counts as passed (owner 2026-10-02,
+// option A: "This is all supposed to be programmatic"); every other check must
+// still be a receipted success. Byline: Claude Code · Opus 5.5 · 2026-10-02
+var LocatorlessFormats = map[string]bool{
+	"ndjson":                  true,
+	"facebook_messenger_json": true,
+}
+
+// AutoApprovalCheckPasses reports whether one check satisfies the clean_checks
+// policy for a source of the given detected format.
+func AutoApprovalCheckPasses(stage stagegraph.StageID, status Status, receipt Ref, detectedFormat string) bool {
+	if strings.TrimSpace(string(receipt)) == "" {
+		return false
+	}
+	if status == StatusSuccess {
+		return true
+	}
+	return stage == stagegraph.ReconcileByteCoverage && status == StatusNotApplicable && LocatorlessFormats[detectedFormat]
 }
 
 // AutoApprovalCheck is one passed check, by reference.
@@ -199,6 +223,9 @@ type AutoApprovalRequest struct {
 	SelectionRef     Ref                 `json:"selection_ref"`
 	ParserOptionsRef Ref                 `json:"parser_options_ref"`
 	Checks           []AutoApprovalCheck `json:"checks"`
+	// DetectedFormat lets the Activity re-check the LocatorlessFormats rule
+	// itself. Byline: Claude Code · Opus 5.5 · 2026-10-02
+	DetectedFormat string `json:"detected_format,omitempty"`
 }
 
 // personRefs carries the explicit person ids to the first-party context
