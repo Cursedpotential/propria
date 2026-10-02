@@ -194,9 +194,12 @@ transition state.
   `~\.codex\config.toml`, and runs the hooks through the plugin's `scripts/codex_hook.py`. How
   each app is wired is in the plugin's `UPSTREAM.md`. Codex's own memory store is imported under
   `memory\codex\<project>\` (indexed). The `memsearch` CLI itself is the private fork
-  `E:\AI_Workspace\plugins\forks\memsearch` (uv tool, `0.4.19+propria6` since 2026-10-02): never
+  `E:\AI_Workspace\plugins\forks\memsearch` (uv tool, `0.4.19+propria7` since 2026-10-02): never
   install memsearch from PyPI, which drops the fork's NIM fixes; reinstall steps are in the
-  fork's `propria/README.md`. _(Claude Code · Opus 5.5 · 2026-09-26, one plugin 2026-10-02)_
+  fork's `propria/README.md`. The same collection is also served as MCP tools (`memsearch-search`,
+  `-expand`, `-recall`, `-status`) by the Coolify app `memsearch-mcp` on ovh-files, federated by
+  ContextForge as virtual server `memsearch`; both apps reach it there (the plugin's `UPSTREAM.md`,
+  "Hosted MCP server"). _(Claude Code · Opus 5.5 · 2026-09-26, one plugin and hosted MCP 2026-10-02)_
 - **ccc (local code indexes):** every local patch to `cocoindex-code` lives in the private fork
   `E:\AI_Workspace\plugins\forks\cocoindex-code` (2026-09-28): streaming writes, the memory
   safety guard, `respect_gitignore`, and the embedder input guards. Never install
