@@ -1,5 +1,5 @@
 ---
-scope: E:/AI_Workspace/Projects/Propria/modules/vestigia-geodata_processor/traceiq-rebuild
+scope: E:/AI_Workspace/Projects/Propria/modules/vestigia-geodata_processor/vestigia
 status: current
 verified_at: 2026-10-02
 superseded_by: null

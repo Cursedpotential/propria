@@ -20,7 +20,7 @@ against the evidence-studio MCP docs live):
 
 1. Open Evidence Studio → add a **PostgreSQL** source:
    host `100.91.190.107` (probata-db on ovh-files) · port `5432` · database `traceiq` · user `ai` (tailnet must be up)
-2. Point Studio at this folder (`traceiq-rebuild\reports\`) or copy the pages into your
+2. Point Studio at this folder (`modules/vestigia-geodata_processor/vestigia/reports/`) or copy the pages into your
    Studio project's pages directory.
 3. Queries reference schemas directly (`analysis.latest_events`, `working.waypoint`) —
    if your source config namespaces them (e.g. `traceiq.analysis...`), prepend the

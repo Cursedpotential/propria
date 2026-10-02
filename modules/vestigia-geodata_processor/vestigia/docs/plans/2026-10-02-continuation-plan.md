@@ -149,7 +149,7 @@ Each phase ends with a live check on the real database; any test rows it writes 
 ### Phase 0 — make it safe and true (no owner decision needed except V-3)
 
 0. **Done 2026-10-02:** the module's `.gitignore` boundary that silently dropped every new file in
-   `traceiq-rebuild/` is gone (the same fix for five other folders across the monorepo).
+   `traceiq-rebuild/` (now `vestigia/`) is gone (the same fix for five other folders across the monorepo).
 1. **Done 2026-10-02, except the rotation:** every ops script reads `TRACEIQ_DSN_KV` through
    `ops/db_env.py` and stops with a clear message when it is missing; no password is left in
    tracked files; `.env.example` names both variables; the value lives in

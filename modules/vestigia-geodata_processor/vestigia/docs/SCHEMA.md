@@ -135,6 +135,6 @@ erDiagram
 | **Test load: real corpus chunk `2024-03_2024-06.json.txt`** | ✅ 1,641 records — 626 visits, 516 activities, 498 timelinePaths, **1 `timelineMemory`** (the rare trip type — fail-loud caught it, exactly as designed) |
 | First backup, hash-registered + restore-verified | ✅ `E:\TraceIQ_Backups\traceiq_2026-07-24_milestone-schema-init-testload.dump` |
 
-Connection (tailnet): `host=100.91.190.107 port=5432 dbname=traceiq`, credentials in `TRACEIQ_DSN_KV` / `TRACEIQ_DSN` (see `.env.example`) · repo: `modules/vestigia-geodata_processor/traceiq-rebuild` in the Propria monorepo (migration `db\migrations\0001_init.sql`, ADRs in `docs\adr\`)
+Connection (tailnet): `host=100.91.190.107 port=5432 dbname=traceiq`, credentials in `TRACEIQ_DSN_KV` / `TRACEIQ_DSN` (see `.env.example`) · repo: `modules/vestigia-geodata_processor/vestigia` in the Propria monorepo (migration `db\migrations\0001_init.sql`, ADRs in `docs\adr\`)
 
 Test data is clearly labeled (subject `TEST`) and rebuilds freely — real ingest starts with her export under proper provenance rows.

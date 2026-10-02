@@ -6,6 +6,6 @@ Forensic geodata for the custody case: Google location-history exports ingested 
 PostgreSQL with provenance, then analysed (overnight stays, home base, routes, anomalies, and the
 expected custody schedule against where the devices actually were).
 
-- Application: `traceiq-rebuild/` (start at its `AGENTS.md`).
-- Plan: `traceiq-rebuild/docs/plans/2026-10-02-continuation-plan.md`.
-- Decisions: `traceiq-rebuild/docs/adr/`.
+- Application: `vestigia/` (start at its `AGENTS.md`).
+- Plan: `vestigia/docs/plans/2026-10-02-continuation-plan.md`.
+- Decisions: `vestigia/docs/adr/`.

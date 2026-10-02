@@ -11,4 +11,4 @@ import sys
 DSN = os.environ.get("TRACEIQ_DSN_KV")
 if not DSN:
     sys.exit("TRACEIQ_DSN_KV is not set. Load it from ~/.secrets/traceiq-db.env "
-             "(names in traceiq-rebuild/.env.example).")
+             "(names in vestigia/.env.example).")

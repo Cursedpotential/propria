@@ -28,7 +28,7 @@ root governance, `modules/FL-MCP/`, and the preserved shared `scripts/` and
 | Consignatio / Intake | `modules/Consignatio/` | Independent repository |
 | Advocatio legal workdesk | `modules/Legal-desktop/` | Independent repository; `master` |
 | Vestigia | `modules/vestigia-geodata_processor/` | Independent outer repository |
-| TraceIQ Rebuild | `modules/vestigia-geodata_processor/traceiq-rebuild/` | Independent nested repository; `master` |
+| Vestigia app (formerly TraceIQ Rebuild) | `modules/vestigia-geodata_processor/vestigia/` | Monorepo folder since the 2026-09-26 import; renamed 2026-10-02 |
 | Family Court Workbench | `modules/FL-MCP/` | Propria root repository |
 
 Read the selected module's local instructions and verify its Git root before

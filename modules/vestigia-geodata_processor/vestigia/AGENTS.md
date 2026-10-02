@@ -1,9 +1,10 @@
-# Vestigia application (traceiq-rebuild) — Agent Entry Point
+# Vestigia application — Agent Entry Point
 
 > _Byline: Claude Code · Opus 5.5 · 2026-10-02. Rewritten for the monorepo layout; the earlier
 > independent-repository text (Codex · GPT-5, 2026-08-27) is in git history._
 
-The folder keeps its old name, `traceiq-rebuild`; the product is Vestigia (D-140).
+Product name per D-140. The folder was `traceiq-rebuild` until 2026-10-02 (owner order); older
+records use that path. The database is still named `traceiq` and the variables `TRACEIQ_*`.
 
 ## Repository
 

@@ -1,4 +1,4 @@
-# Architecture Decision Records — Vestigia (traceiq-rebuild)
+# Architecture Decision Records — Vestigia
 
 > _Byline: Claude Code · Opus 5.5 · 2026-10-02 (index re-conformed: 0015 and 0016 added, the
 > pre-repository location note removed). Product name per D-140; old name TraceIQ._

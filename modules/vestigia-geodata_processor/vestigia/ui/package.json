@@ -1,5 +1,5 @@
 {
-  "name": "@traceiq/workspace",
+  "name": "@vestigia/workspace",
   "version": "0.1.0",
   "private": true,
   "scripts": {

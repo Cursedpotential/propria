@@ -11,11 +11,12 @@ both names valid in recall stores per D-142; canon `modules/Probata/probata/docs
 - This folder lives in the Propria monorepo at `modules/vestigia-geodata_processor/`, imported by
   `git subtree` on 2026-09-26. The commit boundary is the monorepo root: `git rev-parse
   --show-toplevel` must print `E:/AI_Workspace/Projects/Propria`. Stage by explicit path only.
-- `traceiq-rebuild/` is the live application (database schema, ops scripts, UI, reports). It is
+- `vestigia/` is the live application (database schema, ops scripts, UI, reports; folder
+  renamed from `traceiq-rebuild/` on 2026-10-02). It is
   tracked here like any other folder; read its `AGENTS.md` before working in it.
 - The numbered folders (`00_Documentation` … `05_Installers_Zips`, `Utilities/`) are the legacy
   TraceIQ pipeline and tools: reference material, not the current build.
-- The current plan: `traceiq-rebuild/docs/plans/2026-10-02-continuation-plan.md`.
+- The current plan: `vestigia/docs/plans/2026-10-02-continuation-plan.md`.
 - `REPOSITORY_RECONCILIATION.md` records the 2026-08-29 two-repository reconciliation. It is
   history; the two repositories no longer exist as such.
 

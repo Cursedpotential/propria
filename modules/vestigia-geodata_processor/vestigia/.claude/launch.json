@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "traceiq-ui",
+      "name": "vestigia-ui",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "ui", "run", "dev"],
       "port": 3000
