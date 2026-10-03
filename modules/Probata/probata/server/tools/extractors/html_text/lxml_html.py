@@ -5,7 +5,7 @@ file type is the ``primary`` rank in ``_ranks.QUALITY`` (set from the bench in
 ``docs/receipts/2026-10-02-html-tool-bench/``). The library is imported inside
 the call so registry discovery stays safe in an image without it.
 
-Byline: Claude Code · Sonnet · 2026-10-02
+Byline: Claude Code · Sonnet · 2026-10-02; docstring-described by Claude Code · Sonnet 5.5 · 2026-10-02
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from ._ranks import QUALITY, TOOL_VERSION
 @register(
     id="html.lxml",
     capability="extract.html_text",
-    description="lxml.html (libxml2): visible text in document order, script/style/head/noscript dropped.",
     accept=accepts_html,
     provenance="lxml.html",
     tool_version=TOOL_VERSION["lxml"],
@@ -29,6 +28,13 @@ from ._ranks import QUALITY, TOOL_VERSION
     quality=QUALITY["lxml"],
 )
 def extract_html_lxml(payload: dict[str, Any]) -> dict[str, Any]:
+    """lxml.html (libxml2): visible text in document order, script/style/head/noscript dropped.
+
+    Formats: every HTML family in HTML_FORMATS (Facebook Messenger and export sections, Google Takeout activity and Voice, iMessage, Snapchat, WhatsApp, generic documents); accepts a .html, .htm or .xhtml file name.
+    Side effects: none; reads the file named by payload['path'] and returns {text, pages, stats}.
+    Pick it as a fast plain-text fallback; it declares the encoding as UTF-8 so emoji do not turn into mojibake. Never the primary
+    of a family.
+    """
     import lxml.html
 
     def extract(path, html):

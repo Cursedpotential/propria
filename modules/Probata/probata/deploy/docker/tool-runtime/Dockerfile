@@ -53,7 +53,7 @@ FROM ghcr.io/cursedpotential/sbv-forensic@sha256:18a2a21cceb22433ad2ec9a458b0fd0
 FROM python:3.12-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
 ARG POPPLER_UTILS_VERSION=22.12.0-2+deb12u3
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ffmpeg libheif1 nodejs npm supervisor curl \
+        ffmpeg libheif1 libmagic1 nodejs npm supervisor curl \
         poppler-utils=${POPPLER_UTILS_VERSION} tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
@@ -86,6 +86,8 @@ RUN pip install --no-cache-dir \
         mcp==2.2.0 \
         beautifulsoup4==4.15.0 \
         charset-normalizer==3.4.9 \
+        chonkie==1.7.0 \
+        chonkie-core==0.10.2 \
         clevercsv==0.8.5 \
         ijson==3.5.1 \
         json-repair==0.62.0 \
@@ -102,10 +104,24 @@ RUN pip install --no-cache-dir \
     && command -v pdftoppm >/dev/null \
     && python -c "from server.tools.engine_profiles import inspect_poppler; result=inspect_poppler({'expected_profile_id':'poppler-linux-amd64','expected_package_version':'${POPPLER_UTILS_VERSION}'}); assert result['ready'], result"
 
+# HTML text-extraction tools (html.docling, html.unstructured, html.markitdown, html.html2text, html.selectolax; the
+# beautifulsoup4 and lxml tools use the pins above) and the model-free Chonkie chunkers (chunking.chonkie-*, pinned
+# above). Every pin is exact in requirements-html-tools.txt, shared with the temporal-worker image. docling-slim with
+# its convert-core and format-html extras is Docling's HTML backend WITHOUT torch, transformers, OCR or layout
+# models, so this adds no local model stack; libmagic1 (installed above) is the system library unstructured loads.
+# The neural Chonkie chunkers (neural_distilbert, neural_modernbert) need a transformer model and stay out of this
+# image; the build fails if any library a registered tool needs is missing, so a tool in GET /tools is a tool that runs.
+# Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+COPY requirements-html-tools.txt /tmp/requirements-html-tools.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-html-tools.txt \
+    && python -c "import docling, unstructured, markitdown, html2text, selectolax, bs4, lxml, chonkie, json_repair" \
+    && python -c "from server.tools.registry import load_builtin_tools, registry; load_builtin_tools(); ids={t.id for t in registry.all()}; need={'html.docling','html.unstructured','html.markitdown','html.html2text','html.beautifulsoup4','html.lxml','html.selectolax','chunking.chonkie-token','chunking.chonkie-fast','chunking.chonkie-sentence','chunking.chonkie-recursive','repair.json-repair'}; missing=sorted(need-ids); assert not missing, missing; page='/tmp/probe.html'; open(page,'w',encoding='utf-8').write('<html><body><p>probe</p></body></html>'); failed=[i for i in sorted(need) if i.startswith('html.') and 'probe' not in registry.get(i).run({'path':page})['text']]; assert not failed, failed; r=registry.get('chunking.chonkie-fast').run({'lines':['a','b','c']}); assert r['spans'], r"
+
 COPY deploy/docker/tool-runtime/supervisord.conf /etc/supervisor/conf.d/tool-runtime.conf
 EXPOSE 8085 8090
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
 
 # Byline amendment: Codex · GPT-5 · 2026-09-12 (`platform-tools` -> `tool-runtime`)
+# Byline amendment: Claude Code · Sonnet 5.5 · 2026-10-02 (HTML text tools, Chonkie chunkers, libmagic1; build-time run of each)
 # Byline amendment: Claude Code · Opus 5.5 · 2026-09-28 (mcp==2.2.0 for the single `atomic_tools`
 # MCP surface at /mcp; mcp 2.x renamed FastMCP to MCPServer, so the pin is exact)

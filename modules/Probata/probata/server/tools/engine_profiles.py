@@ -242,7 +242,6 @@ def _inspect_poppler(payload: dict[str, Any]) -> dict[str, Any]:
 @register(
     id="engine.poppler-inspect",
     capability="engine.inspect",
-    description="Report the exact Poppler platform profile, executable identity, and readiness",
     provenance=_PROVENANCE,
     tool_version="1.0.0",
     contract_version="1.0.0",
@@ -252,7 +251,12 @@ def _inspect_poppler(payload: dict[str, Any]) -> dict[str, Any]:
     quality={"pdf": "primary"},
 )
 def inspect_poppler(payload: dict[str, Any]) -> dict[str, Any]:
-    """Inspect Poppler without reading or changing a corpus artifact."""
+    """Report the exact Poppler platform profile, executable identity, and readiness.
+
+    Formats: pdf (the profile is Poppler's, no file is read).
+    Side effects: none; runs Poppler's version probe and never reads or changes a corpus artifact.
+    Pick it before engine.poppler-certify-text, or as the runtime health check.
+    """
 
     return _inspect_poppler(payload)
 
@@ -264,7 +268,6 @@ def _check(check_id: str, expected: Any, observed: Any) -> dict[str, Any]:
 @register(
     id="engine.poppler-certify-text",
     capability="engine.certify",
-    description="Run bounded Poppler text extraction and return content-free reproducibility checks",
     provenance=_PROVENANCE,
     tool_version="1.0.0",
     contract_version="1.0.0",
@@ -274,7 +277,13 @@ def _check(check_id: str, expected: Any, observed: Any) -> dict[str, Any]:
     quality={"pdf": "primary"},
 )
 def certify_poppler_text(payload: dict[str, Any]) -> dict[str, Any]:
-    """Certify one PDF by locator/path without returning its extracted content.
+    """Run bounded Poppler text extraction and return content-free reproducibility checks.
+
+    Formats: pdf.
+    Side effects: none; reads one PDF by locator/path and returns hashes, counts and pass/fail checks, never the extracted text.
+    Pick it to certify that a PDF's text layer extracts the same way twice; use documents.extract-text to get the text itself.
+
+    Certifies one PDF by locator/path without returning its extracted content.
 
     ``expected`` may contain ``input_sha256``, ``input_bytes``, ``glyph``,
     ``glyph_count``, ``replacement_count``, or ``output_sha256``.  Omitting a

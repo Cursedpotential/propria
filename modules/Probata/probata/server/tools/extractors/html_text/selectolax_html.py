@@ -5,7 +5,7 @@ file type is the ``primary`` rank in ``_ranks.QUALITY`` (set from the bench in
 ``docs/receipts/2026-10-02-html-tool-bench/``). The library is imported inside
 the call so registry discovery stays safe in an image without it.
 
-Byline: Claude Code · Sonnet · 2026-10-02
+Byline: Claude Code · Sonnet · 2026-10-02; docstring-described by Claude Code · Sonnet 5.5 · 2026-10-02
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from ._ranks import QUALITY, TOOL_VERSION
 @register(
     id="html.selectolax",
     capability="extract.html_text",
-    description="selectolax (lexbor): visible text, script/style/head/noscript stripped; the fastest parser measured.",
     accept=accepts_html,
     provenance="selectolax.lexbor",
     tool_version=TOOL_VERSION["selectolax"],
@@ -29,6 +28,13 @@ from ._ranks import QUALITY, TOOL_VERSION
     quality=QUALITY["selectolax"],
 )
 def extract_html_selectolax(payload: dict[str, Any]) -> dict[str, Any]:
+    """selectolax (lexbor): visible text, script/style/head/noscript stripped; the fastest parser measured.
+
+    Formats: every HTML family in HTML_FORMATS (Facebook Messenger and export sections, Google Takeout activity and Voice, iMessage, Snapchat, WhatsApp, generic documents); accepts a .html, .htm or .xhtml file name.
+    Side effects: none; reads the file named by payload['path'] and returns {text, pages, stats}.
+    Pick it for very large pages (Google Takeout activity is one huge page) when speed matters; a fallback for most families, never
+    the primary.
+    """
     from selectolax.lexbor import LexborHTMLParser
 
     def extract(path, html):

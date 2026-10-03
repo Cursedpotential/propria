@@ -91,3 +91,31 @@ def test_tool_runtime_keeps_legacy_network_alias_during_cutover() -> None:
     assert "container_name: tool-runtime" in deployment
     assert "aliases:" in deployment
     assert "- platform-tools" in deployment
+
+
+def test_tool_runtime_image_installs_the_libraries_of_every_registered_tool_and_runs_them_at_build() -> None:
+    """A tool listed in GET /tools must be a tool the runtime can run: Byline: Claude Code · Sonnet 5.5 · 2026-10-02."""
+    dockerfile = (ROOT / "deploy" / "docker" / "tool-runtime" / "Dockerfile").read_text(encoding="utf-8")
+    requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+
+    for package in ("chonkie", "chonkie-core"):
+        match = re.search(rf"(?m)^{re.escape(package)}==(\S+)$", requirements)
+        assert match, package
+        assert f"{package}=={match.group(1)}" in dockerfile
+    assert "pip install --no-cache-dir -r /tmp/requirements-html-tools.txt" in dockerfile
+    assert "libmagic1" in dockerfile
+    for tool_id in (
+        "html.docling",
+        "html.unstructured",
+        "html.markitdown",
+        "html.html2text",
+        "html.beautifulsoup4",
+        "html.lxml",
+        "html.selectolax",
+        "chunking.chonkie-token",
+        "chunking.chonkie-fast",
+        "chunking.chonkie-sentence",
+        "chunking.chonkie-recursive",
+        "repair.json-repair",
+    ):
+        assert f"'{tool_id}'" in dockerfile, tool_id

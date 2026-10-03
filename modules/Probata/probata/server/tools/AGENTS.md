@@ -1,6 +1,6 @@
 # server/tools/ — cross-domain tool registry
 
-> _Byline: Claude Code · 2026-07-27; verification refresh by Codex · GPT-5.6-Sol · 2026-08-29._
+> _Byline: Claude Code · 2026-07-27; verification refresh by Codex · GPT-5.6-Sol · 2026-08-29; docstring-described tools, chunking/ and repair.json-repair by Claude Code · Sonnet 5.5 · 2026-10-02._
 
 > Nested map. Parent: `../AGENTS.md`. Root: `../../AGENTS.md`.
 
@@ -25,6 +25,10 @@ extractors/                extract_text, docling_extract (capability extract.tex
                             html_text/ (capability extract.html_text: one tool per HTML library —
                             docling, unstructured, markitdown, html2text, beautifulsoup4, lxml,
                             selectolax; per-file-type default = the `primary` rank in _ranks.py)
+chunking/                  chonkie_{token,fast,sentence,recursive} (capability chunk.message_spans: one tool
+                            per model-free Chonkie chunker; the neural ones need a transformer model, so
+                            only the temporal-worker runs them)
+repair/                    tools.py (repair.*) + json_repair_text.py (repair.json-repair, capability repair.json)
 visualizers/               geo_map (capability viz.geo_map) + vendored Leaflet assets
 gateway/                   G4 progressive-disclosure tool gateway (moved here from
                             server/evidence/tool_finder/, ADR-0035) — see below
@@ -32,17 +36,28 @@ gateway/                   G4 progressive-disclosure tool gateway (moved here fr
 
 ## Registry / capability model
 
-Each tool registers via `@register(id=..., capability=..., description=...)` and
+Each tool registers via `@register(id=..., capability=...)` and
 implements `accepts(media_hint, size_bytes)` + `run(payload)`. Workflows resolve by
 **capability** (e.g. `parse.sms-xml`), not by hard-coded function — when the preferred
 tool rejects an input, the workflow tries the next same-capability candidate. IDs are
 explicit strings, never derived from module path, so moving a module never churns its ID.
 
+**A tool is described once, in the docstring of its implementing function** (owner 2026-10-02).
+`register` reads the catalog description from it, so `GET /tools`, the `atomic_tools` MCP entry and
+the generated documentation can never drift from the code. Write the first paragraph as one
+sentence (that is the description), then name the formats, the side effects and when to pick the
+tool over its siblings. `register` refuses a tool with no docstring, and refuses a docstring
+together with `description=`. Forty-one tools registered before this rule still carry a typed
+`description=`; they are listed in `tests/test_tool_descriptions_from_docstrings.py`
+(`LEGACY_EXPLICIT_DESCRIPTION`), which only shrinks: convert one by moving its text into a docstring.
+`formats` and `quality` stay as arguments, because they are validated machine declarations.
+
 ## How to add a parser
 
 1. Add one module under the right `parsers/{messaging,ai_chat,generic}/` subdir,
    `extractors/` for extraction, or `visualizers/` for rendered visual outputs.
-2. Self-register: `@register(id="parse.<format>", capability="parse.<capability>", ...)`.
+2. Self-register: `@register(id="parse.<format>", capability="parse.<capability>", ...)` and
+   give the function a docstring (see above); the description comes from it.
 3. Nothing else to wire up — `registry.load_builtin_tools()` uses
    `pkgutil.walk_packages` (recursive, since ADR-0035) and auto-discovers it. It skips
    `_`-prefixed leaf modules, the `gateway/` sub-package, and sub-package `__init__`s.

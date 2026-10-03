@@ -7,7 +7,7 @@ the call so registry discovery stays safe in an image without it. The HTML
 backend needs no OCR or layout model; it is the same Docling that
 ``documents.extract-docling`` runs for PDF and Office files.
 
-Byline: Claude Code · Sonnet · 2026-10-02
+Byline: Claude Code · Sonnet · 2026-10-02; docstring-described by Claude Code · Sonnet 5.5 · 2026-10-02
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from ._ranks import QUALITY, TOOL_VERSION
 @register(
     id="html.docling",
     capability="extract.html_text",
-    description="Docling HTML backend: structured document (headings, lists, tables) exported as Markdown.",
     accept=accepts_html,
     provenance="docling (IBM) HTML backend",
     tool_version=TOOL_VERSION["docling"],
@@ -31,9 +30,16 @@ from ._ranks import QUALITY, TOOL_VERSION
     quality=QUALITY["docling"],
 )
 def extract_html_docling(payload: dict[str, Any]) -> dict[str, Any]:
+    """Docling HTML backend: structured document (headings, lists, tables) exported as Markdown.
+
+    Formats: every HTML family in HTML_FORMATS (Facebook Messenger and export sections, Google Takeout activity and Voice, iMessage, Snapchat, WhatsApp, generic documents); accepts a .html, .htm or .xhtml file name.
+    Side effects: none; reads the file named by payload['path'] and returns {text, pages, stats}.
+    Pick it for Google Voice Takeout pages, where it is the primary tool of the bench; it is a fallback for generic pages and WhatsApp
+    chat pages and experimental elsewhere. Needs docling-slim (the HTML backend; no OCR or layout model).
+    """
     from docling.document_converter import DocumentConverter
 
     def extract(path, html):
         return DocumentConverter().convert(str(path)).document.export_to_markdown()
 
-    return run_text_tool(payload, "docling", "docling", extract)
+    return run_text_tool(payload, "docling", "docling-slim", extract)  # the pinned distribution is docling-slim

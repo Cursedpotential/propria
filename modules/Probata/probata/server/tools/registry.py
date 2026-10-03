@@ -14,9 +14,11 @@ shells out / calls HTTP — same contract, different transport.
 """
 
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (stable explicit tool priority)
+# Byline amendment: Claude Code · Sonnet 5.5 · 2026-10-02 (catalog description read from the tool's docstring)
 
 from __future__ import annotations
 
+import inspect
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -28,6 +30,19 @@ _VERSION_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._+-]*[A-Za-z0-9])?$")
 _FORMAT_ID_PATTERN = re.compile(r"^[a-z](?:[a-z0-9]*|[a-z0-9]*(?:_[a-z0-9]+)+)$")
 ToolQuality = Literal["primary", "fallback", "experimental"]
 _TOOL_QUALITY_RANKS = frozenset({"primary", "fallback", "experimental"})
+
+
+def docstring_description(fn: Callable[..., Any]) -> str:
+    """The catalog description of a tool: the first paragraph of its implementing function's docstring.
+
+    The docstring is the one place a tool is described (owner 2026-10-02): the registry, GET /tools and the
+    ``atomic_tools`` MCP entry read it from here, so a description can never drift from the code it describes. The first
+    paragraph is one sentence; the rest of the docstring (formats, side effects, when to pick the tool over its
+    siblings) is for the reader of the code and the generated documentation. Line breaks inside the paragraph are
+    joined, so a wrapped sentence stays one line in the catalog. Returns ``""`` when there is no docstring.
+    """
+    doc = inspect.getdoc(fn) or ""
+    return " ".join(doc.split("\n\n", 1)[0].split())
 
 
 def _validate_version(field_name: str, value: str) -> str:
@@ -247,7 +262,7 @@ def register(
     *,
     id: str,
     capability: str,
-    description: str,
+    description: str | None = None,
     accept: Callable[[str, int], bool] | None = None,
     provenance: str = "",
     execution_policy: str = "manual_or_auto",
@@ -260,15 +275,33 @@ def register(
     formats: tuple[str, ...] | None = None,
     quality: Mapping[str, ToolQuality] | None = None,
 ) -> Callable:
-    """Decorator: register a payload->payload function as an atomic tool."""
+    """Decorator: register a payload->payload function as an atomic tool.
+
+    ``description`` is read from the decorated function's docstring (``docstring_description``); write the docstring and
+    leave ``description`` out. Passing ``description`` is the legacy form kept only until each older tool has a
+    docstring (tests/test_tool_descriptions_from_docstrings.py lists them); passing it next to a docstring would
+    be two sources for one fact, so that raises.
+    """
 
     def _wrap(fn: Callable[[dict[str, Any]], dict[str, Any]]) -> Callable:
+        documented = docstring_description(fn)
+        if description is not None and documented:
+            raise ValueError(
+                f"registry: tool {id!r} has a docstring and an explicit description; "
+                "the docstring is the only source, remove description="
+            )
+        resolved = description if description is not None else documented
+        if not resolved:
+            raise ValueError(
+                f"registry: tool {id!r} has no description; give its implementing function a docstring "
+                "whose first paragraph is a one-sentence description"
+            )
         normalized_formats, normalized_quality = _normalize_declarations(formats, quality)
         registry.register(
             FunctionTool(
                 id=id,
                 capability=capability,
-                description=description,
+                description=resolved,
                 fn=fn,
                 accept=accept or (lambda hint, size: True),
                 provenance=provenance,

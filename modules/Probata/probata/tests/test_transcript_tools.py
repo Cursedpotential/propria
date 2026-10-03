@@ -60,7 +60,15 @@ def test_all_chatminer_wrappers_register():
 def test_existing_builtin_tools_make_no_unverified_format_or_quality_claims():
     manifest = {entry["id"]: entry for entry in registry.contract_manifest()}
     assert manifest
+    # Tools that declare a version (engine.*, html.*, chunking.*, repair.json-repair) state their formats and ranks on
+    # purpose and are checked by their own tests; this test guards the older tools that declare nothing.
+    declaring = {tool_id for tool_id, entry in manifest.items() if entry["tool_version"] != "unversioned"}
+    assert declaring <= {
+        tool_id for tool_id in manifest if tool_id.split(".", 1)[0] in {"engine", "html", "chunking"}
+    } | {"repair.json-repair"}
     for entry in manifest.values():
+        if entry["id"] in declaring:
+            continue
         assert entry["tool_version"] == "unversioned"
         assert entry["contract_version"] == "unversioned"
         assert entry["input_schema_version"] == "unversioned"
