@@ -41,6 +41,12 @@ from server.temporal.chunk_activities import (
     publish_call_log_files_activity,
     publish_context_chunks_activity,
 )
+from server.temporal.chunk_backfill_activities import (
+    estimate_context_chunks_activity,
+    list_context_threads_activity,
+    remove_per_message_objects_activity,
+    verify_chunk_coverage_activity,
+)
 from server.temporal.classification_workflow import ClassificationBatchPipeline
 from server.temporal.html_tool_activities import HTML_TOOL_ACTIVITIES
 from server.temporal.n8n_activities import n8n_webhook_activity
@@ -74,8 +80,9 @@ async def main() -> None:
             # build_timeline_generation_activity: projection step of the Go
             # extraction_commit_workflow (Claude Code · Opus 5.5 · 2026-09-25).
             # chunk_context_threads_activity / publish_context_chunks_activity /
-            # publish_call_log_files_activity: the conversation-chunk units the Go ProfferWorkflow calls after
-            # the first-party threads are committed (Claude Code · Sonnet 5.5 · 2026-10-02).
+            # publish_call_log_files_activity: the conversation-chunk units the Go ProfferWorkflow calls once
+            # the first-party context is proposed and BEFORE the preview (Claude Code · Sonnet 5.5 · 2026-10-02).
+            # list/estimate/verify/remove: the re-chunk and the per-message removal, as Activities of two Go workflows.
             activities=[
                 custody_activity,
                 parse_activity,
@@ -88,6 +95,10 @@ async def main() -> None:
                 chunk_context_threads_activity,
                 publish_context_chunks_activity,
                 publish_call_log_files_activity,
+                list_context_threads_activity,
+                estimate_context_chunks_activity,
+                verify_chunk_coverage_activity,
+                remove_per_message_objects_activity,
             ],
             activity_executor=executor,
         )

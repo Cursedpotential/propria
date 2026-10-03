@@ -103,6 +103,9 @@ func RegisterAll(registrar interface {
 	// Back-fill of call logs imported before commit_call_log existed.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	registrar.RegisterWorkflowWithOptions(proffer.CallLogBackfillWorkflow, workflow.RegisterOptions{Name: proffer.CallLogBackfillWorkflowName})
+	// The re-chunk of committed data and the removal of the per-message objects (owner 2026-10-02: Temporal, traceable).
+	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksBackfillWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksBackfillWorkflowName})
+	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksRemovalWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksRemovalWorkflowName})
 	activities.RegisterBatchImportActivities(registrar, registrations.BatchImport)
 	registrar.RegisterWorkflowWithOptions(repairplan.RepairPlanWorkflow, workflow.RegisterOptions{Name: repairplan.WorkflowName})
 	activities.RegisterRepairPlanActivities(registrar, registrations.RepairPlan)
