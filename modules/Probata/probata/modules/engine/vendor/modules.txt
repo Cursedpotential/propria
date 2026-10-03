@@ -121,6 +121,9 @@ github.com/dblohm7/wingoes/com
 github.com/dblohm7/wingoes/com/automation
 github.com/dblohm7/wingoes/internal
 github.com/dblohm7/wingoes/pe
+# github.com/emersion/go-vcard v0.1.0
+## explicit; go 1.13
+github.com/emersion/go-vcard
 # github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a
 ## explicit
 github.com/facebookgo/clock

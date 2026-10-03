@@ -12,6 +12,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/contacts"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/repairplan"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
@@ -50,12 +51,13 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// Byline: Claude Code · Opus 5 · 2026-09-21
 	// +1: the call-log back-fill workflow. Byline: Claude Code · Opus 5.5 · 2026-10-02
 	// +2: the conversation-chunk re-chunk and per-message removal workflows. Byline: Claude Code · Sonnet 5.5 · 2026-10-02
-	if recorder.workflowCount != 6 {
-		t.Fatalf("workflow registration count = %d, want 6", recorder.workflowCount)
+	// +1: the contacts import workflow (Claude Code · Sonnet · 2026-10-02).
+	if recorder.workflowCount != 7 {
+		t.Fatalf("workflow registration count = %d, want 7", recorder.workflowCount)
 	}
 	wantNamed := []string{
 		proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
-		proffer.ConversationChunksRemovalWorkflowName, repairplan.WorkflowName,
+		proffer.ConversationChunksRemovalWorkflowName, repairplan.WorkflowName, contacts.WorkflowName,
 	}
 	if !reflect.DeepEqual(recorder.workflowNames, wantNamed) {
 		t.Fatalf("named workflow registrations = %v, want %v", recorder.workflowNames, wantNamed)
@@ -69,11 +71,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: record_auto_approval (Claude Code · Opus 5.5 · 2026-10-02).
 	// +1: commit_call_log (Claude Code · Opus 5.5 · 2026-10-02).
 	// +1: match_message_occurrences (Claude Code · Opus 5.5 · 2026-10-02).
-	const standaloneActivityCount = 15
+	// +6: the contacts import Activities (Claude Code · Sonnet · 2026-10-02).
+	const standaloneActivityCount = 21
 	const batchActivityCount = 4
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 15 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 21 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0

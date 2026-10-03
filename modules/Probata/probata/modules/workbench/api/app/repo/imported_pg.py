@@ -30,7 +30,10 @@ class ImportedError(Exception):
 # export (the original file it was split from) and its conversation key (the thread it belongs to).
 _SV = r"""
 sv AS (
-  SELECT v.id, v.acquired_at, s.source_key,
+  SELECT v.id, v.acquired_at, s.source_key, v.version_ordinal,
+         EXISTS (SELECT 1 FROM context.activity_execution ae
+                 JOIN context.activity_receipt ar ON ar.activity_execution_id = ae.id
+                 WHERE ae.source_version_id = v.id AND ae.activity_name = 'publish_generation_activity' AND ar.status = 'success') AS published,
          regexp_replace(s.source_key, '\.derived/.*$', '') AS export_key,
          COALESCE(substring(s.source_key from '\.derived/threads/(.+?)(?:\.[0-9]{4})?\.ndjson$'),
                   regexp_replace(s.source_key, '^.*/', '')) AS conv
@@ -91,7 +94,7 @@ def source_versions(matter: str) -> list[dict[str, Any]]:
                 FROM context.proffer_preview_snapshot sn
                 JOIN context.proffer_preview_decision d ON d.preview_handle = sn.preview_handle AND NOT d.approved
                 JOIN sv ON sv.id = sn.source_version_id)
-        SELECT sv.id::text AS id, sv.source_key, sv.export_key, sv.acquired_at,
+        SELECT sv.id::text AS id, sv.source_key, sv.export_key, sv.acquired_at, sv.version_ordinal, sv.published,
                COALESCE(rawc.n, 0) AS raw_n, COALESCE(nr.n, 0) AS norm_n,
                COALESCE(nr.msgs, 0) AS msgs, COALESCE(nr.calls, 0) AS calls,
                nr.first_at, nr.last_at,
@@ -142,6 +145,19 @@ def thread_participants(matter: str, export_key: str, convs: list[str]) -> list[
         WHERE p.value->>'identifier' IS NOT NULL
         GROUP BY sel.conv, p.value->>'identifier'
         ORDER BY sel.conv, count(*) DESC""",
+        {"matter": matter, "export": export_key, "convs": convs},
+    )
+
+
+def thread_last_messages(matter: str, export_key: str, convs: list[str]) -> list[dict[str, Any]]:
+    """The newest message text of each conversation (for the conversation list), one row per conversation."""
+    if not convs:
+        return []
+    return _query(
+        f"""WITH {_SV}, sel AS (SELECT * FROM sv WHERE export_key = %(export)s AND conv = ANY(%(convs)s))
+        SELECT DISTINCT ON (sel.conv) sel.conv, left(n.normalized_payload->'content'->>'body', 160) AS body, n.occurred_at
+        FROM sel JOIN context.normalized_record_identity n ON n.source_version_id = sel.id AND n.record_type = 'message'
+        ORDER BY sel.conv, n.occurred_at DESC, n.id DESC""",
         {"matter": matter, "export": export_key, "convs": convs},
     )
 
@@ -327,6 +343,49 @@ def versions_to_threads(matter: str, version_ids: list[str]) -> list[dict[str, A
         SELECT sv.id::text AS id, sv.export_key, sv.conv FROM sv WHERE sv.id = ANY(%(ids)s::uuid[])""",
         {"matter": matter, "ids": version_ids},
     )
+
+
+def _number_forms(number: str) -> list[str]:
+    """The ways a participant identifier spells a 10-digit number in the normalized records."""
+    return [f'[{{"identifier": "{form}"}}]' for form in (f"+1{number}", number, f"1{number}", f"+{number}")]
+
+
+def number_records(matter: str, number: str, *, ts: str | None, row_id: str | None, limit: int) -> list[dict[str, Any]]:
+    """Every message and call that carries this number as a participant, newest first (keyset paged).
+
+    Matches by JSON containment on the participants array (no per-row expansion), so it stays a single
+    cheap scan of the matter's records.
+    """
+    return _query(
+        f"""WITH {_SV}
+        SELECT n.id::text AS id, n.occurred_at, n.record_type, n.source_version_id::text AS source_version_id,
+               sv.source_key, sv.export_key, sv.conv,
+               n.normalized_payload->'content'->>'body' AS body, n.normalized_payload->'content' AS content,
+               n.normalized_payload->'participants' AS participants,
+               n.normalized_payload->>'timestamp_certainty' AS certainty,
+               r.projection_kind, m.has_attachments, m.attachment_count
+        FROM context.normalized_record_identity n
+        JOIN sv ON sv.id = n.source_version_id
+        LEFT JOIN working.message_projection_route r ON r.normalized_record_id = n.id
+        LEFT JOIN working.message m ON m.id = n.id
+        WHERE n.normalized_payload->'participants' @> ANY (SELECT x::jsonb FROM unnest(%(forms)s::text[]) AS x)
+          AND (%(ts)s::timestamptz IS NULL OR (n.occurred_at, n.id) < (%(ts)s::timestamptz, %(row)s::uuid))
+        ORDER BY n.occurred_at DESC, n.id DESC
+        LIMIT %(limit)s""",
+        {"matter": matter, "forms": _number_forms(number), "ts": ts, "row": row_id, "limit": limit + 1},
+    )
+
+
+def number_record_counts(matter: str, number: str) -> dict[str, Any]:
+    rows = _query(
+        f"""WITH {_SV}
+        SELECT count(*) FILTER (WHERE n.record_type = 'message') AS messages,
+               count(*) FILTER (WHERE n.record_type = 'call') AS calls
+        FROM context.normalized_record_identity n JOIN sv ON sv.id = n.source_version_id
+        WHERE n.normalized_payload->'participants' @> ANY (SELECT x::jsonb FROM unnest(%(forms)s::text[]) AS x)""",
+        {"matter": matter, "forms": _number_forms(number)},
+    )
+    return rows[0]
 
 
 def review_queue(matter: str) -> list[dict[str, Any]]:

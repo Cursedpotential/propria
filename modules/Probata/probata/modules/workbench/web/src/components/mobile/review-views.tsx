@@ -7,9 +7,10 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { Check, CircleAlert, CircleDashed } from "lucide-react";
 import { useState } from "react";
 
-import { Chip, Empty, ErrorBox, LoadMore, Loading, PageBar } from "@/components/mobile/mobile-ui";
+import { Empty, ErrorBox, LoadMore, Loading, PageBar } from "@/components/mobile/mobile-ui";
 import { errorText, formatCount, formatDate, formatDateTime, formatTime } from "@/components/mobile/mobile-format";
 import { decideProffer, getProfferPreview, getProfferPreviewContent, getProfferPreviewMessages } from "@/lib/api-client";
+import { Badge } from "@/components/ui/badge";
 import { importedApi } from "@/lib/imported-client";
 import { PROFFER_CONTEXT_CHECKPOINTS } from "@/lib/proffer-context-checkpoints";
 import { AppLink } from "@/lib/router-compat";
@@ -31,7 +32,7 @@ export function ReviewQueueView() {
               <AppLink href={`/m/review/${item.preview_handle}`} className="block rounded-xl border border-border bg-card p-4 active:bg-muted">
                 <div className="flex items-start justify-between gap-3">
                   <p className="min-w-0 text-sm font-semibold leading-snug">{item.title}</p>
-                  <Chip className="shrink-0 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Needs decision</Chip>
+                  <Badge variant="secondary" className="shrink-0 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Needs decision</Badge>
                 </div>
                 <p className="mt-1 break-all text-xs text-muted-foreground">{item.file_name}</p>
                 <p className="mt-2 text-xs text-muted-foreground">

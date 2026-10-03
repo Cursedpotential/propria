@@ -67,3 +67,39 @@ test("Who is this? writes only through the governed case-identity API, never a r
   const list = read("../src/components/identity/unknown-numbers-list.tsx");
   assert.match(list, /most frequent first/);
 });
+
+test("the imported views are built on existing components, not new UI", () => {
+  const views = read("../src/components/mobile/imported-views.tsx");
+  assert.match(views, /import \{ MessageBubble \} from "@\/components\/sbv\/message-bubble"/);
+  assert.match(views, /import \{ CallsTable \} from "@\/components\/sbv\/calls-table"/);
+  assert.match(views, /import \{ ConversationList, type ConversationListItem \} from "@\/components\/sbv\/conversation-list"/);
+  assert.match(views, /import \{ ImportedGrid, type ImportedColumn \} from "@\/components\/imported\/imported-grid"/);
+  const grid = read("../src/components/imported/imported-grid.tsx");
+  assert.match(grid, /from "@glideapps\/glide-data-grid"/);
+  assert.match(grid, /useGridTheme/);
+  assert.match(read("../src/components/sbv/conversation-list.tsx"), /Ported from modules\/forks\/sbv\/frontend\/src\/components\/ConversationList\.jsx/);
+  const sheet = read("../src/components/identity/who-is-this.tsx");
+  assert.match(sheet, /from "@\/components\/ui\/sheet"/);
+});
+
+test("a split parent backup never reads failed or not finished", () => {
+  const views = read("../src/components/mobile/imported-views.tsx");
+  assert.match(views, /Split into \$\{total\}/);
+  assert.match(views, /if \(source\.split\)/);
+});
+
+test("Who is this? shows the source, offers one-tap own-number, a searchable picker and confirm, all through the governed calls", () => {
+  const sheet = read("../src/components/identity/who-is-this.tsx");
+  assert.match(sheet, /See where this number appears/);
+  assert.match(sheet, /This is my number/);
+  assert.match(sheet, /person\.role === "user"/);
+  assert.match(sheet, /Yes, this is \{currentName\}/);
+  assert.match(sheet, /placeholder="Type to filter"/);
+  assert.doesNotMatch(sheet, /fetch\(|method:\s*["']POST/);
+  const source = read("../src/components/identity/number-source-sheet.tsx");
+  assert.match(source, /import \{ CallsTable \} from "@\/components\/sbv\/calls-table"/);
+  assert.match(source, /import \{ MessageBubble \} from "@\/components\/sbv\/message-bubble"/);
+  assert.match(source, /Open this conversation at this message/);
+  assert.match(source, /casevault_key/);
+  assert.match(read("../src/lib/imported-client.ts"), /\/api\/imported\/number-records/);
+});

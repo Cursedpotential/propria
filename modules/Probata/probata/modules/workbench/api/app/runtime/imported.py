@@ -11,6 +11,7 @@ Byline: Claude Code · Sonnet · 2026-10-02
     GET /api/imported/identity                      named people a number can be merged into
     GET /api/imported/unknown-numbers?kind=         who still needs naming, most frequent first, as ONE list: numbers with no
                                                     person (no_person) and people still unconfirmed (unconfirmed)
+    GET /api/imported/number-records?number=       every message and call carrying one number, with its source file and thread
     GET /api/imported/review-queue                  previews waiting for a decision (decide on the Review routes)
 
 Always the live case (the configured live matter); there is no matter or mode parameter. The
@@ -128,6 +129,18 @@ async def unknown_numbers_endpoint(
 ):
     try:
         return await service.unknown_numbers(kind=kind, limit=limit, offset=offset, q=q)
+    except service.ImportedError as error:
+        raise _translate(error) from None
+
+
+@router.get("/number-records")
+async def number_records_endpoint(
+    number: Annotated[str, Query(min_length=7, max_length=20)],
+    cursor: Annotated[str | None, Query(max_length=512)] = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 25,
+):
+    try:
+        return await service.number_records(number, cursor=cursor, limit=limit)
     except service.ImportedError as error:
         raise _translate(error) from None
 

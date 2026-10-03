@@ -37,7 +37,7 @@ from app.service.proffer_errors import ProfferError
 
 ImportedError = pg.ImportedError
 
-_STATUS_ORDER = ["failed", "parked", "awaiting_review", "running", "not_finished", "committed"]
+_STATUS_ORDER = ["failed", "parked", "awaiting_review", "running", "not_finished", "committed", "skipped"]
 _LIFECYCLE_STATUS = {
     "completed": "committed",
     "running": "running",
@@ -277,7 +277,8 @@ async def _lifecycles() -> dict[str, str] | None:
 
 
 def _version_status(row: dict[str, Any], lifecycles: dict[str, str] | None) -> str:
-    if row["approved"]:
+    """One source version's own outcome: the publish receipt in PostgreSQL first, the run list second."""
+    if row["published"] or row["approved"]:
         return "committed"
     if row["rejected"]:
         return "failed"
@@ -287,11 +288,51 @@ def _version_status(row: dict[str, Any], lifecycles: dict[str, str] | None) -> s
     return _LIFECYCLE_STATUS.get(lifecycle or "", "not_finished")
 
 
+def _is_media(key: str) -> bool:
+    return ".derived/media/" in key
+
+
+def _file_status(versions: list[dict[str, Any]], lifecycles: dict[str, str] | None) -> tuple[str, dict[str, Any], int]:
+    """ONE status per FILE across all its source versions and attempts.
+
+    A file that published on any attempt is Done (committed); earlier failed attempts are counted, not shown
+    as the file's status. Otherwise the latest attempt's outcome stands. Derived media that never imported
+    is skipped. Returns (status, the version that stands for the file's counts, failed attempts).
+    """
+    ordered = sorted(versions, key=lambda v: (v["version_ordinal"], v["acquired_at"]), reverse=True)
+    statuses = [_version_status(v, lifecycles) for v in ordered]
+    failed_attempts = sum(1 for status in statuses if status == "failed")
+    for version, status in zip(ordered, statuses):
+        if status == "committed":
+            return "committed", version, failed_attempts
+    key = ordered[0]["source_key"]
+    if _is_media(key):
+        return "skipped", ordered[0], failed_attempts
+    return statuses[0], ordered[0], failed_attempts
+
+
 def _iso(value: Any) -> str | None:
     return value.isoformat() if value is not None else None
 
 
 # --------------------------------------------------------------------------- sources
+
+def file_rows(rows: list[dict[str, Any]], lifecycles: dict[str, str] | None) -> list[dict[str, Any]]:
+    """Every source FILE (one per source key) with its single status, its counts and its export."""
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_key.setdefault(row["source_key"], []).append(row)
+    out = []
+    for key, versions in by_key.items():
+        status, stand, failed_attempts = _file_status(versions, lifecycles)
+        out.append({
+            "key": key, "export_key": stand["export_key"], "status": status, "failed_attempts": failed_attempts,
+            "attempts": len(versions), "raw": stand["raw_n"], "normalized": stand["norm_n"], "messages": stand["msgs"], "calls": stand["calls"],
+            "first_at": stand["first_at"], "last_at": stand["last_at"], "acquired_at": max(v["acquired_at"] for v in versions),
+            "is_parent": key == stand["export_key"], "is_media": _is_media(key), "version_id": stand["id"],
+        })
+    return out
+
 
 async def _exports() -> tuple[list[dict[str, Any]], bool]:
     matter = live_matter()
@@ -299,34 +340,55 @@ async def _exports() -> tuple[list[dict[str, Any]], bool]:
     lifecycles = await _lifecycles()
     people = await asyncio.to_thread(_people)
     grouped: dict[str, dict[str, Any]] = {}
-    for row in rows:
-        status = _version_status(row, lifecycles)
+    for file in file_rows(rows, lifecycles):
         group = grouped.setdefault(
-            row["export_key"],
+            file["export_key"],
             {
-                "export_key": row["export_key"], "files": 0, "raw": 0, "normalized": 0, "committed": 0,
+                "export_key": file["export_key"], "files": 0, "raw": 0, "normalized": 0, "committed": 0,
                 "messages": 0, "calls": 0, "first_at": None, "last_at": None, "imported_at": None,
-                "status_counts": {},
+                "status_counts": {}, "split": None, "_parent": None, "_children": [],
             },
         )
-        group["files"] += 1
-        group["raw"] += row["raw_n"]
-        group["normalized"] += row["norm_n"]
-        group["messages"] += row["msgs"]
-        group["calls"] += row["calls"]
-        if status == "committed":
-            group["committed"] += row["norm_n"]
-        group["status_counts"][status] = group["status_counts"].get(status, 0) + 1
-        if row["first_at"] and (group["first_at"] is None or row["first_at"] < group["first_at"]):
-            group["first_at"] = row["first_at"]
-        if row["last_at"] and (group["last_at"] is None or row["last_at"] > group["last_at"]):
-            group["last_at"] = row["last_at"]
-        if group["imported_at"] is None or row["acquired_at"] > group["imported_at"]:
-            group["imported_at"] = row["acquired_at"]
+        if file["is_parent"]:
+            group["_parent"] = file
+        elif not file["is_media"]:
+            group["_children"].append(file)
+        if file["is_media"] and file["status"] == "skipped":
+            group["status_counts"]["skipped"] = group["status_counts"].get("skipped", 0) + 1
+            continue
+        group["raw"] += file["raw"]
+        group["normalized"] += file["normalized"]
+        group["messages"] += file["messages"]
+        group["calls"] += file["calls"]
+        if file["status"] == "committed":
+            group["committed"] += file["normalized"]
+        if file["first_at"] and (group["first_at"] is None or file["first_at"] < group["first_at"]):
+            group["first_at"] = file["first_at"]
+        if file["last_at"] and (group["last_at"] is None or file["last_at"] > group["last_at"]):
+            group["last_at"] = file["last_at"]
+        if group["imported_at"] is None or file["acquired_at"] > group["imported_at"]:
+            group["imported_at"] = file["acquired_at"]
     exports = []
     for group in grouped.values():
+        children, parent = group.pop("_children"), group.pop("_parent")
+        child_counts: dict[str, int] = {}
+        for child in children:
+            child_counts[child["status"]] = child_counts.get(child["status"], 0) + 1
+        is_split = parent is not None and bool(children)
+        if is_split:
+            # The parent backup was split into one file per conversation: its own status is the children's.
+            done, failed = child_counts.get("committed", 0), child_counts.get("failed", 0)
+            group["split"] = {"total": len(children), "done": done, "failed": failed,
+                              "in_progress": len(children) - done - failed}
+            counted = children
+        else:
+            counted = ([parent] if parent else []) + children
+        for file in counted:
+            group["status_counts"][file["status"]] = group["status_counts"].get(file["status"], 0) + 1
+        group["files"] = len(counted) + (1 if is_split else 0)  # the parent counts as a file
         counts = group["status_counts"]
-        group["status"] = next((name for name in _STATUS_ORDER if counts.get(name)), "not_finished")
+        group["status"] = next((name for name in _STATUS_ORDER if counts.get(name)), "committed" if counts.get("skipped") else "not_finished")
+        group["failed_attempts"] = sum(f["failed_attempts"] for f in counted)
         group["id"] = encode_id(group["export_key"])
         group.update(describe_export(group["export_key"], people))
         for key in ("first_at", "last_at", "imported_at"):
@@ -377,6 +439,7 @@ async def source_threads(source_id: str, *, limit: int, offset: int) -> dict[str
     more = len(rows) > limit
     rows = rows[:limit]
     parts = await asyncio.to_thread(pg.thread_participants, matter, source["export_key"], [r["conv"] for r in rows])
+    last = {row["conv"]: row["body"] for row in await asyncio.to_thread(pg.thread_last_messages, matter, source["export_key"], [r["conv"] for r in rows])}
     by_conv: dict[str, list[dict[str, Any]]] = {}
     for part in parts:
         by_conv.setdefault(part["conv"], []).append(_participant(part["identifier"], people, source["owner"]))
@@ -394,7 +457,7 @@ async def source_threads(source_id: str, *, limit: int, offset: int) -> dict[str
             "title": _thread_title(row["conv"], plist, source),
             "participants": plist,
             "files": row["files"], "records": row["records"], "messages": row["msgs"], "calls": row["calls"],
-            "first_at": _iso(row["first_at"]), "last_at": _iso(row["last_at"]),
+            "first_at": _iso(row["first_at"]), "last_at": _iso(row["last_at"]), "last_message": last.get(row["conv"]) or "",
             "party": kind, "first_party_messages": row["first_party"], "third_party_messages": row["third_party"],
         })
     return {"source": source, "items": items, "next_offset": offset + limit if more else None}
@@ -604,6 +667,53 @@ async def review_queue() -> dict[str, Any]:
             "records": row["records"], "waiting_since": _iso(row["waiting_since"]),
         })
     return {"items": items, "total": len(items)}
+
+
+# --------------------------------------------------------------------------- the source of one number
+
+async def number_records(number: str, *, cursor: str | None, limit: int) -> dict[str, Any]:
+    """Every message and call carrying this number, newest first, each with the file and conversation it came from.
+
+    This is what the owner reads to decide whether a pending number is who it looks like: the records
+    themselves, their source file (casevault key), and a link to the conversation at that message.
+    """
+    digits = re.sub(r"[^0-9]", "", number)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if not re.fullmatch(r"[2-9][0-9]{9}", digits):
+        raise ImportedError("A 10-digit phone number is required", 422)
+    matter = live_matter()
+    ts, row_id = _cursor_decode(cursor)
+    people = await asyncio.to_thread(_people)
+    rows = await asyncio.to_thread(pg.number_records, matter, digits, ts=ts, row_id=row_id, limit=limit)
+    more = len(rows) > limit
+    rows = rows[:limit]
+    counts = await asyncio.to_thread(pg.number_record_counts, matter, digits) if not cursor else None
+    items = []
+    for row in rows:
+        desc = describe_export(row["export_key"], people)
+        source = {
+            "file_name": row["source_key"].rsplit("/", 1)[-1], "casevault_key": desc["casevault_key"],
+            "export_file": desc["file_name"], "format": desc["format"], "device": desc["device"], "owner": desc["owner"],
+            "conversation": row["conv"], "thread_id": encode_id(row["export_key"], row["conv"]),
+        }
+        if row["record_type"] == "call":
+            content = row["content"] or {}
+            items.append({
+                "type": "call", "id": row["id"], "at": _iso(row["occurred_at"]), "source": source,
+                "call": {
+                    "kind": "missed" if content.get("missed") else content.get("disposition") or "call",
+                    "direction": content.get("direction"), "missed": bool(content.get("missed")),
+                    "duration_s": content.get("duration_seconds"), "with": _call_party(row["participants"] or [], people),
+                },
+            })
+        else:
+            items.append({"type": "message", "id": row["id"], "at": _iso(row["occurred_at"]), "source": source,
+                          "message": _message(row, people, desc["owner"])})
+    return {
+        "number": digits, "items": items, "counts": counts,
+        "next_cursor": _cursor_encode(rows[-1]["occurred_at"], rows[-1]["id"]) if more and rows else None,
+    }
 
 
 # --------------------------------------------------------------------------- who is this

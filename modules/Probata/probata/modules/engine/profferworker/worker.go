@@ -18,6 +18,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/acquisition"
 	"github.com/Cursedpotential/probata/engine/activities"
 	sbvadapter "github.com/Cursedpotential/probata/engine/adapters/sbv"
+	"github.com/Cursedpotential/probata/engine/contacts"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/normalize"
 	"github.com/Cursedpotential/probata/engine/objectstores"
@@ -78,6 +79,9 @@ type Registrations struct {
 	// AutoApproval is record_auto_approval_activity (owner 2026-10-02,
 	// "auto-approve clean runs"). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	AutoApproval activities.AutoApprovalActivity
+	// Contacts are the six Activities of ContactsImportWorkflow (owner 2026-10-02,
+	// "traceable Temporal activities"). Byline: Claude Code · Sonnet · 2026-10-02
+	Contacts activities.ContactsActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -138,6 +142,9 @@ func RegisterAll(registrar interface {
 	activities.RegisterAutoApprovalActivity(registrar, registrations.AutoApproval)
 	activities.RegisterCallLogActivities(registrar, registrations.CallLog)
 	activities.RegisterMessageMatchActivities(registrar, registrations.MessageMatch)
+	// Contacts import: manifest, fetch, parse, people, placeholders, re-link (Claude Code · Sonnet · 2026-10-02).
+	registrar.RegisterWorkflowWithOptions(contacts.ContactsImportWorkflow, workflow.RegisterOptions{Name: contacts.WorkflowName})
+	activities.RegisterContactsActivities(registrar, registrations.Contacts)
 }
 
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
@@ -500,7 +507,12 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	contactsActivities, err := buildContacts(context.Background(), pool, stores, cfg)
+	if err != nil {
+		return Registrations{}, err
+	}
 	return Registrations{
+		Contacts:              contactsActivities,
 		ContextSearch:         contextSearch,
 		FirstPartyContext:     activities.NewFirstPartyContextActivities(firstPartyStore),
 		CallLog:               activities.NewCallLogActivities(callLogStore),

@@ -86,8 +86,9 @@ def test_an_unconfirmed_person_is_not_confirmed_and_offers_who_is_this():
     assert "Unknown 313-555-0101" not in people.by_person
 
 
-def test_status_prefers_the_committed_fact_and_never_guesses_without_run_state():
-    row = {"id": "a", "approved": False, "rejected": False}
+def test_a_versions_own_status_prefers_the_publish_receipt_and_never_guesses_without_run_state():
+    row = {"id": "a", "approved": False, "rejected": False, "published": False}
+    assert service._version_status({**row, "published": True}, {"a": "failed"}) == "committed"
     assert service._version_status({**row, "approved": True}, None) == "committed"
     assert service._version_status(row, None) == "not_finished"
     assert service._version_status(row, {"a": "failed"}) == "failed"
@@ -95,31 +96,55 @@ def test_status_prefers_the_committed_fact_and_never_guesses_without_run_state()
     assert service._version_status(row, {"a": "awaiting_preview_decision"}) == "awaiting_review"
 
 
-def _version(i, key, *, raw, norm, approved, msgs=None, calls=0):
+def _version(i, key, *, raw=1, norm=1, approved=False, published=False, ordinal=1, msgs=None, calls=0, source=None):
     ts = datetime(2026, 10, 2, 12, i, tzinfo=timezone.utc)
-    return {"id": i and f"v{i}", "source_key": key, "export_key": key.split(".derived/")[0], "acquired_at": ts,
-            "raw_n": raw, "norm_n": norm, "msgs": norm if msgs is None else msgs, "calls": calls,
+    return {"id": f"v{i}", "source_key": key, "export_key": key.split(".derived/")[0], "acquired_at": ts, "version_ordinal": ordinal,
+            "published": published, "raw_n": raw, "norm_n": norm, "msgs": norm if msgs is None else msgs, "calls": calls,
             "first_at": ts, "last_at": ts, "approved": approved, "rejected": False}
 
 
-def test_sources_group_derived_files_under_their_export(monkeypatch):
+def _thread(n):
+    return KEY + f".derived/threads/81025951{n:02d}.0001.ndjson"
+
+
+def test_a_file_that_published_on_any_attempt_is_done_and_failed_attempts_are_only_counted():
     rows = [
-        _version(2, KEY + ".derived/threads/8103099590.0001.ndjson", raw=4, norm=4, approved=True),
-        _version(1, KEY + ".derived/threads/8102595720.0001.ndjson", raw=3, norm=3, approved=False),
+        _version(1, _thread(1), ordinal=1),                    # first attempt failed
+        _version(2, _thread(1), ordinal=2, published=True),    # second attempt published
+        _version(3, _thread(1), ordinal=3),                    # a later retry that failed again
     ]
+    (file,) = service.file_rows(rows, {"v1": "failed", "v3": "failed"})
+    assert file["status"] == "committed" and file["failed_attempts"] == 2 and file["attempts"] == 3
+    assert file["raw"] == 1  # counts come from the version that stands for the file, not summed across attempts
+
+
+def test_a_split_parent_backup_reports_its_conversations_and_is_never_failed_or_not_finished(monkeypatch):
+    rows = [_version(1, KEY)]                                      # the parent backup: no records, never "finished" itself
+    rows += [_version(10 + n, _thread(n), published=True) for n in range(1, 4)]
+    rows += [_version(20, _thread(9))]                              # one conversation that failed
+    rows += [_version(30, KEY + ".derived/media/abc.png")]         # stray derived media that never imported
     monkeypatch.setattr(pg, "source_versions", lambda matter: rows)
 
     async def lifecycles():
-        return {"v1": "failed"}
+        return {"v1": "failed", "v20": "failed", "v30": "failed"}
 
     monkeypatch.setattr(service, "_lifecycles", lifecycles)
-    client = TestClient(_app())
-    body = client.get("/api/imported/sources").json()
-    assert body["total"] == 1
-    item = body["items"][0]
-    assert (item["files"], item["raw"], item["normalized"], item["committed"]) == (2, 7, 7, 4)
-    assert item["status"] == "failed" and item["status_counts"] == {"committed": 1, "failed": 1}
-    assert item["format"] == "SMS" and item["owner"] == "Katrina"
+    (item,) = TestClient(_app()).get("/api/imported/sources").json()["items"]
+    assert item["split"] == {"total": 4, "done": 3, "failed": 1, "in_progress": 0}
+    assert item["status"] == "failed" and item["status_counts"] == {"committed": 3, "failed": 1, "skipped": 1}
+    assert item["files"] == 5  # the parent plus four conversation files; the stray media is not a file of the import
+
+
+def test_a_split_parent_whose_conversations_all_published_is_done(monkeypatch):
+    rows = [_version(1, KEY)] + [_version(10 + n, _thread(n), published=True) for n in range(1, 4)] + [_version(30, KEY + ".derived/media/abc.png")]
+    monkeypatch.setattr(pg, "source_versions", lambda matter: rows)
+
+    async def lifecycles():
+        return {"v1": "failed", "v30": "failed"}
+
+    monkeypatch.setattr(service, "_lifecycles", lifecycles)
+    (item,) = TestClient(_app()).get("/api/imported/sources").json()["items"]
+    assert item["status"] == "committed" and item["split"]["done"] == 3 and item["split"]["failed"] == 0
 
 
 def test_one_unknown_numbers_list_merges_people_without_a_person_and_unconfirmed_people(monkeypatch):
@@ -177,3 +202,33 @@ def test_number_status_tells_named_placeholder_and_unknown_apart():
     assert body["3135550101"]["state"] == "unconfirmed" and body["3135550101"]["entity_id"] == "e-ph"
     assert body["+13135550177"] == {"state": "unknown", "number": "3135550177", "entity_id": None, "label": "(313) 555-0177"}
     assert "Katrina" not in body
+
+
+def test_number_records_show_each_message_and_call_with_its_source_and_thread(monkeypatch):
+    ts = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    base = {"source_key": KEY + ".derived/threads/8102595720.0001.ndjson", "export_key": KEY, "conv": "8102595720", "certainty": "exact",
+            "projection_kind": None, "has_attachments": False, "attachment_count": 0, "source_version_id": "v1"}
+    rows = [
+        {**base, "id": "00000000-0000-7000-8000-000000000002", "occurred_at": ts, "record_type": "call", "body": None,
+         "content": {"direction": "outgoing", "missed": False, "duration_seconds": 61, "disposition": "completed"},
+         "participants": [{"role": "unknown", "identifier": "+13135550101"}]},
+        {**base, "id": "00000000-0000-7000-8000-000000000001", "occurred_at": ts, "record_type": "message", "body": "hello",
+         "content": {"body": "hello"}, "participants": [{"role": "sender", "identifier": "+13135550101"}, {"role": "recipient", "identifier": "self"}]},
+    ]
+    seen = {}
+
+    def fake(matter, number, *, ts, row_id, limit):
+        seen.update(number=number, limit=limit)
+        return rows
+
+    monkeypatch.setattr(pg, "number_records", fake)
+    monkeypatch.setattr(pg, "number_record_counts", lambda matter, number: {"messages": 1, "calls": 1})
+    body = TestClient(_app()).get("/api/imported/number-records", params={"number": "+1 (313) 555-0101", "limit": 5}).json()
+    assert seen == {"number": "3135550101", "limit": 5}
+    assert body["counts"] == {"messages": 1, "calls": 1} and body["next_cursor"] is None
+    call, message = body["items"]
+    assert call["type"] == "call" and call["call"]["duration_s"] == 61 and call["call"]["with"]["number"] == "3135550101"
+    assert message["type"] == "message" and message["message"]["body"] == "hello"
+    assert message["source"]["file_name"] == "8102595720.0001.ndjson" and message["source"]["casevault_key"].startswith("SourceCorpus/messaging/")
+    assert message["source"]["thread_id"] and message["source"]["device"] == "(810) 268-9630"
+    assert TestClient(_app()).get("/api/imported/number-records", params={"number": "34428"}).status_code == 422

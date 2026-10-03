@@ -1,17 +1,28 @@
 // Byline: Claude Code · Sonnet · 2026-10-02
-// "Who is this?" for a number nobody has named. Used by the mobile /m views and the desktop thread and
-// calls views. Owner 2026-10-02 14:32: every unknown number is a placeholder person in the registry;
-// naming it renames the placeholder (everything already linked follows), and "same as someone I know"
-// merges it into an existing person (its identifiers and rows move; nothing is deleted).
-// Every save goes through the governed case-identity API and lands in registry.identity_change; this
-// component never writes a registry table itself.
+// "Who is this?" for a number nobody has confirmed, on the Workbench's own shadcn Sheet, Button, Input,
+// Textarea, Label and Badge. Used by the mobile /m views and the desktop thread and calls views.
+// Owner 2026-10-02 14:32/15:34: every number is a person in the registry (a name from a contact export, or a
+// placeholder). Owner 20:41: the owner must be able to SEE THE SOURCE before deciding, say "this is my
+// number" in one tap, pick an existing person from a searchable list, type a name, or confirm the mapping
+// that is already there. Every save goes through the governed case-identity API (edit person / merge) and
+// lands in registry.identity_change; this component never writes a registry table itself.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserRoundSearch, X } from "lucide-react";
-import { useState } from "react";
+import { FileSearch, UserRoundCheck, UserRoundSearch } from "lucide-react";
+import { useMemo, useState } from "react";
 
+import { NumberSourceSheet } from "@/components/identity/number-source-sheet";
+import { prettyNumber } from "@/components/mobile/mobile-format";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 import { addPlaceholders, editPerson, mergePerson, newIdempotencyKey } from "@/lib/case-identity-client";
 import { importedApi } from "@/lib/imported-client";
 import { cn } from "@/lib/utils";
+
+export { prettyNumber };
 
 const ROLES: [string, string][] = [
   ["third_party", "Someone else"],
@@ -22,10 +33,6 @@ const ROLES: [string, string][] = [
   ["child", "Child"],
 ];
 
-export function prettyNumber(number: string) {
-  return number.length === 10 ? `(${number.slice(0, 3)}) ${number.slice(3, 6)}-${number.slice(6)}` : number;
-}
-
 interface WhoIsThisProps {
   /** 10-digit number; null for a person known only by an email. */
   number: string | null;
@@ -33,7 +40,7 @@ interface WhoIsThisProps {
   label?: string;
   /** The name a contact export gave, when the person is already named but not confirmed. */
   currentName?: string | null;
-  /** The placeholder person already carrying it, when there is one. */
+  /** The person already carrying the number (a placeholder or contact-named, unconfirmed), when there is one. */
   entityId?: string | null;
   /** Names a contact export gave this number; one tap puts it in the name field. */
   candidates?: string[];
@@ -46,76 +53,61 @@ export function WhoIsThis({ number, label, currentName, entityId, candidates, co
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         onClick={(event) => { event.preventDefault(); event.stopPropagation(); setOpen(true); }}
-        className={cn(
-          "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-amber-500/60 bg-amber-100 px-3 text-xs font-semibold text-amber-950 active:opacity-80 dark:bg-amber-950 dark:text-amber-100",
-          className,
-        )}
+        className={cn("h-9 gap-1.5 rounded-full border-amber-500/60 bg-amber-100 text-xs font-semibold text-amber-950 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-100", className)}
       >
         <UserRoundSearch className="size-4" aria-hidden="true" /> {currentName ? "Confirm" : "Who is this?"}
-      </button>
-      {open ? <WhoIsThisSheet number={number} label={label} currentName={currentName ?? null} entityId={entityId ?? null} candidates={candidates ?? []} context={context} onClose={() => setOpen(false)} /> : null}
+      </Button>
+      <WhoIsThisSheet open={open} onOpenChange={setOpen} number={number} label={label} currentName={currentName ?? null} entityId={entityId ?? null} candidates={candidates ?? []} context={context} />
     </>
   );
 }
 
-function WhoIsThisSheet({ number, label, currentName, entityId, candidates, context, onClose }: { number: string | null; label?: string; currentName: string | null; entityId: string | null; candidates: string[]; context: string; onClose: () => void }) {
+export function WhoIsThisSheet({ open, onOpenChange, number, label, currentName, entityId, candidates, context }: {
+  open: boolean; onOpenChange: (open: boolean) => void; number: string | null; label?: string; currentName: string | null;
+  entityId: string | null; candidates: string[]; context: string;
+}) {
   const client = useQueryClient();
   const [mode, setMode] = useState<"name" | "same">("name");
   const [name, setName] = useState(currentName ?? "");
   const [role, setRole] = useState("third_party");
   const [note, setNote] = useState("");
   const [target, setTarget] = useState("");
+  const [find, setFind] = useState("");
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
-  const people = useQuery({ queryKey: ["identity-people"], queryFn: ({ signal }) => importedApi.identity(signal), staleTime: 30_000 });
-
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const people = useQuery({ queryKey: ["identity-people"], queryFn: ({ signal }) => importedApi.identity(signal), staleTime: 30_000, enabled: open });
+  const shown = number ? prettyNumber(number) : (label ?? "this person");
   const ready = mode === "name" ? name.trim().length > 0 : target.length > 0;
+  const me = people.data?.people.find((person) => person.role === "user");
+  const matches = useMemo(() => {
+    const needle = find.trim().toLowerCase();
+    const all = people.data?.people ?? [];
+    return needle ? all.filter((person) => `${person.name} ${person.short}`.toLowerCase().includes(needle)) : all;
+  }, [find, people.data]);
 
-  async function save() {
-    if (!ready || pending) return;
+  /** The person carrying this number: the one already there, or a new placeholder made through the governed API. */
+  async function ensurePerson(): Promise<string> {
+    if (entityId) return entityId;
+    if (!number) throw new Error("This person has no number to start from.");
+    const made = await addPlaceholders({ numbers: [number], change_reason: `number seen in ${context}, identified from the Workbench` }, newIdempotencyKey("placeholder"));
+    const created = made.detail?.entity_ids?.[number] ?? Object.values((await importedApi.numberStatus([number])).items)[0]?.entity_id ?? null;
+    if (!created) throw new Error("The person for this number could not be found. Try again.");
+    return created;
+  }
+
+  async function run(action: () => Promise<string>) {
+    if (pending) return;
     setPending(true);
     setFailure(null);
     try {
-      let personId = entityId;
-      if (!personId) {
-        if (!number) throw new Error("This person has no number to start from.");
-        // Nobody carries the number yet: it becomes a placeholder first, then is named or merged.
-        const made = await addPlaceholders(
-          { numbers: [number as string], change_reason: `number seen in ${context}, identified from the Workbench` },
-          newIdempotencyKey("placeholder"),
-        );
-        personId = made.detail?.entity_ids?.[number as string] ?? null;
-        if (!personId) {
-          const status = await importedApi.numberStatus([number as string]);
-          personId = Object.values(status.items)[0]?.entity_id ?? null;
-        }
-        if (!personId) throw new Error("The placeholder for this number could not be found. Try again.");
-      }
-      if (mode === "name") {
-        const fields: Record<string, string | null> = {
-          display_name: name.trim(),
-          role_in_case: role,
-          connection_to: "third_party",
-          verification_state: "confirmed",
-          requires_human_review: "false",
-          review_status: "approved",
-        };
-        if (note.trim()) fields.relationship_type = note.trim().slice(0, 200);
-        await editPerson(personId, { fields, change_reason: `named by the owner (seen in ${context})` }, newIdempotencyKey("name"));
-        setDone(`Saved. ${number ? prettyNumber(number) : (label ?? "This person")} is ${name.trim()}.`);
-      } else {
-        await mergePerson(
-          personId,
-          { into_id: target, change_reason: `owner: ${number ? prettyNumber(number) : (label ?? "this person")} is this person${note.trim() ? ` (${note.trim()})` : ""} (seen in ${context})` },
-          newIdempotencyKey("merge"),
-        );
-        const chosen = people.data?.people.find((person) => person.entity_id === target);
-        setDone(`Saved. ${number ? prettyNumber(number) : (label ?? "This person")} is now ${chosen?.name ?? "that person"}.`);
-      }
+      setDone(await action());
       await client.invalidateQueries();
     } catch (error) {
       setFailure(error instanceof Error ? error.message : "Could not save");
@@ -124,40 +116,74 @@ function WhoIsThisSheet({ number, label, currentName, entityId, candidates, cont
     }
   }
 
+  const mergeInto = (targetId: string, targetName: string, reason: string) => run(async () => {
+    const personId = await ensurePerson();
+    await mergePerson(personId, { into_id: targetId, change_reason: `owner: ${shown} ${reason} (seen in ${context})` }, newIdempotencyKey("merge"));
+    return `Saved. ${shown} is now ${targetName}.`;
+  });
+
+  const saveName = () => run(async () => {
+    const personId = await ensurePerson();
+    const fields: Record<string, string | null> = {
+      display_name: name.trim(), role_in_case: role, connection_to: "third_party",
+      verification_state: "confirmed", requires_human_review: "false", review_status: "approved",
+    };
+    if (note.trim()) fields.relationship_type = note.trim().slice(0, 200);
+    await editPerson(personId, { fields, change_reason: `named by the owner (seen in ${context})` }, newIdempotencyKey("name"));
+    return `Saved. ${shown} is ${name.trim()}.`;
+  });
+
+  // The mapping already there (a name from a contact export) is right: confirm it without retyping.
+  const confirmCurrent = () => run(async () => {
+    const personId = await ensurePerson();
+    await editPerson(personId, {
+      fields: { verification_state: "confirmed", requires_human_review: "false", review_status: "approved" },
+      change_reason: `owner confirmed the contact-export mapping (seen in ${context})`,
+    }, newIdempotencyKey("confirm"));
+    return `Confirmed. ${shown} is ${currentName}.`;
+  });
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true" aria-label={`Who is ${number ? prettyNumber(number) : (label ?? "this")}?`}>
-      <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-card p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-card-foreground shadow-xl sm:rounded-2xl">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Who is this?</h2>
-            <p className="text-2xl font-bold tabular-nums">{number ? prettyNumber(number) : (label ?? "Unknown")}</p>
-            {currentName ? <p className="text-sm text-muted-foreground">A contact export says: {currentName}. Confirm it, or change it.</p> : null}
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex size-12 items-center justify-center rounded-full active:bg-muted">
-            <X className="size-6" />
-          </button>
-        </div>
+    <>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="mx-auto max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl pb-[env(safe-area-inset-bottom)]">
+        <SheetHeader>
+          <SheetTitle className="text-lg">Who is {shown}?</SheetTitle>
+          <SheetDescription>
+            {currentName ? `A contact export says: ${currentName}. Check the source, then confirm it or change it.` : "Check where it appears, then name this person or say they are someone you already know."}
+          </SheetDescription>
+        </SheetHeader>
 
         {done ? (
-          <div className="mt-4 space-y-3">
+          <div className="space-y-3 px-4 pb-6">
             <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{done}</p>
             <p className="text-xs text-muted-foreground">Recorded in the case identity log. Every call and message for this number now shows the name.</p>
-            <button type="button" onClick={onClose} className="h-12 w-full rounded-lg bg-primary font-semibold text-primary-foreground active:opacity-80">Done</button>
+            <Button type="button" onClick={() => onOpenChange(false)} className="h-12 w-full">Done</Button>
           </div>
         ) : (
-          <div className="mt-4 space-y-4">
+          <div className="space-y-4 px-4 pb-6">
+            {number ? (
+              <Button type="button" variant="outline" onClick={() => setSourceOpen(true)} className="h-12 w-full justify-start gap-2">
+                <FileSearch className="size-5" aria-hidden="true" /> See where this number appears
+              </Button>
+            ) : null}
+
+            <div className="grid gap-2">
+              {currentName ? (
+                <Button type="button" onClick={() => void confirmCurrent()} disabled={pending} className="h-12 justify-start gap-2">
+                  <UserRoundCheck className="size-5" aria-hidden="true" /> Yes, this is {currentName}
+                </Button>
+              ) : null}
+              {me ? (
+                <Button type="button" variant="secondary" onClick={() => void mergeInto(me.entity_id, me.name, "is the owner's own number")} disabled={pending} className="h-12 justify-start gap-2">
+                  <UserRoundCheck className="size-5" aria-hidden="true" /> This is my number
+                </Button>
+              ) : null}
+            </div>
+
             <div className="grid grid-cols-2 gap-2" role="tablist">
-              {([["name", "Name them"], ["same", "Same as someone I know"]] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === value}
-                  onClick={() => setMode(value)}
-                  className={cn("min-h-12 rounded-lg border px-2 text-sm font-semibold", mode === value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background")}
-                >
-                  {label}
-                </button>
+              {([["name", "Name them"], ["same", "Someone I know"]] as const).map(([value, text]) => (
+                <Button key={value} type="button" role="tab" aria-selected={mode === value} variant={mode === value ? "default" : "outline"} onClick={() => setMode(value)} className="h-12 whitespace-normal text-sm">{text}</Button>
               ))}
             </div>
 
@@ -168,31 +194,36 @@ function WhoIsThisSheet({ number, label, currentName, entityId, candidates, cont
                     <p className="text-sm font-semibold">Your contacts say</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {candidates.map((candidate) => (
-                        <button key={candidate} type="button" onClick={() => setName(candidate)}
-                          className="min-h-11 rounded-full border border-border bg-background px-4 text-sm font-medium active:bg-muted">{candidate}</button>
+                        <Button key={candidate} type="button" variant="outline" onClick={() => setName(candidate)} className="h-11 rounded-full">{candidate}</Button>
                       ))}
                     </div>
                   </div>
                 ) : null}
-                <label className="block text-sm font-semibold" htmlFor="who-name">Name</label>
-                <input id="who-name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="off" placeholder="First and last name"
-                  className="h-12 w-full rounded-lg border border-input bg-background px-3 text-base" />
-                <label className="block text-sm font-semibold" htmlFor="who-role">Who are they in the case?</label>
-                <select id="who-role" value={role} onChange={(event) => setRole(event.target.value)} className="h-12 w-full rounded-lg border border-input bg-background px-3 text-base">
-                  {ROLES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
+                <div className="space-y-1.5">
+                  <Label htmlFor="who-name">Name</Label>
+                  <Input id="who-name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="off" placeholder="First and last name" className="h-12 text-base" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="who-role">Who are they in the case?</Label>
+                  <select id="who-role" value={role} onChange={(event) => setRole(event.target.value)} className="h-12 w-full rounded-md border border-input bg-background px-3 text-base">
+                    {ROLES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+                  </select>
+                </div>
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-sm font-semibold">Pick the person</p>
+                <Label htmlFor="who-find">Find a person</Label>
+                <Input id="who-find" type="search" value={find} onChange={(event) => setFind(event.target.value)} autoComplete="off" placeholder="Type to filter" className="h-12 text-base" />
                 {people.isPending ? <p className="text-sm text-muted-foreground">Loading people</p> : (
-                  <ul className="space-y-2">
-                    {(people.data?.people ?? []).map((person) => (
+                  <ul className="max-h-64 space-y-2 overflow-y-auto" role="listbox" aria-label="People">
+                    {matches.length === 0 ? <li className="py-3 text-sm text-muted-foreground">No one matches. Use "Name them" to add a new person.</li> : null}
+                    {matches.map((person) => (
                       <li key={person.entity_id}>
-                        <label className={cn("flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-3", target === person.entity_id ? "border-primary bg-accent" : "border-border")}>
-                          <input type="radio" name="who-target" value={person.entity_id} checked={target === person.entity_id} onChange={() => setTarget(person.entity_id)} className="size-5" />
-                          <span className="text-[15px] font-medium">{person.name}</span>
-                        </label>
+                        <Button type="button" role="option" aria-selected={target === person.entity_id} variant={target === person.entity_id ? "default" : "outline"}
+                          onClick={() => setTarget(person.entity_id)} className="h-12 w-full justify-between">
+                          <span className="truncate">{person.name}</span>
+                          {person.role === "user" ? <Badge variant="secondary">You</Badge> : null}
+                        </Button>
                       </li>
                     ))}
                   </ul>
@@ -201,23 +232,32 @@ function WhoIsThisSheet({ number, label, currentName, entityId, candidates, cont
               </div>
             )}
 
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold" htmlFor="who-note">Relationship or note (optional)</label>
-              <textarea id="who-note" value={note} onChange={(event) => setNote(event.target.value)} rows={2} placeholder="For example: Katrina's sister, babysitter, coworker"
-                className="w-full rounded-lg border border-input bg-background p-3 text-base" />
+            <div className="space-y-1.5">
+              <Label htmlFor="who-note">Relationship or note (optional)</Label>
+              <Textarea id="who-note" value={note} onChange={(event) => setNote(event.target.value)} rows={2} placeholder="For example: Katrina's sister, babysitter, coworker" />
             </div>
 
             {failure ? <p className="text-sm font-semibold text-destructive" role="alert">{failure}</p> : null}
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={onClose} className="h-12 rounded-lg border border-border font-semibold active:bg-muted">Cancel</button>
-              <button type="button" onClick={() => void save()} disabled={!ready || pending}
-                className="h-12 rounded-lg bg-primary font-semibold text-primary-foreground active:opacity-80 disabled:opacity-50">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-12">Cancel</Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (mode === "name") void saveName();
+                  else void mergeInto(target, matches.find((person) => person.entity_id === target)?.name ?? people.data?.people.find((person) => person.entity_id === target)?.name ?? "that person",
+                    `is this person${note.trim() ? ` (${note.trim()})` : ""}`);
+                }}
+                disabled={!ready || pending}
+                className="h-12"
+              >
                 {pending ? "Saving" : "Save"}
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
+    {number ? <NumberSourceSheet open={sourceOpen} onOpenChange={setSourceOpen} number={number} onNavigate={() => { setSourceOpen(false); onOpenChange(false); }} /> : null}
+    </>
   );
 }

@@ -45,12 +45,17 @@ export function errorText(error: unknown) {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  committed: "Committed",
+  committed: "Done",
   awaiting_review: "Awaiting review",
   parked: "Parked",
   failed: "Failed",
   running: "Running",
   not_finished: "Not finished",
+  skipped: "Skipped",
 };
 
 export const statusLabel = (status: string) => STATUS_LABEL[status] ?? status;
+
+export function prettyNumber(number: string) {
+  return number.length === 10 ? `(${number.slice(0, 3)}) ${number.slice(3, 6)}-${number.slice(6)}` : number;
+}

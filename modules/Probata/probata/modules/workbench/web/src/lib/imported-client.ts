@@ -5,7 +5,7 @@ import { ApiError } from "@/lib/api-client";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
-export type SourceStatus = "committed" | "awaiting_review" | "parked" | "failed" | "running" | "not_finished";
+export type SourceStatus = "committed" | "awaiting_review" | "parked" | "failed" | "running" | "not_finished" | "skipped";
 
 export interface ImportedSource {
   id: string;
@@ -26,6 +26,10 @@ export interface ImportedSource {
   imported_at: string | null;
   status: SourceStatus;
   status_counts: Partial<Record<SourceStatus, number>>;
+  /** Set when the source is a split parent backup: its conversations, and how they ended. */
+  split: { total: number; done: number; failed: number; in_progress: number } | null;
+  /** Failed attempts on files that later published (or are still open); detail only. */
+  failed_attempts: number;
 }
 
 export interface SourcesPage {
@@ -73,6 +77,32 @@ export interface UnknownNumber {
   candidates: string[];
 }
 
+/** Where one imported record came from: the file, the conversation, and the thread to open. */
+export interface RecordSource {
+  file_name: string;
+  casevault_key: string;
+  export_file: string;
+  format: string;
+  device: string | null;
+  owner: string | null;
+  conversation: string;
+  thread_id: string;
+}
+
+export type NumberRecord =
+  | { type: "message"; id: string; at: string | null; source: RecordSource; message: ImportedMessage }
+  | {
+      type: "call"; id: string; at: string | null; source: RecordSource;
+      call: { kind: string; direction: string | null; missed: boolean; duration_s: number | null; with: Participant };
+    };
+
+export interface NumberRecordsPage {
+  number: string;
+  items: NumberRecord[];
+  counts: { messages: number; calls: number } | null;
+  next_cursor: string | null;
+}
+
 export interface NumberStatus {
   state: "known" | "unconfirmed" | "unknown";
   number: string;
@@ -90,6 +120,7 @@ export interface ImportedThread {
   calls: number;
   first_at: string | null;
   last_at: string | null;
+  last_message: string;
   party: "first_party" | "third_party" | "mixed" | "unclassified";
   first_party_messages: number;
   third_party_messages: number;
@@ -222,5 +253,7 @@ export const importedApi = {
     numbers.forEach((value) => query.append("numbers", value));
     return getJson<{ items: Record<string, NumberStatus> }>(`/api/imported/number-status?${query.toString()}`, {}, signal);
   },
+  numberRecords: (number: string, cursor: string | null, signal?: AbortSignal) =>
+    getJson<NumberRecordsPage>("/api/imported/number-records", { number, cursor, limit: 25 }, signal),
   reviewQueue: (signal?: AbortSignal) => getJson<{ items: ReviewQueueItem[]; total: number }>("/api/imported/review-queue", {}, signal),
 };

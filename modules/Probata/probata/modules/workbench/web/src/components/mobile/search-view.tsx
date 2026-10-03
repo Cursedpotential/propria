@@ -5,8 +5,9 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useState } from "react";
 
-import { Chip, Empty, ErrorBox, LoadMore, Loading, PageBar } from "@/components/mobile/mobile-ui";
+import { Empty, ErrorBox, LoadMore, Loading, PageBar } from "@/components/mobile/mobile-ui";
 import { formatDateTime } from "@/components/mobile/mobile-format";
+import { Badge } from "@/components/ui/badge";
 import { importedApi } from "@/lib/imported-client";
 import { AppLink } from "@/lib/router-compat";
 
@@ -76,7 +77,7 @@ export function SearchView() {
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span className="font-semibold text-foreground/80">{hit.sender}</span>
                     <span>{formatDateTime(hit.at)}</span>
-                    {hit.format ? <Chip>{hit.format}</Chip> : null}
+                    {hit.format ? <Badge variant="secondary">{hit.format}</Badge> : null}
                     {hit.kind === "conversation" && (hit.message_count ?? 0) > 1 ? <span>{hit.message_count} messages</span> : null}
                     {hit.device ? <span>{hit.device}</span> : null}
                   </div>
