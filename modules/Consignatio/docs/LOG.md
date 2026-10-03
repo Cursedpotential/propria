@@ -3439,3 +3439,11 @@ Open, for the owner:
 - **R2 -> B2 proof step 1 (catalog only, `casebible/tools/r2_b2_proof_20261002.sql`):** MD5->SHA-1 bridge `raw_duck.md5_sha1_bridge_20261002` (504,424 md5+size pairs with exactly one SHA-1: b2_content -> vault_keep_v7 -> 09-16 vault listing / 09-18 index, plus source rows carrying both). `raw_duck.r2_b2_proof_20261002`: proven on B2 by SHA-1 (any key, current listing): quarantine 434,830 (943 GB), raw 480,870 (236 GB), sorted 335,861 (937 GB), nexus 5, photos 49; zero-byte 3,702; to hash with the Worker: quarantine 3,455 (235 GB), raw 11,446 (378 GB), sorted 9,553 (165 GB), lakehouse 67, nexus 9. casebible-hash-ledger (338,845 small JSON records) is to be copied whole to B2 rather than hashed.
 - **Quarantine status (owner "yes" 20:19):** D:\Backup 10,811 `source_occurrences` rows marked `integrity_status = moved_to_quarantine` with audit rows (agent commit `19d55dcb`); F: has no catalog rows for its zero-filled files (open item).
 
+
+## 2026-10-02 22:20 EDT — Workbench Review: buttons work without a tick first (owner 21:53 "Still can't click on anything")
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02_
+
+- Cause: the parser and repair re-run buttons stayed disabled until a radio above them was ticked, and the Review page's tool box called `/api/monitored-actions`, a service that was never built ("Execution unavailable"). "Re-run this source" did work: the owner's two clicks started runs `03vJ5HCT…` and `nkBaKGXP…` (`POST /api/proffer/start` 201 twice), both waiting at the parser step.
+- Fix `f7a2b298` (Workbench web): the recommended parser starts picked; "Re-run without repair (use the kept original)" needs no tick; the tool box left Review (it stays on the Tools page). Smoke 124 pass / 4 skipped, typecheck clean.
+- Deployed: Coolify `workbench` deployment `8m39nt2zfuublipnnob9tqhi` finished; the live bundle `/assets/index-Bjbkllzf.js` carries the new button text and no longer has "Re-run with this choice".
+- Not yet live: the run-title change (`a24a8e0f` on `feat/review-titles`); its push was refused by the permission classifier and waits on the owner.
