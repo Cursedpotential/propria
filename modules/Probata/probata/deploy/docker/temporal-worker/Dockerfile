@@ -55,7 +55,11 @@ COPY deploy/docker/temporal-worker/requirements-chunking.txt ./requirements-chun
 RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements-chunking.txt
 ENV HF_HOME=/opt/hf-cache
 RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('mirth/chonky_distilbert_base_uncased_1', revision='01d8aae08726368a1b1645de2a7086610f2e86a5')" \
+    && mkdir -p /opt/hf-cache/hub/models--mirth--chonky_distilbert_base_uncased_1/refs \
+    && printf '%s' 01d8aae08726368a1b1645de2a7086610f2e86a5 > /opt/hf-cache/hub/models--mirth--chonky_distilbert_base_uncased_1/refs/main \
     && chmod -R a+rX /opt/hf-cache
+# A pinned-revision download writes no refs/main, so an offline load by name found nothing (deploy
+# rfwo1drehhoxy51pddjimvqg failed here). refs/main now names the pinned snapshot. Claude Code · Opus 5.5 · 2026-10-02
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 # Prove at build time that the baked model loads offline and classifies, so a bad image never reaches a run.
 RUN python -c "import chonkie; c = chonkie.NeuralChunker(model='mirth/chonky_distilbert_base_uncased_1', min_characters_per_chunk=1); print('neural chunker ok,', len(c.chunk('see you at six sounds good did you eat yes thanks')), 'chunk(s)')"
