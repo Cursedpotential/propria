@@ -1,0 +1,16 @@
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+// casebible-b2-hasher: SHA-1 + SHA-256 of B2 objects that have no hash in the catalog. Read-only.
+// Deploy (not yet run): from this folder, `npx wrangler deploy`. Secrets (wrangler secret put, values kept on ovh-files in
+// /data/consignatio/secrets/cf-b2-hasher.env, never in git): B2HASHER_TOKEN, B2_KEY_ID, B2_APP_KEY (a READ-ONLY
+// application key restricted to bucket salem-data).
+{
+  "name": "casebible-b2-hasher",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  // 5 minutes of CPU per request (Workers Paid), the same ceiling the casebible-r2-hasher runs under.
+  "limits": { "cpu_ms": 300000 },
+  "vars": { "CONCURRENCY": "2", "B2_BUCKET": "salem-data" },
+  "observability": { "enabled": true }
+}

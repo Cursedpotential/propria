@@ -1,0 +1,7 @@
+{
+  "name": "casebible-cf-workers",
+  "private": true,
+  "type": "module",
+  "description": "Byline: Claude Code · Sonnet 5.5 · 2026-10-02. Case Bible bulk-read Workers (format sniffer, ZIP lister, B2 hasher). Tests: npm test (node --test, no dependencies).",
+  "scripts": { "test": "node --test test/*.test.mjs" }
+}
