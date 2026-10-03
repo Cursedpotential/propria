@@ -39,8 +39,10 @@
 # family-court.int.mitechconsult.com route (owner decision 2026-09-27 02:46 EDT) is added to
 # modules/Consignatio/docs/receipts/portal/propria-public-portal.yaml instead, same pattern as
 # openlist/opencode-server/fileflows: that file governs, these labels never activate.
-# ContextForge remains the tailnet access path, at BIND_IP:9077/mcp with the bearer token (never
-# registered as a gateway -- confirmed 2026-09-27, nothing to repoint).
+# ContextForge is the access path for Claude Code and Codex: gateway `family-court` (4fb64f88c1bf4b4d8863658e32d98403,
+# BIND_IP:9077/mcp, MCP_BEARER_TOKEN held inside ContextForge) and virtual server `family-court-console`
+# (0b85f64905be468ba477d75cb2a80323), registered 2026-10-03 (Claude Code · Sonnet 5.5). The clients carry only
+# ContextForge's own token.
 #
 # WEB APP (2026-09-28, Claude Code · Opus 5.5): the same port also serves the Family Law Toolkit
 # web app on / and /api/* (src/mcp-app/src/web.ts). Tailnet: svc:family-court ->
