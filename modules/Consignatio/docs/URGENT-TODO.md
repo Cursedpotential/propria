@@ -22,7 +22,7 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 | R2 hashing | Worker `casebible-r2-hasher` (`casebible/tools/r2_hash_worker/`); older SHA-256 ledger in R2 `casebible-hash-ledger` |
 | What happened and why | [LOG.md](LOG.md) · finished items [COMPLETED-TODO.md](COMPLETED-TODO.md) · receipts `docs/receipts/` |
 
-**Still read by live code although superseded** (fix the readers, then rename): `raw_duck.b2_objects` (Probata engine `postgres/catalog_versions.go`, `tools/contacts_manifest.py`, `catalog_reconcile/run.py`), `raw_duck.vault_objects` (`catalog_reconcile/run.py`, `scrambled_survey_20261002_*.sql`), `raw_duck.vault_content_v0`.
+**Renamed 2026-10-02 (old name -> new):** `raw_duck.b2_objects` -> `raw_duck_superseded.b2_intake_objects_20260914`; `raw_duck.vault_objects` -> `raw_duck_superseded.vault_objects_20260916_0810_prededupe`; `raw_duck.vault_content_v0` -> `raw_duck_superseded.vault_content_v0`. The Probata engine and `contacts_manifest.py` read `bucket_objects` now.
 <!-- MAP:END -->
 
 ## Open items
@@ -469,11 +469,10 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 
 ### From: 2026-10-02 19:00–19:55 EDT — catalog registry, whole-bucket listings, R2 nothing-lost proof
 
-- [ ] **Repoint the live readers of the stale `raw_duck.b2_objects` (09-14 intake-only listing) at `raw_duck.bucket_objects_current`**, then rename it `b2_intake_objects_20260914` (owner 19:04: the name must match what it lists). Readers: Probata engine `modules/engine/postgres/catalog_versions.go` (+ tests), `tools/contacts_manifest.py`, `casebible/catalog_reconcile/run.py`. The engine today checks B2 keys against the stale intake snapshot, so keys outside `intake/` read as missing.
-- [ ] Same for `raw_duck.vault_objects` (pre-dedupe 09-16 08:10): `catalog_reconcile/run.py` and today's `scrambled_survey_20261002_candidates.sql` / `_classify.sql` read it; `scrambled_objects_20261002` was keyed against it (its keys were existence-checked on B2, but review before reuse).
 - [ ] **R2 nothing-lost proof:** load the R2 listings (`/data/consignatio/listings/r2-all-20261002/`, running) into `raw_duck.bucket_objects`; match each R2 object to B2 by hash (R2 MD5 = a B2 content MD5 with B2 SHA-1, or SHA-1 from `casebible-r2-hasher` for the rest); deliver three lists (safe / missing / deliberately excluded) for owner sign-off before R2 is released.
 - [ ] Republish the catalog to B2 `_system/lake/` (last 2026-09-27) once the R2 load and the registry settle.
 - [ ] Owner: record a "moved to quarantine" disposition in the catalog for the D:\Backup (10,811) and F: (9,207) zero-filled files? (flag and null hash already set 09-13).
 - [ ] Owner: hosted Intake UI — A rebuild/release from current code (default), B also make it a Coolify app, C also turn on content search.
 - [ ] 33 registry rows are `unknown` status (mostly `inventory.*`, `llm_eval.*`, `media.*`, `knowledge.*`): classify.
-
+- [ ] Owner: F: zero-filled files (9,206 in the ledgers, 9,207 in the 09-13 count) have no rows in the catalog (only F:'s 8,839 empty files do), so no quarantine status could be recorded. Insert occurrence rows for them, or leave F: in the receipts only? (D: done: 10,811 rows `integrity_status = moved_to_quarantine`.)
+- [ ] `casebible/tools/scrambled_survey_20261002_candidates.sql` / `_classify.sql` (another session, today) read `raw_duck.vault_objects`, now renamed; a rerun fails until it is pointed at `vault_objects_20260916_r4` or `bucket_objects_current` — and `scrambled_objects_20261002` was keyed against the pre-dedupe listing (keys were existence-checked on B2), so review before reuse.

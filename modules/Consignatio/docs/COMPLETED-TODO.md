@@ -746,6 +746,12 @@ Items moved off [URGENT-TODO.md](URGENT-TODO.md) (owner 2026-10-02 19:18 EDT: "c
 - Move `milvus-memsearch` off R2 before the R2 account is released (raised 19:55 on the assumption it held live memsearch storage).
   - _Proof (2026-10-02 19:58 EDT, Claude Code · Opus 5.5):_ the bucket is empty: the casebible-r2-hasher `/list` call and `rclone lsf` both return 0 objects; `raw_duck.bucket_objects` has 0 rows for r2/milvus-memsearch. Nothing to move. Registry row set to historical.
 
+### 2026-10-02 — stale catalog tables: readers repointed, tables renamed (owner "go" 20:18 EDT)
+
+- **Repoint the live readers of the stale `raw_duck.b2_objects` (09-14 intake-only listing) at `raw_duck.bucket_objects_current`**, then rename it `b2_intake_objects_20260914` (owner 19:04: the name must match what it lists). Readers: Probata engine `modules/engine/postgres/catalog_versions.go` (+ tests), `tools/contacts_manifest.py`, `casebible/catalog_reconcile/run.py`. The engine today checks B2 keys against the stale intake snapshot, so keys outside `intake/` read as missing.
+- Same for `raw_duck.vault_objects` (pre-dedupe 09-16 08:10): `catalog_reconcile/run.py` and today's `scrambled_survey_20261002_candidates.sql` / `_classify.sql` read it; `scrambled_objects_20261002` was keyed against it (its keys were existence-checked on B2, but review before reuse).
+  - _Proof (2026-10-02 20:35 EDT, Claude Code · Opus 5.5):_ Probata engine `postgres/catalog_versions.go` and `tools/contacts_manifest.py` read `raw_duck.bucket_objects` (newest B2 salem-data listing); `catalog_reconcile/run.py` reads the renamed dated inputs. `go test ./postgres ./activities` pass; live timing as metabase_ro: by name 0.83 s, by key 1 ms (a casevault key the old table lacked is found). Commit `3c76c260` (in `58c55d15`), proffer-worker deployment `bsz6uyyujegbncao8judw0ll` finished, worker log `universal import worker started`. Then `casebible/tools/catalog_rename_20261002.sql`: b2_objects -> raw_duck_superseded.b2_intake_objects_20260914 (530,070 rows), vault_objects -> raw_duck_superseded.vault_objects_20260916_0810_prededupe, vault_content_v0 -> raw_duck_superseded; registry rows updated. The scrambled-survey scripts' dependency is a new open item.
+
 ## Superseded or cancelled
 
 Replaced by a later owner decision; not done as written.
