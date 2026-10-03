@@ -24,12 +24,14 @@
 //       "no fake URLs, no banners" rule — never blank, never guessed, never a
 //       second network attempt at an invented path.
 // Byline: Claude Code · Opus 5 · 2026-09-20
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-03 (a PDF the media route serves gets an "Open" card, not "preview unavailable")
 "use client";
 
 import { AudioLines, Contact2, File, FileText, Image as ImageIcon, TriangleAlert, Video } from "lucide-react";
 import { useState } from "react";
 
 import { VCardPreview } from "@/components/sbv/vcard-preview";
+import { Button } from "@/components/ui/button";
 import { getProfferPreviewMediaUrl } from "@/lib/api-client";
 import type { MatterMode, ProfferPreviewAttachment } from "@/lib/shared/types";
 
@@ -114,6 +116,40 @@ function MetadataCard({
   );
 }
 
+/**
+ * A PDF the media route serves: a card with the file name, size and an "Open" link to the
+ * retained bytes (new tab). It replaces the "preview unavailable" metadata card, which was
+ * wrong for a PDF the media route does serve. No inline viewer is loaded until the reader
+ * opens the file.
+ */
+function PdfLinkCard({ attachment, url, variant }: { attachment: ProfferPreviewAttachment; url: string; variant: "compact" | "tile" }) {
+  const isTile = variant === "tile";
+  return (
+    <div
+      className={
+        isTile
+          ? "flex aspect-square w-full flex-col items-center justify-center gap-1.5 rounded-md border bg-muted/40 p-2 text-center"
+          : "flex w-full min-w-0 items-center gap-2 rounded-md border bg-muted/30 px-2 py-1.5 text-left"
+      }
+      data-testid="attachment-preview-pdf"
+      data-kind="pdf"
+    >
+      <FileText className={isTile ? "size-6 text-muted-foreground" : "size-4 shrink-0 text-muted-foreground"} aria-hidden="true" />
+      <span className={isTile ? "min-w-0" : "min-w-0 flex-1"}>
+        <span className="block truncate text-xs font-medium text-foreground">{attachment.filename ?? KIND_LABEL.pdf}</span>
+        <span className="block truncate text-[10px] text-muted-foreground">
+          {KIND_LABEL.pdf} · {byteLabel(attachment.byte_length)}
+        </span>
+      </span>
+      <Button asChild size="sm" variant="outline" className="h-6 shrink-0 px-2 text-[11px]">
+        <a href={url} target="_blank" rel="noopener noreferrer" data-testid="attachment-preview-pdf-open">
+          Open
+        </a>
+      </Button>
+    </div>
+  );
+}
+
 interface AttachmentPreviewProps {
   attachment: ProfferPreviewAttachment;
   previewHandle: string;
@@ -149,6 +185,10 @@ export function AttachmentPreview({ attachment, previewHandle, mode, variant = "
 
   if (kind === "vcard" && !isTile) {
     return <VCardPreview attachment={attachment} previewHandle={previewHandle} mode={mode} />;
+  }
+
+  if (kind === "pdf" && url) {
+    return <PdfLinkCard attachment={attachment} url={url} variant={variant} />;
   }
 
   if (!url || broken || (kind !== "image" && kind !== "video" && kind !== "audio")) {

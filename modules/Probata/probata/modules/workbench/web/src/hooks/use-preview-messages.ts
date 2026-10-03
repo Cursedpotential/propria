@@ -1,4 +1,5 @@
 // Byline: Claude Code · Opus 5 · 2026-09-20 (cursor-paged message rows for the Review message browser)
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-03 (table preview line capped at 300 characters)
 "use client";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -34,8 +35,14 @@ export interface PreviewMessageRow {
   missingPayloadCount: number;
 }
 
+/** Longest one-line preview a table cell is given; the full body stays on the row's `message`. */
+export const BODY_LINE_LIMIT = 300;
+
 function singleLine(body: string) {
-  return body.replace(/\s+/gu, " ").trim();
+  const line = body.slice(0, BODY_LINE_LIMIT * 4).replace(/\s+/gu, " ").trim();
+  return line.length > BODY_LINE_LIMIT || body.length > BODY_LINE_LIMIT * 4
+    ? `${line.slice(0, BODY_LINE_LIMIT)}…`
+    : line;
 }
 
 function timeLabel(sentAt: string | null | undefined) {

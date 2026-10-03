@@ -1,10 +1,13 @@
 // Byline: Claude Code · Opus 5 · 2026-09-20 (selection-driven message detail; no per-row detail button)
 // Byline: Claude Code · Opus 5.5 · 2026-09-26 ("Mark as event worth recalling" on the selected message; owner 2026-09-25)
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-03 (long bodies fold; an attachment-only message shows its attachment)
 "use client";
 
 import { MessageSquareText } from "lucide-react";
 
 import { MarkEventButton } from "@/components/entities/mark-event-button";
+import { AttachmentPreview } from "@/components/sbv/attachment-preview";
+import { CollapsibleText, DETAIL_TEXT_LIMIT } from "@/components/sbv/collapsible-text";
 import { Badge } from "@/components/ui/badge";
 import { ContextReviewPanel } from "@/components/review/context-review";
 import type { PreviewMessageRow } from "@/hooks/use-preview-messages";
@@ -48,7 +51,18 @@ export function MessageDetailPanel({ row, participants, previewHandle, mode }: M
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.body || "(no message body)"}</p>
+        {message.body ? (
+          <CollapsibleText text={message.body} limit={DETAIL_TEXT_LIMIT} className="whitespace-pre-wrap break-words text-sm leading-6" />
+        ) : (
+          <p className="text-sm text-muted-foreground">{message.attachments.length ? "(no text — attachment only)" : "(no message body)"}</p>
+        )}
+        {message.attachments.length > 0 && (
+          <div className="mt-3 space-y-1.5" data-testid="message-detail-attachments">
+            {message.attachments.map((attachment) => (
+              <AttachmentPreview key={attachment.attachment_id} attachment={attachment} previewHandle={previewHandle} mode={mode} />
+            ))}
+          </div>
+        )}
         {/* Byline: Claude Code · Opus 5.5 · 2026-09-26 — context review for the selected message (owner 2026-09-25). */}
         <div className="-mx-4 mt-3">
           <ContextReviewPanel key={message.message_id} previewHandle={previewHandle} mode={mode} messageId={message.message_id} />

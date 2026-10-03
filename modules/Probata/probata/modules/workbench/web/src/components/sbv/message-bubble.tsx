@@ -9,10 +9,12 @@
 // (see use-preview-messages.ts, "self" display name convention); the highlighted/
 // deep-linked message ring and audio-full-width special case were carried over.
 // Byline: Claude Code · Opus 5 · 2026-09-20
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-03 (long bodies fold behind "Show more")
 "use client";
 
 import { NumberIdentity } from "@/components/identity/number-status";
 import { AttachmentPreview } from "@/components/sbv/attachment-preview";
+import { BUBBLE_TEXT_LIMIT, CollapsibleText } from "@/components/sbv/collapsible-text";
 import type { PreviewMessageRow } from "@/hooks/use-preview-messages";
 import type { MatterMode } from "@/lib/shared/types";
 import { cn } from "@/lib/utils";
@@ -46,7 +48,12 @@ export function MessageBubble({ row, previewHandle, mode, showSenderLabel, highl
           )}
         >
           {message.body && (
-            <div className="whitespace-pre-wrap break-words text-sm leading-5">{message.body}</div>
+            <CollapsibleText
+              text={message.body}
+              limit={BUBBLE_TEXT_LIMIT}
+              className="whitespace-pre-wrap break-words text-sm leading-5"
+              toggleClassName={isSent ? "text-primary-foreground underline" : undefined}
+            />
           )}
           {message.attachments.length > 0 && (
             <div className="mt-1.5 space-y-1.5">
