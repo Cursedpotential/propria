@@ -60,14 +60,24 @@ services:
       PLATFORM_ADMIN_FULL_NAME: "Platform Admin"
       MCPGATEWAY_UI_ENABLED: "true"
       MCPGATEWAY_ADMIN_API_ENABLED: "true"
-      # Rate limits (Claude Code · Opus 5.5 · 2026-10-02, owner 08:33 "get rid of the lockout").
-      # Every agent, session, Codex and LibreChat share one client token and mostly one tailnet
-      # address, so the defaults (MCP 100/min, burst 20; 5 violations -> 15-minute lockout of the
-      # whole account) locked every client out at once on 2026-10-02. Login/admin tiers keep
-      # their own strict defaults; the public route still requires the token.
+      # Rate limits (ContextForge v1.0.4 RateLimitMiddleware; behaviour checked against the v1.0.4 source).
+      # The limiter keeps a sliding 60-second window per tier and counts it separately for the client
+      # IP, the user and the team; a request gets 429 when ANY of the three is over the tier's limit.
+      # Every agent, Claude Code session, Codex thread and LibreChat sends one shared client token
+      # (one user) from one or two source IPs, so they all fill the same buckets. `/servers/<id>/mcp`,
+      # `/mcp`, `/tools`, `/prompts`, `/resources` and `/gateways` are the MEDIUM tier. Login (CRITICAL,
+      # 10/min) and token/admin (HIGH, 30/min) keep their strict defaults; the route still needs the token.
+      # 2026-10-02 08:14-08:29 EDT: the default MEDIUM 100/min plus lockout (5 violations -> 15-minute
+      # lock of the whole account) answered 234 requests with 429, and every Claude Code session that
+      # started then kept its six ContextForge connectors dead until restarted, because Claude Code does
+      # not retry a failed MCP server. Lockout is off (owner 08:33 "get rid of the lockout") and no 429
+      # has been returned since the 08:34 deploy.
+      # Sizing: one Claude Code start costs ~56 requests, one Codex start ~21, and the busiest 60 s ever
+      # measured is 187 (a full app restart). 6000/min is ~7x a minute in which all 9 Claude sessions and
+      # all 13 Codex threads open today start together (~800) and ~32x the measured peak.
+      # RATE_LIMIT_MEDIUM_BURST is not set: v1.0.4 reads only the tier's rpm and ignores burst.
       RATE_LIMIT_LOCKOUT_ENABLED: "false"
-      RATE_LIMIT_MEDIUM_RPM: "1200"
-      RATE_LIMIT_MEDIUM_BURST: "200"
+      RATE_LIMIT_MEDIUM_RPM: "6000"
       SECURE_COOKIES: "false"
       CSRF_ENABLED: "false"                          # 1.0.x CSRF -> CSRF_TOKEN_INVALID for header-token API clients; tailnet-only + Bearer auth
       PASSWORD_CHANGE_ENFORCEMENT_ENABLED: "false"    # 1.0.x forces admin password change on first login (403)
@@ -110,3 +120,5 @@ networks:
 # Byline: Claude Code · Sonnet · 2026-07-19 (split out of compose.exec.yaml, exec-tier split, owner order 2026-07-19)
 # Byline: Claude Code · Fable 5 · 2026-08-03 (password-policy relax: PASSWORD_POLICY_ENABLED=false + MIN_LENGTH_PRIVILEGED=10 + MAX_AGE_DAYS=36500, so the owner-chosen admin password can be set via /auth/email/change-password)
 # Byline: Codex · GPT-5 · 2026-08-16 (held PostgreSQL cutover contract; SQLite preserved for migration/rollback only)
+# Byline: Claude Code · Opus 5.5 · 2026-10-02 (rate limit: lockout off, MEDIUM 1200/min; owner 08:33 "get rid of the lockout")
+# Byline: Claude Code · Sonnet · 2026-10-03 (rate limit sized from measured load: MEDIUM 6000/min; ignored BURST setting removed; comment corrected to the v1.0.4 behaviour)
