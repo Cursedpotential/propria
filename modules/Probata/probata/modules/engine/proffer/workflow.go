@@ -756,6 +756,29 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		}
 	}
 
+	// Conversation chunks and call-log files, BEFORE the preview and the owner's decision (owner 2026-10-02:
+	// everything goes to Weaviate first, so it is searchable before review and before the Postgres commit). They are
+	// cut from this run's normalized generation, not from working.*: every id a chunk carries is a normalized record
+	// id, which the first-party import copies unchanged into working.message, so nothing is rewritten after the
+	// commit. Conversations are grouped as the import groups them, and a message the match-up found already held by an
+	// earlier source is left to that source's chunks. A rejected run leaves its chunks exactly as it leaves its other
+	// search objects (they carry ingest_run_id and the generation id; nothing marks or removes them today).
+	// A failure stops the run here, before the preview, with the Activity's own reason; every write is idempotent.
+	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	if chunksOn && contextChunkingInput == nil {
+		summary, err := r.execContextChunks(ctx, ContextChunksTarget{
+			SourceVersionID: string(r.sourceVersionRef), NormalizedGenerationID: string(normalizedGenerationRef),
+			ParticipantResolutionID: string(resolutionRefs["participant_resolution"]), MessageMatchesID: string(messageMatchRef),
+		})
+		if err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+		workflow.GetLogger(ctx).Info("conversation chunks published", "threads", summary.Threads, "chunks", summary.Chunks,
+			"stale_deleted", summary.StaleDeleted, "embed_requests", summary.EmbedRequests,
+			"call_files", summary.CallFiles, "calls", summary.Calls)
+	}
+
 	// The browser-facing preview is projected only after normalized validation
 	// and, when selected, the sealed non-messaging chunk generation exist.
 	// Publishing it before the human hold removes the former circular wait:
@@ -887,26 +910,6 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		if _, err := r.exec(ctx, stagegraph.CommitCallLog, in.DeclaredFormat, callRefs); err != nil {
 			r.operation.Reason = err.Error()
 			return r.result(""), err
-		}
-	}
-
-	// Conversation chunks and call-log files, after the commit (owner 2026-10-02): the committed threads are chunked
-	// (Chonkie Neural distilbert, every chunk overlapping the next by at least two messages), embedded and written to
-	// ProfferChunks20261002 with their Postgres message ids; each call-log file becomes one entry. A failure stops the
-	// run before the seal with the Activity's own reason; every write is idempotent, so a re-run repairs it.
-	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
-	if chunksOn {
-		chunkThreads := firstPartyContext && r.lastStatus(stagegraph.ProposeFirstPartyContext) == StatusSuccess
-		chunkCalls := r.lastStatus(stagegraph.CommitCallLog) == StatusSuccess
-		if chunkThreads || chunkCalls {
-			summary, err := r.execContextChunks(ctx, string(r.sourceVersionRef), chunkThreads, chunkCalls)
-			if err != nil {
-				r.operation.Reason = err.Error()
-				return r.result(""), err
-			}
-			workflow.GetLogger(ctx).Info("conversation chunks published", "threads", summary.Threads, "chunks", summary.Chunks,
-				"stale_deleted", summary.StaleDeleted, "embed_requests", summary.EmbedRequests,
-				"call_files", summary.CallFiles, "calls", summary.Calls)
 		}
 	}
 

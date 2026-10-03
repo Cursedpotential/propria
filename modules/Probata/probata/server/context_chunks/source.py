@@ -221,7 +221,8 @@ class PgSource:
                 Message(
                     id=r["id"],
                     at=at,
-                    sender=name,
+                    sender=(r["sender_raw"] or "").strip(),
+                    sender_name=name,
                     body=r["body"] or "",
                     source_version_id=r["svid"],
                     sender_entity_id=sender_entity,

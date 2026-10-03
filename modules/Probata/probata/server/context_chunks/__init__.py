@@ -19,3 +19,31 @@ One unit, one job (the ATOMICITY section of the repository AGENTS.md):
 ``server/temporal/chunk_activities.py`` wraps service.py as three Temporal Activities on queue
 ``evidence-pipeline``; the Go ProfferWorkflow calls them after the first-party threads are committed.
 """
+
+# The public API other systems import (the Super Index / CocoIndex flow for the Case Bible, and Proffer). Everything else in
+# this package is Proffer's own wiring. These names are stable: change one and the shared test vector
+# (tests/test_context_chunks.py::test_the_shared_chunk_key_vector) fails on purpose.
+from server.context_chunks.chunker import chunk_spans, chunker_version
+from server.context_chunks.config import DEFAULT_CHUNKER, DEFAULT_OVERLAP
+from server.context_chunks.ids import (
+    CHUNK_NAMESPACE,
+    chunk_content_hash,
+    chunk_key,
+    chunk_text,
+    content_chunk_id,
+)
+from server.context_chunks.render import nim_input, render_line
+
+__all__ = [
+    "CHUNK_NAMESPACE",
+    "DEFAULT_CHUNKER",
+    "DEFAULT_OVERLAP",
+    "chunk_content_hash",
+    "chunk_key",
+    "chunk_spans",
+    "chunk_text",
+    "chunker_version",
+    "content_chunk_id",
+    "nim_input",
+    "render_line",
+]

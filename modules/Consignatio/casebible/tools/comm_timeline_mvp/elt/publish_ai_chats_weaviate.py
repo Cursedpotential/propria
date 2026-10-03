@@ -42,11 +42,6 @@ KEY = os.environ["NVIDIA_API_KEY"]
 BATCH = int(os.environ.get("BATCH", "64"))
 PHASE = os.environ.get("PHASE", "owner_priority")
 RUN = os.environ.get("INGEST_RUN_ID", "aichat-20260919")
-# Owner 2026-10-02: new loads publish conversation CHUNKS, not one object per turn. The chunk collection for AI chats
-# is a name the owner approves ("from now on i approve collection names"), so there is no default: set
-# CHUNK_COLLECTION=<approved name> to publish chunks (chunk_publish.py, corpus ai_chat; every turn of a conversation,
-# PHASE is ignored because a chunk needs the turns around it). Without it the per-turn path below runs as before.
-CHUNK_COLLECTION = os.environ.get("CHUNK_COLLECTION", "")
 TERMS = os.environ.get("TERMS", "/terms/terms.json")
 CHUNK = int(os.environ.get("CHUNK_CHARS", "4000"))
 NS = uuid.UUID("6f1d3a52-1c7e-4b8e-9a51-2d0e3c9b7a18")   # same namespace as the messaging loader
@@ -166,54 +161,7 @@ WHERE = {
 }
 
 
-def main_chunked() -> int:
-    """Chunked AI-chat load: every non-empty turn, grouped by (vault_key, conversation_id) in turn order."""
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # chunk_publish.py sits one up
-    import chunk_publish as cp  # noqa: PLC0415  needs the Probata chunk core on PYTHONPATH (its docstring)
-
-    con = duckdb.connect(WORK, read_only=True)
-    cur = con.execute("""
-        select vault_key, sha1, catalog_path, source_format, conversation_id, conversation_title, turn_index,
-               speaker, body, event_ts_utc, ts_original
-        from ai_turns where length(trim(coalesce(body,''))) > 0
-        order by vault_key, conversation_id, turn_index""")
-    cols = [d[0] for d in cur.description]
-    c = httpx.Client(timeout=180)
-    store = cp.make_store(c, WV, CHUNK_COLLECTION)
-    embedder = cp.make_embedder(c, KEY, MODEL, NIM.rsplit("/embeddings", 1)[0], BATCH)
-    totals = {"conversations": 0, "chunks": 0, "skipped_current": 0, "retired": 0}
-    t0, file_rows, current = time.time(), [], None
-
-    def flush_file():
-        nonlocal file_rows
-        if file_rows:
-            got = cp.publish_file(store, embedder, file_rows, run_id=RUN, batch=BATCH, corpus="ai_chat")
-            for k in totals:
-                totals[k] += got[k]
-            print(f"{got} key=...{file_rows[0]['vault_key'][-70:]}", flush=True)
-        file_rows = []
-
-    while rows := cur.fetchmany(5000):
-        for row in rows:
-            r = dict(zip(cols, row))
-            if current is not None and r["vault_key"] != current:
-                flush_file()
-            current = r["vault_key"]
-            dk = "ai:" + hashlib.sha256("|".join([r["sha1"] or "", r["conversation_id"] or "", str(r["turn_index"])]).encode()).hexdigest()
-            file_rows.append({"dedup_key": dk, "content_key": "", "record_index": int(r["turn_index"] or 0),
-                              "event_ts_utc": r["event_ts_utc"], "sort_ts_final": None, "conversation_id": r["conversation_id"],
-                              "conversation_title": r["conversation_title"], "participants": [], "sender": r["speaker"],
-                              "body": r["body"], "attachments": None, "event_kind": "ai_turn", "direction": "",
-                              "vault_key": r["vault_key"], "sha1": r["sha1"], "catalog_rel": r["catalog_path"],
-                              "source_format": r["source_format"], "platform": "ai_chat", "custodian": "", "source_device": ""})
-    flush_file()
-    print(f"PUBLISH DONE chunked into {CHUNK_COLLECTION} {totals} embed_requests={embedder.calls} secs={time.time()-t0:.0f}", flush=True)
-    return 0
-
-
 def main() -> int:
-    if CHUNK_COLLECTION:
-        return main_chunked()
     con = duckdb.connect(WORK, read_only=True)
     cur = con.execute(f"""
         select vault_key, sha1, catalog_path, zip_member_path, catalog_modtime_hint, extractor,

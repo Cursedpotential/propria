@@ -6,7 +6,7 @@
 #               build_timeline_generation_activity — the projection step the Go
 #               extraction_commit_workflow (modules/engine/extraction/flow/workflows.go,
 #               DefaultProjectionTaskQueue) schedules on this queue, and the conversation-chunk
-#               Activities the Go ProfferWorkflow schedules after the first-party threads commit
+#               Activities the Go ProfferWorkflow schedules BEFORE the preview, from the run's normalized generation
 #               (modules/engine/proffer/context_chunks.go): chunk_context_threads_activity,
 #               publish_context_chunks_activity, publish_call_log_files_activity.
 # Without this app that queue has no poller and the projection step and the chunk step time out.
@@ -65,6 +65,9 @@ services:
       # code default; the worker creates it when absent (additive schema only afterwards).
       CONTEXT_CHUNKS_WEAVIATE_URL: ${CONTEXT_CHUNKS_WEAVIATE_URL:-http://100.91.190.107:8082}
       CONTEXT_CHUNKS_COLLECTION: ProfferChunks20261002
+      # A chunk the Super Index (CocoIndex) already cut and embedded is copied with its vectors when its content key
+      # matches (server/context_chunks/ids.chunk_content_key). Absent collection = no reuse.
+      CONTEXT_CHUNKS_REUSE_COLLECTION: CaseBibleChunks20261002
       CONTEXT_CHUNKS_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
     command:
       - sh

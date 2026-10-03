@@ -16,11 +16,13 @@ from io_utils import B2, Postgres, records, sha256_file, write_records
 
 SOURCES = {
     "occurrences": "SELECT * FROM raw_duck.intake_catalog_fs_20260917",
-    "b2_legacy": "SELECT * FROM raw_duck.b2_objects",
-    "hash_bridge": "SELECT c.md5,c.size,c.b2_key,b.sha1 FROM raw_duck.b2_content c LEFT JOIN raw_duck.b2_objects b ON b.key=c.b2_key AND b.size=c.size",
-    "legacy_version_ids": "SELECT key,size,b2_id,md5 FROM raw_duck.vault_objects WHERE sha1 IS NULL OR sha1 !~ '^[0-9A-Fa-f]{40}$'",
+    # 2026-10-02 (Claude Code · Opus 5.5): the dated legacy inputs were renamed/moved so their names say what they
+    # hold (owner 19:04); same rows, so a rerun of this generation reads exactly what it read on 09-20.
+    "b2_legacy": "SELECT * FROM raw_duck_superseded.b2_intake_objects_20260914",
+    "hash_bridge": "SELECT c.md5,c.size,c.b2_key,b.sha1 FROM raw_duck.b2_content c LEFT JOIN raw_duck_superseded.b2_intake_objects_20260914 b ON b.key=c.b2_key AND b.size=c.size",
+    "legacy_version_ids": "SELECT key,size,b2_id,md5 FROM raw_duck_superseded.vault_objects_20260916_0810_prededupe WHERE sha1 IS NULL OR sha1 !~ '^[0-9A-Fa-f]{40}$'",
     "r2_occurrences": "SELECT * FROM raw_duck.r2_files",
-    "alternative_route": "SELECT v.md5,v.size,v.canonical_key,k.dest_key FROM raw_duck.vault_content_v0 v JOIN raw_duck.vault_keep_v7 k ON k.canonical_key=v.canonical_key AND k.size=v.size",
+    "alternative_route": "SELECT v.md5,v.size,v.canonical_key,k.dest_key FROM raw_duck_superseded.vault_content_v0 v JOIN raw_duck.vault_keep_v7 k ON k.canonical_key=v.canonical_key AND k.size=v.size",
     "recovery_manifest": "SELECT * FROM raw_duck.recovery_manifest_20260917",
     "recovery_quality": "SELECT * FROM raw_duck.recovery_integrity_20260916",
     "atomic_units": "SELECT * FROM raw_duck.atomic_units",

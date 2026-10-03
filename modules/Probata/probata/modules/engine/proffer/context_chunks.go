@@ -1,11 +1,12 @@
 package proffer
 
-// Conversation chunks for Weaviate, after the first-party threads are committed.
+// Conversation chunks for Weaviate, published BEFORE the preview and the owner's decision.
 //
 // Owner rules 2026-10-02: Postgres holds every single message and is the record of truth. Weaviate holds only
 // conversation CHUNKS, never one entry per message; each chunk links back to the Postgres message ids it covers.
 // Calls are one Weaviate entry per call-log FILE; the individual calls stay in Postgres. The Go engine orchestrates:
-// this file schedules three Activities on the Python worker's task queue, the same way the extraction commit workflow
+// everything goes to Weaviate first (owner 2026-10-02), so the chunks are cut from the run's normalized generation, not
+// from the committed working.* tables. This file schedules three Activities on the Python worker's task queue, the same way the extraction commit workflow
 // (extraction/flow/workflows.go) schedules build_timeline_generation_activity:
 //
 //	chunk_context_threads_activity    CHUNK   the threads the source version touched -> per-thread plans
@@ -59,6 +60,30 @@ type ChunkThreadsRequest struct {
 	SourceVersionID string `json:"source_version_id"`
 	Chunker         string `json:"chunker,omitempty"`
 	Overlap         int    `json:"overlap,omitempty"`
+	// The run's normalized generation, its participant resolution and message match-up receipts: references the
+	// Activity reads Postgres by. The resolution decides each conversation's corpus; the match-up names the messages an
+	// earlier source already holds.
+	NormalizedGenerationID  string `json:"normalized_generation_id,omitempty"`
+	ParticipantResolutionID string `json:"participant_resolution_id,omitempty"`
+	MessageMatchesID        string `json:"message_matches_id,omitempty"`
+	// ThreadRefs names committed threads to chunk (the re-chunk of what working.* already holds), instead of a
+	// generation.
+	ThreadRefs []ContextThreadSelector `json:"thread_refs,omitempty"`
+}
+
+// ContextThreadSelector names one committed thread.
+type ContextThreadSelector struct {
+	Corpus   string `json:"corpus"`
+	ThreadID string `json:"thread_id"`
+}
+
+// ContextChunksTarget is what the chunk step runs over: the run's source version and normalized generation, and the
+// receipts that qualify it. ParticipantResolutionID and MessageMatchesID may be empty (a calls-only generation).
+type ContextChunksTarget struct {
+	SourceVersionID         string
+	NormalizedGenerationID  string
+	ParticipantResolutionID string
+	MessageMatchesID        string
 }
 
 // ChunkThreadPlan is one thread's chunking: inclusive [first, last] message indexes in thread order and a digest
@@ -84,25 +109,34 @@ type ChunkThreadsResult struct {
 
 // PublishChunksRequest is one thread's embed-and-publish input: the plan the chunk Activity returned.
 type PublishChunksRequest struct {
-	RequestID string          `json:"request_id"`
-	Plan      ChunkThreadPlan `json:"plan"`
+	RequestID               string          `json:"request_id"`
+	Plan                    ChunkThreadPlan `json:"plan"`
+	NormalizedGenerationID  string          `json:"normalized_generation_id,omitempty"`
+	ParticipantResolutionID string          `json:"participant_resolution_id,omitempty"`
+	MessageMatchesID        string          `json:"message_matches_id,omitempty"`
 }
 
 // PublishChunksResult is one thread's outcome.
 type PublishChunksResult struct {
-	Corpus          string `json:"corpus"`
-	ThreadID        string `json:"thread_id"`
-	ChunksWritten   int    `json:"chunks_written"`
-	StaleDeleted    int    `json:"stale_deleted"`
-	EmbedTexts      int    `json:"embed_texts"`
-	EmbedRequests   int    `json:"embed_requests"`
-	SkippedExisting bool   `json:"skipped_existing"`
+	Corpus        string `json:"corpus"`
+	ThreadID      string `json:"thread_id"`
+	ChunksWritten int    `json:"chunks_written"`
+	StaleDeleted  int    `json:"stale_deleted"`
+	EmbedTexts    int    `json:"embed_texts"`
+	// Reused counts chunks whose object and vectors were copied from another collection (same content key) instead of
+	// being embedded again.
+	Reused          int  `json:"reused"`
+	EmbedRequests   int  `json:"embed_requests"`
+	SkippedExisting bool `json:"skipped_existing"`
 }
 
 // PublishCallLogFilesRequest is the call-log publish input.
 type PublishCallLogFilesRequest struct {
-	RequestID       string `json:"request_id"`
-	SourceVersionID string `json:"source_version_id"`
+	RequestID               string `json:"request_id"`
+	SourceVersionID         string `json:"source_version_id"`
+	NormalizedGenerationID  string `json:"normalized_generation_id,omitempty"`
+	ParticipantResolutionID string `json:"participant_resolution_id,omitempty"`
+	MessageMatchesID        string `json:"message_matches_id,omitempty"`
 }
 
 // PublishCallLogFilesResult counts the call-log files written (one entry each) and the calls they cover.
@@ -167,18 +201,22 @@ func chunkActivityOptions(startToClose time.Duration) workflow.ActivityOptions {
 	}
 }
 
-// execContextChunks chunks and publishes the threads the source version touched, then the call-log files.
-// Threads and calls are independent: either may be switched off by the caller.
-func (r *run) execContextChunks(ctx workflow.Context, sourceVersionID string, threads, calls bool) (ContextChunksSummary, error) {
+// execContextChunks chunks and publishes the generation's conversations, then its call-log file. A generation with
+// no message and no call yields no thread and no file, which is an empty success, not an error.
+func (r *run) execContextChunks(ctx workflow.Context, target ContextChunksTarget) (ContextChunksSummary, error) {
 	var summary ContextChunksSummary
-	if strings.TrimSpace(sourceVersionID) == "" {
-		return summary, fmt.Errorf("proffer: conversation chunks need the run's source version id")
+	sourceVersionID := target.SourceVersionID
+	if strings.TrimSpace(sourceVersionID) == "" || strings.TrimSpace(target.NormalizedGenerationID) == "" {
+		return summary, fmt.Errorf("proffer: conversation chunks need the run's source version id and normalized generation id")
 	}
-	if threads {
+	{
 		r.markStageStarted(ChunkContextThreadsActivityName)
 		var plan ChunkThreadsResult
 		err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(4*time.Hour)),
-			ChunkContextThreadsActivityName, ChunkThreadsRequest{RequestID: r.requestID, SourceVersionID: sourceVersionID}).Get(ctx, &plan)
+			ChunkContextThreadsActivityName, ChunkThreadsRequest{
+				RequestID: r.requestID, SourceVersionID: sourceVersionID, NormalizedGenerationID: target.NormalizedGenerationID,
+				ParticipantResolutionID: target.ParticipantResolutionID, MessageMatchesID: target.MessageMatchesID,
+			}).Get(ctx, &plan)
 		r.markStageSettled(ChunkContextThreadsActivityName)
 		if err != nil {
 			return summary, fmt.Errorf("proffer: %s: %w", ChunkContextThreadsActivityName, err)
@@ -194,7 +232,10 @@ func (r *run) execContextChunks(ctx workflow.Context, sourceVersionID string, th
 			futures := make([]workflow.Future, 0, end-start)
 			for _, thread := range plan.Threads[start:end] {
 				futures = append(futures, workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(3*time.Hour)),
-					PublishContextChunksActivityName, PublishChunksRequest{RequestID: r.requestID, Plan: thread}))
+					PublishContextChunksActivityName, PublishChunksRequest{
+						RequestID: r.requestID, Plan: thread, NormalizedGenerationID: target.NormalizedGenerationID,
+						ParticipantResolutionID: target.ParticipantResolutionID, MessageMatchesID: target.MessageMatchesID,
+					}))
 			}
 			var firstErr error
 			for index, future := range futures {
@@ -217,11 +258,14 @@ func (r *run) execContextChunks(ctx workflow.Context, sourceVersionID string, th
 		}
 		r.markStageSettled(PublishContextChunksActivityName)
 	}
-	if calls {
+	{
 		r.markStageStarted(PublishCallLogFilesActivityName)
 		var result PublishCallLogFilesResult
 		err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(time.Hour)),
-			PublishCallLogFilesActivityName, PublishCallLogFilesRequest{RequestID: r.requestID, SourceVersionID: sourceVersionID}).Get(ctx, &result)
+			PublishCallLogFilesActivityName, PublishCallLogFilesRequest{
+				RequestID: r.requestID, SourceVersionID: sourceVersionID, NormalizedGenerationID: target.NormalizedGenerationID,
+				ParticipantResolutionID: target.ParticipantResolutionID, MessageMatchesID: target.MessageMatchesID,
+			}).Get(ctx, &result)
 		r.markStageSettled(PublishCallLogFilesActivityName)
 		if err != nil {
 			return summary, fmt.Errorf("proffer: %s: %w", PublishCallLogFilesActivityName, err)

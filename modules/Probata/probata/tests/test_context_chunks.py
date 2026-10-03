@@ -118,6 +118,9 @@ class FakeStore:
         self.ensured += 1
         return []
 
+    def vector_names(self):
+        return ["text_nim"]
+
     def upsert(self, objects):
         for o in objects:
             self.objects[o["id"]] = o
@@ -744,12 +747,11 @@ def test_pgsource_names_senders_and_participants_and_builds_call_file_lines():
     thread = source.load_thread(ThreadRef("acquired_third_party", "conv-1"))
     assert thread.matter_id == "matter-1" and [m.id for m in thread.messages] == ["m1", "m2"]
     first, second = thread.messages
-    assert (
-        first.sender == "Katrina Kinzel" and first.sender_entity_id == "e-k"
-    )  # the number resolved through the registry
-    assert second.sender == "Matthew S. Salem" and second.body == ""
+    # the sender is what the source stated (it is in the embedded text); the registry's name rides along as a property
+    assert first.sender == "+18102959303" and first.sender_name == "Katrina Kinzel" and first.sender_entity_id == "e-k"
+    assert second.sender == "Matt Salem" and second.sender_name == "Matthew S. Salem" and second.body == ""
     assert set(first.participant_names) == {"Katrina Kinzel", "Device owner"} and "e-m" in first.participant_entity_ids
-    assert render_line(first.at, first.sender, first.body) == "[2024-04-14 15:23] Katrina Kinzel: hello there"
+    assert render_line(first.at, first.sender, first.body) == "[2024-04-14 15:23] +18102959303: hello there"
     calls = source.load_call_file("sv-calls")
     assert calls.call_ids == ["c1", "c2"] and calls.matter_id == "matter-1"
     assert calls.lines == [
@@ -823,44 +825,14 @@ def test_rechunk_dry_run_reports_threads_messages_chunks_embed_calls_and_writes_
     assert estimate["basis"].startswith("estimate") and estimate["chunks"] >= 4
 
 
-def test_rechunk_run_chunks_embeds_resumes_and_survives_one_bad_thread():
-    from server.context_chunks.rechunk import run
-
-    source = _multi_source()
-    source.threads[ThreadRef(CORPUS_FIRST_PARTY, "boom")] = make_thread(3, "boom")
-    store, emb = FakeStore(), FakeEmbedder()
-    totals = run(source, store, emb, "test_every5", 2, [], force=False, calls=True, limit=0)  # type: ignore[arg-type]
-    assert totals["failed"] == 1 and totals["threads"] == 4 and totals["chunks"] == 14
-    assert {
-        o["properties"]["thread_id"]
-        for o in store.objects.values()
-        if o["properties"]["record_kind"] == "conversation_chunk"
-    } == {"a", "b", "c", "t3"}
-    assert totals["call_files"] == {"files": 1, "calls": 1}
-    calls_before = emb.calls
-    again = run(source, store, emb, "test_every5", 2, [], force=False, calls=False, limit=0)  # type: ignore[arg-type]
-    assert again["skipped_existing"] == 4 and emb.calls == calls_before  # a restarted run embeds nothing it already has
-    only = run(
-        source,
-        FakeStore(),
-        FakeEmbedder(),
-        "test_every5",
-        2,
-        [ThreadRef(CORPUS_FIRST_PARTY, "a")],
-        force=True,
-        calls=False,
-        limit=0,
-    )  # type: ignore[arg-type]
-    assert only["threads"] == 1 and only["chunks"] == 3
-
-
 # ------------------------------------------------------------------ the owner-run removal of the per-message objects
 class _ListStore:
     def __init__(self, objects):
         self.objects, self.deleted = objects, []
 
     def iter_objects(self, properties, *, page=500):
-        yield from self.objects
+        for o in self.objects:  # like the real store: every requested property, None when absent
+            yield {**dict.fromkeys(properties), **o}
 
     def count(self, where):
         return sum(1 for o in self.objects if o["record_kind"] == where["operands"][1]["valueText"])
@@ -887,8 +859,14 @@ def test_removal_verifies_chunk_coverage_before_it_deletes_anything():
                 "thread_id": "a",
                 "message_ids": ["a0000", "a0001", "a0002"],
             },
-            {"id": "c2", "record_kind": "conversation_chunk", "thread_id": "a", "message_ids": ["a0002", "a0003"]},
-            {"id": "f1", "record_kind": "call_log_file", "call_log_ids": ["call-1"]},
+            {
+                "id": "c2",
+                "record_kind": "conversation_chunk",
+                "normalized_record_ids": [],
+                "thread_id": "a",
+                "message_ids": ["a0002", "a0003"],
+            },
+            {"id": "f1", "record_kind": "call_log_file", "normalized_record_ids": [], "call_log_ids": ["call-1"]},
         ]
     )
     old = _ListStore(
@@ -907,3 +885,81 @@ def test_removal_verifies_chunk_coverage_before_it_deletes_anything():
     gap = verify(source, chunks, old)  # type: ignore[arg-type]
     assert not gap["verified"] and gap["uncovered_pg_messages"] == 1 and gap["threads_with_uncovered_messages"] == 1
     assert gap["_uncovered_ids"]["message"] == ["o2", "o4"]
+
+
+def test_list_threads_can_leave_out_what_chunks_already_cover():
+    from server.context_chunks.rechunk import list_threads
+
+    source = _multi_source()
+    source.thread_message_ids = lambda ref: [m.id for m in source.threads[ref].messages]  # type: ignore[attr-defined]
+    everything, calls = list_threads(source)  # type: ignore[arg-type]
+    assert [t["thread_id"] for t in everything] == ["t3", "a", "b", "c"] and calls == ["sv-a"]
+    covered = {m.id for m in source.threads[ThreadRef(CORPUS_FIRST_PARTY, "b")].messages}
+    rest, _ = list_threads(source, covered=covered)  # type: ignore[arg-type]
+    assert [t["thread_id"] for t in rest] == ["t3", "a", "c"]
+    assert [t["thread_id"] for t in list_threads(source, limit=2)[0]] == ["t3", "a"]  # type: ignore[arg-type]
+
+
+def test_removal_refuses_an_unverified_collection_and_counts_in_a_dry_run():
+    from server.context_chunks.remove_per_message import NotVerified, remove
+
+    def stores(extra_old=()):
+        source = _MultiSource({ThreadRef(CORPUS_FIRST_PARTY, "a"): make_thread(2, "a", prefix="a")})
+        source.thread_message_ids = lambda ref: ["a0000", "a0001"]  # type: ignore[method-assign]
+        chunks = _ListStore([{"id": "c1", "record_kind": "conversation_chunk", "message_ids": ["a0000", "a0001"]}])
+        old = _ListStore(
+            [
+                {"id": "o1", "record_kind": "message", "pg_row_id": "a0000", "origin_system": "probata"},
+                {"id": "o2", "record_kind": "message", "pg_row_id": "a0001", "origin_system": "probata"},
+                *extra_old,
+            ]
+        )
+        return source, chunks, old
+
+    source, chunks, old = stores()
+    dry = remove(source, chunks, old, dry_run=True)  # type: ignore[arg-type]
+    assert (
+        dry["verified"] and dry["deleted"] == {"message": 2, "call": 0} and old.deleted == []
+    )  # a dry run deletes nothing
+    done = remove(source, chunks, old, dry_run=False)  # type: ignore[arg-type]
+    assert done["deleted"]["message"] == 2 and old.deleted == ["message", "call"]
+    source, chunks, old = stores(
+        [{"id": "o3", "record_kind": "message", "pg_row_id": "gone", "origin_system": "probata"}]
+    )
+    with pytest.raises(NotVerified):
+        remove(source, chunks, old, dry_run=False)  # type: ignore[arg-type]
+    assert old.deleted == []
+    partial = remove(source, chunks, old, dry_run=False, only_covered=True)  # type: ignore[arg-type]
+    assert partial["kept_uncovered"]["message"] == 1 and partial["deleted"]["message"] == 2
+    assert "_uncovered_ids" not in partial
+
+
+def test_the_starter_builds_the_workflow_inputs_the_go_structs_decode():
+    from server.context_chunks.start import BACKFILL_WORKFLOW, REMOVAL_WORKFLOW, build_input, parser
+
+    name, workflow_id, body = build_input(
+        parser().parse_args(["rechunk", "--dry-run", "--exact", "--request-id", "x1"])
+    )
+    assert name == BACKFILL_WORKFLOW == "proffer_conversation_chunks_backfill_workflow" and workflow_id.endswith("x1")
+    assert body["dry_run"] is True and body["exact"] is True and body["request_id"] == "x1"
+    name, workflow_id, body = build_input(parser().parse_args(["remove", "--only-covered"]))
+    assert name == REMOVAL_WORKFLOW == "proffer_conversation_chunks_removal_workflow"
+    assert body["dry_run"] is False and body["only_covered"] is True and body["request_id"]
+
+
+def test_the_worker_registers_the_backfill_and_removal_activities_once_each():
+    pytest.importorskip("temporalio")
+    import inspect
+
+    from server.temporal import chunk_backfill_activities as ba
+    from server.temporal import worker
+
+    source = inspect.getsource(worker)
+    for fn in (
+        ba.list_context_threads_activity,
+        ba.estimate_context_chunks_activity,
+        ba.verify_chunk_coverage_activity,
+        ba.remove_per_message_objects_activity,
+    ):
+        assert source.count(f"                {fn.__name__},") == 1
+        assert fn.__temporal_activity_definition.name in ba.CHUNK_BACKFILL_ACTIVITY_NAMES

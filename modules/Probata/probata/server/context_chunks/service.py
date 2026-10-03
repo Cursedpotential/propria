@@ -45,8 +45,20 @@ class Embedder(Protocol):
     def embed(self, texts: list[str]) -> list[list[float]]: ...
 
 
+class ReuseSource(Protocol):
+    """Chunks cut elsewhere, found by content hash and chunker version, with their vectors (store.ChunkStore.find_by_content_hashes)."""
+
+    collection: str
+
+    def exists(self) -> bool: ...
+    def find_by_content_hashes(
+        self, hashes: list[str], chunker_version: str, vector_names: list[str]
+    ) -> dict[str, dict]: ...
+
+
 class Store(Protocol):
     def ensure_collection(self) -> list[str]: ...
+    def vector_names(self) -> list[str]: ...
     def upsert(self, objects: list[dict]) -> int: ...
     def delete_other_generations(self, thread_id: str, digest: str) -> int: ...
     def has_generation(self, thread_id: str, digest: str) -> bool: ...
@@ -60,6 +72,7 @@ class PublishResult:
     stale_deleted: int = 0
     embed_texts: int = 0
     skipped_existing: bool = False
+    reused: int = 0
 
 
 def thread_lines(thread: Thread) -> list[str]:
@@ -107,7 +120,34 @@ def plan_source_version(
     return plans
 
 
+def plan_threads(
+    source: Source,
+    refs: list[ThreadRef],
+    chunker: str = DEFAULT_CHUNKER,
+    overlap: int = DEFAULT_OVERLAP,
+    *,
+    beat: Heartbeat | None = None,
+) -> list[ThreadPlan]:
+    """The plans of the named threads (the re-chunk of what is committed names them one at a time)."""
+    plans = []
+    for ref in refs:
+        if beat:
+            beat(f"chunk {ref.corpus} {ref.thread_id}")
+        plans.append(plan_thread(source.load_thread(ref), chunker, overlap, beat=beat))
+    return plans
+
+
 # ------------------------------------------------------------------ EMBED + PUBLISH
+def _reusable(reuse: ReuseSource | None, objects: list[dict], vector_names: list[str]) -> dict[str, dict]:
+    """The chunks another collection already holds for these content keys, with EVERY vector this collection has (a
+    chunk missing one of them would leave a named vector empty here, so it is cut and embedded afresh instead)."""
+    if reuse is None or not objects or not vector_names or not reuse.exists():
+        return {}  # no such collection yet (the Case Bible's may not exist) is simply no reuse
+    return reuse.find_by_content_hashes(
+        [o["properties"]["content_hash"] for o in objects], objects[0]["properties"]["chunker_version"], vector_names
+    )
+
+
 def _iso(at: datetime | None) -> str | None:
     if at is None:
         return None
@@ -115,7 +155,13 @@ def _iso(at: datetime | None) -> str | None:
 
 
 def build_chunk_objects(
-    thread: Thread, plan: ThreadPlan, *, embed_model: str, now: datetime | None = None
+    thread: Thread,
+    plan: ThreadPlan,
+    *,
+    embed_model: str,
+    now: datetime | None = None,
+    generation_id: str = "",
+    run_id: str = "",
 ) -> list[dict]:
     """The chunk objects without vectors: id, properties (message ids etc.), text."""
     lines = thread_lines(thread)
@@ -126,16 +172,18 @@ def build_chunk_objects(
         first_id, last_id = members[0].id, members[-1].id
         times = [m.at for m in members if m.at is not None]
         entity_ids = [e for m in members for e in m.participant_entity_ids]
-        names = [n for m in members for n in m.participant_names]
+        names = [n for m in members for n in [m.sender_name, *m.participant_names]]
         properties: dict[str, Any] = {
             "text": "\n".join(lines[first : last + 1]),
             "record_kind": RECORD_KIND_CHUNK,
             "corpus": plan.corpus,
             "thread_id": plan.thread_id,
             "thread_digest": plan.digest,
+            "content_hash": ids.chunk_content_hash(lines[first : last + 1]),
             "first_message_id": first_id,
             "last_message_id": last_id,
             "message_ids": [m.id for m in members],
+            "normalized_record_ids": [m.id for m in members],
             "participant_entity_ids": _uniq(entity_ids),
             "participant_names": _uniq(names),
             "source_version_ids": _uniq([m.source_version_id or "" for m in members]),
@@ -149,6 +197,10 @@ def build_chunk_objects(
             "object_id_construction": ids.CHUNK_ID_CONSTRUCTION,
             "indexed_at": stamp,
         }
+        if generation_id:
+            properties["normalized_generation_id"] = generation_id
+        if run_id:
+            properties["ingest_run_id"] = run_id
         if thread.matter_id:
             properties["matter_id"] = thread.matter_id
         if times:
@@ -175,6 +227,9 @@ def publish_thread(
     beat: Heartbeat | None = None,
     resume: bool = True,
     batch: int = 32,
+    generation_id: str = "",
+    run_id: str = "",
+    reuse: ReuseSource | None = None,
 ) -> PublishResult:
     """Embed and publish one thread's chunks, then replace the thread's chunks of any other chunking.
 
@@ -188,20 +243,29 @@ def publish_thread(
     thread = source.load_thread(ThreadRef(plan.corpus, plan.thread_id))
     if ids.thread_digest(plan.thread_id, [m.id for m in thread.messages], plan.chunker_version) != plan.digest:
         raise PlanStale(f"thread {plan.thread_id} changed after it was chunked; chunk it again")
-    objects = build_chunk_objects(thread, plan, embed_model=embedder.model)
+    objects = build_chunk_objects(thread, plan, embed_model=embedder.model, generation_id=generation_id, run_id=run_id)
     store.ensure_collection()
+    reusable = _reusable(reuse, objects, store.vector_names() if reuse else [])
+    for o in objects:
+        hit = reusable.get(o["properties"]["content_hash"])
+        if hit:  # the same chunk was cut and embedded elsewhere: copy its vectors, do not embed again
+            o["vectors"] = hit["vectors"]
+            o["properties"]["reused_from_object_id"] = hit["id"]
+            o["properties"]["reused_from_collection"] = reuse.collection if reuse else ""
     for start in range(0, len(objects), batch):
         part = objects[start : start + batch]
-        vectors = embedder.embed([o["properties"]["text"] for o in part])
-        if len(vectors) != len(part):
-            raise RuntimeError(f"embedder returned {len(vectors)} vectors for {len(part)} chunks")
-        for o, v in zip(part, vectors, strict=True):
+        fresh = [o for o in part if "vectors" not in o]
+        vectors = embedder.embed([o["properties"]["text"] for o in fresh]) if fresh else []
+        if len(vectors) != len(fresh):
+            raise RuntimeError(f"embedder returned {len(vectors)} vectors for {len(fresh)} chunks")
+        for o, v in zip(fresh, vectors, strict=True):
             o["vector"] = v
+        result.reused += len(part) - len(fresh)
         written = store.upsert(part)
         if written != len(part):
             raise RuntimeError(f"store wrote {written} of {len(part)} chunks")
         result.chunks_written += written
-        result.embed_texts += len(part)
+        result.embed_texts += len(fresh)
         if beat:
             beat(f"{plan.thread_id} {result.chunks_written}/{len(objects)}")
     result.stale_deleted = store.delete_other_generations(plan.thread_id, plan.digest)
@@ -209,8 +273,11 @@ def publish_thread(
 
 
 # ------------------------------------------------------------------ CALL-LOG FILES
-def build_call_file_object(call_file: CallFile, *, embed_model: str, now: datetime | None = None) -> dict:
+def build_call_file_object(
+    call_file: CallFile, *, embed_model: str, now: datetime | None = None, generation_id: str = ""
+) -> dict:
     properties: dict[str, Any] = {
+        "normalized_record_ids": call_file.call_ids,
         "text": "\n".join(call_file.lines),
         "record_kind": RECORD_KIND_CALL_FILE,
         "corpus": CALL_LOG_CORPUS,
@@ -243,6 +310,7 @@ def publish_call_files(
     source_version_id: str | None = None,
     *,
     beat: Heartbeat | None = None,
+    generation_id: str = "",
 ) -> dict:
     """One Weaviate object per call-log file (source version); the individual calls stay in Postgres.
 
@@ -256,7 +324,9 @@ def publish_call_files(
         call_file = source.load_call_file(sv)
         if not call_file.call_ids:
             continue
-        obj = build_call_file_object(call_file, embed_model=embedder.model)
+        obj = build_call_file_object(call_file, embed_model=embedder.model, generation_id=generation_id)
+        if generation_id:
+            obj["properties"]["normalized_generation_id"] = generation_id
         (obj["vector"],) = embedder.embed([obj["properties"]["text"]])
         if store.upsert([obj]) != 1:
             raise RuntimeError(f"store did not write the call-log file {sv}")

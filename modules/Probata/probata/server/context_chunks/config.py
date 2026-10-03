@@ -43,6 +43,9 @@ class ChunkConfig:
     embed_model: str = EMBED_MODEL
     embed_batch: int = EMBED_BATCH
     api_key: str = field(default="", repr=False)
+    # A collection of chunks cut elsewhere (the Case Bible's CaseBibleChunks20261002) whose objects, with their
+    # vectors, are copied instead of chunked and embedded again when the content key matches. Empty: no reuse.
+    reuse_collection: str = ""
 
 
 def load_config(env: Mapping[str, str] | None = None) -> ChunkConfig:
@@ -67,4 +70,5 @@ def load_config(env: Mapping[str, str] | None = None) -> ChunkConfig:
         embed_base_url=(env.get("CONTEXT_CHUNKS_EMBED_BASE_URL", "").strip() or EMBED_BASE_URL).rstrip("/"),
         embed_model=env.get("CONTEXT_CHUNKS_EMBED_MODEL", "").strip() or EMBED_MODEL,
         api_key=key,
+        reuse_collection=env.get("CONTEXT_CHUNKS_REUSE_COLLECTION", "").strip(),
     )

@@ -4,7 +4,8 @@
 Byline: Claude Code · Sonnet · 2026-10-02
 
 Run this ON THE VPS (ovh-files; it needs `docker`, `rclone` and the B2 remote). It only reads: the catalog
-table raw_duck.b2_objects (columns key, size, sha1, listed_at) is queried, and each object is copied from B2
+view raw_duck.bucket_objects_current (provider 'b2', bucket 'salem-data': the newest whole-bucket listing; columns
+key, size, sha1, listed_at) is queried, and each object is copied from B2
 into a temporary folder on the VPS. Nothing is written to B2, the catalog or the registry.
 
 What it selects (case-insensitive, on the catalog key):
@@ -46,8 +47,8 @@ from pathlib import Path
 SQL = r"""
 COPY (
   SELECT DISTINCT ON (sha1) key, size, sha1, to_char(listed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS listed_at
-  FROM raw_duck.b2_objects
-  WHERE sha1 IS NOT NULL AND sha1 <> '' AND (
+  FROM raw_duck.bucket_objects_current
+  WHERE provider = 'b2' AND bucket = 'salem-data' AND sha1 IS NOT NULL AND sha1 <> '' AND (
         key ~* '\.vcf$'
      OR key ~* '(^|/)[^/]*contact[^/]*\.(csv|json)$'
      OR key ~* '(facebook|instagram|meta)[^[:space:]]*/[^[:space:]]*(imported_contacts|synced_contacts)[^/]*\.json$'

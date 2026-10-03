@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -48,12 +49,16 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// workflow (Byline: Claude Code · Opus 5.5 · 2026-09-25).
 	// Byline: Claude Code · Opus 5 · 2026-09-21
 	// +1: the call-log back-fill workflow. Byline: Claude Code · Opus 5.5 · 2026-10-02
-	if recorder.workflowCount != 4 {
-		t.Fatalf("workflow registration count = %d, want 4", recorder.workflowCount)
+	// +2: the conversation-chunk re-chunk and per-message removal workflows. Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	if recorder.workflowCount != 6 {
+		t.Fatalf("workflow registration count = %d, want 6", recorder.workflowCount)
 	}
-	if len(recorder.workflowNames) != 3 || recorder.workflowNames[0] != proffer.BatchWorkflowName ||
-		recorder.workflowNames[1] != proffer.CallLogBackfillWorkflowName || recorder.workflowNames[2] != repairplan.WorkflowName {
-		t.Fatalf("named workflow registrations = %v, want %q, %q and %q", recorder.workflowNames, proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, repairplan.WorkflowName)
+	wantNamed := []string{
+		proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
+		proffer.ConversationChunksRemovalWorkflowName, repairplan.WorkflowName,
+	}
+	if !reflect.DeepEqual(recorder.workflowNames, wantNamed) {
+		t.Fatalf("named workflow registrations = %v, want %v", recorder.workflowNames, wantNamed)
 	}
 	const replayAliasCount = 3
 	// 7 = 2 structured-ELT + derive_sms_threads + publish_context_search + 3
@@ -145,6 +150,8 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 	for _, name := range []string{
 		proffer.ChunkContextThreadsActivityName, proffer.PublishContextChunksActivityName, proffer.PublishCallLogFilesActivityName,
+		proffer.ListContextThreadsActivityName, proffer.EstimateContextChunksActivityName,
+		proffer.VerifyChunkCoverageActivityName, proffer.RemovePerMessageObjectsActivityName,
 	} {
 		if registered[name] != 0 {
 			t.Errorf("python-queue activity %q is registered on the Go worker %d times; it belongs to the Python worker", name, registered[name])

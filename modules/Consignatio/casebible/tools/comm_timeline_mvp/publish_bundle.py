@@ -11,11 +11,6 @@ readers) are retired after the file's new objects are in, so one file is not ind
 They are derived index objects, rebuildable from B2; the bundle and the catalog keep the record. MODE=probe only counts
 what would be published and retired; MODE=run does it. Each file's retire count is printed and logged.
 
-CHUNKED (owner 2026-10-02, default on): the file is published as Chonkie Neural conversation chunks into
-CaseBibleChunks20261002 (chunk_publish.py) and nothing is written to or retired from MsgEvents20260918, whose per-message
-objects stay. CHUNKED=0 is the old per-message path above. MODE=probe prints the counts: files, conversations, an
-estimate of chunks and embed calls (EXACT=1 runs the chunker for the exact chunk count; no embedding, no writes).
-
 Env: BUNDLE, MODE (probe|run), plus the runner's env (TERMS, NVIDIA_API_KEY, COLLECTION, WEAVIATE_URL, PUBLISH=1).
 Run inside devbox, detached, from the comm_timeline_mvp directory.
 """
@@ -34,7 +29,6 @@ import elt_run as er
 
 BUNDLE = Path(os.environ["BUNDLE"])
 MODE = os.environ.get("MODE", "probe")
-CHUNKED = os.environ.get("CHUNKED", "1") == "1"
 COLS = ("dedup_key, content_key, record_index, event_ts_utc, sort_ts_final, ts_original, tz_status, event_kind, "
         "conversation_id, conversation_title, participants, sender, recipients, direction, counterparty_phone, "
         "contact_name, body, attachments, member_path, vault_key, sha1, catalog_rel, source_format, extractor, "
@@ -76,48 +70,7 @@ def publish_retry(client: httpx.Client, rows: list[dict]) -> int:
     return er.publish(client, rows)
 
 
-def main_chunked() -> int:
-    import chunk_publish as cp  # noqa: PLC0415  needs the Probata chunk core on PYTHONPATH (its docstring)
-
-    b = duckdb.connect(str(BUNDLE / "proposal.duckdb"), read_only=True)
-    b.execute("set TimeZone = 'UTC'")
-    files = b.execute("select vault_key, rows_out from proposed_lineage where rows_out > 0 order by rows_out").fetchall()
-    convs = b.execute("select count(*) from (select distinct vault_key, coalesce(conversation_id, '') "
-                      "from proposed_records)").fetchone()[0]
-    msgs = sum(n for _, n in files)
-    print(f"{MODE} (chunked): bundle={BUNDLE.name} files={len(files)} rows={msgs} run_id={er.RUN_ID} "
-          f"collection={cp.COLLECTION}", flush=True)
-    print(f"counts: {cp.estimate(convs, msgs, batch=er.BATCH)}", flush=True)
-    client = httpx.Client(timeout=180)
-    store = cp.make_store(client, er.WV)
-    if MODE != "run":
-        if os.environ.get("EXACT") == "1":
-            total = 0
-            for vk, _ in files:
-                cur = b.execute(f"select {COLS} from proposed_records where vault_key = ?", [vk])
-                cols = [d[0] for d in cur.description]
-                for (v, conv), group in cp.group_rows([dict(zip(cols, x)) for x in cur.fetchall()]).items():
-                    total += len(cp.chunk_group(v, conv, group, run_id=er.RUN_ID, model=er.MODEL)[1])
-            print(f"exact chunks: {total}; embed calls: at least {-(-total // er.BATCH)}", flush=True)
-        return 0
-    embedder = cp.make_embedder(client, er.KEY, er.MODEL, er.NIM.rsplit("/embeddings", 1)[0], er.BATCH)
-    t0 = time.time()
-    tot = {"conversations": 0, "chunks": 0, "skipped_current": 0, "retired": 0}
-    for i, (vk, n) in enumerate(files, 1):
-        cur = b.execute(f"select {COLS} from proposed_records where vault_key = ?", [vk])
-        cols = [d[0] for d in cur.description]
-        got = cp.publish_file(store, embedder, [dict(zip(cols, x)) for x in cur.fetchall()], run_id=er.RUN_ID,
-                              pace=er.PACE, batch=er.BATCH)
-        for k in tot:
-            tot[k] += got[k]
-        print(f"[{i}/{len(files)}] rows={n} {got} key=...{vk[-70:]}", flush=True)
-    print(f"PUBLISH DONE mode=run chunked {tot} embed_requests={embedder.calls} elapsed={time.time() - t0:.0f}s", flush=True)
-    return 0
-
-
 def main() -> int:
-    if CHUNKED:
-        return main_chunked()
     b = duckdb.connect(str(BUNDLE / "proposal.duckdb"), read_only=True)
     b.execute("set TimeZone = 'UTC'")
     files = b.execute("select vault_key, rows_out from proposed_lineage where rows_out > 0 order by rows_out").fetchall()
