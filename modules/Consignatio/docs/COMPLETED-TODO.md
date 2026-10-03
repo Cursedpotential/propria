@@ -1081,3 +1081,11 @@ Replaced by a later owner decision; not done as written.
 - **The docstore container is `unhealthy` because index sync run `5356f93f…` (2026-09-27 01:02 UTC) failed. DONE 2026-10-02 — the 09-27 cause was fixed 09-28; the live failure on 10-02 (nightly deploy refused with HTTP 405) is fixed in `0c0f3938`.**
   - From: 2026-09-27 10:25 EDT — Docstore memory writes fixed, errors report their reason, write schema documented.
   - _Proof:_ run `bf529f03…` (2026-10-02 23:43–23:46 UTC): `execution_finished`, `cdc_verified` true, 908 of 908 documents, 0 missing / unexpected / hash mismatches, 0 enrichment failures. `docstore-health` `ok: true`. Search returns `consignatio/docs/COMPLETED-TODO.md`, created 2026-10-02. Details in LOG 2026-10-02.
+
+### 2026-10-02 21:13–21:41 EDT — last message-import files (from: 08:15 EDT – ongoing — owner's messages into Probata through Proffer)
+
+> _Byline: Claude Code · Opus 5.5 · 2026-10-02_
+
+- **`sms-002-031.xml` derive, then its threads batch.** DONE. On proffer-worker 16ae62b6 (carries the resuming source stream 3ac1f1ea), `overnight-20261002-sms-8103535467-derive-03` completed on its first attempt (01:13–01:35 UTC; earlier attempts broke after about 6 minutes): 3,291 records = the declared count, 0 rejected, 249 media objects (2.04 GB), 3 threads, source sha256 `b89dea2d…` = the catalog's. `overnight-20261002-sms-8103535467-sms002031-threads-01` (Matt, clean_checks): 3/3 done; 146 new working rows, 3,145 further occurrences of rows from his other June backups, 0 cross-device.
+- **Aug Facebook `message_3` re-run.** DONE after the parent created `ProfferChunks20261002` (21:06 EDT): `overnight-20261002-fb-20250818-katrina-05` 1 done, 6 skipped; of its 10,000 messages 175 are new working rows and 9,825 further occurrences of the Feb export's rows (same account). Facebook working.message 67,377; both exports complete.
+
