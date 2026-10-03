@@ -24,10 +24,14 @@ class ThreadRef:
 class Message:
     id: str
     at: datetime | None
+    # The sender exactly as the source states it (a number, a name, "self"). It is what the chunk text and its vector
+    # carry, so the same message gets the same text in every system that chunks it (see ids.chunk_key).
     sender: str
     body: str
     source_version_id: str | None = None
     sender_entity_id: str | None = None
+    # The registry-resolved name, carried as a property (participant_names), never in the embedded text.
+    sender_name: str = ""
     participant_entity_ids: list[str] = field(default_factory=list)
     participant_names: list[str] = field(default_factory=list)
 

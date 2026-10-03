@@ -243,7 +243,7 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 	// A generation whose every message an earlier source of the same device
 	// already published (the match-up) publishes nothing and is still a
 	// recorded outcome. Byline: Claude Code · Opus 5.5 · 2026-10-02
-	if (outcome.Published < 1 || len(outcome.Collections) == 0) && outcome.SkippedMatched < 1 {
+	if !contextSearchOutcomeRecordable(outcome) {
 		return "", "", errors.New("context search receipt requires at least one published object and its collection")
 	}
 	key := fmt.Sprintf("publish-context-search:%s:%s:%s", spec.RequestID, spec.NormalizedGenerationRef, spec.NormalizedVerificationRef)
@@ -305,6 +305,7 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 		"origin_system":          contextsearch.OriginSystem,
 		"ingest_run_id":          spec.RequestID,
 		"skipped_matched":        outcome.SkippedMatched,
+		"skipped_to_chunks":      outcome.SkippedToChunks,
 		"message_matches":        string(spec.MessageMatchesRef),
 	})
 	if err != nil {
@@ -323,3 +324,14 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 }
 
 var _ activities.ContextSearchSourceStore = (*ContextSearchStore)(nil)
+
+// contextSearchOutcomeRecordable reports whether a publish pass has an outcome worth a receipt: it published an
+// object, or every record it held was left to another source (the match-up) or to the conversation chunks, which are
+// published by their own Activities (owner 2026-10-02). A pass that did none of those is a defect, not a success.
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+func contextSearchOutcomeRecordable(outcome activities.ContextSearchPublicationOutcome) bool {
+	if outcome.Published >= 1 && len(outcome.Collections) > 0 {
+		return true
+	}
+	return outcome.SkippedMatched >= 1 || outcome.SkippedToChunks >= 1
+}

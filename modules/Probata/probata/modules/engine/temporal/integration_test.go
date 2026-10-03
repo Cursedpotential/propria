@@ -82,11 +82,20 @@ func registerRealActivities(t *testing.T, env *testsuite.TestWorkflowEnvironment
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	env.RegisterActivityWithOptions(placeholderStageActivity, activity.RegisterOptions{Name: string(stagegraph.ProposeFirstPartyContext)})
 	env.RegisterActivityWithOptions(placeholderStageActivity, activity.RegisterOptions{Name: string(stagegraph.ResolveContextParticipants)})
-	// The match-up and call-log stages also run on every new history; with no
-	// messages or calls they are not applicable.
-	// Byline: Claude Code · Opus 5.5 · 2026-10-02
-	env.RegisterActivityWithOptions(placeholderStageActivity, activity.RegisterOptions{Name: string(stagegraph.MatchMessageOccurrences)})
+	// The conversation-chunk Activities live on the Python worker; a run with nothing to chunk gets empty answers.
+	// commit_call_log is likewise optional and has no call record to commit here.
+	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	env.RegisterActivityWithOptions(func(context.Context, proffer.ChunkThreadsRequest) (proffer.ChunkThreadsResult, error) {
+		return proffer.ChunkThreadsResult{}, nil
+	}, activity.RegisterOptions{Name: proffer.ChunkContextThreadsActivityName})
+	env.RegisterActivityWithOptions(func(context.Context, proffer.PublishChunksRequest) (proffer.PublishChunksResult, error) {
+		return proffer.PublishChunksResult{}, nil
+	}, activity.RegisterOptions{Name: proffer.PublishContextChunksActivityName})
+	env.RegisterActivityWithOptions(func(context.Context, proffer.PublishCallLogFilesRequest) (proffer.PublishCallLogFilesResult, error) {
+		return proffer.PublishCallLogFilesResult{}, nil
+	}, activity.RegisterOptions{Name: proffer.PublishCallLogFilesActivityName})
 	env.RegisterActivityWithOptions(placeholderStageActivity, activity.RegisterOptions{Name: string(stagegraph.CommitCallLog)})
+	env.RegisterActivityWithOptions(placeholderStageActivity, activity.RegisterOptions{Name: string(stagegraph.MatchMessageOccurrences)})
 	candidate := proffer.HandlerCandidate{HandlerID: "sbv", HandlerVersion: "test", ExecutionPath: proffer.HandlerPathDecoder, CompatibilityRef: "compatibility-ref", Reason: "integration decoder"}
 	env.OnActivity(proffer.RecommendHandlerActivityName, mock.Anything, mock.Anything).Return(proffer.HandlerRecommendationResult{
 		RecommendationRef: "recommendation-ref", ReceiptRef: "recommendation-receipt", DetectedFormat: "whatsapp_export_json",
@@ -103,6 +112,12 @@ func registerRealActivities(t *testing.T, env *testsuite.TestWorkflowEnvironment
 		env.OnActivity(string(d.ID), mock.Anything, mock.Anything).Return(stageStub(d.ID), nil).Once()
 	}
 	env.OnActivity(string(stagegraph.PublishContextSearch), mock.Anything, mock.Anything).Return(stageStub(stagegraph.PublishContextSearch), nil).Maybe()
+	env.OnActivity(string(stagegraph.CommitCallLog), mock.Anything, mock.Anything).Return(proffer.StageResult{
+		Status: proffer.StatusNotApplicable, ReceiptRef: "call-log-receipt", Reason: "no call records",
+	}, nil).Maybe()
+	env.OnActivity(string(stagegraph.MatchMessageOccurrences), mock.Anything, mock.Anything).Return(proffer.StageResult{
+		Status: proffer.StatusNotApplicable, ReceiptRef: "message-match-receipt", Reason: "no message records",
+	}, nil).Maybe()
 	env.OnActivity(string(stagegraph.ResolveContextParticipants), mock.Anything, mock.Anything).Return(proffer.StageResult{
 		Status: proffer.StatusNotApplicable, ReceiptRef: "resolve-participants-receipt", Reason: "no message records",
 	}, nil).Maybe()

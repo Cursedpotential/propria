@@ -43,10 +43,19 @@ PROPERTIES: list[dict] = [
     _text("record_kind", "field"),  # conversation_chunk | call_log_file
     _text("corpus", "field"),  # first_party | acquired_third_party | call_log
     _text("thread_id", "field"),
-    _text("thread_digest", "field"),  # one chunking of one thread; stale generations are deleted by it
+    _text("thread_digest", "field"),
+    _text(
+        "content_hash", "field"
+    ),  # ids.chunk_content_hash: with chunker_version, what lets another system reuse this chunk
+    _text("reused_from_object_id", "field"),  # the object whose vectors were copied, when they were
+    _text("reused_from_collection", "field"),  # one chunking of one thread; stale generations are deleted by it
     _text("first_message_id", "field"),
     _text("last_message_id", "field"),
-    _texts("message_ids"),  # Postgres working.message / third_party_message ids the chunk covers
+    _texts("message_ids"),
+    # The same ids under their pre-commit name: a committed working.message id IS the normalized record id (the
+    # first-party import copies it), so a chunk cut from a run's normalized generation needs no rewrite after the commit.
+    _texts("normalized_record_ids"),
+    _text("normalized_generation_id", "field"),  # Postgres working.message / third_party_message ids the chunk covers
     _texts("call_log_ids"),  # Postgres working.call_log ids, for a call-log file
     _texts("participant_entity_ids"),
     _texts("participant_names", "word"),
@@ -62,6 +71,7 @@ PROPERTIES: list[dict] = [
     {"name": "message_count", "dataType": ["int"]},
     _text("embed_model", "field"),
     _text("origin_system", "field"),
+    _text("ingest_run_id", "field"),  # the Proffer run that published it: joins a chunk to that run's preview decision
     _text("object_id_construction", "field"),
     {"name": "indexed_at", "dataType": ["date"]},
 ]
@@ -146,7 +156,7 @@ class ChunkStore:
                         "class": self.collection,
                         "id": o["id"],
                         "properties": o["properties"],
-                        "vectors": {self.vector_name: o["vector"]},
+                        "vectors": o.get("vectors") or {self.vector_name: o["vector"]},
                     }
                     for o in part
                 ]
@@ -201,6 +211,51 @@ class ChunkStore:
         return self.delete_matching(self._where_thread_not_digest(thread_id, digest))
 
     # ---------------------------------------------------------------- reads
+    def exists(self) -> bool:
+        return self._http.get(f"{self.base}/v1/schema/{self.collection}").status_code == 200
+
+    def vector_names(self) -> list[str]:
+        """The named vectors this collection has (the ones a reused object must bring)."""
+        r = self._http.get(f"{self.base}/v1/schema/{self.collection}")
+        if r.status_code != 200:
+            raise StoreError(f"inspect collection {self.collection}: HTTP {r.status_code}")
+        return sorted((r.json().get("vectorConfig") or {}).keys())
+
+    def find_by_content_hashes(
+        self, hashes: list[str], chunker_version: str, vector_names: list[str], *, page: int = 40
+    ) -> dict[str, dict]:
+        """content_hash -> {"id", "vectors": {name: vector}} for the objects cut with ``chunker_version`` that hold one of
+        ``hashes`` (first match per hash).
+
+        Only objects that carry EVERY name in ``vector_names`` are returned: a chunk missing one of the vectors the
+        destination collection has is not reusable as it stands."""
+        found: dict[str, dict] = {}
+        wanted = " ".join(vector_names)
+        for start in range(0, len(hashes), page):
+            part = hashes[start : start + page]
+            where = _gql(
+                {
+                    "operator": "And",
+                    "operands": [
+                        {"path": ["content_hash"], "operator": "ContainsAny", "valueText": part},
+                        {"path": ["chunker_version"], "operator": "Equal", "valueText": chunker_version},
+                    ],
+                }
+            )
+            data = self._graphql(
+                f"{{ Get {{ {self.collection}(where: {where}, limit: {len(part) * 2}) "
+                f"{{ content_hash _additional {{ id vectors {{ {wanted} }} }} }} }} }}"
+            )
+            for o in data["Get"][self.collection] or []:
+                vectors = (o.get("_additional") or {}).get("vectors") or {}
+                if (
+                    o.get("content_hash")
+                    and o["content_hash"] not in found
+                    and all(vectors.get(n) for n in vector_names)
+                ):
+                    found[o["content_hash"]] = {"id": o["_additional"]["id"], "vectors": vectors}
+        return found
+
     def _graphql(self, query: str) -> dict:
         r = self._http.post(f"{self.base}/v1/graphql", json={"query": query})
         payload = r.json() if r.status_code == 200 else {}

@@ -2,33 +2,35 @@
 
 Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 
-Owner-approved removal (2026-10-02): the per-message objects are search copies, rebuildable from Postgres. Run it only
-after the re-chunk is verified. Nothing here runs by itself.
+Owner-approved removal (2026-10-02): the per-message objects are search copies, rebuildable from Postgres. This is the
+library; it runs as Temporal Activities (server/temporal/chunk_backfill_activities.py) under the Go
+``proffer_conversation_chunks_removal_workflow`` (modules/engine/proffer/context_chunks_backfill.go), so every run is
+traceable in Temporal. ``python -m server.context_chunks.start remove`` starts that workflow.
 
-    python -m server.context_chunks.remove_per_message --verify    # coverage report, deletes nothing (the default)
-    python -m server.context_chunks.remove_per_message --dry-run   # the counts a deletion would remove
-    python -m server.context_chunks.remove_per_message --execute   # verify, then delete
-
-Verification, three checks, all must pass before --execute deletes anything:
-  1. every Postgres thread's messages are all covered by that thread's chunks (union of ``message_ids``);
+Verification, three checks, all must pass before anything is deleted:
+  1. every Postgres thread's messages are covered by some chunk (coverage is by message id, so a chunk cut before the
+     commit counts: its normalized record ids ARE the Postgres message ids);
   2. every per-message object (record_kind message) names a message id that some chunk covers;
   3. every per-call object (record_kind call) names a call id that some call-log file entry covers.
-Only objects of origin_system probata are touched. ``--only-covered`` deletes just the covered objects, one by one,
-when some objects are uncovered (for example a message that never reached a Postgres thread); without it a single
-uncovered object stops the run.
+Only objects of origin_system probata are touched. ``only_covered`` deletes just the covered objects, one by one, when
+some objects are uncovered (for example a message that never reached a Postgres thread); without it a single uncovered
+object stops the removal.
 """
 
 from __future__ import annotations
 
-import argparse
-import sys
+from typing import Any
 
-from server.context_chunks.config import load_config
 from server.context_chunks.model import ThreadRef
-from server.context_chunks.source import PgSource
-from server.context_chunks.store import RECORD_KIND_CALL_FILE, RECORD_KIND_CHUNK, ChunkStore, StoreError
+from server.context_chunks.source import Source
+from server.context_chunks.store import RECORD_KIND_CALL_FILE, RECORD_KIND_CHUNK, ChunkStore
 
 OLD_COLLECTION = "ProfferMsgEvents20261002"
+KINDS = ("message", "call")
+
+
+class NotVerified(RuntimeError):
+    """The chunks do not cover everything the old objects stand for; nothing was deleted."""
 
 
 def _where_kind(kind: str) -> dict:
@@ -41,33 +43,32 @@ def _where_kind(kind: str) -> dict:
     }
 
 
-def chunk_coverage(chunks: ChunkStore) -> tuple[dict[str, set[str]], set[str]]:
-    """(message ids covered per thread id, call ids covered) from the chunk collection."""
-    per_thread: dict[str, set[str]] = {}
+def chunk_coverage(chunks: ChunkStore) -> tuple[set[str], set[str]]:
+    """(message ids covered by any chunk, call ids covered by any call-log file) from the chunk collection.
+
+    Coverage is by message id, not by thread id: a chunk cut before the commit (from a run's normalized generation)
+    belongs to a generation-scoped thread, and the same ids are the Postgres message ids after the commit.
+    """
+    messages: set[str] = set()
     calls: set[str] = set()
-    for o in chunks.iter_objects(["record_kind", "thread_id", "message_ids", "call_log_ids"]):
+    for o in chunks.iter_objects(["record_kind", "message_ids", "call_log_ids", "normalized_record_ids"]):
         if o["record_kind"] == RECORD_KIND_CHUNK:
-            per_thread.setdefault(o["thread_id"], set()).update(o["message_ids"] or [])
+            messages.update(o["message_ids"] or [])
+            messages.update(o["normalized_record_ids"] or [])
         elif o["record_kind"] == RECORD_KIND_CALL_FILE:
             calls.update(o["call_log_ids"] or [])
-    return per_thread, calls
+            calls.update(o["normalized_record_ids"] or [])
+    return messages, calls
 
 
-def verify(source: PgSource, chunks: ChunkStore, old: ChunkStore) -> dict:
-    per_thread, calls_covered = chunk_coverage(chunks)
-    covered_messages = set().union(*per_thread.values()) if per_thread else set()
-    report: dict = {
-        "chunk_threads": len(per_thread),
-        "chunk_message_ids": len(covered_messages),
-        "chunk_call_ids": len(calls_covered),
-    }
+def verify(source: Source, chunks: ChunkStore, old: ChunkStore) -> dict[str, Any]:
+    covered_messages, calls_covered = chunk_coverage(chunks)
+    report: dict[str, Any] = {"chunk_message_ids": len(covered_messages), "chunk_call_ids": len(calls_covered)}
     # 1. Postgres threads vs chunk coverage
     refs: list[ThreadRef] = source.all_threads()
     gaps, missing = [], 0
     for ref in refs:
-        want = source.thread_message_ids(ref)
-        have = per_thread.get(ref.thread_id, set())
-        short = [m for m in want if m not in have]
+        short = [m for m in source.thread_message_ids(ref) if m not in covered_messages]
         if short:
             gaps.append(ref)
             missing += len(short)
@@ -94,68 +95,46 @@ def verify(source: PgSource, chunks: ChunkStore, old: ChunkStore) -> dict:
     return report
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    mode = ap.add_mutually_exclusive_group()
-    mode.add_argument("--verify", action="store_true")
-    mode.add_argument("--dry-run", action="store_true")
-    mode.add_argument("--execute", action="store_true")
-    ap.add_argument(
-        "--only-covered", action="store_true", help="delete the covered objects one by one when some are not"
-    )
-    ap.add_argument("--old-collection", default=OLD_COLLECTION)
-    args = ap.parse_args(argv)
+def public(report: dict[str, Any]) -> dict[str, Any]:
+    """A verification report without the id lists (small enough for a Temporal result)."""
+    return {k: v for k, v in report.items() if not k.startswith("_")}
 
-    from server.context_chunks.db import read_only_connection
 
-    config = load_config()
-    chunks = ChunkStore(config.weaviate_url, config.collection)
-    old = ChunkStore(config.weaviate_url, args.old_collection)
-    with read_only_connection() as conn:
-        report = verify(PgSource(conn), chunks, old)
+def remove(
+    source: Source, chunks: ChunkStore, old: ChunkStore, *, dry_run: bool = True, only_covered: bool = False
+) -> dict[str, Any]:
+    """Verify, then (unless ``dry_run``) delete. Returns the verification report plus what was or would be deleted.
+
+    Raises NotVerified, deleting nothing, when something is uncovered and ``only_covered`` is not set.
+    """
+    report = verify(source, chunks, old)
     uncovered = report.pop("_uncovered_ids")
-    for key, value in report.items():
-        print(f"  {key}: {value}")
-    if not (args.dry_run or args.execute):
-        return 0 if report["verified"] else 2
-    if not report["verified"] and not args.only_covered:
-        print("NOT VERIFIED: stopping. Fix the gaps, or rerun with --only-covered to delete just the covered objects.")
-        return 2
-    kinds = ("message", "call")
-    if args.dry_run:
-        for kind in kinds:
-            n = old.count(_where_kind(kind))
-            print(
-                f"  would delete {n} {kind} objects from {args.old_collection} (of which uncovered kept: "
-                f"{len(uncovered[kind])})"
-            )
-        return 0
-    deleted = 0
-    for kind in kinds:
-        if not uncovered[kind]:
-            n = old.delete_matching(_where_kind(kind))
-            print(f"  deleted {n} {kind} objects from {args.old_collection}")
-            deleted += n
-            continue
-        # some uncovered: delete only the covered ones, by id
+    out: dict[str, Any] = {
+        **report,
+        "dry_run": dry_run,
+        "only_covered": only_covered,
+        "deleted": {},
+        "kept_uncovered": {},
+    }
+    if not report["verified"] and not only_covered:
+        raise NotVerified(
+            "not verified: "
+            + ", ".join(f"{k}={report[k]}" for k in report if k.startswith(("uncovered", "old_")) and report[k])
+        )
+    for kind in KINDS:
         keep = set(uncovered[kind])
-        targets = [
-            o["id"]
-            for o in old.iter_objects(["record_kind", "origin_system"])
-            if o["record_kind"] == kind and o["origin_system"] == "probata" and o["id"] not in keep
-        ]
-        for object_id in targets:
-            old.delete_object(object_id)
-        n = len(targets)
-        print(f"  deleted {n} covered {kind} objects, kept {len(keep)} uncovered")
-        deleted += n
-    print(f"REMOVED {deleted} objects from {args.old_collection}; chunks in {config.collection} untouched")
-    return 0
-
-
-if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except StoreError as error:
-        print(f"STORE ERROR: {error}")
-        sys.exit(1)
+        out["kept_uncovered"][kind] = len(keep)
+        if dry_run:
+            out["deleted"][kind] = old.count(_where_kind(kind)) - len(keep)
+        elif not keep:
+            out["deleted"][kind] = old.delete_matching(_where_kind(kind))
+        else:  # some uncovered: delete only the covered ones, by id
+            targets = [
+                o["id"]
+                for o in old.iter_objects(["record_kind", "origin_system"])
+                if o["record_kind"] == kind and o["origin_system"] == "probata" and o["id"] not in keep
+            ]
+            for object_id in targets:
+                old.delete_object(object_id)
+            out["deleted"][kind] = len(targets)
+    return out
