@@ -24,16 +24,42 @@ import (
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 )
 
-// File is one contact export in the catalog (raw_duck.b2_objects) and, once fetched, where it is.
-type File struct {
-	// Bucket is the B2 bucket the object lives in; the catalog lists several.
-	Bucket   string `json:"bucket,omitempty"`
+// Source is one place the same content can be read from: a provider ("b2" or "r2"), a bucket and a key.
+type Source struct {
+	Provider string `json:"provider"`
+	Bucket   string `json:"bucket"`
 	Key      string `json:"key"`
+}
+
+// File is one contact export in the catalog (raw_duck.bucket_objects_current) and, once fetched, where it is.
+// A loose file is read from Provider/Bucket/Key; when that object is gone the same content is tried at each
+// of Alternates (the catalog lists the same name and size, or the same SHA-1, in other places). A ZIP member
+// (Member set) is read out of the archive at Provider/Bucket/Key with ranged reads.
+type File struct {
+	// Provider is "b2" or "r2"; the catalog lists both.
+	Provider string `json:"provider,omitempty"`
+	// Bucket is the bucket the object lives in; the catalog lists several.
+	Bucket string `json:"bucket,omitempty"`
+	Key    string `json:"key"`
+	// Member is the path of the file inside the ZIP at Key ("" for a loose file).
+	Member   string `json:"member,omitempty"`
 	Size     int64  `json:"size"`
 	SHA1     string `json:"sha1,omitempty"`
 	SHA256   string `json:"sha256,omitempty"`
 	ListedAt string `json:"listed_at"`
 	Path     string `json:"path,omitempty"`
+	// ArchiveSize is the size of the ZIP at Key for a member (ranged reads need it); 0 for a loose file.
+	ArchiveSize int64 `json:"archive_size,omitempty"`
+	// Alternates are other places holding the same content, best first.
+	Alternates []Source `json:"alternates,omitempty"`
+}
+
+// DisplayKey names the file in receipts and in the "from contacts" mark: the key, or key!member for a ZIP member.
+func (f File) DisplayKey() string {
+	if f.Member != "" {
+		return f.Key + "!" + f.Member
+	}
+	return f.Key
 }
 
 // ContentID is the catalog's content hash for the object (sha1, else sha256); duplicates across buckets and
@@ -105,17 +131,33 @@ func ParseFile(name string, body []byte, source, listedAt string) ([]Contact, er
 	return nil, nil
 }
 
+var vcardBlock = regexp.MustCompile(`(?is)BEGIN:VCARD.*?END:VCARD`)
+
 // ParseVCard reads every card of a vCard 3.0/4.0 file.
+//
+// It is tolerant of what phones and exporters really write: a byte-order mark, NULs, bare-CR or bare-LF line
+// ends and text before the first BEGIN:VCARD are normalised, and each BEGIN..END block is decoded on its
+// own, so one damaged card is skipped instead of losing the whole file ("no BEGIN field" on a
+// real Android export). It returns an error only when no card can be read at all.
 func ParseVCard(body []byte, source, listedAt string) ([]Contact, error) {
-	decoder := vcard.NewDecoder(bytes.NewReader(body))
+	cleaned := bytes.TrimPrefix(body, []byte{0xEF, 0xBB, 0xBF})
+	cleaned = bytes.ReplaceAll(cleaned, []byte{0}, nil)
+	cleaned = bytes.ReplaceAll(cleaned, []byte{'\r', '\n'}, []byte{'\n'})
+	cleaned = bytes.ReplaceAll(cleaned, []byte{'\r'}, []byte{'\n'})
+	cleaned = bytes.ReplaceAll(cleaned, []byte{'\n'}, []byte{'\r', '\n'})
+	blocks := vcardBlock.FindAll(cleaned, -1)
+	if len(blocks) == 0 {
+		return nil, errors.New("no vCard found")
+	}
 	var out []Contact
-	for {
-		card, err := decoder.Decode()
-		if errors.Is(err, io.EOF) {
-			return out, nil
-		}
+	var firstErr error
+	for _, block := range blocks {
+		card, err := vcard.NewDecoder(bytes.NewReader(append(append([]byte{}, block...), '\r', '\n'))).Decode()
 		if err != nil {
-			return out, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
 		name := cleanName(card.PreferredValue(vcard.FieldFormattedName))
 		if name == "" {
@@ -123,8 +165,16 @@ func ParseVCard(body []byte, source, listedAt string) ([]Contact, error) {
 				name = cleanName(n.GivenName + " " + n.FamilyName)
 			}
 		}
-		out = append(out, newContact(name, card.Values(vcard.FieldTelephone), card.Values(vcard.FieldEmail), source, listedAt))
+		contact := newContact(name, card.Values(vcard.FieldTelephone), card.Values(vcard.FieldEmail), source, listedAt)
+		if contact.Name == "" && len(contact.Phones) == 0 && len(contact.Emails) == 0 {
+			continue // a card the decoder accepted but that carries nothing usable
+		}
+		out = append(out, contact)
 	}
+	if len(out) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
+	return out, nil
 }
 
 // ParseCSV reads Google, Outlook or generic contact CSVs.
@@ -234,84 +284,4 @@ func nonEmpty(values ...string) []string {
 		}
 	}
 	return out
-}
-
-// BuildPeople groups contacts that share a number or an email into one person. DisplayName is the name
-// from the most recent export (ListedAt, then source key); CandidateNames keeps every name any export
-// gave, newest first, so disagreeing exports never lose a name and nothing is a silent pick.
-func BuildPeople(contacts []Contact) []Person {
-	parent := map[string]string{}
-	var find func(x string) string
-	find = func(x string) string {
-		if _, ok := parent[x]; !ok {
-			parent[x] = x
-		}
-		for parent[x] != x {
-			parent[x] = parent[parent[x]]
-			x = parent[x]
-		}
-		return x
-	}
-	var named []Contact
-	for _, contact := range contacts {
-		identifiers := append(append([]string{}, contact.Phones...), contact.Emails...)
-		if contact.Name == "" || len(identifiers) == 0 {
-			continue
-		}
-		named = append(named, contact)
-		root := find(identifiers[0])
-		for _, other := range identifiers[1:] {
-			parent[find(other)] = root
-		}
-	}
-	groups := map[string][]Contact{}
-	for _, contact := range named {
-		identifiers := append(append([]string{}, contact.Phones...), contact.Emails...)
-		groups[find(identifiers[0])] = append(groups[find(identifiers[0])], contact)
-	}
-	newer := func(a, b Contact) bool {
-		if a.ListedAt != b.ListedAt {
-			return a.ListedAt > b.ListedAt
-		}
-		return a.Source > b.Source
-	}
-	var people []Person
-	for _, cards := range groups {
-		sort.SliceStable(cards, func(i, j int) bool { return newer(cards[i], cards[j]) })
-		person := Person{DisplayName: cards[0].Name, Source: cards[0].Source}
-		seenName, seenNumber, seenEmail, seenSource := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
-		for _, card := range cards {
-			if !seenName[card.Name] {
-				seenName[card.Name] = true
-				person.CandidateNames = append(person.CandidateNames, card.Name)
-			}
-			for _, number := range card.Phones {
-				if !seenNumber[number] {
-					seenNumber[number] = true
-					person.Numbers = append(person.Numbers, number)
-				}
-			}
-			for _, email := range card.Emails {
-				if !seenEmail[email] {
-					seenEmail[email] = true
-					person.Emails = append(person.Emails, email)
-				}
-			}
-			if !seenSource[card.Source] {
-				seenSource[card.Source] = true
-				person.Sources = append(person.Sources, card.Source)
-			}
-		}
-		sort.Strings(person.Numbers)
-		sort.Strings(person.Emails)
-		sort.Strings(person.Sources)
-		people = append(people, person)
-	}
-	sort.Slice(people, func(i, j int) bool {
-		if strings.ToLower(people[i].DisplayName) != strings.ToLower(people[j].DisplayName) {
-			return strings.ToLower(people[i].DisplayName) < strings.ToLower(people[j].DisplayName)
-		}
-		return strings.Join(people[i].Numbers, ",") < strings.Join(people[j].Numbers, ",")
-	})
-	return people
 }

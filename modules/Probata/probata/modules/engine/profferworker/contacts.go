@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Cursedpotential/probata/engine/acquisition"
@@ -67,8 +68,15 @@ func buildContacts(ctx context.Context, pool *pgxpool.Pool, stores objectstores.
 		}
 		catalog = reader
 	}
+	// One read-only client per configured object store: Backblaze B2 holds the vault copies and Cloudflare R2
+	// holds the raw backup copies the catalog lists as fallback locations.
 	var fetcher activities.ContactsFetcher
-	if credentialFile, ok := stores["b2"]; ok {
+	clients := map[string]*s3.Client{}
+	for _, scheme := range []string{"b2", "r2"} {
+		credentialFile, ok := stores[scheme]
+		if !ok {
+			continue
+		}
 		storeCfg, err := acquisition.LoadObjectStorageConfigFile(credentialFile)
 		if err != nil {
 			return activities.ContactsActivities{}, err
@@ -77,7 +85,10 @@ func buildContacts(ctx context.Context, pool *pgxpool.Pool, stores objectstores.
 		if err != nil {
 			return activities.ContactsActivities{}, err
 		}
-		fetcher = activities.S3ContactsFetcher{Client: client}
+		clients[scheme] = client
+	}
+	if len(clients) > 0 {
+		fetcher = activities.S3ContactsFetcher{Clients: clients}
 	}
 	return activities.NewContactsActivities(catalog, fetcher, registry, identity, filepath.Join(cfg.DeriveScratchDir, "contacts")), nil
 }

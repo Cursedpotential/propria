@@ -7,13 +7,18 @@
 // read-only steps (manifest, fetch, parse) run for real either way, and the three steps that write the
 // registry (people, placeholders, re-link) run inside a transaction that is rolled back.
 //
-//  1. contacts_manifest_activity      query raw_duck.b2_objects, dedupe by sha1, write manifest.jsonl
-//  2. contacts_fetch_activity         copy each object from B2 into the work folder, verifying its sha1
-//  3. contacts_parse_activity         parse vCard / CSV / Facebook-Instagram JSON, group into people
-//  4. contacts_people_activity        contact-people through the governed case-identity store (unconfirmed
+//  1. contacts_manifest_activity      query raw_duck.bucket_objects_current for loose contact files (and the
+//     ZIPs that may hold some), one entry per content, with fallback locations
+//  2. contacts_zip_members_activity   list the contact files INSIDE those ZIPs (Google Takeout, phone exports)
+//     with ranged reads of each archive's directory; nothing is downloaded whole
+//  3. contacts_fetch_activity         copy each file or ZIP member into the work folder, verifying its hash,
+//     falling back to the other places the same content lives
+//  4. contacts_parse_activity         parse vCard / CSV / Facebook-Instagram JSON, group into people (never
+//     keyed on an identifier a person already carries), hold back oversized clusters
+//  5. contacts_people_activity        contact-people through the governed case-identity store (unconfirmed
 //     people named by the most recent export, other names as candidates)
-//  5. contacts_placeholders_activity  a placeholder only for numbers still carried by NO person
-//  6. contacts_relink_activity        sweep: fill every NULL entity column whose number a person now carries
+//  6. contacts_placeholders_activity  a placeholder only for numbers still carried by NO person
+//  7. contacts_relink_activity        sweep: fill every NULL entity column whose number a person now carries
 //
 // Order is the owner's (15:34): contacts first; placeholders only for what no contact names.
 package contacts
@@ -33,6 +38,7 @@ const (
 	StatusQueryName = "contacts_import_status"
 
 	ManifestActivity     = "contacts_manifest_activity"
+	ZipMembersActivity   = "contacts_zip_members_activity"
 	FetchActivity        = "contacts_fetch_activity"
 	ParseActivity        = "contacts_parse_activity"
 	PeopleActivity       = "contacts_people_activity"
@@ -79,6 +85,9 @@ type Receipt struct {
 	Counts map[string]int64 `json:"counts,omitempty"`
 	Notes  []string         `json:"notes,omitempty"`
 	At     time.Time        `json:"at"`
+	// Held lists clusters of contacts that were too large to become one person (at most 50 are carried here;
+	// the full list is in the run folder). They are never created; the owner reviews them.
+	Held []Held `json:"held,omitempty"`
 }
 
 // RunStatus is what the status query returns while the run goes on and after it ends.
@@ -112,6 +121,7 @@ func options(timeout, heartbeat time.Duration, attempts int32) workflow.Activity
 // stepOptions gives each step its own bounded retry policy and timeouts (never the SDK default of unlimited).
 var stepOptions = map[string]workflow.ActivityOptions{
 	ManifestActivity:     options(5*time.Minute, 0, 3),
+	ZipMembersActivity:   options(60*time.Minute, 3*time.Minute, 2),
 	FetchActivity:        options(60*time.Minute, 2*time.Minute, 3),
 	ParseActivity:        options(15*time.Minute, 2*time.Minute, 2),
 	PeopleActivity:       options(60*time.Minute, 2*time.Minute, 2),
@@ -162,6 +172,7 @@ func ContactsImportWorkflow(ctx workflow.Context, in Input) (Result, error) {
 	}
 	for _, step := range []struct{ name, carries string }{
 		{ManifestActivity, "manifest"},
+		{ZipMembersActivity, "members"},
 		{FetchActivity, "files"},
 		{ParseActivity, "people"},
 		{PeopleActivity, ""},

@@ -9,6 +9,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -28,106 +29,120 @@ func NewContactsCatalog(db DB) (*ContactsCatalog, error) {
 	return &ContactsCatalog{db: db}, nil
 }
 
-// The catalog's current listing of every bucket (raw_duck.bucket_objects_current; raw_duck.b2_objects is
-// stale). Its column names are read from information_schema at run time and matched against these
-// candidates, so the query never guesses a column; if a needed one is missing the step fails and says
-// which columns the table has.
-const contactsCatalogTable = "bucket_objects_current"
-
-var contactColumnCandidates = map[string][]string{
-	"bucket": {"bucket", "bucket_name"},
-	"key":    {"key", "object_key", "object_name", "path", "name"},
-	"size":   {"size", "size_bytes", "bytes", "content_length"},
-	"sha1":   {"sha1", "content_sha1", "sha1_hex"},
-	"sha256": {"sha256", "content_sha256", "sha256_hex"},
-	"listed": {"listed_at", "snapshot_at", "last_listed_at", "last_modified"},
-}
-
-func pickColumn(have map[string]bool, role string) string {
-	for _, candidate := range contactColumnCandidates[role] {
-		if have[candidate] {
-			return candidate
-		}
-	}
-	return ""
-}
-
-// ContactFiles implements activities.ContactsCatalog: vCards, contact CSV/JSON, and Facebook/Instagram
-// imported/synced contacts across every bucket the current listing holds, one object per content hash
-// (the most recently listed).
-func (c *ContactsCatalog) ContactFiles(ctx context.Context) ([]contacts.File, error) {
-	columnRows, err := c.db.Query(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema = 'raw_duck' AND table_name = $1`, contactsCatalogTable)
-	if err != nil {
-		return nil, errors.New("contacts catalog: column lookup unavailable")
-	}
-	have := map[string]bool{}
-	var names []string
-	for columnRows.Next() {
-		var name string
-		if err := columnRows.Scan(&name); err != nil {
-			columnRows.Close()
-			return nil, err
-		}
-		have[name] = true
-		names = append(names, name)
-	}
-	columnRows.Close()
-	if err := columnRows.Err(); err != nil {
-		return nil, err
-	}
-	key, size, listed := pickColumn(have, "key"), pickColumn(have, "size"), pickColumn(have, "listed")
-	bucket, sha1, sha256 := pickColumn(have, "bucket"), pickColumn(have, "sha1"), pickColumn(have, "sha256")
-	if key == "" || (sha1 == "" && sha256 == "") {
-		return nil, fmt.Errorf("contacts catalog: raw_duck.%s has columns %v; a key column and a sha1 or sha256 column are required", contactsCatalogTable, names)
-	}
-	// Every identifier below comes from information_schema and matched an allow-listed candidate name.
-	quote := func(column string) string { return `"` + column + `"` }
-	or := func(column, fallback string) string {
-		if column == "" {
-			return fallback
-		}
-		return quote(column)
-	}
-	hash := or(sha1, "NULL")
-	hashKind := "sha1"
-	if sha1 == "" {
-		hash, hashKind = quote(sha256), "sha256"
-	}
-	listedExpr := "''"
-	order := hash
-	if listed != "" {
-		listedExpr = `to_char(` + quote(listed) + ` AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`
-		order = hash + ", " + quote(listed) + " DESC"
-	}
-	statement := `SELECT DISTINCT ON (` + hash + `) ` + or(bucket, "''") + `::text, ` + quote(key) + `::text, ` + or(size, "0") + `::bigint, lower(` + hash + `::text), ` + listedExpr + `
-FROM raw_duck.` + contactsCatalogTable + `
-WHERE ` + hash + ` IS NOT NULL AND ` + hash + `::text <> '' AND (
-      ` + quote(key) + ` ~* '\.vcf$'
-   OR ` + quote(key) + ` ~* '(^|/)[^/]*contact[^/]*\.(csv|json)$'
-   OR ` + quote(key) + ` ~* '(facebook|instagram|meta)[^[:space:]]*/[^[:space:]]*(imported_contacts|synced_contacts)[^/]*\.json$'
-   OR ` + quote(key) + ` ~* '/(imported_contacts|synced_contacts)[^/]*\.json$'
+// catalogSQL builds the one query both file kinds use, over the catalog's current listing of every provider
+// and bucket (raw_duck.bucket_objects_current: provider, bucket, key, size, sha1, md5, modtime, listed_at).
+// predicate selects the objects. Objects are grouped into one entry per distinct content:
+//   - the content id is the SHA-1 when the row has one (Backblaze rows do; Cloudflare R2 rows carry none), else
+//     the SHA-1 of a row with the same name and size, else the name and size themselves, so the same export
+//     listed in several buckets and in both providers becomes ONE file;
+//   - the first location is Backblaze, then casebible-raw, then casebible-sorted, then anything else; the rest
+//     are its alternates, tried when the first object is gone (the catalog lists objects that have since moved);
+//   - quarantined zero-filled copies are never offered, because their bytes are not the content.
+//
+// The recency the grouping reports is the newest object modification time, not the listing time (every row
+// is listed in the same snapshot, so the listing time cannot tell one export from another).
+func catalogSQL(predicate string) string {
+	return `
+WITH c AS (
+  SELECT provider, bucket, key, size, nullif(lower(sha1), '') AS sha1, coalesce(modtime, listed_at) AS stamp,
+         lower(regexp_replace(key, '^.*/', '')) AS base
+  FROM raw_duck.bucket_objects_current
+  WHERE (` + predicate + `)
+    AND key NOT ILIKE '%/_quarantine/%' AND key NOT ILIKE '%zero-filled%'
+), h AS (
+  SELECT c.*, coalesce(c.sha1, (SELECT x.sha1 FROM c x WHERE x.sha1 IS NOT NULL AND x.size = c.size AND x.base = c.base LIMIT 1)) AS known_sha1
+  FROM c
+), g AS (
+  SELECT h.*, coalesce(known_sha1, 'size:' || size::text || ':' || base) AS cid,
+         CASE WHEN provider = 'b2' THEN 0 WHEN bucket = 'casebible-raw' THEN 1 WHEN bucket = 'casebible-sorted' THEN 2 ELSE 3 END AS pref
+  FROM h
 )
-ORDER BY ` + order
-	rows, err := c.db.Query(ctx, statement)
+SELECT coalesce(max(known_sha1), ''), max(size)::bigint, coalesce(to_char(max(stamp) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
+       (jsonb_agg(jsonb_build_object('provider', provider, 'bucket', bucket, 'key', key) ORDER BY pref, stamp DESC NULLS LAST, key))::text
+FROM g GROUP BY cid ORDER BY max(stamp) DESC NULLS LAST, cid`
+}
+
+const (
+	// looseContactPredicate selects vCards, contact CSV/JSON, and Facebook/Instagram imported/synced contact
+	// lists. Call-recorder notes ("Unknown contact"), sync settings, block lists and chat exports are not contact
+	// lists and are left out.
+	looseContactPredicate = `(key ~* '\.vcf$'
+      OR key ~* '(^|/)[^/]*contacts?[^/]*\.(csv|json)$'
+      OR key ~* '(facebook|instagram|meta)[^[:space:]]*/[^[:space:]]*(imported_contacts|synced_contacts)[^/]*\.json$'
+      OR key ~* '/(imported_contacts|synced_contacts)[^/]*\.json$')
+    AND key !~* '(unknown contact|cube acr|contacts_sync_settings|blocked|/chats/)'`
+	// zipContactPredicate selects archives whose name suggests a Google Takeout, a Facebook/Instagram download or a
+	// phone export, which may hold contact files inside.
+	zipContactPredicate = `key ~* '\.zip$' AND key ~* '(takeout|contact|google|facebook|instagram|meta|phone|katrina|sms|export|backup|vcard)'`
+)
+
+// scanCatalogFiles runs catalogSQL and turns each row into a contacts.File with its fallback locations.
+func (c *ContactsCatalog) scanCatalogFiles(ctx context.Context, predicate string) ([]contacts.File, error) {
+	rows, err := c.db.Query(ctx, catalogSQL(predicate))
 	if err != nil {
 		return nil, errors.New("contacts catalog: query unavailable")
 	}
 	defer rows.Close()
 	var files []contacts.File
 	for rows.Next() {
+		var sum, stamp, sources string
 		var file contacts.File
-		var sum string
-		if err := rows.Scan(&file.Bucket, &file.Key, &file.Size, &sum, &file.ListedAt); err != nil {
+		if err := rows.Scan(&sum, &file.Size, &stamp, &sources); err != nil {
 			return nil, errors.New("contacts catalog: unreadable row")
 		}
-		if hashKind == "sha1" {
-			file.SHA1 = sum
-		} else {
-			file.SHA256 = sum
+		var places []contacts.Source
+		if err := json.Unmarshal([]byte(sources), &places); err != nil || len(places) == 0 {
+			return nil, errors.New("contacts catalog: unreadable locations")
+		}
+		file.Provider, file.Bucket, file.Key = places[0].Provider, places[0].Bucket, places[0].Key
+		file.SHA1, file.ListedAt = sum, stamp
+		if len(places) > 1 {
+			file.Alternates = places[1:min(len(places), 7)]
 		}
 		files = append(files, file)
 	}
 	return files, rows.Err()
+}
+
+// ContactFiles implements activities.ContactsCatalog: the loose contact files across every provider and
+// bucket the current listing holds, one per distinct content, with fallback locations.
+func (c *ContactsCatalog) ContactFiles(ctx context.Context) ([]contacts.File, error) {
+	return c.scanCatalogFiles(ctx, looseContactPredicate)
+}
+
+// ZipFiles implements activities.ContactsCatalog: the archives that may hold contact files inside.
+func (c *ContactsCatalog) ZipFiles(ctx context.Context) ([]contacts.File, error) {
+	return c.scanCatalogFiles(ctx, zipContactPredicate)
+}
+
+// OwnerEntity returns the perspective person (the case's one person with role "user"), or "" if there is none.
+// The owner's own numbers and emails appear on many contact cards ("Me", shared family lines) and must never
+// chain unrelated contacts into one cluster.
+func (r *ContactsRegistry) OwnerEntity(ctx context.Context) (string, error) {
+	rows, err := r.db.Query(ctx, `SELECT p.id::text FROM registry.person p JOIN registry.entity e ON e.id = p.id
+		WHERE p.role_in_case = 'user' AND e.merged_into_id IS NULL`)
+	if err != nil {
+		return "", errors.New("contacts registry: owner lookup unavailable")
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return "", err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	if len(ids) > 1 {
+		return "", errors.New("contacts registry: more than one person has the role user")
+	}
+	if len(ids) == 0 {
+		return "", nil
+	}
+	return ids[0], nil
 }
 
 // ContactsRegistry is the platform-database side of the placeholder and re-link steps.

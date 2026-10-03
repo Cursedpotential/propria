@@ -10,13 +10,13 @@ import (
 	"go.temporal.io/sdk/testsuite"
 )
 
-func TestWorkflowRunsTheSixStepsInOrderCarryingReferencesAndTheDryRunFlag(t *testing.T) {
+func TestWorkflowRunsTheSevenStepsInOrderCarryingReferencesAndTheDryRunFlag(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	var order []string
 	var seen = map[string]StepRequest{}
 	steps := []struct{ name, ref string }{
-		{ManifestActivity, "/w/r1/manifest.jsonl"}, {FetchActivity, "/w/r1/fetched.jsonl"}, {ParseActivity, "/w/r1/people.json"},
+		{ManifestActivity, "/w/r1/manifest.jsonl"}, {ZipMembersActivity, "/w/r1/members.jsonl"}, {FetchActivity, "/w/r1/fetched.jsonl"}, {ParseActivity, "/w/r1/people.json"},
 		{PeopleActivity, ""}, {PlaceholdersActivity, ""}, {RelinkActivity, ""},
 	}
 	for _, step := range steps {
@@ -35,7 +35,7 @@ func TestWorkflowRunsTheSixStepsInOrderCarryingReferencesAndTheDryRunFlag(t *tes
 	if err := env.GetWorkflowResult(&result); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{ManifestActivity, FetchActivity, ParseActivity, PeopleActivity, PlaceholdersActivity, RelinkActivity}
+	want := []string{ManifestActivity, ZipMembersActivity, FetchActivity, ParseActivity, PeopleActivity, PlaceholdersActivity, RelinkActivity}
 	if len(order) != len(want) || len(result.Receipts) != len(want) {
 		t.Fatalf("order = %v receipts = %d", order, len(result.Receipts))
 	}
@@ -47,7 +47,7 @@ func TestWorkflowRunsTheSixStepsInOrderCarryingReferencesAndTheDryRunFlag(t *tes
 			t.Fatalf("%s did not get the dry-run flag and actor: %+v", want[i], seen[want[i]])
 		}
 	}
-	if seen[FetchActivity].Refs["manifest"] != "/w/r1/manifest.jsonl" || seen[ParseActivity].Refs["files"] != "/w/r1/fetched.jsonl" ||
+	if seen[FetchActivity].Refs["manifest"] != "/w/r1/manifest.jsonl" || seen[FetchActivity].Refs["members"] != "/w/r1/members.jsonl" || seen[ParseActivity].Refs["files"] != "/w/r1/fetched.jsonl" ||
 		seen[PeopleActivity].Refs["people"] != "/w/r1/people.json" || seen[PlaceholdersActivity].Refs["people"] != "/w/r1/people.json" {
 		t.Fatalf("references were not carried: %+v", seen)
 	}
@@ -56,7 +56,7 @@ func TestWorkflowRunsTheSixStepsInOrderCarryingReferencesAndTheDryRunFlag(t *tes
 		t.Fatal(err)
 	}
 	var status RunStatus
-	if err := value.Get(&status); err != nil || status.State != "completed" || len(status.Steps) != 6 {
+	if err := value.Get(&status); err != nil || status.State != "completed" || len(status.Steps) != 7 {
 		t.Fatalf("status = %+v %v", status, err)
 	}
 }
@@ -65,7 +65,7 @@ func TestWorkflowStopsAtTheFirstFailedStepAndReportsIt(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	ran := map[string]bool{}
-	for _, name := range []string{ManifestActivity, FetchActivity, ParseActivity, PeopleActivity, PlaceholdersActivity, RelinkActivity} {
+	for _, name := range []string{ManifestActivity, ZipMembersActivity, FetchActivity, ParseActivity, PeopleActivity, PlaceholdersActivity, RelinkActivity} {
 		name := name
 		env.RegisterActivityWithOptions(func(_ context.Context, req StepRequest) (Receipt, error) {
 			ran[name] = true
