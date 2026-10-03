@@ -1,5 +1,16 @@
 # Propria — Monorepo Root Contract
 
+## Documentation comes from docstrings (owner rule, 2026-10-02)
+
+Every tool, Activity, workflow, API route and MCP tool written from now on carries a docstring or
+doc comment. The first line is a one-sentence description. Below it go inputs, outputs, side
+effects, and when to pick it over its siblings. Registries, tool catalogs,
+`modules/Probata/probata/docs/reference/WORKFLOW-REGISTRY.md` and plugin skills (such as the
+`propria-toolbox` catalog) are generated from those docstrings, never written by hand beside them.
+A unit without a docstring is unfinished. Existing code gets back-filled later as its own task;
+the rule applies going forward now. Owner, 20:44: "Do that with everything from now on so that we
+can get some good documentation when we're done." _Claude Code · Opus 5.5 · 2026-10-02_
+
 ## Current checkout routing — the monorepo is one repository (2026-09-26)
 
 **Propria is now a single Git repository.** The product repositories were imported
