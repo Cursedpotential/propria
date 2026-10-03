@@ -65,11 +65,7 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 
 - [ ] **Security note:** the agent's `GET /api/v1/security/keys` printed Coolify's stored SSH / GitHub-App **private keys** into its transcript (not git-tracked). Owner policy says transcript-only exposure needs no rotation, but private keys are higher stakes than tokens — owner decides whether to rotate. Also: 3 stale Docker networks pruned on ovh-app (`…_workbench`, `…_agentos`, `…_librechat`) to free the address pool; root-only temp token files left in ovh-app `/tmp` (rm blocked by guard hook).
 
-- [ ] **ContextForge gateway for n8n via tailnet** (`http://100.91.190.107:5678`), not the legacy public name.
-
 - [ ] **family-court-console → `case-work`:** Coolify app `sokv65ibdq2y8xdaqmd6p4rq` + env (incl. new `MCP_BEARER_TOKEN`) exist; deploy fails because `deploy/family-court-console.yaml` + build source were never committed to Probata `origin/main` (shared clone 2 ahead / 60 behind). Needs sync script → commit from a clean worktree → deploy → register gateway → build `case-work`.
-
-- [ ] **n8n MCP:** agent tried legacy public `n8n.mitechconsult.com` (51.81.83.191, never publicly open) → timeout. Register via tailnet `http://100.91.190.107:5678` instead.
 
 - [ ] **tavily / courtlistener:** no API keys in `~/.secrets` → owner supplies keys, then register.
 
@@ -351,8 +347,6 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
   - _Unclear (2026-10-02 triage):_ part of the same owner command as 3556; no entry confirms settings.json paths updated
 
 ### From: 2026-09-28 06:40 EDT — plugins: one folder per plugin for Claude Code and Codex; marketplace renamed `propria-plugins` (owner 04:53–04:54 EDT)
-
-- [ ] **Next: federate `n8n-mcp` through ContextForge, for both apps.** Codex reaches it directly since 2026-10-02 (`https://n8n.tilapia-skilift.ts.net/mcp-server/http`, its own auth header; live `search_workflows` call OK). _(Claude Code · Opus 5.5 · 2026-10-02)_
 
 - [ ] **Owner call: the hyperfocus SessionStart hook fails in every Codex session.** `hyperfocus@hyperfocus-repo` (third-party) runs the bare path `${CLAUDE_PLUGIN_ROOT}/scripts/hyperfocus-hook.sh`; Codex runs hook commands through PowerShell, which hands a `.sh` file to the Windows file association, and this machine's `.sh` association (`shfile`) points at `C:\Users\matts\AppData\Local\hermes\git\bin\bash.exe`, which no longer exists. Codex also ignores the hook's `args`, so the script would get no `--root` and exit silently anyway. Proven 2026-10-02: one SessionStart hook fails per `codex exec`; with `-c plugins.hyperfocus@hyperfocus-repo.enabled=false` none fails. Options: fork it into propria-plugins with a Codex `commandWindows` (as memsearch does), or turn its Codex hook off. _(Claude Code · Opus 5.5 · 2026-10-02)_
 

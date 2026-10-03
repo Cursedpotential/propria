@@ -1090,3 +1090,12 @@ Replaced by a later owner decision; not done as written.
 - **Aug Facebook `message_3` re-run.** DONE after the parent created `ProfferChunks20261002` (21:06 EDT): `overnight-20261002-fb-20250818-katrina-05` 1 done, 6 skipped; of its 10,000 messages 175 are new working rows and 9,825 further occurrences of the Feb export's rows (same account). Facebook working.message 67,377; both exports complete.
 
 - **Toolbox catalog: new tools live, descriptions from docstrings.** DONE 2026-10-02 21:50 EDT. tool-runtime deploy `u7k4zdtw4n1fn0pebnmeqtmf` (2b24e151) finished; live `GET /tools` on the tool gateway returns 55 tools (`extract.html_text` 7, `chunk.message_spans` 4, `repair.json` 1). The `propria-toolbox` catalog was regenerated from it (propria-plugins 078a8c9). Stale ContextForge `ctl` gateway (57 tools) and the empty `propria-docstore-retired-8172` server were removed at 20:41 (owner approved); ContextForge now has 12 gateways, 8 servers, 130 tools.
+
+### 2026-10-03 00:28–00:37 EDT — n8n MCP federated through ContextForge (from: 2026-09-14 night — change log; 2026-09-28 06:40 EDT — plugins)
+
+> _Byline: Claude Code · Sonnet · 2026-10-03_
+
+- **ContextForge gateway for n8n via tailnet** (`http://100.91.190.107:5678`), not the legacy public name. DONE 00:28 EDT: gateway `n8n` registered on that address, 54 tools discovered.
+- **n8n MCP:** agent tried legacy public `n8n.mitechconsult.com` (51.81.83.191, never publicly open) → timeout. Register via tailnet `http://100.91.190.107:5678` instead. DONE (same registration; ContextForge reaches n8n on the tailnet address).
+- **Next: federate `n8n-mcp` through ContextForge, for both apps.** Codex reaches it directly since 2026-10-02 (`https://n8n.tilapia-skilift.ts.net/mcp-server/http`, its own auth header; live `search_workflows` call OK). _(Claude Code · Opus 5.5 · 2026-10-02)_ DONE 00:37 EDT: virtual server `n8n` serves Claude Code and Codex.
+  - _Proof (2026-10-03):_ a live `n8n-search-workflows` call from Codex (`codex exec`) and from Claude Code (`claude -p`) returned the same 7-workflow list through ContextForge. Ids, endpoint, backups and the commands are in [LOG.md](LOG.md), section "2026-10-03 00:28–00:37 EDT — n8n MCP federated through ContextForge for Claude Code and Codex".

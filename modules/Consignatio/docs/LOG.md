@@ -3447,3 +3447,29 @@ Open, for the owner:
 - Fix `f7a2b298` (Workbench web): the recommended parser starts picked; "Re-run without repair (use the kept original)" needs no tick; the tool box left Review (it stays on the Tools page). Smoke 124 pass / 4 skipped, typecheck clean.
 - Deployed: Coolify `workbench` deployment `8m39nt2zfuublipnnob9tqhi` finished; the live bundle `/assets/index-Bjbkllzf.js` carries the new button text and no longer has "Re-run with this choice".
 - Not yet live: the run-title change (`a24a8e0f` on `feat/review-titles`); its push was refused by the permission classifier and waits on the owner.
+
+## 2026-10-03 00:28–00:37 EDT — n8n MCP federated through ContextForge for Claude Code and Codex (owner order 2026-10-02 08:15, "go on n8n")
+
+> _Byline: Claude Code · Sonnet · 2026-10-03. Standing rule: external MCP servers are federated behind ContextForge._
+
+**Changed**
+- **ContextForge gateway `n8n`** (`731a6b2be8214ecc9e234fb719560156`, ContextForge 1.0.4 on ovh-app, created 00:28:25 EDT): upstream `http://100.91.190.107:5678/mcp-server/http`.
+  - That is the tailnet IP and published port of the n8n container in the Coolify service `casebible-n8n` (`ddjgrmys36d9n8xwcwj0mml2`, on ovh-files). The legacy public name `n8n.mitechconsult.com` is not used.
+  - STREAMABLEHTTP, bearer auth held inside ContextForge (the token equals `N8N_MCP_SERVER_TOKEN` in `~/.secrets/n8n-ovh2.env`), public, admin team. Status active, reachable, 54 tools discovered.
+- **Virtual server `n8n`** (`c961807d29e24cd790987ff05d940e7c`): all 54 tools. Endpoint `https://mcp.mitechconsult.com/servers/c961807d29e24cd790987ff05d940e7c/mcp`. By n8n's own annotation 29 of the tools are read-only and 25 change things (workflows, data tables, folders, agents).
+- **Claude Code and Codex** now reach n8n only through that endpoint, with `CF_MCP_CLIENT_TOKEN` (a Windows user variable): `~/.claude.json` `mcpServers.n8n-mcp` (header `Authorization: Bearer ${CF_MCP_CLIENT_TOKEN}`, the `dev-docs` shape) and `~/.codex/config.toml` `[mcp_servers.n8n-mcp]` (`bearer_token_env_var`, startup 30 s, tool timeout 180 s). Neither file holds a direct n8n URL or the n8n token any more.
+  - Backups, which still hold the old direct entry: `~/.claude.json.bak-20261003-n8n-contextforge` and `~/.codex/config.toml.bak-20261003-n8n-contextforge`.
+- **Tool names changed.** ContextForge prefixes the gateway name and turns underscores into hyphens: `search_workflows` is now `n8n-search-workflows`, so Claude Code sees `mcp__n8n-mcp__n8n-search-workflows`. Codex approvals are not pre-set for any n8n tool, as before the move.
+- **Docs that asserted the old direct wiring were conformed in place** (superseded text removed, not struck through): the running TODO `modules/Probata/probata/docs/planning/2026-09-20-TODO.md` (the 09-28 n8n-mcp bullet), the auto-memory note `desktop-inline-plugins-and-mcp-disable.md` with its index line, and the n8n plugin's `our-server` and `n8n` skills in `propria-plugins` (its post-commit hook mirrors them into both apps' installs).
+
+**Verified live (00:29–00:37 EDT)**
+- Direct MCP client against the ContextForge endpoint: `tools/list` returned 54 tools; `n8n-search-workflows` with `limit 3` returned 3 of 7 workflows.
+- Codex 0.160.0, `codex exec --skip-git-repo-check --ephemeral -s read-only` with the one-run override `-c mcp_servers.n8n-mcp.tools.n8n-search-workflows.approval_mode="approve"`: the event stream shows `mcp_tool_call server=n8n-mcp tool=n8n-search-workflows` completed; answer `count=7 first=Proffer - execute_parser_activity`.
+- Claude Code 2.1.287, `claude -p --model haiku --allowedTools mcp__n8n-mcp__n8n-search-workflows` from a scratch folder: `n8n-mcp` connected at init with 54 tools; the same call returned the same data and the same answer.
+- Both config files were re-read after the edit, 8 seconds later and again about six minutes later, with the apps running: still the ContextForge entry, and no direct n8n URL left in either file.
+
+**Still open / notes**
+- Sessions that were already running keep their old direct n8n connection until they restart.
+- `~/.secrets/n8n-ovh2.env` still lists `N8N_MCP_SERVER_URL=https://n8n.mitechconsult.com/mcp-server/http`, the legacy public name. Left alone because it is a credentials file; the owner may want it pointed at the ContextForge endpoint.
+- Seen in both proof runs and unrelated to n8n: the CourtListener OAuth server (`mcp.courtlistener.com`) answers `AuthRequired` to Codex, and the osgrep plugin's `stop.js` SessionEnd hook fails in `claude -p` ("require is not defined").
+- Three `URGENT-TODO.md` items (n8n gateway via tailnet, the `n8n MCP` registration note, "federate `n8n-mcp` for both apps") are finished and moved to `COMPLETED-TODO.md`.
