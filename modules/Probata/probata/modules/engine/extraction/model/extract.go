@@ -398,6 +398,14 @@ func truncate(value string, limit int) string {
 // ground converts a validated reply into proposals, keeping only what the
 // messages actually contain.
 func ground(outcome *BatchOutcome, response Response, batch Batch, modelID string, scope entities.RunScope) {
+	groundWith(outcome, response, batch, "model:"+modelID+"@"+ExtractorVersion, entities.ModelMethod(modelID), scope)
+}
+
+// groundWith grounds a validated reply under an explicit extractor tag and
+// mention method, so a reply from any extractor (the default kimi-k3 call, or
+// an external Python extractor through GroundExternal) is tagged with the one
+// that made it. Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+func groundWith(outcome *BatchOutcome, response Response, batch Batch, extractor, method string, scope entities.RunScope) {
 	byLabel := map[string]entities.MessageView{}
 	for i, message := range batch.Messages {
 		byLabel[messageLabel(i)] = message
@@ -414,8 +422,6 @@ func ground(outcome *BatchOutcome, response Response, batch Batch, modelID strin
 		}
 		return false
 	}
-	method := entities.ModelMethod(modelID)
-	extractor := "model:" + modelID + "@" + ExtractorVersion
 	convert := func(item EntityOut, registryType entities.RegistryType) (entities.Proposal, bool) {
 		proposal := entities.Proposal{
 			Name: strings.TrimSpace(item.Name), RegistryType: registryType, DetectedBy: entities.DetectedAuto,

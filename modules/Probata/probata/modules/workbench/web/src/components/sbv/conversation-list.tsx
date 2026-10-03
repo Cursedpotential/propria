@@ -6,17 +6,22 @@
 // else its formatted number) are carried over unchanged. Rows are links, not click handlers, so a
 // conversation opens from a tap, a keyboard or a shared URL alike.
 // Byline: Claude Code · Sonnet · 2026-10-02
+// Byline amendment: Claude Code · Sonnet 5.5 · 2026-10-02 (optional row selection: a shadcn Checkbox beside the link,
+// for Extract and Send to Surreal; without `selection` the list renders exactly as before)
 "use client";
 
 import { MessageSquareText, Phone } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AppLink } from "@/lib/router-compat";
 import { cn } from "@/lib/utils";
 
 export interface ConversationListItem {
   /** Where the row opens. */
   href: string;
+  /** The conversation's id; the key a selection is made of. Required on a list that has `selection`. */
+  id?: string;
   /** The contact's name, when one is known. */
   contactName?: string | null;
   /** A phone number or comma-separated group of numbers. */
@@ -68,7 +73,12 @@ function truncate(message: string | null | undefined, maxLength = 80) {
   return message.length <= maxLength ? message : `${message.slice(0, maxLength).trim()}...`;
 }
 
-export function ConversationList({ items, className }: { items: ConversationListItem[]; className?: string }) {
+export interface ConversationSelection {
+  selected: ReadonlySet<string>;
+  onToggle: (id: string) => void;
+}
+
+export function ConversationList({ items, className, selection }: { items: ConversationListItem[]; className?: string; selection?: ConversationSelection }) {
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 px-6 py-12 text-center text-muted-foreground">
@@ -80,8 +90,18 @@ export function ConversationList({ items, className }: { items: ConversationList
   return (
     <ul className={cn("divide-y divide-border", className)} data-testid="conversation-list">
       {items.map((item) => (
-        <li key={item.href}>
-          <AppLink href={item.href} className="flex min-h-16 items-start gap-3 px-4 py-3 hover:bg-muted/60 active:bg-muted">
+        <li key={item.href} className={cn(selection && item.id && "flex items-stretch", selection && item.id && selection.selected.has(item.id) && "bg-primary/5")}>
+          {selection && item.id ? (
+            <label className="flex min-h-16 w-14 shrink-0 cursor-pointer items-center justify-center" aria-label={`Select ${displayName(item)}`}>
+              <Checkbox
+                checked={selection.selected.has(item.id)}
+                onCheckedChange={() => selection.onToggle(item.id as string)}
+                className="size-6"
+                data-testid="conversation-select"
+              />
+            </label>
+          ) : null}
+          <AppLink href={item.href} className={cn("flex min-h-16 items-start gap-3 py-3 hover:bg-muted/60 active:bg-muted", selection && item.id ? "min-w-0 flex-1 pr-4" : "px-4")}>
             <span className="mt-1 shrink-0 rounded-full bg-muted p-2 shadow-sm">
               {item.type === "call" ? <Phone className="size-5 text-emerald-600" aria-hidden="true" /> : <MessageSquareText className="size-5 text-primary" aria-hidden="true" />}
             </span>

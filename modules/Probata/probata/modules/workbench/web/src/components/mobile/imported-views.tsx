@@ -6,10 +6,13 @@
 //   messages     MessageBubble (the SBV-derived component the Review thread view uses)
 //   calls        CallsTable (the SBV-derived call-history list Review uses)
 // Read-only. "Who is this?" comes from the identity components those rows already host.
+// Byline amendment: Claude Code · Sonnet 5.5 · 2026-10-02 (conversations are checkable, and a conversation has Extractions,
+// Extract and Send to Surreal: components/conversations/*; those are the only actions on this view that start work).
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useLayoutEffect, useMemo, useRef } from "react";
 
+import { ConversationSelectionBar, ConversationToolbar } from "@/components/conversations/conversation-actions";
 import { ImportedGrid, type ImportedColumn } from "@/components/imported/imported-grid";
 import { toCallRow, toMessageRow } from "@/components/imported/record-rows";
 import { formatCount, formatDate, formatRange, statusLabel } from "@/components/mobile/mobile-format";
@@ -21,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useSelection } from "@/hooks/use-conversation-actions";
 import { importedApi, type ImportedSource, type SourceStatus } from "@/lib/imported-client";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 
@@ -97,6 +101,7 @@ export function SourcesView() {
 }
 
 export function SourceThreadsView({ sourceId }: { sourceId: string }) {
+  const { selected, toggle, clear } = useSelection();
   const query = useInfiniteQuery({
     queryKey: ["m-threads", sourceId],
     queryFn: ({ pageParam, signal }) => importedApi.threads(sourceId, pageParam, signal),
@@ -104,8 +109,9 @@ export function SourceThreadsView({ sourceId }: { sourceId: string }) {
     getNextPageParam: (last) => last.next_offset ?? undefined,
   });
   const source = query.data?.pages[0]?.source;
-  const items = useMemo<ConversationListItem[]>(
+  const items = useMemo<(ConversationListItem & { id: string })[]>(
     () => (query.data?.pages.flatMap((page) => page.items) ?? []).map((thread) => ({
+      id: thread.id,
       href: `/m/thread/${thread.id}`,
       contactName: thread.title,
       address: thread.participants.find((p) => !p.mine)?.id ?? null,
@@ -123,7 +129,8 @@ export function SourceThreadsView({ sourceId }: { sourceId: string }) {
       {query.isPending ? <Loading /> : query.isError ? <ErrorBox error={query.error} onRetry={() => void query.refetch()} /> : (
         <>
           {source ? <SourceSummary source={source} /> : null}
-          <ConversationList items={items} />
+          <ConversationList items={items} selection={{ selected, onToggle: toggle }} />
+          <ConversationSelectionBar threadIds={items.map((item) => item.id).filter((id) => selected.has(id))} onClear={clear} placement="mobile" />
           {query.hasNextPage ? <LoadMore onClick={() => void query.fetchNextPage()} loading={query.isFetchingNextPage} /> : null}
         </>
       )}
@@ -193,6 +200,7 @@ export function ThreadView({ threadId }: { threadId: string }) {
   return (
     <div>
       <PageBar title={title} subtitle={head ? [head.source.format, head.source.device, head.source.file_name].filter(Boolean).join(" · ") : undefined} back={head ? `/m/source/${head.source.id}` : "/m"} />
+      <ConversationToolbar threadId={threadId} placement="mobile" />
       {query.isPending ? <Loading /> : query.isError ? <ErrorBox error={query.error} onRetry={() => void query.refetch()} /> : (
         <div className="space-y-1.5 px-3 py-3" aria-label="Conversation">
           {query.hasNextPage

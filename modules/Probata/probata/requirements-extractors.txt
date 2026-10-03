@@ -1,0 +1,7 @@
+# Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+# The selectable entity/event extractors the temporal-worker runs as Activities
+# (server/tools/extractors/entity_events/, server/temporal/entity_event_activities.py).
+# Pinned exactly so an extraction is always tied to one library version; the version is recorded on every proposal.
+# LangExtract's OpenAI provider (used for kimi-k3 on NVIDIA NIM) needs the openai package, which requirements.txt
+# already pins (openai==2.53.0, satisfying langextract's openai>=1.50). Tested 2026-10-02 against openai 2.53.0.
+langextract==1.7.0

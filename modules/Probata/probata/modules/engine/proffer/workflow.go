@@ -892,6 +892,10 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 			r.operation.Reason = err.Error()
 			return r.result(""), err
 		}
+		// The owner has decided and the messages are committed: extraction of entities and events
+		// is part of the workflow, started as a child with the default extractor
+		// (auto_extraction.go). Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+		r.startAutoExtraction(ctx, string(preview.PreviewHandle), r.sourceVersionRef, normalizedGenerationRef)
 	}
 
 	// Calls follow the message path (owner 2026-10-02): the generation's call
@@ -1126,6 +1130,8 @@ type run struct {
 	operation        OperationState
 	// ctx is the workflow's root context; result() reads its cancellation.
 	ctx workflow.Context
+	// autoExtraction records whether the automatic extraction child started.
+	autoExtraction string
 }
 
 // pending is an in-flight Activity future paired with the stage id that
@@ -1471,6 +1477,7 @@ func (r *run) result(publicationRef Ref) WorkflowResult {
 		PublicationRef:   publicationRef,
 		Status:           status,
 		Stages:           r.results,
+		AutoExtraction:   r.autoExtraction,
 	}
 }
 

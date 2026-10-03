@@ -9,7 +9,9 @@ and registers:
   workflows:  ChatTranscriptIngest (P1), P0DurabilityProbe (the P0 exit test)
   activities: custody_activity, parse_activity, store_activity (sync — run in
               a thread pool), knowledge_activity (async), plus one
-              extract_html_<tool>_activity per HTML library (html_tool_activities.py)
+              extract_html_<tool>_activity per HTML library (html_tool_activities.py), and
+              extract_entities_events_<extractor>_activity per selectable entity/event extractor
+              (entity_event_activities.py: semantica, langextract)
 
 Env:
   TEMPORAL_ADDRESS    frontend address (default temporal-server:7233 on the
@@ -48,6 +50,10 @@ from server.temporal.chunk_backfill_activities import (
     verify_chunk_coverage_activity,
 )
 from server.temporal.classification_workflow import ClassificationBatchPipeline
+from server.temporal.entity_event_activities import (
+    extract_entities_events_langextract_activity,
+    extract_entities_events_semantica_activity,
+)
 from server.temporal.html_tool_activities import HTML_TOOL_ACTIVITIES
 from server.temporal.n8n_activities import n8n_webhook_activity
 from server.temporal.timeline_activities import build_timeline_generation_activity
@@ -99,6 +105,10 @@ async def main() -> None:
                 estimate_context_chunks_activity,
                 verify_chunk_coverage_activity,
                 remove_per_message_objects_activity,
+                # The selectable entity/event extractors the Go extraction_request_workflow schedules, one per
+                # library (Claude Code · Sonnet 5.5 · 2026-10-02).
+                extract_entities_events_semantica_activity,
+                extract_entities_events_langextract_activity,
             ],
             activity_executor=executor,
         )

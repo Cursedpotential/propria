@@ -180,6 +180,15 @@ func run() error {
 	if routes, err = mountEntityExtractionRoutes(routes, extractionRoutes); err != nil {
 		return err
 	}
+	// Conversation extraction and the Surreal send (Workbench: Extract and Send to Surreal).
+	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	conversationRoutes, err := conversationExtractionHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountConversationExtractionRoutes(routes, conversationRoutes); err != nil {
+		return err
+	}
 	// Case identity: the Workbench Case page reads and edits registry, the one
 	// identity store. Byline: Claude Code · Opus 5.5 · 2026-10-01
 	caseIdentityRoutes, err := caseIdentityHandler(pool, serviceTokenFile)

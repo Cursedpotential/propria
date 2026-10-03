@@ -110,6 +110,21 @@ services:
       # Entity/event extraction (2026-09-26): kimi-k3 on NVIDIA NIM; without the key only the
       # participant rules run. Byline: Claude Code · Opus 5.5 · 2026-09-26
       ENTITY_MODEL_API_KEY_FILE: /run/secrets/nvidia-api-key
+      # Send to Surreal (owner 2026-10-02): conversations are upserted into surreal-case (SurrealDB 3.2.4 on ovh-files,
+      # tailnet only) in their own conv_* tables, never the toolkit's. Without the two credential files the worker still
+      # boots and the send reports "not configured". The login is a database-level user on the case database
+      # (sql/surreal/conversations_20261002.surql defines it); host prep, once, before this deploy:
+      #   install -d -o root -g 10001 -m 0750 /data/probata/secrets/surreal-case
+      #   # write the user name and the password, one line each, no trailing newline, then:
+      #   chown 10001:10001 /data/probata/secrets/surreal-case/user /data/probata/secrets/surreal-case/password
+      #   chmod 0400        /data/probata/secrets/surreal-case/user /data/probata/secrets/surreal-case/password
+      # Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+      SURREAL_CASE_URL: ${SURREAL_CASE_URL:-http://100.91.190.107:8471}
+      SURREAL_CASE_NAMESPACE: ${SURREAL_CASE_NAMESPACE:-fct}
+      SURREAL_CASE_DATABASE: ${SURREAL_CASE_DATABASE:-case}
+      SURREAL_CASE_AUTH_LEVEL: database
+      SURREAL_CASE_USER_FILE: /run/secrets/surreal-case-user
+      SURREAL_CASE_PASSWORD_FILE: /run/secrets/surreal-case-password
       # Weaviate first (owner 2026-09-18, 2026-09-26; OD-06 answered 2026-10-01 07:17):
       # every run's extracted records become searchable in the owner-approved
       # the owner-approved collection of its kind before approval and the canonical commit. Required at startup.
@@ -144,6 +159,8 @@ services:
       - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro
       - /data/probata/secrets/intake-engine/metabase-ro:/run/secrets/intake-catalog-readonly:ro
       - /data/probata/secrets/intake-engine/nvidia-api-key:/run/secrets/nvidia-api-key:ro
+      - /data/probata/secrets/surreal-case/user:/run/secrets/surreal-case-user:ro
+      - /data/probata/secrets/surreal-case/password:/run/secrets/surreal-case-password:ro
       # Tool gateway service token (D-132): the worker calls platform-tools ONLY through
       # the gateway and fails closed at startup without this file. Copied from ovh-app
       # /data/probata/secrets/tool-gateway/service-token on 2026-09-05.

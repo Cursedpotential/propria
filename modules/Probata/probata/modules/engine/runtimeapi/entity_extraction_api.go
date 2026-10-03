@@ -79,15 +79,20 @@ func (h *EntityExtractionHTTPHandler) Routes() http.Handler {
 }
 
 func (h *EntityExtractionHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
+	return tailnetServiceAuth(h.serviceTokenPath, "proffer entity extraction tailnet authorization required", next)
+}
+
+// tailnetServiceAuth admits only a tailnet peer that presents the mounted service token.
+func tailnetServiceAuth(serviceTokenPath, denied string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
 		ip := net.ParseIP(host).To4()
-		serviceToken, tokenErr := loadServiceToken(h.serviceTokenPath)
+		serviceToken, tokenErr := loadServiceToken(serviceTokenPath)
 		header := strings.TrimSpace(r.Header.Get("Authorization"))
 		provided := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 		trusted := tokenErr == nil && strings.HasPrefix(header, "Bearer ") && hmac.Equal([]byte(provided), serviceToken)
 		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 || !trusted {
-			previewError(w, http.StatusUnauthorized, errors.New("proffer entity extraction tailnet authorization required"))
+			previewError(w, http.StatusUnauthorized, errors.New(denied))
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")

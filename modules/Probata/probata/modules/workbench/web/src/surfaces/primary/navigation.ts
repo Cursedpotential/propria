@@ -2,7 +2,8 @@
 // Byline: Claude Code · Opus 5 · 2026-09-22 (Sources replaces Intake in the nav;
 // /intake stays a reachable route, off the navigation.)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01 (Case: people and identifiers over registry, step 6)
-import { FileSearch, FolderTree, LayoutDashboard, Users } from "lucide-react";
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-02 (Conversations: Extract and Send to Surreal on the desktop)
+import { FileSearch, FolderTree, LayoutDashboard, MessagesSquare, Users } from "lucide-react";
 import type { WorkbenchNavigationItem } from "@/platform-ui/navigation";
 
 export const primaryNavigationItems = [
@@ -18,6 +19,13 @@ export const primaryNavigationItems = [
     pageTitle: "Sources",
     href: "/sources",
     icon: FolderTree,
+    surface: "primary",
+  },
+  {
+    title: "Conversations",
+    pageTitle: "Imported conversations — extract and send",
+    href: "/conversations",
+    icon: MessagesSquare,
     surface: "primary",
   },
   {

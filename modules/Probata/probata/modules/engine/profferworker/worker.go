@@ -63,6 +63,10 @@ type Registrations struct {
 	// Extraction serves the entity/event extraction workflows (extraction.go).
 	// Byline: Claude Code · Opus 5.5 · 2026-09-25
 	Extraction activities.EntityExtractionActivities
+	// Conversation serves the conversation-level extraction request and the
+	// Surreal send (conversation_extraction.go).
+	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+	Conversation activities.ConversationActivities
 	// ContextSearch is publish_context_search_activity, the Weaviate-first
 	// stage every new Proffer run schedules before the owner's approval.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
@@ -225,6 +229,7 @@ func Run(ctx context.Context, cfg Config) error {
 	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, workerOptions(cfg))
 	RegisterAll(temporalWorker, registrations)
 	RegisterExtraction(temporalWorker, registrations.Extraction)
+	RegisterConversationExtraction(temporalWorker, registrations.Conversation)
 	if err := temporalWorker.Start(); err != nil {
 		return fmt.Errorf("proffer worker: start Temporal worker: %w", err)
 	}
@@ -498,6 +503,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	conversation, err := buildConversationActivities(pool, nil)
+	if err != nil {
+		return Registrations{}, err
+	}
 	contextSearch, err := buildContextSearch(pool, cfg.ContextSearch)
 	if err != nil {
 		return Registrations{}, err
@@ -532,6 +541,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		MessageDedupe:         activities.NewMessageDedupeActivities(messageDedupeStore),
 		RepairPlan:            repairPlan,
 		Extraction:            extraction,
+		Conversation:          conversation,
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation: activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
 		InventoryObservation:  activities.NewSourceObservationActivities(nil, memberEnumerator, observationRepo),

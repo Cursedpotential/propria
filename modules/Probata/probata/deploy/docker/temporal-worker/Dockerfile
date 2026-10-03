@@ -45,6 +45,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements-html-tools.txt ./
 RUN pip install --no-cache-dir -r requirements-html-tools.txt
+# Entity/event extractors, one Activity each (entity_event_activities.py): LangExtract over kimi-k3 on NVIDIA NIM
+# (pinned in requirements-extractors.txt); Semantica is vendored under server/vendored and needs nothing more.
+# Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+COPY requirements-extractors.txt ./
+RUN pip install --no-cache-dir -r requirements-extractors.txt
 # Conversation chunking (owner 2026-10-02): Chonkie's Neural chunker on distilbert, CPU-only torch, the model baked
 # in at build time and loaded offline at run time (no download from the worker, no HF token, nothing fetched when a
 # run starts). The model revision is pinned: it is the snapshot the head-to-head used (devbox cache,

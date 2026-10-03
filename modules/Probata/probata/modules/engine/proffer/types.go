@@ -334,4 +334,8 @@ type WorkflowResult struct {
 	//
 	// Byline: Claude Code · Opus 5 · 2026-09-20
 	Derived *DeriveResult `json:"derived,omitempty"`
+	// AutoExtraction says whether entity and event extraction was started as a child after the
+	// messages were committed: "started: <workflow id>" or "not started: <reason>". A failure to
+	// start never fails the import.
+	AutoExtraction string `json:"auto_extraction,omitempty"`
 }

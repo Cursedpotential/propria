@@ -1,5 +1,6 @@
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30
 // Byline: Claude Code · Sonnet · 2026-10-02 (desktop and /m mobile shells as sibling layouts)
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-02 (desktop /conversations route)
 import {
   createRootRoute,
   createRoute,
@@ -64,6 +65,9 @@ const desktopTree = desktopRoute.addChildren([
   // The Case page over registry, the one identity store (Claude Code · Opus 5.5 · 2026-10-01).
   applicationRoute("case", () => import("@/app/case/page")),
   applicationRoute("classification-test", () => import("@/app/classification-test/page")),
+  // Imported conversations: check whole conversations, Extract, Send to Surreal, read the Extractions
+  // (Claude Code · Sonnet 5.5 · 2026-10-02).
+  applicationRoute("conversations", () => import("@/app/conversations/page")),
   applicationRoute("copilot", () => import("@/app/copilot/page")),
   applicationRoute("evidence-queue", () => import("@/app/evidence-queue/page")),
   applicationRoute("review", () => import("@/app/evidence/preview/page")),

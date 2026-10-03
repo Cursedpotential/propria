@@ -637,10 +637,17 @@ func scanEntities(rows pgx.Rows) ([]entities.Proposal, error) {
 	return out, rows.Err()
 }
 
+// notCompareOnlyRun leaves out the candidates of compare-only runs: an external extractor's
+// output (extraction_request_workflow) is tagged and kept for side-by-side viewing, and stays out
+// of the Review proposals, and so out of any registry commit, until the owner picks it.
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+const notCompareOnlyRun = `NOT EXISTS (SELECT 1 FROM working.extraction_run cr WHERE cr.id = extraction_run_id AND cr.stats->>'compare_only' = 'true')`
+
 // CurrentEntities returns the generation's non-superseded proposals.
 func (s *EntityExtractionStore) CurrentEntities(ctx context.Context, generationID string) ([]entities.Proposal, error) {
 	rows, err := s.db.Query(ctx, selectCandidateEntitySQL+`
 WHERE source_raw_table = $1 AND source_raw_id = $2 AND review_state IN ('pending', 'rejected', 'approved')
+  AND `+notCompareOnlyRun+`
 ORDER BY created_at, id LIMIT $3`, generationScopeTable, generationID, maxCurrentProposals)
 	if err != nil {
 		return nil, err
@@ -721,6 +728,7 @@ func (s *EntityExtractionStore) CurrentEvents(ctx context.Context, generationID 
 	rows, err := s.db.Query(ctx, `SELECT id::text, extraction_run_id::text, summary, attrs, review_state, coalesce(promoted_to_id, '')
 FROM working.candidate_event
 WHERE source_raw_table = $1 AND source_raw_id = $2 AND review_state IN ('pending', 'rejected', 'approved')
+  AND `+notCompareOnlyRun+`
 ORDER BY occurred_at, id LIMIT $3`, generationScopeTable, generationID, maxCurrentProposals)
 	if err != nil {
 		return nil, err

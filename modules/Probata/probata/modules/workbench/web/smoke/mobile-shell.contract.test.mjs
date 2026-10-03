@@ -1,8 +1,11 @@
 // Byline: Claude Code · Sonnet · 2026-10-02
 // Owner 2026-10-02: "a mobile-ready, slimmed-down version of Probata" at /m. These pins read the
 // source; they are not a browser or live proof. The rules: the Imported client only reads, the one
-// write on the whole mobile shell is the existing Review decision, the live case is the only case,
+// write inside components/mobile is the existing Review decision, the live case is the only case,
 // and the shell never says TEST or REAL to the owner.
+// Amended 2026-10-02 (Claude Code · Sonnet 5.5): Extract and Send to Surreal also start from /m, but they live in
+// components/conversations and post through lib/conversation-actions-client.ts (pinned in
+// conversation-actions.contract.test.mjs), so these pins about components/mobile hold unchanged.
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";

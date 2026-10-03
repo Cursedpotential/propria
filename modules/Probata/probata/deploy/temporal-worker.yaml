@@ -9,6 +9,9 @@
 #               Activities the Go ProfferWorkflow schedules BEFORE the preview, from the run's normalized generation
 #               (modules/engine/proffer/context_chunks.go): chunk_context_threads_activity,
 #               publish_context_chunks_activity, publish_call_log_files_activity.
+# It also registers the selectable entity/event extractor Activities the Go extraction_request_workflow schedules:
+# extract_entities_events_semantica_activity and extract_entities_events_langextract_activity
+# (server/temporal/entity_event_activities.py).
 # Without this app that queue has no poller and the projection step and the chunk step time out.
 #
 # What the chunk Activities need (server/context_chunks): the platform Postgres (read), the NIM key
@@ -38,6 +41,7 @@
 #   modules/Probata/probata/sql/**
 #   modules/Probata/probata/requirements.txt
 #   modules/Probata/probata/requirements-html-tools.txt
+#   modules/Probata/probata/requirements-extractors.txt
 #   modules/Probata/probata/deploy/docker/temporal-worker/**
 #   modules/Probata/probata/deploy/temporal-worker.yaml
 # Auto-deploy is OFF on purpose; deploy explicitly.
@@ -69,6 +73,10 @@ services:
       # matches (server/context_chunks/ids.chunk_content_key). Absent collection = no reuse.
       CONTEXT_CHUNKS_REUSE_COLLECTION: CaseBibleChunks20261002
       CONTEXT_CHUNKS_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
+      # The LangExtract entity/event extractor uses the default extractor's model settings (kimi-k3 on NVIDIA NIM,
+      # json_object replies, max tokens >= 1500); the same NIM key file the chunk Activities read.
+      # Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+      ENTITY_MODEL_API_KEY_FILE: /run/secrets/nvidia-api-key
     command:
       - sh
       - -c

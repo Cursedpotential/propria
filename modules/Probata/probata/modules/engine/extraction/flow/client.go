@@ -106,3 +106,33 @@ func (s *Starter) Status(ctx context.Context, workflowID string) (Progress, erro
 		}}}, nil
 	}
 }
+
+// Workflow id prefixes of the conversation-level workflows.
+const (
+	ConversationExtractionIDPrefix = "conversation-extraction:"
+	SendToSurrealIDPrefix          = "send-to-surreal:"
+)
+
+// ConversationExtractionWorkflowID is stable per request key: a retried click joins the running workflow.
+func ConversationExtractionWorkflowID(requestID string) string {
+	return ConversationExtractionIDPrefix + requestID
+}
+
+// SendWorkflowID is stable per request key.
+func SendWorkflowID(requestID string) string { return SendToSurrealIDPrefix + requestID }
+
+// StartConversationExtraction starts (or joins) extraction_request_workflow.
+func (s *Starter) StartConversationExtraction(ctx context.Context, in RequestInput) (Started, error) {
+	if err := in.Validate(); err != nil {
+		return Started{}, err
+	}
+	return s.start(ctx, ConversationExtractionWorkflowID(in.RequestID), 12*time.Hour, RequestWorkflowName, in)
+}
+
+// StartSend starts (or joins) send_to_surreal_workflow.
+func (s *Starter) StartSend(ctx context.Context, in SendInput) (Started, error) {
+	if err := in.Validate(); err != nil {
+		return Started{}, err
+	}
+	return s.start(ctx, SendWorkflowID(in.RequestID), 6*time.Hour, SendWorkflowName, in)
+}

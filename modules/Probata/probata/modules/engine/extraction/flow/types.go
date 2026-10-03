@@ -147,12 +147,18 @@ type StepResult struct {
 	Counts map[string]int  `json:"counts,omitempty"`
 	Ref    string          `json:"ref,omitempty"`
 	Flags  []entities.Flag `json:"flags,omitempty"`
+	// Conversation and Extractor name what a conversation-level step ran for
+	// (extraction_request_workflow, send_to_surreal_workflow).
+	Conversation string `json:"conversation,omitempty"`
+	Extractor    string `json:"extractor,omitempty"`
 }
 
 // Progress is the workflow's queryable status.
 type Progress struct {
 	Outcome string       `json:"outcome"`
 	Steps   []StepResult `json:"steps"`
+	// Receipts is set by send_to_surreal_workflow: one per conversation sent.
+	Receipts []SendReceipt `json:"receipts,omitempty"`
 }
 
 func (p *Progress) set(step string, status, detail string, counts map[string]int) {

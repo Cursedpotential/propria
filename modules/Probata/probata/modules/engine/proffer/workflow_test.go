@@ -17,6 +17,7 @@ import (
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/Cursedpotential/probata/engine/extraction/flow"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
@@ -1836,7 +1837,44 @@ func firstPartyInput() WorkflowInput {
 	return in
 }
 
+// autoExtractionInputs collects the inputs the automatic extraction child was started with.
+type autoExtractionInputs struct {
+	mu     sync.Mutex
+	inputs []flow.RequestInput
+}
+
+func (c *autoExtractionInputs) add(in flow.RequestInput) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.inputs = append(c.inputs, in)
+}
+
+func (c *autoExtractionInputs) snapshot() []flow.RequestInput {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]flow.RequestInput(nil), c.inputs...)
+}
+
+// mockAutoExtractionChild answers the extraction_request_workflow child the commit stage starts
+// (the test environment panics on a child type nobody registered).
+// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+func mockAutoExtractionChild(env *testsuite.TestWorkflowEnvironment, collected *autoExtractionInputs) {
+	env.RegisterWorkflowWithOptions(
+		func(_ workflow.Context, in flow.RequestInput) (flow.Progress, error) {
+			if collected != nil {
+				collected.add(in)
+			}
+			return flow.Progress{Outcome: flow.OutcomeCompleted}, nil
+		}, workflow.RegisterOptions{Name: flow.RequestWorkflowName})
+}
+
 func mockFirstPartyContextSucceeds(env *testsuite.TestWorkflowEnvironment, requests map[stagegraph.StageID]*StageRequest) {
+	mockFirstPartyContextCollecting(env, requests, nil)
+}
+
+// mockFirstPartyContextCollecting is mockFirstPartyContextSucceeds that also collects the extraction child's inputs.
+func mockFirstPartyContextCollecting(env *testsuite.TestWorkflowEnvironment, requests map[stagegraph.StageID]*StageRequest, collected *autoExtractionInputs) {
+	mockAutoExtractionChild(env, collected)
 	for _, id := range []stagegraph.StageID{
 		stagegraph.ResolveContextParticipants,
 		stagegraph.ProposeFirstPartyContext, stagegraph.ConfirmFirstPartyContext,
