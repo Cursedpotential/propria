@@ -40746,6 +40746,82 @@ GRANT EXECUTE ON FUNCTION working.message_device_key(text, text, uuid) TO platfo
 GRANT EXECUTE ON FUNCTION working.message_match_key(text, text[], text, timestamptz, bytea, text) TO platform_runtime;
 
 
+--
+-- message_dedupe_workflow tables and role (same-device duplicate removal, owner 2026-10-02).
+-- Byline: Claude Code · Opus 5.5 · 2026-10-02 — from scripts/2026-10-02-message-dedupe.sql
+--
+
+CREATE TABLE working.message_dedupe_run (
+    dedupe_id   text PRIMARY KEY CHECK (dedupe_id ~ '^[A-Za-z0-9_-]{8,96}$'),
+    rule        text NOT NULL,
+    workflow_id text NOT NULL,
+    run_id      text NOT NULL,
+    copies      bigint,
+    planned_at  timestamptz NOT NULL
+);
+
+CREATE TABLE working.message_dedupe_copy (
+    dedupe_id                text NOT NULL REFERENCES working.message_dedupe_run (dedupe_id),
+    record_id                uuid NOT NULL,
+    keeper_record_id         uuid NOT NULL,
+    projection_kind          text NOT NULL CHECK (projection_kind IN ('first_party', 'acquired_third_party')),
+    match_key                text NOT NULL,
+    source_version_id        uuid NOT NULL,
+    keeper_source_version_id uuid NOT NULL,
+    PRIMARY KEY (dedupe_id, record_id),
+    CHECK (record_id <> keeper_record_id)
+);
+CREATE INDEX message_dedupe_copy_record_idx ON working.message_dedupe_copy (record_id);
+
+CREATE TABLE working.message_dedupe_thread_version (
+    dedupe_id         text NOT NULL REFERENCES working.message_dedupe_run (dedupe_id),
+    family            text NOT NULL CHECK (family IN ('first_party', 'third_party')),
+    thread_version_id uuid NOT NULL,
+    PRIMARY KEY (dedupe_id, family, thread_version_id)
+);
+
+CREATE TABLE working.message_dedupe_receipt (
+    id           uuid PRIMARY KEY,
+    dedupe_id    text NOT NULL REFERENCES working.message_dedupe_run (dedupe_id),
+    step         text NOT NULL CHECK (step IN ('plan', 'repoint_occurrences', 'remove_thread_memberships',
+                     'recompute_thread_versions', 'remove_first_party_messages', 'remove_third_party_messages', 'verify')),
+    dry_run      boolean NOT NULL,
+    status       text NOT NULL CHECK (status = 'success'),
+    counts       jsonb NOT NULL,
+    workflow_id  text NOT NULL,
+    run_id       text NOT NULL,
+    attempt      integer NOT NULL,
+    started_at   timestamptz NOT NULL,
+    completed_at timestamptz NOT NULL
+);
+-- A live step succeeds once per plan; a retried or repeated live run re-reads that receipt.
+CREATE UNIQUE INDEX message_dedupe_receipt_live_once ON working.message_dedupe_receipt (dedupe_id, step) WHERE NOT dry_run;
+
+GRANT SELECT, INSERT ON working.message_dedupe_run, working.message_dedupe_copy,
+    working.message_dedupe_thread_version, working.message_dedupe_receipt TO platform_runtime;
+GRANT UPDATE (copies) ON working.message_dedupe_run TO platform_runtime;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'message_dedupe_writer') THEN
+        CREATE ROLE message_dedupe_writer NOLOGIN;
+    END IF;
+END $$;
+GRANT USAGE ON SCHEMA working TO message_dedupe_writer;
+GRANT SELECT ON working.message_dedupe_copy TO message_dedupe_writer;
+GRANT SELECT, UPDATE (primary_record_id) ON working.message_occurrence TO message_dedupe_writer;
+GRANT SELECT, DELETE ON working.first_party_context_thread_message, working.message, working.message_participant,
+    working.message_projection_route, working.third_party_message, working.third_party_message_participant
+    TO message_dedupe_writer;
+-- Read-only, for the plan's check that no copy is held by a row the removal does not move.
+GRANT SELECT ON working.third_party_context_thread_message, working.attachment, working.content_chunk_message,
+    working.record_visible_from, working.event_source_record, working.realization_event, working.realization_event_record,
+    working.walk_step, working.walk_step_retrieval TO message_dedupe_writer;
+GRANT USAGE ON SCHEMA context, analysis, evidence TO message_dedupe_writer;
+GRANT SELECT ON context.first_party_thread_message_relative_time_anchor, context.third_party_thread_message_relative_time_anchor,
+    analysis.timeline_event, analysis.knowledge_evidence_promotion, evidence.evidence_item TO message_dedupe_writer;
+GRANT message_dedupe_writer TO platform_runtime WITH INHERIT FALSE, SET TRUE;
+
+
 -- PostgreSQL database dump complete
 --
 

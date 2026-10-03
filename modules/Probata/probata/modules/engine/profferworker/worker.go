@@ -19,6 +19,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/activities"
 	sbvadapter "github.com/Cursedpotential/probata/engine/adapters/sbv"
 	"github.com/Cursedpotential/probata/engine/contacts"
+	"github.com/Cursedpotential/probata/engine/dedupe"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/normalize"
 	"github.com/Cursedpotential/probata/engine/objectstores"
@@ -76,6 +77,9 @@ type Registrations struct {
 	// MessageMatch is match_message_occurrences_activity (owner 2026-10-02,
 	// message match-up). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	MessageMatch activities.MessageMatchActivities
+	// MessageDedupe is the step Activities of message_dedupe_workflow (owner
+	// 2026-10-02 20:02: Temporal, traceable). Byline: Claude Code · Opus 5.5 · 2026-10-02
+	MessageDedupe activities.MessageDedupeActivities
 	// AutoApproval is record_auto_approval_activity (owner 2026-10-02,
 	// "auto-approve clean runs"). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	AutoApproval activities.AutoApprovalActivity
@@ -110,6 +114,9 @@ func RegisterAll(registrar interface {
 	// The re-chunk of committed data and the removal of the per-message objects (owner 2026-10-02: Temporal, traceable).
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksBackfillWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksBackfillWorkflowName})
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksRemovalWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksRemovalWorkflowName})
+	// The removal of same-device duplicates committed before the match-up rule.
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
+	registrar.RegisterWorkflowWithOptions(dedupe.MessageDedupeWorkflow, workflow.RegisterOptions{Name: dedupe.WorkflowName})
 	activities.RegisterBatchImportActivities(registrar, registrations.BatchImport)
 	registrar.RegisterWorkflowWithOptions(repairplan.RepairPlanWorkflow, workflow.RegisterOptions{Name: repairplan.WorkflowName})
 	activities.RegisterRepairPlanActivities(registrar, registrations.RepairPlan)
@@ -145,6 +152,7 @@ func RegisterAll(registrar interface {
 	// Contacts import: manifest, fetch, parse, people, placeholders, re-link (Claude Code · Sonnet · 2026-10-02).
 	registrar.RegisterWorkflowWithOptions(contacts.ContactsImportWorkflow, workflow.RegisterOptions{Name: contacts.WorkflowName})
 	activities.RegisterContactsActivities(registrar, registrations.Contacts)
+	activities.RegisterMessageDedupeActivities(registrar, registrations.MessageDedupe)
 }
 
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
@@ -503,6 +511,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		return Registrations{}, err
 	}
 	contextSearch.Matches = messageMatchStore
+	messageDedupeStore, err := platformpostgres.NewMessageDedupeStore(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
 	callLogStore, err := platformpostgres.NewCallLogStore(pool)
 	if err != nil {
 		return Registrations{}, err
@@ -517,6 +529,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		FirstPartyContext:     activities.NewFirstPartyContextActivities(firstPartyStore),
 		CallLog:               activities.NewCallLogActivities(callLogStore),
 		MessageMatch:          activities.NewMessageMatchActivities(firstPartyStore, messageMatchStore),
+		MessageDedupe:         activities.NewMessageDedupeActivities(messageDedupeStore),
 		RepairPlan:            repairPlan,
 		Extraction:            extraction,
 		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),
