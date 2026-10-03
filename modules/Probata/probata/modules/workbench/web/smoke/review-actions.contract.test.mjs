@@ -42,11 +42,15 @@ test("context is read back per run and saved as an append-only supersession", ()
 });
 
 test("parser and repair choices answer the gate when paused, else seed a fresh run", () => {
-  assert.match(panel, /onRecordDecision=\{\(\) => selectedCandidate && onSelectHandler\(selectedCandidate\)\}/);
+  // AMENDED 2026-10-02 (Claude Code · Opus 5.5; owner 21:53 "can't click on anything"): the
+  // recommended parser starts picked and the repair re-run needs no tick, so no button waits on a radio.
+  assert.match(panel, /onRecordDecision=\{\(\) => shownCandidate && onSelectHandler\(shownCandidate\)\}/);
+  assert.match(panel, /selectedKey \|\| \(preview\.recommended_handler \? candidateKey\(preview\.recommended_handler\) : ""\)/);
   assert.match(parserPanel, /Re-run with this parser/);
   assert.match(parserPanel, /Re-run and choose the parser/);
   assert.match(panel, /Retain sealed original and continue/);
-  assert.match(panel, /Re-run with this choice/);
+  assert.match(panel, /Re-run without repair \(use the kept original\)/);
+  assert.doesNotMatch(panel, /repairChoice !== "original"/);
   assert.match(panel, /Repair check failed: \{failure\.text\}/);
   assert.match(rerunHook, /OPERATOR_HANDLER_SELECTION = "operator-handler-selection\/v1"/);
   assert.match(rerunHook, /decideProfferHandler\(previewHandle, mode/);

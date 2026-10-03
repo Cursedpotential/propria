@@ -2,12 +2,13 @@
 // tab dots from real row counts; portal More menu; decoded messages for derive-only runs)
 // Byline: Claude Code · Opus 5.5 · 2026-09-26 (the run's file name opens its full metadata screen)
 // Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 (onOpenRun for the repair builder's re-entry links)
+// Byline amendment: Claude Code · Opus 5.5 · 2026-10-02 (tool catalog off Review: its run service does not
+// exist, so it only showed "Execution unavailable"; D-159 keeps tool catalogs off Review anyway)
 "use client";
 
 import { Check, ChevronDown, CircleDot, Database, FileSearch, Flag, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { AtomicTools } from "@/components/tools/atomic-tools";
 import { EntitiesPanel } from "@/components/entities/entities-panel";
 import { MODE_LABEL } from "@/components/intake/matter-mode-selector";
 import { FileMetadataScreen } from "@/components/metadata/file-metadata-screen";
@@ -427,7 +428,6 @@ export function ProfferOperatorPreview({
             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold">Go-managed structured extraction and tools</summary>
             <div className="space-y-4 p-3">
             <div className="border-l-4 border-l-primary bg-accent/40 p-4"><div className="flex items-center gap-2"><Database className="size-4" /><strong>Go-managed structured extraction</strong></div><p className="mt-2 text-xs leading-5 text-muted-foreground">DuckDB is the primary ELT path for compatible structured sources. Go owns selection, bounded references, Temporal correlation, receipt validation, retries, and repair decisions. Only governed DuckDB tools from the monitored catalog appear here.</p>{snapshot.parser_execution_path && <p className="mt-2 text-xs">Selected path for this operation: <strong>{snapshot.parser_execution_path}</strong></p>}</div>
-            <AtomicTools embedded initialSearch="duckdb" requiredToolTerm="duckdb" />
             </div>
           </details>
         </div>}

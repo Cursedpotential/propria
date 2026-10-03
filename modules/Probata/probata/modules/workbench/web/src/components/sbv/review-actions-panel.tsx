@@ -1,6 +1,8 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 // Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — the repair builder replaces the disabled
 // apply-repair choice; a repaired run shows "Repaired → <new run>" from its history.
+// Byline amendment: Claude Code · Opus 5.5 · 2026-10-02 — no button waits on a radio tick: the
+// recommended parser starts picked, and the repair re-run button works on its own.
 // Review Actions: always present for the selected run, whatever state it is in.
 // Owner 2026-09-25 00:16: "Can't modify any metadata. I can't add any context, I can't
 // choose a parser, I can't choose a repair. I can't do anything."
@@ -119,6 +121,10 @@ export function ReviewActionsPanel({
   const current = runContext?.current ?? null;
 
   const candidates = preview.recommended_handler ? [preview.recommended_handler, ...(preview.alternative_handlers ?? [])] : [];
+  // The recommended parser is picked until the operator picks another, so its buttons work at once
+  // (owner 2026-10-02 21:53: every button sat grey until a radio was ticked first).
+  const shownKey = selectedKey || (preview.recommended_handler ? candidateKey(preview.recommended_handler) : "");
+  const shownCandidate = candidates.find((candidate) => candidateKey(candidate) === shownKey) ?? null;
   const selectedCandidate = candidates.find((candidate) => candidateKey(candidate) === selectedKey) ?? null;
   const atHandlerStop = preview.phase === "awaiting_handler_selection";
   const atRepairStop = actionNames.has("retain_original");
@@ -182,11 +188,11 @@ export function ReviewActionsPanel({
         <ParserSelectionPanel
           inspection={null}
           preview={preview}
-          selectedCandidateKey={selectedKey}
+          selectedCandidateKey={shownKey}
           handlerDecisionRef={null}
           submitting={actionPending}
           onSelect={(candidate) => setSelectedKey(candidateKey(candidate))}
-          onRecordDecision={() => selectedCandidate && onSelectHandler(selectedCandidate)}
+          onRecordDecision={() => shownCandidate && onSelectHandler(shownCandidate)}
           rerun={atHandlerStop ? undefined : {
             pending: blocked,
             disabledReason: blockedReason,
@@ -212,20 +218,17 @@ export function ReviewActionsPanel({
         )}
         <StatusLine label="Assessment" value={snapshot.repair_state.assessment_report} />
         <StatusLine label="Affected parts" value={snapshot.repair_state.affected_units} />
-        <fieldset className="space-y-1 text-xs">
-          <legend className="sr-only">Repair choice</legend>
-          <label className="flex items-start gap-2">
-            <input type="radio" name="review-repair-choice" className="mt-0.5" checked={repairChoice === "original"} onChange={() => setRepairChoice("original")} />
-            <span>Continue without repair, using the kept original</span>
-          </label>
-        </fieldset>
+        <label className="flex items-start gap-2 text-xs">
+          <input type="checkbox" className="mt-0.5" checked={repairChoice === "original"} onChange={(event) => setRepairChoice(event.target.checked ? "original" : null)} />
+          <span>Every re-run from here skips repair and uses the kept original</span>
+        </label>
         {atRepairStop ? (
           <Button type="button" size="sm" className="w-full" disabled={actionPending} onClick={onRetainOriginal}>
             <ShieldCheck className="size-3.5" /> Retain sealed original and continue
           </Button>
         ) : (
-          <Button type="button" size="sm" variant="outline" className="w-full" disabled={blocked || repairChoice !== "original"} onClick={() => onRerun(request({ repair: "original" }))}>
-            <RotateCcw className="size-3.5" /> Re-run with this choice
+          <Button type="button" size="sm" variant="outline" className="w-full" disabled={blocked} onClick={() => onRerun(request({ repair: "original" }))}>
+            <RotateCcw className="size-3.5" /> Re-run without repair (use the kept original)
           </Button>
         )}
         <RepairBuilder snapshot={snapshot} onOpenRun={onOpenRun} />

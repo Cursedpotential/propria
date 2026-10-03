@@ -137,7 +137,10 @@ test("later-review annotations stay reversible and preserve actor and attempt pr
 test("DuckDB tools remain governed under the Go-managed extraction overview", () => {
   assert.match(surface, /Go-managed structured extraction/);
   assert.match(surface, /DuckDB is the primary ELT path/);
-  assert.match(surface, /requiredToolTerm="duckdb"/);
+  // AMENDED 2026-10-02 (Claude Code · Opus 5.5): the tool catalog left Review. Its run service
+  // (/api/monitored-actions) was never built, so on Review it only said "Execution unavailable";
+  // D-159 keeps tool catalogs off Review. The catalog stays on the Tools page.
+  assert.doesNotMatch(surface, /<AtomicTools/);
   assert.match(tools, /requiredToolTerm/);
   assert.doesNotMatch(surface, /textarea[^>]+sql|executeSql|runSql/i);
 });
