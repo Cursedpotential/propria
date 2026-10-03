@@ -1,0 +1,3 @@
+# Local wrangler dev state (miniflare SQLite caches); never tracked. Claude Code · Opus 5.5 · 2026-10-02
+.wrangler/
+node_modules/
