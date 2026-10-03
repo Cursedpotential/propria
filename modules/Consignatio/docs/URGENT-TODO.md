@@ -428,6 +428,10 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 ### From: 2026-10-02 08:15 EDT – ongoing — owner's messages into Probata through Proffer (continuation of the overnight import)
 
 - [ ] **Owner:** add 8102594380 as a confirmed phone of Matthew S. Salem ("Matt's current number", owner 08:40). The agent's write through the case-identity API was refused by the session's auto-mode classifier. Do it on the Workbench case identity page, or allow the write.
+- [ ] **Same-device duplicate removal:** `message_dedupe_workflow` is written, not committed (parent session commits it, applies `probata/scripts/2026-10-02-message-dedupe.sql` as platform_dba, deploys). Then a dry run without `expected_copies`, owner review of its plan count, and the live run with the same `dedupe_id` and that count. Run the dry run while no import is committing (its deletes hold the projection validator's lock per step).
+- [ ] **`sms-002-031.xml` derive** once a proffer-worker deploy carries 3ac1f1ea (the resuming source stream): `overnight-20261002-sms-8103535467-derive-03` (key_suffix `sms-002-031.xml`, Matt, clean_checks), then its threads batch.
+- [ ] **Aug Facebook `message_3`** re-run (`…-fb-20250818-katrina-05`) once the Weaviate collection `ProfferChunks20261002` exists.
+- [ ] **Owner:** the 2 stray `source_version` rows from the terminated mistaken derive stay for now (owner: leave).
 
 ### From: 2026-10-02 08:45–09:25 EDT — probata-db: `casebible` gets its own login, `ai` password rotated (owner option A, 08:49); Docstore follows the Vestigia rename
 
