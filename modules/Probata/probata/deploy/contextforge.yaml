@@ -69,12 +69,13 @@ services:
       # 10/min) and token/admin (HIGH, 30/min) keep their strict defaults; the route still needs the token.
       # 2026-10-02 08:14-08:29 EDT: the default MEDIUM 100/min plus lockout (5 violations -> 15-minute
       # lock of the whole account) answered 234 requests with 429, and every Claude Code session that
-      # started then kept its six ContextForge connectors dead until restarted, because Claude Code does
-      # not retry a failed MCP server. Lockout is off (owner 08:33 "get rid of the lockout") and no 429
-      # has been returned since the 08:34 deploy.
-      # Sizing: one Claude Code start costs ~56 requests, one Codex start ~21, and the busiest 60 s ever
-      # measured is 187 (a full app restart). 6000/min is ~7x a minute in which all 9 Claude sessions and
-      # all 13 Codex threads open today start together (~800) and ~32x the measured peak.
+      # started then kept its six ContextForge connectors dead until reconnected, because Claude Code does
+      # not retry a failed MCP server on its own. Lockout is off (owner 08:33 "get rid of the lockout") and
+      # no 429 has been returned since the 08:34 deploy.
+      # Sizing: one Claude Code start costs 42-56 requests and one Codex start ~21. The busiest 60 s ever
+      # measured is 187 (a Codex-wide reconnect: 59 handshakes, 10-02 14:49 EDT). 6000/min is ~7x a minute
+      # in which all 9 Claude sessions and all 13 Codex threads open today start together (~780) and
+      # ~32x the measured peak.
       # RATE_LIMIT_MEDIUM_BURST is not set: v1.0.4 reads only the tier's rpm and ignores burst.
       RATE_LIMIT_LOCKOUT_ENABLED: "false"
       RATE_LIMIT_MEDIUM_RPM: "6000"
