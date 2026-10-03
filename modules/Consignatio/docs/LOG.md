@@ -3408,3 +3408,15 @@ Open, for the owner:
   - `docstore-health` reports `ok: true` with `enrichment_pending` 0.
   - A search in the `consignatio` domain returns `consignatio/docs/COMPLETED-TODO.md`, which was created today.
 - **Still true:** the index follows git `main` once a night. A document reaches search after it is pushed and after the next 08:15 UTC run, unless a run is started by hand.
+
+## 2026-10-02 (evening) - catalog records the D: zero-filled quarantine; F: has no catalog rows
+
+> _Byline: Claude Code · Sonnet 5.5 · 2026-10-02. Owner 20:19 EDT: 'a "moved to quarantine" status in the catalog for the D: and F: zero-filled files - yes'._
+
+- **Done for D:** all 10,811 files moved to `D:\Backup\_quarantine_zero_filled\` are flagged in PG `raw_duck.source_occurrences` (source `local/D-Backup`, scope empty, path relative to `D:\Backup`, exact match: 10,811 of 10,811, 0 size mismatches, 0 unmatched).
+  - Columns added (09-13 pattern, same as `r2_files`/`final_survivors`): `integrity_status`, `integrity_reason`. Flagged rows carry `integrity_status = 'moved_to_quarantine'`, `integrity_reason = 'all_zero_payload'`, and `metadata` gains `quarantined_to`, `quarantined_at`, `ledger`.
+  - Row identity, `disposition`, `md5` and `b2_key` are unchanged. Audit: 10,811 append-only rows in `raw_duck.integrity_hold` (catalog `raw_duck.source_occurrences`, status `moved_to_quarantine`).
+  - Before the commit the same script ran inside a transaction and was rolled back with identical counts; after the commit the read-back shows 10,811 flagged, 10,811 with `quarantined_to`, 1,567,456 rows total (unchanged), 0 flagged outside the three local sources.
+  - Script: `casebible/tools/quarantine_local_zero_catalog_20261002.py` (`--rollback` validates, `--commit` applies).
+- **Correction to the 09-13 record:** the 09-13 PG flag and hash-null covered the R2 tables only (`r2_files`, `final_survivors`; `integrity_hold` had 33,685 rows, none local). Local `source_occurrences` rows were not flagged then. 83 of the 10,811 D: rows have disposition `copied`, the rest `zero_byte` (the zero payloads there still carry an all-zero md5, 10,728 rows).
+- **F: not recorded - the catalog has no rows for them.** The F ledgers (`dbackup/20260913-12*-F-local-quarantine-APPLY.jsonl`, `moved` decisions) give 9,206 files (41 `F:\case`, 9,165 `F:\Disk Drill`; the brief said 9,207, one is missing from the ledgers). None matches a `local/F-case` or `local/F-Disk-Drill` row by exact path, nor case-insensitively. The catalog's only zero rows for F are the 8,839 genuine 0-byte files. Needs a decision: insert occurrence rows for the F zero-filled files, or leave F recorded in the receipts only.
