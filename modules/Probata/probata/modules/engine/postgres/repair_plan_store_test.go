@@ -277,7 +277,7 @@ func (db *catalogDB) QueryRow(_ context.Context, query string, args ...any) pgx.
 }
 
 func TestCatalogVersionStoreQueriesByLiteralFileName(t *testing.T) {
-	db := &catalogDB{rows: [][]any{{"consignatio/vault/v1/a_b%.xml", int64(10), "", "raw_duck.b2_objects"}}}
+	db := &catalogDB{rows: [][]any{{"consignatio/vault/v1/a_b%.xml", int64(10), "", "raw_duck.bucket_objects"}}}
 	store, err := NewCatalogVersionStore(db)
 	if err != nil {
 		t.Fatal(err)

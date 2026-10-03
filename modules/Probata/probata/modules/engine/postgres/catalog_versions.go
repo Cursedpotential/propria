@@ -12,7 +12,13 @@
 //
 //	raw_duck.vault_index_source_20260918  vault/v1 objects: key, size, sha1, name
 //	raw_duck.vault_moves_20260924         keys moved since that index (old_key -> new_key)
-//	raw_duck.b2_objects                   the raw-dedupe B2 listing: key, size, sha1
+//	raw_duck.bucket_objects               every object of B2 salem-data, newest whole-bucket
+//	                                      listing (provider 'b2'): key, size, sha1
+//
+// 2026-10-02 (Claude Code · Opus 5.5, owner "go" 20:18 EDT): the B2 part used to read
+// raw_duck.b2_objects, the 2026-09-14 listing of consignatio/intake/ only (emptied
+// 2026-09-16), so keys outside intake/ read as missing. It now reads the newest
+// whole-bucket listing loaded by Consignatio casebible/tools/bucket_objects_load.py.
 //
 // Probed read-only 2026-09-25: the by-name query takes about 1.1 s over
 // ~1.04 M rows, inside the 8 s statement timeout.
@@ -54,7 +60,7 @@ func NewCatalogVersionStore(db CatalogDB) (*CatalogVersionStore, error) {
 
 const (
 	catalogVaultSnapshot = "raw_duck.vault_index_source_20260918"
-	catalogB2Snapshot    = "raw_duck.b2_objects"
+	catalogB2Snapshot    = "raw_duck.bucket_objects"
 )
 
 const catalogVersionsByName = `
@@ -66,8 +72,11 @@ const catalogVersionsByName = `
 	    WHERE vault.name = $1
 	    UNION ALL
 	    SELECT objects.key, objects.size, COALESCE(objects.sha1, ''), '` + catalogB2Snapshot + `'
-	    FROM raw_duck.b2_objects objects
-	    WHERE objects.key = $1 OR objects.key LIKE $2 ESCAPE '\'
+	    FROM raw_duck.bucket_objects objects
+	    WHERE objects.provider = 'b2' AND objects.bucket = 'salem-data'
+	      AND objects.listed_at = (SELECT max(listed_at) FROM raw_duck.bucket_objects
+	                               WHERE provider = 'b2' AND bucket = 'salem-data')
+	      AND (objects.key = $1 OR objects.key LIKE $2 ESCAPE '\')
 	) found
 	ORDER BY size DESC, key
 	LIMIT $3`
@@ -83,7 +92,11 @@ const catalogVersionByKey = `
 	    WHERE moved.new_key = $1
 	    UNION ALL
 	    SELECT objects.key, objects.size, COALESCE(objects.sha1, ''), '` + catalogB2Snapshot + `'
-	    FROM raw_duck.b2_objects objects WHERE objects.key = $1
+	    FROM raw_duck.bucket_objects objects
+	    WHERE objects.provider = 'b2' AND objects.bucket = 'salem-data'
+	      AND objects.listed_at = (SELECT max(listed_at) FROM raw_duck.bucket_objects
+	                               WHERE provider = 'b2' AND bucket = 'salem-data')
+	      AND objects.key = $1
 	) found
 	LIMIT 1`
 
