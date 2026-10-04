@@ -13,12 +13,13 @@ Verified:
 - Result package_count 15. Read-back receipt has all 15 packages complete, zero package errors, streamed archive/member SHA-256, ZIP CRC checks and 429 identical-member candidate groups.
 - Receipt: /data/probata/volumes/proffer/derive-scratch/toolkit-inventory-20261004/receipts/inventory-v1.json on ovh-files.
 - Staging originals retained under /data/probata/reconciliation/family-court-20261004; local originals untouched. These are archive integrity fingerprints, not a comparison to separately hashed desktop originals.
+- Desktop configuration repair integrated (830f719c, f69adb38); eight synthetic tests passed. Live read-only connection resolved canonical plugin and shared OVH Surreal fct/case; source count 193, reference count 321, order count 0, memo count 0. No source data or schema writes in that probe.
 - Owner library/storage contract recorded in modules/Legal-desktop/AGENTS.md, commit 3e600c8d.
 
 Open:
 - Substantive audit/correction comparison and final validated baseline selection.
 - Durable Case Bible original placement and verified library import into surreal-case fct/case.
 - Phone library silently caps visible files at 300; record queries cap at 1000. Bounded pagination repair active in separate isolated worktree.
-- Desktop sidecar references an old plugin root and injects localhost DB default before shared configuration can resolve. Configuration repair active in separate isolated worktree.
+- Desktop chat still starts a local MCP server; its hosted ContextForge transport seam and end-to-end desktop surface proof remain open.
 - Unified native library workflows, bidirectional edits, citation validation on updates, shared design and live surface proof remain unfinished.
 - Docstore revision capture is not indexing or filesystem synchronization proof.

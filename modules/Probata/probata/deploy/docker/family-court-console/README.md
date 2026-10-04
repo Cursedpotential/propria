@@ -55,4 +55,3 @@ source corrections, durable Case Bible originals and revalidation before
 library updates propagate. Track bulk source work as Temporal Activities.
 See Docstore note:family_court_convergence_20261004 and
 modules/Legal-desktop/AGENTS.md for the current convergence contract.
-
