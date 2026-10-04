@@ -16,11 +16,10 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveAuthToken } from "./auth.mjs";
+import { PLUGIN_ROOT } from "./store-client.mjs";
 
-// Matches the task's literal instruction: rely on settingSources: ["user"]
-// so the plugin's own MCP server (installed under
-// ~/.claude/local-plugins/plugins/family-court-toolkit) is discovered the
-// same way the Claude Code CLI would discover it for this user, and the
+// Matches the desktop configuration: rely on settingSources: ["user"]
+// so the configured plugin root can supply the toolkit MCP server, and the
 // resulting tool names carry the "mcp__plugin_<plugin>_<server>__" prefix.
 //
 // Belt-and-suspenders: we ALSO wire the same MCP server explicitly via
@@ -29,7 +28,6 @@ import { resolveAuthToken } from "./auth.mjs";
 // auto-discovery under settingSources:["user"] does not surface it from an
 // arbitrary sidecar `cwd`. Passing `mcpServers` is additive — it does not
 // disable settingSources-based discovery.
-const PLUGIN_ROOT = join(homedir(), ".claude", "local-plugins", "plugins", "family-court-toolkit");
 const MCP_SERVER_ENTRY = join(PLUGIN_ROOT, "mcp-app", "dist", "server.js");
 
 const PLUGIN_QUALIFIED_PREFIX = "mcp__plugin_family-court-toolkit_family-court-console__";

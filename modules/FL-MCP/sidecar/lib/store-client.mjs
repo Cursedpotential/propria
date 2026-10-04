@@ -18,50 +18,114 @@
 // export is a real error (surfaced as a 500 by server.mjs), not a
 // gracefully-degraded "coming soon" state.
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-// The case store is a SHARED SurrealDB SERVER (owner order 2026-09-07,
-// same session as the app move) — NOT a local embedded RocksDB file this
-// sidecar owns exclusively. store.ts resolves the connection URL from
-// `process.env.CUSTODY_CASE_DB` (see its `resolveDbUrl`), falling back to a
-// local `rocksdb://` file path when that env var is unset. We must never
-// let that fallback fire in normal operation: set the default here (only
-// if the environment hasn't already set something else — an explicit
-// `CUSTODY_CASE_DB` from the caller, e.g. a test run's `mem://` override,
-// always wins). store.ts itself resolves the server's credentials from
-// `~/.secrets/family-court-toolkit.env` — this file only points at the URL.
-if (!process.env.CUSTODY_CASE_DB) {
-  process.env.CUSTODY_CASE_DB = "ws://127.0.0.1:8471";
+// The plugin is a shared development dependency, so its root can be pointed at
+// an explicit checkout while defaulting to the canonical workspace source.
+export const DEFAULT_PLUGIN_ROOT = "E:\\AI_Workspace\\plugins\\plugins\\family-court-toolkit";
+export const PLUGIN_ROOT = process.env.FAMILY_COURT_PLUGIN_ROOT?.trim() || DEFAULT_PLUGIN_ROOT;
+
+/**
+ * Reads only the CUSTODY_CASE_DB assignment from the toolkit's designated
+ * secrets file. Input is the file text; output is that value or undefined.
+ * It never evaluates the file or exposes unrelated secret values. Use this
+ * targeted reader instead of the plugin's broader credential-file scan for
+ * desktop URL configuration.
+ */
+// Byline: Codex · GPT-6 · 2026-10-04
+export function readStoreUrlFromSecrets(text) {
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^\s*CUSTODY_CASE_DB\s*=\s*(.*?)\s*$/.exec(line);
+    if (!match) continue;
+    let value = match[1];
+    if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    } else {
+      value = value.replace(/\s+#.*$/, "").trim();
+    }
+    return value || undefined;
+  }
+  return undefined;
 }
 
-// ABSOLUTE path (owner order 2026-09-07 15:29, after this app moved out of
-// the plugin directory into its own repo at
-// E:\AI_Workspace\Projects\the-platform-workspace\family-court-workbench\):
-// this app is no longer a sibling of mcp-app/, so the old relative
-// `../../mcp-app` traversal from this file's own location would resolve
-// into the WRONG tree entirely. The plugin itself lives at a fixed,
-// known location on this machine (a personal, single-machine tool — see
-// docs/ARCHITECTURE.md), so a hardcoded absolute path is the correct,
-// documented choice here, not a fallback of convenience.
-export const PLUGIN_ROOT = "C:\\Users\\matts\\.claude\\local-plugins\\plugins\\family-court-toolkit";
-const MCP_APP_DIST = join(PLUGIN_ROOT, "mcp-app", "dist");
-const STORE_MODULE_PATH = join(MCP_APP_DIST, "store.js");
+/**
+ * Resolves the plugin root and shared-store URL before loading the canonical
+ * store module. Inputs may provide an environment and secrets text for isolated
+ * tests; output contains the root and URL. Only an explicit mem:// environment
+ * override may select an embedded test store; production config must name a
+ * shared remote endpoint. It never opens a database or logs config values. Use
+ * this before loading the canonical store module, not as a database client.
+ */
+// Byline: Codex · GPT-6 · 2026-10-04
+export function resolveStoreConfig({ env = process.env, secretsText } = {}) {
+  const pluginRoot = env.FAMILY_COURT_PLUGIN_ROOT?.trim() || DEFAULT_PLUGIN_ROOT;
+  const explicitUrl = env.CUSTODY_CASE_DB?.trim();
+  if (explicitUrl?.startsWith("mem://")) return { pluginRoot, dbUrl: explicitUrl };
+
+  let dbUrl = explicitUrl;
+  if (!dbUrl) {
+    if (secretsText === undefined) {
+      try {
+        secretsText = readFileSync(join(homedir(), ".secrets", "family-court-toolkit.env"), "utf8");
+      } catch {
+        secretsText = "";
+      }
+    }
+    dbUrl = readStoreUrlFromSecrets(secretsText);
+  }
+
+  if (!dbUrl) {
+    throw new Error("Missing shared Family Court store configuration. Set CUSTODY_CASE_DB or add it to ~/.secrets/family-court-toolkit.env.");
+  }
+  if (!/^(wss?|https?):\/\//i.test(dbUrl)) {
+    throw new Error("Desktop Family Court store configuration must use a shared ws://, wss://, http://, or https:// endpoint.");
+  }
+  return { pluginRoot, dbUrl };
+}
+
+/**
+ * Validates shared-store configuration and passes its URL to the canonical
+ * store module. It reads the process environment and designated secrets file,
+ * returns the resolved root and URL, and mutates only CUSTODY_CASE_DB. Use it
+ * when loading the built toolkit module so store.ts cannot choose local storage.
+ */
+// Byline: Codex · GPT-6 · 2026-10-04
+function configureSharedStore() {
+  const config = resolveStoreConfig();
+  process.env.CUSTODY_CASE_DB = config.dbUrl;
+  return config;
+}
 
 let storeModulePromise = null;
 
-/** Dynamically imports the BUILT store module (mcp-app/dist/store.js). */
+/**
+ * Imports the built store module from the configured canonical plugin root.
+ * Input: none. Output: the imported module promise. Side effects: validates
+ * shared-store configuration and sets CUSTODY_CASE_DB before import. Use this
+ * instead of importing plugin source or resolving a second local store.
+ */
+// Byline: Codex · GPT-6 · 2026-10-04
 export function loadStoreModule() {
   if (!storeModulePromise) {
-    if (!existsSync(STORE_MODULE_PATH)) {
+    let storePath;
+    try {
+      const { pluginRoot } = configureSharedStore();
+      storePath = join(pluginRoot, "mcp-app", "dist", "store.js");
+    } catch (err) {
+      storeModulePromise = Promise.reject(err);
+      return storeModulePromise;
+    }
+    if (!existsSync(storePath)) {
       storeModulePromise = Promise.reject(
         new Error(
-          `mcp-app is not built: ${STORE_MODULE_PATH} does not exist. Run "npm run build" in mcp-app/ first.`,
+          `mcp-app is not built: ${storePath} does not exist. Run "npm run build" in mcp-app/ first.`,
         ),
       );
     } else {
-      storeModulePromise = import(pathToFileURL(STORE_MODULE_PATH).href);
+      storeModulePromise = import(pathToFileURL(storePath).href);
     }
   }
   return storeModulePromise;
