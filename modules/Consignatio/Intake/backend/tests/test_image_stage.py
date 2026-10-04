@@ -8,6 +8,7 @@ are fake
 functions, Weaviate is a recording writer or an httpx MockTransport: nothing leaves the process.
 """
 
+import hashlib
 import io
 import shutil
 from datetime import UTC, datetime
@@ -24,6 +25,7 @@ from casebible_index.discovery import REPRESENTED_SCHEMA
 from casebible_index.image_kind import classify_image
 from casebible_index.image_slice import (
     fetch_slice,
+    item_path,
     load_slice,
     open_slice_id,
     select_images,
@@ -283,14 +285,15 @@ async def test_pdf_page_budget_resumes_remainder_and_only_then_marks_source_comp
     buffer = io.BytesIO()
     pages[0].save(buffer, format="PDF", save_all=True, append_images=pages[1:])
     data = buffer.getvalue()
-    inventory(out, [("proof/scan.pdf", len(data), "pdf1", "document")], "pdf")
+    source_sha1 = hashlib.sha1(data).hexdigest()
+    inventory(out, [("proof/scan.pdf", len(data), source_sha1, "document")], "pdf")
     docs = out / "datasets" / "documents"
     docs.mkdir(parents=True)
     pq.write_table(
         pa.Table.from_pylist(
             [
                 {
-                    "content_sha256": "sha1:pdf1",
+                    "content_sha256": "sha1:" + source_sha1,
                     "index_status": "skipped_no_text",
                     "extension": ".pdf",
                     "member_path": "",
@@ -306,6 +309,7 @@ async def test_pdf_page_budget_resumes_remainder_and_only_then_marks_source_comp
     async def bag(data, ext):
         return [[0.5] * 128]
 
+    page_hashes = []
     for page_number in (1, 2, 3):
         result = await fetch_slice(
             out, spool, lambda *_: store, max_items=max_items, max_files=1, pdf_max_pages=20
@@ -313,23 +317,63 @@ async def test_pdf_page_budget_resumes_remainder_and_only_then_marks_source_comp
         assert result["count"] == 1
         sl = load_slice(out, result["slice_id"])
         assert sl.items[0].page == page_number
+        expected_hash = hashlib.sha256(
+            item_path(out, spool, sl.slice_id, sl.items[0]).read_bytes()
+        ).hexdigest()
         await run_facts(out, spool, sl)
         await run_embed(out, spool, sl, "image_maxsim", bag, "synthetic", s)
         published = await run_publish(
             out, spool, sl, writer, s, source_id="proof", run_id=str(page_number)
         )
         assert published["published"] == 1 and published["partial"] == 0
+        properties = writer.actions[-1].spec.properties
+        assert properties["content_sha256"] == expected_hash
+        assert properties["source_content_sha1"] == source_sha1
+        assert len(properties["content_sha256"]) == 64 and len(source_sha1) == 40
+        page_hashes.append(properties["content_sha256"])
         parent = [
             r
             for r in pq.read_table(table_path(out, "published", sl.slice_id)).to_pylist()
-            if r["identity"] == "pdf1"
+            if r["identity"] == source_sha1
         ][0]
         assert parent["status"] == ("ok" if page_number == 3 else "partial")
     assert select_scanned_pdfs(out, 10)[0] == []
     assert len({a.key for a in writer.actions}) == 3
+    assert len(set(page_hashes)) == 3, "Rendered pages have distinct hashes, one source PDF SHA1"
 
 
 # -------------------------------------------------- facts, ocr
+
+
+@pytest.mark.asyncio
+async def test_image_digest_is_sha256_and_legacy_facts_are_rebuilt(tmp_path: Path):
+    """Keep the retained image digest distinct from its catalog SHA1 on a facts retry.
+
+    Inputs: synthetic PNG and a legacy facts shard. Outputs: hash/property assertions.
+    Side effects: retained local fixtures only. Pick this to catch mislabeled source hashes
+    and stale cached facts after the additive digest field is introduced.
+    """
+    data = png("Synthetic hash proof")
+    source_sha1 = hashlib.sha1(data).hexdigest()
+    expected_sha256 = hashlib.sha256(data).hexdigest()
+    out, spool = tmp_path / "lake", tmp_path / "spool"
+    inventory(out, [("proof/image.png", len(data), source_sha1, "media")])
+    store = FakeStore({"proof/image.png": data})
+    fetched = await fetch_slice(out, spool, lambda *_: store)
+    sl = load_slice(out, fetched["slice_id"])
+    await run_facts(out, spool, sl)
+    path = table_path(out, "facts", sl.slice_id)
+    legacy = pq.read_table(path).drop(["content_sha256"])
+    pq.write_table(legacy, path)
+    await run_facts(out, spool, sl)
+    facts = pq.read_table(path).to_pylist()[0]
+    properties = image_stage.build_properties(
+        sl.items[0], facts, None, source_id="proof", models={}
+    )
+    assert facts["content_sha256"] == properties["content_sha256"] == expected_sha256
+    assert properties["source_content_sha1"] == source_sha1 == sl.items[0].identity
+    assert len(expected_sha256) == 64 and len(source_sha1) == 40
+    assert expected_sha256 != source_sha1
 
 
 @pytest.mark.asyncio

@@ -28,6 +28,7 @@ TEXT_PROPERTIES = (
     "source_path",
     "filename",
     "content_sha256",
+    "source_content_sha1",
     "original_time",
     "original_time_source",
     "original_time_confidence",
