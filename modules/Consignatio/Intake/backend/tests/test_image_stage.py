@@ -270,8 +270,9 @@ async def test_scanned_pdf_becomes_page_images_and_is_selected_only_when_it_had_
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("max_items", [0, 1])
+@pytest.mark.parametrize("pdf_max_pages", [1, 20])
 async def test_pdf_page_budget_resumes_remainder_and_only_then_marks_source_complete(
-    tmp_path, monkeypatch, max_items
+    tmp_path, monkeypatch, max_items, pdf_max_pages
 ):
     """A capped PDF remains selectable until every page is published.
 
@@ -324,9 +325,15 @@ async def test_pdf_page_budget_resumes_remainder_and_only_then_marks_source_comp
     page_hashes = []
     for page_number in (1, 2, 3):
         result = await fetch_slice(
-            out, spool, lambda *_: store, max_items=max_items, max_files=1, pdf_max_pages=20
+            out,
+            spool,
+            lambda *_: store,
+            max_items=max_items,
+            max_files=1,
+            pdf_max_pages=pdf_max_pages,
         )
         assert result["count"] == 1
+        assert result["more"] is (page_number < 3)
         sl = load_slice(out, result["slice_id"])
         assert sl.items[0].page == page_number
         expected_hash = hashlib.sha256(
