@@ -15,10 +15,12 @@
 # Claude Code local plugin checkout, not a probata module. Coolify's git-based
 # build can only see files committed here, so
 # deploy/docker/family-court-console/src/ is a COMMITTED sync of that plugin's
-# runtime subset (mcp-app/dist, mcp-app/package*.json, content/, skills/,
-# Dockerfile.cloud, .dockerignore), produced by scripts/sync_family_court_console.sh.
-# Re-run that script and commit the result whenever the plugin's mcp-app/src
-# changes. See deploy/docker/family-court-console/README.md.
+# source subset (mcp-app/src, web, widgets, tests, build.mjs, tsconfig.json,
+# pinned package files, content/, skills/, Dockerfile.cloud and .dockerignore).
+# The image builds its own bundles. Reconcile exact source paths with the plugin;
+# never run the retired scripts/sync_family_court_console.sh or copy host dist/.
+# See deploy/docker/family-court-console/README.md.
+# Byline: Codex, 2026-10-04 — correct the retired prebuilt-dist update guidance.
 #
 # Coolify env to set:
 #   BIND_IP=100.91.190.107
