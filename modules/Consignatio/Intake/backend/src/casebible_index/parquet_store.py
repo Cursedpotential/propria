@@ -15,6 +15,11 @@ import pyarrow.parquet as pq
 from .models import DocumentEnrichment, ExtractedText, SourceMetadata, TextChunk
 
 SCHEMA_VERSION = "casebible-text-index-v1"
+# Folded into every streaming artifact id: chunk rows carry content-addressed identity
+# (content_hash,
+# chunker_version) from this format on, so objects derived before it are derived once more.
+# Claude Code · Sonnet 5.5 · 2026-10-02.
+INDEX_FORMAT = "chunks-content-addressed-v1"
 
 
 def stable_document_id(source_id: str, relative_path: str) -> str:
@@ -38,7 +43,11 @@ def vault_document_id(source_id: str, identity: str) -> str:
 
 
 def streaming_artifact_id(
-    version_id: str, *, chunk_size: int, chunk_overlap: int, embed_model: str,
+    version_id: str,
+    *,
+    chunk_size: int,
+    chunk_overlap: int,
+    embed_model: str,
     summary_model: str,
 ) -> str:
     """Artifact identity for a streamed derivation, known before the first chunk is written.
@@ -55,8 +64,15 @@ def streaming_artifact_id(
     Byline: Claude Code · Opus 5 · 2026-09-22.
     """
     value = "|".join(
-        [version_id, str(chunk_size), str(chunk_overlap), embed_model, summary_model,
-         SCHEMA_VERSION]
+        [
+            version_id,
+            str(chunk_size),
+            str(chunk_overlap),
+            embed_model,
+            summary_model,
+            SCHEMA_VERSION,
+            INDEX_FORMAT,
+        ]
     )
     return hashlib.sha256(value.encode()).hexdigest()
 
@@ -200,6 +216,27 @@ def chunk_schema(dimensions: int) -> pa.Schema:
             ("embedding_model", pa.string()),
             ("schema_version", pa.string()),
             ("indexed_at", _timestamp_type()),
+            # Staged-index columns (Claude Code · Sonnet 5.5 · 2026-10-02). All nullable, so shards
+            # written
+            # before them still read with union_by_name. content_hash/chunker_version are the
+            # chunk's
+            # content-addressed identity (chunk_identity.py); the rest locate a chunk in its source.
+            ("chunk_kind", pa.string()),
+            ("content_hash", pa.string()),
+            ("chunker", pa.string()),
+            ("chunker_version", pa.string()),
+            ("overlap", pa.int32()),
+            ("thread_id", pa.string()),
+            ("first_message_index", pa.int32()),
+            ("last_message_index", pa.int32()),
+            ("message_count", pa.int32()),
+            ("start_at", _timestamp_type()),
+            ("end_at", _timestamp_type()),
+            ("participants", pa.list_(pa.string())),
+            ("provider", pa.string()),
+            ("bucket", pa.string()),
+            ("sha1", pa.string()),
+            ("extension", pa.string()),
         ],
         metadata={b"casebible.schema": SCHEMA_VERSION.encode()},
     )
@@ -396,7 +433,12 @@ def _write_artifact_once(path: Path, table: pa.Table) -> Path:
 
 
 def write_chunk_shard(
-    output_dir: Path, *, document_id: str, version_id: str, artifact: str, part: int,
+    output_dir: Path,
+    *,
+    document_id: str,
+    version_id: str,
+    artifact: str,
+    part: int,
     table: pa.Table,
 ) -> Path:
     """Write one chunk part. A large object produces many parts, never one huge table.
@@ -408,7 +450,12 @@ def write_chunk_shard(
 
 
 def write_document_row(
-    output_dir: Path, *, document_id: str, version_id: str, artifact: str, table: pa.Table,
+    output_dir: Path,
+    *,
+    document_id: str,
+    version_id: str,
+    artifact: str,
+    table: pa.Table,
 ) -> Path:
     stem = f"{document_id}--{version_id}--{artifact[:16]}"
     return _write_artifact_once(output_dir / "datasets" / "documents" / f"{stem}.parquet", table)

@@ -23,14 +23,16 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import BaseModel
 
-from .image_embedders import ImageEmbedders
-from .image_target import MULTI_VECTOR, SINGLE_VECTOR
+from .image_embedders import ColQwenEmbedder, ImageEmbedders
+from .image_target import CLIP_VECTOR, COLQWEN_VECTOR, MULTI_VECTOR, SINGLE_VECTOR
 
 _FIELDS = (
     "source_id source_path filename content_sha256 original_time original_time_source "
     "original_time_confidence original_time_conflict device software gps is_screenshot "
-    "ocr_text _additional { id distance score }"
+    "ocr_text provider bucket vault_key image_kind source_kind page identity "
+    "_additional { id distance score }"
 )
+KINDS = ("screenshot", "photo", "scan")
 
 
 class ImageHit(BaseModel):
@@ -48,9 +50,22 @@ class ImageHit(BaseModel):
     gps: str
     is_screenshot: bool
     ocr_excerpt: str
-    matched_by: Literal["maxsim", "single", "ocr_literal"]
+    matched_by: Literal["maxsim", "colqwen", "single", "clip", "ocr_literal"]
     channel: Literal["ocr_literal", "visual_similarity"]
     score_basis: Literal["weaviate_bm25", "weaviate_cosine", "weaviate_maxsim"]
+    #Catalog-source fields (the Super Index image stage). With ``provider``, ``bucket``
+    #  and ``content_sha256`` the
+    #``vault_key`` is the locator that opens the original; ``image_kind`` is screenshot,
+    #  photo or scan; a rendered
+    #PDF page has ``source_kind`` pdf_page and its 1-based ``page``. Empty on objects
+    #  from the directory lane.
+    provider: str = ""
+    bucket: str = ""
+    vault_key: str = ""
+    image_kind: str = ""
+    source_kind: str = ""
+    page: int = 0
+    identity: str = ""
     ocr_span_start: int | None = None
     ocr_span_end: int | None = None
     region_status: Literal["not_recorded"] = "not_recorded"
@@ -121,10 +136,28 @@ class WeaviateImageSearcher:
         self.api_key = api_key
         self.timeout = timeout
 
-    async def _get(self, client: httpx.AsyncClient, operator: str, limit: int) -> list[dict]:
+    @staticmethod
+    def _where(kind: str | None) -> str:
+        """The active-only filter, plus ``image_kind`` when a kind is asked for. Dict filters \
+only (a FilterExpr
+        applies zero filters in production)."""
+        active = '{path: ["active"], operator: Equal, valueBoolean: true}'
+        if not kind:
+            return active
+        if kind not in KINDS:
+            raise ValueError(f"image kind must be one of {KINDS}")
+        return (
+            "{operator: And, operands: [" + active + ', {path: ["image_kind"], operator: Equal, \
+valueText: '
+            + json.dumps(kind) + "}]}"
+        )
+
+    async def _get(
+        self, client: httpx.AsyncClient, operator: str, limit: int, kind: str | None = None
+    ) -> list[dict]:
         query = (
             f"{{ Get {{ {self.collection}(limit: {limit}, {operator}, "
-            'where: {path: ["active"], operator: Equal, valueBoolean: true}) { '
+            f"where: {self._where(kind)}) {{ "
             f"{_FIELDS} }} }} }}"
         )
         response = await client.post(f"{self.url}/v1/graphql", json={"query": query})
@@ -145,14 +178,27 @@ class WeaviateImageSearcher:
         mode: str,
         embedders: ImageEmbedders | None,
         transport: httpx.AsyncBaseTransport | None = None,
+        kind: str | None = None,
+        lanes: tuple[str, ...] | None = None,
+        colqwen: ColQwenEmbedder | None = None,
     ) -> list[ImageHit]:
+        """Find images by a text question: literal OCR text, plus (hybrid) one vector lane per \
+enabled slot.
+
+        ``kind`` restricts to screenshot, photo or scan (the screenshot filter). ``lanes`` \
+names the vector lanes to
+        query (``image_single``, ``image_maxsim``, ``image_colqwen``, ``image_clip``); None \
+means single plus the Jina
+        bag when the embedders have a Jina key (the directory lane's behaviour). A lane needs \
+its named vector in the
+        collection, so the caller passes the slots that were provisioned."""
         if not query.strip():
             raise ValueError("Search query must contain text")
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         text = json.dumps(query, ensure_ascii=True)
         merged: dict[str, tuple[str, float, dict, tuple[int, int] | None]] = {}
 
-        rank = {"ocr_literal": 0, "maxsim": 1, "single": 2}
+        rank = {"ocr_literal": 0, "maxsim": 1, "colqwen": 2, "single": 3, "clip": 4}
 
         def keep(
             row: dict, matched_by: str, score: float,
@@ -170,7 +216,7 @@ class WeaviateImageSearcher:
                 timeout=self.timeout, headers=headers, transport=transport, follow_redirects=False
             ) as client:
                 for row in await self._get(
-                    client, f'bm25: {{query: {text}, properties: ["ocr_text"]}}', limit
+                    client, f'bm25: {{query: {text}, properties: ["ocr_text"]}}', limit, kind
                 ):
                     span = _literal_span(row.get("ocr_text") or "", query)
                     if span is not None:
@@ -178,20 +224,35 @@ class WeaviateImageSearcher:
                 if mode == "hybrid":
                     if embedders is None:
                         raise ValueError("Image embedders are required for hybrid search")
-                    single, multi = await embedders.embed_query(query)
-                    lanes = [(SINGLE_VECTOR, single, "single")]
-                    if multi is not None:
-                        lanes.append((MULTI_VECTOR, multi, "maxsim"))
-                    for target, vector, label in lanes:
+                    wanted = lanes if lanes is not None else (SINGLE_VECTOR, MULTI_VECTOR)
+                    plan: list[tuple[str, object, str]] = []
+                    if embedders is not None and SINGLE_VECTOR in wanted:
+                        single, multi = await embedders.embed_query(query)
+                        plan.append((SINGLE_VECTOR, single, "single"))
+                        if multi is not None and MULTI_VECTOR in wanted:
+                            plan.append((MULTI_VECTOR, multi, "maxsim"))
+                    elif embedders is not None and MULTI_VECTOR in wanted:
+                        plan.append((MULTI_VECTOR, await embedders.embed_query_multi(query), \
+"maxsim"))
+                    if COLQWEN_VECTOR in wanted and colqwen is not None:
+                        plan.append((COLQWEN_VECTOR, await colqwen.embed_query(query), "colqwen"))
+                    for target, vector, label in plan:
                         near = (
                             f"nearVector: {{vector: {json.dumps(vector, allow_nan=False)}, "
                             f'targetVectors: ["{target}"]}}'
                         )
-                        for row in await self._get(client, near, limit):
+                        for row in await self._get(client, near, limit, kind):
                             # MaxSim distances are negative sums; cosine distances are 0..2.
                             # Both are turned into "higher is better" on their own scale.
                             distance = float(row["_additional"]["distance"])
-                            keep(row, label, -distance if label == "maxsim" else 1.0 - distance)
+                            keep(row, label, -distance if label in {"maxsim", "colqwen"} else \
+1.0 - distance)
+                    if CLIP_VECTOR in wanted:
+                        #Weaviate's multi2vec-clip embeds the question itself
+                        #  (nearText), no client call.
+                        near = f'nearText: {{concepts: [{text}], targetVectors: ["{CLIP_VECTOR}"]}}'
+                        for row in await self._get(client, near, limit, kind):
+                            keep(row, "clip", 1.0 - float(row["_additional"]["distance"]))
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             raise ImageSearchError("Image search service unavailable or incompatible") from exc
 
@@ -208,7 +269,9 @@ class WeaviateImageSearcher:
                     score_basis={
                         "ocr_literal": "weaviate_bm25",
                         "maxsim": "weaviate_maxsim",
+                        "colqwen": "weaviate_maxsim",
                         "single": "weaviate_cosine",
+                        "clip": "weaviate_cosine",
                     }[matched_by],
                     score=round(score, 4),
                     ocr_excerpt=ocr_text[excerpt_start:excerpt_end] if span else "",
@@ -230,6 +293,12 @@ class WeaviateImageSearcher:
                             "gps",
                             "is_screenshot",
                         )
+                    },
+                    **{
+                        key: row[key]
+                        for key in ("provider", "bucket", "vault_key", "image_kind", \
+"source_kind", "page", "identity")
+                        if row.get(key) is not None
                     },
                 )
             )

@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import os
 
-import httpx
 from fastapi import FastAPI, HTTPException
 
+from .chunk_search import (
+    ChunkSearchError,
+    ChunkSearchRequest,
+    ChunkSearchResponse,
+    search_chunks,
+)
 from .config import Settings
 from .filesystem_search import (
     FilesystemSearchError,
@@ -13,14 +18,21 @@ from .filesystem_search import (
     WeaviateFilesystemSearcher,
     WeaviateSearchConfig,
 )
-from .image_embedders import ImageEmbedders
-from .image_search import ImageSearchError, WeaviateImageSearcher
-from .models import SearchRequest, SearchResponse
+from .image_search import ImageSearchError
+from .image_search_api import ImageSearchRequest, ImageSearchResponse, search_images
+from .ledger import last_commit, read_stage_receipts
+from .models import LakeQueryRequest, SearchRequest, SearchResponse
 from .nim import NimClient, NimError
 from .projections.runtime import connect_graph
 from .projections.surreal import GraphRecordRef
 from .run_status import latest_run_status
-from .search import DuckDbQueryError, SemanticSearcher, list_documents, lookup_document, run_lake_query
+from .search import (
+    DuckDbQueryError,
+    SemanticSearcher,
+    list_documents,
+    lookup_document,
+    run_lake_query,
+)
 from .secrets import get_secret
 from .snapshots import newest_snapshot
 
@@ -174,34 +186,23 @@ def create_api(settings: Settings | None = None) -> FastAPI:
     async def _with_image_lane(
         request: FilesystemSearchRequest, response: FilesystemSearchResponse
     ) -> FilesystemSearchResponse:
-        """Add hits from the image index when it is configured (owner 2026-09-22: wired in)."""
+        """Add image hits using the same enabled vector slots as the image search route.
+
+        Inputs: filesystem query and existing results. Output: results with image hits.
+        Side effects: image search requests only. Pick this to compose the two search surfaces.
+        """
         image_url = os.getenv("INTAKE_IMAGES_WEAVIATE_URL", "")
         if not image_url:
             return response
-        collection = os.getenv("INTAKE_IMAGES_COLLECTION", "IntakeImageV1")
-        provider = os.getenv("INTAKE_IMAGES_SINGLE_PROVIDER", "nim")
-        weaviate_key = get_secret("INTAKE_WEAVIATE_API_KEY") or ""
-        image_searcher = WeaviateImageSearcher(image_url, collection, weaviate_key)
-        if request.mode != "hybrid":
-            hits = await image_searcher.search(
-                request.query, limit=request.limit, mode="keyword", embedders=None
-            )
-            return response.model_copy(update={"image_collection": collection, "image_hits": hits})
-        key_name = "NVIDIA_API_KEY" if provider == "nim" else "GOOGLE_API_KEY"
-        single_key = get_secret(key_name)
-        if not single_key:
-            raise ValueError(f"{key_name} is not configured for image search")
-        jina_key = (
-            get_secret("JINA_API_KEY")
-            if os.getenv("INTAKE_IMAGES_MAXSIM", "screenshots") != "none"
-            else None
+        image_response = await search_images(
+            ImageSearchRequest(query=request.query, limit=request.limit, mode=request.mode)
         )
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            embedders = ImageEmbedders(client, provider, single_key, jina_key)
-            hits = await image_searcher.search(
-                request.query, limit=request.limit, mode="hybrid", embedders=embedders
-            )
-        return response.model_copy(update={"image_collection": collection, "image_hits": hits})
+        return response.model_copy(
+            update={
+                "image_collection": image_response.collection,
+                "image_hits": image_response.hits,
+            }
+        )
 
     @api.post("/search", response_model=SearchResponse)
     async def search(request: SearchRequest) -> SearchResponse:
@@ -228,6 +229,98 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 )
         except (FileNotFoundError, NimError, ValueError) as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    # Case Bible chunk collection (Claude Code · Sonnet 5.5 · 2026-10-02): hybrid or keyword search
+    # over the chunks the
+    # scheduled cycle publishes, one named vector per slot.
+    @api.post("/chunks/search", response_model=ChunkSearchResponse)
+    async def chunks_search(request: ChunkSearchRequest) -> ChunkSearchResponse:
+        """Search the chunks published by the automatic index cycle.
+
+        Inputs: bounded query, mode and vector slot. Output: matching chunks or HTTP 503.
+        Side effects: query embedding and Weaviate reads. Pick this for indexed text chunks.
+        """
+        try:
+            collection = (
+                os.getenv("INTAKE_CHUNK_COLLECTION", "").strip() or "CaseBibleChunks20261002"
+            )
+            vector = None
+            dimensions = None
+            if request.mode == "hybrid":
+                if request.slot != "text_nim":
+                    raise ValueError(
+                        f"Query embedding for slot {request.slot!r} is not configured; "
+                        "use mode=keyword"
+                    )
+                api_key = get_secret("NVIDIA_API_KEY")
+                if not api_key:
+                    raise ValueError("NVIDIA_API_KEY is not configured")
+                dimensions = config.embed_dimensions
+                async with NimClient(
+                    api_key=api_key,
+                    base_url=config.nim_base_url,
+                    embed_model=config.embed_model,
+                    summary_model=config.summary_model,
+                    dimensions=config.embed_dimensions,
+                    timeout_seconds=config.timeout_seconds,
+                    max_retries=config.max_retries,
+                    max_concurrency=config.max_concurrency,
+                ) as client:
+                    vector = await client.embed_query(request.query)
+            return await search_chunks(
+                os.getenv("INTAKE_WEAVIATE_URL", ""),
+                collection,
+                request,
+                vector=vector,
+                dimensions=dimensions,
+                api_key=get_secret("INTAKE_WEAVIATE_API_KEY") or "",
+            )
+        except (ChunkSearchError, NimError, ValueError) as exc:
+            raise HTTPException(
+                status_code=503, detail="Chunk search unavailable: " + type(exc).__name__
+            ) from None
+
+    # Image index (Claude Code · Sonnet 5.5 · 2026-10-03): screenshots, photos and scanned pages by
+    # a text question.
+    @api.post("/images/search", response_model=ImageSearchResponse)
+    async def images_search(request: ImageSearchRequest) -> ImageSearchResponse:
+        """Search image OCR and the enabled image vector slots.
+
+        Inputs: bounded query, mode and optional image kind. Output: image hits or HTTP 503.
+        Side effects: query embedding and Weaviate reads. Pick this for images and scanned pages.
+        """
+        try:
+            return await search_images(request)
+        except (ImageSearchError, ValueError) as exc:
+            raise HTTPException(
+                status_code=503, detail="Image search unavailable: " + type(exc).__name__
+            ) from None
+
+    @api.get("/index/cycles")
+    def index_cycles(limit: int = 20) -> dict[str, object]:
+        """Read the automatic cycle's committed watermark and recent stage receipts.
+
+        Inputs: requested cycle count, capped at 100. Output: watermark and recent cycle metadata.
+        Side effects: reads retained receipts. Pick this to inspect indexing progress without
+        starting work.
+        """
+        root = config.output_dir / "cycles"
+        recent: list[dict[str, object]] = []
+        if root.is_dir():
+            for folder in sorted(root.glob("*"), reverse=True)[: min(max(limit, 1), 100)]:
+                receipts = read_stage_receipts(config.output_dir, folder.name)
+                recent.append(
+                    {
+                        "cycle_id": folder.name,
+                        "stages": [r.get("stage") for r in receipts],
+                        "committed": any(r.get("stage") == "commit" for r in receipts),
+                        "changed": next(
+                            (r.get("changed") for r in receipts if r.get("stage") == "discover"),
+                            None,
+                        ),
+                    }
+                )
+        return {"last_commit": last_commit(config.output_dir), "recent": recent}
 
     return api
 

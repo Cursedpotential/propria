@@ -29,6 +29,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/repairplan"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
+	"github.com/Cursedpotential/probata/engine/superindex"
 	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -103,8 +104,10 @@ type HandlerSelectionActivities struct {
 	Validate  func(context.Context, proffer.StageRequest) (proffer.HandlerSelectionValidationResult, error)
 }
 
-// RegisterAll installs the one workflow plus every exact stagegraph name on
-// one worker. A partial worker must never poll this task queue.
+// RegisterAll installs the Proffer workflows and their complete Activity registry on one worker.
+// Inputs: registrar and the configured Activity groups. Outputs: registered workflow and Activity names.
+// Side effects: mutates the worker registry, including the Super Index workflow whose Activities use Python.
+// Pick this complete registry when polling the Proffer queue; partial registries cannot serve that queue.
 func RegisterAll(registrar interface {
 	activities.ActivityRegistrar
 	RegisterWorkflow(interface{})
@@ -121,6 +124,7 @@ func RegisterAll(registrar interface {
 	// The removal of same-device duplicates committed before the match-up rule.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	registrar.RegisterWorkflowWithOptions(dedupe.MessageDedupeWorkflow, workflow.RegisterOptions{Name: dedupe.WorkflowName})
+	registrar.RegisterWorkflowWithOptions(superindex.CycleWorkflow, workflow.RegisterOptions{Name: superindex.WorkflowName})
 	activities.RegisterBatchImportActivities(registrar, registrations.BatchImport)
 	registrar.RegisterWorkflowWithOptions(repairplan.RepairPlanWorkflow, workflow.RegisterOptions{Name: repairplan.WorkflowName})
 	activities.RegisterRepairPlanActivities(registrar, registrations.RepairPlan)

@@ -255,9 +255,7 @@ def index(
 
         scheme = getattr(settings, "object_store_scheme", "b2")
         bucket = getattr(settings, "vault_bucket", "")
-        locator = (
-            f"{scheme}://{bucket}/" if catalog_mode else Path(settings.source_dir).as_uri()
-        )
+        locator = f"{scheme}://{bucket}/" if catalog_mode else Path(settings.source_dir).as_uri()
 
         async def project() -> dict:
             async with await connect_graph() as graph:
@@ -314,18 +312,26 @@ def archive_members(
     with httpx.Client(timeout=120.0) as client:
         store = ObjectStore(
             configured_credentials(settings.object_store_scheme),
-            bucket or settings.vault_bucket, httpx.AsyncClient(), counters=counters,
+            bucket or settings.vault_bucket,
+            httpx.AsyncClient(),
+            counters=counters,
         )
         members = list_members(store, key, size, client, limit=limit)
-    typer.echo(json.dumps({
-        "archive_key": key,
-        "archive_bytes": size,
-        "members_listed": len(members),
-        "members": [
-            {"member_path": m.member_path, "byte_size": m.byte_size} for m in members[:limit]
-        ],
-        **counters.snapshot(),
-    }, indent=2))
+    typer.echo(
+        json.dumps(
+            {
+                "archive_key": key,
+                "archive_bytes": size,
+                "members_listed": len(members),
+                "members": [
+                    {"member_path": m.member_path, "byte_size": m.byte_size}
+                    for m in members[:limit]
+                ],
+                **counters.snapshot(),
+            },
+            indent=2,
+        )
+    )
 
 
 @app.command()
@@ -527,6 +533,7 @@ def tui(
 
 # --- Image index (own app, state and collection; Byline: Claude Code · Fable 5.1 · 2026-09-21) ---
 
+
 @app.command("image-provision")
 def image_provision() -> None:
     """Create the image collection (single + MaxSim named vectors) if it does not exist."""
@@ -597,8 +604,8 @@ def image_search(
                 "filename source_path original_time original_time_source device "
                 "is_screenshot ocr_text _additional { distance }"
             )
-            active = "{path: [\"active\"], operator: Equal, valueBoolean: true}"
-            near = f"{{vector: {json.dumps(vector)}, targetVectors: [\"{target}\"]}}"
+            active = '{path: ["active"], operator: Equal, valueBoolean: true}'
+            near = f'{{vector: {json.dumps(vector)}, targetVectors: ["{target}"]}}'
             graphql = (
                 f"{{ Get {{ {settings.collection}(limit: {limit}, where: {active}, "
                 f"nearVector: {near}) {{ {fields} }} }} }}"
@@ -614,6 +621,72 @@ def image_search(
             return body["data"]["Get"][settings.collection]
 
     typer.echo(json.dumps(asyncio.run(run()), indent=2))
+
+
+@app.command("stage")
+def stage(
+    name: Annotated[
+        str, typer.Argument(help="discover | extract | summarize | embed | publish | commit")
+    ],
+    cycle_id: Annotated[str | None, typer.Option(help="Cycle id; default: a new one")] = None,
+    param: Annotated[
+        list[str] | None, typer.Option("--param", help="key=value stage parameter (repeatable)")
+    ] = None,
+) -> None:
+    """Run ONE cycle stage directly (the same function the Temporal Activity wraps). For proofs and
+    debugging."""
+    from . import ledger, stage_runner
+
+    if name not in stage_runner.STAGES:
+        raise typer.BadParameter(f"unknown stage {name!r}; known: {sorted(stage_runner.STAGES)}")
+    params: dict[str, object] = {}
+    for item in param or []:
+        key, _, value = item.partition("=")
+        params[key] = (
+            int(value)
+            if value.isdigit()
+            else (value.casefold() == "true" if value.casefold() in ("true", "false") else value)
+        )
+    cid = cycle_id or ledger.new_cycle_id()
+    result = asyncio.run(
+        stage_runner.STAGES[name](cid, params, lambda detail: typer.echo(detail, err=True))
+    )
+    typer.echo(json.dumps({"cycle_id": cid, "stage": name, **result}, indent=2, default=str))
+
+
+@app.command("cycle")
+def cycle(
+    force: Annotated[
+        bool, typer.Option(help="Run even if the catalog watermark has not moved")
+    ] = False,
+    limit: Annotated[
+        int | None, typer.Option(min=1, help="Bounded proof: index at most N catalog rows")
+    ] = None,
+    path_prefix: Annotated[
+        str | None, typer.Option(help="Bounded proof: only keys with this prefix")
+    ] = None,
+) -> None:
+    """Run a whole cycle in this process (the direct-call shape; production runs it under
+    Temporal)."""
+    from . import stage_runner
+
+    params: dict[str, object] = {"force": force}
+    if limit:
+        params["limit"] = limit
+    if path_prefix:
+        params["path_prefix"] = path_prefix
+    result = asyncio.run(
+        stage_runner.run_cycle_direct(params, lambda detail: typer.echo(detail, err=True))
+    )
+    typer.echo(json.dumps(result, indent=2, default=str))
+
+
+@app.command("worker")
+def worker() -> None:
+    """Run the Temporal worker for the Super Index Activities (queue 'superindex')."""
+    from .temporal_worker import main as worker_main
+
+    asyncio.run(worker_main())
 
 
 if __name__ == "__main__":

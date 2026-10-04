@@ -17,6 +17,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/repairplan"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
+	"github.com/Cursedpotential/probata/engine/superindex"
 )
 
 type registrationRecorder struct {
@@ -54,12 +55,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +2: the conversation-chunk re-chunk and per-message removal workflows. Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 	// +1: the contacts import workflow (Claude Code · Sonnet · 2026-10-02).
 	// +1: the same-device message dedupe workflow. Byline: Claude Code · Opus 5.5 · 2026-10-02
-	if recorder.workflowCount != 8 {
-		t.Fatalf("workflow registration count = %d, want 8", recorder.workflowCount)
+	if recorder.workflowCount != 9 {
+		t.Fatalf("workflow registration count = %d, want 9", recorder.workflowCount)
 	}
 	wantNamed := []string{
 		proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
-		proffer.ConversationChunksRemovalWorkflowName, dedupe.WorkflowName, repairplan.WorkflowName, contacts.WorkflowName,
+		proffer.ConversationChunksRemovalWorkflowName, dedupe.WorkflowName, superindex.WorkflowName, repairplan.WorkflowName, contacts.WorkflowName,
 	}
 	if !reflect.DeepEqual(recorder.workflowNames, wantNamed) {
 		t.Fatalf("named workflow registrations = %v, want %v", recorder.workflowNames, wantNamed)

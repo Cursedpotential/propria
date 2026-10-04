@@ -199,3 +199,10 @@ action.
 
 See [the upstream example synthesis](docs/UPSTREAM-EXAMPLES-SYNTHESIS.md) and
 [the data contract](docs/DATA-CONTRACT.md) for the implementation rationale and column-level model.
+
+## Automatic cycle (deployed service)
+
+On ovh-files the index is not run by hand: a Temporal Schedule starts the Go engine's `SuperIndexCycleWorkflow` every 15
+minutes, which runs this package's stages as Activities on queue `superindex` (`casebible-corpus worker`). The stages are
+also callable directly (`casebible-corpus stage <name>`, `casebible-corpus cycle`). What each stage does, the routing rules,
+the chunk identity, the named vector slots and the deploy order are in `docs/runbooks/superindex-automatic-cycle.md`.

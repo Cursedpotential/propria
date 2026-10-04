@@ -23,6 +23,10 @@ from .object_store import ObjectStore
 from .streaming import WINDOW_BYTES
 
 OBJECT_STORE = coco.ContextKey[ObjectStore]("intake_vault_object_store")
+# One read-only store per (provider, bucket), e.g. ("b2", "salem-data") and ("r2", "casebible-raw").
+# Claude Code · Sonnet 5.5 · 2026-10-02: the catalog now lists several buckets
+# (raw_duck.bucket_objects_current).
+OBJECT_STORES = coco.ContextKey[dict]("intake_vault_object_stores")
 
 
 class VaultFilePath(coco_file.FilePath[str]):
@@ -58,11 +62,32 @@ class VaultFile(coco_file.FileLike[str]):
 
     @property
     def store(self) -> ObjectStore:
-        return self._store if self._store is not None else coco.use_context(OBJECT_STORE)
+        if self._store is not None:
+            return self._store
+        provider = str(self.catalog_object.fields.get("provider") or "")
+        bucket = str(self.catalog_object.fields.get("bucket") or "")
+        if provider and bucket:
+            stores = coco.use_context(OBJECT_STORES)
+            try:
+                return stores[(provider, bucket)]
+            except KeyError:
+                raise ValueError(f"No object store configured for {provider}:{bucket}") from None
+        return coco.use_context(OBJECT_STORE)
 
     @property
     def key(self) -> str:
         return self.catalog_object.key
+
+    @property
+    def locator(self) -> str:
+        """Where the object lives, as the index records it: the plain key for the primary vault
+        bucket (the
+        Case Bible's own keys), ``provider://bucket/key`` for any other bucket."""
+        fields = self.catalog_object.fields
+        bucket = str(fields.get("bucket") or "")
+        if fields.get("primary", True) or not bucket:
+            return self.key
+        return f"{fields.get('provider') or 'b2'}://{bucket}/{self.key}"
 
     @property
     def identity(self) -> str:
@@ -104,6 +129,10 @@ class VaultFile(coco_file.FileLike[str]):
         async for window in self.store.stream(self.key, window_bytes=window_bytes):
             yield window
 
+    async def head(self, size: int) -> bytes:
+        """The first ``size`` bytes, one ranged read (routing sniffs this before any full read)."""
+        return await self.store.read_range(self.key, 0, min(size, self.catalog_object.byte_size))
+
     async def __coco_memo_state__(self, prev_state):
         state = ("catalog-v2", self.catalog_object.byte_size, self.catalog_object.sha1)
         return coco.MemoStateOutcome(state=state, memo_valid=prev_state == state)
@@ -134,6 +163,9 @@ class LocalStreamFile(coco_file.FileLike[pathlib.Path]):
     async def _read_impl(self, size: int = -1) -> bytes:
         with open(self.file_path.resolve(), "rb") as handle:
             return handle.read() if size < 0 else handle.read(size)
+
+    async def head(self, size: int) -> bytes:
+        return await self._read_impl(size)
 
     async def windows(self, *, window_bytes: int = WINDOW_BYTES) -> AsyncIterator[bytes]:
         import asyncio

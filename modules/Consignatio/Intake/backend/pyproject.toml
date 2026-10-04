@@ -14,13 +14,17 @@ dependencies = [
     # convert TIMESTAMPTZ columns (source_created_at etc.) via fetchone/fetchall.
     "fastapi>=0.116.0",
     "httpx>=0.28.0",
+    "numpy>=2.0.0",
+    "pillow>=11.0.0",  # image stage: decode, thumbnail, synthetic bench (Claude Code · Sonnet 5.5 · 2026-10-03)
     "pyarrow>=20.0.0",
+    "pypdfium2>=4.30.0",  # image stage: render scanned-PDF pages to images
     "pydantic>=2.11.0",
     "pypdf>=6.0.0",
     "python-docx>=1.2.0",
     "python-dotenv>=1.1.0",
     "striprtf>=0.0.29",
     "surrealdb==2.0.0",
+    "temporalio>=1.7,<2",
     "textual>=6.1.0",
     "typer>=0.16.0",
     "tzdata>=2025.2",

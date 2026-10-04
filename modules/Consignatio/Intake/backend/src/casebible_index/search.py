@@ -10,6 +10,7 @@ from .config import Settings
 from .models import SearchHit, SearchResponse
 from .nim import NimClient
 from .snapshots import newest_snapshot
+from .summaries import documents_relation
 
 
 def _sql_path(path: Path) -> str:
@@ -88,9 +89,6 @@ class SemanticSearcher:
         path_prefix: str | None,
     ) -> list[dict[str, object]]:
         chunks_glob = self.settings.output_dir / "datasets" / "chunks" / "*.parquet"
-        documents_glob = _sql_path(
-            self.settings.output_dir / "datasets" / "documents" / "*.parquet"
-        )
         clauses: list[str] = []
         parameters: list[object] = [vector]
         if document_type:
@@ -132,7 +130,7 @@ class SemanticSearcher:
                 FROM read_parquet('{_sql_path(chunks_glob)}', union_by_name = true) c
                 JOIN read_parquet('{_sql_path(snapshot)}') s
                   USING (document_id, version_id, artifact_id)
-                JOIN read_parquet('{documents_glob}', union_by_name = true) d
+                JOIN {documents_relation(self.settings.output_dir)} d
                   USING (document_id, version_id, artifact_id)
                 {where}
                 ORDER BY semantic_score DESC
@@ -163,7 +161,7 @@ def list_documents(settings: Settings, *, limit: int = 100) -> list[dict[str, ob
                    d.filename, d.title,
                    d.document_type, d.document_date, d.short_summary,
                    d.review_state, d.index_status
-            FROM read_parquet('{_sql_path(documents_glob)}', union_by_name = true) d
+            FROM {documents_relation(settings.output_dir)} d
             JOIN read_parquet('{_sql_path(snapshot)}') s
               USING (document_id, version_id, artifact_id)
             ORDER BY d.relative_path
@@ -183,22 +181,71 @@ def list_documents(settings: Settings, *, limit: int = 100) -> list[dict[str, ob
 # a field the extractor does not populate (no invented EXIF/PDF/media metadata) --
 # a native panel renders a "not extracted" flag for those categories instead.
 _LOOKUP_COLUMNS = (
-    "d.document_id", "d.relative_path", "d.filename", "d.extension", "d.media_type",
-    "d.byte_size", "d.content_sha256", "d.source_created_at", "d.source_modified_at",
-    "d.indexed_at", "d.title", "d.document_type", "d.document_date", "d.date_basis",
-    "d.short_summary", "d.detailed_summary", "d.people", "d.organizations",
-    "d.locations", "d.dates_mentioned", "d.topics", "d.keywords", "d.case_relevance",
-    "d.language", "d.confidence", "d.review_notes", "d.review_state", "d.record_role",
-    "d.index_status", "d.extraction_method", "d.extraction_notes", "d.page_count",
-    "d.text_char_count", "d.chunk_count", "d.summary_coverage", "d.summary_coverage_ratio",
-    "d.summary_model", "d.embedding_model", "d.embedding_dimensions", "d.schema_version",
+    "d.document_id",
+    "d.relative_path",
+    "d.filename",
+    "d.extension",
+    "d.media_type",
+    "d.byte_size",
+    "d.content_sha256",
+    "d.source_created_at",
+    "d.source_modified_at",
+    "d.indexed_at",
+    "d.title",
+    "d.document_type",
+    "d.document_date",
+    "d.date_basis",
+    "d.short_summary",
+    "d.detailed_summary",
+    "d.people",
+    "d.organizations",
+    "d.locations",
+    "d.dates_mentioned",
+    "d.topics",
+    "d.keywords",
+    "d.case_relevance",
+    "d.language",
+    "d.confidence",
+    "d.review_notes",
+    "d.review_state",
+    "d.record_role",
+    "d.index_status",
+    "d.extraction_method",
+    "d.extraction_notes",
+    "d.page_count",
+    "d.text_char_count",
+    "d.chunk_count",
+    "d.summary_coverage",
+    "d.summary_coverage_ratio",
+    "d.summary_model",
+    "d.embedding_model",
+    "d.embedding_dimensions",
+    "d.schema_version",
 )
 
 
 _FORBIDDEN_SQL_KEYWORDS = (
-    "insert", "update", "delete", "drop", "alter", "attach", "detach", "copy",
-    "pragma", "create", "call", "checkpoint", "install", "load", "export", "import",
-    "set ", "grant", "revoke", "vacuum", "merge",
+    "insert",
+    "update",
+    "delete",
+    "drop",
+    "alter",
+    "attach",
+    "detach",
+    "copy",
+    "pragma",
+    "create",
+    "call",
+    "checkpoint",
+    "install",
+    "load",
+    "export",
+    "import",
+    "set ",
+    "grant",
+    "revoke",
+    "vacuum",
+    "merge",
 )
 
 
@@ -230,8 +277,7 @@ def run_lake_query(settings: Settings, sql: str, *, limit: int = 200) -> dict[st
     try:
         if any(documents_glob.parent.glob(documents_glob.name)):
             connection.execute(
-                f"CREATE VIEW documents AS "
-                f"SELECT * FROM read_parquet('{_sql_path(documents_glob)}', union_by_name = true)"
+                f"CREATE VIEW documents AS SELECT * FROM {documents_relation(settings.output_dir)}"
             )
         if any(chunks_glob.parent.glob(chunks_glob.name)):
             connection.execute(
@@ -255,7 +301,8 @@ def run_lake_query(settings: Settings, sql: str, *, limit: int = 200) -> dict[st
             "row_count": len(rows),
             "truncated": len(rows) >= bounded_limit,
             "views_available": [
-                name for name, glob_path in (("documents", documents_glob), ("chunks", chunks_glob))
+                name
+                for name, glob_path in (("documents", documents_glob), ("chunks", chunks_glob))
                 if any(glob_path.parent.glob(glob_path.name))
             ],
         }
@@ -301,7 +348,7 @@ def lookup_document(settings: Settings, absolute_path: str) -> dict[str, object]
         row = connection.execute(
             f"""
             SELECT {columns_sql}
-            FROM read_parquet('{_sql_path(documents_glob)}', union_by_name = true) d
+            FROM {documents_relation(settings.output_dir)} d
             JOIN read_parquet('{_sql_path(snapshot)}') s
               USING (document_id, version_id, artifact_id)
             WHERE d.relative_path = ?
@@ -328,7 +375,7 @@ def lookup_document(settings: Settings, absolute_path: str) -> dict[str, object]
             duplicate_rows = connection.execute(
                 f"""
                 SELECT d.relative_path, d.filename
-                FROM read_parquet('{_sql_path(documents_glob)}', union_by_name = true) d
+                FROM {documents_relation(settings.output_dir)} d
                 JOIN read_parquet('{_sql_path(snapshot)}') s
                   USING (document_id, version_id, artifact_id)
                 WHERE d.content_sha256 = ? AND d.relative_path != ?
