@@ -57,48 +57,74 @@ test("GET /api/store/source requires id", async () => {
   assert.equal(res.statusCode, 400);
 });
 
-test("GET /api/store/reference/library filters and pages synthetic shared-store rows", async () => {
+test("GET /api/store/library pages beyond 200, and /api/store/record returns canonical exact detail", async () => {
   const [mod, store] = await Promise.all([loadStoreModule(), getSharedStore()]);
+  for (let index = 0; index < 205; index += 1) {
+    await mod.casePut(store, {
+      table: "reference",
+      id: `desktop-library-fixture-${String(index).padStart(3, "0")}`,
+      data: {
+        kind: "fixture-kind",
+        category: "fixture-category",
+        pattern: `fixture-pattern-${index}`,
+        definition: `Synthetic reference body ${index}.`,
+        aliases: ["fixture alias"],
+        source: index === 204
+          ? { path: "fixture/source-a.md", sha256: "fixture-hash-a", official_url: "https://example.invalid/source-a" }
+          : null,
+      },
+    });
+  }
   await mod.casePut(store, {
-    table: "reference",
-    id: "desktop-library-fixture-a",
+    table: "source",
+    id: "desktop-library-source-fixture",
     data: {
-      kind: "fixture-kind",
-      category: "fixture-category",
-      pattern: "fixture-pattern-a",
-      definition: "Synthetic reference body A.",
-      aliases: ["fixture alias"],
-      source: { path: "fixture/source-a.md", sha256: "fixture-hash-a", url: "https://example.invalid/source-a" },
+      title: "Synthetic source citation",
+      body: "Synthetic source body retained in the exact record.",
+      source_path: "fixture/citation.md",
+      sha256: "fixture-source-hash",
+      official_url: "https://example.invalid/citation",
     },
   });
-  await mod.casePut(store, {
-    table: "reference",
-    id: "desktop-library-fixture-b",
-    data: { kind: "fixture-kind", category: "fixture-category", pattern: "fixture-pattern-b", definition: "Synthetic reference body B." },
-  });
 
-  const res = await app.inject({ method: "GET", url: "/api/store/reference/library?q=fixture&limit=1&offset=0" });
+  const res = await app.inject({ method: "GET", url: "/api/store/library?table=reference&limit=50&offset=200" });
   assert.equal(res.statusCode, 200);
   const body = res.json();
-  assert.equal(body.total, 2);
-  assert.equal(body.entries.length, 1);
-  assert.equal(body.offset, 0);
-  assert.equal(body.limit, 1);
-  assert.equal(body.next_offset, 1);
-  assert.ok(body.entries[0].definition.startsWith("Synthetic reference body "));
+  assert.equal(body.table, "reference");
+  assert.equal(body.total, 205);
+  assert.equal(body.offset, 200);
+  assert.equal(body.entries.length, 5);
+  assert.equal(body.entries[0].id, "reference:desktop-library-fixture-200");
+  assert.equal(body.entries[4].id, "reference:desktop-library-fixture-204");
+  assert.equal(body.next_offset, null);
 
-  const bySource = await app.inject({ method: "GET", url: "/api/store/reference/library?q=fixture-hash-a" });
-  assert.equal(bySource.statusCode, 200);
-  assert.equal(bySource.json().entries[0].source.sha256, "fixture-hash-a");
-  assert.equal(bySource.json().entries[0].source.path, "fixture/source-a.md");
+  const detail = await app.inject({ method: "GET", url: "/api/store/record?id=reference%3Adesktop-library-fixture-204" });
+  assert.equal(detail.statusCode, 200);
+  assert.equal(detail.json().id, "reference:desktop-library-fixture-204");
+  assert.equal(detail.json().table, "reference");
+  assert.match(detail.json().version, /^sha256:/);
+  assert.equal(detail.json().record.definition, "Synthetic reference body 204.");
+  assert.equal(detail.json().record.source.sha256, "fixture-hash-a");
+  assert.equal(detail.json().record.source.official_url, "https://example.invalid/source-a");
 
-  const next = await app.inject({ method: "GET", url: "/api/store/reference/library?q=fixture&limit=1&offset=1" });
-  assert.equal(next.statusCode, 200);
-  assert.equal(next.json().entries.length, 1);
-  assert.equal(next.json().next_offset, null);
+  const sourcePage = await app.inject({ method: "GET", url: "/api/store/library?table=source&limit=25&offset=0" });
+  assert.equal(sourcePage.statusCode, 200);
+  assert.equal(sourcePage.json().total, 1);
+  assert.equal(sourcePage.json().entries[0].id, "source:desktop-library-source-fixture");
+  const sourceDetail = await app.inject({ method: "GET", url: "/api/store/record?id=source%3Adesktop-library-source-fixture" });
+  assert.equal(sourceDetail.statusCode, 200);
+  assert.equal(sourceDetail.json().record.body, "Synthetic source body retained in the exact record.");
+  assert.equal(sourceDetail.json().record.source_path, "fixture/citation.md");
+  assert.equal(sourceDetail.json().record.sha256, "fixture-source-hash");
+  assert.equal(sourceDetail.json().record.official_url, "https://example.invalid/citation");
 
-  const invalid = await app.inject({ method: "GET", url: "/api/store/reference/library?limit=51" });
+  const countAfterReads = await mod.caseQuery(store, { surql: "SELECT count() AS count FROM source GROUP ALL;" });
+  assert.equal(countAfterReads.results.at(-1)[0].count, 1, "read endpoints must not add or rewrite source rows");
+
+  const invalid = await app.inject({ method: "GET", url: "/api/store/library?table=other" });
   assert.equal(invalid.statusCode, 400);
+  const missing = await app.inject({ method: "GET", url: "/api/store/record?id=reference%3Amissing-fixture" });
+  assert.equal(missing.statusCode, 404);
 });
 
 test("GET /api/store/search requires q", async () => {

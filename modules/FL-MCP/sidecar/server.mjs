@@ -207,45 +207,80 @@ function parseBoundedQueryInteger(value, fallback, max) {
 }
 
 /**
- * Returns a bounded page from the canonical shared reference list. Inputs are
- * optional q, limit, and offset query parameters; output is entries plus page
- * metadata. It reads existing Surreal rows without mutation and complements
- * /api/store/reference?match=, which serves ontology match hits.
+ * Reads a bounded id-ordered page and independent total count from either
+ * shared source or reference records. Inputs are the allowlisted table, limit,
+ * and numeric offset; output carries rows and paging metadata. It performs
+ * read-only caseQuery calls and does not claim global search; use the legacy
+ * /api/store/reference?match= route for ontology matches.
  * Byline: Codex · GPT-6 · 2026-10-04
  */
-app.get("/api/store/reference/library", async (req, reply) => {
-  const rawQuery = typeof req.query?.q === "string" ? req.query.q.trim() : "";
-  if (rawQuery.length > 120) {
+app.get("/api/store/library", async (req, reply) => {
+  const table = req.query?.table === undefined ? "reference" : req.query.table;
+  if (table !== "reference" && table !== "source") {
     reply.code(400);
-    return { error: "q must be 120 characters or fewer" };
+    return { error: 'table must be "reference" or "source"' };
   }
   const limit = parseBoundedQueryInteger(req.query?.limit, 25, 50);
-  const offset = parseBoundedQueryInteger(req.query?.offset, 0, 200);
+  const offset = parseBoundedQueryInteger(req.query?.offset, 0, 2_147_483_647);
   if (!limit || offset === null) {
     reply.code(400);
-    return { error: "limit must be 1–50 and offset must be 0–200" };
+    return { error: "limit must be 1–50 and offset must be a non-negative safe integer" };
   }
   try {
-    const result = await callStoreFn("caseReference");
-    if (result?.available === false) return result;
-    const entries = Array.isArray(result?.entries) ? result.entries : [];
-    const needle = rawQuery.toLowerCase();
-    const filtered = needle
-      ? entries.filter((entry) => {
-          const source = entry.source && typeof entry.source === "object" ? entry.source : {};
-          const fields = [entry.id, entry.kind, entry.category, entry.pattern, entry.definition,
-            ...(Array.isArray(entry.aliases) ? entry.aliases : []), source.path, source.source_path,
-            source.sha256, source.hash, source.url, source.source_url, source.r2_path];
-          return fields.some((field) => typeof field === "string" && field.toLowerCase().includes(needle));
-        })
-      : entries;
+    const [pageResult, countResult] = await Promise.all([
+      callStoreFn("caseQuery", {
+        surql: `SELECT * FROM type::table($table) ORDER BY id ASC LIMIT ${limit} START ${offset};`,
+        params: { table },
+      }),
+      callStoreFn("caseQuery", {
+        surql: "SELECT count() AS count FROM type::table($table) GROUP ALL;",
+        params: { table },
+      }),
+    ]);
+    if (pageResult?.available === false) return pageResult;
+    if (countResult?.available === false) return countResult;
+    if (pageResult?.truncated || countResult?.truncated) {
+      throw new Error("The shared store returned a truncated library page.");
+    }
+    const pageRows = pageResult?.results?.at(-1);
+    const countRows = countResult?.results?.at(-1);
+    const entries = Array.isArray(pageRows) ? pageRows : [];
+    const total = Number(Array.isArray(countRows) ? countRows[0]?.count : NaN);
+    if (!Number.isSafeInteger(total) || total < 0) throw new Error("The shared store returned an invalid library count.");
     return {
-      entries: filtered.slice(offset, offset + limit),
-      total: filtered.length,
+      table,
+      entries,
+      total,
       offset,
       limit,
-      next_offset: offset + limit < filtered.length ? offset + limit : null,
+      next_offset: offset + entries.length < total ? offset + entries.length : null,
     };
+  } catch (err) {
+    reply.code(500);
+    return { error: String(err?.message ?? err) };
+  }
+});
+
+/**
+ * Returns one canonical phone/workdesk record envelope by table:id reference.
+ * Input is a `reference:` or `source:` record ref; output includes the contract,
+ * version, and complete record body or a not-found response. It is a read-only
+ * caseRecord call and is preferred to reconstructing detail from a list row.
+ * Byline: Codex · GPT-6 · 2026-10-04
+ */
+app.get("/api/store/record", async (req, reply) => {
+  const id = typeof req.query?.id === "string" ? req.query.id : "";
+  if (!/^(reference|source):.+$/.test(id) || id.length > 512) {
+    reply.code(400);
+    return { error: 'id must be a reference:<id> or source:<id> record ref' };
+  }
+  try {
+    const record = await callStoreFn("caseRecord", id);
+    if (record === null) {
+      reply.code(404);
+      return { error: "shared record was not found" };
+    }
+    return record;
   } catch (err) {
     reply.code(500);
     return { error: String(err?.message ?? err) };

@@ -67,16 +67,31 @@ export const referenceQuery = (match?: string) =>
   });
 
 /**
- * Builds the cached page query for the read-only shared reference library.
- * Inputs are bounded search/page parameters; output is a TanStack query option.
- * It performs no side effects beyond the API read and is separate from
- * referenceQuery, which returns ontology match hits or the compact legacy list.
+ * Builds the cached query for one bounded shared source/reference page.
+ * Inputs are table, limit, and offset; output is a TanStack query option. It
+ * performs only the API read and is separate from referenceQuery, which returns
+ * ontology match hits or the compact legacy list.
  * Byline: Codex · GPT-6 · 2026-10-04
  */
-export const referenceLibraryQuery = (params: { q?: string; limit?: number; offset?: number } = {}) =>
+export const referenceLibraryQuery = (params: { table: "reference" | "source"; limit?: number; offset?: number }) =>
   queryOptions({
-    queryKey: ["store", "reference-library", params.q ?? "", params.limit ?? 25, params.offset ?? 0],
+    queryKey: ["store", "reference-library", params.table, params.limit ?? 25, params.offset ?? 0],
     queryFn: () => storeApi.referenceLibrary(params),
+    staleTime: 15_000,
+  });
+
+/**
+ * Creates the cached query for the canonical exact-record envelope.
+ * Input is a reference/source record id or null; output is query options,
+ * disabled when no row is selected. It performs a read only and complements
+ * the bounded table page without rebuilding detail from summary fields.
+ * Byline: Codex · GPT-6 · 2026-10-04
+ */
+export const caseRecordQuery = (id: string | null) =>
+  queryOptions({
+    queryKey: ["store", "case-record", id],
+    queryFn: () => storeApi.record(id as string),
+    enabled: Boolean(id),
     staleTime: 15_000,
   });
 

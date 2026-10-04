@@ -13,6 +13,7 @@ import type {
   CaseGraphResult,
   CaseMemoResponse,
   CaseReferenceResponse,
+  CaseRecordDetail,
   ReferenceLibraryPage,
   CaseSearchResult,
   CaseSourceResponse,
@@ -94,18 +95,26 @@ export const storeApi = {
   reference: (match?: string) =>
     sidecarFetch<StoreResponse<CaseReferenceResponse>>(`/api/store/reference${match ? `?match=${encodeURIComponent(match)}` : ""}`),
   /**
-   * Reads one bounded page from the shared reference library endpoint.
-   * Inputs are optional search/page parameters; output is a page response or
-   * visible shared-store unavailability. It performs an HTTP GET only; use
-   * reference() for ontology matches and the legacy compact reference list.
+   * Reads one bounded source or reference table page with a database total.
+   * Inputs are table, limit, and offset; output is a page or store-unavailable
+   * response. It performs an HTTP GET only; use reference() for pattern match hits.
+   * Byline: OpenAI Codex · GPT-6 · 2026-10-04
    */
-  referenceLibrary: (params: { q?: string; limit?: number; offset?: number } = {}) => {
+  referenceLibrary: (params: { table: "reference" | "source"; limit?: number; offset?: number }) => {
     const usp = new URLSearchParams();
-    if (params.q) usp.set("q", params.q);
+    usp.set("table", params.table);
     if (params.limit !== undefined) usp.set("limit", String(params.limit));
     if (params.offset !== undefined) usp.set("offset", String(params.offset));
-    return sidecarFetch<StoreResponse<ReferenceLibraryPage>>(`/api/store/reference/library?${usp}`);
+    return sidecarFetch<StoreResponse<ReferenceLibraryPage>>(`/api/store/library?${usp}`);
   },
+  /**
+   * Fetches one canonical phone/workdesk record envelope.
+   * Input is a source/reference table:id; output is the contract, version, and
+   * complete record or an unavailable response. It performs a read-only GET;
+   * use referenceLibrary() for bounded lists rather than loading table bodies.
+   * Byline: OpenAI Codex · GPT-6 · 2026-10-04
+   */
+  record: (id: string) => sidecarFetch<StoreResponse<CaseRecordDetail>>(`/api/store/record?id=${encodeURIComponent(id)}`),
   evidence: () => sidecarFetch<StoreResponse<EvidenceResponse>>("/api/store/evidence"),
   evals: () => sidecarFetch<StoreResponse<CaseEvalsResponse>>("/api/store/evals"),
 

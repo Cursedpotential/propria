@@ -242,12 +242,26 @@ export interface ReferenceRow {
   [key: string]: unknown;
 }
 
+export interface LibraryRecord {
+  id: string;
+  [key: string]: unknown;
+}
+
 export interface ReferenceLibraryPage {
-  entries: ReferenceRow[];
+  table: "reference" | "source";
+  entries: LibraryRecord[];
   total: number;
   offset: number;
   limit: number;
   next_offset: number | null;
+}
+
+export interface CaseRecordDetail {
+  contract: string;
+  id: string;
+  table: string;
+  version: string;
+  record: Record<string, unknown>;
 }
 
 export interface ReferenceMatchHit {

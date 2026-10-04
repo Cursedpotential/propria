@@ -7,7 +7,7 @@ export const Route = createFileRoute("/reference")({
   loader: ({ context }) => Promise.all([
     context.queryClient.ensureQueryData(factorMapQuery()).catch(() => undefined),
     context.queryClient.ensureQueryData(referenceQuery()).catch(() => undefined),
-    context.queryClient.ensureQueryData(referenceLibraryQuery()).catch(() => undefined),
+    context.queryClient.ensureQueryData(referenceLibraryQuery({ table: "reference" })).catch(() => undefined),
   ]),
   component: ReferenceView,
 });
