@@ -48,6 +48,65 @@ def _finite(vector: list[float]) -> list[float]:
     return vector
 
 
+COLQWEN_MODEL = "vidore/colqwen2.5-v0.2"
+
+
+@dataclass
+class ColQwenEmbedder:
+    """Client for a self-hosted ColQwen2.5 (ColPali-family late-interaction) endpoint. \
+Selectable, not deployed.
+
+    ColQwen has no serverless per-image API, so the owner runs it behind a small HTTP wrapper \
+on a cheap GPU
+    (Modal L4 or a Hugging Face Endpoint; ``deploy/colqwen_modal.py`` is the wrapper to \
+deploy). The contract is two
+    routes on ``endpoint``: ``POST /embed_image`` with ``{"image": <base64>}`` and ``POST \
+/embed_query`` with
+    ``{"text": <string>}``, each answering ``{"embeddings": [[128 floats], ...]}`` (a bag, \
+scored with MaxSim in
+    Weaviate exactly like the Jina bag). Bearer ``token`` is optional. Set \
+``INTAKE_IMAGES_COLQWEN_URL`` /
+    ``INTAKE_IMAGES_COLQWEN_TOKEN`` and add ``image_colqwen`` to ``INTAKE_IMAGES_SLOTS``."""
+
+    client: httpx.AsyncClient
+    endpoint: str
+    token: str = ""
+    max_retries: int = 3
+
+    @property
+    def model(self) -> str:
+        return COLQWEN_MODEL
+
+    async def _post(self, route: str, body: dict) -> list[list[float]]:
+        headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
+        delay = 2.0
+        for attempt in range(self.max_retries + 1):
+            response = await self.client.post(
+                self.endpoint.rstrip("/") + route,
+                headers=headers,
+                json=body,
+            )
+            if response.status_code == 200:
+                bag = response.json()["embeddings"]
+                if not bag or any(len(v) != MULTI_DIMENSIONS for v in bag):
+                    raise ValueError("ColQwen endpoint returned an unexpected multi-vector shape")
+                return [_finite(v) for v in bag]
+            # A cold GPU container answers 502/503/504 for a while; a rejected
+            # request (4xx) is not retried.
+            retryable = response.status_code in {408, 429, 500, 502, 503, 504}
+            if not retryable or attempt == self.max_retries:
+                raise RuntimeError(f"ColQwen endpoint returned HTTP {response.status_code}")
+            await asyncio.sleep(delay)
+            delay *= 2
+        raise RuntimeError("ColQwen retries exhausted")
+
+    async def embed_multi(self, content: bytes, extension: str = "") -> list[list[float]]:
+        return await self._post("/embed_image", {"image": base64.b64encode(content).decode()})
+
+    async def embed_query(self, text: str) -> list[list[float]]:
+        return await self._post("/embed_query", {"text": text})
+
+
 @dataclass
 class ImageEmbedders:
     client: httpx.AsyncClient
@@ -142,13 +201,23 @@ class ImageEmbedders:
             single = _finite(data["data"][0]["embedding"])
         else:
             data = await self._post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{GOOGLE_MODEL}:embedContent",
+                (
+                    "https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{GOOGLE_MODEL}:embedContent"
+                ),
                 {"x-goog-api-key": self.single_key},
                 {"content": {"parts": [{"text": text}]}},
             )
             single = _finite(data["embedding"]["values"])
         if not self.jina_key:
             return single, None
+        return single, await self.embed_query_multi(text)
+
+    async def embed_query_multi(self, text: str) -> list[list[float]]:
+        """The Jina MaxSim query bag alone (no single-vector call): for an index whose only \
+slot is ``image_maxsim``."""
+        if not self.jina_key:
+            raise ValueError("JINA_API_KEY is required for the MaxSim query vector")
         data = await self._post(
             "https://api.jina.ai/v1/embeddings",
             {"Authorization": f"Bearer {self.jina_key}"},
@@ -159,4 +228,4 @@ class ImageEmbedders:
                 "input": [{"text": text}],
             },
         )
-        return single, [_finite(v) for v in data["data"][0]["embeddings"]]
+        return [_finite(v) for v in data["data"][0]["embeddings"]]

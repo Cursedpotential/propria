@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -76,6 +77,10 @@ class TextChunk:
     start: int
     end: int
     text: str
+    # Optional extra columns for the chunk row (conversation chunks: content hash, chunker version,
+    # message indexes, participants). None for a plain document chunk. Claude Code · Sonnet 5.5 ·
+    # 2026-10-02.
+    meta: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)

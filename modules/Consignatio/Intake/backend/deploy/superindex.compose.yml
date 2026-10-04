@@ -1,62 +1,165 @@
-# Coco super index service on ovh-files (Coolify).
-# Byline: Claude Code · Opus 5 · 2026-09-22
+# Coco super index on ovh-files (Coolify): the search API and the Temporal worker that runs the index cycle.
+# Byline: Claude Code · Opus 5 · 2026-09-22; worker service, staged-index settings and the shared chunker build
+# context added by Claude Code · Sonnet 5.5 · 2026-10-02
 #
 # Bind-mounts, never named volumes (owner standing preference). The API is published on
 # the tailnet address 100.91.190.107 only: there is no public port and no Traefik label.
 #
 # Every value below that is a credential comes from the Coolify environment set for this
 # application, not from this file.
+#
+# Two services, one image:
+#   superindex         the search API (uvicorn). Unchanged in role.
+#   superindex-worker  the Temporal worker, queue "superindex". The Go engine's superindex.CycleWorkflow (scheduled
+#                      every 15 minutes by `superindex-schedule ensure`) calls its Activities: discover, extract,
+#                      summarize, embed, publish, commit. It is the ONLY process that indexes; no daemon loop.
+#
+# RAM (the 2026-09-22 blow-ups; ovh-files has ~7 GB available): the worker is capped at 4 GiB, its extract child
+# process is killed cleanly at INTAKE_EXTRACT_RSS_LIMIT_MB, CocoIndex holds no per-chunk target state any more (chunks
+# are written to Parquet and published by the publish stage in batches), and an object is spooled to disk, never held.
+
+x-superindex-build: &superindex-build
+  # Relative to the Coolify project directory (the app's base_directory,
+  # /modules/Consignatio/Intake/backend), not to this file. Coolify runs compose with
+  # --project-directory <base_directory>.
+  context: .
+  dockerfile: Dockerfile
+  additional_contexts:
+    # Probata's server package; the Dockerfile copies only server/context_chunks (the shared chunker).
+    probata_server: ../../../Probata/probata/server
+
+x-superindex-env: &superindex-env
+  CASEBIBLE_SOURCE_ID: ${CASEBIBLE_SOURCE_ID:-consignatio-vault-v1}
+  CASEBIBLE_OUTPUT_DIR: /var/lib/superindex/output
+  INTAKE_LOCK_DIR: /var/lib/superindex/state/.source-locks
+  INTAKE_SPOOL_DIR: /var/lib/superindex/spool
+  TMPDIR: /var/lib/superindex/spool
+
+  # Source: the catalog, never a re-walk (owner 2026-09-16). The query reads raw_duck.superindex_source_current,
+  # a view over bucket_objects_current (casebible/tools/superindex_source_current_20261003.sql).
+  INTAKE_SOURCE_MODE: ${INTAKE_SOURCE_MODE:-catalog}
+  INTAKE_CATALOG_DSN: ${INTAKE_CATALOG_DSN}
+  INTAKE_VAULT_BUCKET: ${INTAKE_VAULT_BUCKET:-salem-data}
+  # provider:bucket entries the index reads. B2 salem-data first; add r2:<bucket> entries once the R2 credential
+  # document is mounted and listed in OBJECT_STORES_JSON.
+  INTAKE_SOURCE_BUCKETS: ${INTAKE_SOURCE_BUCKETS:-b2:salem-data}
+  INTAKE_CATALOG_PATH_PREFIX: ${INTAKE_CATALOG_PATH_PREFIX:-}
+  INTAKE_CATALOG_LIMIT: ${INTAKE_CATALOG_LIMIT:-0}
+
+  # Object store, Probata's convention (source_roots.py). Add "r2":"/run/secrets/casebible-r2.json" when R2 is on.
+  OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json"}'
+  INTAKE_OBJECT_STORE_SCHEME: b2
+
+  # What a message export / AI chat export / archive does (owner 2026-10-02).
+  INTAKE_CONVERSATION_MODE: ${INTAKE_CONVERSATION_MODE:-chunk}
+  INTAKE_AI_CHAT_MODE: ${INTAKE_AI_CHAT_MODE:-route}
+  INTAKE_CHUNKER: ${INTAKE_CHUNKER:-}
+  INTAKE_CHUNK_OVERLAP_MESSAGES: ${INTAKE_CHUNK_OVERLAP_MESSAGES:-0}
+  INTAKE_INDEX_ARCHIVE_MEMBERS: ${INTAKE_INDEX_ARCHIVE_MEMBERS:-1}
+  INTAKE_ARCHIVE_MEMBER_LIMIT: ${INTAKE_ARCHIVE_MEMBER_LIMIT:-0}
+
+  # Embeddings: named vector slots. text_nim is NVIDIA NIM nvidia/nemotron-3-embed-1b (2048-d, batched, input guards).
+  # Add `legal` to INTAKE_VECTOR_SLOTS and set INTAKE_VECTOR_LEGAL_MODEL (+ _DIMENSIONS, _BASE_URL, _KEY_SECRET,
+  # _STYLE) once the legal embedder is chosen; nothing else changes.
+  NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+  NIM_BASE_URL: ${NIM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+  NIM_EMBED_MODEL: ${NIM_EMBED_MODEL:-nvidia/nemotron-3-embed-1b}
+  NIM_EMBED_DIMENSIONS: ${NIM_EMBED_DIMENSIONS:-2048}
+  NIM_SUMMARY_MODEL: ${NIM_SUMMARY_MODEL:-nvidia/nemotron-3.5-lightning-30b-a3b}
+  INTAKE_VECTOR_SLOTS: ${INTAKE_VECTOR_SLOTS:-text_nim}
+  INTAKE_VECTOR_LEGAL_MODEL: ${INTAKE_VECTOR_LEGAL_MODEL:-}
+  INTAKE_VECTOR_LEGAL_DIMENSIONS: ${INTAKE_VECTOR_LEGAL_DIMENSIONS:-1024}
+  INTAKE_VECTOR_LEGAL_BASE_URL: ${INTAKE_VECTOR_LEGAL_BASE_URL:-}
+  INTAKE_VECTOR_LEGAL_KEY_SECRET: ${INTAKE_VECTOR_LEGAL_KEY_SECRET:-}
+  INTAKE_VECTOR_LEGAL_STYLE: ${INTAKE_VECTOR_LEGAL_STYLE:-voyage}
+  # Legacy inline modes stay OFF for the staged cycle (the worker forces them); the API container ignores them.
+  INTAKE_EMBED_MODE: ${INTAKE_EMBED_MODE:-on}
+  INTAKE_SUMMARY_MODE: ${INTAKE_SUMMARY_MODE:-off}
+
+  # Weaviate: the chunk collection the publish stage writes, and the legacy IntakeCorpus the API still searches.
+  INTAKE_WEAVIATE_URL: ${INTAKE_WEAVIATE_URL:-http://100.91.190.107:8082}
+  INTAKE_CHUNK_COLLECTION: ${INTAKE_CHUNK_COLLECTION:-CaseBibleChunks20261002}
+  INTAKE_WEAVIATE_COLLECTION: ${INTAKE_WEAVIATE_COLLECTION:-IntakeCorpus}
+  INTAKE_WEAVIATE_TEXT_VECTOR: ${INTAKE_WEAVIATE_TEXT_VECTOR:-text_vector}
+  INTAKE_WEAVIATE_INDEX_ENABLED: ${INTAKE_WEAVIATE_INDEX_ENABLED:-1}
+  INTAKE_WEAVIATE_API_KEY: ${INTAKE_WEAVIATE_API_KEY:-}
+
+  # Image stage (Claude Code · Sonnet 5.5 · 2026-10-03). OFF until INTAKE_IMAGE_STAGE=on in the Coolify environment.
+  # It extends the image index (collection IntakeImageV1) with a catalog source: images and scanned-PDF pages stream
+  # from the bucket in bounded slices, get facts + Tesseract text + vectors, and are written to Weaviate.
+  #   slots: image_maxsim = Jina v4 multi-vector (PRIMARY; needs JINA_API_KEY; Qwen Research License, owner accepted
+  #          non-commercial personal case use 2026-10-03), image_single = NVIDIA NIM (or Google) single vector,
+  #          image_colqwen = a ColQwen2.5 endpoint (selectable; set INTAKE_IMAGES_COLQWEN_URL).
+  #   INTAKE_IMAGES_CLIP=1 adds Weaviate's in-database CLIP vector (needs the multi2vec-clip container, see
+  #          Probata deploy/data-weaviate-native-v1.yaml); INTAKE_IMAGES_PHOTO_TIER=clip_first gives photos CLIP only.
+  INTAKE_IMAGE_STAGE: ${INTAKE_IMAGE_STAGE:-off}
+  INTAKE_IMAGES_WEAVIATE_URL: ${INTAKE_IMAGES_WEAVIATE_URL:-}
+  INTAKE_IMAGES_COLLECTION: ${INTAKE_IMAGES_COLLECTION:-IntakeImageV1}
+  INTAKE_IMAGES_SLOTS: ${INTAKE_IMAGES_SLOTS:-image_maxsim,image_single}
+  INTAKE_IMAGES_SINGLE_PROVIDER: ${INTAKE_IMAGES_SINGLE_PROVIDER:-nim}
+  INTAKE_IMAGES_MAXSIM: ${INTAKE_IMAGES_MAXSIM:-all}
+  INTAKE_IMAGES_COLQWEN: ${INTAKE_IMAGES_COLQWEN:-screenshots}
+  INTAKE_IMAGES_COLQWEN_URL: ${INTAKE_IMAGES_COLQWEN_URL:-}
+  INTAKE_IMAGES_CLIP: ${INTAKE_IMAGES_CLIP:-0}
+  INTAKE_IMAGES_PHOTO_TIER: ${INTAKE_IMAGES_PHOTO_TIER:-all}
+  INTAKE_IMAGES_OCR_ENGINE: ${INTAKE_IMAGES_OCR_ENGINE:-tesseract}
+  INTAKE_IMAGES_SLICE_FILES: ${INTAKE_IMAGES_SLICE_FILES:-40}
+  INTAKE_IMAGES_SLICE_BYTES: ${INTAKE_IMAGES_SLICE_BYTES:-268435456}
+  INTAKE_IMAGES_MAX_FILE_BYTES: ${INTAKE_IMAGES_MAX_FILE_BYTES:-26214400}
+  INTAKE_IMAGES_PDF_MAX_PAGES: ${INTAKE_IMAGES_PDF_MAX_PAGES:-20}
+  INTAKE_IMAGES_MAX_INFLIGHT: ${INTAKE_IMAGES_MAX_INFLIGHT:-4}
+  JINA_API_KEY: ${JINA_API_KEY:-}
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+  COLQWEN_API_TOKEN: ${COLQWEN_API_TOKEN:-}
+
+  # Surreal file graph.
+  INTAKE_SURREAL_URL: ${INTAKE_SURREAL_URL:-http://100.91.190.107:8473}
+  INTAKE_SURREAL_PASSWORD: ${INTAKE_SURREAL_PASSWORD}
+
+x-superindex-volumes: &superindex-volumes
+  - /data/consignatio/volumes/superindex/output:/var/lib/superindex/output
+  - /data/consignatio/volumes/superindex/state:/var/lib/superindex/state
+  - /data/consignatio/volumes/superindex/spool:/var/lib/superindex/spool
+  # Read-only credential documents, Probata's convention.
+  - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
+
 services:
   superindex:
-    build:
-      # Relative to the Coolify project directory (the app's base_directory,
-      # /Intake/backend), not to this file. Coolify runs compose with
-      # --project-directory <base_directory>.
-      context: .
-      dockerfile: Dockerfile
+    build: *superindex-build
     container_name: superindex
     restart: unless-stopped
     ports:
       # Tailnet only. Changing this to 0.0.0.0 would publish the vault index publicly.
       - "100.91.190.107:8765:8765"
-    volumes:
-      - /data/consignatio/volumes/superindex/output:/var/lib/superindex/output
-      - /data/consignatio/volumes/superindex/state:/var/lib/superindex/state
-      - /data/consignatio/volumes/superindex/spool:/var/lib/superindex/spool
-      # Read-only credential documents, Probata's convention.
-      - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
+    volumes: *superindex-volumes
+    environment: *superindex-env
+
+  superindex-worker:
+    build: *superindex-build
+    container_name: superindex-worker
+    restart: unless-stopped
+    command: ["python", "-m", "casebible_index.temporal_worker"]
+    # Byline: Codex · 2026-10-04. The worker has no HTTP listener; readiness is
+    # verified through its Temporal Activity poller after deployment.
+    healthcheck:
+      disable: true
+    # The 09-22 runs outgrew a 3 GiB container. 4 GiB for the whole worker (it spools to disk, embeds in batches of
+    # 32, and its extract child is killed at INTAKE_EXTRACT_RSS_LIMIT_MB) with the host having ~7 GiB spare.
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 3
+    volumes: *superindex-volumes
     environment:
-      CASEBIBLE_SOURCE_ID: ${CASEBIBLE_SOURCE_ID:-consignatio-vault-v1}
-      CASEBIBLE_OUTPUT_DIR: /var/lib/superindex/output
-      INTAKE_LOCK_DIR: /var/lib/superindex/state/.source-locks
-      TMPDIR: /var/lib/superindex/spool
-
-      # Source: the catalog, never a re-walk (owner 2026-09-16).
-      INTAKE_SOURCE_MODE: ${INTAKE_SOURCE_MODE:-catalog}
-      INTAKE_CATALOG_DSN: ${INTAKE_CATALOG_DSN}
-      INTAKE_VAULT_BUCKET: ${INTAKE_VAULT_BUCKET:-salem-data}
-      INTAKE_CATALOG_PATH_PREFIX: ${INTAKE_CATALOG_PATH_PREFIX:-}
-      INTAKE_CATALOG_LIMIT: ${INTAKE_CATALOG_LIMIT:-0}
-
-      # Object store, Probata's convention (source_roots.py).
-      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json"}'
-      INTAKE_OBJECT_STORE_SCHEME: b2
-
-      # Embeddings and summaries on NVIDIA NIM.
-      NVIDIA_API_KEY: ${NVIDIA_API_KEY}
-      NIM_BASE_URL: ${NIM_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      NIM_EMBED_MODEL: ${NIM_EMBED_MODEL:-nvidia/nemotron-3-embed-1b}
-      NIM_EMBED_DIMENSIONS: ${NIM_EMBED_DIMENSIONS:-2048}
-      INTAKE_EMBED_MODE: ${INTAKE_EMBED_MODE:-on}
-      INTAKE_SUMMARY_MODE: ${INTAKE_SUMMARY_MODE:-off}
-
-      # Weaviate is the default vector target when a collection is configured.
-      INTAKE_WEAVIATE_URL: ${INTAKE_WEAVIATE_URL:-http://100.91.190.107:8082}
-      INTAKE_WEAVIATE_COLLECTION: ${INTAKE_WEAVIATE_COLLECTION:-IntakeCorpus}
-      INTAKE_WEAVIATE_TEXT_VECTOR: ${INTAKE_WEAVIATE_TEXT_VECTOR:-text_vector}
-      INTAKE_WEAVIATE_INDEX_ENABLED: ${INTAKE_WEAVIATE_INDEX_ENABLED:-1}
-      INTAKE_WEAVIATE_API_KEY: ${INTAKE_WEAVIATE_API_KEY:-}
-
-      # Surreal file graph.
-      INTAKE_SURREAL_URL: ${INTAKE_SURREAL_URL:-http://100.91.190.107:8473}
-      INTAKE_SURREAL_PASSWORD: ${INTAKE_SURREAL_PASSWORD}
+      <<: *superindex-env
+      TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-100.91.190.107:7233}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: superindex
+      SUPERINDEX_MAX_CONCURRENT_ACTIVITIES: ${SUPERINDEX_MAX_CONCURRENT_ACTIVITIES:-4}
+      INTAKE_EXTRACT_RSS_LIMIT_MB: ${INTAKE_EXTRACT_RSS_LIMIT_MB:-3000}
+      INTAKE_EXTRACT_TIME_BUDGET_S: ${INTAKE_EXTRACT_TIME_BUDGET_S:-0}
+      INTAKE_GRAPH_MIN_INTERVAL_HOURS: ${INTAKE_GRAPH_MIN_INTERVAL_HOURS:-24}
+      INTAKE_SUMMARY_STAGE: ${INTAKE_SUMMARY_STAGE:-on}
+      INTAKE_SUMMARY_MIN_CHARS: ${INTAKE_SUMMARY_MIN_CHARS:-800}
+      INTAKE_SUMMARY_MAX_DOCS_PER_PASS: ${INTAKE_SUMMARY_MAX_DOCS_PER_PASS:-200}
+      INTAKE_SUMMARY_EXTENSIONS: ${INTAKE_SUMMARY_EXTENSIONS:-}
+      OMP_NUM_THREADS: "3"

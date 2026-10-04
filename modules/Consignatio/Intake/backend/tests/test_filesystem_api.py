@@ -11,19 +11,72 @@ from casebible_index.filesystem_search import (
     FilesystemSearchError,
     FilesystemSearchResponse,
 )
+from casebible_index.image_search_api import ImageSearchResponse
 from casebible_index.nim import NimError
+
+
+@pytest.mark.asyncio
+async def test_filesystem_image_lane_uses_the_configured_image_search_boundary(
+    configured,
+    monkeypatch,
+    api_settings,
+):
+    monkeypatch.setenv("INTAKE_IMAGES_WEAVIATE_URL", "https://images.example")
+    monkeypatch.setenv("INTAKE_IMAGES_SLOTS", "image_maxsim")
+    calls = []
+
+    async def filesystem_results(self, request, *, vector=None):
+        return response_for(request)
+
+    async def image_results(request):
+        calls.append(request)
+        return ImageSearchResponse(
+            query=request.query,
+            collection="JinaOnlyImages",
+            kind=None,
+            lanes=[],
+            hits=[],
+        )
+
+    monkeypatch.setattr(api_module.WeaviateFilesystemSearcher, "search", filesystem_results)
+    monkeypatch.setattr(api_module, "search_images", image_results)
+    monkeypatch.setattr(api_module, "get_secret", lambda _: None)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            "/filesystem/search",
+            json={
+                "query": "orchid",
+                "mode": "keyword",
+                "limit": 7,
+            },
+        )
+    assert response.status_code == 200
+    assert response.json()["image_collection"] == "JinaOnlyImages"
+    assert len(calls) == 1
+    assert (calls[0].query, calls[0].mode, calls[0].limit) == ("orchid", "keyword", 7)
 
 
 @pytest.fixture
 def api_settings():
     root = Path(__file__).resolve().parents[1]
     return Settings(
-        source_dir=root / "sample_docs", source_id="api-synthetic",
+        source_dir=root / "sample_docs",
+        source_id="api-synthetic",
         output_dir=root / "output" / "api-synthetic" / uuid4().hex,
-        nim_base_url="https://nim.example/v1", embed_model="synthetic-embed",
-        summary_model="synthetic-summary", embed_dimensions=3,
-        chunk_size=100, chunk_overlap=10, summary_max_chars=1000,
-        embed_batch_size=2, max_concurrency=1, timeout_seconds=2, max_retries=0,
+        nim_base_url="https://nim.example/v1",
+        embed_model="synthetic-embed",
+        summary_model="synthetic-summary",
+        embed_dimensions=3,
+        chunk_size=100,
+        chunk_overlap=10,
+        summary_max_chars=1000,
+        embed_batch_size=2,
+        max_concurrency=1,
+        timeout_seconds=2,
+        max_retries=0,
     )
 
 
@@ -38,19 +91,31 @@ def configured(monkeypatch):
 
 def response_for(request):
     return FilesystemSearchResponse(
-        query=request.query, collection="IntakeApiSynthetic", target_vector="text_nim",
-        hits=[FilesystemHit(
-            object_id="object-1", source_id="r2all/raw", source_path="V:\\raw\\note.txt",
-            document_id="doc-1", chunk_id="chunk-1", filename="note.txt",
-            text="Fictional scheduling note", score=0.82,
-        )],
+        query=request.query,
+        collection="IntakeApiSynthetic",
+        target_vector="text_nim",
+        hits=[
+            FilesystemHit(
+                object_id="object-1",
+                source_id="r2all/raw",
+                source_path="V:\\raw\\note.txt",
+                document_id="doc-1",
+                chunk_id="chunk-1",
+                filename="note.txt",
+                text="Fictional scheduling note",
+                score=0.82,
+            )
+        ],
     )
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("query", ["meeting", "  meeting \t"])
 async def test_keyword_api_preserves_results_without_embedding(
-    configured, monkeypatch, api_settings, query,
+    configured,
+    monkeypatch,
+    api_settings,
+    query,
 ):
     calls = []
 
@@ -70,9 +135,14 @@ async def test_keyword_api_preserves_results_without_embedding(
         transport=httpx.ASGITransport(app=api_module.create_api(api_settings)),
         base_url="http://test",
     ) as client:
-        result = await client.post("/filesystem/search", json={
-            "query": query, "mode": "keyword", "limit": 7,
-        })
+        result = await client.post(
+            "/filesystem/search",
+            json={
+                "query": query,
+                "mode": "keyword",
+                "limit": 7,
+            },
+        )
     assert result.status_code == 200
     assert calls[0].limit == 7
     body = result.json()
@@ -108,7 +178,8 @@ async def test_hybrid_api_uses_query_vector(configured, monkeypatch, api_setting
     monkeypatch.setattr(api_module, "NimClient", FakeNim)
     monkeypatch.setattr(api_module.WeaviateFilesystemSearcher, "search", search)
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)), base_url="http://test",
+        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)),
+        base_url="http://test",
     ) as client:
         result = await client.post("/filesystem/search", json={"query": "meeting"})
     assert result.status_code == 200
@@ -117,19 +188,30 @@ async def test_hybrid_api_uses_query_vector(configured, monkeypatch, api_setting
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("payload", [
-    {"query": "x", "limit": 0}, {"query": "x", "limit": 101}, {"query": ""},
-    {"query": " "}, {"query": "x" * 4097}, {"query": "x", "mode": "unknown"},
-])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"query": "x", "limit": 0},
+        {"query": "x", "limit": 101},
+        {"query": ""},
+        {"query": " "},
+        {"query": "x" * 4097},
+        {"query": "x", "mode": "unknown"},
+    ],
+)
 async def test_bad_requests_fail_before_any_provider(
-    configured, monkeypatch, api_settings, payload,
+    configured,
+    monkeypatch,
+    api_settings,
+    payload,
 ):
     def forbidden_secret(name):
         pytest.fail("Invalid requests must not reach provider setup")
 
     monkeypatch.setattr(api_module, "get_secret", forbidden_secret)
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)), base_url="http://test",
+        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)),
+        base_url="http://test",
     ) as client:
         result = await client.post("/filesystem/search", json=payload)
     assert result.status_code == 422
@@ -140,7 +222,8 @@ async def test_unconfigured_service_is_503(monkeypatch, api_settings):
     monkeypatch.delenv("INTAKE_WEAVIATE_URL", raising=False)
     monkeypatch.setattr(api_module, "get_secret", lambda _: None)
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)), base_url="http://test",
+        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)),
+        base_url="http://test",
     ) as client:
         result = await client.post("/filesystem/search", json={"query": "x", "mode": "keyword"})
     assert result.status_code == 503
@@ -150,7 +233,10 @@ async def test_unconfigured_service_is_503(monkeypatch, api_settings):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["model_mismatch", "missing_nim_key"])
 async def test_hybrid_readiness_fails_before_embedding(
-    configured, monkeypatch, api_settings, failure,
+    configured,
+    monkeypatch,
+    api_settings,
+    failure,
 ):
     def forbidden_nim(**kwargs):
         pytest.fail("Invalid readiness must not reach NIM")
@@ -160,11 +246,13 @@ async def test_hybrid_readiness_fails_before_embedding(
         monkeypatch.setenv("INTAKE_WEAVIATE_EMBED_MODEL", "different-model")
     else:
         monkeypatch.setattr(
-            api_module, "get_secret",
+            api_module,
+            "get_secret",
             lambda name: None if name == "NVIDIA_API_KEY" else "synthetic",
         )
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)), base_url="http://test",
+        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)),
+        base_url="http://test",
     ) as client:
         response = await client.post("/filesystem/search", json={"query": "meeting"})
     assert response.status_code == 503
@@ -178,7 +266,8 @@ async def test_provider_failures_are_sanitized(configured, monkeypatch, api_sett
 
     monkeypatch.setattr(api_module.WeaviateFilesystemSearcher, "search", failed)
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)), base_url="http://test",
+        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)),
+        base_url="http://test",
     ) as client:
         result = await client.post("/filesystem/search", json={"query": "x", "mode": "keyword"})
     assert result.status_code == 503
@@ -188,7 +277,8 @@ async def test_provider_failures_are_sanitized(configured, monkeypatch, api_sett
 @pytest.mark.asyncio
 async def test_status_missing_then_report_then_read_failure(monkeypatch, api_settings):
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)), base_url="http://test",
+        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)),
+        base_url="http://test",
     ) as client:
         empty = await client.get("/filesystem/status")
         assert empty.json() == {"state": "never_reported", "coverage": "unknown"}

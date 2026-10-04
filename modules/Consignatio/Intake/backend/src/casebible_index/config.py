@@ -31,7 +31,9 @@ SUPPORTED_EXTENSIONS = (
 )
 
 
-DEFAULT_CATALOG_QUERY_FILE = Path(__file__).resolve().with_name("sql") / "catalog_source.sql"
+DEFAULT_CATALOG_QUERY_FILE = (
+    Path(__file__).resolve().with_name("sql") / "catalog_source_current.sql"
+)
 SOURCE_MODES = ("filesystem", "catalog")
 
 
@@ -43,6 +45,22 @@ def _int_env(name: str, default: int) -> int:
 def _float_env(name: str, default: float) -> float:
     raw = os.getenv(name)
     return default if raw is None else float(raw)
+
+
+def _source_buckets_from_env() -> tuple[str, ...]:
+    """``INTAKE_SOURCE_BUCKETS`` as ``provider:bucket`` entries; default: the primary vault bucket
+    only."""
+    raw = os.getenv("INTAKE_SOURCE_BUCKETS", "").strip()
+    if not raw:
+        bucket = os.getenv("INTAKE_VAULT_BUCKET", "").strip()
+        scheme = os.getenv("INTAKE_OBJECT_STORE_SCHEME", "b2").strip() or "b2"
+        return (f"{scheme}:{bucket}",) if bucket else ()
+    entries = tuple(part.strip() for part in raw.split(",") if part.strip())
+    for entry in entries:
+        provider, _, bucket = entry.partition(":")
+        if not provider or not bucket or "/" in bucket:
+            raise ValueError(f"INTAKE_SOURCE_BUCKETS entry {entry!r} must be provider:bucket")
+    return entries
 
 
 @dataclass(frozen=True)
@@ -81,6 +99,19 @@ class Settings:
     object_store_scheme: str = "b2"
     index_archive_members: bool = False
     archive_member_limit: int = 0
+    # Claude Code · Sonnet 5.5 · 2026-10-02
+    # "chunk": message exports (SMS/MMS/call XML) become conversation chunks (shared chunking
+    # module);
+    # "route": a document row only. AI chat exports are never chunked here ("route", owner
+    # 2026-10-02).
+    conversation_mode: str = "chunk"
+    ai_chat_mode: str = "route"
+    chunker_name: str = ""  # "" = the shared module's default (neural_distilbert)
+    overlap_messages: int = 0  # 0 = the shared module's default (2)
+    spool_dir: Path | None = None
+    # "provider:bucket" entries the index reads; the primary vault bucket is
+    # b2:<INTAKE_VAULT_BUCKET>.
+    source_buckets: tuple[str, ...] = ()
 
     @classmethod
     def from_env(cls, *, env_file: Path | None = None) -> Settings:
@@ -105,10 +136,12 @@ class Settings:
             chunk_flush_size=_int_env("INTAKE_CHUNK_FLUSH_SIZE", 512),
             max_inflight_files=_int_env("INTAKE_MAX_INFLIGHT_FILES", 2),
             source_registry=Path(os.environ["INTAKE_SOURCE_REGISTRY"])
-            if os.getenv("INTAKE_SOURCE_REGISTRY") else None,
-            lock_dir=Path(os.getenv("INTAKE_LOCK_DIR") or str(
-                Path(__file__).resolve().parents[2] / "output" / ".source-locks"
-            )),
+            if os.getenv("INTAKE_SOURCE_REGISTRY")
+            else None,
+            lock_dir=Path(
+                os.getenv("INTAKE_LOCK_DIR")
+                or str(Path(__file__).resolve().parents[2] / "output" / ".source-locks")
+            ),
             source_mode=os.getenv("INTAKE_SOURCE_MODE", "filesystem").strip().casefold(),
             catalog_query_file=Path(
                 os.getenv("INTAKE_CATALOG_QUERY_FILE") or str(DEFAULT_CATALOG_QUERY_FILE)
@@ -119,6 +152,14 @@ class Settings:
             object_store_scheme=os.getenv("INTAKE_OBJECT_STORE_SCHEME", "b2").strip() or "b2",
             index_archive_members=os.getenv("INTAKE_INDEX_ARCHIVE_MEMBERS", "0") == "1",
             archive_member_limit=_int_env("INTAKE_ARCHIVE_MEMBER_LIMIT", 0),
+            conversation_mode=os.getenv("INTAKE_CONVERSATION_MODE", "chunk").strip().casefold(),
+            ai_chat_mode=os.getenv("INTAKE_AI_CHAT_MODE", "route").strip().casefold(),
+            chunker_name=os.getenv("INTAKE_CHUNKER", "").strip(),
+            overlap_messages=_int_env("INTAKE_CHUNK_OVERLAP_MESSAGES", 0),
+            spool_dir=Path(os.environ["INTAKE_SPOOL_DIR"])
+            if os.getenv("INTAKE_SPOOL_DIR")
+            else None,
+            source_buckets=_source_buckets_from_env(),
         )
 
     def resolved(self, base_dir: Path | None = None) -> Settings:
@@ -128,7 +169,8 @@ class Settings:
             return path.resolve() if path.is_absolute() else (base / path).resolve()
 
         source, source_id = resolve_source_alias(
-            resolve(self.source_dir), self.source_id,
+            resolve(self.source_dir),
+            self.source_id,
             resolve(self.source_registry) if self.source_registry else None,
         )
         return Settings(
@@ -166,6 +208,10 @@ class Settings:
             raise ValueError("INTAKE_MAX_INFLIGHT_FILES must be between 1 and 8")
         if self.source_mode not in SOURCE_MODES:
             raise ValueError(f"INTAKE_SOURCE_MODE must be one of {SOURCE_MODES}")
+        if self.conversation_mode not in ("chunk", "route"):
+            raise ValueError("INTAKE_CONVERSATION_MODE must be chunk or route")
+        if self.ai_chat_mode not in ("route", "index"):
+            raise ValueError("INTAKE_AI_CHAT_MODE must be route or index")
         if self.catalog_limit < 0 or self.archive_member_limit < 0:
             raise ValueError("Catalog and archive member limits must not be negative")
         if self.source_mode == "catalog":
