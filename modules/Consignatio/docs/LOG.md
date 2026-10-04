@@ -3473,3 +3473,11 @@ Open, for the owner:
 - `~/.secrets/n8n-ovh2.env` still lists `N8N_MCP_SERVER_URL=https://n8n.mitechconsult.com/mcp-server/http`, the legacy public name. Left alone because it is a credentials file; the owner may want it pointed at the ContextForge endpoint.
 - Seen in both proof runs and unrelated to n8n: the CourtListener OAuth server (`mcp.courtlistener.com`) answers `AuthRequired` to Codex, and the osgrep plugin's `stop.js` SessionEnd hook fails in `claude -p` ("require is not defined").
 - Three `URGENT-TODO.md` items (n8n gateway via tailnet, the `n8n MCP` registration note, "federate `n8n-mcp` for both apps") are finished and moved to `COMPLETED-TODO.md`.
+
+## 2026-10-04 18:21 EDT — Family Court recovery originals preserved
+
+> _Byline: Codex, GPT-6, 2026-10-04._
+
+All 15 recovered ZIP originals were preserved under the Case Bible B2 recovery root and independently checked by exact provider version, SHA-256 and size (116293214 bytes total). Temporal workflow `toolkit-package-preservation-20261004-v1`, run `01a10901-0074-708f-be85-2ecc59e12b23`, completed at 22:21:17Z; local originals remain unchanged. The ignored metadata receipt is `docs/receipts/family-court-preservation-20261004/preservation-result.json`, SHA-256 `053fd22d92cf0818b60a38aecbe7cfb8f027da81945ddbe204f2469a02c61df7`.
+
+This completes durable raw recovery retention. Catalog registration and application projection remain open; the existing dated generation must not be replaced. The detailed execution/deployment receipt is Docstore `note:family_court_inventory_execution_20261004`, generation 6.
