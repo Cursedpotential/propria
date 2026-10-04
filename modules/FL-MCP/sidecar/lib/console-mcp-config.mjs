@@ -7,7 +7,7 @@ import { join } from "node:path";
 const DEFAULT_CONSOLE_URL = "https://mcp.mitechconsult.com/servers/0b85f64905be468ba477d75cb2a80323/mcp";
 const SECRETS_FILE = join(homedir(), ".secrets", "contextforge.env");
 
-/** Reads only CF_MCP_CLIENT_TOKEN from the designated ContextForge secrets file.
+/** Reads dotenv text from the designated ContextForge secrets file.
  * Inputs: no arguments. Output: file contents, or an empty string if absent.
  * Effects: reads ~/.secrets/contextforge.env; never logs its contents.
  * Prefer this fixed-file reader over shell evaluation or scanning unrelated secret files. */
@@ -61,10 +61,13 @@ export function createConsoleMcpServerConfig({ env = process.env, secretsText = 
   return { type: "http", url: parsedUrl.href, headers: { Authorization: `Bearer ${token}` } };
 }
 
-/** Resolves the hosted MCP config from process environment and the fixed secret file.
- * Inputs: none. Output: SDK http config for the shared console.
- * Effects: reads one designated secrets file; never logs or returns the token separately.
+/** Resolves the hosted MCP config from environment and, when needed, the fixed secret file.
+ * Inputs: optional environment and secret-reader overrides for deterministic tests.
+ * Output: SDK http config for the shared console.
+ * Effects: reads the designated file only when the environment token is absent; never logs the token.
  * Prefer this runtime entry point over local process spawning or broad secret scans. */
-export function loadConsoleMcpServerConfig() {
-  return createConsoleMcpServerConfig({ secretsText: readContextForgeSecrets() });
+export function loadConsoleMcpServerConfig({ env = process.env, readSecrets = readContextForgeSecrets } = {}) {
+  const envToken = env.CF_MCP_CLIENT_TOKEN?.trim();
+  const secretsText = envToken ? "" : readSecrets();
+  return createConsoleMcpServerConfig({ env, secretsText });
 }

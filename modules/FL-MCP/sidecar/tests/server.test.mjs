@@ -175,7 +175,27 @@ test("GET /api/store/search requires q", async () => {
   assert.equal(res.statusCode, 400);
 });
 
-test("POST /api/chat requires prompt and returns 401 or SSE, never an unhandled crash", async () => {
+test("POST /api/chat rejects a missing prompt before chat configuration", async () => {
   const res = await app.inject({ method: "POST", url: "/api/chat", payload: {} });
   assert.equal(res.statusCode, 400);
+});
+
+test("POST /api/chat reports invalid shared MCP configuration before starting a model call", async () => {
+  const priorUrl = process.env.FAMILY_COURT_CONSOLE_MCP_URL;
+  process.env.FAMILY_COURT_CONSOLE_MCP_URL = "not-a-valid-http-url";
+  try {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      payload: { prompt: "Synthetic configuration fixture; must not reach a model." },
+    });
+    assert.equal(res.statusCode, 503);
+    assert.deepEqual(res.json(), {
+      error: "mcp_configuration",
+      detail: "FAMILY_COURT_CONSOLE_MCP_URL must be a valid HTTP(S) URL.",
+    });
+  } finally {
+    if (priorUrl === undefined) delete process.env.FAMILY_COURT_CONSOLE_MCP_URL;
+    else process.env.FAMILY_COURT_CONSOLE_MCP_URL = priorUrl;
+  }
 });

@@ -12,6 +12,7 @@
 // use of that token — but the root agent should still verify current terms
 // before this ships beyond local/desktop use. Not asserted as permitted here.
 
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveAuthToken } from "./auth.mjs";
@@ -31,18 +32,28 @@ export const ALLOWED_TOOLS = [`${PLUGIN_QUALIFIED_PREFIX}*`, `${EXPLICIT_ALIAS_P
  * (flagged as a TODO in docs/AUTH.md); an explicit CLAUDE_CODE_OAUTH_TOKEN
  * (env or ~/.secrets/*.env) is always the reliable path.
  */
-function hasLikelyCliLogin() {
+/** Checks the two known Claude CLI credential locations as a non-authoritative hint.
+ * Inputs: optional filesystem predicate and home directory, injectable for tests.
+ * Output: true when either candidate path exists.
+ * Effects: checks local filesystem metadata only; does not read credential contents.
+ * Prefer explicit OAuth token detection for authoritative authentication status. */
+function hasLikelyCliLogin(pathExists = existsSync, userHome = homedir()) {
   const candidates = [
-    join(homedir(), ".claude", ".credentials.json"),
-    join(homedir(), ".claude.json"),
+    join(userHome, ".claude", ".credentials.json"),
+    join(userHome, ".claude.json"),
   ];
-  return candidates.some((p) => existsSync(p));
+  return candidates.some((p) => pathExists(p));
 }
 
-export function checkAuthAvailable() {
-  const { token, source } = resolveAuthToken();
+/** Reports whether the Agent SDK can use explicit OAuth or a likely CLI login.
+ * Inputs: optional token resolver, path predicate and home path for deterministic tests.
+ * Output: safe auth availability summary; never includes a token value.
+ * Effects: resolves configured auth and checks credential-path existence.
+ * Prefer explicit OAuth tokens; the CLI-login result is only a best-effort heuristic. */
+export function checkAuthAvailable({ tokenResolver = resolveAuthToken, pathExists = existsSync, userHome = homedir() } = {}) {
+  const { token, source } = tokenResolver();
   if (token) return { available: true, source };
-  if (hasLikelyCliLogin()) return { available: true, source: "cli-login (heuristic — unverified)" };
+  if (hasLikelyCliLogin(pathExists, userHome)) return { available: true, source: "cli-login (heuristic — unverified)" };
   return {
     available: false,
     source: "none",
