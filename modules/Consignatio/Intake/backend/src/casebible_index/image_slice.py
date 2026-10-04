@@ -562,6 +562,7 @@ async def fetch_slice(
             )
             if remaining_pages:
                 sl.skipped[row["identity"]] = remaining_pages
+                more = True
             for page in rendered.pages:
                 sl.items.append(
                     ImageItem(
