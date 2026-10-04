@@ -1,4 +1,4 @@
-// Byline: Codex / GPT-6 / 2026-10-04 - fresh shared reads and bounded excerpts with provenance/gaps.
+// Byline: Codex / GPT-6 / 2026-10-04 - bounded shared excerpts; caseRecord versions separate from source SHA.
 // Byline: Claude Code · Fable 5.1 · 2026-09-07
 //
 // survival_guide loader. Owner correction (2026-09-07 09:51): this tool does NOT
@@ -202,7 +202,7 @@ export function renderSurvivalGuideMarkdown(result: SurvivalGuideResult): string
     for (const item of result.source_excerpt_resolutions) {
       lines.push(`### ${item.source_path} — ${item.requested_pinpoint}`);
       lines.push(`Resolution: ${item.resolution_status}${item.gap_reason ? ` (${item.gap_reason})` : ""}`);
-      lines.push(`Reference: ${item.reference_id ?? "unmapped"}; source SHA / content version: ${item.record_version ?? "unavailable"}`);
+      lines.push(`Reference: ${item.reference_id ?? "unmapped"}; source SHA: ${item.source_sha256 ?? "unavailable"}; record version: ${item.record_version ?? "unavailable"}`);
       if (item.excerpt_truncated) lines.push("Excerpt limited to 4096 Unicode characters; this is not the complete requested text.");
       lines.push("```");
       lines.push(item.excerpt);

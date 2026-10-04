@@ -1,7 +1,9 @@
 // Byline: Codex · GPT-6 · 2026-10-04
-// Fresh, read-only shared content. Only an explicitly configured mem:// fixture
+// Fresh shared content; excerpt versions use caseRecord's full row OMIT embedding contract.
+// Stored source SHA is separate provenance. Only an explicitly configured mem:// fixture
 // may signal an absent row with null for its caller's packaged-file fallback.
 import { getStore, normalize, parseRef, type StoreOk } from "./store.js";
+import * as recordContract from "./store.js";
 
 export interface ReferenceRow {
   kind?: string;
@@ -26,7 +28,7 @@ export interface ReferenceExcerpt {
   source_path: string;
   reference_id: string | null;
   source_sha256: string | null;
-  /** Content-addressed version: identical to source_sha256, not a revision counter. */
+  /** caseRecord version: sha256 over the full Surreal row OMIT embedding, distinct from source provenance. */
   record_version: string | null;
   requested_pinpoint: string;
   resolution_status: "resolved" | "source_gap" | "pinpoint_gap" | "source_changed";
@@ -46,12 +48,41 @@ function excerptReferenceKey(path: string): string | null {
   return path.slice(8).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 140);
 }
 
+/** Project a bounded record envelope using the exact shared caseRecord snapshot/version query.
+ * Inputs: trusted projection expression and whether to require the bound expected_version.
+ * Outputs: read-only SurrealQL preserving the canonical full-row OMIT embedding hash expression.
+ * Effects: none; fails if the sibling query shape changes. Pick over a second source-SHA version definition.
+ */
+function excerptSnapshotQuery(projection: string, requireVersion = false): string {
+  const { RECORD_VERSION_SURQL } = recordContract;
+  const version = RECORD_VERSION_SURQL?.match(/version: (.+), record: \$r/);
+  if (!version || !RECORD_VERSION_SURQL.includes("IF $r = NONE")) throw new Error("Shared record version query contract changed");
+  const query = RECORD_VERSION_SURQL.replace("record: $r", `record: { ${projection} }`);
+  return requireVersion ? query.replace("IF $r = NONE", `IF $r = NONE OR $expected_version != (${version[1]})`) : query;
+}
+
+/** Validate the bounded envelope returned by the canonical LET/RETURN snapshot query.
+ * Inputs: SDK statements and expected reference key. Outputs: normalized version/projection, or null for a missing/version-changed row.
+ * Effects: none; malformed identities/envelopes throw. Pick over contentPage for this single-record caseRecord query shape.
+ */
+function excerptSnapshot(results: unknown, key: string): { version: string; record: Record<string, unknown> } | null {
+  if (!Array.isArray(results) || results.length !== 2 || (results[0] !== null && results[0] !== undefined)) throw new Error("Malformed shared excerpt snapshot result");
+  const envelope = normalize(results[1]);
+  if (envelope === null || envelope === undefined) return null;
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) throw new Error("Malformed shared excerpt snapshot envelope");
+  const row = envelope as Record<string, unknown>;
+  if (row.tb !== "reference" || row.id !== key || typeof row.version !== "string" || !/^sha256:[a-f0-9]{64}$/.test(row.version)
+    || !row.record || typeof row.record !== "object" || Array.isArray(row.record)) throw new Error("Malformed shared excerpt snapshot identity");
+  return { version: row.version, record: row.record as Record<string, unknown> };
+}
+
 /** Resolve one current shared source to a bounded, explicitly located text excerpt.
  * Inputs: exact content path and requested pinpoint (at most 256 characters).
  * Outputs: provenance plus up to 4096 Unicode characters; named empty gaps for missing sources/pinpoints or changed records.
- * Effects: at most two exact-record SDK SELECTs, no cache/content writes/file fallback. Read errors and malformed metadata throw.
+ * Effects: at most two exact-record SDK snapshot queries, no cache/content writes/file fallback. Read errors and malformed metadata throw.
  * Pick over getReference for large text: the server projects bounded metadata/text, never the full body.
- * A version is the retained source SHA, not proof of revalidation; only whole-file requests or unique Markdown headings resolve.
+ * Version matches caseRecord's full row OMIT embedding hash; source_sha256 is retained provenance, not revalidation proof.
+ * Only whole-file requests or unique Markdown headings resolve; the second snapshot checks the actual version before projecting text.
  */
 export async function getReferenceExcerpt(sourcePath: string, pinpoint: string): Promise<ReferenceExcerpt> {
   if (typeof sourcePath !== "string" || sourcePath.length > 512 || typeof pinpoint !== "string" || !pinpoint.trim() || pinpoint.length > 256) {
@@ -66,28 +97,25 @@ export async function getReferenceExcerpt(sourcePath: string, pinpoint: string):
   };
   if (!key) return result;
   const store = await openContentStore();
-  const rid = parseRef({ table: "reference", id: key });
   const whole = pinpoint.trim() === "whole file" || pinpoint.trim() === "whole member";
   const escaped = pinpoint.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // Numeric/rule identifiers may prefix a heading title; prose pinpoints must match its entire title.
   const identifier = /^(?:\d+(?:\.\d+)+|[A-Z]\.\d+|Rule \d+(?:\.\d+)+)$/.test(pinpoint.trim());
   const pattern = `(?i)^#{1,6}[ \\t]+(?:\\*\\*)?${escaped}${identifier ? "(?:[ \\t:—–]|\\*\\*|\\r?$)" : "(?:\\*\\*)?[ \\t]*\\r?$"}`;
-  const metadata = contentPage(await store.db.query(
-    `SELECT string::slice(source_path ?? '', 0, 513) AS source_path,
-      string::slice(sha256 ?? '', 0, 65) AS source_sha256, string::len(body ?? '') AS body_chars,
-      ${whole ? "[]" : "array::slice(array::filter(string::split(body ?? '', '\\n'), |$line| string::matches($line, $pattern)), 0, 2).map(|$line| string::slice($line, 0, 512))"} AS headings
-      FROM $rid LIMIT 2;`, { rid, pattern },
-  ), 2);
-  if (metadata.length === 0) { result.gap_reason = "reference_missing"; return result; }
-  if (metadata.length !== 1) throw new Error(`Ambiguous shared excerpt reference: ${key}`);
-  const row = metadata[0];
+  const metadata = excerptSnapshot(await store.db.query(excerptSnapshotQuery(
+    `source_path: string::slice($r.source_path ?? '', 0, 513),
+      source_sha256: string::slice($r.sha256 ?? '', 0, 65), body_chars: string::len($r.body ?? ''),
+      headings: ${whole ? "[]" : "IF string::len($r.body ?? '') <= $body_budget { array::slice(array::filter(string::split($r.body ?? '', '\\n'), |$line| string::matches($line, $pattern)), 0, 2).map(|$line| string::slice($line, 0, 512)) } ELSE { [] }"}`,
+  ), { tb: "reference", id: key, pattern, body_budget: EXCERPT_BODY_CHAR_BUDGET }), key);
+  if (!metadata) { result.gap_reason = "reference_missing"; return result; }
+  const row = metadata.record;
   if (typeof row.source_path !== "string" || typeof row.source_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(row.source_sha256)
     || !Number.isSafeInteger(row.body_chars) || (row.body_chars as number) <= 0 || !Array.isArray(row.headings)
     || row.headings.length > 2 || row.headings.some(h => typeof h !== "string" || Array.from(h).length > HEADING_CHAR_LIMIT)) {
     throw new Error(`Malformed shared excerpt metadata: ${key}`);
   }
   result.source_sha256 = row.source_sha256;
-  result.record_version = row.source_sha256;
+  result.record_version = metadata.version;
   if (row.source_path.replace(/\\/g, "/") !== sourcePath) { result.gap_reason = "reference_path_mismatch"; return result; }
   if ((row.body_chars as number) > EXCERPT_BODY_CHAR_BUDGET) throw new Error("Shared excerpt source exceeds 16Mi-character read budget");
   const headings = row.headings as string[];
@@ -97,17 +125,15 @@ export async function getReferenceExcerpt(sourcePath: string, pinpoint: string):
     return result;
   }
   const marker = whole ? "" : headings[0];
-  const page = contentPage(await store.db.query(
-    `SELECT ${whole ? "1" : "array::len(string::split(body, $marker))"} AS parts,
-      string::slice(${whole ? "body" : "string::split(body, $marker)[1] ?? ''"}, 0, 4097) AS excerpt
-      FROM $rid WHERE sha256 = $sha AND source_path = $path LIMIT 2;`,
-    { rid, sha: row.source_sha256, path: row.source_path, marker },
-  ), 2);
-  if (page.length === 0) { result.resolution_status = "source_changed"; result.gap_reason = "reference_changed_or_disappeared"; return result; }
-  if (page.length !== 1 || !Number.isSafeInteger(page[0].parts) || typeof page[0].excerpt !== "string"
-    || Array.from(page[0].excerpt).length > EXCERPT_CHAR_LIMIT + 1) throw new Error(`Malformed bounded shared excerpt: ${key}`);
-  if (!whole && page[0].parts !== 2) { result.resolution_status = "pinpoint_gap"; result.gap_reason = "ambiguous_heading_occurrence"; return result; }
-  const text = marker + page[0].excerpt;
+  const current = excerptSnapshot(await store.db.query(excerptSnapshotQuery(
+    `parts: ${whole ? "1" : "array::len(string::split($r.body, $marker))"},
+      excerpt: string::slice(${whole ? "$r.body" : "string::split($r.body, $marker)[1] ?? ''"}, 0, 4097)`, true,
+  ), { tb: "reference", id: key, expected_version: metadata.version, marker }), key);
+  if (!current || current.version !== metadata.version) { result.resolution_status = "source_changed"; result.gap_reason = "reference_changed_or_disappeared"; return result; }
+  if (!Number.isSafeInteger(current.record.parts) || typeof current.record.excerpt !== "string"
+    || Array.from(current.record.excerpt).length > EXCERPT_CHAR_LIMIT + 1) throw new Error(`Malformed bounded shared excerpt: ${key}`);
+  if (!whole && current.record.parts !== 2) { result.resolution_status = "pinpoint_gap"; result.gap_reason = "ambiguous_heading_occurrence"; return result; }
+  const text = marker + current.record.excerpt;
   // End at the next Markdown heading: do not silently append an unrelated section.
   const nextHeading = whole ? null : /\n#{1,6}[ \t]+/.exec(text);
   const located = nextHeading ? text.slice(0, nextHeading.index + 1) : text;

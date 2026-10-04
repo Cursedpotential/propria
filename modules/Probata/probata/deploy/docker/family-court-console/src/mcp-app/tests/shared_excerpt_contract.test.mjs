@@ -1,6 +1,7 @@
 // Byline: Codex · GPT-6 · 2026-10-04 — isolated source tests; no database writes or full build.
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,7 +15,27 @@ mkdirSync(artifacts, { recursive: true });
 const source = "content/custody-guide/draft/M12-pleadings-motions-service.md";
 const ref = "reference:custody-guide-draft-m12-pleadings-motions-service-md";
 const sha = "a".repeat(64);
+const versionQueryParts = readFileSync(resolve(app, "src/store.ts"), "utf8").match(/export const RECORD_VERSION_SURQL =([\s\S]*?);\r?\n/);
+assert.ok(versionQueryParts, "test adapter must carry the actual sibling version query");
+const versionQuery = Array.from(versionQueryParts[1].matchAll(/"([^"]*)"/g), part => part[1]).join("");
 let state;
+
+/** Give fixture records a deterministic version that changes for every stored field except embedding.
+ * Inputs: synthetic row. Outputs: hash version for race simulation; this does not emulate Surreal's string serialization.
+ * Effects: none. Pick over source sha256 as a test token; actual caseRecord equivalence is checked separately with read-only live SDK.
+ */
+function fixtureVersion(row) {
+  const projected = Object.fromEntries(Object.keys(row).filter(key => key !== "embedding").sort().map(key => [key, row[key]]));
+  return "sha256:" + createHash("sha256").update(JSON.stringify(projected)).digest("hex");
+}
+
+/** Wrap a synthetic bounded projection in the canonical two-statement snapshot envelope.
+ * Inputs: projection and optional version. Outputs: SDK-shaped LET/RETURN result.
+ * Effects: none. Pick over array-page fixtures for the caseRecord snapshot query contract.
+ */
+function envelope(record, version = fixtureVersion(state.row)) {
+  return [undefined, { tb: "reference", id: ref.slice(10), version, record }];
+}
 
 /** Build a read-only projection adapter with source text retained only in test memory.
  * Inputs: source body and optional metadata. Outputs: mutable query/error/race observations.
@@ -26,20 +47,22 @@ function setup(body = "# Guide\nintro\n## 12.5 Timing\r\nOriginal text.\r\n## 12
   state.query = async (sql, params) => {
     state.reads.push({ sql, params });
     if (params.rid === "reference:referee-hearing") return [[{ data: state.context }]];
-    const row = params.rid === ref ? state.row : null;
-    let rows = [];
-    if (row && sql.includes("AS body_chars")) {
+    const row = params.id === ref.slice(10) ? state.row : null;
+    let record = null;
+    const version = row ? fixtureVersion(row) : null;
+    if (row && sql.includes("body_chars:")) {
       const regex = new RegExp(params.pattern.replace(/^\(\?i\)/, ""), "i");
-      const headings = sql.includes("[] AS headings") ? [] : row.body.split("\n").filter(line => regex.test(line)).slice(0, 2).map(line => Array.from(line).slice(0, 512).join(""));
-      rows = [{ source_path: row.source_path, source_sha256: row.sha256, body_chars: Array.from(row.body).length, headings }];
+      const headings = sql.includes("headings: []") || Array.from(row.body).length > params.body_budget ? [] : row.body.split("\n").filter(line => regex.test(line)).slice(0, 2).map(line => Array.from(line).slice(0, 512).join(""));
+      record = { source_path: row.source_path, source_sha256: row.sha256, body_chars: Array.from(row.body).length, headings };
       state.afterMetadata?.();
-    } else if (row && row.sha256 === params.sha && row.source_path === params.path) {
-      const whole = sql.includes("SELECT 1 AS parts");
+    } else if (row && version === params.expected_version) {
+      const whole = sql.includes("parts: 1");
       const parts = whole ? [row.body] : row.body.split(params.marker);
-      rows = [{ parts: whole ? 1 : parts.length, excerpt: Array.from(whole ? row.body : parts[1] ?? "").slice(0, 4097).join("") }];
+      record = { parts: whole ? 1 : parts.length, excerpt: Array.from(whole ? row.body : parts[1] ?? "").slice(0, 4097).join("") };
     }
-    state.payloads.push(Buffer.byteLength(JSON.stringify(rows)));
-    return [rows];
+    const result = record ? envelope(record, version) : [undefined, undefined];
+    state.payloads.push(Buffer.byteLength(JSON.stringify(result)));
+    return result;
   };
   return state;
 }
@@ -59,6 +82,7 @@ async function readers() {
       builder.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path }) => ({ contents: path === "store" ? `
         export async function getStore(){return {available:true,db:{query:(sql,p)=>globalThis.__excerptTest.query(sql,p)}};}
         export function normalize(v){return v;} export function parseRef(r){return r.table+':'+r.id;}
+        export const RECORD_VERSION_SURQL=${JSON.stringify(versionQuery)};
       ` : path === "core" ? 'export function getCaseFacts(){return {configured:false};}' : `
         export function readdirSync(){return ['referee-hearing.json'];}
         export function readFileSync(){globalThis.__excerptTest.files++;throw new Error('packaged excerpt forbidden');}
@@ -81,7 +105,8 @@ test("exact loader path and unique heading return untouched located text with ha
   assert.equal(result.resolution_status, "resolved");
   assert.equal(result.reference_id, ref);
   assert.equal(result.source_sha256, sha);
-  assert.equal(result.record_version, sha);
+  assert.equal(result.record_version, fixtureVersion(state.row));
+  assert.notEqual(result.record_version, result.source_sha256);
   assert.equal(result.requested_pinpoint, "12.5");
   assert.equal(result.excerpt, "## 12.5 Timing\r\nOriginal text.\r\n");
   assert.equal(result.excerpt_truncated, false);
@@ -124,26 +149,34 @@ test("whole-file and late-heading excerpts keep 2.5MB source bodies off the wire
     assert.equal(result.excerpt_truncated, true);
     assert.ok(Buffer.byteLength(JSON.stringify(result)) < 18000);
     assert.ok(state.payloads.every(bytes => bytes < 18000));
-    assert.ok(state.reads.every(({ sql }) => !/SELECT \*|SELECT body\b/.test(sql)));
+    assert.ok(state.reads.every(({ sql }) => sql.includes("SELECT * OMIT embedding FROM ONLY type::record($tb, $id)")));
+    assert.ok(state.reads.every(({ sql }) => !sql.includes("record: $r")));
+    if (pinpoint === "whole file") assert.doesNotMatch(state.reads[0].sql, /string::split/);
+    else assert.match(state.reads[0].sql, /IF string::len\(\$r.body \?\? ''\) <= \$body_budget/);
+    assert.match(state.reads[1].sql, /\$expected_version != \('sha256:' \+ crypto::sha256\(<string> \$r\)\)/);
     assert.match(state.reads[1].sql, /string::slice\([\s\S]*0, 4097\)/);
   }
 });
 
-test("each request observes updates; between-read hash changes or disappearance return an empty source_changed gap", async () => {
+test("each request observes updates; body/metadata edits with unchanged source SHA and disappearance invalidate the snapshot", async () => {
   setup();
-  assert.equal((await api.getReferenceExcerpt(source, "12.5")).record_version, sha);
+  const originalVersion = fixtureVersion(state.row);
+  assert.equal((await api.getReferenceExcerpt(source, "12.5")).record_version, originalVersion);
   state.row.sha256 = "b".repeat(64);
   state.row.body = "## 12.5 Timing\nUpdated";
   const updated = await api.getReferenceExcerpt(source, "12.5");
-  assert.equal(updated.record_version, "b".repeat(64));
+  assert.equal(updated.record_version, fixtureVersion(state.row));
   assert.match(updated.excerpt, /Updated/);
-  for (const race of [() => { state.row.sha256 = "c".repeat(64); }, () => { state.row = null; }]) {
+  for (const race of [() => { state.row.body = "## 12.5 Timing\nConcurrent body edit"; }, () => { state.row.title = "Concurrent metadata edit"; }, () => { state.row.sha256 = "c".repeat(64); }, () => { state.row = null; }]) {
     setup(); state.afterMetadata = race;
     const result = await api.getReferenceExcerpt(source, "12.5");
     assert.equal(result.resolution_status, "source_changed");
     assert.equal(result.excerpt, "");
-    assert.equal(result.record_version, sha);
+    assert.equal(result.record_version, originalVersion);
+    assert.equal(result.source_sha256, sha);
   }
+  setup(); state.afterMetadata = () => { state.row.embedding = [1, 2, 3]; };
+  assert.equal((await api.getReferenceExcerpt(source, "12.5")).resolution_status, "resolved");
 });
 
 test("missing references, key collisions and unmapped skills are explicit gaps without packaged fallback", async () => {
@@ -165,7 +198,7 @@ test("read failures, malformed projection and invalid/budgeted requests remain v
   await assert.rejects(api.getReferenceExcerpt(source, "12.5"), /remote read failed/);
   setup(undefined, { sha256: "not-a-hash" });
   await assert.rejects(api.getReferenceExcerpt(source, "12.5"), /Malformed/);
-  setup(); state.query = async () => [[{ source_path: source, source_sha256: sha, body_chars: 17000000, headings: [] }]];
+  setup(); state.query = async () => envelope({ source_path: source, source_sha256: sha, body_chars: 17000000, headings: [] });
   await assert.rejects(api.getReferenceExcerpt(source, "whole file"), /budget/);
   await assert.rejects(api.getReferenceExcerpt(source, ""), /Invalid/);
   await assert.rejects(api.getReferenceExcerpt("x".repeat(513), "whole file"), /Invalid/);
@@ -175,7 +208,7 @@ test("read failures, malformed projection and invalid/budgeted requests remain v
   assert.equal(state.files, 0);
   setup();
   const original = state.query;
-  state.query = (sql, params) => sql.includes("AS body_chars") ? original(sql, params) : [[{ parts: 2, excerpt: "x".repeat(4098) }]];
+  state.query = (sql, params) => sql.includes("body_chars:") ? original(sql, params) : envelope({ parts: 2, excerpt: "x".repeat(4098) });
   await assert.rejects(api.getReferenceExcerpt(source, "12.5"), /Malformed bounded/);
 });
 
@@ -187,11 +220,12 @@ test("survival JSON and Markdown expose per-selection provenance/gaps and propag
   assert.equal(result.source_excerpts["skills/unmapped/SKILL.md"], "");
   const markdown = api.renderSurvivalGuideMarkdown(result);
   assert.match(markdown, /unsupported_source_path/);
-  assert.match(markdown, /source SHA \/ content version/);
+  assert.match(markdown, /source SHA:/);
+  assert.match(markdown, /record version:/);
   assert.doesNotMatch(markdown, /first ~40/);
   assert.equal(state.files, 0);
   const original = state.query;
-  state.query = (sql, params) => params.rid === ref ? Promise.reject(new Error("excerpt unavailable")) : original(sql, params);
+  state.query = (sql, params) => params.id === ref.slice(10) ? Promise.reject(new Error("excerpt unavailable")) : original(sql, params);
   await assert.rejects(api.buildSurvivalGuide({ event: "referee-hearing", format: "json" }), /excerpt unavailable/);
   state.context.sources = Array.from({ length: 33 }, () => ({ file: source, section: "12.5" }));
   await assert.rejects(api.buildSurvivalGuide({ event: "referee-hearing", format: "json" }), /32-source budget/);
