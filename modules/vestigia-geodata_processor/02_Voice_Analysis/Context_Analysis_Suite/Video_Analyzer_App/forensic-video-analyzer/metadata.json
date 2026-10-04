@@ -1,5 +1,0 @@
-
-{
-  "name": "Forensic Video Analyzer",
-  "description": "An advanced analysis workbench for video clips. Upload and sequence multiple videos to create a timeline. Run initial analysis to generate transcripts and visual summaries for each clip. Then, link videos to perform a manual, in-depth contextual analysis, exploring psychological patterns and behavioral consistency across the entire timeline. Features an integrated video player synchronized with an editable transcript."
-}

@@ -1,5 +1,0 @@
-
-{
-  "name": "Forensic Data Refinery",
-  "description": "A web-based application to ingest, secure, and analyze raw chat logs. It provides a human-in-the-loop interface for data verification and entity extraction using AI, with all data stored securely on the client-side."
-}

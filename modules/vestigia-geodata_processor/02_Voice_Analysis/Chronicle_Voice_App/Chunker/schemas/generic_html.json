@@ -1,9 +1,0 @@
-{
-  "name": "Generic HTML",
-  "description": "Generic HTML document with standard tags",
-  "file_pattern": "*.html",
-  "selectors": {
-    "container": "div, section, article, p"
-  },
-  "output_format": "{content}\\n"
-}

@@ -1,3 +1,0 @@
-ijson
-Shapely
-python-dateutil

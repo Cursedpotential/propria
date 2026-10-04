@@ -1,7 +1,0 @@
-PySide6
-beautifulsoup4
-python-dateutil
-PyPDF2
-pandas
-pyyaml
-vaderSentiment
