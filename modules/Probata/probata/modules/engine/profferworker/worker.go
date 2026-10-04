@@ -93,6 +93,11 @@ type Registrations struct {
 	Contacts activities.ContactsActivities
 	// ToolkitInventory reads local ZIPs without importing them (Codex, 2026-10-04).
 	ToolkitInventory activities.ToolkitPackageInventoryActivities
+	// ToolkitPreservation retains whole recovered archives and independently verifies remote bytes.
+	// Inputs: configured inventory root and object-store resolver; outputs: bounded copy/readback Activities.
+	// Effects: no transfers until invoked. Choose separately from inventory and catalog projection.
+	// Byline: Codex, 2026-10-04.
+	ToolkitPreservation activities.ToolkitPackagePreservationActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -179,6 +184,13 @@ func RegisterAll(registrar interface {
 	// Choose after a pinned text snapshot; this operation never chooses a surviving version.
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitLedgerComparisonWorkflow, workflow.RegisterOptions{Name: activities.ToolkitLedgerComparisonWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitInventory.CompareToolkitLedgers, activity.RegisterOptions{Name: activities.ToolkitLedgerComparisonActivityName})
+	// Register recovered archive copy and independent verification on the existing queue.
+	// Inputs: configured preservation group; outputs: named workflow and two Activities.
+	// Effects: registration only. Choose for durable original retention without catalog claims.
+	// Byline: Codex, 2026-10-04.
+	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackagePreservationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackagePreservationWorkflowName})
+	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.CopyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationCopyActivityName})
+	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.VerifyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationVerifyActivityName})
 	activities.RegisterMessageDedupeActivities(registrar, registrations.MessageDedupe)
 }
 
@@ -559,6 +571,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.
 		// Byline: Codex, 2026-10-04.
 		ToolkitInventory:      activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),
+		ToolkitPreservation:   activities.NewToolkitPackagePreservationActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
 		Contacts:              contactsActivities,
 		ContextSearch:         contextSearch,
 		FirstPartyContext:     activities.NewFirstPartyContextActivities(firstPartyStore),
