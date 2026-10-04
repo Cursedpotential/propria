@@ -6,7 +6,7 @@ This is a progress receipt for the owner-approved convergence recorded in Docsto
 
 Verified:
 
-- Propria main pushed through 67e46bbd; owned changes integrated with explicit paths and unrelated work preserved.
+- Propria main pushed through cd6609ae; owned changes integrated with explicit paths and unrelated work preserved.
 - Workdesk Orders and Memos exposed; node table-parity test passed. Workdesk deployment and browser behavior remain unverified.
 - Native Go ZIP inspection registered in the existing Proffer worker; targeted tests and go vet passed.
 - Coolify deployment 35oetj52qs3redvmslsckyz4 finished. Mounted source readability and receipt-directory writability verified.
@@ -26,7 +26,12 @@ Verified:
 - Fresh content reads 0a3d3af2 remove the five-minute reference/source/lexicon cache and production silent fallback. Nine focused tests passed; direct read-only SDK query verified all 193 source IDs/cursors, with an empty terminal next page.
 - Coolify deployment onwwvflsmvcsxazplbhyovsn finished at 0a3d3af2. Container family-court-console-sokv65ibdq2y8xdaqmd6p4rq-212437119661 healthy; authenticated phone root HTTP 200 with dark theme. Live read-only audit_sources, court_language_review and survival_guide calls succeeded. Audit reports 193 ledger records plus 213 directory records and 7 curated records.
 - Desktop native source/reference pages and full caseRecord detail integrated through 67e46bbd. Eleven synthetic sidecar tests passed, including paging beyond 200 and malformed/nonadvancing page rejection; focused TypeScript check passed in the isolated worktree. Actual desktop rendering remains unverified.
-- Canonical plugin changes committed locally through 3b03abb; both installed plugin caches refreshed. LF source normalization preserved; remote marketplace publication remains pending review of earlier policy commits.
+- Private marketplace published through dff64a9 after scoped review of earlier Case Bible policy commits, current guidance redaction and original-preservation wording correction. Both installed plugin caches refreshed; 12 content/library tests and 2 source-level pagination tests passed. Generated fixture bundles are retained locally and ignored. The old identifier remains in earlier Git history; no history rewrite occurred.
+- Live workdesk https://legal.tilapia-skilift.ts.net/toolkit?table=reference&id=reference%3Acustody-guide-verification-ledger-md returned HTTP 200. Rendered response includes the exact phone ledger version and Hayes/Duperon corrections. This is route/readback proof, not actual click or editing proof.
+- Live ContextForge virtual server exposes 28 tools. family-court-case-record returned the same ledger version and source SHA as phone and workdesk. Desktop chat now uses that hosted HTTP connection instead of explicitly spawning the local console; 19 focused tests passed, including login heuristic and sanitized configuration errors before a model call.
+- Owner platform-wide citation requirement is recorded in root AGENTS.md, commit d7fd3cad, after readback of the active Docstore decision. This does not claim all older content has already been revalidated.
+- Worker deployment wcs3rhgzr78olzxxz9d0dksj finished at e4399491. Provider probe workflow toolkit-conditional-probe-20261004-v1, run 01a108e2-3a73-74b8-ba79-d7b1663c5802 completed at 21:46:47Z: B2 rejected the first synthetic conditional PUT with NotImplemented. No original archive was uploaded. Synthetic probe namespace is segregated under recovery/library-sources/_provider-probes/.
+- A separate explicit versioned-recovery mode is being implemented for B2: exact provider VersionIds for archive and receipts, fresh version-specific SHA-256/size readback, refusal of different existing bytes, no deletion or silent unconditional fallback. It has not been deployed or run. All 15 sources remain staged unchanged; aggregate archive bytes 116293214, largest 27795631.
 - Owner library/storage contract recorded in modules/Legal-desktop/AGENTS.md, commit 3e600c8d.
 
 Open:
@@ -34,7 +39,7 @@ Open:
 - Substantive audit/correction comparison and final validated baseline selection. Mechanical diffs do not select a legal baseline.
 - Durable Case Bible original placement and independent remote readback, then governed catalog/projection receipts. Bounded preservation implementation active; no B2 placement claimed.
 - Reconcile remaining source/version/hash/pinpoint/validation evidence in surreal-case fct/case without overwriting existing final corrections or current edits. The final verification ledger is already present.
-- Desktop native list/detail implementation integrated and tested. Desktop chat still starts a local MCP server; hosted ContextForge transport and actual desktop UI proof remain open.
+- Desktop native list/detail and hosted chat configuration are integrated and tested. Actual desktop rendering and a real chat turn remain unverified; no paid model call or desktop browser was used.
 - Workdesk native reference integration, bidirectional edits, citation validation on updates, remaining shared graphite/indigo surfaces and actual phone/desktop/workdesk click behavior remain unfinished.
-- Private plugin marketplace remote publication is pending: local main has two earlier unrelated committed Case Bible changes ahead of origin, so this session has not pushed those implicitly.
+- Remaining packaged source excerpts, seven compiled curated source entries and compiled substantive rules need shared provenance and version-bound review. Most excerpt references already exist; two skill excerpt source paths lack a matching shared reference.
 - Docstore revision capture is not indexing, approval or filesystem synchronization proof. This local receipt is explicitly materialized alongside the captured revision.
