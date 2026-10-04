@@ -81,6 +81,11 @@ services:
       NORMALIZED_BUNDLE_DIR: /data/proffer/normalized-bundles
       INVENTORY_MANIFEST_DIR: /data/proffer/inventory-manifests
       DERIVE_SCRATCH_DIR: /data/proffer/derive-scratch
+      # Native ZIP inventory on this worker (Codex, 2026-10-04): opt-in absolute
+      # container root; unset fails closed. Existing derive-scratch mount maps
+      # /data/probata/volumes/proffer/derive-scratch on the host. Stage sources
+      # in a dedicated subdirectory there and keep receipts beneath that root.
+      TOOLKIT_INVENTORY_ROOT: ${TOOLKIT_INVENTORY_ROOT:-}
       # Where a derivation's output goes. UNSET (today) means it is published
       # beside the original exactly as before. Set it to a JSON list of
       # {"source","derived"} locator-prefix pairs to move derived output under

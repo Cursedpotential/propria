@@ -91,6 +91,8 @@ type Registrations struct {
 	// Contacts are the six Activities of ContactsImportWorkflow (owner 2026-10-02,
 	// "traceable Temporal activities"). Byline: Claude Code · Sonnet · 2026-10-02
 	Contacts activities.ContactsActivities
+	// ToolkitInventory reads local ZIPs without importing them (Codex, 2026-10-04).
+	ToolkitInventory activities.ToolkitPackageInventoryActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -160,6 +162,12 @@ func RegisterAll(registrar interface {
 	// Contacts import: manifest, fetch, parse, people, placeholders, re-link (Claude Code · Sonnet · 2026-10-02).
 	registrar.RegisterWorkflowWithOptions(contacts.ContactsImportWorkflow, workflow.RegisterOptions{Name: contacts.WorkflowName})
 	activities.RegisterContactsActivities(registrar, registrations.Contacts)
+	// Register isolated source inspection on this same worker, not an import flow.
+	// Inputs: configured native inventory group; outputs: named workflow and Activity.
+	// Effects: worker registration only. Choose when ZIP integrity alone is requested.
+	// Byline: Codex, 2026-10-04.
+	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackageInventoryWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackageInventoryWorkflowName})
+	registrar.RegisterActivityWithOptions(registrations.ToolkitInventory.RunToolkitPackageInventory, activity.RegisterOptions{Name: activities.ToolkitPackageInventoryActivityName})
 	activities.RegisterMessageDedupeActivities(registrar, registrations.MessageDedupe)
 }
 
@@ -537,6 +545,9 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		return Registrations{}, err
 	}
 	return Registrations{
+		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.
+		// Byline: Codex, 2026-10-04.
+		ToolkitInventory:      activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),
 		Contacts:              contactsActivities,
 		ContextSearch:         contextSearch,
 		FirstPartyContext:     activities.NewFirstPartyContextActivities(firstPartyStore),
