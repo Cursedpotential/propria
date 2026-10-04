@@ -1,11 +1,11 @@
-// Byline: Codex / GPT-6 / 2026-10-04 - fresh shared reads; explicit mem:// fixture fallback only.
+// Byline: Codex / GPT-6 / 2026-10-04 - fresh shared reads and bounded excerpts with provenance/gaps.
 // Byline: Claude Code · Fable 5.1 · 2026-09-07
 //
 // survival_guide loader. Owner correction (2026-09-07 09:51): this tool does NOT
 // author complete static guides. It resolves a lightweight context pack (JSON,
 // one file per event/document type under content/tools/survival-guide/events/),
 // the master writing template (or the one-page card template), an optional
-// merge of case_facts, and the first ~40 lines of each source file the context
+// merge of case_facts, and bounded shared pinpoint excerpts for sources the context
 // pack cites — the calling MODEL writes the actual guide from those inputs.
 //
 // Path resolution mirrors core.ts's pluginRootPath(): this module is bundled to
@@ -24,7 +24,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getCaseFacts } from "./core.js";
-import { getReference } from "./content-store.js";
+import { getReference, getReferenceExcerpt, type ReferenceExcerpt } from "./content-store.js";
 
 function pluginRootPath(...segments: string[]): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -92,15 +92,6 @@ export async function loadContextPack(event: string): Promise<SurvivalGuideConte
   return loadContextPackFromFile(event);
 }
 
-function firstLines(path: string, n = 40): string {
-  try {
-    const text = readFileSync(pluginRootPath(...path.split("/")), "utf8");
-    return text.split(/\r?\n/).slice(0, n).join("\n");
-  } catch (error) {
-    return `[UNAVAILABLE: ${path} — ${error instanceof Error ? error.message : String(error)}]`;
-  }
-}
-
 export interface SurvivalGuideResult {
   event: string;
   format: "full" | "card" | "json";
@@ -109,6 +100,7 @@ export interface SurvivalGuideResult {
   context_pack: SurvivalGuideContextPack;
   case_facts?: unknown;
   source_excerpts?: Record<string, string>;
+  source_excerpt_resolutions?: ReferenceExcerpt[];
 }
 
 /** Read the current shared full or card survival-guide template.
@@ -125,6 +117,12 @@ async function loadTemplate(format: "full" | "card"): Promise<string> {
   return readFileSync(format === "card" ? CARD_TEMPLATE_PATH : TEMPLATE_PATH, "utf8");
 }
 
+/** Assemble a survival-guide context with current bounded shared source excerpts.
+ * Inputs: advertised event, output format and optional local case-facts inclusion.
+ * Outputs: context/template, legacy excerpt strings and ordered provenance/resolution entries (at most 32 sources).
+ * Effects: shared reads; failures throw, source/pinpoint gaps stay visible with empty excerpts, no excerpt file fallback.
+ * Pick over writing a finished guide: this supplies model inputs; catalog and fixture context/template behavior remain unchanged.
+ */
 export async function buildSurvivalGuide(input: {
   event: string;
   format?: "full" | "card" | "json";
@@ -132,6 +130,10 @@ export async function buildSurvivalGuide(input: {
 }): Promise<SurvivalGuideResult> {
   const format = input.format ?? "full";
   const contextPack = await loadContextPack(input.event);
+  if (contextPack.sources.length > 32 || contextPack.sources.some(source => !source || typeof source.file !== "string"
+    || source.file.length > 512 || typeof source.section !== "string" || !source.section.trim() || source.section.length > 256)) {
+    throw new Error("Invalid survival-guide source selections or 32-source budget exceeded");
+  }
 
   const releaseWarning =
     "Legal information, not legal advice. No attorney-client relationship is created. This is a " +
@@ -156,14 +158,22 @@ export async function buildSurvivalGuide(input: {
   }
 
   const excerpts: Record<string, string> = {};
+  const resolutions: ReferenceExcerpt[] = [];
   for (const source of contextPack.sources) {
-    excerpts[source.file] = firstLines(source.file, 40);
+    const resolution = await getReferenceExcerpt(source.file, source.section);
+    resolutions.push(resolution);
+    excerpts[source.file] = resolution.excerpt;
   }
   result.source_excerpts = excerpts;
+  result.source_excerpt_resolutions = resolutions;
 
   return result;
 }
 
+/** Render model context and explicitly located shared excerpt evidence as Markdown.
+ * Inputs: assembled survival-guide result. Outputs: Markdown preserving excerpt text and named unresolved items.
+ * Effects: none. Pick over raw JSON for full/card display; no claim that an unresolved pinpoint was read.
+ */
 export function renderSurvivalGuideMarkdown(result: SurvivalGuideResult): string {
   const lines: string[] = [];
   lines.push(`# survival_guide — ${result.context_pack.title} (${result.format})`);
@@ -186,13 +196,16 @@ export function renderSurvivalGuideMarkdown(result: SurvivalGuideResult): string
     lines.push(JSON.stringify(result.case_facts, null, 2));
     lines.push("```");
   }
-  if (result.source_excerpts) {
+  if (result.source_excerpt_resolutions) {
     lines.push("");
-    lines.push("## Source excerpts (first ~40 lines each)");
-    for (const [file, excerpt] of Object.entries(result.source_excerpts)) {
-      lines.push(`### ${file}`);
+    lines.push("## Shared source excerpts and resolution gaps");
+    for (const item of result.source_excerpt_resolutions) {
+      lines.push(`### ${item.source_path} — ${item.requested_pinpoint}`);
+      lines.push(`Resolution: ${item.resolution_status}${item.gap_reason ? ` (${item.gap_reason})` : ""}`);
+      lines.push(`Reference: ${item.reference_id ?? "unmapped"}; source SHA / content version: ${item.record_version ?? "unavailable"}`);
+      if (item.excerpt_truncated) lines.push("Excerpt limited to 4096 Unicode characters; this is not the complete requested text.");
       lines.push("```");
-      lines.push(excerpt);
+      lines.push(item.excerpt);
       lines.push("```");
     }
   }
