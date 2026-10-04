@@ -168,6 +168,12 @@ func RegisterAll(registrar interface {
 	// Byline: Codex, 2026-10-04.
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackageInventoryWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackageInventoryWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitInventory.RunToolkitPackageInventory, activity.RegisterOptions{Name: activities.ToolkitPackageInventoryActivityName})
+	// Register ZIP-only selected-text snapshots as a separate operation on the same worker.
+	// Inputs: the configured toolkit group; outputs: named workflow and Activity.
+	// Effects: registration only. Choose for pinned audit text rather than whole-package inventory.
+	// Byline: Codex, 2026-10-04.
+	registrar.RegisterWorkflowWithOptions(activities.ToolkitSelectedTextWorkflow, workflow.RegisterOptions{Name: activities.ToolkitSelectedTextWorkflowName})
+	registrar.RegisterActivityWithOptions(registrations.ToolkitInventory.SnapshotSelectedToolkitText, activity.RegisterOptions{Name: activities.ToolkitSelectedTextActivityName})
 	activities.RegisterMessageDedupeActivities(registrar, registrations.MessageDedupe)
 }
 
