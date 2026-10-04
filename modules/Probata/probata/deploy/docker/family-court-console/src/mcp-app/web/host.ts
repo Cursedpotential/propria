@@ -336,9 +336,145 @@ function toolForm(tool: Tool, onRun: (args: Json) => Promise<void>, preset: Json
 // Views
 // ---------------------------------------------------------------------------
 
-async function records(table: string): Promise<Json[]> {
-  const res = await api<{ records: Json[] }>(`/api/records?table=${table}&limit=1000`);
-  return res.records.map((r) => ({ ...(r.record as Json), id: r.id, kind: r.kind }));
+const RECORD_PAGE_SIZE = 100;
+
+interface RecordPage {
+  records: Array<{ id: string; kind: string; record: Json }>;
+  total: number;
+  nextCursor: string | null;
+}
+
+interface RecordTableState {
+  table: string;
+  rows: Json[];
+  total: number;
+  cursor: string | null;
+  seenCursors: Set<string>;
+  seenIds: Set<string>;
+}
+
+// Byline: Codex · GPT-6 · 2026-10-04
+/** Validate one response page and identify repeated, empty, or nonadvancing continuations.
+ * Inputs: one API page, its table's loaded state, and the cursor used for this request.
+ * Outputs: normalized record rows, or a descriptive error for malformed pages, duplicate IDs, or omitted remaining rows.
+ * Side effects: none; callers decide whether to show the error while retaining the current page.
+ * Use this before appending table rows; library pages use `libraryPage` because they have no remote cursor.
+ */
+function validateRecordPage(page: RecordPage, state: RecordTableState, requestedCursor: string | null): Json[] {
+  if (!Number.isSafeInteger(page.total) || page.total < 0 || !Array.isArray(page.records) || !(page.nextCursor === null || typeof page.nextCursor === "string")) {
+    throw new Error(`Records paging for ${state.table} returned an invalid page.`);
+  }
+  if (page.records.length === 0 && page.total > state.rows.length) {
+    throw new Error(`Records paging for ${state.table} returned an empty page while ${page.total - state.rows.length} records remain.`);
+  }
+  if (page.nextCursor !== null) {
+    if (!/^(0|[1-9]\d*)$/.test(page.nextCursor)) throw new Error(`Records paging for ${state.table} returned an invalid cursor.`);
+    const currentOffset = requestedCursor === null ? 0 : Number(requestedCursor);
+    const nextOffset = Number(page.nextCursor);
+    if (nextOffset <= currentOffset || nextOffset !== currentOffset + page.records.length || state.seenCursors.has(page.nextCursor)) {
+      throw new Error(`Records paging for ${state.table} did not advance past cursor ${requestedCursor ?? "the first page"}.`);
+    }
+    if (state.rows.length + page.records.length >= page.total) {
+      throw new Error(`Records paging for ${state.table} returned a cursor after all ${page.total} records.`);
+    }
+  } else if (state.rows.length + page.records.length < page.total) {
+    throw new Error(`Records paging for ${state.table} stopped before all ${page.total} records were available.`);
+  }
+  const rows = page.records.map((record) => ({ ...(record.record as Json), id: record.id, kind: record.kind }));
+  const pageIds = new Set<string>();
+  for (const row of rows) {
+    const id = String(row.id);
+    if (state.seenIds.has(id) || pageIds.has(id)) throw new Error(`Records paging for ${state.table} repeated record ${id}.`);
+    pageIds.add(id);
+  }
+  return rows;
+}
+
+// Byline: Codex · GPT-6 · 2026-10-04
+/** Fetch and append exactly one bounded page for a table.
+ * Inputs: mutable per-table paging state containing the next offset cursor and seen row/cursor sets.
+ * Outputs: resolves after rows, total, and next cursor are updated; rejects with a visible error on paging inconsistency.
+ * Side effects: issues one authenticated `/api/records` request and mutates only the supplied view state.
+ * Use for explicit “Show more” actions; do not loop over the cursor to fetch a whole table automatically.
+ */
+async function loadRecordPage(state: RecordTableState): Promise<void> {
+  const requestedCursor = state.cursor;
+  if (requestedCursor !== null && state.seenCursors.has(requestedCursor)) {
+    throw new Error(`Records paging for ${state.table} repeated cursor ${requestedCursor}.`);
+  }
+  const params = new URLSearchParams({ table: state.table, limit: String(RECORD_PAGE_SIZE) });
+  if (requestedCursor !== null) params.set("cursor", requestedCursor);
+  const page = await api<RecordPage>(`/api/records?${params.toString()}`);
+  const rows = validateRecordPage(page, state, requestedCursor);
+  if (requestedCursor !== null) state.seenCursors.add(requestedCursor);
+  state.rows.push(...rows);
+  state.total = page.total;
+  state.cursor = page.nextCursor;
+}
+
+// Byline: Codex · GPT-6 · 2026-10-04
+/** Render table rows with explicit bounded requests, local filtering, and visible page errors.
+ * Inputs: host element, one or more table names, row metadata, refresh/empty behavior, and optional loaded-row filters.
+ * Outputs: appends a searchable list, loaded/total status, and an explicit continuation button.
+ * Side effects: loads one page per table initially and one additional page per table only after a click.
+ * Use for case-store table browsing; `recordList` remains for tool-produced bounded collections such as the docket.
+ */
+async function pagedRecordList(
+  host: HTMLElement,
+  tables: string[],
+  meta: (r: Json) => string,
+  refresh: () => void,
+  emptyText: string,
+  filterRows: (rows: Json[]) => Json[] = (rows) => rows,
+  onRowsChanged?: (rows: Json[]) => void,
+): Promise<void> {
+  const states = tables.map((table): RecordTableState => ({ table, rows: [], total: 0, cursor: null, seenCursors: new Set(), seenIds: new Set() }));
+  await Promise.all(states.map((state) => loadRecordPage(state)));
+  const list = el("div", { class: "list" });
+  const count = el("p", { class: "m", role: "status" });
+  const error = el("div");
+  const more = el("button", { class: "btn secondary", type: "button", text: "Show more" }) as HTMLButtonElement;
+  let query = "";
+  const draw = () => {
+    const loaded = states.flatMap((state) => state.rows);
+    onRowsChanged?.(loaded);
+    const rows = filterRows(loaded);
+    const shown = rows.filter((r) => !query || JSON.stringify(r).toLowerCase().includes(query));
+    const total = states.reduce((sum, state) => sum + state.total, 0);
+    count.textContent = `Showing ${shown.length} matching records from ${rows.length} loaded; ${total} total.`;
+    list.replaceChildren(...(shown.length ? shown.map((r) => recordRow(r, meta(r), () => void openRecord(String(r.id), refresh))) : [el("p", { class: "empty", text: rows.length ? "No matches in the loaded records." : emptyText })]));
+    more.hidden = !states.some((state) => state.cursor !== null);
+  };
+  more.addEventListener("click", async () => {
+    more.disabled = true;
+    error.replaceChildren();
+    try {
+      await Promise.all(states.filter((state) => state.cursor !== null).map((state) => loadRecordPage(state)));
+      draw();
+    } catch (err) {
+      error.replaceChildren(errBox(err));
+    } finally {
+      more.disabled = false;
+    }
+  });
+  host.append(filterInput(`Filter ${states.reduce((sum, state) => sum + state.total, 0)} records`, (q) => { query = q; draw(); }), count, list, more, error);
+  draw();
+}
+
+// Byline: Codex · GPT-6 · 2026-10-04
+/** Return one bounded filtered library page and reset its position when its query changes.
+ * Inputs: the listed file metadata, normalized query, requested page, previous query, and optional page size.
+ * Outputs: matching files, the current visible slice, its normalized page number, and the matching total.
+ * Side effects: none.
+ * Use for the local toolkit file library; case-store rows require the server's records endpoint instead.
+ */
+export function libraryPage<T extends { path: string }>(files: T[], query: string, page: number, previousQuery = query, pageSize = 100): { matches: T[]; visible: T[]; page: number; total: number } {
+  const safeSize = Number.isSafeInteger(pageSize) && pageSize > 0 ? pageSize : 100;
+  const matches = files.filter((file) => !query || file.path.toLowerCase().includes(query));
+  const lastPage = Math.max(1, Math.ceil(matches.length / safeSize));
+  const requestedPage = query === previousQuery ? page : 1;
+  const safePage = Number.isSafeInteger(requestedPage) ? Math.min(Math.max(requestedPage, 1), lastPage) : 1;
+  return { matches, visible: matches.slice((safePage - 1) * safeSize, safePage * safeSize), page: safePage, total: matches.length };
 }
 
 function recordList(host: HTMLElement, rows: Json[], meta: (r: Json) => string, refresh: () => void, emptyText: string): void {
@@ -379,8 +515,7 @@ async function viewDocuments(): Promise<void> {
   const host = page("Documents", "Filed papers, drafts, exhibits and orders in the case store.");
   host.append(el("div", { class: "actions" }, el("button", { type: "button", onclick: () => documentForm() }, "Add a document")));
   try {
-    const all = (await Promise.all(DOC_TABLES.map((t) => records(t)))).flat();
-    recordList(host, all, (r) => `${String(r.id)} · ${String(r.date ?? r.entered ?? r.occurred_at ?? "")}`, () => void viewDocuments(), "No case documents yet. Use Add a document.");
+    await pagedRecordList(host, DOC_TABLES, (r) => `${String(r.id)} · ${String(r.date ?? r.entered ?? r.occurred_at ?? "")}`, () => void viewDocuments(), "No case documents yet. Use Add a document.");
   } catch (err) {
     host.append(errBox(err));
   }
@@ -432,8 +567,7 @@ async function viewNotes(): Promise<void> {
   const host = page("Notes", "Your notes, memos and corrections.");
   host.append(el("div", { class: "actions" }, el("button", { type: "button", onclick: () => noteForm("") }, "Add a note")));
   try {
-    const [notes, memos] = await Promise.all([records("note"), records("memo")]);
-    recordList(host, [...notes, ...memos], (r) => `${String(r.id)} · ${String(r.created_at ?? "")}`, () => void viewNotes(), "No notes yet. Use Add a note.");
+    await pagedRecordList(host, ["note", "memo"], (r) => `${String(r.id)} · ${String(r.created_at ?? "")}`, () => void viewNotes(), "No notes yet. Use Add a note.");
   } catch (err) {
     host.append(errBox(err));
   }
@@ -464,21 +598,25 @@ function noteForm(prefill: string): void {
 async function viewReferences(): Promise<void> {
   const host = page("Cheat sheets", "Cheat sheets, templates, guides and reference material in the case store.");
   try {
-    const rows = await records("reference");
-    const kinds = [...new Set(rows.map((r) => String(r.kind)))].sort();
     const tabs = el("div", { class: "tabs", role: "group", "aria-label": "Kinds" });
     const body = el("div");
+    let selectedKind = "cheat_sheet";
+    let kinds: string[] = [];
     const show = (kind: string) => {
+      selectedKind = kind;
       for (const b of tabs.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.kind === kind));
-      body.replaceChildren();
-      recordList(body, rows.filter((r) => kind === "all" || r.kind === kind), (r) => String(r.id), () => void viewReferences(), "No reference records.");
+      body.querySelector<HTMLInputElement>("input.filter")?.dispatchEvent(new Event("input"));
     };
-    for (const kind of ["all", ...kinds]) {
-      const n = kind === "all" ? rows.length : rows.filter((r) => r.kind === kind).length;
-      tabs.append(el("button", { type: "button", "data-kind": kind, onclick: () => show(kind) }, `${kind} (${n})`));
-    }
     host.append(tabs, body);
-    show(kinds.includes("cheat_sheet") ? "cheat_sheet" : "all");
+    await pagedRecordList(body, ["reference"], (r) => String(r.id), () => void viewReferences(), "No reference records.",
+      (rows) => rows.filter((r) => selectedKind === "all" || r.kind === selectedKind),
+      (rows) => {
+        const nextKinds = [...new Set(rows.map((r) => String(r.kind)))].sort();
+        if (nextKinds.join("\0") === kinds.join("\0") && tabs.childElementCount > 0) return;
+        kinds = nextKinds;
+        if (selectedKind !== "all" && !kinds.includes(selectedKind)) selectedKind = "all";
+        tabs.replaceChildren(...["all", ...kinds].map((kind) => el("button", { type: "button", "data-kind": kind, "aria-pressed": String(selectedKind === kind), onclick: () => show(kind) }, kind)));
+      });
   } catch (err) {
     host.append(errBox(err));
   }
@@ -490,8 +628,7 @@ async function viewLaw(): Promise<void> {
   const audit = tools.find((t) => t.name === "audit_sources");
   host.append(el("div", { class: "actions" }, audit ? el("button", { type: "button", onclick: () => void renderWidget(auditHost, audit, {}).catch((e) => auditHost.replaceChildren(errBox(e))) }, "Audit sources") : null), auditHost);
   try {
-    const rows = await records("source");
-    recordList(host, rows, (r) => `${String(r.authority_class ?? "")} · verified ${String(r.last_verified ?? r.date_accessed ?? "?")}`, () => void viewLaw(), "No sources.");
+    await pagedRecordList(host, ["source"], (r) => `${String(r.authority_class ?? "")} · verified ${String(r.last_verified ?? r.date_accessed ?? "?")}`, () => void viewLaw(), "No sources.");
   } catch (err) {
     host.append(errBox(err));
   }
@@ -551,13 +688,24 @@ async function viewLibrary(): Promise<void> {
   try {
     const { files } = await api<{ files: Array<{ path: string; size: number }> }>("/api/library");
     const list = el("div", { class: "list" });
+    const count = el("p", { class: "m", role: "status" });
+    const more = el("button", { class: "btn secondary", type: "button", text: "Show more" }) as HTMLButtonElement;
+    let currentPage = 1;
+    let currentQuery = "";
     const draw = (q: string) => {
-      const shown = files.filter((f) => !q || f.path.toLowerCase().includes(q)).slice(0, 300);
+      const page = libraryPage(files, q, currentPage, currentQuery);
+      currentPage = page.page;
+      currentQuery = q;
+      const start = (page.page - 1) * 100;
+      const shown = page.visible;
+      count.textContent = `Showing ${Math.min(start + shown.length, page.total)} of ${page.total} matching files${q ? ` (${files.length} total)` : ""}.`;
+      more.hidden = start + shown.length >= page.total;
       list.replaceChildren(...shown.map((f) => el("button", { class: "row", type: "button", onclick: () => void openFile(f.path) },
         el("span", {}, el("span", { class: "t", text: f.path.split("/").pop() ?? f.path }), el("br"), el("span", { class: "m", text: f.path })),
         el("span", { class: "tag", text: `${Math.max(1, Math.round(f.size / 1024))} KB` }))));
     };
-    host.append(filterInput(`Filter ${files.length} files`, draw), list);
+    more.addEventListener("click", () => { currentPage += 1; draw((host.querySelector("input.filter") as HTMLInputElement).value.trim().toLowerCase()); });
+    host.append(filterInput(`Filter ${files.length} files`, (q) => { currentPage = 1; draw(q); }), count, list, more);
     draw("");
   } catch (err) {
     host.append(errBox(err));

@@ -17,7 +17,7 @@
 //   GET  /api/widgets/:name        a tool's MCP App widget HTML (rendered by the host in an iframe)
 //   GET  /api/library              the toolkit's shipped content files (cheat sheets, guide, law)
 //   GET  /api/library/file?path=   one content file, with its sha256 version
-//   GET  /api/records?table=&limit= rows of one case-store table (heavy fields omitted)
+//   GET  /api/records?table=&limit=&cursor= one bounded, id-ordered page and its continuation
 //   GET  /api/records/:table:id    one record in the shared legal-record contract (case_record)
 //
 // Authentication (web-auth.ts, the Workbench's trusted-proxy model): the owner's Tailscale
@@ -110,17 +110,58 @@ async function openStore(): Promise<StoreOk> {
   return store as StoreOk;
 }
 
-async function listRecords(table: string, limit: number): Promise<Record<string, unknown>[]> {
+// Byline: Codex · GPT-6 · 2026-10-04
+/** Parse a non-negative query integer within the caller's explicit bounds.
+ * Inputs: URL query parameters, parameter name, default, minimum and maximum.
+ * Outputs: the validated integer, or a 400 error for malformed, fractional, unsafe or out-of-range input.
+ * Side effects: none.
+ * Use this helper for bounded pagination parameters; do not use it for optional text filters.
+ */
+function parseInteger(url: URL, name: string, fallback: number, min: number, max: number): number {
+  const raw = url.searchParams.get(name);
+  if (raw === null) return fallback;
+  if (!/^(0|[1-9]\d*)$/.test(raw)) throw Object.assign(new Error(`${name} must be a whole number between ${min} and ${max}.`), { status: 400 });
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    throw Object.assign(new Error(`${name} must be a whole number between ${min} and ${max}.`), { status: 400 });
+  }
+  return value;
+}
+
+// Byline: Codex · GPT-6 · 2026-10-04
+/** Parse the bounded page size and numeric offset cursor for the records endpoint.
+ * Inputs: the request URL with optional `limit` and `cursor` query values.
+ * Outputs: a page size from 1 to 1,000 and an offset from 0 to 2,147,483,647; omitted values default to 200 and 0.
+ * Side effects: none; invalid values become client-visible HTTP 400 errors.
+ * Use this for `/api/records`; file-library paging is a separate in-memory presentation concern.
+ */
+function recordPageRequest(url: URL): { limit: number; offset: number } {
+  return { limit: parseInteger(url, "limit", 200, 1, 1000), offset: parseInteger(url, "cursor", 0, 0, 2_147_483_647) };
+}
+
+// Byline: Codex · GPT-6 · 2026-10-04
+/** Read one id-ordered table page and a separate total count without materializing the full table.
+ * Inputs: an allowlisted table name, a bounded row limit and a numeric offset.
+ * Outputs: normalized record envelopes plus the table count; the offset is not a snapshot token, so concurrent writes can shift later pages.
+ * Side effects: performs bounded page and count reads against the shared Surreal case store.
+ * Use this for phone-visible case-store tables; prefer the dedicated record lookup for one known ID.
+ */
+async function listRecords(table: string, limit: number, offset: number): Promise<{ records: Record<string, unknown>[]; total: number }> {
   if (!(DATA_TABLES as readonly string[]).includes(table)) throw Object.assign(new Error(`Unknown table "${table}".`), { status: 400 });
   const store = await openStore();
-  const rows = await store.db.query<Array<Record<string, unknown>>>(
-    `SELECT * OMIT ${HEAVY_FIELDS.join(", ")} FROM type::table($table) LIMIT ${limit};`,
-    { table },
-  );
-  return (rows.at(-1) ?? []).map((raw) => {
+  const [pageResult, countResult] = await Promise.all([
+    store.db.query<Array<Record<string, unknown>>>(
+      `SELECT * OMIT ${HEAVY_FIELDS.join(", ")} FROM type::table($table) ORDER BY id ASC LIMIT ${limit} START ${offset};`,
+      { table },
+    ),
+    store.db.query<Array<{ count: number }>>(`SELECT count() AS count FROM type::table($table) GROUP ALL;`, { table }),
+  ]);
+  const records = (pageResult.at(-1) ?? []).map((raw) => {
     const row = normalize(raw) as Record<string, unknown>;
     return { id: String(row.id), table, kind: typeof row.kind === "string" ? row.kind : table, title: recordTitle(row), record: row };
   });
+  const total = Number(countResult.at(-1)?.[0]?.count ?? 0);
+  return { records, total };
 }
 
 async function walk(dir: string, root: string, out: Array<Record<string, unknown>>): Promise<void> {
@@ -243,8 +284,20 @@ export async function handleWebRequest(req: IncomingMessage, res: ServerResponse
       return true;
     }
     if (method === "GET" && path === "/api/records") {
-      const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 200) || 200, 1), 1000);
-      send(res, 200, { records: await listRecords(url.searchParams.get("table") ?? "", limit) });
+      // Byline: Codex · GPT-6 · 2026-10-04
+      /** Return one bounded page from an allowlisted case-store table.
+       * Inputs: authenticated GET with `table`, optional `limit`, and numeric offset `cursor` query parameters.
+       * Outputs: backward-compatible `records` plus `total` and nullable `nextCursor` metadata.
+       * Side effects: reads one bounded page and a count from shared `fct/case`; offset paging is not snapshot-isolated across concurrent writes.
+       * Use this collection route for browsing; `/api/records/:table:id` is the exact-record sibling.
+       */
+      const { limit, offset } = recordPageRequest(url);
+      const page = await listRecords(url.searchParams.get("table") ?? "", limit, offset);
+      const nextOffset = offset + page.records.length;
+      send(res, 200, {
+        ...page,
+        nextCursor: nextOffset < page.total ? String(nextOffset) : null,
+      });
       return true;
     }
     const recordMatch = /^\/api\/records\/(.+)$/.exec(path);
