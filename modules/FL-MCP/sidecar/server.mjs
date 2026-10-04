@@ -207,6 +207,52 @@ function parseBoundedQueryInteger(value, fallback, max) {
 }
 
 /**
+ * Validates and assembles the page/count envelopes returned by caseQuery.
+ * Inputs are the allowlisted table, limit, offset, and both query results;
+ * output is a complete page with a progressing cursor or an error. It has no
+ * side effects and keeps malformed adapter results from appearing as an empty
+ * or complete library page; use it at the caseQuery boundary.
+ * Byline: OpenAI Codex · GPT-6 · 2026-10-04
+ */
+export function buildLibraryPage({ table, limit, offset, pageResult, countResult }) {
+  const pageEnvelopeValid = pageResult !== null && typeof pageResult === "object" &&
+    pageResult.truncated === false && Array.isArray(pageResult.results) && pageResult.results.length === 1;
+  const countEnvelopeValid = countResult !== null && typeof countResult === "object" &&
+    countResult.truncated === false && Array.isArray(countResult.results) && countResult.results.length === 1;
+  if (!pageEnvelopeValid || !countEnvelopeValid) {
+    throw new Error("The shared store returned a malformed library query envelope.");
+  }
+
+  const pageRows = pageResult.results[0];
+  const countRows = countResult.results[0];
+  if (!Array.isArray(pageRows) || !Array.isArray(countRows) || countRows.length !== 1) {
+    throw new Error("The shared store returned malformed library rows or count data.");
+  }
+  if (pageRows.length > limit || pageRows.some((row) =>
+    row === null || typeof row !== "object" || Array.isArray(row) || typeof row.id !== "string")) {
+    throw new Error("The shared store returned malformed or oversized library rows.");
+  }
+  const count = countRows[0];
+  if (count === null || typeof count !== "object" || typeof count.count !== "number" ||
+    !Number.isSafeInteger(count.count) || count.count < 0) {
+    throw new Error("The shared store returned an invalid library count.");
+  }
+  const total = count.count;
+  const nextOffset = offset + pageRows.length;
+  if (offset < total && (pageRows.length === 0 || nextOffset <= offset)) {
+    throw new Error("The shared store returned an empty or non-advancing nonterminal library page.");
+  }
+  return {
+    table,
+    entries: pageRows,
+    total,
+    offset,
+    limit,
+    next_offset: nextOffset < total ? nextOffset : null,
+  };
+}
+
+/**
  * Reads a bounded id-ordered page and independent total count from either
  * shared source or reference records. Inputs are the allowlisted table, limit,
  * and numeric offset; output carries rows and paging metadata. It performs
@@ -239,22 +285,7 @@ app.get("/api/store/library", async (req, reply) => {
     ]);
     if (pageResult?.available === false) return pageResult;
     if (countResult?.available === false) return countResult;
-    if (pageResult?.truncated || countResult?.truncated) {
-      throw new Error("The shared store returned a truncated library page.");
-    }
-    const pageRows = pageResult?.results?.at(-1);
-    const countRows = countResult?.results?.at(-1);
-    const entries = Array.isArray(pageRows) ? pageRows : [];
-    const total = Number(Array.isArray(countRows) ? countRows[0]?.count : NaN);
-    if (!Number.isSafeInteger(total) || total < 0) throw new Error("The shared store returned an invalid library count.");
-    return {
-      table,
-      entries,
-      total,
-      offset,
-      limit,
-      next_offset: offset + entries.length < total ? offset + entries.length : null,
-    };
+    return buildLibraryPage({ table, limit, offset, pageResult, countResult });
   } catch (err) {
     reply.code(500);
     return { error: String(err?.message ?? err) };

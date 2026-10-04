@@ -1,7 +1,7 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import app from "../server.mjs";
+import app, { buildLibraryPage } from "../server.mjs";
 import { getSharedStore, loadStoreModule } from "../lib/store-client.mjs";
 
 // See store-client.test.mjs's identical teardown comment: the embedded
@@ -55,6 +55,49 @@ test("GET /api/store/timeline is mode-aware (court | master | merged)", async ()
 test("GET /api/store/source requires id", async () => {
   const res = await app.inject({ method: "GET", url: "/api/store/source" });
   assert.equal(res.statusCode, 400);
+});
+
+test("library page validation rejects missing and malformed caseQuery envelopes", () => {
+  const validCount = { results: [[{ count: 3 }]], truncated: false };
+  const base = { table: "reference", limit: 2, offset: 0, countResult: validCount };
+  for (const pageResult of [
+    undefined,
+    {},
+    { results: [], truncated: false },
+    { results: [[null]], truncated: false },
+    { results: [[{ label: "missing id" }]], truncated: false },
+    { results: [[{ id: "reference:1" }, { id: "reference:2" }, { id: "reference:3" }]], truncated: false },
+    { results: [[{ id: "reference:1" }]], truncated: true },
+  ]) {
+    assert.throws(() => buildLibraryPage({ ...base, pageResult }));
+  }
+  for (const countResult of [undefined, {}, { results: [[]], truncated: false }, { results: [[{}]], truncated: false }]) {
+    assert.throws(() => buildLibraryPage({
+      table: "reference",
+      limit: 2,
+      offset: 0,
+      pageResult: { results: [[{ id: "reference:1" }]], truncated: false },
+      countResult,
+    }));
+  }
+});
+
+test("library page validation rejects an empty nonterminal offset page", () => {
+  assert.throws(() => buildLibraryPage({
+    table: "source",
+    limit: 25,
+    offset: 3,
+    pageResult: { results: [[]], truncated: false },
+    countResult: { results: [[{ count: 4 }]], truncated: false },
+  }), /empty or non-advancing/);
+  const terminal = buildLibraryPage({
+    table: "source",
+    limit: 25,
+    offset: 4,
+    pageResult: { results: [[]], truncated: false },
+    countResult: { results: [[{ count: 4 }]], truncated: false },
+  });
+  assert.equal(terminal.next_offset, null);
 });
 
 test("GET /api/store/library pages beyond 200, and /api/store/record returns canonical exact detail", async () => {
