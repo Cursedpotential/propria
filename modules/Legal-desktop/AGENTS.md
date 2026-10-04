@@ -1,3 +1,32 @@
+<!-- Byline: Codex · 2026-10-04 · Family Court convergence owner decisions. -->
+## Family Court library convergence — owner decision, 2026-10-04
+
+The validated Family Court library must be imported into the shared working
+SurrealDB store (`surreal-case`, namespace `fct`, database `case`) and used by the
+phone surface, desktop, Advocatio and platform. A read-only `/v1/toolkit` bridge
+is the existing implementation, not the finished integration. Additions and edits
+must reach the same records across those surfaces; do not create another library
+database or persist a competing copy in Advocatio's SQLite store.
+
+Preserve the original iterations and their substantive validation corrections.
+Case Bible retains durable source originals under
+`b2:salem-data/consignatio/casevault/`; continuous Case Bible synchronization is a
+later slice. Every imported claim and reference needs traceable source identity,
+version/hash, applicable pinpoint and validation evidence. Revalidate each library
+update before propagating it. Report specific unresolved items rather than adding
+generic warnings throughout the interface.
+
+Use the settled React/TypeScript, TanStack, Storybook, Glide and Tauri stack and
+the shared graphite/indigo design contract for the convergence. Preserve the
+existing implementation while making bounded changes; this is not authority to
+rewrite every workdesk subsystem or replace evidence-custody storage. Bulk source
+inspection and processing run on the VPS as tracked Temporal Activities.
+
+Current decision record: Docstore `note:family_court_convergence_20261004`.
+These owner decisions supersede the read-only toolkit/library and stack statements
+below for this convergence lane. Root `AGENTS.md` governs the current monorepo
+boundary and `modules/Legal-desktop/` routing.
+
 <!-- Owner routing decision: 2026-09-13. Supersedes historical paths below. -->
 **Canonical application:** `E:/AI_Workspace/Projects/Propria/Legal-desktop`.
 This directory is the independent Advocatio Git repository. The former
