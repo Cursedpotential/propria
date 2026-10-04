@@ -64,20 +64,23 @@ def _attach(con: duckdb.DuckDBPyConnection, dsn: str) -> None:
 async def iter_catalog_objects(
     dsn: str, query: str, *, batch_rows: int = _BATCH_ROWS
 ) -> AsyncIterator[CatalogObject]:
-    """Stream catalog rows in bounded Arrow batches; the full listing is never held."""
+    """Stream catalog objects through bounded Arrow batches and finish cleanly at EOF.
+
+    Inputs: catalog DSN, SQL query and batch row cap. Outputs: an async stream of catalog objects.
+    Side effects: opens and closes a read-only catalog connection; never materializes the listing.
+    Pick this for catalog-backed discovery instead of filesystem or object-store enumeration.
+    """
     con = duckdb.connect()
     try:
         await asyncio.to_thread(_attach, con, dsn)
-        reader = await asyncio.to_thread(
-            lambda: con.execute(query).fetch_record_batch(batch_rows)
-        )
+        reader = await asyncio.to_thread(lambda: con.execute(query).fetch_record_batch(batch_rows))
         missing = [name for name in REQUIRED_COLUMNS if name not in reader.schema.names]
         if missing:
             raise ValueError(f"Catalog query is missing required columns: {missing}")
         while True:
-            try:
-                batch = await asyncio.to_thread(reader.read_next_batch)
-            except StopIteration:
+            # Convert EOF inside the thread: StopIteration cannot cross an asyncio Future.
+            batch = await asyncio.to_thread(next, reader, None)
+            if batch is None:
                 break
             for row in batch.to_pylist():
                 key = row.pop("key")
