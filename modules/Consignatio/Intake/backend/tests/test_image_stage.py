@@ -302,12 +302,24 @@ async def test_pdf_page_budget_resumes_remainder_and_only_then_marks_source_comp
         ),
         docs / "scan.parquet",
     )
-    store = FakeStore({"proof/scan.pdf": data})
+    image_buffer = io.BytesIO()
+    Image.new("RGB", (72, 72), "green").save(image_buffer, format="PNG")
+    image_data = image_buffer.getvalue()
+    image_sha1 = hashlib.sha1(image_data).hexdigest()
+    inventory(out, [("proof/photo.png", len(image_data), image_sha1, "media")])
+    store = FakeStore({"proof/scan.pdf": data, "proof/photo.png": image_data})
     s = settings(monkeypatch, INTAKE_IMAGES_SLOTS="image_maxsim")
     writer = RecordingWriter()
 
     async def bag(data, ext):
         return [[0.5] * 128]
+
+    first = await fetch_slice(out, spool, lambda *_: store, max_files=1)
+    assert first["kind"] == "image" and first["count"] == 1 and first["more"] is True
+    image_slice = load_slice(out, first["slice_id"])
+    await run_facts(out, spool, image_slice)
+    await run_embed(out, spool, image_slice, "image_maxsim", bag, "synthetic", s)
+    await run_publish(out, spool, image_slice, writer, s, source_id="proof", run_id="image")
 
     page_hashes = []
     for page_number in (1, 2, 3):
@@ -338,7 +350,7 @@ async def test_pdf_page_budget_resumes_remainder_and_only_then_marks_source_comp
         ][0]
         assert parent["status"] == ("ok" if page_number == 3 else "partial")
     assert select_scanned_pdfs(out, 10)[0] == []
-    assert len({a.key for a in writer.actions}) == 3
+    assert len({a.key for a in writer.actions}) == 4
     assert len(set(page_hashes)) == 3, "Rendered pages have distinct hashes, one source PDF SHA1"
 
 

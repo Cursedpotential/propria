@@ -440,6 +440,16 @@ async def fetch_slice(
         locators=locators,
     )
     kind = "image"
+    if picked and not more:
+        # Finishing the image queue must still hand the next slice to scanned PDFs.
+        pending_pdfs, _ = select_scanned_pdfs(
+            output_dir,
+            1,
+            retry_failed=retry_failed,
+            path_prefix=path_prefix,
+            locators=locators,
+        )
+        more = bool(pending_pdfs)
     if not picked:
         picked, more = select_scanned_pdfs(
             output_dir,
