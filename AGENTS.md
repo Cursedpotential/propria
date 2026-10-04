@@ -11,6 +11,24 @@ A unit without a docstring is unfinished. Existing code gets back-filled later a
 the rule applies going forward now. Owner, 20:44: "Do that with everything from now on so that we
 can get some good documentation when we're done." _Claude Code · Opus 5.5 · 2026-10-02_
 
+## Source traceability across every surface (owner rule, 2026-10-04)
+
+Every fact, source, resource, guide, law and case reference throughout Propria
+must carry a citation chain to its root source and validation evidence. Preserve
+source identity, version/hash and the applicable locator or pinpoint with the
+supported claim; a reachable URL alone does not establish that the claim is true.
+This applies to every module and surface, including phone, desktop, workdesk,
+platform and agent tools. Revalidate library updates before propagation, retain
+the substantive corrections from validated iterations, and record specific
+failed or incomplete checks instead of adding blanket interface warnings.
+
+Authority: active Docstore owner decision `note:family_court_convergence_20261004`,
+revision 1, independently read back on 2026-10-04. This rule records the owner's
+requirement; it does not claim that all existing content or enforcement paths
+have already been validated or implemented.
+
+_Byline: Codex · GPT-6 · 2026-10-04; owner messages in this session._
+
 ## Current checkout routing — the monorepo is one repository (2026-09-26)
 
 **Propria is now a single Git repository.** The product repositories were imported
