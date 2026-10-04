@@ -29,6 +29,8 @@ const (
 	toolkitPreservationMaxArchiveBytes           = int64(8 << 30)
 	toolkitPreservationMaxSinglePut              = int64(5_000_000_000)
 	toolkitPreservationMaxNamespaceBytes         = 64
+	ToolkitPackagePreservationModeConditional    = "conditional"
+	ToolkitPackagePreservationModeVersioned      = "versioned-recovery"
 	ToolkitPackagePreservationCopyActivityName   = "toolkit_package_preservation_copy_activity"
 	ToolkitPackagePreservationVerifyActivityName = "toolkit_package_preservation_verify_activity"
 	ToolkitPackagePreservationWorkflowName       = "ToolkitPackagePreservationWorkflow"
@@ -43,6 +45,7 @@ const (
 type ToolkitPackagePreservationInput struct {
 	InventoryRef       proffer.Ref `json:"inventory_ref"`
 	InventorySHA256    string      `json:"inventory_sha256"`
+	StorageMode        string      `json:"storage_mode,omitempty"`
 	OperationNamespace string      `json:"operation_namespace,omitempty"`
 	PackageNames       []string    `json:"package_names"`
 	MaxArchiveBytes    int64       `json:"max_archive_bytes"`
@@ -56,6 +59,7 @@ type ToolkitPackagePreservationInput struct {
 type ToolkitPackagePreservationResult struct {
 	InventoryRef    proffer.Ref                         `json:"inventory_ref"`
 	InventorySHA256 string                              `json:"inventory_sha256"`
+	StorageMode     string                              `json:"storage_mode"`
 	Packages        []ToolkitPackagePreservationReceipt `json:"packages"`
 }
 
@@ -64,13 +68,21 @@ type ToolkitPackagePreservationResult struct {
 // Side effects: none; this record contains no archive or member content.
 // Choose as a bounded workflow result instead of returning corpus data.
 type ToolkitPackagePreservationReceipt struct {
-	PackageName     string      `json:"package_name"`
-	SHA256          string      `json:"sha256"`
-	Bytes           int64       `json:"bytes"`
-	OriginalRef     proffer.Ref `json:"original_ref"`
-	PreservedRef    proffer.Ref `json:"preserved_ref"`
-	ReceiptRef      proffer.Ref `json:"receipt_ref"`
-	VerificationRef proffer.Ref `json:"verification_ref"`
+	StorageMode               string      `json:"storage_mode"`
+	PackageName               string      `json:"package_name"`
+	SHA256                    string      `json:"sha256"`
+	Bytes                     int64       `json:"bytes"`
+	OriginalRef               proffer.Ref `json:"original_ref"`
+	PreservedRef              proffer.Ref `json:"preserved_ref"`
+	ReceiptRef                proffer.Ref `json:"receipt_ref"`
+	VerificationRef           proffer.Ref `json:"verification_ref"`
+	ArchiveVersionID          string      `json:"archive_version_id,omitempty"`
+	ReceiptVersionID          string      `json:"receipt_version_id,omitempty"`
+	VerificationVersionID     string      `json:"verification_version_id,omitempty"`
+	ReceiptSHA256             string      `json:"receipt_sha256"`
+	ReceiptBytes              int64       `json:"receipt_bytes"`
+	VerificationReceiptSHA256 string      `json:"verification_receipt_sha256,omitempty"`
+	VerificationReceiptBytes  int64       `json:"verification_receipt_bytes,omitempty"`
 }
 
 // ToolkitPackagePreservationHeartbeat reports bounded liveness without archive data.
@@ -91,6 +103,7 @@ type ToolkitPackagePreservationHeartbeat struct {
 type ToolkitPackagePreservationCopyInput struct {
 	InventoryRef       proffer.Ref `json:"inventory_ref"`
 	InventorySHA256    string      `json:"inventory_sha256"`
+	StorageMode        string      `json:"storage_mode,omitempty"`
 	OperationNamespace string      `json:"operation_namespace,omitempty"`
 	PackageName        string      `json:"package_name"`
 	PackageNames       []string    `json:"package_names"`
@@ -106,6 +119,7 @@ type ToolkitPackagePreservationCopyInput struct {
 type ToolkitPackagePreservationVerifyInput struct {
 	InventoryRef       proffer.Ref `json:"inventory_ref"`
 	InventorySHA256    string      `json:"inventory_sha256"`
+	StorageMode        string      `json:"storage_mode,omitempty"`
 	OperationNamespace string      `json:"operation_namespace,omitempty"`
 	PackageName        string      `json:"package_name"`
 	PackageNames       []string    `json:"package_names"`
@@ -116,11 +130,26 @@ type ToolkitPackagePreservationVerifyInput struct {
 	OriginalRef        proffer.Ref `json:"original_ref"`
 	PreservedRef       proffer.Ref `json:"preserved_ref"`
 	ReceiptRef         proffer.Ref `json:"receipt_ref"`
+	ArchiveVersionID   string      `json:"archive_version_id,omitempty"`
+	ReceiptVersionID   string      `json:"receipt_version_id,omitempty"`
+	ReceiptSHA256      string      `json:"receipt_sha256"`
+	ReceiptBytes       int64       `json:"receipt_bytes"`
+}
+
+// ToolkitPackagePreservationVerifyResult returns the immutable verification receipt and its provider version identity.
+// Inputs: one completed verification Activity; outputs: receipt reference and optional exact VersionId.
+// Side effects: none. Choose this bounded result to preserve versioned-recovery identity across the Workflow boundary.
+// Byline: Codex · GPT-6 · 2026-10-04.
+type ToolkitPackagePreservationVerifyResult struct {
+	VerificationRef proffer.Ref `json:"verification_ref"`
+	VersionID       string      `json:"version_id,omitempty"`
+	SHA256          string      `json:"sha256"`
+	Bytes           int64       `json:"bytes"`
 }
 
 // ToolkitPackagePreservationActivities preserves complete ZIP archives through the configured object-store resolver.
 // Inputs: the existing object-store resolver and optional liveness callback; outputs: bounded Activity results.
-// Side effects: remote create-only object writes and readback; no database or catalog writes.
+// Side effects: mode-specific remote writes and full readback; no database or catalog writes.
 // Choose this Activity group for source-archive retention, not derivation or legal validation.
 type ToolkitPackagePreservationActivities struct {
 	AllowedRoot string
@@ -158,13 +187,13 @@ func ToolkitPackagePreservationWorkflow(ctx workflow.Context, input ToolkitPacka
 		HeartbeatTimeout: time.Minute, WaitForCancellation: true,
 		RetryPolicy: &temporal.RetryPolicy{MaximumAttempts: 2},
 	})
-	result := ToolkitPackagePreservationResult{InventoryRef: input.InventoryRef, InventorySHA256: input.InventorySHA256,
+	result := ToolkitPackagePreservationResult{InventoryRef: input.InventoryRef, InventorySHA256: input.InventorySHA256, StorageMode: effectiveToolkitStorageMode(input.StorageMode),
 		Packages: make([]ToolkitPackagePreservationReceipt, 0, len(input.PackageNames))}
 	for _, name := range input.PackageNames {
 		var copied ToolkitPackagePreservationReceipt
 		copyInput := ToolkitPackagePreservationCopyInput{
 			InventoryRef: input.InventoryRef, InventorySHA256: input.InventorySHA256,
-			OperationNamespace: input.OperationNamespace, PackageName: name,
+			OperationNamespace: input.OperationNamespace, StorageMode: input.StorageMode, PackageName: name,
 			PackageNames:    input.PackageNames,
 			MaxArchiveBytes: input.MaxArchiveBytes, MaxSinglePutBytes: input.MaxSinglePutBytes,
 		}
@@ -173,16 +202,21 @@ func ToolkitPackagePreservationWorkflow(ctx workflow.Context, input ToolkitPacka
 		}
 		verifyInput := ToolkitPackagePreservationVerifyInput{
 			InventoryRef: input.InventoryRef, InventorySHA256: input.InventorySHA256,
-			OperationNamespace: input.OperationNamespace,
-			PackageName:        copied.PackageName, PackageNames: input.PackageNames, SHA256: copied.SHA256, Bytes: copied.Bytes,
+			OperationNamespace: input.OperationNamespace, StorageMode: input.StorageMode,
+			PackageName: copied.PackageName, PackageNames: input.PackageNames, SHA256: copied.SHA256, Bytes: copied.Bytes,
 			MaxArchiveBytes: input.MaxArchiveBytes, MaxSinglePutBytes: input.MaxSinglePutBytes,
 			OriginalRef: copied.OriginalRef, PreservedRef: copied.PreservedRef, ReceiptRef: copied.ReceiptRef,
+			ArchiveVersionID: copied.ArchiveVersionID, ReceiptVersionID: copied.ReceiptVersionID,
+			ReceiptSHA256: copied.ReceiptSHA256, ReceiptBytes: copied.ReceiptBytes,
 		}
-		var verified proffer.Ref
+		var verified ToolkitPackagePreservationVerifyResult
 		if err := workflow.ExecuteActivity(ctx, ToolkitPackagePreservationVerifyActivityName, verifyInput).Get(ctx, &verified); err != nil {
 			return result, err
 		}
-		copied.VerificationRef = verified
+		copied.VerificationRef = verified.VerificationRef
+		copied.VerificationVersionID = verified.VersionID
+		copied.VerificationReceiptSHA256 = verified.SHA256
+		copied.VerificationReceiptBytes = verified.Bytes
 		result.Packages = append(result.Packages, copied)
 	}
 	return result, nil
@@ -190,8 +224,8 @@ func ToolkitPackagePreservationWorkflow(ctx workflow.Context, input ToolkitPacka
 
 // CopyToolkitPackagePreservation streams one complete source ZIP into its digest-scoped recovery namespace.
 // Inputs: one package selection from the pinned inventory; outputs: destination and durable receipt references.
-// Side effects: reads the local ZIP and uses conditional create-only writes for the archive and receipt.
-// Choose before VerifyToolkitPackagePreservation; a plain Put fallback is deliberately unavailable.
+// Side effects: reads the local ZIP and writes the archive and receipt through the explicitly selected mode.
+// Choose before VerifyToolkitPackagePreservation; versioned-recovery never attempts conditional PUT, and no path falls back silently.
 // Byline: Codex · GPT-6 · 2026-10-04.
 func (a ToolkitPackagePreservationActivities) CopyToolkitPackagePreservation(ctx context.Context, input ToolkitPackagePreservationCopyInput) (ToolkitPackagePreservationReceipt, error) {
 	fail := func(err error) (ToolkitPackagePreservationReceipt, error) {
@@ -260,17 +294,25 @@ func (a ToolkitPackagePreservationActivities) CopyToolkitPackagePreservation(ctx
 	if err != nil {
 		return fail(err)
 	}
-	if err = createToolkitObjectIfAbsent(ctx, store, bucket, key, file, before.Size(), sha, "application/zip", a.Heartbeat, input.PackageName); err != nil {
-		return fail(fmt.Errorf("create-only archive write: %w", err))
-	}
-	if err = verifyToolkitRemoteObject(ctx, store, bucket, key, sha, before.Size(), a.Heartbeat, input.PackageName); err != nil {
-		return fail(fmt.Errorf("archive existence readback: %w", err))
+	archiveVersionID, receiptVersionID := "", ""
+	if effectiveToolkitStorageMode(input.StorageMode) == ToolkitPackagePreservationModeVersioned {
+		archiveVersionID, err = putToolkitRecoveredVersion(ctx, store, bucket, key, file, before.Size(), sha, "application/zip", a.Heartbeat, input.PackageName)
+		if err != nil {
+			return fail(fmt.Errorf("versioned archive write/reuse: %w", err))
+		}
+	} else {
+		if err = createToolkitObjectIfAbsent(ctx, store, bucket, key, file, before.Size(), sha, "application/zip", a.Heartbeat, input.PackageName); err != nil {
+			return fail(fmt.Errorf("create-only archive write: %w", err))
+		}
+		if err = verifyToolkitRemoteObject(ctx, store, bucket, key, sha, before.Size(), a.Heartbeat, input.PackageName); err != nil {
+			return fail(fmt.Errorf("archive existence readback: %w", err))
+		}
 	}
 	archiveReceipt := toolkitPreservationObjectReceipt{
 		Schema: "toolkit-package-preservation/v1", InventoryRef: input.InventoryRef,
 		InventorySHA256: input.InventorySHA256, PackageName: input.PackageName,
 		OriginalRef: toolkitFileRef(source), PreservedRef: destination,
-		SHA256: sha, Bytes: before.Size(),
+		SHA256: sha, Bytes: before.Size(), StorageMode: effectiveToolkitStorageMode(input.StorageMode), ArchiveVersionID: archiveVersionID,
 	}
 	receiptBytes, err := json.Marshal(archiveReceipt)
 	if err != nil {
@@ -280,134 +322,177 @@ func (a ToolkitPackagePreservationActivities) CopyToolkitPackagePreservation(ctx
 	if err != nil {
 		return fail(err)
 	}
-	if err = createToolkitObjectIfAbsent(ctx, store, receiptBucket, receiptKey, strings.NewReader(string(receiptBytes)), int64(len(receiptBytes)), digestBytes(receiptBytes), "application/json", a.Heartbeat, input.PackageName); err != nil {
-		return fail(fmt.Errorf("create-only preservation receipt write: %w", err))
+	if effectiveToolkitStorageMode(input.StorageMode) == ToolkitPackagePreservationModeVersioned {
+		receiptVersionID, err = putToolkitRecoveredVersion(ctx, store, receiptBucket, receiptKey, strings.NewReader(string(receiptBytes)), int64(len(receiptBytes)), digestBytes(receiptBytes), "application/json", a.Heartbeat, input.PackageName)
+		if err != nil {
+			return fail(fmt.Errorf("versioned preservation receipt write/reuse: %w", err))
+		}
+	} else {
+		if err = createToolkitObjectIfAbsent(ctx, store, receiptBucket, receiptKey, strings.NewReader(string(receiptBytes)), int64(len(receiptBytes)), digestBytes(receiptBytes), "application/json", a.Heartbeat, input.PackageName); err != nil {
+			return fail(fmt.Errorf("create-only preservation receipt write: %w", err))
+		}
+		if err = verifyToolkitRemoteObject(ctx, store, receiptBucket, receiptKey, digestBytes(receiptBytes), int64(len(receiptBytes)), a.Heartbeat, input.PackageName); err != nil {
+			return fail(fmt.Errorf("preservation receipt readback: %w", err))
+		}
 	}
-	if err = verifyToolkitRemoteObject(ctx, store, receiptBucket, receiptKey, digestBytes(receiptBytes), int64(len(receiptBytes)), a.Heartbeat, input.PackageName); err != nil {
-		return fail(fmt.Errorf("preservation receipt readback: %w", err))
-	}
-	return ToolkitPackagePreservationReceipt{PackageName: input.PackageName, SHA256: sha, Bytes: before.Size(),
-		OriginalRef: archiveReceipt.OriginalRef, PreservedRef: destination, ReceiptRef: receiptRef}, nil
+	return ToolkitPackagePreservationReceipt{StorageMode: effectiveToolkitStorageMode(input.StorageMode), PackageName: input.PackageName, SHA256: sha, Bytes: before.Size(),
+		OriginalRef: archiveReceipt.OriginalRef, PreservedRef: destination, ReceiptRef: receiptRef,
+		ArchiveVersionID: archiveVersionID, ReceiptVersionID: receiptVersionID,
+		ReceiptSHA256: digestBytes(receiptBytes), ReceiptBytes: int64(len(receiptBytes))}, nil
 }
 
 // VerifyToolkitPackagePreservation independently streams the remote archive and validates its durable receipt.
 // Inputs: expected package identity and object references returned by the copy Activity.
-// Outputs: the compact durable verification-receipt reference after SHA-256 and size match.
-// Side effects: remote reads and one create-only verification receipt write; it never repairs archive bytes.
+// Outputs: the compact durable verification-receipt reference, digest, size and optional VersionId.
+// Side effects: exact pinned remote reads and one mode-specific receipt write; it never repairs archive bytes.
 // Choose after copy so provider acknowledgement is not treated as independent byte verification.
 // Byline: Codex · GPT-6 · 2026-10-04.
-func (a ToolkitPackagePreservationActivities) VerifyToolkitPackagePreservation(ctx context.Context, input ToolkitPackagePreservationVerifyInput) (proffer.Ref, error) {
+func (a ToolkitPackagePreservationActivities) VerifyToolkitPackagePreservation(ctx context.Context, input ToolkitPackagePreservationVerifyInput) (ToolkitPackagePreservationVerifyResult, error) {
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return ToolkitPackagePreservationVerifyResult{}, err
 	}
 	if a.Stores == nil {
-		return "", errors.New("existing object-store resolver is required")
+		return ToolkitPackagePreservationVerifyResult{}, errors.New("existing object-store resolver is required")
 	}
 	if err := validateToolkitVerifyInput(input); err != nil {
-		return "", temporal.NewNonRetryableApplicationError(err.Error(), "ToolkitPackagePreservationVerifyInvalid", err)
+		return ToolkitPackagePreservationVerifyResult{}, temporal.NewNonRetryableApplicationError(err.Error(), "ToolkitPackagePreservationVerifyInvalid", err)
 	}
 	root, err := canonicalDirectory(a.AllowedRoot)
 	if err != nil {
-		return "", fmt.Errorf("resolve configured inventory root: %w", err)
+		return ToolkitPackagePreservationVerifyResult{}, fmt.Errorf("resolve configured inventory root: %w", err)
 	}
 	inventory, err := readPinnedToolkitInventory(ctx, input.InventoryRef, input.InventorySHA256, root, a.Heartbeat)
 	if err != nil {
-		return "", err
+		return ToolkitPackagePreservationVerifyResult{}, err
 	}
 	entry, ok := toolkitPackageByName(inventory, input.PackageName)
 	if !ok || !entry.Complete || entry.SHA256 == nil || *entry.SHA256 != input.SHA256 {
-		return "", errors.New("verification digest does not match the complete pinned inventory entry")
+		return ToolkitPackagePreservationVerifyResult{}, errors.New("verification digest does not match the complete pinned inventory entry")
 	}
 	if err = validateSelectedInventoryBudget(inventory, root, input.PackageNames, input.MaxArchiveBytes, input.MaxSinglePutBytes); err != nil {
-		return "", err
+		return ToolkitPackagePreservationVerifyResult{}, err
 	}
 	sourcePath, err := toolkitPackageSource(inventory, root, input.PackageName)
 	if err != nil {
-		return "", err
+		return ToolkitPackagePreservationVerifyResult{}, err
 	}
 	if input.OriginalRef != toolkitFileRef(sourcePath) {
-		return "", errors.New("verification original reference does not match the pinned inventory source")
+		return ToolkitPackagePreservationVerifyResult{}, errors.New("verification original reference does not match the pinned inventory source")
 	}
 	store, err := a.Stores("b2")
 	if err != nil {
-		return "", fmt.Errorf("resolve configured b2 store: %w", err)
+		return ToolkitPackagePreservationVerifyResult{}, fmt.Errorf("resolve configured b2 store: %w", err)
 	}
 	bucket, key, err := toolkitObjectCoordinates(input.PreservedRef)
 	if err != nil {
-		return "", err
+		return ToolkitPackagePreservationVerifyResult{}, err
 	}
-	if err = verifyToolkitRemoteObject(ctx, store, bucket, key, input.SHA256, input.Bytes, a.Heartbeat, input.PackageName); err != nil {
-		return "", fmt.Errorf("independent remote archive verification: %w", err)
+	if effectiveToolkitStorageMode(input.StorageMode) == ToolkitPackagePreservationModeVersioned {
+		err = verifyToolkitRemoteObjectVersion(ctx, store, bucket, key, input.ArchiveVersionID, input.SHA256, input.Bytes, a.Heartbeat, input.PackageName)
+	} else {
+		err = verifyToolkitRemoteObject(ctx, store, bucket, key, input.SHA256, input.Bytes, a.Heartbeat, input.PackageName)
+	}
+	if err != nil {
+		return ToolkitPackagePreservationVerifyResult{}, fmt.Errorf("independent remote archive verification: %w", err)
 	}
 	receiptBucket, receiptKey, err := toolkitObjectCoordinates(input.ReceiptRef)
 	if err != nil {
-		return "", err
+		return ToolkitPackagePreservationVerifyResult{}, err
 	}
-	raw, err := readToolkitRemoteBounded(ctx, store, receiptBucket, receiptKey, 16<<10)
+	var raw []byte
+	if effectiveToolkitStorageMode(input.StorageMode) == ToolkitPackagePreservationModeVersioned {
+		raw, err = readToolkitRemoteBoundedVersion(ctx, store, receiptBucket, receiptKey, input.ReceiptVersionID, 16<<10, a.Heartbeat, input.PackageName)
+	} else {
+		raw, err = readToolkitRemoteBounded(ctx, store, receiptBucket, receiptKey, 16<<10)
+	}
 	if err != nil {
-		return "", fmt.Errorf("read preservation receipt: %w", err)
+		return ToolkitPackagePreservationVerifyResult{}, fmt.Errorf("read preservation receipt: %w", err)
+	}
+	if int64(len(raw)) != input.ReceiptBytes || digestBytes(raw) != input.ReceiptSHA256 {
+		return ToolkitPackagePreservationVerifyResult{}, errors.New("preservation receipt full-byte SHA-256 or size mismatch")
 	}
 	var receipt toolkitPreservationObjectReceipt
 	if err = json.Unmarshal(raw, &receipt); err != nil {
-		return "", err
+		return ToolkitPackagePreservationVerifyResult{}, err
 	}
 	if receipt.Schema != "toolkit-package-preservation/v1" || receipt.InventoryRef != input.InventoryRef ||
 		receipt.InventorySHA256 != input.InventorySHA256 || receipt.PackageName != input.PackageName ||
 		receipt.SHA256 != input.SHA256 || receipt.Bytes != input.Bytes || receipt.OriginalRef != input.OriginalRef ||
-		receipt.PreservedRef != input.PreservedRef {
-		return "", errors.New("remote preservation receipt does not match the requested archive identity")
+		receipt.PreservedRef != input.PreservedRef || effectiveToolkitStorageMode(receipt.StorageMode) != effectiveToolkitStorageMode(input.StorageMode) ||
+		receipt.ArchiveVersionID != input.ArchiveVersionID {
+		return ToolkitPackagePreservationVerifyResult{}, errors.New("remote preservation receipt does not match the requested archive identity")
 	}
 	verification := toolkitPreservationVerificationReceipt{
 		Schema: "toolkit-package-verification/v1", InventoryRef: input.InventoryRef,
 		InventorySHA256: input.InventorySHA256, PackageName: input.PackageName,
 		OriginalRef: input.OriginalRef, PreservedRef: input.PreservedRef,
 		ReceiptRef: input.ReceiptRef, SHA256: input.SHA256, Bytes: input.Bytes,
+		StorageMode: effectiveToolkitStorageMode(input.StorageMode), ArchiveVersionID: input.ArchiveVersionID,
+		PreservationReceiptVersionID: input.ReceiptVersionID,
+		PreservationReceiptSHA256:    input.ReceiptSHA256, PreservationReceiptBytes: input.ReceiptBytes,
 	}
 	verificationBytes, err := json.Marshal(verification)
 	if err != nil {
-		return "", err
+		return ToolkitPackagePreservationVerifyResult{}, err
 	}
 	verificationRef := toolkitVerificationRef(input)
 	verifyBucket, verifyKey, err := toolkitObjectCoordinates(verificationRef)
 	if err != nil {
-		return "", err
+		return ToolkitPackagePreservationVerifyResult{}, err
 	}
-	if err = createToolkitObjectIfAbsent(ctx, store, verifyBucket, verifyKey,
-		strings.NewReader(string(verificationBytes)), int64(len(verificationBytes)), digestBytes(verificationBytes), "application/json", a.Heartbeat, input.PackageName); err != nil {
-		return "", fmt.Errorf("create-only verification receipt: %w", err)
+	verificationVersionID := ""
+	if effectiveToolkitStorageMode(input.StorageMode) == ToolkitPackagePreservationModeVersioned {
+		verificationVersionID, err = putToolkitRecoveredVersion(ctx, store, verifyBucket, verifyKey,
+			strings.NewReader(string(verificationBytes)), int64(len(verificationBytes)), digestBytes(verificationBytes), "application/json", a.Heartbeat, input.PackageName)
+		if err != nil {
+			return ToolkitPackagePreservationVerifyResult{}, fmt.Errorf("versioned verification receipt write/reuse: %w", err)
+		}
+	} else {
+		if err = createToolkitObjectIfAbsent(ctx, store, verifyBucket, verifyKey,
+			strings.NewReader(string(verificationBytes)), int64(len(verificationBytes)), digestBytes(verificationBytes), "application/json", a.Heartbeat, input.PackageName); err != nil {
+			return ToolkitPackagePreservationVerifyResult{}, fmt.Errorf("create-only verification receipt: %w", err)
+		}
+		if err = verifyToolkitRemoteObject(ctx, store, verifyBucket, verifyKey,
+			digestBytes(verificationBytes), int64(len(verificationBytes)), nil, ""); err != nil {
+			return ToolkitPackagePreservationVerifyResult{}, fmt.Errorf("verification receipt readback: %w", err)
+		}
 	}
-	if err = verifyToolkitRemoteObject(ctx, store, verifyBucket, verifyKey,
-		digestBytes(verificationBytes), int64(len(verificationBytes)), nil, ""); err != nil {
-		return "", fmt.Errorf("verification receipt readback: %w", err)
-	}
-	return verificationRef, nil
+	return ToolkitPackagePreservationVerifyResult{VerificationRef: verificationRef, VersionID: verificationVersionID,
+		SHA256: digestBytes(verificationBytes), Bytes: int64(len(verificationBytes))}, nil
 }
 
 type toolkitPreservationObjectReceipt struct {
-	Schema          string      `json:"schema"`
-	InventoryRef    proffer.Ref `json:"inventory_ref"`
-	InventorySHA256 string      `json:"inventory_sha256"`
-	PackageName     string      `json:"package_name"`
-	OriginalRef     proffer.Ref `json:"original_ref"`
-	PreservedRef    proffer.Ref `json:"preserved_ref"`
-	SHA256          string      `json:"sha256"`
-	Bytes           int64       `json:"bytes"`
+	Schema           string      `json:"schema"`
+	StorageMode      string      `json:"storage_mode"`
+	InventoryRef     proffer.Ref `json:"inventory_ref"`
+	InventorySHA256  string      `json:"inventory_sha256"`
+	PackageName      string      `json:"package_name"`
+	OriginalRef      proffer.Ref `json:"original_ref"`
+	PreservedRef     proffer.Ref `json:"preserved_ref"`
+	SHA256           string      `json:"sha256"`
+	Bytes            int64       `json:"bytes"`
+	ArchiveVersionID string      `json:"archive_version_id,omitempty"`
 }
 
 // toolkitPreservationVerificationReceipt durably records only the verified archive identity and its references.
 // Inputs: a completed remote readback and matching preservation receipt; outputs: bounded verification metadata.
-// Side effects: create-only written after independent archive SHA-256 and size verification.
+// Side effects: written after independent archive and preservation-receipt byte verification.
 // Choose instead of claiming legal accuracy, catalog registration, or database state.
 type toolkitPreservationVerificationReceipt struct {
-	Schema          string      `json:"schema"`
-	InventoryRef    proffer.Ref `json:"inventory_ref"`
-	InventorySHA256 string      `json:"inventory_sha256"`
-	PackageName     string      `json:"package_name"`
-	OriginalRef     proffer.Ref `json:"original_ref"`
-	PreservedRef    proffer.Ref `json:"preserved_ref"`
-	ReceiptRef      proffer.Ref `json:"receipt_ref"`
-	SHA256          string      `json:"sha256"`
-	Bytes           int64       `json:"bytes"`
+	Schema                       string      `json:"schema"`
+	StorageMode                  string      `json:"storage_mode"`
+	InventoryRef                 proffer.Ref `json:"inventory_ref"`
+	InventorySHA256              string      `json:"inventory_sha256"`
+	PackageName                  string      `json:"package_name"`
+	OriginalRef                  proffer.Ref `json:"original_ref"`
+	PreservedRef                 proffer.Ref `json:"preserved_ref"`
+	ReceiptRef                   proffer.Ref `json:"receipt_ref"`
+	SHA256                       string      `json:"sha256"`
+	Bytes                        int64       `json:"bytes"`
+	ArchiveVersionID             string      `json:"archive_version_id,omitempty"`
+	PreservationReceiptVersionID string      `json:"preservation_receipt_version_id,omitempty"`
+	PreservationReceiptSHA256    string      `json:"preservation_receipt_sha256"`
+	PreservationReceiptBytes     int64       `json:"preservation_receipt_bytes"`
 }
 
 // validateToolkitPackageSelection accepts a bounded explicit subset of an authenticated inventory.
@@ -426,6 +511,9 @@ func validateToolkitPackageSelection(input ToolkitPackagePreservationInput) erro
 	}
 	if !safePreservationNamespace(input.OperationNamespace) {
 		return errors.New("operation namespace must be empty or a safe bounded path segment")
+	}
+	if err := validateToolkitStorageMode(input.StorageMode, input.OperationNamespace); err != nil {
+		return err
 	}
 	seen := make(map[string]bool, len(input.PackageNames))
 	for _, name := range input.PackageNames {
@@ -448,6 +536,9 @@ func validateToolkitCopyInput(input ToolkitPackagePreservationCopyInput) error {
 	if len(input.PackageNames) == 0 || len(input.PackageNames) > toolkitPreservationMaxPackages || !containsToolkitPackage(input.PackageNames, input.PackageName) {
 		return errors.New("copy requires its package in an explicit selection of at most fifteen names")
 	}
+	if err := validateToolkitStorageMode(input.StorageMode, input.OperationNamespace); err != nil {
+		return err
+	}
 	return validatePreservationBudgets(input.MaxArchiveBytes, input.MaxSinglePutBytes)
 }
 
@@ -462,11 +553,57 @@ func validateToolkitVerifyInput(input ToolkitPackagePreservationVerifyInput) err
 		input.Bytes > input.MaxArchiveBytes || input.Bytes > input.MaxSinglePutBytes {
 		return errors.New("verification identity is invalid or outside configured preservation bounds")
 	}
+	if err := validateToolkitStorageMode(input.StorageMode, input.OperationNamespace); err != nil {
+		return err
+	}
+	if effectiveToolkitStorageMode(input.StorageMode) == ToolkitPackagePreservationModeVersioned && (!validToolkitVersionID(input.ArchiveVersionID) || !validToolkitVersionID(input.ReceiptVersionID)) {
+		return errors.New("versioned-recovery verification requires exact archive and preservation-receipt VersionIds")
+	}
+	if !validSHA256(input.ReceiptSHA256) || input.ReceiptBytes <= 0 || input.ReceiptBytes > 16<<10 {
+		return errors.New("verification requires the preservation receipt's bounded full-byte SHA-256 and size")
+	}
 	wantArchive, wantReceipt := toolkitPreservationRefs(input.OperationNamespace, input.InventorySHA256, input.PackageName)
 	if input.PreservedRef != wantArchive || input.ReceiptRef != wantReceipt || input.OriginalRef == "" {
 		return errors.New("verification references do not match the fixed recovery/source namespace")
 	}
 	return nil
+}
+
+// validateToolkitStorageMode accepts the unchanged default conditional mode or an explicit versioned recovery mode.
+// Inputs: mode and operation namespace; outputs: nil for a supported mode and a sufficiently isolated recovery namespace.
+// Side effects: none. Choose before any inventory or object-store access; no mode silently falls back to another writer.
+// Byline: Codex · GPT-6 · 2026-10-04.
+func validateToolkitStorageMode(mode, operationNamespace string) error {
+	switch effectiveToolkitStorageMode(mode) {
+	case ToolkitPackagePreservationModeConditional:
+		return nil
+	case ToolkitPackagePreservationModeVersioned:
+		if len(operationNamespace) < 16 || !safePreservationNamespace(operationNamespace) {
+			return errors.New("versioned-recovery requires a fresh safe operation_namespace of at least 16 characters")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported storage_mode %q", mode)
+	}
+}
+
+// effectiveToolkitStorageMode maps the legacy empty mode to the unchanged conditional behavior.
+// Inputs: optional storage mode; outputs: a canonical supported mode string. Side effects: none.
+// Choose when emitting results and receipts so old callers remain conditional and new callers are explicit.
+// Byline: Codex · GPT-6 · 2026-10-04.
+func effectiveToolkitStorageMode(mode string) string {
+	if mode == "" {
+		return ToolkitPackagePreservationModeConditional
+	}
+	return mode
+}
+
+// validToolkitVersionID accepts a bounded provider version identity and rejects the unversioned "null" sentinel.
+// Inputs: version ID text; outputs: true for nonempty identifiers up to 2048 bytes other than "null".
+// Side effects: none. Choose before passing receipt identities to exact-version storage operations.
+// Byline: Codex · GPT-6 · 2026-10-04.
+func validToolkitVersionID(value string) bool {
+	return value != "" && value != "null" && len(value) <= 2048
 }
 
 // readPinnedToolkitInventory reads and authenticates a bounded receipt beneath the configured root.
@@ -706,6 +843,107 @@ func createToolkitObjectIfAbsent(ctx context.Context, store smsthreads.ObjectSto
 		return nil
 	}
 	return fmt.Errorf("conditional S3 create failed (no overwrite fallback): %w", err)
+}
+
+// toolkitVersionedObjectStore exposes exact-version operations without widening ordinary ObjectStore consumers.
+// Inputs: S3-compatible adapter; outputs: a compile-time capability for retained-version recovery operations.
+// Side effects: none at interface selection. Choose only in the explicit versioned-recovery branch.
+// Byline: Codex · GPT-6 · 2026-10-04.
+type toolkitVersionedObjectStore interface {
+	PutRecoveredVersion(context.Context, string, string, io.ReadSeeker, int64, string, string, func(int64)) (string, error)
+	OpenVersion(context.Context, string, string, string) (io.ReadCloser, error)
+	HeadVersion(context.Context, string, string) (smsthreads.ObjectVersion, error)
+}
+
+// putToolkitRecoveredVersion writes or reuses a byte-identical provider version and confirms it by exact-version stream readback.
+// Inputs: resolved store, bounded object body, expected SHA/size, type and optional heartbeat; outputs: the nonempty VersionId.
+// Side effects: versioned HEAD/PUT/GET operations only; an uncertain or racing outcome remains visible as an error.
+// Choose only when storage_mode is versioned-recovery; conditional mode continues through createToolkitObjectIfAbsent.
+// Byline: Codex · GPT-6 · 2026-10-04.
+func putToolkitRecoveredVersion(ctx context.Context, store smsthreads.ObjectStore, bucket, key string, body io.ReadSeeker, size int64, expectedSHA, contentType string, heartbeat func(context.Context, ToolkitPackagePreservationHeartbeat), packageName string) (string, error) {
+	writer, ok := store.(toolkitVersionedObjectStore)
+	if !ok {
+		return "", errors.New("resolved store lacks exact-version recovery operations; refusing conditional or plain-Put fallback")
+	}
+	if size < 0 || size > toolkitPreservationMaxSinglePut+16<<10 {
+		return "", errors.New("versioned object size is outside the bounded single-PUT limit")
+	}
+	if _, err := body.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+	tracked := &toolkitHeartbeatReadSeeker{Reader: body, ctx: ctx, heartbeat: heartbeat, packageName: packageName}
+	var lastHeartbeat time.Time
+	progress := func(bytes int64) {
+		if heartbeat != nil && (lastHeartbeat.IsZero() || time.Since(lastHeartbeat) >= toolkitPreservationHeartbeatEvery) {
+			heartbeat(ctx, ToolkitPackagePreservationHeartbeat{PackageName: packageName, Phase: "versioned-readback", Bytes: bytes})
+			lastHeartbeat = time.Now()
+		}
+	}
+	versionID, err := writer.PutRecoveredVersion(ctx, bucket, key, tracked, size, contentType, expectedSHA, progress)
+	if err != nil {
+		return "", err
+	}
+	if versionID == "" {
+		return "", errors.New("versioned recovery returned an empty VersionId")
+	}
+	if err := verifyToolkitRemoteObjectVersion(ctx, store, bucket, key, versionID, expectedSHA, size, heartbeat, packageName); err != nil {
+		return "", fmt.Errorf("exact VersionId readback: %w", err)
+	}
+	return versionID, nil
+}
+
+// verifyToolkitRemoteObjectVersion hashes a complete GET pinned to one VersionId and compares exact size and SHA-256.
+// Inputs: resolved store, coordinates, VersionId, expected digest/size and liveness callback; outputs: nil only for a full match.
+// Side effects: remote exact-version read only. Choose instead of current-key HEAD or an unversioned read in recovery mode.
+// Byline: Codex · GPT-6 · 2026-10-04.
+func verifyToolkitRemoteObjectVersion(ctx context.Context, store smsthreads.ObjectStore, bucket, key, versionID, expectedSHA string, expectedBytes int64, heartbeat func(context.Context, ToolkitPackagePreservationHeartbeat), packageName string) error {
+	versioned, ok := store.(toolkitVersionedObjectStore)
+	if !ok || versionID == "" {
+		return errors.New("exact-version readback requires a version-capable store and nonempty VersionId")
+	}
+	stream, err := versioned.OpenVersion(ctx, bucket, key, versionID)
+	if err != nil {
+		return fmt.Errorf("open exact object version: %w", err)
+	}
+	defer stream.Close()
+	sha, count, err := hashPreservationSource(ctx, stream, heartbeat, packageName)
+	if err != nil {
+		return err
+	}
+	if count != expectedBytes || sha != expectedSHA {
+		return errors.New("exact-version remote readback SHA-256 or size mismatch")
+	}
+	return nil
+}
+
+// readToolkitRemoteBoundedVersion reads one exact-version metadata receipt with a strict byte ceiling.
+// Inputs: version-capable store, coordinates, VersionId, positive maximum and liveness callback; outputs: complete bounded bytes.
+// Side effects: one exact-version stream read. Choose for preservation receipts in versioned-recovery mode.
+// Byline: Codex · GPT-6 · 2026-10-04.
+func readToolkitRemoteBoundedVersion(ctx context.Context, store smsthreads.ObjectStore, bucket, key, versionID string, max int64, heartbeat func(context.Context, ToolkitPackagePreservationHeartbeat), packageName string) ([]byte, error) {
+	versioned, ok := store.(toolkitVersionedObjectStore)
+	if !ok || versionID == "" || max < 1 {
+		return nil, errors.New("exact-version receipt read requires a version-capable store, VersionId and positive limit")
+	}
+	stream, err := versioned.OpenVersion(ctx, bucket, key, versionID)
+	if err != nil {
+		return nil, err
+	}
+	defer stream.Close()
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	if heartbeat != nil {
+		heartbeat(ctx, ToolkitPackagePreservationHeartbeat{PackageName: packageName, Phase: "reading-versioned-receipt"})
+	}
+	data, err := io.ReadAll(io.LimitReader(stream, max+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > max {
+		return nil, fmt.Errorf("exact-version receipt exceeds %d-byte limit", max)
+	}
+	return data, nil
 }
 
 // toolkitConditionalObjectWriter is the narrow injectable seam for atomic create-only object writes.
