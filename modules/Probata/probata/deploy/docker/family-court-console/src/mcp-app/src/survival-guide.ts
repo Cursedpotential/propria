@@ -1,3 +1,4 @@
+// Byline: Codex / GPT-6 / 2026-10-04 - fresh shared reads; explicit mem:// fixture fallback only.
 // Byline: Claude Code · Fable 5.1 · 2026-09-07
 //
 // survival_guide loader. Owner correction (2026-09-07 09:51): this tool does NOT
@@ -68,24 +69,25 @@ function loadContextPackFromFile(event: string): SurvivalGuideContextPack {
   return JSON.parse(raw) as SurvivalGuideContextPack;
 }
 
-/** Store-first, exact-fallback: each event's context pack lives in the store
- * as reference:<event> (kind "event_pack", `data` = the parsed JSON — see
- * scripts/load-content-to-store.mjs). Falls back to the file read whenever
- * the store is unavailable or that row hasn't been loaded yet. The known-ids
- * check always runs against the filesystem listing (listSurvivalGuideEvents()),
- * matching this tool's existing "unknown event" error exactly. */
+/** Read the current shared context pack for a known survival-guide event.
+ * Inputs: event ID. Outputs: validated context pack.
+ * Effects: shared read; missing/malformed production rows throw. Pick this over loadContextPackFromFile for explicit fixtures.
+ */
 export async function loadContextPack(event: string): Promise<SurvivalGuideContextPack> {
   const ids = listSurvivalGuideEvents();
   if (!ids.includes(event)) {
     throw new Error(`Unknown survival_guide event "${event}". Known events: ${ids.join(", ")}`);
   }
-  try {
-    const ref = await getReference(event);
-    if (ref && ref.data && typeof ref.data === "object") {
-      return ref.data as SurvivalGuideContextPack;
+  const ref = await getReference(event);
+  if (ref) {
+    const data = ref.data as SurvivalGuideContextPack | undefined;
+    if (!data || data.id !== event || typeof data.title !== "string" || !Array.isArray(data.sequence)
+      || !Array.isArray(data.prepare) || !Array.isArray(data.applicable_rules) || !Array.isArray(data.deadlines)
+      || !Array.isArray(data.traps) || !Array.isArray(data.do_not) || !data.phrases
+      || !Array.isArray(data.safety_gates) || !Array.isArray(data.exit_checklist) || !Array.isArray(data.sources)) {
+      throw new Error(`Malformed shared survival-guide context: ${event}`);
     }
-  } catch {
-    // fall through to the file read
+    return data;
   }
   return loadContextPackFromFile(event);
 }
@@ -109,17 +111,16 @@ export interface SurvivalGuideResult {
   source_excerpts?: Record<string, string>;
 }
 
-/** Store-first, exact-fallback: the full/card writing templates live in the
- * store as reference:survival-guide-template / reference:survival-guide-card-template
- * (kind "template", `body` = the markdown text). Falls back to the file read
- * whenever the store is unavailable or that row hasn't been loaded yet. */
+/** Read the current shared full or card survival-guide template.
+ * Inputs: full/card format. Outputs: nonempty template text.
+ * Effects: shared read, or absent mem fixture file read. Pick this over direct template file reads only for fixtures.
+ */
 async function loadTemplate(format: "full" | "card"): Promise<string> {
   const key = format === "card" ? "survival-guide-card-template" : "survival-guide-template";
-  try {
-    const ref = await getReference(key);
-    if (ref && typeof ref.body === "string" && ref.body.length > 0) return ref.body;
-  } catch {
-    // fall through to the file read
+  const ref = await getReference(key);
+  if (ref) {
+    if (typeof ref.body !== "string" || !ref.body.length) throw new Error(`Malformed shared survival-guide template: ${key}`);
+    return ref.body;
   }
   return readFileSync(format === "card" ? CARD_TEMPLATE_PATH : TEMPLATE_PATH, "utf8");
 }

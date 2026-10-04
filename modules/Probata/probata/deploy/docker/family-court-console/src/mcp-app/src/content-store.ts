@@ -1,34 +1,8 @@
-// Byline: Claude Code · Sonnet 5 · 2026-09-08
-//
-// "Content lives in the SurrealDB store" — thin, read-only cache layer over
-// the `reference` and `source` tables that scripts/load-content-to-store.mjs
-// populates from the plugin's on-disk content/ and skills/ files. This module
-// never writes; loading is entirely the loader script's job.
-//
-// core.ts, court-language.ts, and survival-guide.ts each call getReference()/
-// getSources() FIRST and fall back to their existing direct-file read
-// whenever the store is unavailable OR has no matching row for that key — so
-// an EMPTY mem:// store (the mem:// test situation, and any fresh plugin
-// install before the loader has ever run) behaves exactly as those readers
-// did before this file existed. Every failure mode here (store unreachable,
-// row absent, malformed row) degrades to `null`/`[]` — this module never
-// throws, because a throw here would take down a content reader that used to
-// be a plain, reliable file read.
-//
-// In-process cache, 5 minute TTL, independent per key (`reference:<key>`) and
-// for the whole `source` table listing. Reset via
-// resetContentStoreCacheForTests() between mem:// store swaps in tests —
-// otherwise a stale cached `null` (recorded before the store was populated)
-// would outlive the store reset and silently fail a later assertion.
-
+// Byline: Codex · GPT-6 · 2026-10-04
+// Fresh, read-only shared content. Only an explicitly configured mem:// fixture
+// may signal an absent row with null for its caller's packaged-file fallback.
 import { getStore, normalize, parseRef, type StoreOk } from "./store.js";
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
-
-/** A `reference:<key>` row as read back from the store: `kind`/`key` plus
- * either a text `body` (markdown/whole-file content) or structured `data`
- * (parsed JSON), and the loader's own provenance fields. Shape matches
- * scripts/load-content-to-store.mjs's writes — see README-store.md. */
 export interface ReferenceRow {
   kind?: string;
   key?: string;
@@ -40,82 +14,110 @@ export interface ReferenceRow {
   [extra: string]: unknown;
 }
 
-interface CacheEntry<T> {
-  value: T;
-  at: number;
+const SOURCE_PAGE_SIZE = 200;
+const SOURCE_ROW_BUDGET = 10000;
+
+/** Identify the explicit embedded fixture configuration used by these readers.
+ * Inputs: none; reads the environment setting that getStore() prioritizes over secrets/defaults.
+ * Outputs: true only for an explicit mem:// URL; unknown/local/remote settings are strict.
+ * Effects: no writes. Pick this over duplicating private URL/secrets resolution; these callers pass no override.
+ */
+function fixtureFallback(): boolean {
+  return process.env.CUSTODY_CASE_DB?.trim() === "mem://";
 }
 
-let referenceCache = new Map<string, CacheEntry<ReferenceRow | null>>();
-let sourcesCache: CacheEntry<Array<Record<string, unknown>>> | null = null;
-
-function isFresh<T>(entry: CacheEntry<T> | null | undefined): entry is CacheEntry<T> {
-  return !!entry && Date.now() - entry.at < CACHE_TTL_MS;
+/** Open the configured content store without disguising availability errors.
+ * Inputs: none; getStore() owns endpoint resolution and connection reuse.
+ * Outputs: a connected store or an error; fixture mode does not suppress connection failures.
+ * Effects: delegates connection acquisition; no content writes. Use for reads instead of a quiet fallback opener.
+ */
+async function openContentStore(): Promise<StoreOk> {
+  const store = await getStore();
+  if (!store.available) throw new Error("Shared content store unavailable");
+  return store;
 }
 
-async function openStoreQuiet(): Promise<StoreOk | null> {
-  try {
-    const result = await getStore();
-    return result.available ? result : null;
-  } catch {
-    return null;
+/** Validate one normalized database page before a caller can consume its rows.
+ * Inputs: SDK query results and the requested maximum page size.
+ * Outputs: object records; malformed result envelopes/rows or oversized pages throw.
+ * Effects: none. Use for content queries instead of coercing missing results to an empty table.
+ */
+function contentPage(results: unknown, limit: number): Record<string, unknown>[] {
+  if (!Array.isArray(results) || results.length !== 1 || !Array.isArray(results[0])) {
+    throw new Error("Malformed shared content query result");
   }
+  const page = normalize(results[0]);
+  if (!Array.isArray(page) || page.length > limit || page.some(row => !row || typeof row !== "object" || Array.isArray(row))) {
+    throw new Error("Malformed shared content page");
+  }
+  return page as Record<string, unknown>[];
 }
 
-/**
- * Reads one `reference:<key>` row. Returns `null` when the store is
- * unavailable (no driver, connection failure) OR when no row exists for that
- * key (empty store, or that content was never loaded) — both cases mean
- * "the caller must fall back to its file read," so they are deliberately not
- * distinguished here.
+/** Read the current exact reference without caching or silent packaged fallback.
+ * Inputs: reference key.
+ * Outputs: a body/data record; null only for an absent explicit mem:// fixture row.
+ * Effects: one bounded database read; missing production rows, malformed rows and failures throw.
+ * Pick this for content consumers; caseRecord is the sibling for a versioned legal-record envelope.
  */
 export async function getReference(key: string): Promise<ReferenceRow | null> {
-  const cached = referenceCache.get(key);
-  if (isFresh(cached)) return cached.value;
-
-  const store = await openStoreQuiet();
-  if (!store) return null;
-
-  try {
-    const rid = parseRef({ table: "reference", id: key });
-    const rows = await store.db.query<Array<Record<string, unknown>>>("SELECT * FROM $rid;", { rid });
-    const raw = rows.at(-1)?.[0];
-    const row = raw ? ((normalize(raw) as ReferenceRow) ?? null) : null;
-    referenceCache.set(key, { value: row, at: Date.now() });
-    return row;
-  } catch {
-    // A malformed key or a transient query failure must never crash a
-    // content reader — treat it exactly like "no such row."
-    return null;
-  }
+  const fixture = fixtureFallback();
+  const store = await openContentStore();
+  const rid = parseRef({ table: "reference", id: key });
+  const page = contentPage(await store.db.query("SELECT * FROM $rid LIMIT 2;", { rid }), 2);
+  if (page.length === 0 && fixture) return null;
+  if (page.length !== 1) throw new Error(`Shared reference missing or ambiguous: ${key}`);
+  const row = page[0];
+  const hasBody = typeof row.body === "string" && row.body.length > 0;
+  const hasData = row.data !== null && typeof row.data === "object";
+  if (!hasBody && !hasData) throw new Error(`Malformed shared reference content: ${key}`);
+  if (row.body !== undefined && typeof row.body !== "string") throw new Error(`Malformed shared reference body: ${key}`);
+  return row as ReferenceRow;
 }
 
-/**
- * Reads every row of the `source` table (the ledger.json entries the loader
- * writes as `source:<id>`). Returns `null` when the store is unavailable;
- * returns `[]` (not `null`) when the store is reachable but the table is
- * empty — callers treat both as "fall back to the file read," but only
- * `null` means "the store itself could not be asked."
+/** Read current source records using bounded ordered keyset pages.
+ * Inputs: none; hard limits are 200 rows/page and 10,000 rows per complete listing.
+ * Outputs: the complete bounded array; an empty explicit mem:// fixture array permits file fallback.
+ * Effects: read-only queries; empty production tables, excess rows, malformed/nonadvancing pages throw.
+ * Pick this for existing ledger consumers; this is a fresh traversal, not a transactional snapshot across pages.
  */
 export async function getSources(): Promise<Array<Record<string, unknown>> | null> {
-  if (isFresh(sourcesCache)) return sourcesCache.value;
-
-  const store = await openStoreQuiet();
-  if (!store) return null;
-
-  try {
-    const rows = await store.db.query<Array<Record<string, unknown>>>("SELECT * FROM source LIMIT 1000;");
-    const list = (normalize(rows.at(-1) ?? []) as Array<Record<string, unknown>>) ?? [];
-    sourcesCache = { value: list, at: Date.now() };
-    return list;
-  } catch {
-    return null;
+  const fixture = fixtureFallback();
+  const store = await openContentStore();
+  const all: Record<string, unknown>[] = [];
+  let after: string | null = null;
+  const seen = new Set<string>();
+  for (let pageNumber = 0; pageNumber <= SOURCE_ROW_BUDGET / SOURCE_PAGE_SIZE; pageNumber++) {
+    const results = await store.db.query(
+      after === null
+        ? `SELECT *, record::id(id) AS content_cursor FROM source ORDER BY content_cursor ASC LIMIT ${SOURCE_PAGE_SIZE};`
+        : `SELECT *, record::id(id) AS content_cursor FROM source WHERE record::id(id) > $after ORDER BY content_cursor ASC LIMIT ${SOURCE_PAGE_SIZE};`,
+      after === null ? {} : { after },
+    );
+    const page = contentPage(results, SOURCE_PAGE_SIZE);
+    let cursor = after;
+    for (const row of page) {
+      const id = row.id;
+      if (typeof id !== "string" || !id.startsWith("source:") || id.length <= 7 || seen.has(id) || typeof row.content_cursor !== "string" || row.content_cursor !== id.slice(7) || (cursor !== null && row.content_cursor <= cursor)) {
+        throw new Error("Malformed or nonadvancing shared source page");
+      }
+      seen.add(id);
+      cursor = row.content_cursor;
+      delete row.content_cursor;
+    }
+    if (all.length + page.length > SOURCE_ROW_BUDGET) throw new Error("Shared source listing exceeds 10000-row budget");
+    all.push(...page);
+    if (page.length < SOURCE_PAGE_SIZE) {
+      if (all.length === 0 && !fixture) throw new Error("Shared source table is empty");
+      return all;
+    }
+    after = cursor;
+    if (after === undefined || after === null) throw new Error("Malformed shared source cursor");
   }
+  throw new Error("Shared source listing page budget exhausted");
 }
 
-/** Test-only: clears both in-process caches so a test that swaps the
- * underlying mem:// store (store.resetStoreForTests()) doesn't read a stale
- * cached answer recorded against the previous store instance. */
-export function resetContentStoreCacheForTests(): void {
-  referenceCache = new Map();
-  sourcesCache = null;
-}
+/** Preserve the existing test reset API after removal of all content caches.
+ * Inputs/outputs: none. Effects: none; every call now performs fresh reads.
+ * Pick this compatibility hook for existing fixtures; no production invalidation is required.
+ */
+export function resetContentStoreCacheForTests(): void {}

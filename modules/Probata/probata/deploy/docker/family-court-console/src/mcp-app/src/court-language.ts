@@ -1,3 +1,4 @@
+// Byline: Codex / GPT-6 / 2026-10-04 - fresh shared reads; explicit mem:// fixture fallback only.
 // Byline: Claude Code · Fable 5.1 · 2026-09-07
 //
 // court_language_review engine. Deterministic lexicon-driven flagging (owner
@@ -61,32 +62,30 @@ export const DOC_TYPES: DocType[] = [
   "affidavit", "motion_brief", "testimony_answer", "message_to_other_parent", "incident_log", "objection_to_recommendation",
 ];
 
-let cachedLexicon: Lexicon | null = null;
 
 function loadLexiconFromFile(): Lexicon {
   return JSON.parse(readFileSync(LEXICON_PATH, "utf8")) as Lexicon;
 }
 
-/** Store-first, exact-fallback: the lexicon lives in the store as
- * reference:court-language-lexicon (kind "lexicon", `data` = the parsed JSON
- * — see scripts/load-content-to-store.mjs). Falls back to the file read
- * whenever the store is unavailable or that row hasn't been loaded yet. */
+/** Read the current shared court-language lexicon.
+ * Inputs: none. Outputs: validated lexicon structure.
+ * Effects: one shared read, or absent mem fixture file read. Pick this over loadLexiconFromFile for explicit fixtures.
+ */
 export async function loadLexicon(): Promise<Lexicon> {
-  if (cachedLexicon) return cachedLexicon;
-  try {
-    const ref = await getReference("court-language-lexicon");
-    if (ref && ref.data && typeof ref.data === "object") {
-      cachedLexicon = ref.data as Lexicon;
-      return cachedLexicon;
+  const ref = await getReference("court-language-lexicon");
+  if (ref) {
+    const data = ref.data as Lexicon | undefined;
+    if (!data || !Array.isArray(data.entries) || !data.doc_profiles || typeof data.doc_profiles !== "object" || Array.isArray(data.doc_profiles)
+      || data.entries.some(entry => !entry || typeof entry.pattern !== "string" || typeof entry.category !== "string"
+        || !["stop", "fix", "soften"].includes(entry.severity))) {
+      throw new Error("Malformed shared court-language lexicon");
     }
-  } catch {
-    // fall through to the file read
+    for (const entry of data.entries) new RegExp(entry.pattern, "i");
+    return data;
   }
-  cachedLexicon = loadLexiconFromFile();
-  return cachedLexicon;
+  return loadLexiconFromFile();
 }
 
-let cachedPhrasebanks: Record<string, string[]> | null = null;
 
 // Parses EXAMPLES.md: a "## <doc_type>" heading starts a section; a
 // "### Safe phrasebank" heading within that section is followed by a markdown
@@ -114,29 +113,23 @@ function loadPhrasebanksFromFile(): Record<string, string[]> {
   return parsePhrasebanks(readFileSync(EXAMPLES_PATH, "utf8"));
 }
 
-/** Store-first, exact-fallback: EXAMPLES.md's whole body lives in the store as
- * reference:court-language-examples (kind "template"). Parsing is identical
- * either way — only the markdown text's origin differs. */
+/** Read and parse the current shared court-language example text.
+ * Inputs: none. Outputs: phrasebank mapping.
+ * Effects: one shared read, or absent mem fixture file read. Pick this over loadPhrasebanksFromFile for explicit fixtures.
+ */
 export async function loadPhrasebanks(): Promise<Record<string, string[]>> {
-  if (cachedPhrasebanks) return cachedPhrasebanks;
-  try {
-    const ref = await getReference("court-language-examples");
-    if (ref && typeof ref.body === "string" && ref.body.length > 0) {
-      cachedPhrasebanks = parsePhrasebanks(ref.body);
-      return cachedPhrasebanks;
-    }
-  } catch {
-    // fall through to the file read
+  const ref = await getReference("court-language-examples");
+  if (ref) {
+    if (typeof ref.body !== "string" || !ref.body.length) throw new Error("Malformed shared court-language examples");
+    return parsePhrasebanks(ref.body);
   }
-  cachedPhrasebanks = loadPhrasebanksFromFile();
-  return cachedPhrasebanks;
+  return loadPhrasebanksFromFile();
 }
 
-/** Test-only: drops both module-level caches so a test can observe a
- * store-vs-file transition within one process. */
+/** Preserve the lexicon test reset API after removal of retained content.
+ * Inputs/outputs: none. Effects: none. Use for compatibility with existing fixture setup. */
 export function resetCourtLanguageCacheForTests(): void {
-  cachedLexicon = null;
-  cachedPhrasebanks = null;
+  // Compatibility hook: content is read fresh on every request.
 }
 
 export interface Finding {

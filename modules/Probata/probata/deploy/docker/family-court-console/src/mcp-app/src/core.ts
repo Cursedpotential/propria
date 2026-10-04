@@ -1,3 +1,4 @@
+// Byline: Codex / GPT-6 / 2026-10-04 - fresh shared reads; explicit mem:// fixture fallback only.
 // Byline: OpenAI Codex / GPT-5.6, 2026-08-13
 // Byline: Claude Code · Sonnet 5 · 2026-09-07 — router gap/regression patch (UCCJEA gazetteer,
 // custodial-interference criminal exposure, DEADLINE_PROXIMITY, UNCLASSIFIED_REVIEW_RECOMMENDED),
@@ -392,7 +393,7 @@ export function getChecklist(kind: "evidence" | "hearing" | "source-review") {
 // Ledger + master-source-directory wiring (2026-09-07).
 //
 // audit_sources/search_guide used to read only the 7-record curated SOURCES
-// array. This lazily loads (with try/catch, so a missing file degrades to the
+// array. Current content loads fresh; only explicit empty mem fixtures use the
 // curated-only behavior rather than crashing) the 191-record ledger and the
 // 213-URL master source directory, resolved relative to THIS module's own
 // import.meta.url — which, once bundled by build.mjs to dist/core.js, sits
@@ -419,14 +420,12 @@ interface ExtraSources {
   directoryError: string | null;
 }
 
-/** Test-only: drops the module-level loadExtraSources() cache so a test can
- * observe a store-vs-file transition (e.g. populate the store, then re-read)
- * within one process. */
+/** Preserve the test reset API; current content reads no longer retain a cache.
+ * Inputs/outputs: none. Effects: none. Use for compatibility with existing fixture setup. */
 export function resetCoreContentCacheForTests(): void {
-  cachedExtraSources = null;
+  // Compatibility hook: content is read fresh on every request.
 }
 
-let cachedExtraSources: ExtraSources | null = null;
 
 function pluginRootPath(...segments: string[]): string {
   // This module is bundled to dist/core.js by build.mjs, a sibling of
@@ -473,20 +472,13 @@ function loadLedgerRecordsFromFile(): NormalizedSourceRecord[] {
   return raw.map((record: Record<string, unknown>, index: number) => mapLedgerRow(record, index));
 }
 
-/** Store-first, exact-fallback: content lives in the SurrealDB store
- * (`source:<id>` rows the loader writes from ledger.json — see
- * scripts/load-content-to-store.mjs). When the store is unavailable or has no
- * rows yet (an empty mem:// store, or a fresh install before the loader has
- * ever run), this returns EXACTLY what the direct file read returns. */
+/** Read current shared ledger rows or an explicit empty mem fixture file.
+ * Inputs: none. Outputs: normalized source records.
+ * Effects: getSources pages or fixture file reads. Pick this over loadLedgerRecordsFromFile for explicit fixtures.
+ */
 async function loadLedgerRecords(): Promise<NormalizedSourceRecord[]> {
-  try {
-    const stored = await getSources();
-    if (stored && stored.length > 0) {
-      return stored.map((record, index) => mapLedgerRow(record, index));
-    }
-  } catch {
-    // fall through to the file read
-  }
+  const stored = await getSources();
+  if (stored && stored.length > 0) return stored.map((record, index) => mapLedgerRow(record, index));
   return loadLedgerRecordsFromFile();
 }
 
@@ -518,39 +510,27 @@ function loadDirectoryRecordsFromFile(): NormalizedSourceRecord[] {
   return parseDirectoryMarkdown(markdown);
 }
 
-/** Store-first, exact-fallback: the whole markdown file body lives in the
- * store as reference:master-source-directory (kind "directory"). Parsing is
- * identical either way — only the markdown text's origin differs. */
+/** Read the current shared master source directory.
+ * Inputs: none. Outputs: parsed directory records.
+ * Effects: one shared reference read, or absent mem fixture file read. Pick this over loadDirectoryRecordsFromFile for explicit fixtures.
+ */
 async function loadDirectoryRecords(): Promise<NormalizedSourceRecord[]> {
-  try {
-    const ref = await getReference("master-source-directory");
-    if (ref && typeof ref.body === "string" && ref.body.length > 0) {
-      return parseDirectoryMarkdown(ref.body);
-    }
-  } catch {
-    // fall through to the file read
+  const ref = await getReference("master-source-directory");
+  if (ref) {
+    if (typeof ref.body !== "string" || !ref.body.length) throw new Error("Malformed shared master-source-directory body");
+    return parseDirectoryMarkdown(ref.body);
   }
   return loadDirectoryRecordsFromFile();
 }
 
+/** Read fresh shared ledger and directory content for an audit or search.
+ * Inputs: none. Outputs: both normalized lists with the existing error fields.
+ * Effects: fresh bounded reads; shared failures propagate. Pick this over curatedAsNormalized for the fixed curated subset.
+ */
 async function loadExtraSources(): Promise<ExtraSources> {
-  if (cachedExtraSources) return cachedExtraSources;
-  let ledger: NormalizedSourceRecord[] = [];
-  let ledgerError: string | null = null;
-  try {
-    ledger = await loadLedgerRecords();
-  } catch (error) {
-    ledgerError = error instanceof Error ? error.message : String(error);
-  }
-  let directory: NormalizedSourceRecord[] = [];
-  let directoryError: string | null = null;
-  try {
-    directory = await loadDirectoryRecords();
-  } catch (error) {
-    directoryError = error instanceof Error ? error.message : String(error);
-  }
-  cachedExtraSources = { ledger, directory, ledgerError, directoryError };
-  return cachedExtraSources;
+  const ledger = await loadLedgerRecords();
+  const directory = await loadDirectoryRecords();
+  return { ledger, directory, ledgerError: null, directoryError: null };
 }
 
 function curatedAsNormalized(): NormalizedSourceRecord[] {
