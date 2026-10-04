@@ -98,7 +98,7 @@ type ToolkitPackagePreservationHeartbeat struct {
 // ToolkitPackagePreservationCopyInput identifies one archive from the pinned complete inventory.
 // Inputs: exact inventory reference/digest and one selected package name.
 // Outputs: one durable bounded preservation receipt.
-// Side effects: reads a local archive and create-only writes its complete bytes and compact receipt remotely.
+// Side effects: reads a local archive and writes bytes and a receipt using the explicitly selected conditional or versioned mode.
 // Choose one package per Activity so retries and cancellation remain independently bounded.
 type ToolkitPackagePreservationCopyInput struct {
 	InventoryRef       proffer.Ref `json:"inventory_ref"`
@@ -136,7 +136,7 @@ type ToolkitPackagePreservationVerifyInput struct {
 	ReceiptBytes       int64       `json:"receipt_bytes"`
 }
 
-// ToolkitPackagePreservationVerifyResult returns the immutable verification receipt and its provider version identity.
+// ToolkitPackagePreservationVerifyResult returns the digest-pinned verification receipt and its provider version identity.
 // Inputs: one completed verification Activity; outputs: receipt reference and optional exact VersionId.
 // Side effects: none. Choose this bounded result to preserve versioned-recovery identity across the Workflow boundary.
 // Byline: Codex · GPT-6 · 2026-10-04.
@@ -768,9 +768,9 @@ func safePreservationNamespace(value string) bool {
 	return true
 }
 
-// toolkitPreservationRefs derives immutable archive/receipt keys from the pinned inventory digest and basename.
+// toolkitPreservationRefs derives archive/receipt keys from the operation namespace, pinned inventory digest and basename.
 // Inputs: a validated inventory SHA-256 and package basename; outputs: fixed b2://salem-data references beneath casevault.
-// Side effects: none. Choose deterministic references so retries converge on the same create-only objects.
+// Side effects: none. Choose deterministic references so retries can verify and reuse the same exact bytes in either storage mode.
 // Byline: Codex · GPT-6 · 2026-10-04.
 func toolkitPreservationRefs(namespace, inventorySHA, name string) (proffer.Ref, proffer.Ref) {
 	if namespace == "" {
