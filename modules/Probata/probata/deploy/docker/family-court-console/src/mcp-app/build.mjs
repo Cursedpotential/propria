@@ -212,6 +212,7 @@ await build({
   sourcemap: false,
   banner: { js: "// Byline: Claude Code · Opus 5.5 · 2026-09-28" }
 });
-for (const file of ["index.html", "app.css"]) {
+// Byline: Codex, 2026-10-04 — ship the generated Propria token contract with the host.
+for (const file of ["index.html", "app.css", "tokens.css"]) {
   writeFileSync(join(here, "dist", "web", file), readFileSync(join(here, "web", file)));
 }

@@ -209,7 +209,7 @@ async function serveStatic(res: ServerResponse, file: string): Promise<void> {
 export async function handleWebRequest(req: IncomingMessage, res: ServerResponse, url: URL, buildServer: () => McpServer): Promise<boolean> {
   const path = url.pathname;
   const method = req.method ?? "GET";
-  const isWeb = path === "/" || path === "/index.html" || path === "/app.css" || path === "/host.js" || path.startsWith("/api/");
+  const isWeb = path === "/" || path === "/index.html" || path === "/app.css" || path === "/tokens.css" || path === "/host.js" || path.startsWith("/api/");
   if (!isWeb) return false;
   try {
     if (method === "GET" && path === "/api/health") {
@@ -229,7 +229,7 @@ export async function handleWebRequest(req: IncomingMessage, res: ServerResponse
       await serveStatic(res, "index.html");
       return true;
     }
-    if (method === "GET" && (path === "/app.css" || path === "/host.js")) {
+    if (method === "GET" && (path === "/app.css" || path === "/tokens.css" || path === "/host.js")) {
       await serveStatic(res, path.slice(1));
       return true;
     }

@@ -1,33 +1,34 @@
-/* Byline: Claude Code · Opus 5.5 · 2026-09-28 — Family Law Toolkit host page.
-   Palette follows widgets/workbench-theme.css (Probata graphite + warm paper) so the
-   host and the widget iframes read as one surface. */
+/* Byline: Codex, 2026-10-04 — adapt the host to Propria's generated semantic tokens.
+   Token source: Propria/design-contract/tokens.json, contract 1.0.0.
+   Keep the existing mobile layout and 44px touch targets. */
+@import url("./tokens.css");
 :root {
   color-scheme: dark;
-  --bg: #1d252c;
-  --surface: #242e36;
-  --surface-2: #2c373f;
-  --text: #f0f1ef;
-  --muted: #bcc2c9;
-  --line: #43505a;
-  --line-2: #62707a;
-  --accent: #8fc7ff;
-  --accent-ink: #15243b;
-  --ok: #66e0ce;
-  --bad: #ff9292;
-  --radius: 10px;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --bg: var(--pr-canvas);
+  --surface: var(--pr-surface);
+  --surface-2: var(--pr-surface-muted);
+  --text: var(--pr-ink);
+  --muted: var(--pr-ink-muted);
+  --line: var(--pr-border);
+  --line-2: var(--pr-border-strong);
+  --accent: var(--pr-action);
+  --accent-ink: var(--pr-action-text);
+  --ok: var(--pr-positive);
+  --bad: var(--pr-destructive);
+  --radius: var(--pr-radius-panel);
+  --mono: var(--pr-font-data);
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--pr-font-ui); }
 a { color: var(--accent); }
 .shell { display: grid; grid-template-columns: 220px 1fr; grid-template-rows: auto 1fr; min-height: 100vh; }
-.top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: #151c22; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+.top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: var(--pr-shell); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand strong { display: block; font-size: 16px; }
 .brand .sub { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70vw; }
 .mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font: 700 13px var(--mono); }
 .icon { display: none; background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; width: 44px; height: 44px; font-size: 20px; }
-.nav { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; border-right: 1px solid var(--line); background: #1a2127; }
+.nav { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; border-right: 1px solid var(--line); background: var(--pr-shell); }
 .nav a { display: block; padding: 10px 12px; border-radius: 8px; color: var(--text); text-decoration: none; }
 .nav a[aria-current="page"] { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
 .main { padding: 18px; min-width: 0; }
@@ -51,9 +52,9 @@ h3 { font-size: 15px; margin: 14px 0 6px; }
 .okmsg { color: var(--ok); border: 1px solid var(--ok); border-radius: var(--radius); padding: 10px 12px; margin: 10px 0; }
 form { display: grid; gap: 10px; }
 label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
-input, select, textarea { width: 100%; background: #151c22; color: var(--text); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; font: inherit; min-height: 44px; }
+input, select, textarea { width: 100%; background: var(--pr-shell); color: var(--text); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; font: inherit; min-height: 44px; }
 textarea { min-height: 120px; font-family: var(--mono); font-size: 13px; }
-button, .btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 10px 14px; font: 600 14px system-ui, sans-serif; min-height: 44px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+button, .btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 10px 14px; font: 600 14px var(--pr-font-ui); min-height: 44px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 button.secondary, .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .filter { margin: 8px 0 12px; }
@@ -64,10 +65,10 @@ button.secondary, .btn.secondary { background: transparent; color: var(--accent)
 .md { overflow-wrap: anywhere; }
 .md table { border-collapse: collapse; display: block; overflow-x: auto; }
 .md th, .md td { border: 1px solid var(--line); padding: 4px 8px; vertical-align: top; }
-.md pre { background: #151c22; padding: 10px; border-radius: 8px; overflow-x: auto; }
+.md pre { background: var(--pr-shell); padding: 10px; border-radius: 8px; overflow-x: auto; }
 .md code { font-family: var(--mono); font-size: 13px; }
 .md blockquote { border-left: 3px solid var(--line-2); margin: 8px 0; padding: 2px 12px; color: var(--muted); }
-pre.json { background: #151c22; padding: 10px; border-radius: 8px; overflow-x: auto; font: 12px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+pre.json { background: var(--pr-shell); padding: 10px; border-radius: 8px; overflow-x: auto; font: 12px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 iframe.widget { width: 100%; min-height: 360px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); display: block; }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
 .tabs button { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); }
