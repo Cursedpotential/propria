@@ -65,8 +65,15 @@ async function withHttpServer(fn) {
     await fn(baseUrl);
   } finally {
     child.kill();
-    await Promise.race([exitPromise, new Promise((done) => setTimeout(done, 3000))]);
-    if (!child.killed && child.exitCode === null) child.kill("SIGKILL");
+    let exitTimer;
+    const exited = await Promise.race([
+      exitPromise.then(() => true),
+      new Promise((done) => { exitTimer = setTimeout(() => done(false), 3000); }),
+    ]).finally(() => clearTimeout(exitTimer));
+    if (!exited && child.exitCode === null && child.signalCode === null) {
+      child.kill("SIGKILL");
+      await exitPromise;
+    }
   }
 }
 
