@@ -2,7 +2,6 @@
 package activities
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -495,7 +494,7 @@ func readPinnedToolkitInventory(ctx context.Context, ref proffer.Ref, expectedSH
 		}
 		return nil
 	}
-	raw, digest, err := readPreservationBoundedJSON(path, toolkitInventoryMaxReceiptBytes, pulse)
+	raw, digest, err := toolkitReadBoundedJSON(path, toolkitInventoryMaxReceiptBytes, pulse)
 	if err != nil {
 		return receipt, err
 	}
@@ -630,39 +629,6 @@ func safePreservationNamespace(value string) bool {
 		}
 	}
 	return true
-}
-
-// readPreservationBoundedJSON streams one regular JSON receipt under a byte ceiling while hashing it.
-// Inputs: validated local file path, positive maximum, and cancellation/liveness pulse; outputs: bounded bytes and lowercase digest.
-// Side effects: reads the receipt only and rechecks file identity after opening.
-// Choose this branch-local equivalent when toolkitReadBoundedJSON is absent from the checked-out integration base.
-// Byline: Codex · GPT-6 · 2026-10-04.
-func readPreservationBoundedJSON(path string, max int64, pulse func() error) ([]byte, string, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return nil, "", err
-	}
-	if !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > max {
-		return nil, "", errors.New("inventory JSON is not a bounded regular file")
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, "", err
-	}
-	defer f.Close()
-	opened, err := f.Stat()
-	if err != nil {
-		return nil, "", err
-	}
-	if !os.SameFile(info, opened) {
-		return nil, "", errors.New("inventory receipt changed while opening")
-	}
-	var data bytes.Buffer
-	digest, _, err := streamToolkitDigest(io.TeeReader(f, &data), max, pulse)
-	if err != nil {
-		return nil, "", err
-	}
-	return data.Bytes(), digest, nil
 }
 
 // toolkitPreservationRefs derives immutable archive/receipt keys from the pinned inventory digest and basename.
