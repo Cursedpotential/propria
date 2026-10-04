@@ -66,6 +66,20 @@ export const referenceQuery = (match?: string) =>
     staleTime: 15_000,
   });
 
+/**
+ * Builds the cached page query for the read-only shared reference library.
+ * Inputs are bounded search/page parameters; output is a TanStack query option.
+ * It performs no side effects beyond the API read and is separate from
+ * referenceQuery, which returns ontology match hits or the compact legacy list.
+ * Byline: Codex · GPT-6 · 2026-10-04
+ */
+export const referenceLibraryQuery = (params: { q?: string; limit?: number; offset?: number } = {}) =>
+  queryOptions({
+    queryKey: ["store", "reference-library", params.q ?? "", params.limit ?? 25, params.offset ?? 0],
+    queryFn: () => storeApi.referenceLibrary(params),
+    staleTime: 15_000,
+  });
+
 export const factorMapQuery = () =>
   queryOptions({
     queryKey: ["store", "factor-map"],

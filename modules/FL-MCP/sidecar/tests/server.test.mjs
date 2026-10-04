@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import app from "../server.mjs";
-import { loadStoreModule } from "../lib/store-client.mjs";
+import { getSharedStore, loadStoreModule } from "../lib/store-client.mjs";
 
 // See store-client.test.mjs's identical teardown comment: the embedded
 // SurrealDB store's native handle keeps the event loop alive without this.
@@ -55,6 +55,50 @@ test("GET /api/store/timeline is mode-aware (court | master | merged)", async ()
 test("GET /api/store/source requires id", async () => {
   const res = await app.inject({ method: "GET", url: "/api/store/source" });
   assert.equal(res.statusCode, 400);
+});
+
+test("GET /api/store/reference/library filters and pages synthetic shared-store rows", async () => {
+  const [mod, store] = await Promise.all([loadStoreModule(), getSharedStore()]);
+  await mod.casePut(store, {
+    table: "reference",
+    id: "desktop-library-fixture-a",
+    data: {
+      kind: "fixture-kind",
+      category: "fixture-category",
+      pattern: "fixture-pattern-a",
+      definition: "Synthetic reference body A.",
+      aliases: ["fixture alias"],
+      source: { path: "fixture/source-a.md", sha256: "fixture-hash-a", url: "https://example.invalid/source-a" },
+    },
+  });
+  await mod.casePut(store, {
+    table: "reference",
+    id: "desktop-library-fixture-b",
+    data: { kind: "fixture-kind", category: "fixture-category", pattern: "fixture-pattern-b", definition: "Synthetic reference body B." },
+  });
+
+  const res = await app.inject({ method: "GET", url: "/api/store/reference/library?q=fixture&limit=1&offset=0" });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.total, 2);
+  assert.equal(body.entries.length, 1);
+  assert.equal(body.offset, 0);
+  assert.equal(body.limit, 1);
+  assert.equal(body.next_offset, 1);
+  assert.ok(body.entries[0].definition.startsWith("Synthetic reference body "));
+
+  const bySource = await app.inject({ method: "GET", url: "/api/store/reference/library?q=fixture-hash-a" });
+  assert.equal(bySource.statusCode, 200);
+  assert.equal(bySource.json().entries[0].source.sha256, "fixture-hash-a");
+  assert.equal(bySource.json().entries[0].source.path, "fixture/source-a.md");
+
+  const next = await app.inject({ method: "GET", url: "/api/store/reference/library?q=fixture&limit=1&offset=1" });
+  assert.equal(next.statusCode, 200);
+  assert.equal(next.json().entries.length, 1);
+  assert.equal(next.json().next_offset, null);
+
+  const invalid = await app.inject({ method: "GET", url: "/api/store/reference/library?limit=51" });
+  assert.equal(invalid.statusCode, 400);
 });
 
 test("GET /api/store/search requires q", async () => {

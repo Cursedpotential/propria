@@ -192,6 +192,66 @@ app.get("/api/store/reference", async (req, reply) => {
   }
 });
 
+/**
+ * Parses an optional decimal query parameter within an inclusive maximum.
+ * Inputs are its raw value, a fallback, and the maximum; output is an integer
+ * or null for invalid input. It has no side effects and is used by bounded
+ * list routes instead of accepting untrusted paging values directly.
+ * Byline: Codex · GPT-6 · 2026-10-04
+ */
+function parseBoundedQueryInteger(value, fallback, max) {
+  if (value === undefined) return fallback;
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed <= max ? parsed : null;
+}
+
+/**
+ * Returns a bounded page from the canonical shared reference list. Inputs are
+ * optional q, limit, and offset query parameters; output is entries plus page
+ * metadata. It reads existing Surreal rows without mutation and complements
+ * /api/store/reference?match=, which serves ontology match hits.
+ * Byline: Codex · GPT-6 · 2026-10-04
+ */
+app.get("/api/store/reference/library", async (req, reply) => {
+  const rawQuery = typeof req.query?.q === "string" ? req.query.q.trim() : "";
+  if (rawQuery.length > 120) {
+    reply.code(400);
+    return { error: "q must be 120 characters or fewer" };
+  }
+  const limit = parseBoundedQueryInteger(req.query?.limit, 25, 50);
+  const offset = parseBoundedQueryInteger(req.query?.offset, 0, 200);
+  if (!limit || offset === null) {
+    reply.code(400);
+    return { error: "limit must be 1–50 and offset must be 0–200" };
+  }
+  try {
+    const result = await callStoreFn("caseReference");
+    if (result?.available === false) return result;
+    const entries = Array.isArray(result?.entries) ? result.entries : [];
+    const needle = rawQuery.toLowerCase();
+    const filtered = needle
+      ? entries.filter((entry) => {
+          const source = entry.source && typeof entry.source === "object" ? entry.source : {};
+          const fields = [entry.id, entry.kind, entry.category, entry.pattern, entry.definition,
+            ...(Array.isArray(entry.aliases) ? entry.aliases : []), source.path, source.source_path,
+            source.sha256, source.hash, source.url, source.source_url, source.r2_path];
+          return fields.some((field) => typeof field === "string" && field.toLowerCase().includes(needle));
+        })
+      : entries;
+    return {
+      entries: filtered.slice(offset, offset + limit),
+      total: filtered.length,
+      offset,
+      limit,
+      next_offset: offset + limit < filtered.length ? offset + limit : null,
+    };
+  } catch (err) {
+    reply.code(500);
+    return { error: String(err?.message ?? err) };
+  }
+});
+
 // Evidence: blends the live `exhibit` search results with the separate
 // `evidence_log` register.
 app.get("/api/store/evidence", async (_req, reply) => {

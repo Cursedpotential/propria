@@ -4,6 +4,7 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ReferenceLibrary } from "@/components/reference/reference-library";
 import { factorMapQuery, referenceQuery } from "@/lib/queries";
 import { isMatchHits } from "@/types/store";
 
@@ -14,12 +15,15 @@ export function ReferenceView() {
 
   return (
     <div className="space-y-3">
+      <ReferenceLibrary />
       <Card>
         <CardHeader>
           <CardTitle>MCL 722.23 factor map</CardTitle>
         </CardHeader>
         <CardContent>
-          {factorMap.data && "entries" in factorMap.data ? (
+          {factorMap.isError ? (
+            <p role="alert" className="text-sm text-critical-text">Could not load the factor map: {factorMap.error.message}</p>
+          ) : factorMap.data && "entries" in factorMap.data ? (
             <ul className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
               {factorMap.data.entries.map((f) => (
                 <li key={f.letter} className="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-border px-2 py-1">
@@ -77,6 +81,8 @@ export function ReferenceView() {
                 ))}
               </ul>
             )
+          ) : reference.isError ? (
+            <p role="alert" className="text-sm text-critical-text">Could not load ontology matches: {reference.error.message}</p>
           ) : null}
         </CardContent>
       </Card>

@@ -237,7 +237,17 @@ export interface ReferenceRow {
   category?: string;
   pattern?: string;
   aliases?: string[];
+  definition?: string;
+  source?: Record<string, unknown> | null;
   [key: string]: unknown;
+}
+
+export interface ReferenceLibraryPage {
+  entries: ReferenceRow[];
+  total: number;
+  offset: number;
+  limit: number;
+  next_offset: number | null;
 }
 
 export interface ReferenceMatchHit {

@@ -13,6 +13,7 @@ import type {
   CaseGraphResult,
   CaseMemoResponse,
   CaseReferenceResponse,
+  ReferenceLibraryPage,
   CaseSearchResult,
   CaseSourceResponse,
   CaseStatusResponse,
@@ -92,6 +93,19 @@ export const storeApi = {
   source: (id: string) => sidecarFetch<StoreResponse<CaseSourceResponse>>(`/api/store/source?id=${encodeURIComponent(id)}`),
   reference: (match?: string) =>
     sidecarFetch<StoreResponse<CaseReferenceResponse>>(`/api/store/reference${match ? `?match=${encodeURIComponent(match)}` : ""}`),
+  /**
+   * Reads one bounded page from the shared reference library endpoint.
+   * Inputs are optional search/page parameters; output is a page response or
+   * visible shared-store unavailability. It performs an HTTP GET only; use
+   * reference() for ontology matches and the legacy compact reference list.
+   */
+  referenceLibrary: (params: { q?: string; limit?: number; offset?: number } = {}) => {
+    const usp = new URLSearchParams();
+    if (params.q) usp.set("q", params.q);
+    if (params.limit !== undefined) usp.set("limit", String(params.limit));
+    if (params.offset !== undefined) usp.set("offset", String(params.offset));
+    return sidecarFetch<StoreResponse<ReferenceLibraryPage>>(`/api/store/reference/library?${usp}`);
+  },
   evidence: () => sidecarFetch<StoreResponse<EvidenceResponse>>("/api/store/evidence"),
   evals: () => sidecarFetch<StoreResponse<CaseEvalsResponse>>("/api/store/evals"),
 
