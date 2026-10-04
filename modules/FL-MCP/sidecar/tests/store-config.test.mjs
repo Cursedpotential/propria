@@ -9,7 +9,7 @@ import { DEFAULT_PLUGIN_ROOT, resolveStoreConfig } from "../lib/store-client.mjs
 test("default desktop configuration reads the shared URL from toolkit secrets", () => {
   const config = resolveStoreConfig({
     env: {},
-    secretsText: "CUSTODY_CASE_DB=\"wss://shared-store.example.test/rpc\"\nUNRELATED_TOKEN=private-value",
+    secretsText: "export CUSTODY_CASE_DB=\"wss://shared-store.example.test/rpc\" # shared endpoint\nUNRELATED_TOKEN=private-value",
   });
 
   assert.equal(config.pluginRoot, "E:\\AI_Workspace\\plugins\\plugins\\family-court-toolkit");
@@ -24,6 +24,15 @@ test("desktop configuration accepts an explicitly selected canonical plugin chec
   });
 
   assert.equal(config.pluginRoot, "F:\\toolkit-checkout");
+});
+
+test("secrets parser accepts single-quoted URLs with trailing comments", () => {
+  const config = resolveStoreConfig({
+    env: {},
+    secretsText: "CUSTODY_CASE_DB='ws://shared-store.example.test:8471' # managed endpoint",
+  });
+
+  assert.equal(config.dbUrl, "ws://shared-store.example.test:8471");
 });
 
 test("missing shared-store configuration fails instead of selecting embedded storage", () => {
@@ -64,6 +73,15 @@ test("store loader imports the configured built-module fixture without connectin
 test("an embedded file URL cannot be selected by production configuration", () => {
   assert.throws(
     () => resolveStoreConfig({ env: {}, secretsText: "CUSTODY_CASE_DB=rocksdb://local/case.db" }),
-    /must use a shared/,
+    /valid shared/,
   );
+});
+
+test("invalid URLs and URLs without a host fail without echoing the configured value", () => {
+  for (const configuredUrl of ["ws://?token=fixture-secret", "file://local/case.db?token=fixture-secret", "not a URL?token=fixture-secret"]) {
+    assert.throws(
+      () => resolveStoreConfig({ env: {}, secretsText: `CUSTODY_CASE_DB=${configuredUrl}` }),
+      (error) => error.message.includes("valid shared") && !error.message.includes("fixture-secret"),
+    );
+  }
 });

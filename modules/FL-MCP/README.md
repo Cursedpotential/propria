@@ -24,8 +24,8 @@ incorporate claude").
   Tauri permissions beyond `opener` (used to open a docket row's local-file source).
 - **Sidecar**: `sidecar/server.mjs` (Fastify, loopback-only) — the thing that actually needs a
   full Node runtime, because both the Agent SDK and the plugin's SurrealDB case store client
-  (`mcp-app/dist/store.js`, loaded from the plugin's fixed absolute install path — see "Where the
-  store lives" below) are Node-only. Exposes:
+  (`mcp-app/dist/store.js`, loaded from the configured plugin root — see "Where the store lives"
+  below) are Node-only. Exposes:
   - `GET /api/store/summary|search|graph|timeline|factor-map|docket|memos|status|source|reference|evidence|evals`
   - `POST /api/store/export` (`snapshot` or `platform` format)
   - `POST /api/chat` — Server-Sent Events, drives `@anthropic-ai/claude-agent-sdk`'s `query()`
@@ -39,10 +39,9 @@ question about token-use terms).
 
 This app **never imports or edits `mcp-app/src/*`** — that stays owned by whoever maintains the
 plugin's `mcp-app/src/store.ts`. All store access goes through `sidecar/lib/store-client.mjs`,
-which dynamically imports the **built** module at the plugin's fixed absolute path
-(`E:\AI_Workspace\plugins\plugins\family-court-toolkit\mcp-app\dist\store.js` — this
-app is no longer a sibling directory of `mcp-app/`, having moved out of the plugin tree on
-2026-09-07) and calls it by function name. `case_docket`, `case_memo`, `case_status`,
+which dynamically imports the **built** module under `FAMILY_COURT_PLUGIN_ROOT` (defaulting to
+`E:\AI_Workspace\plugins\plugins\family-court-toolkit`) and calls it by function name. The chat
+sidecar uses the same root. `case_docket`, `case_memo`, `case_status`,
 `case_source`, `case_reference`, `case_evidence_log`, `case_eval`, mode-aware `case_timeline`, and
 both `case_export` formats (`snapshot`/`platform`) are all real, landed features — store.ts even
 exposes compatibility alias functions (`caseMemo`, `caseStatus`, `caseSource`, `caseReference`,
@@ -50,12 +49,11 @@ exposes compatibility alias functions (`caseMemo`, `caseStatus`, `caseSource`, `
 
 ### Store connection: shared SurrealDB server
 
-As of 2026-09-07 the case store is a **SurrealDB server process** at `ws://127.0.0.1:8471`, not a
-local RocksDB file this app owns alone. `sidecar/lib/store-client.mjs` sets `CUSTODY_CASE_DB` to
-that URL by default (only if the environment hasn't already set something else — a test run's
-isolated `mem://` override always wins) and never opens `rocksdb://` directly. Credentials are
-resolved by `store.ts` itself from `~/.secrets/family-court-toolkit.env` — this app never reads or
-handles them.
+The case store is a shared SurrealDB server, not a local RocksDB file this app owns alone. The
+sidecar takes `CUSTODY_CASE_DB` from an explicit environment setting or from the assignment in
+`~/.secrets/family-court-toolkit.env`; missing or invalid shared-store configuration fails visibly.
+Only an explicit `mem://` environment override selects an isolated test store. The sidecar never
+falls back to local RocksDB. The canonical store module continues to resolve shared credentials.
 
 ## Running it
 

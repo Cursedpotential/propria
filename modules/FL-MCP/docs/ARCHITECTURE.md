@@ -11,11 +11,10 @@ Node-only:
    `mcp-app/dist/store.js`) — it dynamically imports `surrealdb` + `@surrealdb/node`, which ships
    native `.node` binaries. There is no WASM/browser build of this client, and there shouldn't be
    one invented for this app — the client already exists and is owned by another agent's work.
-   As of 2026-09-07 the case store itself is a **shared SurrealDB server** at
-   `ws://127.0.0.1:8471` (credentials resolved by store.ts from
-   `~/.secrets/family-court-toolkit.env`) — this sidecar sets `CUSTODY_CASE_DB` to that URL by
-   default (see `sidecar/lib/store-client.mjs`) and never opens a local `rocksdb://` file
-   directly. Multiple processes (this sidecar, the plugin's own `family-court-console` MCP
+   The case store is a **shared SurrealDB server** configured by `CUSTODY_CASE_DB` or its
+   assignment in `~/.secrets/family-court-toolkit.env` (credentials remain resolved by store.ts).
+   This sidecar rejects missing or invalid shared-store configuration and never opens a local
+   `rocksdb://` file directly. Multiple processes (this sidecar, the plugin's own `family-court-console` MCP
    server, others) can connect to it concurrently without file-lock contention — see the
    "Open items" note below for why that matters.
 2. **`@anthropic-ai/claude-agent-sdk`'s `query()`** spawns a real `claude` CLI subprocess and
@@ -66,24 +65,19 @@ browser tab.
 
 ## Store access boundary
 
-`sidecar/lib/store-client.mjs` imports the **built** module from the plugin's ABSOLUTE path
-(`E:\AI_Workspace\plugins\plugins\family-court-toolkit\mcp-app\dist\store.js`) — never
-`mcp-app/src/store.ts`, and never edits anything under `mcp-app/src/`. This app moved out of the
-plugin directory on 2026-09-07 (see `../README.md`), so it is no longer a sibling of `mcp-app/`;
-the absolute path is a deliberate, documented choice for this personal, single-machine tool, not
-an oversight.
+`sidecar/lib/store-client.mjs` imports the **built** module under `FAMILY_COURT_PLUGIN_ROOT`,
+which defaults to `E:\AI_Workspace\plugins\plugins\family-court-toolkit`. Chat uses the same
+configured root. The sidecar imports `mcp-app/dist/store.js`, never `mcp-app/src/store.ts`, and
+does not edit anything under `mcp-app/src/`.
 
 ## Store connection: shared SurrealDB server
 
-As of 2026-09-07 the case store is a **SurrealDB server process** listening at
-`ws://127.0.0.1:8471`, not a RocksDB file this sidecar opens exclusively. `sidecar/lib/store-client.mjs`
-sets `process.env.CUSTODY_CASE_DB = "ws://127.0.0.1:8471"` at load time UNLESS the environment
-already set something else (so a test run's `mem://` override always wins — see
-`sidecar/tests/`). store.ts itself resolves that URL and separately resolves credentials from
-`~/.secrets/family-court-toolkit.env` — this sidecar never reads or handles those credentials.
-This sidecar must never fall back to opening a local `rocksdb://` file directly; if the shared
-server is unreachable, the correct behavior is the store reporting `{ available: false, reason }`
-(see `UnavailableNotice` in the UI), not silently switching to a private local file.
+The case store is a shared SurrealDB server selected from an explicit `CUSTODY_CASE_DB` setting
+or the same assignment in `~/.secrets/family-court-toolkit.env`; only an explicit `mem://`
+override selects an isolated test store. store.ts continues to resolve shared credentials. The
+desktop sidecar rejects missing or invalid shared-store configuration and never falls back to
+opening a local `rocksdb://` file. If the shared server is unreachable, the store reports
+`{ available: false, reason }` (see `UnavailableNotice` in the UI).
 
 ## Open items (not resolved by this scaffold)
 

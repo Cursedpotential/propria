@@ -1,7 +1,7 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07
 //
-// Thin loader for the plugin's SurrealDB case store — a SHARED SERVER
-// (ws://127.0.0.1:8471, see below), not a file this sidecar owns alone.
+// Thin loader for the plugin's shared SurrealDB case store, configured through
+// the toolkit secrets file or an explicit environment override.
 // Per the coordinator's boundary: this app NEVER imports mcp-app/src/* directly and
 // NEVER edits anything under mcp-app/src/ — that stays owned by whichever
 // agent maintains store.ts. We import the BUILT module from
@@ -38,11 +38,16 @@ export const PLUGIN_ROOT = process.env.FAMILY_COURT_PLUGIN_ROOT?.trim() || DEFAU
 // Byline: Codex · GPT-6 · 2026-10-04
 export function readStoreUrlFromSecrets(text) {
   for (const line of text.split(/\r?\n/)) {
-    const match = /^\s*CUSTODY_CASE_DB\s*=\s*(.*?)\s*$/.exec(line);
+    const match = /^\s*(?:export\s+)?CUSTODY_CASE_DB\s*=\s*(.*?)\s*$/.exec(line);
     if (!match) continue;
     let value = match[1];
-    if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
+    if (value.startsWith("\"") || value.startsWith("'")) {
+      const quote = value[0];
+      const closingQuote = value.indexOf(quote, 1);
+      if (closingQuote < 0) return undefined;
+      const trailing = value.slice(closingQuote + 1).trim();
+      if (trailing && !trailing.startsWith("#")) return undefined;
+      value = value.slice(1, closingQuote);
     } else {
       value = value.replace(/\s+#.*$/, "").trim();
     }
@@ -80,8 +85,14 @@ export function resolveStoreConfig({ env = process.env, secretsText } = {}) {
   if (!dbUrl) {
     throw new Error("Missing shared Family Court store configuration. Set CUSTODY_CASE_DB or add it to ~/.secrets/family-court-toolkit.env.");
   }
-  if (!/^(wss?|https?):\/\//i.test(dbUrl)) {
-    throw new Error("Desktop Family Court store configuration must use a shared ws://, wss://, http://, or https:// endpoint.");
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(dbUrl);
+  } catch {
+    // Keep the diagnostic generic so malformed configuration values stay private.
+  }
+  if (!parsedUrl || !["ws:", "wss:", "http:", "https:"].includes(parsedUrl.protocol) || !parsedUrl.hostname) {
+    throw new Error("Desktop Family Court store configuration must be a valid shared ws://, wss://, http://, or https:// URL with a host.");
   }
   return { pluginRoot, dbUrl };
 }
