@@ -172,6 +172,26 @@ function openSheet(title: string, ...kids: Array<Node | null>): void {
   if (!sheet.open) sheet.showModal();
 }
 
+// Byline: Codex, 2026-10-04.
+/** Resolve a navigable official authority URL from the shared source record.
+ * Inputs: stored source metadata; outputs: the first valid HTTP(S) URL, or null.
+ * Side effects: none; stored strings and source provenance remain unchanged.
+ * Use for official-source navigation; file attachments use their separate download action.
+ */
+export function officialSourceUrl(record: Json): string | null {
+  for (const key of ["official_url", "source_url", "url"]) {
+    const value = record[key];
+    if (typeof value !== "string") continue;
+    try {
+      const url = new URL(value);
+      if (["http:", "https:"].includes(url.protocol) && url.hostname && !url.username && !url.password) return url.href;
+    } catch {
+      // An invalid locator stays visible in Fields but cannot become a navigation action.
+    }
+  }
+  return null;
+}
+
 async function openRecord(ref: string, onChanged?: () => void): Promise<void> {
   openSheet("Loading…");
   try {
@@ -181,7 +201,8 @@ async function openRecord(ref: string, onChanged?: () => void): Promise<void> {
     const fileLink = typeof record.file_b64 === "string" && record.file_b64
       ? el("a", { class: "btn secondary", download: String(record.file_name ?? "document"), href: `data:${String(record.file_mime ?? "application/octet-stream")};base64,${record.file_b64}` }, `Download ${String(record.file_name ?? "file")}`)
       : null;
-    const url = typeof record.url === "string" && /^https?:\/\//.test(record.url) ? el("a", { class: "btn secondary", href: record.url, target: "_blank", rel: "noopener noreferrer" }, "Open official source") : null;
+    const sourceUrl = officialSourceUrl(record);
+    const url = sourceUrl ? el("a", { class: "btn secondary", href: sourceUrl, target: "_blank", rel: "noopener noreferrer" }, "Open official source") : null;
     openSheet(titleOf(record),
       el("p", { class: "idline", text: `id ${String(rec.id)}` }),
       el("p", { class: "idline", text: `version ${String(rec.version)}` }),

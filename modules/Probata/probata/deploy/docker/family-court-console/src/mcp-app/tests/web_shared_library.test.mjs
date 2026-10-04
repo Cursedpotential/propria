@@ -54,3 +54,21 @@ test("working Library shows store failure without opening packaged content", asy
   assert.ok(result.nodes.some((node) => node.error === "shared library unavailable"));
 });
 
+/** Verify navigation uses the source catalog's official locator and rejects unsafe schemes.
+ * Inputs: bounded synthetic source records; outputs: assertion result.
+ * Side effects: transforms one pure production helper; no network requests occur.
+ * Choose for the catalog field mismatch that previously left official sources without a link.
+ */
+test("source details prefer official URLs and reject non-web or credential-bearing locators", async () => {
+  const source = (await readFile(resolve("web/host.ts"), "utf8")).replace(/\r\n/g, "\n");
+  const start = source.indexOf("export function officialSourceUrl(");
+  const end = source.indexOf("\nasync function openRecord(", start);
+  const code = transformSync(source.slice(start, end), { loader: "ts", format: "cjs" }).code;
+  const module = { exports: {} };
+  new Function("module", "exports", code)(module, module.exports);
+  const url = module.exports.officialSourceUrl;
+  assert.equal(url({ official_url: "https://www.courts.michigan.gov/example", url: "https://mirror.example/" }), "https://www.courts.michigan.gov/example");
+  assert.equal(url({ official_url: "javascript:alert(1)" }), null);
+  assert.equal(url({ official_url: "https://user:secret@example.org/" }), null);
+  assert.equal(url({ official_url: "bad URL", source_url: "https://example.org/source" }), "https://example.org/source");
+});
