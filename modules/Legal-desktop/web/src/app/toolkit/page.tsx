@@ -1,4 +1,5 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-27; factors and tools link 2026-10-02
+// Updated by: OpenAI Codex · GPT-6 · 2026-10-04 — expose all backend-supported toolkit tables.
 // Family Law Toolkit records, read through the shared legal-record contract
 // (propria.legal-record.v1). The toolkit's case store owns them; this page never
 // copies them, and shows the same id and version the toolkit shows.
@@ -22,8 +23,10 @@ const TABLES = [
   { id: "reference", label: "Cheat sheets and references" },
   { id: "filing", label: "Filed documents" },
   { id: "draft", label: "Drafts" },
+  { id: "order", label: "Orders" },
   { id: "exhibit", label: "Exhibits" },
   { id: "note", label: "Notes" },
+  { id: "memo", label: "Memos" },
   { id: "factor", label: "Best-interest factors" },
 ] as const;
 
