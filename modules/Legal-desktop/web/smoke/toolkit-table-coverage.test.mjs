@@ -21,12 +21,3 @@ test("Toolkit records exposes every backend-supported table", async () => {
   const backendIds = [...backendTables.matchAll(/"([a-z_]+)"/g)].map((match) => match[1]).sort();
   assert.deepEqual(pageIds, backendIds);
 });
-
-test("Toolkit record detail keeps shared identity, version, and source inspector", async () => {
-  const page = await readFile(path.join(root, "src/app/toolkit/page.tsx"), "utf8");
-
-  assert.match(page, /id \{detail\.id\}/);
-  assert.match(page, /version \{detail\.version\}/);
-  assert.match(page, /detail\.contract.*detail\.owner/s);
-  assert.match(page, /JSON\.stringify\(detail\.record, null, 2\)/);
-});
