@@ -12,23 +12,11 @@
 // use of that token — but the root agent should still verify current terms
 // before this ships beyond local/desktop use. Not asserted as permitted here.
 
-import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveAuthToken } from "./auth.mjs";
 import { PLUGIN_ROOT } from "./store-client.mjs";
-
-// Matches the desktop configuration: rely on settingSources: ["user"]
-// so the configured plugin root can supply the toolkit MCP server, and the
-// resulting tool names carry the "mcp__plugin_<plugin>_<server>__" prefix.
-//
-// Belt-and-suspenders: we ALSO wire the same MCP server explicitly via
-// `mcpServers` (Options supports this directly) with a short alias, and
-// allow both possible resulting tool-name prefixes, in case plugin
-// auto-discovery under settingSources:["user"] does not surface it from an
-// arbitrary sidecar `cwd`. Passing `mcpServers` is additive — it does not
-// disable settingSources-based discovery.
-const MCP_SERVER_ENTRY = join(PLUGIN_ROOT, "mcp-app", "dist", "server.js");
+import { loadConsoleMcpServerConfig } from "./console-mcp-config.mjs";
 
 const PLUGIN_QUALIFIED_PREFIX = "mcp__plugin_family-court-toolkit_family-court-console__";
 const EXPLICIT_ALIAS_PREFIX = "mcp__family-court-console__";
@@ -88,6 +76,17 @@ function extractTextAndTools(message) {
  * if `checkAuthAvailable()` says no credentials are available.
  */
 export async function streamChat(reply, { prompt, sessionId }) {
+  let consoleMcpServer;
+  try {
+    consoleMcpServer = loadConsoleMcpServerConfig();
+  } catch (error) {
+    reply.code(503).send({
+      error: "mcp_configuration",
+      detail: error instanceof Error ? error.message : "Shared toolkit MCP configuration is invalid.",
+    });
+    return;
+  }
+
   const auth = checkAuthAvailable();
   if (!auth.available) {
     reply.code(401).send({ error: "unauthenticated", ...auth });
@@ -116,11 +115,7 @@ export async function streamChat(reply, { prompt, sessionId }) {
       allowedTools: ALLOWED_TOOLS,
       permissionMode: "default",
       mcpServers: {
-        "family-court-console": {
-          type: "stdio",
-          command: "node",
-          args: [MCP_SERVER_ENTRY],
-        },
+        "family-court-console": consoleMcpServer,
       },
       ...(sessionId ? { resume: sessionId } : {}),
     },
