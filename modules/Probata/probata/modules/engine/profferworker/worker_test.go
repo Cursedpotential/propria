@@ -59,13 +59,15 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: selected-text snapshot workflow (Codex, 2026-10-04).
 	// +1: ledger comparison workflow (Codex, 2026-10-04).
 	// +1: separate recovered-archive preservation workflow (Codex, 2026-10-04).
-	if recorder.workflowCount != 13 {
-		t.Fatalf("workflow registration count = %d, want 13", recorder.workflowCount)
+	// +1: independent synthetic provider probe (Codex, 2026-10-04).
+	if recorder.workflowCount != 14 {
+		t.Fatalf("workflow registration count = %d, want 14", recorder.workflowCount)
 	}
 	wantNamed := []string{
 		proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
 		proffer.ConversationChunksRemovalWorkflowName, dedupe.WorkflowName, superindex.WorkflowName, repairplan.WorkflowName, contacts.WorkflowName, activities.ToolkitPackageInventoryWorkflowName, activities.ToolkitSelectedTextWorkflowName, activities.ToolkitLedgerComparisonWorkflowName,
 		activities.ToolkitPackagePreservationWorkflowName,
+		activities.ToolkitPackageConditionalWriteProbeWorkflowName,
 	}
 	if !reflect.DeepEqual(recorder.workflowNames, wantNamed) {
 		t.Fatalf("named workflow registrations = %v, want %v", recorder.workflowNames, wantNamed)
@@ -85,11 +87,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: selected-text snapshot Activity (Codex, 2026-10-04).
 	// +1: ledger comparison Activity (Codex, 2026-10-04).
 	// +2: preservation copy and independent verification (Codex, 2026-10-04).
-	const standaloneActivityCount = 34
+	// +1: synthetic provider probe (Codex, 2026-10-04).
+	const standaloneActivityCount = 35
 	const batchActivityCount = 4
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 34 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 35 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0
@@ -129,7 +132,7 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	if registered[activities.ToolkitLedgerComparisonActivityName] != 1 {
 		t.Fatal("ledger comparison Activity must be registered exactly once")
 	}
-	for _, name := range []string{activities.ToolkitPackagePreservationCopyActivityName, activities.ToolkitPackagePreservationVerifyActivityName} {
+	for _, name := range []string{activities.ToolkitPackagePreservationCopyActivityName, activities.ToolkitPackagePreservationVerifyActivityName, activities.ToolkitPackageConditionalWriteProbeActivityName} {
 		if registered[name] != 1 {
 			t.Fatalf("preservation Activity %q must be registered exactly once", name)
 		}

@@ -191,6 +191,13 @@ func RegisterAll(registrar interface {
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackagePreservationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackagePreservationWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.CopyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationCopyActivityName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.VerifyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationVerifyActivityName})
+	// Probe the exact preservation adapter with synthetic bytes before any original transfer.
+	// Inputs: the existing preservation group; outputs: separately tracked probe workflow and Activity.
+	// Effects: registration only. Choose for provider semantics, never source inspection.
+	// Byline: Codex, 2026-10-04.
+	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackageConditionalWriteProbeWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackageConditionalWriteProbeWorkflowName})
+	probe := activities.NewToolkitPackageConditionalWriteProbeActivities(registrations.ToolkitPreservation)
+	registrar.RegisterActivityWithOptions(probe.RunToolkitPackageConditionalWriteProbe, activity.RegisterOptions{Name: activities.ToolkitPackageConditionalWriteProbeActivityName})
 	activities.RegisterMessageDedupeActivities(registrar, registrations.MessageDedupe)
 }
 
