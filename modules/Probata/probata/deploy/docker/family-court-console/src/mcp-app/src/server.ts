@@ -1,3 +1,4 @@
+// Updated by: Codex · GPT-6 · 2026-10-04 — describe strict shared source reads accurately.
 // Byline: OpenAI Codex / GPT-5.6, 2026-08-13
 // Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — explicit host framing contract.
 // Byline: Claude Code · Sonnet 5 · 2026-09-07 — wire case_facts (9th tool) and
@@ -97,7 +98,7 @@ registerAppTool(server, "get_checklist", {
 
 registerAppTool(server, "audit_sources", {
   title: "Audit verified source records",
-  description: "Show normalized authority and currency status across the console's curated sources, the 191-record verification ledger, and the master source directory, with per-status/per-origin counts. Falls back to the 7 curated sources alone if the ledger or directory files are unavailable.",
+  description: "Read current shared source records and master source directory, alongside the seven compiled curated entries, with per-status and per-origin counts. Shared read failures are visible in production; an absent explicitly configured mem:// fixture may use packaged test content. Reported status and check dates are stored observations, not a new legal validation.",
   inputSchema: { ids: z.array(z.string().max(80)).max(200).optional() }, annotations: readOnly, _meta: { ui: { resourceUri: uiUri("sources") } },
 }, async ({ ids }) => result(await auditSources(ids)));
 
