@@ -174,6 +174,11 @@ func RegisterAll(registrar interface {
 	// Byline: Codex, 2026-10-04.
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitSelectedTextWorkflow, workflow.RegisterOptions{Name: activities.ToolkitSelectedTextWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitInventory.SnapshotSelectedToolkitText, activity.RegisterOptions{Name: activities.ToolkitSelectedTextActivityName})
+	// Register mechanistic ledger differences as a separate operation (Codex, 2026-10-04).
+	// Inputs: toolkit group; outputs: named workflow and Activity. Effects: registration only.
+	// Choose after a pinned text snapshot; this operation never chooses a surviving version.
+	registrar.RegisterWorkflowWithOptions(activities.ToolkitLedgerComparisonWorkflow, workflow.RegisterOptions{Name: activities.ToolkitLedgerComparisonWorkflowName})
+	registrar.RegisterActivityWithOptions(registrations.ToolkitInventory.CompareToolkitLedgers, activity.RegisterOptions{Name: activities.ToolkitLedgerComparisonActivityName})
 	activities.RegisterMessageDedupeActivities(registrar, registrations.MessageDedupe)
 }
 
