@@ -683,8 +683,36 @@ async function viewGuide(): Promise<void> {
   show("open_dashboard");
 }
 
+// Byline: Codex, 2026-10-04.
+/** Display the shared reference and source library used by the other legal surfaces.
+ * Inputs: none; table pages resolve through the authenticated shared-record API.
+ * Outputs: a searchable, bounded list opening exact record versions and bodies.
+ * Side effects: reads shared records only; failures remain visible without falling back to packaged files.
+ * Use for the working library; viewPackagedFiles is explicit access to the shipped source snapshot.
+ */
 async function viewLibrary(): Promise<void> {
-  const host = page("Library", "Every file the toolkit ships: guide chapters, checklists, templates, primary law.");
+  const host = page("Library", "Guides, checklists, templates and legal sources from the shared library.");
+  host.append(el("div", { class: "actions" },
+    el("button", { type: "button", class: "secondary", onclick: () => void viewPackagedFiles() }, "Packaged files")));
+  try {
+    await pagedRecordList(host, ["reference", "source"],
+      (record) => String(record.source_path ?? record.citation ?? record.id),
+      () => void viewLibrary(), "No shared library records.");
+  } catch (err) {
+    host.append(errBox(err));
+  }
+}
+
+// Byline: Codex, 2026-10-04.
+/** Browse the files shipped with this console as a separately identified package snapshot.
+ * Inputs: none; outputs: bounded file pages with original-byte downloads.
+ * Side effects: reads packaged metadata and files only, without changing the shared library.
+ * Use for packaged originals and PDFs; viewLibrary is the current shared working information.
+ */
+async function viewPackagedFiles(): Promise<void> {
+  const host = page("Packaged files", "Files shipped with this console build. Open Library for the shared working records.");
+  host.append(el("div", { class: "actions" },
+    el("button", { type: "button", class: "secondary", onclick: () => void viewLibrary() }, "Back to Library")));
   try {
     const { files } = await api<{ files: Array<{ path: string; size: number }> }>("/api/library");
     const list = el("div", { class: "list" });
