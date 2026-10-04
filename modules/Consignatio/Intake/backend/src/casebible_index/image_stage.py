@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import io
 import os
 from collections.abc import Awaitable, Callable
@@ -245,6 +246,7 @@ def _read_rows(path: Path) -> dict[str, dict[str, Any]]:
 FACTS_SCHEMA = pa.schema(
     [
         ("identity", pa.string()),
+        ("content_sha256", pa.string()),
         ("original_time", pa.string()),
         ("original_time_source", pa.string()),
         ("original_time_confidence", pa.string()),
@@ -263,6 +265,15 @@ FACTS_SCHEMA = pa.schema(
 
 
 def _facts_for(path: Path, item: ImageItem) -> dict[str, Any]:
+    """Read metadata and stream the retained image or PDF page's actual SHA256 digest.
+
+    Inputs: retained path and slice item. Output: facts row. Side effects: file reads and metadata
+    inspection. Pick this for catalog image facts; source SHA1 remains on the slice item.
+    """
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
     with Image.open(path) as image:
         width, height, fmt = image.width, image.height, image.format or ""
     facts = read_image_facts(path, item.name, takeout_sidecar_json=None, ocr=False, max_ocr_chars=0)
@@ -278,6 +289,7 @@ def _facts_for(path: Path, item: ImageItem) -> dict[str, Any]:
     time = facts.original_time
     return {
         "identity": item.identity,
+        "content_sha256": digest.hexdigest(),
         "original_time": time.value or "",
         "original_time_source": time.source or "",
         "original_time_confidence": time.confidence or "",
@@ -302,11 +314,14 @@ async def run_facts(
     Inputs: the slice. Output: counts by kind and how many had an original time. Side effects: runs
     ``exiftool`` per
     image (optional binary: its absence is noted per image, never guessed) and writes
-    ``facts/<slice>.parquet``. An
+    ``facts/<slice>.parquet``, including streamed SHA256 of the retained image/page bytes.
+    PDF page hashes identify rendered PNG bytes; the catalog SHA1 continues to identify the PDF
+    original. Legacy facts without this digest are regenerated from the retained files. An
     unreadable image gets a row with kind ``photo``, basis ``unreadable`` and a note, so later units
-    can skip it."""
+    can skip it. Pick this before OCR and embedding to establish image facts and byte provenance.
+    """
     out = table_path(output_dir, "facts", sl.slice_id)
-    if out.is_file():
+    if out.is_file() and "content_sha256" in pq.read_schema(out).names:
         rows = list(_read_rows(out).values())
     else:
         rows = []
@@ -318,6 +333,7 @@ async def run_facts(
                 rows.append(
                     {
                         "identity": item.identity,
+                        "content_sha256": "",
                         "original_time": "",
                         "original_time_source": "",
                         "original_time_confidence": "",
@@ -590,17 +606,21 @@ def build_properties(
     source_id: str,
     models: dict[str, str],
 ) -> dict[str, str | bool | int]:
-    """The Weaviate properties of one image object. ``source_path`` and ``vault_key`` carry the
-    bucket key, the locator
-    that opens the original with ``provider``, ``bucket`` and the catalog SHA-1
-    (``content_sha256``). ``models`` maps a
-    slot that produced a vector to its model name."""
+    """Build image properties with separate retained-content SHA256 and catalog-source SHA1.
+
+    Inputs: slice item, facts, OCR and model names. Output: Weaviate properties; no side effects.
+    ``content_sha256`` hashes the retained image, or rendered PNG for a PDF page.
+    ``source_content_sha1`` preserves the catalog SHA1 of the original bucket object, including
+    the PDF original for every page. Provider, bucket and vault_key locate that original.
+    Pick this for catalog images; the directory lane builds its properties in image_pipeline.
+    """
     kind = facts["kind"]
     return {
         "source_id": source_id,
         "source_path": item.key,
         "filename": item.name,
-        "content_sha256": item.sha1,
+        "content_sha256": facts["content_sha256"],
+        "source_content_sha1": item.sha1,
         "original_time": facts["original_time"],
         "original_time_source": facts["original_time_source"],
         "original_time_confidence": facts["original_time_confidence"],

@@ -27,7 +27,8 @@ from .image_embedders import ColQwenEmbedder, ImageEmbedders
 from .image_target import CLIP_VECTOR, COLQWEN_VECTOR, MULTI_VECTOR, SINGLE_VECTOR
 
 _FIELDS = (
-    "source_id source_path filename content_sha256 original_time original_time_source "
+    "source_id source_path filename content_sha256 source_content_sha1 "
+    "original_time original_time_source "
     "original_time_confidence original_time_conflict device software gps is_screenshot "
     "ocr_text provider bucket vault_key image_kind source_kind page identity "
     "_additional { id distance score }"
@@ -41,6 +42,7 @@ class ImageHit(BaseModel):
     source_path: str
     filename: str
     content_sha256: str
+    source_content_sha1: str = ""
     original_time: str
     original_time_source: str
     original_time_confidence: str
@@ -53,11 +55,11 @@ class ImageHit(BaseModel):
     matched_by: Literal["maxsim", "colqwen", "single", "clip", "ocr_literal"]
     channel: Literal["ocr_literal", "visual_similarity"]
     score_basis: Literal["weaviate_bm25", "weaviate_cosine", "weaviate_maxsim"]
-    #Catalog-source fields (the Super Index image stage). With ``provider``, ``bucket``
-    #  and ``content_sha256`` the
-    #``vault_key`` is the locator that opens the original; ``image_kind`` is screenshot,
+    # Catalog-source fields (the Super Index image stage). With ``provider``, ``bucket``
+    #  and ``source_content_sha1`` the
+    # ``vault_key`` is the locator that opens the original; ``image_kind`` is screenshot,
     #  photo or scan; a rendered
-    #PDF page has ``source_kind`` pdf_page and its 1-based ``page``. Empty on objects
+    # PDF page has ``source_kind`` pdf_page and its 1-based ``page``. Empty on objects
     #  from the directory lane.
     provider: str = ""
     bucket: str = ""
@@ -97,7 +99,7 @@ def _normalized_chars(value: str) -> tuple[str, list[tuple[int, int]]]:
             # NFC also composes Hangul Jamo across combining-class-zero starters.
             while index < len(value) and (
                 unicodedata.combining(value[index])
-                or len(unicodedata.normalize("NFC", value[start:index + 1]))
+                or len(unicodedata.normalize("NFC", value[start : index + 1]))
                 < len(unicodedata.normalize("NFC", value[start:index])) + 1
             ):
                 index += 1
@@ -147,9 +149,12 @@ only (a FilterExpr
         if kind not in KINDS:
             raise ValueError(f"image kind must be one of {KINDS}")
         return (
-            "{operator: And, operands: [" + active + ', {path: ["image_kind"], operator: Equal, \
+            "{operator: And, operands: ["
+            + active
+            + ', {path: ["image_kind"], operator: Equal, \
 valueText: '
-            + json.dumps(kind) + "}]}"
+            + json.dumps(kind)
+            + "}]}"
         )
 
     async def _get(
@@ -201,7 +206,9 @@ its named vector in the
         rank = {"ocr_literal": 0, "maxsim": 1, "colqwen": 2, "single": 3, "clip": 4}
 
         def keep(
-            row: dict, matched_by: str, score: float,
+            row: dict,
+            matched_by: str,
+            score: float,
             span: tuple[int, int] | None = None,
         ) -> None:
             if not math.isfinite(score):
@@ -232,8 +239,9 @@ its named vector in the
                         if multi is not None and MULTI_VECTOR in wanted:
                             plan.append((MULTI_VECTOR, multi, "maxsim"))
                     elif embedders is not None and MULTI_VECTOR in wanted:
-                        plan.append((MULTI_VECTOR, await embedders.embed_query_multi(query), \
-"maxsim"))
+                        plan.append(
+                            (MULTI_VECTOR, await embedders.embed_query_multi(query), "maxsim")
+                        )
                     if COLQWEN_VECTOR in wanted and colqwen is not None:
                         plan.append((COLQWEN_VECTOR, await colqwen.embed_query(query), "colqwen"))
                     for target, vector, label in plan:
@@ -245,10 +253,13 @@ its named vector in the
                             # MaxSim distances are negative sums; cosine distances are 0..2.
                             # Both are turned into "higher is better" on their own scale.
                             distance = float(row["_additional"]["distance"])
-                            keep(row, label, -distance if label in {"maxsim", "colqwen"} else \
-1.0 - distance)
+                            keep(
+                                row,
+                                label,
+                                -distance if label in {"maxsim", "colqwen"} else 1.0 - distance,
+                            )
                     if CLIP_VECTOR in wanted:
-                        #Weaviate's multi2vec-clip embeds the question itself
+                        # Weaviate's multi2vec-clip embeds the question itself
                         #  (nearText), no client call.
                         near = f'nearText: {{concepts: [{text}], targetVectors: ["{CLIP_VECTOR}"]}}'
                         for row in await self._get(client, near, limit, kind):
@@ -296,8 +307,16 @@ its named vector in the
                     },
                     **{
                         key: row[key]
-                        for key in ("provider", "bucket", "vault_key", "image_kind", \
-"source_kind", "page", "identity")
+                        for key in (
+                            "provider",
+                            "bucket",
+                            "vault_key",
+                            "image_kind",
+                            "source_kind",
+                            "page",
+                            "identity",
+                            "source_content_sha1",
+                        )
                         if row.get(key) is not None
                     },
                 )
