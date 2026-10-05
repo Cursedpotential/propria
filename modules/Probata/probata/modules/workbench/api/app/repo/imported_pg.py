@@ -1,6 +1,7 @@
 """Read-only reads of what has been imported: context.* and working.* on the platform database.
 
 Byline: Claude Code · Sonnet · 2026-10-02
+Updated: Codex · GPT-6.1-Sol · 2026-10-05 (query-domain split).
 
 The mobile Imported view (Workbench /m) is step 5 of the six steps, Preview: it shows what the
 machine put into context so the owner can see it did it right. Nothing here writes. The login is
@@ -20,8 +21,41 @@ from typing import Any
 from app.config import settings
 
 
+from app.repo.imported_sources_pg import (
+    source_versions as source_versions,
+    threads as threads,
+    thread_participants as thread_participants,
+    thread_last_messages as thread_last_messages,
+    messages as messages,
+    message_time as message_time,
+    versions_to_threads as versions_to_threads,
+)
+from app.repo.imported_calls_pg import (
+    call_log_has_rows as call_log_has_rows,
+    calls_normalized as calls_normalized,
+    calls_summary as calls_summary,
+    calls_from_log as calls_from_log,
+)
+from app.repo.imported_entities_pg import (
+    people as people,
+    numbers_activity as numbers_activity,
+    entity_activity as entity_activity,
+    working_unlinked_numbers as working_unlinked_numbers,
+)
+from app.repo.imported_numbers_pg import (
+    _number_forms as _number_forms,
+    number_records as number_records,
+    number_record_counts as number_record_counts,
+)
+from app.repo.imported_review_pg import (
+    review_queue as review_queue,
+)
+
 class ImportedError(Exception):
+    """Carry a sanitized Imported failure and its HTTP status across read layers."""
+
     def __init__(self, message: str, status: int = 503):
+        """Retain only the caller-supplied safe message and status."""
         self.message, self.status = message, status
         super().__init__(message)
 
@@ -45,11 +79,18 @@ sv AS (
 
 
 def configured() -> bool:
+    """Check whether the configured read-only password file exists."""
     path = settings.imported_pg_password_file
     return bool(path and Path(path).is_file())
 
 
 def _query(sql: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Execute one bounded read using the rotated password and reader login.
+
+    Inputs: parameterized SQL and bound parameters. Output: dictionary rows.
+    Effects: reads the mounted password and PostgreSQL, never writes canonical data.
+    Pick for Imported query domains; all failures retain sanitized error text.
+    """
     if not configured():
         raise ImportedError("The imported-data connection is not configured")
     try:
@@ -72,335 +113,3 @@ def _query(sql: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         raise
     except Exception:
         raise ImportedError("The imported-data query is unavailable or timed out") from None
-
-
-def source_versions(matter: str) -> list[dict[str, Any]]:
-    """Every source version of the matter with raw / normalized counts and its review state."""
-    return _query(
-        f"""WITH {_SV},
-        rawc AS (SELECT r.source_version_id, count(*) AS n
-                 FROM context.raw_record_identity r JOIN sv ON sv.id = r.source_version_id
-                 WHERE r.record_status = 'parsed' GROUP BY 1),
-        nr AS (SELECT n.source_version_id, count(*) AS n,
-                      count(*) FILTER (WHERE n.record_type = 'message') AS msgs,
-                      count(*) FILTER (WHERE n.record_type = 'call') AS calls,
-                      min(n.occurred_at) AS first_at, max(n.occurred_at) AS last_at
-               FROM context.normalized_record_identity n JOIN sv ON sv.id = n.source_version_id GROUP BY 1),
-        appr AS (SELECT DISTINCT sn.source_version_id
-                 FROM context.proffer_preview_snapshot sn
-                 JOIN context.proffer_preview_decision d ON d.preview_handle = sn.preview_handle AND d.approved
-                 JOIN sv ON sv.id = sn.source_version_id),
-        rej AS (SELECT DISTINCT sn.source_version_id
-                FROM context.proffer_preview_snapshot sn
-                JOIN context.proffer_preview_decision d ON d.preview_handle = sn.preview_handle AND NOT d.approved
-                JOIN sv ON sv.id = sn.source_version_id)
-        SELECT sv.id::text AS id, sv.source_key, sv.export_key, sv.acquired_at, sv.version_ordinal, sv.published,
-               COALESCE(rawc.n, 0) AS raw_n, COALESCE(nr.n, 0) AS norm_n,
-               COALESCE(nr.msgs, 0) AS msgs, COALESCE(nr.calls, 0) AS calls,
-               nr.first_at, nr.last_at,
-               (appr.source_version_id IS NOT NULL) AS approved,
-               (rej.source_version_id IS NOT NULL) AS rejected
-        FROM sv
-        LEFT JOIN rawc ON rawc.source_version_id = sv.id
-        LEFT JOIN nr ON nr.source_version_id = sv.id
-        LEFT JOIN appr ON appr.source_version_id = sv.id
-        LEFT JOIN rej ON rej.source_version_id = sv.id
-        ORDER BY sv.acquired_at DESC, sv.id DESC""",
-        {"matter": matter},
-    )
-
-
-def threads(matter: str, export_key: str, *, limit: int, offset: int) -> list[dict[str, Any]]:
-    """The conversations inside one export, newest activity first."""
-    return _query(
-        f"""WITH {_SV}, sel AS (SELECT * FROM sv WHERE export_key = %(export)s)
-        SELECT sel.conv, count(DISTINCT sel.id) AS files,
-               count(n.id) AS records,
-               count(n.id) FILTER (WHERE n.record_type = 'message') AS msgs,
-               count(n.id) FILTER (WHERE n.record_type = 'call') AS calls,
-               min(n.occurred_at) AS first_at, max(n.occurred_at) AS last_at,
-               count(r.normalized_record_id) FILTER (WHERE r.projection_kind = 'first_party') AS first_party,
-               count(r.normalized_record_id) FILTER (WHERE r.projection_kind <> 'first_party') AS third_party
-        FROM sel
-        LEFT JOIN context.normalized_record_identity n ON n.source_version_id = sel.id
-        LEFT JOIN working.message_projection_route r ON r.normalized_record_id = n.id
-        GROUP BY sel.conv
-        HAVING count(n.id) > 0
-        ORDER BY max(n.occurred_at) DESC NULLS LAST, sel.conv
-        LIMIT %(limit)s OFFSET %(offset)s""",
-        {"matter": matter, "export": export_key, "limit": limit + 1, "offset": offset},
-    )
-
-
-def thread_participants(matter: str, export_key: str, convs: list[str]) -> list[dict[str, Any]]:
-    """Distinct participant identifiers per conversation (bounded to one page of threads)."""
-    if not convs:
-        return []
-    return _query(
-        f"""WITH {_SV}, sel AS (SELECT * FROM sv WHERE export_key = %(export)s AND conv = ANY(%(convs)s))
-        SELECT sel.conv, p.value->>'identifier' AS identifier, count(*) AS n
-        FROM sel
-        JOIN context.normalized_record_identity n ON n.source_version_id = sel.id
-        CROSS JOIN LATERAL jsonb_array_elements(n.normalized_payload->'participants') AS p(value)
-        WHERE p.value->>'identifier' IS NOT NULL
-        GROUP BY sel.conv, p.value->>'identifier'
-        ORDER BY sel.conv, count(*) DESC""",
-        {"matter": matter, "export": export_key, "convs": convs},
-    )
-
-
-def thread_last_messages(matter: str, export_key: str, convs: list[str]) -> list[dict[str, Any]]:
-    """The newest message text of each conversation (for the conversation list), one row per conversation."""
-    if not convs:
-        return []
-    return _query(
-        f"""WITH {_SV}, sel AS (SELECT * FROM sv WHERE export_key = %(export)s AND conv = ANY(%(convs)s))
-        SELECT DISTINCT ON (sel.conv) sel.conv, left(n.normalized_payload->'content'->>'body', 160) AS body, n.occurred_at
-        FROM sel JOIN context.normalized_record_identity n ON n.source_version_id = sel.id AND n.record_type = 'message'
-        ORDER BY sel.conv, n.occurred_at DESC, n.id DESC""",
-        {"matter": matter, "export": export_key, "convs": convs},
-    )
-
-
-def messages(
-    matter: str,
-    export_key: str,
-    conv: str,
-    *,
-    ts: str | None,
-    row_id: str | None,
-    direction: str,
-    limit: int,
-) -> list[dict[str, Any]]:
-    """One keyset page of a thread's messages. `before` is newest-first, `after` is oldest-first."""
-    older = direction == "before"
-    comparison = "<" if older else ">"
-    order = "DESC" if older else "ASC"
-    return _query(
-        f"""WITH {_SV}, sel AS (SELECT id FROM sv WHERE export_key = %(export)s AND conv = %(conv)s)
-        SELECT n.id::text AS id, n.occurred_at, n.source_version_id::text AS source_version_id,
-               n.normalized_payload->'content'->>'body' AS body,
-               n.normalized_payload->'participants' AS participants,
-               n.normalized_payload->>'timestamp_certainty' AS certainty,
-               r.projection_kind, m.has_attachments, m.attachment_count
-        FROM context.normalized_record_identity n
-        JOIN sel ON sel.id = n.source_version_id
-        LEFT JOIN working.message_projection_route r ON r.normalized_record_id = n.id
-        LEFT JOIN working.message m ON m.id = n.id
-        WHERE n.record_type = 'message'
-          AND (%(ts)s::timestamptz IS NULL OR (n.occurred_at, n.id) {comparison} (%(ts)s::timestamptz, %(row)s::uuid))
-        ORDER BY n.occurred_at {order}, n.id {order}
-        LIMIT %(limit)s""",
-        {"matter": matter, "export": export_key, "conv": conv, "ts": ts, "row": row_id, "limit": limit + 1},
-    )
-
-
-def message_time(matter: str, row_id: str) -> dict[str, Any] | None:
-    rows = _query(
-        f"""WITH {_SV}
-        SELECT n.occurred_at FROM context.normalized_record_identity n JOIN sv ON sv.id = n.source_version_id
-        WHERE n.id = %(row)s::uuid""",
-        {"matter": matter, "row": row_id},
-    )
-    return rows[0] if rows else None
-
-
-def call_log_has_rows() -> bool:
-    return bool(_query("SELECT EXISTS (SELECT 1 FROM working.call_log) AS has", {})[0]["has"])
-
-
-def calls_normalized(matter: str, *, ts: str | None, row_id: str | None, limit: int) -> list[dict[str, Any]]:
-    return _query(
-        f"""WITH {_SV}
-        SELECT n.id::text AS id, n.occurred_at, sv.export_key,
-               n.normalized_payload->'content' AS content,
-               n.normalized_payload->'participants' AS participants
-        FROM context.normalized_record_identity n JOIN sv ON sv.id = n.source_version_id
-        WHERE n.record_type = 'call'
-          AND (%(ts)s::timestamptz IS NULL OR (n.occurred_at, n.id) < (%(ts)s::timestamptz, %(row)s::uuid))
-        ORDER BY n.occurred_at DESC, n.id DESC
-        LIMIT %(limit)s""",
-        {"matter": matter, "ts": ts, "row": row_id, "limit": limit + 1},
-    )
-
-
-def calls_summary(matter: str) -> dict[str, Any]:
-    rows = _query(
-        f"""WITH {_SV}
-        SELECT count(*) AS total,
-               count(*) FILTER (WHERE (n.normalized_payload->'content'->>'missed')::boolean) AS missed,
-               count(*) FILTER (WHERE n.normalized_payload->'content'->>'direction' = 'incoming') AS incoming,
-               count(*) FILTER (WHERE n.normalized_payload->'content'->>'direction' = 'outgoing') AS outgoing,
-               min(n.occurred_at) AS first_at, max(n.occurred_at) AS last_at
-        FROM context.normalized_record_identity n JOIN sv ON sv.id = n.source_version_id
-        WHERE n.record_type = 'call'""",
-        {"matter": matter},
-    )
-    return rows[0]
-
-
-def calls_from_log(*, ts: str | None, row_id: str | None, limit: int) -> list[dict[str, Any]]:
-    return _query(
-        """SELECT c.id::text AS id, c.started_at AS occurred_at, c.call_type, c.direction,
-                  c.duration_s, c.from_e164, c.from_raw, c.to_e164, c.to_raw
-           FROM working.call_log c
-           WHERE (%(ts)s::timestamptz IS NULL OR (c.started_at, c.id) < (%(ts)s::timestamptz, %(row)s::uuid))
-           ORDER BY c.started_at DESC NULLS LAST, c.id DESC
-           LIMIT %(limit)s""",
-        {"ts": ts, "row": row_id, "limit": limit + 1},
-    )
-
-
-def people() -> list[dict[str, Any]]:
-    """Registry identifiers (the one identity store) so phone numbers show as names.
-
-    Includes placeholder people (role_in_case 'unknown', verification_state 'proposed'); a merged
-    person's identifiers have moved to the person it was merged into.
-    """
-    return _query(
-        """SELECT e.id::text AS entity_id, e.display_name::text AS display_name,
-                  coalesce(p.short_name, e.display_name::text) AS person, p.role_in_case, p.verification_state,
-                  coalesce(a.normalized, registry.norm_identifier(a.alias_text::text)) AS identifier,
-                  coalesce(a.alias_kind, 'other') AS kind, a.status AS alias_status,
-                  a.alias_text::text AS alias_text_raw
-           FROM registry.entity_alias a
-           JOIN registry.entity e ON e.id = a.entity_id
-           JOIN registry.person p ON p.id = e.id
-           WHERE e.merged_into_id IS NULL AND a.status <> 'retired'""",
-        {},
-    )
-
-
-def numbers_activity(matter: str) -> list[dict[str, Any]]:
-    """Every phone-like participant of the imported records, with how often it appears."""
-    return _query(
-        f"""WITH {_SV},
-        digits AS (
-          SELECT n.id, n.record_type, n.occurred_at, regexp_replace(p.value->>'identifier', '[^0-9]', '', 'g') AS d
-          FROM context.normalized_record_identity n
-          JOIN sv ON sv.id = n.source_version_id
-          CROSS JOIN LATERAL jsonb_array_elements(n.normalized_payload->'participants') AS p(value)
-          WHERE p.value->>'identifier' IS NOT NULL AND p.value->>'identifier' <> 'self'
-        )
-        SELECT right(d, 10) AS number, record_type, count(DISTINCT id) AS n, max(occurred_at) AS last_at
-        FROM digits
-        WHERE length(d) = 10 OR (length(d) = 11 AND left(d, 1) = '1')
-        GROUP BY 1, 2""",
-        {"matter": matter},
-    )
-
-
-def entity_activity() -> list[dict[str, Any]]:
-    """Calls and messages already linked to each registry person, from the working tables.
-
-    Cheap on purpose (four small grouped scans, no JSON): the unnamed-numbers list ranks by this.
-    """
-    return _query(
-        """SELECT entity_id::text AS entity_id, sum(calls)::bigint AS calls, sum(msgs)::bigint AS msgs, max(last_at) AS last_at
-           FROM (
-             SELECT from_entity_id AS entity_id, count(*) AS calls, 0 AS msgs, max(started_at) AS last_at
-               FROM working.call_log WHERE from_entity_id IS NOT NULL GROUP BY 1
-             UNION ALL
-             SELECT to_entity_id, count(*), 0, max(started_at)
-               FROM working.call_log WHERE to_entity_id IS NOT NULL GROUP BY 1
-             UNION ALL
-             SELECT entity_id, 0, count(DISTINCT message_id), NULL::timestamptz
-               FROM working.message_participant WHERE entity_id IS NOT NULL GROUP BY 1
-             UNION ALL
-             SELECT entity_id, 0, count(DISTINCT message_id), NULL::timestamptz
-               FROM working.third_party_message_participant WHERE entity_id IS NOT NULL GROUP BY 1
-           ) u GROUP BY 1""",
-        {},
-    )
-
-
-def working_unlinked_numbers() -> list[dict[str, Any]]:
-    """Numbers on working.call_log / message participants whose entity column is still NULL."""
-    return _query(
-        """SELECT number, sum(n)::bigint AS n FROM (
-             SELECT right(regexp_replace(coalesce(nullif(from_e164, ''), from_raw, ''), '[^0-9]', '', 'g'), 10) AS number, count(*) AS n
-               FROM working.call_log WHERE from_entity_id IS NULL GROUP BY 1
-             UNION ALL
-             SELECT right(regexp_replace(coalesce(nullif(to_e164, ''), to_raw, ''), '[^0-9]', '', 'g'), 10), count(*)
-               FROM working.call_log WHERE to_entity_id IS NULL GROUP BY 1
-             UNION ALL
-             SELECT right(regexp_replace(coalesce(nullif(participant_e164, ''), participant_raw, ''), '[^0-9]', '', 'g'), 10), count(*)
-               FROM working.message_participant WHERE entity_id IS NULL GROUP BY 1
-             UNION ALL
-             SELECT right(regexp_replace(coalesce(nullif(participant_e164, ''), participant_raw, ''), '[^0-9]', '', 'g'), 10), count(*)
-               FROM working.third_party_message_participant WHERE entity_id IS NULL GROUP BY 1
-           ) u WHERE length(number) = 10 GROUP BY number""",
-        {},
-    )
-
-
-def versions_to_threads(matter: str, version_ids: list[str]) -> list[dict[str, Any]]:
-    """For search hits: which export and conversation each source version belongs to."""
-    if not version_ids:
-        return []
-    return _query(
-        f"""WITH {_SV}
-        SELECT sv.id::text AS id, sv.export_key, sv.conv FROM sv WHERE sv.id = ANY(%(ids)s::uuid[])""",
-        {"matter": matter, "ids": version_ids},
-    )
-
-
-def _number_forms(number: str) -> list[str]:
-    """The ways a participant identifier spells a 10-digit number in the normalized records."""
-    return [f'[{{"identifier": "{form}"}}]' for form in (f"+1{number}", number, f"1{number}", f"+{number}")]
-
-
-def number_records(matter: str, number: str, *, ts: str | None, row_id: str | None, limit: int) -> list[dict[str, Any]]:
-    """Every message and call that carries this number as a participant, newest first (keyset paged).
-
-    Matches by JSON containment on the participants array (no per-row expansion), so it stays a single
-    cheap scan of the matter's records.
-    """
-    return _query(
-        f"""WITH {_SV}
-        SELECT n.id::text AS id, n.occurred_at, n.record_type, n.source_version_id::text AS source_version_id,
-               sv.source_key, sv.export_key, sv.conv,
-               n.normalized_payload->'content'->>'body' AS body, n.normalized_payload->'content' AS content,
-               n.normalized_payload->'participants' AS participants,
-               n.normalized_payload->>'timestamp_certainty' AS certainty,
-               r.projection_kind, m.has_attachments, m.attachment_count
-        FROM context.normalized_record_identity n
-        JOIN sv ON sv.id = n.source_version_id
-        LEFT JOIN working.message_projection_route r ON r.normalized_record_id = n.id
-        LEFT JOIN working.message m ON m.id = n.id
-        WHERE n.normalized_payload->'participants' @> ANY (SELECT x::jsonb FROM unnest(%(forms)s::text[]) AS x)
-          AND (%(ts)s::timestamptz IS NULL OR (n.occurred_at, n.id) < (%(ts)s::timestamptz, %(row)s::uuid))
-        ORDER BY n.occurred_at DESC, n.id DESC
-        LIMIT %(limit)s""",
-        {"matter": matter, "forms": _number_forms(number), "ts": ts, "row": row_id, "limit": limit + 1},
-    )
-
-
-def number_record_counts(matter: str, number: str) -> dict[str, Any]:
-    rows = _query(
-        f"""WITH {_SV}
-        SELECT count(*) FILTER (WHERE n.record_type = 'message') AS messages,
-               count(*) FILTER (WHERE n.record_type = 'call') AS calls
-        FROM context.normalized_record_identity n JOIN sv ON sv.id = n.source_version_id
-        WHERE n.normalized_payload->'participants' @> ANY (SELECT x::jsonb FROM unnest(%(forms)s::text[]) AS x)""",
-        {"matter": matter, "forms": _number_forms(number)},
-    )
-    return rows[0]
-
-
-def review_queue(matter: str) -> list[dict[str, Any]]:
-    """Previews waiting for the owner's decision: newest snapshot is awaiting_decision, no decision yet."""
-    return _query(
-        f"""WITH {_SV},
-        latest AS (SELECT DISTINCT ON (sn.preview_handle) sn.preview_handle, sn.phase, sn.source_version_id, sn.recorded_at
-                   FROM context.proffer_preview_snapshot sn JOIN sv ON sv.id = sn.source_version_id
-                   ORDER BY sn.preview_handle, sn.snapshot_seq DESC)
-        SELECT l.preview_handle, l.recorded_at AS waiting_since, sv.id::text AS source_version_id,
-               sv.source_key, sv.export_key, sv.conv,
-               (SELECT count(*) FROM context.normalized_record_identity n WHERE n.source_version_id = sv.id) AS records
-        FROM latest l JOIN sv ON sv.id = l.source_version_id
-        WHERE l.phase = 'awaiting_decision'
-          AND NOT EXISTS (SELECT 1 FROM context.proffer_preview_decision d WHERE d.preview_handle = l.preview_handle)
-        ORDER BY l.recorded_at DESC""",
-        {"matter": matter},
-    )
