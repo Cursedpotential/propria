@@ -20,12 +20,15 @@ async function configured(callback) {
   finally { if (previous === undefined) delete process.env.TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE; else process.env.TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE = previous; }
 }
 
-test('unbound records retain a transaction guard against a concurrently created binding', async () => configured(async () => {
+test('unbound personal records capture a distinct complete JSON export in the same transaction', async () => configured(async () => {
   const store = { db: { query: async () => [[]] } };
   const capture = await prepareLibraryEditCapture(store, 'child:synthetic', '$full', '$version', '$revision');
   assert.equal(capture.params.sync_record_id, 'child:synthetic');
   assert.match(capture.sql, /binding_appeared_retry/);
-  assert.doesNotMatch(capture.sql, /CREATE/);
+  assert.match(capture.sql, /CREATE type::record\('library_file'/);
+  assert.match(capture.sql, /typed_snapshot: \$full/);
+  assert.match(capture.params.sync_new_key, /family-court-records\/child\/[a-f0-9]{64}\.json$/);
+  assert.doesNotMatch(capture.sql, /COMMIT TRANSACTION/);
 }));
 
 test('bound edits capture native full snapshots and refuse a mismatched account', async () => configured(async () => {
