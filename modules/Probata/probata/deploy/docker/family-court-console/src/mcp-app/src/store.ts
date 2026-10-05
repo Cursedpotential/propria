@@ -41,6 +41,8 @@ import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { migrateLibrary, migratePersonalCaseContext, putPersonalCaseSource, putVersionedPersonalRecord, retainLibraryImport } from "./case-library.js";
+import { migrateLibrarySync } from "./library-sync-backend.js";
+import { configuredLibrarySyncScope } from "./library-sync-integration.js";
 
 // ---------------------------------------------------------------------------
 // Tables, edges, factors
@@ -471,6 +473,7 @@ export async function getStore(urlOverride?: string): Promise<StoreResult> {
 
 async function migrate(db: SurrealLike, mod: SurrealModule): Promise<number> {
   await migrateLibrary({ db });
+  if (configuredLibrarySyncScope()) await migrateLibrarySync({ db });
   await migratePersonalCaseContext({ db });
   await db.query("DEFINE TABLE IF NOT EXISTS meta SCHEMALESS;");
 

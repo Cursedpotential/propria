@@ -38,6 +38,11 @@ import {
 } from "./core.js";
 import { DOC_TYPES, reviewCourtLanguage, renderMarkdownReport, type DocType } from "./court-language.js";
 import { buildSurvivalGuide, renderSurvivalGuideMarkdown } from "./survival-guide.js";
+import { getStore } from "./store.js";
+import { createLibrarySyncBackend, createLibrarySyncDispatcher, sealLibrarySyncOperation } from "./library-sync-backend.js";
+import { configuredLibrarySyncScope } from "./library-sync-integration.js";
+import { handleLibrarySyncHttpRequest } from "./library-sync-http.js";
+import { startLibrarySyncOutboxRecovery } from "./library-sync-dispatch.js";
 
 const SERVER_NAME = "family-court-console";
 const SERVER_VERSION = "3.0.0";
@@ -268,6 +273,14 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
 
 async function handleHttpRequest(req: IncomingMessage, res: ServerResponse, bearerToken: string): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
+  // Dedicated worker authentication precedes database opening and body reads.
+  if (await handleLibrarySyncHttpRequest(req, res, url, async operation => {
+    const scope = configuredLibrarySyncScope();
+    if (!scope) throw new Error("Library sync unavailable");
+    const store = await getStore();
+    if (!store.available) throw new Error("Shared library store unavailable");
+    return createLibrarySyncDispatcher(createLibrarySyncBackend(store, scope))(operation);
+  })) return;
 
   if (url.pathname === "/healthz") {
     sendJson(res, 200, { status: "ok", name: SERVER_NAME, version: SERVER_VERSION });
@@ -327,6 +340,12 @@ async function runHttpServer(): Promise<void> {
     httpServer.once("error", reject);
     httpServer.listen(port, host, () => resolve());
   });
+  const stopSyncRecovery = configuredLibrarySyncScope() ? startLibrarySyncOutboxRecovery(async () => {
+    const store = await getStore();
+    if (!store.available) throw new Error("Shared library store unavailable");
+    return { store, seal: operationId => sealLibrarySyncOperation(store, operationId) };
+  }) : () => {};
+  httpServer.once("close", stopSyncRecovery);
   console.error(`family-court-console MCP Streamable HTTP transport listening on ${host}:${port} (POST /mcp, GET /healthz, GET /version, authenticated web app on / and /api/*)`);
 }
 
