@@ -11,18 +11,18 @@ from typing import Annotated
 from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
+from app.runtime.operating_mode import OperatingMode
+from app.service.proffer import ProfferError
+from app.service.source_context import create_source_context, run_source_context
 from app.service.source_inspection import (
     SourceInspectionError,
     inspect_source,
     open_source_content,
     stream_source_content,
 )
-from app.service.source_context import create_source_context, run_source_context
-from app.service.proffer import ProfferError
+from app.types.proffer import ProfferDecisionActor
 from app.types.source_context import ProfferRunSourceContext, SourceContextCreateRequest, SourceContextReceipt
 from app.types.source_inspection import SourceInspectionRequest, SourceInspectionResponse
-from app.types.proffer import MatterMode, ProfferDecisionActor
-
 
 router = APIRouter(prefix="/api/proffer", tags=["proffer"])
 
@@ -42,7 +42,7 @@ def _actor(request: Request) -> ProfferDecisionActor:
 @router.post("/source-inspection", response_model=SourceInspectionResponse)
 def source_inspection_endpoint(
     body: SourceInspectionRequest,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
     root_id: Annotated[str, Query(min_length=1, max_length=64)],
 ):
     if body.root_id != root_id:
@@ -59,7 +59,7 @@ def source_inspection_endpoint(
 async def source_context_endpoint(
     body: SourceContextCreateRequest,
     request: Request,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     try:
         return await create_source_context(body, _actor(request), mode=mode)
@@ -70,7 +70,7 @@ async def source_context_endpoint(
 @router.get("/previews/{preview_handle}/source-context", response_model=ProfferRunSourceContext)
 async def run_source_context_endpoint(
     preview_handle: Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{32,128}$")],
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     """The run's registration facts and newest operator context (Review Actions panel)."""
     try:

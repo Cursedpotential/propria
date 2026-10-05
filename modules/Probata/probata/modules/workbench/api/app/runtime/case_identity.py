@@ -25,9 +25,9 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Header, HTTPException, Path, Query, Request
 
+from app.runtime.operating_mode import OperatingMode
 from app.service import case_identity as service
 from app.service.proffer_errors import ProfferError
-from app.types.matter_mode import MatterMode
 from app.types.proffer import ProfferDecisionActor
 
 router = APIRouter(prefix="/api/case-identity", tags=["case identity"])
@@ -52,7 +52,7 @@ def _actor(request: Request) -> ProfferDecisionActor:
 
 
 @router.get("")
-async def read_endpoint(mode: Annotated[MatterMode, Query()]):
+async def read_endpoint(mode: OperatingMode):
     try:
         return await service.read(mode)
     except ProfferError as error:
@@ -84,34 +84,34 @@ UuidPath = Annotated[str, Path(pattern="^[0-9a-fA-F-]{36}$")]
 
 
 @router.post("/identifiers", status_code=201)
-async def identifier_endpoint(body: JsonObject, request: Request, key: IdempotencyKey):
+async def identifier_endpoint(body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
-        return await service.add_identifier(body, actor, key)
+        return await service.add_identifier(body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None
 
 
 @router.post("/identifiers/{alias_id}", status_code=201)
-async def identifier_edit_endpoint(alias_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey):
+async def identifier_edit_endpoint(alias_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
-        return await service.edit_identifier(alias_id, body, actor, key)
+        return await service.edit_identifier(alias_id, body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None
 
 
 @router.post("/identifiers/{alias_id}/delete", status_code=201)
-async def identifier_delete_endpoint(alias_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey):
+async def identifier_delete_endpoint(alias_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
-        return await service.delete_identifier(alias_id, body, actor, key)
+        return await service.delete_identifier(alias_id, body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None
 
 
 @router.post("/header", status_code=201)
-async def header_endpoint(body: JsonObject, request: Request, key: IdempotencyKey, mode: Annotated[MatterMode, Query()]):
+async def header_endpoint(body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
         return await service.edit_header(body, actor, key, mode=mode)
@@ -120,54 +120,54 @@ async def header_endpoint(body: JsonObject, request: Request, key: IdempotencyKe
 
 
 @router.post("/people", status_code=201)
-async def add_person_endpoint(body: JsonObject, request: Request, key: IdempotencyKey):
+async def add_person_endpoint(body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
-        return await service.add_person(body, actor, key)
+        return await service.add_person(body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None
 
 
 @router.post("/people/{person_id}", status_code=201)
-async def edit_person_endpoint(person_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey):
+async def edit_person_endpoint(person_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
-        return await service.edit_person(person_id, body, actor, key)
+        return await service.edit_person(person_id, body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None
 
 
 @router.post("/triage", status_code=201)
-async def triage_endpoint(body: JsonObject, request: Request, key: IdempotencyKey):
+async def triage_endpoint(body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
-        return await service.triage(body, actor, key)
+        return await service.triage(body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None
 
 
 @router.post("/placeholders", status_code=201)
-async def placeholders_endpoint(body: JsonObject, request: Request, key: IdempotencyKey):
+async def placeholders_endpoint(body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
-        return await service.add_placeholders(body, actor, key)
+        return await service.add_placeholders(body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None
 
 
 @router.post("/contact-people", status_code=201)
-async def contact_people_endpoint(body: JsonObject, request: Request, key: IdempotencyKey):
+async def contact_people_endpoint(body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
-        return await service.add_contact_people(body, actor, key)
+        return await service.add_contact_people(body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None
 
 
 @router.post("/people/{person_id}/merge", status_code=201)
-async def merge_person_endpoint(person_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey):
+async def merge_person_endpoint(person_id: UuidPath, body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)
     try:
-        return await service.merge_person(person_id, body, actor, key)
+        return await service.merge_person(person_id, body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None

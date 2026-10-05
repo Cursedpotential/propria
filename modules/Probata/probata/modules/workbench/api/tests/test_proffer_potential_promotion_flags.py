@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-import json
 import asyncio
 import hashlib
 import hmac
+import json
 from typing import Any, Literal
 
 import httpx
 import pytest
 from app.runtime import proffer as proffer_runtime
-from app.service import flags as flags_service, proffer as proffer_service, proffer_flags
-from app.types.proffer import ProfferContentResponse, ProfferDecisionActor
+from app.service import flags as flags_service
+from app.service import proffer as proffer_service
+from app.service import proffer_flags
 from app.types.matter_mode import MatterMode
+from app.types.proffer import ProfferContentResponse, ProfferDecisionActor
 from app.types.proffer_flags import (
     ProfferPotentialPromotionFlag,
     ProfferPotentialPromotionFlagRequest,
@@ -29,7 +31,7 @@ def _content() -> ProfferContentResponse:
     return ProfferContentResponse.model_validate(
         {
             "preview_handle": PREVIEW_HANDLE,
-            "matter_mode": "TEST",
+            "matter_mode": "LIVE",
             "package": {
                 "source_version_ref": "source-version-1",
                 "declared_format": "document",
@@ -135,7 +137,7 @@ def test_flag_route_binds_exact_off_page_target_attempt_and_authenticated_actor(
     monkeypatch.setattr(proffer_runtime, "create_potential_promotion_flag", create)
     response = TestClient(_app()).post(
         f"/api/proffer/previews/{PREVIEW_HANDLE}/potential-promotion-flags",
-        params={"mode": "TEST"},
+        params={"mode": "LIVE"},
         json={
             "scope": "record",
             "target_id": "record-301",
@@ -149,7 +151,7 @@ def test_flag_route_binds_exact_off_page_target_attempt_and_authenticated_actor(
     assert captured["actor"] == ProfferDecisionActor(subject_uid="subject-1", username="operator")
     assert captured["body"].attempt_id == ATTEMPT_ID
     assert captured["preview_handle"] == PREVIEW_HANDLE
-    assert captured["mode_check"][1] == {"mode": "TEST"}
+    assert captured["mode_check"][1] == {"mode": "LIVE"}
 
 
 def test_flag_route_rejects_stale_and_advanced_attempts_at_atomic_admission(monkeypatch) -> None:
@@ -166,7 +168,7 @@ def test_flag_route_rejects_stale_and_advanced_attempts_at_atomic_admission(monk
             ProfferPotentialPromotionFlag(
                 flag_id="flag-1",
                 preview_handle=PREVIEW_HANDLE,
-                matter_mode="TEST",
+                matter_mode="LIVE",
                 scope=request.scope,
                 target_id=request.target_id,
                 attempt_id=request.attempt_id,
@@ -191,18 +193,18 @@ def test_flag_route_rejects_stale_and_advanced_attempts_at_atomic_admission(monk
 
     stale = client.post(
         f"/api/proffer/previews/{PREVIEW_HANDLE}/potential-promotion-flags",
-        params={"mode": "TEST"},
+        params={"mode": "LIVE"},
         json={**base, "attempt_id": "attempt://stale"},
     )
     current_attempt = "attempt://advanced-after-form-submit"
     advanced = client.post(
         f"/api/proffer/previews/{PREVIEW_HANDLE}/potential-promotion-flags",
-        params={"mode": "TEST"},
+        params={"mode": "LIVE"},
         json=base,
     )
     unseen = client.post(
         f"/api/proffer/previews/{PREVIEW_HANDLE}/potential-promotion-flags",
-        params={"mode": "TEST"},
+        params={"mode": "LIVE"},
         json={**base, "target_id": "chunk-unseen"},
     )
 
@@ -227,7 +229,7 @@ def test_flag_route_rejects_entity_without_a_governed_reader(monkeypatch) -> Non
     )
     response = TestClient(_app()).post(
         f"/api/proffer/previews/{PREVIEW_HANDLE}/potential-promotion-flags",
-        params={"mode": "TEST"},
+        params={"mode": "LIVE"},
         json={
             "scope": "entity",
             "target_id": "entity-1",
@@ -251,10 +253,10 @@ def test_exact_target_service_binds_mode_and_rejects_uncorrelated_response(monke
     monkeypatch.setattr(proffer_service, "_require_mode", require_mode)
     monkeypatch.setattr(proffer_service, "_request", request)
     assert asyncio.run(
-        proffer_service.preview_content_target(PREVIEW_HANDLE, mode="TEST", scope="record", target_id="record-301")
+        proffer_service.preview_content_target(PREVIEW_HANDLE, mode="LIVE", scope="record", target_id="record-301")
     ) == (ATTEMPT_ID, True)
     assert calls == [
-        ("mode", PREVIEW_HANDLE, "TEST"),
+        ("mode", PREVIEW_HANDLE, "LIVE"),
         (
             "request",
             "GET",
@@ -269,7 +271,7 @@ def test_exact_target_service_binds_mode_and_rejects_uncorrelated_response(monke
     monkeypatch.setattr(proffer_service, "_request", wrong_handle)
     with pytest.raises(proffer_service.ProfferError, match="invalid exact preview content target"):
         asyncio.run(
-            proffer_service.preview_content_target(PREVIEW_HANDLE, mode="TEST", scope="record", target_id="record-301")
+            proffer_service.preview_content_target(PREVIEW_HANDLE, mode="LIVE", scope="record", target_id="record-301")
         )
 
 
@@ -312,12 +314,12 @@ def test_flag_service_persists_governed_metadata_without_promoting(monkeypatch) 
     )
     actor = ProfferDecisionActor(subject_uid="subject-1", username="operator")
 
-    result = proffer_flags.create_potential_promotion_flag(PREVIEW_HANDLE, "TEST", request, actor)
+    result = proffer_flags.create_potential_promotion_flag(PREVIEW_HANDLE, "LIVE", request, actor)
 
     notes = json.loads(returned_notes)
     assert captured == {
         "preview_handle": PREVIEW_HANDLE,
-        "matter_mode": "TEST",
+        "matter_mode": "LIVE",
         "scope": "chunk",
         "target_id": "chunk-1",
         "attempt_id": ATTEMPT_ID,
@@ -342,7 +344,7 @@ def test_flag_list_is_scoped_to_preview_handle(monkeypatch) -> None:
 
     monkeypatch.setattr(proffer_flags.flags_service, "spine_json", spine_json)
 
-    assert proffer_flags.list_potential_promotion_flags(PREVIEW_HANDLE, "TEST") == []
+    assert proffer_flags.list_potential_promotion_flags(PREVIEW_HANDLE, "LIVE") == []
     assert captured == {
         "method": "GET",
         "path": "/v1/flags/proffer-potential-promotion",
@@ -369,7 +371,7 @@ def test_flag_service_signs_authenticated_actor_and_exact_payload(monkeypatch, t
     monkeypatch.setattr(flags_service, "spine_json", spine_json)
     payload = {
         "preview_handle": PREVIEW_HANDLE,
-        "matter_mode": "TEST",
+        "matter_mode": "LIVE",
         "scope": "record",
         "target_id": "33333333-3333-3333-3333-333333333333",
         "attempt_id": "11111111-1111-1111-1111-111111111111",

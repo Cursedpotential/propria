@@ -93,7 +93,7 @@ function previewIsActionableOrSettled(state: ProfferPreviewResponse, ignoredPrev
 
 async function waitForPreview(
   previewHandle: string,
-  mode: "TEST" | "REAL",
+  mode: "DEV" | "LIVE",
   attempts = 80,
   ignoredTerminalPhases: ReadonlySet<string> = new Set(),
   onState?: (state: ProfferPreviewResponse) => void,
@@ -138,7 +138,7 @@ function parserCandidateKey(candidate: ProfferParserCandidate) {
   return [candidate.handler_id, candidate.handler_version, candidate.execution_path, candidate.compatibility_ref].join("\u0000");
 }
 
-function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stagedSource?: StagedSource }) {
+function UnifiedIntakeMode({ mode, stagedSource }: { mode: "DEV" | "LIVE"; stagedSource?: StagedSource }) {
   const { matter, primaryCourtCase, loading: scopeLoading, error: scopeError } = useFixedCase();
   const [staged, setStaged] = useState(stagedSource);
   const [file, setFile] = useState<File | null>(null);
@@ -219,7 +219,7 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
       try {
         const event = JSON.parse(raw.data) as ProfferPreviewEvent;
         if (event.preview_handle !== run.preview_handle) throw new Error("Checkpoint event did not match this import.");
-        if (event.matter_mode !== mode) throw new Error("Checkpoint event crossed the active TEST/REAL boundary.");
+        if (event.matter_mode !== mode) throw new Error("Checkpoint event crossed the active DEV/LIVE boundary.");
         setWorkflowEvents((current) => [...current.filter((item) => item.event_id !== event.event_id), event]
           .sort((left, right) => left.event_id - right.event_id)
           .slice(-100));

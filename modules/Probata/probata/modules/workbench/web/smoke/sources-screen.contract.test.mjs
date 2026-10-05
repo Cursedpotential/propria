@@ -92,7 +92,7 @@ test("Process is one button and never auto-starts, and no sort or mark gates it"
 });
 
 test("the Test / Live switch is shown once, in the top bar", () => {
-  assert.match(selector, /TEST: "Test", REAL: "Live"/);
+  assert.match(selector, /DEV: "Dev", LIVE: "Live"/);
   assert.doesNotMatch(screen, /MatterModeSelector/);
   assert.doesNotMatch(intake, /MatterModeSelector/);
 });

@@ -181,7 +181,7 @@ function courtReadiness() {
 function matterDetail() {
   return {
     id: MATTER_A,
-    matter_mode: "TEST",
+    matter_mode: "LIVE",
     title: "Matter Alpha",
     description: "Fixture Matter",
     status: "active",
@@ -231,19 +231,19 @@ function createFixtureServer({ advancedEvidenceAvailable = true, newRunFixture =
           mime: "application/xml", detected_type: "sms", status: "staged", r2_key: `workbench/staging/${SHA_A}/sms.xml` }]);
       }
       if (newRunFixture && url.pathname === "/api/proffer/sources") {
-        return json(response, 200, { matter_mode: "TEST", active_root_id: "r2-sorted", objects: [], prefixes: [],
+        return json(response, 200, { matter_mode: "LIVE", active_root_id: "r2-sorted", objects: [], prefixes: [],
           available_roots: [], available_file_types: [], selected_file_types: [], page_size: 100, is_truncated: false });
       }
       if (newRunFixture && url.pathname === `/api/proffer/staged/${SHA_A}/acquisition`) {
-        assert.equal(url.searchParams.get("mode"), "TEST");
+        assert.equal(url.searchParams.get("mode"), "LIVE");
         return json(response, 201, { acquisition_ref: `r2://nexus/workbench/staging/${SHA_A}/sms.xml`,
-          sha256: SHA_A, byte_length: 42, matter_mode: "TEST" });
+          sha256: SHA_A, byte_length: 42, matter_mode: "LIVE" });
       }
       if (newRunFixture && url.pathname === "/api/proffer/source-contexts") {
         assert.equal(body.matter_id, MATTER_A);
         assert.equal(body.court_case_id, CASE_PRIMARY);
         assert.equal(body.assertions.source_class, "unknown");
-        return json(response, 201, { source_context_ref: SOURCE_A, matter_mode: "TEST" });
+        return json(response, 201, { source_context_ref: SOURCE_A, matter_mode: "LIVE" });
       }
       if (newRunFixture && url.pathname === "/api/proffer/start") {
         assert.equal(body.source_ref, `r2://nexus/workbench/staging/${SHA_A}/sms.xml`);
@@ -251,11 +251,11 @@ function createFixtureServer({ advancedEvidenceAvailable = true, newRunFixture =
         assert.equal(body.source_context_ref, SOURCE_A);
         assert.equal(body.engine, undefined);
         assert.equal(body.custody_tier, undefined);
-        return json(response, 201, { preview_handle: "new_run_preview_abcdefghijklmnopqrstuvwxyz", matter_mode: "TEST" });
+        return json(response, 201, { preview_handle: "new_run_preview_abcdefghijklmnopqrstuvwxyz", matter_mode: "LIVE" });
       }
       if (newRunFixture && url.pathname === "/api/proffer/previews/new_run_preview_abcdefghijklmnopqrstuvwxyz") {
         if (handlerDecisions < 2) return json(response, 200, {
-          preview_handle: "new_run_preview_abcdefghijklmnopqrstuvwxyz", matter_mode: "TEST",
+          preview_handle: "new_run_preview_abcdefghijklmnopqrstuvwxyz", matter_mode: "LIVE",
           phase: "awaiting_handler_selection", detected_format: "smsbackuprestore_xml",
           detected_format_ref: "detected-ref", signature_ref: "signature-ref",
           handler_recommendation_ref: `recommendation-${handlerDecisions}`,
@@ -263,14 +263,14 @@ function createFixtureServer({ advancedEvidenceAvailable = true, newRunFixture =
             compatibility_ref: `compatibility-${handlerDecisions}`, reason: handlerDecisions ? "Retry after second logged failure" : "Retry after logged automatic execution failure" },
           alternative_handlers: [], receipts: [], checkpoints: [],
         });
-        return json(response, 200, { preview_handle: "new_run_preview_abcdefghijklmnopqrstuvwxyz", matter_mode: "TEST",
+        return json(response, 200, { preview_handle: "new_run_preview_abcdefghijklmnopqrstuvwxyz", matter_mode: "LIVE",
           phase: "failed", reason: "Fixture stop: execution is deliberately mocked", receipts: [], checkpoints: [] });
       }
       if (newRunFixture && url.pathname === "/api/proffer/previews/new_run_preview_abcdefghijklmnopqrstuvwxyz/handler-selection") {
         assert.equal(body.recommendation_ref, `recommendation-${handlerDecisions}`);
         assert.equal(body.compatibility_ref, `compatibility-${handlerDecisions}`);
         handlerDecisions += 1;
-        return json(response, 200, { preview_handle: "new_run_preview_abcdefghijklmnopqrstuvwxyz", matter_mode: "TEST", decision_ref: `decision-${handlerDecisions}` });
+        return json(response, 200, { preview_handle: "new_run_preview_abcdefghijklmnopqrstuvwxyz", matter_mode: "LIVE", decision_ref: `decision-${handlerDecisions}` });
       }
       if (newRunFixture && url.pathname.endsWith("/events")) {
         response.writeHead(200, { "content-type": "text/event-stream" });
@@ -295,11 +295,11 @@ function createFixtureServer({ advancedEvidenceAvailable = true, newRunFixture =
       if (request.method === "GET" && url.pathname === "/api/matters") {
         assert.equal(url.searchParams.get("limit"), "50");
         assert.equal(url.searchParams.get("offset"), "0");
-        assert.equal(url.searchParams.get("mode"), "TEST");
+        assert.equal(url.searchParams.get("mode"), "LIVE");
         return json(response, 200, { data: [matterDetail()], total: 1, limit: 50, offset: 0 });
       }
       if (request.method === "GET" && url.pathname === `/api/matters/${MATTER_A}`) {
-        assert.equal(url.searchParams.get("mode"), "TEST");
+        assert.equal(url.searchParams.get("mode"), "LIVE");
         return json(response, 200, matterDetail());
       }
       if (request.method === "GET" && url.pathname === "/api/case-management/capabilities") {
@@ -718,8 +718,8 @@ for (const inputKind of ["staged", "fresh"]) test(`New Run submits ${inputKind} 
       await waitFor(cdp, session, `document.querySelector('input[type="file"]') !== null`, "fresh file input");
       await evaluate(cdp, session, `(() => { const input = document.querySelector('input[type="file"]'); const transfer = new DataTransfer(); transfer.items.add(new File(['<smses><sms body="fixture" /></smses>'], 'sms.xml', { type: 'application/xml' })); input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true })); })()`);
     }
-    await waitFor(cdp, session, `Array.from(document.querySelectorAll('button')).some((button) => button.textContent.includes('Start TEST context intake') && !button.disabled)`, "context start enabled");
-    assert.equal(await evaluate(cdp, session, clickText("Start TEST context intake")), true);
+    await waitFor(cdp, session, `Array.from(document.querySelectorAll('button')).some((button) => button.textContent.includes('Start Live context intake') && !button.disabled)`, "context start enabled");
+    assert.equal(await evaluate(cdp, session, clickText("Start Live context intake")), true);
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await waitFor(cdp, session, `document.body.innerText.includes('${attempt ? "Retry after second logged failure" : "Retry after logged automatic execution failure"}')`, "runtime handler guidance");
       await evaluate(cdp, session, `document.querySelector('input[name="parser-handler"]').click()`);

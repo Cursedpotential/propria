@@ -26,8 +26,8 @@ class ProfferBatchStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     batch_id: str = Field(min_length=32, max_length=128, pattern=r"^[A-Za-z0-9_-]{32,128}$")
-    matter_id: str
-    court_case_id: str
+    matter_id: UUID
+    court_case_id: UUID
     folder_ref: str = Field(min_length=8, max_length=2048)
     declared_format: str = Field(min_length=1, max_length=128)
     parser_options_ref: str = Field(min_length=1, max_length=256)
@@ -37,7 +37,7 @@ class ProfferBatchStartRequest(BaseModel):
     # Byline: Claude Code · Opus 5.5 · 2026-10-01
     owner_person_id: UUID | None = None
     perspective_person_id: UUID | None = None
-    matter_mode: MatterMode
+    matter_mode: MatterMode = "LIVE"
 
 
 class ProfferBatchStartResponse(BaseModel):

@@ -25,7 +25,7 @@ import base64
 import json
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -33,6 +33,7 @@ import httpx
 from app.config import settings
 from app.repo import imported_pg as pg
 from app.service import proffer
+from app.service.matter_mode import MatterModeError, configured_matter_id
 from app.service.proffer_errors import ProfferError
 
 ImportedError = pg.ImportedError
@@ -62,10 +63,11 @@ def _cached(key: str, ttl: float, build):
 
 
 def live_matter() -> str:
-    value = settings.proffer_real_matter_id.strip()
-    if not value:
-        raise ImportedError("The live case identity is not configured")
-    return value
+    """Resolve the single canonical case used by Live Imported views."""
+    try:
+        return str(configured_matter_id("LIVE"))
+    except MatterModeError as error:
+        raise ImportedError(error.detail, error.status_code) from None
 
 
 # --------------------------------------------------------------------------- opaque ids
@@ -825,4 +827,4 @@ async def summary() -> dict[str, Any]:
         for name, count in item["status_counts"].items():
             status[name] = status.get(name, 0) + count
     return {"matter_id": live_matter(), "totals": totals, "files_by_status": status, "run_state_available": lifecycle_ok,
-            "generated_at": datetime.now(timezone.utc).isoformat()}
+            "generated_at": datetime.now(UTC).isoformat()}

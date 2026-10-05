@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import inspect
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -60,7 +60,7 @@ class Starter:
 def starter(monkeypatch):
     fake = Starter()
     monkeypatch.setattr(proffer, "_request", fake.request)
-    monkeypatch.setattr(imported.settings, "proffer_real_matter_id", MATTER)
+    monkeypatch.setattr(imported.settings, "proffer_matter_id", MATTER)
     service._reset_registry_cache()
     return fake
 
@@ -143,7 +143,7 @@ def test_workflow_status_reads_only_workflows_this_surface_starts(starter):
 
 def _run(run_id: str, extractor: str, generation: str = "g1", status: str = "completed") -> dict:
     return {"run_id": run_id, "extractor": extractor, "extractor_version": "1", "model_id": "", "status": status, "error": "",
-            "started_at": datetime(2026, 10, 2, tzinfo=timezone.utc), "finished_at": datetime(2026, 10, 2, tzinfo=timezone.utc),
+            "started_at": datetime(2026, 10, 2, tzinfo=UTC), "finished_at": datetime(2026, 10, 2, tzinfo=UTC),
             "stats": {"messages": 5}, "generation_id": generation}
 
 
@@ -154,7 +154,7 @@ def _entity(entity_id: str, run_id: str, name: str) -> dict:
 
 
 def _event(event_id: str, run_id: str, title: str) -> dict:
-    return {"id": event_id, "run_id": run_id, "title": title, "event_type": "court", "occurred_at": datetime(2025, 7, 2, tzinfo=timezone.utc),
+    return {"id": event_id, "run_id": run_id, "title": title, "event_type": "court", "occurred_at": datetime(2025, 7, 2, tzinfo=UTC),
             "precision": "point", "confidence": 0.6, "review_state": "pending", "record_ids": ["r1", None], "description": "", "when_stated": None}
 
 
@@ -184,7 +184,7 @@ def test_extractions_group_under_their_own_names_when_the_engine_is_unreachable(
         raise proffer.ProfferError("down", 503)
 
     monkeypatch.setattr(proffer, "_request", down)
-    monkeypatch.setattr(imported.settings, "proffer_real_matter_id", MATTER)
+    monkeypatch.setattr(imported.settings, "proffer_matter_id", MATTER)
     service._reset_registry_cache()
     monkeypatch.setattr(pg, "runs", lambda *a: [_run("run-sem", "semantica")])
     monkeypatch.setattr(pg, "entities", lambda *a: [_entity("e2", "run-sem", "Flint")])

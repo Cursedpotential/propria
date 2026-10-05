@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Path, Query
+from fastapi import APIRouter, Header, HTTPException, Path
 from fastapi.responses import StreamingResponse
 
+from app.runtime.operating_mode import OperatingMode
 from app.service.proffer import ProfferError, open_preview_event_stream, validated_preview_events
-from app.types.matter_mode import MatterMode
 
 router = APIRouter(tags=["proffer"])
 
@@ -26,7 +26,7 @@ def _translate(error: ProfferError) -> HTTPException:
 @router.get("/previews/{preview_handle}/events")
 async def preview_events_endpoint(
     preview_handle: PreviewHandle,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
     last_event_id_header: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
 ):
     last_event_id: int | None = None

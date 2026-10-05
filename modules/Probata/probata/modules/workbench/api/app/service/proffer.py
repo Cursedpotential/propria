@@ -14,7 +14,6 @@ import re
 import stat
 from pathlib import Path
 from typing import Any
-from uuid import UUID
 
 import httpx
 from pydantic import ValidationError
@@ -23,9 +22,7 @@ from app.config import settings
 from app.service import preview_mode_recovery
 from app.service.matter_mode import (
     MatterModeError,
-    bind_preview_mode,
     configured_matter_id,
-    require_scope,
 )
 from app.service.proffer_errors import ProfferError, upstream_payload
 from app.service.proffer_sources import browse_sources  # noqa: F401
@@ -41,8 +38,6 @@ from app.types.proffer import (
     ProfferPreviewResponse,
     ProfferRepairDecisionRequest,
     ProfferRepairDecisionResponse,
-    ProfferStartRequest,
-    ProfferStartResponse,
     ProfferUploadResponse,
 )
 from app.types.proffer_search import PreviewMessageFilter
@@ -127,35 +122,14 @@ def _require_mode_configuration(mode: MatterMode) -> None:
     _mode_call(configured_matter_id, mode)
 
 
-async def start(request: ProfferStartRequest, *, mode: MatterMode) -> ProfferStartResponse:
-    if request.matter_mode != mode:
-        raise ProfferError("matter_mode in the start body must match the mode query", 409)
-    _mode_call(require_scope, mode, request.matter_id, request.court_case_id)
-    response = await _request(
-        "POST",
-        "/reference-import/start",
-        json=request.model_dump(mode="json", exclude={"matter_mode"}),
-    )
-    result = _validated(
-        ProfferStartResponse,
-        _mode_payload(_json_payload(response, "start response"), "start response", mode),
-        "start response",
-    )
-    _mode_call(bind_preview_mode, result.preview_handle, mode)
-    return result
-
-
-async def _operation_matter_id(preview_handle: str) -> UUID | None:
-    response = await _request("GET", f"/reference-import/operations/{preview_handle}")
-    raw = _json_payload(response, "operation detail")
-    value = raw.get("matter_id") if isinstance(raw, dict) else None
-    return UUID(value) if isinstance(value, str) else None
+from app.service.proffer_start import operation_binding as _operation_binding
+from app.service.proffer_start import start as start
 
 
 async def _require_mode(preview_handle: str, mode: MatterMode) -> None:
     """Mode check that survives a BFF restart (see preview_mode_recovery)."""
     try:
-        await preview_mode_recovery.require(preview_handle, mode, _operation_matter_id)
+        await preview_mode_recovery.require(preview_handle, mode, _operation_binding)
     except MatterModeError as error:
         raise ProfferError(error.detail, error.status_code) from None
 

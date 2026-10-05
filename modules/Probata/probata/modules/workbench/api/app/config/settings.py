@@ -50,12 +50,13 @@ class Settings(BaseSettings):
     # SOURCE_ROOTS_JSON, read by app.types.source_roots (shared with the Go engine).
     # Direct-tailnet Proffer starter boundary; blank values fail closed in the adapter.
     proffer_starter_url: str = ""
-    # Explicit TEST/REAL matter identities for the Proffer intake surface.
-    # Neither identity is discovered by title. Blank or malformed values fail
-    # the corresponding mode closed at the BFF boundary.
-    proffer_test_matter_id: str = "deadbeef-dead-beef-dead-beefdeadbeef"
+    # One authoritative case for both operational modes. REAL names are
+    # rollout fallbacks only; old TEST identities never select another case.
+    proffer_matter_id: str = ""
+    proffer_court_case_id: str = ""
+    proffer_test_matter_id: str = ""
     proffer_real_matter_id: str = ""
-    proffer_test_court_case_id: str = "cafebabe-cafe-babe-cafe-babecafebabe"
+    proffer_test_court_case_id: str = ""
     proffer_real_court_case_id: str = ""
     # Optional absolute root containing immutable per-attempt proposal bundles.
     # The adapter discovers only canonical ``bundle-manifest.json`` envelopes

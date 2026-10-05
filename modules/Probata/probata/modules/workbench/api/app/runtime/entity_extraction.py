@@ -23,6 +23,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
 
+from app.runtime.operating_mode import OperatingMode
 from app.service import entity_extraction as service
 from app.service.proffer_errors import ProfferError
 from app.types.entity_extraction import (
@@ -43,7 +44,6 @@ from app.types.entity_extraction import (
     ValidationReport,
     WorkflowProgress,
 )
-from app.types.matter_mode import MatterMode
 from app.types.proffer import ProfferDecisionActor
 
 router = APIRouter(prefix="/api", tags=["entities"])
@@ -69,7 +69,7 @@ def _actor(request: Request) -> ProfferDecisionActor:
 
 @router.post("/entities/extract", response_model=ExtractionStarted, status_code=202)
 async def extract_endpoint(
-    body: EntityExtractRequest, request: Request, mode: Annotated[MatterMode, Query()], key: RequiredKey
+    body: EntityExtractRequest, request: Request, mode: OperatingMode, key: RequiredKey
 ):
     actor = _actor(request)
     try:
@@ -80,7 +80,7 @@ async def extract_endpoint(
 
 @router.get("/entities/extractions/{workflow_id}", response_model=WorkflowProgress)
 async def extraction_progress_endpoint(
-    workflow_id: WorkflowId, preview_handle: Annotated[PreviewHandle, Query()], mode: Annotated[MatterMode, Query()]
+    workflow_id: WorkflowId, preview_handle: Annotated[PreviewHandle, Query()], mode: OperatingMode
 ):
     try:
         return await service.workflow_progress("extraction", workflow_id, preview_handle, mode=mode)
@@ -89,7 +89,7 @@ async def extraction_progress_endpoint(
 
 
 @router.get("/entities/proposals", response_model=ProposalsResponse)
-async def proposals_endpoint(preview_handle: Annotated[PreviewHandle, Query()], mode: Annotated[MatterMode, Query()]):
+async def proposals_endpoint(preview_handle: Annotated[PreviewHandle, Query()], mode: OperatingMode):
     try:
         return await service.proposals(preview_handle, mode=mode)
     except ProfferError as error:
@@ -98,7 +98,7 @@ async def proposals_endpoint(preview_handle: Annotated[PreviewHandle, Query()], 
 
 @router.post("/entities/corrections", response_model=CorrectionApplied)
 async def corrections_endpoint(
-    body: EntityCorrectionRequest, request: Request, mode: Annotated[MatterMode, Query()], key: RequiredKey
+    body: EntityCorrectionRequest, request: Request, mode: OperatingMode, key: RequiredKey
 ):
     actor = _actor(request)
     try:
@@ -111,7 +111,7 @@ async def corrections_endpoint(
 async def record_endpoint(
     record_id: Annotated[str, Path(min_length=1, max_length=64)],
     preview_handle: Annotated[PreviewHandle, Query()],
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     try:
         return await service.record(preview_handle, record_id, mode=mode)
@@ -130,7 +130,7 @@ async def registry_endpoint(
 
 
 @router.post("/entities/validate", response_model=ValidationReport)
-async def validate_endpoint(body: EntityRunRequest, mode: Annotated[MatterMode, Query()]):
+async def validate_endpoint(body: EntityRunRequest, mode: OperatingMode):
     try:
         return await service.validate(body, mode=mode)
     except ProfferError as error:
@@ -139,7 +139,7 @@ async def validate_endpoint(body: EntityRunRequest, mode: Annotated[MatterMode, 
 
 @router.post("/entities/commit", response_model=CommitStarted, status_code=202)
 async def commit_endpoint(
-    body: EntityCommitRequest, request: Request, mode: Annotated[MatterMode, Query()], key: RequiredKey
+    body: EntityCommitRequest, request: Request, mode: OperatingMode, key: RequiredKey
 ):
     actor = _actor(request)
     try:
@@ -150,7 +150,7 @@ async def commit_endpoint(
 
 @router.get("/entities/commits/{workflow_id}", response_model=WorkflowProgress)
 async def commit_progress_endpoint(
-    workflow_id: WorkflowId, preview_handle: Annotated[PreviewHandle, Query()], mode: Annotated[MatterMode, Query()]
+    workflow_id: WorkflowId, preview_handle: Annotated[PreviewHandle, Query()], mode: OperatingMode
 ):
     try:
         return await service.workflow_progress("commit", workflow_id, preview_handle, mode=mode)
@@ -160,7 +160,7 @@ async def commit_progress_endpoint(
 
 @router.post("/events/from-record", response_model=MarkedEvent, status_code=201)
 async def event_from_record_endpoint(
-    body: EventFromRecordRequest, request: Request, mode: Annotated[MatterMode, Query()], key: RequiredKey
+    body: EventFromRecordRequest, request: Request, mode: OperatingMode, key: RequiredKey
 ):
     actor = _actor(request)
     try:

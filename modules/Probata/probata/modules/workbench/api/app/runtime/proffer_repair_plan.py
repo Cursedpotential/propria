@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import JSONResponse
 
+from app.runtime.operating_mode import OperatingMode
 from app.service.proffer_errors import ProfferError
 from app.service.proffer_repair_plan import (
     RepairRunRefusedError,
@@ -25,7 +26,6 @@ from app.service.proffer_repair_plan import (
     tools,
     validate,
 )
-from app.types.matter_mode import MatterMode
 from app.types.proffer_repair_plan import (
     RepairPlan,
     RepairProposeRequest,
@@ -40,7 +40,7 @@ from app.types.proffer_repair_plan import (
 router = APIRouter(prefix="/api/proffer/repair", tags=["proffer"])
 
 WorkflowID = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{8,160}$")]
-Mode = Annotated[MatterMode, Query()]
+Mode = OperatingMode
 
 
 def _translate(error: ProfferError) -> HTTPException:

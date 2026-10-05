@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from app.config import settings
 from app.repo import case_identity_catalog as catalog
 from app.runtime import case_identity as runtime
+from app.runtime import operating_mode
 from app.service import proffer
 from app.service.proffer_errors import ProfferError
 from fastapi import FastAPI, Request
@@ -31,7 +33,7 @@ def _app(actor: bool = True) -> FastAPI:
     return app
 
 
-def _view(mode: str = "REAL") -> dict:
+def _view(mode: str = "LIVE") -> dict:
     return {
         "mode": mode,
         "matter": {"id": "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", "title": "Salem v Kinzel"},
@@ -69,6 +71,11 @@ class _Engine:
 
 @pytest.fixture
 def engine(monkeypatch):
+    monkeypatch.setattr(settings, "proffer_matter_id", _view()["matter"]["id"])
+    monkeypatch.setattr(settings, "proffer_court_case_id", _view()["court_case"]["id"])
+    async def verified_scope(_mode):
+        return None
+    monkeypatch.setattr(operating_mode, "verify_case_scope", verified_scope)
     stub = _Engine()
     monkeypatch.setattr(proffer, "_request", stub.request)
     return stub
@@ -94,10 +101,10 @@ def catalog_calls(monkeypatch):
 
 def test_read_merges_registry_and_catalog_with_store_labels(engine, catalog_calls) -> None:
     engine.answers[("GET", "/case-identity")] = (200, _view())
-    response = TestClient(_app()).get("/api/case-identity", params={"mode": "REAL"})
+    response = TestClient(_app()).get("/api/case-identity", params={"mode": "LIVE"})
     assert response.status_code == 200, response.text
     body = response.json()
-    assert engine.calls[0]["params"] == {"mode": "REAL"}
+    assert engine.calls[0]["params"] == {"mode": "LIVE"}
     assert body["count_store"] == "probata"
     assert body["catalog"]["store"] == "casebible" and body["catalog"]["available"] is True
     assert body["catalog"]["counts"][0]["events"] == 23032
@@ -108,8 +115,8 @@ def test_read_merges_registry_and_catalog_with_store_labels(engine, catalog_call
 
 
 def test_read_rejects_an_engine_answer_for_another_mode(engine, catalog_calls) -> None:
-    engine.answers[("GET", "/case-identity")] = (200, _view("TEST"))
-    response = TestClient(_app()).get("/api/case-identity", params={"mode": "REAL"})
+    engine.answers[("GET", "/case-identity")] = (200, _view("DEV"))
+    response = TestClient(_app()).get("/api/case-identity", params={"mode": "LIVE"})
     assert response.status_code == 502
 
 
@@ -121,7 +128,7 @@ def test_read_survives_an_unavailable_catalog(engine, monkeypatch) -> None:
         raise catalog.CatalogError("Pre-ingest catalog query unavailable or timed out")
 
     monkeypatch.setattr(catalog, "counts", broken)
-    body = TestClient(_app()).get("/api/case-identity", params={"mode": "REAL"}).json()
+    body = TestClient(_app()).get("/api/case-identity", params={"mode": "LIVE"}).json()
     assert body["catalog"]["available"] is False
     assert body["people"][0]["display_name"] == "Matthew S. Salem"
 
@@ -169,10 +176,10 @@ def test_writes_need_an_actor_and_a_key(engine) -> None:
 def test_engine_errors_keep_their_status(engine) -> None:
     engine.answers[("POST", "/case-identity/header")] = (409, "the record changed since it was read")
     response = TestClient(_app()).post(
-        "/api/case-identity/header", params={"mode": "REAL"}, json={"target": "matter"}, headers={"Idempotency-Key": "k"}
+        "/api/case-identity/header", params={"mode": "LIVE"}, json={"target": "matter"}, headers={"Idempotency-Key": "k"}
     )
     assert response.status_code == 409
-    assert engine.calls[0]["params"] == {"mode": "REAL"}
+    assert engine.calls[0]["params"] == {"mode": "LIVE"}
 
 
 def test_person_edit_path_is_a_uuid(engine) -> None:

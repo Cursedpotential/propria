@@ -439,6 +439,13 @@ function RecordDrawer({ view, open, onClose, focus }: { view: CaseIdentityView; 
 
 export function CaseIdentityScreen() {
   const { mode } = useFixedCase();
+  // Changing policy discards open dialogs and their idempotency keys, even when
+  // the next read hits a warm cache. A stale Live header must never save in Dev.
+  return <ModeScopedCaseIdentityScreen key={mode} />;
+}
+
+function ModeScopedCaseIdentityScreen() {
+  const { mode } = useFixedCase();
   const query = useQuery({ queryKey: ["case-identity", mode], queryFn: () => getCaseIdentity(mode) });
   const [identifierTarget, setIdentifierTarget] = useState<IdentifierDialogTarget | null>(null);
   const [personTarget, setPersonTarget] = useState<CasePerson | null | undefined>(undefined);
@@ -554,7 +561,7 @@ export function CaseIdentityScreen() {
       {identifierTarget && <IdentifierDialog target={identifierTarget} onClose={() => setIdentifierTarget(null)} />}
       {personTarget !== undefined && <PersonDialog person={personTarget} onClose={() => setPersonTarget(undefined)} />}
       {headerOpen && view.matter && view.court_case && (
-        <HeaderDialog mode={view.mode} matter={view.matter} courtCase={view.court_case} onClose={() => setHeaderOpen(false)} />
+        <HeaderDialog mode={mode} matter={view.matter} courtCase={view.court_case} onClose={() => setHeaderOpen(false)} />
       )}
       {dismissRaw && <DismissDialog raw={dismissRaw} onClose={() => setDismissRaw(null)} />}
       {deleteTarget && <DeleteIdentifierDialog identifier={deleteTarget} onClose={() => setDeleteTarget(null)} />}

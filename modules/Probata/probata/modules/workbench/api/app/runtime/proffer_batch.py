@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Path
 
+from app.runtime.operating_mode import OperatingMode
 from app.service.proffer_batch import batch_status, start_batch
 from app.service.proffer_errors import ProfferError
-from app.types.matter_mode import MatterMode
 from app.types.proffer_batch import (
     ProfferBatchStartRequest,
     ProfferBatchStartResponse,
@@ -25,7 +25,7 @@ BatchID = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{32,128}$")]
 
 @router.post("/start-batch", response_model=ProfferBatchStartResponse, status_code=201)
 async def start_batch_endpoint(
-    body: ProfferBatchStartRequest, mode: Annotated[MatterMode, Query()]
+    body: ProfferBatchStartRequest, mode: OperatingMode
 ):
     try:
         return await start_batch(body, mode=mode)
@@ -34,7 +34,7 @@ async def start_batch_endpoint(
 
 
 @router.get("/batches/{batch_id}", response_model=ProfferBatchStatus)
-async def batch_status_endpoint(batch_id: BatchID, mode: Annotated[MatterMode, Query()]):
+async def batch_status_endpoint(batch_id: BatchID, mode: OperatingMode):
     try:
         return await batch_status(batch_id, mode=mode)
     except ProfferError as error:

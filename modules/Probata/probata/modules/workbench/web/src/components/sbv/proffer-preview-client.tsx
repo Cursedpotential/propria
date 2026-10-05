@@ -27,6 +27,7 @@ import {
 } from "@/lib/api-client";
 import { PROFFER_CONTEXT_CHECKPOINTS, profferContextFlowComplete } from "@/lib/proffer-context-checkpoints";
 import { useFixedCase } from "@/lib/fixed-case-context";
+import { parseOperatingMode } from "@/lib/operating-mode";
 import { AppLink } from "@/lib/router-compat";
 import type {
   ProfferPreviewEvent,
@@ -44,10 +45,10 @@ import type {
 // Shown as one small line inside the Decision block while Approve is locked.
 const APPROVAL_LOCK_REASON = "Approval remains locked until this exact attempt has normalized records, source locators, and every required completed receipt.";
 
-function initialHandle(mode: "TEST" | "REAL") {
+function initialHandle(mode: "DEV" | "LIVE") {
   if (typeof window === "undefined") return "";
   const query = new URLSearchParams(window.location.search);
-  if (query.get("mode") !== mode) return "";
+  if (parseOperatingMode(query.get("mode")) !== mode) return "";
   return (query.get("resource") ?? query.get("preview_handle") ?? query.get("attempt"))?.trim() ?? "";
 }
 
@@ -56,7 +57,7 @@ export function ProfferPreviewClient() {
   return <ModeScopedPreviewClient key={mode} mode={mode} />;
 }
 
-function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
+function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
   const [initialUrlHandle] = useState(() => initialHandle(mode));
   const [previewHandle, setPreviewHandle] = useState(initialUrlHandle);
   const [resources, setResources] = useState<ProfferProposalResource[]>([]);
@@ -321,7 +322,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
         if (generation !== generationRef.current || activeHandleRef.current !== previewHandle) return;
         const event = JSON.parse(raw.data) as ProfferPreviewEvent;
         if (event.preview_handle !== previewHandle) throw new Error("Preview event correlation failed");
-        if (event.matter_mode !== mode) throw new Error("Preview event crossed the active TEST/REAL boundary");
+        if (event.matter_mode !== mode) throw new Error("Preview event crossed the active DEV/LIVE boundary");
         setEvents((current) => [...current.filter((item) => item.event_id !== event.event_id), event]
           .sort((left, right) => left.event_id - right.event_id)
           .slice(-100));

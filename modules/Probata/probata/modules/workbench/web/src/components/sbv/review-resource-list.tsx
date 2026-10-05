@@ -1,7 +1,7 @@
 // Byline: Claude Code · Fable 5.1 · 2026-09-20
 // Byline amendment: Claude Code · Opus 5.5 · 2026-09-28 — a cancelled run is not reviewable; it shows under All only.
 // Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — one small flag, "N runs hidden: mode
-// unknown", for runs the server could not prove Test or Live (they are listed under neither).
+// unknown", for runs the server could not prove Dev or Live (they are listed under neither).
 // Owner 2026-09-20 23:10: "Sources and proposals — this section sucks now, it's
 // massive and hard to nav". Every run was a six-line card titled with a
 // front-truncated b2:// path (so all titles looked alike), repeating one
@@ -19,7 +19,7 @@ type Filter = "reviewable" | "failed" | "all";
 
 interface ReviewResourceListProps {
   resources: ProfferProposalResource[];
-  /** Runs on this page whose Test/Live mode could not be proven; they are never listed. */
+  /** Runs on this page whose Dev/Live mode could not be proven; they are never listed. */
   unboundCount?: number;
   loading: boolean;
   selectedHandle: string | null;
@@ -32,7 +32,7 @@ function UnboundFlag({ count }: { count: number }) {
   return (
     <span
       className="shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] text-muted-foreground"
-      title="Their Test / Live mode could not be proven from the run's recorded matter, so they are not listed under either mode."
+      title="Their Dev / Live policy has no verifiable explicit durable operation receipt, so they are not listed under either mode."
       data-testid="review-unbound-flag"
     >
       {count} {count === 1 ? "run" : "runs"} hidden: mode unknown

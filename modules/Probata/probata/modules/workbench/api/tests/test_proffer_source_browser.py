@@ -5,19 +5,17 @@ Byline: Codex · GPT-5 · 2026-08-29.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import hashlib
 import io
 import json
-
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from datetime import UTC, datetime
 
 from app.repo import object_store_client
 from app.runtime import source_inspection as source_runtime
-from app.service import proffer, proffer_sources
-from app.service import source_inspection
+from app.service import proffer, proffer_sources, source_inspection
 from app.types.source_context import SourceContextReceipt
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 def test_browser_lists_selected_root_with_delimiter_and_file_details(monkeypatch) -> None:
@@ -42,7 +40,7 @@ def test_browser_lists_selected_root_with_delimiter_and_file_details(monkeypatch
 
     monkeypatch.setattr(proffer_sources, "list_source_objects", fake_list)
     result = proffer.browse_sources(
-        mode="TEST", root_id="r2-raw", prefix="exports/", continuation_token="opaque-current", page_size=25
+        mode="LIVE", root_id="r2-raw", prefix="exports/", continuation_token="opaque-current", page_size=25
     )
 
     assert captured == {
@@ -81,7 +79,7 @@ def test_root_search_scans_beyond_the_first_provider_page_and_filters_type(monke
 
     monkeypatch.setattr(proffer_sources, "list_source_objects", fake_list)
     result = proffer.browse_sources(
-        mode="TEST",
+        mode="LIVE",
         root_id="r2-raw",
         prefix="ignored-while-root-searching/",
         filter_text="AI_Chats",
@@ -185,7 +183,7 @@ def test_browser_rejects_escape_prefix_before_object_store_call(monkeypatch) -> 
         lambda **_: (_ for _ in ()).throw(AssertionError("object store must not be called")),
     )
     try:
-        proffer.browse_sources(mode="TEST", prefix="../wrong-case/")
+        proffer.browse_sources(mode="LIVE", prefix="../wrong-case/")
     except proffer.ProfferError as error:
         assert error.status_code == 422
     else:
@@ -214,7 +212,7 @@ def test_source_inspection_hashes_immediately_without_claiming_a_custody_digest(
     app.include_router(source_runtime.router)
 
     response = TestClient(app).post(
-        "/api/proffer/source-inspection?mode=TEST&root_id=r2-raw",
+        "/api/proffer/source-inspection?mode=LIVE&root_id=r2-raw",
         json={
             "root_id": "r2-raw",
             "source_ref": "r2://casebible-raw/filings/source.pdf",
@@ -228,7 +226,7 @@ def test_source_inspection_hashes_immediately_without_claiming_a_custody_digest(
     body = response.json()
     assert body["sha256"] == hashlib.sha256(payload).hexdigest()
     assert body["digest_status"] == "preview_only"
-    assert body["matter_mode"] == "TEST"
+    assert body["matter_mode"] == "LIVE"
     assert body["active_root_id"] == "r2-raw"
     assert body["preview_kind"] == "pdf"
     assert body["preview_url"].startswith("/api/proffer/source-content?")
@@ -262,7 +260,7 @@ def test_source_inspection_rejects_a_changed_listing_identity(monkeypatch) -> No
     app.include_router(source_runtime.router)
 
     response = TestClient(app).post(
-        "/api/proffer/source-inspection?mode=TEST&root_id=r2-sorted",
+        "/api/proffer/source-inspection?mode=LIVE&root_id=r2-sorted",
         json={
             "root_id": "r2-sorted",
             "source_ref": "r2://casebible-sorted/source.pdf",
@@ -317,7 +315,7 @@ def test_source_context_route_uses_authenticated_actor_and_returns_only_receipt(
             content_digest="a" * 64,
             revision=1,
             recorded_at=datetime(2026, 8, 30, tzinfo=UTC),
-            matter_mode="TEST",
+            matter_mode="LIVE",
         )
 
     monkeypatch.setattr(source_runtime, "create_source_context", fake_create)
@@ -331,11 +329,11 @@ def test_source_context_route_uses_authenticated_actor_and_returns_only_receipt(
 
     app.include_router(source_runtime.router)
     response = TestClient(app).post(
-        "/api/proffer/source-contexts?mode=TEST",
+        "/api/proffer/source-contexts?mode=LIVE",
         json={
             "request_id": "request-1",
-            "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
-            "court_case_id": "cafebabe-cafe-babe-cafe-babecafebabe",
+            "matter_id": "11111111-1111-4111-8111-111111111111",
+            "court_case_id": "22222222-2222-4222-8222-222222222222",
             "source_ref": "r2://casebible-sorted/source.pdf",
             "observed_source": {
                 "key": "source.pdf",
@@ -346,7 +344,7 @@ def test_source_context_route_uses_authenticated_actor_and_returns_only_receipt(
             },
             "assertions": {"source_class": "acquired_third_party", "other_party": "Other party"},
             "change_reason": "Operator supplied source context during intake",
-            "matter_mode": "TEST",
+            "matter_mode": "LIVE",
         },
     )
 
@@ -355,4 +353,4 @@ def test_source_context_route_uses_authenticated_actor_and_returns_only_receipt(
     assert captured["actor"].subject_uid == "authentik-user-1"
     assert captured["actor"].username == "operator"
     assert captured["body"].assertions.other_party == "Other party"
-    assert captured["mode"] == "TEST"
+    assert captured["mode"] == "LIVE"
