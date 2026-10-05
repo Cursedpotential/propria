@@ -1,6 +1,7 @@
 // Byline: Codex, GPT-6, 2026-10-04. Shared personalized library revision contract.
 import { randomUUID } from "node:crypto";
 import { normalize, type StoreOk } from "./store.js";
+import { prepareLibraryEditCapture } from "./library-sync-integration.js";
 
 export interface LibraryCitation {
   source_id: string;
@@ -61,8 +62,9 @@ export async function putPersonalCaseSource(store: StoreOk, key: string, data: R
 export async function putVersionedPersonalRecord(store: StoreOk, table: string, key: string, data: Record<string, unknown>, expectedVersion: string): Promise<Record<string, unknown>> {
   const personalTables = ["person", "child", "order", "hearing", "deadline", "event", "message", "exhibit", "factor", "source", "note", "court", "court_event", "filing", "draft", "memo", "evidence_log", "eval", "case_status"];
   if (!personalTables.includes(table) || !key || (expectedVersion !== "absent" && !/^sha256:[a-f0-9]{64}$/.test(expectedVersion))) throw new Error("Personal edit requires an admitted table and exact expected version");
-  if ("id" in data || "embedding" in data) throw new Error("Record identity and embedding are server-owned fields");
+  if ("id" in data || "embedding" in data || "library_file_id" in data) throw new Error("Record identity, embedding and file bindings are server-owned fields");
   if (table === "source" && data.kind !== "case_document") throw new Error("Personal case sources require kind case_document");
+  const capture = await prepareLibraryEditCapture(store, table + ":" + key, "$sync_full", "$sync_version", "$sync_revision");
   const results = await libraryTransaction(store, `BEGIN TRANSACTION;
     LET $rid = type::record($tb, $key);
     LET $personal_prior = (SELECT * OMIT embedding FROM ONLY $rid);
@@ -73,8 +75,12 @@ export async function putVersionedPersonalRecord(store: StoreOk, table: string, 
     LET $personal_next = object::extend((SELECT * OMIT embedding FROM ONLY $rid), { id: $rid });
     CREATE type::record('record_revision', $revision) CONTENT { target: $rid, previous_version: $version,
       previous_record: $personal_prior, current_version: 'sha256:' + crypto::sha256(<string> $personal_next), current_record: $personal_next, created_at: time::now() };
+    LET $sync_full = object::extend((SELECT * FROM ONLY $rid), { id: $rid });
+    LET $sync_version = 'sha256:' + crypto::sha256(<string> object::remove($sync_full, ['embedding']));
+    LET $sync_revision = type::record('record_revision', $revision);
+    ${capture.sql}
     RETURN { personal_record: $personal_next };
-    COMMIT TRANSACTION;`, { tb: table, key, data, expected: expectedVersion, revision: randomUUID() });
+    COMMIT TRANSACTION;`, { tb: table, key, data, expected: expectedVersion, revision: randomUUID(), ...capture.params });
   for (const value of [...results].reverse()) {
     const row = Array.isArray(value) ? value[0] : value;
     if (row && typeof row === "object" && "personal_record" in row) return (row as { personal_record: Record<string, unknown> }).personal_record;
@@ -114,7 +120,7 @@ export function validateLibraryProposal(input: LibraryProposalInput): { table: s
   const match = /^(reference|source):([^\s:]{1,200})$/.exec(input.id);
   if (!match || !/^(?:absent|sha256:[a-f0-9]{64})$/.test(input.expected_version)) throw new Error("Invalid library identity or expected version");
   if (!input.patch || typeof input.patch !== "object" || Array.isArray(input.patch) || !Object.keys(input.patch).length
-    || Object.keys(input.patch).some(k => ["id", "embedding", "validation", "validation_status", "published_at"].includes(k)))
+    || Object.keys(input.patch).some(k => ["id", "embedding", "library_file_id", "validation", "validation_status", "published_at"].includes(k)))
     throw new Error("Invalid library patch or reserved publication field");
   if (Buffer.byteLength(JSON.stringify(input.patch), "utf8") > 512000) throw new Error("Library patch exceeds 512KB budget");
   if (!Array.isArray(input.citations) || input.citations.length < 1 || input.citations.length > 64) throw new Error("One to 64 claim citations are required");
@@ -164,10 +170,16 @@ export async function libraryPropose(store: StoreOk, input: LibraryProposalInput
 export async function libraryPublish(store: StoreOk, proposalId: string): Promise<Record<string, unknown>> {
   const match = /^library_proposal:([a-f0-9-]{36})$/.exec(proposalId);
   if (!match) throw new Error("Invalid library proposal identity");
+  const preflight = await store.db.query("SELECT VALUE target FROM ONLY type::record('library_proposal', $key);", { key: match[1] });
+  const target = preflight.at(-1);
+  if (!target) throw new Error("Library proposal missing");
+  const targetId = String(target);
+  const capture = await prepareLibraryEditCapture(store, targetId, "$sync_full", "$sync_version", "$sync_revision");
   const results = await libraryTransaction(store, `
     BEGIN TRANSACTION;
     LET $p = (SELECT * FROM ONLY type::record('library_proposal', $key));
     IF $p = NONE { THROW 'Library proposal missing'; };
+    IF <string> $p.target != $sync_publication_target { THROW 'Library proposal target changed'; };
     LET $status = $p.status;
     IF $status = 'published' { RETURN $p.publication; };
     LET $v = (SELECT * FROM ONLY type::record('library_validation', $key));
@@ -217,9 +229,13 @@ export async function libraryPublish(store: StoreOk, proposalId: string): Promis
     LET $publication = { id: record::tb($p.target) + ':' + <string> record::id($p.target), version: 'sha256:' + crypto::sha256(<string> $new),
       revision_id: 'library_revision:' + $key, proposal_id: record::tb($p.id) + ':' + <string> record::id($p.id), status: 'published' };
     UPDATE $p.id SET status = 'published', publication = $publication, published_at = time::now();
+    LET $sync_full = object::extend((SELECT * FROM ONLY $p.target), { id: $p.target });
+    LET $sync_version = 'sha256:' + crypto::sha256(<string> object::remove($sync_full, ['embedding']));
+    LET $sync_revision = type::record('library_revision', $key);
+    ${capture.sql}
     RETURN $publication;
     COMMIT TRANSACTION;
-  `, { key: match[1] });
+  `, { key: match[1], sync_publication_target: targetId, ...capture.params });
   return resultObject(results);
 }
 

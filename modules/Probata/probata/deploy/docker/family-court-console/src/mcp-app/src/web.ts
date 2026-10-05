@@ -35,6 +35,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { widgets } from "./generated-widgets.js";
 import { DATA_TABLES, caseRecord, getStore, normalize, type StoreOk } from "./store.js";
 import { authenticate, loadAuthConfig, type Principal } from "./web-auth.js";
+import { proxyLibraryOriginal } from "./library-original-proxy.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // dist/server.js sits at <root>/mcp-app/dist/, so content/ is two levels up and the
@@ -222,6 +223,11 @@ export async function handleWebRequest(req: IncomingMessage, res: ServerResponse
     if (!who) {
       console.error(`family-law-toolkit web: 403 for peer ${req.socket.remoteAddress ?? "unknown"} ${method} ${path}`);
       send(res, 403, { error: "forbidden" });
+      return true;
+    }
+
+    if (method === "GET" && path === "/api/library/original") {
+      await proxyLibraryOriginal(url, res);
       return true;
     }
 

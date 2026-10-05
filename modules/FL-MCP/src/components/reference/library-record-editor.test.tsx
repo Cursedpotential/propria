@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { storeApi } from "@/lib/api-client";
-import { LibraryRecordEditor } from "./library-record-editor";
+import { LibraryRecordEditor, readLibraryOriginalLinks } from "./library-record-editor";
 
 afterEach(() => {
   cleanup();
@@ -30,6 +30,33 @@ function renderRecordEditor(table: "reference" | "source", id: string, record: R
 }
 
 describe("native shared library editor", () => {
+  /** Accepts the exact hosted PDF locator and rejects arbitrary or malformed destinations.
+   * Inputs are synthetic case_record original_links; output is the bounded normalized link list.
+   * It performs no network access and verifies that the opaque version survives URL validation.
+   * Byline: OpenAI Codex · GPT-6-Luna · 2026-10-05.
+   */
+  it("validates original-file links and preserves opaque provider versions", () => {
+    const bindingId = "library_file:" + "a".repeat(64);
+    const versionId = "opaque:version/one + two";
+    const params = new URLSearchParams({ binding_id: bindingId, version_id: versionId });
+    const link = {
+      binding_id: bindingId,
+      version_id: versionId,
+      sha256: "b".repeat(64),
+      bytes: 1234,
+      content_type: "application/pdf",
+      href: "https://family-court.tilapia-skilift.ts.net/api/library/original?" + params,
+    };
+
+    expect(readLibraryOriginalLinks([link])).toEqual([link]);
+    expect(readLibraryOriginalLinks([
+      { ...link, href: "https://example.com/api/library/original?" + params },
+      { ...link, href: "https://family-court.tilapia-skilift.ts.net/api/library/other?" + params },
+      { ...link, bytes: 20 * 1024 * 1024 + 1 },
+      { ...link, version_id: "bad\nlocator" },
+    ])).toEqual([]);
+  });
+
   /** Confirms reference proposals use the full proposal id and a distinct exact validation receipt gate.
    * Inputs are synthetic hosted MCP envelopes. Output is observable UI and invoker arguments only.
    * Byline: OpenAI Codex · GPT-6-Luna · 2026-10-04

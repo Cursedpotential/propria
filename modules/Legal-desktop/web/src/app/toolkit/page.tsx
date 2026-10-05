@@ -1,5 +1,6 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-27; factors and tools link 2026-10-02
 // Updated by: OpenAI Codex · GPT-6 · 2026-10-04 — expose all backend-supported toolkit tables.
+// Updated by: OpenAI Codex · GPT-6-Luna · 2026-10-05 — show scoped B2 originals outside record bodies.
 // Family Law Toolkit records, read through the shared legal-record contract
 // (propria.legal-record.v1). The toolkit's case store owns them; this page never
 // copies them, and shows the same id and version the toolkit shows.
@@ -18,7 +19,56 @@ type ToolkitRecord = {
   table: string;
   version: string;
   record: Record<string, unknown>;
+  original_links?: unknown;
 };
+
+type OriginalLink = {
+  binding_id: string;
+  version_id: string;
+  sha256: string;
+  bytes: number;
+  content_type: "application/pdf";
+  href: string;
+};
+
+const ORIGINAL_LINK_HOST = "family-court.tilapia-skilift.ts.net";
+const MAX_ORIGINAL_BYTES = 20 * 1024 * 1024;
+const MAX_VERSION_ID_BYTES = 2048;
+
+/** Accept only exact hosted PDF links and rebuild their URL from validated identifiers.
+ * Input is the separate API envelope field; output is bounded safe links for rendering.
+ * It performs no I/O and prevents record content or arbitrary server URLs from becoming navigation.
+ * Byline: OpenAI Codex · GPT-6-Luna · 2026-10-05.
+ */
+function safeOriginalLinks(value: unknown): OriginalLink[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 8).flatMap((item: unknown) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const candidate = item as Record<string, unknown>;
+    const { binding_id: bindingId, version_id: versionId, sha256, bytes, content_type: contentType, href } = candidate;
+    if (typeof bindingId !== "string" || !/^library_file:[a-f0-9]{64}$/.test(bindingId) ||
+      typeof versionId !== "string" || !versionId || versionId === "null" || /[\r\n\0]/.test(versionId) ||
+      new TextEncoder().encode(versionId).byteLength > MAX_VERSION_ID_BYTES ||
+      typeof sha256 !== "string" || !/^[a-f0-9]{64}$/.test(sha256) ||
+      typeof bytes !== "number" || !Number.isSafeInteger(bytes) || bytes <= 0 || bytes > MAX_ORIGINAL_BYTES ||
+      contentType !== "application/pdf" || typeof href !== "string") return [];
+    try {
+      const supplied = new URL(href);
+      const keys = [...supplied.searchParams.keys()].sort();
+      if (supplied.protocol !== "https:" || supplied.hostname !== ORIGINAL_LINK_HOST || supplied.port ||
+        supplied.username || supplied.password || supplied.pathname !== "/api/library/original" ||
+        supplied.hash || keys.join(",") !== "binding_id,version_id" ||
+        supplied.searchParams.getAll("binding_id").length !== 1 ||
+        supplied.searchParams.getAll("version_id").length !== 1 ||
+        supplied.searchParams.get("binding_id") !== bindingId ||
+        supplied.searchParams.get("version_id") !== versionId) return [];
+    } catch {
+      return [];
+    }
+    const query = new URLSearchParams({ binding_id: bindingId, version_id: versionId });
+    return [{ binding_id: bindingId, version_id: versionId, sha256, bytes, content_type: "application/pdf", href: "https://" + ORIGINAL_LINK_HOST + "/api/library/original?" + query }];
+  });
+}
 
 const TABLES = [
   { id: "source", label: "Legal sources" },
@@ -127,6 +177,11 @@ export default async function ToolkitPage({
           <p style={muted}>
             {detail.contract} · owned by {detail.owner}
           </p>
+          {safeOriginalLinks(detail.original_links).map((link, index) => (
+            <p key={link.binding_id + ":" + link.version_id}>
+              <a href={link.href} target="_blank" rel="noopener noreferrer">Open Case Bible original{index ? " (" + (index + 1) + ")" : ""}</a>
+            </p>
+          ))}
           {body ? <pre style={{ whiteSpace: "pre-wrap" }}>{body}</pre> : null}
           <h3>Record</h3>
           <pre style={{ whiteSpace: "pre-wrap", ...mono }}>{JSON.stringify(detail.record, null, 2)}</pre>

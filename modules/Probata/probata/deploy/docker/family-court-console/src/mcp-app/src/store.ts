@@ -41,6 +41,8 @@ import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { migrateLibrary, migratePersonalCaseContext, putPersonalCaseSource, putVersionedPersonalRecord, retainLibraryImport } from "./case-library.js";
+import { migrateLibrarySync } from "./library-sync-backend.js";
+import { configuredLibrarySyncScope } from "./library-sync-integration.js";
 
 // ---------------------------------------------------------------------------
 // Tables, edges, factors
@@ -471,6 +473,10 @@ export async function getStore(urlOverride?: string): Promise<StoreResult> {
 
 async function migrate(db: SurrealLike, mod: SurrealModule): Promise<number> {
   await migrateLibrary({ db });
+  if (configuredLibrarySyncScope()) {
+    await migrateLibrarySync({ db });
+    await db.query("DEFINE TABLE IF NOT EXISTS library_file_alias SCHEMALESS PERMISSIONS NONE; DEFINE INDEX IF NOT EXISTS library_file_alias_unique ON library_file_alias FIELDS record_id, binding_id UNIQUE;");
+  }
   await migratePersonalCaseContext({ db });
   await db.query("DEFINE TABLE IF NOT EXISTS meta SCHEMALESS;");
 
@@ -1603,8 +1609,15 @@ export interface CaseRecordResult {
   table: string;
   version: string;
   record: Record<string, unknown>;
+  original_links?: import("./library-file-links.js").LibraryOriginalLink[];
 }
 
+/** Read one full shared record with its database version and separate exact original-file links.
+ * Inputs: connected store and exact record reference. Outputs: versioned envelope or null.
+ * Effects: bounded record and file-binding reads; links never enter the record body or change its hash.
+ * Choose for all shared human/MCP detail surfaces rather than client-specific source copies.
+ * Byline: Codex · GPT-6 · 2026-10-05.
+ */
 export async function caseRecord(store: StoreOk, ref: RecordRef): Promise<CaseRecordResult | null> {
   const rid = parseRef(ref);
   const full = refToString(rid);
@@ -1615,7 +1628,9 @@ export async function caseRecord(store: StoreOk, ref: RecordRef): Promise<CaseRe
   if (!row || !row.version) return null;
   const record = normalize(row.record) as Record<string, unknown>;
   delete record.id;
-  return { contract: RECORD_CONTRACT, id: `${table}:${id}`, table, version: row.version, record };
+  const { libraryOriginalLinks } = await import("./library-file-links.js");
+  const original_links = await libraryOriginalLinks(store, `${table}:${id}`);
+  return { contract: RECORD_CONTRACT, id: `${table}:${id}`, table, version: row.version, record, original_links };
 }
 
 // ---------------------------------------------------------------------------

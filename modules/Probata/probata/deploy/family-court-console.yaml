@@ -84,6 +84,13 @@ services:
       # Byline: Codex, GPT-6, 2026-10-04. Retained edits dispatch only proposal ids to the tracked validator.
       TOOLKIT_VALIDATION_START_URL: http://100.91.190.107:8091/toolkit/library/validate
       TOOLKIT_VALIDATION_TOKEN_FILE: /run/secrets/toolkit-validation-token
+      # Byline: Codex, GPT-6, 2026-10-05. Private worker routes and durable export dispatch use a distinct mounted credential.
+      TOOLKIT_LIBRARY_SYNC_TOKEN_FILE: /run/secrets/toolkit-library-sync-token
+      TOOLKIT_LIBRARY_SYNC_START_URL: http://100.91.190.107:8091/toolkit/library/sync
+      TOOLKIT_LIBRARY_SYNC_ORIGINAL_URL: http://100.91.190.107:8091/toolkit/library/files/
+      TOOLKIT_LIBRARY_SYNC_B2_BUCKET: salem-data
+      TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE: ${TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE:-}
+      TOOLKIT_LIBRARY_SYNC_LEGAL_ROOT: consignatio/casevault/KnowledgeBase/legal/
       # Family Law Toolkit web app (src/mcp-app/src/web-auth.ts, the Workbench's trusted-proxy
       # model). Only the socket peer counts. Claude Code · Opus 5.5 · 2026-09-28.
       #   Serve peer: tailscaled on this host proxying svc:family-court to BIND_IP:9077.
@@ -93,6 +100,7 @@ services:
       TRUSTED_TAILSCALE_LOGINS: ${TRUSTED_TAILSCALE_LOGINS:-matt.salemnet@gmail.com}
       TAILSCALE_DEVICE_CAPABILITY: ${TAILSCALE_DEVICE_CAPABILITY:-}
     volumes:
+      - /data/probata/secrets/family-court/library-sync-console-token:/run/secrets/toolkit-library-sync-token:ro
       # Dedicated validation-only token, created on the host before deployment; personal data stays in surreal-case.
       - /data/probata/secrets/family-court/validation-token:/run/secrets/toolkit-validation-token:ro
     healthcheck:
