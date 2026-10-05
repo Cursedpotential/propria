@@ -86,6 +86,13 @@ services:
       # /data/probata/volumes/proffer/derive-scratch on the host. Stage sources
       # in a dedicated subdirectory there and keep receipts beneath that root.
       TOOLKIT_INVENTORY_ROOT: ${TOOLKIT_INVENTORY_ROOT:-}
+      # Byline: Codex, GPT-6, 2026-10-05. Optional shared-library B2 sync reuses this worker and validator runtime.
+      TOOLKIT_LIBRARY_SYNC_BACKEND_URL: ${TOOLKIT_LIBRARY_SYNC_BACKEND_URL:-}
+      TOOLKIT_LIBRARY_SYNC_TOKEN_FILE: /run/secrets/toolkit-library-sync-token
+      TOOLKIT_LIBRARY_SYNC_B2_CONFIG_FILE: /run/secrets/casebible-b2.json
+      TOOLKIT_LIBRARY_SYNC_B2_BUCKET: salem-data
+      TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE: ${TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE:-}
+      TOOLKIT_LIBRARY_SYNC_LEGAL_ROOT: consignatio/casevault/KnowledgeBase/legal/
       # Saved-proposal validation uses separate validator credentials and baked parser paths.
       # Inputs: named mounted secrets and explicit derivative subtree. Outputs: opt-in workflow registry.
       # Effects: startup admission only; invocation owns bounded source reads/trusted receipts, never automatic publication.
@@ -174,6 +181,8 @@ services:
       CONTEXT_SEARCH_VECTOR_NAME: text_nim
       CONTEXT_SEARCH_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
     volumes:
+      # Dedicated service credential; ordinary MCP/browser credentials do not admit sync requests.
+      - /data/probata/secrets/family-court/library-sync-token:/run/secrets/toolkit-library-sync-token:ro
       - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
       - /data/probata/volumes/proffer/parser-bundles:/data/proffer/parser-bundles
       - /data/probata/volumes/proffer/normalized-bundles:/data/proffer/normalized-bundles
