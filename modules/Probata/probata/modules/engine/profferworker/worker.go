@@ -98,6 +98,11 @@ type Registrations struct {
 	// Effects: no transfers until invoked. Choose separately from inventory and catalog projection.
 	// Byline: Codex, 2026-10-04.
 	ToolkitPreservation activities.ToolkitPackagePreservationActivities
+	// ToolkitCatalog registers verified recovery metadata only when the separate writer is explicitly configured.
+	// Inputs: existing preservation root/store resolver and admitted Case Bible writer. Outputs: optional Activity group.
+	// Effects: none until invoked. Choose alongside preservation; the dated catalog client remains read-only.
+	// Byline: Codex · GPT-6 · 2026-10-04.
+	ToolkitCatalog *activities.ToolkitCatalogRegistrationActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -191,6 +196,16 @@ func RegisterAll(registrar interface {
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackagePreservationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackagePreservationWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.CopyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationCopyActivityName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.VerifyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationVerifyActivityName})
+	// Register metadata verification, separate catalog registration and independent readback only after explicit writer admission.
+	// Inputs: optional configured group. Outputs: one workflow and three named Activities. Effects: registry additions only.
+	// Choose after preservation; disabled configuration does not add a writable catalog seam.
+	// Byline: Codex · GPT-6 · 2026-10-04.
+	if registrations.ToolkitCatalog != nil {
+		registrar.RegisterWorkflowWithOptions(activities.ToolkitCatalogRegistrationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitCatalogRegistrationWorkflowName})
+		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.VerifyToolkitCatalogMetadata, activity.RegisterOptions{Name: activities.ToolkitCatalogMetadataActivityName})
+		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.RegisterToolkitCatalog, activity.RegisterOptions{Name: activities.ToolkitCatalogRegisterActivityName})
+		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.ReadbackToolkitCatalog, activity.RegisterOptions{Name: activities.ToolkitCatalogReadbackActivityName})
+	}
 	// Probe the exact preservation adapter with synthetic bytes before any original transfer.
 	// Inputs: the existing preservation group; outputs: separately tracked probe workflow and Activity.
 	// Effects: registration only. Choose for provider semantics, never source inspection.
@@ -203,6 +218,10 @@ func RegisterAll(registrar interface {
 
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
 // storage before polling, and serves the dedicated Proffer queue until shutdown.
+// Inputs: cancellation context and existing worker configuration; optional CASEBIBLE_RECOVERY_DATABASE_URL_FILE admits a separate writer.
+// Outputs: startup/shutdown error or nil. Effects: opens/closes clients, registers and polls existing workflows; no automatic recovery writes or DDL.
+// Choose for the existing Proffer worker; recovery registration requires its own explicit workflow invocation.
+// Byline: Codex · GPT-6 · 2026-10-04 (optional recovery catalog wiring).
 func Run(ctx context.Context, cfg Config) error {
 	if stringsTrim(cfg.TemporalTaskQueue) == "" {
 		return errors.New("proffer worker: TEMPORAL_TASK_QUEUE is required")
@@ -267,6 +286,14 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
+	toolkitCatalog, closeToolkitCatalog, err := configureToolkitCatalog(ctx, os.Getenv("CASEBIBLE_RECOVERY_DATABASE_URL_FILE"), registrations.ToolkitPreservation)
+	if err != nil {
+		return err
+	}
+	if closeToolkitCatalog != nil {
+		defer closeToolkitCatalog()
+	}
+	registrations.ToolkitCatalog = toolkitCatalog
 
 	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, workerOptions(cfg))
 	RegisterAll(temporalWorker, registrations)
