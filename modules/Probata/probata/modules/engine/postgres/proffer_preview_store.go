@@ -384,7 +384,10 @@ func (s *ProfferPreviewStore) Create(ctx context.Context, binding previewmodel.B
 	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(binding.OperatingMode)); err != nil {
 		return previewmodel.Binding{}, err
 	}
-	detail, err := json.Marshal(map[string]string{"operating_mode": binding.OperatingMode})
+	if binding.MatterID == nil || binding.CourtCaseID == nil || !caseidentity.AdmittedIdentity(binding.MatterID.String(), binding.CourtCaseID.String()) {
+		return previewmodel.Binding{}, errors.New("preview binding requires the approved case identity")
+	}
+	detail, err := json.Marshal(map[string]string{"operating_mode": binding.OperatingMode, "matter_id": binding.MatterID.String(), "court_case_id": binding.CourtCaseID.String()})
 	if err != nil {
 		return previewmodel.Binding{}, err
 	}
@@ -495,6 +498,7 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 		return previewmodel.Binding{}, fmt.Errorf("read preview binding: %w", err)
 	}
 	binding.OperatingMode = recordedOperatingMode(modeDetail)
+	applyBindingAdmission(&binding, modeDetail)
 	if sourceVersion != nil {
 		binding.SourceVersionID = *sourceVersion
 	}
@@ -521,6 +525,28 @@ func recordedOperatingMode(detail string) string {
 		return ""
 	}
 	return receipt.Mode
+}
+
+// applyBindingAdmission recovers the atomically persisted approved scope even
+// before source registration finishes. It never derives operating mode from IDs.
+// Source-row disagreement invalidates the receipt; missing historical scope is
+// not silently repaired from the caller's current selection.
+func applyBindingAdmission(binding *previewmodel.Binding, detail string) {
+	var receipt struct {
+		Mode   string `json:"operating_mode"`
+		Matter string `json:"matter_id"`
+		Court  string `json:"court_case_id"`
+	}
+	if json.Unmarshal([]byte(detail), &receipt) != nil || !caseidentity.AdmittedIdentity(receipt.Matter, receipt.Court) {
+		binding.OperatingMode = ""
+		return
+	}
+	matter, court := uuid.MustParse(receipt.Matter), uuid.MustParse(receipt.Court)
+	if binding.MatterID != nil && *binding.MatterID != matter {
+		binding.OperatingMode = ""
+		return
+	}
+	binding.MatterID, binding.CourtCaseID = &matter, &court
 }
 
 // BindingsBySourceRef returns the most recent bindings for one exact source
@@ -604,6 +630,7 @@ func (s *ProfferPreviewStore) ListBindings(ctx context.Context, cursor *previewm
 			return previewmodel.BindingPage{}, fmt.Errorf("scan preview binding: %w", err)
 		}
 		binding.OperatingMode = recordedOperatingMode(modeDetail)
+		applyBindingAdmission(&binding, modeDetail)
 		if sourceVersion != nil {
 			binding.SourceVersionID = *sourceVersion
 		}

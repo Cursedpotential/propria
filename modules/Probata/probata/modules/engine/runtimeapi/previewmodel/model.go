@@ -41,7 +41,8 @@ type Binding struct {
 	OperatingMode string
 	// MatterID is the durable intake scope (context.source_version.matter_id). The
 	// OperatingMode, not this ID, carries durable operating context.
-	MatterID *uuid.UUID
+	MatterID    *uuid.UUID
+	CourtCaseID *uuid.UUID
 }
 
 // BindingCursor is a stable keyset coordinate over the append-only preview

@@ -2,6 +2,7 @@
 package runtimeapi
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,7 @@ import (
 )
 
 func TestEveryCasePostRejectsDevBeforeStoreInvocation(t *testing.T) {
+	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "true")
 	for _, pattern := range CaseIdentityRoutePatterns {
 		if !strings.HasPrefix(pattern, "POST ") {
 			continue
@@ -27,6 +29,31 @@ func TestEveryCasePostRejectsDevBeforeStoreInvocation(t *testing.T) {
 			require.Zero(t, store.readCalls)
 		})
 	}
+}
+
+func TestMixedCatalogKeepsUnknownHistoryReadableButUnbound(t *testing.T) {
+	handler, store, _ := previewTestHandler(t)
+	live := startPreview(t, handler)
+	old, err := store.Create(context.Background(), PreviewBinding{RequestID: "legacy", WorkflowID: "legacy", RunID: "legacy", SourceRef: "upload://legacy", ParserOptionsRef: "legacy"})
+	require.NoError(t, err)
+	catalog := servePreview(handler.Routes(), http.MethodGet, "/reference-import/operations", nil)
+	require.Equal(t, http.StatusOK, catalog.Code)
+	var body struct {
+		Items []map[string]interface{} `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal(catalog.Body.Bytes(), &body))
+	require.Len(t, body.Items, 2)
+	for _, item := range body.Items {
+		if item["preview_handle"] == old.Handle {
+			_, present := item["operating_mode"]
+			require.False(t, present)
+		}
+		if item["preview_handle"] == live {
+			require.Equal(t, "LIVE", item["operating_mode"])
+		}
+	}
+	denied := servePreview(handler.Routes(), http.MethodPost, "/reference-import/previews/"+old.Handle+"/cancel", []byte("{}"))
+	require.Equal(t, http.StatusConflict, denied.Code)
 }
 
 func TestDevOrUnapprovedStartHasZeroDispatchAndBindings(t *testing.T) {

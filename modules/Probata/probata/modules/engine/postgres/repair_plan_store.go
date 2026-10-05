@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/repairplan"
 )
 
@@ -131,6 +132,12 @@ func repairStepIdempotencyKey(request repairplan.ReceiptRequest) string {
 // RecordRepairStepReceipt writes one append-only receipt for one plan step
 // and returns its id. It is idempotent on (source version, activity, step).
 func (s *RepairPlanStore) RecordRepairStepReceipt(ctx context.Context, request repairplan.ReceiptRequest, attempt int32) (string, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(request.OperatingMode)); err != nil {
+		return "", err
+	}
+	if !caseidentity.AdmittedIdentity(request.MatterID, request.CourtCaseID) {
+		return "", errors.New("repair receipt requires the approved case identity")
+	}
 	sourceID, err := uuid.Parse(strings.TrimSpace(request.SourceVersionID))
 	if err != nil {
 		return "", fmt.Errorf("repair step receipt source version: %w", err)

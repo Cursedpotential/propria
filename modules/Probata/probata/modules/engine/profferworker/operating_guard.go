@@ -2,6 +2,7 @@
 package profferworker
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/activities"
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/repairplan"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
@@ -27,8 +29,8 @@ type operatingRegistrar struct{ completeRegistrar }
 // RegisterActivityWithOptions fences the reviewed Proffer import registration families.
 // Inputs: the original typed function and registered name. Outputs: the same function signature.
 // Effects: registration only; rejected unknown/DEV/foreign-scope invocations never call the body.
-// Standalone contacts, toolkit, extraction, repair and Python queues require separate review;
-// this wrapper is not a claim that those different durable contracts are covered.
+// Independent governed maintenance Activities remain unchanged; extraction and
+// Python publishers use separate typed admission at their own write boundaries.
 func (r operatingRegistrar) RegisterActivityWithOptions(fn interface{}, options activity.RegisterOptions) {
 	if guardedImportActivity(options.Name) {
 		fn = guardImportActivity(fn, options.Name)
@@ -46,6 +48,8 @@ func guardedImportActivity(name string) bool {
 	}
 	switch name {
 	case "hash_source_activity", "hash_raw_records_activity", "hash_raw_generation_activity",
+		string(stagegraph.RepairFindOtherVersion), string(stagegraph.RepairSalvageTruncatedXML),
+		string(stagegraph.RepairLenientDecode), string(stagegraph.RepairRecordStepReceipt),
 		proffer.SelectStructuredELTActivityName, proffer.ExecuteStructuredELTActivityName,
 		proffer.RecommendHandlerActivityName, proffer.ValidateHandlerSelectionActivityName, proffer.RecoverHandlerActivityName,
 		activities.ListBatchFolderActivityName, activities.BindImportOperationActivityName:
@@ -60,7 +64,7 @@ func guardImportActivity(fn interface{}, name string) interface{} {
 	value := reflect.ValueOf(fn)
 	signature := value.Type()
 	errorType := reflect.TypeOf((*error)(nil)).Elem()
-	if signature.Kind() != reflect.Func || signature.NumIn() != 2 ||
+	if signature.Kind() != reflect.Func || signature.NumIn() != 2 || signature.In(0) != reflect.TypeOf((*context.Context)(nil)).Elem() ||
 		signature.NumOut() != 2 || signature.Out(1) != errorType {
 		panic("operating guard: unreviewed import Activity signature: " + name)
 	}
@@ -77,6 +81,10 @@ func importActivityAdmission(payload interface{}) error {
 	var mode, matter, court string
 	switch req := payload.(type) {
 	case proffer.StageRequest:
+		mode, matter, court = req.OperatingMode, req.MatterID, req.CourtCaseID
+	case repairplan.StepRequest:
+		mode, matter, court = req.OperatingMode, req.MatterID, req.CourtCaseID
+	case repairplan.ReceiptRequest:
 		mode, matter, court = req.OperatingMode, req.MatterID, req.CourtCaseID
 	case proffer.HandlerRecoveryRequest:
 		return importActivityAdmission(req.Request)

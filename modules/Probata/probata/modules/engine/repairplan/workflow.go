@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package repairplan
@@ -64,15 +65,18 @@ type ValidatePlanRequest struct {
 // StepRequest is what one repair Activity receives: a locator and a type,
 // never bytes.
 type StepRequest struct {
-	WorkflowID string          `json:"workflow_id"`
-	RunID      string          `json:"run_id"`
-	PlanID     string          `json:"plan_id"`
-	StepID     string          `json:"step_id"`
-	StepIndex  int             `json:"step_index"`
-	Activity   string          `json:"activity"`
-	SourceRef  string          `json:"source_ref"`
-	SourceType string          `json:"source_type"`
-	Params     json.RawMessage `json:"params,omitempty"`
+	OperatingMode string          `json:"operating_mode,omitempty"`
+	MatterID      string          `json:"matter_id,omitempty"`
+	CourtCaseID   string          `json:"court_case_id,omitempty"`
+	WorkflowID    string          `json:"workflow_id"`
+	RunID         string          `json:"run_id"`
+	PlanID        string          `json:"plan_id"`
+	StepID        string          `json:"step_id"`
+	StepIndex     int             `json:"step_index"`
+	Activity      string          `json:"activity"`
+	SourceRef     string          `json:"source_ref"`
+	SourceType    string          `json:"source_type"`
+	Params        json.RawMessage `json:"params,omitempty"`
 }
 
 // StepResult is what one repair Activity returns, by reference.
@@ -95,6 +99,9 @@ type StepResult struct {
 
 // ReceiptRequest records one step's outcome, success or failure.
 type ReceiptRequest struct {
+	OperatingMode   string      `json:"operating_mode,omitempty"`
+	MatterID        string      `json:"matter_id,omitempty"`
+	CourtCaseID     string      `json:"court_case_id,omitempty"`
 	WorkflowID      string      `json:"workflow_id"`
 	RunID           string      `json:"run_id"`
 	PlanID          string      `json:"plan_id"`
@@ -122,6 +129,7 @@ type ReceiptResult struct {
 // flowRequest / flowResult mirror run_n8n_flow_activity's JSON contract
 // (engine/temporal/flowactivity.go) without importing it.
 type flowRequest struct {
+	OperatingMode    string            `json:"operating_mode,omitempty"`
 	Flow             string            `json:"flow"`
 	RequestID        string            `json:"request_id"`
 	MatterID         string            `json:"matter_id,omitempty"`
@@ -278,6 +286,7 @@ func RepairPlanWorkflow(ctx workflow.Context, in RunInput) (RunStatus, error) {
 			stepErr = checkStepResult(step, result)
 		}
 		receipt := ReceiptRequest{
+			OperatingMode: validated.Anchor.OperatingMode, MatterID: validated.Anchor.MatterID, CourtCaseID: validated.Anchor.CourtCaseID,
 			WorkflowID: workflowID, RunID: runID, PlanID: validated.PlanID, StepID: step.StepID, StepIndex: index,
 			Activity: step.Activity, SourceVersionID: validated.Anchor.SourceVersionID, InputRef: currentRef,
 			Status: ReceiptSuccess,
@@ -341,6 +350,7 @@ func executeStep(ctx workflow.Context, workflowID, runID string, validated Valid
 	}
 	var result StepResult
 	err := workflow.ExecuteActivity(stepCtx, step.Activity, StepRequest{
+		OperatingMode: validated.Anchor.OperatingMode, MatterID: validated.Anchor.MatterID, CourtCaseID: validated.Anchor.CourtCaseID,
 		WorkflowID: workflowID, RunID: runID, PlanID: validated.PlanID, StepID: step.StepID, StepIndex: index,
 		Activity: step.Activity, SourceRef: sourceRef, SourceType: sourceType, Params: step.Params,
 	}).Get(ctx, &result)
@@ -358,7 +368,7 @@ func executeFlowStep(ctx, stepCtx workflow.Context, workflowID, runID string, va
 	}
 	var flow flowResult
 	err := workflow.ExecuteActivity(stepCtx, runFlowActivityName, flowRequest{
-		Flow: step.FlowName, RequestID: fmt.Sprintf("%s-%s-%02d-%s", workflowID, shortRunID(runID), index, step.StepID),
+		OperatingMode: validated.Anchor.OperatingMode, Flow: step.FlowName, RequestID: fmt.Sprintf("%s-%s-%02d-%s", workflowID, shortRunID(runID), index, step.StepID),
 		MatterID: validated.Anchor.MatterID, CourtCaseID: validated.Anchor.CourtCaseID,
 		SourceVersionRef: validated.Anchor.SourceVersionID, DeclaredFormat: validated.Anchor.DeclaredFormat,
 		Refs: map[string]string{"source": sourceRef}, Inputs: inputs,
@@ -447,7 +457,8 @@ func reenter(ctx workflow.Context, workflowID, runID string, validated Validated
 			WorkflowID: requestID, ParentClosePolicy: enumspb.PARENT_CLOSE_POLICY_ABANDON,
 		})
 		child := workflow.ExecuteChildWorkflow(childCtx, proffer.ProfferWorkflow, proffer.WorkflowInput{
-			RequestID: requestID, MatterID: reentry.MatterID, CourtCaseID: reentry.CourtCaseID,
+			OperatingMode: validated.Anchor.OperatingMode,
+			RequestID:     requestID, MatterID: reentry.MatterID, CourtCaseID: reentry.CourtCaseID,
 			SourceRef: proffer.Ref(terminal.OutputRef), DeclaredFormat: reentry.DeclaredFormat,
 			ParserOptionsRef: proffer.Ref(reentry.ParserOptionsRef),
 			OwnerPersonID:    reentry.OwnerPersonID, PerspectivePersonID: reentry.PerspectivePersonID,
@@ -465,6 +476,7 @@ func reenter(ctx workflow.Context, workflowID, runID string, validated Validated
 			PreviewHandle string `json:"preview_handle"`
 		}
 		if err := workflow.ExecuteActivity(short, bindImportOperationActivityName, map[string]any{
+			"operating_mode": validated.Anchor.OperatingMode, "matter_id": reentry.MatterID, "court_case_id": reentry.CourtCaseID,
 			"request_id": requestID, "source_ref": terminal.OutputRef,
 			"workflow_id": execution.ID, "run_id": execution.RunID,
 			"parser_options_ref": reentry.ParserOptionsRef,
@@ -488,7 +500,8 @@ func reenter(ctx workflow.Context, workflowID, runID string, validated Validated
 			WorkflowID: batchID, ParentClosePolicy: enumspb.PARENT_CLOSE_POLICY_ABANDON,
 		})
 		child := workflow.ExecuteChildWorkflow(childCtx, proffer.BatchWorkflowName, proffer.BatchInput{
-			BatchID: batchID, MatterID: reentry.MatterID, CourtCaseID: reentry.CourtCaseID,
+			OperatingMode: validated.Anchor.OperatingMode,
+			BatchID:       batchID, MatterID: reentry.MatterID, CourtCaseID: reentry.CourtCaseID,
 			Scheme: scheme, Bucket: bucket, Prefix: prefix,
 			DeclaredFormat: reentry.DeclaredFormat, ParserOptionsRef: proffer.Ref(reentry.ParserOptionsRef),
 			MaxInFlight:   1,
@@ -511,6 +524,7 @@ func reenter(ctx workflow.Context, workflowID, runID string, validated Validated
 // failure with as much of the link as exists (failure).
 func recordReentryReceipt(ctx workflow.Context, workflowID, runID string, validated ValidatedPlan, terminal StepResult, link ReentryLink, reentryErr error) (string, error) {
 	receipt := ReceiptRequest{
+		OperatingMode: validated.Anchor.OperatingMode, MatterID: validated.Anchor.MatterID, CourtCaseID: validated.Anchor.CourtCaseID,
 		WorkflowID: workflowID, RunID: runID, PlanID: validated.PlanID, StepID: reentryStepID,
 		StepIndex: len(validated.Steps), Activity: ReentryReceiptActivity,
 		SourceVersionID: validated.Anchor.SourceVersionID, InputRef: terminal.OutputRef, Status: ReceiptSuccess,

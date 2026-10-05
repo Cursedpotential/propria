@@ -554,7 +554,7 @@ type PreviewHTTPHandler struct {
 // execution. Temporal workflow/run IDs stay behind the service boundary; the
 // opaque preview handle is the only external operation key.
 type OperationSummary struct {
-	OperatingMode       string                     `json:"operating_mode"`
+	OperatingMode       string                     `json:"operating_mode,omitempty"`
 	PreviewHandle       string                     `json:"preview_handle"`
 	RequestID           string                     `json:"request_id"`
 	SourceRef           proffer.Ref                `json:"source_ref"`
@@ -569,7 +569,8 @@ type OperationSummary struct {
 	SourceVersionRef    proffer.Ref                `json:"source_version_ref,omitempty"`
 	CompletedStageCount int                        `json:"completed_stage_count"`
 	// MatterID records case scope only; OperatingMode is the durable mode receipt.
-	MatterID *uuid.UUID `json:"matter_id,omitempty"`
+	MatterID    *uuid.UUID `json:"matter_id,omitempty"`
+	CourtCaseID *uuid.UUID `json:"court_case_id,omitempty"`
 }
 
 type OperationDetail struct {
@@ -785,7 +786,8 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 		previewError(w, 422, err)
 		return
 	}
-	binding, err := h.store.Create(r.Context(), PreviewBinding{OperatingMode: string(mode), RequestID: req.RequestID, SourceRef: in.SourceRef, WorkflowID: workflowID, RunID: runID, ParserOptionsRef: in.ParserOptionsRef})
+	matterID, courtCaseID := uuid.MustParse(req.MatterID), uuid.MustParse(req.CourtCaseID)
+	binding, err := h.store.Create(r.Context(), PreviewBinding{OperatingMode: string(mode), MatterID: &matterID, CourtCaseID: &courtCaseID, RequestID: req.RequestID, SourceRef: in.SourceRef, WorkflowID: workflowID, RunID: runID, ParserOptionsRef: in.ParserOptionsRef})
 	if err != nil {
 		previewError(w, 503, err)
 		return
@@ -954,7 +956,7 @@ func (h *PreviewHTTPHandler) readOperationState(ctx context.Context, binding Pre
 		Service: "proffer", CreatedAt: binding.CreatedAt, Lifecycle: state.Lifecycle,
 		CurrentStage: state.CurrentStage, ActiveStages: state.ActiveStages, Wait: state.Wait,
 		Terminal: state.Terminal, Reason: state.Reason, SourceVersionRef: state.SourceVersionRef,
-		CompletedStageCount: state.CompletedStageCount, MatterID: binding.MatterID, OperatingMode: binding.OperatingMode,
+		CompletedStageCount: state.CompletedStageCount, MatterID: binding.MatterID, CourtCaseID: binding.CourtCaseID, OperatingMode: binding.OperatingMode,
 	}, state.Stages
 }
 

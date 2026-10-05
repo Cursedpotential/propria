@@ -61,9 +61,23 @@ func TestOperatingFenceReplaysLegacySingleAndBatchFirstCommand(t *testing.T) {
 				ActivityId: "1", ActivityType: &commonpb.ActivityType{Name: tc.activity}, TaskQueue: &taskqueuepb.TaskQueue{Name: "legacy-import"},
 				WorkflowTaskCompletedEventId: 4, StartToCloseTimeout: durationpb.New(time.Minute),
 			}}
+			activityStarted := event(6, enumspb.EVENT_TYPE_ACTIVITY_TASK_STARTED)
+			activityStarted.Attributes = &historypb.HistoryEvent_ActivityTaskStartedEventAttributes{ActivityTaskStartedEventAttributes: &historypb.ActivityTaskStartedEventAttributes{ScheduledEventId: 5, Identity: "legacy-worker", Attempt: 1}}
+			var oldResult interface{} = map[string]interface{}{"keys": []string{}, "next_cursor": ""}
+			if tc.name == "ProfferWorkflow" {
+				oldResult = StageResult{Stage: "register_source_activity", Status: StatusFailed, ReceiptRef: "legacy-failure", Reason: "legacy terminal failure"}
+			}
+			result, err := converter.GetDefaultDataConverter().ToPayloads(oldResult)
+			require.NoError(t, err)
+			activityCompleted := event(7, enumspb.EVENT_TYPE_ACTIVITY_TASK_COMPLETED)
+			activityCompleted.Attributes = &historypb.HistoryEvent_ActivityTaskCompletedEventAttributes{ActivityTaskCompletedEventAttributes: &historypb.ActivityTaskCompletedEventAttributes{ScheduledEventId: 5, StartedEventId: 6, Identity: "legacy-worker", Result: result}}
+			nextScheduled := event(8, enumspb.EVENT_TYPE_WORKFLOW_TASK_SCHEDULED)
+			nextScheduled.Attributes = scheduled.Attributes
+			nextStarted := event(9, enumspb.EVENT_TYPE_WORKFLOW_TASK_STARTED)
+			nextStarted.Attributes = &historypb.HistoryEvent_WorkflowTaskStartedEventAttributes{WorkflowTaskStartedEventAttributes: &historypb.WorkflowTaskStartedEventAttributes{ScheduledEventId: 8, Identity: "new-worker"}}
 			replay := worker.NewWorkflowReplayer()
 			replay.RegisterWorkflowWithOptions(tc.fn, workflow.RegisterOptions{Name: tc.name})
-			require.NoError(t, replay.ReplayWorkflowHistory(nil, &historypb.History{Events: []*historypb.HistoryEvent{started, scheduled, taskStarted, completed, activity}}))
+			require.NoError(t, replay.ReplayWorkflowHistory(nil, &historypb.History{Events: []*historypb.HistoryEvent{started, scheduled, taskStarted, completed, activity, activityStarted, activityCompleted, nextScheduled, nextStarted}}))
 		})
 	}
 }

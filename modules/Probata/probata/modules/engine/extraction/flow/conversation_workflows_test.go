@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 
 package flow
@@ -78,8 +79,8 @@ func twoRuns() ResolveResult {
 	return ResolveResult{Targets: []ConversationTarget{{
 		Ref: ConversationRef{ExportKey: "exports/sms-001.xml", Conv: "8105550101"},
 		Runs: []RunRef{
-			{PreviewHandle: "h1", GenerationID: "g1", SourceVersionID: "s1"},
-			{PreviewHandle: "h2", GenerationID: "g2", SourceVersionID: "s2"},
+			{MatterMode: "LIVE", PreviewHandle: "h1", GenerationID: "g1", SourceVersionID: "s1"},
+			{MatterMode: "LIVE", PreviewHandle: "h2", GenerationID: "g2", SourceVersionID: "s2"},
 		},
 	}}}
 }
@@ -99,8 +100,8 @@ func mockExternalRunsOnePage(env *testsuite.TestWorkflowEnvironment, name string
 }
 
 func request(extractors ...string) RequestInput {
-	return RequestInput{
-		RequestID: "req-1", MatterID: "11111111-1111-4111-8111-111111111111",
+	return RequestInput{OperatingMode: "LIVE", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
+		RequestID: "req-1", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
 		Conversations: []ConversationRef{{ExportKey: "exports/sms-001.xml", Conv: "8105550101"}},
 		Extractors:    extractors,
 	}
@@ -241,7 +242,7 @@ func TestExternalWorkflowReadsWindowsUntilTheRunIsDone(t *testing.T) {
 	env.OnActivity(FinishExternalRunActivity, mock.Anything, mock.Anything).Return(
 		func(_ context.Context, request FinishExternalRun) error { finish = request; return nil })
 
-	env.ExecuteWorkflow(ExternalWorkflowName, ExternalRunInput{ExtractionID: "e1", Run: RunRef{PreviewHandle: "h", GenerationID: "g", SourceVersionID: "s"}, Extractor: "semantica"})
+	env.ExecuteWorkflow(ExternalWorkflowName, ExternalRunInput{ExtractionID: "e1", Run: RunRef{MatterMode: "LIVE", PreviewHandle: "h", GenerationID: "g", SourceVersionID: "s"}, Extractor: "semantica"})
 	if env.GetWorkflowError() != nil {
 		t.Fatalf("workflow error: %v", env.GetWorkflowError())
 	}
@@ -266,7 +267,7 @@ func TestExternalWorkflowReportsAnExtractorThatCannotRunAsSkipped(t *testing.T) 
 	var finish FinishExternalRun
 	env.OnActivity(FinishExternalRunActivity, mock.Anything, mock.Anything).Return(
 		func(_ context.Context, request FinishExternalRun) error { finish = request; return nil })
-	env.ExecuteWorkflow(ExternalWorkflowName, ExternalRunInput{ExtractionID: "e1", Run: RunRef{GenerationID: "g"}, Extractor: "langextract"})
+	env.ExecuteWorkflow(ExternalWorkflowName, ExternalRunInput{ExtractionID: "e1", Run: RunRef{MatterMode: "LIVE", GenerationID: "g"}, Extractor: "langextract"})
 	var progress Progress
 	if err := env.GetWorkflowResult(&progress); err != nil {
 		t.Fatal(err)
@@ -277,8 +278,8 @@ func TestExternalWorkflowReportsAnExtractorThatCannotRunAsSkipped(t *testing.T) 
 }
 
 func sendInput() SendInput {
-	return SendInput{
-		RequestID: "send-1", MatterID: "11111111-1111-4111-8111-111111111111", IncludeExtractions: true,
+	return SendInput{OperatingMode: "LIVE", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
+		RequestID: "send-1", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", IncludeExtractions: true,
 		Conversations: []ConversationRef{{ExportKey: "exports/a", Conv: "c1"}, {ExportKey: "exports/a", Conv: "c2"}},
 	}
 }

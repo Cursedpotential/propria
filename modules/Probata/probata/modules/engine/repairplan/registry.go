@@ -1,5 +1,6 @@
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
+// Byline: Codex · GPT-5 · 2026-10-05 (case-connected flow classification).
 package repairplan
 
 import (
@@ -55,6 +56,21 @@ type ToolSpec struct {
 type Registry struct {
 	specs []ToolSpec
 	byID  map[string]ToolSpec
+}
+
+// CaseFlowNames returns only registered repair tools' n8n bindings.
+// Inputs: validated registry. Outputs: classification names. Effects: none.
+func (r *Registry) CaseFlowNames() []string {
+	var names []string
+	if r == nil {
+		return names
+	}
+	for _, spec := range r.specs {
+		if spec.NeedsN8N {
+			names = append(names, spec.FlowName)
+		}
+	}
+	return names
 }
 
 // NewRegistry validates specs: unique ids, known write classes and output

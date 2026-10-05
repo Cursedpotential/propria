@@ -611,6 +611,9 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	if err := flowRegistry.AdmitCaseConnected(repairPlan.Validate.Environment.Registry.CaseFlowNames()); err != nil {
+		return Registrations{}, fmt.Errorf("repair flow scope classification: %w", err)
+	}
 	extraction, err := buildExtraction(pool)
 	if err != nil {
 		return Registrations{}, err

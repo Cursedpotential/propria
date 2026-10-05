@@ -36,6 +36,7 @@ func (r *run) startAutoExtraction(ctx workflow.Context, previewHandle string, so
 		return
 	}
 	input := flow.RequestInput{
+		OperatingMode: r.operatingMode, CourtCaseID: r.courtCaseID,
 		RequestID: "auto:" + previewHandle,
 		MatterID:  r.matterID,
 		Runs: []flow.RunRef{{

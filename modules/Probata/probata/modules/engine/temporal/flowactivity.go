@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // The generic n8n-flow Activity: ONE registered Activity that can invoke ANY
 // declared flow, so adding a flow is a registry entry rather than new Go.
 //
@@ -31,6 +32,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
@@ -45,6 +47,7 @@ const maxFlowInputs = 64
 
 // FlowRequest invokes one declared flow.
 type FlowRequest struct {
+	OperatingMode string `json:"operating_mode,omitempty"`
 	// Flow is the declared binding name, not a webhook path. Callers never
 	// name a URL, so a flow can be re-pathed in n8n without touching callers.
 	Flow string `json:"flow"`
@@ -97,6 +100,15 @@ func (a FlowActivities) RunFlow(ctx context.Context, req FlowRequest) (FlowResul
 	binding, err := a.Registry.Lookup(strings.TrimSpace(req.Flow))
 	if err != nil {
 		return FlowResult{}, err
+	}
+	// Case-connected repair dispatch is mode sensitive; unscoped independent flow contracts remain unchanged.
+	if binding.RequireCaseScope || req.MatterID != "" || req.CourtCaseID != "" || req.OperatingMode != "" {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(req.OperatingMode)); err != nil {
+			return FlowResult{}, err
+		}
+		if !caseidentity.AdmittedIdentity(req.MatterID, req.CourtCaseID) {
+			return FlowResult{}, errors.New("case-connected flow requires the approved case identity")
+		}
 	}
 	if err := validateFlowRequest(binding, req); err != nil {
 		return FlowResult{}, err

@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"github.com/Cursedpotential/probata/engine/caseidentity"
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
+	"github.com/google/uuid"
 	"strings"
 	"testing"
 )
@@ -20,6 +22,34 @@ func TestCaseResolverNeverEnumeratesOrSelectsAnotherCase(t *testing.T) {
 	}
 	if !strings.Contains(caseCourtCaseSQL, authoritativeCourtCaseID) {
 		t.Fatal("court query does not bind exact approved identity")
+	}
+}
+
+func TestAdmissionReceiptRecoversScopeBeforeRegistrationAndRejectsConflict(t *testing.T) {
+	detail := `{"operating_mode":"LIVE","matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c"}`
+	binding := previewmodel.Binding{OperatingMode: recordedOperatingMode(detail)}
+	applyBindingAdmission(&binding, detail)
+	if binding.MatterID == nil || binding.MatterID.String() != authoritativeMatterID || binding.CourtCaseID == nil || binding.CourtCaseID.String() != authoritativeCourtCaseID || binding.OperatingMode != "LIVE" {
+		t.Fatal(binding)
+	}
+	other := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	binding.MatterID = &other
+	applyBindingAdmission(&binding, detail)
+	if binding.OperatingMode != "" {
+		t.Fatal("conflicting source scope admitted")
+	}
+	binding = previewmodel.Binding{OperatingMode: "LIVE"}
+	applyBindingAdmission(&binding, `{"operating_mode":"LIVE"}`)
+	if binding.OperatingMode != "" {
+		t.Fatal("missing scope silently admitted")
+	}
+}
+
+func TestWrongCourtHeaderRejectedBeforeTransaction(t *testing.T) {
+	store := &CaseIdentityStore{operatingMode: caseidentity.ModeLive}
+	_, err := store.EditHeader(context.Background(), caseidentity.ModeLive, caseidentity.HeaderSpec{Target: "court_case", ID: "11111111-1111-1111-1111-111111111111"}, caseidentity.Actor{})
+	if !errors.Is(err, caseidentity.ErrRejected) {
+		t.Fatal(err)
 	}
 }
 

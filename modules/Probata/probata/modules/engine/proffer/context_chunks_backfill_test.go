@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package proffer
 
 import (
@@ -51,7 +52,7 @@ func TestBackfillDryRunOnlyEstimatesAndDoesNotTouchAThread(t *testing.T) {
 		}).Once()
 	order := newOrderRecorder(env)
 
-	env.ExecuteWorkflow(ConversationChunksBackfillWorkflow, ConversationChunksBackfillInput{RequestID: "r1", DryRun: true, Exact: true})
+	env.ExecuteWorkflow(ConversationChunksBackfillWorkflow, ConversationChunksBackfillInput{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", RequestID: "r1", DryRun: true, Exact: true})
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error = %v", err)
 	}
@@ -103,7 +104,7 @@ func TestBackfillChunksAndPublishesEachThreadAsItsOwnActivitiesThenTheCallFiles(
 			return PublishCallLogFilesResult{Files: 1, Calls: 5, EmbedRequests: 1}, nil
 		})
 
-	env.ExecuteWorkflow(ConversationChunksBackfillWorkflow, ConversationChunksBackfillInput{RequestID: "r2"})
+	env.ExecuteWorkflow(ConversationChunksBackfillWorkflow, ConversationChunksBackfillInput{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", RequestID: "r2"})
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error = %v", err)
 	}
@@ -138,7 +139,7 @@ func TestBackfillNamesTheThreadsThatFailedAndFailsTheRun(t *testing.T) {
 	env.OnActivity(PublishContextChunksActivityName, mock.Anything, mock.MatchedBy(func(req PublishChunksRequest) bool { return req.Plan.ThreadID == "bad" })).
 		Return(PublishChunksResult{}, temporal.NewNonRetryableApplicationError("NIM refused", "embed", nil))
 
-	env.ExecuteWorkflow(ConversationChunksBackfillWorkflow, ConversationChunksBackfillInput{RequestID: "r3", NoCalls: true})
+	env.ExecuteWorkflow(ConversationChunksBackfillWorkflow, ConversationChunksBackfillInput{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", RequestID: "r3", NoCalls: true})
 	err := env.GetWorkflowError()
 	if err == nil || !strings.Contains(err.Error(), "1 failure") || !strings.Contains(err.Error(), "bad") {
 		t.Fatalf("workflow error = %v, want the failed thread named", err)
@@ -153,7 +154,7 @@ func TestRemovalVerifiesFirstAndRefusesWhenTheChunksDoNotCover(t *testing.T) {
 		Return(map[string]interface{}{"verified": false, "uncovered_pg_messages": 3}, nil).Once()
 	order := newOrderRecorder(env)
 
-	env.ExecuteWorkflow(ConversationChunksRemovalWorkflow, ConversationChunksRemovalInput{RequestID: "d1"})
+	env.ExecuteWorkflow(ConversationChunksRemovalWorkflow, ConversationChunksRemovalInput{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", RequestID: "d1"})
 	err := env.GetWorkflowError()
 	if err == nil || !strings.Contains(err.Error(), "nothing was deleted") {
 		t.Fatalf("workflow error = %v, want a refusal", err)
@@ -174,7 +175,7 @@ func TestRemovalDryRunAndExecuteSendTheModeToTheActivity(t *testing.T) {
 				seen = req
 				return map[string]interface{}{"deleted": map[string]interface{}{"message": 100, "call": 10}}, nil
 			}).Once()
-		env.ExecuteWorkflow(ConversationChunksRemovalWorkflow, ConversationChunksRemovalInput{RequestID: "d2", DryRun: dry})
+		env.ExecuteWorkflow(ConversationChunksRemovalWorkflow, ConversationChunksRemovalInput{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", RequestID: "d2", DryRun: dry})
 		if err := env.GetWorkflowError(); err != nil {
 			t.Fatalf("dry=%v: workflow error = %v", dry, err)
 		}
@@ -194,7 +195,7 @@ func TestOnlyCoveredLetsAnUnverifiedRemovalGoOn(t *testing.T) {
 		Return(map[string]interface{}{"verified": false}, nil).Once()
 	env.OnActivity(RemovePerMessageObjectsActivityName, mock.Anything, mock.Anything).
 		Return(map[string]interface{}{"kept_uncovered": map[string]interface{}{"message": 4}}, nil).Once()
-	env.ExecuteWorkflow(ConversationChunksRemovalWorkflow, ConversationChunksRemovalInput{RequestID: "d3", OnlyCovered: true})
+	env.ExecuteWorkflow(ConversationChunksRemovalWorkflow, ConversationChunksRemovalInput{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", RequestID: "d3", OnlyCovered: true})
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error = %v", err)
 	}

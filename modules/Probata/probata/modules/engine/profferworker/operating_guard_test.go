@@ -9,7 +9,10 @@ import (
 	"github.com/Cursedpotential/probata/engine/activities"
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/repairplan"
 	"github.com/stretchr/testify/require"
+	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/workflow"
 )
 
 // Each reviewed non-StageRequest family is exercised with its exact typed signature.
@@ -23,6 +26,8 @@ func TestImportActivityGuardPreservesSignaturesAndDeniesLegacyBodies(t *testing.
 		proffer.AutoApprovalRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
 		activities.ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
 		activities.BindImportOperationRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
+		repairplan.StepRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
+		repairplan.ReceiptRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
 	} {
 		t.Run(reflect.TypeOf(payload).Name(), func(t *testing.T) {
 			calls := 0
@@ -60,4 +65,43 @@ func TestImportActivityGuardPreservesSignaturesAndDeniesLegacyBodies(t *testing.
 		})
 	}
 	require.Error(t, importActivityAdmission(struct{}{}))
+}
+
+type guardedRegistryProof struct{ functions map[string]interface{} }
+
+func (*guardedRegistryProof) RegisterWorkflow(interface{})                                      {}
+func (*guardedRegistryProof) RegisterWorkflowWithOptions(interface{}, workflow.RegisterOptions) {}
+func (r *guardedRegistryProof) RegisterActivityWithOptions(fn interface{}, options activity.RegisterOptions) {
+	r.functions[options.Name] = fn
+}
+
+// Exercise every reviewed actual registration, not merely a convenient mock signature.
+// Unwired Activity bodies must never be reached with historical zero-value arguments.
+func TestActualImportRegistryDeniesEveryMissingOperatingContext(t *testing.T) {
+	registry := &guardedRegistryProof{functions: map[string]interface{}{}}
+	RegisterAll(registry, Registrations{HandlerSelection: HandlerSelectionActivities{
+		Recommend: func(context.Context, proffer.StageRequest) (proffer.HandlerRecommendationResult, error) {
+			panic("body reached")
+		},
+		Validate: func(context.Context, proffer.StageRequest) (proffer.HandlerSelectionValidationResult, error) {
+			panic("body reached")
+		},
+		Recover: func(context.Context, proffer.HandlerRecoveryRequest) (proffer.HandlerRecommendationResult, error) {
+			panic("body reached")
+		},
+	}})
+	reviewed := 0
+	for name, fn := range registry.functions {
+		if !guardedImportActivity(name) {
+			continue
+		}
+		reviewed++
+		t.Run(name, func(t *testing.T) {
+			value := reflect.ValueOf(fn)
+			results := value.Call([]reflect.Value{reflect.ValueOf(context.Background()), reflect.Zero(value.Type().In(1))})
+			require.False(t, results[1].IsNil())
+			require.Contains(t, results[1].Interface().(error).Error(), "operating_mode")
+		})
+	}
+	require.Greater(t, reviewed, 35)
 }

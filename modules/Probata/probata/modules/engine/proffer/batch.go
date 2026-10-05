@@ -145,7 +145,7 @@ const (
 // is a reference, an identifier or a small scalar: the folder's objects are
 // never carried here.
 type BatchInput struct {
-	OperatingMode string `json:"operating_mode"`
+	OperatingMode string `json:"operating_mode,omitempty"`
 	BatchID       string `json:"batch_id"`
 	MatterID      string `json:"matter_id"`
 	CourtCaseID   string `json:"court_case_id"`

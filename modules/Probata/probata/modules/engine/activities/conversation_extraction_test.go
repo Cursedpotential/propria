@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 
 package activities
@@ -43,7 +44,7 @@ func newFakeConversations(n int) *fakeConversations {
 }
 
 func (f *fakeConversations) ResolveConversation(context.Context, string, flow.ConversationRef) ([]flow.RunRef, error) {
-	return []flow.RunRef{{PreviewHandle: "h", GenerationID: "g1", SourceVersionID: "sv-1"}}, nil
+	return []flow.RunRef{{MatterMode: "LIVE", PreviewHandle: "h", GenerationID: "g1", SourceVersionID: "sv-1"}}, nil
 }
 
 func (f *fakeConversations) ConversationInfo(context.Context, string, flow.ConversationRef) (service.ConversationInfo, error) {
@@ -122,8 +123,8 @@ func newSender(t *testing.T, conversations service.ConversationStore) (Conversat
 	return acts, recorder
 }
 
-var sendTarget = flow.SendTarget{
-	MatterID: "11111111-1111-4111-8111-111111111111",
+var sendTarget = flow.SendTarget{OperatingMode: "LIVE", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
+	MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
 	Ref:      flow.ConversationRef{ExportKey: "exports/a", Conv: "c"},
 	Request:  "send-1",
 }

@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 	"strings"
 	"time"
 
@@ -426,7 +427,9 @@ WHERE b.preview_handle = $1 AND version.matter_id=$2::uuid AND version.court_cas
 	if errors.Is(err, pgx.ErrNoRows) {
 		return flow.RunRef{}, fmt.Errorf("run %s has no normalized generation yet: %w", previewHandle, service.ErrNotFound)
 	}
-	run.MatterMode = recordedOperatingMode(modeDetail)
+	admission := previewmodel.Binding{OperatingMode: recordedOperatingMode(modeDetail)}
+	applyBindingAdmission(&admission, modeDetail)
+	run.MatterMode = admission.OperatingMode
 	return run, err
 }
 

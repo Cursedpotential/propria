@@ -148,6 +148,7 @@ func TestResolveAnchorBySourceUsesTheNewestRunAndFailsClosed(t *testing.T) {
 
 func receiptRequest(status string) repairplan.ReceiptRequest {
 	request := repairplan.ReceiptRequest{
+		OperatingMode: "LIVE", MatterID: authoritativeMatterID, CourtCaseID: authoritativeCourtCaseID,
 		WorkflowID: "repair-plan-p-1", RunID: "run-1", PlanID: "p-1", StepID: "s1", StepIndex: 0,
 		Activity: "repair.salvage_truncated_xml", SourceVersionID: "0199aaaa-0000-7000-8000-000000000001",
 		InputRef: "b2://salem-data/v/sms-1.xml", Status: status,

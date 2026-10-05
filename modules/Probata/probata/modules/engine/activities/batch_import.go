@@ -26,8 +26,10 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
+	"github.com/google/uuid"
 )
 
 const (
@@ -146,6 +148,12 @@ type BatchImportActivities struct {
 
 // ListBatchFolder returns one page of object keys under a prefix.
 func (a BatchImportActivities) ListBatchFolder(ctx context.Context, req ListBatchFolderRequest) (ListBatchFolderResult, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(req.OperatingMode)); err != nil {
+		return ListBatchFolderResult{}, stopRetryingPermanent(permanent(err))
+	}
+	if !caseidentity.AdmittedIdentity(req.MatterID, req.CourtCaseID) {
+		return ListBatchFolderResult{}, stopRetryingPermanent(permanent(errors.New("batch requires the approved case identity")))
+	}
 	if a.Lister == nil {
 		return ListBatchFolderResult{}, errors.New("batch import: object lister is required")
 	}
@@ -184,6 +192,12 @@ func (a BatchImportActivities) ListBatchFolder(ctx context.Context, req ListBatc
 
 // BindImportOperation records the preview binding for one started run.
 func (a BatchImportActivities) BindImportOperation(ctx context.Context, req BindImportOperationRequest) (BindImportOperationResult, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(req.OperatingMode)); err != nil {
+		return BindImportOperationResult{}, stopRetryingPermanent(permanent(err))
+	}
+	if !caseidentity.AdmittedIdentity(req.MatterID, req.CourtCaseID) {
+		return BindImportOperationResult{}, stopRetryingPermanent(permanent(errors.New("batch binding requires the approved case identity")))
+	}
 	if a.Bindings == nil {
 		return BindImportOperationResult{}, errors.New("batch import: preview binding store is required")
 	}
@@ -195,7 +209,9 @@ func (a BatchImportActivities) BindImportOperation(ctx context.Context, req Bind
 	}
 	// Create is idempotent on request_id, so a retried Activity returns the
 	// first binding instead of minting a second handle.
+	matterID, courtCaseID := uuid.MustParse(req.MatterID), uuid.MustParse(req.CourtCaseID)
 	binding, err := a.Bindings.Create(ctx, previewmodel.Binding{
+		MatterID: &matterID, CourtCaseID: &courtCaseID,
 		OperatingMode: req.OperatingMode, RequestID: req.RequestID, SourceRef: req.SourceRef,
 		WorkflowID: req.WorkflowID, RunID: req.RunID, ParserOptionsRef: req.ParserOptionsRef,
 	})

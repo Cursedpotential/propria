@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package flow
@@ -56,7 +57,7 @@ func okReport(digest string) CommitStepResult {
 }
 
 func commitRequest() CommitRequest {
-	return CommitRequest{CommitID: "c-1", Digest: "digest-1", Run: RunRef{PreviewHandle: "h", GenerationID: "g", MatterMode: "REAL"}, CollectionSlug: "primary"}
+	return CommitRequest{CommitID: "c-1", Digest: "digest-1", Run: RunRef{PreviewHandle: "h", GenerationID: "g", MatterMode: "LIVE"}, CollectionSlug: "primary"}
 }
 
 func TestCommitWorkflowRunsEveryStepInOrderThenProjects(t *testing.T) {
