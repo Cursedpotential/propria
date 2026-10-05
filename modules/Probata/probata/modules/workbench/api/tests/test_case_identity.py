@@ -1,6 +1,7 @@
 """Case page BFF: registry pass-through with actor + key, catalog counts labeled by store.
 
 Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
+Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 — retain the authoritative court-parent correlation.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ def _view(mode: str = "LIVE") -> dict:
     return {
         "mode": mode,
         "matter": {"id": "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", "title": "Salem v Kinzel"},
-        "court_case": {"id": "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", "caption": "Matthew S. Salem v Katrina Kinzel"},
+        "court_case": {"id": "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", "matter_id": "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", "caption": "Matthew S. Salem v Katrina Kinzel"},
         "people": [
             {
                 "id": MATT,

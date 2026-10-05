@@ -41,7 +41,7 @@ def canonical_case(monkeypatch):
 
 
 def _header(mode="LIVE"):
-    return {"mode": mode, "matter": {"id": MATTER}, "court_case": {"id": COURT},
+    return {"mode": mode, "matter": {"id": MATTER}, "court_case": {"id": COURT, "matter_id": MATTER},
             "people": [{"id": PERSON}], "source_versions": [{"id": OTHER}],
             "history": [], "probata_counts": [], "probata_unknowns": [], "dismissed": []}
 
@@ -124,13 +124,43 @@ def test_bad_config_cannot_select_an_unrelated_spine_case(monkeypatch):
     monkeypatch.setattr(case_management.service, "get_matter", lambda *_: pytest.fail("spine must not run"))
     response = TestClient(_app()).get("/api/matters")
     assert response.status_code == 502
-    assert calls == [("GET", "/case-identity")]
+    assert calls == [("GET", "/case-identity/scope")]
+
+
+@pytest.mark.parametrize("mode", ["LIVE", "DEV"])
+def test_scope_admission_uses_fresh_bounded_identity_read_without_full_page(monkeypatch, mode):
+    calls = []
+
+    async def engine(method, path, **kwargs):
+        calls.append((method, path, kwargs))
+        return httpx.Response(200, json={"mode": mode, "matter": {"id": MATTER},
+            "court_case": {"id": COURT, "matter_id": MATTER}})
+
+    monkeypatch.setattr(proffer, "_request", engine)
+    for _ in range(2):
+        asyncio.run(case_scope.verify_case_scope(mode))
+    assert calls == [("GET", "/case-identity/scope", {"params": {"mode": mode}})] * 2
+
+
+@pytest.mark.parametrize("parent", [None, OTHER])
+def test_scope_missing_or_foreign_court_parent_blocks_read_and_mutation(monkeypatch, parent):
+    async def engine(method, path, **kwargs):
+        assert (method, path) == ("GET", "/case-identity/scope")
+        answer = _header()
+        answer["court_case"]["matter_id"] = parent
+        return httpx.Response(200, json=answer)
+
+    monkeypatch.setattr(proffer, "_request", engine)
+    monkeypatch.setattr(case_management.service, "get_matter", lambda *_: pytest.fail("spine must not run"))
+    client = TestClient(_app())
+    assert client.get("/api/matters").status_code == 502
+    assert client.post("/api/case-identity/people", json={}, headers={"Idempotency-Key": "scope-test"}).status_code == 502
 
 
 def test_default_live_and_both_modes_preserve_case_people_and_source_ids(monkeypatch):
     async def engine(method, path, **kwargs):
         assert method == "GET"
-        assert path == "/case-identity"
+        assert path in {"/case-identity", "/case-identity/scope"}
         return httpx.Response(200, json=_header(kwargs["params"]["mode"]))
 
     monkeypatch.setattr(proffer, "_request", engine)
@@ -367,7 +397,7 @@ def _deny_all_case_management_upstream(monkeypatch) -> None:
 
 
 async def _case_header_request(method, path, **kwargs):
-    assert (method, path) == ("GET", "/case-identity")
+    assert (method, path) == ("GET", "/case-identity/scope")
     return httpx.Response(200, json=_header(kwargs.get("params", {}).get("mode", "LIVE")))
 
 
