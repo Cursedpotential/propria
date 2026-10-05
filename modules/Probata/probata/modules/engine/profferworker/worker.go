@@ -109,6 +109,11 @@ type Registrations struct {
 	// Effects: none until invoked; choose for source inspection, retained copy and pinned readback before ingestion.
 	// Byline: Codex · GPT-6 · 2026-10-05.
 	AIWorkproductPlacement *activities.AIWorkproductPlacementActivities
+	// AIWorkproductCatalog authenticates retained notes and registers their original source occurrences.
+	// Inputs: existing placement adapters and separately admitted catalog writer. Outputs: three optional Activities.
+	// Effects: none until invoked; choose after placement, independently of content indexing and bucket listing refresh.
+	// Byline: Codex · GPT-6 · 2026-10-05.
+	AIWorkproductCatalog *activities.AIWorkproductCatalogActivities
 	// ToolkitCatalog registers verified recovery metadata only when the separate writer is explicitly configured.
 	// Inputs: existing preservation root/store resolver and admitted Case Bible writer. Outputs: optional Activity group.
 	// Effects: none until invoked. Choose alongside preservation; the dated catalog client remains read-only.
@@ -218,6 +223,12 @@ func RegisterAll(registrar interface {
 		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.InspectAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductInspectActivityName})
 		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.CopyAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductCopyActivityName})
 		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.ReadbackAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductReadbackActivityName})
+	}
+	if registrations.AIWorkproductCatalog != nil {
+		registrar.RegisterWorkflowWithOptions(activities.AIWorkproductCatalogWorkflow, workflow.RegisterOptions{Name: activities.AIWorkproductCatalogWorkflowName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductCatalog.AuthenticateAIWorkproductCatalog, activity.RegisterOptions{Name: activities.AIWorkproductCatalogAuthenticateActivityName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductCatalog.RegisterAIWorkproductCatalog, activity.RegisterOptions{Name: activities.AIWorkproductCatalogRegisterActivityName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductCatalog.ReadbackAIWorkproductCatalog, activity.RegisterOptions{Name: activities.AIWorkproductCatalogReadbackActivityName})
 	}
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackagePreservationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackagePreservationWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.CopyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationCopyActivityName})
@@ -330,6 +341,10 @@ func Run(ctx context.Context, cfg Config) error {
 		defer closeToolkitCatalog()
 	}
 	registrations.ToolkitCatalog = toolkitCatalog
+	registrations.AIWorkproductCatalog, err = configureAIWorkproductCatalog(ctx, toolkitCatalog, registrations.AIWorkproductPlacement)
+	if err != nil {
+		return err
+	}
 	toolkitValidation, err := configureToolkitValidation(ctx)
 	if err != nil {
 		return err
