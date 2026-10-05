@@ -61,7 +61,7 @@ export async function putPersonalCaseSource(store: StoreOk, key: string, data: R
 export async function putVersionedPersonalRecord(store: StoreOk, table: string, key: string, data: Record<string, unknown>, expectedVersion: string): Promise<Record<string, unknown>> {
   const personalTables = ["person", "child", "order", "hearing", "deadline", "event", "message", "exhibit", "factor", "source", "note", "court", "court_event", "filing", "draft", "memo", "evidence_log", "eval", "case_status"];
   if (!personalTables.includes(table) || !key || (expectedVersion !== "absent" && !/^sha256:[a-f0-9]{64}$/.test(expectedVersion))) throw new Error("Personal edit requires an admitted table and exact expected version");
-  if ("id" in data || "embedding" in data) throw new Error("Record identity and embedding are server-owned fields");
+  if ("id" in data || "embedding" in data || "library_file_id" in data) throw new Error("Record identity, embedding and file bindings are server-owned fields");
   if (table === "source" && data.kind !== "case_document") throw new Error("Personal case sources require kind case_document");
   const results = await libraryTransaction(store, `BEGIN TRANSACTION;
     LET $rid = type::record($tb, $key);
@@ -114,7 +114,7 @@ export function validateLibraryProposal(input: LibraryProposalInput): { table: s
   const match = /^(reference|source):([^\s:]{1,200})$/.exec(input.id);
   if (!match || !/^(?:absent|sha256:[a-f0-9]{64})$/.test(input.expected_version)) throw new Error("Invalid library identity or expected version");
   if (!input.patch || typeof input.patch !== "object" || Array.isArray(input.patch) || !Object.keys(input.patch).length
-    || Object.keys(input.patch).some(k => ["id", "embedding", "validation", "validation_status", "published_at"].includes(k)))
+    || Object.keys(input.patch).some(k => ["id", "embedding", "library_file_id", "validation", "validation_status", "published_at"].includes(k)))
     throw new Error("Invalid library patch or reserved publication field");
   if (Buffer.byteLength(JSON.stringify(input.patch), "utf8") > 512000) throw new Error("Library patch exceeds 512KB budget");
   if (!Array.isArray(input.citations) || input.citations.length < 1 || input.citations.length > 64) throw new Error("One to 64 claim citations are required");
