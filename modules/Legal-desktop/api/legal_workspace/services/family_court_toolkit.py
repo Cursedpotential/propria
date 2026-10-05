@@ -47,9 +47,11 @@ _LIST_SURQL = (
 )
 
 _ORIGINAL_LINKS_SURQL = (
+    "LET $aliases = (SELECT VALUE binding_id FROM library_file_alias "
+    "WHERE record_id = $record_id LIMIT 8); "
     "SELECT <string> id AS binding_id, original_pointer FROM library_file "
-    "WHERE record_id = $record_id AND provider = 'b2' AND account_scope = $scope "
-    "AND bucket = 'salem-data' "
+    "WHERE (record_id = $record_id OR <string> id IN $aliases) "
+    "AND provider = 'b2' AND account_scope = $scope AND bucket = 'salem-data' "
     "AND legal_root = 'consignatio/casevault/KnowledgeBase/legal/' LIMIT 8;"
 )
 
