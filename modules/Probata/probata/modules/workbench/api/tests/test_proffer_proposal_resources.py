@@ -105,6 +105,8 @@ def test_mixed_new_and_empty_historical_mode_catalog_stays_readable_and_unknown_
         {**_operation(), "matter_id": MATTER_ID, "operating_mode": "LIVE"},
         {**_operation(unknown), "matter_id": MATTER_ID, "operating_mode": ""},
     ])
+    monkeypatch.setattr(matter_mode, "configured_matter_id", lambda mode: UUID(MATTER_ID))
+    monkeypatch.setattr(matter_mode, "configured_court_case_id", lambda mode: UUID(COURT_CASE_ID))
     result = asyncio.run(proffer_resources.list_proposal_resources(mode="LIVE", status=None, cursor=None, limit=50))
     assert [item.preview_handle for item in result.items] == [HANDLE]
     assert result.unbound_count == 1
