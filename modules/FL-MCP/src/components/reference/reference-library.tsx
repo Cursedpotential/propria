@@ -1,4 +1,4 @@
-// Byline: OpenAI Codex · GPT-6 · 2026-10-04
+// Byline: OpenAI Codex · GPT-6 · 2026-10-04; original-link surface: GPT-6-Luna · 2026-10-05.
 import { ExternalLink } from "lucide-react";
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { LibraryRecordEditor } from "@/components/reference/library-record-editor";
+import { LibraryRecordEditor, OpenCaseBibleOriginal, readLibraryOriginalLinks } from "@/components/reference/library-record-editor";
 import { caseRecordQuery, referenceLibraryQuery } from "@/lib/queries";
 import { isUnavailable, type CaseRecordDetail, type LibraryRecord, type ReferenceLibraryPage, type StoreResponse } from "@/types/store";
 
@@ -131,6 +131,10 @@ export function ReferenceLibrary() {
   const sourceHash = firstRecordText(provenanceRecords, ["sha256", "sha", "hash"]);
   const sourceUrl = safeSourceUrl(firstRecordText(provenanceRecords, ["source_url", "official_url", "url"]));
   const r2Path = firstRecordText(provenanceRecords, ["r2_path"]);
+  const originalLinkEnvelope = detailResponse && !isUnavailable(detailResponse)
+    ? (detailResponse as CaseRecordDetail & { original_links?: unknown }).original_links
+    : undefined;
+  const originalLinks = readLibraryOriginalLinks(originalLinkEnvelope);
   const bodyFields = record ? BODY_FIELDS.filter((field) => record[field] !== undefined && record[field] !== null) : [];
 
   /**
@@ -233,11 +237,12 @@ export function ReferenceLibrary() {
 
                     <div className="space-y-2 border-t border-border pt-3">
                       <h3 className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Source provenance</h3>
+                      <OpenCaseBibleOriginal links={originalLinks} />
                       {sourcePath && <div className="break-all text-xs"><span className="text-text-tertiary">Source path </span><code>{sourcePath}</code></div>}
                       {sourceHash && <div className="break-all text-xs"><span className="text-text-tertiary">SHA-256 </span><code>{sourceHash}</code></div>}
                       {sourceUrl && <a className="inline-flex items-center gap-1 text-sm text-accent-text underline underline-offset-2" href={sourceUrl} target="_blank" rel="noreferrer"><ExternalLink aria-hidden />Open source link</a>}
                       {r2Path && <div className="break-all text-xs"><span className="text-text-tertiary">R2 path </span><code>{r2Path}</code></div>}
-                      {!sourcePath && !sourceHash && !sourceUrl && !r2Path && <p className="text-sm text-text-tertiary">No source provenance fields are recorded.</p>}
+                      {!sourcePath && !sourceHash && !sourceUrl && !r2Path && originalLinks.length === 0 && <p className="text-sm text-text-tertiary">No source provenance fields are recorded.</p>}
                       {sourcePath && <Button variant="outline" size="sm" onClick={() => {
                         setOpenError(null);
                         void openLibraryPath(sourcePath).catch((error: unknown) => setOpenError(error instanceof Error ? error.message : "Could not open the source path."));

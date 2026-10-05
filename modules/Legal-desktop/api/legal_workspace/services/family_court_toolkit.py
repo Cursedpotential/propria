@@ -1,6 +1,7 @@
 """Read-only view of Family Law Toolkit records for the workdesk.
 
 > _Byline: Claude Code · Opus 5.5 · 2026-09-27_
+> _Updated by: OpenAI Codex · GPT-6-Luna · 2026-10-05 — expose bounded original links separately from exact record versions._
 The toolkit's case store (SurrealDB `surreal-case`, namespace `fct`, database `case`)
 owns these records: legal sources, cheat sheets and other reference rows, and case
 documents. Advocatio never copies them; it reads each one through the shared
@@ -18,11 +19,13 @@ Sibling pattern: services/consignatio_catalog.py. Empty store URL = "not configu
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from legal_workspace.config import get_settings
 
@@ -41,6 +44,13 @@ _LIST_SURQL = (
     "title: title ?? citation ?? key ?? label ?? '', "
     "kind: kind ?? authority_class ?? '', category: category ?? '' } "
     "FROM type::table($tb);"
+)
+
+_ORIGINAL_LINKS_SURQL = (
+    "SELECT <string> id AS binding_id, original_pointer FROM library_file "
+    "WHERE record_id = $record_id AND provider = 'b2' AND account_scope = $scope "
+    "AND bucket = 'salem-data' "
+    "AND legal_root = 'consignatio/casevault/KnowledgeBase/legal/' LIMIT 8;"
 )
 
 # Keep this allowlist aligned with the toolkit's DATA_TABLES. It deliberately
@@ -74,6 +84,22 @@ class ToolkitRecord(BaseModel):
     table: str
     version: str
     record: dict[str, Any]
+    original_links: list[ToolkitOriginalLink] = Field(default_factory=list)
+
+
+class ToolkitOriginalLink(BaseModel):
+    """One exact B2 PDF binding exposed through the hosted original-file proxy.
+
+    Inputs are validated library binding metadata; output preserves the exact
+    version, raw hash, and byte count. It performs no I/O or record mutation.
+    """
+
+    binding_id: str
+    version_id: str
+    sha256: str
+    bytes: int
+    content_type: str = "application/pdf"
+    href: str
 
 
 class ToolkitListing(BaseModel):
@@ -138,7 +164,78 @@ def toolkit_status() -> ToolkitStatus:
     return status
 
 
+def _original_links(record_id: str) -> list[ToolkitOriginalLink]:
+    """Read at most eight scoped original PDF pointers for one shared record.
+
+    Input is the exact table:id; output is validated proxy links or an empty
+    list when the feature is unconfigured or no mapping exists. Side effects
+    are one parameterized, read-only metadata query; record versions and body
+    fields are untouched. Use for the separate original_links envelope.
+    """
+    scope = os.getenv("TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE")
+    if not scope:
+        return []
+
+    rows = _query(_ORIGINAL_LINKS_SURQL, {"record_id": record_id, "scope": scope}) or []
+    if not isinstance(rows, list):
+        return []
+
+    links: list[ToolkitOriginalLink] = []
+    for row in rows[:8]:
+        if not isinstance(row, dict):
+            continue
+        binding_id = row.get("binding_id")
+        pointer = row.get("original_pointer")
+        if not isinstance(pointer, dict):
+            continue
+
+        version_id = pointer.get("version_id")
+        sha256 = pointer.get("sha256")
+        size = pointer.get("size")
+        content_type = pointer.get("content_type")
+        if (
+            not isinstance(binding_id, str)
+            or not re.fullmatch(r"library_file:[a-f0-9]{64}", binding_id)
+            or not isinstance(version_id, str)
+            or not version_id
+            or version_id == "null"
+            or any(char in version_id for char in "\r\n\0")
+            or not isinstance(sha256, str)
+            or not re.fullmatch(r"[a-f0-9]{64}", sha256)
+            or type(size) is not int
+            or size <= 0
+            or size > 20 * 1024 * 1024
+            or content_type != "application/pdf"
+        ):
+            continue
+        try:
+            if len(version_id.encode("utf-8")) > 2048:
+                continue
+        except UnicodeEncodeError:
+            continue
+
+        query = urlencode({"binding_id": binding_id, "version_id": version_id})
+        links.append(
+            ToolkitOriginalLink(
+                binding_id=binding_id,
+                version_id=version_id,
+                sha256=sha256,
+                bytes=size,
+                content_type="application/pdf",
+                href=f"https://family-court.tilapia-skilift.ts.net/api/library/original?{query}",
+            )
+        )
+    return links
+
+
 def get_record(ref: str) -> ToolkitRecord | None:
+    """Read one exact shared record and its separate bounded original links.
+
+    Input is a table:id reference; output is the unchanged body and store
+    version plus scoped original-link metadata. Effects are read-only shared
+    store queries. Use for Workdesk detail views that need the record and its
+    original PDF entry point.
+    """
     table, record_id = _split_ref(ref)
     result = _query(RECORD_VERSION_SURQL, {"tb": table, "id": record_id})
     if not isinstance(result, dict) or not result.get("version"):
@@ -150,6 +247,7 @@ def get_record(ref: str) -> ToolkitRecord | None:
         table=str(result["tb"]),
         version=str(result["version"]),
         record=record,
+        original_links=_original_links(f"{result['tb']}:{result['id']}"),
     )
 
 

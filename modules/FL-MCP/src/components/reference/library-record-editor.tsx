@@ -1,4 +1,4 @@
-// Byline: OpenAI Codex · GPT-6-Luna · 2026-10-04
+// Byline: OpenAI Codex · GPT-6-Luna · 2026-10-04; original-link control: GPT-6-Luna · 2026-10-05.
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,72 @@ import {
 
 type LibraryTable = "reference" | "source";
 type CitationDraft = { source_id: string; pinpoint: string; claim: string; source_version: string | null; error: string | null };
-type ExactRecord = { contract: string; id: string; table: string; version: string; record: Record<string, unknown> };
+type ExactRecord = { contract: string; id: string; table: string; version: string; record: Record<string, unknown>; original_links?: unknown };
 type ProposalResult = Record<string, unknown> & { proposal_id: string; status: string; proposed_hash: string };
+
+export type LibraryOriginalLink = {
+  binding_id: string;
+  version_id: string;
+  sha256: string;
+  bytes: number;
+  content_type: "application/pdf";
+  href: string;
+};
+
+const ORIGINAL_LINK_HOST = "family-court.tilapia-skilift.ts.net";
+const MAX_ORIGINAL_BYTES = 20 * 1024 * 1024;
+
+/** Validates separate case_record original links and rebuilds only the approved hosted URL.
+ * Input is an untrusted API envelope value; output is at most eight exact PDF links.
+ * It performs no I/O or record edits; choose it for exact shared-record originals, while source provenance links use the sibling renderer.
+ * Byline: OpenAI Codex · GPT-6-Luna · 2026-10-05.
+ */
+export function readLibraryOriginalLinks(value: unknown): LibraryOriginalLink[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 8).flatMap((item: unknown) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const candidate = item as Record<string, unknown>;
+    const { binding_id: bindingId, version_id: versionId, sha256, bytes, content_type: contentType, href } = candidate;
+    if (typeof bindingId !== "string" || !/^library_file:[a-f0-9]{64}$/.test(bindingId) ||
+      typeof versionId !== "string" || !versionId || versionId === "null" || /[\r\n\0]/.test(versionId) ||
+      new TextEncoder().encode(versionId).byteLength > 2048 ||
+      typeof sha256 !== "string" || !/^[a-f0-9]{64}$/.test(sha256) ||
+      typeof bytes !== "number" || !Number.isSafeInteger(bytes) || bytes <= 0 || bytes > MAX_ORIGINAL_BYTES ||
+      contentType !== "application/pdf" || typeof href !== "string") return [];
+    try {
+      const supplied = new URL(href);
+      const keys = [...supplied.searchParams.keys()].sort();
+      if (supplied.protocol !== "https:" || supplied.hostname !== ORIGINAL_LINK_HOST || supplied.port ||
+        supplied.username || supplied.password || supplied.pathname !== "/api/library/original" ||
+        supplied.hash || keys.join(",") !== "binding_id,version_id" ||
+        supplied.searchParams.getAll("binding_id").length !== 1 ||
+        supplied.searchParams.getAll("version_id").length !== 1 ||
+        supplied.searchParams.get("binding_id") !== bindingId ||
+        supplied.searchParams.get("version_id") !== versionId) return [];
+    } catch {
+      return [];
+    }
+    const query = new URLSearchParams({ binding_id: bindingId, version_id: versionId });
+    return [{ binding_id: bindingId, version_id: versionId, sha256, bytes, content_type: "application/pdf", href: "https://" + ORIGINAL_LINK_HOST + "/api/library/original?" + query }];
+  });
+}
+
+/** Renders links to validated exact B2 PDFs returned outside the shared case_record body.
+ * Input is a sanitized list; output is one external link per retained original version.
+ * It performs no I/O and opens only the fixed hosted original endpoint in a new tab; use for exact B2 originals beside a record.
+ * Byline: OpenAI Codex · GPT-6-Luna · 2026-10-05.
+ */
+export function OpenCaseBibleOriginal({ links }: { links: LibraryOriginalLink[] }) {
+  if (links.length === 0) return null;
+  return <div className="flex flex-wrap gap-2">
+    {links.map((link, index) => (
+      <a key={link.binding_id + ":" + link.version_id} href={link.href} target="_blank" rel="noopener noreferrer"
+        className="inline-flex min-h-9 items-center gap-1 rounded-[var(--radius-sm)] border border-border-strong px-3 text-sm text-accent-text underline underline-offset-2 hover:bg-surface-hover focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-focus">
+        <span>Open Case Bible original{index ? " (" + (index + 1) + ")" : ""}</span>
+      </a>
+    ))}
+  </div>;
+}
 
 const HASH_VERSION = /^sha256:[a-f0-9]{64}$/i;
 
