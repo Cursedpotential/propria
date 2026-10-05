@@ -147,7 +147,7 @@ def test_explicit_b2_credentials_have_no_browser_configurable_bucket(monkeypatch
     object_store_client.get_store_client("b2")
 
     assert captured["service"] == "s3"
-    assert captured["endpoint_url"] == "https://example.r2.cloudflarestorage.com"
+    assert captured["endpoint_url"] == "https://s3.example.backblazeb2.com"
     assert "bucket" not in captured
     object_store_client._other_store_client.cache_clear()
 
