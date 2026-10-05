@@ -57,7 +57,8 @@ export function librarySyncAuthorized(header: string | undefined, token: string 
 export function parseLibrarySyncHttpOperation(method: string | undefined, url: URL, leaseId?: string): SyncHttpOperation {
   const route = url.pathname.slice(PREFIX.length);
   let requiredMethod: "GET" | "POST";
-  if (route === "/outbox/claim" || route === "/observations") requiredMethod = "POST";
+  if (route === "/outbox/claim" || route === "/observations" || route === "/bindings/import") requiredMethod = "POST";
+  else if (/^\/observations\/[a-f0-9]{64}\/payload$/.test(route)) requiredMethod = "POST";
   else if (/^\/observations\/[a-f0-9]{64}\/status$/.test(route)) requiredMethod = "GET";
   else {
     const outbox = OUTBOX.exec(route);
@@ -76,7 +77,7 @@ export function parseLibrarySyncHttpOperation(method: string | undefined, url: U
   } else if ([...url.searchParams.keys()].length) {
     throw Object.assign(new Error("Unexpected private sync query"), { status: 400 });
   }
-  if (route.endsWith("/payload") && (!leaseId || leaseId.length > 200 || /[\r\n\0]/.test(leaseId))) {
+  if (route.startsWith("/outbox/") && route.endsWith("/payload") && (!leaseId || leaseId.length > 200 || /[\r\n\0]/.test(leaseId))) {
     throw Object.assign(new Error("An active sync lease is required"), { status: 400 });
   }
   return { method: requiredMethod, path: decodeURIComponent(route), query: url.searchParams, body: {}, leaseId };
@@ -104,6 +105,32 @@ export async function readLibrarySyncMetadata(request: AsyncIterable<Uint8Array 
   return body as Record<string, unknown>;
 }
 
+/** Retain a complete bounded incoming file payload with its byte identity and original-source identity.
+ * Inputs: authenticated request stream and worker content/source SHA-256 headers. Outputs: raw bytes plus verified metadata.
+ * Effects: consumes at most the 8 MiB payload budget; overflow or wrong hashes refuses without truncation.
+ * Choose for observation hydration rather than a JSON/base64 wrapper that expands or loses file content.
+ */
+export async function readLibrarySyncIncomingPayload(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const sha256 = req.headers["x-toolkit-sync-payload-sha256"];
+  const sourceSha256 = req.headers["x-toolkit-sync-source-sha256"];
+  const contentType = req.headers["content-type"];
+  if (typeof sha256 !== "string" || !/^[a-f0-9]{64}$/.test(sha256) || typeof sourceSha256 !== "string" || !/^[a-f0-9]{64}$/.test(sourceSha256)
+    || typeof contentType !== "string" || !contentType || contentType.length > 200 || /[\r\n\0]/.test(contentType))
+    throw Object.assign(new Error("Invalid incoming payload identity"), { status: 400 });
+  const length = Number(req.headers["content-length"]);
+  if (Number.isFinite(length) && length > PAYLOAD_LIMIT) throw Object.assign(new Error("Payload budget exceeded"), { status: 413 });
+  const chunks: Buffer[] = []; let size = 0;
+  for await (const value of req) {
+    const chunk = Buffer.from(value); size += chunk.length;
+    if (size > PAYLOAD_LIMIT) throw Object.assign(new Error("Payload budget exceeded"), { status: 413 });
+    chunks.push(chunk);
+  }
+  const bytes = Buffer.concat(chunks, size);
+  const { createHash } = await import("node:crypto");
+  if (createHash("sha256").update(bytes).digest("hex") !== sha256) throw Object.assign(new Error("Payload hash mismatch"), { status: 422 });
+  return { incoming_bytes: bytes, sha256, source_sha256: sourceSha256, content_type: contentType };
+}
+
 /** Authenticate and serve only the internal library sync transport using the existing console process.
  * Inputs: HTTP request/response, parsed URL, admitted backend dispatcher and dedicated mounted token.
  * Outputs: handled flag. Effects: bounded metadata/payload response and guarded backend calls after authentication.
@@ -125,7 +152,9 @@ export async function handleLibrarySyncHttpRequest(
   try {
     const header = req.headers["x-toolkit-sync-lease"];
     const operation = parseLibrarySyncHttpOperation(req.method, url, typeof header === "string" ? header : undefined);
-    if (operation.method === "POST") {
+    if (operation.method === "POST" && /^\/observations\/[a-f0-9]{64}\/payload$/.test(operation.path)) {
+      operation.body = await readLibrarySyncIncomingPayload(req);
+    } else if (operation.method === "POST") {
       if ((req.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase() !== "application/json") {
         throw Object.assign(new Error("JSON content type required"), { status: 415 });
       }

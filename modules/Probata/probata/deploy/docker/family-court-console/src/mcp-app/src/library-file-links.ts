@@ -13,8 +13,9 @@ export interface LibraryOriginalLink {
 export async function libraryOriginalLinks(store: Pick<StoreOk, "db">, recordId: string): Promise<LibraryOriginalLink[]> {
   const scope = process.env.TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE;
   if (!scope) return [];
-  const result = await store.db.query<unknown[]>(`SELECT <string> id AS binding_id, original_pointer FROM library_file
-    WHERE record_id = $record_id AND provider = 'b2' AND account_scope = $scope AND bucket = 'salem-data'
+  const result = await store.db.query<unknown[]>(`LET $aliases = (SELECT VALUE binding_id FROM library_file_alias WHERE record_id = $record_id LIMIT 8);
+    SELECT <string> id AS binding_id, original_pointer FROM library_file
+    WHERE (record_id = $record_id OR <string> id IN $aliases) AND provider = 'b2' AND account_scope = $scope AND bucket = 'salem-data'
       AND legal_root = 'consignatio/casevault/KnowledgeBase/legal/' LIMIT 8;`, { record_id: recordId, scope });
   const rows = result.at(-1);
   if (!Array.isArray(rows)) throw new Error("Malformed original-file mapping result");
