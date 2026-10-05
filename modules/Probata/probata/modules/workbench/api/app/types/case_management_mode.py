@@ -1,4 +1,9 @@
-"""Mode-echoing Matter views used only by the isolated Workbench selector."""
+"""Policy-echoing single-case views with an engine-admitted court coordinate.
+
+Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05.
+"""
+
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -20,3 +25,4 @@ class ModeBoundMatterList(BaseModel):
 
 class ModeBoundMatterDetail(MatterDetail):
     matter_mode: MatterMode
+    admitted_court_case_id: UUID

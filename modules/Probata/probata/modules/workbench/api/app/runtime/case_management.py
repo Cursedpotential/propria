@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from app.runtime.operating_mode import OperatingMode
 from app.service import case_management as service
-from app.service.matter_mode import MatterModeError, configured_matter_id, require_matter, require_scope
+from app.service.matter_mode import MatterModeError, configured_court_case_id, configured_matter_id, require_matter, require_scope
 from app.types.case_management import (
     CaseManagementCapabilities,
     CourtCase,
@@ -118,7 +118,9 @@ def get_matter_endpoint(matter_id: UUID, mode: OperatingMode):
     _require_mode_matter(mode, matter_id)
     _, payload = _configured_mode_matter(mode)
     try:
-        return ModeBoundMatterDetail.model_validate({**payload, "matter_mode": mode})
+        return ModeBoundMatterDetail.model_validate({
+            **payload, "matter_mode": mode, "admitted_court_case_id": configured_court_case_id(mode)
+        })
     except (ValidationError, ValueError, TypeError):
         raise HTTPException(status_code=502, detail="Spine returned an invalid configured matter") from None
 

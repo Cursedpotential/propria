@@ -17,7 +17,18 @@ function load(code, extra = {}) {
   return module.exports;
 }
 
-const { parseOperatingMode } = load(modeSource);
+const { parseOperatingMode, selectAdmittedCourtCase } = load(modeSource);
+test("shell court selection uses the admitted ID, never foreign primary flags", () => {
+  const approved = { id: "approved", is_primary: false };
+  const foreign = { id: "foreign", is_primary: true };
+  const matter = { admitted_court_case_id: "approved", court_cases: [foreign, approved] };
+  assert.equal(selectAdmittedCourtCase(matter), approved);
+  approved.is_primary = true;
+  foreign.is_primary = false;
+  assert.equal(selectAdmittedCourtCase(matter), approved);
+  assert.equal(selectAdmittedCourtCase({ ...matter, admitted_court_case_id: undefined }), null);
+  assert.equal(selectAdmittedCourtCase({ ...matter, court_cases: [foreign] }), null);
+});
 test("omission is Live, aliases normalize only at input, unknown URL values reject", () => {
   for (const [raw, canonical] of [[null, "LIVE"], ["LIVE", "LIVE"], ["DEV", "DEV"], ["REAL", "LIVE"], ["TEST", "DEV"]]) {
     assert.equal(parseOperatingMode(raw), canonical);

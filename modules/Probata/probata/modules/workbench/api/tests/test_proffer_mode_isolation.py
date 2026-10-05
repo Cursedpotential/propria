@@ -414,6 +414,22 @@ def test_unconfigured_source_browser_has_zero_provider_io(monkeypatch):
     assert error.value.status_code == 503
 
 
+@pytest.mark.parametrize("foreign_primary", [False, True])
+def test_matter_detail_admits_exact_engine_court_despite_multiple_spine_courts(monkeypatch, foreign_primary):
+    timestamp = "2026-10-05T00:00:00Z"
+    courts = [{"id": court, "matter_id": MATTER, "caption": "Court", "status": "active",
+               "is_primary": foreign_primary if court == OTHER else not foreign_primary,
+               "created_at": timestamp, "updated_at": timestamp} for court in (OTHER, COURT)]
+    payload = {"id": MATTER, "title": "Case", "status": "active", "created_at": timestamp,
+               "updated_at": timestamp, "court_cases": courts}
+    monkeypatch.setattr(proffer, "_request", _case_header_request)
+    monkeypatch.setattr(case_management.service, "get_matter", lambda *_: payload)
+    response = TestClient(_app()).get(f"/api/matters/{MATTER}")
+    assert response.status_code == 200
+    assert response.json()["admitted_court_case_id"] == COURT
+    assert [court["id"] for court in response.json()["court_cases"]] == [OTHER, COURT]
+
+
 def test_openapi_policy_defaults_live_and_advertises_only_canonical_values():
     schema = _app().openapi()
     for path, operations in schema["paths"].items():

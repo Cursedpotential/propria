@@ -98,6 +98,20 @@ def _wire(monkeypatch: pytest.MonkeyPatch, *, items: list[dict] | None = None) -
     monkeypatch.setattr(matter_mode, "configured_court_case_id", lambda mode: COURT_CASE_ID)
 
 
+def test_mixed_new_and_empty_historical_mode_catalog_stays_readable_and_unknown_stays_unbound(monkeypatch):
+    unknown = "historical_empty_mode_handle_abcdefghij"
+    _clear_preview_modes_for_tests()
+    _wire(monkeypatch, items=[
+        {**_operation(), "matter_id": MATTER_ID, "operating_mode": "LIVE"},
+        {**_operation(unknown), "matter_id": MATTER_ID, "operating_mode": ""},
+    ])
+    result = asyncio.run(proffer_resources.list_proposal_resources(mode="LIVE", status=None, cursor=None, limit=50))
+    assert [item.preview_handle for item in result.items] == [HANDLE]
+    assert result.unbound_count == 1
+    with pytest.raises(matter_mode.MatterModeError, match="operating mode cannot be verified"):
+        matter_mode.require_preview_mode(unknown, "LIVE")
+
+
 def test_catalog_lists_only_proven_mode_bound_operations_and_open_paths(monkeypatch) -> None:
     _wire(monkeypatch)
 

@@ -4,7 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { ApiError, getMatter, listMatters } from "@/lib/api-client";
-import { parseOperatingMode } from "@/lib/operating-mode";
+import { parseOperatingMode, selectAdmittedCourtCase } from "@/lib/operating-mode";
 import type { CourtCase, MatterDetail, MatterMode } from "@/lib/shared/types";
 
 type FixedCaseContextValue = {
@@ -97,7 +97,7 @@ export function FixedCaseProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<FixedCaseContextValue>(
     () => ({
       matter,
-      primaryCourtCase: matter?.court_cases.find((courtCase) => courtCase.is_primary) ?? null,
+      primaryCourtCase: selectAdmittedCourtCase(matter),
       loading,
       error,
       mode,

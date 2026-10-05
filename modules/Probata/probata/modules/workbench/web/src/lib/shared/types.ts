@@ -950,6 +950,7 @@ export interface CourtCase {
 }
 
 export interface MatterDetail extends Matter {
+  admitted_court_case_id?: string;
   court_cases: CourtCase[];
 }
 

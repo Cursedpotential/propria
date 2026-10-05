@@ -22,12 +22,11 @@ from fastapi.testclient import TestClient
 
 STARTER = "https://starter.internal"
 TOKEN = "t" * 40
-HANDLE = "test_mode_review_run_handle_abcdefghij"
-REAL_HANDLE = "real_mode_review_run_handle_abcdefghij"
+HANDLE = "live_policy_review_run_handle_abcdefghij"
+DEV_HANDLE = "dev_policy_review_run_handle_abcdefghij"
 SOURCE = "b2://salem-data/consignatio/vault/v1/sms/sms-20240101.xml"
 WORKFLOW_ID = "repair-plan-rp-abcdefgh-0123456789ab"
-TEST_MATTER = UUID("11111111-1111-4111-8111-111111111111")
-REAL_MATTER = UUID("22222222-2222-4222-8222-222222222222")
+CASE_MATTER = UUID("11111111-1111-4111-8111-111111111111")
 
 FIND_SCHEMA = {
     "type": "object",
@@ -80,13 +79,13 @@ def engine(monkeypatch, tmp_path):
     monkeypatch.setattr(proffer.settings, "proffer_starter_url", STARTER)
     monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
     monkeypatch.setattr(proffer.httpx, "AsyncClient", fake.client_class())
-    configured = lambda mode: TEST_MATTER
+    configured = lambda mode: CASE_MATTER
     monkeypatch.setattr(proffer, "configured_matter_id", configured)
     monkeypatch.setattr(matter_mode, "configured_matter_id", configured)
     _clear_preview_modes_for_tests()
     _clear_run_modes_for_tests()
     bind_preview_mode(HANDLE, "LIVE")
-    bind_preview_mode(REAL_HANDLE, "DEV")
+    bind_preview_mode(DEV_HANDLE, "DEV")
     yield fake
     _clear_preview_modes_for_tests()
     _clear_run_modes_for_tests()
@@ -268,7 +267,7 @@ def test_an_uncovered_signature_proposes_nothing(client, engine):
 
 def test_propose_refuses_a_run_of_the_other_mode_before_the_engine(client, engine):
     response = client.post(
-        "/api/proffer/repair/propose?mode=LIVE", json={"source_ref": SOURCE, "preview_handle": REAL_HANDLE}
+        "/api/proffer/repair/propose?mode=LIVE", json={"source_ref": SOURCE, "preview_handle": DEV_HANDLE}
     )
     assert response.status_code == 409
     assert "different matter mode" in response.json()["detail"]
@@ -277,7 +276,7 @@ def test_propose_refuses_a_run_of_the_other_mode_before_the_engine(client, engin
 
 def test_propose_rebinds_a_run_from_its_durable_matter_after_a_restart(client, engine):
     _clear_preview_modes_for_tests()
-    engine.reply("GET", f"/reference-import/operations/{HANDLE}", 200, {"preview_handle": HANDLE, "matter_id": str(TEST_MATTER), "operating_mode": "LIVE"})
+    engine.reply("GET", f"/reference-import/operations/{HANDLE}", 200, {"preview_handle": HANDLE, "matter_id": str(CASE_MATTER), "operating_mode": "LIVE"})
     engine.reply("POST", "/reference-import/repair/propose", 200, {"signature": "xml:clean", "proposals": []})
 
     assert (
@@ -332,7 +331,7 @@ def test_a_plan_whose_mode_contradicts_the_query_never_reaches_the_engine(client
 
 
 def test_a_plan_anchored_to_the_other_modes_run_is_refused(client, engine):
-    response = client.post("/api/proffer/repair/validate?mode=LIVE", json=_plan(preview_handle=REAL_HANDLE))
+    response = client.post("/api/proffer/repair/validate?mode=LIVE", json=_plan(preview_handle=DEV_HANDLE))
     assert response.status_code == 409
     assert engine.calls == []
 
