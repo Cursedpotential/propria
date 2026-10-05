@@ -183,6 +183,8 @@ type Provenance struct {
 	SourceObjectSHA256 []byte
 	// SourceFormat is the declared format of the source version.
 	SourceFormat string
+	// RawFormatID is the verified raw generation's detected format, retained alongside its declared source format.
+	RawFormatID string
 	// ParserID/ParserVersion are the handler that produced the raw generation
 	// (for example sbv_smsbackuprestore_xml 1.4.0).
 	ParserID      string
@@ -261,6 +263,8 @@ type People struct {
 	Participants []string
 	// ContactNames are display names the source gave, when it gave any.
 	ContactNames []string
+	// RoleLabels are the normalized AI participant role labels, carried verbatim without human identity resolution.
+	RoleLabels []string
 }
 
 // Object is one searchable pre-approval object.
@@ -302,7 +306,14 @@ func (o Object) Validate() error {
 	if err := o.Provenance.validate(); err != nil {
 		return err
 	}
-	if err := o.Temporal.validate(); err != nil {
+	if o.RecordKind == RecordKindAIChat {
+		if !IsAIChatFormat(o.Provenance.SourceFormat) && !IsAIChatFormat(o.Provenance.RawFormatID) {
+			return errors.New("AI context search requires verified AI source provenance")
+		}
+		if err := o.Temporal.validateAI(); err != nil {
+			return err
+		}
+	} else if err := o.Temporal.validate(); err != nil {
 		return err
 	}
 	if len(o.ContentSHA256) != sha256.Size {
@@ -313,6 +324,22 @@ func (o Object) Validate() error {
 	}
 	if strings.TrimSpace(o.SearchText) == "" {
 		return errors.New("context search object requires search text")
+	}
+	return nil
+}
+
+// validateAI validates source dates without assigning human disclosure classifications to AI landing records.
+// Inputs: carried normalized dates and optional certainty. Output: an error for missing/zero dates or human tiers.
+// Effects: none. Choose only after verified AI source provenance; human objects retain validate's closed tier set.
+func (t Temporal) validateAI() error {
+	if t.KnowledgeTime.IsZero() {
+		return errors.New("AI context search object requires its normalized knowledge time")
+	}
+	if t.OccurredAt != nil && t.OccurredAt.IsZero() {
+		return errors.New("AI context search occurred-at must be absent rather than a zero time")
+	}
+	if t.DisclosureTier != "" || t.DisclosureTierBasis != "" {
+		return errors.New("AI landing objects carry no human disclosure tier or basis")
 	}
 	return nil
 }

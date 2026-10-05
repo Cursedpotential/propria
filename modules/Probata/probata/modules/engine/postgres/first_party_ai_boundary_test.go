@@ -91,3 +91,105 @@ func TestAIContextStoreUsesPersistedFormats(t *testing.T) {
 		})
 	}
 }
+
+// humanCommitProofTx supplies persisted formats for the direct-commit source check and rejects any other SQL.
+// Inputs: immutable synthetic source rows. Outputs: provenance fixture. Effects: none.
+// Choose to exercise a spoofed SMS Plan without a database or receipt/write transaction.
+type humanCommitProofTx struct {
+	pgx.Tx
+	source           uuid.UUID
+	declared, format string
+	foreign          bool
+}
+
+func (tx humanCommitProofTx) QueryRow(_ context.Context, sql string, _ ...any) pgx.Row {
+	if !strings.Contains(sql, "JOIN context.raw_generation raw") {
+		return reviewFakeRow{err: pgx.ErrNoRows}
+	}
+	source := tx.source
+	if tx.foreign {
+		source = uuid.New()
+	}
+	return reviewFakeRow{values: []any{source, tx.declared, tx.format, "retained", "synthetic-run"}}
+}
+
+// TestAINeutralDirectCommitSourceProofCannotTrustAnSMSPlan checks persisted provenance wins over a supplied human Plan.
+// Inputs: synthetic declared/raw AI and human formats with an SMS Plan. Outputs: assertions. Effects: no SQL writes.
+// Choose for the proof shared by both direct SQL commit methods, independently of Activity rebuild validation.
+func TestAINeutralDirectCommitSourceProofCannotTrustAnSMSPlan(t *testing.T) {
+	source, generation := uuid.New(), uuid.New()
+	spec := activities.FirstPartyCommitSpec{RequestID: "synthetic-run", Plan: firstparty.Plan{Source: firstparty.Source{SourceVersionID: source.String(), NormalizedGenerationID: generation.String(), DeclaredFormat: "smsbackuprestore_xml"}}}
+	for _, tc := range []struct {
+		declared, raw string
+		ai            bool
+	}{{"json", "chatgpt_official_json", true}, {"claude_conversations_json", "generic_message", true}, {"smsbackuprestore_xml", "smsbackuprestore_xml", false}} {
+		tx := humanCommitProofTx{source: source, declared: tc.declared, format: tc.raw}
+		err := verifyHumanCommitSource(context.Background(), tx, source, spec)
+		if (err != nil) != tc.ai {
+			t.Fatalf("AI=%v error=%v", tc.ai, err)
+		}
+		tx.foreign = true
+		if err := verifyHumanCommitSource(context.Background(), tx, source, spec); err == nil {
+			t.Fatal("foreign generation accepted")
+		}
+	}
+}
+
+// aiDirectCommitDB models a valid existing human gate backed by an actually AI raw generation.
+// Inputs: source coordinates and expected gate kind. Outputs: synthetic gate/provenance rows. Effects: read counters only.
+// Choose to exercise the public SQL commit entry points, not merely their shared verification helper.
+type aiDirectCommitDB struct {
+	DB
+	tx       *aiDirectCommitTx
+	source   uuid.UUID
+	gateKind string
+	begins   int
+}
+
+func (db *aiDirectCommitDB) QueryRow(context.Context, string, ...any) pgx.Row {
+	return reviewFakeRow{values: []any{db.source, []byte(`{"ref_kind":"` + db.gateKind + `","plan_digest":"synthetic-plan"}`)}}
+}
+func (db *aiDirectCommitDB) BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error) {
+	db.begins++
+	return db.tx, nil
+}
+
+// aiDirectCommitTx records provenance reads and rollback; every unimplemented write path would fail the test.
+// Inputs: retained AI source. Outputs: fixture row. Effects: counters only. Choose to prove refusal precedes execution writes.
+type aiDirectCommitTx struct {
+	pgx.Tx
+	source           uuid.UUID
+	reads, rollbacks int
+}
+
+func (tx *aiDirectCommitTx) QueryRow(_ context.Context, sql string, _ ...any) pgx.Row {
+	tx.reads++
+	if !strings.Contains(sql, "JOIN context.raw_generation raw") {
+		return reviewFakeRow{err: pgx.ErrNoRows}
+	}
+	return reviewFakeRow{values: []any{tx.source, "json", "chatgpt_official_json", "retained", "synthetic-run"}}
+}
+func (tx *aiDirectCommitTx) Rollback(context.Context) error { tx.rollbacks++; return nil }
+
+// TestAINeutralPublicSQLCommitsRejectPersistedRawAIBehindFabricatedSMSPlan covers both direct SQL methods end to end.
+// Inputs: a valid matching gate/digest, caller-supplied SMS Plan and independently stored AI raw format. Outputs: assertions.
+// Effects: synthetic transaction counters only; no database access. Choose to defend callers bypassing Activity rebuilds.
+func TestAINeutralPublicSQLCommitsRejectPersistedRawAIBehindFabricatedSMSPlan(t *testing.T) {
+	for _, threads := range []bool{false, true} {
+		source, generation := uuid.New(), uuid.New()
+		tx := &aiDirectCommitTx{source: source}
+		db := &aiDirectCommitDB{source: source, tx: tx, gateKind: activities.FirstPartyConfirmationKind}
+		if threads {
+			db.gateKind = activities.FirstPartyMessagesKind
+		}
+		store, _ := NewFirstPartyContextStore(db)
+		spec := activities.FirstPartyCommitSpec{RequestID: "synthetic-run", SourceVersionRef: proffer.Ref(source.String()), GateRef: proffer.Ref(uuid.NewString()), Plan: firstparty.Plan{Digest: "synthetic-plan", Source: firstparty.Source{SourceVersionID: source.String(), NormalizedGenerationID: generation.String(), DeclaredFormat: "smsbackuprestore_xml"}}}
+		write := store.CommitFirstPartyMessages
+		if threads {
+			write = store.CommitFirstPartyContextThreads
+		}
+		if _, _, err := write(context.Background(), spec); err == nil || !strings.Contains(err.Error(), "AI chat") || db.begins != 1 || tx.reads != 1 || tx.rollbacks != 1 {
+			t.Fatalf("threads=%v error=%v begins=%d reads=%d rollbacks=%d", threads, err, db.begins, tx.reads, tx.rollbacks)
+		}
+	}
+}

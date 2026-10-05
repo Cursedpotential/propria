@@ -144,6 +144,7 @@ func (s *FirstPartyContextStore) LoadFirstPartyContext(
 	// and identifiers available to the shared participant/search stages.
 	// Byline: Codex · GPT-6-Sol · 2026-10-05.
 	if contextsearch.IsAIChatFormat(declaredFormat) || contextsearch.IsAIChatFormat(formatID) {
+		input.AIChatSource = true
 		input.NotApplicable = "AI chat sources remain AI context and are not first-party messaging"
 		return input, nil
 	}
@@ -609,6 +610,11 @@ func (s *FirstPartyContextStore) beginCommit(
 		return uuid.Nil, "", false, err
 	}
 	defer func() { cleanup, cancel := boundedCleanup(ctx); defer cancel(); _ = tx.Rollback(cleanup) }()
+	// Independently prove the real persisted generation before any first-party write or prior-success return.
+	// A caller-supplied SMS Plan cannot conceal a retained AI raw generation behind a matching gate digest.
+	if err := verifyHumanCommitSource(ctx, tx, sourceVersionID, spec); err != nil {
+		return uuid.Nil, "", false, err
+	}
 	executionID, err = parserEnsureExecution(ctx, tx, sourceVersionID, spec.RequestID, string(stage), string(stage)+":"+gateID.String())
 	if err != nil {
 		return uuid.Nil, "", false, err
@@ -624,6 +630,34 @@ func (s *FirstPartyContextStore) beginCommit(
 		return executionID, proffer.Ref(receiptID.String()), true, nil
 	}
 	return executionID, "", false, nil
+}
+
+// verifyHumanCommitSource binds direct commit plans to retained source/raw generation provenance and rejects AI.
+// Inputs: commit transaction, source id and caller plan. Output: error on AI, a foreign generation or invalid ownership.
+// Effects: one read inside the commit transaction, no writes. Choose for both SQL commits, even after Activity rebuilds.
+func verifyHumanCommitSource(ctx context.Context, tx pgx.Tx, sourceID uuid.UUID, spec activities.FirstPartyCommitSpec) error {
+	generationID, err := uuid.Parse(spec.Plan.Source.NormalizedGenerationID)
+	if err != nil {
+		return fmt.Errorf("commit normalized generation reference: %w", err)
+	}
+	var persistedSource uuid.UUID
+	var declared, format, status, request string
+	if err := tx.QueryRow(ctx, `
+		SELECT generation.source_version_id, version.declared_format, coalesce(raw.format_id, ''),
+		       version.status, version.workflow_id
+		FROM context.normalized_generation generation
+		JOIN context.raw_generation raw ON raw.id = generation.raw_generation_id
+		JOIN context.source_version version ON version.id = generation.source_version_id
+		WHERE generation.id = $1::uuid`, generationID).Scan(&persistedSource, &declared, &format, &status, &request); err != nil {
+		return fmt.Errorf("verify commit source provenance: %w", err)
+	}
+	if persistedSource != sourceID || spec.Plan.Source.SourceVersionID != sourceID.String() || status != "retained" || request != spec.RequestID {
+		return errors.New("first-party commit plan does not belong to this retained source/run")
+	}
+	if contextsearch.IsAIChatFormat(declared) || contextsearch.IsAIChatFormat(format) {
+		return errors.New("AI chat sources remain AI context and are not first-party messaging")
+	}
+	return nil
 }
 
 func (s *FirstPartyContextStore) finishCommit(ctx context.Context, executionID uuid.UUID, attempt int32, result commitReceipt) (proffer.Ref, error) {

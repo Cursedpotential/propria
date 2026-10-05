@@ -285,6 +285,10 @@ type StageRequest struct {
 // the exact per-Status contract this type's fields are held to.
 type StageResult struct {
 	Stage ActivityName
+	// AIChatSource records the participant-resolution Activity's verified persisted AI classification.
+	// Input: store-resolved source/raw formats, never the request label. Output: a workflow routing fact.
+	// Effects: none beyond the Activity result history. Use only with its not-applicable receipt; search rechecks provenance.
+	AIChatSource bool `json:"ai_chat_source,omitempty"`
 	// Status is the business outcome; see the Status constants.
 	Status Status
 	// Ref is this stage's compact usable result registry. Required (must be

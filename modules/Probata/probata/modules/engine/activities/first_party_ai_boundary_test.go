@@ -18,11 +18,71 @@ import (
 // Effects: test memory only. Use for the AI exclusion boundary rather than persistence integration.
 type aiBoundaryStore struct {
 	FirstPartyContextStore
-	input         FirstPartyContextInput
-	identity      contextthread.Identity
-	receipt       FirstPartyReceipt
-	specs         []FirstPartyReceiptSpec
-	identityCalls int
+	input            FirstPartyContextInput
+	identity         contextthread.Identity
+	receipt          FirstPartyReceipt
+	specs            []FirstPartyReceiptSpec
+	identityCalls    int
+	participantSpecs []ParticipantResolutionSpec
+}
+
+// PersistParticipantResolution captures independently classified applicability without any registry writes.
+// Inputs: synthetic receipt spec. Outputs: stable test receipt refs. Effects: an in-memory append.
+// Use for retryable AI participant exclusion; identity resolution remains intentionally unimplemented.
+func (s *aiBoundaryStore) PersistParticipantResolution(_ context.Context, spec ParticipantResolutionSpec) (proffer.Ref, proffer.Ref, error) {
+	s.participantSpecs = append(s.participantSpecs, spec)
+	return "participant-receipt", "participant-receipt", nil
+}
+
+// TestAINeutralParticipantResolutionUsesVerifiedApplicability checks roles never reach human identity resolution.
+// Inputs: persisted AI label or verified raw AI flag with conflicting request labels. Outputs: assertions.
+// Effects: in-memory receipts only. Choose alongside the SQL provenance tests to cover Activity retry outputs.
+func TestAINeutralParticipantResolutionUsesVerifiedApplicability(t *testing.T) {
+	for _, raw := range []bool{false, true} {
+		s, req := aiBoundaryFixture()
+		s.input.StatedIdentifiers = []string{"user", "assistant"}
+		s.input.AIChatSource = raw
+		if !raw {
+			s.input.Source.DeclaredFormat = "chatgpt_official_json"
+		}
+		delete(req.Refs, "owner_person")
+		delete(req.Refs, "perspective_person")
+		for i := 0; i < 2; i++ {
+			result, err := (FirstPartyContextActivities{Store: s}).ResolveContextParticipants(context.Background(), req)
+			if err != nil || result.Status != proffer.StatusNotApplicable || !result.AIChatSource || result.ReceiptRef == "" {
+				t.Fatalf("retry %d result=%+v err=%v", i, result, err)
+			}
+		}
+		if s.identityCalls != 0 || len(s.participantSpecs) != 2 || s.participantSpecs[0].Resolution.OwnerPersonID != "" {
+			t.Fatalf("AI identity was resolved: calls=%d receipts=%+v", s.identityCalls, s.participantSpecs)
+		}
+	}
+}
+
+// aiOnlyMatchStore records exclusions and has no implemented human lookup path.
+// Inputs: an AI match receipt. Outputs: stable refs. Effects: in-memory receipt only.
+// Choose to prove direct matching cannot resolve or compare AI roles as human identifiers.
+type aiOnlyMatchStore struct {
+	MessageMatchStore
+	spec MessageMatchSpec
+}
+
+func (s *aiOnlyMatchStore) PersistMessageMatches(_ context.Context, spec MessageMatchSpec) (proffer.Ref, proffer.Ref, error) {
+	s.spec = spec
+	return "excluded-match", "excluded-match", nil
+}
+
+// TestAINeutralDirectMessageMatchIsRecordedWithoutHumanLookup blocks callers bypassing workflow dispatch.
+// Inputs: verified raw AI applicability behind an SMS-shaped plan. Outputs: assertions. Effects: in-memory receipt only.
+// Choose for the direct match Activity boundary; unimplemented lookup methods fail the test if called.
+func TestAINeutralDirectMessageMatchIsRecordedWithoutHumanLookup(t *testing.T) {
+	s, req := aiBoundaryFixture()
+	s.input.AIChatSource = true
+	matches := &aiOnlyMatchStore{}
+	result, err := (MessageMatchActivities{Context: s, Matches: matches}).MatchMessageOccurrences(context.Background(), req)
+	if err != nil || result.Status != proffer.StatusNotApplicable || result.ReceiptRef == "" || s.identityCalls != 0 || matches.spec.Messages != 0 || len(matches.spec.Matches) != 0 {
+		t.Fatalf("result=%+v error=%v identityCalls=%d receipt=%+v", result, err, s.identityCalls, matches.spec)
+	}
 }
 
 func (s *aiBoundaryStore) LoadFirstPartyContext(context.Context, proffer.StageRequest, proffer.Ref, proffer.Ref) (FirstPartyContextInput, error) {
