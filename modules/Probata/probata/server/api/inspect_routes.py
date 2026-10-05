@@ -40,6 +40,7 @@ Routes:
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (single-case Proffer operating-mode boundary)
 # Byline amendment: Codex · orchestrator · 2026-10-05 (durable preview-mode admission)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (authenticated authoritative case-pair admission)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (registered source court-case verification)
 
 from __future__ import annotations
 
@@ -1247,7 +1248,7 @@ def _register_flags_routes(app: FastAPI) -> None:
                 conn.execute(
                     text(
                         "SELECT snapshot.normalized_generation_id, snapshot.source_version_id, "
-                        "version.matter_id, COALESCE((SELECT event.detail "
+                        "version.matter_id, version.court_case_id, COALESCE((SELECT event.detail "
                         "FROM context.proffer_preview_event event "
                         "WHERE event.preview_handle = binding.preview_handle AND event.event_id = 0), '') "
                         "AS mode_detail "
@@ -1266,6 +1267,8 @@ def _register_flags_routes(app: FastAPI) -> None:
                 raise HTTPException(409, "preview attempt is unavailable")
             if snapshot["matter_id"] is None or str(snapshot["matter_id"]) != str(expected_matter_id):
                 raise HTTPException(409, "preview matter does not match the configured case")
+            if str(snapshot.get("court_case_id", "")) != expected_court_case_id:
+                raise HTTPException(409, "preview source court case does not match the configured case")
             # A shared case ID is not mode evidence. Only the initial admission
             # receipt may authorize this write; old/unknown receipts stay closed.
             try:

@@ -14,6 +14,7 @@ for parse-dryrun so no real parser/tool-registry state is required.
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (single-case Proffer mode and blocked DEV writes)
 # Byline amendment: Codex · orchestrator · 2026-10-05 (durable preview-mode rejection coverage)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (authoritative header and exact receipt pair)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (source-court conflict coverage)
 
 from __future__ import annotations
 
@@ -1066,6 +1067,7 @@ def test_proffer_flag_rejects_snapshot_advanced_before_atomic_admission(client, 
                 "mode_detail": _live_admission(),
                 "source_version_id": "33333333-3333-3333-3333-333333333333",
                 "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
             },
         ]
     )
@@ -1111,6 +1113,7 @@ def test_proffer_mode_defaults_to_live_and_uses_single_configured_matter(client,
                 "normalized_generation_id": attempt,
                 "source_version_id": "22222222-2222-2222-2222-222222222222",
                 "matter_id": matter_id,
+                "court_case_id": _CASE_COURT,
                 "mode_detail": _live_admission(),
             },
             True,
@@ -1274,6 +1277,7 @@ def test_proffer_flag_cannot_infer_live_admission_from_same_case(client, monkeyp
                 "normalized_generation_id": "11111111-1111-1111-1111-111111111111",
                 "source_version_id": "22222222-2222-2222-2222-222222222222",
                 "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
                 "mode_detail": mode_detail,
             },
         ]
@@ -1314,6 +1318,7 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
                 "source_version_id": source_version,
                 "mode_detail": _live_admission(),
                 "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
             },
             True,
             [],
@@ -1429,6 +1434,7 @@ def test_live_receipt_replays_exact_legacy_real_notes_without_rewriting_or_inser
                 "normalized_generation_id": _CONVERSATION_ID,
                 "source_version_id": _MESSAGE_ID,
                 "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
                 "mode_detail": _live_admission(),
             },
             True,
@@ -1464,6 +1470,7 @@ def test_live_and_legacy_real_duplicate_notes_remain_a_conflict(client, monkeypa
                 "normalized_generation_id": _CONVERSATION_ID,
                 "source_version_id": _MESSAGE_ID,
                 "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
                 "mode_detail": _live_admission(),
             },
             True,
@@ -1486,6 +1493,7 @@ def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkey
                 "normalized_generation_id": attempt,
                 "source_version_id": "22222222-2222-2222-2222-222222222222",
                 "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
                 "mode_detail": _live_admission(),
             },
             False,
@@ -1524,6 +1532,7 @@ def test_proffer_flag_rejects_mode_when_durable_matter_disagrees(client, monkeyp
                 "mode_detail": _live_admission(),
                 "source_version_id": "22222222-2222-2222-2222-222222222222",
                 "matter_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "court_case_id": _CASE_COURT,
             },
         ]
     )
@@ -1545,6 +1554,47 @@ def test_proffer_flag_rejects_mode_when_durable_matter_disagrees(client, monkeyp
     )
     assert response.status_code == 409
     assert len(fake.calls) == 2
+
+
+@pytest.mark.parametrize(
+    "court_case_id", ["missing", None, "", "not-a-uuid", "00000000-0000-0000-0000-000000000000", _PARTICIPANT_ID]
+)
+def test_live_receipt_and_approved_matter_cannot_override_registered_source_court(
+    client, monkeypatch, authoritative_header, court_case_id
+):
+    """Deny missing, nil, invalid or foreign source courts before lookup or insert."""
+    snapshot = {
+        "normalized_generation_id": _CONVERSATION_ID,
+        "source_version_id": _MESSAGE_ID,
+        "matter_id": _CASE_MATTER,
+        "mode_detail": _live_admission(),
+    }
+    if court_case_id != "missing":
+        snapshot["court_case_id"] = court_case_id
+    fake = _FakeEngine([None, snapshot])
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    response = client.post(
+        "/v1/flags/proffer-potential-promotion",
+        json=_proffer_request(
+            {
+                "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+                "matter_mode": "LIVE",
+                "scope": "record",
+                "target_id": _PARTICIPANT_ID,
+                "attempt_id": _CONVERSATION_ID,
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review later",
+            }
+        ),
+    )
+    assert response.status_code == 409
+    assert "source court case" in response.json()["detail"]
+    assert len(authoritative_header) == 1
+    assert len(fake.calls) == 2
+    assert "pg_advisory_xact_lock" in fake.calls[0][0]
+    assert "version.court_case_id" in fake.calls[1][0]
+    assert all("INSERT" not in sql and "FROM analysis.corroboration_flag" not in sql for sql, _ in fake.calls)
 
 
 def test_create_flag_422_unknown_target_kind(client):
@@ -1664,6 +1714,7 @@ def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(m
                         "mode_detail": _live_admission(),
                         "source_version_id": "22222222-2222-2222-2222-222222222222",
                         "matter_id": _CASE_MATTER,
+                        "court_case_id": _CASE_COURT,
                     }
                 )
             if "SELECT EXISTS" in sql:
