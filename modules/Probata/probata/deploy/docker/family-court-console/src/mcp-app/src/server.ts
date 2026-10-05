@@ -1,4 +1,5 @@
 // Updated by: Codex · GPT-6 · 2026-10-04 — describe strict shared source reads accurately.
+// Updated by: Codex · GPT-6-Luna · 2026-10-04 — wire fresh shared catalogs, facts, and event IDs.
 // Byline: OpenAI Codex / GPT-5.6, 2026-08-13
 // Updated by: OpenAI Codex · GPT-5 · 2026-09-12 — explicit host framing contract.
 // Byline: Claude Code · Sonnet 5 · 2026-09-07 — wire case_facts (9th tool) and
@@ -24,20 +25,19 @@ import { widgets } from "./generated-widgets.js";
 import { registerStoreTools } from "./store-tools.js";
 import { handleWebRequest } from "./web.js";
 import {
-  DEADLINE_RULE_PRESETS,
-  RELEASE_STATUS,
-  SOURCES,
   auditSources,
   buildChronology,
   buildPacketPlan,
   calculateDirectionalDeadline,
-  getCaseFacts,
+  calculateSharedDeadlinePreset,
+  getSharedCaseFacts,
+  getSharedRuleCatalogContext,
   getChecklist,
   routeIssue,
   searchRecords,
 } from "./core.js";
 import { DOC_TYPES, reviewCourtLanguage, renderMarkdownReport, type DocType } from "./court-language.js";
-import { buildSurvivalGuide, listSurvivalGuideEvents, renderSurvivalGuideMarkdown } from "./survival-guide.js";
+import { buildSurvivalGuide, renderSurvivalGuideMarkdown } from "./survival-guide.js";
 
 const SERVER_NAME = "family-court-console";
 const SERVER_VERSION = "3.0.0";
@@ -59,11 +59,19 @@ function buildServer(): McpServer {
     }));
   }
 
+  /** Show the latest shared source/release summary alongside safe planning actions.
+   * Inputs: none. Outputs: current shared release status, source counts, and action labels.
+   * Effects: bounded read-only shared-catalog queries; choose over a cached release snapshot.
+   * Byline: Codex · GPT-6-Luna · 2026-10-04.
+   */
   registerAppTool(server, "open_dashboard", {
   title: "Open Michigan Family Court Console",
-  description: "Show release status, safety gates, source confidence, and the next planning steps. The underlying guide is publication-blocked.",
+  description: "Show current shared release/audit status, source counts, safety gates, and the next planning steps.",
   inputSchema: {}, annotations: readOnly, _meta: { ui: { resourceUri: uiUri("dashboard") } },
-}, async () => result({ release: RELEASE_STATUS, sourceSummary: (await auditSources()).counts, actions: ["Route the issue", "Check a planning date", "Build a packet plan", "Audit sources"] }));
+}, async () => {
+  const audit = await auditSources();
+  return result({ release: audit.release_status, sourceSummary: audit.counts, actions: ["Route the issue", "Check a planning date", "Build a packet plan", "Audit sources"] });
+});
 
 registerAppTool(server, "route_issue", {
   title: "Route a Michigan family-court issue",
@@ -71,24 +79,45 @@ registerAppTool(server, "route_issue", {
   inputSchema: { description: z.string().min(3).max(4000) }, annotations: readOnly, _meta: { ui: { resourceUri: uiUri("route") } },
 }, async ({ description }) => result(routeIssue(description)));
 
+/** Calculate an explicit directional date or resolve a named preset from the current shared reference.
+ * Inputs: anchor date, explicit day-count options or a bounded shared preset ID.
+ * Outputs: explicit calculation, shared calculation with exact configuration/source provenance, or a visible pending/unknown preset status without a date.
+ * Effects: shared preset requests perform fresh bounded reads and never fall back to compiled presets; explicit day-count requests need no catalog read.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
 registerAppTool(server, "calculate_planning_date", {
   title: "Calculate a directional planning date",
-  description: "Count calendar days before or after an anchor, adjusting unavailable dates in the safe direction (MCR 1.108-style: exclude the anchor day, roll forward over weekends/holidays). Pass either an explicit day count and direction, or a named `rule` preset (referee_objection, appeal_of_right, motion_response, mail_service_addon). This is a planning aid, not a filing deadline determination.",
+  description: "Calculate using explicit days and direction, or pass a named rule ID from the current shared `deadline-rule-presets` reference. Named rules resolve days/direction and source audit at call time; missing or unknown shared configuration returns a visible status without using a compiled fallback. Dates are planning aids, not filing deadline determinations.",
   inputSchema: {
     anchorDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     days: z.number().int().min(0).max(3650).optional(),
     direction: z.enum(["after", "before"]).optional(),
     includeAnchor: z.boolean().optional(),
     holidays: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(100).optional(),
-    rule: z.enum(Object.keys(DEADLINE_RULE_PRESETS) as [string, ...string[]]).optional(),
+    rule: z.string().regex(/^[a-z][a-z0-9_-]{0,79}$/).optional(),
   }, annotations: readOnly, _meta: { ui: { resourceUri: uiUri("deadline") } },
-}, async (input) => result(calculateDirectionalDeadline(input as Parameters<typeof calculateDirectionalDeadline>[0])));
+}, async (input) => {
+  if (!input.rule) return result(calculateDirectionalDeadline(input as Parameters<typeof calculateDirectionalDeadline>[0]));
+  if (input.days !== undefined || input.direction !== undefined || input.includeAnchor !== undefined) {
+    throw new Error("Provide either a shared rule ID or explicit days/direction, not both.");
+  }
+  return result(await calculateSharedDeadlinePreset({ anchorDate: input.anchorDate, rule: input.rule, holidays: input.holidays }));
+});
 
+/** Build the packet organization plan with current shared release/audit metadata.
+ * Inputs: requested stage and goal. Outputs: guarded packet sections and current shared release status.
+ * Effects: reads shared source/release records; choose over presenting the core helper's compatibility label alone.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
 registerAppTool(server, "get_packet_plan", {
   title: "Build a guarded packet plan",
   description: "Create an organization plan with legal-review blocks and safety stop conditions.",
   inputSchema: { stage: z.string().min(1).max(200), goal: z.string().min(1).max(500) }, annotations: readOnly, _meta: { ui: { resourceUri: uiUri("packet") } },
-}, async ({ stage, goal }) => result(buildPacketPlan(stage, goal)));
+}, async ({ stage, goal }) => {
+  const plan = buildPacketPlan(stage, goal);
+  const { release_status } = await getSharedRuleCatalogContext([]);
+  return result({ ...plan, releaseStatus: release_status.label, release_status });
+});
 
 registerAppTool(server, "get_checklist", {
   title: "Open a family-court checklist",
@@ -96,17 +125,31 @@ registerAppTool(server, "get_checklist", {
   inputSchema: { kind: z.enum(["evidence", "hearing", "source-review"]) }, annotations: readOnly, _meta: { ui: { resourceUri: uiUri("checklist") } },
 }, async ({ kind }) => result(getChecklist(kind)));
 
+/** Return the current bounded shared source catalog, exact-ID record proof, and recorded status gaps.
+ * Inputs: optional exact source IDs/references, bounded by the schema and version lookup cap.
+ * Outputs: current shared source rows, release status, counts, and traceability notes.
+ * Effects: read-only shared catalog/version queries; choose over static compiled source summaries.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
 registerAppTool(server, "audit_sources", {
-  title: "Audit verified source records",
-  description: "Read current shared source records and master source directory, alongside the seven compiled curated entries, with per-status and per-origin counts. Shared read failures are visible in production; an absent explicitly configured mem:// fixture may use packaged test content. Reported status and check dates are stored observations, not a new legal validation.",
+  title: "Audit shared source records",
+  description: "Read current shared source records with per-status and per-origin counts. Exact IDs can request bounded current-record version checks. Reported status and check dates are stored observations, not a new legal validation.",
   inputSchema: { ids: z.array(z.string().max(80)).max(200).optional() }, annotations: readOnly, _meta: { ui: { resourceUri: uiUri("sources") } },
 }, async ({ ids }) => result(await auditSources(ids)));
 
+/** Search current shared source records and attach their live release status.
+ * Inputs: bounded text query. Outputs: matching shared records and current shared release status.
+ * Effects: read-only shared-catalog queries; choose over a packaged guide/source registry.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
 registerAppTool(server, "search_guide", {
   title: "Search reviewed guide records",
-  description: "Search only the console's curated source registry. Stale draft prose is intentionally excluded.",
+  description: "Search current shared source records. Stale draft prose and packaged source catalogs are excluded.",
   inputSchema: { query: z.string().min(2).max(300) }, annotations: readOnly, _meta: { ui: { resourceUri: uiUri("search") } },
-}, async ({ query }) => result({ query, results: await searchRecords(query), releaseStatus: RELEASE_STATUS.label }));
+}, async ({ query }) => {
+  const [results, { release_status }] = await Promise.all([searchRecords(query), getSharedRuleCatalogContext([])]);
+  return result({ query, results, releaseStatus: release_status.label, release_status });
+});
 
 registerAppTool(server, "build_chronology", {
   title: "Build a fact chronology",
@@ -115,19 +158,28 @@ registerAppTool(server, "build_chronology", {
   annotations: readOnly, _meta: { ui: { resourceUri: uiUri("chronology") } },
 }, async ({ events }) => result(buildChronology(events)));
 
+/** Read full private case facts from the shared Family Court store with named missing-data states.
+ * Inputs: none. Outputs: compatible summary fields and full case_context, including names and custom party/child fields, or an unavailable/empty-store traceability state.
+ * Effects: bounded read-only shared case query; preserves private fields and never reads a local case file.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
 registerAppTool(server, "case_facts", {
-  title: "Read local case facts",
-  description: "Return the county, court, judge, referee, controlling orders, next hearing, deadlines, party initials, and child count/ages from a local case-state JSON file (env CUSTODY_CASE_FILE, else ~/.config/family-court-toolkit/case.json). Never returns a child's name; any children[].name in the source file is reduced to initials. Returns { configured: false, example_path, hint } if no case file exists yet.",
+  title: "Read shared case facts",
+  description: "Return private case context from shared Family Court records, including full party and child names, identifiers, custom fields, and the compatible summary projection. Empty or unavailable shared data is reported with a named status and traceability gap.",
   inputSchema: {}, annotations: readOnly, _meta: { ui: {} },
-}, async () => result(getCaseFacts() as unknown as Record<string, unknown>));
+}, async () => result(await getSharedCaseFacts()));
 
-const SURVIVAL_GUIDE_EVENTS = listSurvivalGuideEvents();
-
+/** Resolve a guide using an event ID validated against current shared records at call time.
+ * Inputs: shared event ID, optional format and case-fact inclusion flag.
+ * Outputs: cited shared context pack and template, or a visible unknown/missing-record error.
+ * Effects: bounded read-only shared event discovery and content reads; choose over startup-captured packaged filenames.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
 registerAppTool(server, "survival_guide", {
   title: "Generate a hearing/document survival guide context pack",
-  description: "Owner-requested tool 1: resolves a lightweight, cited context pack (sequence, applicable rules, deadlines with rule presets, traps, do-not list, phrases, safety gates, source paths) plus a writing template (full guide or one-page card) for the requested event/document type — never authors the guide itself. Optionally merges case_facts (never a child's name). The calling model writes the actual guide from these inputs; every guide is PROVISIONAL until checked against the archived MCR/MCL.",
+  description: "Resolve a lightweight cited context pack and writing template from the current shared event catalog. The event ID is checked against shared records at request time; unknown or missing shared content is reported. Current release status and exact rule-source gaps accompany the pack. Optionally merges full private shared case_facts.",
   inputSchema: {
-    event: z.enum(SURVIVAL_GUIDE_EVENTS as [string, ...string[]]),
+    event: z.string().min(1).max(160),
     format: z.enum(["full", "card", "json"]).optional(),
     include_case_facts: z.boolean().optional(),
   },
@@ -153,10 +205,26 @@ registerAppTool(server, "court_language_review", {
   return { structuredContent: review as unknown as Record<string, unknown>, content: [{ type: "text" as const, text: renderMarkdownReport(review) }] };
 });
 
-server.registerResource("release-status", "custody://release-status", { title: "Custody Guide Release Status", mimeType: "application/json" }, async (uri) => ({ contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(RELEASE_STATUS, null, 2) }] }));
-server.registerResource("verified-sources", "custody://verified-sources", { title: "Reviewed Official Sources", mimeType: "application/json" }, async (uri) => ({ contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(SOURCES, null, 2) }] }));
+/** Serve the latest versioned shared release/audit status as a resource.
+ * Inputs: MCP resource URI. Outputs: JSON release state tied to a shared record version or named pending state.
+ * Effects: bounded read-only shared-catalog/version lookup; choose over a startup static release constant.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+server.registerResource("release-status", "custody://release-status", { title: "Shared Family Court Release Status", mimeType: "application/json" }, async (uri) => {
+  const { release_status } = await getSharedRuleCatalogContext([]);
+  return { contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(release_status, null, 2) }] };
+});
+/** Serve the current shared source audit rows as a fresh resource read.
+ * Inputs: MCP resource URI. Outputs: JSON array of shared source records with their available traceability metadata.
+ * Effects: bounded read-only shared-catalog query; choose over the retired packaged SOURCES array.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+server.registerResource("verified-sources", "custody://verified-sources", { title: "Current Shared Source Records", mimeType: "application/json" }, async (uri) => {
+  const audit = await auditSources();
+  return { contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(audit.sources, null, 2) }] };
+});
 
-server.registerPrompt("safe-case-intake", { title: "Safe Michigan family-court intake", description: "Gather minimum facts and route safety-critical issues before analysis.", argsSchema: { issue: z.string(), county: z.string().optional() } }, ({ issue, county }) => ({ messages: [{ role: "user", content: { type: "text", text: `Route this Michigan family-court issue before analysis. County: ${county ?? "unknown"}. Issue: ${issue}. Do not request child identifiers. Surface immediate-danger, PPO/DV/CPS, UCCJEA, appeal, recording, and criminal-overlap gates. Use current primary authority and label uncertainty.` } }] }));
+server.registerPrompt("safe-case-intake", { title: "Safe Michigan family-court intake", description: "Gather minimum facts and route safety-critical issues before analysis.", argsSchema: { issue: z.string(), county: z.string().optional() } }, ({ issue, county }) => ({ messages: [{ role: "user", content: { type: "text", text: `Route this Michigan family-court issue before analysis. County: ${county ?? "unknown"}. Issue: ${issue}. Surface immediate-danger, PPO/DV/CPS, UCCJEA, appeal, recording, and criminal-overlap gates. Use current primary authority and label uncertainty.` } }] }));
   server.registerPrompt("verify-legal-claim", { title: "Verify a Michigan legal claim", description: "Verify one claim against current official primary authority.", argsSchema: { claim: z.string(), dateRelevant: z.string().optional() } }, ({ claim, dateRelevant }) => ({ messages: [{ role: "user", content: { type: "text", text: `Verify this Michigan family-law claim: ${claim}. Relevant date: ${dateRelevant ?? "current"}. Identify issuing body, authority level, pinpoint, currency, direct support, and conflicts. Do not treat a live link as substantive verification.` } }] }));
 
   return server;

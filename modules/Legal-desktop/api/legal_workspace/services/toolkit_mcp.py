@@ -11,8 +11,8 @@ The console owns the tools and the case store they read and write. The desk neve
 caches their results as its own records. Write-capable calls run only when the caller
 confirms the exact call (`confirm_write`); the web page shows that call before the
 owner clicks Run. Tool descriptions and annotations are data, not permission: the desk
-also treats tools it knows can change the store or its files (case_import, case_export,
-case_query) as writes whatever their annotations say.
+also treats imports and exports as writes whatever their annotations say.
+Raw case queries are read-only in the governed shared console.
 
 The connection is configured, not registered: connection profiles, invocation history
 and resources/prompts are later slices of the same design. Sibling pattern:
@@ -37,11 +37,9 @@ from legal_workspace.config import get_settings
 CONNECTION_ID = "family-court-console"
 CONNECTION_NAME = "Family Law Toolkit console"
 
-# Annotated read-only by the console, but each can change the store or the files around it:
-# case_import/case_export move data through files, and case_query refuses only DELETE, REMOVE
-# and DEFINE without `write: true`, so CREATE, UPDATE, UPSERT and RELATE run through it
-# (store.ts assertQueryAllowed, read 2026-10-02). The desk treats all three as writes.
-_ALWAYS_WRITE = frozenset({"case_import", "case_export", "case_query"})
+# Byline: Codex · GPT-6 · 2026-10-04. Imports/exports retain their file effects;
+# SELECT-only queries cannot bypass governed shared revisions or citation validation.
+_ALWAYS_WRITE = frozenset({"case_import", "case_export"})
 
 _TIMEOUT_SECONDS = 60
 _TEXT_CAP = 200_000
@@ -140,7 +138,7 @@ def _definition(tool: Any) -> ToolDefinition:
         input_schema=input_schema,
         annotations=annotations,
         schema_hash=_sha256(input_schema),
-        writes=(not read_only) or tool.name in _ALWAYS_WRITE,
+        writes=(not read_only) or tool.name.replace("-", "_").removeprefix("family_court_") in _ALWAYS_WRITE,
     )
 
 

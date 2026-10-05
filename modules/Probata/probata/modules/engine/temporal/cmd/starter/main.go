@@ -206,6 +206,10 @@ func run() error {
 		return err
 	}
 
+	routes, err = mountToolkitLibraryValidationRoutes(routes, c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
 	// Tailnet-only listener (owner directive 2026-09-07; D-134). With the
 	// rollout flag on, the starter's only socket belongs to its own Tailscale
 	// identity: no host bind, no published docker port, no Traefik router. The

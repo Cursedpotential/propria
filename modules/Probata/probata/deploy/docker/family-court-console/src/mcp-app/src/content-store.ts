@@ -223,7 +223,7 @@ export async function getSources(): Promise<Array<Record<string, unknown>> | nul
       after === null ? {} : { after },
     );
     const page = contentPage(results, SOURCE_PAGE_SIZE);
-    let cursor = after;
+    let cursor: string | null = after;
     for (const row of page) {
       const id = row.id;
       if (typeof id !== "string" || !id.startsWith("source:") || id.length <= 7 || seen.has(id) || typeof row.content_cursor !== "string" || row.content_cursor !== id.slice(7) || (cursor !== null && row.content_cursor <= cursor)) {

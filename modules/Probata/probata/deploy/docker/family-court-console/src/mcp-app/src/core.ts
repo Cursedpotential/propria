@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { caseRecord, getStore, caseSummary } from "./store.js";
 import { getReference, getSources } from "./content-store.js";
 
 export type VerificationStatus =
@@ -31,78 +32,23 @@ export interface SourceRecord {
   checkedOn: string;
 }
 
+/** Pending marker used until a versioned shared release/audit record is available.
+ * Inputs: none. Outputs: an explicit non-validation status for legacy synchronous surfaces.
+ * Effects: none. Choose resolveReleaseStatus() for a fresh shared lookup; this marker never certifies compiled claims.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
 export const RELEASE_STATUS = {
-  label: "PUBLICATION BLOCKED",
-  reason: "The source archive is an attorney-unreviewed draft with missing safety-critical modules and unresolved source currency.",
-  missingModules: ["Module 3 — UCCJEA", "Module 17 — DV/CPS/PPO safety", "Module 28 — appeals"],
-  attorneyReviewRequired: true,
+  label: "PENDING_SHARED_RELEASE_AUDIT_RECORD",
+  status: "pending",
+  reason: "No versioned shared release/audit record was found by the current shared-source reader.",
 } as const;
 
-export const SOURCES: SourceRecord[] = [
-  {
-    id: "MCR-3",
-    title: "Michigan Court Rules — Chapter 3",
-    authority: "Michigan Supreme Court",
-    url: "https://www.courts.michigan.gov/siteassets/rules-instructions-administrative-orders/michigan-court-rules/court-rules-book-ch-3-responsive-html5.zip/Court_Rules_Book_Ch_3/Court_Rules_Chapter_3/Court_Rules_Chapter_3.htm",
-    status: "VERIFIED_PRIMARY",
-    supports: "Domestic relations procedure, referee objections, UCCJEA affidavit procedure, PPO procedure",
-    checkedOn: "2026-08-13",
-  },
-  {
-    id: "MCR-7",
-    title: "Michigan Court Rules — Chapter 7",
-    authority: "Michigan Supreme Court",
-    url: "https://www.courts.michigan.gov/siteassets/rules-instructions-administrative-orders/michigan-court-rules/court-rules-book-ch-7-responsive-html5.zip/Court_Rules_Book_Ch_7/Court_Rules_Chapter_7/Court_Rules_Chapter_7.htm",
-    status: "VERIFIED_PRIMARY",
-    supports: "Appeal timing and qualifying postjudgment motions",
-    checkedOn: "2026-08-13",
-  },
-  {
-    id: "MC-416",
-    title: "Uniform Child Custody Jurisdiction Enforcement Act Affidavit",
-    authority: "Michigan State Court Administrative Office",
-    url: "https://www.courts.michigan.gov/siteassets/forms/scao-approved/mc416.pdf",
-    status: "VERIFIED_PRIMARY",
-    supports: "Current MC 416 form and cited authorities",
-    checkedOn: "2026-08-13",
-  },
-  {
-    id: "CC-379",
-    title: "Motion to Modify, Extend, or Terminate Personal Protection Order",
-    authority: "Michigan State Court Administrative Office",
-    url: "https://www.courts.michigan.gov/siteassets/forms/scao-approved/cc379.pdf",
-    status: "VERIFIED_PRIMARY",
-    supports: "Current PPO motion form identity",
-    checkedOn: "2026-08-13",
-  },
-  {
-    id: "FOC-68",
-    title: "Objection to Referee Recommended Order",
-    authority: "Michigan State Court Administrative Office",
-    url: "https://www.courts.michigan.gov/siteassets/forms/scao-approved/instfoc68.pdf",
-    status: "VERIFIED_PRIMARY",
-    supports: "Current FOC 68 instructions and notice-of-hearing section",
-    checkedOn: "2026-08-13",
-  },
-  {
-    id: "MCL-722",
-    title: "Michigan Compiled Laws — Chapter 722",
-    authority: "Michigan Legislature",
-    url: "https://www.legislature.mi.gov/documents/mcl/pdf/mcl-chap722.pdf",
-    status: "PROVISIONAL_CURRENCY_NOT_CLEARED",
-    supports: "Child custody and UCCJEA statutes; each proposition still needs section-level currency review",
-    checkedOn: "2026-08-13",
-  },
-  {
-    id: "MDHHS-CPS",
-    title: "Children's Protective Services Investigation Process",
-    authority: "Michigan Department of Health and Human Services",
-    url: "https://www.michigan.gov/mdhhs/adult-child-serv/abuse-neglect/childrens/report-process/investigation-process-and-results/childrens-protective-services-investigation-process",
-    status: "VERIFIED_PRIMARY",
-    supports: "Current high-level CPS investigation process",
-    checkedOn: "2026-08-13",
-  },
-];
+/** Compatibility export for callers being migrated to auditSources(); the compiled seven-row catalog is retired.
+ * Inputs: none. Outputs: an always-empty array; current sources are read from shared source records.
+ * Effects: none. Choose auditSources()/searchRecords() over this compatibility symbol.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+export const SOURCES: SourceRecord[] = [];
 
 const DAY_MS = 86_400_000;
 
@@ -125,8 +71,8 @@ function isUnavailable(date: Date, holidays: Set<string>): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Deadline rule presets (MCR 1.108-style counting): exclude the anchor day,
-// count every calendar day, roll forward over a Saturday/Sunday/holiday.
+// Legacy pure-calculation preset values remain for helper compatibility only.
+// The MCP server resolves named presets from the versioned shared reference.
 // ---------------------------------------------------------------------------
 
 export const DEADLINE_RULE_PRESETS = {
@@ -137,6 +83,115 @@ export const DEADLINE_RULE_PRESETS = {
 } as const satisfies Record<string, { days: number; cite: string; status: "PROVISIONAL_VERIFY" }>;
 
 export type DeadlineRulePreset = keyof typeof DEADLINE_RULE_PRESETS;
+
+export interface RuleCorrectionProposal {
+  id: string;
+  rule_identity: string;
+  rule_heading?: string;
+  subdivision_structure?: "subdivisions_are_lists";
+  reported_pinpoint?: string;
+  source_http_status?: number;
+  pinpoint_status?: "unresolved";
+  authority_status: "PROVISIONAL_CURRENCY_NOT_CLEARED" | "NOT_STATED_IN_SUPPLIED_AUDIT" | "BLOCKED";
+  proposal_status: "PROPOSED_NOT_APPLIED";
+  recorded_on: "2026-10-04";
+  audit_date: "2026-10-04";
+  audit_source: "Dewey official-source audit";
+  source_locations: readonly string[];
+  gap: string;
+  proposed_correction: string;
+}
+
+/** Record the supplied Dewey findings as a dated overlay, leaving source documents unchanged.
+ * Inputs: none. Outputs: rule-keyed correction proposals with explicit currency/block status.
+ * Side effects: none; this data does not edit or validate the original corpus.
+ * Choose this proposal overlay over rewriting a draft or presenting the supplied audit as blanket validation.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+export const RULE_CORRECTION_PROPOSALS: readonly RuleCorrectionProposal[] = [
+  {
+    id: "dewey-m16-finality-20261004", rule_identity: "MCR 3.215",
+    rule_heading: "Rule 3.215 Domestic Relations Referees", subdivision_structure: "subdivisions_are_lists",
+    authority_status: "PROVISIONAL_CURRENCY_NOT_CLEARED", proposal_status: "PROPOSED_NOT_APPLIED",
+    recorded_on: "2026-10-04", audit_date: "2026-10-04",
+    audit_source: "Dewey official-source audit",
+    source_locations: ["M16 draft line 129"],
+    gap: "The finality statement omits the court-approval and no-timely-objection conditions.",
+    proposed_correction: "Propose language stating both conditions; retain the current-currency limitation on the MCR edition.",
+  },
+  {
+    id: "dewey-m16-signature-waiver-20261004", rule_identity: "MCR 3.215",
+    rule_heading: "Rule 3.215 Domestic Relations Referees", subdivision_structure: "subdivisions_are_lists",
+    authority_status: "PROVISIONAL_CURRENCY_NOT_CLEARED", proposal_status: "PROPOSED_NOT_APPLIED",
+    recorded_on: "2026-10-04", audit_date: "2026-10-04",
+    audit_source: "Dewey official-source audit",
+    source_locations: ["M16 draft line 159", "P1 draft line 254", "E8 immediate-entry requirement"],
+    gap: "The signature wording can imply that signature alone waives review or objection.",
+    proposed_correction: "Propose clarifying that signature alone does not waive; immediate entry under E8 requires written consent.",
+  },
+  {
+    id: "dewey-m16-live-evidence-f2-20261004", rule_identity: "MCR 3.215",
+    rule_heading: "Rule 3.215 Domestic Relations Referees", subdivision_structure: "subdivisions_are_lists",
+    authority_status: "PROVISIONAL_CURRENCY_NOT_CLEARED", proposal_status: "PROPOSED_NOT_APPLIED",
+    recorded_on: "2026-10-04", audit_date: "2026-10-04",
+    audit_source: "Dewey official-source audit",
+    source_locations: ["M16 draft line 232", "F2"],
+    gap: "The draft must retain F2's live-evidence opportunity and discretionary limits.",
+    proposed_correction: "Propose restoring both the live-evidence opportunity and the stated discretionary limits without expanding them.",
+  },
+  {
+    id: "dewey-p1-mail-service-20261004", rule_identity: "MCR 2.107(C)(3)",
+    authority_status: "NOT_STATED_IN_SUPPLIED_AUDIT", proposal_status: "PROPOSED_NOT_APPLIED",
+    recorded_on: "2026-10-04", audit_date: "2026-10-04",
+    audit_source: "Dewey official-source audit",
+    source_locations: ["P1 draft line 214"],
+    gap: "The service description treats arrival as completion.",
+    proposed_correction: "Propose stating that service by mail is complete upon mailing under MCR 2.107(C)(3); do not mark this rule's currency validated from the supplied note.",
+  },
+  {
+    id: "dewey-p1-d4d-exclusions-20261004", rule_identity: "MCR 3.215",
+    rule_heading: "Rule 3.215 Domestic Relations Referees", subdivision_structure: "subdivisions_are_lists",
+    authority_status: "PROVISIONAL_CURRENCY_NOT_CLEARED", proposal_status: "PROPOSED_NOT_APPLIED",
+    recorded_on: "2026-10-04", audit_date: "2026-10-04",
+    audit_source: "Dewey official-source audit",
+    source_locations: ["P1 draft line 313", "D(4)(d)"],
+    gap: "Both stated D(4)(d) exclusions must remain visible.",
+    proposed_correction: "Propose retaining the party-requested limitation and the transcript ordered to resolve what happened.",
+  },
+  {
+    id: "dewey-p1-parenting-time-limit-20261004", rule_identity: "MCR 3.215",
+    rule_heading: "Rule 3.215 Domestic Relations Referees", subdivision_structure: "subdivisions_are_lists",
+    authority_status: "PROVISIONAL_CURRENCY_NOT_CLEARED", proposal_status: "PROPOSED_NOT_APPLIED",
+    recorded_on: "2026-10-04", audit_date: "2026-10-04",
+    audit_source: "Dewey official-source audit",
+    source_locations: ["P1 draft line 266"],
+    gap: "Absence of the parenting-time exclusion does not create unconditional permission; custody and mootness limits remain.",
+    proposed_correction: "Propose preserving the custody and mootness limits when describing the exclusion's absence.",
+  },
+  {
+    id: "dewey-mcl-552-507-source-block-20261004", rule_identity: "MCL 552.507",
+    reported_pinpoint: "MCL 552.507", source_http_status: 403, pinpoint_status: "unresolved",
+    authority_status: "BLOCKED", proposal_status: "PROPOSED_NOT_APPLIED",
+    recorded_on: "2026-10-04", audit_date: "2026-10-04",
+    audit_source: "Dewey official-source audit",
+    source_locations: ["MCL 552.507 — official source returned HTTP 403; exact statutory pinpoint remains unresolved"],
+    gap: "The supplied audit marks this MCL source blocked and does not resolve the pinpoint.",
+    proposed_correction: "Keep claims dependent on this source blocked pending access and exact pinpoint resolution; do not label them verified.",
+  },
+] as const;
+
+/** Select dated proposals by exact rule identity, including explicit subdivisions.
+ * Inputs: rule citations from a returned claim/context; outputs: matching proposals only.
+ * Side effects: none. Choose over title or keyword similarity so MCR and MCL records cannot cross-match.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+export function ruleCorrectionProposalsForCitations(citations: readonly string[]): RuleCorrectionProposal[] {
+  const normalized = citations.filter((value) => typeof value === "string").map((value) => value.replace(/\s+/g, "").toUpperCase());
+  return RULE_CORRECTION_PROPOSALS.filter((proposal) => {
+    const rule = proposal.rule_identity.replace(/\s+/g, "").toUpperCase();
+    return normalized.some((citation) => citation === rule || citation.startsWith(`${rule}(`));
+  }).map((proposal) => ({ ...proposal }));
+}
 
 const COUNTING_RULE_NOTE =
   "Excludes the anchor day; counts every calendar day; rolls forward to the next court day on a Saturday, Sunday, or listed holiday (MCR 1.108(1)).";
@@ -191,6 +246,112 @@ export function calculateDirectionalDeadline(input: {
     };
   }
   return base;
+}
+
+/** Calculate a named deadline only from the exact current shared preset reference.
+ * Inputs: anchor date, bounded shared preset ID, and optional holiday dates.
+ * Outputs: a calculated date with configuration record ID/version/hash, configured status, and exact shared-source audit; missing or unknown presets return a named pending result without a date.
+ * Side effects: bounded read-only shared record and source-catalog queries. Choose this for server rule requests; the legacy pure helper remains for callers that explicitly need its historical calculation API.
+ * Configuration contract: record `reference:deadline-rule-presets`, kind `deadline_rule_presets`, data schema `propria.deadline-rule-presets.v1`, with at most 100 unique presets containing id, days, direction, optional include_anchor, citation, and status.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+export async function calculateSharedDeadlinePreset(input: {
+  anchorDate: string;
+  rule: string;
+  holidays?: string[];
+}): Promise<Record<string, unknown>> {
+  if (typeof input.rule !== "string" || !/^[a-z][a-z0-9_-]{0,79}$/.test(input.rule)) {
+    throw new Error("Invalid shared deadline preset ID");
+  }
+  const expectedRef = "reference:deadline-rule-presets";
+  const store = await getStore();
+  if (!store.available) return {
+    configured: false,
+    status: "PENDING_SHARED_DEADLINE_RULE_PRESET_CONFIGURATION",
+    rule: input.rule,
+    configuration_record_ref: expectedRef,
+    configuration_record_version: null,
+    configuration_record_hash: null,
+    reason: store.reason,
+  };
+  const current = await caseRecord(store, { table: "reference", id: "deadline-rule-presets" });
+  if (!current) return {
+    configured: false,
+    status: "PENDING_SHARED_DEADLINE_RULE_PRESET_CONFIGURATION",
+    rule: input.rule,
+    configuration_record_ref: expectedRef,
+    configuration_record_version: null,
+    configuration_record_hash: null,
+    reason: "The exact shared deadline-rule-preset reference is missing.",
+  };
+  if (current.id !== expectedRef || !/^sha256:[a-f0-9]{64}$/.test(current.version)) {
+    throw new Error("Malformed shared deadline-rule-preset record identity or version");
+  }
+  const row = current.record;
+  const data = row.data;
+  if (row.key !== "deadline-rule-presets" || row.kind !== "deadline_rule_presets"
+    || !data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("Malformed shared deadline-rule-preset reference envelope");
+  }
+  const config = data as Record<string, unknown>;
+  if (config.schema !== "propria.deadline-rule-presets.v1" || !Array.isArray(config.presets) || config.presets.length > 100) {
+    throw new Error("Malformed shared deadline-rule-preset schema or bounded preset list");
+  }
+  const seen = new Set<string>();
+  const presets: Array<{ id: string; days: number; direction: "after" | "before"; include_anchor: boolean; citation: string; status: string }> = [];
+  for (const candidate of config.presets) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) throw new Error("Malformed shared deadline-rule-preset entry");
+    const item = candidate as Record<string, unknown>;
+    if (typeof item.id !== "string" || !/^[a-z][a-z0-9_-]{0,79}$/.test(item.id) || seen.has(item.id)
+      || !Number.isSafeInteger(item.days) || (item.days as number) < 0 || (item.days as number) > 3650
+      || (item.direction !== "after" && item.direction !== "before")
+      || (item.include_anchor !== undefined && typeof item.include_anchor !== "boolean")
+      || typeof item.citation !== "string" || !item.citation.trim() || item.citation.length > 256
+      || typeof item.status !== "string" || !item.status.trim() || item.status.length > 80) {
+      throw new Error("Malformed or duplicate shared deadline-rule-preset entry");
+    }
+    seen.add(item.id);
+    presets.push({
+      id: item.id, days: item.days as number, direction: item.direction,
+      include_anchor: item.include_anchor === true, citation: item.citation, status: item.status,
+    });
+  }
+  const configuration = {
+    record_ref: current.id,
+    record_version: current.version,
+    record_hash: current.version.slice("sha256:".length),
+    hash_basis: "caseRecord full shared row with embedding omitted",
+    schema: config.schema,
+  };
+  const preset = presets.find((item) => item.id === input.rule);
+  if (!preset) return {
+    configured: false,
+    status: "UNKNOWN_SHARED_DEADLINE_RULE_PRESET",
+    rule: input.rule,
+    configuration_record: configuration,
+    available_rule_ids: presets.map((item) => item.id),
+  };
+  const calculation = calculateDirectionalDeadline({
+    anchorDate: input.anchorDate,
+    days: preset.days,
+    direction: preset.direction,
+    includeAnchor: preset.include_anchor,
+    holidays: input.holidays,
+  });
+  const catalog = await getSharedRuleCatalogContext([preset.citation]);
+  return {
+    configured: true,
+    status: "SHARED_DEADLINE_RULE_PRESET_CONFIGURED",
+    ...calculation,
+    rule: preset.id,
+    cite: preset.citation,
+    configured_status: preset.status,
+    preset_provenance: {
+      configuration_record: configuration,
+      shared_rule_traceability: catalog.rule_source_traceability[0],
+    },
+    release_status: catalog.release_status,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -403,21 +564,23 @@ export function getChecklist(kind: "evidence" | "hearing" | "source-review") {
 
 export interface NormalizedSourceRecord {
   id: string;
+  record_ref: string;
   title: string;
   authority: string;
   status: string;
   url: string;
   supports: string;
   checkedOn: string;
+  citation: string | null;
+  citations: string[];
+  pinpoint: string | null;
+  source_sha256: string | null;
+  record_version: string | null;
+  record_version_status: "verified_current_record" | "not_loaded" | "version_lookup_gap";
+  record_kind: string | null;
+  release_state: string | null;
   superseded: string | null;
-  origin: "curated" | "ledger" | "directory";
-}
-
-interface ExtraSources {
-  ledger: NormalizedSourceRecord[];
-  directory: NormalizedSourceRecord[];
-  ledgerError: string | null;
-  directoryError: string | null;
+  origin: "shared-source";
 }
 
 /** Preserve the test reset API; current content reads no longer retain a cache.
@@ -442,106 +605,219 @@ function mcpAppPath(...segments: string[]): string {
   return join(pluginRootPath("mcp-app"), ...segments);
 }
 
-/** Maps one raw ledger.json entry OR one `source:<id>` store row onto the
- * common NormalizedSourceRecord shape. Identical either way: the loader
- * writes every ledger field through unchanged (see
- * scripts/load-content-to-store.mjs), so a store row and its origin file
- * entry carry the same fields — the only difference is the store row's `id`
- * comes back "source:<id>" (normalize()'s ref-string form) instead of bare,
- * so a leading "source:" is stripped first. This is what guarantees the
- * store-first path and the file-fallback path produce byte-identical output. */
-function mapLedgerRow(record: Record<string, unknown>, index: number): NormalizedSourceRecord {
-  const rawId = String(record.id ?? `ledger-${index}`);
-  const id = rawId.startsWith("source:") ? rawId.slice("source:".length) : rawId;
+/** Map one current shared source row while retaining its exact record identity and provenance.
+ * Inputs: a row returned by the paginated shared source reader; outputs: catalog metadata without inferred verification.
+ * Effects: none. Choose over compiled summaries because this preserves the live shared record's identity/hash/status.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+function mapSharedSourceRow(record: Record<string, unknown>): NormalizedSourceRecord {
+  const rawId = typeof record.id === "string" ? record.id : "";
+  if (!rawId.startsWith("source:") || rawId.length <= "source:".length) throw new Error("Malformed shared source identity");
+  const id = rawId.slice("source:".length);
+  const sourceSha = typeof record.sha256 === "string" && /^[a-f0-9]{64}$/i.test(record.sha256) ? record.sha256.toLowerCase() : null;
+  const citations = Array.isArray(record.citations) ? record.citations.filter((value): value is string => typeof value === "string")
+    : typeof record.citation === "string" ? [record.citation] : [];
   return {
-    id,
-    title: String(record.title ?? record.short_title ?? id ?? "Untitled ledger record"),
+    id, record_ref: rawId,
+    title: String(record.title ?? record.short_title ?? id),
     authority: String(record.issuing_body ?? "Unspecified issuing body"),
-    status: String(record.binding_status ?? record.authority_class ?? "UNSPECIFIED").toUpperCase(),
-    url: String(record.official_url ?? ""),
-    supports: [record.short_title, record.scope_note, record.citation].filter(Boolean).join(" — "),
-    checkedOn: String(record.last_verified ?? record.date_accessed ?? "unknown"),
+    status: String(record.binding_status ?? record.authority_class ?? "STATUS_NOT_RECORDED").toUpperCase(),
+    url: String(record.official_url ?? record.url ?? ""),
+    supports: [record.short_title, record.scope_note].filter((part): part is string => typeof part === "string" && part.length > 0).join(" — "),
+    checkedOn: String(record.last_verified ?? record.date_accessed ?? "not recorded"),
+    citation: typeof record.citation === "string" ? record.citation : null,
+    citations,
+    pinpoint: typeof record.pinpoint === "string" ? record.pinpoint : null,
+    source_sha256: sourceSha,
+    record_version: null,
+    record_version_status: "not_loaded",
+    record_kind: typeof record.record_kind === "string" ? record.record_kind : typeof record.record_type === "string" ? record.record_type : null,
+    release_state: typeof record.release_state === "string" ? record.release_state.slice(0, 128)
+      : typeof record.release_status === "string" ? record.release_status.slice(0, 128) : null,
     superseded: record.superseded === undefined || record.superseded === null ? null : String(record.superseded),
-    origin: "ledger",
+    origin: "shared-source",
   };
 }
 
-function loadLedgerRecordsFromFile(): NormalizedSourceRecord[] {
-  const raw = JSON.parse(readFileSync(contentPath("toolkit", "ledger.json"), "utf8"));
-  if (!Array.isArray(raw)) throw new Error("ledger.json did not contain an array.");
-  return raw.map((record: Record<string, unknown>, index: number) => mapLedgerRow(record, index));
-}
-
-/** Read current shared ledger rows or an explicit empty mem fixture file.
- * Inputs: none. Outputs: normalized source records.
- * Effects: getSources pages or fixture file reads. Pick this over loadLedgerRecordsFromFile for explicit fixtures.
+/** Load the complete bounded shared source catalog using the canonical paginated reader.
+ * Inputs: none; getSources enforces ordered pages and the 10,000-row budget. Outputs: current rows only.
+ * Effects: fresh read-only shared queries; missing/unavailable catalogs throw and never fall back to packaged files.
+ * Pick this over SOURCES, source JSON, or the link directory for current source identity/status.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
  */
-async function loadLedgerRecords(): Promise<NormalizedSourceRecord[]> {
+async function loadSharedSourceCatalog(): Promise<NormalizedSourceRecord[]> {
   const stored = await getSources();
-  if (stored && stored.length > 0) return stored.map((record, index) => mapLedgerRow(record, index));
-  return loadLedgerRecordsFromFile();
+  return (stored ?? []).map(mapSharedSourceRow);
 }
 
-function parseDirectoryMarkdown(markdown: string): NormalizedSourceRecord[] {
-  const linkPattern = /^-\s*\[([^\]]+)\]\(([^)]+)\)(?:\s*—\s*(.*))?$/gm;
-  const records: NormalizedSourceRecord[] = [];
-  let match: RegExpExecArray | null;
-  let index = 0;
-  while ((match = linkPattern.exec(markdown))) {
-    index += 1;
-    const [, title, url, note] = match;
-    records.push({
-      id: `DIR-${index}`,
-      title: title.trim(),
-      authority: "Master Source Directory (extracted citation, not independently re-verified)",
-      status: "UNVERIFIED_DIRECTORY_ENTRY",
-      url: url.trim(),
-      supports: (note ?? "").trim(),
-      checkedOn: "2026-08-09",
-      superseded: "unknown",
-      origin: "directory",
-    });
-  }
-  return records;
-}
-
-function loadDirectoryRecordsFromFile(): NormalizedSourceRecord[] {
-  const markdown = readFileSync(contentPath("custody-guide", "master_source_directory.md"), "utf8");
-  return parseDirectoryMarkdown(markdown);
-}
-
-/** Read the current shared master source directory.
- * Inputs: none. Outputs: parsed directory records.
- * Effects: one shared reference read, or absent mem fixture file read. Pick this over loadDirectoryRecordsFromFile for explicit fixtures.
+/** Verify selected catalog rows against the canonical caseRecord version query.
+ * Inputs: up to 32 shared-source rows; outputs: exact sha256-prefixed record versions or named lookup gaps.
+ * Effects: bounded read-only version lookups; source SHA is kept separate from record version. Pick over guessing a row version.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
  */
-async function loadDirectoryRecords(): Promise<NormalizedSourceRecord[]> {
-  const ref = await getReference("master-source-directory");
-  if (ref) {
-    if (typeof ref.body !== "string" || !ref.body.length) throw new Error("Malformed shared master-source-directory body");
-    return parseDirectoryMarkdown(ref.body);
-  }
-  return loadDirectoryRecordsFromFile();
+async function loadCurrentRecordVersions(rows: readonly Pick<NormalizedSourceRecord, "id" | "record_ref">[]): Promise<Array<Pick<NormalizedSourceRecord, "id" | "record_ref"> & Pick<NormalizedSourceRecord, "record_version" | "record_version_status">>> {
+  const targets = rows.slice(0, 32);
+  if (!targets.length) return [];
+  const notLoaded = rows.slice(32).map((row) => ({ ...row, record_version: null, record_version_status: "not_loaded" as const }));
+  const store = await getStore();
+  if (!store.available) return [
+    ...targets.map((row) => ({ ...row, record_version: null, record_version_status: "version_lookup_gap" as const })),
+    ...notLoaded,
+  ];
+  const versioned = await Promise.all(targets.map(async (row) => {
+    try {
+      const current = await caseRecord(store, { table: "source", id: row.id });
+      if (!current || current.id !== row.record_ref || !/^sha256:[a-f0-9]{64}$/.test(current.version)) {
+        return { ...row, record_version: null, record_version_status: "version_lookup_gap" as const };
+      }
+      return { ...row, record_version: current.version, record_version_status: "verified_current_record" as const };
+    } catch {
+      return { ...row, record_version: null, record_version_status: "version_lookup_gap" as const };
+    }
+  }));
+  return [...versioned, ...notLoaded];
 }
 
-/** Read fresh shared ledger and directory content for an audit or search.
- * Inputs: none. Outputs: both normalized lists with the existing error fields.
- * Effects: fresh bounded reads; shared failures propagate. Pick this over curatedAsNormalized for the fixed curated subset.
+/** Resolve a compiled citation only through a shared source row's exact citation or pinpoint field.
+ * Inputs: one claimed citation and the current bounded shared catalog; outputs: tied record metadata or named gaps.
+ * Effects: none. Pick exact equality over title/body keyword overlap, which cannot establish claim-to-source fit.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
  */
-async function loadExtraSources(): Promise<ExtraSources> {
-  const ledger = await loadLedgerRecords();
-  const directory = await loadDirectoryRecords();
-  return { ledger, directory, ledgerError: null, directoryError: null };
+export function traceCompiledRuleSource(citation: string, catalog: readonly NormalizedSourceRecord[]) {
+  const normalizeCitation = (value: string) => value.trim().replace(/\s+/g, " ").toUpperCase();
+  const target = normalizeCitation(citation);
+  const matches = catalog.filter((source) => [...source.citations, ...(source.pinpoint ? [source.pinpoint] : [])]
+    .some((value) => normalizeCitation(value) === target));
+  if (!matches.length) return {
+    claimed_citation: citation,
+    traceability_status: "GAP_NO_EXACT_SHARED_SOURCE_RECORD" as const,
+    shared_sources: [],
+  };
+  return {
+    claimed_citation: citation,
+    traceability_status: matches.length === 1 ? "EXACT_SHARED_SOURCE_RECORD" as const : "AMBIGUOUS_EXACT_SHARED_SOURCE_RECORDS" as const,
+    shared_sources: matches.map((source) => ({
+      record_ref: source.record_ref,
+      title: source.title,
+      official_url: source.url || null,
+      authority_status: source.status,
+      checked_on: source.checkedOn,
+      source_sha256: source.source_sha256,
+      record_version: source.record_version,
+      pinpoint: source.pinpoint,
+      traceability_gaps: [
+        ...(source.source_sha256 ? [] : ["shared_source_sha256_missing"]),
+        ...(source.record_version ? [] : ["shared_record_version_not_exposed_by_paginated_catalog"]),
+      ],
+    })),
+  };
 }
 
-function curatedAsNormalized(): NormalizedSourceRecord[] {
-  return SOURCES.map((source) => ({ ...source, superseded: null, origin: "curated" as const }));
+/** Trace several compiled citations against one fresh shared catalog traversal.
+ * Inputs: citation strings from unchanged compiled rule/deadline claims; outputs: one trace or explicit gap per citation.
+ * Effects: bounded shared source read only. Pick this over repeated per-citation catalog loads or keyword matching.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+export async function traceCompiledRuleSources(citations: readonly string[]) {
+  const catalog = await loadSharedSourceCatalog();
+  const traces = citations.map((citation) => traceCompiledRuleSource(citation, catalog));
+  const linkedRefs = new Set(traces.flatMap((trace) => trace.shared_sources.map((source) => source.record_ref)));
+  const versioned = await loadCurrentRecordVersions(catalog.filter((source) => linkedRefs.has(source.record_ref)));
+  const byRef = new Map(versioned.map((source) => [source.record_ref, source]));
+  return traces.map((trace) => ({
+    ...trace,
+    shared_sources: trace.shared_sources.map((item) => {
+      const current = byRef.get(String(item.record_ref));
+      return current ? {
+        ...item,
+        record_version: current.record_version,
+        record_version_status: current.record_version_status,
+        traceability_gaps: [
+          ...item.traceability_gaps.filter((gap) => gap !== "shared_record_version_not_exposed_by_paginated_catalog"),
+          ...(current.record_version_status === "verified_current_record" ? [] : ["current_caseRecord_version_lookup_failed"]),
+        ],
+      } : item;
+    }),
+  }));
 }
 
+/** Assemble rule provenance and release status from one fresh shared catalog traversal.
+ * Inputs: unchanged compiled citations; outputs: exact source links/gaps and a versioned-release-record status.
+ * Effects: bounded shared reads only. Pick over separate catalog calls when preparing one guide response.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+export async function getSharedRuleCatalogContext(citations: readonly string[]) {
+  const catalog = await loadSharedSourceCatalog();
+  const traces = citations.map((citation) => traceCompiledRuleSource(citation, catalog));
+  const linkedRefs = new Set(traces.flatMap((trace) => trace.shared_sources.map((source) => source.record_ref)));
+  const versioned = await loadCurrentRecordVersions(catalog.filter((source) => linkedRefs.has(source.record_ref)));
+  const byRef = new Map(versioned.map((source) => [source.record_ref, source]));
+  return {
+    release_status: await resolveSharedReleaseStatus(catalog),
+    rule_source_traceability: traces.map((trace) => ({
+      ...trace,
+      shared_sources: trace.shared_sources.map((item) => {
+        const current = byRef.get(String(item.record_ref));
+        return current ? {
+          ...item,
+          record_version: current.record_version,
+          record_version_status: current.record_version_status,
+          traceability_gaps: [
+            ...item.traceability_gaps.filter((gap) => gap !== "shared_record_version_not_exposed_by_paginated_catalog"),
+            ...(current.record_version_status === "verified_current_record" ? [] : ["current_caseRecord_version_lookup_failed"]),
+          ],
+        } : item;
+      }),
+    })),
+  };
+}
+
+/** Resolve the release surface without manufacturing a release decision from compiled content.
+ * Inputs: current shared source catalog; outputs: named pending status until a versioned release/audit record exists.
+ * Effects: none. Pick this over static RELEASE_STATUS text; current reader exposes source rows only, no release record type.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+async function resolveSharedReleaseStatus(catalog: readonly NormalizedSourceRecord[]) {
+  const candidates = catalog.filter((source) => ["release_status", "release_audit"].includes(source.record_kind ?? "")
+    || source.id === "family-court-release-status" || source.id === "family-court-release-audit");
+  if (!candidates.length) return { ...RELEASE_STATUS, record_ref: null, record_version: null };
+  const versioned = await loadCurrentRecordVersions(candidates);
+  const byRef = new Map(versioned.map((source) => [source.record_ref, source]));
+  const current = candidates.find((source) => byRef.get(source.record_ref)?.record_version_status === "verified_current_record" && source.release_state);
+  if (current) return {
+    label: current.release_state!,
+    status: current.release_state!,
+    reason: "Presented verbatim from the current versioned shared release/audit source record; this is not an independent validation claim.",
+    record_ref: current.record_ref,
+    source_sha256: current.source_sha256,
+    record_version: byRef.get(current.record_ref)?.record_version ?? null,
+  };
+  return {
+    label: "PENDING_VERSIONED_SHARED_RELEASE_AUDIT_RECORD",
+    status: "pending",
+    reason: "A release/audit candidate exists, but no state with a verified current caseRecord version was available.",
+    candidate_refs: candidates.map((source) => source.record_ref),
+    version_gaps: candidates.map((source) => ({ record_ref: source.record_ref, status: byRef.get(source.record_ref)?.record_version_status ?? "not_loaded" })),
+  };
+}
+
+/** Audit the selected current source rows alongside dated rule-correction proposals.
+ * Inputs: optional exact source IDs; outputs: source audit, status counts and non-applied proposals.
+ * Side effects: fresh shared reads only. Choose over reading a compiled catalog without its current audit overlay.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
 export async function auditSources(ids?: string[]) {
-  const extra = await loadExtraSources();
-  const curated = curatedAsNormalized();
-  const all = [...curated, ...extra.ledger, ...extra.directory];
-  const selected = ids?.length ? all.filter((source) => ids.includes(source.id)) : all;
+  const all = await loadSharedSourceCatalog();
+  const requested = ids?.length ? new Set(ids) : null;
+  const selectedRaw = requested ? all.filter((source) => requested.has(source.id) || requested.has(source.record_ref)) : all;
+  const versioned = requested ? await loadCurrentRecordVersions(selectedRaw) : [];
+  const versionById = new Map(versioned.map((source) => [source.id, source]));
+  const selected: NormalizedSourceRecord[] = requested
+    ? selectedRaw.map((source) => {
+      const current = versionById.get(source.id);
+      return current ? { ...source, ...current } : { ...source, record_version: null, record_version_status: "not_loaded" as const };
+    })
+    : selectedRaw;
 
   const byStatus: Record<string, number> = {};
   const byOrigin: Record<string, number> = {};
@@ -550,21 +826,26 @@ export async function auditSources(ids?: string[]) {
     byOrigin[source.origin] = (byOrigin[source.origin] ?? 0) + 1;
   }
 
-  const notes: string[] = [];
-  if (extra.ledgerError) notes.push(`Ledger unavailable, falling back to curated sources only: ${extra.ledgerError}`);
-  if (extra.directoryError) notes.push(`Master source directory unavailable: ${extra.directoryError}`);
+  const notes: string[] = ["Compiled source summaries are not included; source identity and status come from current shared source records."];
+  if (selected.some((source) => source.record_version_status !== "verified_current_record")) notes.push("Some selected rows lack a verified current caseRecord version; record_version is reported as a gap, not inferred from source_sha256.");
+  if (!requested) notes.push("The unfiltered catalog omits per-row caseRecord lookups to keep the broad listing bounded; request exact source IDs for versioned record proofs.");
+  if (requested && selectedRaw.length > 32) notes.push("Only the first 32 exact IDs receive caseRecord version lookups per request; remaining rows retain explicit missing-version status.");
+  const releaseStatus = await resolveSharedReleaseStatus(all);
 
   return {
-    releaseStatus: RELEASE_STATUS.label,
+    releaseStatus: releaseStatus.label,
+    release_status: releaseStatus,
     sources: selected,
+    rule_correction_proposals: [...RULE_CORRECTION_PROPOSALS],
     counts: byStatus, // preserved for backward compatibility with existing callers/tests
     source_stats: {
       total: all.length,
       selected: selected.length,
       byStatus,
       byOrigin,
-      ledgerLoaded: extra.ledgerError === null,
-      directoryLoaded: extra.directoryError === null,
+      ledgerLoaded: true,
+      directoryLoaded: false,
+      source_catalog: "shared-source-records",
     },
     notes,
   };
@@ -577,21 +858,15 @@ function scoreRecord(record: NormalizedSourceRecord, terms: string[]): number {
 
 export async function searchRecords(query: string) {
   const terms = query.toLowerCase().split(/\s+/).filter((term) => term.length > 2);
-  const extra = await loadExtraSources();
-  const curated = curatedAsNormalized();
-  // Search tiers by trust level (curated > ledger > directory) so a
-  // hand-verified match always outranks a bulk-imported one, while still
-  // searching across the whole corpus as required.
-  const tiers: NormalizedSourceRecord[][] = [curated, extra.ledger, extra.directory];
-  const results: Array<NormalizedSourceRecord & { score: number }> = [];
-  for (const tier of tiers) {
-    const scored = tier
-      .map((record) => ({ ...record, score: scoreRecord(record, terms) }))
-      .filter((record) => record.score > 0)
-      .sort((a, b) => b.score - a.score);
-    results.push(...scored);
-  }
-  return results.slice(0, 12);
+  const catalog = await loadSharedSourceCatalog();
+  const matches = catalog
+    .map((record) => ({ ...record, score: scoreRecord(record, terms) }))
+    .filter((record) => record.score > 0)
+    .sort((a, b) => b.score - a.score || a.record_ref.localeCompare(b.record_ref))
+    .slice(0, 12);
+  const versioned = await loadCurrentRecordVersions(matches);
+  const byRef = new Map(versioned.map((source) => [source.record_ref, source]));
+  return matches.map((record) => ({ ...record, ...(byRef.get(record.record_ref) ?? {}) }));
 }
 
 export function buildChronology(events: Array<{ date: string; title: string; source?: string; knowledgeDate?: string }>) {
@@ -606,9 +881,8 @@ export function buildChronology(events: Array<{ date: string; title: string; sou
 }
 
 // ---------------------------------------------------------------------------
-// case_facts (new, 2026-09-07) — reads a local case-state JSON file. Never
-// echoes a child's name: children[].name is replaced with initials, and the
-// public shape only ever carries { count, entries: [{ initials, age }] }.
+// case_facts (2026-09-07) — the legacy local case-state reader preserves full
+// party/child records, including private names and fields not known to this app.
 // ---------------------------------------------------------------------------
 
 export interface CaseFactsConfigured {
@@ -620,8 +894,8 @@ export interface CaseFactsConfigured {
   controlling_orders: Array<{ title: string; entered: string; served: string | null }>;
   next_hearing: string | null;
   deadlines: Array<{ label: string; due: string; rule: string | null }>;
-  parties: string[];
-  children: { count: number; entries: Array<{ initials: string | null; age: number | string | null }> };
+  parties: unknown[];
+  children: { count: number; entries: unknown[] };
   flags: string[];
   source: string;
 }
@@ -630,13 +904,6 @@ export interface CaseFactsUnconfigured {
   configured: false;
   example_path: string;
   hint: string;
-}
-
-function toInitials(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return null;
-  return `${parts.map((part) => part[0]?.toUpperCase() ?? "").join(".")}.`;
 }
 
 function defaultCaseFilePath(): string {
@@ -661,27 +928,8 @@ export function getCaseFacts(): CaseFactsConfigured | CaseFactsUnconfigured {
     };
   }
 
-  const partiesInput = Array.isArray(raw.parties) ? raw.parties : [];
-  const parties = partiesInput.map((party) => {
-    if (typeof party === "string") return toInitials(party) ?? party;
-    if (party && typeof party === "object") {
-      const p = party as Record<string, unknown>;
-      if (typeof p.initials === "string") return p.initials;
-      if (typeof p.name === "string") return toInitials(p.name) ?? "?.";
-    }
-    return "?.";
-  });
-
-  const childrenInput = Array.isArray(raw.children) ? raw.children : [];
-  const childEntries = childrenInput.map((child) => {
-    if (child && typeof child === "object") {
-      const c = child as Record<string, unknown>;
-      const initials = typeof c.initials === "string" ? c.initials : toInitials(c.name); // never pass through c.name itself
-      const age = typeof c.age === "number" || typeof c.age === "string" ? c.age : null;
-      return { initials, age };
-    }
-    return { initials: null, age: null };
-  });
+  const parties = Array.isArray(raw.parties) ? raw.parties : [];
+  const children = Array.isArray(raw.children) ? raw.children : [];
 
   const controllingOrdersInput = Array.isArray(raw.controlling_orders) ? raw.controlling_orders : [];
   const controlling_orders = controllingOrdersInput.map((order) => {
@@ -713,8 +961,55 @@ export function getCaseFacts(): CaseFactsConfigured | CaseFactsUnconfigured {
     next_hearing: raw.next_hearing ? String(raw.next_hearing) : null,
     deadlines,
     parties,
-    children: { count: childrenInput.length, entries: childEntries },
+    children: { count: children.length, entries: children },
     flags: Array.isArray(raw.flags) ? raw.flags.map(String) : [],
     source: path,
+  };
+}
+
+/** Read full private case facts from the canonical shared case store while retaining compatible summary fields.
+ * Inputs: none; opens the existing shared store and delegates shape construction to caseSummary().
+ * Outputs: compatible summary fields plus full case_context, party rows, child rows, or a named absence/unavailable result.
+ * Effects: fresh read-only queries that preserve full names and custom private fields. Pick over the legacy local-file reader for current shared case context.
+ * Byline: Codex · GPT-6-Luna · 2026-10-04.
+ */
+export async function getSharedCaseFacts(): Promise<Record<string, unknown>> {
+  const store = await getStore();
+  if (!store.available) return {
+    configured: false,
+    status: "SHARED_CASE_STORE_UNAVAILABLE",
+    source: "surrealdb-case-store",
+    reason: store.reason,
+  };
+  const summary = await caseSummary(store);
+  const counts = summary.counts;
+  const hasCaseData = Boolean(
+    summary.county || summary.court || summary.judge || summary.referee || summary.controlling_orders.length
+    || summary.next_hearing || summary.deadlines.length || summary.parties.length || summary.children.count
+    || ["court", "order", "hearing", "deadline", "person", "child"].some((table) => (counts[table] ?? 0) > 0),
+  );
+  if (!hasCaseData) return {
+    configured: false,
+    status: "SHARED_CASE_SUMMARY_EMPTY",
+    source: summary.source,
+    shape: "county, court, judge, referee, orders, hearing, deadlines, full party and child records, and case_context",
+    traceability_gap: "The shared case summary contains no current case records; no local case-file fallback is used here.",
+  };
+  return {
+    configured: true,
+    county: summary.county,
+    court: summary.court,
+    judge: summary.judge,
+    referee: summary.referee,
+    controlling_orders: summary.controlling_orders,
+    next_hearing: summary.next_hearing,
+    deadlines: summary.deadlines,
+    parties: summary.parties,
+    children: summary.children,
+    case_context: summary.case_context,
+    flags: summary.flags,
+    source: summary.source,
+    source_record_refs: ["court:main", "order:*", "hearing:*", "deadline:*", "person:*", "child:*"],
+    traceability_gap: "caseSummary aggregates current rows but does not expose a version/hash per contributing record.",
   };
 }

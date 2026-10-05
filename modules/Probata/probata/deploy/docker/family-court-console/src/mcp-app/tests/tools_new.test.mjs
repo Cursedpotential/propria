@@ -41,11 +41,11 @@ test("survival_guide: every event id returns a context pack with non-empty seque
   }
 });
 
-test("survival_guide: full format includes the master template and release warning", async () => {
+test("survival_guide: full format includes the master template and current release state", async () => {
   const result = await buildSurvivalGuide({ event: "referee-hearing", format: "full" });
   assert.match(result.template, /Fixed sections/);
-  assert.match(result.release_warning, /legal advice/i);
-  assert.match(result.release_warning, /911/);
+  assert.equal(typeof result.release_status.label, "string");
+  assert.equal("release_warning" in result, false);
 });
 
 test("survival_guide: card format returns the card template", async () => {

@@ -2,11 +2,12 @@
 // Byline: Claude Code · Sonnet 5 · 2026-09-07 — tests for the owner's 13:09-13:16
 // orders: court_event status, timeline lanes, docket, memo, evidence_log, eval,
 // reference load+match, the case-extract/v1 importer, platform export, case_source.
+// Byline: Codex · GPT-6 · 2026-10-04 — private full-context and governed-library contract.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import test, { after } from "node:test";
+import { fileURLToPath } from "node:url";
 import * as store from "../dist/store.js";
 
 // The embedded engine's mem:// connections keep a native handle open past the
@@ -29,6 +30,32 @@ async function freshStore() {
   const s = await store.getStore("mem://");
   assert.equal(s.available, true, s.available ? "" : s.reason);
   return s;
+}
+
+// Byline: Codex · GPT-6 · 2026-10-04.
+/** Create a uniquely named fixture directory under the ignored project quarantine.
+ * Inputs: a short fixture-name prefix. Outputs: an existing writable directory path.
+ * Effects: creates files that remain under to_be_deleted for owner-controlled cleanup.
+ * Choose for generated test fixtures instead of operating-system temporary directories.
+ */
+function createRetainedFixtureDirectory(prefix) {
+  const configuredRoot = process.env.FCT_TEST_RETAINED_ROOT;
+  if (configuredRoot) {
+    if (!isAbsolute(configuredRoot) || !configuredRoot.replaceAll("\\", "/").split("/").includes("to_be_deleted")) {
+      throw new Error("VPS fixture root must be an absolute retained quarantine path");
+    }
+    mkdirSync(configuredRoot, { recursive: true });
+    return mkdtempSync(join(configuredRoot, `${prefix}-`));
+  }
+  let repositoryRoot = dirname(fileURLToPath(import.meta.url));
+  while (!existsSync(join(repositoryRoot, ".git"))) {
+    const parent = dirname(repositoryRoot);
+    if (parent === repositoryRoot) throw new Error("Could not locate the Propria Git worktree root for retained test fixtures");
+    repositoryRoot = parent;
+  }
+  const fixtureRoot = join(repositoryRoot, "to_be_deleted", "family-court-console-store-tests");
+  mkdirSync(fixtureRoot, { recursive: true });
+  return mkdtempSync(join(fixtureRoot, `${prefix}-`));
 }
 
 test("migration is idempotent: opening the same mem:// store twice does not error and keeps one embed_dim", async () => {
@@ -74,33 +101,42 @@ test("case_put upserts a record and RELATEs it in the same call", async () => {
   assert.equal(withRelation.relations[0].to, "event:e1");
 });
 
-test("case_put rejects a child record carrying a name field", async () => {
+test("case_put retains full child identity with optional initials and age", async () => {
   const s = await freshStore();
-  await assert.rejects(
-    () => store.casePut(s, { table: "child", id: "c1", data: { initials: "E.F.", age: 7, name: "Real Child Name" } }),
-    /name/i,
-  );
-  // The valid shape still works.
-  const ok = await store.casePut(s, { table: "child", id: "c1", data: { initials: "E.F.", age: 7 } });
-  assert.equal(ok.record.initials, "E.F.");
-  assert.equal(ok.record.age, 7);
-  assert.equal(ok.record.name, undefined);
+  const saved = await store.casePut(s, {
+    table: "child",
+    id: "c1",
+    data: { name: "Quinn Samplechild", aliases: ["Q. Sample"], initials: "Q.S.", age: 7 },
+  });
+  assert.equal(saved.record.name, "Quinn Samplechild");
+  assert.deepEqual(saved.record.aliases, ["Q. Sample"]);
+  assert.equal(saved.record.initials, "Q.S.");
+  assert.equal(saved.record.age, 7);
 });
 
-test("case_query refuses DELETE/REMOVE/DEFINE unless write: true, and caps rows at 200", async () => {
+test("case_query permits SELECT-only inspection, rejects mutations and functions for either write flag, and caps rows at 200", async () => {
   const s = await freshStore();
   for (let i = 0; i < 5; i++) {
     await store.casePut(s, { table: "note", id: `n${i}`, data: { text: `note ${i}` } });
   }
-  await assert.rejects(() => store.caseQuery(s, { surql: "DELETE note;" }), /write: true/);
-  await assert.rejects(() => store.caseQuery(s, { surql: "REMOVE TABLE note;" }), /write: true/);
-  await assert.rejects(() => store.caseQuery(s, { surql: "DEFINE TABLE evil SCHEMALESS;" }), /write: true/);
-
-  // write: true permits it, and it actually deletes.
-  const del = await store.caseQuery(s, { surql: "DELETE note;", write: true });
-  assert.equal(del.truncated, false);
-  const after = await store.caseQuery(s, { surql: "SELECT * FROM note;" });
-  assert.deepEqual(after.results[0], []);
+  const rejectedQueries = [
+    "DELETE note;",
+    "REMOVE TABLE note;",
+    "DEFINE TABLE evil SCHEMALESS;",
+    "SELECT * FROM fn::current_decisions();",
+  ];
+  for (const write of [false, true]) {
+    for (const surql of rejectedQueries) {
+      await assert.rejects(
+        () => store.caseQuery(s, { surql, write }),
+        /read-only|SELECT-only/i,
+        `expected raw query to reject with write=${write}: ${surql}`,
+      );
+    }
+  }
+  const inspected = await store.caseQuery(s, { surql: "SELECT * FROM note;", write: false });
+  assert.equal(inspected.results[0].length, 5);
+  assert.equal(inspected.truncated, false);
 
   // Row cap: insert 205 events, confirm a plain SELECT caps at 200 and flags truncated.
   for (let i = 0; i < 205; i++) {
@@ -163,7 +199,7 @@ test("case_put then case_search in the SAME connection returns the record — sa
   // file (not mem://) in a scratch OS temp directory, reusing the SAME
   // cached `getStore()` connection both calls would use in a real server
   // process, to catch any same-session/connection-reuse regression.
-  const dir = mkdtempSync(join(tmpdir(), "fct-store-sesvis-"));
+  const dir = createRetainedFixtureDirectory("fct-store-sesvis");
   const dbPath = join(dir, "case.db").replace(/\\/g, "/");
   store.resetStoreForTests();
   const s = await store.getStore(dbPath);
@@ -184,11 +220,6 @@ test("case_put then case_search in the SAME connection returns the record — sa
   );
 
   await store.closeAllStoresForTests();
-  try {
-    rmSync(dir, { recursive: true, force: true });
-  } catch {
-    // best-effort cleanup; see the identical note on the absolute-path regression test above.
-  }
 });
 
 test("case_search: hybrid mode without embeddings configured degrades to text and still returns hits", async () => {
@@ -264,9 +295,18 @@ test("case_export -> case_import round trip preserves records and edges", async 
     data: { label: "Ex 1", occurred_at: "2026-08-01T10:00:00Z", known_at: "2026-08-01T12:00:00Z" },
     relations: [{ edge: "evidences", from: "exhibit:x1", to: "event:e1" }],
   });
-  await store.casePut(s1, { table: "child", id: "c1", data: { initials: "A.B.", age: 5 } });
+  await store.casePut(s1, { table: "child", id: "c1", data: { name: "Quinn Samplechild", initials: "Q.S.", age: 5 } });
+  await store.casePut(s1, { table: "source", id: "personal-source", data: { kind: "case_document", title: "Quinn Samplechild private statement" } });
+  await s1.db.query("UPSERT $rid CONTENT $data;", {
+    rid: store.parseRef("reference:retained-rule"),
+    data: { kind: "behavior_pattern", key: "retained-rule", category: "synthetic", pattern: "sample", definition: "Imported rule draft must not publish directly" },
+  });
+  await s1.db.query("UPSERT $rid CONTENT $data;", {
+    rid: store.parseRef("source:legal-authority"),
+    data: { kind: "statute", title: "Synthetic imported authority" },
+  });
 
-  const tmpDir = mkdtempSync(join(tmpdir(), "fct-store-export-"));
+  const tmpDir = createRetainedFixtureDirectory("fct-store-export");
   const exportPath = join(tmpDir, "snapshot.json");
   const exp = await store.caseExport(s1, exportPath);
   assert.equal(exp.path, exportPath);
@@ -277,14 +317,42 @@ test("case_export -> case_import round trip preserves records and edges", async 
 
   store.resetStoreForTests();
   const s2 = await store.getStore("mem://");
+  await s2.db.query("UPSERT $rid CONTENT $data;", {
+    rid: store.parseRef("reference:retained-rule"),
+    data: { kind: "behavior_pattern", key: "retained-rule", category: "published", pattern: "published-rule", definition: "Published reference remains untouched" },
+  });
+  await s2.db.query("UPSERT $rid CONTENT $data;", {
+    rid: store.parseRef("source:legal-authority"),
+    data: { kind: "statute", title: "Published authority remains untouched" },
+  });
   const imp = await store.caseImport(s2, exportPath);
   assert.equal(imp.kind, "snapshot");
   assert.equal(imp.counts.event, 1);
+  assert.equal(imp.counts.reference, 1);
+  assert.equal(imp.counts.source, 2);
+  assert.equal(imp.library_proposals.length, 2);
+  assert.ok(imp.library_proposals.every((proposal) => proposal.status === "citation_required"));
+  const retainedLibraryRows = await store.caseQuery(s2, { surql: "SELECT proposed_record, status FROM library_proposal;" });
+  assert.equal(retainedLibraryRows.results[0].length, 2);
+  assert.ok(retainedLibraryRows.results[0].some((row) => row.proposed_record.title === "Synthetic imported authority"));
+  assert.ok(retainedLibraryRows.results[0].some((row) => row.proposed_record.definition === "Imported rule draft must not publish directly"));
 
   const graph = await store.caseGraph(s2, { id: "event:e1" });
   assert.ok(graph.neighbors.some((n) => n.id === "exhibit:x1" && n.edge === "evidences"));
 
-  rmSync(tmpDir, { recursive: true, force: true });
+  const importedChild = await store.caseQuery(s2, { surql: "SELECT * FROM child:c1;" });
+  assert.equal(importedChild.results[0][0].name, "Quinn Samplechild");
+  const personalSourceId = store.parseRef("source:personal-source");
+  const importedPersonalSource = await store.caseQuery(s2, { surql: "SELECT * FROM $rid;", params: { rid: personalSourceId } });
+  assert.equal(importedPersonalSource.results[0][0].title, "Quinn Samplechild private statement");
+  const importedReference = await store.caseReferenceList(s2, { kind: "behavior_pattern" });
+  assert.equal(importedReference.length, 1);
+  assert.equal(importedReference[0].definition, "Published reference remains untouched");
+  const publishedAuthority = await store.caseQuery(s2, {
+    surql: "SELECT * FROM $rid;",
+    params: { rid: store.parseRef("source:legal-authority") },
+  });
+  assert.equal(publishedAuthority.results[0][0].title, "Published authority remains untouched");
 });
 
 test("case_summary returns the case_facts-compatible shape", async () => {
@@ -297,7 +365,9 @@ test("case_summary returns the case_facts-compatible shape", async () => {
   assert.equal(summary.configured, true);
   assert.equal(summary.source, "surrealdb-case-store");
   assert.equal(summary.children.count, 1);
-  assert.deepEqual(summary.children.entries, [{ initials: "E.F.", age: 7 }]);
+  assert.equal(summary.children.entries[0].initials, "E.F.");
+  assert.equal(summary.children.entries[0].age, 7);
+  assert.ok(summary.case_context.children[0].id);
   assert.equal(summary.controlling_orders.length, 1);
   assert.equal(summary.controlling_orders[0].title, "Judgment of Divorce");
   assert.equal(summary.deadlines.length, 1);
@@ -314,8 +384,8 @@ test("store.ts degrades gracefully when the native module cannot load (simulated
   // intentionally invalid rocksdb path parent that cannot be created (a file
   // masquerading as a directory) still returns { available: false, reason }
   // rather than throwing.
-  const { writeFileSync, mkdtempSync: mkdtemp } = await import("node:fs");
-  const dir = mkdtemp(join(tmpdir(), "fct-store-bad-"));
+  const { writeFileSync } = await import("node:fs");
+  const dir = createRetainedFixtureDirectory("fct-store-bad");
   const blockerFile = join(dir, "blocker");
   writeFileSync(blockerFile, "not a directory");
   store.resetStoreForTests();
@@ -324,7 +394,7 @@ test("store.ts degrades gracefully when the native module cannot load (simulated
   assert.match(bad.reason, /failed to open case store/);
 });
 
-test("regression: a Windows absolute drive path (C:/...) opens at the real location, not relative to cwd", async () => {
+test("regression: a Windows absolute drive path (C:/...) opens at the real location, not relative to cwd", { skip: process.platform !== "win32" }, async () => {
   // Found live while running the CLI against a scratch rocksdb path: passing
   // an absolute Windows path straight into "rocksdb://<path>" mis-parses the
   // drive letter as a URL authority and silently drops it, creating the
@@ -334,7 +404,7 @@ test("regression: a Windows absolute drive path (C:/...) opens at the real locat
   // path and asserts both that data lands there AND that no bogus relative
   // "C/" directory appears under cwd.
   const { existsSync } = await import("node:fs");
-  const dir = mkdtempSync(join(tmpdir(), "fct-store-abs-"));
+  const dir = createRetainedFixtureDirectory("fct-store-abs");
   const absPath = join(dir, "case.db").replace(/\\/g, "/");
   assert.match(absPath, /^[A-Za-z]:\//, "this regression only applies on Windows-style absolute paths");
 
@@ -347,16 +417,8 @@ test("regression: a Windows absolute drive path (C:/...) opens at the real locat
   const bogusRelative = join(process.cwd(), absPath.slice(0, 1) + absPath.slice(2)); // "C:/x" -> "<cwd>/C/x"
   assert.ok(!existsSync(bogusRelative), `expected no bogus relative directory at ${bogusRelative}`);
 
-  // Close before removing — rocksdb holds its LOCK file open until closed.
-  // Windows can still hold the handle a moment past close() (native async
-  // teardown), so cleanup failure here is not part of the regression this
-  // test checks — swallow it rather than fail the test over housekeeping.
+  // Close the native store before leaving the generated database in quarantine.
   await store.closeAllStoresForTests();
-  try {
-    rmSync(dir, { recursive: true, force: true });
-  } catch {
-    // best-effort; the OS temp directory will reclaim this eventually.
-  }
 });
 
 // ---------------------------------------------------------------------------
@@ -482,8 +544,19 @@ test("case_eval: put + list by kind/subject", async () => {
 
 test("case_reference: load from a file, list by kind/category, and match text with spans (pattern + alias)", async () => {
   const s = await freshStore();
-  const tmpDir = mkdtempSync(join(tmpdir(), "fct-store-ref-"));
+  const tmpDir = createRetainedFixtureDirectory("fct-store-ref");
   try {
+    await s.db.query("UPSERT $rid CONTENT $data;", {
+      rid: store.parseRef("reference:test-darvo"),
+      data: {
+        kind: "behavior_pattern",
+        key: "test-darvo",
+        category: "published",
+        pattern: "published-rule",
+        definition: "Existing published reference remains unchanged",
+        aliases: ["published-alias"],
+      },
+    });
     const refPath = join(tmpDir, "patterns.json");
     writeFileSync(
       refPath,
@@ -504,42 +577,61 @@ test("case_reference: load from a file, list by kind/category, and match text wi
 
     const loaded = await store.caseReferenceLoad(s, { path: refPath });
     assert.equal(loaded.counts, 1);
+    assert.deepEqual(loaded.loaded_from, [refPath]);
+    assert.equal(loaded.library_proposals.length, 1);
+    assert.equal(loaded.library_proposals[0].status, "citation_required");
+    const draftRows = await store.caseQuery(s, { surql: "SELECT proposed_record FROM library_proposal;" });
+    assert.equal(draftRows.results[0][0].proposed_record.pattern, "\\bDARVO\\b");
+    assert.equal(draftRows.results[0][0].proposed_record.source.path, refPath);
 
     const list = await store.caseReferenceList(s, { kind: "behavior_pattern" });
     assert.equal(list.length, 1);
-    assert.equal(list[0].category, "manipulation");
+    assert.equal(list[0].category, "published");
+    assert.equal(list[0].definition, "Existing published reference remains unchanged");
 
     const patternHits = await store.caseReferenceMatch(s, "He responded with classic DARVO tactics.");
-    const patternHit = patternHits.find((h) => h.matched === "DARVO" && h.via === "pattern");
-    assert.ok(patternHit, "expected a pattern-regex hit on DARVO");
-    assert.deepEqual(patternHit.span, [26, 31]);
+    assert.deepEqual(patternHits, [], "an imported proposal is not available to published-reference matching");
 
-    const aliasHits = await store.caseReferenceMatch(s, "This looks like deny-attack-reverse behavior.");
-    assert.ok(aliasHits.some((h) => h.via === "alias"), "expected an alias hit");
+    const patternText = "This matches published-rule.";
+    const publishedHits = await store.caseReferenceMatch(s, patternText);
+    const publishedPatternHit = publishedHits.find((h) => h.via === "pattern");
+    assert.ok(publishedPatternHit, "existing published references remain available");
+    const patternStart = patternText.indexOf("published-rule");
+    assert.deepEqual(publishedPatternHit.span, [patternStart, patternStart + "published-rule".length]);
+    const aliasHits = await store.caseReferenceMatch(s, "This uses a published-alias.");
+    assert.ok(aliasHits.some((h) => h.via === "alias"), "existing published aliases remain matchable");
   } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
+    // Generated reference fixtures remain in ignored to_be_deleted for owner-controlled cleanup.
   }
 });
 
-test("case_reference: load --from-plugin ingests content/reference/*.json AND the existing court-language lexicon.json (mapped to kind:lexicon)", async () => {
+test("case_reference: plugin imports are retained as proposals without publishing bundled references or lexicon rows", async () => {
   const s = await freshStore();
-  const pluginRoot = resolve("..");
+  const pluginRoot = process.env.FCT_TEST_PLUGIN_ROOT ?? resolve("..");
   const loaded = await store.caseReferenceLoad(s, { fromPlugin: true, pluginRoot });
   assert.ok(loaded.loaded_from.some((f) => f.replace(/\\/g, "/").endsWith("content/reference/behavior-patterns.example.json")), "expected the example reference file to be loaded");
   assert.ok(loaded.loaded_from.some((f) => f.replace(/\\/g, "/").endsWith("content/tools/court-language/lexicon.json")), "expected the existing court-language lexicon to be loaded");
-  assert.ok(loaded.counts >= 15, `expected at least 15 rows (3 example + 12 lexicon), got ${loaded.counts}`);
+  assert.ok(loaded.counts >= 15, `expected at least 15 retained rows (3 example + 12 lexicon), got ${loaded.counts}`);
+  assert.equal(loaded.library_proposals.length, loaded.counts);
+  assert.ok(loaded.library_proposals.every((proposal) => proposal.status === "citation_required"));
+  const draftRows = await store.caseQuery(s, { surql: "SELECT proposed_record FROM library_proposal;" });
+  const proposedReferences = draftRows.results[0].map((row) => row.proposed_record);
+  assert.ok(proposedReferences.filter((row) => row.kind === "behavior_pattern").length >= 2);
+  assert.ok(proposedReferences.some((row) => row.kind === "lexicon"
+    && row.category === "banned_clinical_labels"
+    && typeof row.definition === "string"
+    && row.definition.length > 0));
 
   const lexiconRows = await store.caseReferenceList(s, { kind: "lexicon" });
-  assert.equal(lexiconRows.length, 12);
-  assert.ok(lexiconRows.some((r) => r.category === "banned_clinical_labels" && typeof r.definition === "string" && r.definition.length > 0));
+  assert.equal(lexiconRows.length, 0);
 
   const patternRows = await store.caseReferenceList(s, { kind: "behavior_pattern" });
-  assert.ok(patternRows.length >= 2);
+  assert.equal(patternRows.length, 0);
 });
 
 test("case_source: returns a record's source block, local path existence, and the r2 pointer (no network calls)", async () => {
   const s = await freshStore();
-  const tmpDir = mkdtempSync(join(tmpdir(), "fct-store-source-"));
+  const tmpDir = createRetainedFixtureDirectory("fct-store-source");
   try {
     const realFile = join(tmpDir, "real.txt");
     writeFileSync(realFile, "hello");
@@ -555,8 +647,38 @@ test("case_source: returns a record's source block, local path existence, and th
     assert.equal(missing.path_exists, false);
     assert.equal(missing.r2_path, null);
   } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
+    // Generated source files remain in ignored to_be_deleted for owner-controlled cleanup.
   }
+});
+
+test("case_put accepts personal case_document sources and atomically protects existing library sources", async () => {
+  const s = await freshStore();
+  const saved = await store.casePut(s, {
+    table: "source",
+    id: "personal-source",
+    data: { kind: "case_document", title: "Quinn Samplechild private statement" },
+  });
+  assert.equal(saved.record.kind, "case_document");
+  assert.equal(saved.record.title, "Quinn Samplechild private statement");
+
+  await s.db.query("UPSERT $rid CONTENT $data;", {
+    rid: store.parseRef("source:published-authority"),
+    data: { kind: "statute", title: "Published synthetic authority" },
+  });
+  await assert.rejects(
+    () => store.casePut(s, {
+      table: "source",
+      id: "published-authority",
+      data: { kind: "case_document", title: "Replacement private document" },
+    }),
+    /Existing library sources require governed revision/,
+  );
+  const authority = await store.caseQuery(s, {
+    surql: "SELECT * FROM $rid;",
+    params: { rid: store.parseRef("source:published-authority") },
+  });
+  assert.equal(authority.results[0][0].kind, "statute");
+  assert.equal(authority.results[0][0].title, "Published synthetic authority");
 });
 
 test("case_search: hits include the record's source block when present", async () => {
@@ -572,9 +694,9 @@ test("case_search: hits include the record's source block when present", async (
   assert.equal(hit.source.row, "A1");
 });
 
-test("case_import_extract: a case-extract/v1 envelope substitutes a child's name (and its aliases) for initials everywhere, and re-import is idempotent", async () => {
+test("case_import_extract: personal names and narratives are retained while library rows become citation-required proposals", async () => {
   const s = await freshStore();
-  const tmpDir = mkdtempSync(join(tmpdir(), "fct-store-extract-"));
+  const tmpDir = createRetainedFixtureDirectory("fct-store-extract");
   try {
     const envelope = {
       schema: "case-extract/v1",
@@ -583,10 +705,11 @@ test("case_import_extract: a case-extract/v1 envelope substitutes a child's name
       extractor: "test",
       confidence: "high",
       records: [
-        { id: "T1-1", type: "person", name: "Testina Childperson", role: "child", relationship: "Minor Child", aliases: ["Testy"] },
-        { id: "T1-2", type: "event", occurred_at: "2024-05-01", description: "Birth of Testina Childperson was celebrated; everyone calls her Testy." },
+        { id: "T1-1", type: "person", name: "Quinn Samplechild", role: "child", relationship: "Minor Child", aliases: ["Q. Sample"] },
         { id: "T1-3", type: "court_event", kind: "hearing", date: "2099-01-01", title: "Upcoming hearing" },
         { id: "T1-4", type: "entity_rule", pattern: "\\btest-pattern\\b", category: "manipulation" },
+        { id: "T1-5", type: "source_authority", title: "Synthetic authority proposal", citation: "Synthetic citation locator" },
+        { id: "T1-2", type: "event", occurred_at: "2024-05-01", description: "Quinn Samplechild described the private event; family alias Q. Sample." },
       ],
     };
     const envPath = join(tmpDir, "extract.json");
@@ -599,21 +722,37 @@ test("case_import_extract: a case-extract/v1 envelope substitutes a child's name
     assert.equal(result.counts.event, 1);
     assert.equal(result.counts.court_event, 1);
     assert.equal(result.counts.reference, 1);
+    assert.equal(result.counts.source, 1);
+    assert.equal(result.library_proposals.length, 2);
+    assert.ok(result.library_proposals.every((proposal) => proposal.status === "citation_required"));
+    const drafts = await store.caseQuery(s, { surql: "SELECT proposed_record FROM library_proposal;" });
+    const proposedRecords = drafts.results[0].map((row) => row.proposed_record);
+    assert.ok(proposedRecords.some((record) => record.type === "source_authority"
+      && record.title === "Synthetic authority proposal"
+      && record.citation === "Synthetic citation locator"
+      && record.source.row === "T1"));
+    assert.ok(proposedRecords.some((record) => record.kind === "behavior_pattern"
+      && record.pattern === "\\btest-pattern\\b"
+      && record.key === "T1-4"));
 
     const childRid = store.parseRef("child:T1-1");
     const childRows = await store.caseQuery(s, { surql: "SELECT * FROM $rid;", params: { rid: childRid } });
     const childRecord = childRows.results[0][0];
-    assert.equal(childRecord.initials, "T.C.");
-    assert.equal(childRecord.name, undefined, "child records must never carry a name field");
+    assert.equal(childRecord.initials, "Q.S.");
+    assert.equal(childRecord.name, "Quinn Samplechild");
+    assert.deepEqual(childRecord.aliases, ["Q. Sample"]);
     assert.equal(childRecord.source.row, "T1");
     assert.equal(childRecord.extract_id, "T1-1");
 
     const eventRid = store.parseRef("event:T1-2");
     const eventRows = await store.caseQuery(s, { surql: "SELECT * FROM $rid;", params: { rid: eventRid } });
     const eventRecord = eventRows.results[0][0];
-    assert.ok(!eventRecord.description.includes("Testina"), "the child's full name must never survive into free text");
-    assert.ok(!eventRecord.description.includes("Testy"), "the child's alias must never survive into free text either");
-    assert.match(eventRecord.description, /T\.C\./);
+    assert.equal(eventRecord.description, "Quinn Samplechild described the private event; family alias Q. Sample.");
+
+    const unpublishedReferences = await store.caseReferenceList(s, {});
+    assert.deepEqual(unpublishedReferences, [], "entity_rule imports remain proposals until validated and published");
+    const unpublishedSources = await store.caseQuery(s, { surql: "SELECT * FROM source;" });
+    assert.deepEqual(unpublishedSources.results[0], [], "source_authority imports do not overwrite published sources");
 
     // Idempotency: re-running the same import must not duplicate records.
     const childCountBefore = (await store.caseQuery(s, { surql: "SELECT count() AS c FROM child GROUP ALL;" })).results[0][0].c;
@@ -624,13 +763,13 @@ test("case_import_extract: a case-extract/v1 envelope substitutes a child's name
     assert.equal(childCountAfter, childCountBefore);
     assert.equal(eventCountAfter, eventCountBefore);
   } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
+    // Generated extract envelopes remain in ignored to_be_deleted for owner-controlled cleanup.
   }
 });
 
 test("case_import_extract: walking a directory tree skips _INDEX.json and _SCHEMA* files", async () => {
   const s = await freshStore();
-  const tmpDir = mkdtempSync(join(tmpdir(), "fct-store-extract-dir-"));
+  const tmpDir = createRetainedFixtureDirectory("fct-store-extract-dir");
   try {
     const rowDir = join(tmpDir, "T2");
     mkdirSync(rowDir, { recursive: true });
@@ -653,13 +792,13 @@ test("case_import_extract: walking a directory tree skips _INDEX.json and _SCHEM
     assert.equal(result.files_skipped.length, 0);
     assert.equal(result.counts.note, 1);
   } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
+    // Generated extract envelopes remain in ignored to_be_deleted for owner-controlled cleanup.
   }
 });
 
 test("case_import: routes a case-extract/v1 file to the extract importer automatically (kind: 'case-extract')", async () => {
   const s = await freshStore();
-  const tmpDir = mkdtempSync(join(tmpdir(), "fct-store-import-extract-"));
+  const tmpDir = createRetainedFixtureDirectory("fct-store-import-extract");
   try {
     const envPath = join(tmpDir, "extract.json");
     writeFileSync(
@@ -674,8 +813,29 @@ test("case_import: routes a case-extract/v1 file to the extract importer automat
     assert.equal(result.kind, "case-extract");
     assert.equal(result.counts.note, 1);
   } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
+    // Generated extract envelopes remain in ignored to_be_deleted for owner-controlled cleanup.
   }
+});
+
+test("importVincentSchema preserves full synthetic personal details and narrative text", async () => {
+  const s = await freshStore();
+  const counts = await store.importVincentSchema(s, {
+    parties: [{ name: "Quinn Samplechild", role: "child", age: 8, relationship: "child" }],
+    timeline: [{ date: "2024-05-01", event: "Quinn Samplechild shared a private family detail." }],
+    documents: [{ title: "Quinn Samplechild private statement.pdf" }],
+  });
+  assert.equal(counts.child, 1);
+  assert.equal(counts.event, 1);
+  assert.equal(counts.source, 1);
+
+  const children = await store.caseQuery(s, { surql: "SELECT * FROM child;" });
+  assert.equal(children.results[0][0].name, "Quinn Samplechild");
+  assert.equal(children.results[0][0].initials, "Q.S.");
+  assert.equal(children.results[0][0].age, 8);
+  const events = await store.caseQuery(s, { surql: "SELECT * FROM event;" });
+  assert.equal(events.results[0][0].description, "Quinn Samplechild shared a private family detail.");
+  const sources = await store.caseQuery(s, { surql: "SELECT * FROM source;" });
+  assert.equal(sources.results[0][0].title, "Quinn Samplechild private statement.pdf");
 });
 
 test("sidecar compatibility aliases: caseMemo/caseStatus/caseSource/caseReference/caseEvidenceLog/caseEvals resolve by the exact names app/sidecar/lib/store-client.mjs dispatches", async () => {
@@ -712,6 +872,7 @@ test("sidecar compatibility aliases: caseMemo/caseStatus/caseSource/caseReferenc
 test("case_export: format 'platform' writes one NDJSON per table, edges.ndjson, and manifest.json", async () => {
   const s = await freshStore();
   await store.casePut(s, { table: "event", id: "e1", data: { occurred_at: "2026-01-01T00:00:00Z", known_at: "2026-01-01T00:00:00Z", description: "seed event" } });
+  await store.casePut(s, { table: "child", id: "private-context", data: { name: "Quinn Samplechild", aliases: ["Q. Sample"], initials: "Q.S.", age: 8 } });
   await store.casePut(s, {
     table: "exhibit",
     id: "x1",
@@ -719,20 +880,27 @@ test("case_export: format 'platform' writes one NDJSON per table, edges.ndjson, 
     relations: [{ edge: "evidences", from: "exhibit:x1", to: "event:e1" }],
   });
 
-  const tmpDir = mkdtempSync(join(tmpdir(), "fct-store-platform-"));
+  const tmpDir = createRetainedFixtureDirectory("fct-store-platform");
   try {
     const outDir = join(tmpDir, "bundle");
     const result = await store.caseExportPlatform(s, outDir);
     assert.equal(result.dir, outDir);
     assert.ok(existsSync(join(outDir, "manifest.json")));
     assert.ok(existsSync(join(outDir, "event.ndjson")));
+    assert.ok(existsSync(join(outDir, "child.ndjson")));
     assert.ok(existsSync(join(outDir, "exhibit.ndjson")));
     assert.ok(existsSync(join(outDir, "edges.ndjson")));
 
     const manifest = JSON.parse(readFileSync(join(outDir, "manifest.json"), "utf8"));
     assert.equal(manifest.schema, "fct-platform-bundle/v1");
-    assert.equal(manifest.redaction.children, "initials+age");
+    assert.equal(manifest.personal_context, "preserved");
     assert.equal(manifest.counts.event, 1);
+    assert.equal(manifest.counts.child, 1);
+
+    const childLines = readFileSync(join(outDir, "child.ndjson"), "utf8").trim().split("\n");
+    const childRow = JSON.parse(childLines[0]);
+    assert.equal(childRow.name, "Quinn Samplechild");
+    assert.deepEqual(childRow.aliases, ["Q. Sample"]);
 
     const eventLines = readFileSync(join(outDir, "event.ndjson"), "utf8").trim().split("\n");
     assert.equal(eventLines.length, 1);
@@ -745,6 +913,6 @@ test("case_export: format 'platform' writes one NDJSON per table, edges.ndjson, 
     const edgeRow = JSON.parse(edgeLines[0]);
     assert.equal(edgeRow.edge, "evidences");
   } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
+    // Generated platform bundles remain in ignored to_be_deleted for owner-controlled cleanup.
   }
 });

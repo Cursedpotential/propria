@@ -6,6 +6,8 @@
 // Sibling: ../evidence-catalog/page.tsx.
 import Link from "next/link";
 import { legalApiBase } from "@/lib/api/client";
+import { LibraryProposalEditor } from "@/components/LibraryProposalEditor";
+import { SharedCaseRecordEditor, type PersonalTable } from "@/components/SharedCaseRecordEditor";
 
 type Status = { configured: boolean; reachable: boolean; detail: string; contract: string };
 type Listing = { table: string; items: { id: string; title: string }[] };
@@ -28,6 +30,17 @@ const TABLES = [
   { id: "note", label: "Notes" },
   { id: "memo", label: "Memos" },
   { id: "factor", label: "Best-interest factors" },
+  { id: "person", label: "People" },
+  { id: "child", label: "Children" },
+  { id: "court", label: "Court" },
+  { id: "hearing", label: "Hearings" },
+  { id: "deadline", label: "Dates and deadlines" },
+  { id: "event", label: "Events" },
+  { id: "court_event", label: "Court events" },
+  { id: "message", label: "Messages" },
+  { id: "evidence_log", label: "Evidence log" },
+  { id: "eval", label: "Evaluations" },
+  { id: "case_status", label: "Case status" },
 ] as const;
 
 const muted = { color: "var(--text-muted)" } as const;
@@ -55,7 +68,7 @@ function bodyText(record: Record<string, unknown>): string | null {
 export default async function ToolkitPage({
   searchParams,
 }: {
-  searchParams: Promise<{ table?: string; id?: string }>;
+  searchParams: Promise<{ table?: string; id?: string; new?: string; kind?: string }>;
 }) {
   const params = await searchParams;
   const table = TABLES.some((t) => t.id === params.table) ? params.table! : "source";
@@ -68,13 +81,15 @@ export default async function ToolkitPage({
     status = await getJson<Status>("/v1/toolkit/status");
     if (status.configured && status.reachable) {
       if (params.id) detail = await getJson<ToolkitRecord>(`/v1/toolkit/records/${encodeURIComponent(params.id)}`);
-      else listing = await getJson<Listing>(`/v1/toolkit/records?table=${table}`);
+      else if (params.new !== "1") listing = await getJson<Listing>(`/v1/toolkit/records?table=${table}`);
     }
   } catch (exc) {
     error = exc instanceof Error ? exc.message : "legal-api unreachable";
   }
 
   const body = detail ? bodyText(detail.record) : null;
+  const personalSource = detail?.table === "source" && detail.record.kind === "case_document";
+  const creatingPersonal = table !== "reference" && (table !== "source" || params.kind === "case_document");
 
   return (
     <>
@@ -87,6 +102,11 @@ export default async function ToolkitPage({
           </Link>
         ))}
       </nav>
+      {!detail ? (
+        <p><Link href={href({ table, new: "1" })}>{table === "source" || table === "reference" ? "Propose a new" : "Create a personal"} {table}</Link>
+          {table === "source" ? <> · <Link href={href({ table, new: "1", kind: "case_document" })}>Add a personal case document</Link></> : null}
+        </p>
+      ) : null}
       <p>
         <Link href="/toolkit/tools">Run toolkit tools →</Link>
       </p>
@@ -110,7 +130,18 @@ export default async function ToolkitPage({
           {body ? <pre style={{ whiteSpace: "pre-wrap" }}>{body}</pre> : null}
           <h3>Record</h3>
           <pre style={{ whiteSpace: "pre-wrap", ...mono }}>{JSON.stringify(detail.record, null, 2)}</pre>
+          {(detail.table === "source" && !personalSource) || detail.table === "reference" ? (
+            <LibraryProposalEditor key={detail.id} table={detail.table as "source" | "reference"} initialId={detail.id} expectedVersion={detail.version} initialPatch={detail.record} />
+          ) : (
+            <SharedCaseRecordEditor key={detail.id} table={detail.table as PersonalTable} initialId={detail.id} expectedVersion={detail.version} initialRecord={detail.record} />
+          )}
         </article>
+      ) : null}
+
+      {params.new === "1" ? creatingPersonal ? (
+        <SharedCaseRecordEditor key={`${table}:new-personal`} table={table as PersonalTable} />
+      ) : (
+        <LibraryProposalEditor key={`${table}:new-library`} table={table as "source" | "reference"} />
       ) : null}
 
       {listing && listing.table === "factor" ? (

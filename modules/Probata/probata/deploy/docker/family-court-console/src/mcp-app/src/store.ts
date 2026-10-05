@@ -38,7 +38,9 @@
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
+import { migrateLibrary, migratePersonalCaseContext, putPersonalCaseSource, putVersionedPersonalRecord, retainLibraryImport } from "./case-library.js";
 
 // ---------------------------------------------------------------------------
 // Tables, edges, factors
@@ -162,16 +164,25 @@ function toOpaqueIfWindowsDriveAbsolute(url: string): string {
   return match ? `${match[1]}:${match[2]}` : url;
 }
 
+/** Resolve an explicitly selected shared endpoint without creating a private fallback database.
+ * Inputs: configured URL and whether an isolated caller explicitly supplied a local engine.
+ * Outputs: normalized database URL. Effects: none; rejects missing or implicit local configuration.
+ * Choose before opening a connection so configuration failure cannot split the shared case store.
+ * Byline: Codex · GPT-6 · 2026-10-04.
+ */
+export function resolveConfiguredDbUrl(raw: string | undefined, explicitLocal = false): string {
+  const value = raw?.trim();
+  if (!value) throw new Error("Shared case store is not configured: set CUSTODY_CASE_DB to the hosted SurrealDB endpoint");
+  if (/^(wss?|https?):\/\//i.test(value)) return value;
+  if (!explicitLocal) throw new Error("CUSTODY_CASE_DB must select the shared hosted SurrealDB endpoint; local engines require an explicit isolated override");
+  const url = value.includes("://") || /^[a-z][a-z0-9+.-]*:[A-Za-z]:[/\\]/i.test(value)
+    ? value : `rocksdb://${value.replace(/\\/g, "/")}`;
+  return toOpaqueIfWindowsDriveAbsolute(url);
+}
+
 function resolveDbUrl(override?: string): string {
-  // Precedence: explicit override > CUSTODY_CASE_DB env > CUSTODY_CASE_DB in ~/.secrets/*.env
-  // (written by scripts/install_case_db_service.py so EVERY harness finds the shared ws:// server
-  // without per-harness env plumbing) > embedded rocksdb at the default path.
-  const raw = override ?? process.env.CUSTODY_CASE_DB?.trim() ?? findSecretsValue("CUSTODY_CASE_DB");
-  if (raw && raw.length > 0) {
-    const url = raw.includes("://") ? raw : `rocksdb://${raw.replace(/\\/g, "/")}`;
-    return toOpaqueIfWindowsDriveAbsolute(url);
-  }
-  return toOpaqueIfWindowsDriveAbsolute(`rocksdb://${defaultDbPath().replace(/\\/g, "/")}`);
+  const raw = override ?? (process.env.CUSTODY_CASE_DB?.trim() || findSecretsValue("CUSTODY_CASE_DB"));
+  return resolveConfiguredDbUrl(raw, override !== undefined);
 }
 
 function parsePositiveInt(value: string | undefined): number | null {
@@ -407,7 +418,8 @@ async function openStore(url: string): Promise<StoreResult> {
   }
 
   try {
-    if (!url.startsWith("mem://")) {
+    const remote = /^(wss?|https?):\/\//i.test(url);
+    if (!remote && !url.startsWith("mem://")) {
       // rocksdb:// (and any other file-backed engine) URLs carry a plain
       // filesystem path after the scheme, forward-slashed even on Windows
       // (verified live) — node's path.dirname() accepts both separators.
@@ -422,7 +434,6 @@ async function openStore(url: string): Promise<StoreResult> {
     // Remote URLs (ws/wss/http/https -> the shared SurrealDB service in ~) must use the SDK's
     // built-in engines: passing createNodeEngines() REPLACES the engine map with mem/rocksdb/
     // surrealkv only, which is why ws:// failed with 'The engine "ws" is not supported' (2026-09-07).
-    const remote = /^(wss?|https?):\/\//i.test(url);
     const db = remote
       ? new (driver.mod.Surreal as unknown as new () => SurrealLike)()
       : new driver.mod.Surreal({ engines: createNodeEngines() });
@@ -449,7 +460,9 @@ async function openStore(url: string): Promise<StoreResult> {
 }
 
 export async function getStore(urlOverride?: string): Promise<StoreResult> {
-  const url = resolveDbUrl(urlOverride);
+  let url: string;
+  try { url = resolveDbUrl(urlOverride); }
+  catch (error) { return { available: false, reason: error instanceof Error ? error.message : String(error) }; }
   if (cachedStore && cachedUrl === url) return cachedStore;
   cachedUrl = url;
   cachedStore = openStore(url);
@@ -457,6 +470,8 @@ export async function getStore(urlOverride?: string): Promise<StoreResult> {
 }
 
 async function migrate(db: SurrealLike, mod: SurrealModule): Promise<number> {
+  await migrateLibrary({ db });
+  await migratePersonalCaseContext({ db });
   await db.query("DEFINE TABLE IF NOT EXISTS meta SCHEMALESS;");
 
   const existing = await db.query<Array<{ embed_dim?: number }>>("SELECT embed_dim FROM meta:config;");
@@ -468,26 +483,9 @@ async function migrate(db: SurrealLike, mod: SurrealModule): Promise<number> {
 
   const ddl: string[] = [];
   for (const table of DATA_TABLES) {
-    if (table === "child") continue; // child is SCHEMAFULL, defined separately below
+    if (table === "child") continue; // personal-context migration retains existing fields above
     ddl.push(`DEFINE TABLE IF NOT EXISTS ${ident(table)} SCHEMALESS;`);
   }
-  // child: SCHEMAFULL so the database itself rejects any "name" field, in
-  // addition to the application-level rejection in casePut().
-  ddl.push("DEFINE TABLE IF NOT EXISTS child SCHEMAFULL;");
-  ddl.push("DEFINE FIELD IF NOT EXISTS initials ON child TYPE string;");
-  ddl.push("DEFINE FIELD IF NOT EXISTS age ON child TYPE option<number>;");
-  // Provenance is allowed on `child` — the redaction guarantee is scoped to
-  // NAME only, never to source-linking. `option<T>` rejects an explicit NULL
-  // (verified live: "Expected none | number but found NULL" for `age`), so
-  // these fields must be OMITTED, not set to null, when unknown.
-  // FLEXIBLE — a SCHEMAFULL object field otherwise enforces its own nested
-  // shape too (verified live: "Found field 'source.locator', but no such
-  // field exists for table 'child'" without it), and the source block's
-  // shape varies by record type.
-  ddl.push("DEFINE FIELD IF NOT EXISTS source ON child TYPE option<object> FLEXIBLE;");
-  ddl.push("DEFINE FIELD IF NOT EXISTS extract_id ON child TYPE option<string>;");
-  ddl.push("DEFINE FIELD IF NOT EXISTS imported_at ON child TYPE option<string>;");
-
   for (const edge of EDGE_TABLES) {
     ddl.push(`DEFINE TABLE IF NOT EXISTS ${ident(edge)} TYPE RELATION SCHEMALESS;`);
   }
@@ -507,7 +505,7 @@ async function migrate(db: SurrealLike, mod: SurrealModule): Promise<number> {
 
   // Seed the 12 MCL 722.23 factors (idempotent: MERGE onto a stable id).
   for (const factor of FACTORS) {
-    await db.query("UPSERT $rid MERGE $data;", { rid: new mod.RecordId("factor", factor.letter), data: { letter: factor.letter, title: factor.title } });
+    await db.query("IF (SELECT VALUE id FROM ONLY $rid) = NONE { CREATE $rid CONTENT $data; };", { rid: new mod.RecordId("factor", factor.letter), data: { letter: factor.letter, title: factor.title } });
   }
   // One court record, per the "keep it simple" instruction — created empty
   // so `filed_in` edges and case_summary always have a stable target.
@@ -656,6 +654,7 @@ export interface CasePutRelation {
 export interface CasePutInput {
   table: DataTable;
   id?: string;
+  expected_version?: string;
   data: Record<string, unknown>;
   relations?: CasePutRelation[];
 }
@@ -667,11 +666,17 @@ export interface CasePutResult {
   relations: Array<{ edge: EdgeTable; from: string; to: string }>;
 }
 
+/** Save admitted private case fields and optionally retain an exact-version edit atomically.
+ * Inputs: table/key, changed fields, optional expected version and relations. Outputs: shared saved record and relation identities.
+ * Effects: shared store merge/revision and requested edges. Choose for personal records; legal library edits use library proposals.
+ * Byline: Codex · GPT-6 · 2026-10-04.
+ */
 export async function casePut(store: StoreOk, input: CasePutInput): Promise<CasePutResult> {
-  if (!isDataTable(input.table)) throw new Error(`Unknown table "${input.table}". Known tables: ${DATA_TABLES.join(", ")}.`);
-  if (input.table === "child" && Object.prototype.hasOwnProperty.call(input.data ?? {}, "name")) {
-    throw new Error('child records may never carry a "name" field — use { initials, age } only. This is enforced at the application layer and by the database schema.');
+  if (input.table === "reference" || (input.table === "source" && input.data?.kind !== "case_document")) {
+    throw new Error("Library changes require library_propose and version-bound citation validation before library_publish");
   }
+  if (!isDataTable(input.table)) throw new Error(`Unknown table "${input.table}". Known tables: ${DATA_TABLES.join(", ")}.`);
+  if (input.expected_version !== undefined && !input.id) throw new Error("Version-bound edits require an explicit record id");
   const casted = castDateFields(input.table, input.data ?? {});
 
   // court_event.status: computed from date vs now WHEN ABSENT FROM THIS CALL'S
@@ -686,19 +691,13 @@ export async function casePut(store: StoreOk, input: CasePutInput): Promise<Case
   }
 
   let record: Record<string, unknown>;
-  let idString: string;
-  if (input.id) {
-    const rid = parseRef({ table: input.table, id: input.id });
-    const rows = await store.db.query<Record<string, unknown>[]>("UPSERT $rid MERGE $data RETURN AFTER;", { rid, data: casted });
-    record = rows.at(-1)?.[0] as Record<string, unknown>;
-    idString = input.id;
-  } else {
-    const rows = await store.db.query<Record<string, unknown>[]>("CREATE type::table($table) CONTENT $data RETURN AFTER;", { table: input.table, data: casted });
-    record = rows.at(-1)?.[0] as Record<string, unknown>;
-    const rid = record?.id as RecordIdLike;
-    const full = refToString(rid);
-    idString = full.includes(":") ? full.slice(full.indexOf(":") + 1) : full;
-  }
+  const idString = input.id ?? randomUUID();
+  const current = input.expected_version === undefined && input.id
+    ? await caseRecord(store, { table: input.table, id: idString }) : null;
+  const expected = input.expected_version ?? current?.version ?? "absent";
+  // Legacy callers still retain revisions; exact-version clients additionally bind their observed edit base.
+  if (input.table === "source") record = await putPersonalCaseSource(store, idString, casted, expected);
+  else record = await putVersionedPersonalRecord(store, input.table, idString, casted, expected);
 
   const relations: Array<{ edge: EdgeTable; from: string; to: string }> = [];
   for (const rel of input.relations ?? []) {
@@ -719,7 +718,6 @@ export async function casePut(store: StoreOk, input: CasePutInput): Promise<Case
 // case_query
 // ---------------------------------------------------------------------------
 
-const BLOCKED_WRITE_KEYWORDS = new Set(["DELETE", "REMOVE", "DEFINE"]);
 const ROW_CAP = 200;
 
 export interface CaseQueryInput {
@@ -734,14 +732,12 @@ export interface CaseQueryResult {
 }
 
 function assertQueryAllowed(surql: string, write: boolean | undefined): void {
-  if (write) return;
-  const statements = surql.split(";").map((s) => s.trim()).filter(Boolean);
-  for (const stmt of statements) {
-    const firstWord = /^[A-Za-z]+/.exec(stmt)?.[0]?.toUpperCase();
-    if (firstWord && BLOCKED_WRITE_KEYWORDS.has(firstWord)) {
-      throw new Error(`Statement "${firstWord}" requires write: true. Refused: ${stmt.slice(0, 120)}`);
-    }
-  }
+  if (write) throw new Error("Raw case queries are read-only; use governed record or library tools for writes");
+  const lexical = surql.replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|--[^\r\n]*/g, " ");
+  const statements = lexical.split(";").map(s => s.trim()).filter(Boolean);
+  if (!statements.length || statements.some(s => !/^SELECT\b/i.test(s))
+    || /\b(?:CREATE|INSERT|UPSERT|UPDATE|DELETE|REMOVE|DEFINE|RELATE|ALTER|REBUILD|FUNCTION|FOR|LET|BEGIN|COMMIT|CANCEL)\b|\b(?:fn|http|api|script)\s*::/i.test(lexical))
+    throw new Error("Raw case queries accept SELECT-only inspection without mutation or external function calls");
 }
 
 export async function caseQuery(store: StoreOk, input: CaseQueryInput): Promise<CaseQueryResult> {
@@ -1446,7 +1442,11 @@ export interface CaseReferenceLoadInput {
   pluginRoot?: string;
 }
 
-export async function caseReferenceLoad(store: StoreOk, input: CaseReferenceLoadInput): Promise<{ counts: number; loaded_from: string[] }> {
+/** Retain complete legacy reference imports as citation-required shared drafts.
+ * Inputs: explicit file or packaged reference roots. Outputs: counts, origin paths and retained proposal envelopes.
+ * Effects: draft writes only, never unvalidated reference publication. Choose for reference migration, not interactive case facts.
+ */
+export async function caseReferenceLoad(store: StoreOk, input: CaseReferenceLoadInput): Promise<{ counts: number; loaded_from: string[]; library_proposals: Array<Record<string, unknown>> }> {
   const sources: Array<{ label: string; rows: Record<string, unknown>[] }> = [];
   if (input.path) sources.push({ label: input.path, rows: loadReferenceFile(input.path) });
 
@@ -1485,32 +1485,21 @@ export async function caseReferenceLoad(store: StoreOk, input: CaseReferenceLoad
     }
   }
 
+  const libraryProposals: Array<Record<string, unknown>> = [];
   let count = 0;
   const loadedFrom: string[] = [];
   for (const { label, rows } of sources) {
     for (const [i, row] of rows.entries()) {
       const key = typeof row.key === "string" ? row.key : typeof row.id === "string" ? row.id : `${row.kind ?? "ref"}-${i}`;
-      await casePut(store, {
-        table: "reference",
-        id: String(key),
-        data: {
-          kind: row.kind ?? null,
-          key: row.key ?? key,
-          category: row.category ?? null,
-          pattern: row.pattern ?? null,
-          definition: row.definition ?? null,
-          aliases: row.aliases ?? null,
-          severity: row.severity ?? null,
-          factors: row.factors ?? null,
-          source: row.source ?? null,
-          version: row.version ?? null,
-        },
-      });
+      libraryProposals.push(await retainLibraryImport(store, `reference:${String(key)}`, {
+        ...row, kind: row.kind ?? null, key: row.key ?? key,
+        source: row.source ?? { path: label },
+      }));
       count += 1;
     }
     loadedFrom.push(label);
   }
-  return { counts: count, loaded_from: loadedFrom };
+  return { counts: count, loaded_from: loadedFrom, library_proposals: libraryProposals };
 }
 
 export async function caseReferenceList(store: StoreOk, filter: { kind?: string; category?: string } = {}): Promise<Record<string, unknown>[]> {
@@ -1718,8 +1707,8 @@ export async function caseExport(store: StoreOk, path?: string): Promise<{ path:
  * NDJSON file per table plus `edges.ndjson` and a `manifest.json`, shaped for
  * consumption by the probata evidence platform — each row is a case-extract/v1-
  * shaped object (`id`, `type`, and the record's own fields, provenance `source`
- * included when present). Children remain redacted to initials+age (the store
- * never held anything else for them in the first place).
+ * included when present). Full personal context is retained (the store
+ * preserves full names and narratives).
  */
 export async function caseExportPlatform(store: StoreOk, dirOverride?: string): Promise<{ dir: string; counts: Record<string, number> }> {
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
@@ -1750,7 +1739,7 @@ export async function caseExportPlatform(store: StoreOk, dirOverride?: string): 
     schema: "fct-platform-bundle/v1",
     exported_at: new Date().toISOString(),
     counts,
-    redaction: { children: "initials+age" },
+    personal_context: "preserved",
     store_url_redacted: "***",
     plugin_version: PLUGIN_VERSION,
   };
@@ -1763,7 +1752,8 @@ function isSnapshotShape(json: unknown): json is CaseSnapshot {
   return Boolean(json) && typeof json === "object" && "tables" in (json as object) && "edges" in (json as object);
 }
 
-async function importSnapshot(store: StoreOk, snapshot: CaseSnapshot): Promise<{ counts: Record<string, number> }> {
+async function importSnapshot(store: StoreOk, snapshot: CaseSnapshot): Promise<{ counts: Record<string, number>; library_proposals: Array<Record<string, unknown>> }> {
+  const libraryProposals: Array<Record<string, unknown>> = [];
   const RecordId = recordIdCtor();
   const counts: Record<string, number> = {};
   for (const table of DATA_TABLES) {
@@ -1775,7 +1765,10 @@ async function importSnapshot(store: StoreOk, snapshot: CaseSnapshot): Promise<{
       const { id: _drop, ...rest } = row;
       const rid = new RecordId(table, idStr.slice(idx + 1));
       const casted = castDateFields(table, rest as Record<string, unknown>);
-      await store.db.query("UPSERT $rid MERGE $data;", { rid, data: casted });
+      if (table === "reference" || (table === "source" && rest.kind !== "case_document"))
+        libraryProposals.push(await retainLibraryImport(store, `${table}:${idStr.slice(idx + 1)}`, casted));
+      else if (table === "source") await putPersonalCaseSource(store, idStr.slice(idx + 1), casted);
+      else await store.db.query("UPSERT $rid MERGE $data;", { rid, data: casted });
     }
     counts[table] = rows.length;
   }
@@ -1790,23 +1783,23 @@ async function importSnapshot(store: StoreOk, snapshot: CaseSnapshot): Promise<{
     }
     counts[edge] = rows.length;
   }
-  return { counts };
+  return { counts, library_proposals: libraryProposals };
 }
 
-export async function caseImport(store: StoreOk, path: string): Promise<{ counts: Record<string, number>; kind: "snapshot" | "vincent" | "case-extract" }> {
+export async function caseImport(store: StoreOk, path: string): Promise<{ counts: Record<string, number>; kind: "snapshot" | "vincent" | "case-extract"; library_proposals?: Array<Record<string, unknown>> }> {
   const stat = statSync(path);
   if (stat.isDirectory()) {
-    const { counts } = await caseImportExtract(store, path);
-    return { counts, kind: "case-extract" };
+    const { counts, library_proposals } = await caseImportExtract(store, path);
+    return { counts, kind: "case-extract", library_proposals };
   }
   const raw = JSON.parse(readFileSync(path, "utf8"));
   if (raw && typeof raw === "object" && (raw as Record<string, unknown>).schema === "case-extract/v1") {
-    const { counts } = await caseImportExtract(store, path);
-    return { counts, kind: "case-extract" };
+    const { counts, library_proposals } = await caseImportExtract(store, path);
+    return { counts, kind: "case-extract", library_proposals };
   }
   if (isSnapshotShape(raw)) {
-    const { counts } = await importSnapshot(store, raw);
-    return { counts, kind: "snapshot" };
+    const { counts, library_proposals } = await importSnapshot(store, raw);
+    return { counts, kind: "snapshot", library_proposals };
   }
   if (
     raw &&
@@ -1944,54 +1937,35 @@ async function putNoteList(store: StoreOk, id: string, title: string, items: unk
  * `documents` (string[] of filenames — NOT objects), `legal_authorities`
  * (string[]), `questions_for_further_development` (string[]).
  *
- * Children are ALWAYS reduced to { initials, age } — a child's `name` field
- * in the source JSON (parties[].role matching /child/i) is never copied into
- * the store; this is enforced both here (toInitialsLocal) and by casePut()'s
- * own rejection + the database's SCHEMAFULL child table.
+ * Full personal party fields and narrative names are retained in this private case store.
+ * Inputs: parsed intake schema. Outputs: per-table counts. Effects: shared case writes.
+ * Choose for personal intake, not published legal-source library updates.
  */
 export async function importVincentSchema(store: StoreOk, schema: Record<string, unknown>): Promise<Record<string, number>> {
   const counts: Record<string, number> = { person: 0, child: 0, event: 0, exhibit: 0, source: 0, note: 0, evidences: 0, supports_factor: 0 };
   const nowIso = new Date().toISOString();
 
   // --- parties -> person / child -------------------------------------
-  // Every child's real name is captured here (BEFORE it is ever put into the
-  // store) purely to build the redaction list below — child records
-  // themselves only ever get { initials, age }. This closes a real leak
-  // found live: the owner's actual intake file's own timeline narrative
-  // reads "Birth of Kailah Salem" — a child's name inside a free-text field,
-  // not inside the parties[] entity — so entity-level rejection alone does
-  // NOT stop it from flowing into event.description/exhibit.label/note.text
-  // verbatim. Every free-text field written below is passed through
-  // `redactChildNames()` first.
-  const childNamesToRedact: Array<{ full: string; initials: string }> = [];
   const parties = Array.isArray(schema.parties) ? schema.parties : [];
   for (const [i, party] of parties.entries()) {
     if (!party || typeof party !== "object") continue;
-    const p = party as Record<string, unknown>;
+    const { id: importedId, ...p } = party as Record<string, unknown>;
+    if (importedId !== undefined) p.source_record_id = importedId;
     const role = typeof p.role === "string" ? p.role : undefined;
     if (role && /child/i.test(role)) {
       const initials = typeof p.initials === "string" ? p.initials : (toInitialsLocal(p.name) ?? `CHILD-${i + 1}`);
       const age = typeof p.age === "number" ? p.age : undefined;
-      if (typeof p.name === "string" && p.name.trim()) childNamesToRedact.push({ full: p.name.trim(), initials });
-      await casePut(store, { table: "child", id: `vincent-party-${i + 1}`, data: { initials, age } });
+      await casePut(store, { table: "child", id: `vincent-party-${i + 1}`, data: { ...p, initials, ...(age === undefined ? {} : { age }) } });
       counts.child += 1;
       continue;
     }
     const initials = typeof p.initials === "string" ? p.initials : toInitialsLocal(p.name);
-    await casePut(store, { table: "person", id: `vincent-party-${i + 1}`, data: { role: role ?? null, initials: initials ?? null } });
+    await casePut(store, { table: "person", id: `vincent-party-${i + 1}`, data: { ...p, role: role ?? null, initials: initials ?? null } });
     counts.person += 1;
   }
 
-  const redactChildNames = (text: string): string => {
-    let out = text;
-    for (const { full, initials } of childNamesToRedact) {
-      const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      out = out.replace(new RegExp(`\\b${escape(full)}\\b`, "gi"), initials);
-      const firstName = full.split(/\s+/)[0];
-      if (firstName && firstName.length > 1) out = out.replace(new RegExp(`\\b${escape(firstName)}\\b`, "g"), initials);
-    }
-    return out;
-  };
+  // Private case text is deliberately preserved verbatim, including names.
+  const redactChildNames = (text: string): string => text;
 
   // --- timeline -> event, indexed as "timeline_N" (1-based) to match ---
   // --- the source file's own facts_refs convention, and by date (its  ---
@@ -2088,7 +2062,7 @@ export async function importVincentSchema(store: StoreOk, schema: Record<string,
   for (const [i, doc] of documents.entries()) {
     const rawTitle = typeof doc === "string" ? doc : typeof doc === "object" && doc ? ((doc as Record<string, unknown>).title ?? (doc as Record<string, unknown>).name) : `Document ${i + 1}`;
     const title = redactChildNames(String(rawTitle ?? `Document ${i + 1}`));
-    await casePut(store, { table: "source", id: `vincent-doc-${i + 1}`, data: { title } });
+    await casePut(store, { table: "source", id: `vincent-doc-${i + 1}`, data: { kind: "case_document", title } });
     counts.source += 1;
   }
 
@@ -2169,19 +2143,18 @@ export interface CaseImportExtractResult {
   counts: Record<string, number>;
   files_processed: number;
   files_skipped: string[];
+  library_proposals: Array<Record<string, unknown>>;
 }
 
 /**
  * Imports one case-extract/v1 file, or every case-extract/v1 file under a
  * directory tree (one JSON file per source, `<row>/<slug>.json`). Idempotent
  * by `extract_id` (`<row>-<seq>`, used directly as the record id — a re-run
- * MERGEs onto the same records rather than duplicating them). Every child
- * (person.role matching /child/i) is reduced to `{ initials, age }` — no
- * exceptions — and every child's real name AND aliases across the WHOLE
- * batch are collected first and substituted for initials in every free-text
- * field of every record before it is written, closing the same
- * name-in-prose leak `importVincentSchema`'s `redactChildNames` closes for
- * the Vincent-schema importer.
+ * MERGEs onto the same records rather than duplicating them). Full names, aliases and
+ * personal narratives remain unchanged in this private shared case store.
+ * Inputs: local case-extract envelopes. Outputs: counts and skipped files.
+ * Effects: case records are imported with provenance; legal-library publication uses the tracked validation path.
+ * Choose for personal case intake, not an unvalidated legal-library overwrite.
  */
 export async function caseImportExtract(store: StoreOk, fileOrDir: string): Promise<CaseImportExtractResult> {
   const files = collectExtractFiles(fileOrDir);
@@ -2202,25 +2175,10 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
     envelopes.push({ path: file, envelope: parsed });
   }
 
-  // Pass 1: collect every child's real name + aliases across the WHOLE batch
-  // before writing anything, so a name mentioned in one file's free text but
-  // only formally identified as a child in another file still gets redacted.
-  const childNames: Array<{ full: string; initials: string }> = [];
-  for (const { envelope } of envelopes) {
-    for (const record of envelope.records ?? []) {
-      if (record.type !== "person" || !/child/i.test(String(record.role ?? ""))) continue;
-      const full = typeof record.name === "string" ? record.name.trim() : "";
-      const initials = typeof record.initials === "string" && record.initials ? record.initials : toInitialsLocal(full) ?? "?.";
-      if (full) childNames.push({ full, initials });
-      if (Array.isArray(record.aliases)) {
-        for (const alias of record.aliases) {
-          if (typeof alias === "string" && alias.trim()) childNames.push({ full: alias.trim(), initials });
-        }
-      }
-    }
-  }
-  const redact = buildChildRedactor(childNames);
+  // Owner decision: preserve full personal context across private shared imports.
+  const redact = (text: string): string => text;
 
+  const libraryProposals: Array<Record<string, unknown>> = [];
   const counts: Record<string, number> = {};
   const bump = (key: string): void => {
     counts[key] = (counts[key] ?? 0) + 1;
@@ -2232,6 +2190,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
     for (const record of envelope.records ?? []) {
       seq += 1;
       const extractId = typeof record.id === "string" && record.id ? record.id : `${sourceMeta.row ?? "extract"}-${seq}`;
+      const { id: _originalIdentity, ...fullRecord } = record;
       const provenance = {
         source: {
           path: sourceMeta.path ?? null,
@@ -2252,7 +2211,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
             // the key must be omitted entirely rather than set to null when
             // no age is known (verified live: "Expected none | number but
             // found NULL" otherwise).
-            const data: Record<string, unknown> = { initials, ...provenance };
+            const data: Record<string, unknown> = { ...fullRecord, initials, ...provenance };
             if (typeof record.age === "number") data.age = record.age;
             await casePut(store, { table: "child", id: extractId, data });
             bump("child");
@@ -2263,6 +2222,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
               table: "person",
               id: extractId,
               data: {
+                ...fullRecord,
                 name: redact(name),
                 role: record.role ?? null,
                 initials: initials ?? null,
@@ -2279,6 +2239,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
         case "event": {
           const occurredAt = normalizeExtractDate(record.occurred_at);
           const data: Record<string, unknown> = {
+            ...fullRecord,
             description: redact(String(record.description ?? "")),
             location: record.location ?? null,
             participants: record.participants ?? null,
@@ -2302,6 +2263,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
             table: "court_event",
             id: extractId,
             data: {
+                ...fullRecord,
               kind: record.kind ?? null,
               ...(date ? { date } : {}),
               title: redact(String(record.title ?? "")),
@@ -2323,6 +2285,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
             table: "filing",
             id: extractId,
             data: {
+                ...fullRecord,
               title: redact(String(record.title ?? "")),
               doc_type: record.doc_type ?? null,
               filed_or_planned: record.filed_or_planned ?? null,
@@ -2344,6 +2307,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
             table: "draft",
             id: extractId,
             data: {
+                ...fullRecord,
               title: redact(String(record.title ?? "")),
               doc_type: record.doc_type ?? null,
               version: record.version ?? null,
@@ -2363,6 +2327,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
             table: "message",
             id: extractId,
             data: {
+                ...fullRecord,
               from: record.from ?? null,
               to: record.to ?? null,
               body: redact(String(record.body ?? "")),
@@ -2383,6 +2348,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
             table: "exhibit",
             id: extractId,
             data: {
+                ...fullRecord,
               label: redact(String(record.label_or_name ?? "")),
               path: record.path ?? null,
               sha256: record.sha256 ?? null,
@@ -2401,20 +2367,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
           break;
         }
         case "source_authority": {
-          await casePut(store, {
-            table: "source",
-            id: extractId,
-            data: {
-              title: record.title ?? record.citation ?? null,
-              citation: record.citation ?? null,
-              kind: record.kind ?? null,
-              url: record.url ?? null,
-              pin: record.pin ?? null,
-              status: record.status ?? null,
-              context: typeof record.context === "string" ? redact(record.context) : null,
-              ...provenance,
-            },
-          });
+          libraryProposals.push(await retainLibraryImport(store, `source:${extractId}`, { ...record, ...provenance }));
           bump("source");
           break;
         }
@@ -2434,6 +2387,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
             table: "memo",
             id: extractId,
             data: {
+                ...fullRecord,
               kind: record.type,
               title: redact(String(record.title ?? record.type)),
               text,
@@ -2453,6 +2407,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
               table: "memo",
               id: extractId,
               data: {
+                ...fullRecord,
                 kind,
                 title: `Note ${extractId}`,
                 text: redact(String(record.text ?? "")),
@@ -2469,21 +2424,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
           break;
         }
         case "entity_rule": {
-          await casePut(store, {
-            table: "reference",
-            id: extractId,
-            data: {
-              kind: "behavior_pattern",
-              key: extractId,
-              category: record.category ?? null,
-              pattern: record.pattern ?? null,
-              severity: record.severity ?? null,
-              factors: record.factors ?? null,
-              aliases: record.aliases ?? null,
-              sequence: record.sequence ?? null,
-              ...provenance,
-            },
-          });
+          libraryProposals.push(await retainLibraryImport(store, `reference:${extractId}`, { ...record, kind: "behavior_pattern", key: extractId, ...provenance }));
           bump("reference");
           break;
         }
@@ -2495,7 +2436,7 @@ export async function caseImportExtract(store: StoreOk, fileOrDir: string): Prom
     }
   }
 
-  return { counts, files_processed: envelopes.length, files_skipped: filesSkipped };
+  return { counts, files_processed: envelopes.length, files_skipped: filesSkipped, library_proposals: libraryProposals };
 }
 
 // ---------------------------------------------------------------------------
@@ -2512,7 +2453,8 @@ export interface CaseSummary {
   next_hearing: string | null;
   deadlines: Array<{ label: string; due: string; rule: string | null }>;
   parties: string[];
-  children: { count: number; entries: Array<{ initials: string | null; age: number | string | null }> };
+  children: { count: number; entries: Array<Record<string, unknown> & { initials: string | null; age: number | string | null }> };
+  case_context: { court: Record<string, unknown>; people: Array<Record<string, unknown>>; children: Array<Record<string, unknown>> };
   flags: string[];
   source: string;
   /** Row count per table (owner order 2026-09-07 13:09-13:16: a place to see
@@ -2521,6 +2463,11 @@ export interface CaseSummary {
   counts: Record<string, number>;
 }
 
+/** Read the private shared case summary and retain complete personal context.
+ * Inputs: admitted shared store. Outputs: planning fields and full court/person/child records.
+ * Effects: read-only shared queries. Choose over public projections when preparing this owner's case.
+ * Byline: Codex · GPT-6 · 2026-10-04.
+ */
 export async function caseSummary(store: StoreOk): Promise<CaseSummary> {
   const courtRows = await store.db.query<Array<Record<string, unknown>>>("SELECT * FROM court:main;");
   const court = (courtRows.at(-1)?.[0] ?? {}) as Record<string, unknown>;
@@ -2550,15 +2497,16 @@ export async function caseSummary(store: StoreOk): Promise<CaseSummary> {
     rule: row.rule ? String(row.rule) : null,
   }));
 
-  const personRows = await store.db.query<Array<Record<string, unknown>>>("SELECT initials, name FROM person;");
+  const personRows = await store.db.query<Array<Record<string, unknown>>>("SELECT * OMIT embedding FROM person;");
   const parties = (personRows.at(-1) ?? []).map((row) => {
+    if (typeof row.name === "string" && row.name) return row.name;
     if (typeof row.initials === "string" && row.initials) return row.initials;
-    if (typeof row.name === "string") return toInitialsLocal(row.name) ?? "?.";
     return "?.";
   });
 
-  const childRows = await store.db.query<Array<Record<string, unknown>>>("SELECT initials, age FROM child;");
+  const childRows = await store.db.query<Array<Record<string, unknown>>>("SELECT * OMIT embedding FROM child;");
   const childEntries = (childRows.at(-1) ?? []).map((row) => ({
+    ...(normalize(row) as Record<string, unknown>),
     initials: typeof row.initials === "string" ? row.initials : null,
     age: typeof row.age === "number" || typeof row.age === "string" ? (row.age as number | string) : null,
   }));
@@ -2580,6 +2528,7 @@ export async function caseSummary(store: StoreOk): Promise<CaseSummary> {
     deadlines,
     parties,
     children: { count: childEntries.length, entries: childEntries },
+    case_context: { court: normalize(court) as Record<string, unknown>, people: normalize(personRows.at(-1) ?? []) as Array<Record<string, unknown>>, children: normalize(childRows.at(-1) ?? []) as Array<Record<string, unknown>> },
     flags: Array.isArray(court.flags) ? (court.flags as string[]) : [],
     source: "surrealdb-case-store",
     counts,

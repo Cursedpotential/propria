@@ -115,6 +115,17 @@ export const storeApi = {
    * Byline: OpenAI Codex · GPT-6 · 2026-10-04
    */
   record: (id: string) => sidecarFetch<StoreResponse<CaseRecordDetail>>(`/api/store/record?id=${encodeURIComponent(id)}`),
+  /**
+   * Invokes one of the five allowlisted hosted Family Court MCP tools.
+   * Inputs are an exact operation name and JSON arguments; output is a structured
+   * tool envelope. The server holds ContextForge credentials; the webview sends none.
+   * Byline: OpenAI Codex · GPT-6-Luna · 2026-10-04
+   */
+  libraryTool: (name: "library_propose" | "library_validate" | "library_publish" | "case_record" | "case_put", args: Record<string, unknown>) =>
+    sidecarFetch<{ state: "ok" | "tool_error"; structured: Record<string, unknown> | null; text: string[] }>(`/api/library/tools/${name}`, {
+      method: "POST",
+      body: JSON.stringify({ args }),
+    }),
   evidence: () => sidecarFetch<StoreResponse<EvidenceResponse>>("/api/store/evidence"),
   evals: () => sidecarFetch<StoreResponse<CaseEvalsResponse>>("/api/store/evals"),
 

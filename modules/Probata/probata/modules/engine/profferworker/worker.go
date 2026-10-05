@@ -21,6 +21,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/contacts"
 	"github.com/Cursedpotential/probata/engine/dedupe"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
+	"github.com/Cursedpotential/probata/engine/extraction/libraryvalidation"
 	"github.com/Cursedpotential/probata/engine/normalize"
 	"github.com/Cursedpotential/probata/engine/objectstores"
 	"github.com/Cursedpotential/probata/engine/parser"
@@ -98,11 +99,21 @@ type Registrations struct {
 	// Effects: no transfers until invoked. Choose separately from inventory and catalog projection.
 	// Byline: Codex, 2026-10-04.
 	ToolkitPreservation activities.ToolkitPackagePreservationActivities
+	// ToolkitContentPlacement writes reviewed complete units to permanent B2 legal homes with pinned readback.
+	// Inputs: mounted inventory root and B2 resolver. Outputs: tracked placement Activity group.
+	// Effects: none until invoked; use after inventory and reviewed final-unit selection, before shared publication.
+	// Byline: Codex · GPT-6 · 2026-10-04.
+	ToolkitContentPlacement *activities.ToolkitContentPlacementActivities
 	// ToolkitCatalog registers verified recovery metadata only when the separate writer is explicitly configured.
 	// Inputs: existing preservation root/store resolver and admitted Case Bible writer. Outputs: optional Activity group.
 	// Effects: none until invoked. Choose alongside preservation; the dated catalog client remains read-only.
 	// Byline: Codex · GPT-6 · 2026-10-04.
 	ToolkitCatalog *activities.ToolkitCatalogRegistrationActivities
+	// ToolkitValidation validates saved library proposals through the existing source/parser/NIM contracts when explicitly enabled.
+	// Inputs: admitted validation service. Outputs: optional four-Activity group. Effects: none until invoked.
+	// Choose separately from preservation/catalog registration; trusted validation does not publish automatically.
+	// Byline: Codex · GPT-6.1 · 2026-10-04.
+	ToolkitValidation *activities.ToolkitLibraryValidationActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -193,6 +204,10 @@ func RegisterAll(registrar interface {
 	// Inputs: configured preservation group; outputs: named workflow and two Activities.
 	// Effects: registration only. Choose for durable original retention without catalog claims.
 	// Byline: Codex, 2026-10-04.
+	if registrations.ToolkitContentPlacement != nil {
+		registrar.RegisterWorkflowWithOptions(activities.ToolkitContentPlacementWorkflow, workflow.RegisterOptions{Name: activities.ToolkitContentPlacementWorkflowName})
+		registrar.RegisterActivityWithOptions(registrations.ToolkitContentPlacement.PlaceToolkitContent, activity.RegisterOptions{Name: activities.ToolkitContentPlacementActivityName})
+	}
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackagePreservationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackagePreservationWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.CopyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationCopyActivityName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.VerifyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationVerifyActivityName})
@@ -205,6 +220,14 @@ func RegisterAll(registrar interface {
 		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.VerifyToolkitCatalogMetadata, activity.RegisterOptions{Name: activities.ToolkitCatalogMetadataActivityName})
 		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.RegisterToolkitCatalog, activity.RegisterOptions{Name: activities.ToolkitCatalogRegisterActivityName})
 		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.ReadbackToolkitCatalog, activity.RegisterOptions{Name: activities.ToolkitCatalogReadbackActivityName})
+	}
+	// Register substantive proposal validation only after configured service/runtime preflight succeeds.
+	// Inputs: optional validation group. Outputs: one workflow and four Activities. Effects: registry additions only.
+	// Choose after a saved proposal exists; inventory, preservation and catalog workflows remain independent.
+	// Byline: Codex · GPT-6.1 · 2026-10-04.
+	if registrations.ToolkitValidation != nil {
+		libraryvalidation.RegisterWorkflow(registrar)
+		activities.RegisterToolkitLibraryValidationActivities(registrar, *registrations.ToolkitValidation)
 	}
 	// Probe the exact preservation adapter with synthetic bytes before any original transfer.
 	// Inputs: the existing preservation group; outputs: separately tracked probe workflow and Activity.
@@ -219,9 +242,11 @@ func RegisterAll(registrar interface {
 // Run constructs concrete production adapters, verifies PostgreSQL and shared
 // storage before polling, and serves the dedicated Proffer queue until shutdown.
 // Inputs: cancellation context and existing worker configuration; optional CASEBIBLE_RECOVERY_DATABASE_URL_FILE admits a separate writer.
+// TOOLKIT_VALIDATION_CASE_MCP_URL additionally opts into bounded parser/service admission before validation registration.
 // Outputs: startup/shutdown error or nil. Effects: opens/closes clients, registers and polls existing workflows; no automatic recovery writes or DDL.
 // Choose for the existing Proffer worker; recovery registration requires its own explicit workflow invocation.
 // Byline: Codex · GPT-6 · 2026-10-04 (optional recovery catalog wiring).
+// Validator admission integration: Codex · GPT-6.1 · 2026-10-04.
 func Run(ctx context.Context, cfg Config) error {
 	if stringsTrim(cfg.TemporalTaskQueue) == "" {
 		return errors.New("proffer worker: TEMPORAL_TASK_QUEUE is required")
@@ -294,6 +319,11 @@ func Run(ctx context.Context, cfg Config) error {
 		defer closeToolkitCatalog()
 	}
 	registrations.ToolkitCatalog = toolkitCatalog
+	toolkitValidation, err := configureToolkitValidation(ctx)
+	if err != nil {
+		return err
+	}
+	registrations.ToolkitValidation = toolkitValidation
 
 	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, workerOptions(cfg))
 	RegisterAll(temporalWorker, registrations)
@@ -604,25 +634,26 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	return Registrations{
 		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.
 		// Byline: Codex, 2026-10-04.
-		ToolkitInventory:      activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),
-		ToolkitPreservation:   activities.NewToolkitPackagePreservationActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
-		Contacts:              contactsActivities,
-		ContextSearch:         contextSearch,
-		FirstPartyContext:     activities.NewFirstPartyContextActivities(firstPartyStore),
-		CallLog:               activities.NewCallLogActivities(callLogStore),
-		MessageMatch:          activities.NewMessageMatchActivities(firstPartyStore, messageMatchStore),
-		MessageDedupe:         activities.NewMessageDedupeActivities(messageDedupeStore),
-		RepairPlan:            repairPlan,
-		Extraction:            extraction,
-		Conversation:          conversation,
-		Lifecycle:             activities.NewSourceLifecycleActivities(lifecycleRepo),
-		FilesystemObservation: activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
-		InventoryObservation:  activities.NewSourceObservationActivities(nil, memberEnumerator, observationRepo),
-		EmbeddedObservation:   activities.NewSourceObservationActivities(embeddedExtractor, nil, observationRepo),
-		N8N:                   platformtemporal.N8NActivities{Client: n8nClient},
-		N8NFlows:              platformtemporal.FlowActivities{Client: n8nClient, Registry: flowRegistry},
-		Hash:                  activities.NewHashActivities(hashRepo),
-		StructuredELT:         activities.NewStructuredELTActivities(structuredELTRepo, parserStore, handlerSelectionStore),
+		ToolkitInventory:        activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),
+		ToolkitPreservation:     activities.NewToolkitPackagePreservationActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
+		ToolkitContentPlacement: activities.NewToolkitContentPlacementActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
+		Contacts:                contactsActivities,
+		ContextSearch:           contextSearch,
+		FirstPartyContext:       activities.NewFirstPartyContextActivities(firstPartyStore),
+		CallLog:                 activities.NewCallLogActivities(callLogStore),
+		MessageMatch:            activities.NewMessageMatchActivities(firstPartyStore, messageMatchStore),
+		MessageDedupe:           activities.NewMessageDedupeActivities(messageDedupeStore),
+		RepairPlan:              repairPlan,
+		Extraction:              extraction,
+		Conversation:            conversation,
+		Lifecycle:               activities.NewSourceLifecycleActivities(lifecycleRepo),
+		FilesystemObservation:   activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
+		InventoryObservation:    activities.NewSourceObservationActivities(nil, memberEnumerator, observationRepo),
+		EmbeddedObservation:     activities.NewSourceObservationActivities(embeddedExtractor, nil, observationRepo),
+		N8N:                     platformtemporal.N8NActivities{Client: n8nClient},
+		N8NFlows:                platformtemporal.FlowActivities{Client: n8nClient, Registry: flowRegistry},
+		Hash:                    activities.NewHashActivities(hashRepo),
+		StructuredELT:           activities.NewStructuredELTActivities(structuredELTRepo, parserStore, handlerSelectionStore),
 		DeriveSMSThreads: activities.NewDeriveSMSThreadsActivities(
 			deriveStore, objectStores, deriveStore,
 			derivedRoots, cfg.DeriveScratchDir, cfg.DeriveMaxChunkBytes,

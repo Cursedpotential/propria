@@ -71,8 +71,10 @@ class _Annotations:
         ("search_guide", True, False),
         ("case_put", False, True),
         ("case_status", None, True),  # no annotation: assume it writes
-        ("case_query", True, True),  # runs CREATE/UPDATE without write: true
+        ("case_query", True, False),  # SELECT-only shared inspection
         ("case_export", True, True),
+        ("family-court-case-export", True, True),
+        ("family-court-case-query", True, False),
         ("case_import", False, True),
     ],
 )
@@ -80,5 +82,25 @@ def test_write_policy(name, read_only, writes):
     assert toolkit_mcp._definition(_Tool(name, read_only)).writes is writes
 
 
-def test_factors_are_shared_with_the_desk():
-    assert "factor" in family_court_toolkit.TOOLKIT_TABLES
+def test_toolkit_read_allowlist_covers_personal_case_tables_without_workflow_internals():
+    """Verify DATA_TABLES coverage and preserve synthetic full-name record refs.
+
+    Inputs: toolkit service allowlist and synthetic identifiers. Outputs: assertions.
+    Effects: no store or database access. Sibling: test_toolkit_mcp write-policy coverage.
+    Byline: OpenAI Codex · GPT-6-Luna · 2026-10-04.
+    """
+    # Synthetic full-name IDs verify personal references remain ordinary values.
+    expected_tables = {
+        "person", "child", "order", "hearing", "deadline", "event", "message",
+        "exhibit", "factor", "source", "note", "court", "court_event", "filing",
+        "draft", "memo", "reference", "evidence_log", "eval", "case_status",
+    }
+    assert set(family_court_toolkit.TOOLKIT_TABLES) == expected_tables
+    assert {"library_validation", "library_proposal", "library_revision"}.isdisjoint(
+        family_court_toolkit.TOOLKIT_TABLES
+    )
+    assert family_court_toolkit._split_ref("person:Jordan Example") == ("person", "Jordan Example")
+    assert family_court_toolkit._split_ref("child:Casey Example") == ("child", "Casey Example")
+    for table in ("library_validation", "library_proposal", "library_revision"):
+        with pytest.raises(ValueError, match="not shared"):
+            family_court_toolkit._split_ref(f"{table}:synthetic-id")

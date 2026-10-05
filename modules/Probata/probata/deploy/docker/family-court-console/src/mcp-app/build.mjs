@@ -188,6 +188,17 @@ await build({
   banner: { js: "// Byline: Claude Code · Fable 5.1 · 2026-09-07" }
 });
 // Byline: Claude Code · Opus 5.5 · 2026-09-28 — the Family Law Toolkit web app (src/web.ts,
+// Byline: Codex · GPT-6 · 2026-10-04 — shared proposal and dispatch test entries, using the same store runtime.
+for (const name of ["case-library", "library-validation-dispatch"]) {
+  await build({
+    entryPoints: [join(here, "src", `${name}.ts`)],
+    outfile: join(here, "dist", `${name}.js`),
+    bundle: true, platform: "node", format: "esm", target: "node20", sourcemap: false,
+    ...commonBuildOptions,
+    banner: { js: "// Byline: Codex · GPT-6 · 2026-10-04" },
+  });
+}
+// Byline: Claude Code · Opus 5.5 · 2026-09-28 — the Family Law Toolkit web app (src/web.ts,
 // served by server.js in HTTP mode). web-auth.js gets its own entry so tests/web_auth.test.mjs
 // can exercise it directly; web/host.ts is bundled for the browser with the MCP Apps
 // AppBridge; index.html and app.css are copied beside it into dist/web/.

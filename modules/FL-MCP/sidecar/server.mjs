@@ -24,6 +24,8 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { describeAuth } from "./lib/auth.mjs";
 import { checkAuthAvailable, streamChat } from "./lib/chat.mjs";
+import { createHostedLibraryInvoker } from "./lib/hosted-library-client.mjs";
+import { registerHostedLibraryRoutes } from "./lib/hosted-library-routes.mjs";
 import { callStoreFn, getSharedStore, loadStoreModule, TIMELINE_MODES } from "./lib/store-client.mjs";
 
 // Default to a fixed port (4177) for plain `npm run dev` / `npm run
@@ -39,6 +41,7 @@ const HOST = "127.0.0.1";
 
 const app = Fastify({ logger: false });
 await app.register(cors, { origin: [/^https?:\/\/127\.0\.0\.1(:\d+)?$/, /^tauri:\/\//, /^https:\/\/tauri\.localhost$/] });
+await registerHostedLibraryRoutes(app, { invokeTool: createHostedLibraryInvoker() });
 
 app.get("/api/health", async () => ({ ok: true, pid: process.pid }));
 

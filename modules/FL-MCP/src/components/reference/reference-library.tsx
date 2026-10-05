@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { LibraryRecordEditor } from "@/components/reference/library-record-editor";
 import { caseRecordQuery, referenceLibraryQuery } from "@/lib/queries";
 import { isUnavailable, type CaseRecordDetail, type LibraryRecord, type ReferenceLibraryPage, type StoreResponse } from "@/types/store";
 
@@ -247,6 +248,7 @@ export function ReferenceLibrary() {
                       <summary className="cursor-pointer text-sm text-accent-text">Full stored record</summary>
                       <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs text-text-secondary">{JSON.stringify(record, null, 2)}</pre>
                     </details>
+                    <LibraryRecordEditor key={`${detail.id}:${detail.version}`} table={table} id={detail.id} version={detail.version} record={record ?? {}} />
                   </div>
                 ) : null}
               </section>

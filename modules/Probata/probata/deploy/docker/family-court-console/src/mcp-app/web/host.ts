@@ -192,7 +192,178 @@ export function officialSourceUrl(record: Json): string | null {
   return null;
 }
 
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Resolve citation versions from the shared case_record tool before proposing an edit.
+ * Inputs: target id/version, citation fields, and an exact-record reader; output: server-ready citations.
+ * Side effects: reads each referenced shared source record; never mutates library content.
+ * Use before library_propose so clients cannot substitute citation versions from form data.
+ */
+export async function resolveLibraryCitations(
+  targetId: string,
+  expectedVersion: string,
+  rows: Array<{ source_id: string; pinpoint: string; claim: string }>,
+  readRecord: (id: string) => Promise<Json>,
+): Promise<Array<{ source_id: string; source_version: string; pinpoint: string; claim: string }>> {
+  if (!rows.length) throw new Error("Add at least one citation with a pinpoint and claim.");
+  const citations = [];
+  for (const row of rows) {
+    const sourceId = row.source_id.trim();
+    if (!/^source:\S+$/.test(sourceId)) throw new Error("Each citation must identify a source: record.");
+    if (!row.pinpoint.trim() || !row.claim.trim()) throw new Error("Each citation needs a pinpoint and claim.");
+    if (targetId.startsWith("source:") && expectedVersion === "absent" && sourceId === targetId) {
+      citations.push({ source_id: sourceId, source_version: "absent", pinpoint: row.pinpoint.trim(), claim: row.claim.trim() });
+      continue;
+    }
+    const source = await readRecord(sourceId);
+    if (source.found !== true || source.id !== sourceId || typeof source.version !== "string" || !/^sha256:[0-9a-f]{64}$/i.test(source.version)) {
+      throw new Error(`Citation source ${sourceId} has no exact shared record version.`);
+    }
+    citations.push({ source_id: sourceId, source_version: source.version, pinpoint: row.pinpoint.trim(), claim: row.claim.trim() });
+  }
+  return citations;
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Build only the allowed library proposal fields while retaining the complete user-edited record.
+ * Inputs: target identity/version, full record patch, resolved citations, and rationale; output: tool arguments.
+ * Side effects: none; trusted currency and validation receipts are never accepted from form input.
+ * Use for source/reference edits instead of case_put or ordinary record correction.
+ */
+export function buildLibraryProposalArguments(
+  id: string,
+  expectedVersion: string,
+  patch: Json,
+  citations: Array<{ source_id: string; source_version: string; pinpoint: string; claim: string }>,
+  rationale: string,
+): Json {
+  if (!/^(reference|source):\S+$/.test(id)) throw new Error("Target id must begin with reference: or source:.");
+  if (expectedVersion !== "absent" && !/^sha256:[0-9a-f]{64}$/i.test(expectedVersion)) throw new Error("Target needs an exact case_record version.");
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new Error("Record content must be a JSON object.");
+  if (!citations.length || !rationale.trim()) throw new Error("Citations and a rationale are required.");
+  return { id, expected_version: expectedVersion, patch, citations, rationale: rationale.trim() };
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Keep only editable fields from a complete shared library record.
+ * Input: full normalized case_record object; output: a shallow JSON-safe field copy without server-managed fields.
+ * Side effects: none; personal and provenance fields are retained without modification.
+ * Use as the editor baseline so record identity and server-maintained values never enter a proposal patch.
+ */
+export function editableLibraryPatch(record: Json): Json {
+  if (!record || typeof record !== "object" || Array.isArray(record)) throw new Error("Library record content must be a JSON object.");
+  const reserved = new Set(["id", "embedding", "validation", "validation_status", "published_at"]);
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !reserved.has(key))) as Json;
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Emit only changed editable fields from a user's proposed full JSON view.
+ * Inputs: initial normalized JSON and edited JSON; output: partial patch containing changed present keys, including explicit nulls.
+ * Side effects: none; omitted keys stay untouched in the shared record and server-managed keys are excluded.
+ * Use before library_propose to avoid rewriting unchanged Surreal datetime strings or complete personal records.
+ */
+export function changedLibraryPatch(initial: Json, edited: Json): Json {
+  const baseline = editableLibraryPatch(initial);
+  const next = editableLibraryPatch(edited);
+  const stable = (value: unknown): string => {
+    if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+    if (value && typeof value === "object") {
+      return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`).join(",")}}`;
+    }
+    return JSON.stringify(value);
+  };
+  return Object.fromEntries(Object.entries(next).filter(([key, value]) =>
+    !Object.prototype.hasOwnProperty.call(baseline, key) || stable(value) !== stable(baseline[key]))) as Json;
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Recover a retained citation-required proposal as an editable target-bound draft.
+ * Inputs: exact `case_record` proposal envelope; output: original target/version/full body and citations.
+ * Side effects: none; the imported proposal remains untouched in the shared store.
+ * Use to attach current citations and create a new proposal without losing personal fields.
+ */
+export function libraryDraftEditSeed(snapshot: Json): { targetId: string; expectedVersion: string; proposedRecord: Json; citations: Array<{ source_id: string; pinpoint: string; claim: string }>; rationale: string } {
+  const record = (snapshot.record ?? {}) as Json;
+  const targetId = String(record.target ?? "");
+  const expectedVersion = String(record.expected_version ?? "");
+  const proposedRecord = record.proposed_record;
+  if (snapshot.found !== true || !/^library_proposal:[a-f0-9-]{36}$/i.test(String(snapshot.id ?? "")) || record.status !== "citation_required") {
+    throw new Error("This retained proposal is not an editable citation-required draft.");
+  }
+  if (!/^(reference|source):[^\s:]{1,200}$/.test(targetId) || (expectedVersion !== "absent" && !/^sha256:[a-f0-9]{64}$/i.test(expectedVersion))) {
+    throw new Error("The retained draft is missing its original target or expected version.");
+  }
+  if (!proposedRecord || typeof proposedRecord !== "object" || Array.isArray(proposedRecord)) throw new Error("The retained draft has no complete proposed record.");
+  const citations = Array.isArray(record.citations) ? (record.citations as Json[]).map((citation) => ({
+    source_id: String(citation.source_id ?? ""), pinpoint: String(citation.pinpoint ?? ""), claim: String(citation.claim ?? ""),
+  })) : [];
+  return { targetId, expectedVersion, proposedRecord: proposedRecord as Json, citations, rationale: String(record.rationale ?? "") };
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Load the exact published baseline for a retained library draft before computing its edit patch.
+ * Inputs: draft target/version and an exact case_record reader; output: empty baseline for absent targets or the current editable record.
+ * Side effects: one injected case_record read for existing targets; a stale or missing version raises a visible conflict.
+ * Use while reopening citation-required imports so their proposed body remains displayed but unchanged target fields are not resent.
+ */
+export async function libraryDraftComparisonBaseline(
+  draft: { targetId: string; expectedVersion: string },
+  readRecord: (id: string) => Promise<Json>,
+): Promise<Json> {
+  if (draft.expectedVersion === "absent") return {};
+  const current = await readRecord(draft.targetId);
+  if (current.found !== true || current.id !== draft.targetId || current.version !== draft.expectedVersion) {
+    throw new Error(`Library version conflict: retained draft expects ${draft.expectedVersion}, but the current target is missing or has changed. Reconcile the draft before proposing it again.`);
+  }
+  return editableLibraryPatch((current.record ?? {}) as Json);
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Validate the full shared proposal record id returned by the proposal tool.
+ * Input: full `library_proposal:<uuid>` identifier; output: the same validated id.
+ * Side effects: none; bare UUIDs are rejected to prevent guessing or double-prefixing record ids.
+ * Use consistently for exact case_record, library_validate, library_publish, and validation detail reads.
+ */
+export function canonicalLibraryProposalId(proposalId: string): string {
+  if (!/^library_proposal:[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(proposalId)) throw new Error("Proposal result did not contain a full shared proposal id.");
+  return proposalId;
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Allow validation retry only for an explicitly retryable saved-dispatch failure.
+ * Input: server-returned dispatch envelope; output: boolean.
+ * Side effects: none; pending, running, citation-required, and terminal states are not retried.
+ * Use to expose library_validate only when the shared tool says its queue failure can be retried.
+ */
+export function canRetryLibraryValidation(dispatch: Json | undefined): boolean {
+  return dispatch?.state === "queue_failed" && dispatch.retryable === true;
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Gate publication on the exact proposal and its separate server-written validation receipt.
+ * Inputs: proposal id plus exact proposal and validation case_record responses; output: whether publish may be offered.
+ * Side effects: none; values from editor fields or proposal-create responses cannot clear the gate.
+ * Use before showing library_publish; the server still performs its atomic validation and version checks.
+ */
+export function canPublishLibraryProposal(proposalId: string, proposalRecord: Json, validationSnapshot: Json): boolean {
+  let proposalRef: string;
+  try { proposalRef = canonicalLibraryProposalId(proposalId); } catch { return false; }
+  const proposal = (proposalRecord.record ?? {}) as Json;
+  const validationRef = `library_validation:${proposalRef.slice("library_proposal:".length)}`;
+  const validation = (validationSnapshot.record ?? {}) as Json;
+  const checks = Array.isArray(validation.claim_checks) ? validation.claim_checks as Json[] : [];
+  return proposalRecord.found === true && proposalRecord.id === proposalRef &&
+    typeof proposalRecord.version === "string" && /^sha256:[0-9a-f]{64}$/i.test(proposalRecord.version) &&
+    validationSnapshot.found === true && validationSnapshot.id === validationRef && typeof validationSnapshot.version === "string" && /^sha256:[0-9a-f]{64}$/i.test(validationSnapshot.version) &&
+    proposal.status !== "published" && validation.status === "VERIFIED_PRIMARY" && validation.currency_status === "cleared" &&
+    validation.proposal_id === proposalRef && typeof proposal.proposed_hash === "string" && /^sha256:[0-9a-f]{64}$/i.test(proposal.proposed_hash) && validation.proposed_hash === proposal.proposed_hash &&
+    checks.length > 0 && checks.every((check) => check.status === "VERIFIED_PRIMARY" && check.currency_status === "cleared");
+}
+
 async function openRecord(ref: string, onChanged?: () => void): Promise<void> {
+  if (/^(reference|source):/.test(ref)) {
+    await openLibraryRecord(ref, onChanged);
+    return;
+  }
   openSheet("Loading…");
   try {
     const rec = await api<Json>(`/api/records/${encodeURIComponent(ref)}`);
@@ -206,7 +377,7 @@ async function openRecord(ref: string, onChanged?: () => void): Promise<void> {
     openSheet(titleOf(record),
       el("p", { class: "idline", text: `id ${String(rec.id)}` }),
       el("p", { class: "idline", text: `version ${String(rec.version)}` }),
-      el("div", { class: "actions" }, url, fileLink, el("button", { type: "button", onclick: () => correctForm(String(rec.id), String(rec.table), record, onChanged) }, "Correct this record")),
+      el("div", { class: "actions" }, url, fileLink, el("button", { type: "button", onclick: () => correctForm(String(rec.id), String(rec.table), record, onChanged, String(rec.version)) }, "Correct this record")),
       body ? markdown(body) : null,
       el("h3", { text: "Fields" }),
       kv(record));
@@ -215,8 +386,14 @@ async function openRecord(ref: string, onChanged?: () => void): Promise<void> {
   }
 }
 
-function correctForm(ref: string, table: string, record: Json, onChanged?: () => void): void {
-  const editable = Object.entries(record).filter(([k, v]) => (typeof v === "string" || typeof v === "number" || typeof v === "boolean") && !["file_b64", "sha256", "loaded_at", "corrected_at"].includes(k));
+/** Correct personal case fields against their exact shared version while retaining full before/after revisions.
+ * Inputs: record identity, original fields/version and refresh callback. Outputs: an edit sheet and readback.
+ * Effects: version-bound case_put and linked correction note after user save; unchanged personal fields stay in the merge base.
+ * Choose for case records and case_document sources; legal sources/references use the proposal editor.
+ * Byline: Codex · GPT-6 · 2026-10-04.
+ */
+function correctForm(ref: string, table: string, record: Json, onChanged?: () => void, expectedVersion?: string): void {
+  const editable = Object.entries(record).filter(([k, v]) => (typeof v === "string" || typeof v === "number" || typeof v === "boolean") && !["id", "embedding", "file_b64", "sha256", "loaded_at", "corrected_at"].includes(k));
   const form = el("form", {});
   const inputs = new Map<string, HTMLInputElement | HTMLTextAreaElement>();
   for (const [k, v] of editable) {
@@ -241,7 +418,8 @@ function correctForm(ref: string, table: string, record: Json, onChanged?: () =>
     if (!Object.keys(changed).length) { status.replaceChildren(errBox("Nothing changed.")); return; }
     try {
       const at = new Date().toISOString();
-      await data("case_put", { table, id: ref.slice(ref.indexOf(":") + 1), data: { ...changed, corrected_at: at } });
+      await data("case_put", { table, id: ref.slice(ref.indexOf(":") + 1), expected_version: expectedVersion,
+        data: { ...changed, ...(table === "source" ? { kind: "case_document" } : {}), corrected_at: at } });
       const noteId = `correction-${at.replace(/[^0-9]/g, "")}`;
       await data("case_put", {
         table: "note", id: noteId,
@@ -256,6 +434,230 @@ function correctForm(ref: string, table: string, record: Json, onChanged?: () =>
     }
   });
   openSheet(`Correct ${ref}`, form, status);
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Show the exact shared source/reference record and open its proposal editor.
+ * Inputs: `source:` or `reference:` id and optional list refresh callback; outputs: a full-detail sheet.
+ * Side effects: reads case_record and renders its complete body and provenance without local writes.
+ * Use instead of the generic correction path for shared library records.
+ */
+async function openLibraryRecord(ref: string, onChanged?: () => void): Promise<void> {
+  openSheet("Loading shared record…");
+  try {
+    const snapshot = await data("case_record", { id: ref });
+    if (snapshot.found !== true || snapshot.id !== ref || typeof snapshot.version !== "string") throw new Error(`Shared record ${ref} was not found with a version.`);
+    const record = (snapshot.record ?? {}) as Json;
+    const locator = officialSourceUrl(record);
+    const link = locator ? el("a", { class: "btn secondary", href: locator, target: "_blank", rel: "noopener noreferrer" }, "Open official source") : null;
+    const content = record.body ?? record.text ?? record.content ?? record.data;
+    const personalSource = ref.startsWith("source:") && record.kind === "case_document";
+    const fileLink = typeof record.file_b64 === "string" && record.file_b64
+      ? el("a", { class: "btn secondary", download: String(record.file_name ?? "document"), href: `data:${String(record.file_mime ?? "application/octet-stream")};base64,${record.file_b64}` }, `Download ${String(record.file_name ?? "file")}`)
+      : null;
+    const body = content === undefined || content === null ? null :
+      typeof content === "string" ? markdown(content) : el("pre", { class: "json", text: JSON.stringify(content, null, 2) });
+    openSheet(titleOf(record),
+      el("p", { class: "idline", text: `id ${ref}` }),
+      el("p", { class: "idline", text: `version ${String(snapshot.version)}` }),
+      el("div", { class: "actions" }, link, fileLink,
+        el("button", { type: "button", onclick: () => personalSource
+          ? correctForm(ref, "source", record, onChanged, String(snapshot.version))
+          : libraryProposalEditor(ref, String(snapshot.version), record, onChanged) }, personalSource ? "Correct this case document" : "Propose an edit")),
+      body,
+      el("h3", { text: "Source path, hash and fields" }), kv(record));
+  } catch (err) {
+    openSheet("Shared record", errBox(err));
+  }
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Reopen one retained import draft by exact shared proposal id.
+ * Inputs: `library_proposal:<uuid>` id; outputs: a full proposal review sheet or a citation editor.
+ * Side effects: case_record reads only; edits create a new proposal and leave the imported draft intact.
+ * Use for `citation_required` records; other proposal states open their current status and validation details.
+ */
+async function openLibraryDraft(proposalId: string, onChanged?: () => void): Promise<void> {
+  openSheet("Loading retained proposal…");
+  try {
+    const proposalRef = canonicalLibraryProposalId(proposalId);
+    const snapshot = await data("case_record", { id: proposalRef });
+    if (snapshot.found !== true || snapshot.id !== proposalRef || typeof snapshot.version !== "string") throw new Error("Retained proposal was not found with an exact shared version.");
+    const record = (snapshot.record ?? {}) as Json;
+    if (record.status !== "citation_required") {
+      const status = el("div", { class: "library-proposal-state" });
+      openSheet("Retained proposal status", status);
+      await showLibraryProposalState(status, { id: proposalRef, proposal_id: proposalRef, status: record.status }, onChanged);
+      return;
+    }
+    const seed = libraryDraftEditSeed(snapshot);
+    const baseline = await libraryDraftComparisonBaseline(seed, (id) => data("case_record", { id }));
+    openSheet("Retained imported library draft",
+      el("p", { class: "lede", text: "This full draft is still retained. Adding current claim citations creates a new proposal against its original target version; it does not replace or discard this draft." }),
+      el("p", { class: "idline", text: `${proposalRef} · ${seed.targetId} · expected target version ${seed.expectedVersion}` }),
+      el("pre", { class: "json", text: JSON.stringify(seed.proposedRecord, null, 2) }),
+      el("button", { type: "button", onclick: () => libraryProposalEditor(seed.targetId, seed.expectedVersion, seed.proposedRecord, onChanged, seed.citations, seed.rationale, baseline) }, "Add current citations and create proposal"));
+  } catch (err) {
+    openSheet("Retained proposal", libraryFailureBox(err));
+  }
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Open a full-record draft form for an existing shared library item or new source/reference.
+ * Inputs: target identity, exact version or `absent`, full original record, and refresh callback.
+ * Outputs: a retained shared proposal state panel after submission; side effects: exact citation reads and proposal tool call.
+ * Use for source/reference changes; all other case records continue through correctForm or their own form.
+ */
+function libraryProposalEditor(
+  targetId: string,
+  expectedVersion: string,
+  original: Json,
+  onChanged?: () => void,
+  initialCitations: Array<{ source_id: string; pinpoint: string; claim: string }> = [],
+  initialRationale = "",
+  comparisonBaseline: Json = original,
+): void {
+  const id = el("input", { value: targetId, required: true, "aria-label": "Library record id" }) as HTMLInputElement;
+  id.readOnly = expectedVersion !== "absent";
+  const content = el("textarea", { rows: 18, "aria-label": "Complete record content", spellcheck: "false" }) as HTMLTextAreaElement;
+  const initialPatch = editableLibraryPatch(comparisonBaseline);
+  content.value = JSON.stringify(editableLibraryPatch(original), null, 2);
+  const citations = el("div", { class: "library-citations" });
+  const citationRows: Array<{ source: HTMLInputElement; pinpoint: HTMLInputElement; claim: HTMLTextAreaElement; row: HTMLElement }> = [];
+  const addCitation = (seed: { source_id?: string; pinpoint?: string; claim?: string } = {}) => {
+    const source = el("input", { placeholder: "source:record-id", required: true, "aria-label": "Citation source id", value: seed.source_id ?? "" }) as HTMLInputElement;
+    const pinpoint = el("input", { placeholder: "Page, paragraph, section, or locator", required: true, "aria-label": "Citation pinpoint", value: seed.pinpoint ?? "" }) as HTMLInputElement;
+    const claim = el("textarea", { placeholder: "What claim does this source support?", required: true, rows: 3, "aria-label": "Citation claim" }) as HTMLTextAreaElement;
+    claim.value = seed.claim ?? "";
+    const row = el("fieldset", { class: "library-citation" }, el("legend", { text: "Citation" }),
+      el("label", {}, "Source record", source), el("label", {}, "Pinpoint", pinpoint), el("label", {}, "Claim supported", claim));
+    const entry = { source, pinpoint, claim, row };
+    const remove = el("button", { type: "button", class: "secondary", onclick: () => {
+      if (citationRows.length > 1) { citationRows.splice(citationRows.indexOf(entry), 1); row.remove(); }
+    } }, "Remove citation");
+    row.append(remove);
+    citationRows.push(entry);
+    citations.append(row);
+  };
+  if (initialCitations.length) initialCitations.forEach((citation) => addCitation(citation));
+  else addCitation();
+  const add = el("button", { type: "button", class: "secondary", onclick: addCitation }, "Add citation");
+  const rationale = el("textarea", { required: true, rows: 3, placeholder: "Why should this shared library record change?", "aria-label": "Proposal rationale" }) as HTMLTextAreaElement;
+  rationale.value = initialRationale;
+  const form = el("form", { class: "library-editor" },
+    el("p", { class: "lede", text: expectedVersion === "absent" ? "New shared record. It stays a proposal until server-side citation validation and publication." : `Editing the exact shared version ${expectedVersion}. The current published record stays unchanged while this proposal is validated.` }),
+    el("label", {}, "Record id", id),
+    el("label", {}, "Complete record content (JSON)", content),
+    citations, add, el("label", {}, "Reason for this change", rationale),
+    el("button", { type: "submit" }, "Save shared proposal"));
+  const status = el("div", { class: "library-proposal-state", "aria-live": "polite" });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    status.replaceChildren();
+    try {
+      const chosenId = id.value.trim();
+      if (!/^(reference|source):\S+$/.test(chosenId)) throw new Error("Record id must begin with reference: or source:.");
+      const edited = JSON.parse(content.value) as Json;
+      if (!edited || typeof edited !== "object" || Array.isArray(edited)) throw new Error("Complete record content must be a JSON object.");
+      const patch = changedLibraryPatch(initialPatch, edited);
+      if (!Object.keys(patch).length) throw new Error("Change at least one editable field before saving a proposal.");
+      if (!rationale.value.trim()) throw new Error("Enter a rationale before saving the proposal.");
+      const citationInput = citationRows.map(({ source, pinpoint, claim }) => ({ source_id: source.value, pinpoint: pinpoint.value, claim: claim.value }));
+      const resolved = await resolveLibraryCitations(chosenId, expectedVersion, citationInput, async (sourceId) => data("case_record", { id: sourceId }));
+      const args = buildLibraryProposalArguments(chosenId, expectedVersion, patch, resolved, rationale.value);
+      const result = await data("library_propose", args);
+      if (typeof result.proposal_id !== "string" || result.status !== "pending_validation") throw new Error("Proposal response did not include a saved pending-validation proposal id.");
+      await showLibraryProposalState(status, result, onChanged);
+    } catch (err) {
+      status.replaceChildren(libraryFailureBox(err));
+    }
+  });
+  openSheet(expectedVersion === "absent" ? "Propose a new shared record" : `Propose an edit to ${targetId}`, form, status);
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Render retained proposal, queue retry, and server-cleared publish states from shared reads.
+ * Inputs: proposal tool result, status container, and optional library refresh callback.
+ * Outputs: visible dispatch/currency state and permitted actions; side effects: proposal case_record read and user-triggered validate/publish calls.
+ * Use after save, retry, refresh, or publication; never derive validation or currency from form fields.
+ */
+async function showLibraryProposalState(host: HTMLElement, proposal: Json, onChanged?: () => void): Promise<void> {
+  const proposalId = canonicalLibraryProposalId(String(proposal.proposal_id ?? proposal.id ?? ""));
+  const proposalKey = proposalId.slice("library_proposal:".length);
+  const proposalRef = proposalId;
+  host.replaceChildren(el("p", { class: "lede", text: `Proposal ${proposalId} saved to the shared store. Published content has not changed.` }));
+  try {
+    const snapshot = await data("case_record", { id: proposalRef });
+    if (snapshot.found !== true || snapshot.id !== proposalRef || typeof snapshot.version !== "string") throw new Error("The saved proposal could not be reloaded from the shared store.");
+    const record = (snapshot.record ?? {}) as Json;
+    const dispatch = (record.dispatch && typeof record.dispatch === "object" ? record.dispatch : proposal.dispatch) as Json | undefined;
+    const state = typeof dispatch?.state === "string" ? dispatch.state : "status unavailable";
+    host.append(el("p", { class: "idline", text: `Shared proposal version ${String(snapshot.version)} · ${String(record.status ?? proposal.status)} · validation dispatch ${state}` }));
+    host.append(kv({ currency_status: record.currency_status, validation_status: record.validation_status, dispatch }));
+    const validation = await data("case_record", { id: `library_validation:${proposalKey}` });
+    let validationSnapshot: Json = {};
+    if (validation.found === true && typeof validation.version === "string" && validation.id === `library_validation:${proposalKey}`) {
+      validationSnapshot = validation;
+      const receipt = (validation.record ?? {}) as Json;
+      host.append(el("h3", { text: "Shared validation record" }),
+        el("p", { class: "idline", text: `${String(validation.id)} · ${String(validation.version)}` }),
+        kv({ status: receipt.status, currency_status: receipt.currency_status, proposed_hash: receipt.proposed_hash,
+          validator_version: receipt.validator_version, completed_at: receipt.completed_at, expires_at: receipt.expires_at,
+          claim_checks: receipt.claim_checks }));
+    }
+    if (canRetryLibraryValidation(dispatch)) {
+      const retry = el("button", { type: "button", class: "secondary", text: "Retry validation dispatch" }) as HTMLButtonElement;
+      retry.addEventListener("click", async () => {
+        retry.disabled = true;
+        try {
+          const latest = await data("library_validate", { proposal_id: proposalId });
+          await showLibraryProposalState(host, { ...proposal, ...latest, proposal_id: proposalId, status: proposal.status }, onChanged);
+        } catch (err) {
+          host.append(libraryFailureBox(err));
+        } finally { retry.disabled = false; }
+      });
+      host.append(retry);
+    }
+    if (canPublishLibraryProposal(proposalId, snapshot, validationSnapshot)) {
+      const publish = el("button", { type: "button", text: "Publish cleared proposal" }) as HTMLButtonElement;
+      publish.addEventListener("click", async () => {
+        if (!window.confirm(`Publish validated proposal ${proposalId} to the shared library? This updates the current record.`)) return;
+        publish.disabled = true;
+        try {
+          const result = await data("library_publish", { proposal_id: proposalId });
+          host.replaceChildren(okBox(`Published validated proposal ${proposalId}. Shared record version ${String(result.version ?? "updated by server")}.`));
+          onChanged?.();
+        } catch (err) {
+          host.append(libraryFailureBox(err));
+        } finally { publish.disabled = false; }
+      });
+      host.append(el("p", { class: "okmsg", role: "status", text: "The separate shared validation receipt is complete, hash-bound, and reports cleared currency." }), publish);
+    } else {
+      host.append(el("p", { class: "m", role: "status", text: "Publishing is unavailable until the exact shared validation receipt is complete, hash-bound, and reports currency_status: cleared. Validation state is server-owned." }));
+    }
+    const refresh = el("button", { type: "button", class: "secondary", text: "Refresh proposal status" });
+    refresh.addEventListener("click", async () => {
+      refresh.disabled = true;
+      try { await showLibraryProposalState(host, proposal, onChanged); }
+      catch (err) { host.append(libraryFailureBox(err)); }
+      finally { refresh.disabled = false; }
+    });
+    host.append(refresh);
+  } catch (err) {
+    host.append(libraryFailureBox(err));
+  }
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Show an escaped, record-local proposal error and identify version conflicts explicitly.
+ * Input: a thrown tool or validation error; output: an accessible alert element.
+ * Side effects: none; error text is shown only in this editor and is not logged or persisted.
+ * Use for library save, validation retry, and publish failures.
+ */
+function libraryFailureBox(error: unknown): HTMLElement {
+  const message = error instanceof Error ? error.message : String(error);
+  const conflict = /conflict|expected version|version mismatch/i.test(message);
+  return el("div", { class: conflict ? "err library-conflict" : "err", role: "alert", text: conflict ? `Version conflict. Reopen the latest shared record and review your edit before proposing again. ${message}` : message });
 }
 
 // ---------------------------------------------------------------------------
@@ -714,7 +1116,10 @@ async function viewGuide(): Promise<void> {
 async function viewLibrary(): Promise<void> {
   const host = page("Library", "Guides, checklists, templates and legal sources from the shared library.");
   host.append(el("div", { class: "actions" },
-    el("button", { type: "button", class: "secondary", onclick: () => void viewPackagedFiles() }, "Packaged files")));
+    el("button", { type: "button", class: "secondary", onclick: () => void viewPackagedFiles() }, "Packaged files"),
+    el("button", { type: "button", class: "secondary", onclick: () => void viewLibraryDrafts() }, "Retained proposals"),
+    el("button", { type: "button", onclick: () => libraryProposalEditor(`reference:${crypto.randomUUID()}`, "absent", { title: "", body: "" }, () => void viewLibrary()) }, "Propose reference"),
+    el("button", { type: "button", onclick: () => libraryProposalEditor(`source:${crypto.randomUUID()}`, "absent", { title: "", body: "", source_path: "", sha256: "", official_url: "" }, () => void viewLibrary()) }, "Propose source")));
   try {
     await pagedRecordList(host, ["reference", "source"],
       (record) => String(record.source_path ?? record.citation ?? record.id),
@@ -722,6 +1127,58 @@ async function viewLibrary(): Promise<void> {
   } catch (err) {
     host.append(errBox(err));
   }
+}
+
+// Byline: Codex · GPT-6-Luna · 2026-10-04
+/** Browse retained library proposals through the existing read-only case_query tool.
+ * Inputs: none; outputs: bounded proposal metadata pages with local filtering and exact-record open actions.
+ * Side effects: SELECT-only reads of proposal metadata; proposal tables never enter DATA_TABLES or case_put.
+ * Use to reopen imported citation-required drafts and inspect saved proposal history.
+ */
+async function viewLibraryDrafts(): Promise<void> {
+  const host = page("Retained proposals", "Shared drafts and proposal history. Search covers loaded rows; use Show more to read older entries.");
+  host.append(el("div", { class: "actions" }, el("button", { type: "button", class: "secondary", onclick: () => void viewLibrary() }, "Back to Library")));
+  const list = el("div", { class: "list" });
+  const count = el("p", { class: "m", role: "status", text: "Loading retained proposals…" });
+  const error = el("div");
+  const more = el("button", { class: "btn secondary", type: "button", text: "Show more" }) as HTMLButtonElement;
+  let offset = 0;
+  let query = "";
+  let loaded: Json[] = [];
+  const draw = () => {
+    const shown = loaded.filter((row) => !query || JSON.stringify(row).toLowerCase().includes(query));
+    count.textContent = `Showing ${shown.length} matching proposals from ${loaded.length} loaded.`;
+    list.replaceChildren(...(shown.length ? shown.map((row) => recordRow(
+      { ...row, title: `${String(row.status ?? "proposal")} · ${String(row.target ?? row.id)}` },
+      `${String(row.created_at ?? "")} · expected ${String(row.expected_version ?? "unknown")}`,
+      () => void openLibraryDraft(String(row.id), () => void viewLibraryDrafts()),
+    )) : [el("p", { class: "empty", text: loaded.length ? "No matches among loaded proposals." : "No retained proposals." })]));
+  };
+  const load = async () => {
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > 2_147_483_647) throw new Error("Retained proposal offset is outside the supported range.");
+    const result = await data("case_query", {
+      surql: `SELECT id, target, expected_version, status, created_at FROM library_proposal ORDER BY created_at DESC LIMIT 50 START ${offset}`,
+    });
+    if (result.truncated === true || !Array.isArray(result.results)) throw new Error("Retained proposal query returned an invalid or truncated result.");
+    const rows = (result.results as unknown[]).flatMap((statement) => Array.isArray(statement) ? statement : []);
+    if (rows.some((row) => !row || typeof row !== "object" || Array.isArray(row) || typeof (row as Json).id !== "string" || !/^library_proposal:[a-f0-9-]{36}$/i.test(String((row as Json).id)))) {
+      throw new Error("Retained proposal query returned a malformed row.");
+    }
+    const known = new Set(loaded.map((row) => String(row.id)));
+    if (rows.some((row) => known.has(String((row as Json).id)))) throw new Error("Retained proposal paging repeated a proposal id.");
+    loaded.push(...rows as Json[]);
+    offset += rows.length;
+    more.hidden = rows.length < 50;
+    draw();
+  };
+  more.addEventListener("click", async () => {
+    more.disabled = true;
+    error.replaceChildren();
+    try { await load(); } catch (err) { error.replaceChildren(errBox(err)); }
+    finally { more.disabled = false; }
+  });
+  host.append(filterInput("Filter loaded proposal rows", (value) => { query = value; draw(); }), count, list, more, error);
+  try { await load(); } catch (err) { count.textContent = "Retained proposals could not be loaded."; error.replaceChildren(errBox(err)); }
 }
 
 // Byline: Codex, 2026-10-04.

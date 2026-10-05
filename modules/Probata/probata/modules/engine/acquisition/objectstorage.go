@@ -183,11 +183,22 @@ func newObjectStorageAcquisitionResolver(root, scheme string, client objectStora
 		if err != nil {
 			return platformpostgres.ImmutableAcquisition{}, err
 		}
-		out, err := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(bucket), Key: aws.String(key)})
+		versionID, err := objectStorageVersion(ref)
+		if err != nil {
+			return platformpostgres.ImmutableAcquisition{}, err
+		}
+		input := &s3.GetObjectInput{Bucket: aws.String(bucket), Key: aws.String(key)}
+		if versionID != "" {
+			input.VersionId = aws.String(versionID)
+		}
+		out, err := client.GetObject(ctx, input)
 		if err != nil {
 			return platformpostgres.ImmutableAcquisition{}, fmt.Errorf("acquisition: fetch %s object %s/%s: %w", scheme, bucket, key, err)
 		}
 		defer out.Body.Close()
+		if versionID != "" && aws.ToString(out.VersionId) != versionID {
+			return platformpostgres.ImmutableAcquisition{}, errors.New("acquisition: provider returned a different object version")
+		}
 
 		sealed, err := sealStream(ctx, root, out.Body)
 		if err != nil {
@@ -201,6 +212,29 @@ func newObjectStorageAcquisitionResolver(root, scheme string, client objectStora
 		}
 		return sealed, nil
 	}, nil
+}
+
+// objectStorageVersion reads an optional exact provider version without changing legacy unversioned references.
+// Inputs: object URI; outputs: a version or validation error. Effects: none.
+// Choose before GET so malformed, duplicate or null version pins never silently read the latest object.
+// Byline: Codex · GPT-6.1 · 2026-10-04.
+func objectStorageVersion(ref proffer.Ref) (string, error) {
+	parsed, err := url.Parse(string(ref))
+	if err != nil {
+		return "", errors.New("acquisition: malformed versioned reference")
+	}
+	query, err := url.ParseQuery(parsed.RawQuery)
+	if err != nil {
+		return "", errors.New("acquisition: malformed object query")
+	}
+	values, present := query["versionId"]
+	if !present {
+		return "", nil
+	}
+	if len(values) != 1 || values[0] == "" || values[0] == "null" || len(values[0]) > 2048 || strings.ContainsAny(values[0], "\r\n\x00") {
+		return "", errors.New("acquisition: invalid exact object version")
+	}
+	return values[0], nil
 }
 
 // parseObjectStorageRef requires the exact "<scheme>://<bucket>/<key>"

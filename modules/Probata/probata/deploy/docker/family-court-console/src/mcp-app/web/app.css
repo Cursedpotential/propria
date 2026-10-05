@@ -57,6 +57,14 @@ textarea { min-height: 120px; font-family: var(--mono); font-size: 13px; }
 button, .btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 10px 14px; font: 600 14px var(--pr-font-ui); min-height: 44px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 button.secondary, .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.library-editor { gap: 12px; }
+.library-editor > label:first-of-type input { font-family: var(--mono); }
+.library-citations { display: grid; gap: 10px; }
+.library-citation { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); display: grid; gap: 10px; }
+.library-citation legend { color: var(--muted); padding: 0 6px; }
+.library-proposal-state { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 8px; overflow-wrap: anywhere; }
+.library-proposal-state .kv { margin: 10px 0; }
+.library-conflict { border-width: 2px; }
 .filter { margin: 8px 0 12px; }
 .kv { display: grid; grid-template-columns: minmax(90px, 160px) 1fr; gap: 4px 12px; font-size: 13px; margin: 0; }
 .kv dt { color: var(--muted); overflow-wrap: anywhere; }

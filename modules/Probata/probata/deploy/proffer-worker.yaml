@@ -86,6 +86,26 @@ services:
       # /data/probata/volumes/proffer/derive-scratch on the host. Stage sources
       # in a dedicated subdirectory there and keep receipts beneath that root.
       TOOLKIT_INVENTORY_ROOT: ${TOOLKIT_INVENTORY_ROOT:-}
+      # Saved-proposal validation uses separate validator credentials and baked parser paths.
+      # Inputs: named mounted secrets and explicit derivative subtree. Outputs: opt-in workflow registry.
+      # Effects: startup admission only; invocation owns bounded source reads/trusted receipts, never automatic publication.
+      # Byline: Codex, GPT-6.1, 2026-10-04.
+      TOOLKIT_VALIDATION_CASE_MCP_URL: http://100.91.190.107:9077/mcp
+      TOOLKIT_VALIDATION_CASE_TOKEN_FILE: /run/secrets/case-mcp-token
+      TOOLKIT_VALIDATION_SIGNING_KEY_FILE: /run/secrets/validation-signing-key
+      TOOLKIT_VALIDATION_CURRENCY_KEY_FILE: /run/secrets/currency-signing-key
+      TOOLKIT_VALIDATION_DB_USER_FILE: /run/secrets/validator-user
+      TOOLKIT_VALIDATION_DB_PASSWORD_FILE: /run/secrets/validator-password
+      TOOLKIT_VALIDATION_DB_ACCESS: toolkit_validator
+      # Operator-only currency review: UID 0 files; the normal worker UID cannot read these credentials.
+      # Byline: Codex, 2026-10-04. No ordinary library/MCP client can approve source currency.
+      TOOLKIT_CURRENCY_DB_ACCESS: toolkit_currency
+      TOOLKIT_CURRENCY_DB_USER_FILE: /run/secrets/currency-review-user
+      TOOLKIT_CURRENCY_DB_PASSWORD_FILE: /run/secrets/currency-review-password
+      TOOLKIT_CURRENCY_REVIEW_APPROVAL_KEY_FILE: /run/secrets/currency-approval-key
+      TOOLKIT_VALIDATION_B2_CONFIG_FILE: /run/secrets/casebible-b2.json
+      TOOLKIT_VALIDATION_B2_BUCKET: salem-data
+      TOOLKIT_VALIDATION_B2_PREFIX: consignatio/casevault/DerivedKnowledge/family-court/library-validation
       # Where a derivation's output goes. UNSET (today) means it is published
       # beside the original exactly as before. Set it to a JSON list of
       # {"source","derived"} locator-prefix pairs to move derived output under
@@ -97,15 +117,15 @@ services:
       # Literal on purpose: Compose ends a ${VAR:-default} at the first '}'.
       DERIVED_ROOTS_JSON: ''
       PLATFORM_TOOLS_BASE_URL: ${PLATFORM_TOOLS_BASE_URL:?set}
-      CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
       # Byline: Codex, GPT-6, 2026-10-04. Separate scoped catalog writer; existing catalog client stays read-only.
       CASEBIBLE_RECOVERY_DATABASE_URL_FILE: /run/secrets/casebible-recovery-database-url
       # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
       # store: scheme -> credential file. Switching provider = a credential file + these two
       # values, identical in every Proffer/Workbench service. The first root is the default.
       # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
-      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json","r2":"/run/secrets/casebible-r2.json"}'
-      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Vault","url":"b2://salem-data/consignatio/vault/v1/"},{"id":"b2-bucket","label":"B2 / salem-data (whole bucket)","url":"b2://salem-data/"},{"id":"r2-sorted","label":"R2 / Case Bible Sorted","url":"r2://casebible-sorted/","temporary":true},{"id":"r2-raw","label":"R2 / Case Bible Raw","url":"r2://casebible-raw/","temporary":true},{"id":"r2-quarantine","label":"R2 / Case Bible Quarantine","url":"r2://casebible-quarantine/","temporary":true}]'
+      # Owner, 2026-10-04: R2 is retired for platform use; residual migration data is historical only.
+      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json"}'
+      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Case Bible","url":"b2://salem-data/consignatio/casevault/"},{"id":"b2-bucket","label":"B2 / salem-data (whole bucket)","url":"b2://salem-data/"}]'
       # Repair builder (2026-09-26): repair.find_other_version reads the catalog READ-ONLY
       # (role metabase_ro, default_transaction_read_only=on) and HEADs candidates in B2.
       INTAKE_DISCOVERY_PG_HOST: fgz1n7useplhk0t91uk7k1aw
@@ -160,7 +180,16 @@ services:
       - /data/probata/volumes/proffer/inventory-manifests:/data/proffer/inventory-manifests
       # scratch for derive-sms (per-thread NDJSON before publish); data volume, never /tmp
       - /data/probata/volumes/proffer/derive-scratch:/data/proffer/derive-scratch
-      - /data/probata/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
+      # Private validator scratch (parent provisions UID/GID 10001, mode 0700); originals remain outside this derived workspace.
+      - /data/probata/volumes/proffer/library-validation:/data/proffer/library-validation
+      - /data/probata/secrets/family-court/case-mcp-token:/run/secrets/case-mcp-token:ro
+      - /data/probata/secrets/family-court/validation-signing-key:/run/secrets/validation-signing-key:ro
+      - /data/probata/secrets/family-court/currency-signing-key:/run/secrets/currency-signing-key:ro
+      - /data/probata/secrets/family-court/validator-user:/run/secrets/validator-user:ro
+      - /data/probata/secrets/family-court/validator-password:/run/secrets/validator-password:ro
+      - /data/probata/secrets/family-court/currency-review-user:/run/secrets/currency-review-user:ro
+      - /data/probata/secrets/family-court/currency-review-password:/run/secrets/currency-review-password:ro
+      - /data/probata/secrets/family-court/currency-approval-key:/run/secrets/currency-approval-key:ro
       - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/family-court/casebible-recovery-database-url:/run/secrets/casebible-recovery-database-url:ro
       - /data/probata/secrets/n8n/proffer-auth:/run/secrets/n8n-proffer-auth:ro

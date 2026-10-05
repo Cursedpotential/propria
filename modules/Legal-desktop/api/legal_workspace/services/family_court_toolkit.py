@@ -43,10 +43,15 @@ _LIST_SURQL = (
     "FROM type::table($tb);"
 )
 
-# Tables the workdesk may open through this read-through: the toolkit's legal sources,
-# reference rows (cheat sheets, templates, event packs), case-document registers, and the
-# 12 MCL 722.23 best-interest factors, factor:a .. factor:l (Claude Code · Opus 5.5 · 2026-10-02).
-TOOLKIT_TABLES = ("source", "reference", "filing", "draft", "exhibit", "order", "note", "memo", "factor")
+# Keep this allowlist aligned with the toolkit's DATA_TABLES. It deliberately
+# excludes library_validation, library_proposal, and library_revision, which
+# are trusted workflow records rather than case/workdesk records.
+# _Byline: Codex · GPT-6-Luna · 2026-10-04._
+TOOLKIT_TABLES = (
+    "person", "child", "order", "hearing", "deadline", "event", "message",
+    "exhibit", "factor", "source", "note", "court", "court_event", "filing",
+    "draft", "memo", "reference", "evidence_log", "eval", "case_status",
+)
 
 _REF = re.compile(r"^(?P<tb>[a-z_]+):(?P<id>.+)$")
 
