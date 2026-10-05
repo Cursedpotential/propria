@@ -290,3 +290,107 @@ func TestObservationDoesNotAcceptAutomaticPublishResponse(t *testing.T) {
 		t.Fatal("automatic publication accepted")
 	}
 }
+
+func TestGenericProviderMIMERoutesPinnedBytesAndPreservesProvenance(t *testing.T) {
+	for _, provider := range []string{"application/octet-stream", "", "binary/octet-stream"} {
+		for _, source := range []struct {
+			ext, body, media string
+			extracted        bool
+		}{
+			{".md", "# Full private fixture\nUnknown personal context remains complete.\n", "text/markdown", false},
+			{".PDF", "%PDF-1.7\nSynthetic pinned PDF bytes", "application/pdf", true},
+			{".json", `{"record":{"private_unknown":"complete"},"types":{}}`, "application/json", false},
+			{".html", "<!DOCTYPE html><html><body>Synthetic private text</body></html>", "text/html", true},
+			{".xhtml", `<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><body>Private fixture</body></html>`, "application/xhtml+xml", true},
+		} {
+			t.Run(provider+source.ext, func(t *testing.T) {
+				s, store, back := fixtureService(t)
+				raw := []byte(source.body)
+				obj := Object{Bucket: fixtureScope.Bucket, Key: fixtureScope.LegalRoot + "reference-data/incoming" + source.ext, VersionID: "pinned-source-v", UploadedAt: fixtureNow, ContentType: provider, Size: int64(len(raw))}
+				store.add(raw, obj)
+				h, err := s.HashSource(context.Background(), obj)
+				requireNoError(t, err)
+				h, err = s.RetainSource(context.Background(), h)
+				requireNoError(t, err)
+				h, err = s.ExtractSource(context.Background(), h)
+				requireNoError(t, err)
+				out, err := s.StageObservation(context.Background(), h)
+				requireNoError(t, err)
+				if out.Status != CitationRequired || len(back.observations) != 1 {
+					t.Fatal("supported generic media blocked or cleared")
+				}
+				o := back.observations[0]
+				if o.Object.ContentType != provider || o.Object.SHA256 != digest(raw) || o.ExtractionRef == nil || o.RawRef == nil {
+					t.Fatal("provider/hash provenance changed")
+				}
+				var evidence sourceExtractionEvidence
+				requireNoError(t, s.unseal(context.Background(), *o.ExtractionRef, "extraction", &evidence))
+				if evidence.ProviderContentType != provider || evidence.VerifiedMediaType != source.media || evidence.MediaCheckVersion == "" || evidence.InputSHA256 != digest(raw) || evidence.SourceVersionID != obj.VersionID || (evidence.Extracted != nil) != source.extracted {
+					t.Fatal("media descriptor not bound to exact source evidence")
+				}
+				retained, err := s.Artifacts.Read(context.Background(), *o.RawRef, MaxPayloadBytes)
+				requireNoError(t, err)
+				if string(retained) != source.body || store.putCalls != 0 {
+					t.Fatal("source bytes rewritten during media routing")
+				}
+			})
+		}
+	}
+}
+
+func TestSourceMediaRejectsUnsupportedAndInvalidBytes(t *testing.T) {
+	for _, source := range []struct{ ext, body, mime string }{
+		{".pdf", "not a PDF", "application/octet-stream"},
+		{".pdf", "not a PDF", "application/pdf"},
+		{".md", "bad\xffUTF8", "application/octet-stream"},
+		{".md", "binary\x00body", ""},
+		{".json", `{"unfinished":`, "application/octet-stream"},
+		{".json", `{"unfinished":`, "application/json"},
+		{".html", "plain text mislabeled HTML", "application/octet-stream"},
+		{".html", "<html>bad\xff</html>", "text/html"},
+		{".xhtml", `<?xml version="1.0"?><different-root/>`, ""},
+		{".zip", "PK\x03\x04", "application/octet-stream"},
+		{".txt", "plain text without supported generic extension", ""},
+		{".md", "valid text", "application/unknown"},
+		{".md", "valid text", "malformed/media;="},
+	} {
+		t.Run(source.ext+source.mime+source.body, func(t *testing.T) {
+			s, store, back := fixtureService(t)
+			raw := []byte(source.body)
+			obj := Object{Bucket: fixtureScope.Bucket, Key: fixtureScope.LegalRoot + "reference-data/incoming" + source.ext, VersionID: "pinned-source-v", UploadedAt: fixtureNow, ContentType: source.mime, Size: int64(len(raw))}
+			store.add(raw, obj)
+			h, err := s.HashSource(context.Background(), obj)
+			requireNoError(t, err)
+			h, err = s.RetainSource(context.Background(), h)
+			requireNoError(t, err)
+			h, err = s.ExtractSource(context.Background(), h)
+			requireNoError(t, err)
+			out, err := s.StageObservation(context.Background(), h)
+			requireNoError(t, err)
+			if out.Status != Blocked || back.observations[0].Code != "UNSUPPORTED_OR_INVALID_SOURCE_MEDIA" || back.observations[0].Object.ContentType != source.mime {
+				t.Fatal("invalid source media admitted or provenance changed")
+			}
+		})
+	}
+}
+
+func TestSourceMediaRejectsRetainedInputHashMismatch(t *testing.T) {
+	s, store, back := fixtureService(t)
+	raw := []byte("# complete private fixture")
+	obj := Object{Bucket: fixtureScope.Bucket, Key: fixtureScope.LegalRoot + "reference-data/incoming.md", VersionID: "pinned-source-v", UploadedAt: fixtureNow, ContentType: "application/octet-stream", Size: int64(len(raw))}
+	store.add(raw, obj)
+	h, err := s.HashSource(context.Background(), obj)
+	requireNoError(t, err)
+	h, err = s.RetainSource(context.Background(), h)
+	requireNoError(t, err)
+	var o Observation
+	requireNoError(t, s.unseal(context.Background(), h.Ref, "observation", &o))
+	s.Artifacts.(*memoryArtifacts).data[o.RawRef.URI] = []byte("changed after retention")
+	h, err = s.ExtractSource(context.Background(), h)
+	requireNoError(t, err)
+	out, err := s.StageObservation(context.Background(), h)
+	requireNoError(t, err)
+	if out.Status != Blocked || back.observations[0].Code != "MEDIA_INPUT_BINDING_FAILED" {
+		t.Fatal("changed retained input used for media proof")
+	}
+}

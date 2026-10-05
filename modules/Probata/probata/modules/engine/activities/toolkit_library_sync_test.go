@@ -22,7 +22,7 @@ func (r *syncFixtureRegistrar) RegisterActivityWithOptions(fn any, options activ
 func TestToolkitLibrarySyncRegistrationAndUnconfiguredActivityFailVisible(t *testing.T) {
 	r := &syncFixtureRegistrar{names: map[string]any{}}
 	RegisterToolkitLibrarySyncActivities(r, ToolkitLibrarySyncActivities{})
-	if len(r.names) != 15 {
+	if len(r.names) != 16 {
 		t.Fatalf("registered %d units", len(r.names))
 	}
 	var suite testsuite.WorkflowTestSuite
@@ -34,6 +34,9 @@ func TestToolkitLibrarySyncRegistrationAndUnconfiguredActivityFailVisible(t *tes
 		t.Fatal("unconfigured listing silently succeeded")
 	}
 	a := ToolkitLibrarySyncActivities{}
+	if _, err := a.Hydrate(context.Background(), librarysync.Handle{}); err == nil {
+		t.Fatal("unconfigured hydration silently succeeded")
+	}
 	if _, err := a.Write(context.Background(), librarysync.WriteRequest{}); err == nil {
 		t.Fatal("unconfigured writer silently succeeded")
 	}

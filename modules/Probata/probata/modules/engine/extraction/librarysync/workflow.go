@@ -19,6 +19,7 @@ const (
 	HashSourceActivity  = "toolkit_library_sync_hash_source_activity"
 	RetainActivity      = "toolkit_library_sync_retain_activity"
 	ExtractActivity     = "toolkit_library_sync_extract_activity"
+	HydrateActivity     = "toolkit_library_sync_hydrate_activity"
 	ObserveActivity     = "toolkit_library_sync_observe_activity"
 	ClaimActivity       = "toolkit_library_sync_claim_activity"
 	PrepareActivity     = "toolkit_library_sync_prepare_payload_activity"
@@ -161,9 +162,15 @@ func ToolkitLibrarySyncCycleWorkflow(ctx workflow.Context, in CycleInput) (Cycle
 				progress.Failed++
 				continue
 			}
+			progress.Phase = "uploading_incoming_payload"
+			var hydrated Handle
+			if err := workflow.ExecuteActivity(base, HydrateActivity, extracted).Get(ctx, &hydrated); err != nil {
+				progress.Failed++
+				continue
+			}
 			progress.Phase = "staging_observation"
 			var out Outcome
-			if err := workflow.ExecuteActivity(base, ObserveActivity, extracted).Get(ctx, &out); err != nil {
+			if err := workflow.ExecuteActivity(base, ObserveActivity, hydrated).Get(ctx, &out); err != nil {
 				progress.Failed++
 				continue
 			}

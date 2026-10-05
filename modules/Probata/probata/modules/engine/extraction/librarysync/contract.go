@@ -268,6 +268,7 @@ type Outcome struct {
 // Inputs: admitted identities, pinned refs and leased operations; outputs: durable outcomes and streamed payload bytes.
 // Effects: guarded app transactions. Observe never auto-clears citations/currency; Complete independently enforces DB CAS.
 type Backend interface {
+	UploadIncomingPayload(context.Context, string, []byte, IncomingMetadata) (Outcome, error)
 	Seen(context.Context, string) (bool, error)
 	Claim(context.Context, OperationInput) (Claim, error)
 	Payload(context.Context, Claim) ([]byte, error)
@@ -276,4 +277,12 @@ type Backend interface {
 	Complete(context.Context, Claim, Completion) (Outcome, error)
 	Failure(context.Context, Claim, string, string) (Outcome, error)
 	Original(context.Context, string, string) (Binding, error)
+}
+
+// IncomingMetadata binds a complete private upload to its original B2 bytes without conflating derived text and source hashes.
+// Inputs: exact raw/derived payload bytes and original hash; outputs: binary HTTP headers. Effects: none; payloads stay outside Temporal history.
+type IncomingMetadata struct {
+	ContentType  string `json:"content_type"`
+	SHA256       string `json:"sha256"`
+	SourceSHA256 string `json:"source_sha256"`
 }

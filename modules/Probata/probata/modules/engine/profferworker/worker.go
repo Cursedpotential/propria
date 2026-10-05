@@ -21,6 +21,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/contacts"
 	"github.com/Cursedpotential/probata/engine/dedupe"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
+	"github.com/Cursedpotential/probata/engine/extraction/librarysync"
 	"github.com/Cursedpotential/probata/engine/extraction/libraryvalidation"
 	"github.com/Cursedpotential/probata/engine/normalize"
 	"github.com/Cursedpotential/probata/engine/objectstores"
@@ -119,11 +120,21 @@ type Registrations struct {
 	// Effects: none until invoked. Choose alongside preservation; the dated catalog client remains read-only.
 	// Byline: Codex · GPT-6 · 2026-10-04.
 	ToolkitCatalog *activities.ToolkitCatalogRegistrationActivities
+	// ToolkitWorkingCatalog registers verified permanent files using its separately admitted writer.
+	// Inputs: approved metadata root and scoped catalog connection; outputs: registration/readback Activities.
+	// Effects: none until invoked; choose after permanent placement, independently of archive recovery.
+	// Byline: Codex · GPT-6 · 2026-10-05.
+	ToolkitWorkingCatalog *activities.ToolkitWorkingCatalogActivities
 	// ToolkitValidation validates saved library proposals through the existing source/parser/NIM contracts when explicitly enabled.
 	// Inputs: admitted validation service. Outputs: optional four-Activity group. Effects: none until invoked.
 	// Choose separately from preservation/catalog registration; trusted validation does not publish automatically.
 	// Byline: Codex · GPT-6.1 · 2026-10-04.
 	ToolkitValidation *activities.ToolkitLibraryValidationActivities
+	// ToolkitSync optionally observes B2 legal versions and exports guarded saved outbox revisions.
+	// Inputs: the existing validator dependencies and explicit sync service configuration; outputs: two workflows/sixteen Activities.
+	// Effects: registration only until invoked. Choose alongside validation; parent owns schedule and durable outbox dispatch.
+	// Byline: Codex · GPT-6.1 · 2026-10-05.
+	ToolkitSync *activities.ToolkitLibrarySyncActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -243,6 +254,9 @@ func RegisterAll(registrar interface {
 		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.RegisterToolkitCatalog, activity.RegisterOptions{Name: activities.ToolkitCatalogRegisterActivityName})
 		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.ReadbackToolkitCatalog, activity.RegisterOptions{Name: activities.ToolkitCatalogReadbackActivityName})
 	}
+	if err := RegisterToolkitWorkingCatalog(registrar, registrations.ToolkitWorkingCatalog); err != nil {
+		panic("proffer worker: working catalog registry admission failed")
+	}
 	// Register substantive proposal validation only after configured service/runtime preflight succeeds.
 	// Inputs: optional validation group. Outputs: one workflow and four Activities. Effects: registry additions only.
 	// Choose after a saved proposal exists; inventory, preservation and catalog workflows remain independent.
@@ -250,6 +264,13 @@ func RegisterAll(registrar interface {
 	if registrations.ToolkitValidation != nil {
 		libraryvalidation.RegisterWorkflow(registrar)
 		activities.RegisterToolkitLibraryValidationActivities(registrar, *registrations.ToolkitValidation)
+	}
+	if registrations.ToolkitSync != nil {
+		if registrations.ToolkitValidation == nil || registrations.ToolkitValidation.Service == nil || registrations.ToolkitSync.Service == nil {
+			panic("proffer worker: toolkit sync requires configured validator and sync service")
+		}
+		librarysync.RegisterWorkflows(registrar)
+		activities.RegisterToolkitLibrarySyncActivities(registrar, *registrations.ToolkitSync)
 	}
 	// Probe the exact preservation adapter with synthetic bytes before any original transfer.
 	// Inputs: the existing preservation group; outputs: separately tracked probe workflow and Activity.
@@ -265,10 +286,12 @@ func RegisterAll(registrar interface {
 // storage before polling, and serves the dedicated Proffer queue until shutdown.
 // Inputs: cancellation context and existing worker configuration; optional CASEBIBLE_RECOVERY_DATABASE_URL_FILE admits a separate writer.
 // TOOLKIT_VALIDATION_CASE_MCP_URL additionally opts into bounded parser/service admission before validation registration.
+// TOOLKIT_LIBRARY_SYNC_BACKEND_URL opts into sync only after validator admission; its workflows use proffer-v1.
 // Outputs: startup/shutdown error or nil. Effects: opens/closes clients, registers and polls existing workflows; no automatic recovery writes or DDL.
 // Choose for the existing Proffer worker; recovery registration requires its own explicit workflow invocation.
 // Byline: Codex · GPT-6 · 2026-10-04 (optional recovery catalog wiring).
 // Validator admission integration: Codex · GPT-6.1 · 2026-10-04.
+// Optional sync integration: Codex · GPT-6.1 · 2026-10-05.
 func Run(ctx context.Context, cfg Config) error {
 	if stringsTrim(cfg.TemporalTaskQueue) == "" {
 		return errors.New("proffer worker: TEMPORAL_TASK_QUEUE is required")
@@ -345,11 +368,31 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
+	toolkitWorking, closeToolkitWorking, err := ConfigureToolkitWorkingCatalog(ctx, os.Getenv("CASEBIBLE_WORKING_DATABASE_URL_FILE"), registrations.ToolkitPreservation.AllowedRoot)
+	if err != nil {
+		return err
+	}
+	if closeToolkitWorking != nil {
+		defer closeToolkitWorking()
+	}
+	registrations.ToolkitWorkingCatalog = toolkitWorking
 	toolkitValidation, err := configureToolkitValidation(ctx)
 	if err != nil {
 		return err
 	}
 	registrations.ToolkitValidation = toolkitValidation
+	// Admit sync only after validator construction so pinned extraction/artifacts/signing are reused.
+	// Inputs: explicit sync environment and configured validator; outputs: optional Activity group.
+	// Effects: bounded configuration reads; no scheduling, source writes or live worker changes.
+	// Byline: Codex · GPT-6.1 · 2026-10-05.
+	toolkitSync, err := configureToolkitSync(ctx, toolkitValidation)
+	if err != nil {
+		return err
+	}
+	if toolkitSync != nil && cfg.TemporalTaskQueue != librarysync.TaskQueue {
+		return errors.New("proffer worker: toolkit sync requires proffer-v1 task queue")
+	}
+	registrations.ToolkitSync = toolkitSync
 
 	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, workerOptions(cfg))
 	RegisterAll(temporalWorker, registrations)
