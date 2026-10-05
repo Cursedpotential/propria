@@ -14,7 +14,7 @@ import (
 )
 
 // configureToolkitSync admits optional B2 sync using the already configured validator's artifacts, extractor and signing key.
-// Inputs: context, validator and TOOLKIT_LIBRARY_SYNC_* environment/files; outputs: optional fifteen-Activity group or safe error.
+// Inputs: context, validator and TOOLKIT_LIBRARY_SYNC_* environment/files; outputs: optional sixteen-Activity group or safe error.
 // Effects: bounded configuration reads/client construction only. Choose after configureToolkitValidation; no schedule, dispatch or transfer is started.
 func configureToolkitSync(ctx context.Context, validation *activities.ToolkitLibraryValidationActivities) (*activities.ToolkitLibrarySyncActivities, error) {
 	return configureToolkitSyncWithFactory(ctx, os.Getenv(librarysync.EnvBackendURL), validation, librarysync.NewServiceFromEnv)

@@ -137,19 +137,19 @@ func TestToolkitSyncProductionOptInRejectsMissingMount(t *testing.T) {
 	}
 }
 
-// TestToolkitSyncRegistryAddsExactlyTwoWorkflowsAndFifteenActivities preserves all validator/catalog registration siblings.
+// TestToolkitSyncRegistryAddsExactlyTwoWorkflowsAndSixteenActivities preserves all validator/catalog registration siblings.
 // Inputs: baseline and configured Activity groups. Outputs: exact registry delta/uniqueness assertions. Effects: in-memory registrars only.
 // Choose instead of a live worker/Temporal deployment to prove optional registration.
-func TestToolkitSyncRegistryAddsExactlyTwoWorkflowsAndFifteenActivities(t *testing.T) {
+func TestToolkitSyncRegistryAddsExactlyTwoWorkflowsAndSixteenActivities(t *testing.T) {
 	v := syncValidatorFixture()
 	base := &registrationRecorder{}
 	RegisterAll(base, Registrations{ToolkitValidation: v})
 	enabled := &registrationRecorder{}
 	RegisterAll(enabled, Registrations{ToolkitValidation: v, ToolkitSync: &activities.ToolkitLibrarySyncActivities{Service: &librarysync.Service{}}})
-	if enabled.workflowCount != base.workflowCount+2 || len(enabled.names) != len(base.names)+15 {
+	if enabled.workflowCount != base.workflowCount+2 || len(enabled.names) != len(base.names)+16 {
 		t.Fatal("unexpected sync registry delta")
 	}
-	wanted := []string{librarysync.ListActivity, librarysync.SeenActivity, librarysync.HashSourceActivity, librarysync.RetainActivity, librarysync.ExtractActivity, librarysync.ObserveActivity, librarysync.ClaimActivity, librarysync.PrepareActivity, librarysync.WriteActivity, librarysync.RefreshActivity, librarysync.HistoryActivity, librarysync.HashVersionActivity, librarysync.CurrentActivity, librarysync.AckActivity, librarysync.FailureActivity}
+	wanted := []string{librarysync.ListActivity, librarysync.SeenActivity, librarysync.HashSourceActivity, librarysync.RetainActivity, librarysync.ExtractActivity, librarysync.HydrateActivity, librarysync.ObserveActivity, librarysync.ClaimActivity, librarysync.PrepareActivity, librarysync.WriteActivity, librarysync.RefreshActivity, librarysync.HistoryActivity, librarysync.HashVersionActivity, librarysync.CurrentActivity, librarysync.AckActivity, librarysync.FailureActivity}
 	counts := map[string]int{}
 	for _, name := range enabled.names {
 		counts[name]++

@@ -15,6 +15,7 @@ func registerTestUnits(env *testsuite.TestWorkflowEnvironment, s *Service) {
 	env.RegisterActivityWithOptions(s.HashSource, activity.RegisterOptions{Name: HashSourceActivity})
 	env.RegisterActivityWithOptions(s.RetainSource, activity.RegisterOptions{Name: RetainActivity})
 	env.RegisterActivityWithOptions(s.ExtractSource, activity.RegisterOptions{Name: ExtractActivity})
+	env.RegisterActivityWithOptions(s.HydrateObservation, activity.RegisterOptions{Name: HydrateActivity})
 	env.RegisterActivityWithOptions(s.StageObservation, activity.RegisterOptions{Name: ObserveActivity})
 	env.RegisterActivityWithOptions(s.ClaimOperation, activity.RegisterOptions{Name: ClaimActivity})
 	env.RegisterActivityWithOptions(s.PreparePayload, activity.RegisterOptions{Name: PrepareActivity})
@@ -96,6 +97,9 @@ func TestCycleWorkflowSkipsKnownVersionsAndStagesUnknownWithoutPublication(t *te
 	requireNoError(t, env.GetWorkflowResult(&out))
 	if !out.Complete || out.Observed != 1 || len(back.observations) != 1 || back.observations[0].Status != CitationRequired {
 		t.Fatal("cycle failed source staging")
+	}
+	if len(back.incoming) != 1 || back.uploadCalls != 1 {
+		t.Fatal("cycle observed before retaining full incoming body")
 	}
 	back.seen = true
 	env = suite.NewTestWorkflowEnvironment()

@@ -57,41 +57,41 @@ type Registrations struct {
 	// BatchImport serves the batch-by-folder workflow. Its fields are nil in a
 	// worker built without a Temporal client (RegisterAll still registers the
 	// Activities; they fail closed when called unwired).
-	// Byline: Claude Code Â· Opus 5 Â· 2026-09-21
+	// Byline: Claude Code · Opus 5 · 2026-09-21
 	BatchImport activities.BatchImportActivities
 	// RepairPlan serves RepairPlanWorkflow (the repair workflow builder).
 	// Unwired fields fail closed when called.
-	// Byline: Claude Code Â· Opus 5.5 Â· 2026-09-25
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
 	RepairPlan activities.RepairPlanActivities
 	// Extraction serves the entity/event extraction workflows (extraction.go).
-	// Byline: Claude Code Â· Opus 5.5 Â· 2026-09-25
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
 	Extraction activities.EntityExtractionActivities
 	// Conversation serves the conversation-level extraction request and the
 	// Surreal send (conversation_extraction.go).
-	// Byline: Claude Code Â· Sonnet 5.5 Â· 2026-10-02
+	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 	Conversation activities.ConversationActivities
 	// ContextSearch is publish_context_search_activity, the Weaviate-first
 	// stage every new Proffer run schedules before the owner's approval.
-	// Byline: Claude Code Â· Opus 5.5 Â· 2026-10-01
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	ContextSearch activities.PublishContextSearchActivities
 	// FirstPartyContext is the first-party context import (D04): propose,
 	// confirm, and the spine and thread commits.
-	// Byline: Claude Code Â· Opus 5.5 Â· 2026-10-01
+	// Byline: Claude Code · Opus 5.5 · 2026-10-01
 	FirstPartyContext activities.FirstPartyContextActivities
 	// CallLog commits a generation's call records to working.call_log (owner
-	// 2026-10-02). Byline: Claude Code Â· Opus 5.5 Â· 2026-10-02
+	// 2026-10-02). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	CallLog activities.CallLogActivities
 	// MessageMatch is match_message_occurrences_activity (owner 2026-10-02,
-	// message match-up). Byline: Claude Code Â· Opus 5.5 Â· 2026-10-02
+	// message match-up). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	MessageMatch activities.MessageMatchActivities
 	// MessageDedupe is the step Activities of message_dedupe_workflow (owner
-	// 2026-10-02 20:02: Temporal, traceable). Byline: Claude Code Â· Opus 5.5 Â· 2026-10-02
+	// 2026-10-02 20:02: Temporal, traceable). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	MessageDedupe activities.MessageDedupeActivities
 	// AutoApproval is record_auto_approval_activity (owner 2026-10-02,
-	// "auto-approve clean runs"). Byline: Claude Code Â· Opus 5.5 Â· 2026-10-02
+	// "auto-approve clean runs"). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	AutoApproval activities.AutoApprovalActivity
 	// Contacts are the six Activities of ContactsImportWorkflow (owner 2026-10-02,
-	// "traceable Temporal activities"). Byline: Claude Code Â· Sonnet Â· 2026-10-02
+	// "traceable Temporal activities"). Byline: Claude Code · Sonnet · 2026-10-02
 	Contacts activities.ContactsActivities
 	// ToolkitInventory reads local ZIPs without importing them (Codex, 2026-10-04).
 	ToolkitInventory activities.ToolkitPackageInventoryActivities
@@ -103,27 +103,27 @@ type Registrations struct {
 	// ToolkitContentPlacement writes reviewed complete units to permanent B2 legal homes with pinned readback.
 	// Inputs: mounted inventory root and B2 resolver. Outputs: tracked placement Activity group.
 	// Effects: none until invoked; use after inventory and reviewed final-unit selection, before shared publication.
-	// Byline: Codex Â· GPT-6 Â· 2026-10-04.
+	// Byline: Codex · GPT-6 · 2026-10-04.
 	ToolkitContentPlacement *activities.ToolkitContentPlacementActivities
 	// AIWorkproductPlacement preserves reviewed Markdown units under the B2 AI-chat knowledge home.
 	// Inputs: existing derive-scratch root and object-store resolver. Outputs: three independent Activities.
 	// Effects: none until invoked; choose for source inspection, retained copy and pinned readback before ingestion.
-	// Byline: Codex Â· GPT-6 Â· 2026-10-05.
+	// Byline: Codex · GPT-6 · 2026-10-05.
 	AIWorkproductPlacement *activities.AIWorkproductPlacementActivities
 	// ToolkitCatalog registers verified recovery metadata only when the separate writer is explicitly configured.
 	// Inputs: existing preservation root/store resolver and admitted Case Bible writer. Outputs: optional Activity group.
 	// Effects: none until invoked. Choose alongside preservation; the dated catalog client remains read-only.
-	// Byline: Codex Â· GPT-6 Â· 2026-10-04.
+	// Byline: Codex · GPT-6 · 2026-10-04.
 	ToolkitCatalog *activities.ToolkitCatalogRegistrationActivities
 	// ToolkitValidation validates saved library proposals through the existing source/parser/NIM contracts when explicitly enabled.
 	// Inputs: admitted validation service. Outputs: optional four-Activity group. Effects: none until invoked.
 	// Choose separately from preservation/catalog registration; trusted validation does not publish automatically.
-	// Byline: Codex Â· GPT-6.1 Â· 2026-10-04.
+	// Byline: Codex · GPT-6.1 · 2026-10-04.
 	ToolkitValidation *activities.ToolkitLibraryValidationActivities
 	// ToolkitSync optionally observes B2 legal versions and exports guarded saved outbox revisions.
-	// Inputs: the existing validator dependencies and explicit sync service configuration; outputs: two workflows/fifteen Activities.
+	// Inputs: the existing validator dependencies and explicit sync service configuration; outputs: two workflows/sixteen Activities.
 	// Effects: registration only until invoked. Choose alongside validation; parent owns schedule and durable outbox dispatch.
-	// Byline: Codex Â· GPT-6.1 Â· 2026-10-05.
+	// Byline: Codex · GPT-6.1 · 2026-10-05.
 	ToolkitSync *activities.ToolkitLibrarySyncActivities
 }
 
@@ -150,13 +150,13 @@ func RegisterAll(registrar interface {
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
 	// Back-fill of call logs imported before commit_call_log existed.
-	// Byline: Claude Code Â· Opus 5.5 Â· 2026-10-02
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	registrar.RegisterWorkflowWithOptions(proffer.CallLogBackfillWorkflow, workflow.RegisterOptions{Name: proffer.CallLogBackfillWorkflowName})
 	// The re-chunk of committed data and the removal of the per-message objects (owner 2026-10-02: Temporal, traceable).
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksBackfillWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksBackfillWorkflowName})
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksRemovalWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksRemovalWorkflowName})
 	// The removal of same-device duplicates committed before the match-up rule.
-	// Byline: Claude Code Â· Opus 5.5 Â· 2026-10-02
+	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	registrar.RegisterWorkflowWithOptions(dedupe.MessageDedupeWorkflow, workflow.RegisterOptions{Name: dedupe.WorkflowName})
 	registrar.RegisterWorkflowWithOptions(superindex.CycleWorkflow, workflow.RegisterOptions{Name: superindex.WorkflowName})
 	activities.RegisterBatchImportActivities(registrar, registrations.BatchImport)
@@ -191,7 +191,7 @@ func RegisterAll(registrar interface {
 	activities.RegisterAutoApprovalActivity(registrar, registrations.AutoApproval)
 	activities.RegisterCallLogActivities(registrar, registrations.CallLog)
 	activities.RegisterMessageMatchActivities(registrar, registrations.MessageMatch)
-	// Contacts import: manifest, fetch, parse, people, placeholders, re-link (Claude Code Â· Sonnet Â· 2026-10-02).
+	// Contacts import: manifest, fetch, parse, people, placeholders, re-link (Claude Code · Sonnet · 2026-10-02).
 	registrar.RegisterWorkflowWithOptions(contacts.ContactsImportWorkflow, workflow.RegisterOptions{Name: contacts.WorkflowName})
 	activities.RegisterContactsActivities(registrar, registrations.Contacts)
 	// Register isolated source inspection on this same worker, not an import flow.
@@ -231,7 +231,7 @@ func RegisterAll(registrar interface {
 	// Register metadata verification, separate catalog registration and independent readback only after explicit writer admission.
 	// Inputs: optional configured group. Outputs: one workflow and three named Activities. Effects: registry additions only.
 	// Choose after preservation; disabled configuration does not add a writable catalog seam.
-	// Byline: Codex Â· GPT-6 Â· 2026-10-04.
+	// Byline: Codex · GPT-6 · 2026-10-04.
 	if registrations.ToolkitCatalog != nil {
 		registrar.RegisterWorkflowWithOptions(activities.ToolkitCatalogRegistrationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitCatalogRegistrationWorkflowName})
 		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.VerifyToolkitCatalogMetadata, activity.RegisterOptions{Name: activities.ToolkitCatalogMetadataActivityName})
@@ -241,7 +241,7 @@ func RegisterAll(registrar interface {
 	// Register substantive proposal validation only after configured service/runtime preflight succeeds.
 	// Inputs: optional validation group. Outputs: one workflow and four Activities. Effects: registry additions only.
 	// Choose after a saved proposal exists; inventory, preservation and catalog workflows remain independent.
-	// Byline: Codex Â· GPT-6.1 Â· 2026-10-04.
+	// Byline: Codex · GPT-6.1 · 2026-10-04.
 	if registrations.ToolkitValidation != nil {
 		libraryvalidation.RegisterWorkflow(registrar)
 		activities.RegisterToolkitLibraryValidationActivities(registrar, *registrations.ToolkitValidation)
@@ -270,9 +270,9 @@ func RegisterAll(registrar interface {
 // TOOLKIT_LIBRARY_SYNC_BACKEND_URL opts into sync only after validator admission; its workflows use proffer-v1.
 // Outputs: startup/shutdown error or nil. Effects: opens/closes clients, registers and polls existing workflows; no automatic recovery writes or DDL.
 // Choose for the existing Proffer worker; recovery registration requires its own explicit workflow invocation.
-// Byline: Codex Â· GPT-6 Â· 2026-10-04 (optional recovery catalog wiring).
-// Validator admission integration: Codex Â· GPT-6.1 Â· 2026-10-04.
-// Optional sync integration: Codex Â· GPT-6.1 Â· 2026-10-05.
+// Byline: Codex · GPT-6 · 2026-10-04 (optional recovery catalog wiring).
+// Validator admission integration: Codex · GPT-6.1 · 2026-10-04.
+// Optional sync integration: Codex · GPT-6.1 · 2026-10-05.
 func Run(ctx context.Context, cfg Config) error {
 	if stringsTrim(cfg.TemporalTaskQueue) == "" {
 		return errors.New("proffer worker: TEMPORAL_TASK_QUEUE is required")
@@ -305,7 +305,7 @@ func Run(ctx context.Context, cfg Config) error {
 
 	// The Temporal client is dialed BEFORE the registrations are built: the
 	// batch-by-folder Activities read a run's durable lifecycle through it.
-	// Byline: Claude Code Â· Opus 5 Â· 2026-09-21
+	// Byline: Claude Code · Opus 5 · 2026-09-21
 	temporalClient, err := client.Dial(client.Options{HostPort: cfg.TemporalHostPort, Namespace: cfg.TemporalNamespace})
 	if err != nil {
 		return fmt.Errorf("proffer worker: connect to Temporal: %w", err)
@@ -315,7 +315,7 @@ func Run(ctx context.Context, cfg Config) error {
 	// The Case Bible catalog is optional and read-only; only
 	// repair.find_other_version reads it. The pool connects on first use, so
 	// an unreachable catalog never stops the worker starting.
-	// Byline: Claude Code Â· Opus 5.5 Â· 2026-09-25
+	// Byline: Claude Code · Opus 5.5 · 2026-09-25
 	var catalog activities.CatalogVersionFinder
 	if cfg.Catalog.Enabled {
 		catalogPool, err := platformpostgres.OpenCatalogPool(ctx, platformpostgres.CatalogConnection{
@@ -353,7 +353,7 @@ func Run(ctx context.Context, cfg Config) error {
 	// Admit sync only after validator construction so pinned extraction/artifacts/signing are reused.
 	// Inputs: explicit sync environment and configured validator; outputs: optional Activity group.
 	// Effects: bounded configuration reads; no scheduling, source writes or live worker changes.
-	// Byline: Codex Â· GPT-6.1 Â· 2026-10-05.
+	// Byline: Codex · GPT-6.1 · 2026-10-05.
 	toolkitSync, err := configureToolkitSync(ctx, toolkitValidation)
 	if err != nil {
 		return err
@@ -610,9 +610,9 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		return Registrations{}, err
 	}
 	// The derive route streams from, and republishes into, the source's own
-	// object store â€” the same OBJECT_STORES_JSON configuration the
+	// object store — the same OBJECT_STORES_JSON configuration the
 	// acquisition resolvers above use. No provider is named in code.
-	// Byline: Claude Code Â· Opus 5 Â· 2026-09-20
+	// Byline: Claude Code · Opus 5 · 2026-09-20
 	deriveStore, err := platformpostgres.NewDeriveStore(pool)
 	if err != nil {
 		return Registrations{}, err
@@ -621,7 +621,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	// code. Unset means every source falls back to beside-the-original; a
 	// malformed or unreachable value is a loud boot failure, never a silent
 	// fallback (owner, 2026-09-21).
-	// Byline: Claude Code Â· Opus 5 Â· 2026-09-21
+	// Byline: Claude Code · Opus 5 · 2026-09-21
 	derivedRoots, err := smsthreads.DerivedRootsFromEnv()
 	if err != nil {
 		return Registrations{}, err
@@ -722,7 +722,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		Repair:     activities.NewRepairActivities(toolsClient, repairStore),
 		Preview:    activities.PreviewProjectionActivity{Store: previewStore},
 		// The automatic approval writes the same decision record Review does.
-		// Byline: Claude Code Â· Opus 5.5 Â· 2026-10-02
+		// Byline: Claude Code · Opus 5.5 · 2026-10-02
 		AutoApproval: activities.AutoApprovalActivity{Store: previewStore},
 	}, nil
 }

@@ -15,7 +15,7 @@ import (
 // Effects: each method performs its named unit; workflows own retries/sequencing and the parent owns worker wiring.
 type ToolkitLibrarySyncActivities struct{ Service *librarysync.Service }
 
-// RegisterToolkitLibrarySyncActivities installs fifteen exact workflow-facing names without changing the shared registrar.
+// RegisterToolkitLibrarySyncActivities installs sixteen exact workflow-facing names without changing the shared registrar.
 // Inputs: parent worker/service. Outputs: none. Effects: registration only; use alongside librarysync.RegisterWorkflows.
 func RegisterToolkitLibrarySyncActivities(r ActivityRegistrar, a ToolkitLibrarySyncActivities) {
 	r.RegisterActivityWithOptions(a.ListPage, activity.RegisterOptions{Name: librarysync.ListActivity})
@@ -23,6 +23,7 @@ func RegisterToolkitLibrarySyncActivities(r ActivityRegistrar, a ToolkitLibraryS
 	r.RegisterActivityWithOptions(a.HashSource, activity.RegisterOptions{Name: librarysync.HashSourceActivity})
 	r.RegisterActivityWithOptions(a.Retain, activity.RegisterOptions{Name: librarysync.RetainActivity})
 	r.RegisterActivityWithOptions(a.Extract, activity.RegisterOptions{Name: librarysync.ExtractActivity})
+	r.RegisterActivityWithOptions(a.Hydrate, activity.RegisterOptions{Name: librarysync.HydrateActivity})
 	r.RegisterActivityWithOptions(a.Observe, activity.RegisterOptions{Name: librarysync.ObserveActivity})
 	r.RegisterActivityWithOptions(a.Claim, activity.RegisterOptions{Name: librarysync.ClaimActivity})
 	r.RegisterActivityWithOptions(a.Prepare, activity.RegisterOptions{Name: librarysync.PrepareActivity})
@@ -58,6 +59,13 @@ func (a ToolkitLibrarySyncActivities) Retain(ctx context.Context, in librarysync
 // Extract invokes the existing input-pinned extractor; inputs: raw ref; outputs: extraction ref/status; effects: parser/descriptor only.
 func (a ToolkitLibrarySyncActivities) Extract(ctx context.Context, in librarysync.Handle) (librarysync.Handle, error) {
 	return syncUnit(ctx, a.Service, in.Ref.VersionID, "extract", func() (librarysync.Handle, error) { return a.Service.ExtractSource(ctx, in) })
+}
+
+// Hydrate uploads complete immutable raw/derived content to the private backend without carrying bodies in Temporal history.
+// Inputs: pinned extraction descriptor; outputs: signed incoming proof/status reference. Effects: bounded private payload retention/upload.
+// Choose between Extract and Observe; it never publishes, clears currency or rewrites source B2 objects.
+func (a ToolkitLibrarySyncActivities) Hydrate(ctx context.Context, in librarysync.Handle) (librarysync.Handle, error) {
+	return syncUnit(ctx, a.Service, in.Ref.VersionID, "hydrate", func() (librarysync.Handle, error) { return a.Service.HydrateObservation(ctx, in) })
 }
 
 // Observe stages evidence through existing proposal gates; inputs: evidence ref; outputs: IDs/status; effects: guarded backend import.

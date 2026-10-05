@@ -346,12 +346,25 @@ func verifiedSourceMedia(obj Object, raw []byte) (string, error) {
 	return media, nil
 }
 
-// StageObservation submits only retained evidence references to existing guarded backend import/proposal gates.
+// StageObservation submits retained evidence and optional signed incoming admission to guarded backend import/proposal gates.
 // Inputs: authenticated observation; outputs: explicit durable IDs/status. Effects: backend transaction; never auto-publishes.
 func (s *Service) StageObservation(ctx context.Context, h Handle) (Outcome, error) {
 	var o Observation
+	hydrated := false
 	if err := s.unseal(ctx, h.Ref, "observation", &o); err != nil {
-		return Outcome{}, err
+		var receipt incomingAdmission
+		if err := s.unseal(ctx, h.Ref, "incoming-admission", &receipt); err != nil {
+			return Outcome{}, err
+		}
+		o = receipt.Observation
+		if receipt.Status == "ready" {
+			if o.Status != CitationRequired || receipt.CheckVersion != "librarysync-incoming/1" || receipt.SourceVersionID != o.Object.VersionID || receipt.Metadata.SourceSHA256 != o.Object.SHA256 || strings.TrimPrefix(receipt.PayloadRef.SHA256, "sha256:") != receipt.Metadata.SHA256 || receipt.PayloadRef.Bytes <= 0 || receipt.PayloadRef.Bytes > MaxPayloadBytes {
+				return Outcome{}, errors.New("incoming admission binding invalid")
+			}
+			hydrated = true
+		} else if o.Status != Blocked && o.Status != Conflicted {
+			return Outcome{}, errors.New("uncleared incoming admission")
+		}
 	}
 	expected, err := s.observation(o.Object)
 	if err != nil || expected.ObservationID != o.ObservationID || expected.BindingID != o.BindingID {
@@ -361,10 +374,103 @@ func (s *Service) StageObservation(ctx context.Context, h Handle) (Outcome, erro
 		return Outcome{}, errors.New("observation incomplete")
 	}
 	out, err := s.Backend.Observe(ctx, o)
-	if err == nil && (out.Status == Synced || out.Status == "published" || out.Status == libraryvalidation.Verified) {
+	if err == nil && ((out.Status == Synced && !hydrated) || out.Status == "published" || out.Status == libraryvalidation.Verified) {
 		return Outcome{}, errors.New("observation backend attempted unsupported automatic publication")
 	}
 	return out, err
+}
+
+type incomingAdmission struct {
+	Observation     Observation                   `json:"observation"`
+	Metadata        IncomingMetadata              `json:"metadata"`
+	PayloadRef      libraryvalidation.ArtifactRef `json:"payload_ref"`
+	SourceVersionID string                        `json:"source_version_id"`
+	Encoding        string                        `json:"encoding"`
+	CheckVersion    string                        `json:"check_version"`
+	Status          string                        `json:"status"`
+}
+
+// HydrateObservation uploads exact full text/typed-record bytes or input-bound extracted page text before Observe.
+// Inputs: authenticated source extraction handle; outputs: signed admission/status reference with no personal body in history.
+// Effects: bounded artifact reads, optional derived-text retention and idempotent private backend payload upload capped at 8 MiB.
+// Choose between extraction and guarded adoption; backend independently checks mapping/CAS, and legal drafts remain citation_required.
+func (s *Service) HydrateObservation(ctx context.Context, h Handle) (Handle, error) {
+	var o Observation
+	if err := s.unseal(ctx, h.Ref, "observation", &o); err != nil {
+		return Handle{}, err
+	}
+	if o.Status == Blocked || o.Status == Conflicted {
+		return h, nil
+	}
+	if o.Status != CitationRequired || o.RawRef == nil || o.ExtractionRef == nil {
+		return Handle{}, errors.New("incoming hydration requires retained extraction evidence")
+	}
+	expected, err := s.observation(o.Object)
+	if err != nil || expected.ObservationID != o.ObservationID || expected.BindingID != o.BindingID {
+		return Handle{}, errors.New("incoming observation identity mismatch")
+	}
+	var evidence sourceExtractionEvidence
+	if err := s.unseal(ctx, *o.ExtractionRef, "extraction", &evidence); err != nil {
+		return Handle{}, err
+	}
+	if !reflect.DeepEqual(evidence.Original, o.Object) || evidence.Raw != *o.RawRef || evidence.InputSHA256 != o.Object.SHA256 || evidence.SourceVersionID != o.Object.VersionID || evidence.MediaCheckVersion != "librarysync-media/1" {
+		return Handle{}, errors.New("incoming extraction source binding mismatch")
+	}
+	raw, err := s.Artifacts.Read(ctx, *o.RawRef, MaxPayloadBytes)
+	if err != nil || int64(len(raw)) != o.Object.Size || digest(raw) != o.Object.SHA256 {
+		return Handle{}, errors.New("incoming original integrity mismatch")
+	}
+	media, err := verifiedSourceMedia(o.Object, raw)
+	if err != nil || media != evidence.VerifiedMediaType {
+		return Handle{}, errors.New("incoming media binding mismatch")
+	}
+	encoding := "source-bytes/1"
+	content := raw
+	contentType := media
+	payloadRef := *o.RawRef
+	switch media {
+	case "text/markdown", "text/plain", "application/json":
+	case "application/pdf", "text/html", "application/xhtml+xml":
+		x := evidence.Extracted
+		if x == nil || x.LowConfidence || len(x.Pages) == 0 || len(x.Pages) > libraryvalidation.MaxPages || x.InputSHA256 != o.Object.SHA256 || x.VersionID != o.RawRef.VersionID || x.Extractor == "" || x.ExtractorVersion == "" {
+			return Handle{}, errors.New("incoming page extraction binding mismatch")
+		}
+		content = []byte(strings.Join(x.Pages, "\n\f\n"))
+		if !utf8.Valid(content) || bytes.ContainsRune(content, '\x00') || len(bytes.TrimSpace(content)) == 0 || int64(len(content)) > MaxPayloadBytes {
+			return Handle{}, errors.New("incoming extracted text invalid or over budget")
+		}
+		contentType = "text/plain"
+		encoding = "pages-formfeed/1"
+		payloadRef, err = s.Artifacts.Put(ctx, "library-sync/"+o.ObservationID+"/incoming-text", content, contentType)
+		if err != nil {
+			return Handle{}, err
+		}
+	default:
+		return Handle{}, errors.New("unsupported incoming payload media")
+	}
+	meta := IncomingMetadata{ContentType: contentType, SHA256: digest(content), SourceSHA256: o.Object.SHA256}
+	if strings.TrimPrefix(payloadRef.SHA256, "sha256:") != meta.SHA256 || payloadRef.Bytes != int64(len(content)) {
+		return Handle{}, errors.New("incoming payload retention mismatch")
+	}
+	out, err := s.Backend.UploadIncomingPayload(ctx, o.ObservationID, content, meta)
+	if err != nil {
+		return Handle{}, err
+	}
+	if out.BindingID != "" && out.BindingID != o.BindingID {
+		return Handle{}, errors.New("incoming backend binding mismatch")
+	}
+	if out.Status != "ready" && out.Status != Blocked && out.Status != Conflicted {
+		return Handle{}, errors.New("incoming backend returned unsupported admission")
+	}
+	if out.Status != "ready" {
+		o.Status = out.Status
+		o.Code = out.Code
+		if o.Code == "" {
+			o.Code = "INCOMING_PAYLOAD_NOT_READY"
+		}
+	}
+	ref, err := s.seal(ctx, "incoming-admission", o.ObservationID+"/incoming-admission", incomingAdmission{Observation: o, Metadata: meta, PayloadRef: payloadRef, SourceVersionID: o.Object.VersionID, Encoding: encoding, CheckVersion: "librarysync-incoming/1", Status: out.Status})
+	return Handle{Ref: ref, Status: o.Status, Code: o.Code}, err
 }
 
 // ClaimOperation obtains a binding lease and retains its immutable descriptor outside history.

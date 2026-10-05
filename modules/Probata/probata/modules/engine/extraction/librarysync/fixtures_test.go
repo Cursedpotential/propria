@@ -156,6 +156,37 @@ type memoryBackend struct {
 	forgeSuccess    bool
 	loseIntentReply bool
 	observeStatus   string
+	incoming        map[string]incomingFixture
+	uploadStatus    string
+	uploadError     bool
+	uploadCalls     int
+}
+
+type incomingFixture struct {
+	Raw      []byte
+	Metadata IncomingMetadata
+}
+
+func (m *memoryBackend) UploadIncomingPayload(_ context.Context, id string, raw []byte, meta IncomingMetadata) (Outcome, error) {
+	m.uploadCalls++
+	if m.uploadError {
+		return Outcome{}, errors.New("fixture lost upload reply")
+	}
+	if m.incoming == nil {
+		m.incoming = map[string]incomingFixture{}
+	}
+	if !rawHash.MatchString(id) || digest(raw) != meta.SHA256 || !rawHash.MatchString(meta.SourceSHA256) || int64(len(raw)) > MaxPayloadBytes {
+		return Outcome{}, errors.New("fixture incoming identity invalid")
+	}
+	if prior, exists := m.incoming[id]; exists && (string(prior.Raw) != string(raw) || prior.Metadata != meta) {
+		return Outcome{}, errors.New("fixture incoming evidence collision")
+	}
+	m.incoming[id] = incomingFixture{Raw: append([]byte(nil), raw...), Metadata: meta}
+	status := "ready"
+	if m.uploadStatus != "" {
+		status = m.uploadStatus
+	}
+	return Outcome{Status: status}, nil
 }
 
 func (m *memoryBackend) Seen(context.Context, string) (bool, error) { return m.seen, nil }
@@ -196,7 +227,11 @@ func (m *memoryBackend) Observe(_ context.Context, in Observation) (Outcome, err
 			if string(a) != string(b) {
 				return Outcome{}, errors.New("fixture evidence collision")
 			}
-			return Outcome{Status: in.Status, BindingID: in.BindingID}, nil
+			status := in.Status
+			if m.observeStatus != "" {
+				status = m.observeStatus
+			}
+			return Outcome{Status: status, BindingID: in.BindingID}, nil
 		}
 	}
 	m.observations = append(m.observations, in)
