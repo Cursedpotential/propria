@@ -2,6 +2,7 @@
 as Activities of two Go workflows, so every run is traceable in Temporal.
 
 Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+Updated: Codex · GPT-5 · 2026-10-05 — explicit operating-mode and case-scope removal fence.
 
 Owner order 2026-10-02: "Make sure all these things get run as Temporal activities and are traceable." The workflows are
 ``proffer_conversation_chunks_backfill_workflow`` and ``proffer_conversation_chunks_removal_workflow``
@@ -22,6 +23,8 @@ from typing import Any
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
+
+from server.temporal.chunk_write_guard import require_live_chunk_write
 
 LIST_CONTEXT_THREADS_ACTIVITY = "list_context_threads_activity"
 ESTIMATE_CONTEXT_CHUNKS_ACTIVITY = "estimate_context_chunks_activity"
@@ -65,6 +68,9 @@ class RemovalParams:
     old_collection: str = ""
     dry_run: bool = True
     only_covered: bool = False
+    operating_mode: str = ""
+    matter_id: str = ""
+    court_case_id: str = ""
 
 
 def _beat(detail: str) -> None:
@@ -132,6 +138,16 @@ def verify_chunk_coverage_activity(params: RemovalParams) -> dict[str, Any]:
 
 @activity.defn(name=REMOVE_PER_MESSAGE_OBJECTS_ACTIVITY)
 def remove_per_message_objects_activity(params: RemovalParams) -> dict[str, Any]:
+    """Verify coverage and count, or explicitly admit Live removal of old search objects.
+
+    Inputs: old collection, dry-run/coverage flags, and mode plus approved matter/court.
+    Outputs: coverage/removal report. Effects: reads Postgres/Weaviate; non-dry-run may
+    delete vector objects after the existing coverage gate. Pick verify_chunk_coverage
+    for a report only. Dry-run needs no write authority; mutation fails before imports.
+    """
+    if params.dry_run is not True:
+        require_live_chunk_write(params.operating_mode, params.matter_id, params.court_case_id)
+
     from server.context_chunks.db import read_only_connection
     from server.context_chunks.remove_per_message import NotVerified, remove
     from server.context_chunks.source import PgSource

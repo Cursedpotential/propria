@@ -1,6 +1,7 @@
 """Unit tests for server/context_chunks: chunk spans, the overlap rule, ids, thread replacement, the REST shapes.
 
 Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+Updated: Codex · GPT-5 · 2026-10-05 — configure neutral scope in the mutation starter unit fixture.
 
 The chunker's model is replaced by a fake that cuts at known offsets (the span arithmetic is what is tested); the real
 distilbert run is opt-in (CONTEXT_CHUNKS_TEST_NEURAL=1). Live proof (Postgres, NIM, Weaviate) is the deploy's job.
@@ -934,9 +935,11 @@ def test_removal_refuses_an_unverified_collection_and_counts_in_a_dry_run():
     assert "_uncovered_ids" not in partial
 
 
-def test_the_starter_builds_the_workflow_inputs_the_go_structs_decode():
+def test_the_starter_builds_the_workflow_inputs_the_go_structs_decode(monkeypatch):
     from server.context_chunks.start import BACKFILL_WORKFLOW, REMOVAL_WORKFLOW, build_input, parser
 
+    monkeypatch.setenv("PROFFER_MATTER_ID", str(uuid.uuid4()))
+    monkeypatch.setenv("PROFFER_COURT_CASE_ID", str(uuid.uuid4()))
     name, workflow_id, body = build_input(
         parser().parse_args(["rechunk", "--dry-run", "--exact", "--request-id", "x1"])
     )

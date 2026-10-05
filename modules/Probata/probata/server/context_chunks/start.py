@@ -1,6 +1,7 @@
 """Thin starter for the two conversation-chunk workflows. It runs nothing itself; Temporal does, and keeps the record.
 
 Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+Updated: Codex · GPT-5 · 2026-10-05 — explicit policy and neutral case-scope preflight.
 
     python -m server.context_chunks.start rechunk --dry-run            # counts: threads, messages, chunks, embed calls
     python -m server.context_chunks.start rechunk --dry-run --exact    # chunk every thread (CPU), no embed, no writes
@@ -24,15 +25,33 @@ import time
 import uuid
 from typing import Any
 
+from server.temporal.chunk_write_guard import (
+    canonical_operating_mode,
+    configured_case_scope,
+    require_live_chunk_write,
+)
+
 BACKFILL_WORKFLOW = "proffer_conversation_chunks_backfill_workflow"
 REMOVAL_WORKFLOW = "proffer_conversation_chunks_removal_workflow"
 
 
 def build_input(args: argparse.Namespace) -> tuple[str, str, dict[str, Any]]:
-    """(workflow name, workflow id, input) for the parsed command line. The input uses the Go struct's JSON names."""
+    """Validate a fresh CLI request and build the Go workflow's explicit input.
+
+    Inputs: parsed command, flags and operating mode (fresh CLI defaults Live).
+    Outputs: workflow name/id/body. Effects: environment reads only, no dispatch.
+    Pick this over durable Activity admission only at the fresh-request boundary;
+    Dev mutations or missing approved scope fail before Temporal connection.
+    """
+    mode = canonical_operating_mode(getattr(args, "operating_mode", "LIVE"))
+    matter_id, court_case_id = configured_case_scope(allow_empty=args.dry_run is True)
+    if args.dry_run is not True:
+        require_live_chunk_write(mode, matter_id, court_case_id)
+    policy = {"operating_mode": mode, "matter_id": matter_id, "court_case_id": court_case_id}
     request_id = args.request_id or f"{args.command}-{time.strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:6]}"
     if args.command == "rechunk":
         body: dict[str, Any] = {
+            **policy,
             "request_id": request_id,
             "dry_run": args.dry_run,
             "exact": args.exact,
@@ -44,6 +63,7 @@ def build_input(args: argparse.Namespace) -> tuple[str, str, dict[str, Any]]:
         }
         return BACKFILL_WORKFLOW, f"conversation-chunks-backfill-{request_id}", body
     body = {
+        **policy,
         "request_id": request_id,
         "dry_run": args.dry_run,
         "only_covered": args.only_covered,
@@ -53,11 +73,17 @@ def build_input(args: argparse.Namespace) -> tuple[str, str, dict[str, Any]]:
 
 
 def parser() -> argparse.ArgumentParser:
+    """Return the fresh-request CLI parser without I/O or dispatch.
+
+    Inputs: none. Outputs: parser with Live default and separate dry-run flags.
+    Effects: none. Pick build_input for preflight; parser defaults never authorize history.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="command", required=True)
     for name in ("rechunk", "remove"):
         p = sub.add_parser(name)
         p.add_argument("--dry-run", action="store_true")
+        p.add_argument("--operating-mode", default="LIVE", help="DEV or LIVE; DEV permits dry-run only")
         p.add_argument("--request-id", default="")
         p.add_argument("--no-wait", action="store_true")
     rc = sub.choices["rechunk"]
@@ -76,9 +102,16 @@ def parser() -> argparse.ArgumentParser:
 
 
 async def start(args: argparse.Namespace) -> int:
-    from temporalio.client import Client
+    """Preflight and dispatch one explicit conversation-chunk workflow to Temporal.
+
+    Inputs: parsed CLI flags. Outputs: exit status and printed workflow/result receipt.
+    Effects: connects to Temporal and starts/waits for the workflow only after admission.
+    Pick build_input for side-effect-free validation rather than dispatch.
+    """
 
     name, workflow_id, body = build_input(args)
+    from temporalio.client import Client
+
     client = await Client.connect(
         os.environ.get("TEMPORAL_ADDRESS", "temporal-server:7233"),
         namespace=os.environ.get("TEMPORAL_NAMESPACE", "default"),

@@ -1,6 +1,7 @@
 """server/temporal/chunk_activities.py — conversation chunks for Weaviate, as Activities on queue ``evidence-pipeline``.
 
 Byline: Claude Code · Sonnet 5.5 · 2026-10-02
+Updated: Codex · GPT-5 · 2026-10-05 — explicit operating-mode and case-scope write fence.
 
 The Go ProfferWorkflow (modules/engine/proffer/context_chunks.go) calls these BEFORE the preview and the owner's
 decision, right after the proposal of the first-party context (owner 2026-10-02: everything goes to Weaviate first),
@@ -27,6 +28,8 @@ from typing import Any
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
+
+from server.temporal.chunk_write_guard import require_live_chunk_write
 
 CHUNK_CONTEXT_THREADS_ACTIVITY = "chunk_context_threads_activity"
 PUBLISH_CONTEXT_CHUNKS_ACTIVITY = "publish_context_chunks_activity"
@@ -57,6 +60,9 @@ class ChunkThreadsParams:
     message_matches_id: str = ""
     # Re-chunk of committed data: the named threads ({"corpus", "thread_id"}), read from working.*.
     thread_refs: list[dict[str, str]] = field(default_factory=list)
+    operating_mode: str = ""
+    matter_id: str = ""
+    court_case_id: str = ""
 
 
 @dataclass
@@ -68,6 +74,9 @@ class PublishChunksParams:
     normalized_generation_id: str = ""
     participant_resolution_id: str = ""
     message_matches_id: str = ""
+    operating_mode: str = ""
+    matter_id: str = ""
+    court_case_id: str = ""
 
 
 @dataclass
@@ -79,6 +88,9 @@ class PublishCallLogFilesParams:
     normalized_generation_id: str = ""
     participant_resolution_id: str = ""
     message_matches_id: str = ""
+    operating_mode: str = ""
+    matter_id: str = ""
+    court_case_id: str = ""
 
 
 def _source(conn: Any, params: Any) -> Any:
@@ -134,6 +146,15 @@ def chunk_context_threads_activity(params: ChunkThreadsParams) -> dict[str, Any]
 
 @activity.defn(name=PUBLISH_CONTEXT_CHUNKS_ACTIVITY)
 def publish_context_chunks_activity(params: PublishChunksParams) -> dict[str, Any]:
+    """Embed and replace one admitted Live thread's search chunks.
+
+    Inputs: thread plan, generation references, explicit mode and approved matter/court.
+    Outputs: publication counters. Effects: reads Postgres, calls NIM, writes Weaviate.
+    Pick this for thread chunks, not the sibling call-log file publisher. Missing/Dev
+    authority fails before heavy imports; existing evidence/plan checks remain in force.
+    """
+    require_live_chunk_write(params.operating_mode, params.matter_id, params.court_case_id)
+
     from server.context_chunks.config import load_config
     from server.context_chunks.db import read_only_connection
     from server.context_chunks.embed import NimEmbedder
@@ -178,6 +199,15 @@ def publish_context_chunks_activity(params: PublishChunksParams) -> dict[str, An
 
 @activity.defn(name=PUBLISH_CALL_LOG_FILES_ACTIVITY)
 def publish_call_log_files_activity(params: PublishCallLogFilesParams) -> dict[str, Any]:
+    """Embed and publish admitted Live call-log files as search entries.
+
+    Inputs: source/generation references, explicit mode and approved matter/court.
+    Outputs: file/call/embed counters. Effects: reads Postgres, calls NIM, writes Weaviate.
+    Pick this for file-level call logs, not conversation chunks. Missing/Dev authority
+    fails before heavy imports; individual calls remain in the canonical source.
+    """
+    require_live_chunk_write(params.operating_mode, params.matter_id, params.court_case_id)
+
     from server.context_chunks.config import load_config
     from server.context_chunks.db import read_only_connection
     from server.context_chunks.embed import NimEmbedder
