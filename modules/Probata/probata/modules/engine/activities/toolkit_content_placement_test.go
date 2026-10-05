@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
@@ -435,5 +436,112 @@ func TestToolkitContentPlacementS3Race(t *testing.T) {
 	err := toolkitPlaceOne(context.Background(), store, bytes.NewReader(payload), &obj, false, nil, func() error { return nil })
 	if err == nil || obj.VersionID != "put-version" || len(obj.AfterVersions) != 2 || obj.LatestVersionID != "put-version" || puts != 1 {
 		t.Fatalf("SDK race not preserved: %v %+v puts=%d", err, obj, puts)
+	}
+}
+
+// TestToolkitContentPlacementLocalZIP proves pinned mounted ZIPs reuse the bounded native archive/member path.
+// Inputs: tiny retained local ZIP fixtures, pin/CRC/path/link/budget mutations and replay; outputs: authenticated placement or visible zero-write rejection. Effects: fixture files and fake B2 versions only; choose for server canonical ZIP admission without extraction or source alteration.
+// Byline: Codex · GPT-6 · 2026-10-04.
+func TestToolkitContentPlacementLocalZIP(t *testing.T) {
+	for _, mode := range []string{"valid", "pin", "bytes", "crc", "member-path", "root-escape", "symlink", "archive-budget", "file-budget", "member-budget", "missing-pin", "replay"} {
+		t.Run(mode, func(t *testing.T) {
+			a, in, s, root := placementFixture(t)
+			var buf bytes.Buffer
+			writer := zip.NewWriter(&buf)
+			for _, name := range []string{"nested/a.md", "nested/b.md"} {
+				member, err := writer.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err = member.Write([]byte("original")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			archive := append([]byte(nil), buf.Bytes()...)
+			if mode == "crc" {
+				archive[bytes.Index(archive, []byte("original"))] = 'X'
+			}
+			source := filepath.Join(root, "canonical-toolkit-content-20261004.zip")
+			if err := os.WriteFile(source, archive, 0600); err != nil {
+				t.Fatal(err)
+			}
+			sourceRef := toolkitFileRef(source)
+			if mode == "symlink" {
+				link := filepath.Join(root, "linked.zip")
+				if err := os.Symlink(source, link); err != nil {
+					t.Skipf("host cannot create retained symlink fixture: %v", err)
+				}
+				sourceRef = toolkitFileRef(link)
+			}
+			if mode == "root-escape" {
+				sourceRef = toolkitFileRef(filepath.Join(filepath.Dir(root), "outside.zip"))
+			}
+			in = placementRewriteManifest(t, root, in, func(m *ToolkitContentPlacementManifest) {
+				u := &m.Units[0]
+				u.SourceRef = sourceRef
+				u.ArchiveSHA256 = digestBytes(archive)
+				u.ArchiveBytes = int64(len(archive))
+				u.Files = []ToolkitContentPlacementFile{{Path: "nested/a.md", SHA256: digestBytes([]byte("original")), Bytes: 8}, {Path: "nested/b.md", SHA256: digestBytes([]byte("original")), Bytes: 8}}
+				switch mode {
+				case "pin":
+					u.ArchiveSHA256 = digestBytes([]byte("wrong"))
+				case "bytes":
+					u.ArchiveBytes++
+				case "member-path":
+					u.Files[0].Path = "../a.md"
+				case "missing-pin":
+					u.ArchiveSHA256 = ""
+				}
+			})
+			switch mode {
+			case "archive-budget":
+				in.MaxArchiveBytes = int64(len(archive)) - 1
+			case "file-budget":
+				in.MaxFileBytes = 7
+			case "member-budget":
+				in.MaxFiles = 1
+			}
+			r, err := a.placeToolkitContent(context.Background(), in)
+			if mode != "valid" && mode != "replay" {
+				if err == nil || s.versionedWrites != 0 {
+					t.Fatalf("invalid local ZIP accepted: %v", err)
+				}
+				if mode == "crc" && !strings.Contains(err.Error(), "checksum") {
+					t.Fatalf("expected native CRC failure, got %v", err)
+				}
+				return
+			}
+			if err != nil || !r.Complete || len(r.Objects) != 2 {
+				t.Fatalf("local ZIP failed: %v", err)
+			}
+			if len(s.versionedReads) != 2 {
+				t.Fatal("local ZIP unexpectedly fetched from object storage")
+			}
+			untouched, err := os.ReadFile(source)
+			if err != nil || !bytes.Equal(untouched, archive) {
+				t.Fatal("original ZIP altered")
+			}
+			spools, err := filepath.Glob(filepath.Join(root, "placement-scratch-*", "placement-member-*"))
+			if err != nil || len(spools) != 3 {
+				t.Fatalf("expected one archive spool and two selected members, got %d: %v", len(spools), err)
+			}
+			replay, err := a.placeToolkitContent(context.Background(), in)
+			if err != nil || !replay.Complete || s.versionedWrites != 2 {
+				t.Fatalf("local ZIP replay wrote or failed: %v", err)
+			}
+			if mode == "replay" {
+				changed := append([]byte(nil), archive...)
+				changed[bytes.Index(changed, []byte("original"))] = 'Y'
+				if err = os.WriteFile(source, changed, 0600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = a.placeToolkitContent(context.Background(), in); err == nil || s.versionedWrites != 2 {
+					t.Fatal("changed local ZIP replay accepted or wrote")
+				}
+			}
+		})
 	}
 }

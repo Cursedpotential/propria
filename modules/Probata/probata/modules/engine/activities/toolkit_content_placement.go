@@ -49,8 +49,8 @@ type ToolkitContentPlacementManifest struct {
 	Units []ToolkitContentPlacementUnit `json:"units"`
 }
 
-// ToolkitContentPlacementUnit names one local directory or exact preserved B2 ZIP version and its permanent destination.
-// Inputs: ID, source root, optional archive hash/size, destination relative to legal/, complete reviewed files; outputs: source mapping. Effects: none; choose ZIP mode only with a version-pinned B2 source.
+// ToolkitContentPlacementUnit names a mounted local directory, pinned local ZIP, or exact preserved B2 ZIP version and its permanent destination.
+// Inputs: ID, source root, archive hash/size for either ZIP mode, destination relative to legal/, complete reviewed files; outputs: source mapping. Effects: none; choose mounted ZIP mode for server canonical packages, B2 ZIP mode only with an exact provider version.
 type ToolkitContentPlacementUnit struct {
 	ID            string                        `json:"id"`
 	SourceRef     proffer.Ref                   `json:"source_ref"`
@@ -264,15 +264,21 @@ func validateToolkitPlacementManifest(m ToolkitContentPlacementManifest, in Tool
 			if parsed.Host != "salem-data" || parsed.Fragment != "" || len(parsed.Query()) != 1 || len(parsed.Query()["versionId"]) != 1 || !validToolkitVersionID(parsed.Query().Get("versionId")) || !toolkitPlacementPath(strings.TrimPrefix(parsed.Path, "/")) || !validSHA256(u.ArchiveSHA256) || u.ArchiveBytes < 1 || u.ArchiveBytes > in.MaxArchiveBytes {
 				return errors.New("archive requires exact B2 version, SHA and byte budget")
 			}
+		} else if parsed.Scheme != "file" {
+			return errors.New("source must be mounted local directory, pinned local ZIP or pinned B2 ZIP; no provider fallback")
+		} else if u.ArchiveBytes != 0 || u.ArchiveSHA256 != "" {
+			if !validSHA256(u.ArchiveSHA256) || u.ArchiveBytes < 1 || u.ArchiveBytes > in.MaxArchiveBytes {
+				return errors.New("local ZIP requires both exact archive SHA and bounded positive bytes")
+			}
+		}
+		if u.ArchiveBytes > 0 {
 			if !archives[string(u.SourceRef)] {
 				archiveTotal += u.ArchiveBytes
 				archives[string(u.SourceRef)] = true
 				archivePins[u.SourceRef] = u
 			} else if previous := archivePins[u.SourceRef]; previous.ArchiveSHA256 != u.ArchiveSHA256 || previous.ArchiveBytes != u.ArchiveBytes {
-				return errors.New("same archive version has contradictory manifest pins")
+				return errors.New("same archive source has contradictory manifest pins")
 			}
-		} else if parsed.Scheme != "file" || u.ArchiveBytes != 0 || u.ArchiveSHA256 != "" {
-			return errors.New("source must be mounted local directory or pinned B2 ZIP; no provider fallback")
 		}
 		for _, f := range u.Files {
 			key := u.Destination + "/" + f.Path
@@ -342,6 +348,32 @@ func toolkitPlacementOpenLocal(root, relative string) (*os.File, error) {
 		return nil, errors.New("local source escaped its unit root")
 	}
 	return f, nil
+}
+
+// toolkitPlacementOpenLocalZIP admits an absolute mounted file reference and opens a nonlinked regular ZIP under AllowedRoot.
+// Inputs: canonical allowed root and exact file:// ZIP locator; outputs: read-only source handle. Effects: metadata/read handle only; choose instead of the directory/JSON reference helpers when archive SHA and bytes are explicitly pinned.
+// Byline: Codex · GPT-6 · 2026-10-04.
+func toolkitPlacementOpenLocalZIP(root string, ref proffer.Ref) (*os.File, error) {
+	parsed, err := url.Parse(string(ref))
+	if err != nil {
+		return nil, err
+	}
+	p := filepath.FromSlash(parsed.Path)
+	if len(p) > 1 && p[0] == os.PathSeparator && filepath.VolumeName(p[1:]) != "" {
+		p = p[1:]
+	}
+	if parsed.Scheme != "file" || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" || !filepath.IsAbs(p) || !strings.EqualFold(filepath.Ext(p), ".zip") {
+		return nil, errors.New("local archive must be an absolute file:// .zip without host, query or fragment")
+	}
+	relative, err := filepath.Rel(root, p)
+	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		return nil, errors.New("local ZIP must lie strictly beneath AllowedRoot")
+	}
+	relative = filepath.ToSlash(relative)
+	if !toolkitPlacementPath(relative) {
+		return nil, errors.New("unsafe local ZIP path")
+	}
+	return toolkitPlacementOpenLocal(root, relative)
 }
 
 // toolkitPlacementDecode rejects unknown JSON fields and trailing data in bounded metadata.
@@ -503,6 +535,21 @@ func (a *ToolkitContentPlacementActivities) placeToolkitContent(ctx context.Cont
 	for _, u := range manifest.Units {
 		p, _ := url.Parse(string(u.SourceRef))
 		if p.Scheme == "file" {
+			if u.ArchiveBytes > 0 {
+				f, e := toolkitPlacementOpenLocalZIP(root, u.SourceRef)
+				if e != nil {
+					return result, e
+				}
+				info, e := f.Stat()
+				f.Close()
+				if e != nil {
+					return result, e
+				}
+				if info.Size() != u.ArchiveBytes {
+					return result, errors.New("local ZIP size differs from manifest pin")
+				}
+				continue
+			}
 			unitRoot, e := resolveFileRef(u.SourceRef, root, true)
 			if e != nil {
 				return result, e
@@ -594,7 +641,7 @@ func (a *ToolkitContentPlacementActivities) placeToolkitContent(ctx context.Cont
 		parsed, _ := url.Parse(string(u.SourceRef))
 		var localRoot string
 		var archive *zip.Reader
-		if parsed.Scheme == "file" {
+		if parsed.Scheme == "file" && u.ArchiveBytes == 0 {
 			localRoot, err = resolveFileRef(u.SourceRef, root, true)
 			if err != nil {
 				return result, err
@@ -602,7 +649,13 @@ func (a *ToolkitContentPlacementActivities) placeToolkitContent(ctx context.Cont
 		} else {
 			af := archives[u.SourceRef]
 			if af == nil {
-				stream, e := store.OpenVersion(ctx, parsed.Host, strings.TrimPrefix(parsed.Path, "/"), parsed.Query().Get("versionId"))
+				var stream io.ReadCloser
+				var e error
+				if parsed.Scheme == "file" {
+					stream, e = toolkitPlacementOpenLocalZIP(root, u.SourceRef)
+				} else {
+					stream, e = store.OpenVersion(ctx, parsed.Host, strings.TrimPrefix(parsed.Path, "/"), parsed.Query().Get("versionId"))
+				}
 				if e != nil {
 					return result, e
 				}
