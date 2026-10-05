@@ -43,6 +43,7 @@ import { createLibrarySyncBackend, createLibrarySyncDispatcher, sealLibrarySyncO
 import { configuredLibrarySyncScope } from "./library-sync-integration.js";
 import { handleLibrarySyncHttpRequest } from "./library-sync-http.js";
 import { startLibrarySyncOutboxRecovery } from "./library-sync-dispatch.js";
+import { seedLibraryBindings, type LibrarySeedInput } from "./library-sync-seed.js";
 
 const SERVER_NAME = "family-court-console";
 const SERVER_VERSION = "3.0.0";
@@ -279,6 +280,7 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse, bear
     if (!scope) throw new Error("Library sync unavailable");
     const store = await getStore();
     if (!store.available) throw new Error("Shared library store unavailable");
+    if (operation.path === "/bindings/import") return { body: await seedLibraryBindings(store, scope, operation.body as unknown as LibrarySeedInput) };
     return createLibrarySyncDispatcher(createLibrarySyncBackend(store, scope))(operation);
   })) return;
 

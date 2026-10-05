@@ -473,7 +473,10 @@ export async function getStore(urlOverride?: string): Promise<StoreResult> {
 
 async function migrate(db: SurrealLike, mod: SurrealModule): Promise<number> {
   await migrateLibrary({ db });
-  if (configuredLibrarySyncScope()) await migrateLibrarySync({ db });
+  if (configuredLibrarySyncScope()) {
+    await migrateLibrarySync({ db });
+    await db.query("DEFINE TABLE IF NOT EXISTS library_file_alias SCHEMALESS PERMISSIONS NONE; DEFINE INDEX IF NOT EXISTS library_file_alias_unique ON library_file_alias FIELDS record_id, binding_id UNIQUE;");
+  }
   await migratePersonalCaseContext({ db });
   await db.query("DEFINE TABLE IF NOT EXISTS meta SCHEMALESS;");
 

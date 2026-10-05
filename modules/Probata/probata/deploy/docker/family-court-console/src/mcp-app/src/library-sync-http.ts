@@ -57,7 +57,7 @@ export function librarySyncAuthorized(header: string | undefined, token: string 
 export function parseLibrarySyncHttpOperation(method: string | undefined, url: URL, leaseId?: string): SyncHttpOperation {
   const route = url.pathname.slice(PREFIX.length);
   let requiredMethod: "GET" | "POST";
-  if (route === "/outbox/claim" || route === "/observations") requiredMethod = "POST";
+  if (route === "/outbox/claim" || route === "/observations" || route === "/bindings/import") requiredMethod = "POST";
   else if (/^\/observations\/[a-f0-9]{64}\/payload$/.test(route)) requiredMethod = "POST";
   else if (/^\/observations\/[a-f0-9]{64}\/status$/.test(route)) requiredMethod = "GET";
   else {
