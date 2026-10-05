@@ -74,6 +74,8 @@ test("mobile identity actions honor explicit URL Dev and reject unknown flags wi
 });
 
 test("policy changes remount open Case dialogs and header uses current policy, never cached view.mode", () => {
+  const context = source("../src/lib/fixed-case-context.tsx");
+  assert.match(context, /invalidMode \? <div role="alert">\{invalidMode\}<\/div> : children/);
   const screen = source("../src/components/case/case-identity-screen.tsx");
   assert.match(screen, /ModeScopedCaseIdentityScreen key=\{mode\}/);
   assert.match(screen, /HeaderDialog mode=\{mode\}/);

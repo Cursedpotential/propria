@@ -53,11 +53,7 @@ export function FixedCaseProvider({ children }: { children: React.ReactNode }) {
   }, [mode, invalidMode]);
 
   useEffect(() => {
-    if (invalidMode) {
-      setError(invalidMode);
-      setLoading(false);
-      return;
-    }
+    if (invalidMode) return;
     let cancelled = false;
 
     listMatters(50, 0, mode)
@@ -110,7 +106,11 @@ export function FixedCaseProvider({ children }: { children: React.ReactNode }) {
     [matter, loading, error, mode, setMode],
   );
 
-  return <FixedCaseContext.Provider value={value}>{children}</FixedCaseContext.Provider>;
+  return (
+    <FixedCaseContext.Provider value={value}>
+      {invalidMode ? <div role="alert">{invalidMode}</div> : children}
+    </FixedCaseContext.Provider>
+  );
 }
 
 export function useFixedCase() {

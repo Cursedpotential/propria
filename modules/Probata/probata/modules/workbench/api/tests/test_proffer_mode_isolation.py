@@ -294,6 +294,126 @@ def test_wrong_single_start_case_scope_denies_before_dispatch(monkeypatch, field
     assert error.value.status_code == 409
 
 
+def _case_route_requests(matter_id: str) -> list[tuple[str, str, dict | None]]:
+    evidence_item_id = "88888888-8888-4888-8888-888888888888"
+    source = {
+        "lane": "evidence",
+        "partition_key": "primary",
+        "artifact_id": "33333333-3333-4333-8333-333333333333",
+        "sha256": "a" * 64,
+        "retrieval_ref": "hit-1",
+    }
+    return [
+        ("POST", f"/api/matters/{matter_id}/court-cases", {"caption": "Configured case"}),
+        ("POST", f"/api/matters/{matter_id}/knowledge/resolve", source),
+        (
+            "POST",
+            f"/api/matters/{matter_id}/evidence-items",
+            {
+                "court_case_id": COURT,
+                "source": {
+                    **source,
+                    "normalized_record_id": "44444444-4444-4444-8444-444444444444",
+                },
+                "title": "Draft evidence",
+            },
+        ),
+        ("GET", f"/api/matters/{matter_id}/evidence-items", None),
+        ("GET", f"/api/matters/{matter_id}/evidence-items/{evidence_item_id}", None),
+        (
+            "GET",
+            f"/api/matters/{matter_id}/evidence-items/{evidence_item_id}/source-content",
+            None,
+        ),
+        (
+            "GET",
+            f"/api/matters/{matter_id}/evidence-items/{evidence_item_id}/conversation-context",
+            None,
+        ),
+        (
+            "GET",
+            f"/api/matters/{matter_id}/evidence-items/{evidence_item_id}/court-readiness",
+            None,
+        ),
+        (
+            "POST",
+            f"/api/matters/{matter_id}/evidence-items/{evidence_item_id}/reviews",
+            {"decision": "approved", "rationale": "Exact record reviewed."},
+        ),
+        ("GET", f"/api/matters/{matter_id}/evidence-items/{evidence_item_id}/reviews", None),
+    ]
+
+
+def _deny_all_case_management_upstream(monkeypatch) -> None:
+    def forbidden(*args, **kwargs):
+        raise AssertionError("case-management upstream must not run")
+
+    for name in (
+        "create_matter",
+        "create_court_case",
+        "resolve_knowledge_source",
+        "create_evidence_item",
+        "list_evidence_items",
+        "get_evidence_detail",
+        "get_original_source_content",
+        "get_conversation_context",
+        "get_court_readiness",
+        "review_evidence_item",
+        "list_evidence_reviews",
+    ):
+        monkeypatch.setattr(case_management.service, name, forbidden)
+
+
+
+async def _case_header_request(method, path, **kwargs):
+    assert (method, path) == ("GET", "/case-identity")
+    return httpx.Response(200, json=_header(kwargs.get("params", {}).get("mode", "LIVE")))
+
+
+@pytest.mark.parametrize(("method", "path", "payload"), _case_route_requests(OTHER))
+def test_arbitrary_matter_routes_deny_before_spine(monkeypatch, method, path, payload):
+    _deny_all_case_management_upstream(monkeypatch)
+    monkeypatch.setattr(proffer, "_request", _case_header_request)
+    monkeypatch.setattr(case_management.service, "get_matter", lambda *_: pytest.fail("spine must not run"))
+    response = TestClient(_app()).request(method, path, params={"mode": "LIVE"}, json=payload)
+    assert response.status_code == 409
+
+
+@pytest.mark.parametrize(("method", "path", "payload"),
+                         [("GET", "/api/matters", None), ("POST", "/api/matters", {"title": "Unavailable"})]
+                         + _case_route_requests(MATTER))
+def test_unconfigured_case_denies_every_spine_route_before_dispatch(monkeypatch, method, path, payload):
+    _deny_all_case_management_upstream(monkeypatch)
+    monkeypatch.setattr(settings, "proffer_matter_id", "")
+    monkeypatch.setattr(settings, "proffer_real_matter_id", "")
+    monkeypatch.setattr(proffer, "_request", lambda *_args, **_kwargs: pytest.fail("engine must not run"))
+    response = TestClient(_app()).request(method, path, params={"mode": "LIVE"}, json=payload)
+    assert response.status_code == 503
+
+
+def test_evidence_wrong_court_scope_and_matter_creation_deny_before_spine(monkeypatch):
+    _deny_all_case_management_upstream(monkeypatch)
+    monkeypatch.setattr(proffer, "_request", _case_header_request)
+    method, path, payload = _case_route_requests(MATTER)[2]
+    payload["court_case_id"] = OTHER
+    client = TestClient(_app())
+    response = client.request(method, path, params={"mode": "LIVE"}, json=payload)
+    assert response.status_code == 409
+    response = client.post("/api/matters?mode=LIVE", json={"title": "No alternate case"})
+    assert response.status_code == 409
+    assert "Matter creation is disabled" in response.json()["detail"]
+
+
+def test_unconfigured_source_browser_has_zero_provider_io(monkeypatch):
+    from app.service import proffer_sources
+    monkeypatch.setattr(settings, "proffer_matter_id", "")
+    monkeypatch.setattr(settings, "proffer_real_matter_id", "")
+    monkeypatch.setattr(proffer_sources, "list_source_objects", lambda *_args, **_kwargs: pytest.fail("provider must not run"))
+    with pytest.raises(proffer.ProfferError) as error:
+        proffer.browse_sources(mode="LIVE")
+    assert error.value.status_code == 503
+
+
 def test_openapi_policy_defaults_live_and_advertises_only_canonical_values():
     schema = _app().openapi()
     for path, operations in schema["paths"].items():

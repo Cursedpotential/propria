@@ -107,7 +107,7 @@ def create_matter_endpoint(payload: MatterCreate, mode: OperatingMode):
     raise HTTPException(
         status_code=409,
         detail=(
-            "Matter creation is disabled in fixed TEST/REAL mode; "
+            "Matter creation is disabled in single-case DEV/LIVE mode; "
             "provision the configured matter identity outside this scoped runtime"
         ),
     )
