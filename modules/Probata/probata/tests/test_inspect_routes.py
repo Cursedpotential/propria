@@ -12,6 +12,7 @@ for parse-dryrun so no real parser/tool-registry state is required.
 # Byline: Codex · GPT-5 · 2026-08-18 (projection-aware record browser coverage)
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review route coverage)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (single-case Proffer mode and blocked DEV writes)
+# Byline amendment: Codex · orchestrator · 2026-10-05 (durable preview-mode rejection coverage)
 
 from __future__ import annotations
 
@@ -1033,6 +1034,7 @@ def test_proffer_flag_rejects_snapshot_advanced_before_atomic_admission(client, 
             None,
             {
                 "normalized_generation_id": current_attempt,
+                "mode_detail": '{"operating_mode":"LIVE"}',
                 "source_version_id": "33333333-3333-3333-3333-333333333333",
                 "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
             },
@@ -1080,6 +1082,7 @@ def test_proffer_mode_defaults_to_live_and_uses_single_configured_matter(client,
                 "normalized_generation_id": attempt,
                 "source_version_id": "22222222-2222-2222-2222-222222222222",
                 "matter_id": matter_id,
+                "mode_detail": '{"operating_mode":"LIVE"}',
             },
             True,
             [],
@@ -1153,6 +1156,44 @@ def test_proffer_flag_rejects_unknown_operating_mode_before_database(client, mon
     assert fake.calls == []
 
 
+@pytest.mark.parametrize(
+    "mode_detail", [None, "", "{}", "[]", "not-json", '{"operating_mode":"DEV"}', '{"operating_mode":"REAL"}']
+)
+def test_proffer_flag_cannot_infer_live_admission_from_same_case(client, monkeypatch, mode_detail):
+    fake = _FakeEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": "11111111-1111-1111-1111-111111111111",
+                "source_version_id": "22222222-2222-2222-2222-222222222222",
+                "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
+                "mode_detail": mode_detail,
+            },
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    response = client.post(
+        "/v1/flags/proffer-potential-promotion",
+        json=_proffer_request(
+            {
+                "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+                "matter_mode": "LIVE",
+                "scope": "record",
+                "target_id": "33333333-3333-3333-3333-333333333333",
+                "attempt_id": "11111111-1111-1111-1111-111111111111",
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review later",
+            }
+        ),
+    )
+    assert response.status_code == 409
+    assert "operating-mode admission" in response.json()["detail"]
+    assert len(fake.calls) == 2
+    assert "context.proffer_preview_event" in fake.calls[1][0]
+    assert all("INSERT" not in statement for statement, _ in fake.calls)
+
+
 def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeypatch):
     handle = "preview_handle_abcdefghijklmnopqrstuvwxyz"
     attempt = "11111111-1111-1111-1111-111111111111"
@@ -1164,6 +1205,7 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
             {
                 "normalized_generation_id": attempt,
                 "source_version_id": source_version,
+                "mode_detail": '{"operating_mode":"LIVE"}',
                 "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
             },
             True,
@@ -1237,6 +1279,7 @@ def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkey
                 "normalized_generation_id": attempt,
                 "source_version_id": "22222222-2222-2222-2222-222222222222",
                 "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
+                "mode_detail": '{"operating_mode":"LIVE"}',
             },
             False,
         ]
@@ -1271,6 +1314,7 @@ def test_proffer_flag_rejects_mode_when_durable_matter_disagrees(client, monkeyp
             None,
             {
                 "normalized_generation_id": "11111111-1111-1111-1111-111111111111",
+                "mode_detail": '{"operating_mode":"LIVE"}',
                 "source_version_id": "22222222-2222-2222-2222-222222222222",
                 "matter_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             },
@@ -1409,6 +1453,7 @@ def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(m
                 return _FakeResult(
                     {
                         "normalized_generation_id": self.current_attempt,
+                        "mode_detail": '{"operating_mode":"LIVE"}',
                         "source_version_id": "22222222-2222-2222-2222-222222222222",
                         "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
                     }

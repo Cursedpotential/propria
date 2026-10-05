@@ -24,8 +24,15 @@ is `docs/decisions/2026-10-05-single-case-operating-flags.md`.
   `062184fa`. Independent review found no bounded Legal blocker. This remains
   mocked consumer proof, not served-surface verification.
 - Promotion-review server: agent `single_case_promotion_server_20261005`,
-  `server/api/inspect_routes.py` and focused tests only; a newly found connected
-  promotion-flag endpoint still selects identity by old mode values.
+  `server/api/inspect_routes.py` and focused tests only. Committed `52e7237d`,
+  integrated as `0a89ec22`; 12 focused tests, full inspect suite 64 passed/4
+  skipped with ephemeral SQLAlchemy asyncio extra, Ruff passed. Parent review
+  subsequently found same-case IDs alone still do not prove durable Live mode;
+  initial admission-event validation and rejection tests are being added.
+- Python chunk queue: `single_case_python_chunk_guard_20261005`, separate clean
+  worktree from fresh `c87aa233`; owns Python chunk publish/removal guards,
+  coordinated request dataclasses and thin starter, plus focused tests only.
+  Go owns matching request fields. No Live publish/removal has been invoked.
 - Independent review: `single_case_independent_review_20261005`, read-only;
   temporarily interrupted to free a builder slot. Resume after a builder finishes
   for final combined review. Reported gaps are not accepted as resolved merely
@@ -40,6 +47,12 @@ origin (R2 acquisition retirement and toolkit ZIP source changes) as `9834e35b`.
 Root policy/neutral manifest commit is `0cbdaed9`. Shared main is concurrently dirty,
 including unrelated Family Court and engine Activity changes. Never reset,
 clean, stash, overwrite or stage those changes.
+
+Parent refreshed and merged upstream `c87aa233` (new independently tracked AI
+work-product placement Activity/worker registration), integrated as `4613b111`.
+The neutral exec API manifest is committed as `2555815f`; the actual Coolify
+app uses `/deploy/exec.yaml` and has no PROFFER identity env keys as of this
+read-only check. Neutral pair configuration is therefore a rollout prerequisite.
 
 ## Agreed protocol
 
@@ -90,6 +103,18 @@ dispatch/persistence until isolated workspace implementation exists.
   configured UUIDs as approval.
 - Python promotion-review flag API must accept canonical wire values and stop
   selecting identity by mode. This content-review flag is not a feature flag.
+- Python conversation-chunk publishers and non-dry-run removal need their own
+  explicit durable Live + approved-scope fence before heavy imports/body calls.
+  Go guards do not protect this separate queue. Historical missing mode stays
+  unknown; safe read/dry-run Activities remain separate. Neutral case envs must
+  be supplied to the Python worker before any deployment. No purge/cancellation
+  is authorized.
+- Engine provisional checkpoint `25d241aa` is not accepted. Existing-VPS pass 1
+  passed caseidentity and extraction/commitcheck but found a repairplan test
+  mode mismatch, a stale repairplan.Environment field causing runtimeapi test
+  compilation failure and Proffer failures requiring focused diagnosis. Some
+  other failures were test-archive omissions (SQL/deploy/fixture files), not
+  application defects; correct the source packet before claiming test results.
 
 ## Verified server test runtime
 

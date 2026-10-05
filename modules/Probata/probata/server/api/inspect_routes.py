@@ -38,6 +38,7 @@ Routes:
 # Byline: Codex · GPT-5 · 2026-08-18 (message projection and realization read model)
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (governed third-party review HTTP surface)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (single-case Proffer operating-mode boundary)
+# Byline amendment: Codex · orchestrator · 2026-10-05 (durable preview-mode admission)
 
 from __future__ import annotations
 
@@ -1227,7 +1228,10 @@ def _register_flags_routes(app: FastAPI) -> None:
                 conn.execute(
                     text(
                         "SELECT snapshot.normalized_generation_id, snapshot.source_version_id, "
-                        "version.matter_id "
+                        "version.matter_id, COALESCE((SELECT event.detail "
+                        "FROM context.proffer_preview_event event "
+                        "WHERE event.preview_handle = binding.preview_handle AND event.event_id = 0), '') "
+                        "AS mode_detail "
                         "FROM context.proffer_preview_binding binding "
                         "JOIN context.proffer_preview_snapshot snapshot USING (preview_handle) "
                         "JOIN context.source_version version ON version.id = snapshot.source_version_id "
@@ -1242,7 +1246,15 @@ def _register_flags_routes(app: FastAPI) -> None:
             if snapshot is None:
                 raise HTTPException(409, "preview attempt is unavailable")
             if snapshot["matter_id"] is None or str(snapshot["matter_id"]) != str(expected_matter_id):
-                raise HTTPException(409, "preview matter does not match the requested mode")
+                raise HTTPException(409, "preview matter does not match the configured case")
+            # A shared case ID is not mode evidence. Only the initial admission
+            # receipt may authorize this write; old/unknown receipts stay closed.
+            try:
+                admission = json.loads(snapshot.get("mode_detail", ""))
+            except (TypeError, ValueError):
+                admission = None
+            if not isinstance(admission, dict) or admission.get("operating_mode") != "LIVE":
+                raise HTTPException(409, "preview has no verified Live operating-mode admission")
             normalized_generation_id = str(snapshot["normalized_generation_id"])
             if normalized_generation_id != str(body.attempt_id):
                 raise HTTPException(409, "flag attempt does not match the current preview attempt")
