@@ -158,7 +158,6 @@ services:
       OPENCODE_MODEL: ${OPENCODE_MODEL:-groq/llama-3.3-70b-versatile}
       OPENCODE_WORKSPACE_DIR: ${OPENCODE_WORKSPACE_DIR:-/workspace/copilot}
       COPILOT_PRESETS_PATH: ${COPILOT_PRESETS_PATH:-/data/copilot/presets.json}
-      CASEBIBLE_R2_CONFIG_PATH: /run/secrets/casebible-r2.json
       # Byline: Codex, 2026-09-20. Read the existing pre-ingest catalog.
       INTAKE_DISCOVERY_PG_HOST: ${INTAKE_DISCOVERY_PG_HOST:-100.91.190.107}
       # The catalog (casebible-pg18) is reached through ovh-files tailscale serve tcp 5433 -> 127.0.0.1:5475 (the
@@ -185,8 +184,9 @@ services:
       # store: scheme -> credential file. Switching provider = a credential file + these two
       # values, identical in every Proffer/Workbench service. The first root is the default.
       # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
-      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json","r2":"/run/secrets/casebible-r2.json"}'
-      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Vault","url":"b2://salem-data/consignatio/vault/v1/"},{"id":"b2-bucket","label":"B2 / salem-data (whole bucket)","url":"b2://salem-data/"},{"id":"r2-sorted","label":"R2 / Case Bible Sorted","url":"r2://casebible-sorted/","temporary":true},{"id":"r2-raw","label":"R2 / Case Bible Raw","url":"r2://casebible-raw/","temporary":true},{"id":"r2-quarantine","label":"R2 / Case Bible Quarantine","url":"r2://casebible-quarantine/","temporary":true}]'
+      # Byline: Codex · GPT-6-Luna · 2026-10-04 (B2 Casevault only; no R2 source roots).
+      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json"}'
+      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Casevault","url":"b2://salem-data/consignatio/casevault/"}]'
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
     volumes:
       # Bind mounts only — owner backs up host dirs (no named volumes).
@@ -198,7 +198,6 @@ services:
       # rebuilding, restarting, or redeploying Workbench.
       - /data/probata/secrets/platform/api-bearer:/run/secrets/platform-api-bearer:ro
       - /data/probata/secrets/platform/evidence-operator-security-key:/run/secrets/evidence-operator-security-key:ro
-      - /data/probata/secrets/casebible-r2.json:/run/secrets/casebible-r2.json:ro
       - /data/probata/secrets/progress-board/metabase-ro:/run/secrets/intake-catalog-readonly:ro
       - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
@@ -211,7 +210,7 @@ services:
       - "${BIND_IP:-127.0.0.1}:9071:8020"
     healthcheck:
       # /health deliberately stays HTTP 200 while degraded; require its JSON
-      # contract so missing R2 access cannot be reported healthy by Docker.
+      # contract so missing B2 access cannot be reported healthy by Docker.
       test: ["CMD-SHELL", "python3 -c \"import json,urllib.request,sys; body=json.load(urllib.request.urlopen('http://127.0.0.1:8020/health', timeout=5)); sys.exit(0 if body.get('status') == 'ok' and body.get('object_store') is True else 1)\""]
       interval: 30s
       timeout: 10s
