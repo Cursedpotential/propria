@@ -191,3 +191,85 @@ func TestEnvReusesExistingApprovedB2MountWithoutProvisioning(t *testing.T) {
 		}
 	}
 }
+
+func TestIncomingBinaryTransportBindsFullBytesHashesAndAuthWithoutLease(t *testing.T) {
+	token := strings.Repeat("synthetic-", 5)
+	raw := []byte("# Full private fixture\nUnknown fields and context remain complete.\n")
+	meta := IncomingMetadata{ContentType: "text/markdown", SHA256: digest(raw), SourceSHA256: digest([]byte("original source can differ from extracted text"))}
+	id := digest([]byte("observation"))
+	calls := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		body, err := io.ReadAll(r.Body)
+		requireNoError(t, err)
+		if r.Method != http.MethodPost || r.URL.Path != APIBase+"/observations/"+id+"/payload" || r.Header.Get("Authorization") != "Bearer "+token || r.Header.Get("Content-Type") != meta.ContentType || r.Header.Get(IncomingPayloadHashHeader) != meta.SHA256 || r.Header.Get(IncomingSourceHashHeader) != meta.SourceSHA256 || r.Header.Get("X-Toolkit-Sync-Lease") != "" || r.ContentLength != int64(len(raw)) || string(body) != string(raw) {
+			t.Error("incoming binary HTTP contract lost full bytes/auth/source hash or added lease")
+		}
+		w.Write([]byte(`{"status":"ready"}`))
+	}))
+	defer server.Close()
+	backend, err := NewHTTPBackend(server.URL, token, server.Client().Transport)
+	requireNoError(t, err)
+	out, err := backend.UploadIncomingPayload(context.Background(), id, raw, meta)
+	requireNoError(t, err)
+	if out.Status != "ready" || calls != 1 {
+		t.Fatal("incoming readiness response lost")
+	}
+	for _, kind := range []string{"bad-id", "bad-payload-hash", "bad-source-hash", "unsupported-media", "overbudget", "empty"} {
+		input, metadata, observation := raw, meta, id
+		switch kind {
+		case "bad-id":
+			observation = "bad"
+		case "bad-payload-hash":
+			metadata.SHA256 = digest([]byte("another body"))
+		case "bad-source-hash":
+			metadata.SourceSHA256 = "sha256:" + meta.SourceSHA256
+		case "unsupported-media":
+			metadata.ContentType = "application/pdf"
+		case "overbudget":
+			input = make([]byte, MaxPayloadBytes+1)
+			metadata.SHA256 = digest(input)
+		case "empty":
+			input = nil
+			metadata.SHA256 = digest(input)
+		}
+		if _, err = backend.UploadIncomingPayload(context.Background(), observation, input, metadata); err == nil || calls != 1 {
+			t.Fatalf("invalid incoming %s reached transport or succeeded", kind)
+		}
+	}
+}
+
+func TestIncomingBinaryTransportRejectsRedirectAndUnsafeResponses(t *testing.T) {
+	for _, kind := range []string{"redirect", "extra-field", "trailing-json", "oversized-response", "status-error"} {
+		t.Run(kind, func(t *testing.T) {
+			targetCalls := 0
+			target := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				targetCalls++
+				t.Error("incoming redirect exposed private upload")
+			}))
+			defer target.Close()
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch kind {
+				case "redirect":
+					http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+				case "extra-field":
+					w.Write([]byte(`{"status":"ready","extra":true}`))
+				case "trailing-json":
+					w.Write([]byte(`{"status":"ready"} {}`))
+				case "oversized-response":
+					io.WriteString(w, strings.Repeat("x", int(metadataBudget)+1))
+				case "status-error":
+					http.Error(w, "DO_NOT_ECHO_PRIVATE_BACKEND_BODY", http.StatusConflict)
+				}
+			}))
+			defer server.Close()
+			backend, err := NewHTTPBackend(server.URL, strings.Repeat("s", 32), server.Client().Transport)
+			requireNoError(t, err)
+			raw := []byte("full private fixture")
+			_, err = backend.UploadIncomingPayload(context.Background(), digest([]byte("observation")), raw, IncomingMetadata{ContentType: "text/plain", SHA256: digest(raw), SourceSHA256: digest(raw)})
+			if err == nil || targetCalls != 0 || strings.Contains(err.Error(), "DO_NOT_ECHO") {
+				t.Fatal("unsafe upload response accepted or private data leaked")
+			}
+		})
+	}
+}

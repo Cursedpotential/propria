@@ -16,6 +16,9 @@ import (
 
 const metadataBudget int64 = 2 << 20
 
+const IncomingPayloadHashHeader = "X-Toolkit-Sync-Payload-Sha256"
+const IncomingSourceHashHeader = "X-Toolkit-Sync-Source-Sha256"
+
 func boundedHTTPClient() *http.Client {
 	return &http.Client{Timeout: IOTimeout, Transport: &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 15 * time.Second, MaxConnsPerHost: 4, MaxIdleConnsPerHost: 4}, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("service redirects forbidden") }}
 }
@@ -102,6 +105,48 @@ func (b *HTTPBackend) json(ctx context.Context, method, route string, in, out an
 	return nil
 }
 
+// UploadIncomingPayload posts complete bounded raw bytes before the parent may hydrate an observation.
+// Inputs: deterministic observation SHA, private bytes and effective media/payload/source hashes; outputs: bare ready/blocked Outcome.
+// Effects: one authenticated POST /observations/{sha}/payload using Content-Type and X-Toolkit-Sync-{Payload,Source}-SHA256 headers.
+// Choose over JSON-wrapped binary/base64; no lease is required for this immutable idempotent incoming retention.
+func (b *HTTPBackend) UploadIncomingPayload(ctx context.Context, id string, raw []byte, meta IncomingMetadata) (Outcome, error) {
+	var out Outcome
+	if b == nil || b.client == nil || !rawHash.MatchString(id) || len(raw) == 0 || int64(len(raw)) > MaxPayloadBytes || !rawHash.MatchString(meta.SourceSHA256) || digest(raw) != meta.SHA256 || (meta.ContentType != "text/markdown" && meta.ContentType != "application/json" && meta.ContentType != "text/plain") {
+		return out, errors.New("incoming payload reference, media or hash invalid")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.origin+APIBase+"/observations/"+id+"/payload", bytes.NewReader(raw))
+	if err != nil {
+		return out, errors.New("incoming payload request invalid")
+	}
+	req.Header.Set("Authorization", "Bearer "+b.token)
+	req.Header.Set("Content-Type", meta.ContentType)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set(IncomingPayloadHashHeader, meta.SHA256)
+	req.Header.Set(IncomingSourceHashHeader, meta.SourceSHA256)
+	response, err := b.client.Do(req)
+	if err != nil {
+		return out, errors.New("incoming payload request failed")
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 || response.ContentLength > metadataBudget {
+		return out, errors.New("incoming payload refused or response over budget")
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, metadataBudget+1))
+	if err != nil || int64(len(body)) > metadataBudget {
+		return out, errors.New("incoming payload response incomplete")
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
+	d.DisallowUnknownFields()
+	if d.Decode(&out) != nil {
+		return out, errors.New("incoming payload response contract mismatch")
+	}
+	var tail any
+	if d.Decode(&tail) != io.EOF {
+		return out, errors.New("incoming payload response trailing data")
+	}
+	return out, nil
+}
+
 func operationRoute(id, suffix string) (string, error) {
 	if !uuidID.MatchString(id) {
 		return "", errors.New("invalid sync operation ID")
@@ -159,6 +204,18 @@ func (b *HTTPBackend) Observe(ctx context.Context, in Observation) (Outcome, err
 	var out Outcome
 	err := b.json(ctx, http.MethodPost, "/observations", in, &out)
 	return out, err
+}
+
+// ImportBindings posts the complete approved working-file metadata to its fixed private seed route.
+// Inputs: at most 2 MiB of JSON metadata; outputs: at most 4 KiB of acknowledgement bytes.
+// Effects: authenticated backend mapping writes only; choose from the tracked binding Activity, never from an arbitrary URL.
+// Byline: Codex · GPT-6 · 2026-10-05.
+func (b *HTTPBackend) ImportBindings(ctx context.Context, payload json.RawMessage) (json.RawMessage, error) {
+	if len(payload) == 0 || len(payload) > 2<<20 || !json.Valid(payload) {
+		return nil, errors.New("invalid binding metadata payload")
+	}
+	out, err := b.request(ctx, http.MethodPost, "/bindings/import", payload, nil, 4096)
+	return json.RawMessage(out), err
 }
 
 // Seen calls GET /observations/{raw-hex-id}/status before source reads.

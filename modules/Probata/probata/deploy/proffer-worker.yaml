@@ -126,6 +126,8 @@ services:
       PLATFORM_TOOLS_BASE_URL: ${PLATFORM_TOOLS_BASE_URL:?set}
       # Byline: Codex, GPT-6, 2026-10-04. Separate scoped catalog writer; existing catalog client stays read-only.
       CASEBIBLE_RECOVERY_DATABASE_URL_FILE: /run/secrets/casebible-recovery-database-url
+      # Byline: Codex · GPT-6 · 2026-10-05. Dedicated bounded permanent-file catalog writer.
+      CASEBIBLE_WORKING_DATABASE_URL_FILE: /run/secrets/casebible-toolkit-working-database-url
       # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
       # store: scheme -> credential file. Switching provider = a credential file + these two
       # values, identical in every Proffer/Workbench service. The first root is the default.
@@ -201,6 +203,7 @@ services:
       - /data/probata/secrets/family-court/currency-approval-key:/run/secrets/currency-approval-key:ro
       - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
       - /data/probata/secrets/family-court/casebible-recovery-database-url:/run/secrets/casebible-recovery-database-url:ro
+      - /data/probata/secrets/casebible-toolkit-working-database-url:/run/secrets/casebible-toolkit-working-database-url:ro
       - /data/probata/secrets/n8n/proffer-auth:/run/secrets/n8n-proffer-auth:ro
       - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro
       - /data/probata/secrets/intake-engine/metabase-ro:/run/secrets/intake-catalog-readonly:ro

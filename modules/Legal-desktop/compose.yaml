@@ -78,6 +78,8 @@ services:
       FAMILY_COURT_TOOLKIT_STORE_URL: ${FAMILY_COURT_TOOLKIT_STORE_URL:-}
       FAMILY_COURT_TOOLKIT_STORE_USER: ${FAMILY_COURT_TOOLKIT_STORE_USER:-}
       FAMILY_COURT_TOOLKIT_STORE_PASS: ${FAMILY_COURT_TOOLKIT_STORE_PASS:-}
+      # Byline: Codex · GPT-6 · 2026-10-05. Read-only exact original links use the shared account scope.
+      TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE: ${TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE:-}
       # Family Law Toolkit hosted MCP console for the desk's tool browser (Claude Code ·
       # Opus 5.5 · 2026-10-02). A tailnet name, never an IP; the token is the console's bearer.
       FAMILY_COURT_CONSOLE_MCP_URL: ${FAMILY_COURT_CONSOLE_MCP_URL:-}
