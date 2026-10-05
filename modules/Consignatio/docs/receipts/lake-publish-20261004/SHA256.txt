@@ -1,0 +1,6 @@
+# Byline: Codex, 2026-10-04. Fingerprints of retained execution receipts.
+45d2415e52d69f10d3a5a1a6cebdc94bdec2f5567d2b4621bed6f5b9f7c6c896  export_results.tsv
+fbb08ca5a31925f4c893dccf078a1f9103798a22bfcb790600eb0b35200f4462  lake_publish_20261004.tables.txt
+d6efcc827c0714f36b39919c811b75e165a5254ac4596b27a4384972a30210d2  manifest_catalog.csv
+917ba793f9c2bf47c3f6891c6a40978874bb1628dad02afb02b0ff1030c658ef  readback_results.tsv
+fd29f58302fa6b84e01091d9c4f3a3d41bbf2505da5ab560da7580c6707b2897  temporal-run.log

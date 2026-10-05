@@ -1,3 +1,4 @@
+# Byline: Codex, 2026-10-04. Presence joins use the current whole-bucket B2 inventory.
 #!/usr/bin/env python3
 # Byline: Claude Code · Fable 5.1 · 2026-09-14
 """Load a local source's dedupe plan into raw_duck.source_occurrences. Runs ON the VPS.
@@ -36,7 +37,7 @@ select '{{source}}', '', lp.path, lp.size, nullif(lp.modtime,'')::timestamptz, '
        case lp.class when 'new' then '{B2_PREFIX}{{source}}/' || lp.path when 'junk_excluded' then null else nullif(lp.b2_key,'') end,
        case lp.class when 'on_b2' then 'catalog' when 'pending_carrier' then 'carrier_pending' end,
        jsonb_build_object('mime', nullif(lp.mime,''))
-from lp left join raw_duck.b2_objects o on lp.class = 'new' and o.key = '{B2_PREFIX}{{source}}/' || lp.path and o.size = lp.size
+from lp left join (SELECT * FROM raw_duck.bucket_objects_current WHERE provider='b2' AND bucket='salem-data') o on lp.class = 'new' and o.key = '{B2_PREFIX}{{source}}/' || lp.path and o.size = lp.size
 on conflict (source, scope, path, source_id) do update set
   size = excluded.size, modtime = excluded.modtime, native_hash = excluded.native_hash, md5 = excluded.md5,
   matched_origin = excluded.matched_origin, metadata = excluded.metadata,

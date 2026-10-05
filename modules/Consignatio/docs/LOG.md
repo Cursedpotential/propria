@@ -3481,3 +3481,7 @@ Open, for the owner:
 All 15 recovered ZIP originals were preserved under the Case Bible B2 recovery root and independently checked by exact provider version, SHA-256 and size (116293214 bytes total). Temporal workflow `toolkit-package-preservation-20261004-v1`, run `01a10901-0074-708f-be85-2ecc59e12b23`, completed at 22:21:17Z; local originals remain unchanged. The ignored metadata receipt is `docs/receipts/family-court-preservation-20261004/preservation-result.json`, SHA-256 `053fd22d92cf0818b60a38aecbe7cfb8f027da81945ddbe204f2469a02c61df7`.
 
 This completes durable raw recovery retention. Catalog registration and application projection remain open; the existing dated generation must not be replaced. The detailed execution/deployment receipt is Docstore `note:family_court_inventory_execution_20261004`, generation 6.
+
+## 2026-10-04 — Verified lake publication and Case Bible reader repair
+
+Byline: Codex, 2026-10-04. Published 90 Parquet tables and two supporting artifacts through five Temporal Activities. All 92 full B2 readbacks passed SHA-256/row checks; LATEST advanced to 2026-10-04; ledger94. Current inventory includes 568,130 B2 objects (2,186,822 total B2/R2 observations). Source and installed plugin readers now distinguish live PG from B2 snapshots; four legacy loader/source joins repaired. Failed initial export retained; views and phase exit status fixed. Receipt: receipts/lake-publish-20261004; usage: CASE-BIBLE-CATALOG-GUIDE.md. No new completeness claim for empty/partial listing generations or full D: migration.

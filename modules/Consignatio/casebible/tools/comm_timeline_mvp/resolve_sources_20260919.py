@@ -1,3 +1,4 @@
+# Byline: Codex, 2026-10-04. Presence joins use the current whole-bucket B2 inventory.
 #!/usr/bin/env python3
 # Byline: Claude Code · Opus 5 (1M context) · 2026-09-18
 """Build the vault_key -> (sha1, md5, catalog path) map for the chat-event loader.
@@ -38,7 +39,7 @@ SELECT s.vault_key,
                   ORDER BY so.recorded_at LIMIT 1), '')
   FROM stripped s
   LEFT JOIN raw_duck.vault_objects v ON v.key = s.key
-  LEFT JOIN raw_duck.b2_objects b ON b.key = s.vault_key;
+  LEFT JOIN (SELECT * FROM raw_duck.bucket_objects_current WHERE provider='b2' AND bucket='salem-data') b ON b.key = s.vault_key;
 """
 
 

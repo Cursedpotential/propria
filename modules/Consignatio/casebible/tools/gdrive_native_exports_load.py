@@ -1,3 +1,4 @@
+# Byline: Codex, 2026-10-04. Presence joins use the current whole-bucket B2 inventory.
 #!/usr/bin/env python3
 # Byline: Claude Code · Fable 5.1 · 2026-09-14
 """Turn native Google Docs/Sheets/Slides occurrence rows from pending_export into exported. Runs ON the VPS.
@@ -5,7 +6,7 @@
 Inputs (run dir /data/consignatio/migrations/gdrive-copy-20260913):
   native-export-<acct>-idmap.tsv                       id, native path, office name, pdf name, mime, modtime  (gdrive_native_export_plan.py)
   native-export-<acct>-{office,pdf}.copyid-*.receipt.jsonl  {"status": ok|failed, "items": [dest names], "detail"}  (gdrive_copyid_driver.py)
-  raw_duck.b2_objects                                   fresh listing — an export counts only if its object is on B2
+  (SELECT * FROM raw_duck.bucket_objects_current WHERE provider='b2' AND bucket='salem-data')                                   fresh listing — an export counts only if its object is on B2
 Row per native (source gdrive/<acct>, scope '', path = native path, source_id = Drive id):
   exported        both the Office and the PDF objects are on B2; b2_key = Office key; metadata.pdf_key, metadata.export_receipts
   export_partial  exactly one of the two is on B2 (metadata says which)
@@ -30,8 +31,8 @@ create temp table ne (id text, path text, office text, pdf text, mime text, modt
 create temp table ne_out as
 select n.*, o.key as office_key, p.key as pdf_key
 from ne n
-left join raw_duck.b2_objects o on o.key = '{B2_PREFIX}{{acct}}/' || n.office
-left join raw_duck.b2_objects p on p.key = '{B2_PREFIX}{{acct}}/' || n.pdf;
+left join (SELECT * FROM raw_duck.bucket_objects_current WHERE provider='b2' AND bucket='salem-data') o on o.key = '{B2_PREFIX}{{acct}}/' || n.office
+left join (SELECT * FROM raw_duck.bucket_objects_current WHERE provider='b2' AND bucket='salem-data') p on p.key = '{B2_PREFIX}{{acct}}/' || n.pdf;
 insert into raw_duck.source_occurrences
   (source, scope, path, size, modtime, source_id, native_hash_kind, native_hash, md5, disposition, b2_key, matched_origin, metadata)
 select 'gdrive/{{acct}}', '', path, 0, nullif(modtime,'')::timestamptz, id, null, null, null,

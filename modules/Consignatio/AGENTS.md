@@ -130,3 +130,6 @@ a linked local worktree, not an independent repository; preserve its branch.
 - Fix known bugs in our own apps instead of working around them; if blocked, package the patch with proof and name the blocker. (owner 2026-09-15)
 
 <!-- End claude-reflect section -->
+
+## Catalog and lake usage (owner-requested guide, 2026-10-04)
+Before creating or refreshing a catalog or lake projection, read [the Case Bible catalog guide](docs/CASE-BIBLE-CATALOG-GUIDE.md). Use the existing all-bucket inventory and registry; dated Parquet is a published generation, not another independently maintained catalog. Check generation and coverage. Preserve historical observations. The owner expressly requested this guide, superseding the older prohibition on a separate guide for this task.

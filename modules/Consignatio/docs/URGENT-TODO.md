@@ -17,7 +17,7 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 | Where did each file come from? | `raw_duck.source_occurrences` (frozen 2026-09-14) and `catalog_reconcile.*` (2026-09-20) |
 | Vault: kept copy vs deleted copy | `raw_duck.vault_keep_v7` ⋈ `vault_delete_v7` |
 | Stale tables | schema `raw_duck_superseded` (moved 2026-10-02; nothing deleted) |
-| Published copy of the catalog | B2 `salem-data/consignatio/_system/lake/<date>/` (last 2026-09-27; `raw_duck.lake_publish_20260927`) |
+| Published copy of the catalog | B2 `salem-data/consignatio/_system/lake/<date>/` (verified 2026-10-04; `raw_duck.lake_publish_20261004`; see `CASE-BIBLE-CATALOG-GUIDE.md`) |
 | Searchable content | Weaviate: messages yes (`MsgEvents20260918`, `ProfferMsgEvents20261002`), documents no (`DocEvents20261001` = 0) |
 | R2 hashing | Worker `casebible-r2-hasher` (`casebible/tools/r2_hash_worker/`); older SHA-256 ledger in R2 `casebible-hash-ledger` |
 | What happened and why | [LOG.md](LOG.md) · finished items [COMPLETED-TODO.md](COMPLETED-TODO.md) · receipts `docs/receipts/` |
@@ -469,7 +469,6 @@ Open items only (owner 2026-10-02 19:18 EDT). When an item is finished, move it 
 ### From: 2026-10-02 19:00–19:55 EDT — catalog registry, whole-bucket listings, R2 nothing-lost proof
 
 - [ ] **R2 nothing-lost proof:** load the R2 listings (`/data/consignatio/listings/r2-all-20261002/`, running) into `raw_duck.bucket_objects`; match each R2 object to B2 by hash (R2 MD5 = a B2 content MD5 with B2 SHA-1, or SHA-1 from `casebible-r2-hasher` for the rest); deliver three lists (safe / missing / deliberately excluded) for owner sign-off before R2 is released.
-- [ ] Republish the catalog to B2 `_system/lake/` (last 2026-09-27) once the R2 load and the registry settle.
 - [ ] Owner: record a "moved to quarantine" disposition in the catalog for the D:\Backup (10,811) and F: (9,207) zero-filled files? (flag and null hash already set 09-13).
 - [ ] Owner: hosted Intake UI — A rebuild/release from current code (default), B also make it a Coolify app, C also turn on content search.
 - [ ] 33 registry rows are `unknown` status (mostly `inventory.*`, `llm_eval.*`, `media.*`, `knowledge.*`): classify.

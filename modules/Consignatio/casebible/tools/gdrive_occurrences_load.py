@@ -1,3 +1,4 @@
+# Byline: Codex, 2026-10-04. Presence joins use the current whole-bucket B2 inventory.
 #!/usr/bin/env python3
 # Byline: Claude Code · Fable 5.1 · 2026-09-14
 """Classify a Google Drive Tier-1 baseline against B2 truth, load occurrence rows, emit the copy-by-ID map.
@@ -48,8 +49,8 @@ select g.*, translate(g.path, E'\\t\\n\\r', U&'\\2409\\240A\\240D') as b2name, o
        (alt.key is not null and ((coalesce(g.sha1,'') <> '' and alt.sha1 = g.sha1) or (coalesce(g.sha1,'') = '' and alt.size = g.size))) as alt_matches,
        b.b2_key as content_key, b.origin as content_origin, c.b2_key as carrier_key
 from gd g
-left join raw_duck.b2_objects own on own.key = '{B2_PREFIX}{{acct}}/' || translate(g.path, E'\\t\\n\\r', U&'\\2409\\240A\\240D')
-left join raw_duck.b2_objects alt on alt.key = '{B2_PREFIX}{{acct}}/' || translate(regexp_replace(g.path, '(\\.[^./]+)?$', ' [gdrive-' || left(g.id, 8) || ']\\1'), E'\\t\\n\\r', U&'\\2409\\240A\\240D')
+left join (SELECT * FROM raw_duck.bucket_objects_current WHERE provider='b2' AND bucket='salem-data') own on own.key = '{B2_PREFIX}{{acct}}/' || translate(g.path, E'\\t\\n\\r', U&'\\2409\\240A\\240D')
+left join (SELECT * FROM raw_duck.bucket_objects_current WHERE provider='b2' AND bucket='salem-data') alt on alt.key = '{B2_PREFIX}{{acct}}/' || translate(regexp_replace(g.path, '(\\.[^./]+)?$', ' [gdrive-' || left(g.id, 8) || ']\\1'), E'\\t\\n\\r', U&'\\2409\\240A\\240D')
 left join raw_duck.b2_content b on g.kind = 'real' and b.md5 = g.md5 and b.size = g.size
 -- a carrier that is itself a dev-junk path was never copied to B2, so it cannot be "pending" (3 rows, 2026-09-14)
 left join lateral (select b2_key from raw_duck.graded_carriers x where x.md5 = g.md5 and x.size = g.size
