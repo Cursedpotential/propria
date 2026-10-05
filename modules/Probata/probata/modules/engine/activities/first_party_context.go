@@ -36,6 +36,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/contextthread"
 	"github.com/Cursedpotential/probata/engine/disclosure"
 	"github.com/Cursedpotential/probata/engine/firstparty"
@@ -79,6 +80,9 @@ type FirstPartyContextInput struct {
 	// to no registered derivation; Reason then says why.
 	PlatformResolved bool
 	Reason           string
+	// NotApplicable is an exclusion established from the verified source's
+	// persisted formats; it never comes from the Activity request's label.
+	NotApplicable string
 }
 
 // FirstPartyReceiptSpec is one proposal or confirmation receipt.
@@ -244,6 +248,9 @@ func (a FirstPartyContextActivities) resolve(ctx context.Context, req proffer.St
 }
 
 // ProposeFirstPartyContext is the EXTRACT step.
+// Inputs: request and verified generation references, plus explicit persons for applicable messaging.
+// Outputs: a deterministic proposal receipt or an explicit not-applicable receipt for AI/empty sources.
+// Side effects: its own context receipt only, no working rows. Pick before preview; confirm and commit rebuild later.
 func (a FirstPartyContextActivities) ProposeFirstPartyContext(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	result, err := a.propose(ctx, req)
 	return result, stopRetryingPermanent(err)
@@ -266,19 +273,19 @@ func (a FirstPartyContextActivities) propose(ctx context.Context, req proffer.St
 	if err != nil {
 		return proffer.StageResult{}, err
 	}
-	if len(input.Messages) == 0 {
+	if reason := firstPartyNotApplicableReason(input); reason != "" {
 		// Nothing to import is a recorded outcome, not a silent skip.
 		_, receiptRef, err := a.Store.PersistFirstPartyReceipt(ctx, FirstPartyReceiptSpec{
 			Stage: stage, Kind: FirstPartyProposalKind, RequestID: req.RequestID,
 			SourceVersionRef: req.SourceVersionRef, NormalizedGenerationRef: generationRef,
-			NotApplicable: "the normalized generation holds no message records", Attempt: a.attempt(ctx),
+			NotApplicable: reason, Attempt: a.attempt(ctx),
 		})
 		if err != nil {
 			return proffer.StageResult{}, err
 		}
 		return proffer.StageResult{
 			Stage: stage, Status: proffer.StatusNotApplicable, ReceiptRef: receiptRef,
-			Reason: "the normalized generation holds no message records",
+			Reason: reason,
 		}, nil
 	}
 	if !input.PlatformResolved {
@@ -314,6 +321,22 @@ func (a FirstPartyContextActivities) propose(ctx context.Context, req proffer.St
 		return proffer.StageResult{}, err
 	}
 	return success(stage, resultRef, receiptRef), nil
+}
+
+// firstPartyNotApplicableReason identifies verified AI sources and empty message generations.
+// Input: store-resolved provenance and records. Output: a recorded exclusion reason or empty string.
+// Effects: none. Use before first-party planning; participant resolution and AI search keep their records.
+func firstPartyNotApplicableReason(input FirstPartyContextInput) string {
+	if input.NotApplicable != "" {
+		return input.NotApplicable
+	}
+	if contextsearch.IsAIChatFormat(input.Source.DeclaredFormat) {
+		return "AI chat sources remain AI context and are not first-party messaging"
+	}
+	if len(input.Messages) == 0 {
+		return "the normalized generation holds no message records"
+	}
+	return ""
 }
 
 // identity reads the explicit person references and has the Store check them.
@@ -352,6 +375,9 @@ func (a FirstPartyContextActivities) rebuild(ctx context.Context, req proffer.St
 	input, err := a.Store.LoadFirstPartyContext(ctx, req, receipt.NormalizedGenerationRef, verificationRef)
 	if err != nil {
 		return firstparty.Plan{}, err
+	}
+	if reason := firstPartyNotApplicableReason(input); reason != "" {
+		return firstparty.Plan{}, permanent(fmt.Errorf("first-party context import refused: %s", reason))
 	}
 	if !input.PlatformResolved {
 		return firstparty.Plan{}, permanent(fmt.Errorf("first-party context import refused: %s", input.Reason))

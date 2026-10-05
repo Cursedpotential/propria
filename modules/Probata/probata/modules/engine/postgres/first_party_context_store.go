@@ -43,6 +43,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/contextthread"
 	"github.com/Cursedpotential/probata/engine/disclosure"
 	"github.com/Cursedpotential/probata/engine/firstparty"
@@ -72,6 +73,10 @@ func NewFirstPartyContextStore(db DB) (*FirstPartyContextStore, error) {
 }
 
 // LoadFirstPartyContext implements activities.FirstPartyContextStore.
+// Inputs: run identity, retained source version, normalized generation and successful verification references.
+// Outputs: verified records and messaging applicability, including AI-source exclusion.
+// Side effects: bounded PostgreSQL reads only. Pick for participant resolution or first-party planning;
+// AI search reads its own context records and is not a human messaging projection.
 func (s *FirstPartyContextStore) LoadFirstPartyContext(
 	ctx context.Context, req proffer.StageRequest, generationRef, verificationRef proffer.Ref,
 ) (activities.FirstPartyContextInput, error) {
@@ -101,16 +106,17 @@ func (s *FirstPartyContextStore) LoadFirstPartyContext(
 	}
 
 	var generationSource uuid.UUID
-	var workflowID, status, declaredFormat, sourceKey string
+	var workflowID, status, declaredFormat, formatID, sourceKey string
 	var matterID, courtCaseID uuid.NullUUID
 	if err := s.db.QueryRow(ctx, `
 		SELECT generation.source_version_id, version.workflow_id, version.status, version.declared_format,
-		       source.source_key, version.matter_id, version.court_case_id
+		       source.source_key, version.matter_id, version.court_case_id, coalesce(raw.format_id, '')
 		FROM context.normalized_generation generation
+		JOIN context.raw_generation raw ON raw.id = generation.raw_generation_id
 		JOIN context.source_version version ON version.id = generation.source_version_id
 		JOIN context.source source ON source.id = version.source_id
 		WHERE generation.id = $1::uuid`, generationID).
-		Scan(&generationSource, &workflowID, &status, &declaredFormat, &sourceKey, &matterID, &courtCaseID); err != nil {
+		Scan(&generationSource, &workflowID, &status, &declaredFormat, &sourceKey, &matterID, &courtCaseID, &formatID); err != nil {
 		return activities.FirstPartyContextInput{}, fmt.Errorf("resolve first-party context source: %w", err)
 	}
 	if generationSource != sourceVersionID || workflowID != req.RequestID || status != "retained" {
@@ -132,6 +138,14 @@ func (s *FirstPartyContextStore) LoadFirstPartyContext(
 			DeclaredFormat: declaredFormat, SourceKey: sourceKey,
 		},
 		Messages: messages, StatedIdentifiers: stated,
+	}
+	// Match the AI search classifier using verified persisted provenance,
+	// before any SMS derivation or Facebook platform inference. Keep records
+	// and identifiers available to the shared participant/search stages.
+	// Byline: Codex · GPT-6-Sol · 2026-10-05.
+	if contextsearch.IsAIChatFormat(declaredFormat) || contextsearch.IsAIChatFormat(formatID) {
+		input.NotApplicable = "AI chat sources remain AI context and are not first-party messaging"
+		return input, nil
 	}
 	if len(messages) == 0 {
 		return input, nil
@@ -560,6 +574,9 @@ type commitReceipt struct {
 func (s *FirstPartyContextStore) beginCommit(
 	ctx context.Context, spec activities.FirstPartyCommitSpec, stage stagegraph.StageID, gateKind string,
 ) (executionID uuid.UUID, prior proffer.Ref, found bool, err error) {
+	if contextsearch.IsAIChatFormat(spec.Plan.Source.DeclaredFormat) {
+		return uuid.Nil, "", false, errors.New("AI chat sources remain AI context and are not first-party messaging")
+	}
 	sourceVersionID, err := uuid.Parse(string(spec.SourceVersionRef))
 	if err != nil {
 		return uuid.Nil, "", false, fmt.Errorf("source version reference %q: %w", spec.SourceVersionRef, err)
