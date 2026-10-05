@@ -11,6 +11,7 @@ for parse-dryrun so no real parser/tool-registry state is required.
 # Byline: Codex · GPT-5 · 2026-08-16 (read-only Data Explorer coverage)
 # Byline: Codex · GPT-5 · 2026-08-18 (projection-aware record browser coverage)
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review route coverage)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (single-case Proffer mode and blocked DEV writes)
 
 from __future__ import annotations
 
@@ -153,7 +154,7 @@ def client(monkeypatch):
     register_inspect_routes(app, knowledge=None)
     # Existing route tests exercise SQL admission; delegation has separate tests below.
     monkeypatch.setattr(inspect_routes, "_verify_proffer_delegation", lambda *_: None)
-    monkeypatch.setenv("PROFFER_TEST_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
+    monkeypatch.setenv("PROFFER_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
     return TestClient(app)
 
 
@@ -1044,7 +1045,7 @@ def test_proffer_flag_rejects_snapshot_advanced_before_atomic_admission(client, 
         json=_proffer_request(
             {
                 "preview_handle": handle,
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "chunk",
                 "target_id": "44444444-4444-4444-4444-444444444444",
                 "attempt_id": stale_attempt,
@@ -1061,6 +1062,95 @@ def test_proffer_flag_rejects_snapshot_advanced_before_atomic_admission(client, 
     assert "pg_advisory_xact_lock(hashtextextended(:preview_handle, 0))" in fake.calls[0][0]
     assert "ORDER BY snapshot.snapshot_seq DESC LIMIT 1" in fake.calls[1][0]
     assert all("INSERT INTO analysis.corroboration_flag" not in statement for statement, _ in fake.calls)
+
+
+def test_proffer_mode_defaults_to_live_and_uses_single_configured_matter(client, monkeypatch):
+    matter_id = "deadbeef-dead-beef-dead-beefdeadbeef"
+    monkeypatch.setenv("PROFFER_MATTER_ID", matter_id)
+    monkeypatch.setenv("PROFFER_REAL_MATTER_ID", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    assert inspect_routes._configured_proffer_matter("DEV") == inspect_routes._configured_proffer_matter("LIVE")
+    assert inspect_routes._configured_proffer_matter("TEST") == inspect_routes._configured_proffer_matter("REAL")
+
+    handle = "preview_handle_abcdefghijklmnopqrstuvwxyz"
+    attempt = "11111111-1111-1111-1111-111111111111"
+    fake = _FakeEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": attempt,
+                "source_version_id": "22222222-2222-2222-2222-222222222222",
+                "matter_id": matter_id,
+            },
+            True,
+            [],
+            _flag_row(target_kind="run", target_id=handle, notes='{"matter_mode":"LIVE"}'),
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    body = _proffer_request(
+        {
+            "preview_handle": handle,
+            "scope": "record",
+            "target_id": "33333333-3333-3333-3333-333333333333",
+            "attempt_id": attempt,
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
+
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+
+    assert response.status_code == 201
+    metadata = json.loads(fake.calls[4][1]["notes"])
+    assert metadata["matter_mode"] == "LIVE"
+    assert fake.calls[1][1]["preview_handle"] == handle
+
+
+@pytest.mark.parametrize("mode", ["DEV", "TEST"])
+def test_proffer_dev_potential_promotion_is_blocked_before_database(client, monkeypatch, mode):
+    fake = _FakeEngine([])
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    body = _proffer_request(
+        {
+            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+            "matter_mode": mode,
+            "scope": "record",
+            "target_id": "33333333-3333-3333-3333-333333333333",
+            "attempt_id": "11111111-1111-1111-1111-111111111111",
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
+
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+
+    assert response.status_code == 409
+    assert "isolated workspace" in response.json()["detail"]
+    assert fake.calls == []
+
+
+def test_proffer_flag_rejects_unknown_operating_mode_before_database(client, monkeypatch):
+    fake = _FakeEngine([])
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    body = _proffer_request(
+        {
+            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+            "matter_mode": "STAGING",
+            "scope": "record",
+            "target_id": "33333333-3333-3333-3333-333333333333",
+            "attempt_id": "11111111-1111-1111-1111-111111111111",
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
+
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+
+    assert response.status_code == 422
+    assert fake.calls == []
 
 
 def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeypatch):
@@ -1093,7 +1183,7 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
         json=_proffer_request(
             {
                 "preview_handle": handle,
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "chunk",
                 "target_id": target_id,
                 "attempt_id": attempt,
@@ -1125,7 +1215,7 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
         == _proffer_request(
             {
                 "preview_handle": handle,
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "chunk",
                 "target_id": target_id,
                 "attempt_id": attempt,
@@ -1158,7 +1248,7 @@ def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkey
         json=_proffer_request(
             {
                 "preview_handle": handle,
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "record",
                 "target_id": "33333333-3333-3333-3333-333333333333",
                 "attempt_id": attempt,
@@ -1192,7 +1282,7 @@ def test_proffer_flag_rejects_mode_when_durable_matter_disagrees(client, monkeyp
         json=_proffer_request(
             {
                 "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "record",
                 "target_id": "33333333-3333-3333-3333-333333333333",
                 "attempt_id": "11111111-1111-1111-1111-111111111111",
@@ -1255,7 +1345,8 @@ def test_proffer_delegation_rejects_tampered_actor_before_database(monkeypatch, 
     key = b"test-only-proffer-delegation-key-1234567890"
     key_file.write_bytes(key)
     monkeypatch.setattr(inspect_routes, "_PROFFER_DELEGATION_KEY_FILE", key_file)
-    monkeypatch.setenv("PROFFER_TEST_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
+    monkeypatch.delenv("PROFFER_MATTER_ID", raising=False)
+    monkeypatch.setenv("PROFFER_REAL_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
     body = _proffer_request(
         {
             "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
@@ -1289,7 +1380,8 @@ def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(m
     key_file = tmp_path / "delegation-key"
     key_file.write_bytes(key)
     monkeypatch.setattr(inspect_routes, "_PROFFER_DELEGATION_KEY_FILE", key_file)
-    monkeypatch.setenv("PROFFER_TEST_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
+    monkeypatch.delenv("PROFFER_MATTER_ID", raising=False)
+    monkeypatch.setenv("PROFFER_REAL_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
 
     class ReplayEngine:
         def __init__(self):
@@ -1352,7 +1444,7 @@ def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(m
     body = _proffer_request(
         {
             "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
-            "matter_mode": "TEST",
+            "matter_mode": "REAL",
             "scope": "record",
             "target_id": "33333333-3333-3333-3333-333333333333",
             "attempt_id": engine.current_attempt,
