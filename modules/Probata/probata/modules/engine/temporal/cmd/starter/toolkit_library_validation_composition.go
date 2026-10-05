@@ -21,11 +21,11 @@ type toolkitValidationStarter struct {
 
 // StartLibrarySync starts or joins a sealed outbox export using its stable operation identity.
 // Inputs: operation UUID. Outputs: workflow/run IDs. Effects: Temporal dispatch only; database/B2 checks occur in tracked Activities.
-// Choose for durable console outbox retries; completed successes are reused and failed runs may be retried.
+// Choose for durable console outbox retries; running operations are joined and closed retries reconcile their saved intent.
 // Byline: Codex · GPT-6 · 2026-10-05.
 func (s toolkitValidationStarter) StartLibrarySync(ctx context.Context, operationID string) (string, string, error) {
 	workflowID := "library-sync-write-" + operationID
-	run, err := s.temporal.ExecuteWorkflow(ctx, client.StartWorkflowOptions{ID: workflowID, TaskQueue: s.taskQueue, WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY}, librarysync.WriteWorkflowName, librarysync.WriteInput{OperationID: operationID})
+	run, err := s.temporal.ExecuteWorkflow(ctx, client.StartWorkflowOptions{ID: workflowID, TaskQueue: s.taskQueue, WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE}, librarysync.WriteWorkflowName, librarysync.WriteInput{OperationID: operationID})
 	if err != nil {
 		var already *serviceerror.WorkflowExecutionAlreadyStarted
 		if errors.As(err, &already) {
