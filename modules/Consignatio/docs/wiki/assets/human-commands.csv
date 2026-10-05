@@ -1,0 +1,1068 @@
+plugin,kind,name,invocation,description,source,line,sha256,validation,generated_by,owner_date
+case-bible,commands,cb-chat-dedup,/case-bible:cb-chat-dedup,"AI-chat format detector + native-first dedup. `scan`: report-only detection of the 5 chat-export formats and their duplicate sets. `apply`: moves native re-exports into _re-exports/ and tags AI-chat md per tagging_spec.md (dry-run unless --go). `find`: read-only machine-wide sweep for chat-export files. `crosscheck`: read-only byte-identical dupe detection across multiple scan reports, with quarantine proposal and --same-drive scoping. --provider scopes scan/apply/find.",E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-chat-dedup.md,1,2459b51d2d73c55c0624388aa32e832d92a1c14a255af976d54bc5b1e0f4f7e4,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-custody,/case-bible:cb-custody,"Verify or build the H1/H2/H3 custody hash chain on Case Bible evidence (files, message exports, new ingests).",E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-custody.md,1,658cb37aa607f509dc982df7aa78bd1e7b8648d310a8614b9cf5e112d1617def,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-init,/case-bible:cb-init,"Build the new vault scaffold (8 v4 domains + governance files) in the local mirror, ready to sync up to casebible-sorted. Non-destructive (folders + INDEX/AGENTS/Dashboard only).",E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-init.md,1,acf0a767124dccc22f9fdeb8ef5e0335c4177052d8ae28386a6861e9cf502932,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-lake,/case-bible:cb-lake,Read the B2 lake publication and query the working Case Bible catalog.,E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-lake.md,1,e3ea02c50d284b7578054b42e92ce27417ea2c6d95926ed32837c01602df63d3,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-orchestrate,/case-bible:cb-orchestrate,"Run the full Case Bible raw->sorted pipeline step by step, fanning out parallel sub-agent teams on the classify + verify passes. HITL gates before any copy/quarantine; never deletes.",E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-orchestrate.md,1,911558cc0eda6a2701e9b4f7714d519924e7c7c398f3db33f53f07bd637705eb,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-quarantine,/case-bible:cb-quarantine,"Mimic delete SAFELY — move superseded duplicates / stale files into quarantine (casebible-quarantine/.review_hold), original folder structure preserved, fully reversible. Never hard-deletes.",E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-quarantine.md,1,5dbcfc4a4fce3195fac839502dc8f7504c87ded537d6b48c41ab0e644ee8e674,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-r2-sort,/case-bible:cb-r2-sort,Build the raw->sorted provenance ledger (domain mapping + best-copy dedup) and optionally emit the rclone copy batch. Dry-run by default; never deletes.,E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-r2-sort.md,1,18ee63af70fcf53107351a84c77128902bacb4cfc23cdb25a14e270ef47069ab,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-sort-assist,/case-bible:cb-sort-assist,Agent-assisted sort for ambiguous files — uses a cheap Claude (Haiku) programmatically to classify the needs_agent rows into the v4 taxonomy and write decisions back to the ledger. Dry-run by default.,E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-sort-assist.md,1,137a22d4198dbc6af24600d41eec74f032d1f801a463e7951b9d0491f56a7941,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-status,/case-bible:cb-status,Inspect current catalog and B2 publication generations without corpus scans.,E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-status.md,1,c7a497ed93a6f199ad3309e038a58e929199dfca59a53255f1491f436587bc99,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-sync,/case-bible:cb-sync,Plan source-preserving transfer through the governed Case Bible workflow.,E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-sync.md,1,a72c43763b7232aa09fc7707120ae773c90ea53921321655547c9358696aa445,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,commands,cb-vsearch,/case-bible:cb-vsearch,"Search Case Bible files, messages and AI chats by meaning or keywords; filter and present source-linked results with in-memory DuckDB.",E:/AI_Workspace/plugins/plugins/case-bible/commands/cb-vsearch.md,1,9840110c2890060d44a64746198c7a289a06b78d181b74f050b6fdd6af2d9156,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,scripts/bump-revision.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/scripts/bump-revision.py"" --help","bump-revision.py - Bump byline revision numbers in migration-passes files.
+
+Adapted from agent-foundry's bump-version.sh pattern for semver-like revision
+management in byline comments.
+
+Usage:
+    python bump-revision.py --patch <file>         # Rev: 2 -> Rev: 3
+    python bump-revision.py --minor <file>         # Rev: 2 -> Rev: 3 (same as patch for bylines)
+    python bump-revision.py --major <file>         # Rev: 2 -> Rev: 3 (same as patch for bylines)
+    python bump-revision.py --set 5 <file>         # Rev: 2 -> Rev: 5
+    python bump-revision.py --plugin                 # Bump plugin.json version
+    python bump-revision.py --plugin --patch        # Bump plugin.json patch version
+    python bump-revision.py --plugin --minor        # Bump plugin.json minor version
+    python bump-revision.py --plugin --major        # Bump plugin.json major version
+
+Byline format:
+    <!-- Generated by: Claude (migration-passes/<command>) | Date: 2026-05-23 | Rev: 2 | Platform: Claude Code / win32 -->",E:/AI_Workspace/plugins/plugins/case-bible/scripts/bump-revision.py,1,375d53d677854bb9899b26659201dc02b952f8d51c7be1695c8e0db06a7302ec,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,scripts/lib/formatting.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/scripts/lib/formatting.py"" --help","formatting.py - Terminal color and formatting utilities for migration-passes scripts.
+
+Adapted from agent-foundry's colors.sh for Python/Windows compatibility.
+Provides print_error, print_success, print_warning, print_info, print_section,
+and JSON output mode.
+
+Usage:
+    from lib.formatting import print_error, print_success, print_warning, print_info, print_section
+
+    # Or run directly for JSON output mode:
+    python -m lib.formatting --json-start   # Enable JSON mode
+    python -m lib.formatting --json-output   # Print collected JSON results",E:/AI_Workspace/plugins/plugins/case-bible/scripts/lib/formatting.py,1,bfdcd56ea996014395337dcc0c13bb5bbfb3b0064a3dfd0cc7b20698cf27a48f,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,scripts/pipeline-status.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/scripts/pipeline-status.py"" --help","pipeline-status.py - Display migration-passes pipeline status.
+
+Shows which passes are complete, partial, blocked, or missing,
+with timestamps and next-step guidance.
+
+Usage:
+    python pipeline-status.py [--json] [--verbose] [--dir <project_dir>]",E:/AI_Workspace/plugins/plugins/case-bible/scripts/pipeline-status.py,1,f5db4710a6082b1a735aeef8d4958550b9d04dfd75ec5aaee09c2f687390ea88,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,scripts/safe-operations.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/scripts/safe-operations.py"" --help","safe-operations.py - Safe file modification with backup, restore, and atomic writes.
+
+Adapted from agent-foundry's atomic.sh pattern, ported to Python for Windows compatibility.
+
+Usage:
+    python safe-operations.py backup <file>
+    python safe-operations.py restore <backup_file>
+    python safe-operations.py remove-backup <backup_file>
+    python safe-operations.py atomic-write <dest> <content>
+    python safe-operations.py verify-backup <file>",E:/AI_Workspace/plugins/plugins/case-bible/scripts/safe-operations.py,1,95571c333234822e1074e572570c6a529b751313f065c49624ffb4550664816b,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,scripts/validate-handoff.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/scripts/validate-handoff.py"" --help",Validate handoff block format and byline presence in migration-passes output files.,E:/AI_Workspace/plugins/plugins/case-bible/scripts/validate-handoff.py,1,392a6a9657fdeb71c84cb865586e11f4ab0da3f56390896d5c0539ff7e9c15f3,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,scripts/validate-pipeline-state.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/scripts/validate-pipeline-state.py"" --help","validate-pipeline-state.py - Validate migration-passes pipeline state before session end.
+
+Checks .migration-passes/ for in-progress or incomplete passes. Reports pipeline
+state and whether the session can safely end.
+
+Used by the Stop hook to ensure passes complete in order.
+
+Usage:
+    python validate-pipeline-state.py [--dir <project_dir>]
+    python validate-pipeline-state.py --check-complete <pass_number>
+
+Exit codes:
+    0 - Pipeline state is valid (all completed passes are consistent)
+    1 - Pipeline state has issues (incomplete pass, out-of-order execution)",E:/AI_Workspace/plugins/plugins/case-bible/scripts/validate-pipeline-state.py,1,6f1ed2c1c4475bce46c7ad3edafd0d436cb6e2409bd3b746187bedadb7c9b9e0,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,scripts/validate-prerequisites.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/scripts/validate-prerequisites.py"" --help","validate-prerequisites.py - Validate that previous passes have completed before starting a new pass.
+
+Checks .migration-passes/ for completed previous passes, validates handoff
+integrity, and reports whether the current pass can proceed.
+
+Usage:
+    python validate-prerequisites.py <pass_number>
+    python validate-prerequisites.py 5 --check   # Check only, don't block
+    python validate-prerequisites.py 3 --verbose   # Show detailed status
+
+Pass sequence:
+    0: inventory.json
+    1: context-summary.json
+    2: transcript-intelligence.json
+    3: doc-patch-report.json
+    4: gap-audit-report.json
+    5: migration-plan.md (Markdown, not JSON)
+    6: migration-report.json
+    7: export-report.json",E:/AI_Workspace/plugins/plugins/case-bible/scripts/validate-prerequisites.py,1,ac73dc0c616b590163b608dedff3028a5765322fe36376f40ea991f696accaee,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/certifi/__main__.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/certifi/__main__.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/certifi/__main__.py,1,c410688fdd394d45812d118034e71fee88ba7beddd30fe1c1281bd3b232cd758,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/charset_normalizer/cli/__main__.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/charset_normalizer/cli/__main__.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/charset_normalizer/cli/__main__.py,1,f137ce27ba44dff512325aaecb38354e712f49676c863dd59b272c9ac7741090,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/duckdb/query_graph/__main__.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/duckdb/query_graph/__main__.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/duckdb/query_graph/__main__.py,1,1341e76396b1800d13eef21d3c89c86c80b720c3c78eaa6547d33b1615fa9391,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/fsspec/fuse.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/fsspec/fuse.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/fsspec/fuse.py,1,43edcd38ec8ba817d86b80dbe44d7dcff658dfacf3607b48b3598e51ab08b414,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/idna/cli.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/idna/cli.py"" --help","Command-line interface for the :mod:`idna` package.
+
+Invoked via ``python -m idna``. See :func:`main` for the entry point.",E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/idna/cli.py,1,b30a892cc35cf14ceceb42b388da5b5a71eeaa51b75914302526e8e27f310c0a,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/markdown_it/cli/parse.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/markdown_it/cli/parse.py"" --help","CLI interface to markdown-it-py
+
+Parse one or more markdown files, convert each to HTML, and print to stdout.",E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/markdown_it/cli/parse.py,1,d941b1f5074f74c1a9a7a0ae0dd39523c04ecd0f66fe9812c73ace2a8e28425b,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/pygments/cmdline.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/pygments/cmdline.py"" --help","pygments.cmdline
+~~~~~~~~~~~~~~~~
+
+Command line interface.
+
+:copyright: Copyright 2006-present by the Pygments team, see AUTHORS.
+:license: BSD, see LICENSE for details.",E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/pygments/cmdline.py,1,fdd3a7aed6bfd8621ef0983ed58d296f9bd68bc2fa413889cf2a13b87ad8adb3,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/pyparsing/tools/cvt_pyparsing_pep8_names.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/pyparsing/tools/cvt_pyparsing_pep8_names.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/pyparsing/tools/cvt_pyparsing_pep8_names.py,1,1fc0281dd62ceeb53c6b4451178ce3bab8c6ff167ca4e2d5061022d3e16054e6,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/rich/default_styles.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/rich/default_styles.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/rich/default_styles.py,1,4e4d6967d6ce678d04557edc7c16d80c4a3b86ba7006f646b225025dd8743f43,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/rich/json.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/rich/json.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/rich/json.py,1,a260b65874e0511c44a2c9dad5fb684890a77b6117ecc0ee42d09db304b7aac9,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/rich/markdown.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/rich/markdown.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/rich/markdown.py,1,9830c99946d64589bbfef29e9d5abbe8ae9a1b8dca4c9278b6260ccf15ceee7b,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,skills/cb-catalog/.venv-ice/Lib/site-packages/rich/syntax.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/rich/syntax.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/case-bible/skills/cb-catalog/.venv-ice/Lib/site-packages/rich/syntax.py,1,cad81e194b7dd5f76bf0b68728e76468d31ec2b3d1c60a1c8b998c77730f1382,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/case_bible_bootstrap.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/case_bible_bootstrap.py"" --help","Case Bible Bootstrap & Safe Operations Script
+
+Commands:
+  init               Create the vault structure from templates
+  legacy-intake      Move existing files into Legacy/.to_be_sorted/
+  manifest           Generate a hash manifest for a path
+  copy-verify        Copy a file/tree and verify integrity
+  quarantine-original Move verified original to .to_be_deleted/
+
+This script is intentionally cautious:
+  - No hard deletes ever
+  - All operations logged
+  - Copy-verify-quarantine is the standard flow
+  - Legacy intake preserves everything, sorts nothing",E:/AI_Workspace/plugins/plugins/case-bible/tools/case_bible_bootstrap.py,1,370a5c0e7915dbf4b069cdb9a523cd25ab7f2ab6ded7a24564507fdd63b0f41a,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_chat_dedup.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_chat_dedup.py"" --help","cb_chat_dedup.py — AI-chat format detector + native-first dedup SCANNER + APPLY + FIND.
+
+  python cb_chat_dedup.py scan  <folder> [--json out.json] [--md report.md]
+  python cb_chat_dedup.py apply <folder> [--go] [--json out.json] [--md report.md]
+  python cb_chat_dedup.py find  [--roots R1 R2 ...] [--json out.json] [--md report.md]
+                                [--max-content-sniff BYTES]
+  python cb_chat_dedup.py crosscheck --from-scans <dir-of-scan-jsons> [--json out] [--md out]
+                                [--same-drive] [--drives C,D]
+
+`crosscheck` (0.5.0) is a READ-ONLY CROSS-LOCATION duplicate detector that runs AFTER a batch of
+`scan` reports already exist (e.g. one `scan` per location found by `find`). It sha256-hashes
+every file listed across ALL the given scan reports' `files` lists (full content, byte-identical
+only — no near-dupe/fuzzy matching, see build_crosscheck_groups()), groups identical hashes that
+span MORE THAN ONE scanned location, and classifies each copy RECOVERY-CLASS (lives under a
+backup/salvage/quarantine-adjacent path — see RECOVERY_MARKERS) or PRIMARY-CLASS (everywhere
+else). A group with both classes present proposes quarantining the recovery copies (6th
+disposition: `stage -> .review_hold/ (recovery dupe)`, naming the surviving PRIMARY path) — a
+group that is ALL-recovery or ALL-primary gets NO auto-proposal (`owner_review`). Never moves,
+tags, or deletes anything itself — same report-only contract as `scan`/`find`; see
+run_crosscheck()/build_crosscheck_groups() for the report shape.
+
+`--same-drive` (0.6.0, crosscheck-only) scopes cross-location grouping to copies on the SAME
+drive letter only, per the owner's sequencing rule: same-drive dedup happens FIRST, cross-drive
+is a deliberately deferred later pass. With the flag, a hash present on both C: and D: yields
+SEPARATE per-drive groups (never a single group spanning drives); a copy whose hash has no other
+member on its own drive (i.e. its only same-hash sibling lives on a different drive) cannot form
+a same-drive group and is reported under a ""cross-drive only (deferred)"" count instead of being
+proposed — see split_groups_by_drive() (the pure per-drive splitter) and drive_of() (the pure
+path -> drive-letter extractor). `--drives C,D` (optional, only meaningful with `--same-drive`)
+further restricts processing to the named drive letters; a candidate on any other drive (or with
+no drive letter, e.g. a UNC path) is excluded from both the formed groups and the deferred count
+for that run. DEFAULT (flag absent) is BYTE-IDENTICAL to 0.5.0's cross-everything behavior — the
+same-drive code path is never entered unless `--same-drive` is explicitly passed.
+
+`find` is a READ-ONLY, machine-wide DISCOVERY sweep — it answers ""where are all the AI-chat
+export files on this box"", it does NOT dedup/match/tag/move anything (that is `scan`'s and
+`apply`'s job, run per-location afterward). Two-tier detection, both read-only:
+  Tier 1 — filename regexes (FIND_REGEXES below): fast, no file contents touched.
+  Tier 2 — content sniff: reads only the FIRST --max-content-sniff bytes (default 8KB) of any
+    candidate .md/.json/.txt file — regardless of total file size — and runs the SAME delimiter
+    signatures scan/apply use (detect_md_format(), the native-json ""mapping""+""author"" substring
+    check) to confirm or refine the tier-1 guess, or to catch an unnamed file tier 1 missed.
+  OneDrive Files-On-Demand cloud-only placeholders are NEVER force-hydrated: file attributes are
+  checked via os.stat() (itself hydration-safe) before any open()/read(); a cloud-only file is
+  classified by filename regex only, with content_sniffed=false in the report.
+  See run_find()/render_find_md_report() for the report shape (grouped by directory, JSON + MD).
+
+`scan` is REPORT-ONLY: it only reads files and writes a report (JSON + Markdown) describing
+what it found. Never moves/modifies/renames/deletes anything.
+
+`apply` acts on a scan's duplicate sets, per owner directives 2026-07-11 (tagging + re-export
+retention are now AUTHORIZED — the ""parked"" note below on suggested-tags-only is superseded for
+the `apply` path; `scan` remains suggestion-only). DEFAULT is DRY-RUN (prints the plan, touches
+nothing); pass `--go` to execute (plugin's require_explicit_go convention). What `apply --go`
+does, scoped to md files that are re-exports of a NATIVE conversation (deduplication_spec.md
+decision_state duplicate_candidate/near_duplicate_candidate, matched_on
+title_exact/title_fuzzy/first_message_fuzzy against a native chatgpt_native_json/zip
+conversation — NOT md-vs-md near-dupes, NOT the native json-vs-zip container dupe, NOT
+work_product/unknown files):
+  1. Creates `<folder>/_re-exports/` sibling to the native export.
+  2. Tags the AI-chat md file (tagging_spec.md controlled vocabulary — see suggest_tags())
+     as Obsidian YAML frontmatter `tags:` (bare words, no `#` — Obsidian's own convention;
+     merged with any pre-existing frontmatter tags, never clobbered) written IN PLACE at the
+     file's current path, so the tag travels with the content.
+  3. Safe-moves the (now-tagged) file into `_re-exports/`: copy to dest -> sha256(source) ==
+     sha256(dest) verify -> remove source only after verify passes (mirrors cb_quarantine.py's
+     copy-verify-then-remove pattern). Every move is logged to `_re-exports/move-log.json`
+     conforming to schemas/move-log-schema.json (schema permits additional properties; a few
+     extra fields are carried for INDEX.md regeneration).
+  4. Writes/refreshes `_re-exports/INDEX.md`: file | format | matched native conversation
+     (title + index) | match method | size | sha256(12) | suggested-use notes, built from the
+     move-log so it stays accurate across repeated apply runs.
+  5. Also tags (frontmatter, in place, NOT moved) the ""kept canonical"" AI-chat md files that
+     were not re-exports of anything (e.g. a chatgpt_md/customgpt_md/gemini_md file with no
+     native match) — same controlled vocabulary, same merge behavior.
+  Native `.json`/`.zip` files are NEVER edited — their tags are suggestions only (`scan`
+  output / this tool's report), never written into the file. Work-products, `unknown` files,
+  and anything not part of a native-re-export duplicate set are UNTOUCHED by `apply`.
+  `_re-exports/` itself is excluded from all future scans/applies (added to ATOMIC_DIRS) so
+  reruns are idempotent — a second `apply --go` finds nothing left to move and just re-verifies
+  tags (no-op if already applied).
+
+`apply` never full-evidence-sidecars AI chats (owner: sidecar.json = the evidence-grade lane,
+per sidecar_provenance_spec.md / sidecar-schema.json; AI chats get tags only, not sidecars).
+
+Neither mode calls cb_quarantine.py — this stays decoupled from the raw->sorted R2 quarantine
+flow; `_re-exports/` is a same-folder retention subfolder, not the quarantine bucket.
+
+What it does (stage-1, by-SOURCE organizing only — NO domain/facet classification, see
+chat-ingest-format-learnings memory note ""STAGE MODEL""):
+  1. Walks <folder> (skips atomic/system dirs — .obsidian .claude .git .infio_json_db
+     .smart-env mi-legal-resources __pycache__ .venv node_modules).
+  2. DETECTS which of 5 known AI-chat export formats (+ work_product / unknown) each file is:
+       chatgpt_native_json  — conversations.json: list of {mapping:{...}} conversation trees
+       chatgpt_native_zip   — a .zip containing conversations.json (peeked via zipfile, never
+                               extracted to disk)
+       chatgpt_md           — ""## Prompt:"" / ""## Response:"" markdown
+       customgpt_md         — ""You asked:"" / ""ChatGPT Replied:"" markdown (AI Lawyer / Scholar GPT)
+       gemini_md            — filename prefixed ""Gemini - ..."" (invisible-unicode-prefix
+                               normalized) and/or ""**You:**"" / ""**Gemini:**"" markdown
+       dated_export_md      — filename ""*-YYYY-MM-DD-HH-MM-SS.md"", OR bare ""---"" turn
+                               separators with an ""Exported on:"" fingerprint and no other
+                               marker style. Flagged multi_topic_risk=true (the ""---"" separator
+                               is unreliable — files often concatenate unrelated conversations,
+                               see chat-ingest-format-learnings memory note).
+       work_product         — .docx, or .md/folder with NO chat-turn delimiters at all
+                               (summaries, plans) → route: not-a-transcript.
+       unknown               — everything else.
+  3. EXTRACTS dedup keys per conversation: (title, first_user_message_prefix[120 chars,
+     normalized], date). For native JSON/ZIP this walks EVERY conversation in the array.
+  4. MATCHES an .md file against a native conversation (title match OR first-message-prefix
+     match >=0.9 via difflib) => a RE-EXPORT duplicate; best copy = the native source
+     (native-first rule, chat-ingest-format-learnings memory note). Also detects md<->md
+     near-dupes (best copy = larger/more-complete file) and a native-json-vs-native-zip
+     CONTAINER duplicate (same conversations, packaged differently).
+  5. REPORTS (JSON + Markdown): per-file records, DUPLICATE SETS with a recommended best copy
+     and action, suggested (NOT applied) tags per tagging_spec.md, and a summary block.
+
+Conventions followed from skills/case-bible-architect/specs/:
+  - deduplication_spec.md: decision_state vocabulary (canonical / duplicate_candidate /
+    near_duplicate_candidate / unresolved), the ""propose, don't discard"" workflow (this tool
+    implements steps 1-4 of that spec's Required Workflow: Group / Score / Compare / Propose —
+    Review/Approve/Mark/Log are human + cb_quarantine.py's job), and ""never assume newest/
+    first-found = canonical"" (matches are by content key, not by date or path order).
+  - tagging_spec.md: suggested tags are drawn ONLY from that spec's controlled vocabulary
+    (#chat-export, #context-corpus, #canonical, #duplicate-candidate, #needs-review, #artifact)
+    — emitted as suggestions in the report, never written to any file (tagging scheme is
+    parked per owner 2026-07-11).
+
+Windows-safe: stdlib only (Python 3.14, no deps), UTF-8 console (filenames in this corpus can
+carry an invisible LRM/ZWSP prefix, e.g. Gemini web-clipper exports).
+
+`--provider chatgpt|gemini|claude|perplexity|opencode|all` (comma-separated for multiple; default
+`all`), added on scan/apply/find in 0.4.0: narrows which PROVIDER's files are treated as in-scope
+for THIS run. Detection itself is UNCHANGED — the tool's own detect_md_format()/
+is_native_conversation_list()/FIND_REGEXES functions still run exactly as before (this is why
+default/`all` is byte-identical to 0.3.0's output). What changes is a post-classification filter:
+any file whose detected format belongs to a provider NOT in the requested set is relabeled
+`unmatched/other` for this run (its true detected format is preserved as `detected_format` in the
+JSON output) and excluded from dedup matching/tagging/moving — so e.g. `--provider gemini` reports
+ChatGPT files as `unmatched/other` instead of `chatgpt_native_json` etc. Files with no specific
+provider (`work_product`, `unknown`, and `find`'s generic `chat_html_export` guess) always pass
+through untouched regardless of filter — they aren't any provider's claimed territory. The
+format->provider mapping is loaded from `../schemas/chat-formats/*.json` at runtime (one
+descriptor per provider — see that dir's README.md for the shape and current verified/unverified
+status per provider), falling back to a small hardcoded constant if that directory is missing
+(e.g. an older plugin cache predating it) so filtering degrades gracefully instead of crashing.
+
+Byline: Claude Code - Sonnet - 2026-07-11",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_chat_dedup.py,1,cc4bded356c2dd7a84e59b226cf16bd6abefb3e61124edbf5b586a62c85eb273,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_clean_names.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_clean_names.py"" --help","cb_clean_names.py — normalize filenames in the sort ledger: strip duplicate-marker noise
+from the BASENAME only — ""Copy of"", ""Copy of Copy of"", "" - Copy"", "" - Copy (2)"", ""(2)"",
+"" (copy)"", "" (copy 3)"", trailing "" copy"". Never touches folders, dates, phone numbers, or
+IDs (those live elsewhere in the path or aren't trailing dup markers).
+
+Operates on work.sort_map (SQLite). Detects collisions (different files cleaning to the same
+name) and disambiguates only those, by appending a short file_id. Dry-run prints; --apply writes
+`clean_new_path` back to work.sort_map.
+
+  python cb_clean_names.py            # preview what would change
+  python cb_clean_names.py --apply    # write clean_new_path into work.sort_map
+
+Reusable: cb_r2_sort imports clean_path() so first-pass ledgers come out clean.
+Byline: Claude Code - Opus 4.8 - 2026-06-23",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_clean_names.py,1,6249de67b5bbe55f5c4bd63e5ca7400aab951f6c51d29dcb25b95ec2680755de,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_consolidate_typefirst.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_consolidate_typefirst.py"" --help","cb_consolidate_typefirst.py — collapse the 3-run hybrid in casebible-sorted into ONE clean
+type-first structure via server-side folder MOVES (within the bucket; raw archive untouched).
+Merges old domain/parallel folders into the canonical type folders. Logs a provenance ledger.
+
+  python cb_consolidate_typefirst.py            # DRY-RUN (counts only)
+  python cb_consolidate_typefirst.py --execute  # do the server-side moves
+
+Byline: Claude Code - Opus 4.8 - 2026-06-25",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_consolidate_typefirst.py,1,012c8521a66bb15ee71cf3fba9a19c7d3e3ce1d0c5828923eeb56c4b8f954962,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_custody_chain.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_custody_chain.py"" --help","Case Bible Multi-Level Custody Hash Tool (H1/H2/H3)
+
+Byline: Claude Code . Fable 5 . 2026-07-02
+
+Implements and verifies the Case Bible 3-level tamper-evident custody scheme:
+
+  H1  file hash    sha256 over the raw source-file bytes (streaming).
+                   Canon: h1-rawbytes-v1 (matches evidence/custody.py).
+  H2  message hash sha256 per message, file-bound (includes the H1 hash so a
+                   message can never be detached from its source file).
+  H3  chain hash   entry_hash = sha256(hex(previous_hash) + hex(H2)) as ASCII.
+                   Genesis previous_hash = the H1 file hash. The final entry
+                   hash is the CHAIN HEAD, sealed into the append-only
+                   evidence.evidence_hash H1 row (meta.chain_head).
+                   Canon: h3-chain-v1 (PROVEN against the 2026-06-27 pilot).
+
+CANON REGISTRY (never silently change a recipe -- add a new canon version):
+  h1-rawbytes-v1     sha256(file_bytes)                                 PROVEN
+  h3-chain-v1        sha256(utf8(prev_hex + h2_hex))                    PROVEN
+  h2-filebound-v1    recipe LOST (pilot agent scratchpad, bestoffort-v2-
+                     2026-06-26). Stored H2 values remain tamper-evident
+                     through the H3 chain + sealed head, but CANNOT be
+                     independently recomputed from message content.
+                     verify-chain still fully verifies H3 over them.
+  h2-canonical-v2    sha256(utf8(f""{file_hash_hex}|{sequence_number}|{role}|""
+                     f""{occurred_at_utc_iso}|{content}""))               CURRENT
+                     occurred_at_utc_iso: ""YYYY-MM-DD HH:MM:SS+00:00"".
+                     Use for ALL new ingests.
+
+Usage:
+  python cb_custody_chain.py hash-file <path>
+  python cb_custody_chain.py verify-file <path> --sha256 <hex>
+  python cb_custody_chain.py verify-chain <export.csv|.jsonl> [--file <src>] [--head <hex>] [--recompute-h2]
+  python cb_custody_chain.py build-chain <records.jsonl> --file-hash <hex> [--out <path.jsonl>]
+
+Input formats:
+  .csv    the psql --csv export of analysis.normalized_record rows. Must carry
+          columns: content, role, attrs (json text). occurred_at optional.
+  .jsonl  one record per line: {""content"",""role"",""occurred_at"",...} with either
+          top-level or ""attrs""-nested sequence_number / message_hash /
+          chain_entry_hash / chain_previous_hash / file_hash.
+
+Exit codes: 0 = verified/ok, 1 = verification FAILED, 2 = usage/input error.",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_custody_chain.py,1,66e8c220295c7e37aa4ea92cd9944123277d6118d764c4ec8428653ace638558,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_execute_copy.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_execute_copy.py"" --help","cb_execute_copy.py — execute the reconciled raw->sorted copy.
+
+Reads work.sort_map; for every RESOLVED, non-superseded row, server-side-copies
+  r2:casebible-raw/<r2_key>  ->  r2:casebible-sorted/<new_path>
+in parallel (rclone copyto, no shell quoting issues). COPY ONLY — never deletes; raw untouched.
+Every copy logged to work.copy_log (provenance). Unresolved rows are skipped + reported.
+
+  python cb_execute_copy.py            # DRY-RUN: counts + sample, no copy
+  python cb_execute_copy.py --go       # actually copy (server-side, parallel)
+Byline: Claude Code - Opus 4.8 - 2026-06-23",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_execute_copy.py,1,fa746c7afe01e7f608c758fc6c4739b9fc5ff7696854d944e064859f0607587f,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_execute_typefirst.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_execute_typefirst.py"" --help","cb_execute_typefirst.py — execute the type-first root-pile ledger as server-side R2 COPIES.
+
+COPY-ONLY (never delete): content -> r2:casebible-sorted/<new_path>; obvious junk ->
+r2:casebible-quarantine/<new_path>. Raw is never modified. Writes an executed ledger
+(old_path -> new_path + status) for provenance.
+
+  python cb_execute_typefirst.py --limit 3     # test N rows first
+  python cb_execute_typefirst.py               # full run
+
+Byline: Claude Code - Opus 4.8 - 2026-06-25",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_execute_typefirst.py,1,ca8989c5221c7de7d291ed8704c5323340b6cc2cfd14b4163523066f8381e480,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_quarantine.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_quarantine.py"" --help","cb_quarantine.py — ""mimic delete"" SAFELY: MOVE superseded/stale files into quarantine.
+
+After a sort (raw->sorted) the non-canonical duplicates and any replaced/stale files should
+leave the working view — but the Case Bible NEVER hard-deletes. This moves them to
+`casebible-quarantine/.to_be_deleted/<stamp>/` (reversible) and logs every move. It only emits
+a reviewable rclone batch (no auto-fire). `rclone move` removes the source only after the copy
+lands in quarantine — the file is preserved, just relocated.
+
+  python cb_quarantine.py                                  # DRY-RUN: superseded dupes from sort_map
+  python cb_quarantine.py --where ""decision_state='duplicate_superseded'""
+  python cb_quarantine.py --execute                        # write the quarantine move batch
+
+Byline: Claude Code - Opus 4.8 - 2026-06-23",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_quarantine.py,1,f80e42803fbef9d0567f2dd0d9315d508b06e743b3121af447c7e4110ebea9a8,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_r2_sort.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_r2_sort.py"" --help","cb_r2_sort.py — build the raw->sorted provenance ledger and (gated) execute the copy.
+
+Reads the live enrichment index (PG via tunnel), maps every file to its sorted-domain
+path per the v4 taxonomy (NO numbers), keeps packages intact (convo + attachment tails),
+de-dups by md5 best-version (from D:/casebible/casebible.duckdb r2_files), and writes the
+old_path->new_path ledger. NEVER deletes; raw is the source, sorted is a copy.
+
+  python cb_r2_sort.py                      # DRY-RUN: ledger + summary for AI chats + messaging
+  python cb_r2_sort.py --all                # whole corpus
+  python cb_r2_sort.py --execute            # also write the rclone batch script (still no auto-fire)
+
+Output ledger: D:/casebible/exports/sort_map_<scope>_<stamp>.parquet
+Byline: Claude Code - Opus 4.8 - 2026-06-23",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_r2_sort.py,1,55a89a034d73e59ab349c057a11c70af771a963b9dfead64463e6f70ebd2141c,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_review_board.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_review_board.py"" --help","cb_review_board.py — generates the self-contained local HTML ""review board"" for
+cb_chat_dedup.py's `scan` (per-location duplicate sets) and `crosscheck` (cross-location
+byte-identical recovery-dupe) reports.
+
+  python cb_review_board.py --scans <dir-with-scan-jsons> [--crosscheck <crosscheck.json>]
+                             [--extra <extra-scan.json>] [--extra <extra-scan.json> ...]
+                             [--out <board.html>]
+
+Promoted from the session scratchpad's `build_review_board.py` v4 (2026-07-12) into a durable
+plugin tool — same HTML/CSS/JS output, same 6-action-per-file disposition model, refactored into
+a proper argparse CLI with no session-specific hardcoded paths (mirrors cb_chat_dedup.py's
+conventions: report-only, never moves/tags/deletes anything — this tool only ever READS the JSON
+reports named on the command line and WRITES one HTML file).
+
+What it does:
+  1. Loads every `*.json` file in `--scans <dir>` that looks like a `cb_chat_dedup.py scan`
+     report (has a top-level `duplicate_sets` key, or `tool` == ""cb_chat_dedup.py"") — anything
+     else in that directory (a stray `.md` report, an unrelated JSON) is skipped with a printed
+     note, never a hard error.
+  2. `--extra <path>` (repeatable) adds individual scan-report JSON files living OUTSIDE
+     `--scans <dir>` (e.g. a one-off vault sweep report) to the same pool, same validity check.
+  3. `--crosscheck <path>` (optional) loads a `cb_chat_dedup.py crosscheck` report and renders
+     the TOP ""Cross-location recovery duplicates"" section (byte-identical dupes where a
+     RECOVERY-CLASS copy — backup/salvage-marked path — duplicates a PRIMARY-CLASS copy living
+     elsewhere). Omitted entirely (not just empty) when `--crosscheck` isn't passed.
+  4. Renders one self-contained HTML file (`--out`, default `./chat-dedup-review-board.html`):
+     dashboards, per-location collapsible duplicate-set lists, a 6-action `<select>` per
+     non-canonical file (keep in place / keep — provenance copy / move → _re-exports/ /
+     move → provider dir / move → _extracted/ / stage → .review_hold/ — recovery dupe), a
+     search box, dark-mode support, and two clipboard exporters (approval JSON, a ""GO""
+     instruction paragraph for Claude to act on). Nothing in the generated page or this script
+     ever moves/tags/deletes a real file — the page is a proposal-review UI only.
+
+Byline: Claude Code - Sonnet 5 - 2026-07-12",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_review_board.py,1,bdfd26deb62e7c222b011066f8c263eceb6169a85e177bf516fac2dac83db7ca,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_safemove_fs.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_safemove_fs.py"" --help","cb_safemove_fs.py — SAFE local-filesystem move: COPY -> VERIFY -> QUARANTINE (never a bare move).
+
+Owner mandate 2026-07-12: a ""move"" is three gated steps —
+  1. COPY   src -> dst
+  2. VERIFY dst hash == src hash (md5 default; xxh3 if xxhash lib present and --algo xxh3)
+  3. QUARANTINE the source into <quarantine-root>/<job>/<original-relpath>  (NEVER delete)
+Any failure leaves the source exactly where it was and marks the row FAILED.
+
+ONEDRIVE MODE (--onedrive, owner 2026-07-12): files-on-demand stubs must NOT hydrate.
+Stubs (FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS 0x400000) are handled with RENAME semantics
+(server-side move, zero download) + size-metadata verify instead of copy+hash — weaker
+verification, accepted because OneDrive's 30-day online recycle backstops it. Locally
+available files inside OneDrive still get the full copy->hash->quarantine treatment.
+Quarantine root should be INSIDE the same OneDrive tree (e.g. <root>/.review_hold) so
+quarantining is itself a server-side rename.
+
+Input = an APPROVED move-map CSV with headers: src,dst   (extra columns ignored, preserved in ledger)
+Every row is ledgered: src,dst,quarantine_path,size,hash,status,timestamp
+
+Usage:
+  python cb_safemove_fs.py --map approved-map.csv --quarantine ""E:\CaseBible\.review_hold""       --job onedrive-drain-01 --ledger ledger.csv [--dry-run] [--algo md5|xxh3]
+
+Byline: Claude Code - Fable 5 - 2026-07-12",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_safemove_fs.py,1,71c3226f8ee9e3386aa048c93abfae521ec8669b2687b1f83310cb6868abd935,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_safemove_rclone.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_safemove_rclone.py"" --help","cb_safemove_rclone.py — SAFE rclone/R2 move: COPY -> VERIFY -> QUARANTINE (never a bare move).
+
+Owner mandate 2026-07-12. Cloud twin of cb_safemove_fs.py:
+  1. COPY   rclone copyto src -> dst           (server-side within same remote: no egress)
+  2. VERIFY MD5 of dst == MD5 of src           (R2 exposes MD5 as plain ETag via rclone lsf --hash)
+  3. QUARANTINE the source object: rclone moveto src -> <quarantine-prefix>/<job>/<src-path>
+     (object relocation, NEVER a delete; quarantine prefix defaults to .review_hold)
+Any failure leaves the source object untouched and marks the row FAILED.
+
+Input = APPROVED move-map CSV with headers: src,dst — full rclone paths, e.g.
+  r2:casebible-sorted/Triage/x.pdf , r2:casebible-sorted/EvidenceVault/_intake/x.pdf
+Ledgered identically to the fs tool.
+
+Usage:
+  python cb_safemove_rclone.py --map approved-map.csv --job sorted-pass-01       --quarantine ""r2:casebible-quarantine/.review_hold"" --ledger ledger.csv [--dry-run]
+
+Byline: Claude Code - Fable 5 - 2026-07-12",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_safemove_rclone.py,1,a4eaab96d59df68ff6efd2f1bf9e78b5cccaebec863707e4c99c4e5db549e571,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_sort_assist.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_sort_assist.py"" --help","cb_sort_assist.py — agent-assisted sort for the AMBIGUOUS files.
+
+Heuristics in cb_r2_sort handle the clear cases and flag the rest `needs_agent=true`. This
+tool pulls those rows + their enrichment context (doc_type, title, summary) and asks a CHEAP
+Claude model (Haiku) — programmatically, in batches — to pick the right destination from the
+fixed v4 taxonomy. Decisions are written back to work.sort_map (domain_path + new_path).
+
+  python cb_sort_assist.py              # DRY-RUN: print agent proposals
+  python cb_sort_assist.py --apply      # write decisions back to work.sort_map
+  python cb_sort_assist.py --batch 15 --limit 200
+
+Needs ANTHROPIC_API_KEY (env or ~/.secrets/anthropic.env). Model via CB_ASSIST_MODEL.
+Byline: Claude Code - Opus 4.8 - 2026-06-23",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_sort_assist.py,1,6556d658552102396c81c472923a08df5e731a599d2fd31a7d8ccf75cfb80cec,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/cb_vsearch.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_vsearch.py"" --help","Search Case Bible content through the maintained server search tool.
+
+Inputs: natural-language query, corpus, filters and presentation options.
+Outputs: source-linked excerpts in human text or compact/full JSON.
+Effects: read-only SSH query; embedding and DuckDB shaping run on ovh-files.
+Choose for content; cbcat reads file inventories and lake publications.
+Byline: Codex, GPT-6, 2026-10-04.",E:/AI_Workspace/plugins/plugins/case-bible/tools/cb_vsearch.py,1,1f3ac7f903dbdfa8e73a898af74d8e8934a90222839b59239688f6da072b14fb,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/forensics.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/forensics.py"" --help","Case Bible Forensics & Deduplication Tools
+
+Provides CLI access to forensic extraction, fast hashing, similarity analysis,
+batch operations, and sidecar generation.
+
+Usage:
+  python forensics.py hash <file_path> [--type blake3|sha256] [--output json]
+  python forensics.py fuzzy-hash <file_path> [--output json]
+  python forensics.py fuzzy-compare <file1> <file2> [--output json]
+  python forensics.py fuzzy-compare --hash <tlsh1> <tlsh2> [--output json]
+  python forensics.py extract-strings <file_path> [--min-len 4] [--strict]
+  python forensics.py fuzzy-match <string1> <string2> [--output json]
+  python forensics.py batch-hash <directory> [--type blake3|sha256] [--output json]
+  python forensics.py create-sidecar <file_path> --source-type <type> --domain <domain>",E:/AI_Workspace/plugins/plugins/case-bible/tools/forensics.py,1,b1a403f93a9d1cc1c8c37c3dfb0454220e85158e743aecbb7dfa276ce61f5bef,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+case-bible,scripts,tools/registry.py,"python ""E:/AI_Workspace/plugins/plugins/case-bible/tools/registry.py"" --help","Case Bible SQLite Registry
+
+The file-level operational index for the Case Bible system. Serves as the
+canonical machine-readable tracking layer, audit/provenance ledger, and source
+for generating refreshed manifests, indexes, and dashboards.
+
+Scope: FILE-LEVEL ONLY. Per-message and per-component hashing belongs
+downstream in the Postgres layer.
+
+Usage:
+  python registry.py init --vault-root /path/to/vault
+  python registry.py register <file_path> --domain Evidence --source-type screenshot
+  python registry.py query --hash <hash_value>
+  python registry.py query --path <file_path>
+  python registry.py log-action --action move --description ""Moved file to Evidence""
+  python registry.py status
+  python registry.py export --format json",E:/AI_Workspace/plugins/plugins/case-bible/tools/registry.py,1,95e4f6d18d37b08f74279033e246026399b0ffdde3053cc3ec54adca49ba3fe9,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+cf,commands,build-agent,/cf:build-agent,Build an AI agent on Cloudflare using the Agents SDK,E:/AI_Workspace/plugins/plugins/cf/commands/build-agent.md,1,426baaf5068f297de04a996e6077eb4f5a145d52ed827d929998e1230f59e2c7,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+cf,commands,build-mcp,/cf:build-mcp,Build a remote MCP server on Cloudflare using McpAgent,E:/AI_Workspace/plugins/plugins/cf/commands/build-mcp.md,1,5a9187b6e253b663838c9354b1dd6b9e71c369554cb3c385dac76c81019b9015,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+claude-never-forgets,commands,cnf-consolidate,/claude-never-forgets:cnf-consolidate,Dispatch lossless CNF background consolidation on demand without waiting in the foreground,E:/AI_Workspace/plugins/plugins/claude-never-forgets/commands/cnf-consolidate.md,1,e320dd47cdb9d20cbf1ba08bd30103468a67a55c2392858b9b735f054ad2686c,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+claude-never-forgets,commands,cnf-forget,/claude-never-forgets:cnf-forget,CNF session-recall lane — remove an entry from .cnf/memories/project_memory.json (NOT the built-in auto-memory MEMORY.md),E:/AI_Workspace/plugins/plugins/claude-never-forgets/commands/cnf-forget.md,1,84f4983f8bbbb08b84e41ca46d5a5c4f8dd394a697761725c4bd3a312c26f897,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+claude-never-forgets,commands,cnf-memories,/claude-never-forgets:cnf-memories,CNF session-recall lane — show all entries in .cnf/memories/project_memory.json (NOT the built-in auto-memory MEMORY.md),E:/AI_Workspace/plugins/plugins/claude-never-forgets/commands/cnf-memories.md,1,489f13d1fcf7c6b29a6afa36997c9b880dec014a114864ce0ab9c8731d3aba5c,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+claude-never-forgets,commands,cnf-remember,/claude-never-forgets:cnf-remember,CNF session-recall lane — manually add something to .cnf/memories/project_memory.json (NOT the built-in auto-memory MEMORY.md),E:/AI_Workspace/plugins/plugins/claude-never-forgets/commands/cnf-remember.md,1,b76583ce115dcc1cf750b613a9bcaab9a6e49adfa115aed646f3b45d93f27498,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+claude-never-forgets,scripts,hooks/cleanup_worker.py,"python ""E:/AI_Workspace/plugins/plugins/claude-never-forgets/hooks/cleanup_worker.py"" --help","Group CNF records losslessly using a detached, tool-free cloud classifier.
+
+Inputs: --cwd and optional --force; project-local realtime CNF records.
+Outputs: cleanup status JSON and thematic records with exact original provenance.
+Side effects: one configured cloud request, quarantine backup and atomic CNF update.
+Use behind stop_cleanup.dispatch; inference never owns the memory write lock.
+Byline: Codex · GPT-6 · 2026-10-04.",E:/AI_Workspace/plugins/plugins/claude-never-forgets/hooks/cleanup_worker.py,1,67984b2a7f24df07e899ebea0d2cedda8c86ecaa87557e32c0ad3eebe12e5823,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+claude-reflect,commands,reflect,/claude-reflect:reflect,Reflect on session corrections and update AGENTS.md (with human review),E:/AI_Workspace/plugins/plugins/claude-reflect/commands/reflect.md,1,d22bde116ac8ca1de6f5ac0249a651e9446b1e7bf94487ac9ce496808e4e6364,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+claude-reflect,commands,skip-reflect,/claude-reflect:skip-reflect,Discard queued learnings without processing,E:/AI_Workspace/plugins/plugins/claude-reflect/commands/skip-reflect.md,1,a8ae7b434d2aaa2bc10d16d7b9ee82f113aae32f60bace9c13820f5c0c690de5,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+claude-reflect,commands,view-queue,/claude-reflect:view-queue,View the learnings queue without processing,E:/AI_Workspace/plugins/plugins/claude-reflect/commands/view-queue.md,1,9894822198dca7b9addfae91af0f696606714ff89acfd705c5b39f4d580142ce,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+codebase,scripts,skills/acquire-codebase-knowledge/scripts/scan.py,"python ""E:/AI_Workspace/plugins/plugins/codebase/skills/acquire-codebase-knowledge/scripts/scan.py"" --help","scan.py — Collect project discovery information for the acquire-codebase-knowledge skill.
+Run from the project root directory.
+
+Usage: python3 scan.py [OPTIONS]
+
+Options:
+  --output FILE   Write output to FILE instead of stdout
+  --help          Show this message and exit
+
+Exit codes:
+  0  Success
+  1  Usage error",E:/AI_Workspace/plugins/plugins/codebase/skills/acquire-codebase-knowledge/scripts/scan.py,1,193d5b9f73a71d6ecc2f39f13f33d96be49d675abe83f5857ddbdc4ae21b7bd9,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+codebase,scripts,skills/repomix/scripts/repomix_batch.py,"python ""E:/AI_Workspace/plugins/plugins/codebase/skills/repomix/scripts/repomix_batch.py"" --help","Batch process multiple repositories using Repomix.
+
+This script processes multiple repositories (local or remote) using the repomix CLI tool.
+Supports configuration through environment variables loaded from multiple .env file locations.",E:/AI_Workspace/plugins/plugins/codebase/skills/repomix/scripts/repomix_batch.py,1,e112b15a553b94416e5c264f56c230e7c5da925bcd12d5207692d83f6bc2ee0f,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,commands,discovery,/family-court-toolkit:discovery,(family-court-toolkit) Prepare Michigan RFA/RFP/deficiency/compel information,E:/AI_Workspace/plugins/plugins/family-court-toolkit/commands/discovery.md,1,1995d6adb6c7c1b3e5431442b1c1cc60b6bed1030e3496a959b17d9d1549083f,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,commands,evidence,/family-court-toolkit:evidence,(family-court-toolkit) Organize or assess evidence with lawful-access gating,E:/AI_Workspace/plugins/plugins/family-court-toolkit/commands/evidence.md,1,a9467ecbe945ae6ec939b6a46b33f3592951db9856d3ddc53c3f94c60a83f7a8,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,commands,family-court,/family-court-toolkit:family-court,(family-court-toolkit) Route a Genesee family-court task to the toolkit,E:/AI_Workspace/plugins/plugins/family-court-toolkit/commands/family-court.md,1,65e2b7476804b51c5657c1b32b43b428e119eddf24217ca5b04c2cf0cfe4d55e,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,commands,hearing,/family-court-toolkit:hearing,(family-court-toolkit) Prepare a hearing-day plan and exhibit organization,E:/AI_Workspace/plugins/plugins/family-court-toolkit/commands/hearing.md,1,9eb92fe8ea2141d94ae4ed195b3a4fb14ffa51f29b5b7b35fca3daa4436c29c8,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,commands,motion,/family-court-toolkit:motion,(family-court-toolkit) Prepare a motion-practice information/drafting plan,E:/AI_Workspace/plugins/plugins/family-court-toolkit/commands/motion.md,1,1935a6cb870e880b8406f55910a291b88c1c786e6eed3d2068b89175ee6b06f3,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,commands,packet,/family-court-toolkit:packet,"(family-court-toolkit) Build a tailored parenting-time filing set from assembled case facts, or list what is still missing",E:/AI_Workspace/plugins/plugins/family-court-toolkit/commands/packet.md,1,04ad2c3a6d9749b3774eef0489e30f3ed97df46d5bc6fbfc496611025af4ed0a,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,commands,verify-sources,/family-court-toolkit:verify-sources,(family-court-toolkit) Verify currentness and traceability of cited sources,E:/AI_Workspace/plugins/plugins/family-court-toolkit/commands/verify-sources.md,1,e4414b62d29d3188a674169d0f1af6ade5a0cd5b7145d59dd788204f407520b7,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,scripts,content/toolkit/scripts/chronology_builder.py,"python ""E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/chronology_builder.py"" --help",Normalize events into a chronology; drafting aid only.,E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/chronology_builder.py,1,ac4f3dc9e9c2b4693ac4d0e6d8d9b1ace555c83b9f5bc45166921cf69154a5d2,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,scripts,content/toolkit/scripts/citation_url_checker.py,"python ""E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/citation_url_checker.py"" --help",Read-only URL status checker; respects ordinary HTTP failures and does not evade blocks.,E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/citation_url_checker.py,1,c195e0e4bd18421e8988ca9326b7a435c1673e4f1a47999c9bd67cc2195efd3f,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,scripts,content/toolkit/scripts/deadline_calculator.py,"python ""E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/deadline_calculator.py"" --help",Candidate deadline arithmetic only; no appellate deadlines.,E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/deadline_calculator.py,1,abdf5dada2f459e97dc77d9d47ef3a007e0abc093ba9f950c54fd8140d07c140,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,scripts,content/toolkit/scripts/exhibit_indexer.py,"python ""E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/exhibit_indexer.py"" --help",Create a read-only exhibit index and hashes after possession representation.,E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/exhibit_indexer.py,1,6fcf8cb69f0d503e98841b431a0cdf4d476283916c6f08994926ae4226daee74,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,scripts,content/toolkit/scripts/redaction_helper.py,"python ""E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/redaction_helper.py"" --help",Flag likely PII in text; never creates a redacted file.,E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/redaction_helper.py,1,89591a84a3fa23327f699a3ec241019120d19b21088e981d30ade7bd336681e9,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,scripts,content/toolkit/scripts/traceability_check.py,"python ""E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/traceability_check.py"" --help",Check Markdown source markers against the ledger without changing files.,E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/traceability_check.py,1,112826af7bc1b998e05339e3a7f4f668463413aff435256d129fbd92627713c2,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+family-court-toolkit,scripts,content/toolkit/scripts/update_checker.py,"python ""E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/update_checker.py"" --help",Run URL checks and flag manifest staleness without modifying package sources.,E:/AI_Workspace/plugins/plugins/family-court-toolkit/content/toolkit/scripts/update_checker.py,1,6e6437dafbd5cb81fd2ddc23fca35e63db5527f469cfc5c64a39817bdd72a40c,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+graphrag,commands,graphrag-audit,/graphrag:graphrag-audit,Audit an existing GraphRAG implementation against the pattern catalog and find silent failures,E:/AI_Workspace/plugins/plugins/graphrag/commands/graphrag-audit.md,1,d9959551debded027f96499454f3b1053bf59c099762444b960c66c95edfb94e,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+graphrag,commands,graphrag-choose,/graphrag:graphrag-choose,"Recommend a GraphRAG pattern, graph shape, framework and backend for a described situation",E:/AI_Workspace/plugins/plugins/graphrag/commands/graphrag-choose.md,1,ec59bf6b98e29c5fdaed56e3be599c3e8edbb749827f5cbc0b2549d08313e526,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+graphrag,commands,graphrag-design,/graphrag:graphrag-design,"Design a knowledge graph model for a domain, emitting a gram pattern and Cypher DDL",E:/AI_Workspace/plugins/plugins/graphrag/commands/graphrag-design.md,1,b0196cd2afbd5a2d5a215fdc670ad89f5599ce07a30735047b62984202e7aa43,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+law,scripts,skills/law/scripts/cite_check.py,"python ""E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/cite_check.py"" --help","cite_check.py — citation existence QA against CourtListener (law plugin, cited-research domain).
+
+    cite_check.py <file>          Extract case citations and check each against CourtListener v4
+                                   search (existence only, never ""good law""). Prints compact JSON.
+    cite_check.py gate <file>     Run the 14-item quality gate from
+                                   references/legal-quality-checker/SKILL.md as a checklist,
+                                   pass/fail where mechanically checkable, ""manual"" otherwise.
+
+Owner rule (2026-09-07): resolve COURTLISTENER_API_TOKEN from the environment first, else a
+tolerant regex parse of ~/.secrets/*.env (never `source`, never print the value). The token is
+optional — CourtListener's search endpoint works unauthenticated, just more rate-limited.
+
+Respects rate limits: sleeps 1.1s between calls, checks at most 40 citations per run unless --all.
+
+Python 3.12+ stdlib only. Prints compact JSON on stdout; errors go to stderr (exit 1).",E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/cite_check.py,1,33e9ab638e5301bfb69faf573bb0f775ace08343916d6ccfc378bce822101ee5,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+law,scripts,skills/law/scripts/draft.py,"python ""E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/draft.py"" --help","draft.py — drafting-domain skeleton generator (law plugin).
+
+Wraps the eight drafting member SKILL.md files as reusable templates. Every member has a
+`## Prerequisites` section (a bulleted/numbered list of `**Term** — description` items) — that
+is the one structural signal common to all eight, so it is the primary field source. Bracketed
+placeholders (`[PARENT NAME(S)]`, `{{field}}`) found in the template body are collected too, as
+a secondary, lower-confidence field source used only during render.
+
+    draft.py templates
+    draft.py fields <template>
+    draft.py validate <template> facts.json
+    draft.py render <template> facts.json [--out file.md]
+
+`render` never claims filing-readiness: every output carries a fixed
+""WORKING DRAFT — informational, not legal advice, not filing-ready"" header, and any field
+missing from facts.json is left in the output as `[VERIFY: field]`.
+
+Python 3.12+ stdlib only. Prints compact JSON on stdout (except `render` without --out, which
+prints the generated markdown itself); errors go to stderr (exit 1).",E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/draft.py,1,ad096729412ca92bc3f10459fac013bb35c4d520933c923f2b544dd0f205e93a,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+law,scripts,skills/law/scripts/entities.py,"python ""E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/entities.py"" --help","entities.py — legal document entity extraction and co-occurrence mapping (law plugin,
+analysis domain / map-entities member).
+
+Wraps references/map-entities/scripts/map_entities.py when spaCy + en_core_web_sm are
+importable (checked at runtime, never assumed); otherwise falls back to a regex NER pass
+covering dates, money, MCL/MCR/case cites (reusing toa.py's regexes), capitalized name
+sequences, emails, and phone numbers.
+
+    entities.py <file|dir> [--out json|md] [--graph out.json] [--redact]
+
+Redaction (--redact) replaces PERSON entity display text with initials wherever it appears
+in the output (entity list and co-occurrence edges) — never mutates the source file.
+
+Supported formats: .txt, .md always; .docx via stdlib zipfile/xml (no python-docx needed);
+.pdf via the `pdftotext` binary if present on PATH, else skipped with a note.
+
+Python 3.12+ stdlib only. Prints compact JSON on stdout (or markdown with --out md);
+errors go to stderr (exit 1).",E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/entities.py,1,fc6dba203242c2d33ccb7bc30ef7c04d8c634959eca2d8faa24cb58da524a663,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+law,scripts,skills/law/scripts/kb.py,"python ""E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/kb.py"" --help","kb.py — legal knowledge-base wrapper (law plugin, lexwiki-legal-kb domain).
+
+references/lexwiki-legal-kb/Skill.md documents an MCP-tool surface (lexwiki_search,
+lexwiki_ingest, ...), not a local CLI — and no such CLI/MCP is installed on this machine
+(checked via `shutil.which(""lexwiki"")` and env `LEXWIKI_CLI` at runtime, never assumed).
+So kb.py stands on its own: a SQLite FTS5 full-text index over a directory of legal docs.
+
+    kb.py index <dir> [--db path]      Build/rebuild a SQLite FTS5 index of .md/.txt/.pdf files
+    kb.py search ""<query>"" [--limit N] Ranked snippets with file paths
+    kb.py stats                        Row/doc counts, indexed root, db path and size
+    kb.py lexwiki <args...>            Passthrough to a local LexWiki CLI, if one is ever
+                                        installed; otherwise reports it is unavailable.
+
+DB path: env LAW_KB_DB, else ~/.config/law/kb.sqlite (created on first index).
+.pdf files are indexed via the `pdftotext` binary when present on PATH; skipped otherwise
+(reported in the index summary, never silently dropped).
+
+Python 3.12+ stdlib only. Prints compact JSON on stdout; errors go to stderr (exit 1).",E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/kb.py,1,06dcae5ad40e38ca0ec3d385debd80006ca466f8dc1acc4f70fb47a1e8a49336,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+law,scripts,skills/law/scripts/toa.py,"python ""E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/toa.py"" --help","toa.py — appellate Table of Authorities extractor (law plugin, appellate-formatting domain).
+
+Extracts case, statute, rule, and constitutional citations from a brief and groups them
+into a Table of Authorities. Also supports a FRAP 32(g)-style word count that excludes
+caption/TOA/TOC/certificate blocks marked with `<!-- exclude --> ... <!-- /exclude -->`.
+
+Usage:
+    toa.py <brief.md|.txt> [--format md|json]
+    toa.py <brief.md|.txt> --wordcount
+
+Python 3.12+ stdlib only. Prints compact JSON on stdout; errors go to stderr (exit 1).
+Regexes here are reused by cite_check.py via `from toa import extract_citations`.",E:/AI_Workspace/plugins/plugins/law/skills/law/scripts/toa.py,1,628d0cdb1541bde69c1ea78fd37ac1d23a2ed86d544e804edbad4d39ce623a74,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+law,scripts,skills/map-entities/scripts/map_entities.py,"python ""E:/AI_Workspace/plugins/plugins/law/skills/map-entities/scripts/map_entities.py"" --help","Entity & Relationship Mapper
+
+Extracts named entities from legal documents using spaCy NLP and maps
+relationships between them via co-occurrence analysis and network graphs.
+
+Outputs JSON to stdout for Claude to parse. Progress/errors go to stderr.",E:/AI_Workspace/plugins/plugins/law/skills/map-entities/scripts/map_entities.py,1,ddef4d128237bd0ee94353a03939c5f83a65ad730a0bebf90b8ebff1e2c28c7c,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+llm-probes,scripts,skills/nim-chat-probe/scripts/nim_chat_probe.py,"python ""E:/AI_Workspace/plugins/plugins/llm-probes/skills/nim-chat-probe/scripts/nim_chat_probe.py"" --help","nim-chat-probe — LIVE-test every NVIDIA NIM chat/text model: plain chat, tool calling,
+vision (image input), with latency + token usage per call.
+
+Byline: Claude Code · Fable 5 · 2026-08-26
+
+Usage:
+  python nim_chat_probe.py                     # probe all non-embedding models, save run, diff vs previous
+  python nim_chat_probe.py --only a/b c/d      # probe just these ids
+  python nim_chat_probe.py --extra a/b         # probe extra ids not in /models
+  python nim_chat_probe.py --workers 8         # concurrency (default 6)
+  python nim_chat_probe.py --tests vision      # run only one/some checks: chat,tools,vision (default all)
+  python nim_chat_probe.py --last              # print newest saved report (no API calls)
+  python nim_chat_probe.py --history           # one line per saved run
+
+Per model, three real calls to /chat/completions:
+  chat   : ""Reply with exactly the word PONG.""            -> latency, prompt/completion tokens
+  tools  : a get_weather tool + ""What's the weather in Paris?"" -> did it emit a tool_call?
+  vision : 1x1 PNG data-URI + ""What color is this image?""  -> accepted image content parts?
+Key: env NVIDIA_API_KEY (User-scope registry var) or NVIDIA_NIM_API_KEY.
+Runs persist in ../runs/<UTC-stamp>.json + latest.md for later recall.",E:/AI_Workspace/plugins/plugins/llm-probes/skills/nim-chat-probe/scripts/nim_chat_probe.py,1,6bfd91dad4e853a41971a83b8e9267ad731cc9ef1c0c28f01da3e6a90900e9ce,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+llm-probes,scripts,skills/nim-chat-probe/scripts/nim_streaming_recheck.py,"python ""E:/AI_Workspace/plugins/plugins/llm-probes/skills/nim-chat-probe/scripts/nim_streaming_recheck.py"" --help",Recheck ambiguous NIM chat results using SSE streaming without a post-first-token timeout.,E:/AI_Workspace/plugins/plugins/llm-probes/skills/nim-chat-probe/scripts/nim_streaming_recheck.py,1,3d0108f3d41503944185de91a6d68c7978c5353b8ea66a4ab855e46eee8077a5,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+llm-probes,scripts,skills/nim-embed-probe/scripts/nim_embed_probe.py,"python ""E:/AI_Workspace/plugins/plugins/llm-probes/skills/nim-embed-probe/scripts/nim_embed_probe.py"" --help","nim-embed-probe — list NVIDIA NIM embedding models and LIVE-test each one.
+
+Byline: Claude Code · Fable 5 · 2026-08-26
+
+Usage:
+  python nim_embed_probe.py                # list + probe, save run, diff vs previous
+  python nim_embed_probe.py --extra a/b    # also probe models not in /models (retired?)
+  python nim_embed_probe.py --last         # just print the most recent saved run (no API calls)
+  python nim_embed_probe.py --history      # one line per saved run
+
+Key comes from env NVIDIA_API_KEY (User-scope registry var on this box) or NVIDIA_NIM_API_KEY.
+Runs are saved next to this skill in ../runs/<UTC-stamp>.json + latest.md so any later session
+can recall ""what was working on <date>"" without re-hitting the API.",E:/AI_Workspace/plugins/plugins/llm-probes/skills/nim-embed-probe/scripts/nim_embed_probe.py,1,f22ea20d2f5fe64b92591f77a7f45a932fc3f7d4c7bee24a2e1b21436a4403e7,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+llm-probes,scripts,skills/nim-embed-probe/scripts/nim_embed_rerank_recheck.py,"python ""E:/AI_Workspace/plugins/plugins/llm-probes/skills/nim-embed-probe/scripts/nim_embed_rerank_recheck.py"" --help","Recheck NIM embedding and reranking models with max-length inputs and a generous timeout.
+
+Embed/rerank copy of nim_streaming_recheck.py (which excludes these models from its chat list).
+
+> _Byline: Claude Code · Opus 5 · 2026-09-10_
+
+Per model, three requests:
+  1. short   - 4 texts (embed) / 4 passages (rerank): dimension, batching, semantic sanity.
+  2. over    - one over-long input with truncate=NONE: the 4xx names the real token ceiling.
+  3. long    - a batch of long inputs with truncate=END: the model working AT its ceiling.
+
+Limits observed live 2026-09-10: nemotron-3-embed-1b 4096 tokens + 65536 chars per input;
+llama-nemotron-rerank-vl-1b-v2 10240 tokens per query+passage.",E:/AI_Workspace/plugins/plugins/llm-probes/skills/nim-embed-probe/scripts/nim_embed_rerank_recheck.py,1,842b50b34bbe01f1c2a96b8a4dae8cb04344a6dba0c0888ef9139554abea4868,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+llm-probes,scripts,skills/openrouter-free-probe/scripts/openrouter_free_probe.py,"python ""E:/AI_Workspace/plugins/plugins/llm-probes/skills/openrouter-free-probe/scripts/openrouter_free_probe.py"" --help","openrouter-free-probe — LIVE-test every OpenRouter FREE model: plain chat, tool calling,
+vision (image input), with latency + token usage per call. Sister of nim-chat-probe.
+
+Byline: Claude Code · Fable 5 · 2026-08-26
+
+Usage:
+  python openrouter_free_probe.py                    # all free models, all 3 checks, save + diff
+  python openrouter_free_probe.py --tests tools      # one/some checks only: chat,tools,vision
+  python openrouter_free_probe.py --only a/b:free    # specific ids
+  python openrouter_free_probe.py --extra a/b        # extra ids (need not be free)
+  python openrouter_free_probe.py --workers 3        # concurrency (default 2 — free tier is ~20 req/min)
+  python openrouter_free_probe.py --last | --history
+
+""Free"" = id ends with "":free"" OR pricing.prompt == pricing.completion == ""0"".
+/models also tells us what OpenRouter *claims* (input_modalities, supported_parameters); we
+record the claim next to the live result so claim-vs-reality drift is visible.
+Key: env OPENROUTER_API_KEY. Runs persist in ../runs/<UTC-stamp>.json + latest.md.",E:/AI_Workspace/plugins/plugins/llm-probes/skills/openrouter-free-probe/scripts/openrouter_free_probe.py,1,d997fae3666a3496a253437e339198385d2ff6c8f935ffa21c3bcf2967e693c3,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+llm-probes,scripts,skills/provider-probe/scripts/provider_probe.py,"python ""E:/AI_Workspace/plugins/plugins/llm-probes/skills/provider-probe/scripts/provider_probe.py"" --help","provider-probe — live-test any provider listed in providers.json: chat, embeddings, rerank.
+
+Byline: Claude Code · Opus 5 · 2026-09-10
+
+Owner orders 2026-09-10: make a plugin out of the NIM probe files; make one provider-agnostic, accepting a
+variable, from a list we create; keep NIM separate. NVIDIA NIM is deliberately NOT in providers.json — use
+nim-chat-probe / nim-embed-probe. The chat check uses the method from nim_streaming_recheck.py: only the
+first streamed event has a timeout, then the stream is read to [DONE], so slow reasoning models are not
+misreported as dead.
+
+Usage:
+  python provider_probe.py --list                                  # providers + whether each key is present
+  python provider_probe.py --provider groq                         # catalog models, the provider's kinds
+  PROBE_PROVIDER=voyage python provider_probe.py                   # provider chosen by the variable
+  python provider_probe.py --provider openrouter --match :free --kinds chat --limit 10
+  python provider_probe.py --provider mistral --only mistral-embed --kinds embed
+  python provider_probe.py --provider groq --last                  # newest saved report, no API calls
+  python provider_probe.py --provider groq --history               # one line per saved run
+
+Keys: the provider's key_env from the environment, else ~/.secrets/*.env (parsed, never sourced, never printed).
+Runs: ../runs/<provider>/<UTC>.json + latest.md, with a diff against the previous run.
+Providers file: ../providers.json, or PROBE_PROVIDERS_FILE.",E:/AI_Workspace/plugins/plugins/llm-probes/skills/provider-probe/scripts/provider_probe.py,1,296d426ee3fc6c1ac7a90ebfc56371c90a95dbc88696e8c7cf426e96de662a4a,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+memsearch,scripts,scripts/maintenance-runner.py,"python ""E:/AI_Workspace/plugins/forks/memsearch/plugins/claude-code/scripts/maintenance-runner.py"" --help","Plugin-local runner for MemSearch maintenance tasks.
+
+This script belongs to the plugin layer. It handles host-native agent
+invocations, while the Python package provides shared config, due-state,
+prompt, and API-provider logic.",E:/AI_Workspace/plugins/forks/memsearch/plugins/claude-code/scripts/maintenance-runner.py,1,9f9ee53afd8017c2efd0be4293b4747282a9c8e1532e4b62ac3d97e8b68ed72c,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+memsearch,scripts,scripts/memsearch_clean.py,"python ""E:/AI_Workspace/plugins/forks/memsearch/plugins/claude-code/scripts/memsearch_clean.py"" --help","memsearch_clean - DuckDB filter that makes memsearch search/expand output context-efficient.
+
+Byline: Claude Code · Opus 5 · 2026-09-14
+
+Pipe JSON from memsearch into it:
+  memsearch search ""<q>"" --top-k 8 -j --collection C | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/memsearch_clean.py
+  memsearch expand <hash> -j --collection C         | python3 ${CLAUDE_PLUGIN_ROOT}/scripts/memsearch_clean.py
+Options: --max-chars N (per result, default 700; 0 = no trim)   --top N (search: keep best N, default all)
+
+What it removes (all in DuckDB SQL):
+  - CRLF, <!-- anchor --> comments (search output only; expand keeps ONE compact ""ref:"" line with
+    session/turn/transcript so the transcript drill-down still works)
+  - <system-reminder>, <shell_metadata>, <task-notification>, <command-*> blocks
+  - ""[Tool: ...]"" lines AND the tool output under them (until the next [User]/[Assistant]/heading/bullet)
+  - ""- Memory summary unavailable: ..."" stubs, bare ""### HH:MM"" time headings, blank-line runs
+  - results that are empty after cleaning, and duplicates (same normalized text -> keep best score)
+Ingest-side twin: memsearch/ingest_filter.py in the memsearch fork (~/.claude/local-plugins/forks/memsearch; shim patch 3 until 2026-09-26) applies the
+same line rules before chunks are embedded, so new noise is not indexed in the first place.",E:/AI_Workspace/plugins/forks/memsearch/plugins/claude-code/scripts/memsearch_clean.py,1,1cad6816408237c02951f8f26c9c59a0f0e03e514603dc3e25d6ac52c6bdb2bf,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+memsearch,scripts,transcript.py,"python ""E:/AI_Workspace/plugins/forks/memsearch/plugins/claude-code/transcript.py"" --help",Parse Claude Code JSONL transcripts for progressive memory disclosure.,E:/AI_Workspace/plugins/forks/memsearch/plugins/claude-code/transcript.py,1,a587c3a4a4a8943efd931240154c675b165ca3aeda90e02e0c3102cadd7607a6,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+michigan-construction-project,scripts,scripts/project_router.py,"python ""E:/AI_Workspace/plugins/plugins/michigan-construction-project/scripts/project_router.py"" --help",Validate and route a Michigan construction project state file.,E:/AI_Workspace/plugins/plugins/michigan-construction-project/scripts/project_router.py,1,9bf9ae26a4acaccecc0e14494bbf9def8f9b77929fe5b3a67209c587efaaad08,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,analyze-transcripts,/migration-passes:analyze-transcripts,"Extract structured intelligence from transcript chunks — architectural decisions, known issues, intended behavior, doc gaps, deferred work, feature mentions, and conflicts.",E:/AI_Workspace/plugins/plugins/migration-passes/commands/analyze-transcripts.md,1,b71402cdf5608f94defcd2b7e2f04117670d526602b43c65c50aff597a623189,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,audit-gaps,/migration-passes:audit-gaps,"Read-only structural audit after documentation repair. Identifies undocumented exports, dead code, import integrity issues, type inconsistencies, test coverage gaps, and config/env drift.",E:/AI_Workspace/plugins/plugins/migration-passes/commands/audit-gaps.md,1,0f80fb731009ae449b4dbe6aa38296503338d6497d945bd12e98474821bec4c3,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,export-obsidian,/migration-passes:export-obsidian,"Export the completed migration run into Obsidian-compatible markdown with YAML frontmatter, wikilinks, and a map-of-content note. Also supports JSON, CSV, and Parquet exports.",E:/AI_Workspace/plugins/plugins/migration-passes/commands/export-obsidian.md,1,63fa8df70f4d010632d249635861351c3cd59be928c25fabf4b3205822b8db92,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,inventory,/migration-passes:inventory,"Map both NEW and OLD codebases before any other pass runs. Walks directories, builds manifests, identifies hot spots, records hashes for change detection.",E:/AI_Workspace/plugins/plugins/migration-passes/commands/inventory.md,1,f35551331167df8aa64381a3fa90ff48110e26178bcd7fe57ac6d1bcf49a5fc8,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,migrate,/migration-passes:migrate,"Compare OLD and NEW codebases, identify missing or partial legacy features, and port them safely. Three-phase process: inventory diff, porting plan, execution.",E:/AI_Workspace/plugins/plugins/migration-passes/commands/migrate.md,1,3e8ce424fbdab6157ae5d373fca16f49b007f7c717eea0e71c680d980cd3350a,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,patch-docs,/migration-passes:patch-docs,Walk the codebase and patch documentation to match current implementation and known intended behavior. Emits planned change blocks before modifying.,E:/AI_Workspace/plugins/plugins/migration-passes/commands/patch-docs.md,1,47f0f017eec0ad935a3c3ce914a26b1b7c927d5fa4678dc1356ffed4fa3c46aa,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,plan-architecture,/migration-passes:plan-architecture,"Heavily interactive interview-based planning pass. Evaluates architecture approaches, interviews the user, and produces a migration plan reviewed via Plannotator's interactive annotation UI.",E:/AI_Workspace/plugins/plugins/migration-passes/commands/plan-architecture.md,1,3465c3eae960a6f6c10df5f973e489b028684bac6ec757d805d50567c60ff78d,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,run,/migration-passes:run,"Run the migration pipeline sequentially from the beginning or from a specific pass. Executes Passes 0-4 automatically, then Pass 5 (interactive planning) by default, then Passes 6-7. Use --skip-interactive to auto-generate a plan without the interview. Use --from to resume from a specific pass.",E:/AI_Workspace/plugins/plugins/migration-passes/commands/run.md,1,fd4c9c45b1ddf3311f2c17a93b24d3542c5df3ad2c4ee26cfa98f73c466d9af2,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,status,/migration-passes:status,"Show current migration pipeline state — which passes are complete, partial, blocked, or missing, with timestamps and next-step guidance.",E:/AI_Workspace/plugins/plugins/migration-passes/commands/status.md,1,6a2ee14223a92684db6de419b609978bc14108df411bb43681a58caa88a5b992,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,commands,summarize-context,/migration-passes:summarize-context,Pre-process and compress transcript material into stable chunks. Prompts user for additional context sources before starting.,E:/AI_Workspace/plugins/plugins/migration-passes/commands/summarize-context.md,1,e5139a59089ee89651c571e623782216f26c979c086c480892cb6b0ab67b4dea,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,scripts,scripts/bump-revision.py,"python ""E:/AI_Workspace/plugins/plugins/migration-passes/scripts/bump-revision.py"" --help","bump-revision.py - Bump byline revision numbers in migration-passes files.
+
+Adapted from agent-foundry's bump-version.sh pattern for semver-like revision
+management in byline comments.
+
+Usage:
+    python bump-revision.py --patch <file>         # Rev: 2 -> Rev: 3
+    python bump-revision.py --minor <file>         # Rev: 2 -> Rev: 3 (same as patch for bylines)
+    python bump-revision.py --major <file>         # Rev: 2 -> Rev: 3 (same as patch for bylines)
+    python bump-revision.py --set 5 <file>         # Rev: 2 -> Rev: 5
+    python bump-revision.py --plugin                 # Bump plugin.json version
+    python bump-revision.py --plugin --patch        # Bump plugin.json patch version
+    python bump-revision.py --plugin --minor        # Bump plugin.json minor version
+    python bump-revision.py --plugin --major        # Bump plugin.json major version
+
+Byline format:
+    <!-- Generated by: Claude (migration-passes/<command>) | Date: 2026-05-23 | Rev: 2 | Platform: Claude Code / win32 -->",E:/AI_Workspace/plugins/plugins/migration-passes/scripts/bump-revision.py,1,375d53d677854bb9899b26659201dc02b952f8d51c7be1695c8e0db06a7302ec,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,scripts,scripts/lib/formatting.py,"python ""E:/AI_Workspace/plugins/plugins/migration-passes/scripts/lib/formatting.py"" --help","formatting.py - Terminal color and formatting utilities for migration-passes scripts.
+
+Adapted from agent-foundry's colors.sh for Python/Windows compatibility.
+Provides print_error, print_success, print_warning, print_info, print_section,
+and JSON output mode.
+
+Usage:
+    from lib.formatting import print_error, print_success, print_warning, print_info, print_section
+
+    # Or run directly for JSON output mode:
+    python -m lib.formatting --json-start   # Enable JSON mode
+    python -m lib.formatting --json-output   # Print collected JSON results",E:/AI_Workspace/plugins/plugins/migration-passes/scripts/lib/formatting.py,1,bfdcd56ea996014395337dcc0c13bb5bbfb3b0064a3dfd0cc7b20698cf27a48f,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,scripts,scripts/pipeline-status.py,"python ""E:/AI_Workspace/plugins/plugins/migration-passes/scripts/pipeline-status.py"" --help","pipeline-status.py - Display migration-passes pipeline status.
+
+Shows which passes are complete, partial, blocked, or missing,
+with timestamps and next-step guidance.
+
+Usage:
+    python pipeline-status.py [--json] [--verbose] [--dir <project_dir>]",E:/AI_Workspace/plugins/plugins/migration-passes/scripts/pipeline-status.py,1,f5db4710a6082b1a735aeef8d4958550b9d04dfd75ec5aaee09c2f687390ea88,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,scripts,scripts/safe-operations.py,"python ""E:/AI_Workspace/plugins/plugins/migration-passes/scripts/safe-operations.py"" --help","safe-operations.py - Safe file modification with backup, restore, and atomic writes.
+
+Adapted from agent-foundry's atomic.sh pattern, ported to Python for Windows compatibility.
+
+Usage:
+    python safe-operations.py backup <file>
+    python safe-operations.py restore <backup_file>
+    python safe-operations.py remove-backup <backup_file>
+    python safe-operations.py atomic-write <dest> <content>
+    python safe-operations.py verify-backup <file>",E:/AI_Workspace/plugins/plugins/migration-passes/scripts/safe-operations.py,1,95571c333234822e1074e572570c6a529b751313f065c49624ffb4550664816b,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,scripts,scripts/validate-handoff.py,"python ""E:/AI_Workspace/plugins/plugins/migration-passes/scripts/validate-handoff.py"" --help",Validate handoff block format and byline presence in migration-passes output files.,E:/AI_Workspace/plugins/plugins/migration-passes/scripts/validate-handoff.py,1,392a6a9657fdeb71c84cb865586e11f4ab0da3f56390896d5c0539ff7e9c15f3,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,scripts,scripts/validate-pipeline-state.py,"python ""E:/AI_Workspace/plugins/plugins/migration-passes/scripts/validate-pipeline-state.py"" --help","validate-pipeline-state.py - Validate migration-passes pipeline state before session end.
+
+Checks .migration-passes/ for in-progress or incomplete passes. Reports pipeline
+state and whether the session can safely end.
+
+Used by the Stop hook to ensure passes complete in order.
+
+Usage:
+    python validate-pipeline-state.py [--dir <project_dir>]
+    python validate-pipeline-state.py --check-complete <pass_number>
+
+Exit codes:
+    0 - Pipeline state is valid (all completed passes are consistent)
+    1 - Pipeline state has issues (incomplete pass, out-of-order execution)",E:/AI_Workspace/plugins/plugins/migration-passes/scripts/validate-pipeline-state.py,1,6f1ed2c1c4475bce46c7ad3edafd0d436cb6e2409bd3b746187bedadb7c9b9e0,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+migration-passes,scripts,scripts/validate-prerequisites.py,"python ""E:/AI_Workspace/plugins/plugins/migration-passes/scripts/validate-prerequisites.py"" --help","validate-prerequisites.py - Validate that previous passes have completed before starting a new pass.
+
+Checks .migration-passes/ for completed previous passes, validates handoff
+integrity, and reports whether the current pass can proceed.
+
+Usage:
+    python validate-prerequisites.py <pass_number>
+    python validate-prerequisites.py 5 --check   # Check only, don't block
+    python validate-prerequisites.py 3 --verbose   # Show detailed status
+
+Pass sequence:
+    0: inventory.json
+    1: context-summary.json
+    2: transcript-intelligence.json
+    3: doc-patch-report.json
+    4: gap-audit-report.json
+    5: migration-plan.md (Markdown, not JSON)
+    6: migration-report.json
+    7: export-report.json",E:/AI_Workspace/plugins/plugins/migration-passes/scripts/validate-prerequisites.py,1,ac73dc0c616b590163b608dedff3028a5765322fe36376f40ea991f696accaee,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+ops,scripts,skills/conductor/scripts/conductor_api.py,"python ""E:/AI_Workspace/plugins/plugins/ops/skills/conductor/scripts/conductor_api.py"" --help","Conductor REST API fallback — stdlib only, no third-party packages.
+
+Use when the `conductor` CLI is not installed.
+Requires CONDUCTOR_SERVER_URL env var. CONDUCTOR_AUTH_TOKEN is optional.",E:/AI_Workspace/plugins/plugins/ops/skills/conductor/scripts/conductor_api.py,1,11c7039cf81fc2ad88b3bb8ed5ea82d4842936d417ea21b0939d840e5db1b582,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+ops,scripts,skills/oauth-pkce-helper/scripts/pkce_auth.py,"python ""E:/AI_Workspace/plugins/plugins/ops/skills/oauth-pkce-helper/scripts/pkce_auth.py"" --help","oauth-pkce-helper — generic OAuth2 Authorization Code + PKCE (S256) browser login.
+
+Adapted from the confidence plugin's onboard-confidence/auth.py (Auth0 PKCE flow),
+generalized for any provider. Python 3.10+ stdlib only. Windows-safe.
+
+Usage:
+    python pkce_auth.py --provider onedrive --client-id <APP_ID>
+    python pkce_auth.py --provider gdrive --client-id <ID> --client-secret-env GDRIVE_CLIENT_SECRET
+    python pkce_auth.py --authorize-url URL --token-url URL --client-id ID         --scopes ""scope1 scope2"" [--port 53682] [--redirect-path /]         [--extra-param key=value ...] [--rclone-json] [--timeout 300]
+    python pkce_auth.py --self-test        # verify PKCE S256 against RFC 7636 vector, no network
+
+Config precedence: CLI args > environment > providers.json preset.
+Environment fallbacks: OAUTH_CLIENT_ID, OAUTH_AUTHORIZE_URL, OAUTH_TOKEN_URL,
+    OAUTH_SCOPES, OAUTH_PORT. Client secret is env-only (--client-secret-env NAME,
+    default OAUTH_CLIENT_SECRET) and is NEVER printed or echoed.
+
+Agent-parseable stdout markers:
+    WAITING_FOR_LOGIN            browser opened, localhost callback armed
+    TOKEN:<access_token>         success
+    REFRESH:<refresh_token>      refresh token (if granted)
+    EXPIRES:<seconds>            expires_in from the token response
+    EXPIRY:<rfc3339>             computed absolute expiry (local tz, RFC 3339)
+    RCLONE_TOKEN:<json>          (--rclone-json) token JSON in rclone's expected shape
+    AUTH_ERROR:<msg> / TOKEN_ERROR:<msg> / CONFIG_ERROR:<msg>
+
+Exit codes: 0 = success, 1 = error.",E:/AI_Workspace/plugins/plugins/ops/skills/oauth-pkce-helper/scripts/pkce_auth.py,1,04e864ad6d19de473ae9bfbf4b766d28f3618fb0b1577a8c12d15abf7b1161d2,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+platform-engineering-skills,scripts,upstream/computer-vision-processor/skills/processing-computer-vision-tasks/scripts/image_analyzer.py,"python ""E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/computer-vision-processor/skills/processing-computer-vision-tasks/scripts/image_analyzer.py"" --help","computer-vision-processor - Analysis Script
+Script to perform various image analysis tasks (object detection, classification, segmentation) based on user input and specified models.
+Generated: 2025-12-10 03:48:17",E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/computer-vision-processor/skills/processing-computer-vision-tasks/scripts/image_analyzer.py,1,db418ea9bd230fd9aca63ea1d2bb42787302906030429530f0e15987d75d9a36,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+platform-engineering-skills,scripts,upstream/data-validation-engine/skills/validating-database-integrity/scripts/configure_validation_rules.py,"python ""E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/data-validation-engine/skills/validating-database-integrity/scripts/configure_validation_rules.py"" --help","Interactively configure data validation rules for a database table.
+
+This script allows users to define and customize validation rules for database tables,
+which are then saved in a configuration file for use by other validation scripts.",E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/data-validation-engine/skills/validating-database-integrity/scripts/configure_validation_rules.py,1,f59947bd94032daf9bedf6c4d13be12c23e4c3f71bb0c6b4dbcd05f39ed49396,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+platform-engineering-skills,scripts,upstream/data-validation-engine/skills/validating-database-integrity/scripts/generate_validation_report.py,"python ""E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/data-validation-engine/skills/validating-database-integrity/scripts/generate_validation_report.py"" --help","Generate comprehensive report of data validation results.
+
+This script creates detailed HTML, JSON, or Markdown reports from validation results,
+including statistics, identified issues, trend analysis, and recommendations.",E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/data-validation-engine/skills/validating-database-integrity/scripts/generate_validation_report.py,1,25ae535d87c4f3554dcd3dfd4c2b1eab13084d157dfec6e2afae76fba9f87175,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+platform-engineering-skills,scripts,upstream/engineer-design-diagram/skills/engineer-design-diagram/scripts/fingerprint.py,"python ""E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/engineer-design-diagram/skills/engineer-design-diagram/scripts/fingerprint.py"" --help","fingerprint.py — write, read, and diff structural fingerprints for engineer-design-diagram.
+
+Usage:
+    fingerprint.py write --input graph.json          # write new state
+    fingerprint.py read                                # dump current state
+    fingerprint.py diff --input graph.json            # diff current state against provided graph
+    fingerprint.py path                                # print the resolved state file path
+
+State file location (fallback chain):
+    1. ${CLAUDE_PLUGIN_DATA}/arch-state.json
+    2. ${XDG_STATE_HOME}/claude/arch/arch-state.json
+    3. ~/.claude-state/arch/arch-state.json
+
+Schema documented in references/fingerprint-spec.md. Current schema_version: ""1"".
+
+Required packages: Python 3.9+ standard library only (hashlib, json, pathlib, os, sys, argparse).",E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/engineer-design-diagram/skills/engineer-design-diagram/scripts/fingerprint.py,1,292849a2e886ea31fc02b1aba2e93edff956f31fb0e4f39a053ac3dda3fb11a4,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+platform-engineering-skills,scripts,upstream/feature-engineering-toolkit/skills/engineering-features-for-machine-learning/scripts/feature_importance_analyzer.py,"python ""E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/feature-engineering-toolkit/skills/engineering-features-for-machine-learning/scripts/feature_importance_analyzer.py"" --help","feature-engineering-toolkit - Analysis Script
+Analyzes feature importance using various techniques (e.g., permutation importance, SHAP values) and provides insights into which features are most influential.
+Generated: 2025-12-10 03:48:17",E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/feature-engineering-toolkit/skills/engineering-features-for-machine-learning/scripts/feature_importance_analyzer.py,1,d54442233a30456d2c045016c8e4cde4ae75358cc2aba9f927e7922d966dd376,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+platform-engineering-skills,scripts,upstream/nlp-text-analyzer/skills/analyzing-text-with-nlp/scripts/analyze_text.py,"python ""E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/nlp-text-analyzer/skills/analyzing-text-with-nlp/scripts/analyze_text.py"" --help","nlp-text-analyzer - Analysis Script
+Script to perform text analysis tasks (sentiment, keywords, topics) based on user input and specified parameters.
+Generated: 2025-12-10 03:48:17",E:/AI_Workspace/plugins/plugins/platform-engineering-skills/upstream/nlp-text-analyzer/skills/analyzing-text-with-nlp/scripts/analyze_text.py,1,07cfccf34e47ee4b6bb72acb2acadd79e0b176c855af10ecb0faecdf3b48a2a4,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+propria-docstore,scripts,client.py,"python ""E:/AI_Workspace/plugins/plugins/propria-docstore/client.py"" --help",Portable thin client. All Docstore operations use the mandatory hosted ctl MCP.,E:/AI_Workspace/plugins/plugins/propria-docstore/client.py,1,20368a98e6c006b9289639e80a68a3b5befeaeaa1916a7d8fd59635aa1b88a11,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+propria-docstore,scripts,federation.py,"python ""E:/AI_Workspace/plugins/plugins/propria-docstore/federation.py"" --help","Bounded local memory federation. No indexing, provider installation or hidden fallback.",E:/AI_Workspace/plugins/plugins/propria-docstore/federation.py,1,84751aa496dc7a8ab35a021f41c011ea70836fabb39c0a3313d270d1c49515d6,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+scout,cli_entries,scout,scout --help,entry point declared; installation/PATH not inferred,E:/AI_Workspace/plugins/plugins/scout/pyproject.toml,1,013c8dd859da14b44224b71f828e60a22683b7fab8da96e347b56fad0e82807a,entry point declared; installation/PATH not inferred,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+scout,scripts,scout/cli.py,"python ""E:/AI_Workspace/plugins/plugins/scout/scout/cli.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/scout/scout/cli.py,1,e75f2b3618d2dca8c1d0afe988127cc10af60f7cd5e5e2baa188b25bb2d06181,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+scout,scripts,scripts/capture-runtime.py,"python ""E:/AI_Workspace/plugins/plugins/scout/scripts/capture-runtime.py"" --help","Normalize an observed tool list, not static MCP configuration, into a snapshot.",E:/AI_Workspace/plugins/plugins/scout/scripts/capture-runtime.py,1,8d2bf2c4d7f51317cf9a5896936106a8e20fd23c9cfe72f8fcf8798af031e4c7,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+scout,scripts,scripts/validate.py,"python ""E:/AI_Workspace/plugins/plugins/scout/scripts/validate.py"" --help",Reproducible static/package validation and optional behavioral test suite.,E:/AI_Workspace/plugins/plugins/scout/scripts/validate.py,1,aa39ea301ccea816c8ac55cec970b6ede0557f8561c0ac10d28a5f0831d42d8b,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+search,cli_entries,search.cmd,"& ""E:/AI_Workspace/plugins/plugins/search/search.cmd"" --help",launcher present; help/runtime proof is recorded separately,E:/AI_Workspace/plugins/plugins/search/search.cmd,1,18029033b044e8fb0259a97ce639c2851d879d3fb26732a47a25bb873a934341,launcher present; help/runtime proof is recorded separately,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+search,scripts,skills/customize-search/scripts/bootstrap.py,"python ""E:/AI_Workspace/plugins/plugins/search/skills/customize-search/scripts/bootstrap.py"" --help",Missing module docstring.,E:/AI_Workspace/plugins/plugins/search/skills/customize-search/scripts/bootstrap.py,1,4ed0e3c687dcaf013a3901f84c320be46012617cdb9490ddbecf7f8e61712fe7,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+search,scripts,smart_explore.py,"python ""E:/AI_Workspace/plugins/plugins/search/smart_explore.py"" --help","smart_explore.py — standalone, persistent, AST-based code exploration.
+
+A self-contained rebuild of the claude-mem `smart-explore` skill with the
+claude-mem MCP dependency removed. Parsing is done locally with tree-sitter
+(via tree-sitter-language-pack), and the symbol index is persisted in a
+per-project DuckDB file so it survives across sessions and only re-parses
+changed files.
+
+Subcommands:
+  index   <path>                     build/refresh the symbol index for a dir
+  indexes                            list all indexes in the central store (alias: list)
+  search  <query> [--path P] [--max N] [--file-pattern G]
+  outline <file>
+  unfold  <file> <symbol>
+  refs    <symbol> [--path P]        find usages/call sites across the indexed tree
+          [--lsp [--timeout S]]      type-resolved via a language server when one is
+                                     available (see `lsp`); falls back to lexical scan
+  lsp                                show LSP server availability per language
+  imports [--file F | --module M]    list a file's imports, or who imports a module
+  changed [--since 24h|7d]           symbols added/removed/modified since a cutoff
+  prune   [--yes]                    quarantine indexes whose project path no longer exists
+
+Every subcommand accepts --json for machine-readable output and --db to
+target an explicit index file.
+
+Index location is ownership-scoped. Propria paths use
+E:/AI_Workspace/Projects/Propria/.runtime/search/smart-explore/indexes;
+all other paths use C:/Users/<user>/.smart-explore/indexes. Every agent/CLI tool
+shares the index for the same path. Override a single index with --db only for
+isolated diagnostics.
+
+> Byline: Claude Code · Opus 4.8 · 2026-06-21
+> Byline: Claude Code · Fable 5 · 2026-07-28 (cross-tool: central index store, moved to ~/.agents/skills)
+> Byline: Claude Code · Opus 5.5 · 2026-09-27 (git-aware file walk that honors .gitignore and skips
+  worktree/quarantine copies; outline/unfold/imports --file index one file; set-based bulk writes
+  in one transaction; pruning of files a full walk no longer yields. Full Propria index 663 s -> 33 s)",E:/AI_Workspace/plugins/plugins/search/smart_explore.py,1,eeb7e025eb4d16c240b9f11ebdbb225e4f75ab9c8807b1db3c84fe85ab459c72,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+sequential-react-ship,scripts,scripts/ship-store.py,"python ""E:/AI_Workspace/plugins/plugins/sequential-react-ship/scripts/ship-store.py"" --help","ship-store.py — durable persistence for the Sequential ReAct Ship Cycle.
+
+Stores every thinking artifact in a local SQLite database under the plugin's
+.think/ directory. Records survive session compacts, restarts, and crashes.
+
+Usage:
+  init                       Create tables and return the db path.
+  write --json '{...}'       Insert one ship event (strict validation).
+  read --task-id <id>       Read all events for a task, ordered.
+  read --last <n>            Read the last n events across all tasks.
+  status                     Print db path, task count, event count.",E:/AI_Workspace/plugins/plugins/sequential-react-ship/scripts/ship-store.py,1,7c726c0f34769b17f540f81ecb30ffd2b80d31a29b5dc7b0c98bbde275771a21,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+surrealdb,scripts,scripts/sync_upstream.py,"python ""E:/AI_Workspace/plugins/plugins/surrealdb/scripts/sync_upstream.py"" --help","Refresh the official SurrealDB skills in this plugin from SurrealDB's own repositories.
+
+Byline: Claude Code · Fable 5.1 · 2026-09-30
+
+Sources (both published by SurrealDB Ltd.):
+  surrealdb/agent-skills      skills/<name>/                       every skill there
+  surrealdb/ai-claude-plugin  plugins/surrealdb/skills/<name>/     only the skills in EXTRA below
+
+Each synced skill is copied byte for byte (SKILL.md plus references/) and gets a .sync-source.json
+recording the repository and commit. The skills in OURS are written here and are never touched.
+Nothing is deleted: a file that upstream dropped is reported, and moving it out is a manual step.
+
+    python scripts/sync_upstream.py            # clone both repositories and sync
+    python scripts/sync_upstream.py --check    # report drift only; exit 1 if anything differs
+    python scripts/sync_upstream.py --agent-skills <dir> --claude-plugin <dir>   # use local checkouts",E:/AI_Workspace/plugins/plugins/surrealdb/scripts/sync_upstream.py,1,3a412307508547027c3e1b8cb176d81ab52965d8142f6910c44cd1b3c187ee70,source inspected; execute only when the documented owning runtime permits,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,anchoring,/think:anchoring,Run anchoring directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/anchoring.md,1,f2f85fedf0706dbe5dd737d8067d5769467b0394a8384c996f215617046eeaba,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,availability-heuristic,/think:availability-heuristic,Run availability-heuristic directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/availability-heuristic.md,1,302dc4ce3d4d656a164acc777c0f5a345bdc86ac39f0af075ac68039f7b94953,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,calibration,/think:calibration,Run calibration directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/calibration.md,1,d29e8f8b6dd9ab848c3c35bacffbb570cca6eaa2216ac1b8785bf3bbd3b76518,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,causal-loop-diagrams,/think:causal-loop-diagrams,Run causal-loop-diagrams directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/causal-loop-diagrams.md,1,8abad70fc5252c81eaa09058ec6cc5d9221310ac2bdd3c24e2a1569c2fe22f57,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,chestertons-fence,/think:chestertons-fence,Run chestertons-fence directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/chestertons-fence.md,1,47cbc93a6b2d134ec2d534cad11c5de91c101ee5131023946eee478e72c85d12,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,compound-interest,/think:compound-interest,Run compound-interest directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/compound-interest.md,1,6f7961a51d25bb06b99760980995b5fde26a8594076aaebb0efd8caa5828538e,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,confirmation-bias,/think:confirmation-bias,Run confirmation-bias directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/confirmation-bias.md,1,5e303b2e4ca20de337c4ec5708e3232262997d8b7c68663ab9e5adca25162f55,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,current-reality-tree,/think:current-reality-tree,Run current-reality-tree directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/current-reality-tree.md,1,bd42387f4cd49f58eae3866dbfaeb72eed27795a66fc86bda8b1f638a7d639fa,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,dunning-kruger-effect,/think:dunning-kruger-effect,Run dunning-kruger-effect directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/dunning-kruger-effect.md,1,3ce4a30055ef1464f63139e43178bdf2fa342b0cf2b82c21f7f826dcb3194524,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,eisenhower-matrix,/think:eisenhower-matrix,Run eisenhower-matrix directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/eisenhower-matrix.md,1,a0dcd61f37eea3b46d15f0c81170da52d5c6455d7fe919da457b9fe29798097b,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,fault-tree-analysis,/think:fault-tree-analysis,Run fault-tree-analysis directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/fault-tree-analysis.md,1,b7ea38b956ffdc5070cd3af05f50775eb15e3d87db4865da70c32af9f61c438c,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,fishbone-diagram,/think:fishbone-diagram,Run fishbone-diagram directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/fishbone-diagram.md,1,d6ee4867bfda450aa7d3446186e418b36a476b4c3cdfd2fefec56ccada86451f,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,fundamental-attribution-error,/think:fundamental-attribution-error,Run fundamental-attribution-error directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/fundamental-attribution-error.md,1,80cd2ec6520296243993de95a0ac45a00d3057165581946e277924bad48208cf,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,good-strategy-bad-strategy,/think:good-strategy-bad-strategy,Run good-strategy-bad-strategy directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/good-strategy-bad-strategy.md,1,7f3c910cc535b5b6180ba14961d9bea399ad9f9672b463864215e893541f580a,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,goodharts-law,/think:goodharts-law,Run goodharts-law directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/goodharts-law.md,1,1a00a9b795633e3482839263669d6fef7dba9704c3c05414f2df512d30317186,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,graph-thinking,/think:graph-thinking,Run graph-thinking directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/graph-thinking.md,1,c5a01855486abf3780e8cd6c40ddc7d5a3b13b5353dad284fc1466dd24f6395a,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,halo-effect,/think:halo-effect,Run halo-effect directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/halo-effect.md,1,4b06d6733cf1d4d154ff5c7d261a2e87cfba83fda6842bbae6cb0e15618eb3bb,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,hanlons-razor,/think:hanlons-razor,Run hanlons-razor directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/hanlons-razor.md,1,a5311b1a3b693548eae71d6bf409cb109402ea58b76673fa1195e11c814437c6,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,hindsight-bias,/think:hindsight-bias,Run hindsight-bias directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/hindsight-bias.md,1,ee3fdf3496dcb955d792a882d25c514cf16297df08b69de62ef06de282be78ab,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,hitchens-razor,/think:hitchens-razor,Run hitchens-razor directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/hitchens-razor.md,1,d86d6baa08cd10ea3643899fb9bd669d4fc3ec8341a626e6d8f823d96872de64,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,humes-guillotine,/think:humes-guillotine,Run humes-guillotine directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/humes-guillotine.md,1,f0be49238649457c95f88d14311e8149d8a310b7902157c668245b4bd3012619,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,incentives-model,/think:incentives-model,Run incentives directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/incentives-model.md,1,c887e676207e862d4f80deb1d452147aa1f6ecf30c7e318c4c55a1ec49abdfc4,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,mechanism-design,/think:mechanism-design,Run mechanism-design directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/mechanism-design.md,1,13bfb343ba9d683ae650df07319ae90c6162f54ce2fa6defb19929746b9a4f2f,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,monte-carlo-simulation,/think:monte-carlo-simulation,Run monte-carlo-simulation directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/monte-carlo-simulation.md,1,92c6513927702cdb858065a826ef2eeeb67b466eb8c74c67ac937fe7e76c437f,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,nash-equilibrium,/think:nash-equilibrium,Run nash-equilibrium directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/nash-equilibrium.md,1,1de31685807bab4f191d0e0bddb7bd6d91a1d23f695330290308132d237ed24b,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,outside-view-inside-view,/think:outside-view-inside-view,Run outside-view-inside-view directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/outside-view-inside-view.md,1,d88e2a5cc182d09c9e3ca9d7e06b27f30c7a80ebf26e2a274a6b0e6ef2006166,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,pest-analysis-critical,/think:pest-analysis-critical,Run pest-analysis-critical directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/pest-analysis-critical.md,1,1bd24265687c571cca7d05efa16b8aa5dde7b7255a48b7ca3ead1e57f989b480,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,pest-analysis-execute,/think:pest-analysis-execute,Run pest-analysis-execute directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/pest-analysis-execute.md,1,aee89712aa096c6e253b9b137c5a6bb1c59a0b1e8def3fc2ed82f8f62cc1a54d,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,pest-analysis-strategy,/think:pest-analysis-strategy,Run pest-analysis-strategy directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/pest-analysis-strategy.md,1,739664b373289fd332ce9e8cd5e7d0a4c0f9d6cd72c8d4956916c02f8abfd038,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,pest-analysis-synthesis,/think:pest-analysis-synthesis,Run pest-analysis-synthesis directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/pest-analysis-synthesis.md,1,2f808218ef657494af3e365a55455fe85323b75c82dcb922d6f0896cb87e7cf5,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,pest-analysis,/think:pest-analysis,Run pest-analysis directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/pest-analysis.md,1,6a0eb84d1e5599b92d9458de645413ad722b15a2fe0e328784acf261833c73e8,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,playing-to-win,/think:playing-to-win,Run playing-to-win directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/playing-to-win.md,1,67b5ba147d9b15aad847c183b74fd8098607df7cb68403d8ce65669312de7614,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,poppers-falsifiability,/think:poppers-falsifiability,Run poppers-falsifiability directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/poppers-falsifiability.md,1,b1ee23381fe7c324c7b13e6da09312049e9c3a4f4431f06dd0b409e6784cf25f,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,porters-five-forces,/think:porters-five-forces,Run porters-five-forces directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/porters-five-forces.md,1,f234d4c55494901fbf4009ac66b983f35d78c4a9c2253814b7465392b27da23d,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,principal-agent-problem,/think:principal-agent-problem,Run principal-agent-problem directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/principal-agent-problem.md,1,352e1a4c816be0914d7d2a844ee91d30b473b754cb695d22b87d2028a0a84ab1,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,prisoners-dilemma,/think:prisoners-dilemma,Run prisoners-dilemma directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/prisoners-dilemma.md,1,62fa7ae8d4e729ca6f0f23ceab0b6bc44160e25f21a5325d01cc23fc8813ecce,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,rice-prioritization,/think:rice-prioritization,Run rice-prioritization directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/rice-prioritization.md,1,407b7f0946e07f1f50b009fd7e8234ccfb84e3bdde5d55fda673af635efcb85b,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,sagan-standard,/think:sagan-standard,Run sagan-standard directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/sagan-standard.md,1,db70c5497f1690913c1b729be4020f528f8ff14912939fb0946a6b9132cbb42b,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,schelling-fence,/think:schelling-fence,Run schelling-fence directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/schelling-fence.md,1,a69448973a7709683413af8993019277718e1ab426b81665389a77642b6fcf28,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,sensitivity-analysis,/think:sensitivity-analysis,Run sensitivity-analysis directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/sensitivity-analysis.md,1,e5ca1c97f75c0075802ff706045218121524f986425c118a062c3182019c2cbe,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,sunk-cost-fallacy,/think:sunk-cost-fallacy,Run sunk-cost-fallacy directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/sunk-cost-fallacy.md,1,b1375ab9754443865cd23c5a2717674d81a25f8009a7208fdad17843adc709eb,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,superforecasting,/think:superforecasting,Run superforecasting directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/superforecasting.md,1,5c078d182e365f19e0e0096dadf20cb674eb337eeda0557a0c980873068a2a83,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,tetlocks-10-commandments,/think:tetlocks-10-commandments,Run tetlocks-10-commandments directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/tetlocks-10-commandments.md,1,36cab13e45fb43eb1a6bd933ed9c1f34ae9e89efb0898b82b3c6b02de816df42,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-archetypes,/think:thinking-archetypes,Run thinking-archetypes directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-archetypes.md,1,ec20dea3f5198e6a125154000793fdfe17f71e523fd71c463f369007658940ab,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-bayesian,/think:thinking-bayesian,Run thinking-bayesian directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-bayesian.md,1,9adf70f89f7b449a61158d72bb76a512958356bd0cbeba71329fc4cf4dd35f51,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-bounded-rationality,/think:thinking-bounded-rationality,Run thinking-bounded-rationality directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-bounded-rationality.md,1,6c51ff14cf53163d328fb8f87f7232844ea9173e0bab05b8b2e10f6906b21962,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-circle-of-competence,/think:thinking-circle-of-competence,Run thinking-circle-of-competence directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-circle-of-competence.md,1,421f7f413918695b6a9626d960f6bce37515957c6e9da62a84ecea1b86c6b820,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-cynefin,/think:thinking-cynefin,Run thinking-cynefin directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-cynefin.md,1,5f8a01b3aaaaeb1feea7ba65a7617d3b8fbb61f58a297049e9884b662023bc06,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-debiasing,/think:thinking-debiasing,Run thinking-debiasing directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-debiasing.md,1,8c7820049e2c0f12b9fceb5fd2f4e56d0db788b12f64cae0f773b3cb0656c41d,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-dual-process,/think:thinking-dual-process,Run thinking-dual-process directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-dual-process.md,1,dd2b99cffa1841b74780d8708cd0e614b8777e53204fff88c17761441ead2caa,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-effectuation,/think:thinking-effectuation,Run thinking-effectuation directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-effectuation.md,1,dc936cfd07b04b3628173dc6d275fb790500f07eebcdceb5834e66ec1e63ec4b,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-feedback-loops,/think:thinking-feedback-loops,Run thinking-feedback-loops directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-feedback-loops.md,1,f23caccd938564726e84165da5b3023c0e2cc75e1cc2a36a6767c7e18f713ae5,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-fermi-estimation,/think:thinking-fermi-estimation,Run thinking-fermi-estimation directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-fermi-estimation.md,1,da8339e079c7a0b0676cc8acc78f9bde33b4f24fddb0df798833e353c1caa491,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-first-principles,/think:thinking-first-principles,Run thinking-first-principles directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-first-principles.md,1,0a4c3e4f1a169fdfba68bad9db1dad07df3d3263100325e1b89a5cb0d94f6c4e,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-five-whys-plus,/think:thinking-five-whys-plus,Run thinking-five-whys-plus directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-five-whys-plus.md,1,1069510c3d29658094c331d5927f449a110af573aa2bf7fa9a1b672c2d6bd027,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-in-bets,/think:thinking-in-bets,Run thinking-in-bets directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-in-bets.md,1,fc558a959e68653a04b8f3e1bcfe9e04a1c3c275490ba8b9ad9315c0284cb95c,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-inversion,/think:thinking-inversion,Run thinking-inversion directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-inversion.md,1,9ea2126a3b986aa332c157321989b62fd72c019bbeecfb0ccdeac66de5f133b0,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-jobs-to-be-done,/think:thinking-jobs-to-be-done,Run thinking-jobs-to-be-done directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-jobs-to-be-done.md,1,ae75adecb3757b54f338dfbbb82a333856965aa2f414da07473bd14f5477ef64,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-kepner-tregoe,/think:thinking-kepner-tregoe,Run thinking-kepner-tregoe directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-kepner-tregoe.md,1,6b96fae7e00cc70a1757a45790404b7829debe5333c0dcf62ee5d0b9f6af3a3f,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-leverage-points,/think:thinking-leverage-points,Run thinking-leverage-points directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-leverage-points.md,1,ec761d4167d1f91d394d07fff7a18a26fae004acb8866bc113206265d99cb7e9,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-lindy-effect,/think:thinking-lindy-effect,Run thinking-lindy-effect directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-lindy-effect.md,1,34b0dda784226f5ed4dc9c5ad06fce98b7475cf94e50e4e46ab157de7b8d8c25,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-map-territory,/think:thinking-map-territory,Run thinking-map-territory directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-map-territory.md,1,cf601ddf042a58412ee1452ebbf48cfdc4537891067a33e3b41f0ff2c6f2a145,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-margin-of-safety,/think:thinking-margin-of-safety,Run thinking-margin-of-safety directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-margin-of-safety.md,1,ccc28bfa8a38fa90e795e52d1401cb0975b6212a4639e7d9f4d21d619140b4f4,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-occams-razor,/think:thinking-occams-razor,Run thinking-occams-razor directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-occams-razor.md,1,d39338d2e3a027f44afde2b4c377fc4e31a92749b083d8ca5b2f1e68788322fc,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-ooda,/think:thinking-ooda,Run thinking-ooda directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-ooda.md,1,40710fde6588af70fe33fbf1afab6a6786949eca820d92485fb8a7ff887e0679,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-opportunity-cost,/think:thinking-opportunity-cost,Run thinking-opportunity-cost directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-opportunity-cost.md,1,6601ad0be1e88517ed5ea3cb3491374281c8db6f1b6a3256d008f6634a4666c1,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-pre-mortem,/think:thinking-pre-mortem,Run thinking-pre-mortem directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-pre-mortem.md,1,2cb0c3450b2768306680800f9af385d62c64cc5c36406483ccc0623e1bff14cc,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-probabilistic,/think:thinking-probabilistic,Run thinking-probabilistic directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-probabilistic.md,1,b8d8e87a871dac6479f5ecf527aa4a3568c6c705c47cc18ad0bc7f296e5020db,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-red-team,/think:thinking-red-team,Run thinking-red-team directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-red-team.md,1,7862e5776fa306ac4baa430bb4e625e549018a04ecceb6e0075ccad01b61763b,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-regret-minimization,/think:thinking-regret-minimization,Run thinking-regret-minimization directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-regret-minimization.md,1,2509e54073139032d9f3155ff02e577d214c6214455d15ab5d924b8c926c4656,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-reversibility,/think:thinking-reversibility,Run thinking-reversibility directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-reversibility.md,1,a18bc3d53b7673cb5be587c54fb57a99e7f778da9d8c33abf856ddbbdd14fa96,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-scientific-method,/think:thinking-scientific-method,Run thinking-scientific-method directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-scientific-method.md,1,24b674592149756655524b4f4661e82b91246343ad5d6499a2b5955bd41611c2,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-second-order,/think:thinking-second-order,Run thinking-second-order directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-second-order.md,1,5ab8bb213f2e119843cd51cadc8d2fab4aef0634a87380c172bf0b10675df84a,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-socratic,/think:thinking-socratic,Run thinking-socratic directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-socratic.md,1,d9a4f17a0f2d1a288f657f6706c1391eb1be9a0f27ced33964817178646d78bd,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-steel-manning,/think:thinking-steel-manning,Run thinking-steel-manning directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-steel-manning.md,1,287346fcc541f3a23d54a04eecc988116730a1f7091cb14664ff11833a10a4d5,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-systems,/think:thinking-systems,Run thinking-systems directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-systems.md,1,2227631b3b87d9a94dcd12aea4a292a403ceb07daa7bfbf5f410ada14be20b95,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-theory-of-constraints,/think:thinking-theory-of-constraints,Run thinking-theory-of-constraints directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-theory-of-constraints.md,1,a7c1adea67e5ab715805e1bc0e20f1c207e569b4cdfd57fe0c4676443ee0fe4d,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-thought-experiment,/think:thinking-thought-experiment,Run thinking-thought-experiment directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-thought-experiment.md,1,1c8ac86ca005bf38540b16b0758412ef7ecdddde743893dca4b1574cc4cfa7e7,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-triz,/think:thinking-triz,Run thinking-triz directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-triz.md,1,f38247f5e7c6c0f07fc75f0964b1953e58fabb6c8971b9b4b56e30fe890209cb,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,thinking-via-negativa,/think:thinking-via-negativa,Run thinking-via-negativa directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/thinking-via-negativa.md,1,a1626ffd6861fa2a82d258a0145c570198aa5326a13ff23269aafb09a32a6d65,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,three-horizons-framework,/think:three-horizons-framework,Run three-horizons-framework directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/three-horizons-framework.md,1,65752416a5461aa0c71b8ebee10e06a76989765150d438f1b74b277c0232c3ea,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,time-value-of-money,/think:time-value-of-money,Run time-value-of-money directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/time-value-of-money.md,1,4358f932eb243a31bbaaf71a7446da40d445731bee919fc122d6ec5ce8f6fdd7,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,tit-for-tat,/think:tit-for-tat,Run tit-for-tat directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/tit-for-tat.md,1,3d47b57bc066472b9cdf622abbb3a2cc224c8fae5ac30d097795b2980dcb4238,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
+think,commands,wisdom-of-crowds-aggregation,/think:wisdom-of-crowds-aggregation,Run wisdom-of-crowds-aggregation directly with persistent Reflex control and selectable micro/focused/full depth.,E:/AI_Workspace/plugins/plugins/think/commands/wisdom-of-crowds-aggregation.md,1,3906ce9876e199951ee09d7a82a9ccb385749cb47bfce2deca32a8a95449ea4e,slash-command source declaration,Codex · GPT-6 · 2026-10-04 — generated from the cited sources.,2026-10-04
