@@ -197,6 +197,45 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	}
 }
 
+// TestAIWorkproductRegistry verifies the optional placement group has one workflow and three unique Activities.
+// Inputs: disabled/enabled worker registrations. Outputs: exact registry assertions. Effects: no I/O or source writes.
+// Choose for integration coverage; byte and storage behavior belongs to the Activity tests.
+// Byline: Codex · GPT-6 · 2026-10-05.
+func TestAIWorkproductRegistry(t *testing.T) {
+	base := &registrationRecorder{}
+	RegisterAll(base, Registrations{})
+	enabled := &registrationRecorder{}
+	RegisterAll(enabled, Registrations{AIWorkproductPlacement: activities.NewAIWorkproductPlacementActivities("/data/proffer/derive-scratch", nil)})
+	if enabled.workflowCount != base.workflowCount+1 || len(enabled.names) != len(base.names)+3 {
+		t.Fatalf("AI placement registration changed unexpected counts: workflows %d/%d, Activities %d/%d", enabled.workflowCount, base.workflowCount, len(enabled.names), len(base.names))
+	}
+	for _, name := range []string{activities.AIWorkproductInspectActivityName, activities.AIWorkproductCopyActivityName, activities.AIWorkproductReadbackActivityName} {
+		count := 0
+		for _, registered := range enabled.names {
+			if registered == name {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("AI placement Activity %q registered %d times", name, count)
+		}
+		for _, registered := range base.names {
+			if registered == name {
+				t.Fatalf("disabled group registered %q", name)
+			}
+		}
+	}
+	count := 0
+	for _, name := range enabled.workflowNames {
+		if name == activities.AIWorkproductPlacementWorkflowName {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("AI placement workflow registered %d times", count)
+	}
+}
+
 func TestLoadConfiguredFlowBindingsAllowsNoExtraFlows(t *testing.T) {
 	registry, err := loadConfiguredFlowBindings("")
 	if err != nil {

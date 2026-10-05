@@ -104,6 +104,11 @@ type Registrations struct {
 	// Effects: none until invoked; use after inventory and reviewed final-unit selection, before shared publication.
 	// Byline: Codex · GPT-6 · 2026-10-04.
 	ToolkitContentPlacement *activities.ToolkitContentPlacementActivities
+	// AIWorkproductPlacement preserves reviewed Markdown units under the B2 AI-chat knowledge home.
+	// Inputs: existing derive-scratch root and object-store resolver. Outputs: three independent Activities.
+	// Effects: none until invoked; choose for source inspection, retained copy and pinned readback before ingestion.
+	// Byline: Codex · GPT-6 · 2026-10-05.
+	AIWorkproductPlacement *activities.AIWorkproductPlacementActivities
 	// ToolkitCatalog registers verified recovery metadata only when the separate writer is explicitly configured.
 	// Inputs: existing preservation root/store resolver and admitted Case Bible writer. Outputs: optional Activity group.
 	// Effects: none until invoked. Choose alongside preservation; the dated catalog client remains read-only.
@@ -207,6 +212,12 @@ func RegisterAll(registrar interface {
 	if registrations.ToolkitContentPlacement != nil {
 		registrar.RegisterWorkflowWithOptions(activities.ToolkitContentPlacementWorkflow, workflow.RegisterOptions{Name: activities.ToolkitContentPlacementWorkflowName})
 		registrar.RegisterActivityWithOptions(registrations.ToolkitContentPlacement.PlaceToolkitContent, activity.RegisterOptions{Name: activities.ToolkitContentPlacementActivityName})
+	}
+	if registrations.AIWorkproductPlacement != nil {
+		registrar.RegisterWorkflowWithOptions(activities.AIWorkproductPlacementWorkflow, workflow.RegisterOptions{Name: activities.AIWorkproductPlacementWorkflowName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.InspectAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductInspectActivityName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.CopyAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductCopyActivityName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.ReadbackAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductReadbackActivityName})
 	}
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackagePreservationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackagePreservationWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.CopyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationCopyActivityName})
@@ -637,6 +648,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		ToolkitInventory:        activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),
 		ToolkitPreservation:     activities.NewToolkitPackagePreservationActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
 		ToolkitContentPlacement: activities.NewToolkitContentPlacementActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
+		AIWorkproductPlacement:  activities.NewAIWorkproductPlacementActivities(cfg.DeriveScratchDir, objectStores),
 		Contacts:                contactsActivities,
 		ContextSearch:           contextSearch,
 		FirstPartyContext:       activities.NewFirstPartyContextActivities(firstPartyStore),
