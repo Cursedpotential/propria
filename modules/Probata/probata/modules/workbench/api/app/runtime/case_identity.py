@@ -1,8 +1,9 @@
 """Workbench BFF routes for the Case page (case identity).
 
 Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
+Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 — canonical DEV/LIVE query contract.
 
-    GET  /api/case-identity?mode=TEST|REAL       case header, people, identifiers, counts, unknowns
+    GET  /api/case-identity?mode=DEV|LIVE       case header, people, identifiers, counts, unknowns
     GET  /api/case-identity/lookup?value=...     who used these identifiers (read tool for other apps)
     GET  /api/case-identity/catalog-events       the Case Bible events behind one catalog count
     POST /api/case-identity/identifiers          add an identifier

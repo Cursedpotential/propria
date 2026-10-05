@@ -1,7 +1,8 @@
 """Compose the Review catalog from existing Proffer operation and content stores.
 
-Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — a run whose TEST/REAL mode cannot be
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — a run whose durable operating mode cannot be
 proven is left out and counted (`unbound_count`) instead of turning the whole catalog into a 503.
+Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 — canonical DEV/LIVE receipt terminology.
 """
 
 from __future__ import annotations

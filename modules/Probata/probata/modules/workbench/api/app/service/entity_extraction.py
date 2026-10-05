@@ -1,10 +1,11 @@
 """Entity and event extraction: authenticated pass-through to the Proffer starter.
 
 Byline: Claude Code · Opus 5.5 · 2026-09-25
+Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 — canonical operating-policy terminology.
 
 Flow (owner 2026-09-25 19:15): Extract -> proposals shown -> owner corrections
 -> Validate (pass/fail list) -> Run workflow (Temporal commit). Every route is
-bound to a run's TEST/REAL mode exactly like the other Proffer routes, and
+bound to a run's durable DEV/LIVE policy exactly like the other Proffer routes, and
 every owner act carries the Authentik actor and an Idempotency-Key so a retried
 click never writes twice. The engine decides; this module only checks the
 mode, forwards, and validates what comes back.
