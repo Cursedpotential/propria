@@ -21,6 +21,7 @@ from server.context_chunks import start as starter
 from server.temporal import chunk_activities as chunks
 from server.temporal import chunk_backfill_activities as backfill
 from server.temporal.chunk_write_guard import canonical_operating_mode, configured_case_scope
+from server.case_management import authoritative_case_scope as case_scope
 
 
 @pytest.fixture
@@ -29,6 +30,12 @@ def approved(monkeypatch):
     pair = str(uuid4()), str(uuid4())
     monkeypatch.setenv("PROFFER_MATTER_ID", pair[0])
     monkeypatch.setenv("PROFFER_COURT_CASE_ID", pair[1])
+    monkeypatch.setenv("PROFFER_STARTER_URL", "http://synthetic-starter.invalid:8089")
+
+    def header(_):
+        return {"mode": "LIVE", "matter": {"id": pair[0]}, "court_case": {"id": pair[1]}}
+
+    monkeypatch.setattr(case_scope, "_read_authoritative_header", header)
     return {"matter_id": pair[0], "court_case_id": pair[1]}
 
 
@@ -70,6 +77,7 @@ def fence_imports(monkeypatch):
 @pytest.mark.parametrize("fn,cls", WRITERS)
 @pytest.mark.parametrize("mode", ["", " ", None, "DEV", "TEST", "unrecognized"])
 def test_denied_modes_never_import_the_body(monkeypatch, approved, fn, cls, mode):
+    monkeypatch.setattr(case_scope, "_read_authoritative_header", lambda _: pytest.fail("denied mode read header"))
     params = params_for(cls, operating_mode=mode, **approved)
     imports = fence_imports(monkeypatch)
     with pytest.raises(ApplicationError) as error:
@@ -80,9 +88,21 @@ def test_denied_modes_never_import_the_body(monkeypatch, approved, fn, cls, mode
 
 @pytest.mark.parametrize("fn,cls", WRITERS)
 @pytest.mark.parametrize(
-    "defect", ["missing-input", "invalid-input", "mismatch", "no-env", "partial-env", "nil-env", "invalid-env"]
+    "defect",
+    [
+        "missing-input",
+        "invalid-input",
+        "mismatch",
+        "no-env",
+        "partial-env",
+        "nil-env",
+        "invalid-env",
+        "retired-matter",
+        "retired-court",
+    ],
 )
 def test_denied_scope_never_imports_the_body(monkeypatch, approved, fn, cls, defect):
+    monkeypatch.setattr(case_scope, "_read_authoritative_header", lambda _: pytest.fail("denied scope read header"))
     policy = {"operating_mode": "LIVE", **approved}
     if defect == "missing-input":
         policy["matter_id"] = ""
@@ -97,6 +117,10 @@ def test_denied_scope_never_imports_the_body(monkeypatch, approved, fn, cls, def
         monkeypatch.delenv("PROFFER_COURT_CASE_ID")
     elif defect == "nil-env":
         monkeypatch.setenv("PROFFER_MATTER_ID", "00000000-0000-0000-0000-000000000000")
+    elif defect == "retired-matter":
+        monkeypatch.setenv("PROFFER_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
+    elif defect == "retired-court":
+        monkeypatch.setenv("PROFFER_COURT_CASE_ID", "cafebabe-cafe-babe-cafe-babecafebabe")
     else:
         monkeypatch.setenv("PROFFER_MATTER_ID", "bad-uuid")
     imports = fence_imports(monkeypatch)
@@ -170,6 +194,35 @@ def body_stubs(monkeypatch):
     return calls
 
 
+@pytest.mark.parametrize("fn,cls", WRITERS)
+@pytest.mark.parametrize("defect", ["foreign-matter", "foreign-court", "DEV", "unknown", "malformed", "unavailable"])
+def test_authoritative_denial_never_imports_or_runs_the_body(monkeypatch, approved, fn, cls, defect):
+    """Prove arbitrary configured UUIDs are not sufficient write authority."""
+    header = {"mode": "LIVE", "matter": {"id": approved["matter_id"]}, "court_case": {"id": approved["court_case_id"]}}
+    calls = []
+    if defect == "foreign-matter":
+        header["matter"]["id"] = str(uuid4())
+    elif defect == "foreign-court":
+        header["court_case"]["id"] = str(uuid4())
+    elif defect in ("DEV", "unknown"):
+        header["mode"] = defect
+    elif defect == "malformed":
+        header = {}
+
+    def read(_):
+        calls.append("header")
+        if defect == "unavailable":
+            raise case_scope.CaseScopeVerificationError("Proffer authoritative case verification is unavailable")
+        return header
+
+    monkeypatch.setattr(case_scope, "_read_authoritative_header", read)
+    imports = fence_imports(monkeypatch)
+    with pytest.raises(ApplicationError) as error:
+        fn(params_for(cls, operating_mode="LIVE", **approved))
+    assert error.value.non_retryable and error.value.type == "ChunkWriteDenied"
+    assert calls == ["header"] and imports == []
+
+
 @pytest.mark.parametrize("mode", ["LIVE", " live ", "REAL"])
 @pytest.mark.parametrize("fn,cls", WRITERS)
 def test_admitted_live_runs_expected_stubbed_body(approved, body_stubs, fn, cls, mode):
@@ -184,6 +237,27 @@ def test_admitted_live_runs_expected_stubbed_body(approved, body_stubs, fn, cls,
     else:
         assert "config" in body_stubs and "embed" in body_stubs
         assert result["embed_requests"] == 1
+
+
+@pytest.mark.parametrize("fn,cls", WRITERS)
+def test_header_approval_precedes_first_body_io(monkeypatch, approved, body_stubs, fn, cls):
+    """Approve the header before any config, database, embedding or store calls."""
+
+    def read(_):
+        assert body_stubs == []
+        body_stubs.append("approved-header")
+        return {
+            "mode": "LIVE",
+            "matter": {"id": approved["matter_id"]},
+            "court_case": {"id": approved["court_case_id"]},
+        }
+
+    monkeypatch.setattr(case_scope, "_read_authoritative_header", read)
+    params = params_for(cls, operating_mode="LIVE", **approved)
+    if cls is chunks.PublishCallLogFilesParams:
+        params.source_version_id = "unit-only-source-reference"
+    fn(params)
+    assert body_stubs[0] == "approved-header" and "db" in body_stubs
 
 
 def test_read_only_removal_needs_no_mode_or_scope(monkeypatch, body_stubs):

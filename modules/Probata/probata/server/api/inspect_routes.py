@@ -39,13 +39,14 @@ Routes:
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (governed third-party review HTTP surface)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (single-case Proffer operating-mode boundary)
 # Byline amendment: Codex · orchestrator · 2026-10-05 (durable preview-mode admission)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (authenticated authoritative case-pair admission)
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
-import os
 import shutil
 import tempfile
 import time
@@ -60,6 +61,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import create_engine, text
 
 from server.core.knowledge_handle import resolve_knowledge
+from server.case_management.authoritative_case_scope import (
+    CaseScopeVerificationError,
+    configured_case_scope,
+    require_authoritative_live_case_scope,
+)
 from server.evidence.custody import blob_root
 
 _engine = None
@@ -1073,11 +1079,10 @@ def _configured_proffer_matter(mode: ProfferWireMode) -> UUID:
     not a general case-identity resolver or feature-flag selector.
     """
     _canonical_proffer_mode(mode)
-    raw = os.getenv("PROFFER_MATTER_ID") or os.getenv("PROFFER_REAL_MATTER_ID", "")
     try:
-        return UUID(raw)
+        return UUID(configured_case_scope()[0])
     except ValueError:
-        raise HTTPException(503, "Proffer matter identity is not configured") from None
+        raise HTTPException(503, "Proffer case identity is not configured or is invalid") from None
 
 
 class FlagCreate(BaseModel):
@@ -1180,7 +1185,9 @@ def _register_flags_routes(app: FastAPI) -> None:
 
         Inputs: signed BFF actor attestation and the preview, target, mode, and claim.
         Outputs: the existing or newly persisted corroboration flag.
-        Side effects: persists only after the current preview and target are verified;
+        Side effects: verifies the configured pair through an authenticated starter
+        read off the event loop before SQL, then persists only after the current
+        preview's Live admission receipt, full case pair and target are verified;
         DEV requests are rejected before any database access while isolation is absent.
         Sibling choice: use this content-review route instead of generic feature flags
         or `/v1/flags` when recording a Proffer promotion candidate.
@@ -1205,7 +1212,15 @@ def _register_flags_routes(app: FastAPI) -> None:
         if canonical_mode == "DEV":
             raise HTTPException(409, "Dev promotion flags are blocked until isolated workspace support is available")
 
-        expected_matter_id = _configured_proffer_matter(body.matter_mode)
+        try:
+            configured_matter_id, configured_court_case_id = configured_case_scope()
+            expected_matter_id, expected_court_case_id = await asyncio.to_thread(
+                require_authoritative_live_case_scope, canonical_mode, configured_matter_id, configured_court_case_id
+            )
+        except CaseScopeVerificationError as error:
+            raise HTTPException(error.http_status, str(error)) from None
+        except ValueError:
+            raise HTTPException(503, "Proffer case identity is not configured or is invalid") from None
         metadata = {
             "contract": _PROFFER_FLAG_CONTRACT,
             "classification": "potential_promotion",
@@ -1255,6 +1270,11 @@ def _register_flags_routes(app: FastAPI) -> None:
                 admission = None
             if not isinstance(admission, dict) or admission.get("operating_mode") != "LIVE":
                 raise HTTPException(409, "preview has no verified Live operating-mode admission")
+            if (
+                admission.get("matter_id") != expected_matter_id
+                or admission.get("court_case_id") != expected_court_case_id
+            ):
+                raise HTTPException(409, "preview admission case does not match the configured case")
             normalized_generation_id = str(snapshot["normalized_generation_id"])
             if normalized_generation_id != str(body.attempt_id):
                 raise HTTPException(409, "flag attempt does not match the current preview attempt")

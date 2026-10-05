@@ -937,9 +937,18 @@ def test_removal_refuses_an_unverified_collection_and_counts_in_a_dry_run():
 
 def test_the_starter_builds_the_workflow_inputs_the_go_structs_decode(monkeypatch):
     from server.context_chunks.start import BACKFILL_WORKFLOW, REMOVAL_WORKFLOW, build_input, parser
+    from server.case_management import authoritative_case_scope as case_scope
 
-    monkeypatch.setenv("PROFFER_MATTER_ID", str(uuid.uuid4()))
-    monkeypatch.setenv("PROFFER_COURT_CASE_ID", str(uuid.uuid4()))
+    # Byline: Codex · GPT-5 · 2026-10-05 — explicit synthetic engine approval, no HTTP.
+    matter_id, court_case_id = str(uuid.uuid4()), str(uuid.uuid4())
+    monkeypatch.setenv("PROFFER_MATTER_ID", matter_id)
+    monkeypatch.setenv("PROFFER_COURT_CASE_ID", court_case_id)
+    monkeypatch.setenv("PROFFER_STARTER_URL", "http://synthetic-starter.invalid:8089")
+    monkeypatch.setattr(
+        case_scope,
+        "_read_authoritative_header",
+        lambda _: {"mode": "LIVE", "matter": {"id": matter_id}, "court_case": {"id": court_case_id}},
+    )
     name, workflow_id, body = build_input(
         parser().parse_args(["rechunk", "--dry-run", "--exact", "--request-id", "x1"])
     )
