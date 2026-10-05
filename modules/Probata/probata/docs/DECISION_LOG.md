@@ -1,5 +1,16 @@
 # DECISION LOG — Agno-MCP-Platform
 
+> **Current supersession, 2026-10-05:** Dev and Live use one approved case
+> identity. D-126's pre-launch placeholder identity, alternate-case selection and
+> mode-driven reset/cutover instructions are historical and must not be applied
+> to the current application. Operating mode and individual feature flags are
+> independent controls; D-127/D-128's obligation to build and test gated
+> capabilities remains. The current owner contract is
+> [One case identity; independent operating and feature flags](../../../../docs/decisions/2026-10-05-single-case-operating-flags.md).
+> This supersession does not authorize a data reset, schema rebuild or auth change.
+>
+> _Byline: Codex, orchestrator, 2026-10-05; owner authorization in this session._
+
 > _Byline: Claude Code · Fable 5 · started 2026-07-09 (2026-07-10 entries: Claude Opus 4.8) ·
 > Codex · GPT-5 · 2026-08-18 ADR-0059 source-clock, walk-lifecycle, and native-vector rulings_
 > **Running, append-only design/decision log.** Every load-bearing decision lands here with
