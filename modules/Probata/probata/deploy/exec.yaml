@@ -110,6 +110,14 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      # Reuse the existing private Proffer service credential solely to verify
+      # authoritative case approval; this is not a user login or auth bypass.
+      - type: bind
+        source: /data/probata/secrets/proffer/service-token
+        target: /run/secrets/proffer-service-token
+        read_only: true
+        bind:
+          create_host_path: false
     env_file:
       - path: .env
         required: false
@@ -134,6 +142,8 @@ services:
       # Coolify before deploying; an absent identity fails closed in the API.
       PROFFER_MATTER_ID: ${PROFFER_MATTER_ID:-}
       PROFFER_COURT_CASE_ID: ${PROFFER_COURT_CASE_ID:-}
+      PROFFER_STARTER_URL: ${PROFFER_STARTER_URL:-http://100.91.190.107:8091}
+      PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
       # Milvus (ADR-0026/0027) — vector store on OVH-3; defaults to the data box's
       # gRPC port over the tailnet. Override MILVUS_ADDRESS/TOKEN in env if needed.
       # NB 2026-08-12: ADR-0026/0027 SUPERSEDED by ADR-0040 (Weaviate locked
