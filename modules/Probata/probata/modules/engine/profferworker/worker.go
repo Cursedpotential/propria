@@ -115,6 +115,11 @@ type Registrations struct {
 	// Effects: none until invoked. Choose alongside preservation; the dated catalog client remains read-only.
 	// Byline: Codex · GPT-6 · 2026-10-04.
 	ToolkitCatalog *activities.ToolkitCatalogRegistrationActivities
+	// ToolkitWorkingCatalog registers verified permanent files using its separately admitted writer.
+	// Inputs: approved metadata root and scoped catalog connection; outputs: registration/readback Activities.
+	// Effects: none until invoked; choose after permanent placement, independently of archive recovery.
+	// Byline: Codex · GPT-6 · 2026-10-05.
+	ToolkitWorkingCatalog *activities.ToolkitWorkingCatalogActivities
 	// ToolkitValidation validates saved library proposals through the existing source/parser/NIM contracts when explicitly enabled.
 	// Inputs: admitted validation service. Outputs: optional four-Activity group. Effects: none until invoked.
 	// Choose separately from preservation/catalog registration; trusted validation does not publish automatically.
@@ -238,6 +243,9 @@ func RegisterAll(registrar interface {
 		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.RegisterToolkitCatalog, activity.RegisterOptions{Name: activities.ToolkitCatalogRegisterActivityName})
 		registrar.RegisterActivityWithOptions(registrations.ToolkitCatalog.ReadbackToolkitCatalog, activity.RegisterOptions{Name: activities.ToolkitCatalogReadbackActivityName})
 	}
+	if err := RegisterToolkitWorkingCatalog(registrar, registrations.ToolkitWorkingCatalog); err != nil {
+		panic("proffer worker: working catalog registry admission failed")
+	}
 	// Register substantive proposal validation only after configured service/runtime preflight succeeds.
 	// Inputs: optional validation group. Outputs: one workflow and four Activities. Effects: registry additions only.
 	// Choose after a saved proposal exists; inventory, preservation and catalog workflows remain independent.
@@ -345,6 +353,14 @@ func Run(ctx context.Context, cfg Config) error {
 		defer closeToolkitCatalog()
 	}
 	registrations.ToolkitCatalog = toolkitCatalog
+	toolkitWorking, closeToolkitWorking, err := ConfigureToolkitWorkingCatalog(ctx, os.Getenv("CASEBIBLE_WORKING_DATABASE_URL_FILE"), registrations.ToolkitPreservation.AllowedRoot)
+	if err != nil {
+		return err
+	}
+	if closeToolkitWorking != nil {
+		defer closeToolkitWorking()
+	}
+	registrations.ToolkitWorkingCatalog = toolkitWorking
 	toolkitValidation, err := configureToolkitValidation(ctx)
 	if err != nil {
 		return err
