@@ -191,7 +191,8 @@ def test_every_case_mutation_forwards_selected_canonical_policy(monkeypatch, pat
     assert posts[0][2]["headers"]["Idempotency-Key"] == "key"
 
 
-def test_production_guard_blocks_all_api_mutation_routes_before_any_dispatch(monkeypatch):
+@pytest.mark.parametrize(("mode", "status"), [("DEV", 409), ("TEST", 409), ("unknown", 422), ("", 422)])
+def test_production_guard_blocks_all_api_mutation_routes_before_any_dispatch(monkeypatch, mode, status):
     app = FastAPI()
     app.add_middleware(BaseHTTPMiddleware, dispatch=development_write_guard)
     calls = []
@@ -207,8 +208,8 @@ def test_production_guard_blocks_all_api_mutation_routes_before_any_dispatch(mon
         for method in methods.keys() & {"post", "put", "patch", "delete"}:
             if not path.startswith("/api/"):
                 continue
-            response = client.request(method, path, params={"mode": "DEV"}, json={})
-            assert response.status_code == 409, (method, path, response.text)
+            response = client.request(method, path, params={"mode": mode}, json={})
+            assert response.status_code == status, (method, path, response.text)
             tested += 1
     assert tested > 40
     assert calls == []

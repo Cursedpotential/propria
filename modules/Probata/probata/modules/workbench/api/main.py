@@ -120,19 +120,19 @@ Workbench are not accepted. Only `/health` is public.
 async def development_write_guard(request: Request, call_next):
     """Deny Dev API mutations before any downstream engine or spine dispatch.
 
-    Inputs: request mode query and HTTP method. Output: 409 or downstream response.
+    Inputs: request mode query and HTTP method. Output: 409/422 or downstream response.
     Side effects: none on rejection. Use until a genuinely isolated Dev data
     workspace is implemented; this is not an authorization substitute.
     """
-    if (
-        request.url.path.startswith("/api/")
-        and request.method in {"POST", "PUT", "PATCH", "DELETE"}
-        and request.query_params.get("mode") in {"DEV", "TEST"}
-    ):
-        return JSONResponse(
-            {"detail": "Development writes require an isolated data workspace; no canonical write was dispatched"},
-            status_code=409,
-        )
+    if request.url.path.startswith("/api/") and request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        operating_mode = request.query_params.get("mode")
+        if operating_mode is not None and operating_mode not in {"DEV", "LIVE", "TEST", "REAL"}:
+            return JSONResponse({"detail": "Unknown operating mode"}, status_code=422)
+        if operating_mode in {"DEV", "TEST"}:
+            return JSONResponse(
+                {"detail": "Development writes require an isolated data workspace; no canonical write was dispatched"},
+                status_code=409,
+            )
     return await call_next(request)
 
 # Request timing + in-process metrics counters (app.runtime.metrics)
