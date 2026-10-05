@@ -71,12 +71,21 @@ services:
       # Byline: Codex, GPT-6, 2026-10-04. Dedicated proposal validation dispatch from the probata Docker network.
       TOOLKIT_VALIDATION_TOKEN_FILE: /run/secrets/toolkit-validation-token
       TOOLKIT_VALIDATION_SERVICE_CIDRS: "172.25.0.0/16"
+      # Byline: Codex, GPT-6, 2026-10-05. Read-only original reader and idempotent outbox dispatch on this starter.
+      TOOLKIT_LIBRARY_SYNC_BACKEND_URL: ${TOOLKIT_LIBRARY_SYNC_BACKEND_URL:-}
+      TOOLKIT_LIBRARY_SYNC_TOKEN_FILE: /run/secrets/toolkit-library-sync-token
+      TOOLKIT_LIBRARY_SYNC_B2_CONFIG_FILE: /run/secrets/casebible-b2.json
+      TOOLKIT_LIBRARY_SYNC_B2_BUCKET: salem-data
+      TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE: ${TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE:-}
+      TOOLKIT_LIBRARY_SYNC_LEGAL_ROOT: consignatio/casevault/KnowledgeBase/legal/
+      TOOLKIT_LIBRARY_SYNC_SERVICE_CIDRS: "172.25.0.0/16"
       # How many items of one folder batch may run at once. One at a time is
       # the owner's instruction (2026-09-20 23:52) and the fallback for any
       # unreadable or out-of-range value; a request may ask for fewer or more
       # up to 16. Byline: Claude Code Â· Opus 5 Â· 2026-09-21
       PROFFER_BATCH_MAX_IN_FLIGHT: ${PROFFER_BATCH_MAX_IN_FLIGHT:-1}
     volumes:
+      - /data/probata/secrets/family-court/library-sync-token:/run/secrets/toolkit-library-sync-token:ro
       - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
       # tsnet node state. MUST be persistent or the service re-registers as a
       # new tailnet node on every deploy. Host prep (once, before the flip):

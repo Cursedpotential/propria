@@ -359,6 +359,21 @@ export function canPublishLibraryProposal(proposalId: string, proposalRecord: Js
     checks.length > 0 && checks.every((check) => check.status === "VERIFIED_PRIMARY" && check.currency_status === "cleared");
 }
 
+/** Render bounded server-owned original links without embedding source bytes in browser records.
+ * Inputs: shared case_record envelope. Outputs: buttons to exact hosted PDF versions.
+ * Effects: rendering only; choose alongside official-source links, which refer to different provenance.
+ * Byline: Codex · GPT-6 · 2026-10-05.
+ */
+function originalFileButtons(snapshot: Json): HTMLElement[] {
+  if (!Array.isArray(snapshot.original_links)) return [];
+  return snapshot.original_links.slice(0, 8).flatMap((item: unknown) => {
+    if (!item || typeof item !== "object") return [];
+    const link = item as Json;
+    if (typeof link.href !== "string" || !link.href.startsWith("https://family-court.tilapia-skilift.ts.net/api/library/original?")) return [];
+    return [el("a", { class: "btn secondary", href: link.href, target: "_blank", rel: "noopener noreferrer" }, "Open Case Bible original")];
+  });
+}
+
 async function openRecord(ref: string, onChanged?: () => void): Promise<void> {
   if (/^(reference|source):/.test(ref)) {
     await openLibraryRecord(ref, onChanged);
@@ -377,7 +392,7 @@ async function openRecord(ref: string, onChanged?: () => void): Promise<void> {
     openSheet(titleOf(record),
       el("p", { class: "idline", text: `id ${String(rec.id)}` }),
       el("p", { class: "idline", text: `version ${String(rec.version)}` }),
-      el("div", { class: "actions" }, url, fileLink, el("button", { type: "button", onclick: () => correctForm(String(rec.id), String(rec.table), record, onChanged, String(rec.version)) }, "Correct this record")),
+      el("div", { class: "actions" }, url, fileLink, ...originalFileButtons(rec), el("button", { type: "button", onclick: () => correctForm(String(rec.id), String(rec.table), record, onChanged, String(rec.version)) }, "Correct this record")),
       body ? markdown(body) : null,
       el("h3", { text: "Fields" }),
       kv(record));
@@ -460,7 +475,7 @@ async function openLibraryRecord(ref: string, onChanged?: () => void): Promise<v
     openSheet(titleOf(record),
       el("p", { class: "idline", text: `id ${ref}` }),
       el("p", { class: "idline", text: `version ${String(snapshot.version)}` }),
-      el("div", { class: "actions" }, link, fileLink,
+      el("div", { class: "actions" }, link, fileLink, ...originalFileButtons(snapshot),
         el("button", { type: "button", onclick: () => personalSource
           ? correctForm(ref, "source", record, onChanged, String(snapshot.version))
           : libraryProposalEditor(ref, String(snapshot.version), record, onChanged) }, personalSource ? "Correct this case document" : "Propose an edit")),
