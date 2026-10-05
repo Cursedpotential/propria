@@ -130,6 +130,11 @@ type Registrations struct {
 	// Effects: registration only until invoked. Choose alongside validation; parent owns schedule and durable outbox dispatch.
 	// Byline: Codex · GPT-6.1 · 2026-10-05.
 	ToolkitSync *activities.ToolkitLibrarySyncActivities
+	// ToolkitBindings links approved permanent versions after independent placement/catalog verification.
+	// Inputs: existing metadata root, storage and private sync backend; outputs: tracked metadata-only import.
+	// Effects: none until invoked; choose once before recurring directory observation.
+	// Byline: Codex · GPT-6 · 2026-10-05.
+	ToolkitBindings *activities.ToolkitLibraryBindingActivities
 }
 
 // HandlerSelectionActivities is the production integration seam for the
@@ -261,6 +266,10 @@ func RegisterAll(registrar interface {
 		librarysync.RegisterWorkflows(registrar)
 		activities.RegisterToolkitLibrarySyncActivities(registrar, *registrations.ToolkitSync)
 	}
+	if registrations.ToolkitBindings != nil {
+		registrar.RegisterWorkflowWithOptions(activities.ToolkitLibraryBindingWorkflow, workflow.RegisterOptions{Name: activities.ToolkitLibraryBindingWorkflowName})
+		registrar.RegisterActivityWithOptions(registrations.ToolkitBindings.ImportToolkitLibraryBindings, activity.RegisterOptions{Name: activities.ToolkitLibraryBindingActivityName})
+	}
 	// Probe the exact preservation adapter with synthetic bytes before any original transfer.
 	// Inputs: the existing preservation group; outputs: separately tracked probe workflow and Activity.
 	// Effects: registration only. Choose for provider semantics, never source inspection.
@@ -378,6 +387,14 @@ func Run(ctx context.Context, cfg Config) error {
 		return errors.New("proffer worker: toolkit sync requires proffer-v1 task queue")
 	}
 	registrations.ToolkitSync = toolkitSync
+	if toolkitSync != nil {
+		backend, ok := toolkitSync.Service.Backend.(activities.ToolkitLibraryBindingBackend)
+		if !ok {
+			return errors.New("proffer worker: library binding backend unavailable")
+		}
+		group := activities.NewToolkitLibraryBindingActivities(registrations.ToolkitPreservation.AllowedRoot, registrations.ToolkitPreservation.Stores, backend)
+		registrations.ToolkitBindings = &group
+	}
 
 	temporalWorker := worker.New(temporalClient, cfg.TemporalTaskQueue, workerOptions(cfg))
 	RegisterAll(temporalWorker, registrations)

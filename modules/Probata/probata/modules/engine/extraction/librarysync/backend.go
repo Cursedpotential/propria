@@ -206,6 +206,18 @@ func (b *HTTPBackend) Observe(ctx context.Context, in Observation) (Outcome, err
 	return out, err
 }
 
+// ImportBindings posts the complete approved working-file metadata to its fixed private seed route.
+// Inputs: at most 2 MiB of JSON metadata; outputs: at most 4 KiB of acknowledgement bytes.
+// Effects: authenticated backend mapping writes only; choose from the tracked binding Activity, never from an arbitrary URL.
+// Byline: Codex · GPT-6 · 2026-10-05.
+func (b *HTTPBackend) ImportBindings(ctx context.Context, payload json.RawMessage) (json.RawMessage, error) {
+	if len(payload) == 0 || len(payload) > 2<<20 || !json.Valid(payload) {
+		return nil, errors.New("invalid binding metadata payload")
+	}
+	out, err := b.request(ctx, http.MethodPost, "/bindings/import", payload, nil, 4096)
+	return json.RawMessage(out), err
+}
+
 // Seen calls GET /observations/{raw-hex-id}/status before source reads.
 // Inputs: deterministic observation identity; outputs: seen only for a durable completed or explicitly blocked observation.
 // Effects: backend metadata read; parent never marks a merely reserved/unprocessed version seen.
