@@ -17,7 +17,7 @@ A Parquet file is a table saved as a file. DuckDB can query that file directly. 
 | Where did a file come from? | raw_duck.source_occurrences and related lineage tables | Source observations and provenance, not proof of current physical placement |
 | What does a table cover? | raw_duck.catalog_registry | Status, scope, replacement and producer; descriptions can lag and need verification |
 | Portable SQL over a published generation | B2 consignatio/_system/lake/<generation>/ | Parquet snapshot plus manifest/schema; use exact generation |
-| Find words, topics or events inside files | Appropriate Weaviate collection | Search coverage differs from file-inventory coverage |
+| Find words, topics or events inside files | `/cb-vsearch "query"` | One content-search tool; meaning/keyword retrieval, DuckDB filters and source-linked output |
 | Historical cleanup/repair proof | Dated proof tables and docs/receipts | Bounded analysis, not a replacement global catalog |
 | R2 Iceberg tables | R2 Data Catalog | Separate table service; enabling it does not inventory arbitrary bucket files |
 
@@ -38,6 +38,71 @@ Catalog registry readback: 152 current, 117 historical, 44 superseded, 4 interme
 Older folder listings, raw imports, reconciliation generations, hash bridges and repair receipts preserve different observations. Their overlap is expected when lineage is retained. They must be labelled and routed, not blindly merged or deleted.
 
 The old raw_duck.b2_objects was renamed to raw_duck_superseded.b2_intake_objects_20260914. The pre-dedupe vault listing became raw_duck_superseded.vault_objects_20260916_0810_prededupe. These are historical observations. An old Parquet file can retain its old filename after the PostgreSQL table is renamed; that does not recreate an active table.
+
+## Search for content
+
+Byline: Codex, GPT-6, 2026-10-04. Search contracts checked against source, live collection schemas and live queries; presentation verified with source-retention tests.
+
+Use `/cb-vsearch` to search what files say. Use `cbcat` to search the inventory of files. Finding a file in the inventory does not mean its text has been indexed, and a search hit does not independently prove its recorded source key is still the current physical location.
+
+### Start with a question
+
+```text
+/cb-vsearch "arranging school pickup"
+```
+
+This searches existing indexed documents, messages and AI chats, combines meaning with keywords, and returns up to eight readable results. You do not choose a database or collection.
+
+| What you want | Example |
+|---|---|
+| Messages and calls | `/cb-vsearch "arranging school pickup" --corpus messages` |
+| Indexed file text/chunks | `/cb-vsearch "parenting schedule" --corpus documents` |
+| AI-chat context | `/cb-vsearch "budget planning" --corpus chats` |
+| Keyword matching without a query embedding | `/cb-vsearch "school pickup" --mode keyword` |
+| Require a literal word in retrieved text | `/cb-vsearch "school pickup" --corpus messages --contains pickup` |
+| Narrow to a recorded source path | `/cb-vsearch "budget" --source Takeout` |
+| Narrow to dates | `/cb-vsearch "school" --corpus messages --from 2024-01-01 --to 2024-12-31` |
+| More candidates to filter | `/cb-vsearch "school" --fetch 200 --k 12` |
+| Machine-efficient output | `/cb-vsearch "school" --presentation compact` |
+| Expanded JSON | `/cb-vsearch "school" --presentation json` |
+| Revisit a result | `/cb-vsearch --corpus messages --id <result-id>` |
+
+In a terminal the same tool is `python <plugin-root>/tools/cb_vsearch.py` with the arguments shown after `/cb-vsearch`. Agents resolve plugin-root from their installed plugin environment.
+
+### Read a result
+
+The human view shows a numbered result, its content category, title, recorded source path, available date, result ID and excerpt. It also shows the available source hash and locator (such as a message index, conversation ID, document/chunk ID or archive member). AI-chat results provide context; verify substantive claims against their source records.
+
+`--excerpt-chars 1200` expands the displayed excerpt. Default600, maximum4000; shortened text is marked `[excerpt]`. Opening a result ID retrieves the same indexed record without generating another query embedding; the excerpt limit still applies. It does not open or download the underlying source file.
+
+The compact view is JSON with `format: compact-columns-v1`: hit field names appear once in `columns`, values appear in the corresponding `rows`. The expanded JSON view uses named fields for each hit. Both retain citation objects, available hashes, source/record/chunk locators and truncation status. Duplicate identities retain all distinct source citations. A missing source hash is reported as `not_indexed`, never fabricated.
+
+### How the tool works
+
+```text
+Your query -> matching query embedding (hybrid mode only)
+           -> existing content indexes -> bounded candidate results
+           -> in-memory DuckDB filters and duplicate-identity removal
+           -> readable text or compact/expanded JSON with citations
+```
+
+CocoIndex and the search tool have different jobs. CocoIndex is the owning Intake discovery pipeline's framework for processing source changes and maintaining derived index data. Weaviate stores/searches the derived content. DuckDB shapes the returned candidates. The search tool uses the established named-vector/query-model contracts; it does not create another index or persistent result database. It runs its embedding, retrieval and DuckDB work on ovh-files through the existing SSH route.
+
+A search does not run an indexing refresh. This tool reads the existing Intake content index and the existing message/chat indexes. The retrieval repair does not establish that all historical message/chat producers use CocoIndex or that automatic synchronization is complete. The October2 message-flow audit is the dated evidence for those producer gaps; it is not a current deployment proof.
+
+### Coverage and filter behavior
+
+Live metadata readback on October4: documents37,857 indexed objects, messages366,912, chats446. These are chunks/events, not counts of unique source files. They do not establish coverage of all568,130 recorded B2 objects. Each query reports its current scope counts, candidates retrieved, results returned and unavailable scopes.
+
+Default candidate window:80 per requested category; `--fetch` increases it up to500. `--source`, `--contains` and dates are literal DuckDB filters over those retrieved candidates. They are not an exhaustive scan of every indexed object. An empty filtered result means no match in that window; widen the window, adjust the question or query the file inventory. Date filters exclude results whose date was not indexed. Ranking is relevance ordering, not a confidence percentage.
+
+For guides, decisions and project documentation use Propria Docstore search. For repository code use CCC. Those CocoIndex-backed systems remain separate from the Case Bible source corpus; shared technology does not make them interchangeable search scopes.
+
+### Verification and ownership
+
+Working implementation: plugin tools/cb_vsearch.py and tools/cb_search_server.py; command instructions commands/cb-vsearch.md. Retrieval siblings: Consignatio Intake/backend/src/casebible_index/filesystem_search.py and casebible/tools/comm_timeline_mvp/search.py. Producer distinction: Probata docs/reference/2026-10-02-message-flow-as-built.md. The plugin guide is a distributed copy of this owning document, not another catalog.
+
+Checks: live keyword and hybrid queries, all three categories, exact-ID retrieval, readable/compact/expanded JSON output, literal source/text/date filters; five synthetic presentation tests covering literal SQL-looking filters, citation retention on deduplication, excerpt markers, column packing and request boundaries. Those prove the reader/presentation behavior, not complete indexing or relevance for every question.
 
 ## Read-only PostgreSQL examples
 
@@ -87,7 +152,7 @@ The initial attempt skipped views and failed its export; the old publisher also 
 
 Explicit complete/partial/empty listing receipts remain a gap in the existing loader. A new timestamp alone cannot certify all bucket objects, and empty buckets cannot be inferred from zero rows. This publication preserves the existing observations; it does not make a new completeness claim.
 
-There are still 33 registry rows with unknown classification. The plugin readers, commands and skills were repaired and installed in both desktop apps; already running chats may hold earlier instructions in their conversation context. The Probata whole-bucket readers were already repaired October 2; this pass also fixed four still-active loader/source-resolution joins that referenced the renamed intake-only table. Those loader patches were syntax-checked, not rerun against source data.
+There are still 33 registry rows with unknown classification. The catalog/publication readers were repaired and installed in both desktop apps; the content-search repair described below is verified separately; already running chats may hold earlier instructions in their conversation context. The Probata whole-bucket readers were already repaired October 2; this pass also fixed four still-active loader/source-resolution joins that referenced the renamed intake-only table. Those loader patches were syntax-checked, not rerun against source data.
 
 The publication itself does not prove every D: file reached B2, promote source data into evidence, complete R2 migration, or synchronize Weaviate search collections. Use the existing drive comparison and proof tables for those questions and preserve their bounded claims.
 

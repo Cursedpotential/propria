@@ -3485,3 +3485,7 @@ This completes durable raw recovery retention. Catalog registration and applicat
 ## 2026-10-04 — Verified lake publication and Case Bible reader repair
 
 Byline: Codex, 2026-10-04. Published 90 Parquet tables and two supporting artifacts through five Temporal Activities. All 92 full B2 readbacks passed SHA-256/row checks; LATEST advanced to 2026-10-04; ledger94. Current inventory includes 568,130 B2 objects (2,186,822 total B2/R2 observations). Source and installed plugin readers now distinguish live PG from B2 snapshots; four legacy loader/source joins repaired. Failed initial export retained; views and phase exit status fixed. Receipt: receipts/lake-publish-20261004; usage: CASE-BIBLE-CATALOG-GUIDE.md. No new completeness claim for empty/partial listing generations or full D: migration.
+
+## 2026-10-04 — Content search reader and DuckDB presentation
+
+Byline: Codex, GPT-6, 2026-10-04. Replaced the active legacy search route with a maintained server reader for documents/messages/chats. Hybrid/keyword queries, literal source/text/date filters, indexed-record lookup and human/compact/JSON formats verified live; five DuckDB presentation tests pass, with all distinct source citations retained on deduplication. Source and both installed plugin copies updated; owning guide now contains search recipes, indexing/query responsibilities and coverage boundaries. Proof: receipts/search-reader-20261004.md. No index completeness or automatic refresh claim.
