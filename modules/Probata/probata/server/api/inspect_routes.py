@@ -1234,6 +1234,10 @@ def _register_flags_routes(app: FastAPI) -> None:
             "idempotency_key": body.idempotency_key,
         }
         notes = json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+        # Rolling-upgrade compatibility changes only the stored mode spelling.
+        # Keep the signed request's accepted key unchanged: raw REAL and canonical
+        # LIVE request hashes are distinct keys, not permission to rewrite history.
+        legacy_notes = json.dumps({**metadata, "matter_mode": "REAL"}, sort_keys=True, separators=(",", ":"))
         with _get_engine().begin() as conn:
             conn.execute(
                 text("SELECT pg_advisory_xact_lock(hashtextextended(:preview_handle, 0))"),
@@ -1314,10 +1318,15 @@ def _register_flags_routes(app: FastAPI) -> None:
                     text(
                         "SELECT * FROM analysis.corroboration_flag "
                         "WHERE target_kind = 'run' AND target_id = :target_id "
-                        "AND claim = :claim AND notes = :notes "
+                        "AND claim = :claim AND (notes = :notes OR notes = :legacy_notes) "
                         "ORDER BY created_at, flag_id LIMIT 2"
                     ),
-                    {"target_id": body.preview_handle, "claim": body.claim, "notes": notes},
+                    {
+                        "target_id": body.preview_handle,
+                        "claim": body.claim,
+                        "notes": notes,
+                        "legacy_notes": legacy_notes,
+                    },
                 )
                 .mappings()
                 .all()

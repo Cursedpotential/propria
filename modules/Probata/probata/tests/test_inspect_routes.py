@@ -1376,6 +1376,106 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
     )
 
 
+@pytest.mark.parametrize("wire_mode,key_mode", [("REAL", "REAL"), ("REAL", "LIVE"), ("LIVE", "LIVE")])
+def test_live_receipt_replays_exact_legacy_real_notes_without_rewriting_or_inserting(
+    client, monkeypatch, wire_mode, key_mode
+):
+    """Preserve a rolling-upgrade legacy row only for the same complete metadata/key."""
+    fields = {
+        "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+        "matter_mode": wire_mode,
+        "scope": "record",
+        "target_id": _PARTICIPANT_ID,
+        "attempt_id": _CONVERSATION_ID,
+        "actor_subject_uid": "subject-1",
+        "actor_username": "operator",
+        "claim": "Review later",
+    }
+    raw_key = _proffer_request({**fields, "matter_mode": "REAL"})["idempotency_key"]
+    canonical_key = _proffer_request({**fields, "matter_mode": "LIVE"})["idempotency_key"]
+    assert raw_key != canonical_key
+    body = {**fields, "idempotency_key": raw_key if key_mode == "REAL" else canonical_key}
+    metadata = {
+        "contract": "proffer-potential-promotion/v1",
+        "classification": "potential_promotion",
+        **{key: value for key, value in body.items() if key != "claim"},
+        "matter_mode": "REAL",
+    }
+    legacy_notes = json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+    original = _flag_row(
+        flag_id="legacy-original",
+        target_kind="run",
+        target_id=fields["preview_handle"],
+        claim=fields["claim"],
+        notes=legacy_notes,
+    )
+
+    class ExactLegacyEngine(_FakeEngine):
+        def _next_value(self):
+            value = super()._next_value()
+            if self._i == 4:
+                sql, params = self.calls[-1]
+                assert "(notes = :notes OR notes = :legacy_notes)" in sql
+                assert params["legacy_notes"] == legacy_notes
+                canonical_metadata = json.loads(params["notes"])
+                assert canonical_metadata == {**metadata, "matter_mode": "LIVE"}
+                assert params["claim"] == fields["claim"]
+            return value
+
+    fake = ExactLegacyEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": _CONVERSATION_ID,
+                "source_version_id": _MESSAGE_ID,
+                "matter_id": _CASE_MATTER,
+                "mode_detail": _live_admission(),
+            },
+            True,
+            [original],
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+    assert response.status_code == 201
+    assert response.json()["flag_id"] == "legacy-original"
+    assert response.json()["notes"] == legacy_notes
+    assert len(fake.calls) == 4 and all("INSERT" not in sql for sql, _ in fake.calls)
+
+
+def test_live_and_legacy_real_duplicate_notes_remain_a_conflict(client, monkeypatch):
+    """Require manual review when both compatible stored representations exist."""
+    body = _proffer_request(
+        {
+            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+            "matter_mode": "REAL",
+            "scope": "record",
+            "target_id": _PARTICIPANT_ID,
+            "attempt_id": _CONVERSATION_ID,
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
+    fake = _FakeEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": _CONVERSATION_ID,
+                "source_version_id": _MESSAGE_ID,
+                "matter_id": _CASE_MATTER,
+                "mode_detail": _live_admission(),
+            },
+            True,
+            [_flag_row(flag_id="live"), _flag_row(flag_id="real")],
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+    assert response.status_code == 409 and "duplicate" in response.json()["detail"]
+    assert len(fake.calls) == 4 and all("INSERT" not in sql for sql, _ in fake.calls)
+
+
 def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkeypatch):
     handle = "preview_handle_abcdefghijklmnopqrstuvwxyz"
     attempt = "11111111-1111-1111-1111-111111111111"
@@ -1575,7 +1675,7 @@ def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(m
                         for row in self.rows
                         if row["target_id"] == params["target_id"]
                         and row["claim"] == params["claim"]
-                        and row["notes"] == params["notes"]
+                        and row["notes"] in (params["notes"], params["legacy_notes"])
                     ]
                 )
             if "INSERT INTO analysis.corroboration_flag" in sql:
