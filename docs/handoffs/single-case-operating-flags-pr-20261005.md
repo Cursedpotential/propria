@@ -18,19 +18,25 @@ Byline: Codex, orchestrator, 2026-10-05.
 ## Verification checkpoints
 
 - Legal consumer: 27 passing tests, independently rerun; mocked proof only.
-- Workbench API: 627 passed, one documented baseline file-size check failure
-  (imported_pg.py 406 lines; imported.py 830 versus upstream 828).
+- Combined GitHub Workbench API checkpoint: 620 passed, 22 failed; 21 retired-R2
+  fixture/active-upload-path conflicts and one pre-existing module-cap failure.
+  These remain required fixes, not waived baseline acceptance. Earlier isolated
+  627-pass proof is superseded by this combined result.
 - Existing-VPS web gates: lint zero errors/26 warnings, typecheck/build passed,
   browser-free smoke 140 passed/four browser journeys skipped, Storybook passed.
-- Python chunk/promotion combined checkpoint: 220 passed/five skipped. Additional
-  authoritative approval verification and exact receipt-scope tests are in review.
-- Engine: source integrated; combined VPS suite and final direct-service guard
-  review remain pending. Synthetic SDK replay is bounded first-command proof,
-  not a complete production-history audit.
+- Python chunk/promotion/authoritative-scope combined checkpoint: 331 passed/five
+  existing skips, independently rerun after integration. Exact old-label flag
+  replay preserves the original row and same-key idempotency without new writes.
+- Existing-VPS engine packet passed identity, repair, repositories, runtime API,
+  Proffer, worker wiring, extraction and Temporal/starter packages. Parser bridge
+  rerun passed using a regular-file interpreter with existing pinned dependencies.
+  Full combined Activities/portable-fixture proof and final independent review
+  are pending. Synthetic SDK replay is bounded first-command proof, not a
+  complete production-history audit.
 
 ## Remaining acceptance gates
 
-- Finish authoritative header verification and final direct-service guards.
+- Finish the combined Workbench upload/CI and retained-fixture reconciliation.
 - Independent combined review and final source-pinned test receipt.
 - Provision verified neutral case configuration; reuse the existing private
   service credential without rotation or user-auth changes.

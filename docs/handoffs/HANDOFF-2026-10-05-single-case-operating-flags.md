@@ -1,7 +1,66 @@
 # Single-case operating flags: active handoff
 
-Byline: Codex, orchestrator, 2026-10-05. Status: implementation in progress;
-not merged, pushed, deployed or verified complete.
+Byline: Codex, orchestrator, 2026-10-05. Status at 15:00 UTC: integration pushed
+to `codex/single-case-integration-20261005`; draft PR #2 is open. Not merged into
+main, deployed or verified complete.
+
+## Current checkpoint — supersedes the earlier progress snapshot below
+
+Parent tip `6bce74fc` preserves upstream `460826ad`, including Claude's working
+library, original-file aliases and sync reconciliation. Shared checkout changes
+were neither staged nor overwritten. PR: https://github.com/Cursedpotential/propria/pull/2.
+
+- Engine `6be314ef` integrated as `5f6485d7`: direct extraction corrections and
+  event marking require durable Live admission before any store call; context
+  review, foreshadowing and metadata overlays require the exact initial receipt
+  before beginning a transaction and recheck scope within it. Binding and repair
+  anchor readers reject court/receipt conflicts. Pre-import source context has
+  its own explicit Live spec and exact-pair guard before database access; a
+  nonexistent preview is not required and no later authority is inferred from
+  its ID or request digest.
+- Python `497378ba` / `69517c91` integrated as `7b2bd4cd` / `03031f6b`: fresh
+  authenticated authoritative header verification before chunk/promotion writes;
+  neutral configured pair must match the approved header. Exact legacy stored
+  flag-note replay is accepted only for the same key and full metadata with the
+  sole old/new operating-label difference. No duplicate insert or historical
+  rewrite is authorized.
+- Independently rerun combined Python suite: **331 passed, 5 existing skips**.
+- Source-pinned existing-VPS packet `engine-pass3` from `5c7dbc8a` passed
+  caseidentity, repairplan, postgres, runtimeapi, proffer, profferworker,
+  extraction commitcheck/entities/events/flow/librarysync/model/service and
+  Temporal/starter packages. The engine tree is unchanged between that packet
+  and `6bce74fc`. Libraryvalidation initially rejected a symlink interpreter;
+  rerun with a regular-file interpreter and the same pinned lxml/pypdf libraries
+  **passed**. Whole-suite combined acceptance, including Activities, is pending.
+- GitHub combined Workbench API run `37325292197` reported **620 passed,
+  22 failed**. This supersedes the isolated older 627-pass snapshot. Twenty-one
+  failures expose stale R2 acquisition expectations plus an active legacy upload
+  path; one is the pre-existing 300-line module-cap failure. They are not waived.
+- Separate owners are reconciling fresh UI uploads onto the existing canonical
+  Proffer stream, denying new retired-storage staging before I/O, preserving old
+  records, and updating positive B2/Live fixtures without weakening guards;
+  refactoring imported-read modules without changing behavior or the cap; and
+  making retained synthetic Go fixture paths portable on the VPS.
+
+## Current remaining acceptance gates
+
+1. Integrate the bounded Workbench upload/CI and portable-fixture commits.
+2. Run combined source-pinned suites; require Workbench CI green and independent
+   final review of direct guards, authoritative verification and rollout replay.
+3. Provision the verified neutral pair for Workbench, exec API and Python worker;
+   reuse the existing matching service credential. No credential rotation or
+   auth-policy change is needed. Automatic deployment stays disabled.
+4. Merge accepted source, manually deploy affected services through Coolify, and
+   verify served default/Dev/Live IDs, unknown-mode rejection and operation
+   receipt readback. No runtime deployment has been triggered by this lane.
+5. Actual user-facing clicks remain a separate gate. The existing server browser
+   is denied by Workbench's user boundary. Owner choice is pending: approve a
+   read-only existing-desktop-browser check or perform that check personally.
+6. Quarantine only this lane's owned source exports; preserve other agents'
+   worktrees and the concurrently dirty main checkout. No permanent deletion.
+
+The disposable Dev-data workspace and general feature-flag registry remain owed
+features. This bounded repair must not be presented as implementing either.
 
 ## Authority and invariant
 
@@ -10,7 +69,7 @@ approved case for Dev and Live, Live by default, separate feature flags. Do not
 restore the superseded D-126 placeholder/reset policy. The canonical decision
 is `docs/decisions/2026-10-05-single-case-operating-flags.md`.
 
-## Current owned lanes
+## Earlier lane/progress snapshot — retained for provenance, not current status
 
 - Engine: `codex/single-case-engine-20261005` worktree under `_worktrees/`;
   agent `single_case_engine_build_20261005`, engine source/tests only.
@@ -64,7 +123,7 @@ schema changes. Old/unverifiable bindings fail mutation authorization closed;
 mode is never inferred from matter ID. Dev canonical mutations fail before
 dispatch/persistence until isolated workspace implementation exists.
 
-## Remaining checklist
+## Earlier checklist — use the current acceptance gates above
 
 - Finish/commit each scoped builder, inspect allowlists and independent tests.
 - Audit mode propagation on every Case page write, not just header edits.
@@ -86,7 +145,7 @@ dispatch/persistence until isolated workspace implementation exists.
 - Save deployment/surface receipt; distinguish completion from local proof.
 - Disposable Dev data workspace remains a separate owed feature, not done.
 
-## Open review/verification checkpoints
+## Review invariants and earlier verification checkpoints
 
 - Durable missing mode must not default Live; fresh HTTP request omission may.
 - Workflow/batch direct entry must admit the exact approved pair before Activity.
