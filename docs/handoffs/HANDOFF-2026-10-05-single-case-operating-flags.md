@@ -14,17 +14,30 @@ is `docs/decisions/2026-10-05-single-case-operating-flags.md`.
 
 - Engine: `codex/single-case-engine-20261005` worktree under `_worktrees/`;
   agent `single_case_engine_build_20261005`, engine source/tests only.
-- Workbench: `codex/single-case-workbench-20261005`; agent
-  `single_case_workbench_fix_20261005`, Workbench source/tests only. Capacity
-  interrupted one turn; edits preserved and agent resumed.
+- Workbench: `codex/single-case-workbench-20261005`; recovery agent
+  `single_case_workbench_recovery_20261005`, Workbench source/tests only. Original
+  agent's model failed capacity twice; its edits were preserved in this worktree.
 - Legal consumer: `codex/single-case-legal-consumer-20261005`; bounded config,
   read-through, compose and tests. Agent reported 27 tests passing, then capacity
-  interrupted final lint/commit. Parent must independently verify and commit.
+  interrupted final lint/commit. Parent independently ran the 27 tests (all
+  passed in 0.96s), checked the diff and committed `e3f1c92a`; integrated as
+  `062184fa`. Independent review found no bounded Legal blocker. This remains
+  mocked consumer proof, not served-surface verification.
+- Promotion-review server: agent `single_case_promotion_server_20261005`,
+  `server/api/inspect_routes.py` and focused tests only; a newly found connected
+  promotion-flag endpoint still selects identity by old mode values.
+- Independent review: `single_case_independent_review_20261005`, read-only;
+  temporarily interrupted to free a builder slot. Resume after a builder finishes
+  for final combined review. Reported gaps are not accepted as resolved merely
+  because a builder started changing them.
 - Parent integration: `codex/single-case-integration-20261005`, root instructions,
   current decision/supersession, deployment manifest and serial integration.
 
-All began at verified `origin/main` commit
-`982cd942cf2324cf80a9fbd85631f271b16858cf`. Shared main is concurrently dirty,
+Initial engine/Workbench/Legal lanes began at verified `origin/main` commit
+`982cd942cf2324cf80a9fbd85631f271b16858cf`; promotion-server starts at refreshed
+`741a654ddcd89b05082a73ed3fe9e243b7d05250`. Parent integration merged that fresh
+origin (R2 acquisition retirement and toolkit ZIP source changes) as `9834e35b`.
+Root policy/neutral manifest commit is `0cbdaed9`. Shared main is concurrently dirty,
 including unrelated Family Court and engine Activity changes. Never reset,
 clean, stash, overwrite or stage those changes.
 
@@ -32,6 +45,7 @@ clean, stash, overwrite or stage those changes.
 
 Canonical `DEV`/`LIVE`, default Live. `operating_mode` is explicit in
 `POST /reference-import/start` and `GET /reference-import/operations/{handle}`.
+Batch start/child input also carries `operating_mode` explicitly.
 Engine persists it in initial preview-event detail and Temporal input without
 schema changes. Old/unverifiable bindings fail mutation authorization closed;
 mode is never inferred from matter ID. Dev canonical mutations fail before
@@ -44,8 +58,13 @@ dispatch/persistence until isolated workspace implementation exists.
 - Integrate serially in the parent worktree; preserve fresh origin/main changes.
 - Neutral Workbench env names and compose: `PROFFER_MATTER_ID` /
   `PROFFER_COURT_CASE_ID`; preserve approved pair and independent auth settings.
-- Durable owner decision in Docstore through governed capture/flag tools,
-  independently read back. Do not rewrite built-in memory files.
+- Durable owner decision is saved and independently read back: Docstore
+  `note:single_case_operating_flags_20261005`, document generation 1/hash
+  `d767660aa05c36d53ac8ee5f2e99f476a8d2e832ee7fe521d953a4880f6b78d3`,
+  critical owner-decision flag revision 1, active across eight domains. The
+  captured source document remains unapproved/unindexed; do not confuse the
+  critical owner flag with source-revision approval or semantic indexing.
+  Do not rewrite built-in memory files.
 - Push scoped integration and merge safely; automatic Coolify deployment stays
   off. Manually deploy affected starter, worker, Workbench and Legal services.
 - Read-only live probes through supported doors: same approved IDs for Dev,
@@ -53,6 +72,34 @@ dispatch/persistence until isolated workspace implementation exists.
   Prove Dev zero writes/dispatch in unit tests before any risky route probe.
 - Save deployment/surface receipt; distinguish completion from local proof.
 - Disposable Dev data workspace remains a separate owed feature, not done.
+
+## Open review/verification checkpoints
+
+- Durable missing mode must not default Live; fresh HTTP request omission may.
+- Workflow/batch direct entry must admit the exact approved pair before Activity.
+- Old Temporal histories need version/replay-compatible command preservation and
+  an execution fence on scheduled/retrying write Activities. Prove replay plus
+  zero Activity body calls for unknown/Dev mode; fresh workflow tests alone are
+  insufficient. No mass cancellation, purge or identity-derived inference.
+- Live extraction commit check must accept canonical LIVE; stale REAL fixtures
+  must not hide a regression. Header edits reject unrelated court children.
+- Case store/direct entry and every Case UI mutation retain explicit policy;
+  mobile and stale dialogs cannot silently force Live after an explicit Dev flag.
+- Neutral Workbench config is validated against the engine's authoritative
+  header; do not duplicate approved UUID constants in Python or trust arbitrary
+  configured UUIDs as approval.
+- Python promotion-review flag API must accept canonical wire values and stop
+  selecting identity by mode. This content-review flag is not a feature flag.
+
+## Verified server test runtime
+
+On 2026-10-05, existing ovh-files Coolify devbox container
+`devbox-pd3xc78ahqkfswq12bpfqgy1-145003736857` exposes
+`/usr/local/go/bin/go`, Go 1.27.1 linux/amd64. Host bind
+`/data/probata/volumes/devbox/root` is container `/root`; `/data/test_data` is not
+mounted. Use a fresh source-only test directory under
+`/root/single-case-flags-20261005/`, tracked-source archive and bounded concurrency.
+Never set integration-test DB DSNs, create a parallel stack or restart the host.
 
 ## Tool recall evidence and limitation
 
