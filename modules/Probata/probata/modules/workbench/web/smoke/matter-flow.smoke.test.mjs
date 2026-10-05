@@ -1,6 +1,7 @@
 // Byline: Codex · GPT-5 · 2026-08-15 (Matter promotion, custody, readiness, and review smoke)
 // Byline: Codex · GPT-5 · 2026-08-18 (third-party projection detail coverage)
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (Vite SPA harness and fixed-case shell)
+// Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 (canonical fresh upload; retired staged acquisition).
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -182,6 +183,7 @@ function matterDetail() {
   return {
     id: MATTER_A,
     matter_mode: "LIVE",
+    admitted_court_case_id: CASE_PRIMARY,
     title: "Matter Alpha",
     description: "Fixture Matter",
     status: "active",
@@ -219,25 +221,32 @@ function createFixtureServer({ advancedEvidenceAvailable = true, newRunFixture =
     try {
       const url = new URL(request.url, "http://fixture.local");
       let body = null;
-      if (newRunFixture && url.pathname === "/api/upload") {
-        for await (const chunk of request) { void chunk; }
+      if (newRunFixture && ["/api/upload", "/api/proffer/upload"].includes(url.pathname)) {
+        let byteLength = 0;
+        for await (const chunk of request) byteLength += chunk.length;
+        body = { byteLength };
       } else if (["POST", "PUT", "PATCH"].includes(request.method)) body = await bodyJson(request);
       requests.push({ method: request.method, path: url.pathname, search: url.search, body });
 
-      if (newRunFixture && url.pathname === "/api/upload") return json(response, 200, { id: SHA_A, name: "sms.xml", size: 42 });
+      if (newRunFixture && url.pathname === "/api/upload") return json(response, 410, { detail: "Legacy R2 upload is retired" });
+      if (newRunFixture && url.pathname === "/api/proffer/upload") {
+        assert.equal(url.searchParams.get("mode"), "LIVE");
+        assert.equal(request.headers["content-type"], "application/xml");
+        return json(response, 201, { acquisition_ref: `upload://${SHA_A}`, sha256: SHA_A,
+          byte_length: body.byteLength, matter_mode: "LIVE" });
+      }
 
       if (newRunFixture && url.pathname === "/api/files") {
         return json(response, 200, [{ id: SHA_A, name: "sms-real-route-test.xml", size: 42,
           mime: "application/xml", detected_type: "sms", status: "staged", r2_key: `workbench/staging/${SHA_A}/sms.xml` }]);
       }
       if (newRunFixture && url.pathname === "/api/proffer/sources") {
-        return json(response, 200, { matter_mode: "LIVE", active_root_id: "r2-sorted", objects: [], prefixes: [],
+        return json(response, 200, { matter_mode: "LIVE", active_root_id: "b2-vault", objects: [], prefixes: [],
           available_roots: [], available_file_types: [], selected_file_types: [], page_size: 100, is_truncated: false });
       }
       if (newRunFixture && url.pathname === `/api/proffer/staged/${SHA_A}/acquisition`) {
         assert.equal(url.searchParams.get("mode"), "LIVE");
-        return json(response, 201, { acquisition_ref: `r2://nexus/workbench/staging/${SHA_A}/sms.xml`,
-          sha256: SHA_A, byte_length: 42, matter_mode: "LIVE" });
+        return json(response, 409, { detail: "R2 staged acquisition is retired; re-upload the original through the current flow" });
       }
       if (newRunFixture && url.pathname === "/api/proffer/source-contexts") {
         assert.equal(body.matter_id, MATTER_A);
@@ -246,7 +255,7 @@ function createFixtureServer({ advancedEvidenceAvailable = true, newRunFixture =
         return json(response, 201, { source_context_ref: SOURCE_A, matter_mode: "LIVE" });
       }
       if (newRunFixture && url.pathname === "/api/proffer/start") {
-        assert.equal(body.source_ref, `r2://nexus/workbench/staging/${SHA_A}/sms.xml`);
+        assert.equal(body.source_ref, `upload://${SHA_A}`);
         assert.equal(body.parser_options_ref, "pending-handler-selection/v1");
         assert.equal(body.source_context_ref, SOURCE_A);
         assert.equal(body.engine, undefined);
@@ -697,7 +706,7 @@ test("Matter-bound Knowledge promotes and reviews one exact custody record", { t
   }
 });
 
-for (const inputKind of ["staged", "fresh"]) test(`New Run submits ${inputKind} SMS through Proffer and renders guided recovery`, { timeout: 60_000, skip: BROWSER_SKIP }, async () => {
+for (const inputKind of ["staged", "fresh"]) test(`New Run ${inputKind === "fresh" ? "streams fresh SMS and renders guided recovery" : "keeps historical staged SMS readable but requires re-upload"}`, { timeout: 60_000, skip: BROWSER_SKIP }, async () => {
   const fixture = createFixtureServer({ newRunFixture: true });
   await new Promise((accept) => fixture.server.listen(0, "127.0.0.1", accept));
   const profile = await quarantineProfile("new-run-browser-profile-");
@@ -720,6 +729,14 @@ for (const inputKind of ["staged", "fresh"]) test(`New Run submits ${inputKind} 
     }
     await waitFor(cdp, session, `Array.from(document.querySelectorAll('button')).some((button) => button.textContent.includes('Start Live context intake') && !button.disabled)`, "context start enabled");
     assert.equal(await evaluate(cdp, session, clickText("Start Live context intake")), true);
+    if (inputKind === "staged") {
+      await waitFor(cdp, session, `document.body.innerText.includes('re-upload the original')`, "retired staged guidance");
+      assert.equal(fixture.requests.some((request) => request.method === "POST" && request.path === "/api/proffer/start"), false);
+      assert.equal(fixture.requests.some((request) => request.method === "POST" && request.path === "/api/proffer/upload"), false);
+      assert.equal(fixture.requests.some((request) => request.method === "POST" && request.path === "/api/upload"), false);
+      assert.deepEqual(fixture.failures, []);
+      return;
+    }
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await waitFor(cdp, session, `document.body.innerText.includes('${attempt ? "Retry after second logged failure" : "Retry after logged automatic execution failure"}')`, "runtime handler guidance");
       await evaluate(cdp, session, `document.querySelector('input[name="parser-handler"]').click()`);
@@ -729,7 +746,8 @@ for (const inputKind of ["staged", "fresh"]) test(`New Run submits ${inputKind} 
     await waitFor(cdp, session, `document.body.innerText.includes('Fixture stop: execution is deliberately mocked')`, "Go preview result");
     assert.equal(fixture.requests.some((request) => request.method === "POST" && request.path === "/api/proffer/start"), true);
     assert.equal(fixture.requests.some((request) => request.method === "POST" && request.path === "/api/runs"), false);
-    assert.equal(fixture.requests.some((request) => request.method === "POST" && request.path === "/api/upload"), inputKind === "fresh");
+    assert.equal(fixture.requests.some((request) => request.method === "POST" && request.path === "/api/proffer/upload"), true);
+    assert.equal(fixture.requests.some((request) => request.method === "POST" && request.path === "/api/upload"), false);
     assert.equal(await evaluate(cdp, session, `document.querySelector('#run-custody-tier-select') === null`), true);
     assert.deepEqual(fixture.failures, []);
   } finally {

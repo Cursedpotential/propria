@@ -226,7 +226,7 @@ def test_handler_choice_outside_current_recommendation_never_posts(monkeypatch) 
     assert calls == ["GET"]
 
 
-def test_source_context_mode_is_validated_but_not_forwarded_upstream(monkeypatch) -> None:
+def test_source_context_mode_is_validated_and_forwarded_explicitly_upstream(monkeypatch) -> None:
     class Response:
         def json(self):
             return {
@@ -249,7 +249,7 @@ def test_source_context_mode_is_validated_but_not_forwarded_upstream(monkeypatch
             "request_id": "request-1",
             "matter_id": TEST_MATTER_ID,
             "court_case_id": TEST_COURT_CASE_ID,
-            "source_ref": "r2://casebible-raw/source.xml",
+            "source_ref": "b2://salem-data/consignatio/casevault/source.xml",
             "observed_source": {
                 "key": "source.xml",
                 "name": "source.xml",
@@ -268,7 +268,26 @@ def test_source_context_mode_is_validated_but_not_forwarded_upstream(monkeypatch
 
     assert receipt.matter_mode == "LIVE"
     assert "matter_mode" not in captured["kwargs"]["json"]
+    assert captured["kwargs"]["json"]["operating_mode"] == "LIVE"
     assert captured["kwargs"]["json"]["matter_id"] == TEST_MATTER_ID
+    headers = captured["kwargs"]["headers"]
+    assert headers["X-authentik-uid"] == actor.subject_uid
+    assert headers["X-authentik-username"] == actor.username
+    key = headers["Idempotency-Key"]
+    assert key.startswith("proffer-source-context:")
+    asyncio.run(source_context.create_source_context(body, actor, mode="LIVE"))
+    assert captured["kwargs"]["headers"]["Idempotency-Key"] == key
+    before = dict(captured)
+    with pytest.raises(proffer.ProfferError) as denied:
+        asyncio.run(source_context.create_source_context(body.model_copy(update={"matter_mode": "DEV"}), actor, mode="DEV"))
+    assert denied.value.status_code == 409
+    assert captured == before
+    for changed in ({"matter_mode": "DEV"}, {"matter_id": "99999999-9999-4999-8999-999999999999"},
+                    {"court_case_id": "99999999-9999-4999-8999-999999999999"}):
+        with pytest.raises(proffer.ProfferError) as mismatched:
+            asyncio.run(source_context.create_source_context(body.model_copy(update=changed), actor, mode="LIVE"))
+        assert mismatched.value.status_code == 409
+        assert captured == before
 
 
 def test_preview_exposes_complete_content_backed_recommendation() -> None:

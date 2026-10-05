@@ -155,7 +155,7 @@ def test_service_preserves_exact_upstream_contract(monkeypatch) -> None:
                 request_id="r1",
                 matter_id=MATTER_ID,
                 court_case_id=COURT_CASE_ID,
-                source_ref="r2://casebible-sorted/intake/source.pdf",
+                source_ref="b2://salem-data/consignatio/casevault/intake/source.pdf",
                 declared_format="pdf",
                 parser_options_ref="opts-1",
                 matter_mode="LIVE",
@@ -167,7 +167,7 @@ def test_service_preserves_exact_upstream_contract(monkeypatch) -> None:
     assert result.preview_handle == PREVIEW_HANDLE
     assert captured["method"] == "POST"
     assert captured["path"] == "/reference-import/start"
-    assert captured["kwargs"]["json"]["source_ref"] == "r2://casebible-sorted/intake/source.pdf"
+    assert captured["kwargs"]["json"]["source_ref"] == "b2://salem-data/consignatio/casevault/intake/source.pdf"
     assert captured["kwargs"]["json"]["matter_id"] == MATTER_ID
     assert captured["kwargs"]["json"]["court_case_id"] == COURT_CASE_ID
     assert "matter_mode" not in captured["kwargs"]["json"]
@@ -732,7 +732,7 @@ def test_start_rejects_malformed_matter_uuid() -> None:
         raise AssertionError("malformed matter_id must be rejected")
 
 
-def test_start_accepts_only_upload_or_allowlisted_casebible_r2_scope() -> None:
+def test_start_accepts_only_upload_or_configured_b2_and_rejects_retired_r2_scope() -> None:
     common = {
         "request_id": "r1",
         "matter_id": "00000000-0000-0000-0000-000000000001",
@@ -744,27 +744,21 @@ def test_start_accepts_only_upload_or_allowlisted_casebible_r2_scope() -> None:
     upload_ref = f"upload://{'a' * 64}"
     assert ProfferStartRequest(source_ref=upload_ref, **common).source_ref == upload_ref
     assert (
-        ProfferStartRequest(source_ref="r2://casebible-sorted/folder/source.pdf", **common).source_ref
-        == "r2://casebible-sorted/folder/source.pdf"
-    )
-    assert (
-        ProfferStartRequest(source_ref="r2://casebible-raw/source.xml", **common).source_ref
-        == "r2://casebible-raw/source.xml"
-    )
-    assert (
-        ProfferStartRequest(source_ref="r2://casebible-quarantine/source.zip", **common).source_ref
-        == "r2://casebible-quarantine/source.zip"
+        ProfferStartRequest(source_ref="b2://salem-data/consignatio/casevault/folder/source.pdf", **common).source_ref
+        == "b2://salem-data/consignatio/casevault/folder/source.pdf"
     )
     for forbidden in (
         "file:///etc/passwd",
         "b2://casebible-sorted/source.pdf",
         "r2://another-bucket/source.pdf",
+        "r2://casebible-raw/source.xml",
+        "r2://casebible-quarantine/source.zip",
         "r2://casebible-sorted/../source.pdf",
     ):
         try:
             ProfferStartRequest(source_ref=forbidden, **common)
         except ValidationError as error:
-            assert "configured source root" in str(error)
+            assert "configured source root" in str(error) or "retired" in str(error)
         else:
             raise AssertionError(f"forbidden source scope accepted: {forbidden}")
 

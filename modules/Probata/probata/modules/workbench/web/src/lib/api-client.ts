@@ -7,6 +7,7 @@
 // Byline: Codex · GPT-5 · 2026-08-28 (proffer workflow (formerly Universal Import Workflow) client)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25 (run source-context read-back for Review Actions)
 // Byline: Claude Code · Opus 5.5 · 2026-09-26 (repair workflow builder client; ApiError keeps its body)
+// Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 (raw canonical upload receipts; retired R2 writer).
 /**
  * API client for the Knowledge Workbench.
  *
@@ -629,10 +630,61 @@ export async function getCaseManagementCapabilities() {
 // proffer workflow (formerly Universal Import Workflow) — production acquisition and decision boundary
 // ---------------------------------------------------------------------------
 
-export async function uploadProfferSource(file: File, mode: MatterMode) {
-  // Existing authenticated server ingress writes Nexus; only the server authors its acquisition reference.
-  const staged = await uploadFile(file);
-  return acquireStagedProfferSource(staged.id, mode);
+/** Upload original bytes through the bounded canonical acquisition stream.
+ * Inputs: file, selected policy and optional progress callback. Output: verified upload receipt.
+ * Effects: authenticated same-origin POST; no R2 staging or multipart wrapper.
+ * Pick for fresh local sources; historic staged acquisition is retired.
+ */
+export function uploadProfferSource(
+  file: File,
+  mode: MatterMode,
+  onProgress?: (percent: number) => void,
+): Promise<ProfferUploadResponse> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result: ProfferUploadResponse = JSON.parse(xhr.responseText);
+          if (result.matter_mode !== mode || !/^[a-f0-9]{64}$/.test(result.sha256)
+              || result.acquisition_ref !== `upload://${result.sha256}`
+              || result.byte_length !== file.size) {
+            reject(new ApiError("Upload receipt did not confirm the exact bytes and selected operating policy", 502));
+            return;
+          }
+          resolve(result);
+        } catch {
+          reject(new ApiError("Malformed response from server", xhr.status));
+        }
+      } else {
+        try {
+          const body = JSON.parse(xhr.responseText);
+          reject(new ApiError(body.detail || `Upload failed: ${xhr.status}`, xhr.status));
+        } catch {
+          reject(new ApiError(`Upload failed: ${xhr.status}`, xhr.status));
+        }
+      }
+    });
+
+    xhr.addEventListener("error", () =>
+      reject(new ApiError("Network error — check your connection", 0)),
+    );
+    xhr.addEventListener("abort", () =>
+      reject(new ApiError("Upload aborted", 0)),
+    );
+
+    xhr.open("POST", `${API_BASE}/api/proffer/upload?mode=${encodeURIComponent(mode)}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.send(file);
+  });
 }
 
 export function acquireStagedProfferSource(stagedId: string, mode: MatterMode) {
@@ -1155,49 +1207,12 @@ export async function cancelMonitoredAction(actionId: string) {
   });
 }
 
-/** Upload a file with progress reporting (non-streaming — one JSON response). */
-export function uploadFile(
-  file: File,
-  onProgress?: (percent: number) => void,
-): Promise<UploadResponse> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
-    formData.append("file", file);
-
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable && onProgress) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    });
-
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch {
-          reject(new ApiError("Malformed response from server", xhr.status));
-        }
-      } else {
-        try {
-          const body = JSON.parse(xhr.responseText);
-          reject(new ApiError(body.detail || `Upload failed: ${xhr.status}`, xhr.status));
-        } catch {
-          reject(new ApiError(`Upload failed: ${xhr.status}`, xhr.status));
-        }
-      }
-    });
-
-    xhr.addEventListener("error", () =>
-      reject(new ApiError("Network error — check your connection", 0)),
-    );
-    xhr.addEventListener("abort", () =>
-      reject(new ApiError("Upload aborted", 0)),
-    );
-
-    xhr.open("POST", `${API_BASE}/api/upload`);
-    xhr.send(formData);
-  });
+/** Refuse the retired staging client without sending bytes.
+ * Inputs: former file/progress arguments. Output: rejected 410 promise. Effects: none.
+ * Pick uploadProfferSource with explicit policy for new bounded acquisitions.
+ */
+export function uploadFile(_file: File, _onProgress?: (percent: number) => void): Promise<UploadResponse> {
+  return Promise.reject(new ApiError("Legacy R2 upload is retired; use the current upload flow", 410));
 }
 
 // Byline: Codex · 2026-09-20. Read-only pre-ingest catalog discovery.

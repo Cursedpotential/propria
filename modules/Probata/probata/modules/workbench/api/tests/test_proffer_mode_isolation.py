@@ -240,7 +240,7 @@ def test_operation_binding_recovers_mode_without_identity_inference(monkeypatch)
 
 def _start():
     return ProfferStartRequest(request_id="one", matter_id=MATTER, court_case_id=COURT,
-                               source_ref="r2://casebible-raw/source.xml", declared_format="xml",
+                               source_ref="b2://salem-data/consignatio/casevault/source.xml", declared_format="xml",
                                parser_options_ref="parser-options://default")
 
 
