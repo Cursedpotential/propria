@@ -1,7 +1,9 @@
 // Byline: Codex · GPT-6.1 · 2026-10-04.
+// Pinned-byte media admission follow-up: Codex · GPT-6.1 · 2026-10-05.
 package librarysync
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -9,9 +11,12 @@ import (
 	"encoding/json"
 	"errors"
 	"mime"
+	"net/http"
+	"path"
 	"reflect"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Cursedpotential/probata/engine/extraction/libraryvalidation"
 )
@@ -201,20 +206,35 @@ func (s *Service) RetainSource(ctx context.Context, h Handle) (Handle, error) {
 	return Handle{Ref: r, Status: o.Status, Code: o.Code}, err
 }
 
-// ExtractSource invokes only the existing pinned PDF/HTML extractor and retains its full input-bound evidence outside history.
-// Inputs: retained source handle; outputs: descriptor. Effects: existing parser and derivative retention; no NIM or currency inference.
+// ExtractSource verifies source media from pinned bytes and invokes only the existing PDF/HTML extractor when supported.
+// Inputs: retained source handle; outputs: input-bound media/extraction descriptor. Effects: retained read/parser/descriptor retention; no NIM or currency inference.
+// Generic/missing provider MIME is inferred only with a safe matching extension and byte check; original provider MIME and complete bytes remain unchanged.
 func (s *Service) ExtractSource(ctx context.Context, h Handle) (Handle, error) {
 	var o Observation
 	if err := s.unseal(ctx, h.Ref, "observation", &o); err != nil {
 		return Handle{}, err
 	}
 	if o.Status == Pending && o.RawRef != nil {
-		media, _, mediaErr := mime.ParseMediaType(o.Object.ContentType)
-		if mediaErr != nil {
-			media = ""
+		raw, readErr := s.Artifacts.Read(ctx, *o.RawRef, libraryvalidation.MaxSourceBytes)
+		if readErr != nil || int64(len(raw)) != o.Object.Size || digest(raw) != o.Object.SHA256 || o.RawRef.Bytes != o.Object.Size || strings.TrimPrefix(o.RawRef.SHA256, "sha256:") != o.Object.SHA256 {
+			o.Status = Blocked
+			o.Code = "MEDIA_INPUT_BINDING_FAILED"
+			return s.sealObservationExtraction(ctx, o)
 		}
+		media, mediaErr := verifiedSourceMedia(o.Object, raw)
+		if mediaErr != nil {
+			o.Status = Blocked
+			o.Code = "UNSUPPORTED_OR_INVALID_SOURCE_MEDIA"
+			return s.sealObservationExtraction(ctx, o)
+		}
+		evidence := sourceExtractionEvidence{Original: o.Object, Raw: *o.RawRef, ProviderContentType: o.Object.ContentType, VerifiedMediaType: media, MediaCheckVersion: "librarysync-media/1", InputSHA256: o.Object.SHA256, SourceVersionID: o.Object.VersionID}
 		switch media {
 		case "application/json", "text/markdown", "text/plain":
+			r, err := s.seal(ctx, "extraction", o.ObservationID+"/media", evidence)
+			if err != nil {
+				return Handle{}, err
+			}
+			o.ExtractionRef = &r
 			o.Status = CitationRequired
 		case "application/pdf", "text/html", "application/xhtml+xml":
 			if s.Extractor == nil {
@@ -232,11 +252,8 @@ func (s *Service) ExtractSource(ctx context.Context, h Handle) (Handle, error) {
 				o.Code = "EXTRACTOR_INPUT_BINDING_FAILED"
 				break
 			}
-			r, err := s.seal(ctx, "extraction", o.ObservationID+"/extraction", struct {
-				Original  Object                        `json:"original"`
-				Raw       libraryvalidation.ArtifactRef `json:"raw"`
-				Extracted libraryvalidation.Extracted   `json:"extracted"`
-			}{o.Object, *o.RawRef, x})
+			evidence.Extracted = &x
+			r, err := s.seal(ctx, "extraction", o.ObservationID+"/extraction", evidence)
 			if err != nil {
 				return Handle{}, err
 			}
@@ -247,8 +264,86 @@ func (s *Service) ExtractSource(ctx context.Context, h Handle) (Handle, error) {
 			o.Code = "UNSUPPORTED_EXTRACTOR_FORMAT"
 		}
 	}
+	return s.sealObservationExtraction(ctx, o)
+}
+
+type sourceExtractionEvidence struct {
+	Original            Object                        `json:"original"`
+	Raw                 libraryvalidation.ArtifactRef `json:"raw"`
+	Extracted           *libraryvalidation.Extracted  `json:"extracted,omitempty"`
+	ProviderContentType string                        `json:"provider_content_type"`
+	VerifiedMediaType   string                        `json:"verified_media_type"`
+	MediaCheckVersion   string                        `json:"media_check_version"`
+	InputSHA256         string                        `json:"input_sha256"`
+	SourceVersionID     string                        `json:"source_version_id"`
+}
+
+func (s *Service) sealObservationExtraction(ctx context.Context, o Observation) (Handle, error) {
 	r, err := s.seal(ctx, "observation", o.ObservationID+"/extracted", o)
 	return Handle{Ref: r, Status: o.Status, Code: o.Code}, err
+}
+
+// verifiedSourceMedia admits supported media using complete pinned bytes without changing provider provenance.
+// Inputs: admitted exact object and hash-verified bytes; outputs: effective extractor media or error. Effects: none, no parsing or legal verification.
+// Choose only for extraction routing; generic/missing MIME additionally requires a safe declared file extension.
+func verifiedSourceMedia(obj Object, raw []byte) (string, error) {
+	if !safeKey(obj.Key) {
+		return "", errors.New("invalid media source key")
+	}
+	media := ""
+	if strings.TrimSpace(obj.ContentType) != "" {
+		var err error
+		media, _, err = mime.ParseMediaType(obj.ContentType)
+		if err != nil {
+			return "", errors.New("invalid provider media")
+		}
+	}
+	if media == "" || media == "application/octet-stream" || media == "binary/octet-stream" {
+		switch strings.ToLower(path.Ext(obj.Key)) {
+		case ".pdf":
+			media = "application/pdf"
+		case ".md":
+			media = "text/markdown"
+		case ".json":
+			media = "application/json"
+		case ".html", ".htm":
+			media = "text/html"
+		case ".xhtml":
+			media = "application/xhtml+xml"
+		default:
+			return "", errors.New("unsupported generic source extension")
+		}
+	}
+	validText := utf8.Valid(raw) && !bytes.ContainsRune(raw, '\x00')
+	switch media {
+	case "application/pdf":
+		if !bytes.HasPrefix(raw, []byte("%PDF-")) {
+			return "", errors.New("PDF signature absent")
+		}
+	case "application/json":
+		if !validText || !json.Valid(raw) {
+			return "", errors.New("JSON syntax invalid")
+		}
+	case "text/markdown", "text/plain":
+		if !validText {
+			return "", errors.New("source text is not UTF-8")
+		}
+	case "text/html", "application/xhtml+xml":
+		prefix := bytes.TrimSpace(bytes.TrimPrefix(raw, []byte{0xef, 0xbb, 0xbf}))
+		if !validText || !strings.HasPrefix(http.DetectContentType(prefix), "text/html") {
+			// XHTML may begin with an XML declaration; its root must be HTML before invoking the existing extractor.
+			if media != "application/xhtml+xml" || !validText || !bytes.HasPrefix(prefix, []byte("<?xml")) {
+				return "", errors.New("HTML signature absent")
+			}
+			end := bytes.Index(prefix, []byte("?>"))
+			if end < 0 || !strings.HasPrefix(http.DetectContentType(bytes.TrimSpace(prefix[end+2:])), "text/html") {
+				return "", errors.New("XHTML root absent")
+			}
+		}
+	default:
+		return "", errors.New("unsupported provider media")
+	}
+	return media, nil
 }
 
 // StageObservation submits only retained evidence references to existing guarded backend import/proposal gates.
