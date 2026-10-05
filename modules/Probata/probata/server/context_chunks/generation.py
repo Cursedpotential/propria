@@ -43,6 +43,12 @@ from server.context_chunks.source import Resolver, _dedupe
 SELF = "self"
 RESOLUTION_BASIS = "owner_participant:v1"
 _IGNORED_PARTIES = {"", "null", "insert-address-token", SELF}
+# Closed formats shared with engine/contextsearch.IsAIChatFormat; they belong to the AI per-record lane.
+_AI_CHAT_FORMATS = frozenset({
+    "chatgpt_official_json", "chatgpt_json_array", "chatgpt_conversations_json",
+    "claude_conversations_json", "gemini_activity_json", "ai_markdown_transcript",
+    "ai_generic_json", "ai_conversations_json", "ai_chat_file",
+})
 
 
 # ------------------------------------------------------------------ ports of the Go rules
@@ -125,11 +131,17 @@ class GenerationSource:
     """Threads and the call-log file of ONE normalized generation, read-only, before anything is committed."""
 
     def __init__(self, conn: Connection, generation_id: str, resolution_id: str = "", matches_id: str = ""):
+        """Bind a normalized generation only after proving it belongs to the human chunk lane.
+
+        Inputs: database and generation/optional resolution/match refs; output: a read-only source or a bounded error.
+        Effects: source/raw provenance read. Choose before planning or publishing, including publisher resume checks.
+        """
         self._c, self.generation_id = conn, generation_id
         self._resolution_id, self._matches_id = resolution_id, matches_id
         self._threads: dict[ThreadRef, Thread] | None = None
         self._calls: CallFile | None = None
         self._resolver: Resolver | None = None
+        self._assert_human_generation()
 
     # -- receipts ------------------------------------------------------
     def resolution(self) -> dict[str, Any] | None:
@@ -190,6 +202,27 @@ class GenerationSource:
         return (row[0], row[1]) if row else (person_id, None)
 
     # -- loading ---------------------------------------------------------
+    def _assert_human_generation(self) -> None:
+        """Reject verified AI provenance before reading records or resolving any human identities.
+
+        Inputs: this source's generation id and database connection; output: none or a bounded lookup/value error.
+        Effects: one read-only provenance query. Choose for every direct chunk/publish entry, independent of request labels.
+        """
+        row = self._c.execute(
+            text(
+                "SELECT sv.declared_format, coalesce(raw.format_id, '') "
+                "FROM context.normalized_generation generation "
+                "JOIN context.raw_generation raw ON raw.id = generation.raw_generation_id "
+                "JOIN context.source_version sv ON sv.id = generation.source_version_id "
+                "WHERE generation.id = CAST(:g AS uuid)"
+            ),
+            {"g": self.generation_id},
+        ).one_or_none()
+        if row is None:
+            raise LookupError("the normalized generation has no retained source/raw provenance")
+        if any(str(value or "").strip().lower() in _AI_CHAT_FORMATS for value in row):
+            raise ValueError("AI chat generations use the AI per-record search lane, not human conversation chunks")
+
     def _records(self) -> list[dict[str, Any]]:
         rows = (
             self._c.execute(

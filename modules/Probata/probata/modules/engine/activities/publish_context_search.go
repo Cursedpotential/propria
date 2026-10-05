@@ -17,11 +17,13 @@
 // AiChatEvents20260918, documents -> DocEvents20261001; any other kind fails
 // closed. Probata's objects are told apart by origin_system and by run id.
 //
-// The disclosure tier is the application's one rule (engine/disclosure, owner
+// For human messages and calls, the disclosure tier is the application's one rule (engine/disclosure, owner
 // 2026-10-02): contemporaneous when the owner took part in the record,
 // discovered when he did not. It reads the run's participant resolution
 // (resolve_context_participants_activity) by reference and never re-resolves,
 // so this stage and the first-party commit cannot disagree.
+// Verified AI sources preserve their normalized source dates and role labels in the AI collection,
+// without a human participant resolution, disclosure tier or disclosure basis (ADR-0053 neutral AI landing).
 //
 // It follows the split this package already established (normalized_pipeline.go,
 // entity_extraction.go): the Activity validates and converts compact
@@ -37,7 +39,7 @@
 //
 // It writes NO canonical PostgreSQL rows; its only PostgreSQL write is its own
 // receipt in context.activity_receipt. It carries occurred_at, knowledge_time
-// and disclosure_tier and applies NO horizon filter.
+// and human disclosure_tier and applies NO horizon filter.
 //
 // Byline: Claude Code · Opus 5 · 2026-09-26
 // Byline: Claude Code · Opus 5.5 · 2026-10-01 (builds; embedder; MsgEvents20260918)
@@ -84,7 +86,7 @@ type PublishContextSearchSpec struct {
 	// ExtractionAttemptRef is carried into every object's provenance.
 	ExtractionAttemptRef proffer.Ref
 	// ParticipantResolutionRef is the run's one participant resolution
-	// (resolve_context_participants_activity). Required.
+	// (resolve_context_participants_activity). Required for human sources; verified AI sources omit it.
 	ParticipantResolutionRef proffer.Ref
 	// OwnerPersonRef and PerspectivePersonRef are the run's explicit person
 	// ids; when given they must match the resolution's.
@@ -132,7 +134,6 @@ func (s PublishContextSearchSpec) validate() error {
 		{"normalized generation", s.NormalizedGenerationRef},
 		{"normalized verification", s.NormalizedVerificationRef},
 		{"extraction attempt", s.ExtractionAttemptRef},
-		{"participant resolution", s.ParticipantResolutionRef},
 	} {
 		if strings.TrimSpace(string(field.ref)) == "" {
 			return fmt.Errorf("%s requires a %s reference", stagegraph.PublishContextSearch, field.name)
@@ -320,6 +321,7 @@ func publishContextSearchSpecFrom(req proffer.StageRequest, attempt int32) (Publ
 		RequestID: req.RequestID, Attempt: attempt, SourceVersionRef: req.SourceVersionRef,
 		OwnerPersonRef: req.Refs["owner_person"], PerspectivePersonRef: req.Refs["perspective_person"],
 		MessageMatchesRef: req.Refs["message_matches"], SkipRecordKinds: skip,
+		ParticipantResolutionRef: req.Refs["participant_resolution"],
 	}
 	for _, field := range []struct {
 		name   string
@@ -328,7 +330,6 @@ func publishContextSearchSpecFrom(req proffer.StageRequest, attempt int32) (Publ
 		{"normalized_generation", &spec.NormalizedGenerationRef},
 		{"normalized_verification", &spec.NormalizedVerificationRef},
 		{"extraction_attempt", &spec.ExtractionAttemptRef},
-		{"participant_resolution", &spec.ParticipantResolutionRef},
 	} {
 		ref, ok := req.Refs[field.name]
 		if !ok || strings.TrimSpace(string(ref)) == "" {
@@ -366,12 +367,18 @@ func (a PublishContextSearchActivities) PublishContextSearch(ctx context.Context
 		return proffer.StageResult{}, errors.New("context search plan carries no record reader")
 	}
 	defer plan.Reader.Close()
-	if err := checkResolutionMatchesRun(plan.Resolution, spec); err != nil {
-		return proffer.StageResult{}, err
+	aiChat := contextsearch.IsAIChatFormat(plan.Provenance.SourceFormat) || contextsearch.IsAIChatFormat(plan.FormatID)
+	if !aiChat {
+		if spec.ParticipantResolutionRef == "" {
+			return proffer.StageResult{}, errors.New("human context search requires a participant resolution reference")
+		}
+		if err := checkResolutionMatchesRun(plan.Resolution, spec); err != nil {
+			return proffer.StageResult{}, err
+		}
 	}
 
 	matched := map[string]bool{}
-	if spec.MessageMatchesRef != "" {
+	if !aiChat && spec.MessageMatchesRef != "" {
 		if a.Matches == nil {
 			return proffer.StageResult{}, errors.New("the run passes a message match-up receipt but this worker has no reader for it")
 		}
@@ -424,6 +431,9 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 	}
 	ensured := map[string]bool{}
 	aiChat := contextsearch.IsAIChatFormat(plan.Provenance.SourceFormat) || contextsearch.IsAIChatFormat(plan.FormatID)
+	if aiChat {
+		outcome.DisclosureBasis = ""
+	}
 	resolution := plan.Resolution
 	page := make([]contextsearch.Object, 0, publishContextSearchPageSize)
 
@@ -484,7 +494,9 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 			outcome.Published += result.Written
 			outcome.VectorsPublished += result.Written
 			for _, object := range objects {
-				outcome.Tiers[object.Temporal.DisclosureTier]++
+				if object.Temporal.DisclosureTier != "" {
+					outcome.Tiers[object.Temporal.DisclosureTier]++
+				}
 			}
 		}
 		page = page[:0]
@@ -503,7 +515,7 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 		if err != nil {
 			return outcome, fmt.Errorf("read context search record: %w", err)
 		}
-		if matched[strings.ToLower(record.RowID.String())] {
+		if !aiChat && matched[strings.ToLower(record.RowID.String())] {
 			outcome.SkippedMatched++
 			continue
 		}
@@ -580,7 +592,9 @@ func statedParticipants(record ContextSearchRecord) (string, []string) {
 	return sender, recipients
 }
 
-// contextSearchObjectFrom converts one record into a validated search object.
+// contextSearchObjectFrom converts one verified record into a source-linked search object.
+// Inputs: persisted plan, normalized record, attempt refs and source classification. Output: validated human or neutral AI object.
+// Effects: none. Choose for per-record publication; human resolution remains required and AI roles are copied verbatim.
 //
 // The dedup discriminator is the record's ordinal within its source version:
 // the normalizer is 1:1 and order-preserving over the raw records
@@ -599,17 +613,31 @@ func contextSearchObjectFrom(record ContextSearchRecord, plan ContextSearchPlan,
 		return contextsearch.Object{}, fmt.Errorf("context search record %s: %w", record.RowID, err)
 	}
 	provenance := plan.Provenance
+	provenance.RawFormatID = plan.FormatID
 	provenance.Attempt = spec.Attempt
 	provenance.RequestID = spec.RequestID
 	provenance.ExtractionAttemptRef = string(spec.ExtractionAttemptRef)
 
-	sender, recipients := statedParticipants(record)
-	_, tier, basis, err := resolution.ForMessage(sender, recipients)
-	if err != nil {
-		return contextsearch.Object{}, fmt.Errorf("context search record %s: %w", record.RowID, err)
+	var tier, basis string
+	if !aiChat {
+		if resolution == nil {
+			return contextsearch.Object{}, errors.New("human context search requires participant resolution")
+		}
+		sender, recipients := statedParticipants(record)
+		_, tier, basis, err = resolution.ForMessage(sender, recipients)
+		if err != nil {
+			return contextsearch.Object{}, fmt.Errorf("context search record %s: %w", record.RowID, err)
+		}
 	}
 
 	people := contextSearchPeople(record.Participants)
+	if aiChat {
+		for _, participant := range record.Participants {
+			if participant.Role != "" {
+				people.RoleLabels = append(people.RoleLabels, participant.Role)
+			}
+		}
+	}
 	object := contextsearch.Object{
 		DedupKey:    dedupKey,
 		Coordinates: coordinates,

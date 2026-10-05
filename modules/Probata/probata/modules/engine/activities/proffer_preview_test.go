@@ -41,7 +41,7 @@ func TestPreviewProjectionActivityPublishesReferenceOnlyRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Ref != "opaque-handle" || got.Stage != stagegraph.PublishPreview || store.got.NormalizedGenerationRef != request.NormalizedGenerationRef {
-		t.Fatalf("result=%q request=%+v", got, store.got)
+		t.Fatalf("result=%+v request=%+v", got, store.got)
 	}
 }
 

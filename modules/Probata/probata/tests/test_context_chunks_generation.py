@@ -16,6 +16,7 @@ from server.context_chunks.generation import (
     normalize_party,
     owner_took_part,
     parse_parties,
+    _AI_CHAT_FORMATS,
 )
 from server.context_chunks.model import CORPUS_FIRST_PARTY, CORPUS_THIRD_PARTY, ThreadRef
 from server.context_chunks.service import build_chunk_objects, plan_thread
@@ -124,6 +125,7 @@ def _msg(i, sender, recipients, body, *, minutes=0, rtype="message", svid="sv-1"
 
 def _source(records, *, matches=None, resolution=RESOLUTION):
     answers = {
+        "FROM context.normalized_generation generation": [("smsbackuprestore_xml", "smsbackuprestore_xml")],
         "FROM context.normalized_record_identity": records,
         "FROM registry.vw_case_identifier": [
             {"entity_id": "partner", "display_name": "Katrina Kinzel", "identifier": "8105550199", "kind": "phone"},
@@ -194,3 +196,29 @@ def test_messages_already_held_by_an_earlier_source_are_left_out_and_a_calls_onl
     assert only_calls.all_threads() == [] and only_calls.call_source_versions() == ["sv-1"]
     with pytest.raises(LookupError):
         _source(records, resolution=None).all_threads()  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("format_id", sorted(_AI_CHAT_FORMATS))
+@pytest.mark.parametrize("raw_only", [False, True])
+def test_ai_generation_is_refused_before_human_resolution_or_publisher_resume(format_id, raw_only):
+    """Reject declared/raw AI formats at source binding, before any records, registry or publisher are accessed.
+
+    Inputs: synthetic persisted format rows; outputs: assertions. Effects: in-memory SQL fixture only.
+    Choose to cover direct Activity/publisher construction independent of Go workflow dispatch.
+    """
+    formats = ("json", format_id) if raw_only else (format_id, "generic_message")
+    conn = _Conn({"FROM context.normalized_generation generation": [formats]})
+    with pytest.raises(ValueError, match="AI chat generations"):
+        GenerationSource(conn, GEN, "stale-human-resolution", "stale-human-match")  # type: ignore[arg-type]
+
+
+def test_human_generation_requires_real_provenance_and_keeps_missing_resolution_gate():
+    """Preserve human source lookup and resolution requirements when no AI classification is verified.
+
+    Inputs: absent provenance or normal SMS records; outputs: assertions. Effects: in-memory fixtures only.
+    Choose as the strict-human regression counterpart of the AI direct-publisher boundary.
+    """
+    with pytest.raises(LookupError, match="no retained source/raw provenance"):
+        GenerationSource(_Conn({"FROM context.normalized_generation generation": []}), GEN)  # type: ignore[arg-type]
+    with pytest.raises(LookupError, match="no participant resolution"):
+        _source([_msg(1, "user", ["assistant"], "human record labels do not classify sources")], resolution=None).all_threads()
