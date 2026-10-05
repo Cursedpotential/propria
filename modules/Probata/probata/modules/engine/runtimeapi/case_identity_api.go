@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 //
 // Case identity routes on the Proffer starter: the registry read behind the
@@ -130,6 +131,14 @@ func (h *CaseIdentityHTTPHandler) lookup(w http.ResponseWriter, r *http.Request)
 // write decodes one bounded body, binds the actor, validates and persists.
 func caseWrite[T any](h *CaseIdentityHTTPHandler, w http.ResponseWriter, r *http.Request, validate func(T) error,
 	persist func(T, caseidentity.Actor) (caseidentity.Receipt, error)) {
+	mode, ok := caseMode(w, r)
+	if !ok {
+		return
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return
+	}
 	var body T
 	if err := decodeOverlayJSON(w, r, &body); err != nil {
 		previewError(w, http.StatusBadRequest, err)

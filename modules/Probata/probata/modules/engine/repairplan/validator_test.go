@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package repairplan
@@ -50,21 +51,21 @@ func (f *fakeAnchors) ResolveAnchor(_ context.Context, sourceRef, handle string)
 
 func testAnchor() Anchor {
 	return Anchor{
-		PreviewHandle: testHandle, RequestID: "req-1", WorkflowID: "req-1", SourceRef: testSource,
+		OperatingMode: ModeLive, PreviewHandle: testHandle, RequestID: "req-1", WorkflowID: "req-1", SourceRef: testSource,
 		SourceVersionID: "0199aaaa-0000-7000-8000-000000000001", DeclaredFormat: "smsbackuprestore_xml",
 		ParserOptionsRef: "pending-handler-selection/v1", MatterID: testMatter, CourtCaseID: testCourt,
 		RepairDetection: json.RawMessage(liveDetection), RepairReport: json.RawMessage(truncatedReport),
 	}
 }
 
-func testModes(matterID, courtCaseID string) (string, bool) {
+func testModes(matterID, courtCaseID string) bool {
 	switch {
 	case matterID == testMatter && courtCaseID == testCourt:
-		return ModeTest, true
+		return true
 	case matterID == realMatter && courtCaseID == realCourt:
-		return ModeReal, true
+		return true
 	}
-	return "", false
+	return false
 }
 
 func testEnv(t *testing.T) Environment {
@@ -75,13 +76,13 @@ func testEnv(t *testing.T) Environment {
 	}
 	return Environment{
 		Registry: DefaultRegistry(), Anchors: &fakeAnchors{anchor: testAnchor()},
-		Stores: objectstores.Stores{"b2": "/run/secrets/b2.json"}, SourceRoots: roots, MatterMode: testModes,
+		Stores: objectstores.Stores{"b2": "/run/secrets/b2.json"}, SourceRoots: roots, IdentityAdmitted: testModes,
 	}
 }
 
 func testPlan(activities ...string) Plan {
 	handle := testHandle
-	plan := Plan{PlanID: "plan-0001-abcd", SourceRef: testSource, PreviewHandle: &handle, MatterMode: ModeTest, Steps: []Step{}}
+	plan := Plan{PlanID: "plan-0001-abcd", SourceRef: testSource, PreviewHandle: &handle, MatterMode: ModeLive, Steps: []Step{}}
 	for index, activity := range activities {
 		plan.Steps = append(plan.Steps, Step{StepID: fmt.Sprintf("s%d", index+1), Activity: activity, Params: json.RawMessage(`{}`)})
 	}
@@ -302,18 +303,18 @@ func TestAVaultKeyWithSpacesValidates(t *testing.T) {
 
 func TestTestLiveRule(t *testing.T) {
 	plan := testPlan(salvageID)
-	plan.MatterMode = ModeReal
-	requireFail(t, validate(t, testEnv(t), plan), RuleTestLive, "The plan says REAL but Review run")
+	plan.MatterMode = ModeDev
+	requireFail(t, validate(t, testEnv(t), plan), RuleTestLive, "explicit operating_mode receipt")
 
 	env := testEnv(t)
 	stray := testAnchor()
 	stray.MatterID = "00000000-0000-0000-0000-000000000000"
 	env.Anchors = &fakeAnchors{anchor: stray}
-	requireFail(t, validate(t, env, testPlan(salvageID)), RuleTestLive, "neither the TEST nor the REAL matter")
+	requireFail(t, validate(t, env, testPlan(salvageID)), RuleTestLive, "not under the approved case identity")
 
 	env = testEnv(t)
-	env.MatterMode = nil
-	requireFail(t, validate(t, env, testPlan(salvageID)), RuleTestLive, "no TEST/REAL matter identities")
+	env.IdentityAdmitted = nil
+	requireFail(t, validate(t, env, testPlan(salvageID)), RuleTestLive, "No admitted case identity")
 
 	requirePass(t, validate(t, testEnv(t), testPlan(salvageID)), RuleTestLive)
 	env = testEnv(t)
@@ -347,7 +348,7 @@ func TestBoundedRule(t *testing.T) {
 
 func TestFailedSummaryNamesEveryFailedRule(t *testing.T) {
 	plan := testPlan(lenientID, salvageID)
-	plan.MatterMode = ModeReal
+	plan.MatterMode = ModeDev
 	validated := validate(t, testEnv(t), plan)
 	summary := validated.FailedSummary()
 	for _, name := range []string{RuleTypeChain, RuleTestLive} {

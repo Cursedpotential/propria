@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-26
 //
 // Context review routes on the Proffer starter. Same boundary as every other
@@ -73,6 +74,9 @@ func overlayAuth(serviceTokenPath, label string, next http.HandlerFunc) http.Han
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if !canonicalRequestWrite(w, r) {
+			return
+		}
 		next(w, r)
 	}
 }

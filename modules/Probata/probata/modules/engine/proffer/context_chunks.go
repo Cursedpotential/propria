@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package proffer
 
 // Conversation chunks for Weaviate, published BEFORE the preview and the owner's decision.
@@ -56,6 +57,9 @@ const (
 // ChunkThreadsRequest is the chunk Activity's input: a reference, never a payload. Chunker and Overlap are empty
 // and zero to take the platform defaults (Neural distilbert, overlap 2).
 type ChunkThreadsRequest struct {
+	OperatingMode   string `json:"operating_mode,omitempty"`
+	MatterID        string `json:"matter_id,omitempty"`
+	CourtCaseID     string `json:"court_case_id,omitempty"`
 	RequestID       string `json:"request_id"`
 	SourceVersionID string `json:"source_version_id"`
 	Chunker         string `json:"chunker,omitempty"`
@@ -109,6 +113,9 @@ type ChunkThreadsResult struct {
 
 // PublishChunksRequest is one thread's embed-and-publish input: the plan the chunk Activity returned.
 type PublishChunksRequest struct {
+	OperatingMode           string          `json:"operating_mode,omitempty"`
+	MatterID                string          `json:"matter_id,omitempty"`
+	CourtCaseID             string          `json:"court_case_id,omitempty"`
 	RequestID               string          `json:"request_id"`
 	Plan                    ChunkThreadPlan `json:"plan"`
 	NormalizedGenerationID  string          `json:"normalized_generation_id,omitempty"`
@@ -132,6 +139,9 @@ type PublishChunksResult struct {
 
 // PublishCallLogFilesRequest is the call-log publish input.
 type PublishCallLogFilesRequest struct {
+	OperatingMode           string `json:"operating_mode,omitempty"`
+	MatterID                string `json:"matter_id,omitempty"`
+	CourtCaseID             string `json:"court_case_id,omitempty"`
 	RequestID               string `json:"request_id"`
 	SourceVersionID         string `json:"source_version_id"`
 	NormalizedGenerationID  string `json:"normalized_generation_id,omitempty"`
@@ -214,6 +224,7 @@ func (r *run) execContextChunks(ctx workflow.Context, target ContextChunksTarget
 		var plan ChunkThreadsResult
 		err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(4*time.Hour)),
 			ChunkContextThreadsActivityName, ChunkThreadsRequest{
+				OperatingMode: r.operatingMode, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 				RequestID: r.requestID, SourceVersionID: sourceVersionID, NormalizedGenerationID: target.NormalizedGenerationID,
 				ParticipantResolutionID: target.ParticipantResolutionID, MessageMatchesID: target.MessageMatchesID,
 			}).Get(ctx, &plan)
@@ -233,6 +244,7 @@ func (r *run) execContextChunks(ctx workflow.Context, target ContextChunksTarget
 			for _, thread := range plan.Threads[start:end] {
 				futures = append(futures, workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(3*time.Hour)),
 					PublishContextChunksActivityName, PublishChunksRequest{
+						OperatingMode: r.operatingMode, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 						RequestID: r.requestID, Plan: thread, NormalizedGenerationID: target.NormalizedGenerationID,
 						ParticipantResolutionID: target.ParticipantResolutionID, MessageMatchesID: target.MessageMatchesID,
 					}))
@@ -263,6 +275,7 @@ func (r *run) execContextChunks(ctx workflow.Context, target ContextChunksTarget
 		var result PublishCallLogFilesResult
 		err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(time.Hour)),
 			PublishCallLogFilesActivityName, PublishCallLogFilesRequest{
+				OperatingMode: r.operatingMode, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 				RequestID: r.requestID, SourceVersionID: sourceVersionID, NormalizedGenerationID: target.NormalizedGenerationID,
 				ParticipantResolutionID: target.ParticipantResolutionID, MessageMatchesID: target.MessageMatchesID,
 			}).Get(ctx, &result)

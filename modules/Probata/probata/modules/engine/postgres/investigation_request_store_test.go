@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package postgres
 
 import (
@@ -39,8 +40,8 @@ func (x *investigationTx) Query(_ context.Context, q string, _ ...any) (pgx.Rows
 func (x *investigationTx) QueryRow(_ context.Context, q string, args ...any) pgx.Row {
 	return investigationRow{func(d ...any) error {
 		if q == caseCourtCaseSQL {
-			*(d[0].(*string)) = investigationTestID
-			*(d[1].(*string)) = devMatterID
+			*(d[0].(*string)) = authoritativeCourtCaseID
+			*(d[1].(*string)) = authoritativeMatterID
 			return nil
 		}
 		if strings.HasPrefix(q, "INSERT INTO") {
@@ -71,7 +72,7 @@ func (d investigationDB) BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
 	return d.investigationTx, nil
 }
 func investigationInput() investigation.Request {
-	return investigation.Request{Scope: investigation.Scope{Mode: caseidentity.ModeTest, MatterID: devMatterID, CourtCaseID: investigationTestID}, LegalMatterID: investigationTestID, ClaimID: investigationTestID, FollowupID: investigationTestID, Question: "Investigate", Sources: []investigation.Source{}}
+	return investigation.Request{Scope: investigation.Scope{Mode: caseidentity.ModeLive, MatterID: authoritativeMatterID, CourtCaseID: authoritativeCourtCaseID}, LegalMatterID: investigationTestID, ClaimID: investigationTestID, FollowupID: investigationTestID, Question: "Investigate", Sources: []investigation.Source{}}
 }
 func TestInvestigationStoreReceiptReplayConflictAndScope(t *testing.T) {
 	tx := &investigationTx{}

@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // Worker wiring for the repair workflow builder: the five repair-plan
@@ -47,7 +48,7 @@ func buildRepairPlanActivities(
 	return activities.NewRepairPlanActivities(activities.RepairPlanActivities{
 		Validate: activities.RepairPlanValidateActivity{Environment: repairplan.Environment{
 			Registry: repairplan.DefaultRegistry(), Anchors: planStore, DerivedRoots: derivedRoots,
-			Stores: stores, SourceRoots: roots, MatterMode: platformpostgres.MatterModeForIdentity,
+			Stores: stores, SourceRoots: roots, IdentityAdmitted: platformpostgres.AdmittedCaseIdentity,
 		}},
 		Receipts: activities.RepairStepReceiptActivity{Store: planStore},
 		Find:     find,

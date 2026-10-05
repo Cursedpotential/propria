@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (versioned import admission).
 package profferworker
 
 import (
@@ -141,6 +142,7 @@ func RegisterAll(registrar interface {
 	RegisterWorkflow(interface{})
 	RegisterWorkflowWithOptions(interface{}, workflow.RegisterOptions)
 }, registrations Registrations) {
+	registrar = operatingRegistrar{registrar}
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
 	// Back-fill of call logs imported before commit_call_log existed.

@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package proffer
 
 import (
@@ -60,10 +61,10 @@ func rejectHold(env *testsuite.TestWorkflowEnvironment, reason string) {
 }
 
 func testInput() WorkflowInput {
-	return WorkflowInput{
+	return WorkflowInput{OperatingMode: "LIVE",
 		RequestID:        "req-1",
-		MatterID:         "11111111-1111-1111-1111-111111111111",
-		CourtCaseID:      "22222222-2222-2222-2222-222222222222",
+		MatterID:         "01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
+		CourtCaseID:      "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
 		SourceRef:        "acquisition-ref",
 		DeclaredFormat:   "whatsapp_export_json",
 		ParserOptionsRef: "parser-opts-ref",
@@ -1112,7 +1113,7 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 	}
 
 	for _, wireType := range []reflect.Type{
-		reflect.TypeOf(WorkflowInput{}),
+		reflect.TypeOf(WorkflowInput{OperatingMode: "LIVE"}),
 		reflect.TypeOf(StageRequest{}),
 		reflect.TypeOf(StageResult{}),
 		reflect.TypeOf(WorkflowResult{}),

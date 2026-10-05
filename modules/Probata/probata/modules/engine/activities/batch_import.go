@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5 · 2026-09-21
 //
 // The four Activities a batch-by-folder import needs (owner 2026-09-20 23:52:
@@ -42,11 +43,14 @@ const maxBatchListingPage = 200
 
 // ListBatchFolderRequest names one page of one folder.
 type ListBatchFolderRequest struct {
-	Scheme string `json:"scheme"`
-	Bucket string `json:"bucket"`
-	Prefix string `json:"prefix"`
-	Cursor string `json:"cursor,omitempty"`
-	Limit  int32  `json:"limit,omitempty"`
+	OperatingMode string `json:"operating_mode"`
+	MatterID      string `json:"matter_id"`
+	CourtCaseID   string `json:"court_case_id"`
+	Scheme        string `json:"scheme"`
+	Bucket        string `json:"bucket"`
+	Prefix        string `json:"prefix"`
+	Cursor        string `json:"cursor,omitempty"`
+	Limit         int32  `json:"limit,omitempty"`
 	// KeySuffix keeps only keys ending in it; empty keeps every key.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	KeySuffix string `json:"key_suffix,omitempty"`
@@ -60,6 +64,9 @@ type ListBatchFolderResult struct {
 
 // BindImportOperationRequest is the durable identity of one started run.
 type BindImportOperationRequest struct {
+	MatterID         string      `json:"matter_id"`
+	CourtCaseID      string      `json:"court_case_id"`
+	OperatingMode    string      `json:"operating_mode"`
 	RequestID        string      `json:"request_id"`
 	SourceRef        proffer.Ref `json:"source_ref"`
 	WorkflowID       string      `json:"workflow_id"`
@@ -189,7 +196,7 @@ func (a BatchImportActivities) BindImportOperation(ctx context.Context, req Bind
 	// Create is idempotent on request_id, so a retried Activity returns the
 	// first binding instead of minting a second handle.
 	binding, err := a.Bindings.Create(ctx, previewmodel.Binding{
-		RequestID: req.RequestID, SourceRef: req.SourceRef,
+		OperatingMode: req.OperatingMode, RequestID: req.RequestID, SourceRef: req.SourceRef,
 		WorkflowID: req.WorkflowID, RunID: req.RunID, ParserOptionsRef: req.ParserOptionsRef,
 	})
 	if err != nil {

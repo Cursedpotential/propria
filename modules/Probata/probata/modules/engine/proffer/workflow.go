@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package proffer
 
 import (
@@ -7,10 +8,12 @@ import (
 
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
 const (
+	operatingContextChangeID       = "proffer-single-case-operating-context-v1"
 	fingerprintVocabularyChangeID  = "proffer-context-fingerprint-vocabulary-v1"
 	fingerprintVocabularyVersion   = workflow.Version(1)
 	previewRepairChangeID          = "proffer-preview-explicit-repair-refs-v1"
@@ -111,15 +114,27 @@ func fingerprintVocabularyFor(ctx workflow.Context) fingerprintVocabulary {
 // canon name (ActivityName, identical to stagegraph.StageID) so a worker in
 // a later lane can register real Activities without this file changing.
 func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
+	// A missing version marker identifies old history, not LIVE authorization.
+	// Replay preserves its historical commands; Activity admission rejects unknown pending writes.
+	if workflow.GetVersion(ctx, operatingContextChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(in.OperatingMode)); err != nil {
+			return WorkflowResult{}, err
+		}
+		if !caseidentity.AdmittedIdentity(in.MatterID, in.CourtCaseID) {
+			return WorkflowResult{}, errors.New("workflow requires the approved case identity")
+		}
+	}
 	contextChunkingInput := in.contextChunkingInput()
 	r := &run{
-		requestID:   in.RequestID,
-		matterID:    in.MatterID,
-		courtCaseID: in.CourtCaseID,
+		operatingMode: in.OperatingMode,
+		requestID:     in.RequestID,
+		matterID:      in.MatterID,
+		courtCaseID:   in.CourtCaseID,
 		operation: OperationState{
-			Lifecycle:    OperationRunning,
-			ActiveStages: []ActivityName{},
-			Stages:       []OperationStage{},
+			OperatingMode: in.OperatingMode,
+			Lifecycle:     OperationRunning,
+			ActiveStages:  []ActivityName{},
+			Stages:        []OperationStage{},
 		},
 	}
 	r.ctx = ctx
@@ -245,7 +260,7 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	if handlerSelection != workflow.DefaultVersion {
 		preview.setCheckpoint("parser_selection", CheckpointRunning, "", "")
 		recommendation, recommendErr := recommendHandler(ctx, StageRequest{
-			RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
+			OperatingMode: r.operatingMode, RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 			SourceVersionRef: r.sourceVersionRef, DeclaredFormat: in.DeclaredFormat,
 			Refs: map[string]Ref{
 				"original":            activeOriginalRef,
@@ -288,7 +303,7 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 			return r.result(""), decisionErr
 		}
 		validation, validationErr := validateSelectedHandler(ctx, StageRequest{
-			RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
+			OperatingMode: r.operatingMode, RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 			SourceVersionRef: r.sourceVersionRef, DeclaredFormat: in.DeclaredFormat,
 			Refs: map[string]Ref{
 				"handler_recommendation": recommendation.RecommendationRef,
@@ -410,7 +425,7 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		var recommendation HandlerRecommendationResult
 		recoveryContext := workflow.WithActivityOptions(ctx, optionsFor(stagegraph.SelectParser))
 		recoveryReq := HandlerRecoveryRequest{
-			Request: StageRequest{RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
+			Request: StageRequest{OperatingMode: r.operatingMode, RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 				SourceVersionRef: r.sourceVersionRef, DeclaredFormat: activeFormat, Refs: executionRefs},
 			AttemptIdentity: fmt.Sprintf("%s:%d", workflow.GetInfo(ctx).WorkflowExecution.RunID, recoveryAttempt), FailureReason: failureReason,
 		}
@@ -786,6 +801,7 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	// remain internal to the opaque binding created by the starter.
 	if integratedPreview != workflow.DefaultVersion {
 		previewHandle, err := r.execPreview(ctx, PreviewPublicationRequest{
+			OperatingMode: r.operatingMode, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 			RequestID: in.RequestID, SourceVersionRef: r.sourceVersionRef,
 			PackageRef: preview.PackageRef, AttemptRef: preview.AttemptRef,
 			SourceRepresentationRef: preview.SourceRepresentationRef,
@@ -1122,6 +1138,7 @@ func awaitReviewSignal(ctx workflow.Context, signal workflow.ReceiveChannel, val
 // run accumulates the ordered stage receipts and the running
 // source/version reference across one workflow execution.
 type run struct {
+	operatingMode    string
 	requestID        string
 	matterID         string
 	courtCaseID      string
@@ -1156,7 +1173,7 @@ func (r *run) exec(ctx workflow.Context, id stagegraph.StageID, declaredFormat s
 // implementations of one stage; it must never schedule both implementations.
 func (r *run) execActivity(ctx workflow.Context, id stagegraph.StageID, activityName, declaredFormat string, refs map[string]Ref) (Ref, error) {
 	req := StageRequest{
-		RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
+		OperatingMode: r.operatingMode, RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 		SourceVersionRef: r.sourceVersionRef, DeclaredFormat: declaredFormat, Refs: refs,
 	}
 	actCtx := workflow.WithActivityOptions(ctx, optionsFor(id))
@@ -1210,7 +1227,7 @@ func (r *run) execDerive(ctx workflow.Context, declaredFormat string, refs map[s
 	id := stagegraph.DeriveSMSThreads
 	r.markStageStarted(id)
 	req := StageRequest{
-		RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
+		OperatingMode: r.operatingMode, RequestID: r.requestID, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 		SourceVersionRef: r.sourceVersionRef, DeclaredFormat: declaredFormat, Refs: refs,
 	}
 	actCtx := workflow.WithActivityOptions(ctx, optionsFor(id))
@@ -1273,6 +1290,7 @@ func (r *run) cleanChecks(detectedFormat string, allowLocatorless bool) ([]AutoA
 // execAutoApproval runs record_auto_approval_activity and settles it like
 // every other stage. Byline: Claude Code · Opus 5.5 · 2026-10-02
 func (r *run) execAutoApproval(ctx workflow.Context, request AutoApprovalRequest) (Ref, error) {
+	request.OperatingMode, request.MatterID, request.CourtCaseID = r.operatingMode, r.matterID, r.courtCaseID
 	id := stagegraph.RecordAutoApproval
 	r.markStageStarted(id)
 	actCtx := workflow.WithActivityOptions(ctx, optionsFor(id))
@@ -1305,6 +1323,7 @@ func (r *run) receiptRef(id stagegraph.StageID) Ref {
 func (r *run) start(ctx workflow.Context, id stagegraph.StageID, declaredFormat string, refs map[string]Ref) pending {
 	r.markStageStarted(id)
 	req := StageRequest{
+		OperatingMode:    r.operatingMode,
 		RequestID:        r.requestID,
 		MatterID:         r.matterID,
 		CourtCaseID:      r.courtCaseID,

@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // Starter wiring for the repair workflow builder's HTTP routes. The starter
@@ -45,7 +46,7 @@ func newRepairPlanService(db platformpostgres.DB, c client.Client, taskQueue str
 	return repairplan.Service{
 		Env: repairplan.Environment{
 			Registry: repairplan.DefaultRegistry(), Anchors: anchors, DerivedRoots: derivedRoots,
-			Stores: stores, SourceRoots: roots, MatterMode: platformpostgres.MatterModeForIdentity,
+			Stores: stores, SourceRoots: roots, IdentityAdmitted: platformpostgres.AdmittedCaseIdentity,
 		},
 		Runs: runs,
 	}, nil

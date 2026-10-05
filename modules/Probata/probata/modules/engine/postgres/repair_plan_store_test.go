@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package postgres
@@ -94,7 +95,7 @@ func TestResolveAnchorReadsTheReviewRunAndItsAssessment(t *testing.T) {
 	court := uuid.MustParse(devCourtCaseID)
 	db := &repairPlanDB{rows: []pgx.Row{
 		repairPlanRow{values: []any{testPreviewHandle, "req-1", "b2://salem-data/v/sms-1.xml", "req-1",
-			"pending-handler-selection/v1", &version, "smsbackuprestore_xml", &matter, &court}},
+			"pending-handler-selection/v1", &version, "smsbackuprestore_xml", &matter, &court, `{"operating_mode":"LIVE"}`}},
 		repairPlanRow{err: pgx.ErrNoRows},
 		repairPlanRow{values: []any{[]byte(`{"detection":{"fmt":"xml"}}`), []byte(`{"clean":false,"truncated":true}`)}},
 	}}
@@ -233,14 +234,15 @@ func TestMatterModeForIdentityUsesTheAdmittedIdentitiesOnly(t *testing.T) {
 		matter, court, want string
 		known               bool
 	}{
-		{devMatterID, devCourtCaseID, "TEST", true},
-		{strings.ToUpper(devMatterID), devCourtCaseID, "TEST", true},
-		{authoritativeMatterID, authoritativeCourtCaseID, "REAL", true},
+		{devMatterID, devCourtCaseID, "", false},
+		{strings.ToUpper(devMatterID), devCourtCaseID, "", false},
+		{authoritativeMatterID, authoritativeCourtCaseID, "", true},
 		{devMatterID, authoritativeCourtCaseID, "", false},
 		{"00000000-0000-0000-0000-000000000000", devCourtCaseID, "", false},
 		{"", "", "", false},
 	} {
-		if mode, known := MatterModeForIdentity(tc.matter, tc.court); mode != tc.want || known != tc.known {
+		if known := AdmittedCaseIdentity(tc.matter, tc.court); known != tc.known {
+			mode := ""
 			t.Fatalf("%s/%s -> %q %t", tc.matter, tc.court, mode, known)
 		}
 	}

@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 
 package proffer
@@ -38,7 +39,7 @@ func (r *run) startAutoExtraction(ctx workflow.Context, previewHandle string, so
 		RequestID: "auto:" + previewHandle,
 		MatterID:  r.matterID,
 		Runs: []flow.RunRef{{
-			PreviewHandle: previewHandle, GenerationID: string(generationRef), SourceVersionID: string(sourceVersionRef),
+			MatterMode: r.operatingMode, PreviewHandle: previewHandle, GenerationID: string(generationRef), SourceVersionID: string(sourceVersionRef),
 		}},
 		Extractors:  []string{flow.DefaultExtractorID},
 		Actor:       autoExtractionActor,

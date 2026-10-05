@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package proffer
 
 import (
@@ -243,6 +244,7 @@ type OperationStage struct {
 // for bounded fan-out; CurrentStage is the first still-active stage and gives
 // simple clients a stable scalar without concealing concurrent work.
 type OperationState struct {
+	OperatingMode           string             `json:"operating_mode"`
 	Lifecycle               OperationLifecycle `json:"lifecycle"`
 	CurrentStage            ActivityName       `json:"current_stage,omitempty"`
 	ActiveStages            []ActivityName     `json:"active_stages"`

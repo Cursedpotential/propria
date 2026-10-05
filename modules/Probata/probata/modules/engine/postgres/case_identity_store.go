@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 //
 // Registry store behind the Workbench Case page (caseidentity.Store).
@@ -32,8 +33,9 @@ import (
 
 // CaseIdentityStore reads and edits the case identity registry.
 type CaseIdentityStore struct {
-	db    DB
-	clock func() time.Time
+	db            DB
+	operatingMode caseidentity.Mode
+	clock         func() time.Time
 }
 
 // NewCaseIdentityStore requires a database.
@@ -41,56 +43,36 @@ func NewCaseIdentityStore(db DB) (*CaseIdentityStore, error) {
 	if db == nil {
 		return nil, errors.New("case identity store requires a database")
 	}
-	return &CaseIdentityStore{db: db, clock: func() time.Time { return time.Now().UTC() }}, nil
+	return NewCaseIdentityStoreWithMode(db, caseidentity.ModeLive)
+}
+
+// NewCaseIdentityStoreWithMode binds an explicit operating policy for direct callers.
+// Inputs: database, canonical operating mode. Outputs: read/write store.
+// Side effects: none; DEV remains read-only without verified isolation.
+// Choose over the default LIVE constructor for an explicit Dev service context.
+func NewCaseIdentityStoreWithMode(db DB, mode caseidentity.Mode) (*CaseIdentityStore, error) {
+	if db == nil {
+		return nil, errors.New("case identity store requires a database")
+	}
+	if mode != caseidentity.ModeLive && mode != caseidentity.ModeDev {
+		return nil, caseidentity.ErrOperatingModeUnknown
+	}
+	return &CaseIdentityStore{db: db, operatingMode: mode, clock: func() time.Time { return time.Now().UTC() }}, nil
 }
 
 var _ caseidentity.Store = (*CaseIdentityStore)(nil)
 
-// placeholderMatterWriters are the created_by values of pre-launch placeholder
-// identity rows (registry.reseed_dev_case_identity).
-var placeholderMatterWriters = []string{"migration-0030", "migration-0069-dev-seed"}
-
 const caseMatterColumns = `m.id::text, m.title, m.description, m.status, m.verification_state, m.created_by, m.updated_at`
 
-// caseMatterIDSQL resolves the matter a mode shows. TEST is the DEV sentinel.
-// REAL is the one matter that is not placeholder data; when several exist the
-// engine's admitted go-live identity wins, and otherwise the read fails closed
-// rather than pick one.
-const caseRealMattersSQL = `SELECT m.id::text FROM registry.matter m WHERE m.created_by <> ALL($1::text[]) ORDER BY m.created_at, m.id LIMIT 10`
+// matterID resolves the one authoritative case independently of operating mode.
+// Inputs: validated request context. Outputs: approved matter ID. Side effects: none.
+// Arbitrary sole matters and the retired Dev sentinel are never fallback identities.
 
 func (s *CaseIdentityStore) matterID(ctx context.Context, q queryer, mode caseidentity.Mode) (string, error) {
-	if mode == caseidentity.ModeTest {
-		return devMatterID, nil
+	if _, err := caseidentity.ParseMode(string(mode)); err != nil {
+		return "", err
 	}
-	rows, err := q.Query(ctx, caseRealMattersSQL, placeholderMatterWriters)
-	if err != nil {
-		return "", caseIdentityError(err)
-	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return "", err
-		}
-		ids = append(ids, id)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return "", caseIdentityError(err)
-	}
-	switch len(ids) {
-	case 0:
-		return "", nil
-	case 1:
-		return ids[0], nil
-	}
-	for _, id := range ids {
-		if strings.EqualFold(id, authoritativeMatterID) {
-			return id, nil
-		}
-	}
-	return "", fmt.Errorf("%w: %d non-placeholder matters exist; the case identity is split", caseidentity.ErrStale, len(ids))
+	return authoritativeMatterID, nil
 }
 
 type queryer interface {
@@ -113,7 +95,7 @@ func scanMatter(row pgx.Row) (*caseidentity.Matter, error) {
 const caseCourtCaseSQL = `SELECT c.id::text, c.matter_id::text, c.caption, c.docket_number, c.court_name, c.jurisdiction,
        c.case_type, c.presiding_judge, c.status, to_char(c.filed_on, 'YYYY-MM-DD'), to_char(c.closed_on, 'YYYY-MM-DD'),
        c.verification_state, c.updated_at
-FROM registry.court_case c WHERE c.matter_id = $1::uuid ORDER BY c.is_primary DESC, c.created_at LIMIT 1`
+FROM registry.court_case c WHERE c.matter_id = $1::uuid AND c.id = '` + authoritativeCourtCaseID + `'::uuid`
 
 func scanCourtCase(row pgx.Row) (*caseidentity.CourtCase, error) {
 	var c caseidentity.CourtCase
@@ -226,6 +208,11 @@ const caseDismissedSQL = `SELECT normalized, raw_value, basis, recorded_by, reco
 // Read returns the whole Case page in one read-only transaction so every
 // section answers from the same snapshot.
 func (s *CaseIdentityStore) Read(ctx context.Context, mode caseidentity.Mode) (caseidentity.View, error) {
+	normalized, modeErr := caseidentity.ParseMode(string(mode))
+	if modeErr != nil {
+		return caseidentity.View{}, modeErr
+	}
+	mode = normalized
 	view := caseidentity.View{
 		Mode: mode, People: []caseidentity.Person{}, History: []caseidentity.Change{},
 		Counts: []caseidentity.Count{}, Unknowns: []caseidentity.Unknown{}, Dismissed: []caseidentity.Dismissal{},
@@ -250,6 +237,9 @@ func (s *CaseIdentityStore) Read(ctx context.Context, mode caseidentity.Mode) (c
 		if view.CourtCase, err = scanCourtCase(tx.QueryRow(ctx, caseCourtCaseSQL, matterID)); err != nil {
 			return view, err
 		}
+	}
+	if view.Matter == nil || view.CourtCase == nil {
+		return view, caseidentity.ErrNotFound
 	}
 	if view.People, err = s.readPeople(ctx, tx); err != nil {
 		return view, err
@@ -408,6 +398,9 @@ func readDismissed(ctx context.Context, q queryer) ([]caseidentity.Dismissal, er
 // ---- writes ----------------------------------------------------------------
 
 func (s *CaseIdentityStore) begin(ctx context.Context, lock string) (pgx.Tx, func(), error) {
+	if err := caseidentity.RequireCanonicalWrite(s.operatingMode); err != nil {
+		return nil, func() {}, err
+	}
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, nil, caseIdentityError(err)
@@ -675,6 +668,17 @@ var headerStateSQL = map[string]string{
 
 // EditHeader updates the matter or its court case and logs before/after.
 func (s *CaseIdentityStore) EditHeader(ctx context.Context, mode caseidentity.Mode, spec caseidentity.HeaderSpec, actor caseidentity.Actor) (caseidentity.Receipt, error) {
+	parsed, err := caseidentity.ParseMode(string(mode))
+	if err != nil {
+		return caseidentity.Receipt{}, err
+	}
+	if err := caseidentity.RequireCanonicalWrite(parsed); err != nil {
+		return caseidentity.Receipt{}, err
+	}
+	mode = parsed
+	if spec.Target == "court_case" && !strings.EqualFold(spec.ID, authoritativeCourtCaseID) {
+		return caseidentity.Receipt{}, caseidentity.ErrRejected
+	}
 	if err := caseidentity.ValidateHeader(spec); err != nil {
 		return caseidentity.Receipt{}, err
 	}

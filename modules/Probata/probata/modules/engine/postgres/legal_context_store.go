@@ -58,10 +58,12 @@ func NewLegalContextStore(db DB) (*LegalContextStore, error) {
 }
 
 func (s *LegalContextStore) ReadLegalContext(ctx context.Context, query LegalContextQuery) (LegalContextResult, error) {
-	result := LegalContextResult{Mode: query.Mode, Records: []LegalContextRecord{}}
-	if _, err := caseidentity.ParseMode(string(query.Mode)); err != nil {
-		return result, err
+	mode, modeErr := caseidentity.ParseMode(string(query.Mode))
+	result := LegalContextResult{Mode: mode, Records: []LegalContextRecord{}}
+	if modeErr != nil {
+		return result, modeErr
 	}
+	query.Mode = mode
 	if (query.Kind != "entity" && query.Kind != "event") || query.Limit < 1 || query.Limit > 100 {
 		return result, errors.New("invalid legal context query")
 	}

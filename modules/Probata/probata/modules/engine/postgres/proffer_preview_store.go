@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Codex · GPT-5.6 · 2026-08-29 (durable Proffer preview projection store)
 package postgres
 
@@ -18,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
@@ -167,6 +169,12 @@ func (s *ProfferPreviewStore) previewAttachmentQuery(ctx context.Context, rawGen
 // run ever to reach publish_preview (live 2026-09-20).
 
 func (s *ProfferPreviewStore) PublishWorkflowPreview(ctx context.Context, request proffer.PreviewPublicationRequest) (previewmodel.Binding, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(request.OperatingMode)); err != nil {
+		return previewmodel.Binding{}, err
+	}
+	if !caseidentity.AdmittedIdentity(request.MatterID, request.CourtCaseID) {
+		return previewmodel.Binding{}, errors.New("preview write requires the approved case identity")
+	}
 	binding, err := s.bindingByRequest(ctx, request.RequestID)
 	if err != nil {
 		return previewmodel.Binding{}, err
@@ -373,6 +381,13 @@ func NewProfferPreviewStore(db DB, entropy io.Reader) (*ProfferPreviewStore, err
 }
 
 func (s *ProfferPreviewStore) Create(ctx context.Context, binding previewmodel.Binding) (previewmodel.Binding, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(binding.OperatingMode)); err != nil {
+		return previewmodel.Binding{}, err
+	}
+	detail, err := json.Marshal(map[string]string{"operating_mode": binding.OperatingMode})
+	if err != nil {
+		return previewmodel.Binding{}, err
+	}
 	if strings.TrimSpace(binding.RequestID) == "" || strings.TrimSpace(string(binding.SourceRef)) == "" || strings.TrimSpace(binding.WorkflowID) == "" || strings.TrimSpace(binding.RunID) == "" || strings.TrimSpace(string(binding.ParserOptionsRef)) == "" {
 		return previewmodel.Binding{}, errors.New("postgres Proffer preview binding is incomplete")
 	}
@@ -403,8 +418,8 @@ func (s *ProfferPreviewStore) Create(ctx context.Context, binding previewmodel.B
 		if result.RowsAffected() == 1 {
 			_, err = tx.Exec(ctx, `
 				INSERT INTO context.proffer_preview_event
-				    (preview_handle, event_id, event_type, occurred_at, phase)
-				VALUES ($1, 0, 'phase_changed', $2, 'starting')`, binding.Handle, s.clock())
+				    (preview_handle, event_id, event_type, occurred_at, phase, detail)
+				VALUES ($1, 0, 'phase_changed', $2, 'starting', $3)`, binding.Handle, s.clock(), string(detail))
 			if err != nil {
 				rollback()
 				return previewmodel.Binding{}, fmt.Errorf("insert initial preview event: %w", err)
@@ -427,7 +442,14 @@ func (s *ProfferPreviewStore) Create(ctx context.Context, binding previewmodel.B
 			if existing.SourceRef != binding.SourceRef || existing.WorkflowID != binding.WorkflowID || existing.RunID != binding.RunID || existing.ParserOptionsRef != binding.ParserOptionsRef {
 				return previewmodel.Binding{}, errors.New("request_id is already bound to different Proffer coordinates")
 			}
-			return existing, nil
+			recovered, readErr := s.Binding(ctx, existing.Handle)
+			if readErr != nil {
+				return previewmodel.Binding{}, readErr
+			}
+			if recovered.OperatingMode != binding.OperatingMode {
+				return previewmodel.Binding{}, errors.New("request_id has an unknown or different durable operating_mode")
+			}
+			return recovered, nil
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return previewmodel.Binding{}, fmt.Errorf("resolve preview binding conflict: %w", err)
@@ -439,13 +461,15 @@ func (s *ProfferPreviewStore) Create(ctx context.Context, binding previewmodel.B
 func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previewmodel.Binding, error) {
 	var binding previewmodel.Binding
 	var sourceVersion, rawGeneration, normalizedGeneration *uuid.UUID
+	var modeDetail string
 	err := s.db.QueryRow(ctx, `
 		SELECT binding.preview_handle, binding.request_id, binding.source_ref,
 		       binding.workflow_id, binding.run_id,
 		       COALESCE(decision.selection_ref, ''),
 		       COALESCE(decision.parser_options_ref, binding.parser_options_ref),
 		       COALESCE(snapshot.source_version_id, version.id), snapshot.raw_generation_id,
-		       snapshot.normalized_generation_id, binding.created_at, version.matter_id
+		       snapshot.normalized_generation_id, binding.created_at, version.matter_id,
+ COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND event_id=0), '')
 		FROM context.proffer_preview_binding binding
 		LEFT JOIN context.source_version version ON version.workflow_id = binding.workflow_id
 		LEFT JOIN LATERAL (
@@ -463,13 +487,14 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 		WHERE binding.preview_handle = $1`, handle).Scan(
 		&binding.Handle, &binding.RequestID, &binding.SourceRef, &binding.WorkflowID, &binding.RunID,
 		&binding.SelectionRef, &binding.ParserOptionsRef, &sourceVersion, &rawGeneration, &normalizedGeneration,
-		&binding.CreatedAt, &binding.MatterID)
+		&binding.CreatedAt, &binding.MatterID, &modeDetail)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return previewmodel.Binding{}, previewmodel.ErrNotFound
 	}
 	if err != nil {
 		return previewmodel.Binding{}, fmt.Errorf("read preview binding: %w", err)
 	}
+	binding.OperatingMode = recordedOperatingMode(modeDetail)
 	if sourceVersion != nil {
 		binding.SourceVersionID = *sourceVersion
 	}
@@ -480,6 +505,22 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 		binding.NormalizedGenerationID = *normalizedGeneration
 	}
 	return binding, nil
+}
+
+// recordedOperatingMode reads only the explicit initial admission receipt.
+// Inputs: initial event detail. Outputs: canonical mode or unknown.
+// Side effects: none. Never default old records or infer mode from identity.
+func recordedOperatingMode(detail string) string {
+	var receipt struct {
+		Mode string `json:"operating_mode"`
+	}
+	if json.Unmarshal([]byte(detail), &receipt) != nil {
+		return ""
+	}
+	if receipt.Mode != string(caseidentity.ModeDev) && receipt.Mode != string(caseidentity.ModeLive) {
+		return ""
+	}
+	return receipt.Mode
 }
 
 // BindingsBySourceRef returns the most recent bindings for one exact source
@@ -541,7 +582,8 @@ func (s *ProfferPreviewStore) ListBindings(ctx context.Context, cursor *previewm
 	rows, err := s.db.Query(ctx, `
 		SELECT binding.preview_handle, binding.request_id, binding.source_ref,
 		       binding.workflow_id, binding.run_id, binding.parser_options_ref,
-		       version.id, binding.created_at, version.matter_id
+		       version.id, binding.created_at, version.matter_id,
+ COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND event_id=0), '')
 		FROM context.proffer_preview_binding binding
 		LEFT JOIN context.source_version version ON version.workflow_id = binding.workflow_id
 		WHERE NOT $1::boolean OR (binding.created_at, binding.preview_handle) < ($2::timestamptz, $3::text)
@@ -555,11 +597,13 @@ func (s *ProfferPreviewStore) ListBindings(ctx context.Context, cursor *previewm
 	for rows.Next() {
 		var binding previewmodel.Binding
 		var sourceVersion *uuid.UUID
+		var modeDetail string
 		if err := rows.Scan(&binding.Handle, &binding.RequestID, &binding.SourceRef,
 			&binding.WorkflowID, &binding.RunID, &binding.ParserOptionsRef,
-			&sourceVersion, &binding.CreatedAt, &binding.MatterID); err != nil {
+			&sourceVersion, &binding.CreatedAt, &binding.MatterID, &modeDetail); err != nil {
 			return previewmodel.BindingPage{}, fmt.Errorf("scan preview binding: %w", err)
 		}
+		binding.OperatingMode = recordedOperatingMode(modeDetail)
 		if sourceVersion != nil {
 			binding.SourceVersionID = *sourceVersion
 		}
@@ -928,6 +972,13 @@ func (s *ProfferPreviewStore) EventsAfter(ctx context.Context, handle string, af
 }
 
 func (s *ProfferPreviewStore) RecordDecision(ctx context.Context, handle string, approved bool, reason, actor string, selection, options proffer.Ref) error {
+	binding, admissionErr := s.Binding(ctx, handle)
+	if admissionErr != nil {
+		return admissionErr
+	}
+	if admissionErr := caseidentity.RequireCanonicalWrite(caseidentity.Mode(binding.OperatingMode)); admissionErr != nil {
+		return admissionErr
+	}
 	if strings.TrimSpace(actor) == "" || strings.TrimSpace(string(selection)) == "" || strings.TrimSpace(string(options)) == "" {
 		return errors.New("durable preview decision requires actor, selection, and options refs")
 	}
@@ -1049,6 +1100,13 @@ func (s *ProfferPreviewStore) RecordDecision(ctx context.Context, handle string,
 // It is the intended projection-activity entrypoint and is never browser-facing;
 // wiring that activity is a separately owned orchestration change.
 func (s *ProfferPreviewStore) PublishProjection(ctx context.Context, handle string, snapshot previewmodel.Snapshot, participants []previewmodel.Participant, messages []previewmodel.Message, events []previewmodel.Event) error {
+	binding, admissionErr := s.Binding(ctx, handle)
+	if admissionErr != nil {
+		return admissionErr
+	}
+	if admissionErr := caseidentity.RequireCanonicalWrite(caseidentity.Mode(binding.OperatingMode)); admissionErr != nil {
+		return admissionErr
+	}
 	if err := previewmodel.Validate(handle, snapshot, participants, messages); err != nil {
 		return err
 	}

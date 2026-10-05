@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // Durable side of the repair workflow builder: resolve a plan's Review run
@@ -51,7 +52,8 @@ func NewRepairPlanStore(db DB) (*RepairPlanStore, error) {
 const anchorColumns = `
 	SELECT binding.preview_handle, binding.request_id, binding.source_ref, binding.workflow_id,
 	       binding.parser_options_ref, version.id, COALESCE(version.declared_format, ''),
-	       version.matter_id, version.court_case_id
+	       version.matter_id, version.court_case_id,
+ COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND event_id=0), '')
 	FROM context.proffer_preview_binding binding
 	LEFT JOIN LATERAL (
 	    SELECT id, declared_format, matter_id, court_case_id
@@ -77,13 +79,15 @@ func (s *RepairPlanStore) ResolveAnchor(ctx context.Context, sourceRef, previewH
 	}
 	var anchor repairplan.Anchor
 	var versionID, matterID, courtCaseID *uuid.UUID
+	var modeDetail string
 	if err := row.Scan(&anchor.PreviewHandle, &anchor.RequestID, &anchor.SourceRef, &anchor.WorkflowID,
-		&anchor.ParserOptionsRef, &versionID, &anchor.DeclaredFormat, &matterID, &courtCaseID); err != nil {
+		&anchor.ParserOptionsRef, &versionID, &anchor.DeclaredFormat, &matterID, &courtCaseID, &modeDetail); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return repairplan.Anchor{}, repairplan.ErrAnchorNotFound
 		}
 		return repairplan.Anchor{}, fmt.Errorf("read the repair plan's Review run: %w", err)
 	}
+	anchor.OperatingMode = recordedOperatingMode(modeDetail)
 	if matterID != nil {
 		anchor.MatterID = matterID.String()
 	}

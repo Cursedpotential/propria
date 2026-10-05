@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5 · 2026-09-21
 //
 // Batch-by-folder workflow tests. The Temporal test environment with mocked
@@ -19,10 +20,10 @@ import (
 )
 
 func batchInput() BatchInput {
-	return BatchInput{
+	return BatchInput{OperatingMode: "LIVE",
 		BatchID:     "batch-0000000000000000000000000000000001",
-		MatterID:    "11111111-1111-1111-1111-111111111111",
-		CourtCaseID: "22222222-2222-2222-2222-222222222222",
+		MatterID:    "01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
+		CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
 		Scheme:      "b2", Bucket: "bucket", Prefix: "vault/v1/sms /",
 		DeclaredFormat: "smsbackuprestore_xml", ParserOptionsRef: Ref("options-1"),
 	}
