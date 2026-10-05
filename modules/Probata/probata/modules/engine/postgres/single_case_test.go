@@ -38,10 +38,22 @@ func TestAdmissionReceiptRecoversScopeBeforeRegistrationAndRejectsConflict(t *te
 	if binding.OperatingMode != "" {
 		t.Fatal("conflicting source scope admitted")
 	}
+	binding = previewmodel.Binding{OperatingMode: "LIVE", CourtCaseID: &other}
+	applyBindingAdmission(&binding, detail)
+	if binding.OperatingMode != "" {
+		t.Fatal("conflicting source court scope admitted")
+	}
 	binding = previewmodel.Binding{OperatingMode: "LIVE"}
 	applyBindingAdmission(&binding, `{"operating_mode":"LIVE"}`)
 	if binding.OperatingMode != "" {
 		t.Fatal("missing scope silently admitted")
+	}
+	for _, mode := range []string{"REAL", "unknown", ""} {
+		binding = previewmodel.Binding{OperatingMode: "LIVE"}
+		applyBindingAdmission(&binding, strings.Replace(detail, "LIVE", mode, 1))
+		if binding.OperatingMode != "" {
+			t.Fatal("caller mode replaced unverified receipt", mode)
+		}
 	}
 }
 

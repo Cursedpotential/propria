@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (durable scope resolver contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // Package service holds the extraction operations shared by the Temporal
@@ -152,6 +153,9 @@ type Reviewer struct {
 // Store is the durable seam. Every write is idempotent on a deterministic
 // id; every read is bounded.
 type Store interface {
+	// ResolveRun returns mode only from an explicit canonical initial receipt
+	// whose scope and source row match the exact approved matter/court-case pair.
+	// Legacy, mode-only, or conflicting receipts return unknown mode, never LIVE.
 	ResolveRun(ctx context.Context, previewHandle string) (flow.RunRef, error)
 	ParticipantAggregates(ctx context.Context, generationID string) ([]entities.ParticipantAggregate, error)
 	MessagePage(ctx context.Context, generationID string, afterOrdinal int64, limit int) ([]entities.MessageView, error)

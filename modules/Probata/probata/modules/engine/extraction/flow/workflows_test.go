@@ -206,7 +206,7 @@ func TestExtractionFlagsInvalidModelBatchesButStillReconciles(t *testing.T) {
 		reconcile = request
 		return ReconcileResult{Proposals: 7}, nil
 	}).Once()
-	env.ExecuteWorkflow(ExtractionWorkflowName, ExtractionRequest{ExtractionID: "x", UseModel: true})
+	env.ExecuteWorkflow(ExtractionWorkflowName, ExtractionRequest{Run: RunRef{MatterMode: "LIVE"}, ExtractionID: "x", UseModel: true})
 	var progress Progress
 	if err := env.GetWorkflowResult(&progress); err != nil {
 		t.Fatal(err)
@@ -232,7 +232,7 @@ func TestExtractionWithoutModelSkipsIt(t *testing.T) {
 	env := extractionEnv(t)
 	env.OnActivity(ProposeRulesActivity, mock.Anything, mock.Anything).Return(ProposeResult{ExtractionRunID: "run-rules"}, nil).Once()
 	env.OnActivity(ReconcileActivity, mock.Anything, mock.Anything).Return(ReconcileResult{}, nil).Once()
-	env.ExecuteWorkflow(ExtractionWorkflowName, ExtractionRequest{ExtractionID: "x", UseModel: false})
+	env.ExecuteWorkflow(ExtractionWorkflowName, ExtractionRequest{Run: RunRef{MatterMode: "LIVE"}, ExtractionID: "x", UseModel: false})
 	var progress Progress
 	if err := env.GetWorkflowResult(&progress); err != nil {
 		t.Fatal(err)

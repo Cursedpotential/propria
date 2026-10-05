@@ -29,6 +29,7 @@ import (
 
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/repairplan"
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 )
 
 // maxAnchorEvidenceBytes bounds the persisted repair assessment copied into
@@ -88,7 +89,9 @@ func (s *RepairPlanStore) ResolveAnchor(ctx context.Context, sourceRef, previewH
 		}
 		return repairplan.Anchor{}, fmt.Errorf("read the repair plan's Review run: %w", err)
 	}
-	anchor.OperatingMode = recordedOperatingMode(modeDetail)
+	admission := previewmodel.Binding{OperatingMode: recordedOperatingMode(modeDetail), MatterID: matterID, CourtCaseID: courtCaseID}
+	applyBindingAdmission(&admission, modeDetail)
+	anchor.OperatingMode = admission.OperatingMode
 	if matterID != nil {
 		anchor.MatterID = matterID.String()
 	}

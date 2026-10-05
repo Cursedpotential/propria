@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (durable single-case write admission)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package service
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/extraction/commitcheck"
 	"github.com/Cursedpotential/probata/engine/extraction/entities"
 	"github.com/Cursedpotential/probata/engine/extraction/events"
@@ -45,6 +47,31 @@ func ensureOwnerRun(ctx context.Context, store Store, run flow.RunRef) error {
 		return err
 	}
 	return store.FinishRun(ctx, id, "completed", map[string]any{"preview_handle": run.PreviewHandle}, "")
+}
+
+// admitOwnerWrite protects exported service mutators even when no HTTP or
+// Activity adapter is involved. Inputs: explicit policy and run coordinates.
+// Outputs: an admission error. Effects: one durable read only after LIVE policy.
+// ResolveRun must admit the exact approved scope and initial receipt; caller
+// supplied mode cannot replace that durable authority or a newer generation.
+func admitOwnerWrite(ctx context.Context, store Store, run flow.RunRef) error {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(run.MatterMode)); err != nil {
+		return err
+	}
+	if store == nil || run.PreviewHandle == "" || run.GenerationID == "" || run.SourceVersionID == "" {
+		return errors.New("owner extraction write requires a store and complete durable run coordinates")
+	}
+	durable, err := store.ResolveRun(ctx, run.PreviewHandle)
+	if err != nil {
+		return err
+	}
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(durable.MatterMode)); err != nil {
+		return err
+	}
+	if durable != run {
+		return errors.New("owner extraction coordinates disagree with the durable operation receipt")
+	}
+	return nil
 }
 
 // Snapshot loads everything commit validation reads.
@@ -142,6 +169,9 @@ func CorrectionIDs(digest string, count int) []string {
 
 // Correct applies one owner edit and stages its result.
 func Correct(ctx context.Context, store Store, run flow.RunRef, envelope CorrectionEnvelope, actor entities.Actor, at time.Time, digest string) error {
+	if err := admitOwnerWrite(ctx, store, run); err != nil {
+		return err
+	}
 	if err := ensureOwnerRun(ctx, store, run); err != nil {
 		return err
 	}
@@ -244,6 +274,9 @@ func replayedEvent(ctx context.Context, store Store, run flow.RunRef, id string)
 
 // MarkEvent stages the owner's "event worth recalling" on one record.
 func MarkEvent(ctx context.Context, store Store, run flow.RunRef, request events.MarkRequest, actor entities.Actor, at time.Time, digest string) (events.Proposal, error) {
+	if err := admitOwnerWrite(ctx, store, run); err != nil {
+		return events.Proposal{}, err
+	}
 	id := flow.DeterministicID("owner_mark", digest)
 	if replayedEvent(ctx, store, run, id) {
 		current, _ := store.CurrentEvents(ctx, run.GenerationID)

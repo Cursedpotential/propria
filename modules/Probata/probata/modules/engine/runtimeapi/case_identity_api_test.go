@@ -200,7 +200,7 @@ func TestCaseIdentityPersonAndHeaderEdits(t *testing.T) {
 	noMode := newPreviewRequest(http.MethodPost, "/case-identity/header",
 		[]byte(`{"target":"matter","id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","fields":{"title":"x"},"change_reason":"x"}`))
 	noMode.Header.Set("Idempotency-Key", "no-mode")
-	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, noMode).Code)
+	require.Equal(t, http.StatusCreated, servePreviewRequest(routes, noMode).Code)
 }
 
 func TestCaseIdentityErrorMappingAndLookup(t *testing.T) {

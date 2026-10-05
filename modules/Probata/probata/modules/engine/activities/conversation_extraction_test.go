@@ -243,11 +243,11 @@ func TestExternalPageThatIsSkippedOrMalformedStagesNothing(t *testing.T) {
 	store := newMemStore()
 	acts := NewConversationActivities(store, nil, nil, "")
 	skipped, _ := json.Marshal(model.ExternalPage{Skipped: true, Reason: "no key"})
-	result, err := acts.StageExternalExtractionPage(context.Background(), flow.StageExternalPage{Page: skipped})
+	result, err := acts.StageExternalExtractionPage(context.Background(), flow.StageExternalPage{Input: flow.ExternalRunInput{Run: store.run}, Page: skipped})
 	if err != nil || !result.Skipped || result.Reason != "no key" {
 		t.Fatalf("skipped result = %+v, %v", result, err)
 	}
-	result, err = acts.StageExternalExtractionPage(context.Background(), flow.StageExternalPage{Page: json.RawMessage(`not json`)})
+	result, err = acts.StageExternalExtractionPage(context.Background(), flow.StageExternalPage{Input: flow.ExternalRunInput{Run: store.run}, Page: json.RawMessage(`not json`)})
 	if err != nil || !result.Invalid {
 		t.Fatalf("malformed result = %+v, %v", result, err)
 	}

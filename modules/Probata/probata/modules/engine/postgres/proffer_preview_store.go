@@ -471,7 +471,7 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 		       COALESCE(decision.selection_ref, ''),
 		       COALESCE(decision.parser_options_ref, binding.parser_options_ref),
 		       COALESCE(snapshot.source_version_id, version.id), snapshot.raw_generation_id,
-		       snapshot.normalized_generation_id, binding.created_at, version.matter_id,
+		       snapshot.normalized_generation_id, binding.created_at, version.matter_id, version.court_case_id,
  COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND event_id=0), '')
 		FROM context.proffer_preview_binding binding
 		LEFT JOIN context.source_version version ON version.workflow_id = binding.workflow_id
@@ -490,7 +490,7 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 		WHERE binding.preview_handle = $1`, handle).Scan(
 		&binding.Handle, &binding.RequestID, &binding.SourceRef, &binding.WorkflowID, &binding.RunID,
 		&binding.SelectionRef, &binding.ParserOptionsRef, &sourceVersion, &rawGeneration, &normalizedGeneration,
-		&binding.CreatedAt, &binding.MatterID, &modeDetail)
+		&binding.CreatedAt, &binding.MatterID, &binding.CourtCaseID, &modeDetail)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return previewmodel.Binding{}, previewmodel.ErrNotFound
 	}
@@ -532,6 +532,8 @@ func recordedOperatingMode(detail string) string {
 // Source-row disagreement invalidates the receipt; missing historical scope is
 // not silently repaired from the caller's current selection.
 func applyBindingAdmission(binding *previewmodel.Binding, detail string) {
+	// Receipt policy replaces any caller-populated mode, never the reverse.
+	binding.OperatingMode = recordedOperatingMode(detail)
 	var receipt struct {
 		Mode   string `json:"operating_mode"`
 		Matter string `json:"matter_id"`
@@ -543,6 +545,10 @@ func applyBindingAdmission(binding *previewmodel.Binding, detail string) {
 	}
 	matter, court := uuid.MustParse(receipt.Matter), uuid.MustParse(receipt.Court)
 	if binding.MatterID != nil && *binding.MatterID != matter {
+		binding.OperatingMode = ""
+		return
+	}
+	if binding.CourtCaseID != nil && *binding.CourtCaseID != court {
 		binding.OperatingMode = ""
 		return
 	}
@@ -608,7 +614,7 @@ func (s *ProfferPreviewStore) ListBindings(ctx context.Context, cursor *previewm
 	rows, err := s.db.Query(ctx, `
 		SELECT binding.preview_handle, binding.request_id, binding.source_ref,
 		       binding.workflow_id, binding.run_id, binding.parser_options_ref,
-		       version.id, binding.created_at, version.matter_id,
+		       version.id, binding.created_at, version.matter_id, version.court_case_id,
  COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND event_id=0), '')
 		FROM context.proffer_preview_binding binding
 		LEFT JOIN context.source_version version ON version.workflow_id = binding.workflow_id
@@ -626,7 +632,7 @@ func (s *ProfferPreviewStore) ListBindings(ctx context.Context, cursor *previewm
 		var modeDetail string
 		if err := rows.Scan(&binding.Handle, &binding.RequestID, &binding.SourceRef,
 			&binding.WorkflowID, &binding.RunID, &binding.ParserOptionsRef,
-			&sourceVersion, &binding.CreatedAt, &binding.MatterID, &modeDetail); err != nil {
+			&sourceVersion, &binding.CreatedAt, &binding.MatterID, &binding.CourtCaseID, &modeDetail); err != nil {
 			return previewmodel.BindingPage{}, fmt.Errorf("scan preview binding: %w", err)
 		}
 		binding.OperatingMode = recordedOperatingMode(modeDetail)

@@ -91,11 +91,11 @@ const testPreviewHandle = "HandleHandleHandleHandleHandle0123456789_-"
 
 func TestResolveAnchorReadsTheReviewRunAndItsAssessment(t *testing.T) {
 	version := uuid.MustParse("0199aaaa-0000-7000-8000-000000000001")
-	matter := uuid.MustParse(devMatterID)
-	court := uuid.MustParse(devCourtCaseID)
+	matter := uuid.MustParse(authoritativeMatterID)
+	court := uuid.MustParse(authoritativeCourtCaseID)
 	db := &repairPlanDB{rows: []pgx.Row{
 		repairPlanRow{values: []any{testPreviewHandle, "req-1", "b2://salem-data/v/sms-1.xml", "req-1",
-			"pending-handler-selection/v1", &version, "smsbackuprestore_xml", &matter, &court, `{"operating_mode":"LIVE"}`}},
+			"pending-handler-selection/v1", &version, "smsbackuprestore_xml", &matter, &court, `{"operating_mode":"LIVE","matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c"}`}},
 		repairPlanRow{err: pgx.ErrNoRows},
 		repairPlanRow{values: []any{[]byte(`{"detection":{"fmt":"xml"}}`), []byte(`{"clean":false,"truncated":true}`)}},
 	}}
@@ -108,7 +108,7 @@ func TestResolveAnchorReadsTheReviewRunAndItsAssessment(t *testing.T) {
 		t.Fatal(err)
 	}
 	if anchor.PreviewHandle != testPreviewHandle || anchor.SourceVersionID != version.String() ||
-		anchor.MatterID != devMatterID || anchor.CourtCaseID != devCourtCaseID || anchor.DetectedFormat != "" ||
+		anchor.MatterID != authoritativeMatterID || anchor.CourtCaseID != authoritativeCourtCaseID || anchor.OperatingMode != "LIVE" || anchor.DetectedFormat != "" ||
 		anchor.ParserOptionsRef != "pending-handler-selection/v1" || string(anchor.RepairReport) != `{"clean":false,"truncated":true}` {
 		t.Fatalf("anchor = %+v", anchor)
 	}
@@ -117,6 +117,30 @@ func TestResolveAnchorReadsTheReviewRunAndItsAssessment(t *testing.T) {
 	}
 	if !strings.Contains(db.queries[1], "handler_detected_format") || !strings.Contains(db.queries[2], "repair_assessment") {
 		t.Fatalf("follow-up queries = %v", db.queries[1:])
+	}
+}
+
+func TestResolveAnchorRejectsIncompleteOrConflictingAdmissionReceipt(t *testing.T) {
+	matter, court := uuid.MustParse(authoritativeMatterID), uuid.MustParse(authoritativeCourtCaseID)
+	other := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	validDetail := `{"operating_mode":"LIVE","matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c"}`
+	for _, test := range []struct {
+		name, detail string
+		court        *uuid.UUID
+	}{
+		{"mode-only", `{"operating_mode":"LIVE"}`, &court},
+		{"foreign-receipt", `{"operating_mode":"LIVE","matter_id":"11111111-1111-1111-1111-111111111111","court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c"}`, &court},
+		{"conflicting-source-court", validDetail, &other},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var noVersion *uuid.UUID
+			db := &repairPlanDB{rows: []pgx.Row{repairPlanRow{values: []any{testPreviewHandle, "r", "b2://b/k.xml", "r", "p", noVersion, "", &matter, test.court, test.detail}}}}
+			store, _ := NewRepairPlanStore(db)
+			anchor, err := store.ResolveAnchor(context.Background(), "b2://b/k.xml", testPreviewHandle)
+			if err != nil || anchor.OperatingMode != "" || len(db.queries) != 1 {
+				t.Fatalf("unverified anchor admitted: %+v err=%v queries=%d", anchor, err, len(db.queries))
+			}
+		})
 	}
 }
 
