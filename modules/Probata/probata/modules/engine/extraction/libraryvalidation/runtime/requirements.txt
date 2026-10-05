@@ -1,0 +1,6 @@
+# Existing native PDF and visible HTML extractor distributions only.
+# Inputs: requirements.txt pins; outputs: same libraries in the worker's private environment.
+# Effects: build-time package installation; no OCR, model provider, registry autodiscovery or new parser stack.
+# Byline: Codex · GPT-6.1 · 2026-10-04.
+lxml==6.1.1
+pypdf==6.15.0
