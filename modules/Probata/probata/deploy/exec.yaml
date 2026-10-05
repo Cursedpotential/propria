@@ -10,6 +10,8 @@
 #         expose the framework-neutral platform API on the tailnet only.
 # Byline: Codex · GPT-5.6-Sol · 2026-08-29 — runtime-read Platform API bearer;
 #         file rotation no longer requires an application redeploy.
+# Byline: Codex · GPT-6.1-Sol · 2026-10-05 — one neutral case identity for
+#         governed Proffer review flags; Dev/Live does not choose a case.
 # =============================================================================
 # EXEC TIER (RUMP) — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem
 # private 10.1.1.122, public 40.160.5.19), the execution + surfaces box.
@@ -128,6 +130,10 @@ services:
       DB_USER: ${DB_USER:-ai}
       DB_PASS: ${DB_PASS:-ai}
       DB_DATABASE: ${DB_DATABASE:-platform}
+      # The same approved case is used in Dev and Live. Provision these in
+      # Coolify before deploying; an absent identity fails closed in the API.
+      PROFFER_MATTER_ID: ${PROFFER_MATTER_ID:-}
+      PROFFER_COURT_CASE_ID: ${PROFFER_COURT_CASE_ID:-}
       # Milvus (ADR-0026/0027) — vector store on OVH-3; defaults to the data box's
       # gRPC port over the tailnet. Override MILVUS_ADDRESS/TOKEN in env if needed.
       # NB 2026-08-12: ADR-0026/0027 SUPERSEDED by ADR-0040 (Weaviate locked
