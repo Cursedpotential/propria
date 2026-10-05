@@ -39,7 +39,7 @@ class Listing(BaseModel):
     available: bool
     reason: str | None = None
     records: list[Record] = Field(default_factory=list)
-    mode: str = "REAL"
+    mode: Literal["DEV", "LIVE"] = "LIVE"
     refreshed_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     truncated: bool = False
     matter_id: str | None = None
