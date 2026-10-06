@@ -543,7 +543,16 @@ func applyBindingAdmission(binding *previewmodel.Binding, detail string) {
 		binding.OperatingMode = ""
 		return
 	}
-	matter, court := uuid.MustParse(receipt.Matter), uuid.MustParse(receipt.Court)
+	matter, err := uuid.Parse(receipt.Matter)
+	if err != nil {
+		binding.OperatingMode = ""
+		return
+	}
+	court, err := uuid.Parse(receipt.Court)
+	if err != nil {
+		binding.OperatingMode = ""
+		return
+	}
 	if binding.MatterID != nil && *binding.MatterID != matter {
 		binding.OperatingMode = ""
 		return

@@ -57,6 +57,32 @@ func TestAdmissionReceiptRecoversScopeBeforeRegistrationAndRejectsConflict(t *te
 	}
 }
 
+func TestAdmissionReceiptRejectsNoncanonicalScopeWithoutReplacingSourceIDs(t *testing.T) {
+	detail := `{"operating_mode":"LIVE","matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c"}`
+	otherMatter := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	otherCourt := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+
+	for name, receipt := range map[string]string{
+		"padded matter": strings.Replace(detail, "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", " 01a0f751-e07b-75cc-9ad5-63ad9449a8ba ", 1),
+		"padded court":  strings.Replace(detail, "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", " 01a0f751-e07b-76a1-a738-eb3e3aa3e68c ", 1),
+		"invalid JSON":  `{`,
+		"nil receipt":   `null`,
+		"missing scope": `{"operating_mode":"LIVE"}`,
+		"unknown scope": strings.Replace(detail, "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", "11111111-1111-1111-1111-111111111111", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			binding := previewmodel.Binding{OperatingMode: "LIVE", MatterID: &otherMatter, CourtCaseID: &otherCourt}
+			applyBindingAdmission(&binding, receipt)
+			if binding.OperatingMode != "" {
+				t.Fatal("invalid durable receipt admitted", binding.OperatingMode)
+			}
+			if binding.MatterID != &otherMatter || binding.CourtCaseID != &otherCourt {
+				t.Fatal("denied receipt replaced source scope", binding.MatterID, binding.CourtCaseID)
+			}
+		})
+	}
+}
+
 func TestWrongCourtHeaderRejectedBeforeTransaction(t *testing.T) {
 	store := &CaseIdentityStore{operatingMode: caseidentity.ModeLive}
 	_, err := store.EditHeader(context.Background(), caseidentity.ModeLive, caseidentity.HeaderSpec{Target: "court_case", ID: "11111111-1111-1111-1111-111111111111"}, caseidentity.Actor{})
