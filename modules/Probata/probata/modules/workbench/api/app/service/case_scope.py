@@ -12,7 +12,11 @@ from urllib.parse import urlsplit
 import httpx
 
 from app.config import settings
-from app.service.matter_mode import MatterModeError, configured_court_case_id, configured_matter_id
+from app.service.matter_mode import (
+    MatterModeError,
+    configured_court_case_id,
+    configured_matter_id,
+)
 from app.service.proffer_errors import ProfferError
 from app.types.matter_mode import MatterMode
 
@@ -76,20 +80,22 @@ async def _read_scope(mode: MatterMode) -> dict[str, Any]:
     headers = {**_service_authorization_headers(), "Accept": "application/json", "Accept-Encoding": "identity"}
     raw = bytearray()
     try:
-        async with asyncio.timeout(_TIMEOUT_SECONDS):
-            async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS, trust_env=False, follow_redirects=False) as client:
-                async with client.stream("GET", url, params={"mode": mode}, headers=headers) as response:
-                    if response.status_code != 200:
-                        raise ProfferError(_UPSTREAM_ERROR, 503)
-                    if response.headers.get("content-encoding", "identity").lower() != "identity":
-                        raise ProfferError(_HEADER_ERROR, 502)
-                    length = response.headers.get("content-length")
-                    if length is not None and (not length.isdecimal() or int(length) > _MAX_RESPONSE_BYTES):
-                        raise ProfferError(_HEADER_ERROR, 502)
-                    async for chunk in response.aiter_raw():
-                        if len(raw) + len(chunk) > _MAX_RESPONSE_BYTES:
-                            raise ProfferError(_HEADER_ERROR, 502)
-                        raw.extend(chunk)
+        async with (
+            asyncio.timeout(_TIMEOUT_SECONDS),
+            httpx.AsyncClient(timeout=_TIMEOUT_SECONDS, trust_env=False, follow_redirects=False) as client,
+            client.stream("GET", url, params={"mode": mode}, headers=headers) as response,
+        ):
+            if response.status_code != 200:
+                raise ProfferError(_UPSTREAM_ERROR, 503)
+            if response.headers.get("content-encoding", "identity").lower() != "identity":
+                raise ProfferError(_HEADER_ERROR, 502)
+            length = response.headers.get("content-length")
+            if length is not None and (not length.isdecimal() or int(length) > _MAX_RESPONSE_BYTES):
+                raise ProfferError(_HEADER_ERROR, 502)
+            async for chunk in response.aiter_raw():
+                if len(raw) + len(chunk) > _MAX_RESPONSE_BYTES:
+                    raise ProfferError(_HEADER_ERROR, 502)
+                raw.extend(chunk)
     except (TimeoutError, httpx.HTTPError, OSError, ValueError):
         raise ProfferError(_UPSTREAM_ERROR, 503) from None
     try:

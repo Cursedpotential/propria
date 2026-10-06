@@ -9,12 +9,13 @@ import time
 
 import httpx
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from app.config import settings
 from app.runtime import operating_mode
 from app.service import case_scope, proffer
 from app.service.proffer_errors import ProfferError
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 MATTER = "11111111-1111-4111-8111-111111111111"
 COURT = "22222222-2222-4222-8222-222222222222"
