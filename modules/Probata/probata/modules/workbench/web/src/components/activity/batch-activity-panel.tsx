@@ -18,6 +18,13 @@ function batchStatusLabel(status: ProfferBatchItemStatus) {
   return "In progress";
 }
 
+// Byline: Codex · GPT-6 · 2026-10-06
+/** Render one server-reported batch item and its exact attempt link when available.
+ * Inputs: batch item and the mode that scopes its operation.
+ * Output: filename, lifecycle label, reason, and optional Read link.
+ * Side effects: none.
+ * Use inside BatchActivityPanel; batch items without a valid handle remain informational.
+ */
 function BatchItemRow({ item, mode }: { item: ProfferBatchItem; mode: MatterMode }) {
   const title = sourceFilename(item.source_ref || item.key);
   const canOpen = /^[A-Za-z0-9_-]{32,128}$/.test(item.preview_handle);
@@ -40,7 +47,13 @@ function BatchItemRow({ item, mode }: { item: ProfferBatchItem; mode: MatterMode
   );
 }
 
-/** Show persistent server-owned status for a batch named by the Activity URL. */
+// Byline: Codex · GPT-6 · 2026-10-06
+/** Show persistent server-owned status for a batch named by the Activity URL.
+ * Inputs: batch ID, fixed-case mode, and close callback.
+ * Output: durable batch counts and item rows, or loading/error state.
+ * Side effects: reads the mode-scoped batch endpoint and polls while it is active.
+ * Use for /activity?batch= links from Sources; do not derive progress from local UI state.
+ */
 export function BatchActivityPanel({ batchId, mode, onClose }: { batchId: string; mode: MatterMode; onClose: () => void }) {
   const validBatchId = BATCH_ID_PATTERN.test(batchId);
   const batch = useQuery({

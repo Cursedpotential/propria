@@ -6,7 +6,13 @@ import type { MatterMode } from "@/lib/shared/types";
 
 const PREVIEW_HANDLE_PATTERN = /^[A-Za-z0-9_-]{32,128}$/;
 
-/** Load the exact mode-bound operation snapshot before showing its cancel control. */
+// Byline: Codex · GPT-6 · 2026-10-06
+/** Load the exact mode-bound operator snapshot before exposing cancellation.
+ * Inputs: preview handle and Dev/Live mode.
+ * Output: existing CancelRunSection only when the snapshot matches both inputs.
+ * Side effects: reads the operator snapshot; CancelRunSection owns any explicit cancel action.
+ * Use for Activity cancellation; never infer cancel eligibility from a list row alone.
+ */
 export function OperationCancelControl({ previewHandle, mode }: { previewHandle: string; mode: MatterMode }) {
   const validHandle = PREVIEW_HANDLE_PATTERN.test(previewHandle);
   const snapshot = useQuery({

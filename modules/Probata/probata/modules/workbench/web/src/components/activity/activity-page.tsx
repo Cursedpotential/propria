@@ -6,7 +6,13 @@ import { useAppNavigate, useBrowserSearchParams } from "@/lib/router-compat";
 import { ActivityOperationsLedger } from "./activity-operations-ledger";
 import { BatchActivityPanel } from "./batch-activity-panel";
 
-/** Present durable single-source operations and folder batches on one Activity page. */
+// Byline: Codex · GPT-6 · 2026-10-06
+/** Present durable single-source operations and folder batches on one Activity page.
+ * Inputs: fixed-case mode and Activity URL parameters from router hooks.
+ * Output: Activity header, optional durable batch view, and operation ledger.
+ * Side effects: reads query parameters and updates the URL when a batch panel closes.
+ * Use this as the page composition; the ledger and batch panel own their respective records.
+ */
 export function ActivityPage() {
   const { mode } = useFixedCase();
   const searchParams = useBrowserSearchParams();
@@ -26,7 +32,7 @@ export function ActivityPage() {
         <div className="flex items-start gap-3">
           <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center border bg-primary/10 text-primary"><Activity className="size-4" aria-hidden="true" /></span>
           <div className="max-w-2xl">
-            <p className="text-sm font-medium text-muted-foreground">{mode === "DEV" ? "Dev case" : "Live case"}</p>
+            <p className="text-sm font-medium text-muted-foreground">{mode === "DEV" ? "Dev mode" : "Live mode"}</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">Activity</h1>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">Follow each source import from its first request to the latest recorded result. Open an import to review its status, make a decision, or start a safe new attempt.</p>
           </div>

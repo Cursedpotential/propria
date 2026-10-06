@@ -65,10 +65,16 @@ function actionText(operation: ProfferOperationSummary) {
   return nextOperationAction(operation.lifecycle);
 }
 
-/** Durable Proffer activity ledger with URL filters and cursor pagination. */
+// Byline: Codex · GPT-6 · 2026-10-06
+/** Show durable Proffer operations with URL-backed filters and cursor pagination.
+ * Inputs: Activity search parameters and the fixed-case mode.
+ * Output: operation rows, selected attempt details, and safe existing operator controls.
+ * Side effects: reads/polls the operation API and replaces Activity URL parameters.
+ * Use as the shared Activity ledger; it does not read legacy Workbench run records.
+ */
 export function ActivityOperationsLedger() {
   const searchParams = useBrowserSearchParams();
-  const rawStatus = searchParams.get("status");
+  const rawStatus = searchParams.get("status") ?? searchParams.get("operation_status");
   const statusFilter: ProfferOperationLifecycle | "all" = OPERATION_STATUSES.includes(rawStatus as ProfferOperationLifecycle)
     ? rawStatus as ProfferOperationLifecycle
     : "all";
@@ -79,7 +85,7 @@ function ActivityOperationsLedgerForStatus({ statusFilter }: { statusFilter: Pro
   const { mode } = useFixedCase();
   const searchParams = useBrowserSearchParams();
   const navigate = useAppNavigate();
-  const sourceFilter = searchParams.get("q") ?? "";
+  const sourceFilter = searchParams.get("q") ?? searchParams.get("operation_source") ?? "";
   const selectedHandle = searchParams.get("preview_handle") ?? searchParams.get("operation") ?? "";
 
   const [operations, setOperations] = useState<ProfferOperationSummary[]>([]);
@@ -90,6 +96,7 @@ function ActivityOperationsLedgerForStatus({ statusFilter }: { statusFilter: Pro
   const [listError, setListError] = useState<string | null>(null);
   const listBusyRef = useRef(false);
   const listAbortRef = useRef<AbortController | null>(null);
+  const loadMoreAbortRef = useRef<AbortController | null>(null);
   const pageCountRef = useRef(1);
 
   const replaceSearch = useCallback((changes: Record<string, string | null>) => {
@@ -136,7 +143,9 @@ function ActivityOperationsLedgerForStatus({ statusFilter }: { statusFilter: Pro
     return () => {
       window.clearInterval(timer);
       listAbortRef.current?.abort();
+      loadMoreAbortRef.current?.abort();
       listAbortRef.current = null;
+      loadMoreAbortRef.current = null;
       listBusyRef.current = false;
     };
   }, [refresh]);
@@ -165,25 +174,35 @@ function ActivityOperationsLedgerForStatus({ statusFilter }: { statusFilter: Pro
     retry: false,
   });
 
+  const validSelectedHandle = HANDLE_PATTERN.test(selectedHandle);
+
   async function loadMore() {
     if (!nextCursor || listBusyRef.current) return;
     listBusyRef.current = true;
+    const controller = new AbortController();
+    loadMoreAbortRef.current = controller;
     setLoadingMore(true);
     try {
       const response = await listProfferOperations({
         status: statusFilter === "all" ? undefined : statusFilter,
         cursor: nextCursor,
         limit: PAGE_SIZE,
-      });
-      setOperations((current) => mergeOperationRows(current, response.items));
+      }, controller.signal);
+      if (controller.signal.aborted) return;
+      // The server page is older than the already loaded rows; pass it as the
+      // lower-priority page so current/latest rows remain at the top.
+      setOperations((current) => mergeOperationRows(response.items, current));
       setNextCursor(response.next_cursor ?? null);
       pageCountRef.current += 1;
       setListError(null);
     } catch (error) {
-      setListError(requestErrorText(error));
+      if (!controller.signal.aborted) setListError(requestErrorText(error));
     } finally {
-      listBusyRef.current = false;
-      setLoadingMore(false);
+      if (loadMoreAbortRef.current === controller) {
+        loadMoreAbortRef.current = null;
+        listBusyRef.current = false;
+        setLoadingMore(false);
+      }
     }
   }
 
@@ -197,11 +216,11 @@ function ActivityOperationsLedgerForStatus({ statusFilter }: { statusFilter: Pro
         <div className="flex flex-wrap items-end gap-2">
           <label className="grid gap-1 text-xs font-medium text-muted-foreground">
             Find a source
-            <input value={sourceFilter} onChange={(event) => replaceSearch({ q: event.target.value || null })} placeholder="Filename or folder" className="h-9 w-56 border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" />
+            <input value={sourceFilter} onChange={(event) => replaceSearch({ q: event.target.value || null, operation_source: null })} placeholder="Filename or folder" className="h-9 w-56 border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" />
           </label>
           <label className="grid gap-1 text-xs font-medium text-muted-foreground">
             Status
-            <select value={statusFilter} onChange={(event) => replaceSearch({ status: event.target.value === "all" ? null : event.target.value })} className="h-9 border bg-background px-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+            <select value={statusFilter} onChange={(event) => replaceSearch({ status: event.target.value === "all" ? null : event.target.value, operation_status: null })} className="h-9 border bg-background px-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
               <option value="all">All statuses</option>
               {OPERATION_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
             </select>
@@ -217,10 +236,10 @@ function ActivityOperationsLedgerForStatus({ statusFilter }: { statusFilter: Pro
           handle={selectedHandle}
           mode={mode}
           detail={detail.data ?? null}
-          loading={detail.isPending}
+          loading={validSelectedHandle && detail.isPending}
           error={detail.error ? requestErrorText(detail.error) : null}
           sourceName={sourceContext.data?.registration?.original_filename || sourceFilename(detail.data?.source_ref ?? "")}
-          sourceContextLoading={sourceContext.isPending}
+          sourceContextLoading={validSelectedHandle && sourceContext.isPending}
           onClose={() => replaceSearch({ preview_handle: null, operation: null })}
         />
       )}

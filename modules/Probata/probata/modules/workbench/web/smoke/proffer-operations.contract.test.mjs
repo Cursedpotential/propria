@@ -40,16 +40,24 @@ test("refresh merges the latest first page without dropping older loaded rows", 
   const older = makeOperation("older", "unchanged");
   const first = makeOperation("first", "before refresh");
   const updatedFirst = makeOperation("first", "after refresh");
-  const merged = stateModule.mergeOperationRows([first, older], [updatedFirst]);
+  const newest = makeOperation("newest", "new first page row");
+  const merged = stateModule.mergeOperationRows([first, older], [newest, updatedFirst]);
 
-  assert.deepEqual(merged, [updatedFirst, older]);
+  assert.deepEqual(merged, [newest, updatedFirst, older]);
+  assert.equal(merged.find((row) => row.preview_handle === "first").reason, "after refresh");
+  const withOlderPage = stateModule.mergeOperationRows([makeOperation("oldest", "older cursor page")], merged);
+  assert.deepEqual(withOlderPage, [newest, updatedFirst, older, makeOperation("oldest", "older cursor page")]);
 });
 
 test("filters and selected operation stay in the Activity URL", () => {
   assert.match(ledger, /searchParams\.get\("status"\)/);
+  assert.match(ledger, /searchParams\.get\("operation_status"\)/);
   assert.match(ledger, /searchParams\.get\("q"\)/);
+  assert.match(ledger, /searchParams\.get\("operation_source"\)/);
   assert.match(ledger, /searchParams\.get\("preview_handle"\)/);
   assert.match(ledger, /searchParams\.get\("operation"\)/);
+  assert.match(ledger, /operation_status: null/);
+  assert.match(ledger, /operation_source: null/);
   assert.match(ledger, /navigate\.replace\(`\/activity\$\{query/);
   assert.match(activity, /searchParams\.get\("batch"\)/);
   assert.match(activity, /navigate\.replace\(`\/activity\$\{query/);
@@ -72,10 +80,31 @@ test("cancellation appears only after the exact mode-scoped operator snapshot is
   assert.match(client, /\/previews\/\$\{encodeURIComponent\(previewHandle\)\}\/cancel/);
 });
 
-test("source labels and re-entry use human filenames and the existing mode-scoped Review path", () => {
+test("source labels and attempt links use filenames and canonical mode-scoped Read", () => {
   assert.equal(stateModule.sourceFilename("r2://vault/folder/Family%20messages.json"), "Family messages.json");
-  assert.equal(stateModule.attemptReviewHref("attempt_012345678901234567890123456789", "DEV"), "/review?mode=DEV&resource=attempt_012345678901234567890123456789");
+  assert.equal(stateModule.attemptReviewHref("attempt_012345678901234567890123456789", "DEV"), "/read?resource=attempt_012345678901234567890123456789&mode=DEV");
   assert.equal(stateModule.nextOperationAction("failed"), "Start a new import");
   assert.match(ledger, /Technical details/);
   assert.match(ledger, /OperationCancelControl previewHandle=\{detail\.preview_handle\} mode=\{mode\}/);
+  assert.match(activity, /Dev mode/);
+  assert.match(activity, /Live mode/);
+  assert.doesNotMatch(activity, /Dev case|Live case/);
+});
+
+test("invalid selected handles exit loading and older-page requests abort on unmount", () => {
+  assert.match(ledger, /loading=\{validSelectedHandle && detail\.isPending\}/);
+  assert.match(ledger, /sourceContextLoading=\{validSelectedHandle && sourceContext\.isPending\}/);
+  assert.match(ledger, /loadMoreAbortRef\.current\?\.abort\(\)/);
+  assert.match(ledger, /\}, controller\.signal\)/);
+  assert.match(ledger, /if \(controller\.signal\.aborted\) return/);
+  assert.match(ledger, /mergeOperationRows\(response\.items, current\)/);
+});
+
+test("new exported Activity units carry bylines and interface documentation", () => {
+  for (const source of [activityPage, activity, ledger, batch, cancel, stateSource, compatibilityTable]) {
+    assert.match(source, /Byline: Codex · GPT-6 · 2026-10-06/);
+    assert.match(source, /Inputs:/);
+    assert.match(source, /Output:/);
+    assert.match(source, /Side effects:/);
+  }
 });
