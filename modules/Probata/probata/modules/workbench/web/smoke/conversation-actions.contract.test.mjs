@@ -77,12 +77,13 @@ test("mobile: threads are checkable, and a conversation has Extractions, Extract
   assert.match(actions, /className="h-11/, "44px+ tap targets");
 });
 
-test("desktop: /conversations is routed and in the navigation, with the same actions", () => {
-  assert.match(read("../src/router.tsx"), /applicationRoute\("conversations", \(\) => import\("@\/app\/conversations\/page"\)\)/);
-  assert.match(read("../src/surfaces/primary/navigation.ts"), /href: "\/conversations"/);
-  const page = read("../src/app/conversations/page.tsx");
+test("desktop: Read retains conversation tools and legacy bookmarks", () => {
+  assert.match(read("../src/router.tsx"), /legacyRoute\("conversations"\)/);
+  assert.match(read("../src/surfaces/primary/navigation.ts"), /href: "\/read"/);
+  const page = read("../src/components/read/read-conversation.tsx");
   assert.match(page, /<ConversationToolbar threadId=\{threadId\} placement="desktop" \/>/);
-  assert.match(page, /<ExtractionsView threadId=\{threadId\} \/>/);
+  assert.match(read("../src/components/read/read-context.tsx"), /<ExtractionsView threadId=\{threadId\} \/>/);
+  assert.match(read("../src/components/read/read-workspace.tsx"), /<SelectableConversations items=\{items\} placement="desktop" \/>/);
 });
 
 test("only message conversations are offered: the ids are the Imported view's threads, never an AI chat", () => {

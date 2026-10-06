@@ -23,9 +23,9 @@ const intake = source("../src/components/intake/unified-intake.tsx");
 const client = source("../src/lib/api-client.ts");
 const packageManifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
-test("Sources is a route and the navigation entry; Intake stays reachable but off the nav", () => {
+test("Sources is a route and the navigation entry; Intake bookmarks redirect", () => {
   assert.match(router, /applicationRoute\("sources"/);
-  assert.match(router, /applicationRoute\("intake"/);
+  assert.match(router, /legacyRoute\("intake"/);
   assert.match(navigation, /title: "Sources"/);
   assert.match(navigation, /href: "\/sources"/);
   assert.doesNotMatch(navigation, /href: "\/intake"/);
@@ -82,7 +82,7 @@ test("search ships with four modes and one small flag per unreachable mode", () 
 
 test("Process is one button and never auto-starts, and no sort or mark gates it", () => {
   assert.match(screen, /Process\s*<\/Button>/);
-  assert.match(screen, /startProffer\(/);
+  assert.match(screen, /processSelection\(entries, startProffer/);
   assert.match(screen, /startProfferBatch\(/);
   assert.match(client, /\/api\/proffer\/start-batch/);
   assert.match(client, /\/api\/proffer\/batches\//);

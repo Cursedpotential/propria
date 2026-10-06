@@ -18,6 +18,9 @@ import {
   type SourceState,
 } from "@/components/sources/source-state";
 import { Button } from "@/components/ui/button";
+// Byline: Codex · GPT-6 · 2026-10-06 — source-to-result links retain exact attempt identity.
+import { AppLink } from "@/lib/router-compat";
+import { useFixedCase } from "@/lib/fixed-case-context";
 import type { DecodedManifest } from "@/lib/decoded-source-client";
 import type {
   CatalogProvenance,
@@ -258,7 +261,7 @@ function BatchProgress({ batch }: { batch: ProfferBatchStatus }) {
         {" "}of {counts.total}
       </p>
       {batch.listing_truncated && <p className="mt-1 text-[11px] text-muted-foreground">This folder holds more members than one batch imports.</p>}
-      <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">{batch.batch_id}</p>
+      <AppLink className="mt-2 inline-block text-xs font-medium text-primary underline" href={`/activity?${new URLSearchParams({ batch: batch.batch_id, mode: batch.matter_mode })}`}>Follow this batch in Activity</AppLink>
     </section>
   );
 }
@@ -287,6 +290,7 @@ function FileDetail({
   onHandlerOverrideChange: (value: string) => void;
 }) {
   const object = selection.object;
+  const { mode } = useFixedCase();
   const detected = inspection?.parser_preflight.declared_format ?? "";
   const catalogRow = provenance?.items[0] ?? null;
 
@@ -360,13 +364,13 @@ function FileDetail({
       </section>
 
       <section className="border-b px-3 py-3">
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Runs that touched it</p>
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Processing history</p>
         {runs.length ? (
           <ul className="mt-1 space-y-1 text-[11px]">
             {runs.slice(0, 6).map((run) => (
               <li key={run.preview_handle} className="flex items-center justify-between gap-2">
-                <span className="truncate font-mono text-[10px]">{run.preview_handle}</span>
-                <span className="shrink-0">{run.lifecycle.replaceAll("_", " ")}</span>
+                <AppLink className="truncate text-primary underline" href={`/activity?${new URLSearchParams({ preview_handle: run.preview_handle, mode })}`}>{new Date(run.created_at).toLocaleString()}</AppLink>
+                <AppLink className="shrink-0 text-primary underline" href={`/read?${new URLSearchParams({ resource: run.preview_handle, mode })}`}>{run.lifecycle === "completed" ? "Read result" : run.lifecycle.replaceAll("_", " ")}</AppLink>
               </li>
             ))}
           </ul>

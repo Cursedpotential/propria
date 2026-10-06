@@ -7,10 +7,11 @@ import {
   createRouter,
   lazyRouteComponent,
   Outlet,
+  redirect,
 } from "@tanstack/react-router";
 
 import { AppShell } from "@/app-shell";
-import HomePage from "@/app/page";
+import { canonicalWorkflowHref } from "@/lib/workflow-links";
 import { MobileShell } from "@/components/mobile/mobile-shell";
 
 // The root only routes: the desktop workbench (AppShell) and the slim mobile shell (/m) are siblings.
@@ -20,7 +21,7 @@ function NotFound() {
       <p className="platform-kicker">Unknown destination</p>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">This Workbench route does not exist.</h1>
       <a className="mt-6 text-sm font-semibold text-primary underline underline-offset-4" href="/">
-        Return to the Context Intake Desk
+        Return to Sources
       </a>
     </section>
   );
@@ -38,6 +39,21 @@ function applicationRoute(path: string, importer: () => Promise<{ default: React
     getParentRoute: () => desktopRoute,
     path,
     component: lazyRouteComponent(importer),
+  });
+}
+
+/** Redirect an old page while retaining its bookmarked query and fragment.
+ * Input: legacy route path. Output: router route. Effects: replaces browser location.
+ * Use only for the retired Workbench entry points, never API or mobile routes.
+ * Byline: Codex · GPT-6 · 2026-10-06.
+ */
+function legacyRoute(path: string) {
+  return createRoute({
+    getParentRoute: () => desktopRoute,
+    path,
+    beforeLoad: ({ location }) => {
+      throw redirect({ href: canonicalWorkflowHref(location.pathname, location.searchStr, location.hash), replace: true });
+    },
   });
 }
 
@@ -61,19 +77,21 @@ const mobileTree = mobileRoute.addChildren([
 ]);
 
 const desktopTree = desktopRoute.addChildren([
-  createRoute({ getParentRoute: () => desktopRoute, path: "/", component: HomePage }),
+  legacyRoute("/"),
+  applicationRoute("activity", () => import("@/app/activity/page")),
+  applicationRoute("read", () => import("@/app/read/page")),
   // The Case page over registry, the one identity store (Claude Code · Opus 5.5 · 2026-10-01).
   applicationRoute("case", () => import("@/app/case/page")),
   applicationRoute("classification-test", () => import("@/app/classification-test/page")),
   // Imported conversations: check whole conversations, Extract, Send to Surreal, read the Extractions
   // (Claude Code · Sonnet 5.5 · 2026-10-02).
-  applicationRoute("conversations", () => import("@/app/conversations/page")),
+  legacyRoute("conversations"),
   applicationRoute("copilot", () => import("@/app/copilot/page")),
   applicationRoute("evidence-queue", () => import("@/app/evidence-queue/page")),
-  applicationRoute("review", () => import("@/app/evidence/preview/page")),
-  // Preserve old deep links while Review becomes the canonical destination.
-  applicationRoute("evidence/preview", () => import("@/app/evidence/preview/page")),
-  applicationRoute("intake", () => import("@/app/intake/page")),
+  legacyRoute("review"),
+  // Preserve old deep links while Read becomes the canonical destination.
+  legacyRoute("evidence/preview"),
+  legacyRoute("intake"),
   applicationRoute("knowledge", () => import("@/app/knowledge/page")),
   applicationRoute("matter", () => import("@/app/matter/page")),
   applicationRoute("records", () => import("@/app/records/page")),

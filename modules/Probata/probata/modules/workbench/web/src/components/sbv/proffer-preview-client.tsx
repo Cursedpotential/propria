@@ -6,6 +6,7 @@
 import { ChevronLeft, CircleDot, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useRouter } from "@tanstack/react-router";
 
 import { ProfferOperatorPreview } from "@/components/sbv/proffer-operator-preview";
 import { ReviewResourceList } from "@/components/sbv/review-resource-list";
@@ -28,7 +29,8 @@ import {
 import { PROFFER_CONTEXT_CHECKPOINTS, profferContextFlowComplete } from "@/lib/proffer-context-checkpoints";
 import { useFixedCase } from "@/lib/fixed-case-context";
 import { parseOperatingMode } from "@/lib/operating-mode";
-import { AppLink } from "@/lib/router-compat";
+import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
+import { previewSelectionHref } from "@/lib/workflow-links";
 import type {
   ProfferPreviewEvent,
   ProfferPreviewMessage,
@@ -58,6 +60,8 @@ export function ProfferPreviewClient() {
 }
 
 function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
+  const router = useRouter();
+  const routeParams = useBrowserSearchParams();
   const [initialUrlHandle] = useState(() => initialHandle(mode));
   const [previewHandle, setPreviewHandle] = useState(initialUrlHandle);
   const [resources, setResources] = useState<ProfferProposalResource[]>([]);
@@ -126,24 +130,18 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
 
   const selectResource = useCallback((handle: string) => {
     activateHandle(handle);
-    const url = new URL(window.location.href);
-    url.search = "";
-    url.searchParams.set("mode", mode);
-    if (handle) url.searchParams.set("resource", handle);
-    window.history.replaceState({}, "", url);
-  }, [activateHandle, mode]);
+    void router.navigate({ href: previewSelectionHref(window.location.search, handle, mode), replace: true });
+  }, [activateHandle, mode, router]);
 
+  // Byline: Codex · GPT-6 · 2026-10-06. External links update the attempt without
+  // remounting pending repair answers when this component initiates navigation.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const handle = initialHandle(mode);
-      const url = new URL(window.location.href);
-      url.search = "";
-      url.searchParams.set("mode", mode);
-      if (handle) url.searchParams.set("resource", handle);
-      window.history.replaceState({}, "", url);
-    }, 0);
+    if (parseOperatingMode(routeParams.get("mode")) !== mode) return;
+    const handle = (routeParams.get("resource") ?? routeParams.get("preview_handle") ?? routeParams.get("attempt"))?.trim() ?? "";
+    if (!handle || handle === activeHandleRef.current) return;
+    const timer = window.setTimeout(() => activateHandle(handle), 0);
     return () => window.clearTimeout(timer);
-  }, [mode]);
+  }, [activateHandle, mode, routeParams]);
 
   const loadResources = useCallback(async () => {
     resourcesControllerRef.current?.abort();

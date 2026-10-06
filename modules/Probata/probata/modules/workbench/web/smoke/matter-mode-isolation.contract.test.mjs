@@ -58,7 +58,7 @@ test("all import and preview boundaries carry and verify the active mode", () =>
 
 test("a URL preview handle is accepted only for its matching mode", () => {
   assert.match(preview, /parseOperatingMode\(query.get\("mode"\)\) !== mode\) return ""/);
-  assert.match(preview, /url\.searchParams\.set\("mode", mode\)/);
+  assert.match(preview, /previewSelectionHref\(window.location.search, handle, mode\)/);
 });
 
 test("a direct LIVE preview deep link hydrates mode before resolving its handle", () => {
@@ -69,7 +69,7 @@ test("a direct LIVE preview deep link hydrates mode before resolving its handle"
 
   const handleInitializer = preview.indexOf("useState(() => initialHandle(mode))");
   const activeHandleInitializer = preview.indexOf("useRef(initialUrlHandle)");
-  const locationCanonicalizer = preview.indexOf("window.history.replaceState");
+  const locationCanonicalizer = preview.indexOf("router.navigate");
   assert.ok(handleInitializer >= 0, "the URL handle must initialize synchronously for the validated mode");
   assert.ok(activeHandleInitializer > handleInitializer, "the active correlation ref must start with the URL handle");
   assert.ok(locationCanonicalizer > activeHandleInitializer, "URL canonicalization must run after initial correlation state exists");

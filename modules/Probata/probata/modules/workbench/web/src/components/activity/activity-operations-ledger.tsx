@@ -101,6 +101,8 @@ function ActivityOperationsLedgerForStatus({ statusFilter }: { statusFilter: Pro
 
   const replaceSearch = useCallback((changes: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
+    if ("status" in changes) next.delete("operation_status");
+    if ("q" in changes) next.delete("operation_source");
     for (const [key, value] of Object.entries(changes)) {
       if (value) next.set(key, value);
       else next.delete(key);

@@ -3,6 +3,7 @@
 // Byline: Codex · GPT-5 · 2026-08-28 (focused unified-surface navigation)
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (two-surface navigation registry)
 "use client";
+// Byline: Codex · GPT-6 · 2026-10-06 (Sources, Activity and Read navigation).
 
 import { ShieldCheck } from "lucide-react";
 import {
@@ -50,10 +51,10 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border px-4 py-5">
         <div className="space-y-2 text-[11px] leading-5 text-[#aeb7bc]">
           <div className="flex items-center gap-2 font-semibold uppercase tracking-wide text-[#dce1e3]">
-            <ShieldCheck className="h-4 w-4" /> Focused release
+            <ShieldCheck className="h-4 w-4" /> Your case workspace
           </div>
           {/* Byline: Claude Code · Opus 5 · 2026-09-22 — Sources replaced Intake. */}
-          <p>Sources brings files in; Review reads what came out. Anything not yet reachable is flagged on the item itself.</p>
+          <p>Choose files in Sources, follow processing in Activity, and work with the results in Read.</p>
         </div>
       </SidebarFooter>
     </Sidebar>

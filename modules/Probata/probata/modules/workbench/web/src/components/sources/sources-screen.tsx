@@ -1,4 +1,5 @@
 // Byline: Claude Code · Opus 5 · 2026-09-22
+// Byline: Codex · GPT-6 · 2026-10-06 (durable selection, upload, partial retries and Activity links).
 // Sources — the front door that replaces the Intake page.
 //
 // Ratified 2026-09-22 09:09 (docs/pending-review/2026-09-21-intake-review-module-rethink.md,
@@ -15,8 +16,9 @@
 "use client";
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Play } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
+import { AlertTriangle, Loader2, Play, Upload, X } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SourceMetadataPanel, type SourceSelection } from "@/components/sources/source-metadata-panel";
@@ -26,6 +28,8 @@ import { SourceSearch, modeAvailable, type SearchMode } from "@/components/sourc
 import { SourceTree } from "@/components/sources/source-tree";
 import { detectedFormat, runsBySource, sourceState } from "@/components/sources/source-state";
 import { Button } from "@/components/ui/button";
+import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
+import { processSelection, type SourceSubmission } from "@/components/sources/process-selection";
 import {
   ApiError,
   getCatalogProvenance,
@@ -43,11 +47,12 @@ import {
   searchDiscovery,
   startProffer,
   startProfferBatch,
+  uploadProfferSource,
 } from "@/lib/api-client";
 import { getDecodedManifest } from "@/lib/decoded-source-client";
 import type { DiscoveryItem } from "@/lib/discovery-types";
 import { useFixedCase } from "@/lib/fixed-case-context";
-import type { CatalogUnitLookup, SourceUnitKind, SourceUnitMark } from "@/lib/shared/types";
+import type { CatalogUnitLookup, ProfferUploadResponse, SourceUnitKind, SourceUnitMark } from "@/lib/shared/types";
 
 type CatalogUnit = CatalogUnitLookup["units"][number];
 
@@ -66,9 +71,11 @@ export function SourcesScreen() {
 
 function SourcesScreenMode() {
   const { matter, primaryCourtCase, mode } = useFixedCase();
+  const searchParams = useBrowserSearchParams();
+  const router = useRouter();
 
-  const [rootId, setRootId] = useState("");
-  const [prefix, setPrefix] = useState("");
+  const rootId = searchParams.get("root") ?? "";
+  const prefix = searchParams.get("prefix") ?? "";
   const [appliedFilter, setAppliedFilter] = useState("");
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -89,6 +96,15 @@ function SourcesScreenMode() {
   const [processing, setProcessing] = useState(false);
   const [processMessage, setProcessMessage] = useState<string | null>(null);
   const [processError, setProcessError] = useState<string | null>(null);
+  // Keep transport retries bound to the same requests, including partial selections.
+  const submissions = useRef(new Map<string, SourceSubmission>());
+  const batchRequests = useRef(new Map<string, string>());
+  const processBusy = useRef(false);
+  const [activityHref, setActivityHref] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [localSource, setLocalSource] = useState<{ file: File; requestId: string } | null>(null);
+  const localUploads = useRef(new Map<string, ProfferUploadResponse>());
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // --- reads ---------------------------------------------------------------
   const listingQuery = useInfiniteQuery({
@@ -282,7 +298,7 @@ function SourcesScreenMode() {
     () => objects.filter((object) => checkedRefs.has(object.source_ref)),
     [checkedRefs, objects],
   );
-  const processTarget = selectedFiles.length
+  const processTarget = localSource ? localSource.file.name : selectedFiles.length
     ? `${selectedFiles.length} file(s)`
     : selectedFolder
       ? `folder ${selectedFolder}`
@@ -304,13 +320,13 @@ function SourcesScreenMode() {
     }
     if (!modeAvailable(searchMode, capabilitiesQuery.data ?? null)) {
       setIndexQuery(null);
-      setSearchSummary(null);
+      setSearchSummary(capabilitiesQuery.error ? `Search connection failed: ${errorText(capabilitiesQuery.error)}` : "This search connection is unavailable. Names and paths still work.");
       return;
     }
     setAppliedFilter("");
     setIndexQuery({ text, mode: searchMode });
     setSearchSummary(`Index search: “${text}”.`);
-  }, [capabilitiesQuery.data, query, searchMode]);
+  }, [capabilitiesQuery.data, capabilitiesQuery.error, query, searchMode]);
 
   const clearSearch = useCallback(() => {
     setQuery("");
@@ -319,16 +335,57 @@ function SourcesScreenMode() {
     setSearchSummary(null);
   }, []);
 
+  /** Browse an exact source location with a bookmarkable URL and fresh selection.
+   * Inputs: allowlisted root ID and relative prefix. Output: navigation; no evidence writes.
+   * Use for folder/root clicks so Back and shared links return to the same location.
+   */
+  function browse(nextRoot: string, nextPrefix: string) {
+    clearSearch();
+    setLocalSource(null); setSelectedFolder(null); setSelectedRef(null); setCheckedRefs(new Set());
+    void router.navigate({ href: `/sources?${new URLSearchParams({ root: nextRoot, prefix: nextPrefix, mode })}` });
+  }
+
+  /** Submit selected sources and expose the returned durable Activity link.
+   * Input: selected files/folder and admitted case. Output: receipts/status in UI.
+   * Effects: starts processing through the existing API; never copies or moves originals.
+   * Byline: Codex · GPT-6 · 2026-10-06.
+   */
   async function process() {
-    if (!matter || !primaryCourtCase) return;
+    if (!matter || !primaryCourtCase || processBusy.current) return;
+    processBusy.current = true;
     setProcessing(true);
     setProcessError(null);
     setProcessMessage(null);
     try {
+      if (localSource) {
+        // Acquisition returns a verified canonical receipt; re-trying start must not upload twice.
+        const sealed = localUploads.current.get(localSource.requestId) ?? await uploadProfferSource(localSource.file, mode, setUploadProgress);
+        localUploads.current.set(localSource.requestId, sealed);
+        const key = localSource.requestId;
+        let entry = submissions.current.get(key);
+        if (!entry) {
+          entry = { request: {
+            request_id: key, source_ref: sealed.acquisition_ref,
+            declared_format: detectedFormat(localSource.file.name),
+            parser_options_ref: "pending-handler-selection/v1",
+            matter_id: matter.id, court_case_id: primaryCourtCase.id, matter_mode: mode,
+          } };
+          submissions.current.set(key, entry);
+        }
+        const result = await processSelection([entry], startProffer, (accepted) => {
+          setActivityHref(`/activity?${new URLSearchParams({ preview_handle: accepted.response!.preview_handle, mode })}`);
+        });
+        setProcessMessage(result.accepted ? `${localSource.file.name} submitted.` : "File received; processing has not started.");
+        setProcessError(result.error);
+        return;
+      }
       const files = selectedFiles.length ? selectedFiles : selectedObject ? [selectedObject] : [];
       if (files.length) {
-        for (const object of files) {
-          await startProffer({
+        const entries = files.map((object) => {
+          const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, object.source_ref, handlerOverride]);
+          let entry = submissions.current.get(key);
+          if (entry) return entry;
+          entry = { request: {
             request_id: `proffer-${matter.id}-${crypto.randomUUID()}`,
             source_ref: object.source_ref,
             declared_format: handlerOverride || detectedFormat(object.name),
@@ -336,28 +393,43 @@ function SourcesScreenMode() {
             matter_id: matter.id,
             court_case_id: primaryCourtCase.id,
             matter_mode: mode,
-          });
-        }
-        setProcessMessage(`Started ${files.length} run(s).`);
+          } };
+          submissions.current.set(key, entry);
+          return entry;
+        });
+        const result = await processSelection(entries, startProffer, (entry) => {
+          const handle = entry.response!.preview_handle;
+          setActivityHref(`/activity?${new URLSearchParams({ preview_handle: handle, mode })}`);
+        });
+        setProcessMessage(`${result.accepted} of ${files.length} files submitted.`);
+        if (result.error) setProcessError(`${result.error} Retry keeps the accepted files and resends only the unfinished requests.`);
+        void runsQuery.refetch();
       } else if (selectedFolder && listing) {
         const root = listing.available_roots.find((entry) => entry.root_id === activeRootId);
         if (!root) throw new Error("This folder has no confirmed source location.");
+        const folderRef = `${root.root_ref.replace(/\/$/, "")}/${selectedFolder.replace(/^\//, "")}`;
+        const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, folderRef, handlerOverride]);
+        const batchId = batchRequests.current.get(key) ?? newBatchId();
+        batchRequests.current.set(key, batchId);
         const started = await startProfferBatch({
-          batch_id: newBatchId(),
+          batch_id: batchId,
           matter_id: matter.id,
           court_case_id: primaryCourtCase.id,
-          folder_ref: `${root.root_ref.replace(/\/$/, "")}/${selectedFolder.replace(/^\//, "")}`,
+          folder_ref: folderRef,
           declared_format: handlerOverride || detectedFormat(selectedFolder),
           parser_options_ref: "pending-handler-selection/v1",
           matter_mode: mode,
         });
         setBatchIdent(started.batch_id);
+        setActivityHref(`/activity?${new URLSearchParams({ batch: started.batch_id, mode })}`);
         setProcessMessage(`Batch started for ${selectedFolder}.`);
       }
     } catch (error) {
       setProcessError(errorText(error));
     } finally {
+      processBusy.current = false;
       setProcessing(false);
+      setUploadProgress(null);
     }
   }
 
@@ -397,6 +469,16 @@ function SourcesScreenMode() {
       />
 
       <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
+        <input ref={fileInput} type="file" className="sr-only" aria-label="Choose a file to add" disabled={processing}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              setLocalSource({ file, requestId: `proffer-${matter?.id ?? "upload"}-${crypto.randomUUID()}` });
+              setProcessMessage(null); setProcessError(null); setActivityHref(null);
+            }
+            event.target.value = "";
+          }} />
+        <Button size="sm" variant="outline" disabled={processing} onClick={() => fileInput.current?.click()}><Upload className="h-3.5 w-3.5" /> Add file</Button>
         <Button
           size="sm"
           disabled={processing || !processTarget || !matter || !primaryCourtCase}
@@ -405,9 +487,11 @@ function SourcesScreenMode() {
           {processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Process
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          {processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
+          {uploadProgress !== null ? `Uploading ${uploadProgress}%` : processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
         </span>
+        {localSource && <Button size="icon" variant="ghost" aria-label="Clear local file selection" disabled={processing} onClick={() => setLocalSource(null)}><X className="h-3.5 w-3.5" /></Button>}
         {processMessage && <span className="text-[11px] text-[#17794b] dark:text-[#72d9a1]">{processMessage}</span>}
+        {activityHref && <Button asChild variant="outline" size="sm"><AppLink href={activityHref}>View activity</AppLink></Button>}
         {processError && (
           <span className="flex items-center gap-1 text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">
             <AlertTriangle className="h-3 w-3" /> {processError}
@@ -426,21 +510,14 @@ function SourcesScreenMode() {
             unitRoots={unitRoots}
             selectedFolder={selectedFolder}
             onRootChange={(nextRoot) => {
-              setRootId(nextRoot);
-              setPrefix("");
-              setAppliedFilter("");
-              setSelectedFolder(null);
-              setSelectedRef(null);
-              setCheckedRefs(new Set());
+              browse(nextRoot, "");
             }}
             onPrefixChange={(nextPrefix) => {
-              setPrefix(nextPrefix);
-              setAppliedFilter("");
-              setSelectedFolder(null);
-              setSelectedRef(null);
-              setCheckedRefs(new Set());
+              browse(activeRootId, nextPrefix);
             }}
             onSelectFolder={(nextFolder) => {
+              setLocalSource(null);
+              setCheckedRefs(new Set());
               setSelectedFolder(nextFolder);
               setSelectedRef(null);
               setUnitMarkKind("");
@@ -459,10 +536,8 @@ function SourcesScreenMode() {
               <IndexResults
                 results={indexResults}
                 pending={indexSearchQuery.isPending}
-                onOpen={(item) => {
-                  setPrefix(item.parent ? `${item.parent}/` : "");
-                  setIndexQuery(null);
-                }}
+                error={indexSearchQuery.error ? errorText(indexSearchQuery.error) : null}
+                onRetry={() => void indexSearchQuery.refetch()}
               />
             ) : rows.length ? (
               <>
@@ -472,11 +547,12 @@ function SourcesScreenMode() {
                     selectedIndex={selectedIndex}
                     checkedRefs={checkedRefs}
                     onSelectIndex={(index) => {
+                      setLocalSource(null);
                       setSelectedRef(rows[index]?.sourceRef ?? null);
                       setSelectedFolder(null);
                       setHandlerOverride("");
                     }}
-                    onToggleChecked={(refs) => setCheckedRefs(new Set(refs))}
+                    onToggleChecked={(refs) => { setLocalSource(null); setCheckedRefs(new Set(refs)); }}
                     onReachEnd={() => { if (!nextPageError) loadNextPage(); }}
                   />
                 </div>
@@ -554,11 +630,13 @@ function findUnit(units: readonly CatalogUnit[], folder: string): CatalogUnit | 
 function IndexResults({
   results,
   pending,
-  onOpen,
+  error,
+  onRetry,
 }: {
   results: readonly DiscoveryItem[];
   pending: boolean;
-  onOpen: (item: DiscoveryItem) => void;
+  error: string | null;
+  onRetry: () => void;
 }) {
   if (pending) {
     return (
@@ -567,6 +645,7 @@ function IndexResults({
       </p>
     );
   }
+  if (error) return <div className="space-y-2 p-3 text-xs" role="alert"><p>{error}</p><Button size="sm" variant="outline" onClick={onRetry}>Retry search</Button></div>;
   if (!results.length) {
     return <p className="px-3 py-4 text-xs text-muted-foreground">No indexed results.</p>;
   }
@@ -574,11 +653,16 @@ function IndexResults({
     <ul className="min-h-0 flex-1 divide-y overflow-auto text-xs">
       {results.map((item) => (
         <li key={item.id} className="px-3 py-2">
-          <button type="button" className="text-left font-medium hover:text-primary" onClick={() => onOpen(item)}>
-            {item.name}
-          </button>
-          <span className="mt-0.5 block break-all font-mono text-[10px] text-muted-foreground">{item.rel}</span>
-          {item.text && <span className="mt-1 block text-[11px] text-muted-foreground">{item.text.slice(0, 200)}</span>}
+          <details>
+            <summary className="cursor-pointer font-medium">{item.name}</summary>
+            <p className="mt-1 whitespace-pre-wrap">{item.text || "No excerpt was returned for this match."}</p>
+            <dl className="mt-2 space-y-1 break-all text-[11px] text-muted-foreground">
+              <div><dt className="font-semibold">Recorded source</dt><dd>{item.rel}</dd></div>
+              {item.document_id && <div><dt className="font-semibold">Document</dt><dd>{item.document_id}</dd></div>}
+              {item.chunk_id && <div><dt className="font-semibold">Passage</dt><dd>{item.chunk_id}</dd></div>}
+            </dl>
+          </details>
+          {item.text && <p className="mt-1 text-[11px] text-muted-foreground">{item.text.slice(0, 200)}</p>}
         </li>
       ))}
     </ul>

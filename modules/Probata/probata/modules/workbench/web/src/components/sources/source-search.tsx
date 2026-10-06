@@ -27,7 +27,7 @@ export const SEARCH_MODES: Array<{ id: SearchMode; label: string; wire: string }
   { id: "relationships", label: "Relationships", wire: "graph" },
 ];
 
-/** True when this mode's backend is reachable right now. */
+/** Read the advertised search capability; a query still validates backend availability. */
 export function modeAvailable(mode: SearchMode, capabilities: DiscoveryCapabilities | null): boolean {
   if (mode === "names") return true;
   if (!capabilities) return false;
@@ -97,7 +97,7 @@ export function SourceSearch({
               {!available && (
                 <span
                   className="border border-[#c58214] bg-[#fff4dd] px-1 text-[9px] font-semibold uppercase text-[#684b18] dark:bg-[#43351f] dark:text-[#ffe0a6]"
-                  title="This search mode has no index yet"
+                  title="The Workbench has no available connection for this search mode"
                 >
                   not available yet
                 </span>
