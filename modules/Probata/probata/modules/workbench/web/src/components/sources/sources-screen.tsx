@@ -320,7 +320,7 @@ function SourcesScreenMode() {
     }
     if (!modeAvailable(searchMode, capabilitiesQuery.data ?? null)) {
       setIndexQuery(null);
-      setSearchSummary(capabilitiesQuery.error ? `Search connection failed: ${errorText(capabilitiesQuery.error)}` : "This search connection is unavailable. Names and paths still work.");
+      setSearchSummary(searchMode === "relationships" ? "Relationship lookup needs a verified graph link on the selected source." : capabilitiesQuery.error ? `Search connection failed: ${errorText(capabilitiesQuery.error)}` : "This search connection is unavailable. Names and paths still work.");
       return;
     }
     setAppliedFilter("");

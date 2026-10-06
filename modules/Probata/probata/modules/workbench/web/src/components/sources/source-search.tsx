@@ -33,7 +33,9 @@ export function modeAvailable(mode: SearchMode, capabilities: DiscoveryCapabilit
   if (!capabilities) return false;
   if (mode === "contents") return Boolean(capabilities.modes?.contents);
   if (mode === "meaning") return Boolean(capabilities.modes?.hybrid);
-  return Boolean(capabilities.graph);
+  // A configured graph endpoint alone cannot resolve a search hit to a graph node.
+  // Do not silently substitute a hybrid query for a relationship lookup.
+  return capabilities.graph_lookup_from_search === true;
 }
 
 export function SourceSearch({
@@ -97,7 +99,7 @@ export function SourceSearch({
               {!available && (
                 <span
                   className="border border-[#c58214] bg-[#fff4dd] px-1 text-[9px] font-semibold uppercase text-[#684b18] dark:bg-[#43351f] dark:text-[#ffe0a6]"
-                  title="The Workbench has no available connection for this search mode"
+                  title={entry.id === "relationships" ? "Search results do not yet carry a verified graph record link" : "The Workbench has no available connection for this search mode"}
                 >
                   not available yet
                 </span>
