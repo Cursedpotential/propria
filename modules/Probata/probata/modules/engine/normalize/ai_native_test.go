@@ -2,9 +2,11 @@
 package normalize
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/Cursedpotential/probata/engine/parser"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -66,5 +68,46 @@ func TestNativeAIContentAndDates(t *testing.T) {
 	record, err := normalizeOne(input, raw, 0)
 	if err != nil || string(record.Content) != `{"body":"human"}` || len(record.Participants) != 1 {
 		t.Fatalf("human path changed: %+v %v", record, err)
+	}
+}
+
+// TestClaudeEnvelopesNeverBecomeNormalizedTurns preserves raw envelope accounting.
+// Input is a mixed synthetic envelope/message stream or envelopes only. Output
+// contains only actual parsed messages. Effects are in-memory records. Pick for
+// the native normalizer; an empty conversation never manufactures a turn.
+func TestClaudeEnvelopesNeverBecomeNormalizedTurns(t *testing.T) {
+	for _, messages := range []bool{false, true} {
+		rows := []RawRecordView{{RecordOrdinal: 0, RecordStatus: parser.StatusEnvelope, FormatID: "claude_ai_export_json", NativeFields: []byte(`{"record_kind":"conversation_envelope"}`)}}
+		if messages {
+			rows = append(rows, RawRecordView{RecordOrdinal: 1, RecordStatus: parser.StatusParsed, FormatID: "claude_ai_export_json", NativeFields: []byte(`{"record_kind":"message","body":""}`)})
+		}
+		input := baseInput(rows)
+		input.DeclaredFormat = "claude_ai_export_json"
+		writer := &recordingWriter{}
+		accounting, err := (GenericMessageNormalizer{}).Normalize(context.Background(), input, writer)
+		want := uint64(0)
+		if messages {
+			want = 1
+		}
+		if err != nil || accounting.Emitted != want || uint64(len(writer.emitted)) != want {
+			t.Fatalf("fake envelope turn: %+v %v", accounting, err)
+		}
+		if messages && writer.emitted[0].Lineage[0].RawRecordOrdinal != 1 {
+			t.Fatal("envelope changed message lineage")
+		}
+	}
+}
+
+// TestClaudeOnlyEnvelopesStopsAtExistingZeroRecordGuard proves empty exports never get fake turns.
+// Input is a retained synthetic envelope stream; output is the existing explicit
+// zero-record failure and an aborted in-memory writer. No external effects.
+// Pick for workflow limitation proof after successful raw envelope preservation.
+func TestClaudeOnlyEnvelopesStopsAtExistingZeroRecordGuard(t *testing.T) {
+	input := baseInput([]RawRecordView{{RecordStatus: parser.StatusEnvelope, FormatID: "claude_ai_export_json"}})
+	input.DeclaredFormat = "claude_ai_export_json"
+	writer := &recordingWriter{bundleRef: "must-not-finalize"}
+	_, err := Execute(context.Background(), input, GenericMessageNormalizer{}, writer)
+	if err == nil || !strings.Contains(err.Error(), "zero records") || writer.finalized || !writer.aborted || len(writer.emitted) != 0 {
+		t.Fatalf("empty export falsely completed: %+v %v", writer, err)
 	}
 }

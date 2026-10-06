@@ -18,7 +18,8 @@ const ChatGPTMarkdown = "chatgpt_markdown"
 const ClaudeMarkdown = "claude_markdown"
 
 // claudeConversationSignature checks a complete native conversation without inferring message fields.
-// Inputs: a decoded first conversation. Output: whether uuid/name and typed human/assistant messages exist.
+// Inputs: a decoded first conversation. Output: whether uuid/name and typed
+// messages exist, or its explicitly empty message array is a native envelope.
 // Side effects: none. Pick this for complete objects and complete first members of bounded array prefixes.
 func claudeConversationSignature(first map[string]json.RawMessage) bool {
 	var id, name string
@@ -33,8 +34,11 @@ func claudeConversationSignature(first map[string]json.RawMessage) bool {
 		Attachments json.RawMessage `json:"attachments"`
 		Files       json.RawMessage `json:"files"`
 	}
-	if json.Unmarshal(first["chat_messages"], &messages) != nil || len(messages) == 0 {
+	if json.Unmarshal(first["chat_messages"], &messages) != nil || messages == nil {
 		return false
+	}
+	if len(messages) == 0 {
+		return true
 	}
 	knownRole := false
 	for _, message := range messages {

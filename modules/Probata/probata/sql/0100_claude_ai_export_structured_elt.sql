@@ -88,6 +88,35 @@ BEGIN
         END IF;
         definition := revised;
     END IF;
+    -- Claude envelopes require the same successful, source/workflow-bound
+    -- selected-template pin as new ChatGPT rows. Upgrade an earlier reviewed
+    -- native definition as well as a baseline function; never infer a pin.
+    IF strpos(definition, 'selected.result_ref->>''duckdb_template''=''claude_ai_export_json_v1''') = 0 THEN
+        revised := replace(definition, 'THEN ''claude_ai_export_json_v1'' ELSE NULL END',
+            'AND EXISTS (SELECT 1 FROM context.activity_receipt selected '
+            || 'JOIN context.activity_execution selected_execution ON selected_execution.id=selected.activity_execution_id '
+            || 'WHERE selected.status=''success'' AND selected_execution.source_version_id=NEW.source_version_id '
+            || 'AND selected_execution.workflow_id=source.workflow_id '
+            || 'AND selected_execution.activity_name=''select_parser_activity'' '
+            || 'AND selected.completed_at<=NEW.created_at '
+            || 'AND selected.result_ref->>''parser_id''=NEW.parser_id '
+            || 'AND selected.result_ref->>''parser_version''=NEW.parser_version '
+            || 'AND selected.result_ref->>''declared_format''=NEW.format_id '
+            || 'AND selected.result_ref->>''duckdb_template''=''claude_ai_export_json_v1'') '
+            || 'THEN ''claude_ai_export_json_v1'' ELSE NULL END');
+        IF revised = definition THEN
+            RAISE EXCEPTION 'Missing Claude selected-template pin seam';
+        END IF;
+        definition := revised;
+    END IF;
+    IF strpos(definition, $new_status$$2 IN (''chatgpt_json_array_v2'',''claude_ai_export_json_v1'')$new_status$) = 0 THEN
+        revised := replace(definition, $old_status$$2=''chatgpt_json_array_v2''$old_status$,
+            $new_status$$2 IN (''chatgpt_json_array_v2'',''claude_ai_export_json_v1'')$new_status$);
+        IF revised = definition THEN
+            RAISE EXCEPTION 'Missing native envelope status seam';
+        END IF;
+        definition := revised;
+    END IF;
     EXECUTE definition;
 END;
 $migration$;

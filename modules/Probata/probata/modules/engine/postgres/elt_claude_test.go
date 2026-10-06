@@ -139,6 +139,7 @@ func TestClaudeDetectedTemplateStreamsEveryNativeMessage(t *testing.T) {
 				StoredBytes    string `json:"stored_bytes"`
 				NativeFields   string `json:"native_fields"`
 				NativeMetadata string `json:"native_metadata"`
+				Status         string `json:"record_status"`
 			}
 			if err := json.Unmarshal(output, &rows); err != nil {
 				t.Fatal(err)
@@ -156,11 +157,15 @@ func TestClaudeDetectedTemplateStreamsEveryNativeMessage(t *testing.T) {
 			for _, conversation := range conversations {
 				messages = append(messages, conversation.Messages...)
 			}
-			if len(rows) != len(messages) {
+			if len(rows) != len(messages)+len(conversations) {
 				t.Fatalf("native messages dropped: rows=%d source_messages=%d", len(rows), len(messages))
 			}
 			empty := 0
-			for i, row := range rows {
+			i := 0
+			for _, row := range rows {
+				if row.Status == "envelope" {
+					continue
+				}
 				var stored, fields, metadata map[string]any
 				for value, target := range map[string]*map[string]any{row.StoredBytes: &stored, row.NativeFields: &fields, row.NativeMetadata: &metadata} {
 					if err := json.Unmarshal([]byte(value), target); err != nil {
@@ -181,6 +186,7 @@ func TestClaudeDetectedTemplateStreamsEveryNativeMessage(t *testing.T) {
 				if len(fields["participants"].([]any)) != 0 {
 					t.Fatal("participant identity invented")
 				}
+				i++
 			}
 			if empty != 3 {
 				t.Fatalf("bodyless message count=%d, want 3", empty)

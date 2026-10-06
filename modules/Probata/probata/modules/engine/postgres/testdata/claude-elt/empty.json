@@ -1,0 +1,4 @@
+[
+  {"uuid":"empty-1","name":"Empty native conversation","chat_messages":[],"created_at":null,"unknown_root":{"nested":[null,"keep"]}},
+  {"uuid":"empty-2","name":"Another empty conversation","chat_messages":[],"unknown_root":42}
+]

@@ -52,7 +52,9 @@ func TestNativeContextProofRequiresPersistedPinAndEveryRow(t *testing.T) {
 		{"new ChatGPT", "chatgpt_official_json", "chatgpt_official_json", "chatgpt_json_array_v2", true, true, true},
 		{"old pinned ChatGPT", "chatgpt_official_json", "chatgpt_official_json", "chatgpt_json_array_v1", true, true, false},
 		{"old unpinned ChatGPT", "chatgpt_official_json", "chatgpt_official_json", "", true, true, false},
-		{"Claude", "claude_ai_export_json", "claude_ai_export_json", "claude_ai_export_json_v1", true, true, false},
+		{"Claude", "claude_ai_export_json", "claude_ai_export_json", "claude_ai_export_json_v1", true, true, true},
+		{"Claude wrong pin", "claude_ai_export_json", "claude_ai_export_json", "chatgpt_json_array_v2", true, false, false},
+		{"Claude invalid envelope", "claude_ai_export_json", "claude_ai_export_json", "claude_ai_export_json_v1", false, false, true},
 		{"wrong native pin", "chatgpt_official_json", "chatgpt_official_json", "claude_ai_export_json_v1", true, false, false},
 		{"mismatched row template or missing reason", "chatgpt_official_json", "chatgpt_official_json", "chatgpt_json_array_v2", false, false, true},
 	} {

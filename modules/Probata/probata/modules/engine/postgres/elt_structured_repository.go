@@ -148,11 +148,11 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 	if err != nil {
 		return nil, err
 	}
-	extendedStatus := false
-	if format == activities.StructuredELTFormatChatGPTJSON {
+	extendedStatus := format == activities.StructuredELTFormatClaudeJSON
+	if format == activities.StructuredELTFormatChatGPTJSON || format == activities.StructuredELTFormatClaudeJSON {
 		selectionID, parseErr := uuid.Parse(string(req.Refs["parser_selection"]))
 		if parseErr != nil {
-			return nil, errors.New("native ChatGPT extraction requires a persisted selection reference")
+			return nil, errors.New("native AI extraction requires a persisted selection reference")
 		}
 		var pin string
 		if err := session.QueryRow(ctx, `SELECT COALESCE(receipt.result_ref->>'duckdb_template','')
@@ -165,17 +165,23 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 			selectionID, sourceID, req.RequestID, activities.StructuredELTParserID, activities.StructuredELTParserVersion, declaredFormat).Scan(&pin); err != nil {
 			return nil, fmt.Errorf("reload source-bound native template pin: %w", err)
 		}
-		switch pin {
-		case "", "chatgpt_json_array_v1": // Historic selections retain the exact old query.
-			innerSQL, err = structuredELTQuery(legacyChatGPTQueryFormat, sourceURL)
-		case "chatgpt_json_array_v2":
-			if !contextsearch.IsAIChatFormat(declaredFormat) {
-				return nil, errors.New("native ChatGPT v2 pin conflicts with the retained non-AI source declaration")
+		if format == activities.StructuredELTFormatClaudeJSON {
+			if pin != "claude_ai_export_json_v1" {
+				return nil, errors.New("persisted Claude template is unsupported")
 			}
-			innerSQL, err = chatGPTNativeQuery(sourceURL)
-			extendedStatus = true
-		default:
-			return nil, errors.New("persisted ChatGPT template is unsupported")
+		} else {
+			switch pin {
+			case "", "chatgpt_json_array_v1": // Historic selections retain the exact old query.
+				innerSQL, err = structuredELTQuery(legacyChatGPTQueryFormat, sourceURL)
+			case "chatgpt_json_array_v2":
+				if !contextsearch.IsAIChatFormat(declaredFormat) {
+					return nil, errors.New("native ChatGPT v2 pin conflicts with the retained non-AI source declaration")
+				}
+				innerSQL, err = chatGPTNativeQuery(sourceURL)
+				extendedStatus = true
+			default:
+				return nil, errors.New("persisted ChatGPT template is unsupported")
+			}
 		}
 		if err != nil {
 			return nil, err

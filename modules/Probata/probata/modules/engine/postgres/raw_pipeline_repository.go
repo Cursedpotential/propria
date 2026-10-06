@@ -1612,7 +1612,7 @@ func loadDuckDBContextCoverageProof(ctx context.Context, tx pgx.Tx, generationID
 		    AND length(trim(COALESCE(raw.status_reason,'')))>0))
 		AND COALESCE(subtype.native_metadata->>'duckdb_template','')=$2)
 		FROM context.raw_record_identity raw LEFT JOIN %s subtype ON subtype.raw_record_id=raw.id
-		WHERE raw.raw_generation_id=$1`, table), generationID, template, native && template == "chatgpt_json_array_v2").Scan(&valid)
+		WHERE raw.raw_generation_id=$1`, table), generationID, template, native && (template == "chatgpt_json_array_v2" || template == "claude_ai_export_json_v1")).Scan(&valid)
 	if err != nil {
 		return nil, fmt.Errorf("verify every DuckDB raw-row template: %w", err)
 	}
