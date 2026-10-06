@@ -1,71 +1,81 @@
-// Byline: Codex · GPT-5.6-Sol · 2026-09-12 (Proffer operation visibility contract)
+// Byline: Codex · GPT-6 · 2026-10-06 (Activity durable Proffer contract)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
-const table = readFileSync(
-  new URL("../src/components/intake/proffer-operations-table.tsx", import.meta.url),
-  "utf8",
-);
-const page = readFileSync(new URL("../src/app/intake/page.tsx", import.meta.url), "utf8");
+const activityPage = readFileSync(new URL("../src/app/activity/page.tsx", import.meta.url), "utf8");
+const activity = readFileSync(new URL("../src/components/activity/activity-page.tsx", import.meta.url), "utf8");
+const ledger = readFileSync(new URL("../src/components/activity/activity-operations-ledger.tsx", import.meta.url), "utf8");
+const batch = readFileSync(new URL("../src/components/activity/batch-activity-panel.tsx", import.meta.url), "utf8");
+const cancel = readFileSync(new URL("../src/components/activity/operation-cancel-control.tsx", import.meta.url), "utf8");
+const stateSource = readFileSync(new URL("../src/components/activity/proffer-operations-state.ts", import.meta.url), "utf8");
 const client = readFileSync(new URL("../src/lib/api-client.ts", import.meta.url), "utf8");
 const types = readFileSync(new URL("../src/lib/shared/types.ts", import.meta.url), "utf8");
-const intake = readFileSync(
-  new URL("../src/components/intake/unified-intake.tsx", import.meta.url),
-  "utf8",
-);
+const compatibilityTable = readFileSync(new URL("../src/components/intake/proffer-operations-table.tsx", import.meta.url), "utf8");
 
-test("the Intake page uses a dedicated Proffer ledger instead of relabeling legacy runs", () => {
-  assert.match(page, /<ProfferOperationsTable \/>/);
-  assert.doesNotMatch(page, /RunsTable/);
-  assert.match(page, /This existing file list is not a Proffer operation history/);
-  assert.match(table, /They are separate from legacy Workbench runs/);
-  assert.doesNotMatch(table, /listRuns|\/api\/runs/);
+const stateModule = await import(`data:text/javascript;base64,${Buffer.from(ts.transpileModule(stateSource, {
+  compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022 },
+}).outputText).toString("base64")}`);
+
+test("Activity presents the durable Proffer ledger rather than legacy Workbench runs", () => {
+  assert.match(activityPage, /<ActivityPage \/>/);
+  assert.match(activity, /<ActivityOperationsLedger \/>/);
+  assert.match(compatibilityTable, /<ActivityOperationsLedger \/>/);
+  assert.doesNotMatch(ledger, /listRuns|\/api\/runs/);
 });
 
-test("operation list and detail use only the engine-backed BFF contract", () => {
+test("the ledger uses the engine-backed operation list and detail projections", () => {
   assert.match(client, /apiFetch<ProfferOperationListResponse>\(`\/api\/proffer\/operations\$\{suffix\}`/);
   assert.match(client, /apiFetch<ProfferOperationDetail>/);
-  assert.match(client, /`\/api\/proffer\/operations\/\$\{encodeURIComponent\(previewHandle\)\}`/);
-  for (const lifecycle of [
-    "running",
-    "awaiting_repair_decision",
-    "awaiting_preview_decision",
-    "completed",
-    "failed",
-    "unavailable",
-  ]) {
+  assert.match(ledger, /listProfferOperations\(/);
+  assert.match(ledger, /getProfferOperation\(selectedHandle/);
+  for (const lifecycle of ["running", "awaiting_repair_decision", "awaiting_preview_decision", "completed", "failed", "cancelled", "unavailable"]) {
     assert.match(types, new RegExp(`\\| "${lifecycle}"|= "${lifecycle}"`));
   }
-  assert.match(types, /service: "proffer"/);
-  assert.match(types, /active_stages: string\[\]/);
-  assert.match(types, /stages: ProfferOperationStage\[\]/);
 });
 
-test("status source service and reopened handle survive refresh in the URL", () => {
-  assert.match(table, /searchParams\.get\("operation_status"\)/);
-  assert.match(table, /searchParams\.get\("operation_source"\)/);
-  assert.match(table, /searchParams\.get\("operation_service"\)/);
-  assert.match(table, /searchParams\.get\("preview_handle"\)/);
-  assert.match(table, /navigate\.replace\(`\/intake\$\{query/);
-  assert.match(table, /Reopen/);
-  assert.match(table, /Reopened attempt resource/);
-  assert.match(table, /getProfferOperation\(selectedHandle/);
+test("refresh merges the latest first page without dropping older loaded rows", () => {
+  const makeOperation = (preview_handle, reason) => ({ preview_handle, request_id: `request-${preview_handle}`, reason });
+  const older = makeOperation("older", "unchanged");
+  const first = makeOperation("first", "before refresh");
+  const updatedFirst = makeOperation("first", "after refresh");
+  const merged = stateModule.mergeOperationRows([first, older], [updatedFirst]);
+
+  assert.deepEqual(merged, [updatedFirst, older]);
 });
 
-test("the ledger distinguishes loading error empty and filtered-empty states", () => {
-  assert.match(table, /Loading Proffer operations/);
-  assert.match(table, /Operation list could not be refreshed/);
-  assert.match(table, /No Proffer operations found/);
-  assert.match(table, /No loaded operation matches the source and service filters/);
-  assert.match(table, /Status is filtered by the engine; source and service refine the rows loaded here/);
-  assert.match(table, /Cancel and retry controls are not exposed here/);
+test("filters and selected operation stay in the Activity URL", () => {
+  assert.match(ledger, /searchParams\.get\("status"\)/);
+  assert.match(ledger, /searchParams\.get\("q"\)/);
+  assert.match(ledger, /searchParams\.get\("preview_handle"\)/);
+  assert.match(ledger, /searchParams\.get\("operation"\)/);
+  assert.match(ledger, /navigate\.replace\(`\/activity\$\{query/);
+  assert.match(activity, /searchParams\.get\("batch"\)/);
+  assert.match(activity, /navigate\.replace\(`\/activity\$\{query/);
 });
 
-test("selected source tabs remain mounted while the intake phase changes", () => {
-  assert.match(intake, /const selectedSource = file \?\? remote/);
-  // AMENDED 2026-09-21 (Claude Code · Fable 5.1): message backups gain a leading
-  // "messages" tab (SBV's decoded view). The three original tabs stay in both lists.
-  assert.match(intake, /\["messages", "source", "metadata", "parser"\] : \["source", "metadata", "parser"\]\) as PreviewTab\[\]\)\.map/);
-  assert.doesNotMatch(intake, /phase === "starting"[^\n]*\?[^\n]*Source preview/);
+test("folder Activity reads durable server status and links each item to its exact attempt", () => {
+  assert.match(batch, /getProfferBatch\(batchId, mode, signal\)/);
+  assert.match(client, /`\/api\/proffer\/batches\/\$\{encodeURIComponent\(batchId\)\}/);
+  assert.match(batch, /batch\.data\.counts/);
+  assert.match(batch, /item\.preview_handle/);
+  assert.match(batch, /listing_truncated \|\| batch\.data\.items_truncated/);
+  assert.doesNotMatch(batch, /localStorage|sessionStorage|Math\.round\([^)]*\/[^)]*\)/);
+});
+
+test("cancellation appears only after the exact mode-scoped operator snapshot is confirmed", () => {
+  assert.match(cancel, /getProfferOperatorSnapshot\(previewHandle, mode, signal\)/);
+  assert.match(cancel, /exactSnapshot\.preview_handle !== previewHandle/);
+  assert.match(cancel, /exactSnapshot\.matter_mode !== mode/);
+  assert.match(cancel, /<CancelRunSection snapshot=\{exactSnapshot\} \/>/);
+  assert.match(client, /\/previews\/\$\{encodeURIComponent\(previewHandle\)\}\/cancel/);
+});
+
+test("source labels and re-entry use human filenames and the existing mode-scoped Review path", () => {
+  assert.equal(stateModule.sourceFilename("r2://vault/folder/Family%20messages.json"), "Family messages.json");
+  assert.equal(stateModule.attemptReviewHref("attempt_012345678901234567890123456789", "DEV"), "/review?mode=DEV&resource=attempt_012345678901234567890123456789");
+  assert.equal(stateModule.nextOperationAction("failed"), "Start a new import");
+  assert.match(ledger, /Technical details/);
+  assert.match(ledger, /OperationCancelControl previewHandle=\{detail\.preview_handle\} mode=\{mode\}/);
 });
