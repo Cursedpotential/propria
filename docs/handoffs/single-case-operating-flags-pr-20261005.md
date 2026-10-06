@@ -1,6 +1,6 @@
 # One case identity, independent Dev/Live policy
 
-Byline: Codex, orchestrator, 2026-10-05.
+Byline: Codex, orchestrator, 2026-10-06.
 
 ## Scope
 
@@ -18,25 +18,28 @@ Byline: Codex, orchestrator, 2026-10-05.
 ## Verification checkpoints
 
 - Legal consumer: 27 passing tests, independently rerun; mocked proof only.
-- Combined GitHub Workbench API checkpoint: 620 passed, 22 failed; 21 retired-R2
-  fixture/active-upload-path conflicts and one pre-existing module-cap failure.
-  These remain required fixes, not waived baseline acceptance. Earlier isolated
-  627-pass proof is superseded by this combined result.
-- Existing-VPS web gates: lint zero errors/26 warnings, typecheck/build passed,
-  browser-free smoke 140 passed/four browser journeys skipped, Storybook passed.
-- Python chunk/promotion/authoritative-scope combined checkpoint: 331 passed/five
-  existing skips, independently rerun after integration. Exact old-label flag
-  replay preserves the original row and same-key idempotency without new writes.
-- Existing-VPS engine packet passed identity, repair, repositories, runtime API,
-  Proffer, worker wiring, extraction and Temporal/starter packages. Parser bridge
-  rerun passed using a regular-file interpreter with existing pinned dependencies.
-  Full combined Activities/portable-fixture proof and final independent review
-  are pending. Synthetic SDK replay is bounded first-command proof, not a
-  complete production-history audit.
+- Fresh existing-VPS Workbench packet pinned to `d902ef2d`: **676 passed, zero
+  failures**; focused acceptance 253 passed. This closes the earlier 22 failures
+  in source-pinned proof, not by waiving them. Published CI rerun is pending.
+- Workbench web lint zero errors/26 existing warnings; typecheck/build passed.
+  Fresh browser-free smoke/Storybook final receipt is pending. Earlier browser
+  journeys were skipped and do not establish actual user-facing clicks.
+- Python chunk/promotion/scope agent checkpoint: **352 passed, five existing
+  skips**, lint/format/helper typecheck pass. Parent rerun against current
+  upstream is pending. Exact old-label flag replay preserves original rows.
+- Actual registered source court is checked before promotion receipt/replay/write.
+- Bounded authenticated `/case-identity/scope` now returns the approved registry
+  pair and actual court parent without people/count/history queries. It enforces
+  a two-second total deadline before pool acquisition; both consumers correlate
+  the court's parent. Focused engine proof is running.
+- Earlier engine packet passed identity, repair, repositories, runtime API,
+  Proffer, worker wiring, Activities, extraction and Temporal/starter packages.
+  The new combined source includes upstream `cf83d7a7` and needs a fresh full run.
+  Synthetic SDK replay is bounded first-command proof, not a production-history audit.
 
 ## Remaining acceptance gates
 
-- Finish the combined Workbench upload/CI and retained-fixture reconciliation.
+- Green published Workbench CI and final fresh web receipts.
 - Independent combined review and final source-pinned test receipt.
 - Provision verified neutral case configuration; reuse the existing private
   service credential without rotation or user-auth changes.

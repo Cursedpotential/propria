@@ -1,10 +1,51 @@
 # Single-case operating flags: active handoff
 
-Byline: Codex, orchestrator, 2026-10-05. Status at 15:00 UTC: integration pushed
-to `codex/single-case-integration-20261005`; draft PR #2 is open. Not merged into
-main, deployed or verified complete.
+Byline: Codex, orchestrator, 2026-10-06. Resumed on explicit owner instruction.
+Draft PR #2 is open. Not merged into main, deployed or verified complete.
 
-## Current checkpoint — supersedes the earlier progress snapshot below
+## Current checkpoint — 2026-10-06 resume
+
+This checkpoint supersedes the older progress and acceptance snapshots below.
+The three interrupted builder lanes stopped on account usage-limit errors.
+Current account inspection permits ordinary work; all three were resumed.
+
+- Source integration tip `bf183d1f` preserves current upstream `cf83d7a7`.
+  The sole merge conflict was independent imports in
+  `postgres/first_party_context_store.go`; both were retained. No shared-checkout
+  changes were staged, reset, stashed or overwritten.
+- Actual source-court protection `ed7501c1` is integrated as `59d0e781`.
+- Workbench canonical-upload/R2-new-acquisition denial `9260ca0e`, corrected B2
+  fixture `0e7b225b`, narrow comments `ea97cdcf` and bounded scope consumer
+  `d902ef2d` are integrated as `59f1df72`, `f6c13b4c`, `b3b2f9e6` and `ddf19944`.
+  The fresh source-pinned Workbench suite reports **676 passed, zero failures**;
+  focused suite 253 passed. Web lint has zero errors/26 existing warnings;
+  build/typecheck pass. Final smoke/Storybook receipt is being recovered.
+- Python bounded scope consumer `5f2d1836` is integrated as `b11ee5a3`.
+  Agent's combined synthetic suite reports **352 passed, five existing skips**;
+  lint, formatting and bounded helper typecheck pass. Parent rerun against the
+  newer upstream source is pending.
+- Engine bounded scope provider `60953696` is integrated as `bf183d1f`.
+  It adds authenticated `/case-identity/scope`, the existing approved registry
+  pair and actual court parent, no aggregate reads, and a total two-second
+  deadline before pool acquisition. Focused source-pinned proof is running;
+  parent will rerun the combined engine including current upstream changes.
+- An independent read-only release reviewer owns combined source review.
+- All six affected Coolify applications were reread: repository
+  `Cursedpotential/propria`, branch `main`, auto-deploy disabled. No deployment
+  or environment change has been triggered by this lane.
+
+Still required: final combined source proof, green published CI, independent
+review, current-main reconciliation, neutral configuration validation, manual
+Coolify deployments, served default/Dev/Live identity and denial readbacks,
+and actual user-facing click verification. The last full Case aggregate read
+returned 503; this has not yet been refreshed in the resumed run. A healthy
+service is not proof that the full Case page works.
+
+Disposable Dev data isolation and a general feature-flag registry remain owed;
+neither is implemented by these admission guards. The existing-desktop-browser
+exception or owner-operated click check remains an unanswered owner choice.
+
+## Historical checkpoint — 2026-10-05 15:00 UTC
 
 Parent tip `6bce74fc` preserves upstream `460826ad`, including Claude's working
 library, original-file aliases and sync reconciliation. Shared checkout changes
