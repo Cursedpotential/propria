@@ -97,8 +97,14 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 		}
 		optional[stage.ID] = stage
 	}
-	if len(optional) != 11 {
-		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, the derive stage, the context search stage, the participant resolution stage, the four first-party context stages, the automatic approval stage and the call log commit and the message match-up", len(optional))
+	if len(optional) != 12 {
+		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, derive, context search, participant resolution, four first-party context stages, automatic approval, call log commit, message match-up, and source integrity", len(optional))
+	}
+	// Source integrity is an independent optional verification over retained
+	// bytes, not a stage on the universal processing path. Byline: Codex · GPT-6.1 · 2026-10-06
+	integrity, ok := optional[AssessSourceIntegrity]
+	if !ok || integrity.Responsibility != RespVerify || len(integrity.DependsOn) != 1 || integrity.DependsOn[0] != RetainOriginal || requiredStages[AssessSourceIntegrity] {
+		t.Fatalf("source integrity stage = %+v, want an optional verification after retained original only", integrity)
 	}
 	// Automatic approval decides on the published preview and writes only the
 	// decision record. Byline: Claude Code · Opus 5.5 · 2026-10-02
