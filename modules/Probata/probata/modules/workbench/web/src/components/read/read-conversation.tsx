@@ -60,7 +60,7 @@ export function ReadConversation({ threadId, around, params }: { threadId: strin
           <details key={threadId} className="text-sm">
             <summary className="cursor-pointer font-medium">Conversation tools</summary>
             <ConversationToolbar threadId={threadId} placement="desktop" />
-            <AppLink href={`/conversations?${new URLSearchParams({ source: head.source.id, thread: threadId }).toString()}`} className="mt-3 inline-block underline underline-offset-4">Open bulk conversation tools</AppLink>
+            <AppLink href={`${readHref(readingParams)}#read-conversations`} className="mt-3 inline-block underline underline-offset-4">Select conversations for bulk tools</AppLink>
           </details>
         </header>
         {query.isError ? <ErrorBox error={query.error} onRetry={() => void query.refetch()} /> : null}

@@ -18,7 +18,7 @@ export default function ReadPage() {
         <div><h1 className="text-xl font-semibold">Read</h1><p className="text-sm text-muted-foreground">Processing previews</p></div>
         <AppLink href={importedReadingHref(params)} className="text-sm underline underline-offset-4">Back to imported reading</AppLink>
       </header>
-      <ProfferPreviewClient key={params.toString()} />
+      <ProfferPreviewClient />
     </div>
   );
 }

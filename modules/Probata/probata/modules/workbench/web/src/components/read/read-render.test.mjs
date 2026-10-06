@@ -109,9 +109,11 @@ test("focused reading uses around only on the first page and canonical source fo
   assert.match(html, /Original record ID/);
   assert.match(html, /content is not supplied by this messages API/);
   assert.match(html, /Jump to latest messages/);
+  assert.match(html, /source=canonical%2F%2B&amp;thread=original-thread&amp;around=original-record&amp;q=words#read-conversations/);
+  assert.doesNotMatch(html, /href="\/conversations/);
 });
 
-test("Read route switches preview aliases and keys preview remounts to route changes", () => {
+test("Read route switches preview aliases without remounting preview state on query changes", () => {
   for (const query of ["resource=one", "preview_handle=two", "attempt=three", "view=review"]) {
     const { default: ReadPage } = load("../../app/read/page.tsx", {
       ...common,
@@ -120,7 +122,7 @@ test("Read route switches preview aliases and keys preview remounts to route cha
       "@/components/sbv/proffer-preview-client": { ProfferPreviewClient: () => React.createElement("div", null, "Existing previews") },
     });
     const tree = ReadPage();
-    assert.equal(tree.props.children[1].key, `${query}&thread=kept`);
+    assert.equal(tree.props.children[1].key, null, "URL changes must preserve pending parser/repair gate answers");
     const html = renderToStaticMarkup(tree);
     assert.match(html, /Existing previews/);
     assert.match(html, /href="\/read\?thread=kept"/);
