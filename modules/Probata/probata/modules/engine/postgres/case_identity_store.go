@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-06 (shared two-row header read)
 // Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 //
@@ -226,20 +227,8 @@ func (s *CaseIdentityStore) Read(ctx context.Context, mode caseidentity.Mode) (c
 	if _, err := tx.Exec(ctx, `SET LOCAL statement_timeout = '8s'`); err != nil {
 		return view, caseIdentityError(err)
 	}
-	matterID, err := s.matterID(ctx, tx, mode)
-	if err != nil {
+	if view.Matter, view.CourtCase, err = s.readIdentityHeader(ctx, tx, mode); err != nil {
 		return view, err
-	}
-	if matterID != "" {
-		if view.Matter, err = scanMatter(tx.QueryRow(ctx, `SELECT `+caseMatterColumns+` FROM registry.matter m WHERE m.id = $1::uuid`, matterID)); err != nil {
-			return view, err
-		}
-		if view.CourtCase, err = scanCourtCase(tx.QueryRow(ctx, caseCourtCaseSQL, matterID)); err != nil {
-			return view, err
-		}
-	}
-	if view.Matter == nil || view.CourtCase == nil {
-		return view, caseidentity.ErrNotFound
 	}
 	if view.People, err = s.readPeople(ctx, tx); err != nil {
 		return view, err

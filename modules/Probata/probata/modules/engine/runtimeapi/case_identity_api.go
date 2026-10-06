@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-06 (bounded scope route)
 // Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 //
@@ -6,18 +7,20 @@
 // starter route: tailnet peer + mounted service token; every write carries the
 // Authentik actor headers and an Idempotency-Key.
 //
-//	GET  /case-identity?mode=TEST|REAL         the whole Case page
+//	GET  /case-identity?mode=DEV|LIVE          the whole Case page
+//	GET  /case-identity/scope?mode=DEV|LIVE    bounded fresh registry identity
 //	GET  /case-identity/lookup?value=...       who used these identifiers (read tool for other apps)
 //	POST /case-identity/identifiers            add an identifier
 //	POST /case-identity/identifiers/{alias_id} fix an identifier in place
 //	POST /case-identity/identifiers/{alias_id}/delete  remove an identifier
-//	POST /case-identity/header?mode=TEST|REAL  edit the matter or its court case
+//	POST /case-identity/header?mode=DEV|LIVE   edit the matter or its court case
 //	POST /case-identity/people                 add a person
 //	POST /case-identity/people/{person_id}     edit a person
 //	POST /case-identity/triage                 dismiss / reopen an identifier tied to nobody
 package runtimeapi
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -45,6 +48,7 @@ func NewCaseIdentityHTTPHandler(store caseidentity.Store, serviceTokenPath strin
 // CaseIdentityRoutePatterns are the exact mux patterns the starter mounts.
 var CaseIdentityRoutePatterns = []string{
 	"GET /case-identity",
+	"GET /case-identity/scope",
 	"GET /case-identity/lookup",
 	"POST /case-identity/identifiers",
 	"POST /case-identity/identifiers/{alias_id}",
@@ -61,7 +65,7 @@ var CaseIdentityRoutePatterns = []string{
 // Routes returns the case identity mux.
 func (h *CaseIdentityHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
-	handlers := []http.HandlerFunc{h.read, h.lookup, h.addIdentifier, h.editIdentifier, h.deleteIdentifier, h.editHeader, h.addPerson, h.editPerson, h.triage, h.addPlaceholders, h.addContactPeople, h.mergePerson}
+	handlers := []http.HandlerFunc{h.read, h.readScope, h.lookup, h.addIdentifier, h.editIdentifier, h.deleteIdentifier, h.editHeader, h.addPerson, h.editPerson, h.triage, h.addPlaceholders, h.addContactPeople, h.mergePerson}
 	for i, pattern := range CaseIdentityRoutePatterns {
 		mux.HandleFunc(pattern, overlayAuth(h.serviceTokenPath, "case identity", handlers[i]))
 	}
@@ -109,6 +113,39 @@ func (h *CaseIdentityHTTPHandler) read(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Read(r.Context(), mode)
 	if err != nil {
 		h.fail(w, err)
+		return
+	}
+	previewJSON(w, http.StatusOK, view)
+}
+
+// readScope serves a fresh authoritative identity without reading the full Case page.
+// Inputs: authenticated tailnet request and optional DEV/LIVE mode; legacy aliases use caseMode.
+// Outputs: bounded nested identity JSON, 422 for unknown mode, or 404/503 on unavailable approval.
+// Side effects: read-only registry I/O under a short deadline; no cached or fallback approval.
+// Choose over read when a caller needs scope validation rather than people/history/counts.
+func (h *CaseIdentityHTTPHandler) readScope(w http.ResponseWriter, r *http.Request) {
+	mode, ok := caseMode(w, r)
+	if !ok {
+		return
+	}
+	reader, supported := h.store.(caseidentity.ScopeReader)
+	if !supported {
+		h.fail(w, errors.New("bounded case identity reader is unavailable"))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), caseidentity.ScopeReadTimeout)
+	defer cancel()
+	view, err := reader.ReadScope(ctx, mode)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if ctx.Err() != nil {
+		h.fail(w, ctx.Err())
+		return
+	}
+	if view.Mode != mode || !caseidentity.AdmittedIdentity(view.Matter.ID, view.CourtCase.ID) || view.CourtCase.MatterID != view.Matter.ID {
+		h.fail(w, caseidentity.ErrNotFound)
 		return
 	}
 	previewJSON(w, http.StatusOK, view)
