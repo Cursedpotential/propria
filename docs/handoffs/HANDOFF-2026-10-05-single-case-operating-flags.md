@@ -9,7 +9,7 @@ This checkpoint supersedes the older progress and acceptance snapshots below.
 The three interrupted builder lanes stopped on account usage-limit errors.
 Current account inspection permits ordinary work; all three were resumed.
 
-- Source integration tip `bf183d1f` preserves current upstream `cf83d7a7`.
+- Source integration tip `ad9caa46` preserves current upstream `cf83d7a7`.
   The sole merge conflict was independent imports in
   `postgres/first_party_context_store.go`; both were retained. No shared-checkout
   changes were staged, reset, stashed or overwritten.
@@ -17,19 +17,36 @@ Current account inspection permits ordinary work; all three were resumed.
 - Workbench canonical-upload/R2-new-acquisition denial `9260ca0e`, corrected B2
   fixture `0e7b225b`, narrow comments `ea97cdcf` and bounded scope consumer
   `d902ef2d` are integrated as `59f1df72`, `f6c13b4c`, `b3b2f9e6` and `ddf19944`.
-  The fresh source-pinned Workbench suite reports **676 passed, zero failures**;
-  focused suite 253 passed. Web lint has zero errors/26 existing warnings;
-  build/typecheck pass. Final smoke/Storybook receipt is being recovered.
-- Python bounded scope consumer `5f2d1836` is integrated as `b11ee5a3`.
-  Agent's combined synthetic suite reports **352 passed, five existing skips**;
-  lint, formatting and bounded helper typecheck pass. Parent rerun against the
-  newer upstream source is pending.
-- Engine bounded scope provider `60953696` is integrated as `bf183d1f`.
+  Subsequent transport repair `957ee3bb`/`d41be78f` is integrated as
+  `970d9e05`/`5ed60658`: no environment proxy or redirect, total five-second
+  streaming deadline, raw 64 KiB cap, encoded-body/duplicate-JSON denial.
+  Final source-pinned Workbench API suite: **729 passed, zero failures**;
+  focused transport/policy suite 232 passed. Web lint has zero errors/26 existing
+  warnings; typecheck/build and Storybook pass. Browser-free smoke: **144 passed,
+  four browser-dependent skips**. This is not user-facing click proof.
+- Python bounded scope consumer `5f2d1836` is integrated as `b11ee5a3`;
+  total-deadline and caller repair `72206a7a` as `331525c9`; encoded-body fence
+  `bfe5c76b` as `ad9caa46`. Fresh parent combined suite: **399 passed, five
+  existing skips**, 8.03 seconds. Durable JUnit is under the parent module's
+  ignored `to_be_deleted/single-case-python-raw-final-20261006.xml`.
+  Agent lint/format/helper and CLI typechecks pass. API-wide typecheck has one
+  unchanged baseline str-vs-Literal inference error at `inspect_routes.py:1070`.
+- Engine bounded scope provider `60953696`/`161f46ed` is integrated as
+  `bf183d1f`/`5c4b2e29`.
   It adds authenticated `/case-identity/scope`, the existing approved registry
   pair and actual court parent, no aggregate reads, and a total two-second
-  deadline before pool acquisition. Focused source-pinned proof is running;
-  parent will rerun the combined engine including current upstream changes.
-- An independent read-only release reviewer owns combined source review.
+  deadline before pool acquisition. Source-pinned caseidentity/postgres/runtimeapi/
+  starter proof passes, including two-second pool-wait/query deadlines and bounded
+  rollback cleanup. Parent whole-engine run initially failed only an upstream
+  stale optional-stage test (11 expected, 12 actual). Narrow test reconciliation
+  `e669238d` is integrated as `52e5240f` with accurate byline `2648584e`; all old
+  assertions remain and the independent source-integrity stage is asserted.
+  Fresh whole-engine test/build/vet packet `engine-52e5240f` is running.
+- Malformed durable admission receipt repair `f2e31898` is integrated as
+  `f8935927`. Invalid/padded IDs cannot panic or replace existing source pointers.
+  Independent review closed this finding and the Python elapsed-deadline/caller
+  issue. Workbench transport blocker is also closed. Final Python raw-body fence
+  review is pending; tests alone are not reviewer acceptance.
 - All six affected Coolify applications were reread: repository
   `Cursedpotential/propria`, branch `main`, auto-deploy disabled. No deployment
   or environment change has been triggered by this lane.
@@ -37,9 +54,11 @@ Current account inspection permits ordinary work; all three were resumed.
 Still required: final combined source proof, green published CI, independent
 review, current-main reconciliation, neutral configuration validation, manual
 Coolify deployments, served default/Dev/Live identity and denial readbacks,
-and actual user-facing click verification. The last full Case aggregate read
-returned 503; this has not yet been refreshed in the resumed run. A healthy
-service is not proof that the full Case page works.
+and actual user-facing click verification. Fresh host/private-door probes of the
+old deployment found scope 404 and canonical default/DEV/LIVE aggregate requests
+422. Its historical compatibility wire read returned **200 in 6.998 seconds**,
+superseding yesterday's 503; this is not the newly served canonical contract.
+A healthy service is not proof that the full Case page works.
 
 Disposable Dev data isolation and a general feature-flag registry remain owed;
 neither is implemented by these admission guards. The existing-desktop-browser
@@ -85,9 +104,11 @@ were neither staged nor overwritten. PR: https://github.com/Cursedpotential/prop
 
 ## Current remaining acceptance gates
 
-1. Integrate the bounded Workbench upload/CI and portable-fixture commits.
-2. Run combined source-pinned suites; require Workbench CI green and independent
-   final review of direct guards, authoritative verification and rollout replay.
+1. Complete the running whole-engine test/build/vet receipt and final Python
+   raw-stream independent review. Current parent Python proof is 399 pass/5 skip;
+   Workbench API is 729 pass, web smoke 144 pass/4 browser skips.
+2. Push final source and require freshly published Workbench CI green. The older
+   pushed `94ebbd93` run is green but does not cover the final transport deltas.
 3. Provision the verified neutral pair for Workbench, exec API and Python worker;
    reuse the existing matching service credential. No credential rotation or
    auth-policy change is needed. Automatic deployment stays disabled.
