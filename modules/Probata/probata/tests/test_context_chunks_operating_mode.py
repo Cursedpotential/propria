@@ -1,7 +1,7 @@
 """Import-light boundary tests; no DB, embedding, vector, or Temporal service is used.
 
 Byline: Codex · GPT-5 · 2026-10-05
-Updated: Codex · gpt-6.1-sol · 2026-10-06 — complete scope approval and parent-denial coverage.
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — async scope approval and parent-denial coverage.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def approved(monkeypatch):
     monkeypatch.setenv("PROFFER_COURT_CASE_ID", pair[1])
     monkeypatch.setenv("PROFFER_STARTER_URL", "http://synthetic-starter.invalid:8089")
 
-    def header(_):
+    async def header(_):
         return {"mode": "LIVE", "matter": {"id": pair[0]}, "court_case": {"id": pair[1], "matter_id": pair[0]}}
 
     monkeypatch.setattr(case_scope, "_read_authoritative_header", header)
@@ -230,7 +230,7 @@ def test_authoritative_denial_never_imports_or_runs_the_body(monkeypatch, approv
     elif defect == "malformed":
         header = {}
 
-    def read(_):
+    async def read(_):
         calls.append("header")
         if defect == "unavailable":
             raise case_scope.CaseScopeVerificationError("Proffer authoritative case verification is unavailable")
@@ -264,7 +264,7 @@ def test_admitted_live_runs_expected_stubbed_body(approved, body_stubs, fn, cls,
 def test_header_approval_precedes_first_body_io(monkeypatch, approved, body_stubs, fn, cls):
     """Approve the header before any config, database, embedding or store calls."""
 
-    def read(_):
+    async def read(_):
         assert body_stubs == []
         body_stubs.append("approved-header")
         return {

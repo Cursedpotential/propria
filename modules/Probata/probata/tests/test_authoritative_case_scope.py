@@ -1,17 +1,20 @@
 """Synthetic verification of the private authoritative case-header write boundary.
 
 Byline: Codex · GPT-5 · 2026-10-05
-Updated: Codex · gpt-6.1-sol · 2026-10-06 — scope endpoint and court-parent contract.
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — total deadline, streaming cleanup and caller admission.
 
 Every HTTP transport is stubbed; no database, Temporal or private service is used.
 """
 
 from __future__ import annotations
 
+import asyncio
+import builtins
 import json
+import time
 from types import SimpleNamespace
-from urllib.error import HTTPError, URLError
 
+import httpx
 import pytest
 
 from server.case_management import authoritative_case_scope as scope
@@ -31,7 +34,7 @@ def configured(monkeypatch):
 
 @pytest.fixture
 def transport(monkeypatch, configured):
-    """Stub the entire HTTP transport and record admission and byte-limit ordering."""
+    """Use HTTPX's real stream lifecycle with a synthetic transport, never sockets."""
     observed = []
     state = SimpleNamespace(
         raw=json.dumps(
@@ -39,57 +42,235 @@ def transport(monkeypatch, configured):
         ).encode(),
         error=None,
         status=200,
+        chunks=None,
+        delay=0,
+        header_delay=0,
+        closed=0,
+        client_closed=0,
+        cancelled=0,
+        yielded=0,
     )
 
-    class Response:
-        @property
-        def status(self):
-            return state.status
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            try:
+                for chunk in state.chunks if state.chunks is not None else [state.raw]:
+                    await asyncio.sleep(state.delay)
+                    state.yielded += 1
+                    yield chunk
+            except asyncio.CancelledError:
+                state.cancelled += 1
+                raise
 
-        def __enter__(self):
-            return self
+        async def aclose(self):
+            state.closed += 1
 
-        def __exit__(self, *_):
-            return False
-
-        def read(self, limit):
-            observed.append(("read", limit))
-            return state.raw[:limit]
-
-    def open_request(request, timeout):
-        observed.append(("get", request, timeout))
+    async def open_request(request):
+        observed.append(("get", request))
+        await asyncio.sleep(state.header_delay)
         if state.error:
             raise state.error
-        return Response()
+        return httpx.Response(state.status, stream=Stream(), headers={"Location": "https://foreign.invalid/secret"})
 
     def headers():
         observed.append("credential")
         return {"Authorization": f"Bearer {TOKEN}"}
 
-    def build(*handlers):
-        observed.append(("handlers", handlers))
-        return SimpleNamespace(open=open_request)
+    real_client = httpx.AsyncClient
+
+    class Client(real_client):
+        async def __aexit__(self, *args):
+            await super().__aexit__(*args)
+            assert self.is_closed
+            state.client_closed += 1
+
+    def client(**options):
+        observed.append(("options", options))
+        return Client(transport=httpx.MockTransport(open_request), **options)
 
     monkeypatch.setattr(scope, "_service_authorization_headers", headers)
-    monkeypatch.setattr(scope, "build_opener", build)
+    monkeypatch.setattr(httpx, "AsyncClient", client)
     return observed, state
 
 
 def test_each_live_admission_requires_a_fresh_authenticated_bounded_get(transport):
-    observed, _ = transport
+    observed, state = transport
     for _ in range(2):
         assert scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT) == (MATTER, COURT)
     gets = [item for item in observed if isinstance(item, tuple) and item[0] == "get"]
     assert len(gets) == 2
     request = gets[0][1]
-    assert request.full_url == "http://synthetic-starter.invalid:8089/case-identity/scope?mode=LIVE"
-    assert request.get_method() == "GET" and request.data is None
-    assert request.get_header("Authorization") == f"Bearer {TOKEN}"
-    assert 0 < gets[0][2] <= 5
-    assert ("read", scope._MAX_RESPONSE_BYTES + 1) in observed
-    handlers = next(item[1] for item in observed if isinstance(item, tuple) and item[0] == "handlers")
-    assert handlers[0].proxies == {}
-    assert handlers[1].redirect_request(None, None, 302, "redirect", {}, "https://foreign.invalid") is None
+    assert str(request.url) == "http://synthetic-starter.invalid:8089/case-identity/scope?mode=LIVE"
+    assert request.method == "GET" and request.content == b""
+    assert request.headers["Authorization"] == f"Bearer {TOKEN}"
+    options = next(item[1] for item in observed if isinstance(item, tuple) and item[0] == "options")
+    assert 0 < options["timeout"] <= 5
+    assert options["trust_env"] is False and options["follow_redirects"] is False
+    assert state.closed == 2 and state.client_closed == 2
+
+
+def test_drip_response_hits_total_deadline_and_closes_stream(monkeypatch, transport):
+    """An active stream cannot extend admission by continually resetting inactivity."""
+    _, state = transport
+    monkeypatch.setattr(scope, "_TIMEOUT_SECONDS", 0.05)
+    state.chunks, state.delay = [b" "] * 1000, 0.005
+    started = time.monotonic()
+    with pytest.raises(scope.CaseScopeVerificationError) as denied:
+        asyncio.run(scope.require_authoritative_live_case_scope_async("LIVE", MATTER, COURT))
+    assert denied.value.http_status == 503 and str(denied.value) == scope._UPSTREAM_ERROR
+    assert time.monotonic() - started < 1
+    assert 0 < state.yielded < 1000 and state.cancelled == 1 and state.closed == 1
+    assert state.client_closed == 1
+
+
+def test_waiting_for_response_headers_is_in_the_total_deadline(monkeypatch, transport):
+    _, state = transport
+    monkeypatch.setattr(scope, "_TIMEOUT_SECONDS", 0.03)
+    state.header_delay = 1
+    with pytest.raises(scope.CaseScopeVerificationError, match=scope._UPSTREAM_ERROR):
+        scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT)
+    assert state.yielded == 0
+    assert state.client_closed == 1
+
+
+@pytest.mark.parametrize("extra", [0, 1])
+def test_stream_byte_boundary_and_early_close(transport, extra):
+    _, state = transport
+    state.chunks = [state.raw, b" " * (scope._MAX_RESPONSE_BYTES - len(state.raw) + extra), b"unused"]
+    if extra:
+        with pytest.raises(scope.CaseScopeVerificationError) as denied:
+            scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT)
+        assert denied.value.http_status == 502 and state.yielded == 2
+    else:
+        state.chunks.pop()
+        assert scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT) == (MATTER, COURT)
+    assert state.closed == 1
+    assert state.client_closed == 1
+
+
+def test_redirect_never_reaches_foreign_host_or_uses_environment_proxy(monkeypatch, transport):
+    observed, state = transport
+    monkeypatch.setenv("HTTP_PROXY", "http://foreign-proxy.invalid:8080")
+    monkeypatch.setenv("HTTPS_PROXY", "http://foreign-proxy.invalid:8080")
+    state.status = 302
+    with pytest.raises(scope.CaseScopeVerificationError) as denied:
+        scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT)
+    assert denied.value.http_status == 503 and state.closed == 1
+    gets = [item for item in observed if isinstance(item, tuple) and item[0] == "get"]
+    assert len(gets) == 1 and gets[0][1].url.host == "synthetic-starter.invalid"
+    assert next(item[1] for item in observed if isinstance(item, tuple) and item[0] == "options")["trust_env"] is False
+
+
+def test_external_cancellation_is_not_converted_to_approval_or_error(monkeypatch, transport):
+    _, state = transport
+    state.chunks, state.delay = [b" "] * 1000, 0.005
+
+    async def cancel_admission():
+        task = asyncio.create_task(scope.require_authoritative_live_case_scope_async("LIVE", MATTER, COURT))
+        await asyncio.sleep(0.025)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(cancel_admission())
+    assert state.cancelled == 1 and state.closed == 1
+    assert state.client_closed == 1
+
+
+def test_denied_mode_and_invalid_secret_do_not_import_httpx(monkeypatch, configured):
+    real_import = builtins.__import__
+
+    def fence(name, *args, **kwargs):
+        if name == "httpx":
+            pytest.fail("denied admission imported HTTPX")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fence)
+    monkeypatch.setenv("PROFFER_SERVICE_TOKEN_FILE", "relative-token")
+    for mode in ("DEV", "LIVE"):
+        with pytest.raises(scope.CaseScopeVerificationError):
+            scope.require_authoritative_live_case_scope(mode, MATTER, COURT)
+
+
+def test_sync_adapter_rejects_running_loop_without_detached_work(transport):
+    observed, _ = transport
+
+    async def nested():
+        with pytest.raises(scope.CaseScopeVerificationError):
+            scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT)
+
+    asyncio.run(nested())
+    assert observed == []
+
+
+@pytest.mark.parametrize("caller", ["api", "cli", "publish", "call-log", "remove"])
+def test_actual_drip_transport_denies_callers_before_sql_body_or_dispatch(monkeypatch, transport, caller):
+    """Exercise each real adapter against cancellation, with all mutation effects fenced."""
+    _, state = transport
+    monkeypatch.setattr(scope, "_TIMEOUT_SECONDS", 0.04)
+    state.chunks, state.delay = [b" "] * 1000, 0.005
+    if caller == "api":
+        import hashlib
+
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from server.api import inspect_routes
+
+        app = FastAPI()
+        inspect_routes.register_inspect_routes(app, knowledge=None)
+        monkeypatch.setattr(inspect_routes, "_verify_proffer_delegation", lambda *_: None)
+        monkeypatch.setattr(inspect_routes, "_get_engine", lambda: pytest.fail("denied admission accessed SQL"))
+        body = {
+            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+            "matter_mode": "LIVE",
+            "scope": "record",
+            "target_id": OTHER,
+            "attempt_id": OTHER,
+            "actor_subject_uid": "synthetic-subject",
+            "actor_username": "synthetic-operator",
+            "claim": "Synthetic review only",
+        }
+        body["idempotency_key"] = hashlib.sha256(
+            json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        with TestClient(app) as client:
+            response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+        assert response.status_code == 503 and response.json()["detail"] == scope._UPSTREAM_ERROR
+    else:
+        from temporalio.exceptions import ApplicationError
+
+        from server.context_chunks import start as starter
+        from server.temporal import chunk_activities as chunks
+        from server.temporal import chunk_backfill_activities as backfill
+
+        real_import = builtins.__import__
+
+        def fence(name, *args, **kwargs):
+            if name in (
+                "temporalio.client",
+                "server.config",
+                "server.db",
+                "server.context_chunks.embed",
+                "server.context_chunks.store",
+            ):
+                pytest.fail(f"denied admission imported mutation dependency {name}")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fence)
+        policy = {"operating_mode": "LIVE", "matter_id": MATTER, "court_case_id": COURT}
+        with pytest.raises(ApplicationError) as denied:
+            if caller == "cli":
+                asyncio.run(starter.start(starter.parser().parse_args(["rechunk", "--no-wait"])))
+            elif caller == "publish":
+                chunks.publish_context_chunks_activity(chunks.PublishChunksParams(**policy))
+            elif caller == "call-log":
+                chunks.publish_call_log_files_activity(chunks.PublishCallLogFilesParams(**policy))
+            else:
+                backfill.remove_per_message_objects_activity(backfill.RemovalParams(**policy, dry_run=False))
+        assert denied.value.type == "ChunkWriteDenied" and denied.value.non_retryable
+    assert state.cancelled == 1 and state.closed == 1
+    assert state.client_closed == 1
 
 
 @pytest.mark.parametrize("mode", [None, "", "DEV", "TEST", "REAL", "unknown"])
@@ -188,11 +369,12 @@ def test_malformed_or_foreign_header_fails_closed_without_payload_exposure(trans
         scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT)
     assert error.value.http_status == 502
     assert str(error.value) == scope._HEADER_ERROR
+    assert state.closed == 1 and state.client_closed == 1
 
 
 @pytest.mark.parametrize(
     "error",
-    [TimeoutError(TOKEN), URLError(TOKEN), OSError(TOKEN), HTTPError("http://foreign.invalid", 302, TOKEN, {}, None)],
+    [TimeoutError(TOKEN), httpx.ConnectError(TOKEN), httpx.ReadTimeout(TOKEN), httpx.InvalidURL(TOKEN), OSError(TOKEN)],
 )
 def test_upstream_failure_has_only_safe_error_and_no_positive_cache(transport, error):
     observed, state = transport
@@ -227,6 +409,7 @@ def test_correct_scope_ids_require_the_court_to_belong_to_the_approved_matter(tr
         scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT)
     assert error.value.http_status == 502
     assert str(error.value) == scope._HEADER_ERROR
+    assert state.closed == 1 and state.client_closed == 1
 
 
 @pytest.mark.parametrize(

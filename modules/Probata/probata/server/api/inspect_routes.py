@@ -41,10 +41,10 @@ Routes:
 # Byline amendment: Codex · orchestrator · 2026-10-05 (durable preview-mode admission)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (authenticated authoritative case-pair admission)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (registered source court-case verification)
+# Byline amendment: Codex · gpt-6.1-sol · 2026-10-06 (await total-deadline authoritative admission)
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
@@ -65,7 +65,7 @@ from server.core.knowledge_handle import resolve_knowledge
 from server.case_management.authoritative_case_scope import (
     CaseScopeVerificationError,
     configured_case_scope,
-    require_authoritative_live_case_scope,
+    require_authoritative_live_case_scope_async,
 )
 from server.evidence.custody import blob_root
 
@@ -1187,7 +1187,7 @@ def _register_flags_routes(app: FastAPI) -> None:
         Inputs: signed BFF actor attestation and the preview, target, mode, and claim.
         Outputs: the existing or newly persisted corroboration flag.
         Side effects: verifies the configured pair through an authenticated starter
-        read off the event loop before SQL, then persists only after the current
+        read with an async total deadline before SQL, then persists only after the current
         preview's Live admission receipt, full case pair and target are verified;
         DEV requests are rejected before any database access while isolation is absent.
         Sibling choice: use this content-review route instead of generic feature flags
@@ -1215,8 +1215,8 @@ def _register_flags_routes(app: FastAPI) -> None:
 
         try:
             configured_matter_id, configured_court_case_id = configured_case_scope()
-            expected_matter_id, expected_court_case_id = await asyncio.to_thread(
-                require_authoritative_live_case_scope, canonical_mode, configured_matter_id, configured_court_case_id
+            expected_matter_id, expected_court_case_id = await require_authoritative_live_case_scope_async(
+                canonical_mode, configured_matter_id, configured_court_case_id
             )
         except CaseScopeVerificationError as error:
             raise HTTPException(error.http_status, str(error)) from None

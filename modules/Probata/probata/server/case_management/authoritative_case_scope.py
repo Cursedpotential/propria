@@ -1,7 +1,7 @@
 """Verify a configured Live case through the bounded authoritative starter scope read.
 
 Byline: Codex · GPT-5 · 2026-10-05
-Updated: Codex · gpt-6.1-sol · 2026-10-06 — bounded scope read and court-parent correlation.
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — total-deadline scope read and court-parent correlation.
 
 This import-light boundary owns no registry or cache. Every write needs a fresh
 read-only approval; read and dry-run callers need no write authorization.
@@ -10,16 +10,14 @@ Credential contract: modules/workbench/api/app/service/proffer.py.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
 import stat
-from http.client import HTTPException as HTTPClientError
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 from uuid import UUID
 
 MATTER_ENV = "PROFFER_MATTER_ID"
@@ -126,14 +124,6 @@ def _service_authorization_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-class _NoRedirect(HTTPRedirectHandler):
-    """Reject redirects so the service bearer never reaches a redirect target."""
-
-    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
-        """Decline every redirect without issuing another request."""
-        return None
-
-
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     """Reject ambiguous duplicate JSON fields in the authoritative response."""
     result: dict[str, Any] = {}
@@ -144,27 +134,31 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _read_authoritative_header(url: str) -> dict[str, Any]:
-    """Read one bounded authenticated JSON header without redirects or proxy leakage.
+async def _read_authoritative_header(url: str) -> dict[str, Any]:
+    """Read one authenticated JSON header with a total deadline and byte cap.
 
     Inputs: validated header URL. Outputs: JSON object or safe verification error.
     Effects: one GET, credential-file read; no logging, cache, writes or retries.
     """
-    request = Request(url, headers={**_service_authorization_headers(), "Accept": "application/json"}, method="GET")
-    # Environment proxies are not part of this private-service credential boundary.
-    opener = build_opener(ProxyHandler({}), _NoRedirect())
+    headers = {**_service_authorization_headers(), "Accept": "application/json"}
+    # Keep denied local requests import-light; environment proxies never own this bearer.
+    import httpx
+
+    raw = bytearray()
     try:
-        with opener.open(request, timeout=_TIMEOUT_SECONDS) as response:
-            if response.status != 200:
-                raise CaseScopeVerificationError(_UPSTREAM_ERROR)
-            raw = response.read(_MAX_RESPONSE_BYTES + 1)
-    except HTTPError as error:
-        error.close()
+        # Inactivity timeouts alone allow an unbounded drip response. This deadline
+        # owns connection, header/body streaming and context-manager cleanup.
+        async with asyncio.timeout(_TIMEOUT_SECONDS):
+            async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS, trust_env=False, follow_redirects=False) as client:
+                async with client.stream("GET", url, headers=headers) as response:
+                    if response.status_code != 200:
+                        raise CaseScopeVerificationError(_UPSTREAM_ERROR)
+                    async for chunk in response.aiter_bytes():
+                        if len(raw) + len(chunk) > _MAX_RESPONSE_BYTES:
+                            raise CaseScopeVerificationError(_HEADER_ERROR, 502)
+                        raw.extend(chunk)
+    except (TimeoutError, httpx.HTTPError, httpx.InvalidURL, OSError):
         raise CaseScopeVerificationError(_UPSTREAM_ERROR) from None
-    except (URLError, OSError, ValueError, HTTPClientError):
-        raise CaseScopeVerificationError(_UPSTREAM_ERROR) from None
-    if len(raw) > _MAX_RESPONSE_BYTES:
-        raise CaseScopeVerificationError(_HEADER_ERROR, 502)
     try:
         header = json.loads(raw, object_pairs_hook=_unique_object)
     except (UnicodeDecodeError, ValueError, RecursionError):
@@ -174,7 +168,9 @@ def _read_authoritative_header(url: str) -> dict[str, Any]:
     return header
 
 
-def require_authoritative_live_case_scope(operating_mode: str, matter_id: str, court_case_id: str) -> tuple[str, str]:
+async def require_authoritative_live_case_scope_async(
+    operating_mode: str, matter_id: str, court_case_id: str
+) -> tuple[str, str]:
     """Authorize an explicit Live write with a fresh matching starter header.
 
     Inputs: explicit canonical mode and requested matter/court pair. Outputs:
@@ -192,7 +188,7 @@ def require_authoritative_live_case_scope(operating_mode: str, matter_id: str, c
             raise ValueError("mutation scope does not match the configured case")
     except ValueError as error:
         raise CaseScopeVerificationError(str(error)) from None
-    header = _read_authoritative_header(_header_url())
+    header = await _read_authoritative_header(_header_url())
     try:
         returned = case_id(header["matter"]["id"], "matter_id"), case_id(header["court_case"]["id"], "court_case_id")
         court_matter_id = case_id(header["court_case"]["matter_id"], "court_case.matter_id")
@@ -201,3 +197,17 @@ def require_authoritative_live_case_scope(operating_mode: str, matter_id: str, c
     except (KeyError, TypeError, ValueError):
         raise CaseScopeVerificationError(_HEADER_ERROR, 502) from None
     return configured
+
+
+def require_authoritative_live_case_scope(operating_mode: str, matter_id: str, court_case_id: str) -> tuple[str, str]:
+    """Own a bounded event loop for synchronous mutation callers.
+
+    Inputs/outputs and authenticated-read effects match the async entry. Pick this
+    for synchronous Activities/preflight; async callers must await the async entry
+    or manage their synchronous preflight with asyncio.to_thread, never nest loops.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(require_authoritative_live_case_scope_async(operating_mode, matter_id, court_case_id))
+    raise CaseScopeVerificationError(_UPSTREAM_ERROR)

@@ -2,6 +2,7 @@
 
 Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 Updated: Codex · GPT-5 · 2026-10-05 — explicit policy and neutral case-scope preflight.
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — managed synchronous admission before async dispatch.
 
     python -m server.context_chunks.start rechunk --dry-run            # counts: threads, messages, chunks, embed calls
     python -m server.context_chunks.start rechunk --dry-run --exact    # chunk every thread (CPU), no embed, no writes
@@ -39,7 +40,8 @@ def build_input(args: argparse.Namespace) -> tuple[str, str, dict[str, Any]]:
     """Validate a fresh CLI request and build the Go workflow's explicit input.
 
     Inputs: parsed command, flags and operating mode (fresh CLI defaults Live).
-    Outputs: workflow name/id/body. Effects: environment reads only, no dispatch.
+    Outputs: workflow name/id/body. Effects: environment reads and, for writes,
+    one bounded authenticated scope GET; no Temporal dispatch.
     Pick this over durable Activity admission only at the fresh-request boundary;
     Dev mutations or missing approved scope fail before Temporal connection.
     """
@@ -106,10 +108,11 @@ async def start(args: argparse.Namespace) -> int:
 
     Inputs: parsed CLI flags. Outputs: exit status and printed workflow/result receipt.
     Effects: connects to Temporal and starts/waits for the workflow only after admission.
-    Pick build_input for side-effect-free validation rather than dispatch.
+    Pick build_input for admission without Temporal dispatch. Its synchronous
+    guard owns an event loop in the managed worker, not this running async loop.
     """
 
-    name, workflow_id, body = build_input(args)
+    name, workflow_id, body = await asyncio.to_thread(build_input, args)
     from temporalio.client import Client
 
     client = await Client.connect(

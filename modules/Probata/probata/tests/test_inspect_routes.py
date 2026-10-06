@@ -16,6 +16,7 @@ for parse-dryrun so no real parser/tool-registry state is required.
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (authoritative header and exact receipt pair)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (source-court conflict coverage)
 # Byline amendment: Codex · gpt-6.1-sol · 2026-10-06 (authoritative court-parent correlation)
+# Byline amendment: Codex · gpt-6.1-sol · 2026-10-06 (async total-deadline admission)
 
 from __future__ import annotations
 
@@ -64,10 +65,9 @@ def authoritative_header(monkeypatch):
     monkeypatch.setenv("PROFFER_STARTER_URL", "http://synthetic-starter.invalid:8089")
     observed = []
 
-    def read_header(url):
-        # A synchronous credential/HTTP verifier must not run on the API event loop.
-        with pytest.raises(RuntimeError, match="no running event loop"):
-            asyncio.get_running_loop()
+    async def read_header(url):
+        # The route awaits the cancellable async verifier on its own event loop.
+        assert asyncio.get_running_loop().is_running()
         observed.append(url)
         return {
             "mode": "LIVE",
@@ -1241,7 +1241,7 @@ def test_authoritative_case_denial_precedes_every_sql_access(client, monkeypatch
         elif defect == "malformed-header":
             header = {}
 
-        def read(_):
+        async def read(_):
             if defect == "unavailable":
                 raise case_scope.CaseScopeVerificationError("Proffer authoritative case verification is unavailable")
             return header
