@@ -30,6 +30,9 @@ const (
 	handlerSelectionVersion        = workflow.Version(1)
 	contextChunkGenerationChangeID = "proffer-non-messaging-context-chunk-generation-v1"
 	contextChunkGenerationVersion  = workflow.Version(1)
+	// AI routing follows the verified participant Activity output; histories without this marker retain their commands.
+	aiNeutralRoutingChangeID = "proffer-verified-ai-neutral-routing-v1"
+	aiNeutralRoutingVersion  = workflow.Version(1)
 	// The derive route. Histories recorded before it replay unchanged: an old
 	// run never saw a HandlerPathDerive candidate, so the branch below cannot
 	// be taken on replay even after the version marker resolves.
@@ -679,6 +682,8 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	// no message records settles not_applicable and passes no resolution.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	resolutionRefs := map[string]Ref{}
+	aiNeutralRouting := workflow.GetVersion(ctx, aiNeutralRoutingChangeID, workflow.DefaultVersion, aiNeutralRoutingVersion) != workflow.DefaultVersion
+	aiChatSource := false
 	if workflow.GetVersion(ctx, participantResolutionChangeID, workflow.DefaultVersion, participantResolutionVersion) != workflow.DefaultVersion {
 		resolutionRef, err := r.exec(ctx, stagegraph.ResolveContextParticipants, in.DeclaredFormat, in.personRefs(map[string]Ref{
 			"normalized_generation":   normalizedGenerationRef,
@@ -690,6 +695,14 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		}
 		if r.lastStatus(stagegraph.ResolveContextParticipants) == StatusSuccess {
 			resolutionRefs["participant_resolution"] = resolutionRef
+		}
+		if aiNeutralRouting {
+			for index := len(r.results) - 1; index >= 0; index-- {
+				if result := r.results[index]; result.Stage == stagegraph.ResolveContextParticipants {
+					aiChatSource = result.Status == StatusNotApplicable && result.AIChatSource
+					break
+				}
+			}
 		}
 	}
 
@@ -780,7 +793,7 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	// search objects (they carry ingest_run_id and the generation id; nothing marks or removes them today).
 	// A failure stops the run here, before the preview, with the Activity's own reason; every write is idempotent.
 	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
-	if chunksOn && contextChunkingInput == nil {
+	if chunksOn && contextChunkingInput == nil && !aiChatSource {
 		summary, err := r.execContextChunks(ctx, ContextChunksTarget{
 			SourceVersionID: string(r.sourceVersionRef), NormalizedGenerationID: string(normalizedGenerationRef),
 			ParticipantResolutionID: string(resolutionRefs["participant_resolution"]), MessageMatchesID: string(messageMatchRef),

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
@@ -186,6 +187,10 @@ func (s *ParserStore) RegisterArtifact(ctx context.Context, registration parseon
 	return parseonly.ArtifactLocator{StorageClass: storageClass, URI: objectURI, ContentHash: contentHash}, nil
 }
 
+// PersistParserSelection writes a source-bound immutable parser selection receipt.
+// Input is a compact selection specification; outputs are result/receipt refs.
+// Side effects are confined to the receipt transaction. Structured-ELT callers
+// additionally pin their template; decoder callers leave that optional pin empty.
 func (s *ParserStore) PersistParserSelection(ctx context.Context, spec activities.ParserSelectionSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateSelectionSpec(spec); err != nil {
 		return "", "", err
@@ -240,6 +245,12 @@ func (s *ParserStore) PersistParserSelection(ctx context.Context, spec activitie
 			rollback()
 			return "", "", errors.New("existing parser selection receipt conflicts with requested selection")
 		}
+		legacyChatGPT := selection.TemplateID == "chatgpt_json_array_v1" && spec.TemplateID == "chatgpt_json_array_v2" &&
+			selection.ParserID == activities.StructuredELTParserID && selection.DeclaredFormat == "chatgpt_official_json"
+		if selection.TemplateID != "" && selection.TemplateID != spec.TemplateID && !legacyChatGPT {
+			rollback()
+			return "", "", errors.New("existing parser selection receipt conflicts with requested template")
+		}
 		rollback()
 		return proffer.Ref(priorID.String()), proffer.Ref(priorID.String()), nil
 	}
@@ -247,8 +258,14 @@ func (s *ParserStore) PersistParserSelection(ctx context.Context, spec activitie
 		rollback()
 		return "", "", fmt.Errorf("inspect parser selection receipts: %w", err)
 	}
+	// Historic receipts above are immutable and replay unchanged. New native
+	// revisions may not create a selection against a persisted human source.
+	if (spec.TemplateID == "chatgpt_json_array_v2" || spec.TemplateID == "claude_ai_export_json_v1") && !contextsearch.IsAIChatFormat(sourceFormat) {
+		rollback()
+		return "", "", errors.New("native AI selection conflicts with the persisted non-AI source declaration")
+	}
 	receiptID := uuid.New()
-	result := selectionResultJSON(receiptID, spec.ParserID, spec.ParserVersion, spec.DeclaredFormat)
+	result := selectionResultJSON(receiptID, spec.ParserID, spec.ParserVersion, spec.DeclaredFormat, spec.TemplateID)
 	now := s.now()
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO context.activity_receipt
@@ -264,6 +281,9 @@ func (s *ParserStore) PersistParserSelection(ctx context.Context, spec activitie
 	return proffer.Ref(receiptID.String()), proffer.Ref(receiptID.String()), nil
 }
 
+// LoadParserSelection reloads a successful retained-source selection receipt.
+// Input is a receipt reference; output is its immutable parser and optional
+// template identity. This read has no side effects; use it before execution.
 func (s *ParserStore) LoadParserSelection(ctx context.Context, ref proffer.Ref) (activities.PersistedParserSelection, error) {
 	receiptID, err := parseUUIDRef(ref, "parser selection")
 	if err != nil {
@@ -485,13 +505,20 @@ type selectionResult struct {
 	ParserID       string `json:"parser_id"`
 	ParserVersion  string `json:"parser_version"`
 	DeclaredFormat string `json:"declared_format"`
+	TemplateID     string `json:"duckdb_template,omitempty"`
 }
 
-func selectionResultJSON(receiptID uuid.UUID, parserID, version string, format parser.FormatID) []byte {
-	result, _ := json.Marshal(selectionResult{RefKind: "parser_selection", RefID: receiptID.String(), ParserID: parserID, ParserVersion: version, DeclaredFormat: string(format)})
+// selectionResultJSON encodes the immutable selection payload for its receipt.
+// Inputs are compact identities and an optional query template; output is JSON.
+// It has no side effects; decoder selections pass an empty template identity.
+func selectionResultJSON(receiptID uuid.UUID, parserID, version string, format parser.FormatID, templateID string) []byte {
+	result, _ := json.Marshal(selectionResult{RefKind: "parser_selection", RefID: receiptID.String(), ParserID: parserID, ParserVersion: version, DeclaredFormat: string(format), TemplateID: templateID})
 	return result
 }
 
+// decodeSelectionReceipt validates and decodes a source-bound selection payload.
+// Inputs are receipt/source identities and JSON; output is the execution pin.
+// It has no side effects and accepts old receipts without a template field.
 func decodeSelectionReceipt(receiptID uuid.UUID, raw []byte, sourceID uuid.UUID) (activities.PersistedParserSelection, error) {
 	var result selectionResult
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -504,7 +531,7 @@ func decodeSelectionReceipt(receiptID uuid.UUID, raw []byte, sourceID uuid.UUID)
 	if err := format.Validate(); err != nil {
 		return activities.PersistedParserSelection{}, fmt.Errorf("parser selection format: %w", err)
 	}
-	return activities.PersistedParserSelection{SourceVersionRef: proffer.Ref(sourceID.String()), DeclaredFormat: format, ParserID: result.ParserID, ParserVersion: result.ParserVersion}, nil
+	return activities.PersistedParserSelection{SourceVersionRef: proffer.Ref(sourceID.String()), DeclaredFormat: format, ParserID: result.ParserID, ParserVersion: result.ParserVersion, TemplateID: result.TemplateID}, nil
 }
 
 type bundleResult struct {

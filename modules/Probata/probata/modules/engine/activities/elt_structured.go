@@ -12,6 +12,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
@@ -21,10 +22,12 @@ import (
 type StructuredELTFormat string
 
 const (
-	StructuredELTFormatCSV          StructuredELTFormat = "csv"
-	StructuredELTFormatNDJSON       StructuredELTFormat = "ndjson"
-	StructuredELTFormatSMSXML       StructuredELTFormat = "sms_xml"
-	StructuredELTFormatChatGPTJSON  StructuredELTFormat = "chatgpt_json_array"
+	StructuredELTFormatCSV         StructuredELTFormat = "csv"
+	StructuredELTFormatNDJSON      StructuredELTFormat = "ndjson"
+	StructuredELTFormatSMSXML      StructuredELTFormat = "sms_xml"
+	StructuredELTFormatChatGPTJSON StructuredELTFormat = "chatgpt_json_array"
+	// StructuredELTFormatClaudeJSON identifies native claude.ai conversation exports.
+	StructuredELTFormatClaudeJSON   StructuredELTFormat = "claude_ai_export_json"
 	StructuredELTFormatIMessageText StructuredELTFormat = "imessage_text"
 	// StructuredELTFormatFacebookMessenger is one Facebook Messenger thread
 	// file (message_N.json) of a "Download your information" export. Its
@@ -106,6 +109,9 @@ func (a StructuredELTActivities) attempt(ctx context.Context) int32 {
 // StructuredELTRow is one source-native record emitted by a bounded DuckDB
 // query template. It becomes a standard parser.RawRecordEnvelope before it
 // leaves this Activity; DuckDB never writes raw tables directly.
+// StoredBytes is the exact emitted payload value; JSON templates may canonicalize
+// source-native objects. Whole-original bytes remain linked through the bundle's
+// source version and retained original object, without invented byte offsets.
 type StructuredELTRow struct {
 	StoredBytes    []byte
 	NativeFields   json.RawMessage
@@ -191,6 +197,8 @@ func StructuredELTFormatForDeclaredFormat(declared string) (StructuredELTFormat,
 		return StructuredELTFormatSMSXML, nil
 	case "chatgpt_official_json":
 		return StructuredELTFormatChatGPTJSON, nil
+	case "claude_ai_export_json":
+		return StructuredELTFormatClaudeJSON, nil
 	case "messages_transcript":
 		return StructuredELTFormatIMessageText, nil
 	case "facebook_messenger_json":
@@ -217,7 +225,9 @@ func StructuredELTTemplateForFormat(format StructuredELTFormat) (string, error) 
 	case StructuredELTFormatSMSXML:
 		return "sms_xml_v1", nil
 	case StructuredELTFormatChatGPTJSON:
-		return "chatgpt_json_array_v1", nil
+		return "chatgpt_json_array_v2", nil
+	case StructuredELTFormatClaudeJSON:
+		return "claude_ai_export_json_v1", nil
 	case StructuredELTFormatIMessageText:
 		return "imessage_text_v1", nil
 	case StructuredELTFormatFacebookMessenger:
@@ -287,6 +297,9 @@ func (a StructuredELTActivities) authorizedFormat(ctx context.Context, req proff
 // version for an eligible declared format. Proffer routes select and execute
 // together, so a source can never carry an SBV selection receipt while being
 // extracted by DuckDB.
+// Input is a source-bound stage request with durable handler validation refs;
+// output is a compact selection receipt ref. Side effects are the immutable
+// selection receipt. Pick this with ExecuteStructuredELT for covered signatures.
 func (a StructuredELTActivities) SelectStructuredELT(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validateStore(); err != nil {
 		return proffer.StageResult{}, err
@@ -297,14 +310,23 @@ func (a StructuredELTActivities) SelectStructuredELT(ctx context.Context, req pr
 	if strings.TrimSpace(req.RequestID) == "" || req.SourceVersionRef == "" {
 		return proffer.StageResult{}, errors.New("select structured elt requires request and source version references")
 	}
-	if _, err := a.authorizedFormat(ctx, req); err != nil {
+	format, err := a.authorizedFormat(ctx, req)
+	if err != nil {
+		return proffer.StageResult{}, err
+	}
+	if format == StructuredELTFormatClaudeJSON && !contextsearch.IsAIChatFormat(req.DeclaredFormat) {
+		return proffer.StageResult{}, permanent(errors.New("native AI handler detection conflicts with the persisted non-AI source declaration"))
+	}
+	templateID, err := StructuredELTTemplateForFormat(format)
+	if err != nil {
 		return proffer.StageResult{}, err
 	}
 	selectionRef, receiptRef, err := a.Store.PersistParserSelection(ctx, ParserSelectionSpec{
 		RequestID: req.RequestID, SourceVersionRef: req.SourceVersionRef,
 		DeclaredFormat: parser.FormatID(req.DeclaredFormat),
 		ParserID:       StructuredELTParserID, ParserVersion: StructuredELTParserVersion,
-		Attempt: a.attempt(ctx),
+		TemplateID: templateID,
+		Attempt:    a.attempt(ctx),
 	})
 	if err != nil {
 		return proffer.StageResult{}, fmt.Errorf("persist structured-ELT selection: %w", err)
@@ -359,6 +381,20 @@ func (a StructuredELTActivities) executeStructuredELT(ctx context.Context, req p
 	}
 	if selection.ParserID != StructuredELTParserID || selection.ParserVersion != StructuredELTParserVersion {
 		return proffer.StageResult{}, permanent(errors.New("persisted parser selection is not the pinned DuckDB structured-ELT implementation"))
+	}
+	// Preexisting formats may replay receipts without an explicit template pin.
+	// Claude was added with the pin and has no legitimate unpinned history.
+	// Existing ChatGPT selections retain their original projection on retry.
+	// Empty pins predate receipt versioning and therefore mean the legacy v1 query.
+	if format == StructuredELTFormatChatGPTJSON && (selection.TemplateID == "" || selection.TemplateID == "chatgpt_json_array_v1") {
+		templateID = "chatgpt_json_array_v1"
+	}
+	if (selection.TemplateID != "" && selection.TemplateID != templateID) ||
+		(format == StructuredELTFormatClaudeJSON && selection.TemplateID == "") {
+		return proffer.StageResult{}, permanent(errors.New("persisted parser selection does not pin the authorized DuckDB template"))
+	}
+	if (templateID == "chatgpt_json_array_v2" || format == StructuredELTFormatClaudeJSON) && !contextsearch.IsAIChatFormat(string(selection.DeclaredFormat)) {
+		return proffer.StageResult{}, permanent(errors.New("native AI template conflicts with the persisted non-AI source declaration"))
 	}
 	input, err := a.Store.ResolveParserInput(ctx, req, selection)
 	if err != nil {

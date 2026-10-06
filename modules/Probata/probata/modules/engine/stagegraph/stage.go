@@ -118,6 +118,12 @@ type Descriptor struct {
 // PublishPreview, and its output is a sealed immutable chunk-generation Ref.
 const ChunkDocument StageID = "chunk_document_activity"
 
+// AssessSourceIntegrity names the independent whole-stream byte assessment Activity.
+// Inputs: retained source/version references. Outputs: assessment and receipt references.
+// Effects: retained-byte reads and append-only receipts; choose for zero-content checks,
+// never format validation or canonical eligibility. Byline: Codex, 2026-10-06.
+const AssessSourceIntegrity StageID = "assess_source_integrity_activity"
+
 // DeriveSMSThreads is the canon Activity name for streaming one oversized
 // source that no in-place extractor can read and publishing memory-safe
 // structured text into the configured derived vault directory (owner rulings
@@ -230,6 +236,7 @@ const AutoApprovalActor = "auto:clean-checks"
 // invariant while giving conditional Temporal branches a reviewable
 // dependency contract.
 var OptionalStages = []Descriptor{
+	{ID: AssessSourceIntegrity, Responsibility: RespVerify, Result: "byte integrity assessment receipt reference", DependsOn: []StageID{RetainOriginal}},
 	{
 		ID:             PublishContextSearch,
 		Responsibility: RespPublishSearch,

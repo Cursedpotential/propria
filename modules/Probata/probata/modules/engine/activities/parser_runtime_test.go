@@ -76,6 +76,7 @@ func (s *runtimeStore) PersistParserSelection(_ context.Context, spec ParserSele
 		DeclaredFormat:   spec.DeclaredFormat,
 		ParserID:         spec.ParserID,
 		ParserVersion:    spec.ParserVersion,
+		TemplateID:       spec.TemplateID,
 	}
 	return "selection:1", "receipt:selection", nil
 }

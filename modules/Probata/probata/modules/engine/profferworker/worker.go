@@ -48,13 +48,16 @@ type Registrations struct {
 	N8N                   platformtemporal.N8NActivities
 	N8NFlows              platformtemporal.FlowActivities
 	Hash                  activities.HashActivities
-	StructuredELT         activities.StructuredELTActivities
-	DeriveSMSThreads      activities.DeriveSMSThreadsActivities
-	HandlerSelection      HandlerSelectionActivities
-	Raw                   activities.RawPipelineActivities
-	Normalized            activities.NormalizedPipelineActivities
-	Repair                activities.RepairActivities
-	Preview               activities.PreviewProjectionActivity
+	// Independent byte-only check; never inserted into the base Proffer sequence.
+	// Byline: Codex, 2026-10-06.
+	Integrity        activities.SourceIntegrityActivities
+	StructuredELT    activities.StructuredELTActivities
+	DeriveSMSThreads activities.DeriveSMSThreadsActivities
+	HandlerSelection HandlerSelectionActivities
+	Raw              activities.RawPipelineActivities
+	Normalized       activities.NormalizedPipelineActivities
+	Repair           activities.RepairActivities
+	Preview          activities.PreviewProjectionActivity
 	// BatchImport serves the batch-by-folder workflow. Its fields are nil in a
 	// worker built without a Temporal client (RegisterAll still registers the
 	// Activities; they fail closed when called unwired).
@@ -111,6 +114,11 @@ type Registrations struct {
 	// Effects: none until invoked; choose for source inspection, retained copy and pinned readback before ingestion.
 	// Byline: Codex · GPT-6 · 2026-10-05.
 	AIWorkproductPlacement *activities.AIWorkproductPlacementActivities
+	// AIWorkproductCatalog authenticates retained notes and registers their original source occurrences.
+	// Inputs: existing placement adapters and separately admitted catalog writer. Outputs: three optional Activities.
+	// Effects: none until invoked; choose after placement, independently of content indexing and bucket listing refresh.
+	// Byline: Codex · GPT-6 · 2026-10-05.
+	AIWorkproductCatalog *activities.AIWorkproductCatalogActivities
 	// ToolkitCatalog registers verified recovery metadata only when the separate writer is explicitly configured.
 	// Inputs: existing preservation root/store resolver and admitted Case Bible writer. Outputs: optional Activity group.
 	// Effects: none until invoked. Choose alongside preservation; the dated catalog client remains read-only.
@@ -164,6 +172,10 @@ func RegisterAll(registrar interface {
 	// Back-fill of call logs imported before commit_call_log existed.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	registrar.RegisterWorkflowWithOptions(proffer.CallLogBackfillWorkflow, workflow.RegisterOptions{Name: proffer.CallLogBackfillWorkflowName})
+	// Explicit wrapper and Activity reuse retained originals and existing receipt tables.
+	// Byline: Codex, 2026-10-06.
+	registrar.RegisterWorkflowWithOptions(proffer.SourceIntegrityWorkflow, workflow.RegisterOptions{Name: proffer.SourceIntegrityWorkflowName})
+	activities.RegisterSourceIntegrityActivity(registrar, registrations.Integrity)
 	// The re-chunk of committed data and the removal of the per-message objects (owner 2026-10-02: Temporal, traceable).
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksBackfillWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksBackfillWorkflowName})
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksRemovalWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksRemovalWorkflowName})
@@ -236,6 +248,12 @@ func RegisterAll(registrar interface {
 		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.InspectAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductInspectActivityName})
 		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.CopyAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductCopyActivityName})
 		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.ReadbackAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductReadbackActivityName})
+	}
+	if registrations.AIWorkproductCatalog != nil {
+		registrar.RegisterWorkflowWithOptions(activities.AIWorkproductCatalogWorkflow, workflow.RegisterOptions{Name: activities.AIWorkproductCatalogWorkflowName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductCatalog.AuthenticateAIWorkproductCatalog, activity.RegisterOptions{Name: activities.AIWorkproductCatalogAuthenticateActivityName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductCatalog.RegisterAIWorkproductCatalog, activity.RegisterOptions{Name: activities.AIWorkproductCatalogRegisterActivityName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductCatalog.ReadbackAIWorkproductCatalog, activity.RegisterOptions{Name: activities.AIWorkproductCatalogReadbackActivityName})
 	}
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackagePreservationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackagePreservationWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.CopyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationCopyActivityName})
@@ -364,6 +382,10 @@ func Run(ctx context.Context, cfg Config) error {
 		defer closeToolkitCatalog()
 	}
 	registrations.ToolkitCatalog = toolkitCatalog
+	registrations.AIWorkproductCatalog, err = configureAIWorkproductCatalog(ctx, toolkitCatalog, registrations.AIWorkproductPlacement)
+	if err != nil {
+		return err
+	}
 	toolkitWorking, closeToolkitWorking, err := ConfigureToolkitWorkingCatalog(ctx, os.Getenv("CASEBIBLE_WORKING_DATABASE_URL_FILE"), registrations.ToolkitPreservation.AllowedRoot)
 	if err != nil {
 		return err
@@ -652,6 +674,12 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	// Bind only the already-retained source version through the existing original opener.
+	// Byline: Codex, 2026-10-06.
+	integrityStore, err := platformpostgres.NewSourceIntegrityStore(pool, hashRepo)
+	if err != nil {
+		return Registrations{}, err
+	}
 	// Where derived output lands is configuration (DERIVED_ROOTS_JSON), never
 	// code. Unset means every source falls back to beside-the-original; a
 	// malformed or unreachable value is a loud boot failure, never a silent
@@ -730,6 +758,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		N8N:                     platformtemporal.N8NActivities{Client: n8nClient},
 		N8NFlows:                platformtemporal.FlowActivities{Client: n8nClient, Registry: flowRegistry},
 		Hash:                    activities.NewHashActivities(hashRepo),
+		Integrity:               activities.NewSourceIntegrityActivities(integrityStore),
 		StructuredELT:           activities.NewStructuredELTActivities(structuredELTRepo, parserStore, handlerSelectionStore),
 		DeriveSMSThreads: activities.NewDeriveSMSThreadsActivities(
 			deriveStore, objectStores, deriveStore,

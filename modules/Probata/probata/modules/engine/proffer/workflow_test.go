@@ -1072,6 +1072,11 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 
 	var checkStruct func(t *testing.T, rt reflect.Type)
 	checkField := func(t *testing.T, owner reflect.Type, name string, ft reflect.Type) {
+		// This single flag is verified control metadata from a receipt-bearing Activity, never source text or identities.
+		// Retain the general compact-reference contract; unrelated bools and other payload fields remain disallowed.
+		if owner == reflect.TypeOf(StageResult{}) && name == "AIChatSource" && ft.Kind() == reflect.Bool {
+			return
+		}
 		switch ft.Kind() {
 		case reflect.Map:
 			if ft.Key().Kind() != reflect.String || !allowedScalar[ft.Elem()] {

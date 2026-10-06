@@ -111,6 +111,9 @@ type PublishGenerationSpec struct {
 // Stores in this package do, and every generation/lineage write must satisfy
 // the sql/0036 guard triggers rather than reimplement their checks.
 type NormalizedPipelineStore interface {
+	// LoadPersistedNormalizeExecution verifies and reuses a successful historical
+	// source/raw/request receipt before opening raw streams or a new bundle.
+	LoadPersistedNormalizeExecution(context.Context, proffer.StageRequest) (resultRef proffer.Ref, receiptRef proffer.Ref, found bool, err error)
 	// ResolveNormalizerInput resolves the source-version-level facts
 	// (provenance class, acquired_at) and opens a streaming view over the
 	// already-sealed raw generation named by req.Refs["raw_generation"].
@@ -183,6 +186,10 @@ func (a NormalizedPipelineActivities) requireRequestAndSource(req proffer.StageR
 // normalize.Adapter and finalizes exactly one immutable bundle. It never
 // touches context.normalized_record_identity or
 // context.normalization_lineage.
+// Inputs are source/raw/request and verification refs; output is the original
+// successful receipt or a new immutable bundle. Effects are bundle/receipt
+// creation only for a fresh coordinate. Pick for normalization; historical
+// success is verified and reused before a newer adapter can recompute it.
 func (a NormalizedPipelineActivities) NormalizeGeneration(ctx context.Context, req proffer.StageRequest) (proffer.StageResult, error) {
 	if err := a.validate(); err != nil {
 		return proffer.StageResult{}, err
@@ -199,6 +206,16 @@ func (a NormalizedPipelineActivities) NormalizeGeneration(ctx context.Context, r
 	}
 	if _, err := requiredRef(req, "raw_source_verification"); err != nil {
 		return proffer.StageResult{}, err
+	}
+	priorRef, priorReceipt, found, err := a.Store.LoadPersistedNormalizeExecution(ctx, req)
+	if err != nil {
+		return proffer.StageResult{}, fmt.Errorf("load persisted normalize execution: %w", err)
+	}
+	if found {
+		if priorRef == "" || priorReceipt == "" {
+			return proffer.StageResult{}, errors.New("persisted normalize execution lacks bundle or receipt")
+		}
+		return success(stagegraph.NormalizeGeneration, priorRef, priorReceipt), nil
 	}
 	input, err := a.Store.ResolveNormalizerInput(ctx, req)
 	if err != nil {

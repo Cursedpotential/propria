@@ -20,7 +20,10 @@ type ParserSelectionSpec struct {
 	DeclaredFormat   parser.FormatID
 	ParserID         string
 	ParserVersion    string
-	Attempt          int32
+	// TemplateID optionally pins a versioned structured-ELT query. Decoder
+	// selections and receipts written before this field leave it empty.
+	TemplateID string
+	Attempt    int32
 }
 
 // PersistedParserSelection is the exact selection loaded by
@@ -31,6 +34,9 @@ type PersistedParserSelection struct {
 	DeclaredFormat   parser.FormatID
 	ParserID         string
 	ParserVersion    string
+	// TemplateID repeats the immutable structured-query receipt pin; empty
+	// values identify decoder selections or legacy unpinned receipts.
+	TemplateID string
 }
 
 // ParserExecutionSpec is the compact execution receipt payload. BundleRef was

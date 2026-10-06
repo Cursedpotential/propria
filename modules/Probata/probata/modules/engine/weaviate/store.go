@@ -221,6 +221,8 @@ func AddedProperties() []Property {
 		exact("parser_version"),
 		exact("normalizer_id"),
 		exact("normalizer_version"),
+		exact("raw_format_id"),
+		{Name: "participant_roles", DataType: []string{"text[]"}},
 		exact("extraction_attempt_ref"),
 		{Name: "attempt", DataType: []string{"int"}},
 		{Name: "occurred_at", DataType: []string{"date"}},
@@ -475,8 +477,6 @@ func (s Store) objectProperties(object contextsearch.Object, indexedAt string) m
 		"extraction_attempt_ref":   object.Provenance.ExtractionAttemptRef,
 		"attempt":                  object.Provenance.Attempt,
 		"knowledge_time":           object.Temporal.KnowledgeTime.UTC().Format(time.RFC3339Nano),
-		"disclosure_tier":          object.Temporal.DisclosureTier,
-		"disclosure_tier_basis":    object.Temporal.DisclosureTierBasis,
 	}
 	setText := func(name, value string) {
 		if strings.TrimSpace(value) != "" {
@@ -495,6 +495,9 @@ func (s Store) objectProperties(object contextsearch.Object, indexedAt string) m
 		}
 	}
 	setText("embed_model", s.EmbedModel)
+	setText("disclosure_tier", object.Temporal.DisclosureTier)
+	setText("disclosure_tier_basis", object.Temporal.DisclosureTierBasis)
+	setText("raw_format_id", object.Provenance.RawFormatID)
 	setText("body", object.Body)
 	setText("sender", object.People.Sender)
 	setText("direction", object.Direction)
@@ -504,6 +507,7 @@ func (s Store) objectProperties(object contextsearch.Object, indexedAt string) m
 	setText("timestamp_certainty", object.Temporal.TimestampCertainty)
 	setText("timestamp_granularity", object.Temporal.TimestampGranularity)
 	setList("participants", object.People.Participants)
+	setList("participant_roles", object.People.RoleLabels)
 	setList("recipients", object.People.Recipients)
 	if object.Coordinates.OriginalObjectID != uuid.Nil {
 		properties["original_object_id"] = object.Coordinates.OriginalObjectID.String()

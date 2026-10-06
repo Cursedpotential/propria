@@ -20,14 +20,18 @@ import (
 // and returns configured refs/errors, mirroring lifecycleStore in
 // source_lifecycle_test.go.
 type fakeNormalizedPipelineStore struct {
-	resolveInput       normalize.NormalizerInput
-	resolveInputErr    error
-	openWriter         normalize.BundleWriter
-	openWriterErr      error
-	persistExecSpec    NormalizeExecutionSpec
-	persistExecRef     proffer.Ref
-	persistExecReceipt proffer.Ref
-	persistExecErr     error
+	priorRef, priorReceipt    proffer.Ref
+	priorFound                bool
+	priorErr                  error
+	resolveCalls, writerCalls int
+	resolveInput              normalize.NormalizerInput
+	resolveInputErr           error
+	openWriter                normalize.BundleWriter
+	openWriterErr             error
+	persistExecSpec           NormalizeExecutionSpec
+	persistExecRef            proffer.Ref
+	persistExecReceipt        proffer.Ref
+	persistExecErr            error
 
 	persistGenSpec    PersistNormalizedGenerationSpec
 	persistGenRef     proffer.Ref
@@ -63,10 +67,18 @@ type fakeNormalizedPipelineStore struct {
 	publishErr     error
 }
 
+// LoadPersistedNormalizeExecution returns the configured in-memory replay result.
+// Input is a stage request; output is fixture refs/absence/error, with no effects.
+// Pick for Activity ordering tests; repository tests validate durable ownership.
+func (s *fakeNormalizedPipelineStore) LoadPersistedNormalizeExecution(context.Context, proffer.StageRequest) (proffer.Ref, proffer.Ref, bool, error) {
+	return s.priorRef, s.priorReceipt, s.priorFound, s.priorErr
+}
 func (s *fakeNormalizedPipelineStore) ResolveNormalizerInput(context.Context, proffer.StageRequest) (normalize.NormalizerInput, error) {
+	s.resolveCalls++
 	return s.resolveInput, s.resolveInputErr
 }
 func (s *fakeNormalizedPipelineStore) OpenNormalizedBundleWriter(context.Context, proffer.StageRequest, normalize.NormalizerInput) (normalize.BundleWriter, error) {
+	s.writerCalls++
 	return s.openWriter, s.openWriterErr
 }
 func (s *fakeNormalizedPipelineStore) PersistNormalizeExecution(_ context.Context, spec NormalizeExecutionSpec) (proffer.Ref, proffer.Ref, error) {
