@@ -21,7 +21,8 @@ Byline: Codex, orchestrator, 2026-10-06.
 - Fresh existing-VPS Workbench packet pinned to `d41be78f`: **729 passed, zero
   failures**; focused transport/policy 232 passed. This closes the earlier 22
   failures in source-pinned proof, not by waiving them. Independent review
-  accepts its dedicated bounded transport. Published final CI rerun is pending.
+  accepts its dedicated bounded transport. Published source CI run `37456823464`
+  is green (API 729 passed); final proof-document current-head check is pending.
 - Workbench web lint zero errors/26 existing warnings; typecheck/build passed.
   Browser-free smoke **144 passed/four browser-dependent skips**; Storybook
   passed. Skipped browser journeys do not establish actual user-facing clicks.
@@ -38,15 +39,17 @@ Byline: Codex, orchestrator, 2026-10-06.
   Proffer, worker wiring, Activities, extraction and Temporal/starter packages.
   The new combined source includes upstream `cf83d7a7`. Whole-engine run found
   only an upstream stale optional-stage-count test; a narrow test-only correction
-  preserves all prior assertions and adds the twelfth stage. Fresh full test,
-  build and vet are running. Malformed/padded durable receipt IDs now deny without
+  preserves all prior assertions and adds the twelfth stage. Fresh whole-engine
+  test, build and vet passed on Go 1.27.1, without live DB credentials.
+  Malformed/padded durable receipt IDs now deny without
   panic or replacing source pointers, accepted by independent review.
   Synthetic SDK replay is bounded first-command proof, not a production-history audit.
 
 ## Remaining acceptance gates
 
-- Green published final Workbench CI.
-- Final Python raw-body independent review and whole-engine test/build/vet receipt.
+- Current-head CI after the final proof-document update.
+- All identified source findings are independently closed; full engine proof
+  passed. Legal consumer's 27-test refresh is separate and in progress.
 - Provision verified neutral case configuration; reuse the existing private
   service credential without rotation or user-auth changes.
 - Merge only after acceptance, then deploy affected services manually through

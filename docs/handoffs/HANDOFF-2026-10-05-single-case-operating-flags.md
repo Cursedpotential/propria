@@ -41,18 +41,31 @@ Current account inspection permits ordinary work; all three were resumed.
   stale optional-stage test (11 expected, 12 actual). Narrow test reconciliation
   `e669238d` is integrated as `52e5240f` with accurate byline `2648584e`; all old
   assertions remain and the independent source-integrity stage is asserted.
-  Fresh whole-engine test/build/vet packet `engine-52e5240f` is running.
+  Fresh whole-engine packet `engine-52e5240f` passed `go test ./...`,
+  `go build ./...` and `go vet ./...` on the existing VPS, Go 1.27.1, with no
+  integration-test database credentials. Packet SHA-256:
+  `6ea2d981555c213686d18a0e72e4ab3fc59ae1078413c1b554f34c3c179accd5`.
+  The only engine difference to the accepted tip is the comment-only byline
+  correction. No production database commit/concurrency proof is claimed.
 - Malformed durable admission receipt repair `f2e31898` is integrated as
   `f8935927`. Invalid/padded IDs cannot panic or replace existing source pointers.
   Independent review closed this finding and the Python elapsed-deadline/caller
-  issue. Workbench transport blocker is also closed. Final Python raw-body fence
-  review is pending; tests alone are not reviewer acceptance.
+  issue. Workbench transport blocker and final Python raw-body fence are also
+  independently closed. No blocking finding remains in reviewed source
+  `ad9caa46`. Reviewer's bare local environment passed 96 helper tests but four
+  caller imports lacked Temporal SDK; parent's complete ephemeral-extra run
+  independently passed all 399 combined cases. Those are distinct receipts.
 - All six affected Coolify applications were reread: repository
   `Cursedpotential/propria`, branch `main`, auto-deploy disabled. No deployment
   or environment change has been triggered by this lane.
 
-Still required: final combined source proof, green published CI, independent
-review, current-main reconciliation, neutral configuration validation, manual
+Published final source `d27e2b5a` has green Workbench API (729 passed) and web
+checks in run `37456823464`; CodeRabbit also reports success. Fresh origin/main
+remains `cf83d7a7`, already preserved. Legal's previously passing 27 consumer
+tests are being refreshed in a correctly provisioned test environment; two
+local minimal-environment attempts failed before collection, not assertions.
+
+Still required: final proof-document push/current-head CI, neutral configuration validation, manual
 Coolify deployments, served default/Dev/Live identity and denial readbacks,
 and actual user-facing click verification. Fresh host/private-door probes of the
 old deployment found scope 404 and canonical default/DEV/LIVE aggregate requests
@@ -104,11 +117,11 @@ were neither staged nor overwritten. PR: https://github.com/Cursedpotential/prop
 
 ## Current remaining acceptance gates
 
-1. Complete the running whole-engine test/build/vet receipt and final Python
-   raw-stream independent review. Current parent Python proof is 399 pass/5 skip;
+1. Source gates passed: whole-engine test/build/vet and final raw-stream review.
+   Current parent Python proof is 399 pass/5 skip;
    Workbench API is 729 pass, web smoke 144 pass/4 browser skips.
-2. Push final source and require freshly published Workbench CI green. The older
-   pushed `94ebbd93` run is green but does not cover the final transport deltas.
+2. Push this final proof checkpoint and retain current-head green CI; source
+   `d27e2b5a` run `37456823464` is already green for the final transport deltas.
 3. Provision the verified neutral pair for Workbench, exec API and Python worker;
    reuse the existing matching service credential. No credential rotation or
    auth-policy change is needed. Automatic deployment stays disabled.
