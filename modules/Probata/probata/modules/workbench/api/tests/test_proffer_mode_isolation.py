@@ -1,6 +1,7 @@
 """Single approved case, default-Live policy, durable receipts and Dev write isolation.
 
 Byline: Codex · GPT-6.1-Sol · 2026-10-05.
+Byline amendment: Codex · GPT-6.1-Sol · 2026-10-06 — separate policy stubs from scope transport tests.
 """
 
 from __future__ import annotations
@@ -35,6 +36,9 @@ ALIAS = "55555555-5555-4555-8555-555555555555"
 def canonical_case(monkeypatch):
     monkeypatch.setattr(settings, "proffer_matter_id", MATTER)
     monkeypatch.setattr(settings, "proffer_court_case_id", COURT)
+    async def scope_header(mode):
+        return _header(mode)
+    monkeypatch.setattr(case_scope, "_read_scope", scope_header)
     matter_mode._clear_preview_modes_for_tests()
     yield
     matter_mode._clear_preview_modes_for_tests()
@@ -116,41 +120,41 @@ def test_bad_config_cannot_select_an_unrelated_spine_case(monkeypatch):
     monkeypatch.setattr(settings, "proffer_matter_id", OTHER)
     calls = []
 
-    async def engine(method, path, **kwargs):
-        calls.append((method, path))
-        return httpx.Response(200, json=_header())
+    async def engine(mode):
+        calls.append(mode)
+        return _header()
 
-    monkeypatch.setattr(proffer, "_request", engine)
+    monkeypatch.setattr(case_scope, "_read_scope", engine)
     monkeypatch.setattr(case_management.service, "get_matter", lambda *_: pytest.fail("spine must not run"))
     response = TestClient(_app()).get("/api/matters")
     assert response.status_code == 502
-    assert calls == [("GET", "/case-identity/scope")]
+    assert calls == ["LIVE"]
 
 
 @pytest.mark.parametrize("mode", ["LIVE", "DEV"])
 def test_scope_admission_uses_fresh_bounded_identity_read_without_full_page(monkeypatch, mode):
     calls = []
 
-    async def engine(method, path, **kwargs):
-        calls.append((method, path, kwargs))
-        return httpx.Response(200, json={"mode": mode, "matter": {"id": MATTER},
-            "court_case": {"id": COURT, "matter_id": MATTER}})
+    async def engine(requested_mode):
+        calls.append(requested_mode)
+        return {"mode": mode, "matter": {"id": MATTER},
+                "court_case": {"id": COURT, "matter_id": MATTER}}
 
-    monkeypatch.setattr(proffer, "_request", engine)
+    monkeypatch.setattr(case_scope, "_read_scope", engine)
     for _ in range(2):
         asyncio.run(case_scope.verify_case_scope(mode))
-    assert calls == [("GET", "/case-identity/scope", {"params": {"mode": mode}})] * 2
+    assert calls == [mode] * 2
 
 
 @pytest.mark.parametrize("parent", [None, OTHER])
 def test_scope_missing_or_foreign_court_parent_blocks_read_and_mutation(monkeypatch, parent):
-    async def engine(method, path, **kwargs):
-        assert (method, path) == ("GET", "/case-identity/scope")
+    async def engine(mode):
+        assert mode == "LIVE"
         answer = _header()
         answer["court_case"]["matter_id"] = parent
-        return httpx.Response(200, json=answer)
+        return answer
 
-    monkeypatch.setattr(proffer, "_request", engine)
+    monkeypatch.setattr(case_scope, "_read_scope", engine)
     monkeypatch.setattr(case_management.service, "get_matter", lambda *_: pytest.fail("spine must not run"))
     client = TestClient(_app())
     assert client.get("/api/matters").status_code == 502
