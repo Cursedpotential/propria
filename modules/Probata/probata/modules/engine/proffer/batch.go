@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5 · 2026-09-21
 //
 // BatchWorkflow imports every object under one folder, one at a time.
@@ -25,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -143,9 +145,10 @@ const (
 // is a reference, an identifier or a small scalar: the folder's objects are
 // never carried here.
 type BatchInput struct {
-	BatchID     string `json:"batch_id"`
-	MatterID    string `json:"matter_id"`
-	CourtCaseID string `json:"court_case_id"`
+	OperatingMode string `json:"operating_mode,omitempty"`
+	BatchID       string `json:"batch_id"`
+	MatterID      string `json:"matter_id"`
+	CourtCaseID   string `json:"court_case_id"`
 
 	// Scheme, Bucket and Prefix are the validated folder locator. Prefix ends
 	// in "/" and lies inside a configured source root; the HTTP boundary has
@@ -225,9 +228,12 @@ type BatchCounts struct {
 
 // BatchStatus is BatchStatusQueryName's response and the workflow's result.
 type BatchStatus struct {
-	BatchID  string `json:"batch_id"`
-	Prefix   string `json:"prefix"`
-	Terminal bool   `json:"terminal"`
+	OperatingMode string `json:"operating_mode"`
+	MatterID      string `json:"matter_id"`
+	CourtCaseID   string `json:"court_case_id"`
+	BatchID       string `json:"batch_id"`
+	Prefix        string `json:"prefix"`
+	Terminal      bool   `json:"terminal"`
 	// ListingTruncated is true when the folder holds more members than one
 	// batch run imports.
 	ListingTruncated bool `json:"listing_truncated"`
@@ -282,8 +288,16 @@ func (s *batchState) snapshot() BatchStatus {
 // one starts. Re-running the same batch is safe — an object whose prior run
 // already completed is skipped rather than imported twice.
 func BatchWorkflow(ctx workflow.Context, in BatchInput) (BatchStatus, error) {
+	if workflow.GetVersion(ctx, operatingContextChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(in.OperatingMode)); err != nil {
+			return BatchStatus{}, temporal.NewNonRetryableApplicationError(err.Error(), "invalid_operating_mode", err)
+		}
+		if !caseidentity.AdmittedIdentity(in.MatterID, in.CourtCaseID) {
+			return BatchStatus{}, temporal.NewNonRetryableApplicationError("batch requires the approved case identity", "invalid_case_identity", nil)
+		}
+	}
 	state := &batchState{
-		status:  BatchStatus{BatchID: in.BatchID, Prefix: in.Prefix, Items: []BatchItem{}},
+		status:  BatchStatus{OperatingMode: in.OperatingMode, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID, BatchID: in.BatchID, Prefix: in.Prefix, Items: []BatchItem{}},
 		byIndex: map[int]*BatchItem{},
 	}
 	if err := workflow.SetQueryHandler(ctx, BatchStatusQueryName, func() (BatchStatus, error) {
@@ -311,6 +325,9 @@ func BatchWorkflow(ctx workflow.Context, in BatchInput) (BatchStatus, error) {
 			NextCursor string   `json:"next_cursor,omitempty"`
 		}
 		request := map[string]any{"scheme": in.Scheme, "bucket": in.Bucket, "prefix": in.Prefix, "cursor": cursor}
+		if in.OperatingMode != "" {
+			request["operating_mode"], request["matter_id"], request["court_case_id"] = in.OperatingMode, in.MatterID, in.CourtCaseID
+		}
 		if in.KeySuffix != "" {
 			request["key_suffix"] = in.KeySuffix
 		}
@@ -415,7 +432,7 @@ func runBatchItem(ctx workflow.Context, in BatchInput, item *BatchItem) {
 		ParentClosePolicy: enumspb.PARENT_CLOSE_POLICY_ABANDON,
 	})
 	child := workflow.ExecuteChildWorkflow(childCtx, ProfferWorkflow, WorkflowInput{
-		RequestID: item.RequestID, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID,
+		OperatingMode: in.OperatingMode, RequestID: item.RequestID, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID,
 		SourceRef: item.SourceRef, DeclaredFormat: in.DeclaredFormat,
 		ParserOptionsRef: in.ParserOptionsRef, SourceContextRef: in.SourceContextRef,
 		OwnerPersonID: in.OwnerPersonID, PerspectivePersonID: in.PerspectivePersonID,
@@ -448,6 +465,7 @@ func runBatchItem(ctx workflow.Context, in BatchInput, item *BatchItem) {
 		PreviewHandle string `json:"preview_handle"`
 	}
 	if err := workflow.ExecuteActivity(shortCtx, bindImportOperationActivityName, map[string]any{
+		"operating_mode": in.OperatingMode, "matter_id": in.MatterID, "court_case_id": in.CourtCaseID,
 		"request_id": item.RequestID, "source_ref": string(item.SourceRef),
 		"workflow_id": execution.ID, "run_id": execution.RunID,
 		"parser_options_ref": string(in.ParserOptionsRef),

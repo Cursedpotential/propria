@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (pre-import operating policy)
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (durable inline source context)
 package runtimeapi
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/sourcecontext"
 )
 
@@ -54,11 +56,15 @@ func (h *SourceContextHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc 
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if !canonicalRequestWrite(w, r) {
+			return
+		}
 		next(w, r)
 	}
 }
 
 type sourceContextRequest struct {
+	OperatingMode  string                        `json:"operating_mode,omitempty"`
 	RequestID      string                        `json:"request_id"`
 	MatterID       string                        `json:"matter_id"`
 	CourtCaseID    string                        `json:"court_case_id"`
@@ -76,6 +82,20 @@ func (h *SourceContextHTTPHandler) create(w http.ResponseWriter, r *http.Request
 		previewError(w, http.StatusBadRequest, err)
 		return
 	}
+	mode, err := caseidentity.ParseMode(req.OperatingMode)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return
+	}
+	if !caseidentity.AdmittedIdentity(req.MatterID, req.CourtCaseID) {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("source context requires the exact approved matter and court case"))
+		return
+	}
+	req.OperatingMode = string(mode)
 	actor, username, err := authenticatedActor(r)
 	if err != nil {
 		previewError(w, http.StatusUnauthorized, err)
@@ -96,7 +116,8 @@ func (h *SourceContextHTTPHandler) create(w http.ResponseWriter, r *http.Request
 		return
 	}
 	spec := sourcecontext.Spec{
-		RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID,
+		OperatingMode: req.OperatingMode,
+		RequestID:     req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID,
 		SourceRef: req.SourceRef, SupersedesRef: req.SupersedesRef,
 		ObservedSource: req.ObservedSource, Assertions: req.Assertions,
 		ChangeReason: req.ChangeReason, ActorSubjectUID: actor, ActorUsername: username,

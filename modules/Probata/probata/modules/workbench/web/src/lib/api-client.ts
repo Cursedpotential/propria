@@ -7,6 +7,7 @@
 // Byline: Codex · GPT-5 · 2026-08-28 (proffer workflow (formerly Universal Import Workflow) client)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25 (run source-context read-back for Review Actions)
 // Byline: Claude Code · Opus 5.5 · 2026-09-26 (repair workflow builder client; ApiError keeps its body)
+// Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 (raw canonical upload receipts; retired R2 writer).
 /**
  * API client for the Knowledge Workbench.
  *
@@ -629,17 +630,68 @@ export async function getCaseManagementCapabilities() {
 // proffer workflow (formerly Universal Import Workflow) — production acquisition and decision boundary
 // ---------------------------------------------------------------------------
 
-export async function uploadProfferSource(file: File, mode: MatterMode) {
-  // Existing authenticated server ingress writes Nexus; only the server authors its acquisition reference.
-  const staged = await uploadFile(file);
-  return acquireStagedProfferSource(staged.id, mode);
+/** Upload original bytes through the bounded canonical acquisition stream.
+ * Inputs: file, selected policy and optional progress callback. Output: verified upload receipt.
+ * Effects: authenticated same-origin POST; no R2 staging or multipart wrapper.
+ * Pick for fresh local sources; historic staged acquisition is retired.
+ */
+export function uploadProfferSource(
+  file: File,
+  mode: MatterMode,
+  onProgress?: (percent: number) => void,
+): Promise<ProfferUploadResponse> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result: ProfferUploadResponse = JSON.parse(xhr.responseText);
+          if (result.matter_mode !== mode || !/^[a-f0-9]{64}$/.test(result.sha256)
+              || result.acquisition_ref !== `upload://${result.sha256}`
+              || result.byte_length !== file.size) {
+            reject(new ApiError("Upload receipt did not confirm the exact bytes and selected operating policy", 502));
+            return;
+          }
+          resolve(result);
+        } catch {
+          reject(new ApiError("Malformed response from server", xhr.status));
+        }
+      } else {
+        try {
+          const body = JSON.parse(xhr.responseText);
+          reject(new ApiError(body.detail || `Upload failed: ${xhr.status}`, xhr.status));
+        } catch {
+          reject(new ApiError(`Upload failed: ${xhr.status}`, xhr.status));
+        }
+      }
+    });
+
+    xhr.addEventListener("error", () =>
+      reject(new ApiError("Network error — check your connection", 0)),
+    );
+    xhr.addEventListener("abort", () =>
+      reject(new ApiError("Upload aborted", 0)),
+    );
+
+    xhr.open("POST", `${API_BASE}/api/proffer/upload?mode=${encodeURIComponent(mode)}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.send(file);
+  });
 }
 
 export function acquireStagedProfferSource(stagedId: string, mode: MatterMode) {
   return apiFetch<ProfferUploadResponse>(`/api/proffer/staged/${encodeURIComponent(stagedId)}/acquisition?mode=${mode}`, {
     method: "POST",
   }).then((result) => {
-    if (result.matter_mode !== mode) throw new ApiError("Staged acquisition did not confirm TEST/REAL mode", 502);
+    if (result.matter_mode !== mode) throw new ApiError("Staged acquisition did not confirm DEV/LIVE mode", 502);
     return result;
   });
 }
@@ -665,7 +717,7 @@ export function listProfferSources(params: {
   if (params.pageSize) query.set("page_size", String(params.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
   return apiFetch<ProfferSourceBrowserResponse>(`/api/proffer/sources${suffix}`, { signal: params.signal }).then((response) => {
-    if (response.matter_mode !== params.mode) throw new ApiError("The source browser did not confirm the active TEST/REAL mode", 502);
+    if (response.matter_mode !== params.mode) throw new ApiError("The source browser did not confirm the active DEV/LIVE mode", 502);
     if (params.rootId && response.active_root_id !== params.rootId) throw new ApiError("The source browser returned a different source location", 502);
     if ((params.filter?.trim() ?? "") && (response.filter !== params.filter?.trim() || !response.filter_applied || response.filter_scope !== "root")) {
       throw new ApiError("The source browser did not confirm a complete backing-source search", 502);
@@ -688,7 +740,7 @@ export function inspectProfferSource(source: ProfferSourceObject, mode: MatterMo
       expected_etag: source.etag ?? null,
     }),
   }).then((response) => {
-    if (response.matter_mode !== mode) throw new ApiError("The source inspection did not confirm the active TEST/REAL mode", 502);
+    if (response.matter_mode !== mode) throw new ApiError("The source inspection did not confirm the active DEV/LIVE mode", 502);
     if (response.active_root_id !== rootId || response.source_ref !== source.source_ref) throw new ApiError("The source inspection did not confirm the selected R2 source location", 502);
     return response;
   });
@@ -711,7 +763,7 @@ export function createProfferSourceContext(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }).then((response) => {
-    if (response.matter_mode !== payload.matter_mode) throw new ApiError("The source-context receipt did not confirm the active TEST/REAL mode", 502);
+    if (response.matter_mode !== payload.matter_mode) throw new ApiError("The source-context receipt did not confirm the active DEV/LIVE mode", 502);
     return response;
   });
 }
@@ -727,7 +779,7 @@ export function getProfferRunSourceContext(previewHandle: string, mode: MatterMo
     { signal },
   ).then((response) => {
     if (response.preview_handle !== previewHandle || response.matter_mode !== mode) {
-      throw new ApiError("The run source context crossed its preview or TEST/REAL boundary", 502);
+      throw new ApiError("The run source context crossed its preview or DEV/LIVE boundary", 502);
     }
     return response;
   });
@@ -740,7 +792,7 @@ export function startProffer(payload: ProfferStartRequest) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }).then((response) => {
-    if (response.matter_mode !== payload.matter_mode) throw new ApiError("The started preview did not confirm the active TEST/REAL mode", 502);
+    if (response.matter_mode !== payload.matter_mode) throw new ApiError("The started preview did not confirm the active DEV/LIVE mode", 502);
     return response;
   });
 }
@@ -789,7 +841,7 @@ export function getProfferOperation(previewHandle: string, signal?: AbortSignal)
 export function getProfferPreview(previewHandle: string, mode: MatterMode, signal?: AbortSignal) {
   const query = new URLSearchParams({ mode });
   return apiFetch<ProfferPreviewResponse>(`/api/proffer/previews/${encodeURIComponent(previewHandle)}?${query.toString()}`, { signal }).then((response) => {
-    if (response.matter_mode !== mode) throw new ApiError("The preview did not confirm the active TEST/REAL mode", 502);
+    if (response.matter_mode !== mode) throw new ApiError("The preview did not confirm the active DEV/LIVE mode", 502);
     return response;
   });
 }
@@ -801,7 +853,7 @@ export function getProfferOperatorSnapshot(previewHandle: string, mode: MatterMo
     { signal },
   ).then((response) => {
     if (response.preview_handle !== previewHandle || response.matter_mode !== mode) {
-      throw new ApiError("The operator snapshot crossed its preview or TEST/REAL boundary", 502);
+      throw new ApiError("The operator snapshot crossed its preview or DEV/LIVE boundary", 502);
     }
     return response;
   });
@@ -817,7 +869,7 @@ export function decideProfferRepair(previewHandle: string, mode: MatterMode, pay
       body: JSON.stringify(payload),
     },
   ).then((response) => {
-    if (response.matter_mode !== mode) throw new ApiError("The repair decision did not confirm the active TEST/REAL mode", 502);
+    if (response.matter_mode !== mode) throw new ApiError("The repair decision did not confirm the active DEV/LIVE mode", 502);
     return response;
   });
 }
@@ -833,7 +885,7 @@ export function decideProffer(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }).then((response) => {
-    if (response.matter_mode !== mode) throw new ApiError("The decision response did not confirm the active TEST/REAL mode", 502);
+    if (response.matter_mode !== mode) throw new ApiError("The decision response did not confirm the active DEV/LIVE mode", 502);
     return response;
   });
 }
@@ -850,7 +902,7 @@ export function cancelProfferRun(previewHandle: string, mode: MatterMode, reason
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) },
   ).then((response) => {
     if (response.preview_handle !== previewHandle || response.matter_mode !== mode) {
-      throw new ApiError("The cancel response crossed its preview or TEST/REAL boundary", 502);
+      throw new ApiError("The cancel response crossed its preview or DEV/LIVE boundary", 502);
     }
     return response;
   });
@@ -889,7 +941,7 @@ export function getProfferPreviewMessages(
     `/api/proffer/previews/${encodeURIComponent(previewHandle)}/messages?${query.toString()}`,
     { signal },
   ).then((response) => {
-    if (response.matter_mode !== mode) throw new ApiError("The preview messages did not confirm the active TEST/REAL mode", 502);
+    if (response.matter_mode !== mode) throw new ApiError("The preview messages did not confirm the active DEV/LIVE mode", 502);
     return response;
   });
 }
@@ -928,7 +980,7 @@ export function getProfferPreviewContent(
     { signal },
   ).then((response) => {
     if (response.preview_handle !== previewHandle || response.matter_mode !== mode) {
-      throw new ApiError("The preview content crossed its preview or TEST/REAL boundary", 502);
+      throw new ApiError("The preview content crossed its preview or DEV/LIVE boundary", 502);
     }
     return response;
   });
@@ -945,7 +997,7 @@ export function listProfferProposalResources(
   if (params.limit) query.set("limit", String(params.limit));
   return apiFetch<ProfferProposalResourceCatalog>(`/api/proffer/proposal-resources?${query.toString()}`, { signal }).then((response) => {
     if (response.scope !== "context_review_resources" || response.matter_mode !== mode) {
-      throw new ApiError("The Review catalog crossed its Context scope or TEST/REAL boundary", 502);
+      throw new ApiError("The Review catalog crossed its Context scope or DEV/LIVE boundary", 502);
     }
     return response;
   });
@@ -962,7 +1014,7 @@ export function listProfferPotentialPromotionFlags(
     { signal },
   ).then((response) => {
     if (response.flags.some((flag) => flag.preview_handle !== previewHandle || flag.matter_mode !== mode)) {
-      throw new ApiError("A potential-promotion flag crossed its preview or TEST/REAL boundary", 502);
+      throw new ApiError("A potential-promotion flag crossed its preview or DEV/LIVE boundary", 502);
     }
     return response;
   });
@@ -983,7 +1035,7 @@ export function createProfferPotentialPromotionFlag(
     },
   ).then((response) => {
     if (response.preview_handle !== previewHandle || response.matter_mode !== mode) {
-      throw new ApiError("The potential-promotion flag crossed its preview or TEST/REAL boundary", 502);
+      throw new ApiError("The potential-promotion flag crossed its preview or DEV/LIVE boundary", 502);
     }
     return response;
   });
@@ -1155,49 +1207,12 @@ export async function cancelMonitoredAction(actionId: string) {
   });
 }
 
-/** Upload a file with progress reporting (non-streaming — one JSON response). */
-export function uploadFile(
-  file: File,
-  onProgress?: (percent: number) => void,
-): Promise<UploadResponse> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
-    formData.append("file", file);
-
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable && onProgress) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    });
-
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch {
-          reject(new ApiError("Malformed response from server", xhr.status));
-        }
-      } else {
-        try {
-          const body = JSON.parse(xhr.responseText);
-          reject(new ApiError(body.detail || `Upload failed: ${xhr.status}`, xhr.status));
-        } catch {
-          reject(new ApiError(`Upload failed: ${xhr.status}`, xhr.status));
-        }
-      }
-    });
-
-    xhr.addEventListener("error", () =>
-      reject(new ApiError("Network error — check your connection", 0)),
-    );
-    xhr.addEventListener("abort", () =>
-      reject(new ApiError("Upload aborted", 0)),
-    );
-
-    xhr.open("POST", `${API_BASE}/api/upload`);
-    xhr.send(formData);
-  });
+/** Refuse the retired staging client without sending bytes.
+ * Inputs: former file/progress arguments. Output: rejected 410 promise. Effects: none.
+ * Pick uploadProfferSource with explicit policy for new bounded acquisitions.
+ */
+export function uploadFile(_file: File, _onProgress?: (percent: number) => void): Promise<UploadResponse> {
+  return Promise.reject(new ApiError("Legacy R2 upload is retired; use the current upload flow", 410));
 }
 
 // Byline: Codex · 2026-09-20. Read-only pre-ingest catalog discovery.
@@ -1237,7 +1252,7 @@ export function startProfferBatch(payload: ProfferBatchStartRequest) {
     body: JSON.stringify(payload),
   }).then((response) => {
     if (response.matter_mode !== payload.matter_mode || response.batch_id !== payload.batch_id) {
-      throw new ApiError("The started batch did not confirm this batch and Test/Live mode", 502);
+      throw new ApiError("The started batch did not confirm this batch and Dev/Live mode", 502);
     }
     return response;
   });
@@ -1248,7 +1263,7 @@ export function getProfferBatch(batchId: string, mode: MatterMode, signal?: Abor
   const query = new URLSearchParams({ mode });
   return apiFetch<ProfferBatchStatus>(`/api/proffer/batches/${encodeURIComponent(batchId)}?${query.toString()}`, { signal }).then((response) => {
     if (response.matter_mode !== mode || response.batch_id !== batchId) {
-      throw new ApiError("The batch status did not confirm this batch and Test/Live mode", 502);
+      throw new ApiError("The batch status did not confirm this batch and Dev/Live mode", 502);
     }
     return response;
   });
@@ -1256,7 +1271,7 @@ export function getProfferBatch(batchId: string, mode: MatterMode, signal?: Abor
 
 // ---------------------------------------------------------------------------
 // Repair workflow builder (Review Actions). BFF /api/proffer/repair/* passes the engine's
-// /reference-import/repair/* routes through; every call names the TEST/REAL mode.
+// /reference-import/repair/* routes through; every call names the DEV/LIVE mode.
 // Byline: Claude Code · Opus 5.5 · 2026-09-26.
 // ---------------------------------------------------------------------------
 
@@ -1275,7 +1290,7 @@ export class RepairRunRefusedError extends ApiError {
 export function listProfferRepairTools(mode: MatterMode, signal?: AbortSignal) {
   const query = new URLSearchParams({ mode });
   return apiFetch<ProfferRepairToolsResponse>(`/api/proffer/repair/tools?${query.toString()}`, { signal }).then((response) => {
-    if (response.matter_mode !== mode) throw new ApiError("The repair tool list did not confirm the active Test/Live mode", 502);
+    if (response.matter_mode !== mode) throw new ApiError("The repair tool list did not confirm the active Dev/Live mode", 502);
     return response;
   });
 }
@@ -1293,7 +1308,7 @@ export function proposeProfferRepairs(
     body: JSON.stringify(body),
     signal,
   }).then((response) => {
-    if (response.matter_mode !== mode) throw new ApiError("The repair proposals did not confirm the active Test/Live mode", 502);
+    if (response.matter_mode !== mode) throw new ApiError("The repair proposals did not confirm the active Dev/Live mode", 502);
     return response;
   });
 }
@@ -1307,7 +1322,7 @@ export function validateProfferRepairPlan(plan: ProfferRepairPlan, signal?: Abor
     body: JSON.stringify(plan),
     signal,
   }).then((response) => {
-    if (response.matter_mode !== plan.matter_mode) throw new ApiError("The plan validation did not confirm the active Test/Live mode", 502);
+    if (response.matter_mode !== plan.matter_mode) throw new ApiError("The plan validation did not confirm the active Dev/Live mode", 502);
     return response;
   });
 }
@@ -1321,7 +1336,7 @@ export function runProfferRepairPlan(plan: ProfferRepairPlan) {
     body: JSON.stringify(plan),
   }).then(
     (response) => {
-      if (response.matter_mode !== plan.matter_mode) throw new ApiError("The repair run did not confirm the active Test/Live mode", 502);
+      if (response.matter_mode !== plan.matter_mode) throw new ApiError("The repair run did not confirm the active Dev/Live mode", 502);
       return response;
     },
     (error: unknown) => {
@@ -1343,7 +1358,7 @@ export function getProfferRepairRun(workflowId: string, mode: MatterMode, signal
     { signal },
   ).then((response) => {
     if (response.workflow_id !== workflowId || response.matter_mode !== mode) {
-      throw new ApiError("The repair run status crossed its run or Test/Live boundary", 502);
+      throw new ApiError("The repair run status crossed its run or Dev/Live boundary", 502);
     }
     return response;
   });

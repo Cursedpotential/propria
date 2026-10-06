@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // Entity and event extraction routes on the Proffer starter. Same boundary as
@@ -29,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/extraction/commitcheck"
 	"github.com/Cursedpotential/probata/engine/extraction/entities"
 	"github.com/Cursedpotential/probata/engine/extraction/events"
@@ -97,6 +99,9 @@ func tailnetServiceAuth(serviceTokenPath, denied string, next http.HandlerFunc) 
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if !canonicalRequestWrite(w, r) {
+			return
+		}
 		next(w, r)
 	}
 }
@@ -106,12 +111,16 @@ type runRequest struct {
 	MatterMode    string `json:"matter_mode"`
 }
 
-func (h *EntityExtractionHTTPHandler) resolveRun(ctx context.Context, handle, mode string) (flow.RunRef, int, error) {
+func (h *EntityExtractionHTTPHandler) resolveRun(ctx context.Context, handle, mode string, write bool) (flow.RunRef, int, error) {
 	if !previewHandlePattern.MatchString(handle) {
 		return flow.RunRef{}, http.StatusUnprocessableEntity, errors.New("preview_handle is invalid")
 	}
-	if mode != "" && mode != "TEST" && mode != "REAL" {
-		return flow.RunRef{}, http.StatusUnprocessableEntity, errors.New("matter_mode must be TEST or REAL")
+	requested, modeErr := caseidentity.ParseMode(mode)
+	if modeErr != nil {
+		return flow.RunRef{}, http.StatusUnprocessableEntity, modeErr
+	}
+	if modeErr := caseidentity.RequireCanonicalWrite(requested); write && modeErr != nil {
+		return flow.RunRef{}, http.StatusConflict, modeErr
 	}
 	run, err := h.store.ResolveRun(ctx, handle)
 	if err != nil {
@@ -121,7 +130,12 @@ func (h *EntityExtractionHTTPHandler) resolveRun(ctx context.Context, handle, mo
 		}
 		return flow.RunRef{}, status, err
 	}
-	run.MatterMode = mode
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(run.MatterMode)); write && err != nil {
+		return flow.RunRef{}, http.StatusConflict, err
+	}
+	if write && run.MatterMode != string(requested) {
+		return flow.RunRef{}, http.StatusConflict, errors.New("request mode disagrees with the durable operating_mode receipt")
+	}
 	return run, 0, nil
 }
 
@@ -174,7 +188,7 @@ func (h *EntityExtractionHTTPHandler) extract(w http.ResponseWriter, r *http.Req
 		previewError(w, http.StatusUnauthorized, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -228,7 +242,7 @@ func (h *EntityExtractionHTTPHandler) commitStatus(w http.ResponseWriter, r *htt
 const maxMentionsShown = 25
 
 func (h *EntityExtractionHTTPHandler) proposals(w http.ResponseWriter, r *http.Request) {
-	run, status, err := h.resolveRun(r.Context(), r.URL.Query().Get("preview_handle"), r.URL.Query().Get("matter_mode"))
+	run, status, err := h.resolveRun(r.Context(), r.URL.Query().Get("preview_handle"), r.URL.Query().Get("matter_mode"), false)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -335,7 +349,7 @@ func (h *EntityExtractionHTTPHandler) correct(w http.ResponseWriter, r *http.Req
 		previewError(w, http.StatusUnauthorized, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -364,7 +378,7 @@ func (h *EntityExtractionHTTPHandler) markEvent(w http.ResponseWriter, r *http.R
 		previewError(w, http.StatusUnauthorized, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -378,7 +392,7 @@ func (h *EntityExtractionHTTPHandler) markEvent(w http.ResponseWriter, r *http.R
 }
 
 func (h *EntityExtractionHTTPHandler) record(w http.ResponseWriter, r *http.Request) {
-	run, status, err := h.resolveRun(r.Context(), r.URL.Query().Get("preview_handle"), "")
+	run, status, err := h.resolveRun(r.Context(), r.URL.Query().Get("preview_handle"), "", false)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -420,7 +434,7 @@ func (h *EntityExtractionHTTPHandler) validate(w http.ResponseWriter, r *http.Re
 		previewError(w, http.StatusBadRequest, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -453,7 +467,7 @@ func (h *EntityExtractionHTTPHandler) commit(w http.ResponseWriter, r *http.Requ
 		previewError(w, http.StatusUnauthorized, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return

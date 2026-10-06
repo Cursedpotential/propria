@@ -59,7 +59,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import FileResponse
+from starlette.requests import Request
+from starlette.responses import FileResponse, JSONResponse
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workbench")
@@ -115,8 +116,28 @@ Workbench are not accepted. Only `/health` is public.
     ],
 )
 
+
+async def development_write_guard(request: Request, call_next):
+    """Deny Dev API mutations before any downstream engine or spine dispatch.
+
+    Inputs: request mode query and HTTP method. Output: 409/422 or downstream response.
+    Side effects: none on rejection. Use until a genuinely isolated Dev data
+    workspace is implemented; this is not an authorization substitute.
+    """
+    if request.url.path.startswith("/api/") and request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        operating_mode = request.query_params.get("mode")
+        if operating_mode is not None and operating_mode not in {"DEV", "LIVE", "TEST", "REAL"}:
+            return JSONResponse({"detail": "Unknown operating mode"}, status_code=422)
+        if operating_mode in {"DEV", "TEST"}:
+            return JSONResponse(
+                {"detail": "Development writes require an isolated data workspace; no canonical write was dispatched"},
+                status_code=409,
+            )
+    return await call_next(request)
+
 # Request timing + in-process metrics counters (app.runtime.metrics)
 app.add_middleware(BaseHTTPMiddleware, dispatch=metrics.timing_middleware)
+app.add_middleware(BaseHTTPMiddleware, dispatch=development_write_guard)
 # Added after timing so authentication is the outermost boundary around API,
 # documentation, and the static frontend alike.
 app.add_middleware(BaseHTTPMiddleware, dispatch=authentication_middleware)

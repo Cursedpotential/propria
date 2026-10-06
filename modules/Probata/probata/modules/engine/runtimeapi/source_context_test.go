@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (pre-import operating policy)
 package runtimeapi
 
 import (
@@ -16,11 +17,13 @@ import (
 )
 
 type sourceContextWriterStub struct {
-	spec sourcecontext.Spec
+	spec  sourcecontext.Spec
+	calls int
 }
 
 func (s *sourceContextWriterStub) PersistSourceContext(_ context.Context, spec sourcecontext.Spec) (sourcecontext.Receipt, error) {
 	s.spec = spec
+	s.calls++
 	return sourcecontext.Receipt{
 		SourceContextRef: "33333333-3333-3333-3333-333333333333",
 		ReceiptRef:       "proffer-source-context://33333333-3333-3333-3333-333333333333",
@@ -36,8 +39,8 @@ func TestSourceContextHandlerBindsActorAndReturnsReferenceOnlyReceipt(t *testing
 	require.NoError(t, err)
 	body := []byte(`{
 		"request_id":"request-1",
-		"matter_id":"11111111-1111-1111-1111-111111111111",
-		"court_case_id":"22222222-2222-2222-2222-222222222222",
+		"matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
+		"court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
 		"source_ref":"r2://casebible-sorted/filing.pdf",
 		"supersedes_ref":"44444444-4444-4444-4444-444444444444",
 		"observed_source":{"key":"filing.pdf","name":"filing.pdf","byte_length":12,"etag":"etag-1","preview_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","verification_state":"preview_only"},
@@ -53,6 +56,7 @@ func TestSourceContextHandlerBindsActorAndReturnsReferenceOnlyReceipt(t *testing
 	require.Equal(t, "operator", writer.spec.ActorUsername)
 	require.Equal(t, "Other party", writer.spec.Assertions.OtherParty)
 	require.Equal(t, "source-context-request-1", writer.spec.IdempotencyKey)
+	require.Equal(t, "LIVE", writer.spec.OperatingMode)
 	require.Equal(t, "44444444-4444-4444-4444-444444444444", writer.spec.SupersedesRef)
 	var response map[string]any
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
@@ -61,14 +65,36 @@ func TestSourceContextHandlerBindsActorAndReturnsReferenceOnlyReceipt(t *testing
 	require.NotContains(t, response, "observed_source")
 }
 
+func TestSourceContextHandlerDeniesDevInvalidAndForeignPolicyBeforeWriter(t *testing.T) {
+	for _, tc := range []struct {
+		name, query, body string
+		status            int
+	}{
+		{"query DEV", "?mode=DEV", `{}`, http.StatusConflict},
+		{"body DEV", "", `{"operating_mode":"DEV"}`, http.StatusConflict},
+		{"unknown", "", `{"operating_mode":"unknown"}`, http.StatusUnprocessableEntity},
+		{"foreign", "", `{"operating_mode":"LIVE","matter_id":"11111111-1111-1111-1111-111111111111","court_case_id":"22222222-2222-2222-2222-222222222222"}`, http.StatusUnprocessableEntity},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			writer := &sourceContextWriterStub{}
+			handler, err := NewSourceContextHTTPHandler(writer, serviceTokenPath(t))
+			require.NoError(t, err)
+			req := newPreviewRequest(http.MethodPost, "/reference-import/source-contexts"+tc.query, []byte(tc.body))
+			req.Header.Set("Idempotency-Key", "denied")
+			require.Equal(t, tc.status, servePreviewRequest(handler.Routes(), req).Code)
+			require.Zero(t, writer.calls)
+		})
+	}
+}
+
 func TestSourceContextHandlerRejectsSourceObservationThatDoesNotMatchTheAuthorizedReference(t *testing.T) {
 	writer := &sourceContextWriterStub{}
 	handler, err := NewSourceContextHTTPHandler(writer, serviceTokenPath(t))
 	require.NoError(t, err)
 	body := []byte(`{
 		"request_id":"request-1",
-		"matter_id":"11111111-1111-1111-1111-111111111111",
-		"court_case_id":"22222222-2222-2222-2222-222222222222",
+		"matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
+		"court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
 		"source_ref":"r2://casebible-sorted/filing.pdf",
 		"observed_source":{"key":"other.pdf","name":"other.pdf","byte_length":12,"etag":"etag-1","preview_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","verification_state":"preview_only"},
 		"assertions":{"source_class":"unknown"},

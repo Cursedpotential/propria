@@ -256,7 +256,7 @@ export function ProfferOperatorPreview({
   const [reason, setReason] = useState("");
   const [metadataOpen, setMetadataOpen] = useState(false);
   const actionNames = new Set(snapshot.valid_actions.map((item) => item.action));
-  const modeTone = snapshot.matter_mode === "REAL"
+  const modeTone = snapshot.matter_mode === "LIVE"
     ? "border-[#b5433b] text-[#7e2924] dark:text-[#ffd3ce]"
     : "border-[#c69027] text-[#6a480c] dark:text-[#ffe0a6]";
   const attemptId = content?.attempt.attempt_ref || content?.attempt.projection_ref || "";
@@ -291,7 +291,7 @@ export function ProfferOperatorPreview({
           title={`Matter ${snapshot.matter_id} · Court case ${snapshot.court_case_id} · Run ${snapshot.preview_handle} · Request ${snapshot.request_id}`}
           data-testid="review-mode-flag"
         >
-          {MODE_LABEL[snapshot.matter_mode]} · {snapshot.matter_mode === "REAL" ? "Real matter" : "Development test matter"}
+          {MODE_LABEL[snapshot.matter_mode]} · {snapshot.matter_mode === "LIVE" ? "Live policy" : "Development policy"}
         </span>
         <Button variant="ghost" size="sm" className="ml-auto h-7" onClick={onRefresh} disabled={actionPending}><RefreshCw className="size-3.5" /> Refresh</Button>
       </header>

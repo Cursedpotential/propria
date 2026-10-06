@@ -1,14 +1,17 @@
-"""Typed lifecycle projections for durable Proffer operations."""
+"""Typed lifecycle projections for durable Proffer operations.
+
+Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 — empty old flags remain unknown.
+"""
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from datetime import datetime
 from typing import Annotated, Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.types.matter_mode import CanonicalMatterMode
 from app.types.proffer import (
     BoundedReason,
     NonBlank,
@@ -36,8 +39,19 @@ class ProfferOperationSummary(BaseModel):
     terminal: bool
     reason: BoundedReason = ""
     source_version_ref: NonBlank | None = None
-    matter_id: UUID | None = None  # durable scope; lets the BFF re-derive TEST/REAL after a restart
+    matter_id: UUID | None = None
+    operating_mode: CanonicalMatterMode | None = None  # absent old receipts remain unbound
     completed_stage_count: Annotated[int, Field(ge=0)]
+
+    @field_validator("operating_mode", mode="before")
+    @classmethod
+    def empty_historical_mode(cls, value):
+        """Normalize only an explicit empty old flag to unknown, never Live.
+
+        Input: raw receipt flag. Output: None for empty, otherwise unchanged.
+        Effects: none. Pick for catalog readability, never mutation admission.
+        """
+        return None if value == "" else value
 
 
 class ProfferOperationStage(BaseModel):

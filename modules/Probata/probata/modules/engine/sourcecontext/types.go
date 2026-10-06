@@ -1,5 +1,6 @@
 // Package sourcecontext defines the framework-neutral, reference-producing
 // contract for actor-bound intake metadata submissions.
+// Byline: Codex · GPT-5 · 2026-10-05 (explicit pre-import operating policy)
 package sourcecontext
 
 import (
@@ -34,6 +35,7 @@ type HumanAssertions struct {
 }
 
 type Spec struct {
+	OperatingMode                                string
 	RequestID, MatterID, CourtCaseID, SourceRef  string
 	SupersedesRef                                string
 	ObservedSource                               ObservedSource

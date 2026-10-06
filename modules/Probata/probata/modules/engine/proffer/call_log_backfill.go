@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-10-02
 //
 // CallLogBackfillWorkflow runs commit_call_log_activity once for a run that
@@ -23,6 +24,7 @@ const CallLogBackfillWorkflowName = "proffer_call_log_backfill_workflow"
 
 // CallLogBackfillInput names one completed run by its own references.
 type CallLogBackfillInput struct {
+	OperatingMode            string `json:"operating_mode,omitempty"`
 	RequestID                string `json:"request_id"`
 	MatterID                 string `json:"matter_id"`
 	CourtCaseID              string `json:"court_case_id"`
@@ -53,7 +55,7 @@ func CallLogBackfillWorkflow(ctx workflow.Context, in CallLogBackfillInput) (Sta
 		refs["participant_resolution"] = in.ParticipantResolutionRef
 	}
 	req := StageRequest{
-		RequestID: in.RequestID, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID,
+		OperatingMode: in.OperatingMode, RequestID: in.RequestID, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID,
 		SourceVersionRef: in.SourceVersionRef, DeclaredFormat: in.DeclaredFormat, Refs: refs,
 	}
 	var result StageResult

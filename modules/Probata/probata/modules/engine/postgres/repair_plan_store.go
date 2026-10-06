@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // Durable side of the repair workflow builder: resolve a plan's Review run
@@ -26,7 +27,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/repairplan"
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 )
 
 // maxAnchorEvidenceBytes bounds the persisted repair assessment copied into
@@ -51,7 +54,8 @@ func NewRepairPlanStore(db DB) (*RepairPlanStore, error) {
 const anchorColumns = `
 	SELECT binding.preview_handle, binding.request_id, binding.source_ref, binding.workflow_id,
 	       binding.parser_options_ref, version.id, COALESCE(version.declared_format, ''),
-	       version.matter_id, version.court_case_id
+	       version.matter_id, version.court_case_id,
+ COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND event_id=0), '')
 	FROM context.proffer_preview_binding binding
 	LEFT JOIN LATERAL (
 	    SELECT id, declared_format, matter_id, court_case_id
@@ -77,13 +81,17 @@ func (s *RepairPlanStore) ResolveAnchor(ctx context.Context, sourceRef, previewH
 	}
 	var anchor repairplan.Anchor
 	var versionID, matterID, courtCaseID *uuid.UUID
+	var modeDetail string
 	if err := row.Scan(&anchor.PreviewHandle, &anchor.RequestID, &anchor.SourceRef, &anchor.WorkflowID,
-		&anchor.ParserOptionsRef, &versionID, &anchor.DeclaredFormat, &matterID, &courtCaseID); err != nil {
+		&anchor.ParserOptionsRef, &versionID, &anchor.DeclaredFormat, &matterID, &courtCaseID, &modeDetail); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return repairplan.Anchor{}, repairplan.ErrAnchorNotFound
 		}
 		return repairplan.Anchor{}, fmt.Errorf("read the repair plan's Review run: %w", err)
 	}
+	admission := previewmodel.Binding{OperatingMode: recordedOperatingMode(modeDetail), MatterID: matterID, CourtCaseID: courtCaseID}
+	applyBindingAdmission(&admission, modeDetail)
+	anchor.OperatingMode = admission.OperatingMode
 	if matterID != nil {
 		anchor.MatterID = matterID.String()
 	}
@@ -127,6 +135,12 @@ func repairStepIdempotencyKey(request repairplan.ReceiptRequest) string {
 // RecordRepairStepReceipt writes one append-only receipt for one plan step
 // and returns its id. It is idempotent on (source version, activity, step).
 func (s *RepairPlanStore) RecordRepairStepReceipt(ctx context.Context, request repairplan.ReceiptRequest, attempt int32) (string, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(request.OperatingMode)); err != nil {
+		return "", err
+	}
+	if !caseidentity.AdmittedIdentity(request.MatterID, request.CourtCaseID) {
+		return "", errors.New("repair receipt requires the approved case identity")
+	}
 	sourceID, err := uuid.Parse(strings.TrimSpace(request.SourceVersionID))
 	if err != nil {
 		return "", fmt.Errorf("repair step receipt source version: %w", err)

@@ -59,14 +59,7 @@ func (s *catalogFixtureStore) OpenVersion(ctx context.Context, bucket, key, vers
 // Inputs: test handle. Outputs: Activity group, request and result. Effects: retained files and memory only; choose instead of original sources.
 func catalogFixture(t *testing.T) (ToolkitCatalogRegistrationActivities, ToolkitCatalogRegistrationInput, ToolkitPackagePreservationResult, *catalogFixtureStore) {
 	t.Helper()
-	base := filepath.Join("E:/AI_Workspace/Projects/Propria/_worktrees/toolkit-catalog-registration-20261004/to_be_deleted", "catalog-tests")
-	if err := os.MkdirAll(base, 0700); err != nil {
-		t.Fatal(err)
-	}
-	root, err := os.MkdirTemp(base, "metadata-")
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := retainedToolkitFixtureRoot(t, "toolkit-catalog-metadata-*")
 	store := &catalogFixtureStore{toolkitPreservationMemoryStore: &toolkitPreservationMemoryStore{objects: map[string][]byte{}, versions: map[string]map[string][]byte{}}, archives: map[string]bool{}}
 	input := ToolkitCatalogRegistrationInput{OperationID: "synthetic-operation", PreservationNamespace: "synthetic-recovery", ResultRef: toolkitFileRef(filepath.Join(root, "result.json")), MetadataRef: toolkitFileRef(filepath.Join(root, "metadata.json"))}
 	result := ToolkitPackagePreservationResult{InventoryRef: toolkitFileRef(filepath.Join(root, "inventory.json")), InventorySHA256: strings.Repeat("a", 64), StorageMode: ToolkitPackagePreservationModeVersioned}

@@ -11,9 +11,16 @@ for parse-dryrun so no real parser/tool-registry state is required.
 # Byline: Codex · GPT-5 · 2026-08-16 (read-only Data Explorer coverage)
 # Byline: Codex · GPT-5 · 2026-08-18 (projection-aware record browser coverage)
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party review route coverage)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (single-case Proffer mode and blocked DEV writes)
+# Byline amendment: Codex · orchestrator · 2026-10-05 (durable preview-mode rejection coverage)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (authoritative header and exact receipt pair)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (source-court conflict coverage)
+# Byline amendment: Codex · gpt-6.1-sol · 2026-10-06 (authoritative court-parent correlation)
+# Byline amendment: Codex · gpt-6.1-sol · 2026-10-06 (async total-deadline admission)
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -30,6 +37,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
 import server.api.inspect_routes as inspect_routes
+import server.case_management.authoritative_case_scope as case_scope
 from server.api.inspect_routes import register_inspect_routes
 
 # --- sql/0007_curation_and_flags.sql (mirrors tests/test_run_ledger.py's
@@ -41,6 +49,35 @@ _MESSAGE_ID = "22222222-2222-2222-2222-222222222222"
 _PARTICIPANT_ID = "33333333-3333-3333-3333-333333333333"
 _SENDER_ENTITY_ID = "44444444-4444-4444-4444-444444444444"
 _RECIPIENT_ENTITY_ID = "55555555-5555-5555-5555-555555555555"
+_CASE_MATTER = "66666666-6666-4666-8666-666666666666"
+_CASE_COURT = "77777777-7777-4777-8777-777777777777"
+
+
+def _live_admission(**overrides):
+    return json.dumps({"operating_mode": "LIVE", "matter_id": _CASE_MATTER, "court_case_id": _CASE_COURT, **overrides})
+
+
+@pytest.fixture(autouse=True)
+def authoritative_header(monkeypatch):
+    """Approve the explicit synthetic pair with an in-memory authoritative header."""
+    monkeypatch.setenv("PROFFER_MATTER_ID", _CASE_MATTER)
+    monkeypatch.setenv("PROFFER_COURT_CASE_ID", _CASE_COURT)
+    monkeypatch.setenv("PROFFER_STARTER_URL", "http://synthetic-starter.invalid:8089")
+    observed = []
+
+    async def read_header(url):
+        # The route awaits the cancellable async verifier on its own event loop.
+        assert asyncio.get_running_loop().is_running()
+        observed.append(url)
+        return {
+            "mode": "LIVE",
+            "matter": {"id": _CASE_MATTER},
+            "court_case": {"id": _CASE_COURT, "matter_id": _CASE_MATTER},
+        }
+
+    monkeypatch.setattr(case_scope, "_read_authoritative_header", read_header)
+    return observed
+
 
 # 0007 was retired into sql/_stale/migrations-retired-20260907/ on 2026-09-07
 # ("the snapshot is the database" — D-142 §3, D-152); that directory's README
@@ -153,7 +190,7 @@ def client(monkeypatch):
     register_inspect_routes(app, knowledge=None)
     # Existing route tests exercise SQL admission; delegation has separate tests below.
     monkeypatch.setattr(inspect_routes, "_verify_proffer_delegation", lambda *_: None)
-    monkeypatch.setenv("PROFFER_TEST_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
+    monkeypatch.setenv("PROFFER_MATTER_ID", _CASE_MATTER)
     return TestClient(app)
 
 
@@ -1032,8 +1069,10 @@ def test_proffer_flag_rejects_snapshot_advanced_before_atomic_admission(client, 
             None,
             {
                 "normalized_generation_id": current_attempt,
+                "mode_detail": _live_admission(),
                 "source_version_id": "33333333-3333-3333-3333-333333333333",
-                "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
+                "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
             },
         ]
     )
@@ -1044,7 +1083,7 @@ def test_proffer_flag_rejects_snapshot_advanced_before_atomic_admission(client, 
         json=_proffer_request(
             {
                 "preview_handle": handle,
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "chunk",
                 "target_id": "44444444-4444-4444-4444-444444444444",
                 "attempt_id": stale_attempt,
@@ -1063,6 +1102,224 @@ def test_proffer_flag_rejects_snapshot_advanced_before_atomic_admission(client, 
     assert all("INSERT INTO analysis.corroboration_flag" not in statement for statement, _ in fake.calls)
 
 
+def test_proffer_mode_defaults_to_live_and_uses_single_configured_matter(client, monkeypatch):
+    matter_id = _CASE_MATTER
+    monkeypatch.setenv("PROFFER_MATTER_ID", matter_id)
+    monkeypatch.setenv("PROFFER_REAL_MATTER_ID", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    assert inspect_routes._configured_proffer_matter("DEV") == inspect_routes._configured_proffer_matter("LIVE")
+    assert inspect_routes._configured_proffer_matter("TEST") == inspect_routes._configured_proffer_matter("REAL")
+
+    handle = "preview_handle_abcdefghijklmnopqrstuvwxyz"
+    attempt = "11111111-1111-1111-1111-111111111111"
+    fake = _FakeEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": attempt,
+                "source_version_id": "22222222-2222-2222-2222-222222222222",
+                "matter_id": matter_id,
+                "court_case_id": _CASE_COURT,
+                "mode_detail": _live_admission(),
+            },
+            True,
+            [],
+            _flag_row(target_kind="run", target_id=handle, notes='{"matter_mode":"LIVE"}'),
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    body = _proffer_request(
+        {
+            "preview_handle": handle,
+            "scope": "record",
+            "target_id": "33333333-3333-3333-3333-333333333333",
+            "attempt_id": attempt,
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
+
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+
+    assert response.status_code == 201
+    metadata = json.loads(fake.calls[4][1]["notes"])
+    assert metadata["matter_mode"] == "LIVE"
+    assert fake.calls[1][1]["preview_handle"] == handle
+
+
+@pytest.mark.parametrize("mode", ["DEV", "TEST"])
+def test_proffer_dev_potential_promotion_is_blocked_before_database(client, monkeypatch, mode, authoritative_header):
+    fake = _FakeEngine([])
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    body = _proffer_request(
+        {
+            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+            "matter_mode": mode,
+            "scope": "record",
+            "target_id": "33333333-3333-3333-3333-333333333333",
+            "attempt_id": "11111111-1111-1111-1111-111111111111",
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
+
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+
+    assert response.status_code == 409
+    assert "isolated workspace" in response.json()["detail"]
+    assert fake.calls == []
+    assert authoritative_header == []
+
+
+def test_proffer_flag_rejects_unknown_operating_mode_before_database(client, monkeypatch, authoritative_header):
+    fake = _FakeEngine([])
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    body = _proffer_request(
+        {
+            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+            "matter_mode": "STAGING",
+            "scope": "record",
+            "target_id": "33333333-3333-3333-3333-333333333333",
+            "attempt_id": "11111111-1111-1111-1111-111111111111",
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
+
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+
+    assert response.status_code == 422
+    assert fake.calls == []
+    assert authoritative_header == []
+
+
+@pytest.mark.parametrize(
+    "defect,status",
+    [
+        ("missing-matter", 503),
+        ("missing-court", 503),
+        ("retired", 503),
+        ("arbitrary-matter", 502),
+        ("foreign-court", 502),
+        ("foreign-court-parent", 502),
+        ("missing-court-parent", 502),
+        ("DEV-header", 502),
+        ("unknown-header", 502),
+        ("malformed-header", 502),
+        ("unavailable", 503),
+    ],
+)
+def test_authoritative_case_denial_precedes_every_sql_access(client, monkeypatch, authoritative_header, defect, status):
+    """Require remote authority before even obtaining a SQL engine for Live writes."""
+    if defect == "missing-matter":
+        monkeypatch.delenv("PROFFER_MATTER_ID")
+        monkeypatch.setenv("PROFFER_REAL_MATTER_ID", _CASE_MATTER)
+    elif defect == "missing-court":
+        monkeypatch.delenv("PROFFER_COURT_CASE_ID")
+    elif defect == "retired":
+        monkeypatch.setenv("PROFFER_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
+    elif defect == "arbitrary-matter":
+        monkeypatch.setenv("PROFFER_MATTER_ID", _PARTICIPANT_ID)
+    else:
+        header = {
+            "mode": "LIVE",
+            "matter": {"id": _CASE_MATTER},
+            "court_case": {"id": _CASE_COURT, "matter_id": _CASE_MATTER},
+        }
+        if defect == "foreign-court":
+            header["court_case"]["id"] = _PARTICIPANT_ID
+        elif defect == "foreign-court-parent":
+            header["court_case"]["matter_id"] = _PARTICIPANT_ID
+        elif defect == "missing-court-parent":
+            header["court_case"].pop("matter_id")
+        elif defect == "DEV-header":
+            header["mode"] = "DEV"
+        elif defect == "unknown-header":
+            header["mode"] = "REAL"
+        elif defect == "malformed-header":
+            header = {}
+
+        async def read(_):
+            if defect == "unavailable":
+                raise case_scope.CaseScopeVerificationError("Proffer authoritative case verification is unavailable")
+            return header
+
+        monkeypatch.setattr(case_scope, "_read_authoritative_header", read)
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: pytest.fail("denied write obtained SQL engine"))
+    response = client.post(
+        "/v1/flags/proffer-potential-promotion",
+        json=_proffer_request(
+            {
+                "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+                "matter_mode": "LIVE",
+                "scope": "record",
+                "target_id": _PARTICIPANT_ID,
+                "attempt_id": _CONVERSATION_ID,
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review later",
+            }
+        ),
+    )
+    assert response.status_code == status
+    if defect in ("missing-matter", "missing-court", "retired"):
+        assert authoritative_header == []
+
+
+@pytest.mark.parametrize(
+    "mode_detail",
+    [
+        None,
+        "",
+        "{}",
+        "[]",
+        "not-json",
+        '{"operating_mode":"DEV"}',
+        '{"operating_mode":"REAL"}',
+        '{"operating_mode":"LIVE"}',
+        _live_admission(matter_id=_PARTICIPANT_ID),
+        _live_admission(court_case_id=_PARTICIPANT_ID),
+        _live_admission(court_case_id=None),
+    ],
+)
+def test_proffer_flag_cannot_infer_live_admission_from_same_case(client, monkeypatch, mode_detail):
+    fake = _FakeEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": "11111111-1111-1111-1111-111111111111",
+                "source_version_id": "22222222-2222-2222-2222-222222222222",
+                "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
+                "mode_detail": mode_detail,
+            },
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    response = client.post(
+        "/v1/flags/proffer-potential-promotion",
+        json=_proffer_request(
+            {
+                "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+                "matter_mode": "LIVE",
+                "scope": "record",
+                "target_id": "33333333-3333-3333-3333-333333333333",
+                "attempt_id": "11111111-1111-1111-1111-111111111111",
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review later",
+            }
+        ),
+    )
+    assert response.status_code == 409
+    assert "admission" in response.json()["detail"]
+    assert len(fake.calls) == 2
+    assert "context.proffer_preview_event" in fake.calls[1][0]
+    assert all("INSERT" not in statement for statement, _ in fake.calls)
+
+
 def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeypatch):
     handle = "preview_handle_abcdefghijklmnopqrstuvwxyz"
     attempt = "11111111-1111-1111-1111-111111111111"
@@ -1074,7 +1331,9 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
             {
                 "normalized_generation_id": attempt,
                 "source_version_id": source_version,
-                "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
+                "mode_detail": _live_admission(),
+                "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
             },
             True,
             [],
@@ -1093,7 +1352,7 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
         json=_proffer_request(
             {
                 "preview_handle": handle,
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "chunk",
                 "target_id": target_id,
                 "attempt_id": attempt,
@@ -1125,7 +1384,7 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
         == _proffer_request(
             {
                 "preview_handle": handle,
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "chunk",
                 "target_id": target_id,
                 "attempt_id": attempt,
@@ -1137,6 +1396,108 @@ def test_proffer_flag_persists_after_atomic_current_target_check(client, monkeyp
     )
 
 
+@pytest.mark.parametrize("wire_mode,key_mode", [("REAL", "REAL"), ("REAL", "LIVE"), ("LIVE", "LIVE")])
+def test_live_receipt_replays_exact_legacy_real_notes_without_rewriting_or_inserting(
+    client, monkeypatch, wire_mode, key_mode
+):
+    """Preserve a rolling-upgrade legacy row only for the same complete metadata/key."""
+    fields = {
+        "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+        "matter_mode": wire_mode,
+        "scope": "record",
+        "target_id": _PARTICIPANT_ID,
+        "attempt_id": _CONVERSATION_ID,
+        "actor_subject_uid": "subject-1",
+        "actor_username": "operator",
+        "claim": "Review later",
+    }
+    raw_key = _proffer_request({**fields, "matter_mode": "REAL"})["idempotency_key"]
+    canonical_key = _proffer_request({**fields, "matter_mode": "LIVE"})["idempotency_key"]
+    assert raw_key != canonical_key
+    body = {**fields, "idempotency_key": raw_key if key_mode == "REAL" else canonical_key}
+    metadata = {
+        "contract": "proffer-potential-promotion/v1",
+        "classification": "potential_promotion",
+        **{key: value for key, value in body.items() if key != "claim"},
+        "matter_mode": "REAL",
+    }
+    legacy_notes = json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+    original = _flag_row(
+        flag_id="legacy-original",
+        target_kind="run",
+        target_id=fields["preview_handle"],
+        claim=fields["claim"],
+        notes=legacy_notes,
+    )
+
+    class ExactLegacyEngine(_FakeEngine):
+        def _next_value(self):
+            value = super()._next_value()
+            if self._i == 4:
+                sql, params = self.calls[-1]
+                assert "(notes = :notes OR notes = :legacy_notes)" in sql
+                assert params["legacy_notes"] == legacy_notes
+                canonical_metadata = json.loads(params["notes"])
+                assert canonical_metadata == {**metadata, "matter_mode": "LIVE"}
+                assert params["claim"] == fields["claim"]
+            return value
+
+    fake = ExactLegacyEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": _CONVERSATION_ID,
+                "source_version_id": _MESSAGE_ID,
+                "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
+                "mode_detail": _live_admission(),
+            },
+            True,
+            [original],
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+    assert response.status_code == 201
+    assert response.json()["flag_id"] == "legacy-original"
+    assert response.json()["notes"] == legacy_notes
+    assert len(fake.calls) == 4 and all("INSERT" not in sql for sql, _ in fake.calls)
+
+
+def test_live_and_legacy_real_duplicate_notes_remain_a_conflict(client, monkeypatch):
+    """Require manual review when both compatible stored representations exist."""
+    body = _proffer_request(
+        {
+            "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+            "matter_mode": "REAL",
+            "scope": "record",
+            "target_id": _PARTICIPANT_ID,
+            "attempt_id": _CONVERSATION_ID,
+            "actor_subject_uid": "subject-1",
+            "actor_username": "operator",
+            "claim": "Review later",
+        }
+    )
+    fake = _FakeEngine(
+        [
+            None,
+            {
+                "normalized_generation_id": _CONVERSATION_ID,
+                "source_version_id": _MESSAGE_ID,
+                "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
+                "mode_detail": _live_admission(),
+            },
+            True,
+            [_flag_row(flag_id="live"), _flag_row(flag_id="real")],
+        ]
+    )
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    response = client.post("/v1/flags/proffer-potential-promotion", json=body)
+    assert response.status_code == 409 and "duplicate" in response.json()["detail"]
+    assert len(fake.calls) == 4 and all("INSERT" not in sql for sql, _ in fake.calls)
+
+
 def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkeypatch):
     handle = "preview_handle_abcdefghijklmnopqrstuvwxyz"
     attempt = "11111111-1111-1111-1111-111111111111"
@@ -1146,7 +1507,9 @@ def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkey
             {
                 "normalized_generation_id": attempt,
                 "source_version_id": "22222222-2222-2222-2222-222222222222",
-                "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
+                "matter_id": _CASE_MATTER,
+                "court_case_id": _CASE_COURT,
+                "mode_detail": _live_admission(),
             },
             False,
         ]
@@ -1158,7 +1521,7 @@ def test_proffer_flag_rejects_target_missing_from_current_attempt(client, monkey
         json=_proffer_request(
             {
                 "preview_handle": handle,
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "record",
                 "target_id": "33333333-3333-3333-3333-333333333333",
                 "attempt_id": attempt,
@@ -1181,8 +1544,10 @@ def test_proffer_flag_rejects_mode_when_durable_matter_disagrees(client, monkeyp
             None,
             {
                 "normalized_generation_id": "11111111-1111-1111-1111-111111111111",
+                "mode_detail": _live_admission(),
                 "source_version_id": "22222222-2222-2222-2222-222222222222",
                 "matter_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "court_case_id": _CASE_COURT,
             },
         ]
     )
@@ -1192,7 +1557,7 @@ def test_proffer_flag_rejects_mode_when_durable_matter_disagrees(client, monkeyp
         json=_proffer_request(
             {
                 "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
-                "matter_mode": "TEST",
+                "matter_mode": "REAL",
                 "scope": "record",
                 "target_id": "33333333-3333-3333-3333-333333333333",
                 "attempt_id": "11111111-1111-1111-1111-111111111111",
@@ -1204,6 +1569,47 @@ def test_proffer_flag_rejects_mode_when_durable_matter_disagrees(client, monkeyp
     )
     assert response.status_code == 409
     assert len(fake.calls) == 2
+
+
+@pytest.mark.parametrize(
+    "court_case_id", ["missing", None, "", "not-a-uuid", "00000000-0000-0000-0000-000000000000", _PARTICIPANT_ID]
+)
+def test_live_receipt_and_approved_matter_cannot_override_registered_source_court(
+    client, monkeypatch, authoritative_header, court_case_id
+):
+    """Deny missing, nil, invalid or foreign source courts before lookup or insert."""
+    snapshot = {
+        "normalized_generation_id": _CONVERSATION_ID,
+        "source_version_id": _MESSAGE_ID,
+        "matter_id": _CASE_MATTER,
+        "mode_detail": _live_admission(),
+    }
+    if court_case_id != "missing":
+        snapshot["court_case_id"] = court_case_id
+    fake = _FakeEngine([None, snapshot])
+    monkeypatch.setattr(inspect_routes, "_get_engine", lambda: fake)
+    response = client.post(
+        "/v1/flags/proffer-potential-promotion",
+        json=_proffer_request(
+            {
+                "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
+                "matter_mode": "LIVE",
+                "scope": "record",
+                "target_id": _PARTICIPANT_ID,
+                "attempt_id": _CONVERSATION_ID,
+                "actor_subject_uid": "subject-1",
+                "actor_username": "operator",
+                "claim": "Review later",
+            }
+        ),
+    )
+    assert response.status_code == 409
+    assert "source court case" in response.json()["detail"]
+    assert len(authoritative_header) == 1
+    assert len(fake.calls) == 2
+    assert "pg_advisory_xact_lock" in fake.calls[0][0]
+    assert "version.court_case_id" in fake.calls[1][0]
+    assert all("INSERT" not in sql and "FROM analysis.corroboration_flag" not in sql for sql, _ in fake.calls)
 
 
 def test_create_flag_422_unknown_target_kind(client):
@@ -1250,12 +1656,13 @@ def test_proffer_flag_list_returns_more_than_generic_default_and_rejects_overflo
     assert response.status_code == 409
 
 
-def test_proffer_delegation_rejects_tampered_actor_before_database(monkeypatch, tmp_path):
+def test_proffer_delegation_rejects_tampered_actor_before_database(monkeypatch, tmp_path, authoritative_header):
     key_file = tmp_path / "delegation-key"
     key = b"test-only-proffer-delegation-key-1234567890"
     key_file.write_bytes(key)
     monkeypatch.setattr(inspect_routes, "_PROFFER_DELEGATION_KEY_FILE", key_file)
-    monkeypatch.setenv("PROFFER_TEST_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
+    monkeypatch.setenv("PROFFER_MATTER_ID", _CASE_MATTER)
+    monkeypatch.setenv("PROFFER_REAL_MATTER_ID", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
     body = _proffer_request(
         {
             "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
@@ -1282,6 +1689,7 @@ def test_proffer_delegation_rejects_tampered_actor_before_database(monkeypatch, 
     )
     assert response.status_code == 401
     assert fake.calls == []
+    assert authoritative_header == []
 
 
 def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(monkeypatch, tmp_path):
@@ -1289,7 +1697,8 @@ def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(m
     key_file = tmp_path / "delegation-key"
     key_file.write_bytes(key)
     monkeypatch.setattr(inspect_routes, "_PROFFER_DELEGATION_KEY_FILE", key_file)
-    monkeypatch.setenv("PROFFER_TEST_MATTER_ID", "deadbeef-dead-beef-dead-beefdeadbeef")
+    monkeypatch.setenv("PROFFER_MATTER_ID", _CASE_MATTER)
+    monkeypatch.setenv("PROFFER_REAL_MATTER_ID", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 
     class ReplayEngine:
         def __init__(self):
@@ -1317,8 +1726,10 @@ def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(m
                 return _FakeResult(
                     {
                         "normalized_generation_id": self.current_attempt,
+                        "mode_detail": _live_admission(),
                         "source_version_id": "22222222-2222-2222-2222-222222222222",
-                        "matter_id": "deadbeef-dead-beef-dead-beefdeadbeef",
+                        "matter_id": _CASE_MATTER,
+                        "court_case_id": _CASE_COURT,
                     }
                 )
             if "SELECT EXISTS" in sql:
@@ -1330,7 +1741,7 @@ def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(m
                         for row in self.rows
                         if row["target_id"] == params["target_id"]
                         and row["claim"] == params["claim"]
-                        and row["notes"] == params["notes"]
+                        and row["notes"] in (params["notes"], params["legacy_notes"])
                     ]
                 )
             if "INSERT INTO analysis.corroboration_flag" in sql:
@@ -1352,7 +1763,7 @@ def test_signed_proffer_replay_is_atomic_and_stale_or_conflicting_reuse_denies(m
     body = _proffer_request(
         {
             "preview_handle": "preview_handle_abcdefghijklmnopqrstuvwxyz",
-            "matter_mode": "TEST",
+            "matter_mode": "REAL",
             "scope": "record",
             "target_id": "33333333-3333-3333-3333-333333333333",
             "attempt_id": engine.current_attempt,

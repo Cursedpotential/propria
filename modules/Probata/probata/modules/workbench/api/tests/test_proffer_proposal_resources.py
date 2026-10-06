@@ -43,7 +43,7 @@ def _content() -> ProfferContentResponse:
     return ProfferContentResponse.model_validate(
         {
             "preview_handle": HANDLE,
-            "matter_mode": "TEST",
+            "matter_mode": "LIVE",
             "package": {
                 "source_version_ref": "source-version-ref",
                 "declared_format": "sms_xml",
@@ -77,8 +77,8 @@ def _content() -> ProfferContentResponse:
 @pytest.fixture(autouse=True)
 def bindings():
     _clear_preview_modes_for_tests()
-    bind_preview_mode(HANDLE, "TEST")
-    bind_preview_mode(OTHER_HANDLE, "REAL")
+    bind_preview_mode(HANDLE, "LIVE")
+    bind_preview_mode(OTHER_HANDLE, "DEV")
     yield
     _clear_preview_modes_for_tests()
 
@@ -98,10 +98,26 @@ def _wire(monkeypatch: pytest.MonkeyPatch, *, items: list[dict] | None = None) -
     monkeypatch.setattr(matter_mode, "configured_court_case_id", lambda mode: COURT_CASE_ID)
 
 
+def test_mixed_new_and_empty_historical_mode_catalog_stays_readable_and_unknown_stays_unbound(monkeypatch):
+    unknown = "historical_empty_mode_handle_abcdefghij"
+    _clear_preview_modes_for_tests()
+    _wire(monkeypatch, items=[
+        {**_operation(), "matter_id": MATTER_ID, "operating_mode": "LIVE"},
+        {**_operation(unknown), "matter_id": MATTER_ID, "operating_mode": ""},
+    ])
+    monkeypatch.setattr(matter_mode, "configured_matter_id", lambda mode: UUID(MATTER_ID))
+    monkeypatch.setattr(matter_mode, "configured_court_case_id", lambda mode: UUID(COURT_CASE_ID))
+    result = asyncio.run(proffer_resources.list_proposal_resources(mode="LIVE", status=None, cursor=None, limit=50))
+    assert [item.preview_handle for item in result.items] == [HANDLE]
+    assert result.unbound_count == 1
+    with pytest.raises(matter_mode.MatterModeError, match="operating mode cannot be verified"):
+        matter_mode.require_preview_mode(unknown, "LIVE")
+
+
 def test_catalog_lists_only_proven_mode_bound_operations_and_open_paths(monkeypatch) -> None:
     _wire(monkeypatch)
 
-    result = asyncio.run(proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50))
+    result = asyncio.run(proffer_resources.list_proposal_resources(mode="LIVE", status=None, cursor=None, limit=50))
 
     assert result.scope == "context_review_resources"
     assert str(result.matter_id) == MATTER_ID
@@ -115,7 +131,7 @@ def test_catalog_lists_only_proven_mode_bound_operations_and_open_paths(monkeypa
     assert "per-attempt DuckDB manifest and digest" in result.items[0].representation_detail
     assert result.items[0].content_status == "available"
     assert result.items[0].record_preview_available is True
-    assert result.items[0].open_path == f"/api/proffer/previews/{HANDLE}?mode=TEST"
+    assert result.items[0].open_path == f"/api/proffer/previews/{HANDLE}?mode=LIVE"
 
 
 def test_catalog_leaves_out_and_counts_runs_whose_mode_cannot_be_proven(monkeypatch) -> None:
@@ -134,26 +150,25 @@ def test_catalog_leaves_out_and_counts_runs_whose_mode_cannot_be_proven(monkeypa
         ],
     )
 
-    for mode, visible in (("TEST", [HANDLE]), ("REAL", [OTHER_HANDLE])):
+    for mode, visible in (("LIVE", [HANDLE]), ("DEV", [OTHER_HANDLE])):
         result = asyncio.run(proffer_resources.list_proposal_resources(mode=mode, status=None, cursor=None, limit=50))
         # Provable runs are listed under their own mode only; the two unprovable ones under neither.
         assert [item.preview_handle for item in result.items] == visible
         assert result.unbound_count == 2
 
     # Leaving a run out never binds it to a mode by implication.
-    with pytest.raises(matter_mode.MatterModeError, match="no active TEST/REAL binding"):
-        matter_mode.require_preview_mode(unknown, "TEST")
+    with pytest.raises(matter_mode.MatterModeError, match="operating mode cannot be verified"):
+        matter_mode.require_preview_mode(unknown, "LIVE")
 
 
-def test_catalog_rebinds_a_run_its_durable_matter_proves(monkeypatch) -> None:
+def test_catalog_rebinds_only_from_explicit_durable_policy(monkeypatch) -> None:
     rebound = "rebound_resource_handle_abcdefghijklm"
-    _wire(monkeypatch, items=[{**_operation(rebound), "matter_id": MATTER_ID}])
-    real_matter = UUID("44444444-4444-4444-8444-444444444444")
+    _wire(monkeypatch, items=[{**_operation(rebound), "matter_id": MATTER_ID, "operating_mode": "LIVE"}])
     monkeypatch.setattr(
-        matter_mode, "configured_matter_id", lambda mode: UUID(MATTER_ID) if mode == "TEST" else real_matter
+        matter_mode, "configured_matter_id", lambda mode: UUID(MATTER_ID)
     )
 
-    result = asyncio.run(proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50))
+    result = asyncio.run(proffer_resources.list_proposal_resources(mode="LIVE", status=None, cursor=None, limit=50))
 
     assert [item.preview_handle for item in result.items] == [rebound]
     assert result.unbound_count == 0
@@ -168,7 +183,7 @@ def test_catalog_fails_when_content_store_is_unavailable(monkeypatch) -> None:
     monkeypatch.setattr(proffer, "preview_content", unavailable)
 
     with pytest.raises(proffer.ProfferError, match="starter unreachable"):
-        asyncio.run(proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50))
+        asyncio.run(proffer_resources.list_proposal_resources(mode="LIVE", status=None, cursor=None, limit=50))
 
 
 def test_catalog_reports_not_ready_content_without_inventing_resources(monkeypatch) -> None:
@@ -178,7 +193,7 @@ def test_catalog_reports_not_ready_content_without_inventing_resources(monkeypat
         raise proffer.ProfferError("preview projection is not ready", 409)
 
     monkeypatch.setattr(proffer, "preview_content", pending)
-    result = asyncio.run(proffer_resources.list_proposal_resources(mode="TEST", status=None, cursor=None, limit=50))
+    result = asyncio.run(proffer_resources.list_proposal_resources(mode="LIVE", status=None, cursor=None, limit=50))
 
     assert len(result.items) == 1
     assert result.items[0].content_status == "pending"
@@ -192,7 +207,7 @@ def test_route_translates_catalog_store_failure(monkeypatch) -> None:
 
     monkeypatch.setattr(runtime, "list_proposal_resources", unavailable)
     with pytest.raises(HTTPException) as caught:
-        asyncio.run(runtime.proposal_resources_endpoint("TEST", None, None, 50))
+        asyncio.run(runtime.proposal_resources_endpoint("LIVE", None, None, 50))
 
     assert caught.value.status_code == 503
     assert caught.value.detail == "operation store unavailable"

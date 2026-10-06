@@ -26,7 +26,6 @@ from app.types.proffer_messages import (
     ProfferPreviewMessagesResponse,  # noqa: F401
     ProfferPreviewParticipant,  # noqa: F401
 )
-from app.types.source_roots import validate_authorized_source_ref  # noqa: F401  (re-exported)
 from app.types.proffer_sources import (
     ProfferSourceBrowserResponse,  # noqa: F401
     ProfferSourceObject,  # noqa: F401
@@ -35,6 +34,7 @@ from app.types.proffer_sources import (
     SourceFileKind,  # noqa: F401
     SourceLocation,  # noqa: F401
 )
+from app.types.source_roots import validate_authorized_source_ref
 
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 OpaquePreviewHandle = Annotated[
@@ -76,7 +76,7 @@ class ProfferStartRequest(BaseModel):
     # Byline: Claude Code · Opus 5.5 · 2026-10-01
     owner_person_id: UUID | None = None
     perspective_person_id: UUID | None = None
-    matter_mode: MatterMode
+    matter_mode: MatterMode = "LIVE"
 
     @field_validator("source_ref")
     @classmethod

@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // RepairPlanWorkflow in the Temporal test environment, with the real
@@ -122,7 +123,7 @@ func TestRepairPlanRunsStepsRecordsReceiptsAndReentersProffer(t *testing.T) {
 	require.Equal(t, RunCompleted, status.Status)
 	require.Equal(t, "ReentryHandleReentryHandleReentryHandle01", status.ReentryPreviewHandle)
 	require.Equal(t, plan.PlanID, status.PlanID)
-	require.Equal(t, ModeTest, status.MatterMode)
+	require.Equal(t, ModeLive, status.MatterMode)
 	require.NotNil(t, status.PreviewHandle)
 	require.Equal(t, testHandle, *status.PreviewHandle)
 	require.Len(t, status.Steps, 1)

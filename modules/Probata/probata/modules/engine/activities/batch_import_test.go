@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5 · 2026-09-21
 //
 // In-memory stores only. These are unit tests; nothing here talks to an
@@ -61,7 +62,7 @@ func TestListBatchFolderReturnsOnePageAndNeverNil(t *testing.T) {
 			return []string{"vault/v1/sms /a.xml"}, "page-3", nil
 		},
 	}
-	result, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{
+	result, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
 		Scheme: "b2", Bucket: "bucket", Prefix: "vault/v1/sms /", Cursor: "page-2", Limit: 9000,
 	})
 	require.NoError(t, err)
@@ -74,7 +75,7 @@ func TestListBatchFolderReturnsOnePageAndNeverNil(t *testing.T) {
 			return nil, "", nil
 		},
 	}
-	page, err := empty.ListBatchFolder(context.Background(), ListBatchFolderRequest{
+	page, err := empty.ListBatchFolder(context.Background(), ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
 		Scheme: "b2", Bucket: "bucket", Prefix: "vault/",
 	})
 	require.NoError(t, err)
@@ -100,11 +101,11 @@ func TestListBatchFolderSkipsDerivedOutputsBelowThePrefix(t *testing.T) {
 			return out, "", nil
 		},
 	}
-	folder, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "b", Prefix: "cv/8102959302/"})
+	folder, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", Scheme: "b2", Bucket: "b", Prefix: "cv/8102959302/"})
 	require.NoError(t, err)
 	require.Equal(t, []string{"cv/8102959302/sms-a.xml", "cv/8102959302/sms-b.xml"}, folder.Keys)
 
-	derived, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "b", Prefix: "cv/8102959302/sms-a.xml.derived/media/"})
+	derived, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", Scheme: "b2", Bucket: "b", Prefix: "cv/8102959302/sms-a.xml.derived/media/"})
 	require.NoError(t, err)
 	require.Equal(t, []string{"cv/8102959302/sms-a.xml.derived/media/0a.png"}, derived.Keys, "a batch over a derived folder still lists its files")
 }
@@ -116,10 +117,10 @@ func TestListBatchFolderKeySuffixKeepsOnlyMatchingKeys(t *testing.T) {
 			return []string{"fb/t/message_1.json", "fb/t/photos/a.jpg", "fb/t/videos/b.mp4", "fb/t/message_2.json"}, "", nil
 		},
 	}
-	page, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "b", Prefix: "fb/t/", KeySuffix: ".json"})
+	page, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", Scheme: "b2", Bucket: "b", Prefix: "fb/t/", KeySuffix: ".json"})
 	require.NoError(t, err)
 	require.Equal(t, []string{"fb/t/message_1.json", "fb/t/message_2.json"}, page.Keys)
-	all, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "b", Prefix: "fb/t/"})
+	all, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", Scheme: "b2", Bucket: "b", Prefix: "fb/t/"})
 	require.NoError(t, err)
 	require.Len(t, all.Keys, 4, "no suffix keeps every key")
 }
@@ -131,11 +132,11 @@ func TestListBatchFolderRejectsAnIncompleteLocatorWithoutRetrying(t *testing.T) 
 			return nil, "", nil
 		},
 	}
-	_, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "bucket"})
+	_, err := batch.ListBatchFolder(context.Background(), ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", Scheme: "b2", Bucket: "bucket"})
 	require.True(t, nonRetryable(err))
 
 	unwired := BatchImportActivities{}
-	_, err = unwired.ListBatchFolder(context.Background(), ListBatchFolderRequest{Scheme: "b2", Bucket: "b", Prefix: "p/"})
+	_, err = unwired.ListBatchFolder(context.Background(), ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", Scheme: "b2", Bucket: "b", Prefix: "p/"})
 	require.ErrorContains(t, err, "object lister is required")
 }
 
@@ -143,7 +144,7 @@ func TestListBatchFolderRejectsAnIncompleteLocatorWithoutRetrying(t *testing.T) 
 func TestBindImportOperationIsIdempotentOnRequestID(t *testing.T) {
 	store := &memoryBindingStore{}
 	batch := BatchImportActivities{Bindings: store}
-	req := BindImportOperationRequest{
+	req := BindImportOperationRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
 		RequestID: "batch-1-00001", SourceRef: "b2://bucket/a.xml",
 		WorkflowID: "batch-1-00001", RunID: "run-1", ParserOptionsRef: "options-1",
 	}
@@ -154,7 +155,7 @@ func TestBindImportOperationIsIdempotentOnRequestID(t *testing.T) {
 	require.Equal(t, first.PreviewHandle, second.PreviewHandle)
 	require.Len(t, store.created, 1)
 
-	_, err = batch.BindImportOperation(context.Background(), BindImportOperationRequest{RequestID: "only"})
+	_, err = batch.BindImportOperation(context.Background(), BindImportOperationRequest{OperatingMode: "LIVE", MatterID: "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c", RequestID: "only"})
 	require.True(t, nonRetryable(err))
 }
 

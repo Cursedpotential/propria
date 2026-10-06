@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Codex · GPT-5.6 · 2026-08-29 (opaque Proffer preview HTTP surface)
 package runtimeapi
 
@@ -27,6 +28,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 	"github.com/Cursedpotential/probata/engine/sourcecontext"
@@ -552,6 +554,7 @@ type PreviewHTTPHandler struct {
 // execution. Temporal workflow/run IDs stay behind the service boundary; the
 // opaque preview handle is the only external operation key.
 type OperationSummary struct {
+	OperatingMode       string                     `json:"operating_mode,omitempty"`
 	PreviewHandle       string                     `json:"preview_handle"`
 	RequestID           string                     `json:"request_id"`
 	SourceRef           proffer.Ref                `json:"source_ref"`
@@ -565,9 +568,9 @@ type OperationSummary struct {
 	Reason              string                     `json:"reason,omitempty"`
 	SourceVersionRef    proffer.Ref                `json:"source_version_ref,omitempty"`
 	CompletedStageCount int                        `json:"completed_stage_count"`
-	// MatterID lets the Workbench prove TEST/REAL ownership from durable state
-	// instead of process memory (every BFF restart used to orphan all runs).
-	MatterID *uuid.UUID `json:"matter_id,omitempty"`
+	// MatterID records case scope only; OperatingMode is the durable mode receipt.
+	MatterID    *uuid.UUID `json:"matter_id,omitempty"`
+	CourtCaseID *uuid.UUID `json:"court_case_id,omitempty"`
 }
 
 type OperationDetail struct {
@@ -640,6 +643,20 @@ func (h *PreviewHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if !canonicalRequestWrite(w, r) {
+			return
+		}
+		if r.Method == http.MethodPost && r.PathValue("preview_handle") != "" {
+			binding, err := h.store.Binding(r.Context(), r.PathValue("preview_handle"))
+			if err != nil {
+				h.storeError(w, err)
+				return
+			}
+			if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(binding.OperatingMode)); err != nil {
+				previewError(w, http.StatusConflict, err)
+				return
+			}
+		}
 		next(w, r)
 	}
 }
@@ -682,6 +699,7 @@ func loadServiceToken(path string) ([]byte, error) {
 }
 
 type previewStartRequest struct {
+	OperatingMode                                                                                   string
 	RequestID, MatterID, CourtCaseID, SourceRef, DeclaredFormat, ParserOptionsRef, SourceContextRef string
 	// Explicit D04 identity. Byline: Claude Code · Opus 5.5 · 2026-10-01
 	OwnerPersonID, PerspectivePersonID string
@@ -689,6 +707,7 @@ type previewStartRequest struct {
 
 func (r *previewStartRequest) UnmarshalJSON(data []byte) error {
 	type wire struct {
+		OperatingMode       string `json:"operating_mode"`
 		RequestID           string `json:"request_id"`
 		MatterID            string `json:"matter_id"`
 		CourtCaseID         string `json:"court_case_id"`
@@ -703,7 +722,7 @@ func (r *previewStartRequest) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
 	}
-	*r = previewStartRequest{value.RequestID, value.MatterID, value.CourtCaseID, value.SourceRef, value.DeclaredFormat, value.ParserOptionsRef, value.SourceContextRef, value.OwnerPersonID, value.PerspectivePersonID}
+	*r = previewStartRequest{value.OperatingMode, value.RequestID, value.MatterID, value.CourtCaseID, value.SourceRef, value.DeclaredFormat, value.ParserOptionsRef, value.SourceContextRef, value.OwnerPersonID, value.PerspectivePersonID}
 	return nil
 }
 
@@ -715,6 +734,19 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.RequestID) == "" || strings.TrimSpace(req.SourceRef) == "" || strings.TrimSpace(req.DeclaredFormat) == "" || strings.TrimSpace(req.ParserOptionsRef) == "" {
 		previewError(w, 400, errors.New("start request is incomplete"))
+		return
+	}
+	mode, err := caseidentity.ParseMode(req.OperatingMode)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return
+	}
+	if !caseidentity.AdmittedIdentity(req.MatterID, req.CourtCaseID) {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("matter and court case must match the approved case identity"))
 		return
 	}
 	if _, err := uuid.Parse(req.MatterID); err != nil {
@@ -747,14 +779,15 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	in := proffer.WorkflowInput{RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID, SourceRef: proffer.Ref(req.SourceRef), DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef), SourceContextRef: proffer.Ref(req.SourceContextRef),
+	in := proffer.WorkflowInput{OperatingMode: string(mode), RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID, SourceRef: proffer.Ref(req.SourceRef), DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef), SourceContextRef: proffer.Ref(req.SourceContextRef),
 		OwnerPersonID: strings.TrimSpace(req.OwnerPersonID), PerspectivePersonID: strings.TrimSpace(req.PerspectivePersonID)}
 	workflowID, runID, err := h.workflow.Start(r.Context(), in)
 	if err != nil {
 		previewError(w, 422, err)
 		return
 	}
-	binding, err := h.store.Create(r.Context(), PreviewBinding{RequestID: req.RequestID, SourceRef: in.SourceRef, WorkflowID: workflowID, RunID: runID, ParserOptionsRef: in.ParserOptionsRef})
+	matterID, courtCaseID := uuid.MustParse(req.MatterID), uuid.MustParse(req.CourtCaseID)
+	binding, err := h.store.Create(r.Context(), PreviewBinding{OperatingMode: string(mode), MatterID: &matterID, CourtCaseID: &courtCaseID, RequestID: req.RequestID, SourceRef: in.SourceRef, WorkflowID: workflowID, RunID: runID, ParserOptionsRef: in.ParserOptionsRef})
 	if err != nil {
 		previewError(w, 503, err)
 		return
@@ -923,7 +956,7 @@ func (h *PreviewHTTPHandler) readOperationState(ctx context.Context, binding Pre
 		Service: "proffer", CreatedAt: binding.CreatedAt, Lifecycle: state.Lifecycle,
 		CurrentStage: state.CurrentStage, ActiveStages: state.ActiveStages, Wait: state.Wait,
 		Terminal: state.Terminal, Reason: state.Reason, SourceVersionRef: state.SourceVersionRef,
-		CompletedStageCount: state.CompletedStageCount, MatterID: binding.MatterID,
+		CompletedStageCount: state.CompletedStageCount, MatterID: binding.MatterID, CourtCaseID: binding.CourtCaseID, OperatingMode: binding.OperatingMode,
 	}, state.Stages
 }
 

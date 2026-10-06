@@ -43,7 +43,7 @@ CALLS = {
 @pytest.fixture(autouse=True)
 def _fresh(monkeypatch):
     service._cache.clear()
-    monkeypatch.setattr(service.settings, "proffer_real_matter_id", MATTER)
+    monkeypatch.setattr(service.settings, "proffer_matter_id", MATTER)
     monkeypatch.setattr(pg, "people", lambda: PEOPLE)
     monkeypatch.setattr(pg, "versions_to_threads", lambda matter, ids: [
         {"id": SV, "export_key": KEY, "conv": "8102689630"}] if SV in ids else [])

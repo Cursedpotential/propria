@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Package repairplan is the engine side of the repair workflow builder
 // (owner ratification 2026-09-25 19:09, option A — a step list built in the
 // Workbench, run on Temporal, n8n only for a step that needs it).
@@ -36,8 +37,10 @@ import (
 
 // Matter modes, exactly as the Workbench spells them.
 const (
-	ModeTest = "TEST"
-	ModeReal = "REAL"
+	ModeDev  = "DEV"
+	ModeLive = "LIVE"
+	ModeTest = ModeDev
+	ModeReal = ModeLive
 )
 
 // Plan is the owner's composed repair plan.
@@ -105,7 +108,7 @@ func (p Plan) ShapeError() error {
 		return errors.New("preview_handle must be null or 32-128 URL-safe characters")
 	}
 	if p.MatterMode != ModeTest && p.MatterMode != ModeReal {
-		return errors.New(`matter_mode must be "TEST" or "REAL"`)
+		return errors.New(`matter_mode must be "DEV" or "LIVE"`)
 	}
 	if p.Steps == nil {
 		return errors.New("steps must be a list")

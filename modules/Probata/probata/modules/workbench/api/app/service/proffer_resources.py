@@ -1,7 +1,8 @@
 """Compose the Review catalog from existing Proffer operation and content stores.
 
-Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — a run whose TEST/REAL mode cannot be
+Byline amendment: Claude Code · Opus 5.5 · 2026-09-26 — a run whose durable operating mode cannot be
 proven is left out and counted (`unbound_count`) instead of turning the whole catalog into a 503.
+Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 — canonical DEV/LIVE receipt terminology.
 """
 
 from __future__ import annotations
@@ -21,7 +22,9 @@ def _mode_coordinate(callable_, mode: MatterMode):
         raise proffer.ProfferError(error.detail, error.status_code) from None
 
 
-def _catalog_binding(preview_handle: str, mode: MatterMode, matter_id=None) -> bool | None:
+def _catalog_binding(
+    preview_handle: str, mode: MatterMode, matter_id=None, operating_mode: str | None = None
+) -> bool | None:
     """True: the run belongs to `mode`. False: to the other mode. None: its mode cannot be proven.
 
     One unprovable run used to refuse the whole catalog with a 503, which blanked the owner's
@@ -34,8 +37,8 @@ def _catalog_binding(preview_handle: str, mode: MatterMode, matter_id=None) -> b
     except matter_mode.MatterModeError as error:
         if "different matter mode" in error.detail:
             return False
-    # The in-memory binding is gone after a BFF restart: re-derive it from the run's durable matter id.
-    proven = preview_mode_recovery.rebind(preview_handle, matter_id)
+    # Only an explicit durable operating mode can recover after a restart.
+    proven = preview_mode_recovery.rebind(preview_handle, matter_id, operating_mode)
     return None if proven is None else proven == mode
 
 
@@ -112,7 +115,7 @@ async def list_proposal_resources(
     resources: list[ProfferProposalResource] = []
     unbound = 0
     for operation in operations.items:
-        binding = _catalog_binding(operation.preview_handle, mode, operation.matter_id)
+        binding = _catalog_binding(operation.preview_handle, mode, operation.matter_id, operation.operating_mode)
         if binding is None:
             unbound += 1
         elif binding:

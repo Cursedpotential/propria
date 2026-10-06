@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5 · 2026-09-21
 //
 // The batch-by-folder HTTP surface (owner 2026-09-20 23:52: "it gets batched
@@ -28,6 +29,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/objectstores"
 	"github.com/Cursedpotential/probata/engine/proffer"
 )
@@ -54,6 +56,7 @@ func (h *PreviewHTTPHandler) UseBatchWorkflow(client BatchWorkflowClient) error 
 }
 
 type batchStartRequest struct {
+	OperatingMode    string `json:"operating_mode"`
 	BatchID          string `json:"batch_id"`
 	MatterID         string `json:"matter_id"`
 	CourtCaseID      string `json:"court_case_id"`
@@ -89,6 +92,19 @@ func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) 
 	}
 	if !batchIDPattern.MatchString(req.BatchID) {
 		previewError(w, http.StatusBadRequest, errors.New("batch_id must be 32-128 URL-safe characters"))
+		return
+	}
+	mode, err := caseidentity.ParseMode(req.OperatingMode)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return
+	}
+	if !caseidentity.AdmittedIdentity(req.MatterID, req.CourtCaseID) {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("batch must use the approved case identity"))
 		return
 	}
 	if _, err := uuid.Parse(req.MatterID); err != nil {
@@ -131,7 +147,8 @@ func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) 
 		maxInFlight = batchMaxInFlightFromEnv(os.Getenv("PROFFER_BATCH_MAX_IN_FLIGHT"))
 	}
 	in := proffer.BatchInput{
-		BatchID: req.BatchID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID,
+		OperatingMode: string(mode),
+		BatchID:       req.BatchID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID,
 		Scheme: scheme, Bucket: bucket, Prefix: prefix,
 		DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef),
 		SourceContextRef: proffer.Ref(req.SourceContextRef), MaxInFlight: maxInFlight,

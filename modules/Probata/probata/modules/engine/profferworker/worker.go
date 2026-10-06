@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (versioned import admission).
 package profferworker
 
 import (
@@ -165,6 +166,7 @@ func RegisterAll(registrar interface {
 	RegisterWorkflow(interface{})
 	RegisterWorkflowWithOptions(interface{}, workflow.RegisterOptions)
 }, registrations Registrations) {
+	registrar = operatingRegistrar{registrar}
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
 	// Back-fill of call logs imported before commit_call_log existed.
@@ -696,6 +698,9 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	repairPlan, err := buildRepairPlanActivities(pool, cfg, stores, derivedRoots, objectStores, catalog)
 	if err != nil {
 		return Registrations{}, err
+	}
+	if err := flowRegistry.AdmitCaseConnected(repairPlan.Validate.Environment.Registry.CaseFlowNames()); err != nil {
+		return Registrations{}, fmt.Errorf("repair flow scope classification: %w", err)
 	}
 	extraction, err := buildExtraction(pool)
 	if err != nil {

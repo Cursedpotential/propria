@@ -4,6 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { ApiError, getMatter, listMatters } from "@/lib/api-client";
+import { parseOperatingMode, selectAdmittedCourtCase } from "@/lib/operating-mode";
 import type { CourtCase, MatterDetail, MatterMode } from "@/lib/shared/types";
 
 type FixedCaseContextValue = {
@@ -25,27 +26,34 @@ function errorText(error: unknown) {
       : "The fixed case could not be loaded";
 }
 
-function initialMatterMode(): MatterMode {
-  if (typeof window === "undefined") return "TEST";
-  const requestedMode = new URLSearchParams(window.location.search).get("mode");
-  return requestedMode === "REAL" ? "REAL" : "TEST";
+function initialMatterMode(): { mode: MatterMode; error: string | null } {
+  try {
+    const requestedMode = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("mode");
+    return { mode: parseOperatingMode(requestedMode), error: null };
+  } catch (error) {
+    return { mode: "LIVE", error: errorText(error) };
+  }
 }
 
 export function FixedCaseProvider({ children }: { children: React.ReactNode }) {
   const [matter, setMatter] = useState<MatterDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setModeState] = useState<MatterMode>(initialMatterMode);
+  const [initialSelection] = useState(initialMatterMode);
+  const [invalidMode, setInvalidMode] = useState(initialSelection.error);
+  const [mode, setModeState] = useState<MatterMode>(initialSelection.mode);
 
   const setMode = useCallback((nextMode: MatterMode) => {
-    if (nextMode === mode) return;
+    if (nextMode === mode && !invalidMode) return;
+    setInvalidMode(null);
     setMatter(null);
     setError(null);
     setLoading(true);
     setModeState(nextMode);
-  }, [mode]);
+  }, [mode, invalidMode]);
 
   useEffect(() => {
+    if (invalidMode) return;
     let cancelled = false;
 
     listMatters(50, 0, mode)
@@ -61,13 +69,13 @@ export function FixedCaseProvider({ children }: { children: React.ReactNode }) {
           );
         }
         if (response.data[0].matter_mode !== mode) {
-          throw new Error(`The Platform did not return a matter explicitly scoped to ${mode}. Mode switching is blocked to prevent TEST/REAL bleed.`);
+          throw new Error(`The Platform did not return a matter explicitly scoped to ${mode}. Mode switching is blocked to prevent DEV/LIVE bleed.`);
         }
         return getMatter(response.data[0].id, mode);
       })
       .then((fixedMatter) => {
         if (fixedMatter.matter_mode !== mode) {
-          throw new Error(`The selected matter did not confirm ${mode} mode. Mode switching is blocked to prevent TEST/REAL bleed.`);
+          throw new Error(`The selected matter did not confirm ${mode} mode. Mode switching is blocked to prevent DEV/LIVE bleed.`);
         }
         if (!cancelled) {
           setMatter(fixedMatter);
@@ -84,12 +92,12 @@ export function FixedCaseProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [mode]);
+  }, [mode, invalidMode]);
 
   const value = useMemo<FixedCaseContextValue>(
     () => ({
       matter,
-      primaryCourtCase: matter?.court_cases.find((courtCase) => courtCase.is_primary) ?? null,
+      primaryCourtCase: selectAdmittedCourtCase(matter),
       loading,
       error,
       mode,
@@ -98,11 +106,25 @@ export function FixedCaseProvider({ children }: { children: React.ReactNode }) {
     [matter, loading, error, mode, setMode],
   );
 
-  return <FixedCaseContext.Provider value={value}>{children}</FixedCaseContext.Provider>;
+  return (
+    <FixedCaseContext.Provider value={value}>
+      {invalidMode ? <div role="alert">{invalidMode}</div> : children}
+    </FixedCaseContext.Provider>
+  );
 }
 
 export function useFixedCase() {
   const context = useContext(FixedCaseContext);
   if (!context) throw new Error("useFixedCase must be used within FixedCaseProvider");
   return context;
+}
+
+/** Read desktop policy or validate the mobile URL policy; omission is Live.
+ * Input: optional case context. Output: policy. Effects: none.
+ * Use for shared desktop/mobile identity actions, not required case data reads.
+ */
+export function useOperatingMode(): MatterMode {
+  const context = useContext(FixedCaseContext);
+  if (context) return context.mode;
+  return parseOperatingMode(typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("mode"));
 }

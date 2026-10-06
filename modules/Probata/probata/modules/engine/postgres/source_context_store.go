@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (pre-import operating policy)
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (append-only Proffer source context)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25 (read-back of current context and registration)
 package postgres
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/sourcecontext"
 )
 
@@ -29,6 +31,12 @@ func NewSourceContextStore(db DB) (*SourceContextStore, error) {
 }
 
 func (s *SourceContextStore) PersistSourceContext(ctx context.Context, spec sourcecontext.Spec) (sourcecontext.Receipt, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(spec.OperatingMode)); err != nil {
+		return sourcecontext.Receipt{}, err
+	}
+	if !caseidentity.AdmittedIdentity(spec.MatterID, spec.CourtCaseID) {
+		return sourcecontext.Receipt{}, errors.New("source context requires the exact approved matter and court case")
+	}
 	observed, err := json.Marshal(spec.ObservedSource)
 	if err != nil {
 		return sourcecontext.Receipt{}, err

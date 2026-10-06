@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
 //
 // Package caseidentity is the read model and the owner's edits behind the
@@ -49,24 +50,29 @@ var (
 	ErrRejected            = errors.New("the registry rejected the value")
 )
 
-// Mode names which case the page shows: the Workbench's TEST (DEV sentinel)
-// or REAL (go-live) identity.
+// Mode names an operating context, never a different case or authorization policy.
 type Mode string
 
 const (
-	ModeTest Mode = "TEST"
-	ModeReal Mode = "REAL"
+	ModeDev  Mode = "DEV"
+	ModeLive Mode = "LIVE"
+	// Deprecated source aliases; legacy SQL labels are translated only in storage.
+	ModeTest = ModeDev
+	ModeReal = ModeLive
 )
 
-// ParseMode accepts exactly TEST or REAL.
+// ParseMode normalizes request modes, defaulting omitted requests to LIVE.
+//
+// Inputs: DEV/LIVE or legacy TEST/REAL aliases. Outputs: canonical mode.
+// Side effects: none. Do not default absent durable records; those are unknown.
 func ParseMode(raw string) (Mode, error) {
-	switch Mode(strings.TrimSpace(raw)) {
-	case ModeTest:
-		return ModeTest, nil
-	case ModeReal:
-		return ModeReal, nil
+	switch strings.TrimSpace(raw) {
+	case "DEV", "TEST":
+		return ModeDev, nil
+	case "", "LIVE", "REAL":
+		return ModeLive, nil
 	}
-	return "", errors.New("mode must be TEST or REAL")
+	return "", errors.New("mode must be DEV or LIVE")
 }
 
 // Matter is registry.matter.

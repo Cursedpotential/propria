@@ -38,7 +38,7 @@ from app.types.proffer_repair_plan import (
     RepairValidateResponse,
 )
 
-_MODES: tuple[MatterMode, ...] = ("TEST", "REAL")
+_MODES: tuple[MatterMode, ...] = ("DEV", "LIVE")
 _Model = TypeVar("_Model", bound=BaseModel)
 _run_modes: dict[str, MatterMode] = {}
 _run_modes_lock = RLock()

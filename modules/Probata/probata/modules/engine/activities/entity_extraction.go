@@ -4,6 +4,7 @@
 // bounded input and output: proposals, messages and mentions stay in
 // PostgreSQL and move by generation id, never through Temporal history.
 // Registration lives in this file so activities/register.go is unchanged.
+// Byline: Codex · GPT-5 · 2026-10-05 (durable single-case extraction admission).
 package activities
 
 import (
@@ -15,6 +16,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/extraction/commitcheck"
 	"github.com/Cursedpotential/probata/engine/extraction/entities"
 	"github.com/Cursedpotential/probata/engine/extraction/flow"
@@ -88,9 +90,36 @@ func (a EntityExtractionActivities) requireStore() error {
 	return nil
 }
 
+// admitRun checks explicit operation policy before any write, then verifies the
+// authoritative receipt and current generation through the store's exact-case resolver.
+// Inputs: durable workflow RunRef. Outputs: admission error. Effects: one read only.
+// Missing pre-upgrade modes never become LIVE by inference or caller override.
+func (a EntityExtractionActivities) admitRun(ctx context.Context, requested flow.RunRef) error {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(requested.MatterMode)); err != nil {
+		return stopRetryingPermanent(permanent(err))
+	}
+	if err := a.requireStore(); err != nil {
+		return err
+	}
+	durable, err := a.Store.ResolveRun(ctx, requested.PreviewHandle)
+	if err != nil {
+		return err
+	}
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(durable.MatterMode)); err != nil {
+		return stopRetryingPermanent(permanent(err))
+	}
+	if durable.MatterMode != requested.MatterMode || durable.GenerationID != requested.GenerationID || durable.SourceVersionID != requested.SourceVersionID {
+		return stopRetryingPermanent(permanent(errors.New("extraction coordinates disagree with the durable operation receipt")))
+	}
+	return nil
+}
+
 // ProposeEntitiesRules proposes people from the run's participant headers
 // (DuckDB ELT over the normalized messages) and stages them.
 func (a EntityExtractionActivities) ProposeEntitiesRules(ctx context.Context, request flow.ExtractionRequest) (flow.ProposeResult, error) {
+	if err := a.admitRun(ctx, request.Run); err != nil {
+		return flow.ProposeResult{}, err
+	}
 	if err := a.requireStore(); err != nil {
 		return flow.ProposeResult{}, err
 	}
@@ -154,6 +183,9 @@ func (c heartbeatingCompleter) Complete(ctx context.Context, messages []model.Me
 // Replies are validated, retried once, and grounded; a batch that fails twice
 // is flagged and contributes nothing.
 func (a EntityExtractionActivities) ExtractEntitiesEventsModel(ctx context.Context, request flow.ExtractionRequest) (flow.ProposeResult, error) {
+	if err := a.admitRun(ctx, request.Run); err != nil {
+		return flow.ProposeResult{}, err
+	}
 	if err := a.requireStore(); err != nil {
 		return flow.ProposeResult{}, err
 	}
@@ -310,6 +342,9 @@ func (a EntityExtractionActivities) legend(ctx context.Context, request flow.Ext
 // one proposal per entity, folds them into the owner's current proposals,
 // matches committed entities, and counts supporting body mentions.
 func (a EntityExtractionActivities) ReconcileEntityProposals(ctx context.Context, request flow.ReconcileRequest) (flow.ReconcileResult, error) {
+	if err := a.admitRun(ctx, request.Extraction.Run); err != nil {
+		return flow.ReconcileResult{}, err
+	}
 	if err := a.requireStore(); err != nil {
 		return flow.ReconcileResult{}, err
 	}
@@ -435,11 +470,13 @@ func (a EntityExtractionActivities) ValidateExtractionCommit(ctx context.Context
 }
 
 func (a EntityExtractionActivities) currentRun(ctx context.Context, request flow.CommitRequest) (flow.RunRef, error) {
+	if err := a.admitRun(ctx, request.Run); err != nil {
+		return flow.RunRef{}, err
+	}
 	run, err := a.Store.ResolveRun(ctx, request.Run.PreviewHandle)
 	if err != nil {
 		return flow.RunRef{}, err
 	}
-	run.MatterMode = request.Run.MatterMode
 	return run, nil
 }
 
@@ -592,6 +629,9 @@ func (a EntityExtractionActivities) CommitTimelineMembers(ctx context.Context, r
 // FinalizeExtractionCommit records the commit receipt and, on success,
 // promotes the staged proposals it committed.
 func (a EntityExtractionActivities) FinalizeExtractionCommit(ctx context.Context, request flow.FinalizeRequest) (flow.CommitStepResult, error) {
+	if err := a.admitRun(ctx, request.Commit.Run); err != nil {
+		return flow.CommitStepResult{}, err
+	}
 	if err := a.requireStore(); err != nil {
 		return flow.CommitStepResult{}, err
 	}

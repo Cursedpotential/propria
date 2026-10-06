@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 
 package runtimeapi
@@ -14,7 +15,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/extraction/flow"
 )
 
-const conversationMatter = "11111111-1111-4111-8111-111111111111"
+const conversationMatter = "01a0f751-e07b-75cc-9ad5-63ad9449a8ba"
 
 type conversationRecorder struct {
 	extractions []flow.RequestInput

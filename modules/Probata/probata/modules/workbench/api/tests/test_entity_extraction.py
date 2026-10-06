@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from fastapi import FastAPI, Request
-from fastapi.testclient import TestClient
-
 from app.runtime import entity_extraction as runtime
 from app.service import proffer
 from app.service.proffer_errors import ProfferError
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
 
 HANDLE = "handle_abcdefghijklmnopqrstuvwxyz0123"
 DIGEST = "a" * 64
@@ -70,24 +69,24 @@ def test_extract_forwards_actor_key_and_mode(engine) -> None:
             "extraction_id": "e",
             "normalized_generation_id": "g",
             "use_model": True,
-            "matter_mode": "REAL",
+            "matter_mode": "LIVE",
         },
     )
     response = TestClient(_app()).post(
         "/api/entities/extract",
-        params={"mode": "REAL"},
+        params={"mode": "LIVE"},
         json={"preview_handle": HANDLE},
         headers={"Idempotency-Key": "click-0001"},
     )
     assert response.status_code == 202, response.text
     call = engine.calls[0]
-    assert call["json"] == {"preview_handle": HANDLE, "use_model": True, "matter_mode": "REAL"}
+    assert call["json"] == {"preview_handle": HANDLE, "use_model": True, "matter_mode": "LIVE"}
     assert call["headers"] == {
         "X-authentik-uid": "subject-1",
         "X-authentik-username": "operator",
         "Idempotency-Key": "click-0001",
     }
-    assert engine.modes == [(HANDLE, "REAL")]
+    assert engine.modes == [(HANDLE, "LIVE")]
 
 
 def test_writes_require_an_idempotency_key(engine) -> None:
@@ -97,7 +96,7 @@ def test_writes_require_an_idempotency_key(engine) -> None:
         ("/api/entities/commit", {"preview_handle": HANDLE, "digest": DIGEST}),
         ("/api/events/from-record", {"preview_handle": HANDLE, "record_id": "r-1"}),
     ):
-        assert client.post(path, params={"mode": "REAL"}, json=body).status_code == 422
+        assert client.post(path, params={"mode": "LIVE"}, json=body).status_code == 422
     assert engine.calls == []
 
 
@@ -105,7 +104,7 @@ def test_progress_is_scoped_to_the_runs_own_workflows(engine) -> None:
     client = TestClient(_app())
     foreign = client.get(
         "/api/entities/commits/proffer-run-12345678",
-        params={"mode": "REAL", "preview_handle": HANDLE},
+        params={"mode": "LIVE", "preview_handle": HANDLE},
     )
     assert foreign.status_code == 404
     assert engine.calls == []
@@ -114,17 +113,17 @@ def test_progress_is_scoped_to_the_runs_own_workflows(engine) -> None:
         200,
         {"workflow_id": workflow_id, "outcome": "committed", "steps": [{"step": "validate", "status": "completed"}]},
     )
-    own = client.get(f"/api/entities/commits/{workflow_id}", params={"mode": "REAL", "preview_handle": HANDLE})
+    own = client.get(f"/api/entities/commits/{workflow_id}", params={"mode": "LIVE", "preview_handle": HANDLE})
     assert own.status_code == 200, own.text
     assert own.json()["steps"][0]["status"] == "completed"
-    assert own.json()["matter_mode"] == "REAL"
+    assert own.json()["matter_mode"] == "LIVE"
 
 
 def test_corrections_forward_one_target_and_pass_conflicts_through(engine) -> None:
     client = TestClient(_app())
     mismatched = client.post(
         "/api/entities/corrections",
-        params={"mode": "REAL"},
+        params={"mode": "LIVE"},
         json={"preview_handle": HANDLE, "target": "entity", "event": {"op": "reject"}},
         headers={"Idempotency-Key": "fix-000001"},
     )
@@ -133,7 +132,7 @@ def test_corrections_forward_one_target_and_pass_conflicts_through(engine) -> No
     engine.answers[("POST", "/reference-import/entities/corrections")] = (409, "proposal changed since it was loaded")
     stale = client.post(
         "/api/entities/corrections",
-        params={"mode": "REAL"},
+        params={"mode": "LIVE"},
         json={
             "preview_handle": HANDLE,
             "target": "entity",
@@ -161,26 +160,26 @@ def test_validate_commit_and_mark_event(engine) -> None:
         {"event": {"title": "Pickup", "detected_by": "owner"}, "source_available_from": "2026-09-21T01:14:39Z"},
     )
     client = TestClient(_app())
-    report = client.post("/api/entities/validate", params={"mode": "TEST"}, json={"preview_handle": HANDLE})
+    report = client.post("/api/entities/validate", params={"mode": "LIVE"}, json={"preview_handle": HANDLE})
     assert report.status_code == 200
     assert report.json()["checks"][0] == {"rule": "live_mode", "status": "fail", "reason": "TEST run"}
     commit = client.post(
         "/api/entities/commit",
-        params={"mode": "TEST"},
+        params={"mode": "LIVE"},
         json={"preview_handle": HANDLE, "digest": DIGEST},
         headers={"Idempotency-Key": "commit-0001"},
     )
     assert commit.status_code == 422
     marked = client.post(
         "/api/events/from-record",
-        params={"mode": "TEST"},
+        params={"mode": "LIVE"},
         json={"preview_handle": HANDLE, "record_id": "r-1", "title": "Pickup"},
         headers={"Idempotency-Key": "mark-00001"},
     )
     assert marked.status_code == 201, marked.text
     assert marked.json()["event"]["detected_by"] == "owner"
     sent = engine.calls[-1]["json"]
-    assert sent == {"preview_handle": HANDLE, "record_id": "r-1", "title": "Pickup", "matter_mode": "TEST"}
+    assert sent == {"preview_handle": HANDLE, "record_id": "r-1", "title": "Pickup", "matter_mode": "LIVE"}
 
 
 def test_record_and_registry_reads(engine) -> None:
@@ -199,7 +198,7 @@ def test_record_and_registry_reads(engine) -> None:
         {"entities": [{"id": "e-1", "display_name": "Katherine Doe", "registry_type": "person"}]},
     )
     client = TestClient(_app())
-    record = client.get("/api/entities/records/r-1", params={"mode": "REAL", "preview_handle": HANDLE})
+    record = client.get("/api/entities/records/r-1", params={"mode": "LIVE", "preview_handle": HANDLE})
     assert record.status_code == 200
     assert record.json()["body"] == "Court on Thursday"
     registry = client.get("/api/entities/registry", params={"q": "kath"})

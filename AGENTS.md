@@ -1,5 +1,39 @@
 # Propria — Monorepo Root Contract
 
+## One case identity; independent operating and feature flags (owner, 2026-10-05)
+
+**Live is the normal operating mode. Dev is an explicit operating policy, not a
+different case, dataset identity, person or source identity.** Every surface uses
+the same approved matter and court-case identifiers in both modes. Never select,
+mint or restore a placeholder/alternate case because Dev or an authentication
+flag is enabled. Use **Dev / Live** and **Case page** in current product guidance.
+
+Feature flags are separate, narrowly named controls. Operating mode must not
+silently flip authentication, evidence guards, retention, rollback or unrelated
+features together. Preserve and test each gated capability; an off switch is not
+permission to leave the capability unbuilt. Authentication remains the existing
+tailnet/public-proxy contract and is not changed by a case-mode repair.
+
+Dev data isolation is separate work: the owner proposed a frozen/disposable view
+of current Live data whose changes are absent after leaving Dev. Do not claim
+this exists before its lifecycle is implemented and verified. Never restore an
+old snapshot over the shared Live database or erase concurrent Live changes.
+Until isolation exists, Dev canonical mutations must fail before persistence or
+dispatch, with the blocker stated explicitly; Live retains its existing gates.
+
+This supersedes the identity-switching and pre-launch reset instructions in
+historical D-126 and any inherited TEST/REAL case-selection contract. Historical
+records stay preserved as history. Temporary request/environment aliases and
+legacy SQL storage values may exist only at explicit compatibility boundaries;
+they must normalize to DEV/LIVE and must never select different identifiers.
+Durable operation mode is explicit receipt/history metadata, never inferred from
+a matter ID. Unknown old bindings cannot be guessed into an operating mode.
+
+Current contract: `docs/decisions/2026-10-05-single-case-operating-flags.md`.
+This instruction records the owner decision, not a claim of completed deployment.
+
+_Byline: Codex, orchestrator, 2026-10-05; owner corrections and core-fix authorization._
+
 ## Documentation comes from docstrings (owner rule, 2026-10-02)
 
 Every tool, Activity, workflow, API route and MCP tool written from now on carries a docstring or

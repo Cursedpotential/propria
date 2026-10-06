@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (durable single-case write admission)
 // Byline: Claude Code · Opus 5.5 · 2026-09-26
 //
 // Durable context review overlays (contextreview.Store): to / about / about the
@@ -266,6 +267,9 @@ func (s *ContextReviewStore) persist(ctx context.Context, write overlayWrite) (c
 	if err := contextreview.ValidateSubject(write.subject); err != nil {
 		return contextreview.Receipt{}, err
 	}
+	if err := requirePreviewWrite(ctx, s.db, write.subject.PreviewHandle); err != nil {
+		return contextreview.Receipt{}, fmt.Errorf("admit review write: %w: %v", contextreview.ErrScopeMissing, err)
+	}
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return contextreview.Receipt{}, err
@@ -275,6 +279,10 @@ func (s *ContextReviewStore) persist(ctx context.Context, write overlayWrite) (c
 	if err != nil {
 		rollback()
 		return contextreview.Receipt{}, err
+	}
+	if !AdmittedCaseIdentity(scope.matterID, scope.courtCaseID) {
+		rollback()
+		return contextreview.Receipt{}, contextreview.ErrScopeMissing
 	}
 	if err := tx.QueryRow(ctx, `SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtextextended($1, 0))) AS lock`,
 		write.lockPrefix+scope.recordID+":"+scope.matterID).Scan(new(int)); err != nil {

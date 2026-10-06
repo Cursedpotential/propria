@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (shared Proffer schema admission)
 // Retarget · Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S2): ledger check
 // moved from public.schema_version to ops.migration_ledger per D-109 (see
@@ -8,6 +9,10 @@
 // sentinel instead of the real go-live identity. Both checks stay fully
 // enforced in both modes -- see the doc comment on devMatterID below for the
 // owner's exact scoping ruling and why this is not a skip.
+// Oct 5 owner correction: D-126 identity selection is superseded. D-125 auth
+// and D-110 evidence guards remain independent; this probe always checks the
+// approved real identity and receipt. Legacy sentinel constants below are
+// historical fixtures only and never admitted identities.
 package postgres
 
 import (
@@ -17,6 +22,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -67,8 +73,8 @@ var requiredProfferColumns = []string{
 // The real go-live case identity (OD-05), minted by sql/bootstrap/seed_live_case_registry_20261001.sql from the
 // owner-approved payload sql/bootstrap/case_registry_live_identity_20261001.json (owner 2026-10-01 07:17 EDT,
 // "Mint now, I approve"). Replaces the never-minted 0030 handoff values. Claude Code · Opus 5.5 · 2026-10-02.
-const authoritativeMatterID = "01a0f751-e07b-75cc-9ad5-63ad9449a8ba"
-const authoritativeCourtCaseID = "01a0f751-e07b-76a1-a738-eb3e3aa3e68c"
+const authoritativeMatterID = caseidentity.AuthoritativeMatterID
+const authoritativeCourtCaseID = caseidentity.AuthoritativeCourtCaseID
 const registrySourceMigrationURI = "sql/bootstrap/case_registry_live_identity_20261001.json"
 const registrySourceMigrationSHA256 = "b39561e99a111c55f86d258e97cdbffec3fa0f84efb1d97fb548aa301b8fe544"
 const registrySourceGitCommit = "5643178cf0beba05a11bd357544e0c32f170f840"

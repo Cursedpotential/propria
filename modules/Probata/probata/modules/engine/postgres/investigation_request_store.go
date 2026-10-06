@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package postgres
 
 import (
@@ -6,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/investigation"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -39,6 +41,11 @@ func scanInvestigation(row pgx.Row) (investigation.Receipt, string, error) {
 	if e = json.Unmarshal(payload, &r.Request); e != nil {
 		return r, "", e
 	}
+	mode, modeErr := caseidentity.ParseMode(string(r.Mode))
+	if modeErr != nil || r.Mode == "" {
+		return r, "", caseidentity.ErrOperatingModeUnknown
+	}
+	r.Mode = mode
 	e = json.Unmarshal(results, &r.Results)
 	return r, hash, e
 }
@@ -62,6 +69,18 @@ func (s *InvestigationRequestStore) selected(ctx context.Context, q queryer, sco
 
 // Create serializes receipt admission only; no workflow or network call is made.
 func (s *InvestigationRequestStore) Create(ctx context.Context, r investigation.Request, a investigation.Actor) (investigation.Receipt, error) {
+	mode, err := caseidentity.ParseMode(string(r.Mode))
+	if err != nil {
+		return investigation.Receipt{}, err
+	}
+	r.Mode = mode
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		return investigation.Receipt{}, err
+	}
+	storedMode, err := caseidentity.StoredMode(mode)
+	if err != nil {
+		return investigation.Receipt{}, err
+	}
 	if e := investigation.Validate(r); e != nil {
 		return investigation.Receipt{}, e
 	}
@@ -90,7 +109,7 @@ func (s *InvestigationRequestStore) Create(ctx context.Context, r investigation.
 	alias, _ := json.Marshal([]map[string]string{{"actor_uid": a.UID, "key": a.Key}})
 	existing, oldHash, e := scanInvestigation(tx.QueryRow(ctx, `SELECT `+investigationColumns+` FROM ops.legal_investigation_request WHERE (actor_uid=$1 AND idempotency_key=$2::uuid) OR idempotency_aliases @> $3::jsonb`, a.UID, a.Key, alias))
 	if errors.Is(e, pgx.ErrNoRows) {
-		existing, oldHash, e = scanInvestigation(tx.QueryRow(ctx, `SELECT `+investigationColumns+` FROM ops.legal_investigation_request WHERE mode=$1 AND matter_id=$2::uuid AND court_case_id=$3::uuid AND legal_matter_id=$4::uuid AND claim_id=$5::uuid AND followup_id=$6::uuid`, r.Mode, r.MatterID, r.CourtCaseID, r.LegalMatterID, r.ClaimID, r.FollowupID))
+		existing, oldHash, e = scanInvestigation(tx.QueryRow(ctx, `SELECT `+investigationColumns+` FROM ops.legal_investigation_request WHERE mode=$1 AND matter_id=$2::uuid AND court_case_id=$3::uuid AND legal_matter_id=$4::uuid AND claim_id=$5::uuid AND followup_id=$6::uuid`, storedMode, r.MatterID, r.CourtCaseID, r.LegalMatterID, r.ClaimID, r.FollowupID))
 	}
 	if e == nil {
 		if oldHash != hash {
@@ -137,7 +156,7 @@ func (s *InvestigationRequestStore) Create(ctx context.Context, r investigation.
 			return investigation.Receipt{}, investigation.ErrSource
 		}
 	}
-	receipt, _, e := scanInvestigation(tx.QueryRow(ctx, `INSERT INTO ops.legal_investigation_request(request_id,mode,matter_id,court_case_id,legal_matter_id,claim_id,followup_id,actor_uid,actor_username,idempotency_key,payload_hash,payload) VALUES($1::uuid,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::uuid,$8,$9,$10::uuid,$11,$12::jsonb) RETURNING `+investigationColumns, uuid.NewString(), r.Mode, r.MatterID, r.CourtCaseID, r.LegalMatterID, r.ClaimID, r.FollowupID, a.UID, a.Username, a.Key, hash, payload))
+	receipt, _, e := scanInvestigation(tx.QueryRow(ctx, `INSERT INTO ops.legal_investigation_request(request_id,mode,matter_id,court_case_id,legal_matter_id,claim_id,followup_id,actor_uid,actor_username,idempotency_key,payload_hash,payload) VALUES($1::uuid,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::uuid,$8,$9,$10::uuid,$11,$12::jsonb) RETURNING `+investigationColumns, uuid.NewString(), storedMode, r.MatterID, r.CourtCaseID, r.LegalMatterID, r.ClaimID, r.FollowupID, a.UID, a.Username, a.Key, hash, payload))
 	if e != nil {
 		return investigation.Receipt{}, e
 	}
@@ -147,6 +166,11 @@ func (s *InvestigationRequestStore) Create(ctx context.Context, r investigation.
 	return receipt, nil
 }
 func (s *InvestigationRequestStore) Read(ctx context.Context, id string, scope investigation.Scope) (investigation.Receipt, error) {
+	mode, modeErr := caseidentity.ParseMode(string(scope.Mode))
+	if modeErr != nil {
+		return investigation.Receipt{}, modeErr
+	}
+	scope.Mode = mode
 	if !investigation.ValidID(id) {
 		return investigation.Receipt{}, investigation.ErrNotFound
 	}

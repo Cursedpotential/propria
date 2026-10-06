@@ -113,10 +113,11 @@ services:
       # Shared service credential for authenticated preview/start/context calls.
       # The value is runtime-read on every request so rotation needs no rebuild.
       PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
-      # The live case identity (registry matter + primary court case minted 2026-10-02). Unset, every
-      # live-mode route answered 503 "matter identity is not configured" (Claude Code · Opus 5.5 · 2026-10-02).
-      PROFFER_REAL_MATTER_ID: ${PROFFER_REAL_MATTER_ID:-}
-      PROFFER_REAL_COURT_CASE_ID: ${PROFFER_REAL_COURT_CASE_ID:-}
+      # Byline: Codex, orchestrator, 2026-10-05. One approved identity in Dev and Live.
+      # Set the neutral pair in Coolify before deploying; neither operating mode nor
+      # authentication feature flags select another case. Missing values fail closed.
+      PROFFER_MATTER_ID: ${PROFFER_MATTER_ID:-}
+      PROFFER_COURT_CASE_ID: ${PROFFER_COURT_CASE_ID:-}
       # Distinct owner-only capability for bounded exploratory evidence search.
       # It is runtime-read from the mount below and never issued to agents.
       EVIDENCE_OPERATOR_BEARER_SECRET_FILE: /run/secrets/evidence-operator-security-key

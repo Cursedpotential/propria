@@ -32,7 +32,7 @@ export function MatterWorkspace() {
   return <ModeScopedMatterWorkspace key={mode} mode={mode} />;
 }
 
-function ModeScopedMatterWorkspace({ mode }: { mode: "TEST" | "REAL" }) {
+function ModeScopedMatterWorkspace({ mode }: { mode: "DEV" | "LIVE" }) {
   const searchParams = useBrowserSearchParams();
   const matterId = searchParams.get("matter_id")?.trim() || null;
   const [matters, setMatters] = useState<Matter[]>([]);

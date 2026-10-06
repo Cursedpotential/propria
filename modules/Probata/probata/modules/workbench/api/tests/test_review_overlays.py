@@ -15,15 +15,14 @@ import json
 
 import httpx
 import pytest
-from fastapi import FastAPI, Request
-from fastapi.testclient import TestClient
-
 from app.runtime import review_overlays as runtime
 from app.service import context_review, source_metadata, source_sidecars
 from app.service.proffer_errors import ProfferError
 from app.types.context_review import ContextReviewRequest, ForeshadowingRequest
 from app.types.proffer import ProfferDecisionActor
 from app.types.source_metadata import MetadataCorrectionRequest, MetadataRow, Sidecar, SidecarLookup
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
 
 HANDLE = "review_overlay_handle_abcdefghijklmnop"
 MESSAGE = "0190a000-0000-7000-8000-0000000000e1"
@@ -99,11 +98,11 @@ def test_metadata_screen_proves_mode_first_and_adds_sidecars(monkeypatch) -> Non
         lambda ref: ([sidecar], SidecarLookup(beside_object="ok", catalog_folder="not_configured")),
     )
 
-    screen = asyncio.run(source_metadata.metadata_screen(HANDLE, mode="TEST"))
+    screen = asyncio.run(source_metadata.metadata_screen(HANDLE, mode="LIVE"))
 
-    assert calls[0] == ("mode", HANDLE, "TEST")
+    assert calls[0] == ("mode", HANDLE, "LIVE")
     assert calls[1][:2] == ("GET", f"/reference-import/previews/{HANDLE}/metadata")
-    assert screen.matter_mode == "TEST"
+    assert screen.matter_mode == "LIVE"
     assert [item.name for item in screen.sidecars] == ["IMG_0001.jpg.json"]
     # 2021-05-08 10:00 UTC (sidecar) vs 2021-05-01 10:00 wall clock (file): a week apart.
     assert [conflict.topic for conflict in screen.sidecar_conflicts] == ["capture_time"]
@@ -118,12 +117,12 @@ def test_metadata_screen_fails_closed_on_a_crossed_answer(monkeypatch) -> None:
         source_metadata, "find_sidecars", lambda ref: ([], SidecarLookup(beside_object="ok", catalog_folder="ok"))
     )
     with pytest.raises(ProfferError) as crossed:
-        asyncio.run(source_metadata.metadata_screen(HANDLE, mode="TEST"))
+        asyncio.run(source_metadata.metadata_screen(HANDLE, mode="LIVE"))
     assert crossed.value.status_code == 502
 
     _wire(monkeypatch, source_metadata, [(200, _engine_view(subject_kind="attachment", subject_sha256="cd" * 32))], [])
     with pytest.raises(ProfferError) as other_file:
-        asyncio.run(source_metadata.metadata_screen(HANDLE, mode="TEST", subject_sha256="ef" * 32))
+        asyncio.run(source_metadata.metadata_screen(HANDLE, mode="LIVE", subject_sha256="ef" * 32))
     assert other_file.value.status_code == 502
 
 
@@ -146,11 +145,11 @@ def test_corrections_are_actor_bound_and_idempotent(monkeypatch) -> None:
         change_reason="camera clock was twelve hours off",
     )
 
-    first = asyncio.run(source_metadata.correct_metadata(HANDLE, request, ACTOR, mode="REAL"))
-    asyncio.run(source_metadata.correct_metadata(HANDLE, request, ACTOR, mode="REAL"))
+    first = asyncio.run(source_metadata.correct_metadata(HANDLE, request, ACTOR, mode="DEV"))
+    asyncio.run(source_metadata.correct_metadata(HANDLE, request, ACTOR, mode="DEV"))
 
     posts = [call for call in calls if call[0] == "POST"]
-    assert first.matter_mode == "REAL" and first.revision == 1
+    assert first.matter_mode == "DEV" and first.revision == 1
     assert posts[0][2]["headers"]["X-authentik-uid"] == "authentik-user-1"
     assert posts[0][2]["headers"]["Idempotency-Key"].startswith("metadata-correction:")
     assert posts[0][2]["headers"]["Idempotency-Key"] == posts[1][2]["headers"]["Idempotency-Key"], (
@@ -201,17 +200,17 @@ def _review(**overrides):
 def test_as_lived_read_never_carries_foreshadowing_even_if_the_engine_leaks_it(monkeypatch) -> None:
     calls: list = []
     _wire(monkeypatch, context_review, [(200, _review())], calls)
-    view = asyncio.run(context_review.read_context_review(HANDLE, MESSAGE, mode="TEST"))
+    view = asyncio.run(context_review.read_context_review(HANDLE, MESSAGE, mode="LIVE"))
     assert calls[1][1].endswith("/context-review?horizon=as_lived")
     assert view.foreshadowing is None
 
     _wire(monkeypatch, context_review, [(200, _review(horizon="hindsight"))], [])
-    hindsight = asyncio.run(context_review.read_context_review(HANDLE, MESSAGE, mode="TEST", horizon="hindsight"))
+    hindsight = asyncio.run(context_review.read_context_review(HANDLE, MESSAGE, mode="LIVE", horizon="hindsight"))
     assert hindsight.foreshadowing and hindsight.foreshadowing[0].horizon == "hindsight"
 
     _wire(monkeypatch, context_review, [(200, _review(horizon="hindsight"))], [])
     with pytest.raises(ProfferError):
-        asyncio.run(context_review.read_context_review(HANDLE, MESSAGE, mode="TEST", horizon="as_lived"))
+        asyncio.run(context_review.read_context_review(HANDLE, MESSAGE, mode="LIVE", horizon="as_lived"))
 
 
 def test_writes_are_checked_against_their_horizon(monkeypatch) -> None:
@@ -226,12 +225,12 @@ def test_writes_are_checked_against_their_horizon(monkeypatch) -> None:
     review = ContextReviewRequest(
         addressed_to=[{"label": "Recipient A"}], about_child="yes", relevant=True, change_reason="read the thread"
     )
-    assert asyncio.run(context_review.write_context_review(HANDLE, MESSAGE, review, ACTOR, mode="TEST")).revision == 1
+    assert asyncio.run(context_review.write_context_review(HANDLE, MESSAGE, review, ACTOR, mode="LIVE")).revision == 1
 
     _wire(monkeypatch, context_review, [(201, {**receipt, "horizon": "as_lived"})], [])
     flag = ForeshadowingRequest(foreshadowing=True, change_reason="significant in hindsight")
     with pytest.raises(ProfferError):
-        asyncio.run(context_review.write_foreshadowing(HANDLE, MESSAGE, flag, ACTOR, mode="TEST"))
+        asyncio.run(context_review.write_foreshadowing(HANDLE, MESSAGE, flag, ACTOR, mode="LIVE"))
     with pytest.raises(ValueError):
         ContextReviewRequest.model_validate({"foreshadowing": True, "change_reason": "smuggled"})
     with pytest.raises(ValueError):
@@ -255,15 +254,15 @@ def test_as_lived_http_answer_has_no_foreshadowing_key(monkeypatch) -> None:
         return context_review.ContextReviewView.model_validate({**_review(horizon=horizon), "matter_mode": mode})
 
     monkeypatch.setattr(runtime, "read_context_review", fake_read)
-    response = _client().get(f"/api/proffer/previews/{HANDLE}/messages/{MESSAGE}/context-review?mode=TEST")
+    response = _client().get(f"/api/proffer/previews/{HANDLE}/messages/{MESSAGE}/context-review?mode=LIVE")
     assert response.status_code == 200
     assert "foreshadowing" not in response.json()
     hindsight = _client().get(
-        f"/api/proffer/previews/{HANDLE}/messages/{MESSAGE}/context-review?mode=TEST&horizon=hindsight"
+        f"/api/proffer/previews/{HANDLE}/messages/{MESSAGE}/context-review?mode=LIVE&horizon=hindsight"
     )
     assert "foreshadowing" in hindsight.json()
     bad = _client().post(
-        f"/api/proffer/previews/{HANDLE}/messages/{MESSAGE}/context-review?mode=TEST",
+        f"/api/proffer/previews/{HANDLE}/messages/{MESSAGE}/context-review?mode=LIVE",
         json={"foreshadowing": True, "change_reason": "smuggled"},
     )
     assert bad.status_code == 422

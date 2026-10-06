@@ -212,7 +212,7 @@ export function ThreadView({ threadId }: { threadId: string }) {
             return (
               <div key={message.id} id={`msg-${message.id}`}>
                 {header ? <p className="py-2 text-center text-xs font-semibold text-muted-foreground">{day}</p> : null}
-                <MessageBubble row={toMessageRow(message, index)} previewHandle="" mode="REAL" showSenderLabel={!message.outgoing} highlighted={message.id === focus} />
+                <MessageBubble row={toMessageRow(message, index)} previewHandle="" mode="LIVE" showSenderLabel={!message.outgoing} highlighted={message.id === focus} />
                 {message.party ? <p className={`px-2 text-[10px] text-muted-foreground ${message.outgoing ? "text-right" : ""}`}>{message.party === "first_party" ? "first-party" : "third-party"}</p> : null}
               </div>
             );

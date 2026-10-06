@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package flow
@@ -10,6 +11,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/extraction/commitcheck"
 	"github.com/Cursedpotential/probata/engine/extraction/entities"
 )
@@ -50,6 +52,11 @@ func modelOptions(ctx workflow.Context) workflow.Context {
 // It writes proposals only; nothing reaches the registry or the timeline
 // until the owner runs ExtractionCommitWorkflow.
 func EntityExtractionWorkflow(ctx workflow.Context, request ExtractionRequest) (Progress, error) {
+	if workflow.GetVersion(ctx, "extraction-single-case-operating-mode-v1", workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(request.Run.MatterMode)); err != nil {
+			return Progress{}, err
+		}
+	}
 	progress := Progress{Outcome: OutcomeRunning, Steps: []StepResult{
 		{Step: "rules", Status: StepPending}, {Step: "model", Status: StepPending}, {Step: "reconcile", Status: StepPending},
 	}}
@@ -135,6 +142,11 @@ var commitSteps = []struct{ step, activity string }{
 // per step, a receipt for every attempt, and the Timesketch projection last.
 // A projection that cannot run does not undo the commit; it is reported.
 func ExtractionCommitWorkflow(ctx workflow.Context, request CommitRequest) (Progress, error) {
+	if workflow.GetVersion(ctx, "extraction-single-case-operating-mode-v1", workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(request.Run.MatterMode)); err != nil {
+			return Progress{}, err
+		}
+	}
 	progress := Progress{Outcome: OutcomeRunning, Steps: []StepResult{{Step: "validate", Status: StepPending}}}
 	for _, step := range commitSteps {
 		progress.Steps = append(progress.Steps, StepResult{Step: step.step, Status: StepPending})

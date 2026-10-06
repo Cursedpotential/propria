@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5 · 2026-09-21
 //
 // The four Activities a batch-by-folder import needs (owner 2026-09-20 23:52:
@@ -25,8 +26,10 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
+	"github.com/google/uuid"
 )
 
 const (
@@ -42,11 +45,14 @@ const maxBatchListingPage = 200
 
 // ListBatchFolderRequest names one page of one folder.
 type ListBatchFolderRequest struct {
-	Scheme string `json:"scheme"`
-	Bucket string `json:"bucket"`
-	Prefix string `json:"prefix"`
-	Cursor string `json:"cursor,omitempty"`
-	Limit  int32  `json:"limit,omitempty"`
+	OperatingMode string `json:"operating_mode"`
+	MatterID      string `json:"matter_id"`
+	CourtCaseID   string `json:"court_case_id"`
+	Scheme        string `json:"scheme"`
+	Bucket        string `json:"bucket"`
+	Prefix        string `json:"prefix"`
+	Cursor        string `json:"cursor,omitempty"`
+	Limit         int32  `json:"limit,omitempty"`
 	// KeySuffix keeps only keys ending in it; empty keeps every key.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	KeySuffix string `json:"key_suffix,omitempty"`
@@ -60,6 +66,9 @@ type ListBatchFolderResult struct {
 
 // BindImportOperationRequest is the durable identity of one started run.
 type BindImportOperationRequest struct {
+	MatterID         string      `json:"matter_id"`
+	CourtCaseID      string      `json:"court_case_id"`
+	OperatingMode    string      `json:"operating_mode"`
 	RequestID        string      `json:"request_id"`
 	SourceRef        proffer.Ref `json:"source_ref"`
 	WorkflowID       string      `json:"workflow_id"`
@@ -139,6 +148,12 @@ type BatchImportActivities struct {
 
 // ListBatchFolder returns one page of object keys under a prefix.
 func (a BatchImportActivities) ListBatchFolder(ctx context.Context, req ListBatchFolderRequest) (ListBatchFolderResult, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(req.OperatingMode)); err != nil {
+		return ListBatchFolderResult{}, stopRetryingPermanent(permanent(err))
+	}
+	if !caseidentity.AdmittedIdentity(req.MatterID, req.CourtCaseID) {
+		return ListBatchFolderResult{}, stopRetryingPermanent(permanent(errors.New("batch requires the approved case identity")))
+	}
 	if a.Lister == nil {
 		return ListBatchFolderResult{}, errors.New("batch import: object lister is required")
 	}
@@ -177,6 +192,12 @@ func (a BatchImportActivities) ListBatchFolder(ctx context.Context, req ListBatc
 
 // BindImportOperation records the preview binding for one started run.
 func (a BatchImportActivities) BindImportOperation(ctx context.Context, req BindImportOperationRequest) (BindImportOperationResult, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(req.OperatingMode)); err != nil {
+		return BindImportOperationResult{}, stopRetryingPermanent(permanent(err))
+	}
+	if !caseidentity.AdmittedIdentity(req.MatterID, req.CourtCaseID) {
+		return BindImportOperationResult{}, stopRetryingPermanent(permanent(errors.New("batch binding requires the approved case identity")))
+	}
 	if a.Bindings == nil {
 		return BindImportOperationResult{}, errors.New("batch import: preview binding store is required")
 	}
@@ -188,8 +209,10 @@ func (a BatchImportActivities) BindImportOperation(ctx context.Context, req Bind
 	}
 	// Create is idempotent on request_id, so a retried Activity returns the
 	// first binding instead of minting a second handle.
+	matterID, courtCaseID := uuid.MustParse(req.MatterID), uuid.MustParse(req.CourtCaseID)
 	binding, err := a.Bindings.Create(ctx, previewmodel.Binding{
-		RequestID: req.RequestID, SourceRef: req.SourceRef,
+		MatterID: &matterID, CourtCaseID: &courtCaseID,
+		OperatingMode: req.OperatingMode, RequestID: req.RequestID, SourceRef: req.SourceRef,
 		WorkflowID: req.WorkflowID, RunID: req.RunID, ParserOptionsRef: req.ParserOptionsRef,
 	})
 	if err != nil {

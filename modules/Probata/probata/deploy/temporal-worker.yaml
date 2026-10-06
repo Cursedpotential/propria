@@ -48,6 +48,7 @@
 #
 # Byline: Claude Code · Sonnet · 2026-10-02
 # Byline: Claude Code · Sonnet 5.5 · 2026-10-02 (conversation-chunk env and the NIM key mount)
+# Byline: Codex · orchestrator · 2026-10-05 (explicit single-case write admission)
 
 services:
   temporal-worker:
@@ -65,6 +66,12 @@ services:
       TEMPORAL_TASK_QUEUE: evidence-pipeline
       TEMPORAL_ACTIVITY_THREADS: ${TEMPORAL_ACTIVITY_THREADS:-8}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Match the engine's approved case. Background writes require explicit
+      # Live mode and this pair; absent historical mode cannot authorize them.
+      PROFFER_MATTER_ID: ${PROFFER_MATTER_ID:-}
+      PROFFER_COURT_CASE_ID: ${PROFFER_COURT_CASE_ID:-}
+      PROFFER_STARTER_URL: ${PROFFER_STARTER_URL:-http://100.91.190.107:8091}
+      PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
       # Conversation chunks (owner 2026-10-02). The collection is owner-approved ProfferChunks20261002 and is the
       # code default; the worker creates it when absent (additive schema only afterwards).
       CONTEXT_CHUNKS_WEAVIATE_URL: ${CONTEXT_CHUNKS_WEAVIATE_URL:-http://100.91.190.107:8082}
@@ -84,6 +91,12 @@ services:
     volumes:
       - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro
       - /data/probata/secrets/intake-engine/nvidia-api-key:/run/secrets/nvidia-api-key:ro
+      - type: bind
+        source: /data/probata/secrets/proffer/service-token
+        target: /run/secrets/proffer-service-token
+        read_only: true
+        bind:
+          create_host_path: false
 
 networks:
   probata:

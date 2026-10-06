@@ -1,509 +1,332 @@
-"""Focused TEST/REAL isolation checks for the Workbench Proffer BFF."""
+"""Single approved case, default-Live policy, durable receipts and Dev write isolation.
+
+Byline: Codex · GPT-6.1-Sol · 2026-10-05.
+Byline amendment: Codex · GPT-6.1-Sol · 2026-10-06 — separate policy stubs from scope transport tests.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import json
-from datetime import UTC, datetime
+from uuid import UUID
 
 import httpx
 import pytest
-from app.runtime import case_management, source_inspection
-from app.runtime import proffer as proffer_runtime
-from app.service import matter_mode, proffer, proffer_sources, source_context
-from app.service.matter_mode import _clear_preview_modes_for_tests, require_preview_mode
-from app.types.proffer import (
-    ProfferDecisionActor,
-    ProfferHandlerSelectionDecisionRequest,
-    ProfferPreviewResponse,
-    ProfferStartRequest,
-)
-from app.types.source_context import SourceContextCreateRequest
-from fastapi import FastAPI
+from app.config import settings
+from app.runtime import case_identity, case_management
+from app.service import case_scope, matter_mode, preview_mode_recovery, proffer, proffer_batch
+from app.types.matter_mode import MatterMode
+from app.types.proffer import ProfferStartRequest
+from app.types.proffer_batch import ProfferBatchStartRequest
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
+from main import app as production_app
+from main import development_write_guard
+from pydantic import TypeAdapter, ValidationError
+from starlette.middleware.base import BaseHTTPMiddleware
 
-TEST_MATTER_ID = "deadbeef-dead-beef-dead-beefdeadbeef"
-TEST_COURT_CASE_ID = "cafebabe-cafe-babe-cafe-babecafebabe"
-PREVIEW_HANDLE = "preview_handle_abcdefghijklmnopqrstuvwxyz"
-
-CASE_MANAGEMENT_SCOPED_OPERATIONS = [
-    ("/api/matters", "get"),
-    ("/api/matters", "post"),
-    ("/api/matters/{matter_id}", "get"),
-    ("/api/matters/{matter_id}/court-cases", "post"),
-    ("/api/matters/{matter_id}/knowledge/resolve", "post"),
-    ("/api/matters/{matter_id}/evidence-items", "post"),
-    ("/api/matters/{matter_id}/evidence-items", "get"),
-    ("/api/matters/{matter_id}/evidence-items/{evidence_item_id}", "get"),
-    (
-        "/api/matters/{matter_id}/evidence-items/{evidence_item_id}/source-content",
-        "get",
-    ),
-    (
-        "/api/matters/{matter_id}/evidence-items/{evidence_item_id}/conversation-context",
-        "get",
-    ),
-    (
-        "/api/matters/{matter_id}/evidence-items/{evidence_item_id}/court-readiness",
-        "get",
-    ),
-    ("/api/matters/{matter_id}/evidence-items/{evidence_item_id}/reviews", "post"),
-    ("/api/matters/{matter_id}/evidence-items/{evidence_item_id}/reviews", "get"),
-]
+MATTER = "11111111-1111-4111-8111-111111111111"
+COURT = "22222222-2222-4222-8222-222222222222"
+OTHER = "33333333-3333-4333-8333-333333333333"
+HANDLE = "preview_handle_abcdefghijklmnopqrstuvwxyz"
+PERSON = "44444444-4444-4444-8444-444444444444"
+ALIAS = "55555555-5555-4555-8555-555555555555"
 
 
 @pytest.fixture(autouse=True)
-def clear_bindings():
-    _clear_preview_modes_for_tests()
+def canonical_case(monkeypatch):
+    monkeypatch.setattr(settings, "proffer_matter_id", MATTER)
+    monkeypatch.setattr(settings, "proffer_court_case_id", COURT)
+    async def scope_header(mode):
+        return _header(mode)
+    monkeypatch.setattr(case_scope, "_read_scope", scope_header)
+    matter_mode._clear_preview_modes_for_tests()
     yield
-    _clear_preview_modes_for_tests()
+    matter_mode._clear_preview_modes_for_tests()
 
 
-def _start_request(*, mode: str = "TEST", matter_id: str = TEST_MATTER_ID) -> ProfferStartRequest:
-    return ProfferStartRequest(
-        request_id="request-1",
-        matter_id=matter_id,
-        court_case_id=TEST_COURT_CASE_ID,
-        source_ref="r2://casebible-raw/source.xml",
-        declared_format="xml",
-        parser_options_ref="parser-options://default",
-        matter_mode=mode,
-    )
+def _header(mode="LIVE"):
+    return {"mode": mode, "matter": {"id": MATTER}, "court_case": {"id": COURT, "matter_id": MATTER},
+            "people": [{"id": PERSON}], "source_versions": [{"id": OTHER}],
+            "history": [], "probata_counts": [], "probata_unknowns": [], "dismissed": []}
 
 
-def test_real_mode_fails_closed_before_source_io(monkeypatch) -> None:
-    monkeypatch.setattr(proffer.settings, "proffer_real_matter_id", "")
-    monkeypatch.setattr(
-        proffer_sources,
-        "list_source_objects",
-        lambda **_: (_ for _ in ()).throw(AssertionError("source I/O must not run")),
-    )
+def _app():
+    app = FastAPI()
 
-    with pytest.raises(proffer.ProfferError) as captured:
-        proffer.browse_sources(mode="REAL")
+    @app.middleware("http")
+    async def actor(request: Request, call_next):
+        request.state.subject_uid = "subject-1"
+        request.state.principal = "operator"
+        return await call_next(request)
 
-    assert captured.value.status_code == 503
-    assert "REAL matter identity is not configured" in captured.value.detail
-
-
-def test_start_strips_bff_mode_binds_handle_and_rejects_cross_mode(monkeypatch) -> None:
-    class Response:
-        def json(self):
-            return {"preview_handle": PREVIEW_HANDLE}
-
-    captured: dict = {}
-
-    async def fake_request(method, path, **kwargs):
-        captured.update(method=method, path=path, kwargs=kwargs)
-        return Response()
-
-    monkeypatch.setattr(proffer, "_request", fake_request)
-    result = asyncio.run(proffer.start(_start_request(), mode="TEST"))
-
-    assert result.matter_mode == "TEST"
-    assert "matter_mode" not in captured["kwargs"]["json"]
-    require_preview_mode(PREVIEW_HANDLE, "TEST")
-    with pytest.raises(proffer.ProfferError) as denied:
-        asyncio.run(proffer.preview(PREVIEW_HANDLE, mode="REAL"))
-    assert denied.value.status_code == 409
-    assert "different matter mode" in denied.value.detail
+    app.include_router(case_identity.router)
+    app.include_router(case_management.router)
+    return app
 
 
-def test_start_body_query_and_exact_test_scope_are_enforced_before_upstream(monkeypatch) -> None:
-    monkeypatch.setattr(
-        proffer,
-        "_request",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("upstream must not run")),
-    )
-
-    with pytest.raises(proffer.ProfferError) as mode_error:
-        asyncio.run(proffer.start(_start_request(mode="TEST"), mode="REAL"))
-    assert mode_error.value.status_code == 409
-
-    with pytest.raises(proffer.ProfferError) as matter_error:
-        asyncio.run(
-            proffer.start(
-                _start_request(matter_id="11111111-1111-4111-8111-111111111111"),
-                mode="TEST",
-            )
-        )
-    assert matter_error.value.status_code == 409
-    assert "matter_id does not belong to TEST" in matter_error.value.detail
+@pytest.mark.parametrize(("value", "expected"),
+                         [(None, "LIVE"), ("LIVE", "LIVE"), ("DEV", "DEV"), ("REAL", "LIVE"), ("TEST", "DEV")])
+def test_boundary_aliases_are_input_only(value, expected):
+    adapter = TypeAdapter(MatterMode)
+    mode = "LIVE" if value is None else adapter.validate_python(value)
+    assert mode == expected
+    assert adapter.dump_python(mode) in {"DEV", "LIVE"}
+    assert matter_mode.configured_matter_id(mode) == UUID(MATTER)
+    assert matter_mode.configured_court_case_id(mode) == UUID(COURT)
 
 
-def test_unknown_handle_fails_closed_when_the_matter_cannot_be_proven(monkeypatch) -> None:
-    """After a BFF restart the binding is gone; with no durable matter it still refuses."""
-
-    async def operation_without_matter(method, path, **kwargs):
-        assert path.endswith(f"/operations/{PREVIEW_HANDLE}")
-        return httpx.Response(200, json={"preview_handle": PREVIEW_HANDLE})
-
-    monkeypatch.setattr(proffer, "_request", operation_without_matter)
-    with pytest.raises(proffer.ProfferError) as captured:
-        asyncio.run(proffer.preview(PREVIEW_HANDLE, mode="TEST"))
-
-    assert captured.value.status_code == 409
-    assert "no active TEST/REAL binding" in captured.value.detail
+@pytest.mark.parametrize("value", ["", "live", "dev", "unknown", 7])
+def test_unknown_modes_are_rejected(value):
+    with pytest.raises(ValidationError):
+        TypeAdapter(MatterMode).validate_python(value)
 
 
-def test_binding_lost_on_restart_is_recovered_from_the_durable_matter(monkeypatch) -> None:
-    """The engine returns the run's matter id; the configured TEST matter proves TEST."""
-    from app.service import matter_mode, preview_mode_recovery
+@pytest.mark.parametrize("field", ["proffer_matter_id", "proffer_court_case_id"])
+@pytest.mark.parametrize("value", ["", "not-a-uuid", "00000000-0000-0000-0000-000000000000",
+                                 "deadbeef-dead-beef-dead-beefdeadbeef", "cafebabe-cafe-babe-cafe-babecafebabe"])
+def test_missing_or_sentinel_configuration_fails_closed(monkeypatch, field, value):
+    monkeypatch.setattr(settings, field, value)
+    monkeypatch.setattr(settings, "proffer_real_matter_id", "")
+    monkeypatch.setattr(settings, "proffer_real_court_case_id", "")
+    with pytest.raises(matter_mode.MatterModeError) as error:
+        resolver = matter_mode.configured_matter_id if field.endswith("matter_id") else matter_mode.configured_court_case_id
+        resolver("LIVE")
+    assert error.value.status_code == 503
 
-    test_matter = matter_mode.configured_matter_id("TEST")
-    assert preview_mode_recovery.rebind(PREVIEW_HANDLE, test_matter) == "TEST"
-    matter_mode.require_preview_mode(PREVIEW_HANDLE, "TEST")
+
+def test_only_authoritative_legacy_environment_is_a_rollout_fallback(monkeypatch):
+    monkeypatch.setattr(settings, "proffer_matter_id", "")
+    monkeypatch.setattr(settings, "proffer_court_case_id", "")
+    monkeypatch.setattr(settings, "proffer_test_matter_id", OTHER)
+    monkeypatch.setattr(settings, "proffer_test_court_case_id", OTHER)
+    monkeypatch.setattr(settings, "proffer_real_matter_id", MATTER)
+    monkeypatch.setattr(settings, "proffer_real_court_case_id", COURT)
+    for mode in ("DEV", "LIVE"):
+        assert matter_mode.require_scope(mode, UUID(MATTER), UUID(COURT)) == (UUID(MATTER), UUID(COURT))
+    monkeypatch.setattr(settings, "proffer_matter_id", OTHER)
+    assert matter_mode.configured_matter_id("LIVE") == UUID(OTHER)
     with pytest.raises(matter_mode.MatterModeError):
-        matter_mode.require_preview_mode(PREVIEW_HANDLE, "REAL")
+        matter_mode.require_matter("LIVE", UUID(MATTER))
 
 
-def test_generic_content_projection_preserves_exact_chunks_and_mode(monkeypatch) -> None:
-    from app.service.matter_mode import bind_preview_mode
+def test_authoritative_header_rejects_a_wrong_non_sentinel_config(monkeypatch):
+    monkeypatch.setattr(settings, "proffer_matter_id", OTHER)
+    with pytest.raises(proffer.ProfferError) as error:
+        asyncio.run(case_scope.verify_case_scope("LIVE", _header()))
+    assert error.value.status_code == 502
 
-    bind_preview_mode(PREVIEW_HANDLE, "TEST")
 
-    async def fake_request(method, path, **kwargs):
+def test_bad_config_cannot_select_an_unrelated_spine_case(monkeypatch):
+    monkeypatch.setattr(settings, "proffer_matter_id", OTHER)
+    calls = []
+
+    async def engine(mode):
+        calls.append(mode)
+        return _header()
+
+    monkeypatch.setattr(case_scope, "_read_scope", engine)
+    monkeypatch.setattr(case_management.service, "get_matter", lambda *_: pytest.fail("spine must not run"))
+    response = TestClient(_app()).get("/api/matters")
+    assert response.status_code == 502
+    assert calls == ["LIVE"]
+
+
+@pytest.mark.parametrize("mode", ["LIVE", "DEV"])
+def test_scope_admission_uses_fresh_bounded_identity_read_without_full_page(monkeypatch, mode):
+    calls = []
+
+    async def engine(requested_mode):
+        calls.append(requested_mode)
+        return {"mode": mode, "matter": {"id": MATTER},
+                "court_case": {"id": COURT, "matter_id": MATTER}}
+
+    monkeypatch.setattr(case_scope, "_read_scope", engine)
+    for _ in range(2):
+        asyncio.run(case_scope.verify_case_scope(mode))
+    assert calls == [mode] * 2
+
+
+@pytest.mark.parametrize("parent", [None, OTHER])
+def test_scope_missing_or_foreign_court_parent_blocks_read_and_mutation(monkeypatch, parent):
+    async def engine(mode):
+        assert mode == "LIVE"
+        answer = _header()
+        answer["court_case"]["matter_id"] = parent
+        return answer
+
+    monkeypatch.setattr(case_scope, "_read_scope", engine)
+    monkeypatch.setattr(case_management.service, "get_matter", lambda *_: pytest.fail("spine must not run"))
+    client = TestClient(_app())
+    assert client.get("/api/matters").status_code == 502
+    assert client.post("/api/case-identity/people", json={}, headers={"Idempotency-Key": "scope-test"}).status_code == 502
+
+
+def test_default_live_and_both_modes_preserve_case_people_and_source_ids(monkeypatch):
+    async def engine(method, path, **kwargs):
         assert method == "GET"
-        assert path.endswith("/content")
-        assert kwargs["params"] == {"limit": 25, "record_cursor": "records-next"}
-        return httpx.Response(
-            200,
-            json={
-                "preview_handle": PREVIEW_HANDLE,
-                "package": {
-                    "source_version_ref": "source-version-1",
-                    "declared_format": "document",
-                    "status": "retained",
-                    "metadata_count": 2,
-                    "attachment_count": 0,
-                },
-                "attempt": {
-                    "attempt_ref": "",
-                    "projection_ref": "normalized-1",
-                    "source_version_ref": "source-version-1",
-                    "raw_generation_ref": "raw-1",
-                    "normalized_generation_ref": "normalized-1",
-                    "receipts": [],
-                },
-                "attempts_complete": False,
-                "attempts_reason": "complete history is unavailable",
-                "records": [
-                    {
-                        "record_id": "record-1",
-                        "ordinal": 0,
-                        "record_type": "document",
-                        "payload": {"title": "Exact record"},
-                        "source_locator_ref": "context.normalized_record_identity/record-1",
-                    }
-                ],
-                "attachments": [],
-                "chunk_generation": {
-                    "generation_ref": "generation-1",
-                    "generation_ordinal": 1,
-                    "status": "sealed",
-                    "policy_id": "document",
-                    "policy_version": "1",
-                    "chunker_id": "offsets",
-                    "chunker_version": "1",
-                    "schema_version": "1",
-                    "source_view": "original",
-                    "source_sha256": "a" * 64,
-                    "receipt_ref": "receipt-1",
-                },
-                "chunks": [
-                    {
-                        "chunk_ref": "chunk-1",
-                        "index": 0,
-                        "content": "Exact chunk",
-                        "sha256": "b" * 64,
-                        "derivation_mode": "verbatim_span",
-                        "locator_ref": "locator-1",
-                        "byte_start": 0,
-                        "byte_end": 11,
-                    }
-                ],
-            },
-        )
+        assert path in {"/case-identity", "/case-identity/scope"}
+        return httpx.Response(200, json=_header(kwargs["params"]["mode"]))
 
-    monkeypatch.setattr(proffer, "_request", fake_request)
-    result = asyncio.run(
-        proffer.preview_content(PREVIEW_HANDLE, mode="TEST", record_cursor="records-next", chunk_cursor=None, limit=25)
-    )
-
-    assert result.matter_mode == "TEST"
-    assert result.records[0].payload == {"title": "Exact record"}
-    assert result.chunks[0].content == "Exact chunk"
-    with pytest.raises(proffer.ProfferError, match="different matter mode"):
-        asyncio.run(
-            proffer.preview_content(PREVIEW_HANDLE, mode="REAL", record_cursor=None, chunk_cursor=None, limit=25)
-        )
+    monkeypatch.setattr(proffer, "_request", engine)
+    monkeypatch.setattr(case_identity.service, "_catalog_section", lambda _: {})
+    client = TestClient(_app())
+    responses = [client.get("/api/case-identity", params=params)
+                 for params in ({}, {"mode": "LIVE"}, {"mode": "DEV"}, {"mode": "REAL"}, {"mode": "TEST"})]
+    assert all(response.status_code == 200 for response in responses)
+    views = [response.json() for response in responses]
+    assert [view["mode"] for view in views] == ["LIVE", "LIVE", "DEV", "LIVE", "DEV"]
+    for key in ("matter", "court_case", "people", "source_versions"):
+        assert all(view[key] == views[0][key] for view in views)
 
 
-def test_handler_choice_is_flat_actor_bound_and_mode_correlated(monkeypatch) -> None:
-    calls: list[tuple[str, str, dict]] = []
+@pytest.mark.parametrize("value", ["", "unknown", "dev"])
+def test_unknown_route_policy_never_dispatches(monkeypatch, value):
+    monkeypatch.setattr(proffer, "_request", lambda *_args, **_kwargs: pytest.fail("engine must not run"))
+    response = TestClient(_app()).get("/api/case-identity", params={"mode": value})
+    assert response.status_code == 422
 
-    async def fake_request(method, path, **kwargs):
+
+CASE_WRITES = [
+    "/identifiers", f"/identifiers/{ALIAS}", f"/identifiers/{ALIAS}/delete",
+    "/header", "/people", f"/people/{PERSON}", "/triage", "/placeholders",
+    "/contact-people", f"/people/{PERSON}/merge",
+]
+
+
+@pytest.mark.parametrize("path", CASE_WRITES)
+@pytest.mark.parametrize("mode", ["DEV", "TEST"])
+def test_every_case_mutation_denies_dev_before_upstream(monkeypatch, path, mode):
+    monkeypatch.setattr(proffer, "_request", lambda *_args, **_kwargs: pytest.fail("engine must not run"))
+    response = TestClient(_app()).post("/api/case-identity" + path, params={"mode": mode},
+                                      json={}, headers={"Idempotency-Key": "key"})
+    assert response.status_code == 409
+    assert "isolated data workspace" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("path", CASE_WRITES)
+@pytest.mark.parametrize("params", [{}, {"mode": "LIVE"}, {"mode": "REAL"}])
+def test_every_case_mutation_forwards_selected_canonical_policy(monkeypatch, path, params):
+    calls = []
+
+    async def engine(method, upstream, **kwargs):
+        calls.append((method, upstream, kwargs))
+        if method == "GET":
+            return httpx.Response(200, json=_header())
+        return httpx.Response(201, json={"ref": "receipt", "kind": "identity", "recorded_at": "now"})
+
+    monkeypatch.setattr(proffer, "_request", engine)
+    response = TestClient(_app()).post("/api/case-identity" + path, params=params,
+                                      json={}, headers={"Idempotency-Key": "key"})
+    assert response.status_code == 201
+    posts = [call for call in calls if call[0] == "POST"]
+    assert len(posts) == 1
+    assert posts[0][1] == "/case-identity" + path
+    assert posts[0][2]["params"] == {"mode": "LIVE"}
+    assert posts[0][2]["headers"]["Idempotency-Key"] == "key"
+
+
+@pytest.mark.parametrize(("mode", "status"), [("DEV", 409), ("TEST", 409), ("unknown", 422), ("", 422)])
+def test_production_guard_blocks_all_api_mutation_routes_before_any_dispatch(monkeypatch, mode, status):
+    app = FastAPI()
+    app.add_middleware(BaseHTTPMiddleware, dispatch=development_write_guard)
+    calls = []
+
+    @app.api_route("/api/{tail:path}", methods=["POST", "PUT", "PATCH", "DELETE"])
+    async def forbidden(tail: str):
+        calls.append(tail)
+        return {}
+
+    client = TestClient(app)
+    tested = 0
+    for path, methods in production_app.openapi()["paths"].items():
+        for method in methods.keys() & {"post", "put", "patch", "delete"}:
+            if not path.startswith("/api/"):
+                continue
+            response = client.request(method, path, params={"mode": mode}, json={})
+            assert response.status_code == status, (method, path, response.text)
+            tested += 1
+    assert tested > 40
+    assert calls == []
+
+
+@pytest.mark.parametrize("mode", [None, "TEST", "REAL", "unknown"])
+def test_historical_identity_never_implies_durable_mode(mode):
+    assert preview_mode_recovery.rebind(HANDLE, UUID(MATTER), mode) is None
+    with pytest.raises(matter_mode.MatterModeError):
+        matter_mode.require_preview_mode(HANDLE, "LIVE")
+
+
+def test_explicit_durable_mode_recovers_after_restart_but_wrong_scope_does_not():
+    assert preview_mode_recovery.rebind(HANDLE, UUID(OTHER), "LIVE") is None
+    assert preview_mode_recovery.rebind(HANDLE, UUID(MATTER), "DEV") == "DEV"
+    matter_mode.require_preview_mode(HANDLE, "DEV")
+    with pytest.raises(matter_mode.MatterModeError):
+        matter_mode.require_preview_mode(HANDLE, "LIVE")
+
+
+def test_operation_binding_recovers_mode_without_identity_inference(monkeypatch):
+    async def engine(method, path, **kwargs):
+        return httpx.Response(200, json={"preview_handle": HANDLE, "matter_id": MATTER, "operating_mode": "LIVE"})
+    monkeypatch.setattr(proffer, "_request", engine)
+    asyncio.run(proffer._require_mode(HANDLE, "LIVE"))
+    matter_mode.require_preview_mode(HANDLE, "LIVE")
+
+
+def _start():
+    return ProfferStartRequest(request_id="one", matter_id=MATTER, court_case_id=COURT,
+                               source_ref="b2://salem-data/consignatio/casevault/source.xml", declared_format="xml",
+                               parser_options_ref="parser-options://default")
+
+
+def test_single_start_defaults_live_and_sends_explicit_durable_flag(monkeypatch):
+    calls = []
+    async def engine(method, path, **kwargs):
         calls.append((method, path, kwargs))
         if method == "GET":
-            return httpx.Response(
-                200,
-                json={
-                    "preview_handle": PREVIEW_HANDLE,
-                    "phase": "awaiting_handler_selection",
-                    "handler_recommendation_ref": "handler-recommendation://123",
-                    "detected_format": "callsbackuprestore_xml",
-                    "detected_format_ref": "detected-format://123",
-                    "signature_ref": "signature://calls-root-v1",
-                    "recommended_handler": {
-                        "handler_id": "duckdb.calls",
-                        "handler_version": "1.0.0",
-                        "execution_path": "duckdb",
-                        "compatibility_ref": "compatibility://123",
-                        "reason": "The root element is calls.",
-                    },
-                    "alternative_handlers": [],
-                },
-            )
-        return httpx.Response(
-            200,
-            json={
-                "preview_handle": PREVIEW_HANDLE,
-                "decision_ref": "handler-decision://123",
-                "status": "persisted",
-            },
-        )
-
-    monkeypatch.setattr(proffer, "_request", fake_request)
-    from app.service.matter_mode import bind_preview_mode
-
-    bind_preview_mode(PREVIEW_HANDLE, "TEST")
-    choice = ProfferHandlerSelectionDecisionRequest(
-        recommendation_ref="handler-recommendation://123",
-        handler_id="duckdb.calls",
-        handler_version="1.0.0",
-        execution_path="duckdb",
-        compatibility_ref="compatibility://123",
-    )
-    actor = ProfferDecisionActor(subject_uid="subject-1", username="operator")
-
-    result = asyncio.run(proffer.decide_handler_selection(PREVIEW_HANDLE, choice, actor, mode="TEST"))
-
-    assert result.matter_mode == "TEST"
-    assert calls[1][2]["json"] == {"compatibility_ref": "compatibility://123"}
-    assert calls[1][2]["headers"]["X-authentik-uid"] == "subject-1"
-    assert calls[1][2]["headers"]["X-authentik-username"] == "operator"
-    assert calls[1][2]["headers"]["Idempotency-Key"].startswith("proffer-handler-selection:")
-    assert result.decision_ref == "handler-decision://123"
+            return httpx.Response(200, json={"preview_handle": HANDLE, "matter_id": MATTER, "operating_mode": "LIVE"})
+        return httpx.Response(201, json={"preview_handle": HANDLE})
+    monkeypatch.setattr(proffer, "_request", engine)
+    result = asyncio.run(proffer.start(_start(), mode="LIVE"))
+    assert result.matter_mode == "LIVE"
+    assert calls[0][2]["json"]["operating_mode"] == "LIVE"
+    assert "matter_mode" not in calls[0][2]["json"]
+    assert calls[0][2]["json"]["matter_id"] == MATTER
 
 
-def test_handler_choice_outside_current_recommendation_never_posts(monkeypatch) -> None:
-    calls: list[str] = []
-
-    async def fake_request(method, path, **kwargs):
-        calls.append(method)
-        return httpx.Response(
-            200,
-            json={
-                "preview_handle": PREVIEW_HANDLE,
-                "phase": "awaiting_handler_selection",
-                "handler_recommendation_ref": "handler-recommendation://123",
-                "detected_format": "callsbackuprestore_xml",
-                "detected_format_ref": "detected-format://123",
-                "signature_ref": "signature://calls-root-v1",
-                "recommended_handler": {
-                    "handler_id": "duckdb.calls",
-                    "handler_version": "1.0.0",
-                    "execution_path": "duckdb",
-                    "compatibility_ref": "compatibility://123",
-                    "reason": "The root element is calls.",
-                },
-                "alternative_handlers": [],
-            },
-        )
-
-    monkeypatch.setattr(proffer, "_request", fake_request)
-    from app.service.matter_mode import bind_preview_mode
-
-    bind_preview_mode(PREVIEW_HANDLE, "TEST")
-    actor = ProfferDecisionActor(subject_uid="subject-1", username="operator")
-    incompatible = ProfferHandlerSelectionDecisionRequest(
-        recommendation_ref="handler-recommendation://123",
-        handler_id="decoder.sms",
-        handler_version="1.0.0",
-        execution_path="decoder",
-        compatibility_ref="compatibility://not-offered",
-    )
-
-    with pytest.raises(proffer.ProfferError) as denied:
-        asyncio.run(proffer.decide_handler_selection(PREVIEW_HANDLE, incompatible, actor, mode="TEST"))
-
-    assert denied.value.status_code == 409
-    assert calls == ["GET"]
+def test_single_and_batch_dev_start_deny_before_dispatch(monkeypatch):
+    monkeypatch.setattr(proffer, "_request", lambda *_args, **_kwargs: pytest.fail("dispatch forbidden"))
+    monkeypatch.setattr(proffer_batch, "_request", lambda *_args, **_kwargs: pytest.fail("dispatch forbidden"))
+    batch = ProfferBatchStartRequest(batch_id="batch_" + "a"*32, matter_id=MATTER, court_case_id=COURT,
+                                    folder_ref="r2://casebible-raw/folder", declared_format="xml",
+                                    parser_options_ref="parser-options://default", matter_mode="DEV")
+    for coroutine in (proffer.start(_start(), mode="DEV"), proffer_batch.start_batch(batch, mode="DEV")):
+        with pytest.raises(proffer.ProfferError) as error:
+            asyncio.run(coroutine)
+        assert error.value.status_code == 409
 
 
-def test_source_context_mode_is_validated_but_not_forwarded_upstream(monkeypatch) -> None:
-    class Response:
-        def json(self):
-            return {
-                "source_context_ref": "33333333-3333-4333-8333-333333333333",
-                "receipt_ref": "source-context://33333333-3333-4333-8333-333333333333",
-                "content_digest": "a" * 64,
-                "revision": 1,
-                "recorded_at": "2026-09-12T20:00:00Z",
-            }
-
-    captured: dict = {}
-
-    async def fake_request(method, path, **kwargs):
-        captured.update(method=method, path=path, kwargs=kwargs)
-        return Response()
-
-    monkeypatch.setattr(source_context, "_request", fake_request)
-    body = SourceContextCreateRequest.model_validate(
-        {
-            "request_id": "request-1",
-            "matter_id": TEST_MATTER_ID,
-            "court_case_id": TEST_COURT_CASE_ID,
-            "source_ref": "r2://casebible-raw/source.xml",
-            "observed_source": {
-                "key": "source.xml",
-                "name": "source.xml",
-                "byte_length": 10,
-                "etag": '"etag"',
-                "preview_sha256": "b" * 64,
-            },
-            "assertions": {"source_class": "unknown"},
-            "change_reason": "Initial operator context",
-            "matter_mode": "TEST",
-        }
-    )
-    actor = ProfferDecisionActor(subject_uid="subject-1", username="operator")
-
-    receipt = asyncio.run(source_context.create_source_context(body, actor, mode="TEST"))
-
-    assert receipt.matter_mode == "TEST"
-    assert "matter_mode" not in captured["kwargs"]["json"]
-    assert captured["kwargs"]["json"]["matter_id"] == TEST_MATTER_ID
+@pytest.mark.parametrize("receipt_mode", [None, "", "REAL", "DEV", "unknown"])
+def test_fresh_start_never_binds_requested_live_without_durable_proof(monkeypatch, receipt_mode):
+    async def engine(method, path, **kwargs):
+        if method == "POST":
+            return httpx.Response(201, json={"preview_handle": HANDLE})
+        return httpx.Response(200, json={"preview_handle": HANDLE, "matter_id": MATTER,
+                                        "operating_mode": receipt_mode})
+    monkeypatch.setattr(proffer, "_request", engine)
+    with pytest.raises(proffer.ProfferError) as error:
+        asyncio.run(proffer.start(_start(), mode="LIVE"))
+    assert error.value.status_code == 502
+    with pytest.raises(matter_mode.MatterModeError):
+        matter_mode.require_preview_mode(HANDLE, "LIVE")
 
 
-def test_preview_exposes_complete_content_backed_recommendation() -> None:
-    preview = ProfferPreviewResponse.model_validate(
-        {
-            "preview_handle": PREVIEW_HANDLE,
-            "matter_mode": "TEST",
-            "phase": "awaiting_handler_selection",
-            "handler_recommendation_ref": "recommendation://123",
-            "detected_format": "callsbackuprestore_xml",
-            "detected_format_ref": "detected-format://123",
-            "signature_ref": "signature://calls-root-v1",
-            "recommended_handler": {
-                "handler_id": "duckdb.calls",
-                "handler_version": "1.0.0",
-                "execution_path": "duckdb",
-                "compatibility_ref": "compatibility://123",
-                "reason": "The root element is calls.",
-            },
-            "alternative_handlers": [],
-        }
-    )
-
-    assert preview.detected_format == "callsbackuprestore_xml"
-    assert preview.recommended_handler is not None
-    assert preview.recommended_handler.execution_path == "duckdb"
-
-
-def test_preview_event_is_re_emitted_with_mode() -> None:
-    raw = {
-        "event_id": 1,
-        "event_type": "phase_changed",
-        "occurred_at": "2026-09-12T20:00:00Z",
-        "preview_handle": PREVIEW_HANDLE,
-        "phase": "parser_execution",
-    }
-    response = httpx.Response(
-        200,
-        content=f"id: 1\ndata: {json.dumps(raw)}\n\n".encode(),
-        headers={"content-type": "text/event-stream"},
-    )
-
-    async def collect() -> list[str]:
-        return [
-            item
-            async for item in proffer.validated_preview_events(
-                response,
-                preview_handle=PREVIEW_HANDLE,
-                mode="TEST",
-                last_event_id=None,
-            )
-        ]
-
-    emitted = asyncio.run(collect())
-    assert '"matter_mode":"TEST"' in emitted[0]
-
-
-def test_mode_is_required_on_every_scoped_http_operation() -> None:
-    app = FastAPI()
-    app.include_router(case_management.router)
-    app.include_router(proffer_runtime.router)
-    app.include_router(source_inspection.router)
-    schema = app.openapi()
-    operations = CASE_MANAGEMENT_SCOPED_OPERATIONS + [
-        ("/api/proffer/sources", "get"),
-        ("/api/proffer/upload", "post"),
-        ("/api/proffer/source-inspection", "post"),
-        ("/api/proffer/source-contexts", "post"),
-        # Review Actions panel read-back (Claude Code · Opus 5.5 · 2026-09-25).
-        ("/api/proffer/previews/{preview_handle}/source-context", "get"),
-        ("/api/proffer/start", "post"),
-        ("/api/proffer/previews/{preview_handle}", "get"),
-        ("/api/proffer/previews/{preview_handle}/messages", "get"),
-        ("/api/proffer/previews/{preview_handle}/content", "get"),
-        ("/api/proffer/previews/{preview_handle}/potential-promotion-flags", "get"),
-        ("/api/proffer/previews/{preview_handle}/potential-promotion-flags", "post"),
-        ("/api/proffer/previews/{preview_handle}/events", "get"),
-        ("/api/proffer/previews/{preview_handle}/decision", "post"),
-        ("/api/proffer/previews/{preview_handle}/repair-decision", "post"),
-        ("/api/proffer/previews/{preview_handle}/handler-selection", "post"),
-    ]
-    for path, method in operations:
-        parameters = schema["paths"][path][method]["parameters"]
-        mode = next(item for item in parameters if item["name"] == "mode" and item["in"] == "query")
-        assert mode["required"] is True, f"{method.upper()} {path} must require mode"
-        assert mode["schema"]["enum"] == ["TEST", "REAL"]
-
-
-def test_matters_route_fetches_only_exact_configured_id_and_echoes_mode(monkeypatch) -> None:
-    calls: list[str] = []
-    now = datetime(2026, 9, 12, tzinfo=UTC).isoformat()
-
-    def fake_get(matter_id):
-        calls.append(str(matter_id))
-        return {
-            "id": TEST_MATTER_ID,
-            "title": "Configured DEV matter",
-            "description": None,
-            "status": "active",
-            "partition_keys": ["test"],
-            "court_cases": [],
-            "created_at": now,
-            "updated_at": now,
-        }
-
-    monkeypatch.setattr(case_management.service, "get_matter", fake_get)
-    monkeypatch.setattr(
-        case_management.service,
-        "list_matters",
-        lambda **_: (_ for _ in ()).throw(AssertionError("title/list inference is forbidden")),
-    )
-    app = FastAPI()
-    app.include_router(case_management.router)
-
-    response = TestClient(app).get("/api/matters?mode=TEST")
-
-    assert response.status_code == 200
-    assert calls == [TEST_MATTER_ID]
-    assert response.json()["matter_mode"] == "TEST"
-    assert response.json()["data"][0]["matter_mode"] == "TEST"
+@pytest.mark.parametrize("field", ["matter_id", "court_case_id"])
+def test_wrong_single_start_case_scope_denies_before_dispatch(monkeypatch, field):
+    monkeypatch.setattr(proffer, "_request", lambda *_args, **_kwargs: pytest.fail("dispatch forbidden"))
+    request = _start().model_copy(update={field: UUID(OTHER)})
+    with pytest.raises(proffer.ProfferError) as error:
+        asyncio.run(proffer.start(request, mode="LIVE"))
+    assert error.value.status_code == 409
 
 
 def _case_route_requests(matter_id: str) -> list[tuple[str, str, dict | None]]:
@@ -522,7 +345,7 @@ def _case_route_requests(matter_id: str) -> list[tuple[str, str, dict | None]]:
             "POST",
             f"/api/matters/{matter_id}/evidence-items",
             {
-                "court_case_id": TEST_COURT_CASE_ID,
+                "court_case_id": COURT,
                 "source": {
                     **source,
                     "normalized_record_id": "44444444-4444-4444-8444-444444444444",
@@ -576,109 +399,82 @@ def _deny_all_case_management_upstream(monkeypatch) -> None:
         monkeypatch.setattr(case_management.service, name, forbidden)
 
 
-@pytest.mark.parametrize(
-    ("method", "path", "payload"),
-    _case_route_requests("11111111-1111-4111-8111-111111111111"),
-)
-def test_arbitrary_matter_ids_fail_before_case_management_upstream(
-    monkeypatch,
-    method: str,
-    path: str,
-    payload: dict | None,
-) -> None:
+
+async def _case_header_request(method, path, **kwargs):
+    assert (method, path) == ("GET", "/case-identity/scope")
+    return httpx.Response(200, json=_header(kwargs.get("params", {}).get("mode", "LIVE")))
+
+
+@pytest.mark.parametrize(("method", "path", "payload"), _case_route_requests(OTHER))
+def test_arbitrary_matter_routes_deny_before_spine(monkeypatch, method, path, payload):
     _deny_all_case_management_upstream(monkeypatch)
-    app = FastAPI()
-    app.include_router(case_management.router)
-
-    response = TestClient(app).request(method, path, params={"mode": "TEST"}, json=payload)
-
+    monkeypatch.setattr(proffer, "_request", _case_header_request)
+    monkeypatch.setattr(case_management.service, "get_matter", lambda *_: pytest.fail("spine must not run"))
+    response = TestClient(_app()).request(method, path, params={"mode": "LIVE"}, json=payload)
     assert response.status_code == 409
-    assert response.json() == {"detail": "matter_id does not belong to TEST mode"}
 
 
-@pytest.mark.parametrize(("method", "path", "payload"), _case_route_requests(TEST_MATTER_ID))
-def test_cross_mode_matter_ids_fail_before_case_management_upstream(
-    monkeypatch,
-    method: str,
-    path: str,
-    payload: dict | None,
-) -> None:
+@pytest.mark.parametrize(("method", "path", "payload"),
+                         [("GET", "/api/matters", None), ("POST", "/api/matters", {"title": "Unavailable"})]
+                         + _case_route_requests(MATTER))
+def test_unconfigured_case_denies_every_spine_route_before_dispatch(monkeypatch, method, path, payload):
     _deny_all_case_management_upstream(monkeypatch)
-    monkeypatch.setattr(
-        case_management.service,
-        "get_matter",
-        lambda *_: (_ for _ in ()).throw(AssertionError("case-management upstream must not run")),
-    )
-    monkeypatch.setattr(
-        matter_mode.settings,
-        "proffer_real_matter_id",
-        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    )
-    monkeypatch.setattr(
-        matter_mode.settings,
-        "proffer_real_court_case_id",
-        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-    )
-    app = FastAPI()
-    app.include_router(case_management.router)
-
-    response = TestClient(app).request(method, path, params={"mode": "REAL"}, json=payload)
-
-    assert response.status_code == 409
-    assert response.json() == {"detail": "matter_id does not belong to REAL mode"}
-
-
-def test_evidence_create_rejects_arbitrary_court_scope_before_upstream(monkeypatch) -> None:
-    _deny_all_case_management_upstream(monkeypatch)
-    method, path, payload = _case_route_requests(TEST_MATTER_ID)[2]
-    assert payload is not None
-    payload["court_case_id"] = "22222222-2222-4222-8222-222222222222"
-    app = FastAPI()
-    app.include_router(case_management.router)
-
-    response = TestClient(app).request(method, path, params={"mode": "TEST"}, json=payload)
-
-    assert response.status_code == 409
-    assert response.json() == {"detail": "court_case_id does not belong to TEST mode"}
-
-
-def test_matter_creation_is_explicitly_disabled_without_upstream(monkeypatch) -> None:
-    _deny_all_case_management_upstream(monkeypatch)
-    app = FastAPI()
-    app.include_router(case_management.router)
-
-    response = TestClient(app).post(
-        "/api/matters",
-        params={"mode": "TEST"},
-        json={"title": "A generated identity cannot satisfy the fixed scope"},
-    )
-
-    assert response.status_code == 409
-    assert response.json() == {
-        "detail": (
-            "Matter creation is disabled in fixed TEST/REAL mode; "
-            "provision the configured matter identity outside this scoped runtime"
-        )
-    }
-
-
-@pytest.mark.parametrize(
-    ("method", "path", "payload"),
-    [("GET", "/api/matters", None), ("POST", "/api/matters", {"title": "Unavailable"})]
-    + _case_route_requests(TEST_MATTER_ID),
-)
-def test_unconfigured_real_scope_fails_closed_before_case_management_upstream(
-    monkeypatch,
-    method: str,
-    path: str,
-    payload: dict | None,
-) -> None:
-    _deny_all_case_management_upstream(monkeypatch)
-    monkeypatch.setattr(matter_mode.settings, "proffer_real_matter_id", "")
-    app = FastAPI()
-    app.include_router(case_management.router)
-
-    response = TestClient(app).request(method, path, params={"mode": "REAL"}, json=payload)
-
+    monkeypatch.setattr(settings, "proffer_matter_id", "")
+    monkeypatch.setattr(settings, "proffer_real_matter_id", "")
+    monkeypatch.setattr(proffer, "_request", lambda *_args, **_kwargs: pytest.fail("engine must not run"))
+    response = TestClient(_app()).request(method, path, params={"mode": "LIVE"}, json=payload)
     assert response.status_code == 503
-    assert response.json() == {"detail": "REAL matter identity is not configured"}
+
+
+def test_evidence_wrong_court_scope_and_matter_creation_deny_before_spine(monkeypatch):
+    _deny_all_case_management_upstream(monkeypatch)
+    monkeypatch.setattr(proffer, "_request", _case_header_request)
+    method, path, payload = _case_route_requests(MATTER)[2]
+    payload["court_case_id"] = OTHER
+    client = TestClient(_app())
+    response = client.request(method, path, params={"mode": "LIVE"}, json=payload)
+    assert response.status_code == 409
+    response = client.post("/api/matters?mode=LIVE", json={"title": "No alternate case"})
+    assert response.status_code == 409
+    assert "Matter creation is disabled" in response.json()["detail"]
+
+
+def test_unconfigured_source_browser_has_zero_provider_io(monkeypatch):
+    from app.service import proffer_sources
+    monkeypatch.setattr(settings, "proffer_matter_id", "")
+    monkeypatch.setattr(settings, "proffer_real_matter_id", "")
+    monkeypatch.setattr(proffer_sources, "list_source_objects", lambda *_args, **_kwargs: pytest.fail("provider must not run"))
+    with pytest.raises(proffer.ProfferError) as error:
+        proffer.browse_sources(mode="LIVE")
+    assert error.value.status_code == 503
+
+
+@pytest.mark.parametrize("foreign_primary", [False, True])
+def test_matter_detail_admits_exact_engine_court_despite_multiple_spine_courts(monkeypatch, foreign_primary):
+    timestamp = "2026-10-05T00:00:00Z"
+    courts = [{"id": court, "matter_id": MATTER, "caption": "Court", "status": "active",
+               "is_primary": foreign_primary if court == OTHER else not foreign_primary,
+               "created_at": timestamp, "updated_at": timestamp} for court in (OTHER, COURT)]
+    payload = {"id": MATTER, "title": "Case", "status": "active", "created_at": timestamp,
+               "updated_at": timestamp, "court_cases": courts}
+    monkeypatch.setattr(proffer, "_request", _case_header_request)
+    monkeypatch.setattr(case_management.service, "get_matter", lambda *_: payload)
+    response = TestClient(_app()).get(f"/api/matters/{MATTER}")
+    assert response.status_code == 200
+    assert response.json()["admitted_court_case_id"] == COURT
+    assert [court["id"] for court in response.json()["court_cases"]] == [OTHER, COURT]
+
+
+def test_openapi_policy_defaults_live_and_advertises_only_canonical_values():
+    schema = _app().openapi()
+    for path, operations in schema["paths"].items():
+        if path == "/api/case-identity" or path.startswith("/api/matters") or (
+            path.startswith("/api/case-identity") and "post" in operations
+        ):
+            for operation in operations.values():
+                parameters = operation.get("parameters", [])
+                mode = next((p for p in parameters if p["name"] == "mode"), None)
+                if mode is not None:
+                    assert mode["required"] is False
+                    assert mode["schema"]["default"] == "LIVE"
+                    assert mode["schema"]["enum"] == ["DEV", "LIVE"]

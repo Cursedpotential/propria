@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Package proffer implements ProfferWorkflow, the single Temporal
 // workflow every source — every format, client, and entrypoint — runs
 // through, per
@@ -39,6 +40,9 @@ type Ref string
 // preview binding created by the starter and are never exposed as the browser
 // handle.
 type PreviewPublicationRequest struct {
+	OperatingMode           string         `json:"operating_mode,omitempty"`
+	MatterID                string         `json:"matter_id,omitempty"`
+	CourtCaseID             string         `json:"court_case_id,omitempty"`
 	RequestID               string         `json:"request_id"`
 	PackageRef              Ref            `json:"package_ref,omitempty"`
 	AttemptRef              Ref            `json:"attempt_ref,omitempty"`
@@ -111,6 +115,8 @@ const (
 // register_source_activity (stage 1) turns SourceRef into the durable
 // source/version reference every later stage keys off.
 type WorkflowInput struct {
+	// OperatingMode records explicit operating context in durable workflow history.
+	OperatingMode string
 	// RequestID is the client-supplied idempotency key. Callers are expected
 	// to use it as the Temporal workflow ID so a duplicate submission joins
 	// the existing run rather than starting a second one. It is also carried
@@ -221,6 +227,9 @@ type AutoApprovalCheck struct {
 // AutoApprovalRequest is record_auto_approval_activity's compact input.
 // Byline: Claude Code · Opus 5.5 · 2026-10-02
 type AutoApprovalRequest struct {
+	OperatingMode    string              `json:"operating_mode,omitempty"`
+	MatterID         string              `json:"matter_id,omitempty"`
+	CourtCaseID      string              `json:"court_case_id,omitempty"`
 	RequestID        string              `json:"request_id"`
 	PreviewHandle    Ref                 `json:"preview_handle"`
 	SelectionRef     Ref                 `json:"selection_ref"`
@@ -264,6 +273,8 @@ func (in WorkflowInput) contextChunkingInput() *ContextChunkingInput {
 // metadata) from PostgreSQL/immutable storage by following these
 // references — never from the workflow payload.
 type StageRequest struct {
+	// OperatingMode is explicit durable policy; absent legacy payloads are unknown.
+	OperatingMode string `json:"OperatingMode,omitempty"`
 	// RequestID is WorkflowInput.RequestID, propagated to every Activity
 	// invocation (not just register_source_activity) so any Activity can
 	// key its own idempotency/dedup checks off the same client-supplied
