@@ -100,7 +100,7 @@ func (a SourceIntegrityActivities) AssessSourceIntegrity(ctx context.Context, re
 	if a.Store == nil {
 		return proffer.StageResult{}, errors.New("source integrity receipt store is required")
 	}
-	if strings.TrimSpace(req.RequestID) == "" || len(req.RequestID) > 256 || req.SourceVersionRef == "" || len(req.SourceVersionRef) > 64 || req.Refs["original"] == "" || len(req.Refs["original"]) > 64 || strings.TrimSpace(string(req.Refs["integrity_operation"])) == "" || len(req.Refs["integrity_operation"]) > 256 || len(req.DeclaredFormat) > 128 || len(req.Refs) != 2 {
+	if strings.TrimSpace(req.RequestID) == "" || len(req.RequestID) > 256 || req.SourceVersionRef == "" || len(req.SourceVersionRef) > 64 || req.Refs["original"] == "" || len(req.Refs["original"]) > 64 || strings.TrimSpace(string(req.Refs["integrity_operation"])) == "" || len(req.Refs["integrity_operation"]) > 256 || len(req.DeclaredFormat) > 128 || len(req.Refs) != 2 || req.MatterID != "" || req.CourtCaseID != "" {
 		return proffer.StageResult{}, errors.New("source integrity requires source, original, request and operation references")
 	}
 	runID := ""

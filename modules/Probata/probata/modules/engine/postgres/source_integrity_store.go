@@ -71,8 +71,8 @@ func integrityCoordinate(req proffer.StageRequest) (uuid.UUID, uuid.UUID, string
 	if err != nil {
 		return uuid.Nil, uuid.Nil, "", errors.New("source integrity original reference must be a UUID")
 	}
-	op := strings.TrimSpace(string(req.Refs["integrity_operation"]))
-	if strings.TrimSpace(req.RequestID) == "" || len(req.RequestID) > 256 || op == "" || len(op) > 256 || len(req.DeclaredFormat) > 128 || len(req.Refs) != 2 {
+	op := string(req.Refs["integrity_operation"])
+	if strings.TrimSpace(req.RequestID) == "" || len(req.RequestID) > 256 || strings.TrimSpace(op) == "" || len(op) > 256 || len(req.DeclaredFormat) > 128 || len(req.Refs) != 2 || req.MatterID != "" || req.CourtCaseID != "" {
 		return uuid.Nil, uuid.Nil, "", errors.New("source integrity requires request and operation IDs")
 	}
 	return source, original, fmt.Sprintf("source-integrity:%s:%s:%s", op, original, sourceintegrity.CheckVersion), nil

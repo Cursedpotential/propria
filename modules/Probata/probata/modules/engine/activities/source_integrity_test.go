@@ -39,7 +39,7 @@ type integrityTestStore struct {
 // Inputs: synthetic reference-only requests with one invalid field. Outputs: no load/open/persist assertions.
 // Effects: memory only; choose to keep this Activity's history inputs bounded and source-body-free.
 func TestSourceIntegrityActivityReferenceBounds(t *testing.T) {
-	for _, kind := range []string{"request", "version", "original", "operation", "format", "extra-ref"} {
+	for _, kind := range []string{"request", "version", "original", "operation", "format", "extra-ref", "matter", "court-case"} {
 		t.Run(kind, func(t *testing.T) {
 			req := integrityTestRequest()
 			switch kind {
@@ -55,6 +55,10 @@ func TestSourceIntegrityActivityReferenceBounds(t *testing.T) {
 				req.DeclaredFormat = strings.Repeat("x", 129)
 			case "extra-ref":
 				req.Refs["source-body"] = "synthetic forbidden payload"
+			case "matter":
+				req.MatterID = "unsupported legacy slot"
+			case "court-case":
+				req.CourtCaseID = "unsupported legacy slot"
 			}
 			store := &integrityTestStore{}
 			_, err := (SourceIntegrityActivities{Store: store}).AssessSourceIntegrity(context.Background(), req)

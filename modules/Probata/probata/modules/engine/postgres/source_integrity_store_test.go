@@ -71,6 +71,33 @@ func TestSourceIntegrityStoreRejectsUnsupportedEvidence(t *testing.T) {
 	}
 }
 
+// TestSourceIntegrityCoordinateExactIdentity preserves distinct operation IDs and rejects irrelevant legacy slots.
+// Inputs: synthetic UUID references and operation IDs. Outputs: exact key and rejection assertions.
+// Effects: memory only; choose to prevent normalization from merging distinct immutable operations.
+func TestSourceIntegrityCoordinateExactIdentity(t *testing.T) {
+	req := proffer.StageRequest{RequestID: "source-job", SourceVersionRef: proffer.Ref(uuid.NewString()), Refs: map[string]proffer.Ref{"original": proffer.Ref(uuid.NewString()), "integrity_operation": "operation"}}
+	_, _, first, err := integrityCoordinate(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Refs["integrity_operation"] = " operation "
+	_, _, second, err := integrityCoordinate(req)
+	if err != nil || first == second || second != "source-integrity: operation :"+string(req.Refs["original"])+":"+sourceintegrity.CheckVersion {
+		t.Fatal("distinct exact operation identity was normalized")
+	}
+	for _, field := range []string{"matter", "court-case"} {
+		invalid := req
+		if field == "matter" {
+			invalid.MatterID = "unsupported"
+		} else {
+			invalid.CourtCaseID = "unsupported"
+		}
+		if _, _, _, err := integrityCoordinate(invalid); err == nil {
+			t.Fatal("unsupported legacy slot accepted")
+		}
+	}
+}
+
 // TestSourceIntegrityStoreLiveReceiptsAndIdempotency verifies append-only receipts in the existing dedicated fixture database.
 // Inputs: explicit test DSN and synthetic originals. Outputs: retained receipt IDs and replay assertions.
 // Effects: synthetic inserts only; choose after separate principal admission, never against production or to create schema.
