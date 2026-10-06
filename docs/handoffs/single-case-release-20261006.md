@@ -209,5 +209,7 @@ source approval or semantic-indexing proof. The critical owner decision remains
 separately active and is not superseded by a release-progress handoff.
 
 Current release handoff: `document:yad8l45rww40mteakjn6`, active across the six
-release domains, independently retrieved with exact body readback. The specific
+release domains, independently retrieved with whitespace-normalized content
+equality (the read adapter collapses Markdown whitespace, so this is not a
+byte-for-byte formatting claim). The specific
 prior source checkpoint above is superseded. Semantic indexing was not triggered.
