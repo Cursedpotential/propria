@@ -47,13 +47,16 @@ type Registrations struct {
 	N8N                   platformtemporal.N8NActivities
 	N8NFlows              platformtemporal.FlowActivities
 	Hash                  activities.HashActivities
-	StructuredELT         activities.StructuredELTActivities
-	DeriveSMSThreads      activities.DeriveSMSThreadsActivities
-	HandlerSelection      HandlerSelectionActivities
-	Raw                   activities.RawPipelineActivities
-	Normalized            activities.NormalizedPipelineActivities
-	Repair                activities.RepairActivities
-	Preview               activities.PreviewProjectionActivity
+	// Independent byte-only check; never inserted into the base Proffer sequence.
+	// Byline: Codex, 2026-10-06.
+	Integrity        activities.SourceIntegrityActivities
+	StructuredELT    activities.StructuredELTActivities
+	DeriveSMSThreads activities.DeriveSMSThreadsActivities
+	HandlerSelection HandlerSelectionActivities
+	Raw              activities.RawPipelineActivities
+	Normalized       activities.NormalizedPipelineActivities
+	Repair           activities.RepairActivities
+	Preview          activities.PreviewProjectionActivity
 	// BatchImport serves the batch-by-folder workflow. Its fields are nil in a
 	// worker built without a Temporal client (RegisterAll still registers the
 	// Activities; they fail closed when called unwired).
@@ -167,6 +170,10 @@ func RegisterAll(registrar interface {
 	// Back-fill of call logs imported before commit_call_log existed.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	registrar.RegisterWorkflowWithOptions(proffer.CallLogBackfillWorkflow, workflow.RegisterOptions{Name: proffer.CallLogBackfillWorkflowName})
+	// Explicit wrapper and Activity reuse retained originals and existing receipt tables.
+	// Byline: Codex, 2026-10-06.
+	registrar.RegisterWorkflowWithOptions(proffer.SourceIntegrityWorkflow, workflow.RegisterOptions{Name: proffer.SourceIntegrityWorkflowName})
+	activities.RegisterSourceIntegrityActivity(registrar, registrations.Integrity)
 	// The re-chunk of committed data and the removal of the per-message objects (owner 2026-10-02: Temporal, traceable).
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksBackfillWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksBackfillWorkflowName})
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksRemovalWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksRemovalWorkflowName})
@@ -665,6 +672,12 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	// Bind only the already-retained source version through the existing original opener.
+	// Byline: Codex, 2026-10-06.
+	integrityStore, err := platformpostgres.NewSourceIntegrityStore(pool, hashRepo)
+	if err != nil {
+		return Registrations{}, err
+	}
 	// Where derived output lands is configuration (DERIVED_ROOTS_JSON), never
 	// code. Unset means every source falls back to beside-the-original; a
 	// malformed or unreachable value is a loud boot failure, never a silent
@@ -740,6 +753,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		N8N:                     platformtemporal.N8NActivities{Client: n8nClient},
 		N8NFlows:                platformtemporal.FlowActivities{Client: n8nClient, Registry: flowRegistry},
 		Hash:                    activities.NewHashActivities(hashRepo),
+		Integrity:               activities.NewSourceIntegrityActivities(integrityStore),
 		StructuredELT:           activities.NewStructuredELTActivities(structuredELTRepo, parserStore, handlerSelectionStore),
 		DeriveSMSThreads: activities.NewDeriveSMSThreadsActivities(
 			deriveStore, objectStores, deriveStore,

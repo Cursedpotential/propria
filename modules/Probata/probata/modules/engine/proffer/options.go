@@ -34,6 +34,13 @@ func retryPolicy(initialInterval time.Duration, maxAttempts int32) *temporal.Ret
 // exactly one entry per registered stage — no stage silently falls back to
 // a shared default.
 var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
+	// Independent explicit check: heartbeat liveness, one attempt, no automatic source reread.
+	// Byline: Codex, 2026-10-06.
+	stagegraph.AssessSourceIntegrity: {
+		StartToCloseTimeout: 30 * time.Minute,
+		HeartbeatTimeout:    time.Minute,
+		RetryPolicy:         retryPolicy(5*time.Second, 1),
+	},
 	// Identity/bookkeeping stages: quick PostgreSQL operations, tight
 	// timeout, generous retries since they are cheap to retry.
 	stagegraph.RegisterSource: {

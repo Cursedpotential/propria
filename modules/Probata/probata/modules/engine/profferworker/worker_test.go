@@ -60,11 +60,11 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: ledger comparison workflow (Codex, 2026-10-04).
 	// +1: separate recovered-archive preservation workflow (Codex, 2026-10-04).
 	// +1: independent synthetic provider probe (Codex, 2026-10-04).
-	if recorder.workflowCount != 14 {
-		t.Fatalf("workflow registration count = %d, want 14", recorder.workflowCount)
+	if recorder.workflowCount != 15 {
+		t.Fatalf("workflow registration count = %d, want 15", recorder.workflowCount)
 	}
 	wantNamed := []string{
-		proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
+		proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, proffer.SourceIntegrityWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
 		proffer.ConversationChunksRemovalWorkflowName, dedupe.WorkflowName, superindex.WorkflowName, repairplan.WorkflowName, contacts.WorkflowName, activities.ToolkitPackageInventoryWorkflowName, activities.ToolkitSelectedTextWorkflowName, activities.ToolkitLedgerComparisonWorkflowName,
 		activities.ToolkitPackagePreservationWorkflowName,
 		activities.ToolkitPackageConditionalWriteProbeWorkflowName,
@@ -88,11 +88,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: ledger comparison Activity (Codex, 2026-10-04).
 	// +2: preservation copy and independent verification (Codex, 2026-10-04).
 	// +1: synthetic provider probe (Codex, 2026-10-04).
-	const standaloneActivityCount = 35
+	// +1: independent source integrity; base graph remains 26 stages. Byline: Codex, 2026-10-06.
+	const standaloneActivityCount = 36
 	const batchActivityCount = 4
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 35 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 36 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0
