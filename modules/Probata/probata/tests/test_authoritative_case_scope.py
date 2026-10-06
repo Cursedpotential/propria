@@ -1,7 +1,7 @@
 """Synthetic verification of the private authoritative case-header write boundary.
 
 Byline: Codex · GPT-5 · 2026-10-05
-Updated: Codex · gpt-6.1-sol · 2026-10-06 — total deadline, streaming cleanup and caller admission.
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — raw byte cap, encoding rejection, deadline and caller admission.
 
 Every HTTP transport is stubbed; no database, Temporal or private service is used.
 """
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import builtins
+import gzip
 import json
 import time
 from types import SimpleNamespace
@@ -42,6 +43,7 @@ def transport(monkeypatch, configured):
         ).encode(),
         error=None,
         status=200,
+        headers={},
         chunks=None,
         delay=0,
         header_delay=0,
@@ -49,10 +51,12 @@ def transport(monkeypatch, configured):
         client_closed=0,
         cancelled=0,
         yielded=0,
+        iterated=0,
     )
 
     class Stream(httpx.AsyncByteStream):
         async def __aiter__(self):
+            state.iterated += 1
             try:
                 for chunk in state.chunks if state.chunks is not None else [state.raw]:
                     await asyncio.sleep(state.delay)
@@ -70,7 +74,9 @@ def transport(monkeypatch, configured):
         await asyncio.sleep(state.header_delay)
         if state.error:
             raise state.error
-        return httpx.Response(state.status, stream=Stream(), headers={"Location": "https://foreign.invalid/secret"})
+        return httpx.Response(
+            state.status, stream=Stream(), headers={"Location": "https://foreign.invalid/secret", **state.headers}
+        )
 
     def headers():
         observed.append("credential")
@@ -103,10 +109,39 @@ def test_each_live_admission_requires_a_fresh_authenticated_bounded_get(transpor
     assert str(request.url) == "http://synthetic-starter.invalid:8089/case-identity/scope?mode=LIVE"
     assert request.method == "GET" and request.content == b""
     assert request.headers["Authorization"] == f"Bearer {TOKEN}"
+    assert request.headers["Accept-Encoding"] == "identity"
     options = next(item[1] for item in observed if isinstance(item, tuple) and item[0] == "options")
     assert 0 < options["timeout"] <= 5
     assert options["trust_env"] is False and options["follow_redirects"] is False
     assert state.closed == 2 and state.client_closed == 2
+
+
+@pytest.mark.parametrize(
+    "encoding", ["gzip", "deflate", "br", "zstd", "identity, gzip", "gzip, identity", "", "unknown"]
+)
+def test_encoded_response_denies_before_body_or_decoder_and_closes(monkeypatch, transport, encoding):
+    """A tiny encoded payload cannot expand before admission's raw byte budget."""
+    observed, state = transport
+    state.headers = {"Content-Encoding": encoding}
+    state.raw = gzip.compress(state.raw + b" " * (scope._MAX_RESPONSE_BYTES * 16))
+    assert len(state.raw) < scope._MAX_RESPONSE_BYTES
+    monkeypatch.setattr(httpx.Response, "_get_content_decoder", lambda _: pytest.fail("authority invoked a decoder"))
+    with pytest.raises(scope.CaseScopeVerificationError) as denied:
+        scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT)
+    assert denied.value.http_status == 502 and str(denied.value) == scope._HEADER_ERROR
+    assert state.iterated == 0 and state.yielded == 0 and state.closed == 1 and state.client_closed == 1
+    assert sum(isinstance(item, tuple) and item[0] == "get" for item in observed) == 1
+
+
+@pytest.mark.parametrize("encoding", [None, "identity", "IDENTITY", " identity "])
+def test_identity_response_uses_raw_stream_without_decoder(monkeypatch, transport, encoding):
+    """Even accepted identity responses must use raw rather than decoded streaming."""
+    _, state = transport
+    if encoding is not None:
+        state.headers = {"Content-Encoding": encoding}
+    monkeypatch.setattr(httpx.Response, "_get_content_decoder", lambda _: pytest.fail("authority invoked a decoder"))
+    assert scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT) == (MATTER, COURT)
+    assert state.iterated == 1 and state.yielded == 1 and state.closed == 1 and state.client_closed == 1
 
 
 def test_drip_response_hits_total_deadline_and_closes_stream(monkeypatch, transport):

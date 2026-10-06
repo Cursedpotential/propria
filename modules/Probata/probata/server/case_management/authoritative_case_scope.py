@@ -1,7 +1,7 @@
 """Verify a configured Live case through the bounded authoritative starter scope read.
 
 Byline: Codex · GPT-5 · 2026-10-05
-Updated: Codex · gpt-6.1-sol · 2026-10-06 — total-deadline scope read and court-parent correlation.
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — total-deadline, raw bounded scope read and court-parent correlation.
 
 This import-light boundary owns no registry or cache. Every write needs a fresh
 read-only approval; read and dry-run callers need no write authorization.
@@ -135,12 +135,12 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 async def _read_authoritative_header(url: str) -> dict[str, Any]:
-    """Read one authenticated JSON header with a total deadline and byte cap.
+    """Read one identity-encoded JSON header with a total deadline and raw byte cap.
 
     Inputs: validated header URL. Outputs: JSON object or safe verification error.
     Effects: one GET, credential-file read; no logging, cache, writes or retries.
     """
-    headers = {**_service_authorization_headers(), "Accept": "application/json"}
+    headers = {**_service_authorization_headers(), "Accept": "application/json", "Accept-Encoding": "identity"}
     # Keep denied local requests import-light; environment proxies never own this bearer.
     import httpx
 
@@ -153,7 +153,11 @@ async def _read_authoritative_header(url: str) -> dict[str, Any]:
                 async with client.stream("GET", url, headers=headers) as response:
                     if response.status_code != 200:
                         raise CaseScopeVerificationError(_UPSTREAM_ERROR)
-                    async for chunk in response.aiter_bytes():
+                    # Reject compression before any body consumption: decoding can
+                    # allocate an unbounded chunk before the byte cap or deadline.
+                    if response.headers.get("Content-Encoding", "identity").strip().lower() != "identity":
+                        raise CaseScopeVerificationError(_HEADER_ERROR, 502)
+                    async for chunk in response.aiter_raw():
                         if len(raw) + len(chunk) > _MAX_RESPONSE_BYTES:
                             raise CaseScopeVerificationError(_HEADER_ERROR, 502)
                         raw.extend(chunk)
