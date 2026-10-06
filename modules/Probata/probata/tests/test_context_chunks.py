@@ -2,6 +2,7 @@
 
 Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 Updated: Codex · GPT-5 · 2026-10-05 — configure neutral scope in the mutation starter unit fixture.
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — correlate the synthetic court with its approved matter.
 
 The chunker's model is replaced by a fake that cuts at known offsets (the span arithmetic is what is tested); the real
 distilbert run is opt-in (CONTEXT_CHUNKS_TEST_NEURAL=1). Live proof (Postgres, NIM, Weaviate) is the deploy's job.
@@ -939,7 +940,7 @@ def test_the_starter_builds_the_workflow_inputs_the_go_structs_decode(monkeypatc
     from server.context_chunks.start import BACKFILL_WORKFLOW, REMOVAL_WORKFLOW, build_input, parser
     from server.case_management import authoritative_case_scope as case_scope
 
-    # Byline: Codex · GPT-5 · 2026-10-05 — explicit synthetic engine approval, no HTTP.
+    # Byline: Codex · GPT-5 · 2026-10-05; gpt-6.1-sol · 2026-10-06 — complete synthetic scope approval, no HTTP.
     matter_id, court_case_id = str(uuid.uuid4()), str(uuid.uuid4())
     monkeypatch.setenv("PROFFER_MATTER_ID", matter_id)
     monkeypatch.setenv("PROFFER_COURT_CASE_ID", court_case_id)
@@ -947,7 +948,11 @@ def test_the_starter_builds_the_workflow_inputs_the_go_structs_decode(monkeypatc
     monkeypatch.setattr(
         case_scope,
         "_read_authoritative_header",
-        lambda _: {"mode": "LIVE", "matter": {"id": matter_id}, "court_case": {"id": court_case_id}},
+        lambda _: {
+            "mode": "LIVE",
+            "matter": {"id": matter_id},
+            "court_case": {"id": court_case_id, "matter_id": matter_id},
+        },
     )
     name, workflow_id, body = build_input(
         parser().parse_args(["rechunk", "--dry-run", "--exact", "--request-id", "x1"])

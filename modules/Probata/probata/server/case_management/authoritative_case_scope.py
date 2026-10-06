@@ -1,6 +1,7 @@
-"""Verify a configured Live case against the authenticated authoritative starter header.
+"""Verify a configured Live case through the bounded authoritative starter scope read.
 
 Byline: Codex · GPT-5 · 2026-10-05
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — bounded scope read and court-parent correlation.
 
 This import-light boundary owns no registry or cache. Every write needs a fresh
 read-only approval; read and dry-run callers need no write authorization.
@@ -97,7 +98,7 @@ def _header_url() -> str:
         valid = False
     if not valid:
         raise CaseScopeVerificationError(_CONFIG_ERROR)
-    return raw.rstrip("/") + "/case-identity?mode=LIVE"
+    return raw.rstrip("/") + "/case-identity/scope?mode=LIVE"
 
 
 def _service_authorization_headers() -> dict[str, str]:
@@ -178,7 +179,8 @@ def require_authoritative_live_case_scope(operating_mode: str, matter_id: str, c
 
     Inputs: explicit canonical mode and requested matter/court pair. Outputs:
     canonical approved pair, or safe CaseScopeVerificationError. Effects: one
-    authenticated GET only after local mode/config/scope checks; no DB or cache.
+    authenticated scope GET only after local mode/config/scope checks; no DB or
+    cache. The returned court must belong to the same approved matter.
     Pick this before mutation-body imports, not for reads or historical defaulting.
     """
     try:
@@ -193,7 +195,8 @@ def require_authoritative_live_case_scope(operating_mode: str, matter_id: str, c
     header = _read_authoritative_header(_header_url())
     try:
         returned = case_id(header["matter"]["id"], "matter_id"), case_id(header["court_case"]["id"], "court_case_id")
-        if header.get("mode") != "LIVE" or returned != configured:
+        court_matter_id = case_id(header["court_case"]["matter_id"], "court_case.matter_id")
+        if header.get("mode") != "LIVE" or returned != configured or court_matter_id != configured[0]:
             raise ValueError("foreign header")
     except (KeyError, TypeError, ValueError):
         raise CaseScopeVerificationError(_HEADER_ERROR, 502) from None

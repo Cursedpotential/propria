@@ -1,6 +1,7 @@
 """Synthetic verification of the private authoritative case-header write boundary.
 
 Byline: Codex · GPT-5 · 2026-10-05
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — scope endpoint and court-parent contract.
 
 Every HTTP transport is stubbed; no database, Temporal or private service is used.
 """
@@ -33,7 +34,9 @@ def transport(monkeypatch, configured):
     """Stub the entire HTTP transport and record admission and byte-limit ordering."""
     observed = []
     state = SimpleNamespace(
-        raw=json.dumps({"mode": "LIVE", "matter": {"id": MATTER}, "court_case": {"id": COURT}}).encode(),
+        raw=json.dumps(
+            {"mode": "LIVE", "matter": {"id": MATTER}, "court_case": {"id": COURT, "matter_id": MATTER}}
+        ).encode(),
         error=None,
         status=200,
     )
@@ -79,7 +82,7 @@ def test_each_live_admission_requires_a_fresh_authenticated_bounded_get(transpor
     gets = [item for item in observed if isinstance(item, tuple) and item[0] == "get"]
     assert len(gets) == 2
     request = gets[0][1]
-    assert request.full_url == "http://synthetic-starter.invalid:8089/case-identity?mode=LIVE"
+    assert request.full_url == "http://synthetic-starter.invalid:8089/case-identity/scope?mode=LIVE"
     assert request.get_method() == "GET" and request.data is None
     assert request.get_header("Authorization") == f"Bearer {TOKEN}"
     assert 0 < gets[0][2] <= 5
@@ -162,11 +165,19 @@ def test_invalid_url_denies_before_credential_io(monkeypatch, transport, url):
         b"\xff",
         b'{"mode":"LIVE","mode":"DEV"}',
         b"x" * (scope._MAX_RESPONSE_BYTES + 1),
-        json.dumps({"mode": "REAL", "matter": {"id": MATTER}, "court_case": {"id": COURT}}).encode(),
-        json.dumps({"mode": "DEV", "matter": {"id": MATTER}, "court_case": {"id": COURT}}).encode(),
-        json.dumps({"mode": "LIVE", "matter": {"id": OTHER}, "court_case": {"id": COURT}}).encode(),
-        json.dumps({"mode": "LIVE", "matter": {"id": MATTER}, "court_case": {"id": OTHER}}).encode(),
-        json.dumps({"mode": "LIVE", "matter": None, "court_case": {"id": COURT}}).encode(),
+        json.dumps(
+            {"mode": "REAL", "matter": {"id": MATTER}, "court_case": {"id": COURT, "matter_id": MATTER}}
+        ).encode(),
+        json.dumps(
+            {"mode": "DEV", "matter": {"id": MATTER}, "court_case": {"id": COURT, "matter_id": MATTER}}
+        ).encode(),
+        json.dumps(
+            {"mode": "LIVE", "matter": {"id": OTHER}, "court_case": {"id": COURT, "matter_id": MATTER}}
+        ).encode(),
+        json.dumps(
+            {"mode": "LIVE", "matter": {"id": MATTER}, "court_case": {"id": OTHER, "matter_id": MATTER}}
+        ).encode(),
+        json.dumps({"mode": "LIVE", "matter": None, "court_case": {"id": COURT, "matter_id": MATTER}}).encode(),
     ],
     ids=lambda value: f"payload-{len(value)}-bytes",
 )
@@ -191,6 +202,31 @@ def test_upstream_failure_has_only_safe_error_and_no_positive_cache(transport, e
         scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT)
     assert denied.value.http_status == 503 and TOKEN not in str(denied.value)
     assert sum(isinstance(item, tuple) and item[0] == "get" for item in observed) == 2
+
+
+@pytest.mark.parametrize(
+    "court_matter_id",
+    [
+        "missing",
+        None,
+        "",
+        "not-a-uuid",
+        OTHER,
+        "00000000-0000-0000-0000-000000000000",
+        "deadbeef-dead-beef-dead-beefdeadbeef",
+    ],
+)
+def test_correct_scope_ids_require_the_court_to_belong_to_the_approved_matter(transport, court_matter_id):
+    """Reject missing, malformed or foreign court-parent correlation from the scope endpoint."""
+    _, state = transport
+    header = {"mode": "LIVE", "matter": {"id": MATTER}, "court_case": {"id": COURT}}
+    if court_matter_id != "missing":
+        header["court_case"]["matter_id"] = court_matter_id
+    state.raw = json.dumps(header).encode()
+    with pytest.raises(scope.CaseScopeVerificationError) as error:
+        scope.require_authoritative_live_case_scope("LIVE", MATTER, COURT)
+    assert error.value.http_status == 502
+    assert str(error.value) == scope._HEADER_ERROR
 
 
 @pytest.mark.parametrize(

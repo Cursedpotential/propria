@@ -1,6 +1,7 @@
 """Import-light boundary tests; no DB, embedding, vector, or Temporal service is used.
 
 Byline: Codex · GPT-5 · 2026-10-05
+Updated: Codex · gpt-6.1-sol · 2026-10-06 — complete scope approval and parent-denial coverage.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ def approved(monkeypatch):
     monkeypatch.setenv("PROFFER_STARTER_URL", "http://synthetic-starter.invalid:8089")
 
     def header(_):
-        return {"mode": "LIVE", "matter": {"id": pair[0]}, "court_case": {"id": pair[1]}}
+        return {"mode": "LIVE", "matter": {"id": pair[0]}, "court_case": {"id": pair[1], "matter_id": pair[0]}}
 
     monkeypatch.setattr(case_scope, "_read_authoritative_header", header)
     return {"matter_id": pair[0], "court_case_id": pair[1]}
@@ -195,15 +196,35 @@ def body_stubs(monkeypatch):
 
 
 @pytest.mark.parametrize("fn,cls", WRITERS)
-@pytest.mark.parametrize("defect", ["foreign-matter", "foreign-court", "DEV", "unknown", "malformed", "unavailable"])
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "foreign-matter",
+        "foreign-court",
+        "foreign-court-parent",
+        "missing-court-parent",
+        "DEV",
+        "unknown",
+        "malformed",
+        "unavailable",
+    ],
+)
 def test_authoritative_denial_never_imports_or_runs_the_body(monkeypatch, approved, fn, cls, defect):
     """Prove arbitrary configured UUIDs are not sufficient write authority."""
-    header = {"mode": "LIVE", "matter": {"id": approved["matter_id"]}, "court_case": {"id": approved["court_case_id"]}}
+    header = {
+        "mode": "LIVE",
+        "matter": {"id": approved["matter_id"]},
+        "court_case": {"id": approved["court_case_id"], "matter_id": approved["matter_id"]},
+    }
     calls = []
     if defect == "foreign-matter":
         header["matter"]["id"] = str(uuid4())
     elif defect == "foreign-court":
         header["court_case"]["id"] = str(uuid4())
+    elif defect == "foreign-court-parent":
+        header["court_case"]["matter_id"] = str(uuid4())
+    elif defect == "missing-court-parent":
+        header["court_case"].pop("matter_id")
     elif defect in ("DEV", "unknown"):
         header["mode"] = defect
     elif defect == "malformed":
@@ -249,7 +270,7 @@ def test_header_approval_precedes_first_body_io(monkeypatch, approved, body_stub
         return {
             "mode": "LIVE",
             "matter": {"id": approved["matter_id"]},
-            "court_case": {"id": approved["court_case_id"]},
+            "court_case": {"id": approved["court_case_id"], "matter_id": approved["matter_id"]},
         }
 
     monkeypatch.setattr(case_scope, "_read_authoritative_header", read)

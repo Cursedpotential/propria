@@ -15,6 +15,7 @@ for parse-dryrun so no real parser/tool-registry state is required.
 # Byline amendment: Codex · orchestrator · 2026-10-05 (durable preview-mode rejection coverage)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (authoritative header and exact receipt pair)
 # Byline amendment: Codex · GPT-5 · 2026-10-05 (source-court conflict coverage)
+# Byline amendment: Codex · gpt-6.1-sol · 2026-10-06 (authoritative court-parent correlation)
 
 from __future__ import annotations
 
@@ -68,7 +69,11 @@ def authoritative_header(monkeypatch):
         with pytest.raises(RuntimeError, match="no running event loop"):
             asyncio.get_running_loop()
         observed.append(url)
-        return {"mode": "LIVE", "matter": {"id": _CASE_MATTER}, "court_case": {"id": _CASE_COURT}}
+        return {
+            "mode": "LIVE",
+            "matter": {"id": _CASE_MATTER},
+            "court_case": {"id": _CASE_COURT, "matter_id": _CASE_MATTER},
+        }
 
     monkeypatch.setattr(case_scope, "_read_authoritative_header", read_header)
     return observed
@@ -1198,6 +1203,8 @@ def test_proffer_flag_rejects_unknown_operating_mode_before_database(client, mon
         ("retired", 503),
         ("arbitrary-matter", 502),
         ("foreign-court", 502),
+        ("foreign-court-parent", 502),
+        ("missing-court-parent", 502),
         ("DEV-header", 502),
         ("unknown-header", 502),
         ("malformed-header", 502),
@@ -1216,9 +1223,17 @@ def test_authoritative_case_denial_precedes_every_sql_access(client, monkeypatch
     elif defect == "arbitrary-matter":
         monkeypatch.setenv("PROFFER_MATTER_ID", _PARTICIPANT_ID)
     else:
-        header = {"mode": "LIVE", "matter": {"id": _CASE_MATTER}, "court_case": {"id": _CASE_COURT}}
+        header = {
+            "mode": "LIVE",
+            "matter": {"id": _CASE_MATTER},
+            "court_case": {"id": _CASE_COURT, "matter_id": _CASE_MATTER},
+        }
         if defect == "foreign-court":
             header["court_case"]["id"] = _PARTICIPANT_ID
+        elif defect == "foreign-court-parent":
+            header["court_case"]["matter_id"] = _PARTICIPANT_ID
+        elif defect == "missing-court-parent":
+            header["court_case"].pop("matter_id")
         elif defect == "DEV-header":
             header["mode"] = "DEV"
         elif defect == "unknown-header":
