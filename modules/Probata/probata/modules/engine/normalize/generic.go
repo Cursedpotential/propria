@@ -8,18 +8,19 @@ import (
 	"io"
 	"time"
 
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/parser"
 )
 
 const (
 	GenericMessageNormalizerID      = "generic_message_normalizer"
-	GenericMessageNormalizerVersion = "1.1.0"
+	GenericMessageNormalizerVersion = "1.2.0"
 )
 
 // GenericMessageNormalizer is the platform's baseline, format-agnostic
-// normalizer. It is adequate for representative message-shaped ingest, not a
-// per-format specialist: it inspects only native_fields shape, never a
-// declared format identity.
+// normalizer. Human records use the existing common native-field shape.
+// Persisted AI source/raw formats additionally preserve their entire native
+// Content and explicit date evidence without deriving human participant IDs.
 //
 // It emits exactly one normalized record per parsed raw record, in raw
 // ordinal order, and never skips a parsed raw record — a normalizer that
@@ -116,6 +117,9 @@ func (GenericMessageNormalizer) Normalize(ctx context.Context, input NormalizerI
 }
 
 func normalizeOne(input NormalizerInput, raw RawRecordView, outputOrdinal uint64) (RecordEnvelope, error) {
+	// Both identities come from retained source/raw generation resolution, not
+	// a request label. AI role labels remain native metadata, never human IDs.
+	aiNative := contextsearch.IsAIChatFormat(string(input.DeclaredFormat)) || contextsearch.IsAIChatFormat(string(raw.FormatID))
 	var fields genericMessageFields
 	if len(raw.NativeFields) > 0 {
 		if err := json.Unmarshal(raw.NativeFields, &fields); err != nil {
@@ -147,6 +151,9 @@ func normalizeOne(input NormalizerInput, raw RawRecordView, outputOrdinal uint64
 			granularity = GranularitySecond
 			certainty = CertaintyExact
 		}
+	}
+	if aiNative {
+		occurredAt, occurredAtRaw, granularity, certainty = nativeAITimestamp(raw, occurredAtRaw)
 	}
 
 	recordType := RecordTypeOther
@@ -184,6 +191,20 @@ func normalizeOne(input NormalizerInput, raw RawRecordView, outputOrdinal uint64
 	}
 
 	participants := deriveParticipants(fields)
+	if aiNative {
+		bodyText := ""
+		if body != nil {
+			bodyText = *body
+		}
+		encoded, err := json.Marshal(map[string]any{
+			"body": bodyText, "native_fields": nativeObject(raw.NativeFields), "native_metadata": nativeObject(raw.NativeMetadata),
+		})
+		if err != nil {
+			return RecordEnvelope{}, fmt.Errorf("encode native AI content: %w", err)
+		}
+		content = encoded
+		participants = nil
+	}
 
 	sourceAvailableFrom := input.AcquiredAt
 	if input.SourceProvenanceClass == ProvenanceFirstPartyAuthored && occurredAt != nil {

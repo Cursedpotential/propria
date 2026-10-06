@@ -1,0 +1,24 @@
+[
+  {
+    "conversation_id": "synthetic-conversation", "title": "Synthetic native coverage",
+    "create_time": 1234567890, "unknown_envelope": {"present": null, "flag": true},
+    "mapping": {
+      "root": {"id": "root", "message": null, "parent": null, "children": ["a"]},
+      "a": {"id": "node-a", "parent": "root", "children": ["orphan"], "unknown_node": 7,
+        "message": {"id": "message-a", "author": {"role": "user", "name": null}, "create_time": 1700000000.123456,
+          "content": {"content_type": "mixed", "parts": [" first ", "second", {"text": "third", "asset_pointer": "synthetic-asset"}, null, {"tool": "opaque"}]},
+          "metadata": {"attachments": [{"id": "synthetic-file", "mime": "image/png"}], "unknown": [1,null]}}},
+      "orphan": {"parent": "absent", "children": ["orphan"],
+        "message": {"id": "tool-message", "author": {"role": "future_role", "tool_name": "calculator"},
+          "content": {"parts": [{"thinking": "synthetic reasoning", "result": {"value": 2}}]},
+          "metadata": {"tool_calls": [{"call_id": "synthetic-call"}]}}},
+      "missing-message": {"parent": "absent", "opaque": [false, null]},
+      "null-slot": null,
+      "scalar-message": {"message": ["unsupported", 1]},
+      "zero-date": {"message": {"author": {"role": "assistant"}, "create_time": 0, "content": {"parts": []}}},
+      "invalid-date": {"message": {"author": {"role": "assistant"}, "create_time": "invalid", "content": {"parts": [""]}}}
+    }
+  },
+  {"id": "empty-conversation", "mapping": {}, "unknown": null},
+  {"id": "malformed-conversation", "mapping": [null, 4], "extra": {"keep": true}}
+]

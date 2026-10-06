@@ -82,7 +82,7 @@ func build(t *testing.T, identity contextthread.Identity, records []SourceMessag
 // Inputs: synthetic baseline with persisted AI formats. Outputs: assertions. Effects: none.
 // Use to protect direct planning callers as well as Activity rebuilds.
 func TestAIFormatsCannotBuildMessagingPlan(t *testing.T) {
-	for _, format := range []string{"chatgpt_official_json", "chatgpt_json_array", "claude_conversations_json", "gemini_activity_json", "ai_markdown_transcript", "ai_generic_json", "ai_conversations_json", "ai_chat_file"} {
+	for _, format := range []string{"chatgpt_official_json", "chatgpt_json_array", "claude_conversations_json", "claude_ai_export_json", "gemini_activity_json", "ai_markdown_transcript", "ai_generic_json", "ai_conversations_json", "ai_chat_file"} {
 		t.Run(format, func(t *testing.T) {
 			source := testSource()
 			source.DeclaredFormat = format

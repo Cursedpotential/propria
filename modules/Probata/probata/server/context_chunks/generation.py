@@ -46,7 +46,7 @@ _IGNORED_PARTIES = {"", "null", "insert-address-token", SELF}
 # Closed formats shared with engine/contextsearch.IsAIChatFormat; they belong to the AI per-record lane.
 _AI_CHAT_FORMATS = frozenset({
     "chatgpt_official_json", "chatgpt_json_array", "chatgpt_conversations_json",
-    "claude_conversations_json", "gemini_activity_json", "ai_markdown_transcript",
+    "claude_conversations_json", "claude_ai_export_json", "gemini_activity_json", "ai_markdown_transcript",
     "ai_generic_json", "ai_conversations_json", "ai_chat_file",
 })
 

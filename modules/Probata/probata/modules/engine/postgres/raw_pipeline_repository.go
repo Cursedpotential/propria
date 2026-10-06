@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
@@ -1521,6 +1522,10 @@ func (r *RawPipelineRepository) VerifyRawCoverageAgainstSource(ctx context.Conte
 // may instead prove source SHA, exact inserted row fingerprints and accounting.
 // This is not a byte-coverage or promotion assertion. Durable source-bound
 // handler validation and every row's pinned template are checked independently.
+// Inputs are persisted generation/source/workflow identities; output is compact
+// context-only evidence or no proof. Reads occur in the existing verification
+// transaction. Pick for DuckDB's canonical rows; it never proves source offsets
+// or semantic usability of envelope, rejected or unknown native rows.
 func loadDuckDBContextCoverageProof(ctx context.Context, tx pgx.Tx, generationID, sourceID uuid.UUID, requestID string) (map[string]any, error) {
 	var declared, detected, validationID string
 	err := tx.QueryRow(ctx, `SELECT generation.format_id, format.format_id, validation.id::text
@@ -1559,16 +1564,55 @@ func loadDuckDBContextCoverageProof(ctx context.Context, tx pgx.Tx, generationID
 	if err != nil {
 		return nil, nil
 	}
+	native := contextsearch.IsAIChatFormat(declared) && (format == activities.StructuredELTFormatChatGPTJSON || format == activities.StructuredELTFormatClaudeJSON)
+	if format == activities.StructuredELTFormatClaudeJSON && !native {
+		return nil, nil
+	}
+	if format == activities.StructuredELTFormatChatGPTJSON && !native {
+		template = "chatgpt_json_array_v1"
+	}
+	if native {
+		// A generation is checked against its durable pre-execution selection,
+		// rather than the newest implementation's default template revision.
+		var pin string
+		err = tx.QueryRow(ctx, `SELECT COALESCE(receipt.result_ref->>'duckdb_template','')
+			FROM context.activity_receipt receipt
+			JOIN context.activity_execution execution ON execution.id=receipt.activity_execution_id
+			JOIN context.raw_generation generation ON generation.source_version_id=execution.source_version_id
+			WHERE generation.id=$1 AND execution.source_version_id=$2 AND execution.workflow_id=$3
+			AND execution.activity_name='select_parser_activity' AND receipt.status='success'
+			AND receipt.completed_at<=generation.created_at
+			AND receipt.result_ref->>'parser_id'=$4 AND receipt.result_ref->>'parser_version'=$5
+			AND receipt.result_ref->>'declared_format'=generation.format_id
+			ORDER BY receipt.completed_at DESC LIMIT 1`, generationID, sourceID, requestID,
+			activities.StructuredELTParserID, activities.StructuredELTParserVersion).Scan(&pin)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("reload native generation template pin: %w", err)
+		}
+		if format == activities.StructuredELTFormatChatGPTJSON && pin == "" {
+			pin = "chatgpt_json_array_v1"
+		}
+		if (format == activities.StructuredELTFormatChatGPTJSON && pin != "chatgpt_json_array_v1" && pin != "chatgpt_json_array_v2") ||
+			(format == activities.StructuredELTFormatClaudeJSON && pin != "claude_ai_export_json_v1") {
+			return nil, nil
+		}
+		template = pin
+	}
 	if err = parser.FormatID(declared).Validate(); err != nil {
 		return nil, err
 	}
 	table := pgx.Identifier{"context", "raw_" + declared}.Sanitize()
 	var valid bool
 	err = tx.QueryRow(ctx, fmt.Sprintf(`SELECT count(*)>0 AND bool_and(raw.stored_bytes IS NOT NULL
-		AND raw.locator_object_id IS NULL AND raw.record_status='parsed'
+		AND raw.locator_object_id IS NULL
+		AND (raw.record_status='parsed' OR ($3 AND raw.record_status IN ('envelope','unknown','malformed','rejected','unparsed')
+		    AND length(trim(COALESCE(raw.status_reason,'')))>0))
 		AND COALESCE(subtype.native_metadata->>'duckdb_template','')=$2)
 		FROM context.raw_record_identity raw LEFT JOIN %s subtype ON subtype.raw_record_id=raw.id
-		WHERE raw.raw_generation_id=$1`, table), generationID, template).Scan(&valid)
+		WHERE raw.raw_generation_id=$1`, table), generationID, template, native && template == "chatgpt_json_array_v2").Scan(&valid)
 	if err != nil {
 		return nil, fmt.Errorf("verify every DuckDB raw-row template: %w", err)
 	}

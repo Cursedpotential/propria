@@ -119,7 +119,7 @@ func aiBoundaryFixture() (*aiBoundaryStore, proffer.StageRequest) {
 // Inputs: synthetic persisted AI format with a conflicting request label. Outputs: assertions.
 // Effects: in-memory receipts only. Use to protect the pre-preview boundary.
 func TestAIContextProposalExclusion(t *testing.T) {
-	for _, format := range []string{"chatgpt_official_json", "claude_conversations_json", "gemini_activity_json", "ai_markdown_transcript", "ai_chat_file"} {
+	for _, format := range []string{"chatgpt_official_json", "claude_conversations_json", "claude_ai_export_json", "gemini_activity_json", "ai_markdown_transcript", "ai_chat_file"} {
 		t.Run(format, func(t *testing.T) {
 			s, r := aiBoundaryFixture()
 			s.input.Source.DeclaredFormat = format

@@ -117,7 +117,7 @@ const (
 // routed the same way whichever lane imported it.
 var aiChatFormats = map[string]bool{
 	"chatgpt_official_json": true, "chatgpt_json_array": true, "chatgpt_conversations_json": true,
-	"claude_conversations_json": true, "gemini_activity_json": true, "ai_markdown_transcript": true,
+	"claude_conversations_json": true, "claude_ai_export_json": true, "gemini_activity_json": true, "ai_markdown_transcript": true,
 	"ai_generic_json": true, "ai_conversations_json": true, "ai_chat_file": true,
 }
 

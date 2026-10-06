@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/contextsearch"
+	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -121,6 +123,9 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 	if declaredFormat != req.DeclaredFormat {
 		return nil, errors.New("structured elt declared format does not match retained source")
 	}
+	if format == activities.StructuredELTFormatClaudeJSON && !contextsearch.IsAIChatFormat(declaredFormat) {
+		return nil, errors.New("native Claude detection conflicts with the retained non-AI source declaration")
+	}
 	sourceURL, err := duckDBSourceURL(sourceKey)
 	if err != nil {
 		return nil, err
@@ -143,18 +148,55 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 	if err != nil {
 		return nil, err
 	}
+	extendedStatus := false
+	if format == activities.StructuredELTFormatChatGPTJSON {
+		selectionID, parseErr := uuid.Parse(string(req.Refs["parser_selection"]))
+		if parseErr != nil {
+			return nil, errors.New("native ChatGPT extraction requires a persisted selection reference")
+		}
+		var pin string
+		if err := session.QueryRow(ctx, `SELECT COALESCE(receipt.result_ref->>'duckdb_template','')
+			FROM context.activity_receipt receipt
+			JOIN context.activity_execution execution ON execution.id=receipt.activity_execution_id
+			WHERE receipt.id=$1 AND receipt.status='success' AND execution.source_version_id=$2
+			AND execution.workflow_id=$3 AND execution.activity_name='select_parser_activity'
+			AND receipt.result_ref->>'parser_id'=$4 AND receipt.result_ref->>'parser_version'=$5
+			AND receipt.result_ref->>'declared_format'=$6`,
+			selectionID, sourceID, req.RequestID, activities.StructuredELTParserID, activities.StructuredELTParserVersion, declaredFormat).Scan(&pin); err != nil {
+			return nil, fmt.Errorf("reload source-bound native template pin: %w", err)
+		}
+		switch pin {
+		case "", "chatgpt_json_array_v1": // Historic selections retain the exact old query.
+			innerSQL, err = structuredELTQuery(legacyChatGPTQueryFormat, sourceURL)
+		case "chatgpt_json_array_v2":
+			if !contextsearch.IsAIChatFormat(declaredFormat) {
+				return nil, errors.New("native ChatGPT v2 pin conflicts with the retained non-AI source declaration")
+			}
+			innerSQL, err = chatGPTNativeQuery(sourceURL)
+			extendedStatus = true
+		default:
+			return nil, errors.New("persisted ChatGPT template is unsupported")
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	projection := `(elt['stored_bytes'])::text, (elt['native_fields'])::text, (elt['native_metadata'])::text`
+	if extendedStatus {
+		projection += `, (elt['record_status'])::text, (elt['status_reason'])::text`
+	}
 	query := fmt.Sprintf(
 		// pg_duckdb returns one duckdb.row per result row: columns are reached by
 		// subscript on the alias, never by bare name ("column does not exist", live 2026-09-20).
-		`SELECT (elt['stored_bytes'])::text, (elt['native_fields'])::text, (elt['native_metadata'])::text FROM duckdb.query($%[1]s$%[2]s$%[1]s$) AS elt`,
-		eltDuckDBQuoteTag, innerSQL,
+		`SELECT %[3]s FROM duckdb.query($%[1]s$%[2]s$%[1]s$) AS elt`,
+		eltDuckDBQuoteTag, innerSQL, projection,
 	)
 	rows, err := session.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("query DuckDB structured rows: %w", err)
 	}
 	releaseSession = false
-	return &structuredELTRows{rows: rows, release: session.Release}, nil
+	return &structuredELTRows{rows: rows, release: session.Release, extendedStatus: extendedStatus}, nil
 }
 
 // defaultXMLMaximumFileSize raises Webbed's 16 MB read_xml default (owner
@@ -221,8 +263,15 @@ type structuredELTRows struct {
 	rows    pgx.Rows
 	release func()
 	closed  bool
+	// extendedStatus identifies templates that emit status/reason explicitly;
+	// false retains the legacy three-column parsed-row transport.
+	extendedStatus bool
 }
 
+// Next reads one canonical extraction row and its optional explicit status.
+// Input is a cancellation context; output is one row or EOF. It advances the
+// leased cursor and closes it on EOF/error. Pick through the existing immutable
+// bundle Activity; legacy templates preserve their three-column shape.
 func (r *structuredELTRows) Next(ctx context.Context) (activities.StructuredELTRow, error) {
 	if err := ctx.Err(); err != nil {
 		return activities.StructuredELTRow{}, err
@@ -235,13 +284,18 @@ func (r *structuredELTRows) Next(ctx context.Context) (activities.StructuredELTR
 		_ = r.Close()
 		return activities.StructuredELTRow{}, io.EOF
 	}
-	var storedBytes, nativeFields, nativeMetadata string
-	if err := r.rows.Scan(&storedBytes, &nativeFields, &nativeMetadata); err != nil {
+	var storedBytes, nativeFields, nativeMetadata, status, reason string
+	destinations := []any{&storedBytes, &nativeFields, &nativeMetadata}
+	if r.extendedStatus {
+		destinations = append(destinations, &status, &reason)
+	}
+	if err := r.rows.Scan(destinations...); err != nil {
 		return activities.StructuredELTRow{}, err
 	}
 	return activities.StructuredELTRow{
 		StoredBytes: []byte(storedBytes), NativeFields: []byte(nativeFields),
 		NativeMetadata: []byte(nativeMetadata),
+		RecordStatus:   parser.RecordStatus(status), StatusReason: reason,
 	}, nil
 }
 
@@ -282,16 +336,24 @@ func duckDBSourceURL(sourceKey string) (string, error) {
 	}
 }
 
-// structuredELTQuery returns one query with the exact three-column wire shape
-// consumed by structuredELTRows. Each template preserves source-native data in
+// structuredELTQuery renders the default query for one structured format.
+// Inputs are a format and source URL; output is SQL without I/O or writes.
+// Legacy templates use three columns; native ChatGPT v2 also carries raw status
+// and reason. Pick for new selections; legacy pinned receipts use v1 dispatch.
+// Each template preserves source-native data in
 // stored_bytes/native_metadata and projects the common native fields needed by
 // the existing generic normalizer. No template writes a database table.
 func structuredELTQuery(format activities.StructuredELTFormat, sourceURL string) (string, error) {
+	if format == activities.StructuredELTFormatChatGPTJSON {
+		return chatGPTNativeQuery(sourceURL)
+	}
 	if strings.TrimSpace(sourceURL) == "" {
 		return "", errors.New("structured elt requires a non-empty DuckDB source url")
 	}
 	url := strings.ReplaceAll(sourceURL, "'", "''")
 	switch format {
+	case activities.StructuredELTFormatClaudeJSON:
+		return claudeAIExportQuery(sourceURL)
 	case activities.StructuredELTFormatCSV:
 		return fmt.Sprintf(`
 			WITH source_rows AS (
@@ -394,7 +456,7 @@ func structuredELTQuery(format activities.StructuredELTFormat, sourceURL string)
 				)::VARCHAR AS native_metadata
 			FROM timestamped
 			ORDER BY try_cast(date_ms AS BIGINT), source_kind`, url, xmlMaximumFileSize()), nil
-	case activities.StructuredELTFormatChatGPTJSON:
+	case legacyChatGPTQueryFormat:
 		return fmt.Sprintf(`
 			WITH source_document AS (
 				SELECT content::JSON AS document FROM read_text('%s')
