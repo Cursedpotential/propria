@@ -144,7 +144,8 @@ func (h *CaseIdentityHTTPHandler) readScope(w http.ResponseWriter, r *http.Reque
 		h.fail(w, ctx.Err())
 		return
 	}
-	if view.Mode != mode || !caseidentity.AdmittedIdentity(view.Matter.ID, view.CourtCase.ID) || view.CourtCase.MatterID != view.Matter.ID {
+	// Exact canonical IDs also bound the response if a custom provider returns padded values.
+	if view.Mode != mode || view.Matter.ID != caseidentity.AuthoritativeMatterID || view.CourtCase.ID != caseidentity.AuthoritativeCourtCaseID || view.CourtCase.MatterID != view.Matter.ID {
 		h.fail(w, caseidentity.ErrNotFound)
 		return
 	}

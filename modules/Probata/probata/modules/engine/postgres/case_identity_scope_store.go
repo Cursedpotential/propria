@@ -71,7 +71,7 @@ func (s *CaseIdentityStore) ReadScope(ctx context.Context, mode caseidentity.Mod
 	if err := ctx.Err(); err != nil {
 		return caseidentity.ScopeView{}, err
 	}
-	if !caseidentity.AdmittedIdentity(matter.ID, court.ID) || court.MatterID != matter.ID {
+	if matter.ID != caseidentity.AuthoritativeMatterID || court.ID != caseidentity.AuthoritativeCourtCaseID || court.MatterID != matter.ID {
 		return caseidentity.ScopeView{}, caseidentity.ErrNotFound
 	}
 	return caseidentity.ScopeView{Mode: mode, Matter: caseidentity.ScopeMatter{ID: matter.ID}, CourtCase: caseidentity.ScopeCourtCase{ID: court.ID, MatterID: court.MatterID}}, nil

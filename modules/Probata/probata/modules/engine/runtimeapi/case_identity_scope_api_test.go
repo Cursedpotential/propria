@@ -87,7 +87,7 @@ func TestCaseScopeUnknownModeAndUnsupportedProviderNeverReadWholePage(t *testing
 }
 
 func TestCaseScopeMissingForeignAndUnavailableApprovalFailClosed(t *testing.T) {
-	for _, failure := range []string{"missing", "foreign-matter", "foreign-court", "foreign-parent", "not-found", "unavailable"} {
+	for _, failure := range []string{"missing", "foreign-matter", "foreign-court", "foreign-parent", "padded-provider", "not-found", "unavailable"} {
 		t.Run(failure, func(t *testing.T) {
 			s, routes := newScopeHandler(t)
 			want := http.StatusNotFound
@@ -100,6 +100,9 @@ func TestCaseScopeMissingForeignAndUnavailableApprovalFailClosed(t *testing.T) {
 				s.view.CourtCase.ID = "11111111-1111-1111-1111-111111111111"
 			case "foreign-parent":
 				s.view.CourtCase.MatterID = "11111111-1111-1111-1111-111111111111"
+			case "padded-provider":
+				s.view.Matter.ID = strings.Repeat(" ", 65536) + caseidentity.AuthoritativeMatterID
+				s.view.CourtCase.MatterID = s.view.Matter.ID
 			case "not-found":
 				s.scopeErr = caseidentity.ErrNotFound
 			case "unavailable":
