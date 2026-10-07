@@ -115,6 +115,17 @@ def test_native_where_clause_prefilters_active_and_exact_scope() -> None:
     assert 'path: ["vault_key"], operator: Like, valueText: "vault/source/*"' in where
 
 
+@pytest.mark.parametrize("wildcard", ["*", "?"])
+def test_casebible_prefix_wildcards_fail_request_validation_before_query(wildcard: str) -> None:
+    prefix = f"vault/source{wildcard}/"
+    public = ContextQuery(query="synthetic query", legs=("casebible",), scope={"path_prefix": prefix})
+    with pytest.raises(ValueError, match="CaseBible path_prefix wildcards are unsupported"):
+        public.internal()
+
+    with pytest.raises(ValueError, match="wildcards are unsupported"):
+        casebible_where(RetrievalScope(path_prefix=prefix))
+
+
 def test_reader_uses_each_supported_mode_and_explicit_named_vector() -> None:
     queries: list[str] = []
 

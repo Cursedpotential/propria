@@ -57,6 +57,9 @@ class ContextQuery(ReadModel):
         request = RetrievalRequest.model_validate(self.model_dump())
         if set(request.legs) - {"intake", "proffer", "casebible"}:
             raise ValueError("reader is not allowlisted")
+        if ("casebible" in request.legs and request.scope.path_prefix
+                and any(wildcard in request.scope.path_prefix for wildcard in ("*", "?"))):
+            raise ValueError("CaseBible path_prefix wildcards are unsupported")
         return request
 
 

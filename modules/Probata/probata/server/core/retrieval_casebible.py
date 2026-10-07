@@ -38,6 +38,8 @@ def casebible_where(scope: RetrievalScope) -> str:
     if scope.thread_id:
         operands.append(f'{{path: ["thread_id"], operator: Equal, valueText: {_graphql_string(scope.thread_id)}}}')
     if scope.path_prefix:
+        if any(wildcard in scope.path_prefix for wildcard in ("*", "?")):
+            raise ValueError("CaseBible path_prefix wildcards are unsupported by Weaviate Like")
         operands.append(
             f'{{path: ["vault_key"], operator: Like, valueText: {_graphql_string(scope.path_prefix + "*")}}}'
         )
