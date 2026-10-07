@@ -157,13 +157,14 @@ services:
       CONTEXT_RETRIEVAL_WEAVIATE_URL: ${CONTEXT_RETRIEVAL_WEAVIATE_URL:-${CONTEXT_CHUNKS_WEAVIATE_URL:-http://100.91.190.107:8082}}
       CONTEXT_RETRIEVAL_PROFFER_COLLECTION: ${CONTEXT_RETRIEVAL_PROFFER_COLLECTION:-${CONTEXT_CHUNKS_COLLECTION:-ProfferChunks20261002}}
       CONTEXT_RETRIEVAL_PROFFER_VECTOR: ${CONTEXT_RETRIEVAL_PROFFER_VECTOR:-text_nim}
-      # The source writers default to NIM nemotron-3-embed-1b / 2048-d, but
-      # source defaults do not prove the live vectors' model/dimensions.
-      # Set this pair explicitly after matching both published collections.
+      # Parent verified live model metadata (three objects per collection)
+      # and vector lengths on 2026-10-06: both IntakeCorpus.text_vector and
+      # ProfferChunks20261002.text_nim use nemotron-3-embed-1b / 2048-d.
+      # This establishes the sampled embedding contract, not index coverage.
       # Generic EMBED_TEXT_ID/DIM are unrelated and never inherited here.
       CONTEXT_RETRIEVAL_EMBED_URL: ${CONTEXT_RETRIEVAL_EMBED_URL:-${CONTEXT_CHUNKS_EMBED_BASE_URL:-${NIM_BASE_URL:-https://integrate.api.nvidia.com/v1}}}
-      CONTEXT_RETRIEVAL_EMBED_MODEL: ${CONTEXT_RETRIEVAL_EMBED_MODEL:-}
-      CONTEXT_RETRIEVAL_EMBED_DIMENSIONS: ${CONTEXT_RETRIEVAL_EMBED_DIMENSIONS:-}
+      CONTEXT_RETRIEVAL_EMBED_MODEL: ${CONTEXT_RETRIEVAL_EMBED_MODEL:-nvidia/nemotron-3-embed-1b}
+      CONTEXT_RETRIEVAL_EMBED_DIMENSIONS: ${CONTEXT_RETRIEVAL_EMBED_DIMENSIONS:-2048}
       # Reuse the existing Coolify NIM credential. If a file is selected it
       # must already be mounted in this service; do not assume the worker's
       # ovh-files host-secret path exists on this execution host.
