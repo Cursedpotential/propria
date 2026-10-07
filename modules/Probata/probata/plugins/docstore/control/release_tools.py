@@ -100,14 +100,30 @@ def register(mcp,request,read):
         return await request('POST','/context/pack',payload={'rows':rows,'limit':limit,'budget':budget})
 
     @mcp.tool(annotations=read)
-    async def docstore_source_plan(files:list[dict]) -> dict:
-        """Dry-run a complete hash-validated five-root source sync; no embedding or writes."""
-        return await request('POST','/sources/plan',payload={'files':files})
+    async def docstore_source_plan(files:list[dict],roots:list[str]|None=None) -> dict:
+        """Plan hashed docs with optional seven-root identity coverage; return a receipt without writes.
+
+        Like source_apply, roots declares approved projects independently of
+        empty/held files; legacy files-only callers retain full coverage checks.
+        Byline: Codex / GPT-6.1 / 2026-10-07.
+        """
+        payload={'files':files}
+        if roots is not None:
+            payload['roots']=roots
+        return await request('POST','/sources/plan',payload=payload)
 
     @mcp.tool(annotations=write)
-    async def docstore_source_apply(files:list[dict],plan_id:str,retract:list[str]|None=None) -> dict:
-        """Apply an exact source plan, quarantining replaced files; no index run. 0.8.1-r3: every document the plan would retract must be named in retract, or the apply is refused."""
-        return await request('POST','/sources/apply',payload={'files':files,'plan_id':plan_id,'retract':retract or []})
+    async def docstore_source_apply(files:list[dict],plan_id:str,retract:list[str]|None=None,roots:list[str]|None=None) -> dict:
+        """Apply an exact hashed plan with optional roots; return a verified receipt without indexing.
+
+        Like source_plan, independent roots permit empty/held projects. Replaced
+        files are quarantined; every retraction must still be explicitly named.
+        Byline: Codex / GPT-6.1 / 2026-10-07.
+        """
+        payload={'files':files,'plan_id':plan_id,'retract':retract or []}
+        if roots is not None:
+            payload['roots']=roots
+        return await request('POST','/sources/apply',payload=payload)
 
     @mcp.tool(annotations=read)
     async def docstore_source_read(paths:list[str]) -> dict:
