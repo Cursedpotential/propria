@@ -38,10 +38,10 @@ class AIContentParams:
     candidates_ref: str = ""
     embeddings_ref: str = ""
     publication_ref: str = ""
-    max_records: int = 256
+    max_records: int = 1024
     max_text_bytes: int = 2097152
-    max_chunks: int = 128
-    max_model_calls: int = 128
+    max_chunks: int = 256
+    max_model_calls: int = 512
 
 
 @contextmanager

@@ -488,10 +488,14 @@ def test_prepare_uses_exact_reader_ordinals_and_accounts_empty_records(scope, mo
 
             Inputs: SQL/pins. Outputs: mappings. Effects: assertions only.
             """
-            assert values == {"g": scope["normalized_generation_id"]}
             if "other_records" in str(query):
+                assert values == {"g": scope["normalized_generation_id"]}
                 return SimpleNamespace(mappings=lambda: SimpleNamespace(one=lambda: totals))
-            return SimpleNamespace(mappings=lambda: [{k: v for k, v in r.items() if k not in {"body", "ordinal", "occurred_at"}} for r in rows])
+            assert values == {"g": scope["normalized_generation_id"], "limit": 3}
+            return SimpleNamespace(mappings=lambda: [{"record_id": r["record_id"],
+                "native_fields": {"conversation_id": r["conversation_id"], "message_id": r["native_message_id"], "source_role": r["role"]},
+                "native_metadata": {"conversation_index": r["conversation_index"], "mapping_key": r["mapping_key"]},
+                "raw_occurrences": r["raw_occurrences"]} for r in rows])
     @contextmanager
     def connection():
         """Yield the retained fixture's read-only connection facade.
@@ -501,16 +505,71 @@ def test_prepare_uses_exact_reader_ordinals_and_accounts_empty_records(scope, mo
         yield Connection()
     monkeypatch.setattr(db, "read_only_connection", connection)
     result = ai.prepare_content(scope)
-    assert calls == [(scope["normalized_generation_id"], -1, 257)]
+    assert calls == [(scope["normalized_generation_id"], -1, 2)]
     bundle = ai._read(result["bundle_ref"], scope, "prepared")
     assert result["records"] == 2 and result["chunks"] == 1
     assert bundle["empty_record_ids"] == [rows[1]["record_id"]]
     assert [r["ordinal"] for r in bundle["records"]] == [0, 1]
-    totals["records"] = 257
+    totals["records"] = 1025
     calls.clear()
     with pytest.raises(ai.ContentInvalid):
         ai.prepare_content(scope)
     assert calls == []
+
+
+def test_native_coordinates_support_exact_sbv_shape_and_direct_fallback():
+    """Preserve both known metadata shapes; inputs synthetic native IDs, outputs exact coordinates, effects none; choose for SBV grouping regression."""
+    nested = {"conversation_index": 0, "conversation_id": "native-c", "conversation_title": "Native title",
+              "message_id": "native-m", "node_id": "slot-7", "message_index": 0, "role": "assistant"}
+    expected = {"conversation_index": 0, "conversation_id": "native-c", "conversation_title": "Native title",
+                "native_message_id": "native-m", "mapping_key": "slot-7", "native_message_index": 0, "role": "assistant"}
+    assert ai.native_coordinates({}, {"sbv_kind": "message", "sbv_source_pos": "display string ignored", "source_metadata": nested}) == expected
+    fields = {"conversation_id": "native-c", "conversation_title": "Native title", "message_id": "native-m", "source_role": "assistant"}
+    direct = {"conversation_index": 0, "mapping_key": "slot-7", "message_index": 0}
+    assert ai.native_coordinates(fields, direct) == expected
+    assert ai.native_coordinates({}, {"sbv_source_pos": "conversation=23/message=42"})["conversation_index"] is None
+    with pytest.raises(ai.ContentInvalid):
+        ai.native_coordinates({}, {"source_metadata": ["not an object"]})
+
+
+def test_exact_generation_pages_612_records_without_losing_occurrences(scope, monkeypatch):
+    """Account three bounded pages and every locator; inputs synthetic SBV generation, outputs ordered assertions, effects retained fixture only; choose for the actual-size reader regression."""
+    from server.tools.extractors.entity_events import pages
+    rows = [record(i, "body-" + str(i), conversation=i // 27) for i in range(612)]
+    calls = []
+    def reader(conn, generation, after, limit):
+        """Return one exact keyset page; inputs pinned coordinates, outputs bounded rows, effects captured calls; choose for reader coverage."""
+        calls.append((generation, after, limit))
+        return [pages.Message(r["record_id"], r["ordinal"], None, r["body"]) for r in rows if r["ordinal"] > after][:limit]
+    monkeypatch.setattr(pages, "read_window", reader)
+    metadata = [{"record_id": r["record_id"], "native_fields": {}, "native_metadata": {"source_metadata": {
+        "conversation_index": r["conversation_index"], "conversation_id": r["conversation_id"],
+        "message_id": r["native_message_id"], "node_id": r["mapping_key"], "message_index": r["ordinal"], "role": r["role"]}},
+        "raw_occurrences": r["raw_occurrences"]} for r in rows]
+    class Connection:
+        """Serve bounded exact metadata; inputs SELECT, outputs fixture locators, effects assertions; choose for paging tests."""
+        def execute(self, query, values):
+            """Check metadata scope; inputs SQL and pins, outputs mappings, effects assertions; choose for source binding."""
+            assert values == {"g": scope["normalized_generation_id"], "limit": 613}
+            return SimpleNamespace(mappings=lambda: metadata)
+    result = ai.read_generation_records(Connection(), scope, 612)
+    assert calls == [(scope["normalized_generation_id"], -1, 256), (scope["normalized_generation_id"], 255, 256),
+                     (scope["normalized_generation_id"], 511, 100)]
+    assert [r["record_id"] for r in result] == [r["record_id"] for r in rows]
+    assert [r["body"] for r in result] == [r["body"] for r in rows]
+    assert all(r["raw_occurrences"] == original["raw_occurrences"] and r["native_message_id"] == original["native_message_id"]
+               and r["mapping_key"] == original["mapping_key"] for r, original in zip(result, rows))
+    assert len(ai.conversation_windows(result, ai.MAX_CHUNKS)) == 23
+    monkeypatch.setattr(pages, "read_window", lambda *args: [])
+    with pytest.raises(ai.ContentInvalid, match="every normalized record"):
+        ai.read_generation_records(Connection(), scope, 612)
+    monkeypatch.setattr(pages, "read_window", lambda *args: [pages.Message(rows[0]["record_id"], -1, None, "body")])
+    with pytest.raises(ai.ContentInvalid, match="non-increasing"):
+        ai.read_generation_records(Connection(), scope, 612)
+    from server.temporal.ai_content_activities import AIContentParams
+    defaults = AIContentParams()
+    assert (defaults.max_records, defaults.max_text_bytes, defaults.max_chunks, defaults.max_model_calls) == (1024, 2097152, 256, 512)
+    assert ai.VERSION == "ai-content-v2"
 
 
 def test_same_model_output_repair_is_bounded_and_both_attempts_retained(scope, monkeypatch):

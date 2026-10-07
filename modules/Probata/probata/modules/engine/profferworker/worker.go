@@ -168,6 +168,9 @@ func RegisterAll(registrar interface {
 }, registrations Registrations) {
 	registrar = operatingRegistrar{registrar}
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
+	// Reuse exact verified AI generations after content-stage failures; no new-source admission.
+	// Byline: Codex / 2026-10-06.
+	registrar.RegisterWorkflowWithOptions(proffer.AIContentResumeWorkflow, workflow.RegisterOptions{Name: proffer.AIContentResumeWorkflowName})
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
 	// Back-fill of call logs imported before commit_call_log existed.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02

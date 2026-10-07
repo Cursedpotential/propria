@@ -13,6 +13,10 @@ import (
 const (
 	aiContentChangeID                      = "proffer-ai-conversation-content-v1"
 	aiContentVersion                       = workflow.Version(1)
+	aiContentBoundsChangeID                = "proffer-ai-content-bounds-v2"
+	aiContentMaxRecords                    = 1024
+	aiContentMaxChunks                     = 256
+	aiContentMaxModelCalls                 = 512
 	AIPrepareContentActivityName           = "ai_prepare_content_activity"
 	AIExtractWorkProductsActivityName      = "ai_extract_work_products_activity"
 	AIExtractCandidatesActivityName        = "ai_extract_candidates_activity"
@@ -98,7 +102,7 @@ func (out AIContentResult) validate(req AIContentRequest, stage string) error {
 	if out.RequestID != req.RequestID || out.OperatingMode != req.OperatingMode || out.MatterID != req.MatterID || out.CourtCaseID != req.CourtCaseID || out.SourceVersionID != req.SourceVersionID || out.NormalizedGenerationID != req.NormalizedGenerationID || out.VerificationID != req.VerificationID {
 		return fmt.Errorf("AI content %s changed verified source/generation pins", stage)
 	}
-	if out.Conversations < 0 || out.Records < 0 || out.Records > 256 || out.Chunks < 0 || out.Chunks > 128 || out.Candidates < 0 || out.ModelCalls < 0 || out.ModelCalls > 128 || out.ObjectsWritten < 0 || out.ObjectsWritten > 128 || out.ObjectsVerified < 0 || out.ObjectsVerified > 128 {
+	if out.Conversations < 0 || out.Records < 0 || out.Records > req.MaxRecords || out.Chunks < 0 || out.Chunks > req.MaxChunks || out.Candidates < 0 || out.ModelCalls < 0 || out.ModelCalls > req.MaxModelCalls || out.ObjectsWritten < 0 || out.ObjectsWritten > req.MaxChunks || out.ObjectsVerified < 0 || out.ObjectsVerified > req.MaxChunks {
 		return fmt.Errorf("AI content %s returned out-of-bounds counts", stage)
 	}
 	return nil
@@ -114,6 +118,10 @@ func (r *run) execAIContent(ctx workflow.Context, generation, verification Ref) 
 		NormalizedGenerationID: string(generation), VerificationID: string(verification),
 		OperatingMode: r.operatingMode, MatterID: r.matterID, CourtCaseID: r.courtCaseID,
 		MaxRecords: 256, MaxTextBytes: 2097152, MaxChunks: 128, MaxModelCalls: 128,
+	}
+	// Preserve already scheduled limits when replaying the initial bounded rollout.
+	if workflow.GetVersion(ctx, aiContentBoundsChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		req.MaxRecords, req.MaxChunks, req.MaxModelCalls = aiContentMaxRecords, aiContentMaxChunks, aiContentMaxModelCalls
 	}
 	if req.SourceVersionID == "" || req.NormalizedGenerationID == "" || req.VerificationID == "" {
 		return nil, fmt.Errorf("AI content needs the run's verified source and generation")

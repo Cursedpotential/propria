@@ -60,10 +60,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: ledger comparison workflow (Codex, 2026-10-04).
 	// +1: separate recovered-archive preservation workflow (Codex, 2026-10-04).
 	// +1: independent synthetic provider probe (Codex, 2026-10-04).
-	if recorder.workflowCount != 15 {
-		t.Fatalf("workflow registration count = %d, want 15", recorder.workflowCount)
+	// +1: reuse an existing verified AI generation after a content-stage failure.
+	if recorder.workflowCount != 16 {
+		t.Fatalf("workflow registration count = %d, want 16", recorder.workflowCount)
 	}
 	wantNamed := []string{
+		proffer.AIContentResumeWorkflowName,
 		proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, proffer.SourceIntegrityWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
 		proffer.ConversationChunksRemovalWorkflowName, dedupe.WorkflowName, superindex.WorkflowName, repairplan.WorkflowName, contacts.WorkflowName, activities.ToolkitPackageInventoryWorkflowName, activities.ToolkitSelectedTextWorkflowName, activities.ToolkitLedgerComparisonWorkflowName,
 		activities.ToolkitPackagePreservationWorkflowName,
