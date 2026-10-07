@@ -25,6 +25,7 @@ VERSION = "ai-context-graph-20261007"
 MAX_NODES = 128
 MAX_EDGES = 256
 MAX_BODY = 32 * 1024
+MAX_BUNDLE_BYTES = 96 * 1024
 
 
 def _retain(path: Path, encoded: bytes) -> None:
@@ -72,14 +73,14 @@ def _id(kind: str, *coordinates: Any) -> str:
     return _digest(content._json([VERSION, kind, *coordinates]))
 
 
-def _body(text: str, ref: str) -> dict[str, str]:
+def _body(text: str, ref: str, *, inline_limit: int = MAX_BODY) -> dict[str, str]:
     """Preserve full bounded text or its exact full-text reference, never a summary.
 
     Input is source-owned text and a reproducible retained locator. Output includes
     its derived UTF-8 hash and complete reference; no reads or writes occur.
     """
     result = {"body_hash": _digest(text.encode()), "body_ref": ref}
-    if len(text.encode()) <= MAX_BODY:
+    if len(text.encode()) <= inline_limit:
         result["body"] = text
     return result
 
@@ -88,7 +89,8 @@ def build_bundle(prepared: dict, works: dict, *, prepared_ref: str,
                  work_products_ref: str, source_id: str,
                  availability: dict[str, str | None], conversation_index: str,
                  access_policy_id: str, created_by_service: str,
-                 record_ids: tuple[str, ...] | None = None) -> dict:
+                 record_ids: tuple[str, ...] | None = None,
+                 inline_body_limit: int = MAX_BODY) -> dict:
     """Convert one real retained conversation and its full works into cited nodes and relations.
 
     Inputs include server-read source identity/availability and source-owned role,
@@ -118,6 +120,8 @@ def build_bundle(prepared: dict, works: dict, *, prepared_ref: str,
              "access_policy_id": access_policy_id, "created_by_service": created_by_service}
     generation = _id("generation", pin, conversation_index, [r["record_id"] for r in records],
                      prepared["bundle_fingerprint"], works["bundle_fingerprint"], scope)
+    if inline_body_limit != MAX_BODY:
+        generation = _id("referenced-body-generation", generation, inline_body_limit)
     root_pin = {"source_id": source_id, "source_version_id": pin["source_version_id"],
                 "source_hash": source["original_sha256"], "locator": source["original_uri"],
                 "validation_ref": "normalized-verification:" + pin["verification_id"]}
@@ -154,7 +158,7 @@ def build_bundle(prepared: dict, works: dict, *, prepared_ref: str,
         if role not in speakers:
             speakers[role] = node("ctx_entity", "speaker:" + role, citation,
                                   derivative_kind="speaker", source_origin=role)
-        fields = _body(record["body"], prepared_ref + "#record_id=" + record["record_id"])
+        fields = _body(record["body"], prepared_ref + "#record_id=" + record["record_id"], inline_limit=inline_body_limit)
         fields.update(derivative_kind="ai_source_turn", source_origin=role,
                       transformation_refs=[prepared_ref, "normalized-record:" + record["record_id"]])
         if record.get("occurred_at"):
@@ -189,7 +193,7 @@ def build_bundle(prepared: dict, works: dict, *, prepared_ref: str,
         work = node("ctx_content_unit", "work:" + _id("work", key), work_citation,
                     derivative_kind="created_work", source_origin=record["role"],
                     transformation_refs=[work_products_ref], input_node_ids=[turn],
-                    **_body(product["content"], work_products_ref + "#record_id=" + record["record_id"] + "&occurrence_index=" + str(occurrence)))
+                    **_body(product["content"], work_products_ref + "#record_id=" + record["record_id"] + "&occurrence_index=" + str(occurrence), inline_limit=inline_body_limit))
         edge("derived_from", work, turn, work_citation)
         edge("depends_on", work, turn, work_citation)
         edge("contains", turn, work, work_citation)
@@ -197,7 +201,7 @@ def build_bundle(prepared: dict, works: dict, *, prepared_ref: str,
         raise content.ContentInvalid("conversation graph exceeds one projection batch")
     bundle = {"scope": scope, "generation_id": generation,
               "extraction_run_ref": prepared_ref, "nodes": nodes, "edges": edges}
-    if len(content._json(bundle)) > 384 * 1024:
+    if len(content._json(bundle)) > MAX_BUNDLE_BYTES:
         raise content.ContentInvalid("conversation graph exceeds one bounded projector request")
     return bundle
 
@@ -232,7 +236,8 @@ def prepare_graph(params: dict[str, Any]) -> dict[str, Any]:
         source_id=source_id, availability={row[0]: row[1].isoformat() if row[1] else None for row in availability},
         conversation_index=coordinate, access_policy_id=str(params["access_policy_id"]),
         created_by_service=str(params["created_by_service"]),
-        record_ids=tuple(params["record_ids"]) if "record_ids" in params else None)
+        record_ids=tuple(params["record_ids"]) if "record_ids" in params else None,
+        inline_body_limit=0 if params.get("reference_only_bodies") else MAX_BODY)
     root = Path(os.environ.get("ANALYSIS_GRAPH_ROOT", "/data/proffer/derive-scratch/analysis-graphs"))
     if not root.is_absolute() or root.is_symlink():
         raise content.ContentInvalid("analysis graph root must be absolute and non-symlink")
@@ -270,13 +275,20 @@ def prepare_all_graphs(params: dict[str, Any], *, beat: Callable[[str], None] | 
             if beat is not None:
                 beat("preparing bounded source graph batch")
             size = min(64, len(ids) - cursor)
+            reference_only_bodies = False
             while True:
                 selection = ids[cursor:cursor + size]
                 try:
-                    receipt = prepare_graph({**params, "conversation_index": coordinate, "record_ids": selection})
+                    receipt = prepare_graph({**params, "conversation_index": coordinate, "record_ids": selection,
+                                             "reference_only_bodies": reference_only_bodies})
                 except content.ContentInvalid as error:
-                    if "exceeds" not in str(error) or size == 1:
+                    if "exceeds" not in str(error):
                         raise
+                    if size == 1:
+                        if reference_only_bodies:
+                            raise
+                        reference_only_bodies = True
+                        continue
                     size = max(1, size // 2)
                     continue
                 break
@@ -296,6 +308,7 @@ def prepare_all_graphs(params: dict[str, Any], *, beat: Callable[[str], None] | 
                 "expected_created_works": len(works["work_products"]),
                 "observed_created_works": sum(b["created_works"] for b in batches),
                 "conversations": len(groups), "batches": batches,
+                "max_bundle_bytes": MAX_BUNDLE_BYTES,
                 "semantic_candidates_included": False,
                 "ordering_scope": "strict native source timestamps within each bounded batch"}
     root = Path(os.environ.get("ANALYSIS_GRAPH_ROOT", "/data/proffer/derive-scratch/analysis-graphs"))
