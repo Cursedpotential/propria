@@ -777,6 +777,23 @@ async function run(outDir) {
       await page.clickElement(link);
       await page.waitFor(`new URLSearchParams(location.search).get('root') === ${JSON.stringify(expected.get("root"))} && new URLSearchParams(location.search).get('file') === ${JSON.stringify(expected.get("file"))} && document.querySelector('#source-name-filter')?.value === ${JSON.stringify(expected.get("file"))}`, "original_file_not_located");
     });
+    // Verify compact excerpts expand to the unchanged indexed passage and close again.
+    // Input: existing cited hit; output: browser proof; effects: read-only search and disclosure clicks.
+    await check("read-search-passage-expansion", async () => {
+      const candidate = (await getIndexed()).flatMap(({ query, data }) => data.items.map((hit) => ({ query, hit })))
+        .find(({ hit }) => hit.text.length > 400 || hit.text.split("\n").length > 5);
+      if (!candidate) throw proofError("existing_long_passage_fixture_unavailable", true);
+      await openSearch(page, "/read");
+      await submitSearch(page, candidate.query, "keyword");
+      const row = searchRow(candidate.hit);
+      await page.waitFor(row, "cited_search_result_unavailable");
+      ensure(await page.eval(`(() => { const excerpt = (${row}).querySelector('p.line-clamp-5'); return excerpt && excerpt.clientHeight <= parseFloat(getComputedStyle(excerpt).lineHeight) * 5 + 2; })()`), "search_excerpt_not_bounded");
+      const details = `[...(${row}).querySelectorAll('details')].find(d => d.querySelector('summary')?.textContent === 'Read indexed passage')`;
+      await page.clickElement(`(${details}).querySelector('summary')`);
+      ensure(await page.eval(`(${details}).open && (${details}).querySelector('p')?.textContent === ${JSON.stringify(candidate.hit.text)}`), "expanded_passage_changed_or_unavailable");
+      await page.clickElement(`(${details}).querySelector('summary')`);
+      ensure(await page.eval(`!(${details}).open`), "indexed_passage_did_not_close");
+    });
     await check("read-search-canonical-source-link", async () => {
       const candidate = (await getIndexed()).flatMap(({ query, data }) => data.items.map((hit) => ({ query, hit })))
         .find(({ hit }) => hit.legs.includes("proffer") && hit.navigation?.sources?.some((source) => source.href.startsWith("/read?") && new URL(source.href, BASE).searchParams.has("thread")));
