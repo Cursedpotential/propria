@@ -180,7 +180,8 @@ services:
       IMPORTED_PG_USER: workbench_reader
       IMPORTED_PG_PASSWORD_FILE: /run/secrets/workbench-pg-reader
       IMPORTED_WEAVIATE_URL: ${IMPORTED_WEAVIATE_URL:-http://100.91.190.107:8082}
-      IMPORTED_WEAVIATE_CLASS: ProfferMsgEvents20261002
+      # Read searches conversation chunks; raw message events have a different schema.
+      IMPORTED_WEAVIATE_CLASS: ProfferChunks20261002
       # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
       # store: scheme -> credential file. Switching provider = a credential file + these two
       # values, identical in every Proffer/Workbench service. The first root is the default.

@@ -415,10 +415,18 @@ async function run(outDir) {
       await page.clickElement(link);
       await page.waitFor(`(${article})?.querySelector('.ring-2')`, "message_focus_not_highlighted");
     });
+    await check("read-extracted-context", async () => {
+      if (!fixture) throw proofError("existing_readable_fixture_unavailable", true);
+      const data = await page.api(`/api/imported/threads/${encodeURIComponent(fixture.thread.id)}/extractions`);
+      ensure(Array.isArray(data.extractors), "extraction_response_invalid");
+      await page.goto(`/read?${new URLSearchParams({ source: fixture.source.id, thread: fixture.thread.id })}`);
+      await page.waitFor("document.querySelector('[aria-label=\"Extracted context and citations\"]')", "extracted_context_panel_unavailable");
+      await page.waitFor("(() => { const panel = document.querySelector('[aria-label=\"Extracted context and citations\"]'); return panel && !panel.querySelector('[role=\"alert\"]') && !panel.querySelector('[data-slot=\"skeleton\"]'); })()", "extracted_context_not_loaded");
+    });
     await check("read-content-search", async () => {
       if (!fixture) throw proofError("existing_readable_fixture_unavailable", true);
       let word;
-      for (const candidate of fixture.words) {
+      for (const candidate of [...fixture.words, "the", "you"]) {
         const hits = await page.api(`/api/imported/search?${new URLSearchParams({ q: candidate, limit: "20", offset: "0" })}`);
         if (hits.items.some((hit) => hit.thread_id)) { word = candidate; break; }
       }

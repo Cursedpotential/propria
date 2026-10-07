@@ -6,6 +6,7 @@ Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from app.repo import imported_pg as pg
@@ -84,6 +85,18 @@ def test_search_targets_the_chunk_collection_and_filters_to_the_live_matter(monk
     assert url.endswith("/v1/graphql") and "ProfferChunks20261002(" in body["query"]
     assert 'properties: ["text"]' in body["query"] and f'valueText: {json.dumps(MATTER)}' in body["query"]
     assert "ProfferMsgEvents" not in body["query"]
+
+
+def test_deployment_uses_the_chunk_reader_collection():
+    """Reject deployment drift that makes Read query chunk fields on raw events.
+
+    Input: tracked Workbench compose. Output: matching reader collection. No
+    network or writes; this checks the deployment boundary omitted by unit mocks.
+    """
+    compose = Path(__file__).resolve().parents[4] / "deploy" / "workbench.yaml"
+    value = next(line.split(":", 1)[1].strip() for line in compose.read_text(encoding="utf-8").splitlines()
+                 if line.strip().startswith("IMPORTED_WEAVIATE_CLASS:"))
+    assert value == service.settings.imported_weaviate_class
 
 
 def test_a_chunk_hit_opens_its_thread_at_the_first_message_with_the_matching_lines(monkeypatch):
