@@ -432,7 +432,9 @@ func (a PublishContextSearchActivities) publishStream(ctx context.Context, spec 
 	ensured := map[string]bool{}
 	aiChat := contextsearch.IsAIChatFormat(plan.Provenance.SourceFormat) || contextsearch.IsAIChatFormat(plan.FormatID)
 	if aiChat {
-		outcome.DisclosureBasis = ""
+		// Byline: Codex · GPT-6 · 2026-10-06. AI exports require conversation chunks and content extraction.
+		// Fail before any embedding or write even when a stale caller invokes this per-record publisher directly.
+		return outcome, errors.New("AI per-record search publication is disabled; use the verified AI conversation-content Activities")
 	}
 	resolution := plan.Resolution
 	page := make([]contextsearch.Object, 0, publishContextSearchPageSize)

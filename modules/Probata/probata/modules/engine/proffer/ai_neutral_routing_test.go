@@ -28,6 +28,7 @@ func TestAINeutralRoutingUsesRecordedApplicabilityAndKeepsLegacyCommands(t *test
 			env := suite.NewTestWorkflowEnvironment()
 			env.RegisterWorkflow(ProfferWorkflow)
 			mockAllStagesSucceed(env)
+			registerAIContentMocks(env, "")
 			env.OnActivity(string(stagegraph.ResolveContextParticipants), mock.Anything, mock.Anything).Return(
 				StageResult{Stage: stagegraph.ResolveContextParticipants, Status: StatusNotApplicable, ReceiptRef: "AI-resolution-receipt", Reason: "AI roles remain source labels", AIChatSource: tc.verifiedAI}, nil).Once()
 			if tc.legacy {
@@ -46,7 +47,8 @@ func TestAINeutralRoutingUsesRecordedApplicabilityAndKeepsLegacyCommands(t *test
 					t.Fatalf("%s commands=%v wantChunks=%v", activity, order.snapshot(), tc.wantChunks)
 				}
 			}
-			if !order.contains(string(stagegraph.PublishContextSearch)) || !order.contains(string(stagegraph.PublishPreview)) || order.contains(string(stagegraph.MatchMessageOccurrences)) || order.contains(string(stagegraph.ConfirmFirstPartyContext)) || order.contains(string(stagegraph.CommitFirstPartyMessages)) {
+			wantAIContent := tc.verifiedAI && !tc.legacy
+			if order.contains(AIVerifyContentPublicationActivityName) != wantAIContent || order.contains(string(stagegraph.PublishContextSearch)) == wantAIContent || !order.contains(string(stagegraph.PublishPreview)) || order.contains(string(stagegraph.MatchMessageOccurrences)) || order.contains(string(stagegraph.ConfirmFirstPartyContext)) || order.contains(string(stagegraph.CommitFirstPartyMessages)) {
 				t.Fatalf("AI flow commands=%v", order.snapshot())
 			}
 		})

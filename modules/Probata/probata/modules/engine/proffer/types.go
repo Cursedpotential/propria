@@ -353,4 +353,6 @@ type WorkflowResult struct {
 	// messages were committed: "started: <workflow id>" or "not started: <reason>". A failure to
 	// start never fails the import.
 	AutoExtraction string `json:"auto_extraction,omitempty"`
+	// AIContent locates retained conversation chunks, extracted candidates and independently verified search outputs.
+	AIContent *AIContentSummary `json:"ai_content,omitempty"`
 }
