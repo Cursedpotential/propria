@@ -9,6 +9,85 @@ import sq
 from upgrade import rows, digest
 
 STATUSES = {'proposed','accepted','superseded','deprecated','rejected'}
+MAX_SELECTION = 50
+
+
+def selection(payload):
+    """Validate exact ADR selectors and an optional bounded result limit.
+
+    Inputs: a payload with id/ids and/or number/numbers, plus optional limit.
+    Outputs: (deduplicated actual record IDs or None, explicit limit or None).
+    Effects: none; invalid, empty or oversized selections fail before database I/O.
+    Pick this over a table filter when callers know the ADR identity; numeric
+    selectors address canonical propria IDs, while explicit IDs also allow legacy
+    imports. Mixed selectors form a union and an exact selection is never truncated.
+    """
+    limit = payload.get('limit')
+    if 'limit' in payload and (type(limit) is not int or not 1 <= limit <= MAX_SELECTION):
+        raise ValueError('ADR limit must be an integer from 1 to 50')
+    selected = []
+    present = False
+    for key in ('id', 'ids', 'number', 'numbers'):
+        if key not in payload:
+            continue
+        present = True
+        values = payload[key] if key in {'ids', 'numbers'} else [payload[key]]
+        if not isinstance(values, list) or not values:
+            raise ValueError(f'{key} must contain at least one ADR selector')
+        if len(selected) + len(values) > MAX_SELECTION:
+            raise ValueError('ADR selection must contain at most 50 selectors')
+        for value in values:
+            if key in {'number', 'numbers'}:
+                if type(value) is not int or not 1 <= value <= 999999:
+                    raise ValueError('ADR number must be an integer from 1 to 999999')
+                rid = f'adr:propria_{value:04d}'
+            else:
+                if not isinstance(value, str):
+                    raise ValueError('Invalid ADR id')
+                match = re.fullmatch(r'adr:propria_([0-9]{4,6})', value)
+                if match:
+                    number = int(match[1])
+                    if not 1 <= number <= 999999 or value != f'adr:propria_{number:04d}':
+                        raise ValueError('Invalid canonical propria ADR id')
+                elif not re.fullmatch(r'adr:legacy_[0-9a-f]{32}', value):
+                    raise ValueError('Invalid ADR id')
+                rid = value
+            selected.append(rid)
+    if not present:
+        return None, limit
+    selected = list(dict.fromkeys(selected))
+    if limit is not None and len(selected) > limit:
+        raise ValueError('ADR limit cannot truncate an exact selection')
+    return selected, limit
+
+
+async def selected_records(db, ids):
+    """Read only selected ADR record IDs and verify their propria identity.
+
+    Inputs: the Docstore connection and validated, bounded actual ADR IDs.
+    Outputs: records in selector order and IDs not found in the database.
+    Effects: parameterized record reads only, never a table scan or mutation.
+    Pick this over legacy browsing when exact selectors were supplied; it uses
+    the same type::record($id) lookup as create/update's record readback.
+    """
+    records, missing = [], []
+    for rid in ids:
+        found = rows(await db.query('SELECT * FROM type::record($id);', {'id': rid}))
+        if not found:
+            missing.append(rid)
+            continue
+        if len(found) != 1:
+            raise ValueError('ADR identity lookup returned multiple records')
+        record = found[0]
+        if str(record.get('id')) != rid or record.get('project') != 'propria':
+            raise ValueError('Selected ADR identity or project mismatch')
+        number = record.get('number')
+        if type(number) is not int or not 1 <= number <= 999999:
+            raise ValueError('Selected ADR has an invalid number')
+        if rid.startswith('adr:propria_') and rid != f'adr:propria_{number:04d}':
+            raise ValueError('Selected ADR number does not match its canonical id')
+        records.append(record)
+    return records, missing
 
 
 def render(record):
@@ -46,12 +125,27 @@ async def migration(db):
     return {'imports':imports,'plan_id':digest({'imports':imports,'existing':existing}), 'preserves_legacy_documents':True}
 
 
-async def refresh_projections(materialize=False):
+async def refresh_projections(materialize=False, payload=None):
+    """Render selected ADR Markdown projections or the legacy bounded corpus.
+
+    Inputs: optional id/ids/number/numbers and limit; materialize defaults false.
+    Outputs: projections, direction and missing_ids for exact selections.
+    Effects: reads only by default; explicit materialize updates projection
+    metadata and may write registered Markdown files. With no selectors/limit,
+    legacy behavior reads up to 5001 rows and rejects corpora above 5000.
+    Pick this over list when rendered Markdown and index verification are needed.
+    """
+    ids, limit = selection(payload or {})
     db = await sq.connect('docs','probata','docs')
     try:
-        records = rows(await db.query('SELECT * FROM adr WHERE project="propria" ORDER BY number LIMIT 5001;'))
-        if len(records)>5000:
-            raise ValueError('Projection limit exceeded')
+        if ids is not None:
+            records, missing = await selected_records(db, ids)
+        else:
+            records = rows(await db.query(
+                'SELECT * FROM adr WHERE project="propria" ORDER BY number LIMIT $limit;',
+                {'limit': limit if limit is not None else 5001}))
+            if limit is None and len(records)>5000:
+                raise ValueError('Projection limit exceeded')
         projections=[]
         for record in records:
             text=render(record); sha=hashlib.sha256(text.encode()).hexdigest()
@@ -85,13 +179,33 @@ async def refresh_projections(materialize=False):
                 if not target.exists():
                     pending=target.with_suffix('.pending')
                     pending.write_bytes(data); pending.replace(target)
-        return {'projections':projections,'direction':'adr -> markdown -> CocoIndex document'}
+        result = {'projections':projections,'direction':'adr -> markdown -> CocoIndex document'}
+        if ids is not None:
+            result['missing_ids'] = missing
+        return result
     finally:
         await db.close()
 
 
 async def operation(action, payload=None):
+    """Execute a governed ADR read, revision, migration or projection operation.
+
+    Inputs: action and payload; list/projections/verify accept exact selectors
+    id/ids/number/numbers (1..50) and optional integer limit (1..50).
+    Outputs: records or projections, with missing_ids for exact selections.
+    Effects: list/projections/verify never materialize; create/update/migration-apply
+    retain their governed writes and materialization. Unselected list preserves
+    the legacy first-200 browse, while unselected projections/verify retain their
+    legacy 5000-row safety bound unless a smaller explicit limit is supplied.
+    Pick list for authoritative rows, projections for Markdown, verify for index
+    status, and mutation actions only when changing authoritative ADRs.
+    """
     payload=payload or {}
+    if action in {'projections','verify'}:
+        result = await refresh_projections(payload=payload)
+        result['projection_sync_required'] = any(not p['indexed'] for p in result['projections'])
+        return result
+    ids, limit = selection(payload) if action == 'list' else (None, None)
     db=await sq.connect('docs','probata','docs')
     try:
         if action in {'migration-plan','migration-apply'}:
@@ -111,7 +225,12 @@ async def operation(action, payload=None):
                 await db.query('\n'.join(sql),params)
             result={'imported':len(plan['imports']), 'legacy_documents_deleted':0}
         elif action=='list':
-            return {'results':sq.norm(rows(await db.query('SELECT * FROM adr WHERE project="propria" ORDER BY number LIMIT 200;')),True)}
+            if ids is not None:
+                records, missing = await selected_records(db, ids)
+                return {'results': sq.norm(records, True), 'missing_ids': missing}
+            return {'results':sq.norm(rows(await db.query(
+                'SELECT * FROM adr WHERE project="propria" ORDER BY number LIMIT $limit;',
+                {'limit': limit if limit is not None else 200})),True)}
         elif action in {'create','update'}:
             fields={k:payload[k] for k in ('title','context','decision','consequences','status') if k in payload}
             if fields.get('status','proposed') not in STATUSES or sum(len(str(v)) for v in fields.values())>100000:
@@ -141,8 +260,6 @@ async def operation(action, payload=None):
                     COMMIT TRANSACTION;''',{'id':rid,'expected':payload.get('expected_version'), 'fields':fields,
                                          'actor':payload.get('actor','docstore'),'reason':payload.get('rationale','ADR update')})
             result={'record':sq.norm(rows(await db.query('SELECT * FROM type::record($id);',{'id':rid})),True)}
-        elif action in {'projections','verify'}:
-            result={}
         else:
             raise ValueError('Unknown ADR action')
     finally:
