@@ -8,6 +8,7 @@ Portkey. Bounded Agno agents, when introduced, run only inside explicitly
 allowlisted Temporal activities and are never mounted here.
 
 Byline: Codex · GPT-5.6-Sol · 2026-08-29
+Byline: Codex · GPT-6.1-Sol · 2026-10-06 — register bounded context reads under existing owner authentication.
 """
 
 from __future__ import annotations
@@ -210,6 +211,7 @@ def create_app() -> FastAPI:
     register_knowledge_routes(app)
 
     from server.api.case_management_routes import register_case_management_routes
+    from server.api.context_retrieval_routes import register_context_retrieval_routes
     from server.api.entity_routes import register_entity_routes
     from server.api.evidence_routes import register_evidence_routes
     from server.api.ingest_routes import register_ingest_routes
@@ -228,6 +230,7 @@ def create_app() -> FastAPI:
         register_native_evidence_search_routes(app, native_runtime=native_runtime)
     register_entity_routes(app)
     register_case_management_routes(app)
+    register_context_retrieval_routes(app)
     app.include_router(repair_router)
     return app
 

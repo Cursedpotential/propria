@@ -12,6 +12,8 @@
 #         file rotation no longer requires an application redeploy.
 # Byline: Codex · GPT-6.1-Sol · 2026-10-05 — one neutral case identity for
 #         governed Proffer review flags; Dev/Live does not choose a case.
+# Byline: Codex · GPT-6.1-Sol · 2026-10-06 — bind read-only context readers to
+#         existing Intake/chunk/NIM settings; no new store or evidence authority.
 # =============================================================================
 # EXEC TIER (RUMP) — deploy on OVH-1 ("ovh1-agno"; tailnet 100.72.169.40, salem
 # private 10.1.1.122, public 40.160.5.19), the execution + surfaces box.
@@ -144,6 +146,30 @@ services:
       PROFFER_COURT_CASE_ID: ${PROFFER_COURT_CASE_ID:-}
       PROFFER_STARTER_URL: ${PROFFER_STARTER_URL:-http://100.91.190.107:8091}
       PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
+      # Bounded context read inputs: existing Intake API and Proffer chunk index.
+      # Outputs preserve source coordinates; only HTTP reads/query embeddings occur.
+      # Pick these for /v1/context/*, never evidence search or publishing/indexing.
+      # Source aliases match workbench.yaml, temporal-worker.yaml and Intake's
+      # superindex.compose.yml. Missing Intake origin fails only the Intake leg.
+      CONTEXT_RETRIEVAL_INTAKE_URL: ${CONTEXT_RETRIEVAL_INTAKE_URL:-${INTAKE_DISCOVERY_INDEX_URL:-}}
+      CONTEXT_RETRIEVAL_INTAKE_COLLECTION: ${CONTEXT_RETRIEVAL_INTAKE_COLLECTION:-${INTAKE_WEAVIATE_COLLECTION:-IntakeCorpus}}
+      CONTEXT_RETRIEVAL_INTAKE_VECTOR: ${CONTEXT_RETRIEVAL_INTAKE_VECTOR:-${INTAKE_WEAVIATE_TEXT_VECTOR:-text_vector}}
+      CONTEXT_RETRIEVAL_WEAVIATE_URL: ${CONTEXT_RETRIEVAL_WEAVIATE_URL:-${CONTEXT_CHUNKS_WEAVIATE_URL:-http://100.91.190.107:8082}}
+      CONTEXT_RETRIEVAL_PROFFER_COLLECTION: ${CONTEXT_RETRIEVAL_PROFFER_COLLECTION:-${CONTEXT_CHUNKS_COLLECTION:-ProfferChunks20261002}}
+      CONTEXT_RETRIEVAL_PROFFER_VECTOR: ${CONTEXT_RETRIEVAL_PROFFER_VECTOR:-text_nim}
+      # The source writers default to NIM nemotron-3-embed-1b / 2048-d, but
+      # source defaults do not prove the live vectors' model/dimensions.
+      # Set this pair explicitly after matching both published collections.
+      # Generic EMBED_TEXT_ID/DIM are unrelated and never inherited here.
+      CONTEXT_RETRIEVAL_EMBED_URL: ${CONTEXT_RETRIEVAL_EMBED_URL:-${CONTEXT_CHUNKS_EMBED_BASE_URL:-${NIM_BASE_URL:-https://integrate.api.nvidia.com/v1}}}
+      CONTEXT_RETRIEVAL_EMBED_MODEL: ${CONTEXT_RETRIEVAL_EMBED_MODEL:-}
+      CONTEXT_RETRIEVAL_EMBED_DIMENSIONS: ${CONTEXT_RETRIEVAL_EMBED_DIMENSIONS:-}
+      # Reuse the existing Coolify NIM credential. If a file is selected it
+      # must already be mounted in this service; do not assume the worker's
+      # ovh-files host-secret path exists on this execution host.
+      CONTEXT_RETRIEVAL_EMBED_KEY_FILE: ${CONTEXT_RETRIEVAL_EMBED_KEY_FILE:-${CONTEXT_CHUNKS_EMBED_API_KEY_FILE:-}}
+      CONTEXT_RETRIEVAL_WEAVIATE_KEY_FILE: ${CONTEXT_RETRIEVAL_WEAVIATE_KEY_FILE:-}
+      CONTEXT_RETRIEVAL_INTAKE_KEY_FILE: ${CONTEXT_RETRIEVAL_INTAKE_KEY_FILE:-}
       # Milvus (ADR-0026/0027) — vector store on OVH-3; defaults to the data box's
       # gRPC port over the tailnet. Override MILVUS_ADDRESS/TOKEN in env if needed.
       # NB 2026-08-12: ADR-0026/0027 SUPERSEDED by ADR-0040 (Weaviate locked
