@@ -717,6 +717,74 @@ def test_exclusive_request_claim_cannot_be_issued_twice(scope):
         ai._save(path, scope, "candidate_intent", data, require_new=True)
 
 
+def test_exclusive_claim_syncs_file_then_link_then_directory_ancestry(scope, monkeypatch):
+    """Check the reservation fsync protocol with real retained fixture writes.
+
+    Inputs: synthetic scope and transparent filesystem spies. Outputs: ordered
+    file/link/directory assertions. Effects: fixture files only; choose for protocol
+    ordering rather than claiming hardware power-loss testing.
+    Byline: Codex / GPT-6.1-Sol / 2026-10-07.
+    """
+    events = []
+    descriptors = {}
+    real_open, real_fsync, real_link = ai.os.open, ai.os.fsync, ai.os.link
+    def opened(path, flags, *args, **kwargs):
+        """Track actual descriptors; inputs open arguments, outputs fd, effects fixture I/O; choose for transparent ordering proof."""
+        fd = real_open(path, flags, *args, **kwargs)
+        descriptors[fd] = ai.Path(path)
+        return fd
+    def synced(fd):
+        """Record actual fsync; inputs fd, outputs none, effects fixture sync; choose for ordering assertions."""
+        events.append(("sync", descriptors[fd]))
+        return real_fsync(fd)
+    def linked(pending, target):
+        """Record actual exclusive link; inputs paths, outputs none, effects retained fixture link; choose for claim timing."""
+        result = real_link(pending, target)
+        events.append(("link", target))
+        return result
+    monkeypatch.setattr(ai.os, "open", opened)
+    monkeypatch.setattr(ai.os, "fsync", synced)
+    monkeypatch.setattr(ai.os, "link", linked)
+    path = ai._path(scope, "candidate_intent", ["ordered", 1])
+    ai._save(path, scope, "candidate_intent", {"source": source(scope)}, require_new=True)
+    assert events[0][0] == "sync" and events[0][1].suffix == ".pending"
+    assert events[1] == ("link", path)
+    assert events[2:] == [("sync", directory) for directory in
+                         (path.parent, path.parent.parent, path.parent.parent.parent, ai._root())]
+
+
+def test_failed_budget_directory_sync_prevents_call_and_retains_consumption(scope, monkeypatch):
+    """Fail closed before model dispatch when budget namespace durability fails.
+
+    Inputs: synthetic extraction and injected directory fsync failure. Outputs:
+    zero calls and one retained intent/budget. Effects: retained fixture claims;
+    choose for conservative unknown-outcome accounting without hardware disruption.
+    Byline: Codex / GPT-6.1-Sol / 2026-10-07.
+    """
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    descriptors = {}
+    real_open, real_fsync = ai.os.open, ai.os.fsync
+    def opened(path, flags, *args, **kwargs):
+        """Track actual descriptors; inputs open arguments, outputs fd, effects fixture I/O; choose for targeted directory failure."""
+        fd = real_open(path, flags, *args, **kwargs)
+        descriptors[fd] = ai.Path(path)
+        return fd
+    def synced(fd):
+        """Reject only budget directory fsync; inputs fd, outputs error or sync, effects fixture I/O; choose for pre-dispatch failure proof."""
+        if descriptors[fd].name == "candidate_budget":
+            raise OSError("synthetic directory sync failure")
+        return real_fsync(fd)
+    monkeypatch.setattr(ai.os, "open", opened)
+    monkeypatch.setattr(ai.os, "fsync", synced)
+    model = CheckpointModel()
+    with pytest.raises(RuntimeError, match="no fallback"):
+        ai.extract_candidates(params, model=model, config=config)
+    assert model.calls == []
+    assert len(ai._provider_budget(scope, prep["source"])) == 1
+    assert len(ai._chunk_intents(scope, prep["chunks"][0]["content_key"])) == 1
+    assert list(ai._root().glob("*/*/provider_attempt/*.json")) == []
+
+
 def test_sdk_request_is_claimed_before_call_and_error_receipt_binds_intent(scope, monkeypatch):
     """Prove production SDK interception retains pre-call claims; inputs fake SDK, outputs receipt bindings, effects synthetic files only; choose over testing only the injected model seam."""
     params, prep, config = checkpoint_fixture(scope, monkeypatch)

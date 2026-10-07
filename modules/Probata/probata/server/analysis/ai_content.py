@@ -144,12 +144,38 @@ def _read(ref: str, pin: dict[str, str], stage: str) -> dict[str, Any]:
     return result
 
 
+def _sync_claim_directories(parent: Path) -> None:
+    """Sync an exclusive claim's directory entries through the configured output root.
+
+    Inputs: claim parent within the existing configured AI root. Outputs: none.
+    Effects: fsync each directory from child to root, including newly created
+    ancestry; errors propagate before provider dispatch. Choose for pre-call
+    reservations after the file fsync and exclusive hardlink, not as a claim of
+    tested hardware power-loss durability. Byline: Codex / GPT-6.1-Sol / 2026-10-07.
+    """
+    root = _root()
+    directory = parent.resolve()
+    if not directory.is_relative_to(root):
+        raise ContentInvalid("claim directory escaped the configured root")
+    while True:
+        descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        if directory == root:
+            return
+        directory = directory.parent
+
+
 def _save(path: Path, pin: dict[str, str], stage: str, data: dict[str, Any], *, require_new: bool = False) -> str:
     """Retain an immutable derived bundle atomically without deleting prior files.
 
     Inputs: deterministic path, pins/stage, data and optional exclusive claim. Outputs: file URI.
-    Effects: create retained directory/file and retained pending hardlink; existing
-    different bytes fail closed. Choose for retry-safe payloads outside history.
+    Effects: create retained directory/file and retained pending hardlink; exclusive
+    claims fsync the file then linked directory ancestry through the configured
+    root before returning. Existing different bytes fail closed. Choose for
+    retry-safe payloads outside history; this protocol is not a hardware failure test.
     """
     bundle = {"version": VERSION, "pins": pin, "stage": stage, **data}
     bundle["bundle_fingerprint"] = _key(bundle)
@@ -173,6 +199,8 @@ def _save(path: Path, pin: dict[str, str], stage: str, data: dict[str, Any], *, 
         os.fsync(output.fileno())
     try:
         os.link(pending, path)
+        if require_new:
+            _sync_claim_directories(path.parent)
     except FileExistsError:
         if require_new:
             raise
