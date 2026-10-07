@@ -41,6 +41,19 @@ class FakeRecordID:
         return f"{self.table}:{self.key}"
 
 
+@dataclass(frozen=True)
+class SdkRecordIDSurrogate:
+    """Mirror the pinned SDK RecordID attributes and string escaping behavior."""
+
+    table_name: str
+    id: str
+
+    def __str__(self):
+        """Render digit-only string keys with the SDK's angle-bracket escape."""
+        escaped_id = f"⟨{self.id}⟩" if not any(char.isalpha() for char in self.id) else self.id
+        return f"{self.table_name}:{escaped_id}"
+
+
 class FakeConnection:
     def __init__(self, endpoint: str = "wss://graph.example"):
         self.endpoint = endpoint
@@ -299,19 +312,19 @@ def occurrence_fixture(
     return (
         {
             "fixture_source_id": source_id,
-            "occurrence_id": FakeRecordID(
+            "occurrence_id": SdkRecordIDSurrogate(
                 "occurrence", hashlib.sha256(occurrence_stable_key.encode()).hexdigest()
             ),
-            "snapshot_id": FakeRecordID("projection_snapshot", snapshot_digest),
+            "snapshot_id": SdkRecordIDSurrogate("projection_snapshot", snapshot_digest),
             "snapshot_key": snapshot_key,
             "manifest_sha256": snapshot_digest,
             "document_id": document_id,
             "version_id": version_id,
         },
         {
-            "snapshot_id": FakeRecordID("projection_snapshot", snapshot_digest),
+            "snapshot_id": SdkRecordIDSurrogate("projection_snapshot", snapshot_digest),
             "completion_id": FakeRecordID("produced_by", "edge-" + snapshot_digest),
-            "run_id": FakeRecordID(
+            "run_id": SdkRecordIDSurrogate(
                 "operation_run",
                 hashlib.sha256(f"{snapshot_key}:complete".encode()).hexdigest(),
             ),
@@ -338,7 +351,7 @@ async def test_occurrence_resolver_binds_source_and_document_and_returns_typed_i
     assert len(result.matches) == 1
     match = result.matches[0]
     assert match.occurrence_id == str(wanted["occurrence_id"])
-    assert match.occurrence_key == wanted["occurrence_id"].key
+    assert match.occurrence_key == wanted["occurrence_id"].id
     assert match.snapshot_id == str(wanted["snapshot_id"])
     assert match.snapshot_key == "snapshot-a"
     assert match.manifest_sha256 == wanted["manifest_sha256"]
@@ -355,6 +368,42 @@ async def test_occurrence_resolver_binds_source_and_document_and_returns_typed_i
         "document_id": "doc-a",
         "limit": 101,
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("key", "expected_record_id"),
+    [
+        ("1" + "a" * 63, "occurrence:" + "1" + "a" * 63),
+        ("1" * 64, "occurrence:⟨" + "1" * 64 + "⟩"),
+    ],
+)
+async def test_occurrence_resolver_uses_sdk_record_id_attributes_before_string_rendering(
+    key, expected_record_id
+):
+    connection = FakeConnection()
+    occurrence, completion = occurrence_fixture("source-a", "snapshot-a")
+    occurrence["occurrence_id"] = SdkRecordIDSurrogate("occurrence", key)
+    connection.occurrence_rows = [occurrence]
+    connection.completion_rows = [completion]
+
+    result = await make_client(connection).resolve_occurrences("source-a", "doc-a")
+
+    assert len(result.matches) == 1
+    assert result.matches[0].occurrence_id == expected_record_id
+    assert result.matches[0].occurrence_key == key
+
+
+@pytest.mark.asyncio
+async def test_occurrence_resolver_rejects_mismatched_sdk_record_id_attributes():
+    connection = FakeConnection()
+    occurrence, completion = occurrence_fixture("source-a", "snapshot-a")
+    occurrence["occurrence_id"] = SdkRecordIDSurrogate("content", "1" * 64)
+    connection.occurrence_rows = [occurrence]
+    connection.completion_rows = [completion]
+
+    with pytest.raises(GraphOccurrenceProjectionError, match="identity reference is invalid"):
+        await make_client(connection).resolve_occurrences("source-a", "doc-a")
 
 
 @pytest.mark.asyncio

@@ -242,13 +242,31 @@ def _typed_record_id(value: Any, expected_table: str) -> tuple[str, str]:
     Output: the typed ID and its stable record key.
     Side effects: none. Pick this over parsing arbitrary IDs at API call sites.
     """
-    rendered = str(value)
     prefix = f"{expected_table}:"
-    if not rendered.startswith(prefix):
+    table_name = getattr(value, "table_name", None)
+    if table_name is not None:
+        key = getattr(value, "id", None)
+        if table_name != expected_table or not isinstance(key, str):
+            raise GraphOccurrenceProjectionError("Graph identity reference is invalid")
+        if not re.fullmatch(r"[0-9a-f]{64}", key):
+            raise GraphOccurrenceProjectionError("Graph identity reference is invalid")
+        # SDK v2 escapes a string record key containing only digits. Hashes remain
+        # hex-validated above, so only that valid all-decimal case needs brackets.
+        escaped_key = f"⟨{key}⟩" if key.isdecimal() else key
+        return f"{table_name}:{escaped_key}", key
+
+    if not isinstance(value, str) or not value.startswith(prefix):
         raise GraphOccurrenceProjectionError("Graph identity reference is invalid")
-    key = rendered[len(prefix) :]
-    if not re.fullmatch(r"[0-9a-f]{64}", key):
-        raise GraphOccurrenceProjectionError("Graph identity reference is invalid")
+    rendered_key = value[len(prefix) :]
+    if rendered_key.startswith("⟨") and rendered_key.endswith("⟩"):
+        key = rendered_key[1:-1]
+        if not key.isdecimal() or not re.fullmatch(r"[0-9a-f]{64}", key):
+            raise GraphOccurrenceProjectionError("Graph identity reference is invalid")
+    else:
+        key = rendered_key
+        if not re.fullmatch(r"[0-9a-f]{64}", key):
+            raise GraphOccurrenceProjectionError("Graph identity reference is invalid")
+    rendered = value
     return rendered, key
 
 
