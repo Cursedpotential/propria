@@ -45,6 +45,7 @@ from app.runtime import (
     proffer_resources,
     promote,
     repairs,
+    retrieval,
     review_overlays,
     run_events,
     runs,
@@ -144,6 +145,7 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=authentication_middleware)
 
 app.include_router(health.router)
 app.include_router(intake_discovery.router)
+app.include_router(retrieval.router)
 app.include_router(upload.router)
 app.include_router(proffer.router)
 app.include_router(proffer_batch.router)
