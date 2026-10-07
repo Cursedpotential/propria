@@ -21,11 +21,13 @@ from types import SimpleNamespace
 from urllib.parse import unquote, urlsplit
 from uuid import UUID, uuid4, uuid5, NAMESPACE_URL
 
-VERSION = "ai-content-v1"
+VERSION = "ai-content-v2"
 METHOD = "conversation_paragraph_windows_v1"
-MAX_RECORDS = 256
+MAX_RECORDS = 1024
 MAX_TEXT_BYTES = 2 * 1024 * 1024
-MAX_CHUNKS = 128
+MAX_CHUNKS = 256
+MAX_MODEL_CALLS = 512
+READER_PAGE_RECORDS = 256
 CHUNK_CHARS = 7000
 MAX_BUNDLE_BYTES = 32 * 1024 * 1024
 KINDS = {"artifact", "entity", "event", "strategy", "history", "document", "work_product"}
@@ -296,6 +298,88 @@ def conversation_windows(records: list[dict[str, Any]], max_chunks: int) -> list
     return chunks
 
 
+def native_coordinates(fields: dict[str, Any], metadata: dict[str, Any]) -> dict[str, Any]:
+    """Read native conversation and message coordinates from the two supported decoder shapes.
+
+    Inputs: normalized native_fields/native_metadata objects. Outputs: native
+    coordinates without guessed display-string parsing. Effects: none; choose
+    for direct native exports and the SBV source_metadata sibling, never human chats.
+    Byline: Codex / GPT-6.1-Sol / 2026-10-06.
+    """
+    nested = metadata.get("source_metadata") or {}
+    if not isinstance(nested, dict):
+        raise ContentInvalid("SBV source_metadata must be an object")
+
+    def first(*values: Any) -> Any:
+        """Preserve the first present native value, including zero and empty strings.
+
+        Inputs: ordered supported fields. Outputs: first non-null value or None.
+        Effects: none; choose over truthiness that loses native zero ordinals.
+        """
+        return next((value for value in values if value is not None), None)
+
+    return {
+        "conversation_index": first(metadata.get("conversation_index"), nested.get("conversation_index")),
+        "conversation_id": first(fields.get("conversation_id"), nested.get("conversation_id")),
+        "native_message_id": first(fields.get("message_id"), nested.get("message_id")),
+        "role": first(fields.get("source_role"), fields.get("sender"), nested.get("role")),
+        "conversation_title": first(fields.get("conversation_title"), nested.get("conversation_title")),
+        "mapping_key": first(metadata.get("mapping_key"), nested.get("node_id")),
+        "native_message_index": first(metadata.get("message_index"), nested.get("message_index")),
+    }
+
+
+def read_generation_records(conn: Any, pin: dict[str, str], expected_records: int) -> list[dict[str, Any]]:
+    """Read every bounded normalized occurrence and its native/raw locators by exact generation.
+
+    Inputs: read-only connection, validated pins, already admitted record count.
+    Outputs: ordered records with exact reader bodies and lineage. Effects: bounded
+    SELECTs only; choose for preparation and read-only proof without writing bundles.
+    Byline: Codex / GPT-6.1-Sol / 2026-10-06.
+    """
+    from sqlalchemy import text
+    from server.tools.extractors.entity_events.pages import read_window
+    if not 0 < expected_records <= MAX_RECORDS:
+        raise ContentInvalid("generation record count exceeds approved bounds")
+    window = []
+    after = -1
+    while len(window) < expected_records:
+        limit = min(READER_PAGE_RECORDS, expected_records - len(window))
+        page = read_window(conn, pin["normalized_generation_id"], after, limit)
+        if not page or len(page) > limit:
+            raise ContentInvalid("exact generation reader did not account for every normalized record")
+        for message in page:
+            if message.ordinal <= after:
+                raise ContentInvalid("exact generation reader returned non-increasing ordinals")
+            after = message.ordinal
+        window.extend(page)
+    metadata = conn.execute(text("""SELECT n.id::text AS record_id,
+        n.normalized_payload->'content'->'native_fields' AS native_fields,
+        n.normalized_payload->'content'->'native_metadata' AS native_metadata,
+        coalesce((SELECT jsonb_agg(jsonb_build_object('raw_record_id',r.id::text,'raw_ordinal',r.record_ordinal,
+            'role',l.derivation_role,'locator_object_id',r.locator_object_id::text,
+            'byte_offset',r.byte_offset,'byte_length',r.byte_length,
+            'source_span_offset',l.source_span_offset,'source_span_length',l.source_span_length) ORDER BY r.record_ordinal,l.id)
+          FROM context.normalization_lineage l JOIN context.raw_record_identity r ON r.id=l.raw_record_id
+          WHERE l.normalized_record_id=n.id AND l.normalized_generation_id=n.normalized_generation_id),'[]'::jsonb) AS raw_occurrences
+        FROM context.normalized_record_identity n WHERE n.normalized_generation_id=CAST(:g AS uuid)
+        ORDER BY n.record_ordinal LIMIT :limit"""),
+        {"g": pin["normalized_generation_id"], "limit": expected_records + 1}).mappings()
+    by_id = {row["record_id"]: dict(row) for row in metadata}
+    if len(by_id) != expected_records or len({message.record_id for message in window}) != expected_records:
+        raise ContentInvalid("exact generation metadata or reader count changed")
+    records = []
+    for message in window:
+        facts = by_id.get(message.record_id)
+        if facts is None or not facts["raw_occurrences"]:
+            raise ContentInvalid("normalized AI record has no original raw occurrence lineage")
+        coordinates = native_coordinates(facts.get("native_fields") or {}, facts.get("native_metadata") or {})
+        records.append({"record_id": message.record_id, **coordinates,
+            "raw_occurrences": facts["raw_occurrences"], "ordinal": message.ordinal, "body": message.body,
+            "occurred_at": message.occurred_at.isoformat() if message.occurred_at else None})
+    return records
+
+
 def prepare_content(params: dict[str, Any]) -> dict[str, Any]:
     """Prepare retained AI conversation windows from one exact verified generation.
 
@@ -305,7 +389,6 @@ def prepare_content(params: dict[str, Any]) -> dict[str, Any]:
     """
     from sqlalchemy import text
     from server.context_chunks.db import read_only_connection
-    from server.tools.extractors.entity_events.pages import read_window
     pin = pins(params)
     limits = {"max_records": _limit(params, "max_records", MAX_RECORDS),
               "max_text_bytes": _limit(params, "max_text_bytes", MAX_TEXT_BYTES),
@@ -325,34 +408,9 @@ def prepare_content(params: dict[str, Any]) -> dict[str, Any]:
             if cached["source"] != source:
                 raise ContentInvalid("retained source binding changed")
             return _receipt(path.as_uri(), cached, method=METHOD)
-        window = read_window(conn, pin["normalized_generation_id"], -1, limits["max_records"] + 1)
-        if len(window) != totals["records"]:
-            raise ContentInvalid("exact generation reader did not account for every normalized record")
-        metadata = conn.execute(text("""SELECT n.id::text AS record_id,
-            n.normalized_payload->'content'->'native_metadata'->'conversation_index' AS conversation_index,
-            n.normalized_payload->'content'->'native_fields'->>'conversation_id' AS conversation_id,
-            n.normalized_payload->'content'->'native_fields'->>'message_id' AS native_message_id,
-            coalesce(n.normalized_payload->'content'->'native_fields'->>'source_role',
-                n.normalized_payload->'content'->'native_fields'->>'sender') AS role,
-            n.normalized_payload->'content'->'native_fields'->>'conversation_title' AS conversation_title,
-            n.normalized_payload->'content'->'native_metadata'->>'mapping_key' AS mapping_key,
-            n.normalized_payload->'content'->'native_metadata'->'message_index' AS native_message_index,
-            coalesce((SELECT jsonb_agg(jsonb_build_object('raw_record_id',r.id::text,'raw_ordinal',r.record_ordinal,
-                'role',l.derivation_role,'locator_object_id',r.locator_object_id::text,
-                'byte_offset',r.byte_offset,'byte_length',r.byte_length,
-                'source_span_offset',l.source_span_offset,'source_span_length',l.source_span_length) ORDER BY r.record_ordinal,l.id)
-              FROM context.normalization_lineage l JOIN context.raw_record_identity r ON r.id=l.raw_record_id
-              WHERE l.normalized_record_id=n.id AND l.normalized_generation_id=n.normalized_generation_id),'[]'::jsonb) AS raw_occurrences
-            FROM context.normalized_record_identity n WHERE n.normalized_generation_id=CAST(:g AS uuid)
-            ORDER BY n.record_ordinal"""), {"g": pin["normalized_generation_id"]}).mappings()
-        by_id = {row["record_id"]: dict(row) for row in metadata}
-        records = []
-        for message in window:
-            facts = by_id[message.record_id]
-            if not facts["raw_occurrences"]:
-                raise ContentInvalid("normalized AI record has no original raw occurrence lineage")
-            records.append({**facts, "ordinal": message.ordinal, "body": message.body,
-                            "occurred_at": message.occurred_at.isoformat() if message.occurred_at else None})
+        records = read_generation_records(conn, pin, int(totals["records"]))
+        if sum(len(record["body"].encode("utf-8")) for record in records) != totals["text_bytes"]:
+            raise ContentInvalid("exact generation reader text count changed")
     chunks = conversation_windows(records, limits["max_chunks"])
     counts = {"records": len(records), "conversations": len({str(r["conversation_index"]) for r in records}),
               "chunks": len(chunks), "text_bytes": int(totals["text_bytes"])}
@@ -508,7 +566,7 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any
     if products["source"] != source or products["prepared_ref"] != prepared_ref:
         raise ContentInvalid("work products do not bind the prepared source")
     config = config or lx.config_from_env()
-    maximum = _limit(params, "max_model_calls", 128)
+    maximum = _limit(params, "max_model_calls", MAX_MODEL_CALLS)
     # The existing provider validates replies and can retry once with thinking on.
     # Reserve both provider attempts before calling it; no hidden fallback model.
     if len(prepared["chunks"]) * 2 > maximum:
