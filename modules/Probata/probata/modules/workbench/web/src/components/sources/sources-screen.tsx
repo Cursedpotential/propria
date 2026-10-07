@@ -18,13 +18,14 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { AlertTriangle, Loader2, Play, Upload, X } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SourceMetadataPanel, type SourceSelection } from "@/components/sources/source-metadata-panel";
 import { mergeSourcePages, sourceContinuation } from "@/components/sources/source-pages";
 import { SourceRowsGrid, type SourceGridRow } from "@/components/sources/source-rows-grid";
-import { SourceSearch, modeAvailable, type SearchMode } from "@/components/sources/source-search";
+import { SourceSearch } from "@/components/sources/source-search";
+import { ContextSearch } from "@/components/read/context-search";
 import { SourceTree } from "@/components/sources/source-tree";
 import { detectedFormat, runsBySource, sourceState } from "@/components/sources/source-state";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,6 @@ import {
   ApiError,
   getCatalogProvenance,
   getDecodedExists,
-  getDiscoveryCapabilities,
   getProfferBatch,
   getUnitsUnderPrefix,
   inspectProfferSource,
@@ -44,13 +44,11 @@ import {
   lookupCatalogUnits,
   proposeSourceUnit,
   recordSourceUnitMark,
-  searchDiscovery,
   startProffer,
   startProfferBatch,
   uploadProfferSource,
 } from "@/lib/api-client";
 import { getDecodedManifest } from "@/lib/decoded-source-client";
-import type { DiscoveryItem } from "@/lib/discovery-types";
 import { useFixedCase } from "@/lib/fixed-case-context";
 import type { CatalogUnitLookup, ProfferUploadResponse, SourceUnitKind, SourceUnitMark } from "@/lib/shared/types";
 
@@ -76,16 +74,20 @@ function SourcesScreenMode() {
 
   const rootId = searchParams.get("root") ?? "";
   const prefix = searchParams.get("prefix") ?? "";
-  const [appliedFilter, setAppliedFilter] = useState("");
+  const linkedFile = searchParams.get("file") ?? "";
+  const [appliedFilter, setAppliedFilter] = useState(linkedFile);
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set());
   const [handlerOverride, setHandlerOverride] = useState("");
 
-  const [query, setQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<SearchMode>("names");
-  const [indexQuery, setIndexQuery] = useState<{ text: string; mode: SearchMode } | null>(null);
+  const [query, setQuery] = useState(linkedFile);
+  const [showContentSearch, setShowContentSearch] = useState(false);
   const [searchSummary, setSearchSummary] = useState<string | null>(null);
+  useEffect(() => {
+    setAppliedFilter(linkedFile); setQuery(linkedFile); setShowContentSearch(false);
+    setSearchSummary(linkedFile ? `Recorded file location: ${linkedFile}` : null);
+  }, [linkedFile, rootId]);
 
   const [unitMarkKind, setUnitMarkKind] = useState<SourceUnitKind | "">("");
   const [markPending, setMarkPending] = useState(false);
@@ -134,12 +136,6 @@ function SourcesScreenMode() {
   });
   const runsIndex = useMemo(() => runsBySource(runsQuery.data?.items ?? []), [runsQuery.data]);
 
-  const capabilitiesQuery = useQuery({
-    queryKey: ["sources", "discovery-capabilities"],
-    queryFn: ({ signal }) => getDiscoveryCapabilities(signal),
-    retry: false,
-  });
-
   const marksQuery = useQuery({
     queryKey: ["sources", "unit-marks"],
     queryFn: ({ signal }) => listSourceUnitMarks(signal),
@@ -176,14 +172,6 @@ function SourcesScreenMode() {
     queryKey: ["sources", "units", folderKeys, objectKeys],
     queryFn: ({ signal }) => lookupCatalogUnits(folderKeys, objectKeys, signal),
     enabled: folderKeys.length > 0 || objectKeys.length > 0,
-    retry: false,
-  });
-
-  const indexSearchQuery = useQuery({
-    queryKey: ["sources", "index-search", indexQuery?.text, indexQuery?.mode],
-    queryFn: ({ signal }) =>
-      searchDiscovery(indexQuery!.text, "", indexQuery!.mode === "contents" ? "contents" : "hybrid", undefined, signal),
-    enabled: Boolean(indexQuery),
     retry: false,
   });
 
@@ -310,28 +298,15 @@ function SourcesScreenMode() {
   const runSearch = useCallback(() => {
     const text = query.trim();
     if (!text) return;
-    if (searchMode === "names") {
-      setIndexQuery(null);
-      setAppliedFilter(text);
-      setSelectedRef(null);
-      setSelectedFolder(null);
-      setSearchSummary(`Names and paths across this location: “${text}”.`);
-      return;
-    }
-    if (!modeAvailable(searchMode, capabilitiesQuery.data ?? null)) {
-      setIndexQuery(null);
-      setSearchSummary(searchMode === "relationships" ? "Relationship lookup needs a verified graph link on the selected source." : capabilitiesQuery.error ? `Search connection failed: ${errorText(capabilitiesQuery.error)}` : "This search connection is unavailable. Names and paths still work.");
-      return;
-    }
-    setAppliedFilter("");
-    setIndexQuery({ text, mode: searchMode });
-    setSearchSummary(`Index search: “${text}”.`);
-  }, [capabilitiesQuery.data, capabilitiesQuery.error, query, searchMode]);
+    setAppliedFilter(text);
+    setSelectedRef(null);
+    setSelectedFolder(null);
+    setSearchSummary(`Names and paths across this location: “${text}”.`);
+  }, [query]);
 
   const clearSearch = useCallback(() => {
     setQuery("");
     setAppliedFilter("");
-    setIndexQuery(null);
     setSearchSummary(null);
   }, []);
 
@@ -452,23 +427,23 @@ function SourcesScreenMode() {
   const loadNextPage = () => {
     if (continuation.token && !listingQuery.isFetchingNextPage) void listingQuery.fetchNextPage();
   };
-  const indexResults = indexQuery ? indexSearchQuery.data?.items ?? [] : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="sources-screen">
       <SourceSearch
         query={query}
-        mode={searchMode}
-        capabilities={capabilitiesQuery.data ?? null}
-        searching={listingQuery.isFetching || indexSearchQuery.isFetching}
+        searching={listingQuery.isFetching}
         onQueryChange={setQuery}
-        onModeChange={setSearchMode}
         onSubmit={runSearch}
         onClear={clearSearch}
         resultSummary={searchSummary}
       />
 
       <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
+        <Button size="sm" variant={showContentSearch ? "default" : "outline"}
+          aria-expanded={showContentSearch} onClick={() => setShowContentSearch((value) => !value)}>
+          {showContentSearch ? "Back to files" : "Search content and relationships"}
+        </Button>
         <input ref={fileInput} type="file" className="sr-only" aria-label="Choose a file to add" disabled={processing}
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -532,13 +507,8 @@ function SourcesScreenMode() {
                 <AlertTriangle className="h-3 w-3" /> {listingError}
               </p>
             )}
-            {indexResults ? (
-              <IndexResults
-                results={indexResults}
-                pending={indexSearchQuery.isPending}
-                error={indexSearchQuery.error ? errorText(indexSearchQuery.error) : null}
-                onRetry={() => void indexSearchQuery.refetch()}
-              />
+            {showContentSearch ? (
+              <div className="min-h-0 flex-1 overflow-auto p-3"><ContextSearch /></div>
             ) : rows.length ? (
               <>
                 <div className="min-h-0 flex-1">
@@ -623,48 +593,5 @@ function findUnit(units: readonly CatalogUnit[], folder: string): CatalogUnit | 
       (unit) =>
         unit.unit_root.replace(/\/$/, "") === trimmed || (unit.export_root ?? "").replace(/\/$/, "") === trimmed,
     ) ?? null
-  );
-}
-
-/** Index hits (contents / meaning) stay read-only until they carry a resolvable B2 key. */
-function IndexResults({
-  results,
-  pending,
-  error,
-  onRetry,
-}: {
-  results: readonly DiscoveryItem[];
-  pending: boolean;
-  error: string | null;
-  onRetry: () => void;
-}) {
-  if (pending) {
-    return (
-      <p className="flex items-center gap-2 px-3 py-4 text-xs text-muted-foreground" role="status">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching the index
-      </p>
-    );
-  }
-  if (error) return <div className="space-y-2 p-3 text-xs" role="alert"><p>{error}</p><Button size="sm" variant="outline" onClick={onRetry}>Retry search</Button></div>;
-  if (!results.length) {
-    return <p className="px-3 py-4 text-xs text-muted-foreground">No indexed results.</p>;
-  }
-  return (
-    <ul className="min-h-0 flex-1 divide-y overflow-auto text-xs">
-      {results.map((item) => (
-        <li key={item.id} className="px-3 py-2">
-          <details>
-            <summary className="cursor-pointer font-medium">{item.name}</summary>
-            <p className="mt-1 whitespace-pre-wrap">{item.text || "No excerpt was returned for this match."}</p>
-            <dl className="mt-2 space-y-1 break-all text-[11px] text-muted-foreground">
-              <div><dt className="font-semibold">Recorded source</dt><dd>{item.rel}</dd></div>
-              {item.document_id && <div><dt className="font-semibold">Document</dt><dd>{item.document_id}</dd></div>}
-              {item.chunk_id && <div><dt className="font-semibold">Passage</dt><dd>{item.chunk_id}</dd></div>}
-            </dl>
-          </details>
-          {item.text && <p className="mt-1 text-[11px] text-muted-foreground">{item.text.slice(0, 200)}</p>}
-        </li>
-      ))}
-    </ul>
   );
 }

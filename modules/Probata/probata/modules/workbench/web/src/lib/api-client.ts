@@ -126,6 +126,7 @@ import type {
   SourceUnitProposal,
   MatterMode,
 } from "./shared/types";
+import type { GraphResolution, RetrievalLeg, RetrievalMode, RetrievalResult } from "./retrieval-types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -183,6 +184,28 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function getHealth() {
   return apiFetch<{ status: string }>("/health");
+}
+
+/** Search selected source families through the authenticated, read-only BFF.
+ * Inputs: query, real retrieval mode, source families and request ID; output: cited results.
+ * Effects: one abortable POST, no processing or promotion. Choose for combined content search.
+ */
+export function searchContext(query: string, mode: RetrievalMode, legs: RetrievalLeg[], requestId: string, signal?: AbortSignal) {
+  return apiFetch<RetrievalResult>("/api/retrieval/search", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ request_id: requestId, query, mode, legs, limit: 30 }), signal,
+  });
+}
+
+/** Resolve a search hit to completed graph snapshots without selecting a latest version.
+ * Inputs: exact source/document identity; output: references and ambiguity; effect: read-only POST.
+ * Use before getDiscoveryNeighbors when a result has no authoritative graph record ID.
+ */
+export function resolveSearchRelationships(sourceId: string, documentId: string, signal?: AbortSignal) {
+  return apiFetch<GraphResolution>("/api/retrieval/relationships", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source_id: sourceId, document_id: documentId }), signal,
+  });
 }
 
 /** Console header's dependency status chips (C2.6 requirement 4) —

@@ -71,13 +71,11 @@ test("units are marked on folders and members, and the catalog stays read-only",
   assert.match(client, /\/api\/sources\/unit-marks/);
 });
 
-test("search ships with four modes and one small flag per unreachable mode", () => {
-  for (const label of ["Names and paths", "Contents", "Meaning", "Relationships"]) {
-    assert.ok(search.includes(label), `missing search mode ${label}`);
-  }
-  assert.match(search, /not available yet/);
-  // One flag on the mode, never a caveat paragraph or a banner.
-  assert.doesNotMatch(search, /role="alert"/);
+test("Sources uses the shared content retrieval component beside its location filter", () => {
+  assert.match(screen, /<ContextSearch/);
+  assert.match(screen, /Search content and relationships/);
+  assert.match(search, /File names and paths/);
+  assert.doesNotMatch(screen, /searchDiscovery|modeAvailable/);
 });
 
 test("Process is one button and never auto-starts, and no sort or mark gates it", () => {

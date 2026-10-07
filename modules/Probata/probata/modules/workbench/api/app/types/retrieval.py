@@ -29,3 +29,15 @@ class SearchRequest(BaseModel):
         if len(set(values)) != len(values):
             raise ValueError("source families must be distinct")
         return values
+
+
+class GraphResolveRequest(BaseModel):
+    """Carry exact Intake source identity for a read-only relationship lookup.
+
+    Inputs are source/document and optional version IDs; output is validated
+    identity. No I/O or authority changes occur; use before choosing a snapshot.
+    """
+    model_config = ConfigDict(extra="forbid")
+    source_id: str = Field(min_length=1, max_length=255, pattern=r"\S")
+    document_id: str = Field(min_length=1, max_length=255, pattern=r"\S")
+    version_id: str | None = Field(default=None, min_length=1, max_length=255, pattern=r"\S")

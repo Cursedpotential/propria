@@ -8,10 +8,24 @@ from fastapi import APIRouter, HTTPException
 from starlette.concurrency import run_in_threadpool
 
 from app.repo.spine_client import SpineError
+from app.repo.intake_discovery import DiscoveryError
 from app.service import retrieval as service
-from app.types.retrieval import SearchRequest
+from app.types.retrieval import GraphResolveRequest, SearchRequest
 
 router = APIRouter(prefix="/api/retrieval", tags=["retrieval"])
+
+
+@router.post("/relationships")
+async def relationships_endpoint(body: GraphResolveRequest):
+    """Resolve exact source identity to completed graph snapshots without choosing a version.
+
+    Input is a source/document pair and optional version; output is upstream
+    graph references and ambiguity. Read-only; use before graph neighborhood reads.
+    """
+    try:
+        return await service.resolve_graph(body)
+    except DiscoveryError as error:
+        raise HTTPException(error.status, error.message) from None
 
 
 @router.post("/search")
