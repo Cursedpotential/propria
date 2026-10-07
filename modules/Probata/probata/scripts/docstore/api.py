@@ -24,6 +24,7 @@ Auth: tailnet-only by network; if DOCSTORE_API_TOKEN is set, every route but /he
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import pathlib
 import re
@@ -362,11 +363,66 @@ async def recall(q: str = Query(..., min_length=2), kind: str = "doc", k: int = 
 
 @app.get("/doc/{record_id}")
 async def doc(record_id: str, index_kind: str = "docs", authorization: str | None = Header(default=None)) -> dict:
+    """Read an indexed document or governed current revision by allowlisted ID; return body/version metadata via read-only queries and complement docstore_get by resolving emitted revision-state IDs."""
     _auth(authorization)
     _docs_index(index_kind)
-    rid = record_id if record_id.startswith("document:") else f"document:{record_id}"
     db = await sq.connect("docs", "probata", "docs")
     try:
+        if re.fullmatch(r"docstore_document:[a-f0-9]{64}", record_id):
+            heads = _rows(await db.query(
+                "SELECT id, document_key, source_path, title, generation, latest_number, current_revision, approved_revision, current_hash, updated_at FROM ONLY type::record($r);",
+                {"r": record_id}))
+            if not heads:
+                raise HTTPException(status_code=404, detail=f"{record_id} not found")
+            head = heads[0]
+            head_id = sq.norm(head.get("id"), True)
+            revision_id = sq.norm(head.get("current_revision"), True)
+            document_key = head.get("document_key")
+            key_hash = (hashlib.sha256(document_key.encode("utf-8")).hexdigest()
+                        if isinstance(document_key, str)
+                        and re.fullmatch(r"(?:document|adr|note):[A-Za-z0-9_-]{1,128}", document_key)
+                        else None)
+            if (head_id != record_id or not isinstance(revision_id, str)
+                    or type(head.get("generation")) is not int or head["generation"] < 1
+                    or type(head.get("latest_number")) is not int or head["latest_number"] < 1
+                    or key_hash is None or record_id != f"docstore_document:{key_hash}"
+                    or revision_id != f"docstore_revision:{key_hash}_{head['latest_number']}"
+                    or not isinstance(head.get("current_hash"), str)
+                    or not re.fullmatch(r"[a-f0-9]{64}", head["current_hash"])):
+                raise HTTPException(status_code=502, detail="current revision head is invalid")
+            revisions = _rows(await db.query(
+                "SELECT id, document, number, body, raw_sha256, projection_sha256, projection_profile, source_path, actor, source_ref, at FROM ONLY type::record($r);",
+                {"r": revision_id}))
+            if not revisions:
+                raise HTTPException(status_code=502, detail="current revision is missing")
+            revision = revisions[0]
+            revision_data = sq.norm(revision, True)
+            if (revision_data.get("id") != revision_id or revision_data.get("document") != record_id
+                    or revision_data.get("number") != head["latest_number"]
+                    or not isinstance(revision_data.get("body"), str)
+                    or hashlib.sha256(revision_data["body"].encode("utf-8")).hexdigest() != head["current_hash"]
+                    or revision_data.get("raw_sha256") != head["current_hash"]):
+                raise HTTPException(status_code=502, detail="current revision linkage is invalid")
+            result = {
+                "id": record_id,
+                "document_key": sq.norm(head.get("document_key"), True),
+                "source_path": sq.norm(head.get("source_path"), True),
+                "title": sq.norm(head.get("title"), True),
+                "body": revision_data["body"],
+                "status": "revisioned",
+                "generation": head["generation"],
+                "latest_number": head["latest_number"],
+                "current_revision": revision_id,
+                "approved_revision": sq.norm(head.get("approved_revision"), True),
+                "current_hash": head["current_hash"],
+                "updated_at": sq.norm(head.get("updated_at"), True),
+                "revision": {key: value for key, value in revision_data.items() if key != "body"},
+            }
+            return _identified(result)
+
+        if not re.fullmatch(r"(?:document:)?[A-Za-z0-9_-]{1,128}", record_id):
+            raise HTTPException(status_code=400, detail="unsupported document record ID syntax")
+        rid = record_id if record_id.startswith("document:") else f"document:{record_id}"
         r = _rows(await db.query(
             "SELECT id, source_path, title, doc_type, domains, status, observed_at, body FROM type::record($r);",
             {"r": rid}))
