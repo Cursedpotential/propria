@@ -116,16 +116,16 @@ async def test_bad_vectors_fail_before_network(vector):
 
 
 @pytest.mark.parametrize(
-    "request",
+    "payload",
     [
         {"query": "test", "mode": "vector"},
         {"query": "test", "mode": "keyword", "vector": [1, 0, 0]},
         {"query": "test", "mode": "hybrid", "vector": [1, 0, 0]},
     ],
 )
-def test_external_vector_is_required_only_for_pure_vector_mode(request):
+def test_external_vector_is_required_only_for_pure_vector_mode(payload):
     with pytest.raises(ValueError):
-        FilesystemSearchRequest(**request)
+        FilesystemSearchRequest(**payload)
 
 
 @pytest.mark.parametrize(
