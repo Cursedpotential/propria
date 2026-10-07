@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -630,22 +629,7 @@ func (h *PreviewHTTPHandler) Routes() http.Handler {
 }
 
 func (h *PreviewHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-		ip := net.ParseIP(host).To4()
-		serviceToken, tokenErr := loadServiceToken(h.serviceTokenPath)
-		auth := strings.TrimSpace(r.Header.Get("Authorization"))
-		provided := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
-		trusted := tokenErr == nil && strings.HasPrefix(auth, "Bearer ") && hmac.Equal([]byte(provided), serviceToken)
-		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 || !trusted {
-			previewError(w, http.StatusUnauthorized, errors.New("proffer preview tailnet authorization required"))
-			return
-		}
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if !canonicalRequestWrite(w, r) {
-			return
-		}
+	return profferServiceAuth(h.serviceTokenPath, "proffer preview service authorization required", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && r.PathValue("preview_handle") != "" {
 			binding, err := h.store.Binding(r.Context(), r.PathValue("preview_handle"))
 			if err != nil {
@@ -658,7 +642,7 @@ func (h *PreviewHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 			}
 		}
 		next(w, r)
-	}
+	})
 }
 
 var serviceTokenPattern = regexp.MustCompile(`^[A-Za-z0-9._~+/\-]+={0,}$`)

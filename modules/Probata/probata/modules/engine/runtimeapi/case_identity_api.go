@@ -4,9 +4,8 @@
 //
 // Case identity routes on the Proffer starter: the registry read behind the
 // Workbench Case page and the owner's edits. The Case page and mutations require
-// a tailnet peer plus mounted service token; every write carries Authentik actor
-// headers and an Idempotency-Key. Only the bounded scope GET also admits explicitly
-// configured private service peers with the same mounted credential.
+// a tailnet or explicitly configured internal peer plus mounted service token;
+// every write carries Authentik actor headers and an Idempotency-Key.
 //
 //	GET  /case-identity?mode=DEV|LIVE          the whole Case page
 //	GET  /case-identity/scope?mode=DEV|LIVE    bounded fresh registry identity
@@ -23,7 +22,6 @@ package runtimeapi
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -33,15 +31,14 @@ import (
 
 // CaseIdentityHTTPHandler serves the case identity routes.
 type CaseIdentityHTTPHandler struct {
-	store                caseidentity.Store
-	serviceTokenPath     string
-	scopeServiceNetworks []*net.IPNet
+	store            caseidentity.Store
+	serviceTokenPath string
 }
 
-// NewCaseIdentityHTTPHandler validates the case store, service token and scope-only peer allowlist.
-// Inputs: registry store, credential path and optional PROFFER_CASE_SCOPE_SERVICE_CIDRS.
+// NewCaseIdentityHTTPHandler validates the case store, service token and shared peer allowlist.
+// Inputs: registry store, credential path and optional PROFFER_INTERNAL_SERVICE_CIDRS.
 // Outputs: handler or configuration error. Effects: credential/config reads only.
-// Choose for Case routes with a separately bounded authenticated worker scope check.
+// Choose for Case routes including bounded fresh scope reads and actor-bound writes.
 func NewCaseIdentityHTTPHandler(store caseidentity.Store, serviceTokenPath string) (*CaseIdentityHTTPHandler, error) {
 	if store == nil {
 		return nil, errors.New("case identity handler requires a store")
@@ -49,12 +46,11 @@ func NewCaseIdentityHTTPHandler(store caseidentity.Store, serviceTokenPath strin
 	if _, err := loadServiceToken(serviceTokenPath); err != nil {
 		return nil, err
 	}
-	// Byline: Codex · GPT-6 · 2026-10-06. Only the bounded read-only scope route admits configured service peers.
-	networks, err := toolkitValidationServiceNetworks(os.Getenv("PROFFER_CASE_SCOPE_SERVICE_CIDRS"))
+	_, err := profferServiceNetworks(os.Getenv(profferInternalServiceCIDRsEnv))
 	if err != nil {
 		return nil, err
 	}
-	return &CaseIdentityHTTPHandler{store: store, serviceTokenPath: serviceTokenPath, scopeServiceNetworks: networks}, nil
+	return &CaseIdentityHTTPHandler{store: store, serviceTokenPath: serviceTokenPath}, nil
 }
 
 // CaseIdentityRoutePatterns are the exact mux patterns the starter mounts.
@@ -79,10 +75,6 @@ func (h *CaseIdentityHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	handlers := []http.HandlerFunc{h.read, h.readScope, h.lookup, h.addIdentifier, h.editIdentifier, h.deleteIdentifier, h.editHeader, h.addPerson, h.editPerson, h.triage, h.addPlaceholders, h.addContactPeople, h.mergePerson}
 	for i, pattern := range CaseIdentityRoutePatterns {
-		if pattern == "GET /case-identity/scope" {
-			mux.HandleFunc(pattern, toolkitValidationServiceAuth(h.serviceTokenPath, h.scopeServiceNetworks, h.readScope))
-			continue
-		}
 		mux.HandleFunc(pattern, overlayAuth(h.serviceTokenPath, "case identity", handlers[i]))
 	}
 	return mux
