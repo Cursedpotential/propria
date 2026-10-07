@@ -385,6 +385,30 @@ async function run(outDir) {
         await page.waitFor(`location.pathname === ${JSON.stringify(path)} && (${ready})`, "navigation_destination_unavailable");
       });
     }
+    await check("sources-folder-navigation", async () => {
+      await page.goto("/sources");
+      await page.waitFor("document.querySelector('[aria-label=\"Source location\"] option[value]:not([value=\"\"])') && document.querySelector('button[aria-label^=\"Open folder \"]')", "source_folders_unavailable");
+      await page.clickElement("document.querySelector('button[aria-label^=\"Open folder \"]')");
+      await page.waitFor("new URLSearchParams(location.search).get('prefix') && document.querySelector('[aria-label=\"Folder path\"] button[title]')", "folder_location_not_preserved");
+      const prefix = await page.eval("new URLSearchParams(location.search).get('prefix')");
+      await page.goto(await page.eval("location.pathname + location.search"));
+      await page.waitFor(`new URLSearchParams(location.search).get('prefix') === ${JSON.stringify(prefix)} && document.querySelector('[aria-label="Folder path"] button[title]')`, "folder_reload_lost_location");
+      await page.clickElement("document.querySelector('[aria-label=\"Folder path\"] button')");
+      await page.waitFor("!new URLSearchParams(location.search).get('prefix')", "folder_root_return_failed");
+    });
+    await check("sources-indexed-search", async () => {
+      await page.goto("/sources");
+      const mode = "[...document.querySelectorAll('[aria-label=\"Search mode\"] button')].find(b => b.textContent.trim() === 'Contents')";
+      await page.waitFor(mode, "source_contents_capability_unavailable");
+      await page.clickElement(mode);
+      await page.field('[aria-label="Search the corpus"]', "document");
+      await page.waitFor("!document.querySelector('[aria-label=\"Search sources\"] button[type=\"submit\"]').disabled", "source_search_not_ready");
+      await page.clickElement("document.querySelector('[aria-label=\"Search sources\"] button[type=\"submit\"]')");
+      const result = "[...document.querySelectorAll('[data-testid=\"sources-screen\"] li details')].find(d => d.querySelector('dl dt')?.textContent === 'Recorded source')";
+      await page.waitFor(result, "source_index_results_unavailable");
+      await page.clickElement(`(${result}).querySelector('summary')`);
+      ensure(await page.eval(`(${result}).open && Boolean((${result}).querySelector('dd')?.textContent)`), "source_excerpt_or_locator_unavailable");
+    });
     await check("read-source-thread", async () => {
       await page.goto("/read");
       await page.waitFor("document.querySelector('#read-content-search')", "read_page_unavailable");
