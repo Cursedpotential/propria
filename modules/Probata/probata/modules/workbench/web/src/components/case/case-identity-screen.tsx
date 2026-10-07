@@ -1,4 +1,5 @@
 // Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
+// Byline amendment: Codex · GPT-6 · 2026-10-06; retry failed registry reads with named loading/error states.
 // Case — who the case is about and every way they appear in the data.
 //
 // Owner order 2026-10-01 07:56: "There needs to be a case identity page. Can
@@ -461,16 +462,19 @@ function ModeScopedCaseIdentityScreen() {
 
   if (query.isLoading) {
     return (
-      <div className="grid h-full place-content-center text-sm text-muted-foreground">
+      <div className="grid h-full place-content-center text-sm text-muted-foreground" role="status" aria-label="Reading case identity">
         <Loader2 className="mx-auto h-5 w-5 animate-spin" /> Reading the registry…
       </div>
     );
   }
   if (query.isError || !view) {
     return (
-      <div className="grid h-full place-content-center gap-2 text-center text-sm">
+      <div className="grid h-full place-content-center gap-2 text-center text-sm" role="alert" aria-label="Case identity unavailable">
         <AlertTriangle className="mx-auto h-5 w-5 text-destructive" />
         <p>{(query.error as Error | null)?.message ?? "The case identity could not be read"}</p>
+        <Button type="button" variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
+          {query.isFetching ? "Retrying…" : "Retry"}
+        </Button>
       </div>
     );
   }
