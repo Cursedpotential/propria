@@ -617,6 +617,43 @@ def _chunk_intents(pin: dict[str, str], content_key: str) -> list[dict[str, Any]
     return result
 
 
+def _legacy_provider_charge(pin: dict[str, str], source: dict[str, Any]) -> int:
+    """Validate an explicit exact-set review and return its historical charged upper bound.
+
+    Inputs: seven pins and verified source. Outputs: conservative historical
+    charge, separate from new request slots. Effects: bounded retained reads only;
+    choose for reviewed pre-intent attempts, never infer or create authorization.
+    The review lives at _path(pin, "provider_accounting_review", source), pins
+    full-file SHA256/ref pairs, and explicitly authorizes fresh bounded attempts.
+    Reason/proof refs explain an upper bound, not an assertion of actual calls.
+    """
+    attempts = []
+    directory = _path(pin, "provider_attempt", None).parent
+    for index, path in enumerate(sorted(directory.glob("*.json"))):
+        if index >= MAX_MODEL_CALLS:
+            raise ContentInvalid("provider attempt evidence exceeds the approved accounting bound")
+        attempt = _read(path.as_uri(), pin, "provider_attempt")
+        if attempt.get("source") != source:
+            raise ContentInvalid("legacy provider attempt source differs")
+        if not attempt.get("intent_ref") or not attempt.get("budget_ref"):
+            attempts.append({"ref": path.as_uri(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+    review_path = _path(pin, "provider_accounting_review", source)
+    if not attempts and not review_path.exists():
+        return 0
+    if not review_path.exists():
+        raise ContentInvalid("legacy provider attempt lacks durable intent; explicit accounting review required")
+    review = _read(review_path.as_uri(), pin, "provider_accounting_review")
+    charge = review.get("historical_charged_upper_bound")
+    if (review.get("source") != source or review.get("legacy_attempts") != attempts or
+        review.get("authorization") != "fresh_bounded_attempts_for_reviewed_legacy_chunks" or
+        isinstance(charge, bool) or not isinstance(charge, int) or not len(attempts) <= charge <= MAX_MODEL_CALLS or
+        not isinstance(review.get("reason"), str) or not review["reason"].strip() or
+        not isinstance(review.get("proof_refs"), list) or not review["proof_refs"] or
+        not all(isinstance(ref, str) and ref.strip() for ref in review["proof_refs"])):
+        raise ContentInvalid("legacy provider accounting review differs from exact source evidence or authorization")
+    return charge
+
+
 def _provider_budget(pin: dict[str, str], source: dict[str, Any]) -> list[dict[str, Any]]:
     """Read the fixed source-scope provider ledger and refuse unaccounted legacy attempts.
 
@@ -624,13 +661,14 @@ def _provider_budget(pin: dict[str, str], source: dict[str, Any]) -> list[dict[s
     Effects: bounded file reads; choose across Activity retries so in-flight or
     failed calls cannot disappear from the approved ceiling.
     """
+    _legacy_provider_charge(pin, source)
     legacy = _path(pin, "provider_attempt", None).parent
     for index, path in enumerate(legacy.glob("*.json")):
         if index >= MAX_MODEL_CALLS:
             raise ContentInvalid("provider attempt evidence exceeds the approved accounting bound")
         attempt = _read(path.as_uri(), pin, "provider_attempt")
         if not attempt.get("intent_ref") or not attempt.get("budget_ref"):
-            raise ContentInvalid("legacy provider attempt lacks durable intent; explicit accounting review required")
+            continue  # Exact legacy set and historical charge were validated above.
         intent = _read(attempt["intent_ref"], pin, "candidate_intent")
         budget = _read(attempt["budget_ref"], pin, "candidate_budget")
         if intent["source"] != source or budget["intent_ref"] != attempt["intent_ref"] or budget["source"] != source:
@@ -646,6 +684,19 @@ def _provider_budget(pin: dict[str, str], source: dict[str, Any]) -> list[dict[s
     return result
 
 
+def _provider_accounting(pin: dict[str, str], source: dict[str, Any]) -> dict[str, int]:
+    """Sum real new slots and a separately retained reviewed historical upper bound.
+
+    Inputs: exact pins/source. Outputs: budget counts including conservative
+    total. Effects: retained reads only; choose for every extraction ceiling and
+    receipt instead of treating reviewed historical attempts as zero consumption.
+    """
+    new = len(_provider_budget(pin, source))
+    historical = _legacy_provider_charge(pin, source)
+    return {"new_provider_budget_consumed": new, "historical_provider_charge": historical,
+            "provider_budget_consumed": new + historical, "model_calls": new + historical}
+
+
 def _reserve_provider_call(pin: dict[str, str], source: dict[str, Any], identity: dict[str, Any],
                            content_key: str, request: dict[str, Any]) -> tuple[str, str]:
     """Exclusively claim chunk and source budget slots before issuing one provider request.
@@ -654,8 +705,8 @@ def _reserve_provider_call(pin: dict[str, str], source: dict[str, Any], identity
     immutable intent and budget refs. Effects: retained atomic exclusive files;
     choose before I/O. Unknown or interrupted claims consume capacity conservatively.
     """
-    budget = _provider_budget(pin, source)
-    if len(budget) >= identity["maximum"]:
+    accounting = _provider_accounting(pin, source)
+    if accounting["provider_budget_consumed"] >= identity["maximum"]:
         raise ContentInvalid("approved durable provider budget exhausted")
     intent_ref = ""
     for slot in (1, 2):
@@ -668,7 +719,9 @@ def _reserve_provider_call(pin: dict[str, str], source: dict[str, Any], identity
             continue
     if not intent_ref:
         raise ContentInvalid("two durable provider requests for this chunk are exhausted or have unknown outcomes")
-    for slot in range(1, identity["maximum"] + 1):
+    # A fixed reduced namespace prevents concurrent new reservations from
+    # spending capacity already conservatively charged to historical attempts.
+    for slot in range(1, identity["maximum"] - accounting["historical_provider_charge"] + 1):
         path = _path(pin, "candidate_budget", slot)
         try:
             ref = _save(path, pin, "candidate_budget", {"source": source, "intent_ref": intent_ref, "slot": slot}, require_new=True)
@@ -755,8 +808,8 @@ def _extract_routed_candidates(pin: dict[str, str], source: dict[str, Any], prep
     identity = {"prepared_ref": prepared_ref, "work_products_ref": work_products_ref,
                 "route_plan": router.identity(), "prompt_digest": _key([PROMPT, OUTPUT_CORRECTION]),
                 "policy": "exact-quote-routed-checkpoint-v1", "maximum": maximum, "requests_per_chunk": 2}
-    consumed = _provider_budget(pin, source)
-    if len(consumed) > maximum:
+    accounting = _provider_accounting(pin, source)
+    if accounting["provider_budget_consumed"] > maximum:
         raise ContentInvalid("retained provider consumption exceeds the requested bound")
     path = _path(pin, "candidates", identity)
     cached_final = _read(path.as_uri(), pin, "candidates") if path.exists() else None
@@ -811,16 +864,16 @@ def _extract_routed_candidates(pin: dict[str, str], source: dict[str, Any], prep
         replies.append({"content_key": chunk["content_key"], "reply": checkpoint["raw_reply"],
                         "reply_ref": checkpoint["reply_ref"], "grounded_candidates": len(grounded),
                         "actual_provider": checkpoint["actual_provider"]})
-    consumed = _provider_budget(pin, source)
+    accounting = _provider_accounting(pin, source)
     model_ids = sorted({item["actual_provider"]["model_id"] for item in replies})
-    counts = {**prepared["counts"], "candidates": len(candidates), "model_calls": len(consumed),
-              "new_model_calls": new_calls, "cached_chunks": cached_chunks, "provider_budget_consumed": len(consumed),
+    counts = {**prepared["counts"], "candidates": len(candidates), **accounting,
+              "new_model_calls": new_calls, "cached_chunks": cached_chunks,
               "reserved_provider_attempts": 2 * len(replies)}
     if cached_final is not None:
         if cached_final.get("source") != source or cached_final.get("identity") != identity or cached_final.get("candidates") != candidates or cached_final.get("replies") != replies:
             raise ContentInvalid("completed routed candidates differ from exact validated checkpoints")
         return _receipt(path.as_uri(), cached_final, model_ids=cached_final["model_ids"],
-                        **{key: counts[key] for key in ("new_model_calls", "cached_chunks", "model_calls", "provider_budget_consumed")})
+                        **accounting, new_model_calls=new_calls, cached_chunks=cached_chunks)
     ref = _save(path, pin, "candidates", {"source": source, "prepared_ref": prepared_ref, "work_products_ref": work_products_ref,
                 "identity": identity, "route_plan": identity["route_plan"], "model_ids": model_ids,
                 "model_id": model_ids[0] if len(model_ids) == 1 else None,
@@ -850,7 +903,8 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any
     maximum = _limit(params, "max_model_calls", MAX_MODEL_CALLS)
     # The existing provider validates replies and can retry once with thinking on.
     # Reserve both provider attempts before calling it; no hidden fallback model.
-    if len(prepared["chunks"]) * 2 > maximum:
+    historical_charge = _legacy_provider_charge(pin, source)
+    if len(prepared["chunks"]) * 2 + historical_charge > maximum:
         raise ContentInvalid("extraction's two-attempt provider budget exceeds max_model_calls")
     if model is None:
         from server.analysis.ai_content_provider import ProviderRouter, default_profiles
@@ -860,8 +914,8 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any
     config = config or lx.config_from_env()
     identity = candidate_identity(prepared_ref, work_products_ref, config, maximum)
     path = _path(pin, "candidates", identity)
-    consumed = _provider_budget(pin, source)
-    if len(consumed) > maximum:
+    accounting = _provider_accounting(pin, source)
+    if accounting["provider_budget_consumed"] > maximum:
         raise ContentInvalid("retained provider consumption exceeds the requested bound")
     if path.exists():
         cached = _read(path.as_uri(), pin, "candidates")
@@ -876,7 +930,7 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any
         if verified != cached.get("candidates"):
             raise ContentInvalid("completed candidate bundle differs from ordered chunk checkpoints")
         return _receipt(path.as_uri(), cached, model_id=cached["model_id"], new_model_calls=0,
-                        model_calls=len(consumed), provider_budget_consumed=len(consumed), cached_chunks=len(prepared["chunks"]))
+                        **accounting, cached_chunks=len(prepared["chunks"]))
     model = model or lx.build_model(config)
     # This existing LangExtract provider owns one explicit reply retry. Disable
     # the SDK's additional transport retries so the reserved two-attempt bound holds.
@@ -991,10 +1045,10 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any
             raise ContentInvalid("grounded candidate evidence exceeds the retained bundle bound")
         candidates.extend(grounded)
         replies.append({"content_key": chunk["content_key"], "reply": raw, "reply_ref": reply_ref, "grounded_candidates": len(grounded)})
-    consumed = _provider_budget(pin, source)
-    counts = {**prepared["counts"], "candidates": len(candidates), "model_calls": len(consumed),
+    accounting = _provider_accounting(pin, source)
+    counts = {**prepared["counts"], "candidates": len(candidates), **accounting,
               "new_model_calls": provider_calls[0], "cached_chunks": cached_chunks,
-              "provider_budget_consumed": len(consumed), "reserved_provider_attempts": len(replies) * 2}
+              "reserved_provider_attempts": len(replies) * 2}
     ref = _save(path, pin, "candidates", {"prepared_ref": prepared_ref, "work_products_ref": work_products_ref, "source": source,
         "model_id": config.model_id, "model_base_url": config.base_url, "prompt_version": identity["policy"], "identity": identity,
         "candidates": candidates, "replies": replies, "counts": counts})

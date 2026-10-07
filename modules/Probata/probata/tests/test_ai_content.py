@@ -11,6 +11,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from copy import deepcopy
 import json
+import hashlib
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -957,3 +958,174 @@ def test_routed_alternate_success_reuses_exact_attempt_and_cannot_reset_budget(s
     with pytest.raises(ai.ContentInvalid, match="budget exhausted"):
         ai.extract_candidates(params, router=router)
     assert len(calls) == 2
+
+
+def legacy_review_fixture(scope, prep, *, charge=6, change=None):
+    """Retain two unbound failures and an explicit exact-set synthetic review.
+
+    Inputs: fixture pins/source, charged upper bound and optional review edit.
+    Outputs: original receipt bytes and review reference. Effects: additive
+    fixture files only; choose for legacy recovery without inventing old intents.
+    """
+    originals = {}
+    for error in ("APIConnectionError", "InternalServerError"):
+        path = ai._path(scope, "provider_attempt", ["legacy", error])
+        ai._save(path, scope, "provider_attempt", {"source": prep["source"],
+            "content_key": prep["chunks"][0]["content_key"], "provider_call": 1,
+            "response": {"error_type": error}})
+        originals[path] = path.read_bytes()
+    data = {"source": prep["source"], "legacy_attempts": [
+        {"ref": path.as_uri(), "sha256": hashlib.sha256(raw).hexdigest()}
+        for path, raw in sorted(originals.items())],
+        "historical_charged_upper_bound": charge,
+        "authorization": "fresh_bounded_attempts_for_reviewed_legacy_chunks",
+        "reason": "At most three historical Activity attempts with two SDK requests each; not actual six calls.",
+        "proof_refs": ["file:///synthetic/temporal-history-event19", "git:synthetic-historical-max-retries-zero"]}
+    if change:
+        change(data)
+    path = ai._path(scope, "provider_accounting_review", prep["source"])
+    ref = ai._save(path, scope, "provider_accounting_review", data)
+    return originals, ref
+
+
+@pytest.mark.parametrize("routed", [False, True])
+def test_explicit_legacy_review_resumes_with_separate_historical_charge(scope, monkeypatch, routed):
+    """Resume reviewed legacy chunks and preserve historical evidence and charges.
+
+    Inputs: exact synthetic review and legacy or routed provider. Outputs:
+    six historical plus actual new usage, cached no-call resume. Effects: fake
+    calls and additive fixture files; choose for the existing Activity recovery.
+    """
+    if routed:
+        params, router, clock, calls = routed_fixture(scope, monkeypatch)
+        prep = ai._read(params["prepared_ref"], scope, "prepared")
+        options = {"router": router}
+    else:
+        params, prep, config = checkpoint_fixture(scope, monkeypatch)
+        model = CheckpointModel()
+        calls, options = model.calls, {"model": model, "config": config}
+    params["max_model_calls"] = 8
+    originals, review_ref = legacy_review_fixture(scope, prep)
+    result = ai.extract_candidates(params, **options)
+    assert len(calls) == result["new_provider_budget_consumed"] == result["new_model_calls"] == 1
+    assert result["historical_provider_charge"] == 6
+    assert result["model_calls"] == result["provider_budget_consumed"] == 7
+    assert len(ai._provider_budget(scope, prep["source"])) == 1
+    assert len(ai._chunk_intents(scope, prep["chunks"][0]["content_key"])) == 1
+    again = ai.extract_candidates(params, **options)
+    assert again["new_model_calls"] == 0 and len(calls) == 1
+    assert again["historical_provider_charge"] == 6 and again["model_calls"] == 7
+    assert all(path.read_bytes() == raw for path, raw in originals.items())
+    review = ai._read(review_ref, scope, "provider_accounting_review")
+    with pytest.raises(ai.ContentInvalid, match="different retained output"):
+        ai._save(ai._path(scope, "provider_accounting_review", prep["source"]), scope,
+                 "provider_accounting_review", {**{key: value for key, value in review.items()
+                    if key not in ("version", "pins", "stage", "bundle_fingerprint")}, "historical_charged_upper_bound": 2})
+
+
+@pytest.mark.parametrize("change", ["source", "hash", "ref", "missing", "authorization", "charge", "proof"])
+def test_legacy_review_must_match_complete_evidence_and_authorization(scope, monkeypatch, change):
+    """Refuse mismatched legacy review source, full bytes, receipt set or authority.
+
+    Inputs: synthetic altered review. Outputs: permanent refusal before dispatch.
+    Effects: retained fixture files only; choose over broad legacy exemptions.
+    """
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    params["max_model_calls"] = 8
+    def edit(data):
+        """Alter one review assertion; input review, output none, effects fixture memory; choose for fail-closed validation."""
+        if change == "source":
+            data["source"] = {**data["source"], "original_sha256": "b" * 64}
+        elif change in ("hash", "ref"):
+            data["legacy_attempts"][0]["sha256" if change == "hash" else "ref"] = "wrong"
+        elif change == "missing":
+            data["legacy_attempts"] = data["legacy_attempts"][:1]
+        elif change == "authorization":
+            data["authorization"] = "unreviewed"
+        elif change == "charge":
+            data["historical_charged_upper_bound"] = 1
+        else:
+            data["proof_refs"] = []
+    legacy_review_fixture(scope, prep, change=edit)
+    model = CheckpointModel()
+    with pytest.raises(ai.ContentInvalid, match="accounting review differs"):
+        ai.extract_candidates(params, model=model, config=config)
+    assert model.calls == [] and not ai._chunk_intents(scope, prep["chunks"][0]["content_key"])
+
+
+def test_new_unreviewed_legacy_receipt_invalidates_exact_review(scope, monkeypatch):
+    """Refuse an additional historical receipt after an exact-set review exists.
+
+    Inputs: reviewed fixture plus new unbound receipt. Outputs: refusal with no
+    model call. Effects: additive fixture files; choose for historical drift.
+    """
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    params["max_model_calls"] = 8
+    originals, _ = legacy_review_fixture(scope, prep)
+    ai._save(ai._path(scope, "provider_attempt", "new-unreviewed"), scope, "provider_attempt",
+             {"source": prep["source"], "response": {"error_type": "AnotherFailure"}})
+    model = CheckpointModel()
+    with pytest.raises(ai.ContentInvalid, match="accounting review differs"):
+        ai.extract_candidates(params, model=model, config=config)
+    assert model.calls == [] and all(path.read_bytes() == raw for path, raw in originals.items())
+
+
+def test_legacy_review_wrong_pins_and_fingerprint_refuse(scope, monkeypatch):
+    """Refuse a review whose immutable envelope is tampered or has another scope.
+
+    Inputs: synthetic review mutation. Outputs: stage/pin/fingerprint refusal.
+    Effects: modifies only disposable review fixture bytes; choose for read checks.
+    """
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    _, ref = legacy_review_fixture(scope, prep)
+    path = ai._path(scope, "provider_accounting_review", prep["source"])
+    review = ai._read(ref, scope, "provider_accounting_review")
+    path.chmod(0o600)
+    path.write_bytes(ai._json({**review, "reason": "tampered"}))
+    with pytest.raises(ai.ContentInvalid, match="fingerprint differs"):
+        ai._provider_budget(scope, prep["source"])
+    review["pins"] = {**scope, "verification_id": str(uuid4())}
+    review["bundle_fingerprint"] = ai._key({key: value for key, value in review.items() if key != "bundle_fingerprint"})
+    path.write_bytes(ai._json(review))
+    with pytest.raises(ai.ContentInvalid, match="pins differ"):
+        ai._provider_budget(scope, prep["source"])
+
+
+def test_historical_charge_reduces_source_ceiling_without_creating_slots(scope, monkeypatch):
+    """Enforce the unchanged 512 ceiling with historical usage outside new slots.
+
+    Inputs: 510 conservative historical charges and fresh requests. Outputs:
+    exactly two real reservations and permanent third refusal. Effects: fixture
+    ledgers only; choose for concurrent-safe reduced reservation namespace.
+    """
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    legacy_review_fixture(scope, prep, charge=510)
+    identity = ai.candidate_identity(params["prepared_ref"], params["work_products_ref"], config, ai.MAX_MODEL_CALLS)
+    assert ai._provider_budget(scope, prep["source"]) == []
+    for index in range(2):
+        ai._reserve_provider_call(scope, prep["source"], identity, "fresh-chunk-" + str(index), {})
+    assert ai._provider_accounting(scope, prep["source"]) == {
+        "historical_provider_charge": 510, "new_provider_budget_consumed": 2,
+        "provider_budget_consumed": 512, "model_calls": 512}
+    with pytest.raises(ai.ContentInvalid, match="budget exhausted"):
+        ai._reserve_provider_call(scope, prep["source"], identity, "fresh-chunk-3", {})
+    assert [item["slot"] for item in ai._provider_budget(scope, prep["source"])] == [1, 2]
+
+
+def test_review_preserves_two_fresh_requests_per_chunk(scope, monkeypatch):
+    """Authorize fresh reviewed chunk requests without widening their two-slot cap.
+
+    Inputs: six historical charges and fresh reviewed chunk. Outputs: two new
+    intent/budget slots and third refusal. Effects: fixture files only; choose
+    over manufacturing historical intents or resetting charged consumption.
+    """
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    legacy_review_fixture(scope, prep)
+    identity = ai.candidate_identity(params["prepared_ref"], params["work_products_ref"], config, 512)
+    content_key = prep["chunks"][0]["content_key"]
+    for _ in range(2):
+        ai._reserve_provider_call(scope, prep["source"], identity, content_key, {})
+    with pytest.raises(ai.ContentInvalid, match="two durable"):
+        ai._reserve_provider_call(scope, prep["source"], identity, content_key, {})
+    assert len(ai._chunk_intents(scope, content_key)) == 2
+    assert ai._provider_accounting(scope, prep["source"])["provider_budget_consumed"] == 8
