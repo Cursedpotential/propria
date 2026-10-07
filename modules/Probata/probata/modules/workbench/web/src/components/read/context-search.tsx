@@ -83,7 +83,11 @@ function SearchHit({ hit, query }: { hit: RetrievalHit; query: string }) {
   const title = sources[0]?.name || hit.location?.name || (locator.source_path || locator.vault_key || "").split(/[\\/]/).pop() || "Indexed passage";
   return <li className="space-y-2 rounded border p-3">
     <p className="text-sm font-semibold">{title}</p>
-    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{hit.text}</p>
+    <p className="line-clamp-5 whitespace-pre-wrap break-words text-sm leading-relaxed">{hit.text}</p>
+    <details className="text-sm">
+      <summary className="cursor-pointer underline underline-offset-4">Read indexed passage</summary>
+      <p className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words leading-relaxed">{hit.text}</p>
+    </details>
     <div className="flex flex-wrap gap-3">{sources.filter((source) => source.href.startsWith("/read?")).map((source) =>
       <AppLink className="text-sm underline underline-offset-4" key={source.source_version_id}
         href={readHref(new URLSearchParams(source.href.slice("/read?".length)), { q: query })}>Read {source.name}</AppLink>)}</div>
