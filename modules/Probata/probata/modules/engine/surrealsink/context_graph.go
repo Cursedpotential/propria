@@ -278,6 +278,25 @@ type ContextGraphReadback struct {
 	Bundle  ContextGraphBundle  `json:"bundle"`
 }
 
+// VerifyContextGraph independently compares the whole stored graph with its exact expected bundle.
+// Input is a validated sealed bundle; output is a verified reference-only checkpoint.
+// Effects read the existing generation and every node/relation with source/link checks.
+// Pick as a separate post-projection Activity; it performs no writes or schema changes.
+func (c *Client) VerifyContextGraph(ctx context.Context, b ContextGraphBundle) (ContextGraphReceipt, error) {
+	if e := b.Validate(); e != nil {
+		return ContextGraphReceipt{}, e
+	}
+	saved, e := c.readGraph(ctx, b.Scope, b.GenerationID, true)
+	if e != nil {
+		return ContextGraphReceipt{}, e
+	}
+	expected := graphBase(b)
+	if saved.Receipt.BundleHash != expected.BundleHash || graphHash(graphCanonical(saved.Bundle)) != expected.BundleHash {
+		return ContextGraphReceipt{}, errors.New("independent expected graph readback differs")
+	}
+	return saved.Receipt, nil
+}
+
 func (c *Client) readGraph(ctx context.Context, scope ContextGraphScope, generation string, active bool) (ContextGraphReadback, error) {
 	out := ContextGraphReadback{}
 	for _, id := range []string{scope.MatterID, scope.CaseID, scope.AccessPolicyID, scope.CreatedByService, generation} {
