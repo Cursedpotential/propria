@@ -55,6 +55,11 @@ func TestGraphContractBoundsDependenciesAndNativeOrder(t *testing.T) {
 	if e := b.Validate(); e != nil {
 		t.Fatal(e)
 	}
+	b.Nodes[0].DerivativeKind = "ai_source_turn"
+	b.Nodes[1].DerivativeKind = "ai_source_turn"
+	if e := b.Validate(); e != nil {
+		t.Fatal("native AI source turns rejected", e)
+	}
 	b.Nodes[1].OccurredAt = &first
 	if b.Validate() == nil {
 		t.Fatal("equal native time accepted")

@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-07
 package surrealsink
 
 import (
@@ -204,7 +205,9 @@ func (b ContextGraphBundle) Validate() error {
 		}
 		if e.Kind == "before" {
 			from, to := nodes[e.FromNodeID], nodes[e.ToNodeID]
-			if from.Kind != "ctx_content_unit" || to.Kind != "ctx_content_unit" || from.DerivativeKind != "source_turn" || to.DerivativeKind != "source_turn" || from.OccurredAt == nil || to.OccurredAt == nil || !from.OccurredAt.Before(*to.OccurredAt) {
+			fromTurn := from.DerivativeKind == "source_turn" || from.DerivativeKind == "ai_source_turn"
+			toTurn := to.DerivativeKind == "source_turn" || to.DerivativeKind == "ai_source_turn"
+			if from.Kind != "ctx_content_unit" || to.Kind != "ctx_content_unit" || !fromTurn || !toTurn || from.OccurredAt == nil || to.OccurredAt == nil || !from.OccurredAt.Before(*to.OccurredAt) {
 				return errors.New("before requires strictly ordered native source-turn timestamps")
 			}
 		}

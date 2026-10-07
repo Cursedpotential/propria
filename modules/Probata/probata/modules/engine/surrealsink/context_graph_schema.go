@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-07
 package surrealsink
 
 import (
@@ -75,7 +76,7 @@ func MinimalContextGraphSchema(b ContextGraphBundle) (string, error) {
 	ns, es := graphTables(b)
 	tables := append([]string{contextGenerationTable}, append(ns, es...)...)
 	var out strings.Builder
-	out.WriteString("-- Generated from typed surrealsink context graph contracts; review before applying.\n")
+	out.WriteString("-- Byline: Codex · GPT-6.1-sol · 2026-10-07\n-- Generated from typed surrealsink context graph contracts; review before applying.\n")
 	for _, table := range tables {
 		typ := "NORMAL"
 		if graphAllowed(table, contextEdgeKinds) {

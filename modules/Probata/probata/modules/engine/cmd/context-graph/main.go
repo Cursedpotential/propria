@@ -1,3 +1,5 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-07
+//
 // Command context-graph projects and reads retained real extraction bundles in fct/analysis.
 // Inputs are an explicit private bundle file and mounted ANALYSIS_SURREAL credentials.
 // Outputs are schema text or reference-only checkpoints; effects are limited to the
@@ -13,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Cursedpotential/probata/engine/surrealsink"
@@ -20,7 +23,8 @@ import (
 
 // run executes exactly one bounded operator-selected projection operation.
 // Inputs are CLI arguments and stdout; output is an error or checkpoint/schema text.
-// Effects read a private bundle and optionally project/deactivate its scoped generation.
+// Effects read a private bundle, optionally project/deactivate its scoped generation,
+// or exclusively save verified traversal JSON to an explicit private output path.
 // Pick as the CLI adapter for the independently callable repository units.
 func run(args []string, out io.Writer) error {
 	if len(args) == 0 {
@@ -35,8 +39,12 @@ func run(args []string, out io.Writer) error {
 	path := f.String("bundle", "", "exact private retained bundle path")
 	node := f.String("node", "", "existing node ID for read traversal")
 	hops := f.Int("hops", 1, "read traversal hops: 1 or 2")
+	output := f.String("output", "", "absolute private traversal JSON path; read only")
 	if f.Parse(args[1:]) != nil || f.NArg() != 0 || (*path == "" && operation != "metadata") {
 		return errors.New("explicit --bundle path required")
+	}
+	if *output != "" && (operation != "read" || !filepath.IsAbs(*output)) {
+		return errors.New("--output requires read and an absolute private path")
 	}
 	if operation == "metadata" {
 		cfg, e := surrealsink.AnalysisConfigFromEnv()
@@ -82,6 +90,14 @@ func run(args []string, out io.Writer) error {
 		var view surrealsink.ContextGraphReadback
 		view, e = client.TraverseContextGraph(ctx, bundle.Scope, bundle.GenerationID, *node, *hops)
 		receipt = view.Receipt
+		if e == nil && *output != "" {
+			var proof privateTraversalReceipt
+			proof, e = writePrivateTraversal(*output, view)
+			if e != nil {
+				return e
+			}
+			return json.NewEncoder(out).Encode(proof)
+		}
 	}
 	if e != nil {
 		return e
