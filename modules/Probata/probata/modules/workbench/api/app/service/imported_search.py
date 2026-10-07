@@ -40,6 +40,10 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
 
     One hit is a chunk: a run of consecutive messages that the Proffer chunker kept together, each line one message.
     It opens its thread at the chunk's first message. A call-log file is one entry per file and opens no thread.
+    Inputs are query text and bounded pagination; outputs include every source
+    version and known original locator alongside the display preview. Reads
+    Weaviate and PostgreSQL without writes. Use this for ingested conversations,
+    not catalog discovery. Provenance amendment: Codex · 2026-10-06.
     """
     text = " ".join(query.split())[:200]
     if not text:
@@ -50,7 +54,7 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
         "hybrid: {query: %s, alpha: 0, properties: [\"text\"]}, "
         "where: {path: [\"matter_id\"], operator: Equal, valueText: %s}) "
         "{ text participant_names start_at first_message_id source_version_ids source_version_id record_kind "
-        "message_count _additional { score } } } }"
+        "message_count _additional { id score } } } }"
     ) % (imported.settings.imported_weaviate_class, limit + 1, offset, json.dumps(text), json.dumps(matter))
     try:
         async with imported.httpx.AsyncClient(timeout=15.0) as client:
@@ -64,20 +68,35 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
     more = len(hits) > limit
     hits = hits[:limit]
 
-    def version_of(hit: dict[str, Any]) -> str | None:
+    def versions_of(hit: dict[str, Any]) -> list[str]:
+        """Retain every reported source version of one chunk in upstream order.
+
+        Input is a retrieved chunk; output is unique nonempty version IDs.
+        No I/O or mutations occur. Prefer this to selecting only the first
+        version when carrying a chunk's provenance into downstream analysis.
+        """
         versions = hit.get("source_version_ids") or []
-        return (versions[0] if versions else None) or hit.get("source_version_id")
+        return list(dict.fromkeys(v for v in [*versions, hit.get("source_version_id")]
+                                  if isinstance(v, str) and v))
 
     people = await asyncio.to_thread(imported._people)
-    where = await asyncio.to_thread(imported.pg.versions_to_threads, matter, sorted({v for v in map(version_of, hits) if v}))
+    where = await asyncio.to_thread(imported.pg.versions_to_threads, matter, sorted({v for hit in hits for v in versions_of(hit)}))
     place = {row["id"]: row for row in where}
     items = []
     for hit in hits:
         is_calls = hit.get("record_kind") == "call_log_file"
-        row = place.get(version_of(hit))
+        versions = versions_of(hit)
+        first_version = versions[0] if versions else None
+        row = place.get(first_version)
         desc = imported.describe_export(row["export_key"], people) if row else None
         items.append({
-            "id": hit.get("first_message_id") or version_of(hit) or "",
+            "id": hit.get("first_message_id") or first_version or "",
+            "collection": imported.settings.imported_weaviate_class,
+            "object_id": (hit.get("_additional") or {}).get("id"),
+            "source_version_ids": versions,
+            "source_versions": [{"id": version,
+                                 "source_uri": place[version]["export_key"] if version in place else None}
+                                for version in versions],
             "body": imported._snippet(hit.get("text") or "", text),
             "sender": ("Call log: " if is_calls else "") + imported._names_label(hit.get("participant_names") or []),
             "at": hit.get("start_at"),

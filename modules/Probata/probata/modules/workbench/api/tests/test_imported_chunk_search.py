@@ -120,3 +120,28 @@ def test_snippet_and_names_label_edges():
     assert len(service._snippet(long, "x")) <= 424
     assert service._names_label([]) == "Unknown"
     assert service._names_label(["A", "B", "C", "D", "A"]) == "A, B, C +1"
+
+
+def test_search_keeps_all_chunk_source_versions_and_distinct_object_identities(monkeypatch):
+    """Synthetic overlapping chunks keep provenance without inventing missing locators."""
+    first, second = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+    resolved = "b2://synthetic/original-one.txt"
+    requested = []
+    def resolve(matter, ids):
+        requested.extend(ids)
+        return [{"id": first, "export_key": resolved, "conv": "synthetic"}]
+    monkeypatch.setattr(pg, "versions_to_threads", resolve)
+    monkeypatch.setattr(service, "describe_export", lambda *args: {"file_name": "original-one.txt", "format": "Other", "device": None})
+    hits = [{"text": "same synthetic passage", "source_version_ids": [first, second],
+             "source_version_id": first, "participant_names": [],
+             "_additional": {"id": object_id, "score": 1}}
+            for object_id in ("chunk-one", "chunk-two")]
+    sent = []
+    _weaviate(monkeypatch, hits, sent)
+    body = TestClient(_app()).get("/api/imported/search", params={"q": "synthetic passage"}).json()
+    assert requested == [first, second]
+    assert [item["object_id"] for item in body["items"]] == ["chunk-one", "chunk-two"]
+    assert all(item["source_version_ids"] == [first, second] for item in body["items"])
+    assert body["items"][0]["source_versions"] == [
+        {"id": first, "source_uri": resolved}, {"id": second, "source_uri": None}]
+    assert "_additional { id score }" in sent[0][1]["query"]
