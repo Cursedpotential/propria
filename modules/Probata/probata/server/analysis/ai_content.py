@@ -731,8 +731,39 @@ def _reserve_provider_call(pin: dict[str, str], source: dict[str, Any], identity
     raise ContentInvalid("approved durable provider budget exhausted after concurrent reservation")
 
 
+def _candidate_validation(chunk: dict[str, Any], raw: str | None, finish_reason: str | None) -> dict[str, Any]:
+    """Validate each model candidate independently while retaining explicit rejection evidence.
+
+    Inputs: exact prepared chunk and unchanged completion. Outputs: grounded
+    candidates, rejection indexes/reasons and honest enrichment status. Effects:
+    none; choose for optional enrichment without discarding real source windows
+    or relaxing exact declared-record quotation grounding.
+    """
+    from server.analysis.ai_content_provider import decode_reply
+    try:
+        decoded = decode_reply(raw, finish_reason)
+        items = decoded.get("candidates")
+        if not isinstance(items, list) or len(items) > 32:
+            raise ContentInvalid("model must return at most 32 candidates per chunk")
+    except (ValueError, TypeError) as error:
+        return {"candidates": [], "rejected_candidates": [{"index": None, "reason": str(error)}],
+                "enrichment_status": "failed_enrichment", "model_candidates": None}
+    grounded, rejected = [], []
+    for index, item in enumerate(items):
+        try:
+            grounded.extend(ground_candidates(chunk, {"candidates": [item]}))
+        except (ValueError, TypeError) as error:
+            rejected.append({"index": index, "reason": str(error)})
+    if len(_json(grounded)) > MAX_BUNDLE_BYTES:
+        raise ContentInvalid("grounded candidate evidence exceeds the retained bundle bound")
+    status = ("partial_candidates_rejected" if grounded else "failed_enrichment") if rejected else (
+        "grounded_candidates" if grounded else "no_candidates_returned")
+    return {"candidates": grounded, "rejected_candidates": rejected,
+            "enrichment_status": status, "model_candidates": len(items)}
+
+
 def _candidate_checkpoint(pin: dict[str, str], source: dict[str, Any], identity: dict[str, Any],
-                          chunk: dict[str, Any], prompt: str) -> tuple[Path, dict[str, Any] | None]:
+                          chunk: dict[str, Any], prompt: str, *, recovered: dict[str, Any] | None = None) -> tuple[Path, dict[str, Any] | None]:
     """Verify a completed chunk by re-grounding its retained reply against the exact source.
 
     Inputs: bound scope, extraction identity, prepared chunk and initial prompt.
@@ -740,19 +771,25 @@ def _candidate_checkpoint(pin: dict[str, str], source: dict[str, Any], identity:
     reads only; choose to skip repeat inference without trusting cached candidates.
     """
     path = _path(pin, "candidate_chunk", [identity, chunk["content_key"], _key(prompt)])
-    if not path.exists():
+    if not path.exists() and recovered is None:
         return path, None
-    checkpoint = _read(path.as_uri(), pin, "candidate_chunk")
+    checkpoint = recovered if recovered is not None else _read(path.as_uri(), pin, "candidate_chunk")
     if any(checkpoint.get(key) != value for key, value in {
         "source": source, "identity": identity, "content_key": chunk["content_key"], "prompt_digest": _key(prompt)}.items()):
         raise ContentInvalid("candidate checkpoint identity or source differs")
     try:
-        if identity.get("route_plan"):
+        if identity.get("route_plan") and "validation" in checkpoint:
+            validation = _candidate_validation(chunk, checkpoint["raw_reply"], checkpoint.get("finish_reason"))
+            if validation != checkpoint["validation"]:
+                raise ContentInvalid("candidate checkpoint validation report differs")
+            grounded = validation["candidates"]
+        elif identity.get("route_plan"):
             from server.analysis.ai_content_provider import decode_reply
             decoded = decode_reply(checkpoint["raw_reply"], checkpoint.get("finish_reason"))
+            grounded = ground_candidates(chunk, decoded)
         else:
             decoded = json.loads(checkpoint["raw_reply"])
-        grounded = ground_candidates(chunk, decoded)
+            grounded = ground_candidates(chunk, decoded)
     except (KeyError, ValueError, TypeError):
         raise ContentInvalid("candidate checkpoint reply cannot be re-grounded") from None
     if grounded != checkpoint.get("candidates"):
@@ -793,6 +830,35 @@ def _candidate_checkpoint(pin: dict[str, str], source: dict[str, Any], identity:
     return path, checkpoint
 
 
+def _retained_chunk_replies(pin: dict[str, str], source: dict[str, Any], identity: dict[str, Any],
+                            chunk: dict[str, Any], prompt: str) -> list[dict[str, Any]]:
+    """Revalidate existing two-slot completions without dispatching or changing charges.
+
+    Inputs: exact chunk/extraction identity and initial prompt. Outputs: complete
+    provenance-validated checkpoint candidates in slot order. Effects: bounded
+    retained reads only; choose to recover enrichment after a semantic failure.
+    """
+    recovered = []
+    for intent in _chunk_intents(pin, chunk["content_key"]):
+        if intent.get("source") != source or intent.get("identity") != identity:
+            continue
+        intent_ref = _path(pin, "candidate_intent", [chunk["content_key"], intent["slot"]]).as_uri()
+        path = _path(pin, "model_reply", [identity, chunk["content_key"], intent_ref])
+        if not path.exists():
+            continue
+        reply = _read(path.as_uri(), pin, "model_reply")
+        if reply.get("source") != source:
+            raise ContentInvalid("retained chunk reply source differs")
+        validation = _candidate_validation(chunk, reply.get("raw_reply"), reply.get("finish_reason"))
+        checkpoint = {"source": source, "identity": identity, "content_key": chunk["content_key"],
+                      "prompt_digest": _key(prompt), "raw_reply": reply.get("raw_reply"), "reply_ref": path.as_uri(),
+                      "actual_provider": reply.get("actual_provider"), "finish_reason": reply.get("finish_reason"),
+                      "candidates": validation["candidates"], "validation": validation}
+        _, verified = _candidate_checkpoint(pin, source, identity, chunk, prompt, recovered=checkpoint)
+        recovered.append(verified)
+    return recovered
+
+
 def _extract_routed_candidates(pin: dict[str, str], source: dict[str, Any], prepared: dict[str, Any],
                                prepared_ref: str, work_products_ref: str, maximum: int, router: Any,
                                beat: Callable[[str], None]) -> dict[str, Any]:
@@ -804,7 +870,6 @@ def _extract_routed_candidates(pin: dict[str, str], source: dict[str, Any], prep
     the existing injected legacy-provider fixture seam and all historical bundles.
     Byline: Codex / GPT-6.1-Sol / 2026-10-07.
     """
-    from server.analysis.ai_content_provider import decode_reply
     identity = {"prepared_ref": prepared_ref, "work_products_ref": work_products_ref,
                 "route_plan": router.identity(), "prompt_digest": _key([PROMPT, OUTPUT_CORRECTION]),
                 "policy": "exact-quote-routed-checkpoint-v1", "maximum": maximum, "requests_per_chunk": 2}
@@ -823,7 +888,17 @@ def _extract_routed_candidates(pin: dict[str, str], source: dict[str, Any], prep
             raise ContentInvalid("completed routed candidates lack a validated chunk checkpoint")
         if checkpoint is not None:
             cached_chunks += 1
-        for repair in range(0 if checkpoint is not None else 2):
+        retained = [] if checkpoint is not None else _retained_chunk_replies(pin, source, identity, chunk, initial_prompt)
+        if retained:
+            best = max(reversed(retained), key=lambda item: len(item["candidates"]))
+            if not best["validation"]["rejected_candidates"] or len(_chunk_intents(pin, chunk["content_key"])) >= 2:
+                checkpoint = best
+                _save(checkpoint_path, pin, "candidate_chunk", checkpoint)
+                cached_chunks += 1
+        start = len(_chunk_intents(pin, chunk["content_key"])) if retained else 0
+        if start:
+            prompt += OUTPUT_CORRECTION
+        for repair in range(start, start if checkpoint is not None else 2):
             attempt_refs = []
             def reserve(request: dict[str, Any], actual: dict[str, Any]) -> tuple[str, str]:
                 """Claim the existing shared ledgers; inputs actual request/profile, outputs refs, effects immutable claims; choose before provider dispatch."""
@@ -835,23 +910,24 @@ def _extract_routed_candidates(pin: dict[str, str], source: dict[str, Any], prep
                 ref = _save(_path(pin, "provider_attempt", [attempt["intent_ref"], attempt["response"]]), pin, "provider_attempt", attempt)
                 attempt_refs.append(ref)
                 new_calls += 1
-            result = router.complete(pin, source, ordinal, prompt, reserve, retain, beat)
+            result = router.complete(pin, source, ordinal + repair, prompt, reserve, retain, beat)
             raw, actual = result["raw_reply"], result["actual_provider"]
             reply_ref = _save(_path(pin, "model_reply", [identity, chunk["content_key"], result["intent_ref"]]), pin, "model_reply", {
                 "source": source, "identity": identity, "content_key": chunk["content_key"], "request": prompt,
                 "raw_reply": raw, "actual_provider": actual, "finish_reason": result["finish_reason"],
                 "reported_model": result["reported_model"], "usage": result["usage"],
                 "intent_ref": result["intent_ref"], "budget_ref": result["budget_ref"], "provider_attempt_ref": attempt_refs[-1]})
-            try:
-                grounded = ground_candidates(chunk, decode_reply(raw, result["finish_reason"]))
-            except (ValueError, TypeError) as error:
-                if repair or len(_chunk_intents(pin, chunk["content_key"])) >= 2:
-                    raise ContentInvalid("routed AI reply failed exact source grounding within the two-request limit") from None
+            validation = _candidate_validation(chunk, raw, result["finish_reason"])
+            if validation["rejected_candidates"] and not repair and len(_chunk_intents(pin, chunk["content_key"])) < 2:
                 prompt += OUTPUT_CORRECTION
                 continue
             checkpoint = {"source": source, "identity": identity, "content_key": chunk["content_key"],
                           "prompt_digest": _key(initial_prompt), "raw_reply": raw, "reply_ref": reply_ref,
-                          "actual_provider": actual, "finish_reason": result["finish_reason"], "candidates": grounded}
+                          "actual_provider": actual, "finish_reason": result["finish_reason"],
+                          "candidates": validation["candidates"], "validation": validation}
+            if repair and validation["rejected_candidates"]:
+                retained = _retained_chunk_replies(pin, source, identity, chunk, initial_prompt)
+                checkpoint = max(reversed(retained), key=lambda item: len(item["candidates"]))
             _save(checkpoint_path, pin, "candidate_chunk", checkpoint)
             break
         if checkpoint is None:
@@ -861,14 +937,23 @@ def _extract_routed_candidates(pin: dict[str, str], source: dict[str, Any], prep
         if candidate_bytes > MAX_BUNDLE_BYTES:
             raise ContentInvalid("grounded candidate evidence exceeds the retained bundle bound")
         candidates.extend(grounded)
+        validation = checkpoint.get("validation", {"enrichment_status": "grounded_candidates" if grounded else "no_candidates_returned",
+                                                   "rejected_candidates": [], "model_candidates": len(grounded)})
+        chunk_replies = _retained_chunk_replies(pin, source, identity, chunk, initial_prompt)
         replies.append({"content_key": chunk["content_key"], "reply": checkpoint["raw_reply"],
                         "reply_ref": checkpoint["reply_ref"], "grounded_candidates": len(grounded),
-                        "actual_provider": checkpoint["actual_provider"]})
+                        "actual_provider": checkpoint["actual_provider"], "enrichment_status": validation["enrichment_status"],
+                        "rejected_candidates": validation["rejected_candidates"], "checkpoint_ref": checkpoint_path.as_uri(),
+                        "reply_validations": [{"reply_ref": item["reply_ref"], "provider_attempt_ref":
+                            _read(item["reply_ref"], pin, "model_reply")["provider_attempt_ref"],
+                            "validation": item["validation"]} for item in chunk_replies]})
     accounting = _provider_accounting(pin, source)
     model_ids = sorted({item["actual_provider"]["model_id"] for item in replies})
     counts = {**prepared["counts"], "candidates": len(candidates), **accounting,
               "new_model_calls": new_calls, "cached_chunks": cached_chunks,
-              "reserved_provider_attempts": 2 * len(replies)}
+              "reserved_provider_attempts": 2 * len(replies),
+              "failed_enrichment_chunks": sum(item["enrichment_status"] == "failed_enrichment" for item in replies),
+              "partial_enrichment_chunks": sum(item["enrichment_status"] == "partial_candidates_rejected" for item in replies)}
     if cached_final is not None:
         if cached_final.get("source") != source or cached_final.get("identity") != identity or cached_final.get("candidates") != candidates or cached_final.get("replies") != replies:
             raise ContentInvalid("completed routed candidates differ from exact validated checkpoints")
@@ -1249,7 +1334,11 @@ def search_objects(params: dict[str, Any], prepared: dict, candidates: dict, emb
             actual = reply["actual_provider"]
             citation.update({"extraction_model": actual["model_id"], "extraction_provider": actual["provider"],
                              "extraction_profile": actual, "extraction_reply_ref": reply["reply_ref"],
-                             "extraction_route_plan_fingerprint": _key(candidates["route_plan"])})
+                             "extraction_route_plan_fingerprint": _key(candidates["route_plan"]),
+                             "enrichment_status": reply.get("enrichment_status", "grounded_candidates"),
+                             "enrichment_checkpoint_ref": reply.get("checkpoint_ref"),
+                             "rejected_model_candidates": reply.get("rejected_candidates", []),
+                             "enrichment_reply_validations": reply.get("reply_validations", [])})
         properties = {"body": chunk["text"], "search_text": chunk["text"],
             "source_format": prepared["source"]["format_id"], "extractor": VERSION,
             "ingest_run_id": pin["request_id"], "record_kind": "ai_conversation_chunk",

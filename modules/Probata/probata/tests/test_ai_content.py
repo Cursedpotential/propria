@@ -1129,3 +1129,113 @@ def test_review_preserves_two_fresh_requests_per_chunk(scope, monkeypatch):
         ai._reserve_provider_call(scope, prep["source"], identity, content_key, {})
     assert len(ai._chunk_intents(scope, content_key)) == 2
     assert ai._provider_accounting(scope, prep["source"])["provider_budget_consumed"] == 8
+
+
+def semantic_router_fixture(scope, monkeypatch, *, failed=False, chunks=2):
+    """Return malformed then partially grounded completions through fake actual SDK profiles.
+
+    Inputs: fixture scope and all-failed option. Outputs: routed inputs/call log.
+    Effects: synthetic SDK state only; choose for optional enrichment recovery.
+    """
+    params, router, clock, calls = routed_fixture(scope, monkeypatch, chunks=chunks)
+    factory = router.client_factory
+    def build(profile):
+        """Wrap fake SDK; input approved profile, output client, effects fixture calls; choose for semantic rejection tests."""
+        original = factory(profile)
+        def create(**request):
+            """Return controlled content; input request, output completion, effects fixture log; choose without model calls."""
+            response = original.chat.completions.create(**request)
+            if len(calls) <= 2:
+                decoded = json.loads(response.choices[0].message.content[8:-4])
+                raw = json.dumps({"wrong_shape": []}) if failed or len(calls) == 1 else json.dumps({
+                    "candidates": [decoded["candidates"][0], {**decoded["candidates"][0], "quote": "not in this source"}]})
+                response.choices[0].message.content = raw
+                data = response.model_dump()
+                data["choices"][0]["message"]["content"] = raw
+                response.model_dump = lambda **kwargs: data
+            return response
+        return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    router.client_factory = build
+    return params, router, calls
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_semantic_failure_preserves_windows_alternates_primary_and_reports_rejections(scope, monkeypatch, failed):
+    """Continue every real window after partial or failed optional enrichment.
+
+    Inputs: malformed first response and corrected partial/failure response.
+    Outputs: alternate primary, exact accepted subset, rejection/status citations
+    and stable cached accounting. Effects: fake SDK and retained fixture files.
+    """
+    from server.analysis import ai_content_provider as provider
+    params, router, calls = semantic_router_fixture(scope, monkeypatch, failed=failed)
+    result = ai.extract_candidates(params, router=router)
+    assert [request["model"] for request in calls[:2]] == list(provider.PRIMARY_MODELS)
+    assert result["model_calls"] == 3 and result["chunks"] == 2
+    bundle = ai._read(result["bundle_ref"], scope, "candidates")
+    first = bundle["replies"][0]
+    assert first["enrichment_status"] == ("failed_enrichment" if failed else "partial_candidates_rejected")
+    assert first["grounded_candidates"] == (0 if failed else 1)
+    assert len(first["rejected_candidates"]) == 1 and len(first["reply_validations"]) == 2
+    assert all(item["provider_attempt_ref"] for item in first["reply_validations"])
+    assert bundle["replies"][1]["enrichment_status"] == "grounded_candidates"
+    prep = ai._read(params["prepared_ref"], scope, "prepared")
+    embedded = {"model_id": "synthetic", "vectors": [[0.25] * 2048 for _ in prep["chunks"]]}
+    objects = ai.search_objects({**params, "candidates_ref": result["bundle_ref"], "embeddings_ref": "file:///synthetic"},
+                                prep, bundle, embedded, "AiChatEvents20260918", "text_nim")
+    assert len(objects) == 2
+    citation = json.loads(objects[0]["properties"]["provenance"][0])
+    assert citation["enrichment_status"] == first["enrichment_status"] and citation["rejected_model_candidates"]
+    assert len(citation["enrichment_reply_validations"]) == 2
+    again = ai.extract_candidates(params, router=router)
+    assert again["new_model_calls"] == 0 and len(calls) == 3
+
+
+def test_existing_exhausted_replies_recover_partial_chunk_without_calls(scope, monkeypatch):
+    """Recover a genuine exact subset from existing charged replies with no checkpoint.
+
+    Inputs: two retained original semantic completions and durable claims.
+    Outputs: partial checkpoint, rejection report and zero new calls. Effects:
+    additive derived fixture files; choose for the real failed first-chunk case.
+    """
+    params, router, calls = semantic_router_fixture(scope, monkeypatch, chunks=1)
+    prep = ai._read(params["prepared_ref"], scope, "prepared")
+    chunk, source = prep["chunks"][0], prep["source"]
+    identity = {"prepared_ref": params["prepared_ref"], "work_products_ref": params["work_products_ref"],
+                "route_plan": router.identity(), "prompt_digest": ai._key([ai.PROMPT, ai.OUTPUT_CORRECTION]),
+                "policy": "exact-quote-routed-checkpoint-v1", "maximum": 2, "requests_per_chunk": 2}
+    originals = {}
+    for repair in range(2):
+        attempt_refs = []
+        def reserve(request, actual):
+            """Claim fixture request; input actual completion/profile, output refs, effects immutable fixture slots; choose before fake SDK."""
+            return ai._reserve_provider_call(scope, source, identity, chunk["content_key"],
+                {"completion": request, "actual_provider": actual})
+        def retain(attempt):
+            """Keep actual fixture response; input attempt, output none, effects retained file; choose for recovery evidence."""
+            path = ai._path(scope, "provider_attempt", [attempt["intent_ref"], attempt["response"]])
+            attempt_refs.append(ai._save(path, scope, "provider_attempt", attempt))
+            originals[path] = path.read_bytes()
+        prompt = ai._candidate_prompt(chunk) + (ai.OUTPUT_CORRECTION if repair else "")
+        response = router.complete(scope, source, 0, prompt, reserve, retain, lambda _: None)
+        path = ai._path(scope, "model_reply", [identity, chunk["content_key"], response["intent_ref"]])
+        ai._save(path, scope, "model_reply", {"source": source, "identity": identity, "content_key": chunk["content_key"],
+            "request": prompt, "raw_reply": response["raw_reply"], "actual_provider": response["actual_provider"],
+            "finish_reason": response["finish_reason"], "reported_model": response["reported_model"], "usage": response["usage"],
+            "intent_ref": response["intent_ref"], "budget_ref": response["budget_ref"], "provider_attempt_ref": attempt_refs[-1]})
+        originals[path] = path.read_bytes()
+    result = ai.extract_candidates(params, router=router)
+    assert len(calls) == 2 and result["new_model_calls"] == 0 and result["model_calls"] == 2
+    assert result["candidates"] == 1 and result["partial_enrichment_chunks"] == 1
+    assert all(path.read_bytes() == raw for path, raw in originals.items())
+    checkpoint = ai._read(ai._path(scope, "candidate_chunk", [identity, chunk["content_key"], ai._key(ai._candidate_prompt(chunk))]).as_uri(),
+                          scope, "candidate_chunk")
+    assert checkpoint["validation"]["rejected_candidates"][0]["index"] == 1
+    path = ai._path(scope, "candidate_chunk", [identity, chunk["content_key"], ai._key(ai._candidate_prompt(chunk))])
+    path.chmod(0o600)
+    checkpoint["validation"]["rejected_candidates"] = []
+    checkpoint["bundle_fingerprint"] = ai._key({key: value for key, value in checkpoint.items() if key != "bundle_fingerprint"})
+    path.write_bytes(ai._json(checkpoint))
+    with pytest.raises(ai.ContentInvalid, match="re-grounded"):
+        ai.extract_candidates(params, router=router)
+    assert len(calls) == 2
