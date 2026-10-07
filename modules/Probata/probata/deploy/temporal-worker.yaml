@@ -89,11 +89,25 @@ services:
       CONTEXT_SEARCH_AI_CHAT_COLLECTION: ${CONTEXT_SEARCH_AI_CHAT_COLLECTION:-AiChatEvents20260918}
       CONTEXT_SEARCH_VECTOR_NAME: text_nim
       AI_CONTENT_ROOT: /data/proffer/derive-scratch/ai-content
+      # AI-only optional routes, explicitly enabled through Coolify after task qualification.
+      # Secrets remain mounted files; the proof reference pins retained catalog/task receipts.
+      # Byline: Codex / GPT-6 / 2026-10-07.
+      OPENROUTER_API_KEY_FILE: ${OPENROUTER_API_KEY_FILE:-}
+      AI_CONTENT_OPENROUTER_PROOF_REF: ${AI_CONTENT_OPENROUTER_PROOF_REF:-}
+      AI_CONTENT_CLOUD_MODEL: ${AI_CONTENT_CLOUD_MODEL:-}
+      AI_CONTENT_CLOUD_BASE_URL: https://ollama.com/v1
+      AI_CONTENT_CLOUD_API_KEY_FILE: /run/secrets/ai-content/ollama-api-key
     command:
       - sh
       - -c
       - 'PLATFORM_DB_URL="$$(tr -d "\r\n" < /run/secrets/platform-database-url | sed "s#^postgresql://#postgresql+psycopg://#")" exec python -m server.temporal.worker'
     volumes:
+      - type: bind
+        source: /data/probata/secrets/ai-content-providers
+        target: /run/secrets/ai-content
+        read_only: true
+        bind:
+          create_host_path: false
       # Pre-create only this dedicated retained directory owned by 10001:10001.
       - type: bind
         source: /data/probata/volumes/proffer/derive-scratch/ai-content
