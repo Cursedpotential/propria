@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-06 (aggregate repeated identifiers before read-only normalization)
 // Byline: Codex · GPT-6.1-sol · 2026-10-06 (shared two-row header read)
 // Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
@@ -152,37 +153,44 @@ const caseHistorySQL = `SELECT c.id::text, c.subject_table, c.subject_id::text, 
        c.change_reason, c.recorded_by, c.recorded_at
 FROM registry.identity_change c ORDER BY c.recorded_at DESC, c.id DESC LIMIT $1`
 
-// caseCountsSQL counts, per key, what Probata's working tables hold: first-
-// and third-party message participants, calls and entity mentions. A key is
-// an identifier's normalized form (matched against the participant's raw or
-// E.164 value, normalized by the same rule) or, for participants the engine
-// already resolved, the person's entity id.
+// caseCountsSQL returns exact event totals/date ranges for supplied identifier and entity keys.
+// Inputs: normalized identifier keys and entity IDs. Outputs: per-key/source counts; effects: read-only SQL.
+// Choose for Probata working-table counts, retaining both call endpoints and current entity resolutions.
+// Aggregate repeated raw observations before the immutable normalizer, which otherwise runs once per event.
+// MATERIALIZED keeps the planner from moving normalization back below that reduction; no events are deduplicated.
 const caseCountsSQL = `
 WITH observed AS (
-    SELECT registry.norm_identifier(coalesce(nullif(p.participant_e164, ''), p.participant_raw)) AS k,
+    SELECT coalesce(nullif(p.participant_e164, ''), p.participant_raw) AS raw,
            p.entity_id::text AS entity, 'first_party_message' AS src, m.ts_utc AS t
     FROM working.message_participant p JOIN working.message m ON m.id = p.message_id
     UNION ALL
-    SELECT registry.norm_identifier(coalesce(nullif(p.participant_e164, ''), p.participant_raw)),
+    SELECT coalesce(nullif(p.participant_e164, ''), p.participant_raw),
            p.entity_id::text, 'third_party_message', m.occurred_at
     FROM working.third_party_message_participant p JOIN working.third_party_message m ON m.id = p.message_id
     UNION ALL
-    SELECT registry.norm_identifier(coalesce(nullif(c.from_e164, ''), c.from_raw)), c.from_entity_id::text, 'call', c.started_at
+    SELECT coalesce(nullif(c.from_e164, ''), c.from_raw), c.from_entity_id::text, 'call', c.started_at
     FROM working.call_log c
     UNION ALL
-    SELECT registry.norm_identifier(coalesce(nullif(c.to_e164, ''), c.to_raw)), c.to_entity_id::text, 'call', c.started_at
+    SELECT coalesce(nullif(c.to_e164, ''), c.to_raw), c.to_entity_id::text, 'call', c.started_at
     FROM working.call_log c
     UNION ALL
-    SELECT registry.norm_identifier(e.surface_text::text), r.canonical_entity_id::text, 'mention', e.created_at
+    SELECT e.surface_text::text, r.canonical_entity_id::text, 'mention', e.created_at
     FROM working.entity_mention e
     LEFT JOIN working.entity_resolution r ON r.mention_id = e.id AND upper_inf(r.sys_period)
+), grouped AS MATERIALIZED (
+    SELECT raw, entity, src, count(*) AS events, min(t) AS first_at, max(t) AS last_at
+    FROM observed GROUP BY raw, entity, src
+), keyed AS MATERIALIZED (
+    SELECT registry.norm_identifier(raw) AS k, entity, src, events, first_at, last_at FROM grouped
 )
-SELECT k, src, count(*), min(t), max(t) FROM observed WHERE k = ANY($1::text[]) GROUP BY k, src
+SELECT k, src, sum(events)::bigint, min(first_at), max(last_at) FROM keyed WHERE k = ANY($1::text[]) GROUP BY k, src
 UNION ALL
-SELECT entity, src, count(*), min(t), max(t) FROM observed WHERE entity = ANY($2::text[]) GROUP BY entity, src`
+SELECT entity, src, sum(events)::bigint, min(first_at), max(last_at) FROM keyed WHERE entity = ANY($2::text[]) GROUP BY entity, src`
 
-// caseUnknownsSQL lists participant identifiers no person carries (and the
-// owner has not dismissed), most frequent first.
+// caseUnknownsSQL returns exact unresolved participant totals after current aliases and dismissals are excluded.
+// Input: result limit. Output: normalized/raw identifier, event count and dates; effects: read-only SQL.
+// Choose for the Probata unknown-participant queue, preserving its frequency order and raw-value representative.
+// Aggregate identical raw spellings first; distinct spellings that normalize to one key still sum together.
 const caseUnknownsSQL = `
 WITH observed AS (
     SELECT coalesce(nullif(p.participant_e164, ''), p.participant_raw) AS raw, m.ts_utc AS t
@@ -195,14 +203,17 @@ WITH observed AS (
     SELECT coalesce(nullif(c.from_e164, ''), c.from_raw), c.started_at FROM working.call_log c WHERE c.from_entity_id IS NULL
     UNION ALL
     SELECT coalesce(nullif(c.to_e164, ''), c.to_raw), c.started_at FROM working.call_log c WHERE c.to_entity_id IS NULL
-), keyed AS (
-    SELECT registry.norm_identifier(raw) AS k, raw, t FROM observed WHERE raw IS NOT NULL AND btrim(raw) <> ''
+), grouped AS MATERIALIZED (
+    SELECT raw, count(*) AS events, min(t) AS first_at, max(t) AS last_at
+    FROM observed WHERE raw IS NOT NULL AND btrim(raw) <> '' GROUP BY raw
+), keyed AS MATERIALIZED (
+    SELECT registry.norm_identifier(raw) AS k, raw, events, first_at, last_at FROM grouped
 )
-SELECT k, min(raw), count(*), min(t), max(t) FROM keyed
+SELECT k, min(raw), sum(events)::bigint, min(first_at), max(last_at) FROM keyed
 WHERE k IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM registry.entity_alias_current a WHERE a.normalized = keyed.k AND a.status <> 'retired')
   AND NOT EXISTS (SELECT 1 FROM registry.vw_identifier_dismissed d WHERE d.normalized = keyed.k)
-GROUP BY k ORDER BY count(*) DESC, k LIMIT $1`
+GROUP BY k ORDER BY sum(events) DESC, k LIMIT $1`
 
 const caseDismissedSQL = `SELECT normalized, raw_value, basis, recorded_by, recorded_at FROM registry.vw_identifier_dismissed ORDER BY recorded_at DESC LIMIT $1`
 
