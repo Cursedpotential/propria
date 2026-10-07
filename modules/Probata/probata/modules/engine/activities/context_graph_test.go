@@ -1,3 +1,4 @@
+// Byline: Codex | GPT-6.1-sol | 2026-10-07
 package activities
 
 import (
@@ -46,10 +47,11 @@ func contextGraphFormatInput(t *testing.T) (ContextGraphActivities, ContextGraph
 // corpus or model calls occur; accepted packets are never projected by this test.
 func TestContextGraphSealedInputRejectsHashScopeRunAndEscapedPaths(t *testing.T) {
 	a, r := contextGraphFormatInput(t)
-	if _, e := a.load(r); e != nil {
+	r.SourcePins = []surrealsink.ContextSourcePin{{SourceID: "format-source", SourceVersionID: "format-version", SourceHash: strings.Repeat("a", 64), Locator: "format:original-root"}}
+	if _, e := a.ValidateSealedInput(r); e != nil {
 		t.Fatal(e)
 	}
-	for _, mutate := range []func(*ContextGraphActivityRequest){func(r *ContextGraphActivityRequest) { r.BundleSHA256 = strings.Repeat("0", 64) }, func(r *ContextGraphActivityRequest) { r.AccessPolicyID = "different" }, func(r *ContextGraphActivityRequest) { r.GenerationID = "different" }, func(r *ContextGraphActivityRequest) { r.ExtractionRunRef = "different" }, func(r *ContextGraphActivityRequest) { r.BundleRef = "file:///outside/bundle.json" }, func(r *ContextGraphActivityRequest) { r.CourtCaseID = "different" }, func(r *ContextGraphActivityRequest) {
+	for _, mutate := range []func(*ContextGraphActivityRequest){func(r *ContextGraphActivityRequest) { r.BundleSHA256 = strings.Repeat("0", 64) }, func(r *ContextGraphActivityRequest) { r.AccessPolicyID = "different" }, func(r *ContextGraphActivityRequest) { r.GenerationID = "different" }, func(r *ContextGraphActivityRequest) { r.ExtractionRunRef = "different" }, func(r *ContextGraphActivityRequest) { r.BundleRef = "file:///outside/bundle.json" }, func(r *ContextGraphActivityRequest) { r.CourtCaseID = "different" }, func(r *ContextGraphActivityRequest) { r.SourcePins = nil }, func(r *ContextGraphActivityRequest) {
 		r.SourcePins = []surrealsink.ContextSourcePin{{SourceID: "wrong-root"}}
 	}} {
 		changed := r
@@ -81,5 +83,18 @@ func TestContextGraphNamedRegistrationIncludesIndependentVerify(t *testing.T) {
 	}
 	if len(r.names) != 3 {
 		t.Fatal("unexpected registration")
+	}
+}
+
+// TestContextGraphOfflineAdmissionRejectsNonLiveMode keeps existing canonical-write admission.
+// Inputs are tiny format values; output is assertions; no network or graph write occurs.
+func TestContextGraphOfflineAdmissionRejectsNonLiveMode(t *testing.T) {
+	a, r := contextGraphFormatInput(t)
+	r.SourcePins = []surrealsink.ContextSourcePin{{SourceID: "format-source", SourceVersionID: "format-version", SourceHash: strings.Repeat("a", 64), Locator: "format:root"}}
+	for _, mode := range []string{"DEV", "REAL", ""} {
+		r.OperatingMode = mode
+		if _, e := a.ValidateSealedInput(r); e == nil {
+			t.Fatal("non-LIVE durable mode admitted")
+		}
 	}
 }

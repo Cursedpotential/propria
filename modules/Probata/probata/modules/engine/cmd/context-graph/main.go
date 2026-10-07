@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-6.1-sol · 2026-10-07
+// Byline: Codex | GPT-6.1-sol | 2026-10-07
 //
 // Command context-graph projects and reads retained real extraction bundles in fct/analysis.
 // Inputs are an explicit private bundle file and mounted ANALYSIS_SURREAL credentials.
@@ -16,8 +16,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/Cursedpotential/probata/engine/activities"
 	"github.com/Cursedpotential/probata/engine/surrealsink"
 )
 
@@ -28,10 +30,10 @@ import (
 // Pick as the CLI adapter for the independently callable repository units.
 func run(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("operation required: schema, project, read, deactivate or metadata")
+		return errors.New("operation required: admit, preflight, schema, project, read, deactivate or metadata")
 	}
 	operation := args[0]
-	if operation != "schema" && operation != "project" && operation != "read" && operation != "deactivate" && operation != "metadata" {
+	if operation != "admit" && operation != "preflight" && operation != "schema" && operation != "project" && operation != "read" && operation != "deactivate" && operation != "metadata" {
 		return errors.New("unsupported context graph operation")
 	}
 	f := flag.NewFlagSet("context-graph", flag.ContinueOnError)
@@ -40,11 +42,45 @@ func run(args []string, out io.Writer) error {
 	node := f.String("node", "", "existing node ID for read traversal")
 	hops := f.Int("hops", 1, "read traversal hops: 1 or 2")
 	output := f.String("output", "", "absolute private traversal JSON path; read only")
-	if f.Parse(args[1:]) != nil || f.NArg() != 0 || (*path == "" && operation != "metadata") {
+	requestPath := f.String("request", "", "absolute private BatchRequest JSON path; admit only")
+	if f.Parse(args[1:]) != nil || f.NArg() != 0 || (*path == "" && operation != "metadata" && operation != "admit") {
 		return errors.New("explicit --bundle path required")
 	}
 	if *output != "" && (operation != "read" || !filepath.IsAbs(*output)) {
 		return errors.New("--output requires read and an absolute private path")
+	}
+	if operation == "admit" {
+		if !filepath.IsAbs(*requestPath) {
+			return errors.New("admit requires absolute --request path")
+		}
+		file, e := os.Open(*requestPath)
+		if e != nil {
+			return errors.New("private admission request unavailable")
+		}
+		raw, e := io.ReadAll(io.LimitReader(file, (256<<10)+1))
+		_ = file.Close()
+		if e != nil || len(raw) > 256<<10 {
+			return errors.New("admission request exceeds bound")
+		}
+		var request activities.ContextGraphActivityRequest
+		decoder := json.NewDecoder(strings.NewReader(string(raw)))
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&request) != nil {
+			return errors.New("invalid private admission request")
+		}
+		var trailing any
+		if decoder.Decode(&trailing) != io.EOF {
+			return errors.New("trailing admission request JSON")
+		}
+		acts, e := activities.ContextGraphActivitiesFromEnv()
+		if e != nil {
+			return e
+		}
+		admitted, e := acts.ValidateSealedInput(request)
+		if e != nil {
+			return e
+		}
+		return json.NewEncoder(out).Encode(admitted)
 	}
 	if operation == "metadata" {
 		cfg, e := surrealsink.AnalysisConfigFromEnv()
@@ -61,6 +97,13 @@ func run(args []string, out io.Writer) error {
 	_ = file.Close()
 	if e != nil {
 		return e
+	}
+	if operation == "preflight" {
+		measurement, e := surrealsink.PreflightContextGraph(bundle)
+		if e != nil {
+			return e
+		}
+		return json.NewEncoder(out).Encode(measurement)
 	}
 	if operation == "schema" {
 		schema, e := surrealsink.MinimalContextGraphSchema(bundle)

@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-6.1-sol · 2026-10-07
+// Byline: Codex | GPT-6.1-sol | 2026-10-07
 package contextgraphflow
 
 import (
@@ -26,7 +26,7 @@ func validateRequest(r Request) error {
 			return errors.New("verified AI binding and managed graph scope required")
 		}
 	}
-	if !boundedRef(r.PreparedRef) || !boundedRef(r.WorkProductsRef) || r.ExpectedSourceTurns < 1 || r.ExpectedSourceTurns > 65536 || r.ExpectedCreatedWorks < 0 || r.ExpectedCreatedWorks > 65536 || r.ExpectedConversations < 1 || r.ExpectedConversations > 65536 || len(r.SourcePins) > 64 {
+	if !boundedRef(r.PreparedRef) || !boundedRef(r.WorkProductsRef) || r.ExpectedSourceTurns < 1 || r.ExpectedSourceTurns > 65536 || r.ExpectedCreatedWorks < 0 || r.ExpectedCreatedWorks > 65536 || r.ExpectedConversations < 1 || r.ExpectedConversations > 65536 || len(r.SourcePins) < 1 || len(r.SourcePins) > 64 {
 		return errors.New("bounded predecessor refs and explicit completeness counts required")
 	}
 	return nil

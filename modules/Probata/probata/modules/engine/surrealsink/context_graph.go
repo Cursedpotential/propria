@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-6.1-sol · 2026-10-07
+// Byline: Codex | GPT-6.1-sol | 2026-10-07
 package surrealsink
 
 import (
@@ -220,44 +220,21 @@ func (c *Client) graphMetadata(ctx context.Context, tables []string) error {
 // retries read back, changed or inactive generations fail. Pick downstream of ingestion/model
 // extraction; this unit performs neither and never creates schema or promotes evidence.
 func (c *Client) ProjectContextGraph(ctx context.Context, b ContextGraphBundle) (ContextGraphReceipt, error) {
-	if e := b.Validate(); e != nil {
+	sql, vars, e := contextGraphProjectionPlan(b)
+	if e != nil {
 		return ContextGraphReceipt{}, e
 	}
-	b = graphCanonical(b)
+	bytes, e := contextGraphRPCBytes(sql, vars)
+	if e != nil || bytes > maxBody {
+		return ContextGraphReceipt{}, errors.New("serialized analysis graph request exceeds RPC limit")
+	}
 	base := graphBase(b)
 	ns, es := graphTables(b)
 	tables := append([]string{contextGenerationTable}, append(ns, es...)...)
 	if e := c.graphMetadata(ctx, tables); e != nil {
 		return ContextGraphReceipt{}, e
 	}
-	vars := graphVariables(b.Scope, b.GenerationID)
-	base.NodeCount = len(b.Nodes)
-	base.EdgeCount = len(b.Edges)
-	base.NodeTables = ns
-	base.EdgeTables = es
-	base.CheckpointRef = "context-graph:" + base.BundleHash
-	vars["generation"] = graphRowMap(base, true, false)
-	var sql strings.Builder
-	sql.WriteString("BEGIN TRANSACTION;\nLET $old = (SELECT * FROM type::record('ana_projection_generation', $generation_key))[0];\nIF $old != NONE AND ($old.bundle_hash != $generation.bundle_hash OR $old.active != true) { THROW 'immutable graph generation conflict'; };\nIF $old = NONE {\n")
-	nodes := map[string]ContextGraphNode{}
-	for i, n := range b.Nodes {
-		nodes[n.NodeID] = n
-		row := graphNodeRow(graphBase(b), n)
-		key := fmt.Sprintf("n%d", i)
-		vars[key] = graphRowMap(row, false, false)
-		vars[key+"_key"] = graphRecordKey(base, n.NodeID)
-		fmt.Fprintf(&sql, "CREATE type::record('%s', $%s_key) CONTENT object::extend($%s, {source_available_from: <option<datetime>> $%s.source_available_from, occurred_at: <option<datetime>> $%s.occurred_at});\n", n.Kind, key, key, key, key)
-	}
-	for i, e := range b.Edges {
-		key := fmt.Sprintf("e%d", i)
-		vars[key] = graphRowMap(graphEdgeRow(graphBase(b), e), false, true)
-		vars[key+"_key"] = graphRecordKey(base, e.EdgeID)
-		vars[key+"_from"] = graphRecordKey(base, e.FromNodeID)
-		vars[key+"_to"] = graphRecordKey(base, e.ToNodeID)
-		fmt.Fprintf(&sql, "RELATE type::record('%s', $%s_from)->type::record('%s', $%s_key)->type::record('%s', $%s_to) CONTENT $%s;\n", nodes[e.FromNodeID].Kind, key, e.Kind, key, nodes[e.ToNodeID].Kind, key, key)
-	}
-	sql.WriteString("CREATE type::record('ana_projection_generation', $generation_key) CONTENT $generation;\n};\nCOMMIT TRANSACTION;")
-	if _, e := c.graphQuery(ctx, sql.String(), vars); e != nil {
+	if _, e := c.graphQuery(ctx, sql, vars); e != nil {
 		return ContextGraphReceipt{}, e
 	}
 	saved, e := c.readGraph(ctx, b.Scope, b.GenerationID, true)

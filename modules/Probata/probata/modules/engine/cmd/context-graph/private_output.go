@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-6.1-sol · 2026-10-07
+// Byline: Codex | GPT-6.1-sol | 2026-10-07
 package main
 
 import (

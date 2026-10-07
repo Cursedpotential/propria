@@ -1,6 +1,8 @@
+// Byline: Codex | GPT-6.1-sol | 2026-10-07
 package contextgraphflow
 
 import (
+	"github.com/Cursedpotential/probata/engine/surrealsink"
 	"strings"
 	"testing"
 )
@@ -9,6 +11,7 @@ import (
 // Inputs none; outputs small typed values. No external effects occur.
 func formatPreparation() (Request, PreparationResult) {
 	r := Request{RequestID: "format-request", SourceVersionID: "format-version", NormalizedGenerationID: "format-generation", VerificationID: "format-verification", OperatingMode: "LIVE", MatterID: "format-matter", CourtCaseID: "format-case", PreparedRef: "file:///format/prepared.json", WorkProductsRef: "file:///format/works.json", AccessPolicyID: "format-policy", CreatedByService: "format-service", ExpectedSourceTurns: 1, ExpectedCreatedWorks: 1, ExpectedConversations: 1}
+	r.SourcePins = []surrealsink.ContextSourcePin{{SourceID: "format-source", SourceVersionID: r.SourceVersionID, SourceHash: strings.Repeat("a", 64), Locator: "format:root"}}
 	p := PreparationResult{RequestID: r.RequestID, SourceVersionID: r.SourceVersionID, NormalizedGenerationID: r.NormalizedGenerationID, VerificationID: r.VerificationID, OperatingMode: r.OperatingMode, MatterID: r.MatterID, CourtCaseID: r.CourtCaseID, ManifestRef: "file:///format/manifest.json", ManifestHash: strings.Repeat("a", 64), SourceTurns: 1, CreatedWorks: 1, Conversations: 1, Batches: 1, BatchRefs: []BatchRef{{BundleRef: "file:///format/batch.json", BundleSHA256: strings.Repeat("b", 64), GenerationID: "format-projection", ExtractionRunRef: r.PreparedRef, SourceTurns: 1, CreatedWorks: 1, Nodes: 2, Edges: 1}}, TemporalWorkflowID: "format-workflow", TemporalRunID: "format-run"}
 	return r, p
 }

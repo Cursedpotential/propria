@@ -1,4 +1,4 @@
-// Byline: Codex · GPT-6.1-sol · 2026-10-07
+// Byline: Codex | GPT-6.1-sol | 2026-10-07
 package activities
 
 import (
@@ -162,7 +162,7 @@ func (a ContextGraphActivities) load(request ContextGraphActivityRequest) (surre
 			return empty, contextGraphBadInput()
 		}
 	}
-	if request.CourtCaseID != a.scope.CaseID || request.ExtractionRunRef != request.PreparedRef || !contextGraphRef(request.WorkProductsRef) || len(request.SourcePins) > 64 {
+	if request.CourtCaseID != a.scope.CaseID || request.ExtractionRunRef != request.PreparedRef || !contextGraphRef(request.WorkProductsRef) || len(request.SourcePins) < 1 || len(request.SourcePins) > 64 {
 		return empty, contextGraphBadInput()
 	}
 	path, e := a.filePath(request.BundleRef)
@@ -198,27 +198,72 @@ func (a ContextGraphActivities) load(request ContextGraphActivityRequest) (surre
 	if e != nil || bundle.Scope != a.scope || bundle.GenerationID != request.GenerationID || bundle.ExtractionRunRef != request.ExtractionRunRef {
 		return empty, contextGraphBadInput()
 	}
-	if len(request.SourcePins) > 0 {
-		expected := map[surrealsink.ContextSourcePin]bool{}
+	{
+		expected := map[[4]string]bool{}
 		for _, pin := range request.SourcePins {
-			expected[pin] = true
+			if !contextGraphID(pin.SourceID) || !contextGraphID(pin.SourceVersionID) || !validSHA256(pin.SourceHash) || len(pin.Locator) == 0 || len(pin.Locator) > 2000 || (pin.ValidationRef != "" && !contextGraphID(pin.ValidationRef)) {
+				return empty, contextGraphBadInput()
+			}
+			expected[contextGraphRootPin(pin)] = true
 		}
 		for _, node := range bundle.Nodes {
 			for _, pin := range node.SourcePins {
-				if !expected[pin] {
+				if !expected[contextGraphRootPin(pin)] {
 					return empty, contextGraphBadInput()
 				}
 			}
 		}
 		for _, edge := range bundle.Edges {
 			for _, pin := range edge.SourcePins {
-				if !expected[pin] {
+				if !expected[contextGraphRootPin(pin)] {
 					return empty, contextGraphBadInput()
 				}
 			}
 		}
 	}
 	return bundle, nil
+}
+
+func contextGraphRootPin(pin surrealsink.ContextSourcePin) [4]string {
+	return [4]string{pin.SourceID, pin.SourceVersionID, pin.SourceHash, pin.ValidationRef}
+}
+
+// ContextGraphInputAdmission reports sealed-input validation without implying graph persistence.
+// Inputs are locally verified bundle pins/counts; output excludes source bodies.
+// No effects occur here; pick for offline mount/root-pin/mode validation receipts.
+type ContextGraphInputAdmission struct {
+	BundleRef        string `json:"bundle_ref"`
+	BundleSHA256     string `json:"bundle_sha256"`
+	GenerationID     string `json:"generation_id"`
+	ExtractionRunRef string `json:"extraction_run_ref"`
+	SourceTurns      int    `json:"source_turns"`
+	CreatedWorks     int    `json:"created_works"`
+	Nodes            int    `json:"nodes"`
+	Edges            int    `json:"edges"`
+}
+
+// ValidateSealedInput checks production bundle admission and LIVE mode without network access.
+// Input is the same reference/hash/source/run/scope request used by project; output
+// is a reference/count admission receipt. Effects read the bounded sealed file only.
+// Pick for offline deployment preflight; it never calls Surreal or claims persistence.
+func (a ContextGraphActivities) ValidateSealedInput(request ContextGraphActivityRequest) (ContextGraphInputAdmission, error) {
+	bundle, e := a.load(request)
+	if e != nil {
+		return ContextGraphInputAdmission{}, e
+	}
+	if caseidentity.RequireCanonicalWrite(caseidentity.Mode(request.OperatingMode)) != nil {
+		return ContextGraphInputAdmission{}, contextGraphBadInput()
+	}
+	out := ContextGraphInputAdmission{BundleRef: request.BundleRef, BundleSHA256: request.BundleSHA256, GenerationID: request.GenerationID, ExtractionRunRef: request.ExtractionRunRef, Nodes: len(bundle.Nodes), Edges: len(bundle.Edges)}
+	for _, node := range bundle.Nodes {
+		if node.DerivativeKind == "source_turn" || node.DerivativeKind == "ai_source_turn" {
+			out.SourceTurns++
+		}
+		if node.DerivativeKind == "created_work" {
+			out.CreatedWorks++
+		}
+	}
+	return out, nil
 }
 
 func contextGraphHeartbeat(ctx context.Context, request ContextGraphActivityRequest, operation string) func() {
@@ -265,6 +310,9 @@ func (a ContextGraphActivities) ProjectContextGraph(ctx context.Context, request
 	bundle, e := a.load(request)
 	if e != nil {
 		return ContextGraphActivityResult{}, e
+	}
+	if caseidentity.RequireCanonicalWrite(caseidentity.Mode(request.OperatingMode)) != nil {
+		return ContextGraphActivityResult{}, contextGraphBadInput()
 	}
 	stop := contextGraphHeartbeat(ctx, request, "project")
 	defer stop()
