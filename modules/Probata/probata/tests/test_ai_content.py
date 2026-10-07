@@ -598,3 +598,202 @@ def test_same_model_output_repair_is_bounded_and_both_attempts_retained(scope, m
     retained = list(ai._root().glob("*/*/model_reply/*.json"))
     assert len(retained) == 2
     assert {json.loads(path.read_bytes())["repair_attempt"] for path in retained} == {0, 1}
+
+
+def checkpoint_fixture(scope, monkeypatch, *, chunks=1):
+    """Create exact extraction inputs for durable retries without a provider.
+
+    Inputs: synthetic scope and chunk count. Outputs: params/preparation/config.
+    Effects: retained synthetic files; choose for checkpoint and budget tests.
+    """
+    ref, prep = prepared(scope, monkeypatch, [record(i, "Alice draft " + str(i), conversation=i) for i in range(chunks)])
+    products = ai.extract_work_products({**scope, "prepared_ref": ref})
+    params = {**scope, "prepared_ref": ref, "work_products_ref": products["bundle_ref"], "max_model_calls": chunks * 2}
+    config = SimpleNamespace(base_url="https://configured.example/v1", model_id="moonshotai/kimi-k3", max_tokens=6000)
+    return params, prep, config
+
+
+class CheckpointModel:
+    """Return exact quoted candidates and optionally fail one synthetic request.
+
+    Inputs: failure request number. Outputs: scored replies. Effects: call log;
+    choose for retry durability without any real inference.
+    """
+    def __init__(self, fail_at=None):
+        """Initialize the fixture; inputs failure ordinal, outputs model, effects memory only; choose for deterministic retry tests."""
+        self.calls = []
+        self.fail_at = fail_at
+
+    def infer(self, prompts, **kwargs):
+        """Ground the fixture in the supplied window; inputs prompt, outputs scored JSON, effects call log; choose over invented fixture IDs."""
+        self.calls.append(prompts[0])
+        if len(self.calls) == self.fail_at:
+            raise RuntimeError("synthetic transport failure")
+        segments = json.loads(prompts[0].split("SOURCE WINDOW:\n", 1)[1])
+        yield [SimpleNamespace(output=json.dumps({"candidates": [{"kind": "entity", "title": "Alice", "record_id": segments[0]["record_id"], "quote": "Alice"}]}))]
+
+
+def test_late_failure_reuses_only_validated_chunks_without_repeat_calls(scope, monkeypatch):
+    """Reuse the first grounded chunk after a later failure; inputs two chunks, outputs ordered results, effects retained fake attempts; choose for durable retry."""
+    params, prep, config = checkpoint_fixture(scope, monkeypatch, chunks=2)
+    model = CheckpointModel(fail_at=2)
+    with pytest.raises(RuntimeError, match="no fallback"):
+        ai.extract_candidates(params, model=model, config=config)
+    assert len(list(ai._root().glob("*/*/candidate_chunk/*.json"))) == 1
+    result = ai.extract_candidates(params, model=model, config=config)
+    assert len(model.calls) == 3 and model.calls[1] == model.calls[2]
+    assert result["cached_chunks"] == 1 and result["new_model_calls"] == 1
+    assert result["provider_budget_consumed"] == result["model_calls"] == 3
+    bundle = ai._read(result["bundle_ref"], scope, "candidates")
+    assert [item["content_key"] for item in bundle["replies"]] == [chunk["content_key"] for chunk in prep["chunks"]]
+    assert [item["conversation_index"] for item in bundle["candidates"]] == ["0", "1"]
+    again = ai.extract_candidates(params, model=model, config=config)
+    assert again["new_model_calls"] == 0 and len(model.calls) == 3
+
+
+@pytest.mark.parametrize("change", ["prompt", "model", "endpoint", "max_tokens"])
+def test_changed_prompt_identity_cannot_reuse_completed_chunk(scope, monkeypatch, change):
+    """Require fresh inference after exact prompt bytes change; inputs one chunk, outputs distinct identities, effects fake retained calls; choose for cache invalidation."""
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    params["max_model_calls"] = 4
+    model = CheckpointModel()
+    first = ai.extract_candidates(params, model=model, config=config)
+    if change == "prompt":
+        monkeypatch.setattr(ai, "PROMPT", "Changed policy.\n" + ai.PROMPT)
+    else:
+        field = {"model": "model_id", "endpoint": "base_url", "max_tokens": "max_tokens"}[change]
+        monkeypatch.setattr(config, field, 7000 if field == "max_tokens" else getattr(config, field) + "-changed")
+    second = ai.extract_candidates(params, model=model, config=config)
+    assert first["bundle_ref"] != second["bundle_ref"] and len(model.calls) == 2
+    assert second["cached_chunks"] == 0 and second["provider_budget_consumed"] == 2
+    monkeypatch.setattr(ai, "OUTPUT_CORRECTION", "Different correction")
+    with pytest.raises(ai.ContentInvalid, match="two durable"):
+        ai.extract_candidates(params, model=model, config=config)
+    assert len(model.calls) == 2
+
+
+def test_unknown_outcome_consumes_slot_and_exhaustion_is_permanent(scope, monkeypatch):
+    """Charge interrupted intents rather than resetting usage; inputs unknown requests, outputs bounded failure, effects retained claims; choose for crash recovery."""
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    identity = ai.candidate_identity(params["prepared_ref"], params["work_products_ref"], config, 2)
+    chunk = prep["chunks"][0]
+    ai._reserve_provider_call(scope, prep["source"], identity, chunk["content_key"], {"synthetic_unknown": 1})
+    model = CheckpointModel()
+    result = ai.extract_candidates(params, model=model, config=config)
+    assert len(model.calls) == 1 and result["model_calls"] == 2
+    monkeypatch.setattr(ai, "PROMPT", "New identity.\n" + ai.PROMPT)
+    with pytest.raises(ai.ContentInvalid, match="budget exhausted"):
+        ai.extract_candidates(params, model=model, config=config)
+    assert len(model.calls) == 1
+
+
+def test_forged_checkpoint_is_regrounded_and_legacy_usage_fails_closed(scope, monkeypatch):
+    """Reject forged grounded output and unbound legacy usage; inputs retained forgeries, outputs explicit errors, effects fixture files; choose over trusting cache metadata."""
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    chunk = prep["chunks"][0]
+    identity = ai.candidate_identity(params["prepared_ref"], params["work_products_ref"], config, 2)
+    prompt = ai.PROMPT + json.dumps([{"record_id": s["record_id"], "text": s["text"], "role": s.get("role")} for s in chunk["segments"]], ensure_ascii=False)
+    path, _ = ai._candidate_checkpoint(scope, prep["source"], identity, chunk, prompt)
+    raw = json.dumps({"candidates": []})
+    ai._save(path, scope, "candidate_chunk", {"source": prep["source"], "identity": identity,
+        "content_key": chunk["content_key"], "prompt_digest": ai._key(prompt), "raw_reply": raw,
+        "reply_ref": "file:///missing", "candidates": [{"invented": "candidate"}]})
+    model = CheckpointModel()
+    with pytest.raises(ai.ContentInvalid, match="grounding differs"):
+        ai.extract_candidates(params, model=model, config=config)
+    assert model.calls == []
+    ai._save(ai._path(scope, "provider_attempt", "old-unbound"), scope, "provider_attempt", {"source": prep["source"], "response": {"error_type": "InternalServerError"}})
+    with pytest.raises(ai.ContentInvalid, match="legacy provider attempt lacks durable intent"):
+        ai.extract_candidates(params, model=model, config=config)
+    assert model.calls == []
+
+
+def test_exclusive_request_claim_cannot_be_issued_twice(scope):
+    """Reject duplicate atomic intent claims; inputs one immutable identity, outputs exclusive failure, effects retained files; choose for concurrent retry safety."""
+    path = ai._path(scope, "candidate_intent", ["same-content", 1])
+    data = {"source": source(scope), "request": {"model": "configured"}}
+    ai._save(path, scope, "candidate_intent", data, require_new=True)
+    with pytest.raises(FileExistsError):
+        ai._save(path, scope, "candidate_intent", data, require_new=True)
+
+
+def test_sdk_request_is_claimed_before_call_and_error_receipt_binds_intent(scope, monkeypatch):
+    """Prove production SDK interception retains pre-call claims; inputs fake SDK, outputs receipt bindings, effects synthetic files only; choose over testing only the injected model seam."""
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    calls = []
+    class Client:
+        """Model the configured SDK transport; inputs options/request, outputs failure, effects fixture assertions; choose without network calls."""
+        def __init__(self):
+            """Expose the SDK request surface; inputs none, outputs facade, effects memory only; choose for interception tests."""
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+        def with_options(self, **kwargs):
+            """Require disabled SDK retries; inputs options, outputs same client, effects assertions; choose for bounded transport behavior."""
+            assert kwargs == {"max_retries": 0}
+            return self
+        def create(self, **kwargs):
+            """Inspect durable claims before simulated request failure; inputs SDK arguments, outputs exception, effects call log; choose for intent timing proof."""
+            assert len(list(ai._root().glob("*/*/candidate_intent/*.json"))) == 1
+            assert len(list(ai._root().glob("*/*/candidate_budget/*.json"))) == 1
+            calls.append(kwargs)
+            raise TimeoutError("synthetic SDK timeout")
+    class Model:
+        """Use the intercepted SDK request; inputs prompt, outputs exception, effects fake client only; choose for the real callback route."""
+        def __init__(self):
+            """Install the fixture SDK; inputs none, outputs model, effects memory only; choose for callback coverage."""
+            self._client = Client()
+        def infer(self, prompts, **kwargs):
+            """Dispatch one request; inputs source prompt, outputs transport exception, effects fake SDK call; choose for retained failure proof."""
+            self._client.chat.completions.create(model=config.model_id, messages=[{"role": "user", "content": prompts[0]}],
+                max_tokens=config.max_tokens, temperature=0, response_format={"type": "json_object"})
+            yield []
+    with pytest.raises(RuntimeError, match="no fallback"):
+        ai.extract_candidates(params, model=Model(), config=config)
+    paths = list(ai._root().glob("*/*/provider_attempt/*.json"))
+    assert len(calls) == len(paths) == 1
+    attempt = ai._read(paths[0].as_uri(), scope, "provider_attempt")
+    assert attempt["response"] == {"error_type": "TimeoutError"}
+    intent = ai._read(attempt["intent_ref"], scope, "candidate_intent")
+    budget = ai._read(attempt["budget_ref"], scope, "candidate_budget")
+    assert intent["request"] == calls[0] and budget["intent_ref"] == attempt["intent_ref"]
+    assert len(ai._provider_budget(scope, prep["source"])) == 1
+
+
+def test_cancellation_after_claim_prevents_sdk_request_and_preserves_consumption(scope, monkeypatch):
+    """Stop SDK work after a canceled beat; inputs wrapper cancellation and fake SDK, outputs zero calls/one claim, effects retained fixture only; choose for the production cancellation boundary."""
+    from server.temporal import ai_content_activities as activities
+    from temporalio.exceptions import CancelledError
+    params, prep, config = checkpoint_fixture(scope, monkeypatch)
+    canceled = [False]
+    calls = []
+    monkeypatch.setattr(activities.activity, "in_activity", lambda: True)
+    monkeypatch.setattr(activities.activity, "is_cancelled", lambda: canceled[0])
+    monkeypatch.setattr(activities.activity, "heartbeat", lambda *args: None)
+    class Client:
+        """Expose a fake SDK without remote access; inputs requests, outputs failure if called, effects counter; choose for cancellation proof."""
+        def __init__(self):
+            """Build the transport facade; inputs none, outputs client, effects memory only; choose for SDK interception."""
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+        def with_options(self, **kwargs):
+            """Return the fake configured client; inputs options, outputs self, effects none; choose without SDK construction."""
+            return self
+        def create(self, **kwargs):
+            """Reject any request; inputs arguments, outputs assertion, effects call log; choose to prove cancellation stops transport."""
+            calls.append(kwargs)
+            raise AssertionError("canceled request reached SDK")
+    class Model:
+        """Simulate cancellation delivered before intercepted SDK dispatch; inputs prompt, outputs exception, effects cancellation flag; choose for synchronous boundaries."""
+        def __init__(self):
+            """Install the fake client; inputs none, outputs model, effects memory only; choose for boundary coverage."""
+            self._client = Client()
+        def infer(self, prompts, **kwargs):
+            """Deliver cancellation before dispatch; inputs prompt, outputs propagated cancellation, effects flag; choose for conservative reservation."""
+            canceled[0] = True
+            self._client.chat.completions.create(model=config.model_id, messages=[{"role": "user", "content": prompts[0]}])
+            yield []
+    with activities._heartbeats() as beat:
+        with pytest.raises(CancelledError, match="cancellation was requested"):
+            ai.extract_candidates(params, model=Model(), config=config, beat=beat)
+    assert calls == []
+    assert len(ai._provider_budget(scope, prep["source"])) == 1
+    assert len(ai._chunk_intents(scope, prep["chunks"][0]["content_key"])) == 1
+    assert list(ai._root().glob("*/*/provider_attempt/*.json")) == []

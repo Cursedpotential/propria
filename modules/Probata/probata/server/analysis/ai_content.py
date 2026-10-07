@@ -144,10 +144,10 @@ def _read(ref: str, pin: dict[str, str], stage: str) -> dict[str, Any]:
     return result
 
 
-def _save(path: Path, pin: dict[str, str], stage: str, data: dict[str, Any]) -> str:
+def _save(path: Path, pin: dict[str, str], stage: str, data: dict[str, Any], *, require_new: bool = False) -> str:
     """Retain an immutable derived bundle atomically without deleting prior files.
 
-    Inputs: deterministic path, pins/stage and derived data. Outputs: file URI.
+    Inputs: deterministic path, pins/stage, data and optional exclusive claim. Outputs: file URI.
     Effects: create retained directory/file and retained pending hardlink; existing
     different bytes fail closed. Choose for retry-safe payloads outside history.
     """
@@ -160,6 +160,8 @@ def _save(path: Path, pin: dict[str, str], stage: str, data: dict[str, Any]) -> 
     if not path.parent.resolve().is_relative_to(_root()):
         raise ContentInvalid("retained output directory escaped the configured root")
     if path.exists():
+        if require_new:
+            raise FileExistsError("retained intent is already claimed")
         if path.is_symlink() or path.read_bytes() != encoded:
             raise ContentInvalid("a different retained output already occupies this derived identity")
         return path.as_uri()
@@ -172,6 +174,8 @@ def _save(path: Path, pin: dict[str, str], stage: str, data: dict[str, Any]) -> 
     try:
         os.link(pending, path)
     except FileExistsError:
+        if require_new:
+            raise
         if path.is_symlink() or path.read_bytes() != encoded:
             raise ContentInvalid("concurrent different retained AI output") from None
     return path.as_uri()
@@ -476,6 +480,7 @@ Preserve repeated occurrences; do not diagnose, invent facts, fill missing dates
 Title is only a short descriptive label. Use [] when the window contains no supported candidate.
 SOURCE WINDOW:
 """
+OUTPUT_CORRECTION = "\nOUTPUT CORRECTION: Return the exact JSON shape and seven allowed kind values above. Copy record_id and quote exactly from the SAME source window. Do not change source evidence."
 
 
 def full_work_product_spans(record: dict[str, Any]) -> list[dict[str, Any]]:
@@ -546,6 +551,139 @@ def extract_work_products(params: dict[str, Any]) -> dict[str, Any]:
     return _receipt(ref, _read(ref, pin, "work_products"), method=method)
 
 
+def candidate_identity(prepared_ref: str, work_products_ref: str, config: Any, maximum: int) -> dict[str, Any]:
+    """Bind extraction checkpoints to exact source refs, prompt bytes and provider policy.
+
+    Inputs: immutable preparation/product refs, configured provider and budget.
+    Outputs: derived identity. Effects: none; choose for chunk reuse rather than
+    a mutable prompt-version label. Byline: Codex / GPT-6.1-Sol / 2026-10-07.
+    """
+    return {"prepared_ref": prepared_ref, "work_products_ref": work_products_ref,
+            "base_url": config.base_url, "model_id": config.model_id, "max_tokens": config.max_tokens,
+            "prompt_digest": _key([PROMPT, OUTPUT_CORRECTION]), "policy": "exact-quote-checkpoint-v1", "maximum": maximum,
+            "temperature": 0, "response_format": {"type": "json_object"}, "requests_per_chunk": 2}
+
+
+def _candidate_prompt(chunk: dict[str, Any]) -> str:
+    """Encode the exact source window for provider calls and checkpoint verification.
+
+    Inputs: prepared chunk. Outputs: prompt bytes as text. Effects: none; choose
+    as the single prompt constructor for fresh inference and resumed grounding.
+    """
+    return PROMPT + json.dumps([{"record_id": s["record_id"], "text": s["text"], "role": s.get("role")}
+                               for s in chunk["segments"]], ensure_ascii=False)
+
+
+def _chunk_intents(pin: dict[str, str], content_key: str) -> list[dict[str, Any]]:
+    """Read the two durable request slots for one exact content occurrence.
+
+    Inputs: seven pins and native chunk key. Outputs: validated retained intents.
+    Effects: bounded file reads; choose for retry accounting including unknown
+    outcomes, never infer zero usage from a missing reply.
+    """
+    result = []
+    for slot in (1, 2):
+        path = _path(pin, "candidate_intent", [content_key, slot])
+        if path.exists():
+            result.append(_read(path.as_uri(), pin, "candidate_intent"))
+    return result
+
+
+def _provider_budget(pin: dict[str, str], source: dict[str, Any]) -> list[dict[str, Any]]:
+    """Read the fixed source-scope provider ledger and refuse unaccounted legacy attempts.
+
+    Inputs: seven pins and verified source binding. Outputs: consumed budget slots.
+    Effects: bounded file reads; choose across Activity retries so in-flight or
+    failed calls cannot disappear from the approved ceiling.
+    """
+    legacy = _path(pin, "provider_attempt", None).parent
+    for index, path in enumerate(legacy.glob("*.json")):
+        if index >= MAX_MODEL_CALLS:
+            raise ContentInvalid("provider attempt evidence exceeds the approved accounting bound")
+        attempt = _read(path.as_uri(), pin, "provider_attempt")
+        if not attempt.get("intent_ref") or not attempt.get("budget_ref"):
+            raise ContentInvalid("legacy provider attempt lacks durable intent; explicit accounting review required")
+        intent = _read(attempt["intent_ref"], pin, "candidate_intent")
+        budget = _read(attempt["budget_ref"], pin, "candidate_budget")
+        if intent["source"] != source or budget["intent_ref"] != attempt["intent_ref"] or budget["source"] != source:
+            raise ContentInvalid("provider attempt differs from its durable source intent")
+    result = []
+    for slot in range(1, MAX_MODEL_CALLS + 1):
+        path = _path(pin, "candidate_budget", slot)
+        if path.exists():
+            budget = _read(path.as_uri(), pin, "candidate_budget")
+            if budget.get("source") != source or budget.get("slot") != slot:
+                raise ContentInvalid("retained provider budget scope differs")
+            result.append(budget)
+    return result
+
+
+def _reserve_provider_call(pin: dict[str, str], source: dict[str, Any], identity: dict[str, Any],
+                           content_key: str, request: dict[str, Any]) -> tuple[str, str]:
+    """Exclusively claim chunk and source budget slots before issuing one provider request.
+
+    Inputs: bound scope, exact extraction identity/content/request. Outputs:
+    immutable intent and budget refs. Effects: retained atomic exclusive files;
+    choose before I/O. Unknown or interrupted claims consume capacity conservatively.
+    """
+    budget = _provider_budget(pin, source)
+    if len(budget) >= identity["maximum"]:
+        raise ContentInvalid("approved durable provider budget exhausted")
+    intent_ref = ""
+    for slot in (1, 2):
+        path = _path(pin, "candidate_intent", [content_key, slot])
+        try:
+            intent_ref = _save(path, pin, "candidate_intent", {"source": source, "identity": identity,
+                "content_key": content_key, "slot": slot, "request": request}, require_new=True)
+            break
+        except FileExistsError:
+            continue
+    if not intent_ref:
+        raise ContentInvalid("two durable provider requests for this chunk are exhausted or have unknown outcomes")
+    for slot in range(1, identity["maximum"] + 1):
+        path = _path(pin, "candidate_budget", slot)
+        try:
+            ref = _save(path, pin, "candidate_budget", {"source": source, "intent_ref": intent_ref, "slot": slot}, require_new=True)
+            return intent_ref, ref
+        except FileExistsError:
+            continue
+    raise ContentInvalid("approved durable provider budget exhausted after concurrent reservation")
+
+
+def _candidate_checkpoint(pin: dict[str, str], source: dict[str, Any], identity: dict[str, Any],
+                          chunk: dict[str, Any], prompt: str) -> tuple[Path, dict[str, Any] | None]:
+    """Verify a completed chunk by re-grounding its retained reply against the exact source.
+
+    Inputs: bound scope, extraction identity, prepared chunk and initial prompt.
+    Outputs: deterministic path and validated checkpoint or None. Effects: file
+    reads only; choose to skip repeat inference without trusting cached candidates.
+    """
+    path = _path(pin, "candidate_chunk", [identity, chunk["content_key"], _key(prompt)])
+    if not path.exists():
+        return path, None
+    checkpoint = _read(path.as_uri(), pin, "candidate_chunk")
+    if any(checkpoint.get(key) != value for key, value in {
+        "source": source, "identity": identity, "content_key": chunk["content_key"], "prompt_digest": _key(prompt)}.items()):
+        raise ContentInvalid("candidate checkpoint identity or source differs")
+    try:
+        grounded = ground_candidates(chunk, json.loads(checkpoint["raw_reply"]))
+    except (KeyError, ValueError, TypeError):
+        raise ContentInvalid("candidate checkpoint reply cannot be re-grounded") from None
+    if grounded != checkpoint.get("candidates"):
+        raise ContentInvalid("candidate checkpoint grounding differs from exact source")
+    reply = _read(checkpoint["reply_ref"], pin, "model_reply")
+    if reply.get("raw_reply") != checkpoint["raw_reply"] or reply.get("identity") != identity or reply.get("content_key") != chunk["content_key"]:
+        raise ContentInvalid("candidate checkpoint reply binding differs")
+    if reply.get("request") not in (prompt, prompt + OUTPUT_CORRECTION):
+        raise ContentInvalid("candidate checkpoint prompt differs from exact source request")
+    intents = _chunk_intents(pin, chunk["content_key"])
+    matching = {_path(pin, "candidate_intent", [chunk["content_key"], i["slot"]]).as_uri()
+                for i in intents if i.get("identity") == identity and i.get("source") == source}
+    if not matching or not any(budget["intent_ref"] in matching for budget in _provider_budget(pin, source)):
+        raise ContentInvalid("candidate checkpoint has no matching durable provider intent")
+    return path, checkpoint
+
+
 def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any = None,
                        beat: Callable[[str], None] = lambda _: None) -> dict[str, Any]:
     """Extract and ground retained content candidates using the configured remote Kimi provider.
@@ -571,17 +709,45 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any
     # Reserve both provider attempts before calling it; no hidden fallback model.
     if len(prepared["chunks"]) * 2 > maximum:
         raise ContentInvalid("extraction's two-attempt provider budget exceeds max_model_calls")
-    identity = [prepared_ref, work_products_ref, config.base_url, config.model_id, config.max_tokens, "exact-quote-v2", maximum]
+    identity = candidate_identity(prepared_ref, work_products_ref, config, maximum)
     path = _path(pin, "candidates", identity)
+    consumed = _provider_budget(pin, source)
+    if len(consumed) > maximum:
+        raise ContentInvalid("retained provider consumption exceeds the requested bound")
     if path.exists():
         cached = _read(path.as_uri(), pin, "candidates")
-        return _receipt(path.as_uri(), cached, model_id=cached["model_id"])
+        if cached.get("source") != source or cached.get("identity") != identity:
+            raise ContentInvalid("completed candidate bundle identity or source differs")
+        verified = []
+        for chunk in prepared["chunks"]:
+            _, checkpoint = _candidate_checkpoint(pin, source, identity, chunk, _candidate_prompt(chunk))
+            if checkpoint is None:
+                raise ContentInvalid("completed candidate bundle is missing a validated chunk checkpoint")
+            verified.extend(checkpoint["candidates"])
+        if verified != cached.get("candidates"):
+            raise ContentInvalid("completed candidate bundle differs from ordered chunk checkpoints")
+        return _receipt(path.as_uri(), cached, model_id=cached["model_id"], new_model_calls=0,
+                        model_calls=len(consumed), provider_budget_consumed=len(consumed), cached_chunks=len(prepared["chunks"]))
     model = model or lx.build_model(config)
     # This existing LangExtract provider owns one explicit reply retry. Disable
     # the SDK's additional transport retries so the reserved two-attempt bound holds.
     provider_calls = [0]
     active_chunk = [""]
-    chunk_ceiling = [maximum]
+    policy_error: list[ContentInvalid | None] = [None]
+    boundary_error: list[BaseException | None] = [None]
+
+    def before_provider() -> None:
+        """Check the caller's cancellation boundary immediately before a provider request.
+
+        Inputs: caller-supplied heartbeat/cancellation callback. Outputs: none.
+        Effects: callback only; choose after durable reservation so cancellation
+        consumes the claim conservatively without coupling this unit to Temporal.
+        """
+        try:
+            beat("starting reserved AI provider request")
+        except BaseException as error:
+            boundary_error[0] = error
+            raise
     counted = hasattr(model, "_client")
     if counted:
         client = model._client.with_options(max_retries=0)
@@ -593,46 +759,70 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any
             reply. Effects: one remote call, with SDK retries disabled; choose
             for truthful model-call accounting within the approved ceiling.
             """
-            if provider_calls[0] >= min(maximum, chunk_ceiling[0]):
-                raise ContentInvalid("approved provider call ceiling exhausted")
-            provider_calls[0] += 1
             request = {k: v for k, v in kwargs.items() if k in {"model", "messages", "max_tokens", "temperature", "response_format", "extra_body"}}
+            try:
+                intent_ref, budget_ref = _reserve_provider_call(pin, source, identity, active_chunk[0], request)
+            except ContentInvalid as error:
+                policy_error[0] = error
+                raise
+            before_provider()
+            provider_calls[0] += 1
             try:
                 response = client.chat.completions.create(**kwargs)
             except Exception as error:
                 response_data = {"error_type": type(error).__name__}
-                _save(_path(pin, "provider_attempt", [identity, active_chunk[0], provider_calls[0], request, response_data]), pin, "provider_attempt", {
+                _save(_path(pin, "provider_attempt", [intent_ref, response_data]), pin, "provider_attempt", {
                     "source": source, "request": request, "response": response_data, "model_id": config.model_id,
-                    "content_key": active_chunk[0], "provider_call": provider_calls[0]})
+                    "content_key": active_chunk[0], "provider_call": provider_calls[0], "intent_ref": intent_ref, "budget_ref": budget_ref})
                 raise
             response_data = response.model_dump(mode="json")
-            _save(_path(pin, "provider_attempt", [identity, active_chunk[0], provider_calls[0], request, response_data]), pin, "provider_attempt", {
+            _save(_path(pin, "provider_attempt", [intent_ref, response_data]), pin, "provider_attempt", {
                 "source": source, "request": request, "response": response_data, "model_id": config.model_id,
-                "content_key": active_chunk[0], "provider_call": provider_calls[0]})
+                "content_key": active_chunk[0], "provider_call": provider_calls[0], "intent_ref": intent_ref, "budget_ref": budget_ref})
             return response
 
         model._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=counted_create)))
     candidates, replies = [], []
     candidate_bytes = 0
+    cached_chunks = 0
     for chunk in prepared["chunks"]:
         beat("extracting AI conversation content")
         active_chunk[0] = chunk["content_key"]
-        chunk_ceiling[0] = provider_calls[0] + 2
-        prompt = PROMPT + json.dumps([{"record_id": s["record_id"], "text": s["text"], "role": s.get("role")}
-                                     for s in chunk["segments"]], ensure_ascii=False)
-        for repair in range(2):
+        prompt = _candidate_prompt(chunk)
+        initial_prompt = prompt
+        checkpoint_path, checkpoint = _candidate_checkpoint(pin, source, identity, chunk, initial_prompt)
+        if checkpoint is not None:
+            grounded, raw, reply_ref = checkpoint["candidates"], checkpoint["raw_reply"], checkpoint["reply_ref"]
+            cached_chunks += 1
+        for repair in range(0 if checkpoint is not None else 2):
+            intent_ref = budget_ref = ""
+            request = {"model": config.model_id, "prompt": prompt, "temperature": 0,
+                       "max_tokens": config.max_tokens, "response_format": {"type": "json_object"}}
             try:
                 if not counted:
+                    intent_ref, budget_ref = _reserve_provider_call(pin, source, identity, active_chunk[0], request)
+                    before_provider()
                     provider_calls[0] += 1
                 outputs = list(model.infer([prompt], temperature=0, response_format={"type": "json_object"}))
-            except Exception:
+            except ContentInvalid:
+                raise
+            except Exception as error:
+                if boundary_error[0] is not None:
+                    raise boundary_error[0]
+                if not counted and intent_ref:
+                    _save(_path(pin, "provider_attempt", [intent_ref, "failure"]), pin, "provider_attempt", {
+                        "source": source, "request": request, "response": {"error_type": type(error).__name__},
+                        "model_id": config.model_id, "content_key": active_chunk[0],
+                        "intent_ref": intent_ref, "budget_ref": budget_ref})
+                if policy_error[0] is not None:
+                    raise policy_error[0]
                 raise RuntimeError("configured remote AI extraction failed; no fallback was used") from None
             if len(outputs) != 1 or len(outputs[0]) != 1:
                 raise ContentInvalid("configured extractor returned an ambiguous reply count")
             raw = outputs[0][0].output
             reply_ref = _save(_path(pin, "model_reply", [identity, chunk["content_key"], repair, raw]), pin, "model_reply", {
                 "source": source, "prepared_ref": prepared_ref, "work_products_ref": work_products_ref,
-                "model_id": config.model_id, "model_base_url": config.base_url, "prompt_version": "exact-quote-v2",
+                "model_id": config.model_id, "model_base_url": config.base_url, "prompt_version": identity["policy"], "identity": identity,
                 "content_key": chunk["content_key"], "request": prompt, "raw_reply": raw, "repair_attempt": repair})
             try:
                 if lx.reply_problem(raw, None):
@@ -640,18 +830,24 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any
                 grounded = ground_candidates(chunk, json.loads(raw))
                 break
             except ContentInvalid:
-                if repair or provider_calls[0] >= chunk_ceiling[0]:
+                if repair or len(_chunk_intents(pin, chunk["content_key"])) >= 2:
                     raise
-                prompt += "\nOUTPUT CORRECTION: Return the exact JSON shape and seven allowed kind values above. Copy record_id and quote exactly from the SAME source window. Do not change source evidence."
+                prompt += OUTPUT_CORRECTION
+        if checkpoint is None:
+            _save(checkpoint_path, pin, "candidate_chunk", {"source": source, "identity": identity,
+                "content_key": chunk["content_key"], "prompt_digest": _key(initial_prompt),
+                "raw_reply": raw, "reply_ref": reply_ref, "candidates": grounded})
         candidate_bytes += len(_json(grounded))
         if candidate_bytes > MAX_BUNDLE_BYTES:
             raise ContentInvalid("grounded candidate evidence exceeds the retained bundle bound")
         candidates.extend(grounded)
         replies.append({"content_key": chunk["content_key"], "reply": raw, "reply_ref": reply_ref, "grounded_candidates": len(grounded)})
-    counts = {**prepared["counts"], "candidates": len(candidates), "model_calls": provider_calls[0],
-              "reserved_provider_attempts": len(replies) * 2}
+    consumed = _provider_budget(pin, source)
+    counts = {**prepared["counts"], "candidates": len(candidates), "model_calls": len(consumed),
+              "new_model_calls": provider_calls[0], "cached_chunks": cached_chunks,
+              "provider_budget_consumed": len(consumed), "reserved_provider_attempts": len(replies) * 2}
     ref = _save(path, pin, "candidates", {"prepared_ref": prepared_ref, "work_products_ref": work_products_ref, "source": source,
-        "model_id": config.model_id, "model_base_url": config.base_url, "prompt_version": "exact-quote-v2",
+        "model_id": config.model_id, "model_base_url": config.base_url, "prompt_version": identity["policy"], "identity": identity,
         "candidates": candidates, "replies": replies, "counts": counts})
     return _receipt(ref, _read(ref, pin, "candidates"), model_id=config.model_id)
 

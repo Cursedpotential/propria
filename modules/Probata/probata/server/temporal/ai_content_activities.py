@@ -15,7 +15,7 @@ from threading import Event, Thread
 from typing import Any, Iterator
 
 from temporalio import activity
-from temporalio.exceptions import ApplicationError
+from temporalio.exceptions import ApplicationError, CancelledError
 
 
 @dataclass
@@ -62,6 +62,8 @@ def _heartbeats() -> Iterator[Any]:
         choose instead of putting source text in progress events.
         """
         if active:
+            if activity.is_cancelled():
+                raise CancelledError("AI content Activity cancellation was requested")
             activity.heartbeat(detail)
 
     def pulse() -> None:
