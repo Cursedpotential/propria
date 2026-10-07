@@ -71,7 +71,15 @@ def register(mcp,request,read):
 
     @mcp.tool(annotations=write)
     async def docstore_adr(action:Literal['list','create','update','migration-plan','migration-apply','projections','verify'], payload:dict|None=None) -> dict:
-        """Manage authoritative ADRs, version-checked edits, legacy imports and generated projections."""
+        """Read or revise authoritative ADRs and return records or generated projections.
+
+        Put exact id/ids/number/numbers selectors and optional limit inside
+        payload, not at the tool's top level. Read selections are bounded to 50;
+        unselected list/projections preserve legacy behavior. list reads rows,
+        projections/verify read Markdown/index state without materialization;
+        create/update/migration-apply perform governed writes.
+        Byline: Codex, shared Docstore repair lane, 2026-10-07.
+        """
         return await request('POST','/adr/'+action,payload=payload or {})
 
     @mcp.tool(annotations=read)
