@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-5 · 2026-10-05 (versioned import admission).
+// Byline: Codex · GPT-6 · 2026-10-07 (optional real analytical graph registration).
 package profferworker
 
 import (
@@ -20,6 +21,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/activities"
 	sbvadapter "github.com/Cursedpotential/probata/engine/adapters/sbv"
 	"github.com/Cursedpotential/probata/engine/contacts"
+	"github.com/Cursedpotential/probata/engine/contextgraphflow"
 	"github.com/Cursedpotential/probata/engine/dedupe"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/extraction/librarysync"
@@ -74,6 +76,10 @@ type Registrations struct {
 	// Surreal send (conversation_extraction.go).
 	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 	Conversation activities.ConversationActivities
+	// ContextGraph serves independent downstream projection when explicitly configured.
+	// Inputs are sealed source refs; outputs are verified checkpoints. Registration
+	// alone has no data effects and does not add an intake requirement.
+	ContextGraph *activities.ContextGraphActivities
 	// ContextSearch is publish_context_search_activity, the Weaviate-first
 	// stage every new Proffer run schedules before the owner's approval.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
@@ -171,6 +177,10 @@ func RegisterAll(registrar interface {
 	// Reuse exact verified AI generations after content-stage failures; no new-source admission.
 	// Byline: Codex / 2026-10-06.
 	registrar.RegisterWorkflowWithOptions(proffer.AIContentResumeWorkflow, workflow.RegisterOptions{Name: proffer.AIContentResumeWorkflowName})
+	if registrations.ContextGraph != nil {
+		registrar.RegisterWorkflowWithOptions(contextgraphflow.ContextGraphWorkflow, workflow.RegisterOptions{Name: contextgraphflow.WorkflowName})
+		activities.RegisterContextGraphActivities(registrar, *registrations.ContextGraph)
+	}
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
 	// Back-fill of call logs imported before commit_call_log existed.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
@@ -713,6 +723,14 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	var contextGraph *activities.ContextGraphActivities
+	if strings.TrimSpace(os.Getenv("ANALYSIS_GRAPH_ROOT")) != "" {
+		group, graphErr := activities.ContextGraphActivitiesFromEnv()
+		if graphErr != nil {
+			return Registrations{}, fmt.Errorf("proffer worker: configured analytical graph: %w", graphErr)
+		}
+		contextGraph = &group
+	}
 	contextSearch, err := buildContextSearch(pool, cfg.ContextSearch)
 	if err != nil {
 		return Registrations{}, err
@@ -754,6 +772,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		RepairPlan:              repairPlan,
 		Extraction:              extraction,
 		Conversation:            conversation,
+		ContextGraph:            contextGraph,
 		Lifecycle:               activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation:   activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
 		InventoryObservation:    activities.NewSourceObservationActivities(nil, memberEnumerator, observationRepo),

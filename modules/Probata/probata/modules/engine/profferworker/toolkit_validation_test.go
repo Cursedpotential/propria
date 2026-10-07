@@ -178,7 +178,7 @@ func TestToolkitValidationDeploymentContract(t *testing.T) {
 	var compose struct {
 		Services map[string]struct {
 			Environment map[string]string `yaml:"environment"`
-			Volumes     []string          `yaml:"volumes"`
+			Volumes     []yaml.Node       `yaml:"volumes"`
 		} `yaml:"services"`
 	}
 	if err = yaml.Unmarshal(raw, &compose); err != nil {
@@ -199,7 +199,24 @@ func TestToolkitValidationDeploymentContract(t *testing.T) {
 	}
 	mounts := map[string]bool{}
 	for _, m := range cfg.Volumes {
-		mounts[m] = true
+		// Byline: Codex / GPT-6 / 2026-10-07. Compose permits both short and typed bind forms.
+		if m.Kind == yaml.ScalarNode {
+			mounts[m.Value] = true
+			continue
+		}
+		var bind struct {
+			Source   string `yaml:"source"`
+			Target   string `yaml:"target"`
+			ReadOnly bool   `yaml:"read_only"`
+		}
+		if m.Kind != yaml.MappingNode || m.Decode(&bind) != nil || bind.Source == "" || bind.Target == "" {
+			t.Fatal("invalid typed deployment bind")
+		}
+		key := bind.Source + ":" + bind.Target
+		if bind.ReadOnly {
+			key += ":ro"
+		}
+		mounts[key] = true
 	}
 	for _, name := range []string{"case-mcp-token", "validation-signing-key", "currency-signing-key", "validator-user", "validator-password", "casebible-recovery-database-url", "currency-review-user", "currency-review-password", "currency-approval-key"} {
 		if !mounts["/data/probata/secrets/family-court/"+name+":/run/secrets/"+name+":ro"] {
