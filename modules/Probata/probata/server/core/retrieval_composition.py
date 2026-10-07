@@ -36,7 +36,7 @@ class RetrievalLeg:
 
     def __post_init__(self) -> None:
         """Validate declared reader capabilities without I/O; scopes must be enforced before ranking by the read callback."""
-        if not self.supported_modes or not self.supported_modes <= {"keyword", "hybrid"}:
+        if not self.supported_modes or not self.supported_modes <= {"keyword", "hybrid", "vector"}:
             raise ValueError("unsupported reader mode declaration")
         if not self.supported_scopes <= RetrievalScope.model_fields.keys():
             raise ValueError("unsupported reader scope declaration")

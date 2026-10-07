@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from server.core.retrieval_adapters import intake_hits, proffer_hits
+from server.core.retrieval_adapters import intake_hits, proffer_hits, weaviate_score
 from server.core.retrieval_composition import RetrievalLeg, retrieve_context, retrieve_flow
 from server.core.retrieval_contracts import (
     Citation,
@@ -204,11 +204,19 @@ def test_intake_adapter_preserves_existing_vault_coordinates():
 def test_proffer_adapter_keeps_versions_message_and_real_object_id():
     """Adapt a synthetic Proffer row; preserve every returned version and message locator, refusing fabricated object IDs."""
     row = {"text": "example", "source_version_ids": ["version-1", "version-2"],
-           "source_version_id": "version-3", "first_message_id": "message-1", "_additional": {"id": "obj", "score": 2}}
+           "source_version_id": "version-3", "first_message_id": "message-1", "last_message_id": "message-2",
+           "message_ids": ["message-1", "message-2"], "normalized_record_ids": ["record-1", "record-2"],
+           "chunk_index": 3, "thread_id": "thread-1", "content_hash": "supplied-content-hash",
+           "_additional": {"id": "obj", "score": 2}}
     adapted = proffer_hits("SyntheticProffer", [row], vector_name="text_nim")[0]
     assert adapted.citation.source_version_ids == ("version-1", "version-2", "version-3")
     assert adapted.citation.first_message_id == "message-1"
     assert adapted.citation.object_id == "obj"
+    assert adapted.citation.message_ids == ("message-1", "message-2")
+    assert adapted.citation.normalized_record_ids == ("record-1", "record-2")
+    assert adapted.citation.chunk_index == 3
+    assert adapted.citation.thread_id == "thread-1"
+    assert adapted.citation.content_hash == "supplied-content-hash"
     with pytest.raises(KeyError):
         proffer_hits("SyntheticProffer", [{**row, "_additional": {"score": 2}}])
 
@@ -253,16 +261,17 @@ def test_compact_flow_result_refuses_oversized_citation_history():
         compact_flow_result(result)
 
 
-def test_n8n_export_is_explicitly_unbound_and_preserves_compact_contract():
-    """Inspect source-only n8n wiring without executing it; assert auth, disabled activation and explicit missing endpoint."""
+def test_n8n_export_uses_existing_platform_route_and_preserves_compact_contract():
+    """Inspect source-only n8n wiring without executing it; assert auth, disabled activation and the exact existing API seam."""
     root = Path(__file__).resolve().parents[1]
     workflow = json.loads((root / "deploy/docker/n8n/workflows/retrieval/wf-read-retrieval.json").read_text())
     nodes = {node["name"]: node for node in workflow["nodes"]}
     assert workflow["active"] is False
     assert nodes["Read retrieval webhook"]["parameters"]["authentication"] == "headerAuth"
-    assert nodes["UNBOUND read composition HTTP"]["parameters"]["url"] == ""
-    assert "No API route or worker binding" in nodes["Binding seam and contract"]["parameters"]["content"]
-    assert "Idempotency-Key" in json.dumps(nodes["UNBOUND read composition HTTP"])
+    assert "/v1/context/retrieve-flow" in nodes["Platform context retrieval HTTP"]["parameters"]["url"]
+    assert "PLATFORM_API_URL" in nodes["Platform context retrieval HTTP"]["parameters"]["url"]
+    assert "Parent must register" in nodes["Binding seam and contract"]["parameters"]["content"]
+    assert "Idempotency-Key" in json.dumps(nodes["Platform context retrieval HTTP"])
     assert "read_retrieval" in nodes["Validate flow request"]["parameters"]["jsCode"]
 
 
@@ -297,3 +306,53 @@ if(!rejected) throw new Error('hidden partial failure accepted');
         "responseCode": code["Validate compact result"],
     }), capture_output=True, text=True, timeout=10, check=False)
     assert completed.returncode == 0, completed.stderr
+
+
+def test_call_log_and_conversation_mix_keeps_both_actual_version_locators():
+    """Fuse a conversation and locator-less call-log row; retain both exact source versions without invented thread/URI."""
+    rows = [
+        {"text": "conversation", "source_version_ids": ["conversation-version"], "first_message_id": "message-1",
+         "record_kind": "conversation", "_additional": {"id": "conversation-object", "score": 3}},
+        {"text": "call log", "source_version_id": "call-log-version", "record_kind": "call_log_file",
+         "_additional": {"id": "call-object", "score": 2}},
+    ]
+    result = run({"proffer": reader(*proffer_hits("SyntheticProffer", rows))})
+    assert result.status == "success"
+    assert result.legs[0].count == 2
+    call = next(item for item in result.items if item.citation.record_kind == "call_log_file")
+    assert call.citation.source_version_ids == ("call-log-version",)
+    assert call.citation.locator == {"source_version_id": "call-log-version"}
+    assert call.citation.first_message_id is None
+
+
+def test_vector_distance_only_results_fuse_nearest_first():
+    """Adapt score-less vector results using negative finite distance; library fusion retains nearest-first ordering and IDs."""
+    rows = [{"text": "same", "source_version_id": version, "record_kind": "call_log_file",
+             "_additional": {"id": version, "distance": distance}}
+            for version, distance in (("far", 0.8), ("near", 0.1))]
+    hits = proffer_hits("SyntheticProffer", rows, vector_name="text_nim", mode="vector")
+    leg = reader(*hits)
+    result = run({"proffer": RetrievalLeg(leg.read, frozenset({"vector"}))}, mode="vector")
+    assert [item.citation.object_id for item in result.items] == ["near", "far"]
+    assert all(item.citation.vector_name == "text_nim" for item in result.items)
+    for invalid in (float("inf"), float("nan")):
+        with pytest.raises(ValueError, match="nonfinite"):
+            weaviate_score({"distance": invalid}, "vector")
+    with pytest.raises(KeyError):
+        weaviate_score({"score": 1}, "vector")
+
+
+def test_intake_vector_adapter_accepts_null_score_and_requires_finite_distance():
+    """Adapt Intake's actual vector response with score:null; preserve original coordinates and monotonic distance ordering."""
+    base = {"source_id": "source", "source_path": "synthetic/path", "document_id": "doc", "chunk_id": "chunk",
+            "vault_key": "synthetic/vault", "resolution": "catalog", "text": "same", "score": None}
+    payload = {"collection": "SyntheticIntake", "target_vector": "text_vector", "hits": [
+        {**base, "object_id": "near", "distance": 0.1}, {**base, "object_id": "far", "distance": 0.9},
+    ]}
+    adapted = intake_hits(payload, mode="vector")
+    assert [hit.score for hit in adapted] == [-0.1, -0.9]
+    assert adapted[0].citation.locator["vault_key"] == "synthetic/vault"
+    assert adapted[0].citation.vector_name == "text_vector"
+    payload["hits"][0]["distance"] = float("nan")
+    with pytest.raises(ValueError, match="nonfinite"):
+        intake_hits(payload, mode="vector")

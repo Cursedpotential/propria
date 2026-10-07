@@ -34,11 +34,17 @@ class Citation(ReadModel):
     source_version_ids: tuple[Identifier, ...] = Field(default=(), max_length=32)
     document_id: Identifier | None = None
     chunk_id: Identifier | None = None
+    chunk_index: int | None = Field(default=None, ge=0, strict=True)
+    thread_id: Identifier | None = None
     first_message_id: Identifier | None = None
+    last_message_id: Identifier | None = None
+    message_ids: tuple[Identifier, ...] = Field(default=(), max_length=2048)
+    normalized_record_ids: tuple[Identifier, ...] = Field(default=(), max_length=2048)
     normalized_record_id: Identifier | None = None
     source_sha256: Identifier | None = None
     content_hash: Identifier | None = None
     vector_name: Identifier | None = None
+    record_kind: Identifier | None = None
     locator: dict[Identifier, Identifier] = Field(default_factory=dict, max_length=16)
 
     def identity(self) -> str:
@@ -83,7 +89,7 @@ class RetrievalRequest(ReadModel):
 
     request_id: Identifier
     query: str = Field(min_length=1, max_length=2000, pattern=r"\S")
-    mode: Literal["keyword", "hybrid"] = "keyword"
+    mode: Literal["keyword", "hybrid", "vector"] = "keyword"
     scope: RetrievalScope = Field(default_factory=RetrievalScope)
     legs: tuple[LegName, ...] = Field(min_length=1, max_length=4)
     limit: int = Field(default=20, ge=1, le=50, strict=True)
@@ -114,7 +120,7 @@ class RetrievalResponse(ReadModel):
     """Return fused context and explicit leg outcomes; use compact_flow_result before crossing Temporal history."""
 
     request_id: Identifier
-    mode: Literal["keyword", "hybrid"]
+    mode: Literal["keyword", "hybrid", "vector"]
     scope: RetrievalScope
     status: Literal["success", "partial", "failed"]
     items: tuple[RankedHit, ...]
