@@ -77,6 +77,15 @@ async def _upstream(path: str, payload: dict | None = None) -> dict:
 
 
 async def search_index(query: str, mode: str, limit: int) -> dict:
+    """Return bounded Intake search hits with their original source locators.
+
+    Inputs are query text, the requested search mode, and a result limit.
+    Outputs retain collection/object, source/document/chunk, and vault identity;
+    upstream locators are not verified ingestion or evidence references.
+    Side effects are limited to a read-only HTTP search. Use this bridge for
+    pre-ingest content search rather than catalog filename lookup.
+    Byline: Codex · 2026-10-06.
+    """
     body = await _upstream("/filesystem/search", {"query": query, "mode": "keyword" if mode == "contents" else "hybrid", "limit": limit})
     required = {"object_id", "source_path", "filename", "source_id", "document_id", "chunk_id", "text", "score"}
     if not isinstance(body.get("hits"), list) or any(not isinstance(h, dict) or not required.issubset(h) for h in body["hits"]):
@@ -85,6 +94,7 @@ async def search_index(query: str, mode: str, limit: int) -> dict:
         {"id": h["object_id"], "rel": h["source_path"], "parent": None,
          "name": h["filename"], "kind": "content_hit", "source_id": h["source_id"],
          "document_id": h["document_id"], "chunk_id": h["chunk_id"],
+         "vault_key": h.get("vault_key"), "resolution": h.get("resolution"),
          "text": h["text"], "score": h["score"], "source_ref": None}
         for h in body["hits"][:limit]], "coverage": body.get("coverage", "unknown"),
         "collection": body.get("collection"), "complete": False, "has_more": False,

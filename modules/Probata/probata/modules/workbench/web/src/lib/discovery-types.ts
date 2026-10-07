@@ -16,6 +16,8 @@ export interface DiscoveryItem {
   source: string | null;
   scope: string | null;
   vault_key: string | null;
+  /** Intake's reported locator status; not proof of evidence eligibility. */
+  resolution?: string | null;
 }
 export interface DiscoveryCapabilities {
   backend: string;
@@ -36,6 +38,7 @@ export interface DiscoveryCapabilities {
 }
 export interface DiscoveryPage {
   backend: string;
+  collection?: string | null;
   items: DiscoveryItem[];
   next_cursor: string | null;
   has_more: boolean;
