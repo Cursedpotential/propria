@@ -17,7 +17,7 @@ const require = createRequire(import.meta.url);
  */
 function load(relative, overrides) {
   const source = readFileSync(new URL(relative, import.meta.url), "utf8");
-  const compiled = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText;
+  const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText;
   const module = { exports: {} };
   runInNewContext(compiled, { module, exports: module.exports, URLSearchParams, require: (name) => overrides[name] ?? require(name) });
   return module.exports;
@@ -55,6 +55,39 @@ function search(result) {
   return { html, options, calls };
 }
 
+/** Render a cited conversation using isolated messages and exact-thread participant pages.
+ * Inputs: message header, thread result and route context. Output: HTML, rows and API captures.
+ * Effects: in-memory rendering only. Pick for title/content regressions without corpus access.
+ */
+function conversation(head, threadResult = {}, params = "source=wrong&thread=original-thread&around=original-record&q=words") {
+  let options;
+  let threadOptions;
+  const calls = [];
+  const threadCalls = [];
+  const bubbleRows = [];
+  const { ReadConversation } = load("./read-conversation.tsx", {
+    ...common,
+    "@tanstack/react-query": { useInfiniteQuery: (value) => {
+      if (value.queryKey[0] === "m-threads") { threadOptions = value; return threadResult; }
+      options = value;
+      return { data: { pages: [head] }, hasNextPage: true };
+    } },
+    "@/lib/imported-client": { importedApi: {
+      messages: (...args) => { calls.push(args); return Promise.resolve(head); },
+      threads: (...args) => { threadCalls.push(args); return Promise.resolve({}); },
+    } },
+    "@/components/conversations/conversation-actions": { ConversationToolbar: () => React.createElement("div", null, "Existing tools") },
+    "@/components/imported/record-rows": { toMessageRow: (message) => ({ message }) },
+    "@/components/sbv/message-bubble": { MessageBubble: ({ row, highlighted }) => {
+      bubbleRows.push(row);
+      return React.createElement("p", { "data-highlighted": highlighted }, row.message.body);
+    } },
+    "@/components/read/read-context": { ReadContext: () => React.createElement("aside", null, "Existing context") },
+  });
+  const html = renderToStaticMarkup(React.createElement(ReadConversation, { threadId: "original-thread", around: "original-record", params: new URLSearchParams(params) }));
+  return { html, options, calls, threadOptions, threadCalls, bubbleRows };
+}
+
 test("content search uses existing API pagination/abort and links hits by original IDs", async () => {
   const { html, options, calls } = search({ isSuccess: true, hasNextPage: true, data: { pages: [{ note: "Existing search coverage", items: [
     { id: "record-id", thread_id: "thread/+==", body: "Message <script>unsafe</script>", sender: "Sender", source: "export.json" },
@@ -81,21 +114,10 @@ test("search reports pending, unavailable and successful empty states distinctly
 });
 
 test("focused reading uses around only on the first page and canonical source for citations", async () => {
-  let options;
-  const calls = [];
   const head = { conversation: "Conversation", source: { id: "canonical/+", file_name: "original.json", format: "Other" }, items: [
     { id: "original-record", at: null, body: "Original content", sender: { label: "Person" }, attachments: 2, outgoing: false },
   ], older_cursor: "older" };
-  const { ReadConversation } = load("./read-conversation.tsx", {
-    ...common,
-    "@tanstack/react-query": { useInfiniteQuery: (value) => { options = value; return { data: { pages: [head] }, hasNextPage: true }; } },
-    "@/lib/imported-client": { importedApi: { messages: (...args) => { calls.push(args); return Promise.resolve(head); } } },
-    "@/components/conversations/conversation-actions": { ConversationToolbar: () => React.createElement("div", null, "Existing tools") },
-    "@/components/imported/record-rows": { toMessageRow: (message) => ({ message }) },
-    "@/components/sbv/message-bubble": { MessageBubble: ({ row, highlighted }) => React.createElement("p", { "data-highlighted": highlighted }, row.message.body) },
-    "@/components/read/read-context": { ReadContext: () => React.createElement("aside", null, "Existing context") },
-  });
-  const html = renderToStaticMarkup(React.createElement(ReadConversation, { threadId: "original-thread", around: "original-record", params: new URLSearchParams("source=wrong&thread=original-thread&around=original-record&q=words") }));
+  const { html, options, calls } = conversation(head);
   const signal = new AbortController().signal;
   await options.queryFn({ pageParam: null, signal });
   await options.queryFn({ pageParam: "older", signal });
@@ -111,6 +133,68 @@ test("focused reading uses around only on the first page and canonical source fo
   assert.match(html, /Jump to latest messages/);
   assert.match(html, /source=canonical%2F%2B&amp;thread=original-thread&amp;around=original-record&amp;q=words#read-conversations/);
   assert.doesNotMatch(html, /href="\/conversations/);
+});
+
+test("Read heading uses only exact-thread API participants and reuses the canonical source query", async () => {
+  const head = { conversation: "810001_810002", source: { id: "canonical/+", file_name: "original.json", format: "SMS", owner_name: "Owner" }, items: [
+    { id: "original-record", body: "Outgoing only", sender: { label: "Owner", mine: true }, attachments: 0, outgoing: true },
+  ] };
+  const participants = [{ label: "Owner", mine: true }, { label: "Resolved person", mine: false }];
+  const { html, threadOptions, threadCalls } = conversation(head, { data: { pages: [{ items: [
+    { id: "different-thread", participants: [{ label: "Wrong person", mine: false }] },
+    { id: "original-thread", title: "810001_810002", participants },
+  ] }] } });
+  assert.match(html, /<h2[^>]*>Resolved person<\/h2>/);
+  assert.doesNotMatch(html, /<h2[^>]*>[^<]*(810001|Owner|Wrong person)/);
+  assert.match(html, /Original conversation key<\/dt><dd>810001_810002/);
+  assert.equal(threadOptions.queryKey[0], "m-threads");
+  assert.equal(threadOptions.queryKey[1], "canonical/+");
+  assert.equal(threadOptions.enabled, true);
+  const signal = new AbortController().signal;
+  await threadOptions.queryFn({ pageParam: 25, signal });
+  assert.deepEqual(threadCalls[0], ["canonical/+", 25, signal]);
+  assert.equal(threadOptions.getNextPageParam({ next_offset: 50 }), 50);
+});
+
+test("Read title uses returned senders while thread participants are unavailable and never promotes the internal key", () => {
+  const head = { conversation: "810001_810002", source: { id: "canonical", file_name: "original.json", format: "SMS", owner_name: "Owner" }, items: [
+    { id: "original-record", body: "Incoming", sender: { label: "Known sender", mine: false }, attachments: 0, outgoing: false },
+    { id: "second", body: "Outgoing", sender: { label: "Owner", mine: true }, attachments: 0, outgoing: true },
+  ] };
+  assert.match(conversation(head, { isError: true }).html, /<h2[^>]*>Known sender<\/h2>/);
+  const outgoingOnly = { ...head, items: [head.items[1]] };
+  assert.match(conversation(outgoingOnly).html, /<h2[^>]*>Conversation · original.json<\/h2>/);
+  const unknown = { ...head, items: [{ ...head.items[0], sender: { label: "Unknown", mine: false } }] };
+  assert.match(conversation(unknown).html, /<h2[^>]*>Conversation · original.json<\/h2>/);
+  assert.doesNotMatch(conversation(unknown).html, /<h2[^>]*>[^<]*810001/);
+});
+
+test("participant headings retain thread-list group and Facebook policies", () => {
+  const head = { conversation: "internal", source: { id: "source", file_name: "original.json", format: "SMS" }, items: [] };
+  const participants = ["One", "Two", "One", "Three", "Four", " "].map((label) => ({ label, mine: false }));
+  const threads = { data: { pages: [{ items: [{ id: "original-thread", participants }] }] } };
+  assert.match(conversation(head, threads).html, /<h2[^>]*>One, Two, Three\.\.\.<\/h2>/);
+  assert.match(conversation({ ...head, source: { ...head.source, format: "Facebook" } }, threads).html, /<h2[^>]*>One<\/h2>/);
+});
+
+test("empty original records keep their bodies and citation IDs with a compact explanation only when attachment-free", () => {
+  const originals = [
+    { id: "empty", body: "", attachments: 0 },
+    { id: "whitespace", body: " \n\t", attachments: 0 },
+    { id: "attachment-only", body: "", attachments: 2 },
+    { id: "text", body: "Actual source text", attachments: 0 },
+  ].map((message) => ({ ...message, at: "2026-10-06T00:00:00Z", sender: { label: "Known sender", mine: false }, outgoing: false }));
+  const before = JSON.stringify(originals);
+  const { html, bubbleRows } = conversation({ conversation: "internal", source: { id: "source", file_name: "original.json", format: "SMS" }, items: originals });
+  assert.equal((html.match(/No text in this record/g) ?? []).length, 2);
+  for (const message of originals) {
+    assert.match(html, new RegExp(`id="read-message-${message.id}"`));
+    assert.match(html, new RegExp(`around=${message.id}`));
+  }
+  assert.deepEqual(bubbleRows.map((row) => row.message.body), originals.map((message) => message.body));
+  assert.equal(JSON.stringify(originals), before);
+  assert.match(html, /Actual source text/);
+  assert.match(html, /2 \(content is not supplied by this messages API\)/);
 });
 
 test("Read route switches preview aliases without remounting preview state on query changes", () => {

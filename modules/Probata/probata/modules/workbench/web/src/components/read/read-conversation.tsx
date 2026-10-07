@@ -10,8 +10,20 @@ import { ReadContext } from "@/components/read/read-context";
 import { readHref } from "@/components/read/read-location";
 import { MessageBubble } from "@/components/sbv/message-bubble";
 import { Button } from "@/components/ui/button";
-import { importedApi } from "@/lib/imported-client";
+import { importedApi, type Participant } from "@/lib/imported-client";
 import { AppLink } from "@/lib/router-compat";
+
+/** Name a conversation from returned participant labels without interpreting internal identifiers.
+ * Inputs: API participants, source format and filename. Output: a human heading; effects: none.
+ * Pick for Read titles; follows the thread-list participant policy with a descriptive fallback.
+ */
+function conversationTitle(participants: readonly Participant[], format: string, fileName: string): string {
+  const labels = [...new Set(participants.filter((participant) => !participant.mine)
+    .map((participant) => participant.label.trim()).filter((label) => label && label !== "Unknown"))];
+  if (!labels.length) return fileName ? `Conversation · ${fileName}` : "Conversation";
+  if (format === "Facebook") return labels[0];
+  return labels.slice(0, 3).join(", ") + (labels.length > 3 ? "..." : "");
+}
 
 /** Read a paged conversation with source identity, message permalinks and extracted context.
  * Inputs: original thread/message IDs and route context. Output: readable messages and details.
@@ -27,6 +39,17 @@ export function ReadConversation({ threadId, around, params }: { threadId: strin
   });
   const messages = [...(query.data?.pages ?? [])].reverse().flatMap((page) => page.items);
   const head = query.data?.pages[0];
+  const sourceId = head?.source.id;
+  // Messages headers omit participants. Reuse the sidebar's paged thread query for exact-thread
+  // participants; deep links outside its loaded pages can still use returned message senders.
+  const threads = useInfiniteQuery({
+    queryKey: ["m-threads", sourceId],
+    queryFn: ({ pageParam, signal }) => importedApi.threads(sourceId!, pageParam, signal),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.next_offset ?? undefined,
+    enabled: Boolean(sourceId),
+  });
+  const thread = threads.data?.pages.flatMap((page) => page.items).find((item) => item.id === threadId);
   const focused = useRef(false);
   const pageCount = query.data?.pages.length ?? 0;
   const focusLoaded = messages.some((message) => message.id === around);
@@ -45,7 +68,7 @@ export function ReadConversation({ threadId, around, params }: { threadId: strin
     <section className="grid min-w-0 items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_22rem]" aria-label="Conversation reader">
       <div className="min-w-0 rounded-lg border border-border bg-card">
         <header className="space-y-2 border-b border-border p-4">
-          <h2 className="break-words text-lg font-semibold">{head.conversation}</h2>
+          <h2 className="break-words text-lg font-semibold">{conversationTitle(thread?.participants ?? messages.map((message) => message.sender), head.source.format, head.source.file_name)}</h2>
           <p className="break-words text-sm text-muted-foreground">{[head.source.file_name, head.source.format, head.source.device, head.source.owner_name].filter(Boolean).join(" · ")}</p>
           <AppLink href={readHref(readingParams, { around: null })} className="inline-block text-sm underline underline-offset-4">Browse this source’s conversations</AppLink>
           {params.get("source") && params.get("source") !== head.source.id ? <p className="text-sm text-amber-700 dark:text-amber-300">This thread belongs to the source shown here. The source selection in the URL differs; use the link above to align it.</p> : null}
@@ -54,6 +77,7 @@ export function ReadConversation({ threadId, around, params }: { threadId: strin
             <dl className="mt-2 space-y-1 break-all text-xs text-muted-foreground">
               <dt className="font-semibold">Source ID</dt><dd>{head.source.id}</dd>
               <dt className="font-semibold">Thread ID</dt><dd>{threadId}</dd>
+              <dt className="font-semibold">Original conversation key</dt><dd>{head.conversation}</dd>
               <dt className="font-semibold">Source owner</dt><dd>{head.source.owner ?? "Not supplied"}</dd>
             </dl>
           </details>
@@ -73,6 +97,7 @@ export function ReadConversation({ threadId, around, params }: { threadId: strin
             <article key={message.id} id={`read-message-${message.id}`} aria-label={`Message from ${message.sender.label}`}>
               {index === 0 || formatDate(message.at) !== formatDate(messages[index - 1].at) ? <p className="py-2 text-center text-xs text-muted-foreground">{formatDate(message.at)}</p> : null}
               <MessageBubble row={toMessageRow(message, index)} previewHandle="" mode="LIVE" showSenderLabel={!message.outgoing} highlighted={message.id === around} />
+              {!message.body.trim() && message.attachments === 0 ? <p className={`mt-1 px-2 text-xs text-muted-foreground ${message.outgoing ? "text-right" : ""}`}>No text in this record</p> : null}
               <details className="mt-1 px-2 text-xs text-muted-foreground">
                 <summary className="cursor-pointer">Citation and message details</summary>
                 <dl className="mt-2 space-y-1 break-all">
