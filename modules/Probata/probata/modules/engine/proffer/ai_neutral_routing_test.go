@@ -27,8 +27,8 @@ func TestAINeutralRoutingUsesRecordedApplicabilityAndKeepsLegacyCommands(t *test
 			var suite testsuite.WorkflowTestSuite
 			env := suite.NewTestWorkflowEnvironment()
 			env.RegisterWorkflow(ProfferWorkflow)
-			mockAllStagesSucceed(env)
 			registerAIContentMocks(env, "")
+			mockAllStagesSucceed(env)
 			env.OnActivity(string(stagegraph.ResolveContextParticipants), mock.Anything, mock.Anything).Return(
 				StageResult{Stage: stagegraph.ResolveContextParticipants, Status: StatusNotApplicable, ReceiptRef: "AI-resolution-receipt", Reason: "AI roles remain source labels", AIChatSource: tc.verifiedAI}, nil).Once()
 			if tc.legacy {
