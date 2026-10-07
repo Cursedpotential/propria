@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/mock"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
@@ -92,6 +94,24 @@ func TestAIContentResumeFailureIsTerminal(t *testing.T) {
 	state := queryOperation(t, env)
 	if env.GetWorkflowError() == nil || state.OperatingMode != "LIVE" || !state.Terminal || state.Lifecycle != OperationFailed || state.CurrentStage != "" || state.Wait != "" || len(state.ActiveStages) != 0 || state.CompletedStageCount != 1 {
 		t.Fatalf("invalid failed resume state: %+v %v", state, env.GetWorkflowError())
+	}
+}
+
+// TestAIContentResumeCancellationIsTerminal preserves cancellation rather than labeling it a stage failure.
+// Inputs: an operator cancellation while preparation is pending. Outputs: a LIVE cancelled terminal query.
+// Effects: synthetic workflow history only; choose to keep the operation surface consistent with Temporal.
+func TestAIContentResumeCancellationIsTerminal(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterActivityWithOptions(func(context.Context, AIContentRequest) (AIContentResult, error) {
+		return AIContentResult{}, nil
+	}, activity.RegisterOptions{Name: AIPrepareContentActivityName})
+	env.OnActivity(AIPrepareContentActivityName, mock.Anything, mock.Anything).After(time.Hour).Return(AIContentResult{}, nil)
+	env.RegisterDelayedCallback(func() { env.CancelWorkflow() }, time.Second)
+	env.ExecuteWorkflow(AIContentResumeWorkflow, aiResumeFixture())
+	state := queryOperation(t, env)
+	if env.GetWorkflowError() == nil || state.OperatingMode != "LIVE" || !state.Terminal || state.Lifecycle != OperationCancelled || len(state.ActiveStages) != 0 {
+		t.Fatalf("invalid cancelled resume state: %+v %v", state, env.GetWorkflowError())
 	}
 }
 

@@ -58,6 +58,9 @@ func AIContentResumeWorkflow(ctx workflow.Context, in AIContentResumeInput) (*AI
 	r.operation.Terminal = true
 	if err != nil {
 		r.operation.Lifecycle, r.operation.Reason = OperationFailed, err.Error()
+		if ctx.Err() != nil {
+			r.operation.Lifecycle = OperationCancelled
+		}
 		return nil, err
 	}
 	r.operation.Lifecycle = OperationCompleted
