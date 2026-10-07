@@ -25,6 +25,54 @@ func aiResumeFixture() AIContentResumeInput {
 		VerificationID:         "33333333-3333-4333-8333-333333333333"}
 }
 
+// TestAIExtractionCooldownRetriesPreserveLegacyPolicy checks waits do not exhaust the old three-attempt limit.
+// Inputs: synthetic provider deferrals under old and new version markers. Outputs: bounded attempt assertions.
+// Effects: virtual Temporal history only; choose to protect replay and cooldown continuation without model calls.
+// Byline: Codex · GPT-6 · 2026-10-07.
+func TestAIExtractionCooldownRetriesPreserveLegacyPolicy(t *testing.T) {
+	for _, legacy := range []bool{false, true} {
+		t.Run(fmt.Sprint("legacy-", legacy), func(t *testing.T) {
+			var suite testsuite.WorkflowTestSuite
+			env := suite.NewTestWorkflowEnvironment()
+			if legacy {
+				env.OnGetVersion(aiContentProviderRetryChangeID, workflow.DefaultVersion, 1).Return(workflow.DefaultVersion).Once()
+			}
+			attempts := 0
+			for _, step := range []struct{ name, stage string }{
+				{AIPrepareContentActivityName, "prepared"}, {AIExtractWorkProductsActivityName, "work_products"},
+				{AIExtractCandidatesActivityName, "candidates"}, {AIEmbedContentActivityName, "embedded"},
+				{AIPublishContentActivityName, "published"}, {AIVerifyContentPublicationActivityName, "verified"},
+			} {
+				stage := step.stage
+				env.RegisterActivityWithOptions(func(_ context.Context, req AIContentRequest) (AIContentResult, error) {
+					if stage == "candidates" {
+						attempts++
+						if attempts <= 4 {
+							return AIContentResult{}, temporal.NewApplicationError("synthetic provider cooldown; no request dispatched", "AIProviderDeferred")
+						}
+					}
+					return AIContentResult{RequestID: req.RequestID, OperatingMode: req.OperatingMode, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID,
+						SourceVersionID: req.SourceVersionID, NormalizedGenerationID: req.NormalizedGenerationID, VerificationID: req.VerificationID,
+						Stage: stage, BundleRef: Ref("file:///retained/" + stage + ".json"), Records: 1, Conversations: 1,
+						Chunks: 1, ObjectsWritten: 1, ObjectsVerified: 1}, nil
+				}, activity.RegisterOptions{Name: step.name})
+			}
+			env.ExecuteWorkflow(AIContentResumeWorkflow, aiResumeFixture())
+			if legacy {
+				if attempts != 3 || env.GetWorkflowError() == nil {
+					t.Fatalf("legacy retry policy changed: attempts=%d error=%v", attempts, env.GetWorkflowError())
+				}
+			} else if attempts != 5 || env.GetWorkflowError() != nil {
+				t.Fatalf("provider waits exhausted scheduler retries: attempts=%d error=%v", attempts, env.GetWorkflowError())
+			}
+		})
+	}
+	options := aiExtractionActivityOptions()
+	if options.ScheduleToCloseTimeout != 24*time.Hour || options.StartToCloseTimeout != 2*time.Hour || options.RetryPolicy.MaximumAttempts != 0 || options.RetryPolicy.MaximumInterval != 15*time.Minute {
+		t.Fatalf("unbounded or altered extraction deadline: %+v", options)
+	}
+}
+
 // TestAIContentResumeReusesVerifiedPinsAndVersionedBounds verifies six independent stages without reacquisition.
 // Inputs: synthetic receipts at both supported limit versions. Outputs: final pinned summary.
 // Effects: test workflow history only; choose to protect resumed source identity and legacy replay limits.

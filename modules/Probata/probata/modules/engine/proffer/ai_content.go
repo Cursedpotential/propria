@@ -14,6 +14,7 @@ const (
 	aiContentChangeID                      = "proffer-ai-conversation-content-v1"
 	aiContentVersion                       = workflow.Version(1)
 	aiContentBoundsChangeID                = "proffer-ai-content-bounds-v2"
+	aiContentProviderRetryChangeID         = "proffer-ai-provider-cooldown-v1"
 	aiContentMaxRecords                    = 1024
 	aiContentMaxChunks                     = 256
 	aiContentMaxModelCalls                 = 512
@@ -140,6 +141,9 @@ func (r *run) execAIContent(ctx workflow.Context, generation, verification Ref) 
 		r.markStageStarted(id)
 		var out AIContentResult
 		options := chunkActivityOptions(2 * time.Hour)
+		if step.name == AIExtractCandidatesActivityName && workflow.GetVersion(ctx, aiContentProviderRetryChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+			options = aiExtractionActivityOptions()
+		}
 		err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, options), step.name, req).Get(ctx, &out)
 		r.markStageSettled(id)
 		if err == nil {
@@ -187,4 +191,17 @@ func (r *run) execAIContent(ctx workflow.Context, generation, verification Ref) 
 		}
 	}
 	return summary, nil
+}
+
+// aiExtractionActivityOptions lets provider cooldowns resume within a bounded extraction lifecycle.
+// Inputs: none. Outputs: extraction-only options with a 24-hour total deadline and capped backoff.
+// Effects: scheduler retries do not increase the Python ledger's two requests per chunk or source budget.
+// Choose only for the version-gated AI extraction stage; other stages retain their existing retry policy.
+// Byline: Codex · GPT-6 · 2026-10-07.
+func aiExtractionActivityOptions() workflow.ActivityOptions {
+	options := chunkActivityOptions(2 * time.Hour)
+	options.ScheduleToCloseTimeout = 24 * time.Hour
+	options.RetryPolicy = retryPolicy(60*time.Second, 0)
+	options.RetryPolicy.MaximumInterval = 15 * time.Minute
+	return options
 }

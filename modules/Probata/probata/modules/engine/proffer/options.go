@@ -9,10 +9,11 @@ import (
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
-// retryPolicy builds a bounded RetryPolicy. MaximumAttempts must always be
-// set explicitly and non-zero: the Temporal SDK treats 0 as "unlimited
-// attempts", which would violate the "bounded retries" requirement for
-// every atomic stage.
+// retryPolicy builds the explicitly selected retry policy for an Activity.
+// Inputs: initial delay and attempt limit. Outputs: exponential backoff with a default interval cap.
+// Effects: none. Choose positive attempts for atomic stages; zero requires a separate total deadline.
+// AI extraction deliberately uses zero scheduler attempts with ScheduleToClose24h and durable request caps.
+// Byline: Codex · GPT-6 · 2026-10-07.
 func retryPolicy(initialInterval time.Duration, maxAttempts int32) *temporal.RetryPolicy {
 	return &temporal.RetryPolicy{
 		InitialInterval:    initialInterval,
