@@ -317,7 +317,9 @@ def test_scope_dev_nil_and_mismatched_generation_rejected(scope, monkeypatch):
 def test_rest_schema_read_only_incompatible_type_and_add_contract(scope):
     """Prove REST schema and additive collision contracts; input mocked HTTP, output assertions, no network effects; choose for client serialization."""
     calls, objects = [], {}
-    schema = {"properties": [{"name": n, "dataType": [t]} for n, t in ai.SEARCH_PROPERTIES.items()],
+    schema = {"properties": [{"name": n, "dataType": [t],
+                              **({"indexFilterable": True, "tokenization": "field"} if n in ai.SEARCH_SCOPE_FIELDS else {})}
+                             for n, t in ai.SEARCH_PROPERTIES.items()],
               "vectorConfig": {"text_nim": {"vectorizer": {"none": {}}}}}
     def handle(request):
         """Serve a synthetic read-only schema and additive object endpoint.
@@ -865,3 +867,93 @@ def test_cancellation_after_claim_prevents_sdk_request_and_preserves_consumption
     assert len(ai._provider_budget(scope, prep["source"])) == 1
     assert len(ai._chunk_intents(scope, prep["chunks"][0]["content_key"])) == 1
     assert list(ai._root().glob("*/*/provider_attempt/*.json")) == []
+
+
+def routed_fixture(scope, monkeypatch, *, chunks=1, first_failure=False):
+    """Bind the actual routed extraction seam to a retained fake SDK.
+
+    Inputs: synthetic scope, chunk count and first-call failure. Outputs: params,
+    router, clock and calls. Effects: fixture files only; choose for durable route
+    integration without production inference. Byline: Codex / GPT-6.1-Sol / 2026-10-07.
+    """
+    from server.analysis import ai_content_provider as provider
+    params, prep, _ = checkpoint_fixture(scope, monkeypatch, chunks=chunks)
+    clock, calls = [1000.0], []
+    options = {"max_tokens": 6000, "temperature": 0, "response_format": {"type": "json_object"}}
+    profiles = tuple(provider.Profile("nvidia", model, provider.NIM_URL, "ai-nim-primary", "synthetic", dict(options))
+                     for model in (*provider.PRIMARY_MODELS, provider.BACKUP_MODEL))
+    def factory(profile):
+        """Build one fake routed transport; inputs profile, outputs SDK facade, effects none; choose for actual request binding."""
+        def create(**request):
+            """Return exact grounded fenced JSON; inputs SDK request, outputs completion/error, effects call log; choose without remote calls."""
+            calls.append(request)
+            if first_failure and len(calls) == 1:
+                error = RuntimeError("synthetic provider failure")
+                error.status_code = 503
+                error.response = SimpleNamespace(headers={})
+                raise error
+            prompt = request["messages"][-1]["content"]
+            segments = json.loads(prompt.split("SOURCE WINDOW:\n", 1)[1].split("\nOUTPUT CORRECTION:", 1)[0])
+            raw = "```json\n" + json.dumps({"candidates": [{"kind": "entity", "title": "Alice", "record_id": segments[0]["record_id"], "quote": "Alice"}]}) + "\n```"
+            data = {"model": profile.model_id, "usage": {"total_tokens": 12},
+                    "choices": [{"message": {"content": raw}, "finish_reason": "stop"}]}
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=raw), finish_reason="stop")],
+                                   model_dump=lambda **kwargs: data)
+        return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    def sleep(seconds):
+        """Advance fixture clock; inputs seconds, outputs none, effects clock only; choose without real waiting."""
+        clock[0] += seconds
+    router = provider.ProviderRouter(ai._root(), profiles, clock=lambda: clock[0], monotonic=lambda: clock[0],
+                                     sleep=sleep, jitter=lambda: 1, client_factory=factory)
+    return params, router, clock, calls
+
+
+def test_routed_primaries_keep_exact_winners_and_reuse_all_checkpoints(scope, monkeypatch):
+    """Bind alternating model winners and reuse their grounded fenced replies.
+
+    Inputs: two retained synthetic chunks. Outputs: actual model/ref proof and
+    zero retry calls. Effects: fake SDK/files only; choose for routed production seam.
+    """
+    from server.analysis import ai_content_provider as provider
+    params, router, clock, calls = routed_fixture(scope, monkeypatch, chunks=2)
+    result = ai.extract_candidates(params, router=router)
+    candidates = ai._read(result["bundle_ref"], scope, "candidates")
+    assert [reply["actual_provider"]["model_id"] for reply in candidates["replies"]] == list(provider.PRIMARY_MODELS)
+    assert candidates["model_id"] is None and candidates["model_ids"] == sorted(provider.PRIMARY_MODELS)
+    assert all(reply["reply"].startswith("```json\n") for reply in candidates["replies"])
+    assert result["new_model_calls"] == result["model_calls"] == 2
+    prep = ai._read(params["prepared_ref"], scope, "prepared")
+    embedded = {"model_id": "synthetic-remote-embed", "vectors": [[0.25] * 2048 for _ in prep["chunks"]]}
+    objects = ai.search_objects({**params, "candidates_ref": result["bundle_ref"], "embeddings_ref": "file:///synthetic-embedding"},
+                                prep, candidates, embedded, "AiChatEvents20260918", "text_nim")
+    citations = [json.loads(obj["properties"]["provenance"][0]) for obj in objects]
+    assert [citation["extraction_model"] for citation in citations] == list(provider.PRIMARY_MODELS)
+    assert all(citation["extraction_provider"] == "nvidia" and citation["extraction_reply_ref"] for citation in citations)
+    assert all(obj["properties"]["source_version_id"] == scope["source_version_id"] and
+               obj["properties"]["promotion_policy"] == "forbidden" for obj in objects)
+    cached = ai.extract_candidates(params, router=router)
+    assert cached["new_model_calls"] == 0 and cached["cached_chunks"] == 2 and len(calls) == 2
+
+
+def test_routed_alternate_success_reuses_exact_attempt_and_cannot_reset_budget(scope, monkeypatch):
+    """Reuse a successful alternate after failure and reject a fresh third request.
+
+    Inputs: fake503 then grounded alternate. Outputs: preserved actual winner,
+    persistent two-slot accounting and no recall. Effects: retained fake fixtures.
+    Choose for backup durability under plan changes and Temporal retries.
+    """
+    from server.analysis import ai_content_provider as provider
+    params, router, clock, calls = routed_fixture(scope, monkeypatch, first_failure=True)
+    with pytest.raises(provider.ProviderDeferred) as error:
+        ai.extract_candidates(params, router=router)
+    clock[0] += error.value.delay
+    result = ai.extract_candidates(params, router=router)
+    bundle = ai._read(result["bundle_ref"], scope, "candidates")
+    assert bundle["replies"][0]["actual_provider"]["model_id"] == provider.PRIMARY_MODELS[1]
+    assert result["model_calls"] == 2 and result["new_model_calls"] == 1
+    again = ai.extract_candidates(params, router=router)
+    assert again["new_model_calls"] == 0 and len(calls) == 2
+    monkeypatch.setattr(ai, "PROMPT", "changed exact policy\n" + ai.PROMPT)
+    with pytest.raises(ai.ContentInvalid, match="budget exhausted"):
+        ai.extract_candidates(params, router=router)
+    assert len(calls) == 2

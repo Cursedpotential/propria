@@ -11,6 +11,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from contextvars import copy_context
 from dataclasses import asdict, dataclass
+from datetime import timedelta
 from threading import Event, Thread
 from typing import Any, Iterator
 
@@ -97,6 +98,7 @@ def _run(name: str, params: AIContentParams) -> dict[str, Any]:
     Choose instead of one monolithic ingestion Activity.
     """
     from server.analysis import ai_content
+    from server.analysis.ai_content_provider import ProviderDeferred, ProviderUnavailable
     try:
         with _heartbeats() as beat:
             function = getattr(ai_content, name)
@@ -105,6 +107,11 @@ def _run(name: str, params: AIContentParams) -> dict[str, Any]:
             return function(asdict(params))
     except ai_content.ContentInvalid as error:
         raise ApplicationError(str(error), type="AIContentInvalid", non_retryable=True) from None
+    except ProviderDeferred as error:
+        raise ApplicationError(str(error), error.metadata, type="AIContentProviderDeferred",
+                               next_retry_delay=timedelta(seconds=error.delay)) from None
+    except ProviderUnavailable as error:
+        raise ApplicationError(str(error), error.metadata, type="AIContentProviderUnavailable", non_retryable=True) from None
 
 
 @activity.defn(name="ai_prepare_content_activity")
@@ -134,7 +141,7 @@ def ai_extract_candidates_activity(params: AIContentParams) -> dict[str, Any]:
     """Extract useful AI content candidates and ground their exact source quotes.
 
     Inputs: pins, prepared_ref and model bound. Outputs: candidates bundle_ref.
-    Effects: configured remote Kimi calls and retained unreviewed candidates;
+    Effects: approved remote AI provider calls and retained unreviewed candidates;
     choose independently from preparation, embedding and canonical fact decisions.
     """
     return _run("extract_candidates", params)

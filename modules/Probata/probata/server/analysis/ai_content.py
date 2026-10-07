@@ -694,7 +694,12 @@ def _candidate_checkpoint(pin: dict[str, str], source: dict[str, Any], identity:
         "source": source, "identity": identity, "content_key": chunk["content_key"], "prompt_digest": _key(prompt)}.items()):
         raise ContentInvalid("candidate checkpoint identity or source differs")
     try:
-        grounded = ground_candidates(chunk, json.loads(checkpoint["raw_reply"]))
+        if identity.get("route_plan"):
+            from server.analysis.ai_content_provider import decode_reply
+            decoded = decode_reply(checkpoint["raw_reply"], checkpoint.get("finish_reason"))
+        else:
+            decoded = json.loads(checkpoint["raw_reply"])
+        grounded = ground_candidates(chunk, decoded)
     except (KeyError, ValueError, TypeError):
         raise ContentInvalid("candidate checkpoint reply cannot be re-grounded") from None
     if grounded != checkpoint.get("candidates"):
@@ -709,12 +714,123 @@ def _candidate_checkpoint(pin: dict[str, str], source: dict[str, Any], identity:
                 for i in intents if i.get("identity") == identity and i.get("source") == source}
     if not matching or not any(budget["intent_ref"] in matching for budget in _provider_budget(pin, source)):
         raise ContentInvalid("candidate checkpoint has no matching durable provider intent")
+    if identity.get("route_plan"):
+        actual = checkpoint.get("actual_provider")
+        if (actual not in identity["route_plan"]["profiles"] or reply.get("actual_provider") != actual or
+            reply.get("finish_reason") != checkpoint.get("finish_reason")):
+            raise ContentInvalid("candidate checkpoint actual provider differs from its approved route")
+        intent = _read(reply.get("intent_ref", ""), pin, "candidate_intent")
+        budget = _read(reply.get("budget_ref", ""), pin, "candidate_budget")
+        attempt = _read(reply.get("provider_attempt_ref", ""), pin, "provider_attempt")
+        if (intent.get("identity") != identity or intent.get("source") != source or intent.get("content_key") != chunk["content_key"] or
+            budget.get("source") != source or budget.get("intent_ref") != reply["intent_ref"] or
+            attempt.get("source") != source or attempt.get("intent_ref") != reply["intent_ref"] or
+            attempt.get("budget_ref") != reply["budget_ref"] or attempt.get("actual_provider") != actual or
+            intent.get("request") != {"completion": attempt.get("request"), "actual_provider": actual}):
+            raise ContentInvalid("candidate checkpoint actual request/intent/receipt binding differs")
+        choices = attempt.get("response", {}).get("choices", [])
+        request = attempt.get("request", {})
+        if (request.get("model") != actual["model_id"] or len(choices) != 1 or
+            choices[0].get("message", {}).get("content") != checkpoint["raw_reply"] or
+            choices[0].get("finish_reason") != checkpoint.get("finish_reason") or
+            request.get("messages", []) != [{"role": "system", "content": identity["route_plan"]["system_prompt"]},
+                                           {"role": "user", "content": reply["request"]}] or
+            {key: value for key, value in request.items() if key not in {"model", "messages"}} != actual["options"]):
+            raise ContentInvalid("candidate checkpoint actual completion differs from its retained response")
     return path, checkpoint
 
 
+def _extract_routed_candidates(pin: dict[str, str], source: dict[str, Any], prepared: dict[str, Any],
+                               prepared_ref: str, work_products_ref: str, maximum: int, router: Any,
+                               beat: Callable[[str], None]) -> dict[str, Any]:
+    """Extract AI chunks through an approved route with actual-model checkpoints.
+
+    Inputs: verified source/preparation, exact refs, shared call bound and router.
+    Outputs: retained candidate receipt. Effects: one-slot remote requests and
+    immutable grounded files; choose for production AI routing while preserving
+    the existing injected legacy-provider fixture seam and all historical bundles.
+    Byline: Codex / GPT-6.1-Sol / 2026-10-07.
+    """
+    from server.analysis.ai_content_provider import decode_reply
+    identity = {"prepared_ref": prepared_ref, "work_products_ref": work_products_ref,
+                "route_plan": router.identity(), "prompt_digest": _key([PROMPT, OUTPUT_CORRECTION]),
+                "policy": "exact-quote-routed-checkpoint-v1", "maximum": maximum, "requests_per_chunk": 2}
+    consumed = _provider_budget(pin, source)
+    if len(consumed) > maximum:
+        raise ContentInvalid("retained provider consumption exceeds the requested bound")
+    path = _path(pin, "candidates", identity)
+    cached_final = _read(path.as_uri(), pin, "candidates") if path.exists() else None
+    candidates, replies, cached_chunks, new_calls, candidate_bytes = [], [], 0, 0, 0
+    for ordinal, chunk in enumerate(prepared["chunks"]):
+        beat("extracting routed AI conversation content")
+        initial_prompt = _candidate_prompt(chunk)
+        prompt = initial_prompt
+        checkpoint_path, checkpoint = _candidate_checkpoint(pin, source, identity, chunk, initial_prompt)
+        if checkpoint is None and cached_final is not None:
+            raise ContentInvalid("completed routed candidates lack a validated chunk checkpoint")
+        if checkpoint is not None:
+            cached_chunks += 1
+        for repair in range(0 if checkpoint is not None else 2):
+            attempt_refs = []
+            def reserve(request: dict[str, Any], actual: dict[str, Any]) -> tuple[str, str]:
+                """Claim the existing shared ledgers; inputs actual request/profile, outputs refs, effects immutable claims; choose before provider dispatch."""
+                return _reserve_provider_call(pin, source, identity, chunk["content_key"],
+                                              {"completion": request, "actual_provider": actual})
+            def retain(attempt: dict[str, Any]) -> None:
+                """Retain an actual SDK receipt; inputs safe attempt data, outputs none, effects immutable file; choose over class-only failure evidence."""
+                nonlocal new_calls
+                ref = _save(_path(pin, "provider_attempt", [attempt["intent_ref"], attempt["response"]]), pin, "provider_attempt", attempt)
+                attempt_refs.append(ref)
+                new_calls += 1
+            result = router.complete(pin, source, ordinal, prompt, reserve, retain, beat)
+            raw, actual = result["raw_reply"], result["actual_provider"]
+            reply_ref = _save(_path(pin, "model_reply", [identity, chunk["content_key"], result["intent_ref"]]), pin, "model_reply", {
+                "source": source, "identity": identity, "content_key": chunk["content_key"], "request": prompt,
+                "raw_reply": raw, "actual_provider": actual, "finish_reason": result["finish_reason"],
+                "reported_model": result["reported_model"], "usage": result["usage"],
+                "intent_ref": result["intent_ref"], "budget_ref": result["budget_ref"], "provider_attempt_ref": attempt_refs[-1]})
+            try:
+                grounded = ground_candidates(chunk, decode_reply(raw, result["finish_reason"]))
+            except (ValueError, TypeError) as error:
+                if repair or len(_chunk_intents(pin, chunk["content_key"])) >= 2:
+                    raise ContentInvalid("routed AI reply failed exact source grounding within the two-request limit") from None
+                prompt += OUTPUT_CORRECTION
+                continue
+            checkpoint = {"source": source, "identity": identity, "content_key": chunk["content_key"],
+                          "prompt_digest": _key(initial_prompt), "raw_reply": raw, "reply_ref": reply_ref,
+                          "actual_provider": actual, "finish_reason": result["finish_reason"], "candidates": grounded}
+            _save(checkpoint_path, pin, "candidate_chunk", checkpoint)
+            break
+        if checkpoint is None:
+            raise ContentInvalid("routed AI extraction did not produce a grounded checkpoint")
+        grounded = checkpoint["candidates"]
+        candidate_bytes += len(_json(grounded))
+        if candidate_bytes > MAX_BUNDLE_BYTES:
+            raise ContentInvalid("grounded candidate evidence exceeds the retained bundle bound")
+        candidates.extend(grounded)
+        replies.append({"content_key": chunk["content_key"], "reply": checkpoint["raw_reply"],
+                        "reply_ref": checkpoint["reply_ref"], "grounded_candidates": len(grounded),
+                        "actual_provider": checkpoint["actual_provider"]})
+    consumed = _provider_budget(pin, source)
+    model_ids = sorted({item["actual_provider"]["model_id"] for item in replies})
+    counts = {**prepared["counts"], "candidates": len(candidates), "model_calls": len(consumed),
+              "new_model_calls": new_calls, "cached_chunks": cached_chunks, "provider_budget_consumed": len(consumed),
+              "reserved_provider_attempts": 2 * len(replies)}
+    if cached_final is not None:
+        if cached_final.get("source") != source or cached_final.get("identity") != identity or cached_final.get("candidates") != candidates or cached_final.get("replies") != replies:
+            raise ContentInvalid("completed routed candidates differ from exact validated checkpoints")
+        return _receipt(path.as_uri(), cached_final, model_ids=cached_final["model_ids"],
+                        **{key: counts[key] for key in ("new_model_calls", "cached_chunks", "model_calls", "provider_budget_consumed")})
+    ref = _save(path, pin, "candidates", {"source": source, "prepared_ref": prepared_ref, "work_products_ref": work_products_ref,
+                "identity": identity, "route_plan": identity["route_plan"], "model_ids": model_ids,
+                "model_id": model_ids[0] if len(model_ids) == 1 else None,
+                "candidates": candidates, "replies": replies, "counts": counts})
+    return _receipt(ref, _read(ref, pin, "candidates"), model_ids=model_ids)
+
+
 def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any = None,
-                       beat: Callable[[str], None] = lambda _: None) -> dict[str, Any]:
-    """Extract and ground retained content candidates using the configured remote Kimi provider.
+                       beat: Callable[[str], None] = lambda _: None, router: Any = None) -> dict[str, Any]:
+    """Extract grounded candidates using the approved AI-only remote provider route.
 
     Inputs: exact pins, prepared_ref and model-call bound. Outputs: candidates
     bundle ref and counts. Effects: source metadata reads, configured remote model
@@ -731,12 +847,17 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None, config: Any
     products = _read(work_products_ref, pin, "work_products")
     if products["source"] != source or products["prepared_ref"] != prepared_ref:
         raise ContentInvalid("work products do not bind the prepared source")
-    config = config or lx.config_from_env()
     maximum = _limit(params, "max_model_calls", MAX_MODEL_CALLS)
     # The existing provider validates replies and can retry once with thinking on.
     # Reserve both provider attempts before calling it; no hidden fallback model.
     if len(prepared["chunks"]) * 2 > maximum:
         raise ContentInvalid("extraction's two-attempt provider budget exceeds max_model_calls")
+    if model is None:
+        from server.analysis.ai_content_provider import ProviderRouter, default_profiles
+        _provider_budget(pin, source)
+        router = router or ProviderRouter(_root(), default_profiles())
+        return _extract_routed_candidates(pin, source, prepared, prepared_ref, work_products_ref, maximum, router, beat)
+    config = config or lx.config_from_env()
     identity = candidate_identity(prepared_ref, work_products_ref, config, maximum)
     path = _path(pin, "candidates", identity)
     consumed = _provider_budget(pin, source)
@@ -916,7 +1037,13 @@ SEARCH_PROPERTIES = {
     "source_format": "text", "extractor": "text", "ingest_run_id": "text", "record_kind": "text",
     "service": "text", "embed_model": "text", "provenance": "text[]", "topics": "text[]",
     "chunk_index": "int", "chunk_count": "int",
+    "source_version_id": "text", "normalized_generation_id": "text", "verification_id": "text",
+    "matter_id": "text", "court_case_id": "text", "operating_mode": "text", "promotion_policy": "text",
 }
+
+SEARCH_SCOPE_FIELDS = ("source_version_id", "normalized_generation_id", "verification_id",
+                       "matter_id", "court_case_id", "operating_mode", "promotion_policy")
+SEARCH_SCOPE_VERSION = "exact_scope_v1"
 
 
 class AIChatStore:
@@ -954,6 +1081,10 @@ class AIChatStore:
         vector = (schema.get("vectorConfig") or {}).get(self.vector_name, {})
         if any(properties.get(name) != [kind] for name, kind in SEARCH_PROPERTIES.items()) or "none" not in vector.get("vectorizer", {}):
             raise ContentInvalid("existing AI collection schema/vector differs from the pinned writer contract")
+        definitions = {p["name"]: p for p in schema.get("properties", [])}
+        if any(definitions[name].get("indexFilterable") is not True or
+               definitions[name].get("tokenization") != "field" for name in SEARCH_SCOPE_FIELDS):
+            raise ContentInvalid("AI scope properties must be exact-field filterable indexes")
 
     def get(self, object_id: str) -> dict[str, Any] | None:
         """Read one exact object including its supplied named vector.
@@ -1047,6 +1178,7 @@ def search_objects(params: dict[str, Any], prepared: dict, candidates: dict, emb
     """
     pin = prepared["pins"]
     objects = []
+    routed_replies = {reply["content_key"]: reply for reply in candidates.get("replies", [])} if candidates.get("route_plan") else {}
     for chunk, vector in zip(prepared["chunks"], embedded["vectors"]):
         citation = {"pins": pin, "source": prepared["source"], "method": prepared["method"],
             "prepared_ref": params["prepared_ref"], "candidates_ref": params["candidates_ref"],
@@ -1056,6 +1188,14 @@ def search_objects(params: dict[str, Any], prepared: dict, candidates: dict, emb
             "content_key": chunk["content_key"], "extraction_model": candidates["model_id"],
             "embedding_model": embedded["model_id"], "vector_fingerprint": _key(vector),
             "segments": [{k: v for k, v in s.items() if k != "text"} for s in chunk["segments"]]}
+        if candidates.get("route_plan"):
+            reply = routed_replies.get(chunk["content_key"])
+            if reply is None or reply.get("actual_provider") not in candidates["route_plan"]["profiles"]:
+                raise ContentInvalid("published chunk lacks its actual approved extraction provider")
+            actual = reply["actual_provider"]
+            citation.update({"extraction_model": actual["model_id"], "extraction_provider": actual["provider"],
+                             "extraction_profile": actual, "extraction_reply_ref": reply["reply_ref"],
+                             "extraction_route_plan_fingerprint": _key(candidates["route_plan"])})
         properties = {"body": chunk["text"], "search_text": chunk["text"],
             "source_format": prepared["source"]["format_id"], "extractor": VERSION,
             "ingest_run_id": pin["request_id"], "record_kind": "ai_conversation_chunk",
@@ -1068,7 +1208,11 @@ def search_objects(params: dict[str, Any], prepared: dict, candidates: dict, emb
         title = chunk["segments"][0].get("conversation_title")
         if title:
             properties["conversation_title"] = title
+        # Keep existing object identities stable: scope metadata is an additive projection,
+        # not a new conversation generation or another corpus copy.
         identity = _key([VERSION, pin, collection, vector_name, properties, vector])
+        properties.update({name: pin[name] for name in SEARCH_SCOPE_FIELDS if name in pin})
+        properties["promotion_policy"] = "forbidden"
         objects.append({"id": str(uuid5(NAMESPACE_URL, "propria:ai-content:" + identity)), "class": collection,
                         "properties": properties, "vectors": {vector_name: vector}})
     return objects
@@ -1098,7 +1242,7 @@ def publish_content(params: dict[str, Any], *, store: Any = None,
         else:
             compare_object(prior, obj, store.vector_name)
         compare_object(store.get(obj["id"]) or {}, obj, store.vector_name)
-    identity = [params["prepared_ref"], params["work_products_ref"], params["candidates_ref"], params["embeddings_ref"], store.base, store.collection, store.vector_name]
+    identity = [params["prepared_ref"], params["work_products_ref"], params["candidates_ref"], params["embeddings_ref"], store.base, store.collection, store.vector_name, SEARCH_SCOPE_VERSION]
     data = {"source": prepared["source"], "prepared_ref": params["prepared_ref"],
         "candidates_ref": params["candidates_ref"], "embeddings_ref": params["embeddings_ref"],
         "work_products_ref": params["work_products_ref"],
@@ -1126,8 +1270,7 @@ def verify_publication(params: dict[str, Any], *, store: Any = None,
         raise ContentInvalid("publication target or prerequisite bundle coordinates differ")
     store.schema()
     objects = search_objects(params, prepared, candidates, embedded, store.collection, store.vector_name)
-    if published["objects"] != objects:
-        raise ContentInvalid("publication objects differ from independently reconstructed expectations")
+    verify_retained_publication(published["objects"], objects)
     readback = []
     for obj in objects:
         beat("verifying AI conversation search readback")
@@ -1135,7 +1278,25 @@ def verify_publication(params: dict[str, Any], *, store: Any = None,
         compare_object(actual or {}, obj, store.vector_name)
         readback.append({"id": obj["id"], "properties_fingerprint": _key(actual["properties"]),
                          "vector_fingerprint": _key(actual["vectors"][store.vector_name])})
-    ref = _save(_path(pin, "verified", [publication_ref]), pin, "verified", {
+    ref = _save(_path(pin, "verified", [publication_ref, SEARCH_SCOPE_VERSION]), pin, "verified", {
         "source": prepared["source"], "publication_ref": publication_ref, "readback": readback,
         "counts": {**published["counts"], "objects_verified": len(objects)}})
     return _receipt(ref, _read(ref, pin, "verified"))
+
+
+def verify_retained_publication(retained: list[dict], expected: list[dict]) -> None:
+    """Verify an earlier publication exactly while permitting only absent additive scope metadata.
+
+    Inputs: retained publication objects and independently reconstructed objects.
+    Outputs: none or permanent error. Effects: none; original receipts remain
+    unchanged, and live readback must still include every new scope field.
+    Pick when verifying receipts written before exact-scope metadata existed.
+    """
+    if len(retained) != len(expected):
+        raise ContentInvalid("publication objects differ from independently reconstructed expectations")
+    for prior, wanted in zip(retained, expected):
+        properties = prior.get("properties") or {}
+        enriched = {**prior, "properties": {**properties,
+            **{name: wanted["properties"][name] for name in SEARCH_SCOPE_FIELDS if name not in properties}}}
+        if enriched != wanted:
+            raise ContentInvalid("publication objects differ from independently reconstructed expectations")
