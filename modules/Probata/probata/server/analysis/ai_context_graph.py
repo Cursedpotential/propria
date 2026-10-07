@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Callable
 from datetime import datetime
 from itertools import pairwise
 from pathlib import Path
@@ -246,7 +247,7 @@ def prepare_graph(params: dict[str, Any]) -> dict[str, Any]:
             "semantic_candidates_included": False}
 
 
-def prepare_all_graphs(params: dict[str, Any]) -> dict[str, Any]:
+def prepare_all_graphs(params: dict[str, Any], *, beat: Callable[[str], None] | None = None) -> dict[str, Any]:
     """Prepare every retained conversation in explicit bounded batches without dropping turns.
 
     Inputs are one verified prepared/work-product pair and server binding. Output
@@ -266,6 +267,8 @@ def prepare_all_graphs(params: dict[str, Any]) -> dict[str, Any]:
     for coordinate, ids in groups.items():
         cursor = 0
         while cursor < len(ids):
+            if beat is not None:
+                beat("preparing bounded source graph batch")
             size = min(64, len(ids) - cursor)
             while True:
                 selection = ids[cursor:cursor + size]
