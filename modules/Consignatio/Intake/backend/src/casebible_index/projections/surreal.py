@@ -100,6 +100,55 @@ RETURN {
 };
 """.strip()
 
+_RESOLVE_OCCURRENCES = """
+SELECT
+  in AS occurrence_id,
+  in.snapshot AS snapshot_id,
+  in.snapshot.snapshot_key AS snapshot_key,
+  in.snapshot.manifest_sha256 AS manifest_sha256,
+  in.metadata.version_id AS version_id
+FROM stored_at
+WHERE out.metadata.source_id = $source_id
+  AND in.metadata.document_id = $document_id
+LIMIT $limit;
+""".strip()
+_RESOLVE_OCCURRENCES_VERSIONED = """
+SELECT
+  in AS occurrence_id,
+  in.snapshot AS snapshot_id,
+  in.snapshot.snapshot_key AS snapshot_key,
+  in.snapshot.manifest_sha256 AS manifest_sha256,
+  in.metadata.version_id AS version_id
+FROM stored_at
+WHERE out.metadata.source_id = $source_id
+  AND in.metadata.document_id = $document_id
+  AND in.metadata.version_id = $version_id
+LIMIT $limit;
+""".strip()
+_PROJECTION_COMPLETIONS = """
+SELECT
+  in AS snapshot_id,
+  id AS completion_id,
+  out AS run_id,
+  out.run_key AS run_key,
+  out.tool_name AS tool_name,
+  out.tool_version AS tool_version,
+  out.status AS status,
+  out.completed_at AS completed_at
+FROM produced_by
+WHERE in IN $snapshot_ids
+LIMIT $limit;
+""".strip()
+_GRAPH_RESOLUTION_LIMIT = 100
+_GRAPH_COMPLETION_TOOLS = frozenset(
+    {
+        "intake-index-run-projection",
+        "inventory-manifest-projection",
+        "r2-b2-occurrence-map-projection",
+        "legacy-catalog-projection",
+    }
+)
+
 
 class SurrealGraphError(RuntimeError):
     """A sanitized graph-boundary failure safe to surface to backend callers."""
@@ -157,6 +206,50 @@ class GraphRecordRef:
             raise ValueError("Graph record table is not an allowed Intake node table")
         if not _SAFE_KEY.fullmatch(self.key):
             raise ValueError("Graph record key is invalid")
+
+
+@dataclass(frozen=True)
+class GraphOccurrenceMatch:
+    """A completed document occurrence reference without source or graph body fields."""
+
+    occurrence_id: str
+    occurrence_key: str
+    snapshot_id: str
+    snapshot_key: str
+    manifest_sha256: str
+    version_id: str | None
+    completion_run_id: str
+    completion_tool_version: str | None
+
+
+@dataclass(frozen=True)
+class GraphOccurrenceResolution:
+    """A bounded source-identity lookup result with explicit ambiguity and overflow."""
+
+    matches: tuple[GraphOccurrenceMatch, ...]
+    ambiguous: bool
+    overflow: bool
+
+
+class GraphOccurrenceProjectionError(SurrealGraphError):
+    """A matching occurrence has a missing, duplicate, or invalid completion marker."""
+
+
+def _typed_record_id(value: Any, expected_table: str) -> tuple[str, str]:
+    """Validate and split one typed Surreal record ID without exposing its record body.
+
+    Inputs: an SDK RecordID or its string representation and the expected table.
+    Output: the typed ID and its stable record key.
+    Side effects: none. Pick this over parsing arbitrary IDs at API call sites.
+    """
+    rendered = str(value)
+    prefix = f"{expected_table}:"
+    if not rendered.startswith(prefix):
+        raise GraphOccurrenceProjectionError("Graph identity reference is invalid")
+    key = rendered[len(prefix) :]
+    if not re.fullmatch(r"[0-9a-f]{64}", key):
+        raise GraphOccurrenceProjectionError("Graph identity reference is invalid")
+    return rendered, key
 
 
 @dataclass(frozen=True)
@@ -437,6 +530,144 @@ class SurrealGraphClient:
         if not isinstance(edges, list) or len(edges) > edge_limit:
             raise SurrealGraphError("Surreal graph neighborhood exceeded its response bound")
         return GraphNeighborhood(root=result.get("root"), edges=tuple(edges))
+
+    async def resolve_occurrences(
+        self, source_id: str, document_id: str, *, version_id: str | None = None
+    ) -> GraphOccurrenceResolution:
+        """Resolve source identity to completed, typed Intake occurrence records.
+
+        Inputs: exact source ID and document ID, with an optional exact version ID.
+        Output: at most 100 references, with explicit ambiguity or overflow and no record body.
+        Side effects: bounded, parameterized graph reads only. Pick this before neighborhood
+        lookup when the caller has index identity but not a Surreal record ID.
+        """
+        for label, value in (("source_id", source_id), ("document_id", document_id)):
+            if not isinstance(value, str) or not value.strip() or len(value) > 255:
+                raise ValueError(f"Invalid {label}")
+        if version_id is not None and (
+            not isinstance(version_id, str) or not version_id.strip() or len(version_id) > 255
+        ):
+            raise ValueError("Invalid version_id")
+
+        statement = (
+            _RESOLVE_OCCURRENCES_VERSIONED if version_id is not None else _RESOLVE_OCCURRENCES
+        )
+        variables: dict[str, Any] = {
+            "source_id": source_id,
+            "document_id": document_id,
+            "limit": _GRAPH_RESOLUTION_LIMIT + 1,
+        }
+        if version_id is not None:
+            variables["version_id"] = version_id
+        rows = await self._query_first(statement, variables)
+        if not isinstance(rows, list):
+            raise SurrealGraphError("Intake graph identity response is invalid")
+        if len(rows) > _GRAPH_RESOLUTION_LIMIT:
+            return GraphOccurrenceResolution(matches=(), ambiguous=True, overflow=True)
+
+        candidates: list[dict[str, Any]] = []
+        snapshots: dict[str, Any] = {}
+        for row in rows:
+            if not isinstance(row, Mapping):
+                raise SurrealGraphError("Intake graph identity response is invalid")
+            occurrence_id, occurrence_key = _typed_record_id(row.get("occurrence_id"), "occurrence")
+            snapshot_id, _ = _typed_record_id(row.get("snapshot_id"), "projection_snapshot")
+            snapshot_key = row.get("snapshot_key")
+            manifest_sha256 = row.get("manifest_sha256")
+            row_version_id = row.get("version_id")
+            if (
+                not isinstance(snapshot_key, str)
+                or not snapshot_key.strip()
+                or len(snapshot_key) > 2048
+                or not isinstance(manifest_sha256, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", manifest_sha256)
+                or (row_version_id is not None and not isinstance(row_version_id, str))
+            ):
+                raise GraphOccurrenceProjectionError("Graph identity metadata is invalid")
+            candidates.append(
+                {
+                    "occurrence_id": occurrence_id,
+                    "occurrence_key": occurrence_key,
+                    "snapshot_id": snapshot_id,
+                    "snapshot_key": snapshot_key,
+                    "manifest_sha256": manifest_sha256,
+                    "version_id": row_version_id,
+                }
+            )
+            snapshots[snapshot_id] = row["snapshot_id"]
+
+        if not candidates:
+            return GraphOccurrenceResolution(matches=(), ambiguous=False, overflow=False)
+
+        completion_rows = await self._query_first(
+            _PROJECTION_COMPLETIONS,
+            {
+                "snapshot_ids": list(snapshots.values()),
+                "limit": len(snapshots) + 1,
+            },
+        )
+        if not isinstance(completion_rows, list):
+            raise SurrealGraphError("Intake graph completion response is invalid")
+        if len(completion_rows) > len(snapshots):
+            raise GraphOccurrenceProjectionError(
+                "Graph projection has duplicate completion markers"
+            )
+
+        candidates_by_snapshot: dict[str, dict[str, Any]] = {}
+        for candidate in candidates:
+            candidates_by_snapshot.setdefault(candidate["snapshot_id"], candidate)
+        completions: dict[str, list[Mapping[str, Any]]] = {
+            snapshot_id: [] for snapshot_id in snapshots
+        }
+        for row in completion_rows:
+            if not isinstance(row, Mapping):
+                raise SurrealGraphError("Intake graph completion response is invalid")
+            snapshot_id, _ = _typed_record_id(row.get("snapshot_id"), "projection_snapshot")
+            if snapshot_id not in completions:
+                raise GraphOccurrenceProjectionError(
+                    "Graph projection completion reference is invalid"
+                )
+            completions[snapshot_id].append(row)
+
+        verified_runs: dict[str, tuple[str, str | None]] = {}
+        for snapshot_id, marker_rows in completions.items():
+            if len(marker_rows) != 1:
+                raise GraphOccurrenceProjectionError(
+                    "Graph projection completion marker is missing or duplicated"
+                )
+            marker = marker_rows[0]
+            candidate = candidates_by_snapshot[snapshot_id]
+            run_id, _ = _typed_record_id(marker.get("run_id"), "operation_run")
+            expected_run_id = str(
+                self._stable_record("operation_run", f"{candidate['snapshot_key']}:complete")
+            )
+            tool_version = marker.get("tool_version")
+            if (
+                run_id != expected_run_id
+                or marker.get("run_key") != f"{candidate['snapshot_key']}:complete"
+                or marker.get("tool_name") not in _GRAPH_COMPLETION_TOOLS
+                or marker.get("status") != "completed"
+                or marker.get("completed_at") is None
+                or (tool_version is not None and not isinstance(tool_version, str))
+            ):
+                raise GraphOccurrenceProjectionError(
+                    "Graph projection completion marker is invalid"
+                )
+            verified_runs[snapshot_id] = (run_id, tool_version)
+
+        matches = tuple(
+            GraphOccurrenceMatch(
+                **candidate,
+                completion_run_id=verified_runs[candidate["snapshot_id"]][0],
+                completion_tool_version=verified_runs[candidate["snapshot_id"]][1],
+            )
+            for candidate in candidates
+        )
+        return GraphOccurrenceResolution(
+            matches=matches,
+            ambiguous=len(matches) > 1,
+            overflow=False,
+        )
 
     async def projection_summary(self, snapshot_key: str) -> Mapping[str, Any]:
         """Return bounded projection counts and its final completion marker."""

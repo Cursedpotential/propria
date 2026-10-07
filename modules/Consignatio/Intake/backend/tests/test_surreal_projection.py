@@ -9,6 +9,7 @@ from surrealdb.cbor import CBORSimpleValue
 
 from casebible_index.projections.surreal import (
     REQUIRED_TABLES,
+    GraphOccurrenceProjectionError,
     GraphRecordRef,
     OperationRunWrite,
     ProjectionConflictError,
@@ -36,6 +37,9 @@ class FakeRecordID:
     table: str
     key: str
 
+    def __str__(self):
+        return f"{self.table}:{self.key}"
+
 
 class FakeConnection:
     def __init__(self, endpoint: str = "wss://graph.example"):
@@ -48,6 +52,9 @@ class FakeConnection:
         self.records = {}
         self.schema = {name: "DEFINE TABLE" for name in REQUIRED_TABLES}
         self.neighborhood = None
+        self.occurrence_rows = []
+        self.completion_rows = []
+        self.occurrence_result_override = None
 
     async def __aenter__(self):
         self.connected = True
@@ -90,6 +97,22 @@ class FakeConnection:
             return self.neighborhood
         if "snapshot: (SELECT * FROM ONLY $snapshot)" in statement:
             return self.neighborhood
+        if "FROM stored_at" in statement:
+            if self.occurrence_result_override is not None:
+                return self.occurrence_result_override
+            filtered = [
+                {key: value for key, value in row.items() if not key.startswith("fixture_")}
+                for row in self.occurrence_rows
+                if row["fixture_source_id"] == variables["source_id"]
+                and row["document_id"] == variables["document_id"]
+                and ("version_id" not in variables or row["version_id"] == variables["version_id"])
+            ]
+            return filtered[: variables["limit"]]
+        if "FROM produced_by" in statement:
+            snapshot_ids = {str(value) for value in variables["snapshot_ids"]}
+            return [row for row in self.completion_rows if str(row["snapshot_id"]) in snapshot_ids][
+                : variables["limit"]
+            ]
         raise AssertionError(f"Unexpected statement: {statement}")
 
 
@@ -261,6 +284,169 @@ async def test_projection_summary_is_parameterized_and_validates_shape():
     }
     with pytest.raises(ValueError):
         await client.projection_summary("bad/key")
+
+
+def occurrence_fixture(
+    source_id,
+    snapshot_key,
+    document_id="doc-a",
+    version_id="v1",
+    tool_name="intake-index-run-projection",
+):
+    """Build one synthetic occurrence row and matching completed operation marker."""
+    snapshot_digest = hashlib.sha256(snapshot_key.encode()).hexdigest()
+    occurrence_stable_key = f"{snapshot_key}:occurrence:{source_id}:{document_id}"
+    return (
+        {
+            "fixture_source_id": source_id,
+            "occurrence_id": FakeRecordID(
+                "occurrence", hashlib.sha256(occurrence_stable_key.encode()).hexdigest()
+            ),
+            "snapshot_id": FakeRecordID("projection_snapshot", snapshot_digest),
+            "snapshot_key": snapshot_key,
+            "manifest_sha256": snapshot_digest,
+            "document_id": document_id,
+            "version_id": version_id,
+        },
+        {
+            "snapshot_id": FakeRecordID("projection_snapshot", snapshot_digest),
+            "completion_id": FakeRecordID("produced_by", "edge-" + snapshot_digest),
+            "run_id": FakeRecordID(
+                "operation_run",
+                hashlib.sha256(f"{snapshot_key}:complete".encode()).hexdigest(),
+            ),
+            "run_key": f"{snapshot_key}:complete",
+            "tool_name": tool_name,
+            "tool_version": "fixture-v1",
+            "status": "completed",
+            "completed_at": NOW,
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_occurrence_resolver_binds_source_and_document_and_returns_typed_ids():
+    connection = FakeConnection()
+    wanted, completion = occurrence_fixture("source-a", "snapshot-a")
+    other_source, _ = occurrence_fixture("source-b", "snapshot-b")
+    connection.occurrence_rows = [wanted, other_source]
+    connection.completion_rows = [completion]
+    client = make_client(connection)
+
+    result = await client.resolve_occurrences("source-a", "doc-a")
+
+    assert len(result.matches) == 1
+    match = result.matches[0]
+    assert match.occurrence_id == str(wanted["occurrence_id"])
+    assert match.occurrence_key == wanted["occurrence_id"].key
+    assert match.snapshot_id == str(wanted["snapshot_id"])
+    assert match.snapshot_key == "snapshot-a"
+    assert match.manifest_sha256 == wanted["manifest_sha256"]
+    assert match.version_id == "v1"
+    assert match.completion_run_id == str(completion["run_id"])
+    assert (result.ambiguous, result.overflow) == (False, False)
+
+    occurrence_sql, occurrence_vars = next(
+        item for item in connection.queries if "FROM stored_at" in item[0]
+    )
+    assert "source-a" not in occurrence_sql and "doc-a" not in occurrence_sql
+    assert occurrence_vars == {
+        "source_id": "source-a",
+        "document_id": "doc-a",
+        "limit": 101,
+    }
+
+
+@pytest.mark.asyncio
+async def test_occurrence_resolver_returns_all_snapshots_and_optional_version_filters():
+    connection = FakeConnection()
+    first, first_completion = occurrence_fixture("source-a", "snapshot-a", version_id="v1")
+    second, second_completion = occurrence_fixture("source-a", "snapshot-b", version_id="v2")
+    connection.occurrence_rows = [first, second]
+    connection.completion_rows = [first_completion, second_completion]
+    client = make_client(connection)
+
+    all_versions = await client.resolve_occurrences("source-a", "doc-a")
+    selected_version = await client.resolve_occurrences("source-a", "doc-a", version_id="v2")
+
+    assert all_versions.ambiguous is True
+    assert [match.snapshot_key for match in all_versions.matches] == ["snapshot-a", "snapshot-b"]
+    assert selected_version.ambiguous is False
+    assert [match.version_id for match in selected_version.matches] == ["v2"]
+    versioned_sql, versioned_vars = [
+        item for item in connection.queries if "FROM stored_at" in item[0]
+    ][-1]
+    assert "AND in.metadata.version_id = $version_id" in versioned_sql
+    assert versioned_vars["version_id"] == "v2"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tool_name",
+    [
+        "intake-index-run-projection",
+        "inventory-manifest-projection",
+        "r2-b2-occurrence-map-projection",
+        "legacy-catalog-projection",
+    ],
+)
+async def test_occurrence_resolver_accepts_existing_projection_completion_writers(tool_name):
+    connection = FakeConnection()
+    occurrence, marker = occurrence_fixture("source-a", "snapshot-a", tool_name=tool_name)
+    connection.occurrence_rows = [occurrence]
+    connection.completion_rows = [marker]
+
+    result = await make_client(connection).resolve_occurrences("source-a", "doc-a")
+
+    assert len(result.matches) == 1
+    assert result.matches[0].completion_tool_version == "fixture-v1"
+
+
+@pytest.mark.asyncio
+async def test_occurrence_resolver_reports_overflow_without_returning_partial_ids():
+    connection = FakeConnection()
+    for index in range(101):
+        row, completion = occurrence_fixture("source-a", f"snapshot-{index:03}")
+        connection.occurrence_rows.append(row)
+        connection.completion_rows.append(completion)
+    result = await make_client(connection).resolve_occurrences("source-a", "doc-a")
+    assert result.matches == ()
+    assert result.ambiguous is True
+    assert result.overflow is True
+    assert not any("FROM produced_by" in statement for statement, _ in connection.queries)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["missing", "failed", "wrong_tool", "wrong_run", "duplicate"])
+async def test_occurrence_resolver_rejects_invalid_completion_markers(failure):
+    connection = FakeConnection()
+    occurrence, marker = occurrence_fixture("source-a", "snapshot-a")
+    connection.occurrence_rows = [occurrence]
+    if failure != "missing":
+        if failure == "failed":
+            marker["status"] = "failed"
+        elif failure == "wrong_tool":
+            marker["tool_name"] = "other-projection"
+        elif failure == "wrong_run":
+            marker["run_key"] = "wrong-run"
+        connection.completion_rows = [marker]
+    if failure == "duplicate":
+        duplicate = dict(marker)
+        duplicate["completion_id"] = FakeRecordID("produced_by", "edge-duplicate")
+        duplicate["run_id"] = FakeRecordID("operation_run", "f" * 64)
+        connection.completion_rows = [marker, duplicate]
+
+    with pytest.raises(GraphOccurrenceProjectionError):
+        await make_client(connection).resolve_occurrences("source-a", "doc-a")
+
+
+@pytest.mark.asyncio
+async def test_occurrence_resolver_rejects_sdk_shape_mismatch_without_body_leak():
+    connection = FakeConnection()
+    connection.occurrence_result_override = {"unexpected": "private body"}
+    with pytest.raises(SurrealGraphError, match="identity response is invalid") as error:
+        await make_client(connection).resolve_occurrences("source-a", "doc-a")
+    assert "private body" not in str(error.value)
 
 
 @pytest.mark.asyncio
