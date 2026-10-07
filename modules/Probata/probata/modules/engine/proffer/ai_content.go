@@ -46,6 +46,10 @@ type AIContentRequest struct {
 // Inputs: the Activity's exact source pins. Outputs: a retained bundle, method and counters.
 // Effects: none in Go. Choose instead of transmitting chunks, candidates or vectors in history.
 type AIContentResult struct {
+	RequestID string `json:"request_id"`
+	OperatingMode string `json:"operating_mode"`
+	MatterID string `json:"matter_id"`
+	CourtCaseID string `json:"court_case_id"`
 	Stage string `json:"stage"`
 	BundleRef Ref `json:"bundle_ref"`
 	SourceVersionID string `json:"source_version_id"`
@@ -83,7 +87,7 @@ func (out AIContentResult) validate(req AIContentRequest, stage string) error {
 	if out.Stage != stage || strings.TrimSpace(string(out.BundleRef)) == "" || len(out.BundleRef)>4096 {
 		return fmt.Errorf("AI content %s returned an invalid stage or bundle reference", stage)
 	}
-	if out.SourceVersionID != req.SourceVersionID || out.NormalizedGenerationID != req.NormalizedGenerationID || out.VerificationID != req.VerificationID {
+	if out.RequestID != req.RequestID || out.OperatingMode != req.OperatingMode || out.MatterID != req.MatterID || out.CourtCaseID != req.CourtCaseID || out.SourceVersionID != req.SourceVersionID || out.NormalizedGenerationID != req.NormalizedGenerationID || out.VerificationID != req.VerificationID {
 		return fmt.Errorf("AI content %s changed verified source/generation pins", stage)
 	}
 	if out.Conversations<0 || out.Records<0 || out.Records>256 || out.Chunks<0 || out.Chunks>128 || out.Candidates<0 || out.ModelCalls<0 || out.ModelCalls>128 || out.ObjectsWritten<0 || out.ObjectsWritten>128 || out.ObjectsVerified<0 || out.ObjectsVerified>128 {

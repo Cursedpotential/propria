@@ -27,7 +27,7 @@ func registerAIContentMocks(env *testsuite.TestWorkflowEnvironment, badStage str
 			if stage!="prepared" && req.PreparedRef=="" { return AIContentResult{},fmt.Errorf("missing prepared reference") }
 			if (stage=="published" || stage=="verified") && (req.CandidatesRef=="" || req.EmbeddingsRef=="") { return AIContentResult{},fmt.Errorf("missing extraction/embed references") }
 			if stage=="verified" && req.PublicationRef=="" { return AIContentResult{},fmt.Errorf("missing publication reference") }
-			out:=AIContentResult{Stage:stage,BundleRef:Ref("file:///retained/"+stage+".json"),SourceVersionID:req.SourceVersionID,NormalizedGenerationID:req.NormalizedGenerationID,VerificationID:req.VerificationID,Conversations:8,Records:132,Chunks:24,Candidates:7,ObjectsWritten:24,ObjectsVerified:24}
+			out:=AIContentResult{RequestID:req.RequestID,OperatingMode:req.OperatingMode,MatterID:req.MatterID,CourtCaseID:req.CourtCaseID,Stage:stage,BundleRef:Ref("file:///retained/"+stage+".json"),SourceVersionID:req.SourceVersionID,NormalizedGenerationID:req.NormalizedGenerationID,VerificationID:req.VerificationID,Conversations:8,Records:132,Chunks:24,Candidates:7,ObjectsWritten:24,ObjectsVerified:24}
 			if stage==badStage { out.NormalizedGenerationID="wrong-generation" }
 			return out,nil
 		},activity.RegisterOptions{Name:step.name})
