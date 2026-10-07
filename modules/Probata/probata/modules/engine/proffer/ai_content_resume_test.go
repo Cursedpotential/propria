@@ -72,7 +72,7 @@ func TestAIContentResumeReusesVerifiedPinsAndVersionedBounds(t *testing.T) {
 				t.Fatalf("missing verified resume result: %+v %v", out, err)
 			}
 			state := queryOperation(t, env)
-			if !state.Terminal || state.Lifecycle != OperationCompleted || state.CurrentStage != "" || state.Wait != "" || len(state.ActiveStages) != 0 || state.CompletedStageCount != 6 {
+			if state.OperatingMode != in.OperatingMode || !state.Terminal || state.Lifecycle != OperationCompleted || state.CurrentStage != "" || state.Wait != "" || len(state.ActiveStages) != 0 || state.CompletedStageCount != 6 {
 				t.Fatalf("invalid completed resume state: %+v", state)
 			}
 		})
@@ -90,7 +90,7 @@ func TestAIContentResumeFailureIsTerminal(t *testing.T) {
 	}, activity.RegisterOptions{Name: AIPrepareContentActivityName})
 	env.ExecuteWorkflow(AIContentResumeWorkflow, aiResumeFixture())
 	state := queryOperation(t, env)
-	if env.GetWorkflowError() == nil || !state.Terminal || state.Lifecycle != OperationFailed || state.CurrentStage != "" || state.Wait != "" || len(state.ActiveStages) != 0 || state.CompletedStageCount != 1 {
+	if env.GetWorkflowError() == nil || state.OperatingMode != "LIVE" || !state.Terminal || state.Lifecycle != OperationFailed || state.CurrentStage != "" || state.Wait != "" || len(state.ActiveStages) != 0 || state.CompletedStageCount != 1 {
 		t.Fatalf("invalid failed resume state: %+v %v", state, env.GetWorkflowError())
 	}
 }

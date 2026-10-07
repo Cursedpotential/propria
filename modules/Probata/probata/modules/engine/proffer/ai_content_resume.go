@@ -46,7 +46,7 @@ func AIContentResumeWorkflow(ctx workflow.Context, in AIContentResumeInput) (*AI
 	}
 	r := &run{ctx: ctx, operatingMode: in.OperatingMode, requestID: in.RequestID,
 		matterID: in.MatterID, courtCaseID: in.CourtCaseID, sourceVersionRef: Ref(in.SourceVersionID),
-		operation: OperationState{Lifecycle: OperationRunning}}
+		operation: OperationState{OperatingMode: in.OperatingMode, Lifecycle: OperationRunning}}
 	if err := workflow.SetQueryHandler(ctx, OperationQueryName, func() (OperationState, error) {
 		return r.operationSnapshot(), nil
 	}); err != nil {
