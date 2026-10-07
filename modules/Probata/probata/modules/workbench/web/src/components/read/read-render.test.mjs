@@ -109,8 +109,25 @@ test("search reports pending, unavailable and successful empty states distinctly
   assert.match(search({ isPending: true }).html, /Loading content/);
   const failed = search({ isError: true, error: new Error("Search unavailable") }).html;
   assert.match(failed, /role="alert"[^>]*>Search unavailable/);
-  assert.doesNotMatch(failed, /No imported content matches/);
-  assert.match(search({ isSuccess: true, data: { pages: [{ items: [], note: "" }] } }).html, /No imported content matches/);
+  assert.doesNotMatch(failed, /No indexed conversation chunks match/);
+  const empty = search({ isSuccess: true, data: { pages: [{ items: [], note: "" }] } }).html;
+  assert.match(empty, /No indexed conversation chunks match “hearing”/);
+  assert.match(empty, /Searches indexed conversation chunks and call-log entries\. Conversations without published chunks are not searched\./);
+  assert.doesNotMatch(empty, /No imported content matches|Across imported conversations/);
+});
+
+test("unmapped search results identify call logs only when the API declares their kind", () => {
+  for (const kind of ["conversation", undefined, "call_log"]) {
+    const { html } = search({ isSuccess: true, data: { pages: [{ items: [{ id: "unmapped", thread_id: null, body: "Indexed content", kind }], note: "" }] } });
+    assert.doesNotMatch(html, />Read in conversation</);
+    if (kind === "call_log") {
+      assert.match(html, /Call-log result; no conversation link/);
+      assert.doesNotMatch(html, /Original conversation link unavailable/);
+    } else {
+      assert.match(html, /Original conversation link unavailable; no conversation mapping/);
+      assert.doesNotMatch(html, /Call-log result/);
+    }
+  }
 });
 
 test("focused reading uses around only on the first page and canonical source for citations", async () => {
