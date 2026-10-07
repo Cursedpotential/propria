@@ -12,7 +12,7 @@ import (
 
 // scopeServiceStore returns only the authoritative ID pair for authentication tests.
 // Inputs: synthetic request. Outputs: bounded case scope. Effects: in-memory call count.
-// Choose to verify the service-read seam independently from Case page mutation routes.
+// Choose to verify the bounded service-read seam while preserving the registry store tests.
 type scopeServiceStore struct {
 	caseIdentityStoreStub
 	scopeCalls int
@@ -26,11 +26,11 @@ func (s *scopeServiceStore) ReadScope(_ context.Context, mode caseidentity.Mode)
 	return caseidentity.ScopeView{Mode: mode, Matter: caseidentity.ScopeMatter{ID: caseidentity.AuthoritativeMatterID}, CourtCase: caseidentity.ScopeCourtCase{ID: caseidentity.AuthoritativeCourtCaseID, MatterID: caseidentity.AuthoritativeMatterID}}, nil
 }
 
-// TestCaseScopeServiceAuthorizationIsReadOnlyAndPeerBound checks the narrow service permission.
+// TestCaseScopeServiceAuthorizationIsPeerBound checks shared service admission on bounded scope reads.
 // Inputs: real-peer/token/path combinations including forwarded spoofing. Outputs: status/call assertions.
-// Effects: memory only. Choose to prevent widening Case page or mutation access while enabling workers.
-func TestCaseScopeServiceAuthorizationIsReadOnlyAndPeerBound(t *testing.T) {
-	t.Setenv("PROFFER_CASE_SCOPE_SERVICE_CIDRS", "172.25.0.0/16")
+// Effects: memory only. Choose to preserve token/peer checks after broadening legitimate service access.
+func TestCaseScopeServiceAuthorizationIsPeerBound(t *testing.T) {
+	t.Setenv(profferInternalServiceCIDRsEnv, "172.25.0.0/16")
 	for _, tc := range []struct {
 		name, peer, method, path, auth string
 		want                           int
@@ -41,8 +41,8 @@ func TestCaseScopeServiceAuthorizationIsReadOnlyAndPeerBound(t *testing.T) {
 		{"wrong-token", "172.25.0.27:4444", "GET", "/case-identity/scope?mode=LIVE", "wrong", 401},
 		{"other-private", "172.26.0.27:4444", "GET", "/case-identity/scope?mode=LIVE", "valid", 401},
 		{"public-forwarded-spoof", "203.0.113.9:4444", "GET", "/case-identity/scope?mode=LIVE", "valid", 401},
-		{"case-page-still-tailnet", "172.25.0.27:4444", "GET", "/case-identity?mode=LIVE", "valid", 401},
-		{"mutations-still-tailnet", "172.25.0.27:4444", "POST", "/case-identity/identifiers?mode=LIVE", "valid", 401},
+		{"case-page-internal", "172.25.0.27:4444", "GET", "/case-identity?mode=LIVE", "valid", 200},
+		{"mutation-incomplete-body-denied", "172.25.0.27:4444", "POST", "/case-identity/identifiers?mode=LIVE", "valid", 400},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &scopeServiceStore{}
@@ -59,22 +59,26 @@ func TestCaseScopeServiceAuthorizationIsReadOnlyAndPeerBound(t *testing.T) {
 			}
 			w := servePreviewRequest(h.Routes(), r)
 			require.Equal(t, tc.want, w.Code, w.Body.String())
-			if tc.want == http.StatusOK {
+			if tc.want == http.StatusOK && tc.path == "/case-identity/scope?mode=LIVE" {
 				require.Equal(t, 1, s.scopeCalls)
 			} else {
 				require.Zero(t, s.scopeCalls)
 			}
-			require.Zero(t, s.readCalls)
+			if tc.path == "/case-identity?mode=LIVE" {
+				require.Equal(t, 1, s.readCalls)
+			} else {
+				require.Zero(t, s.readCalls)
+			}
 		})
 	}
 }
 
 // TestCaseScopeNetworkConfigurationFailsClosed rejects public or overbroad network configuration.
 // Inputs: invalid service CIDRs. Outputs: constructor errors. Effects: none beyond test environment.
-// Choose to enforce the existing private-network validator for this additional read-only route.
+// Choose to reject invalid shared-service configuration before mounting the Case routes.
 func TestCaseScopeNetworkConfigurationFailsClosed(t *testing.T) {
 	for _, value := range []string{"0.0.0.0/0", "172.0.0.0/8", "203.0.113.0/24", "bad"} {
-		t.Setenv("PROFFER_CASE_SCOPE_SERVICE_CIDRS", value)
+		t.Setenv(profferInternalServiceCIDRsEnv, value)
 		_, err := NewCaseIdentityHTTPHandler(&scopeServiceStore{}, serviceTokenPath(t))
 		require.Error(t, err)
 	}

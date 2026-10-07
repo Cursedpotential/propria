@@ -68,11 +68,17 @@ services:
       N8N_PROFFER_AUTH_VALUE_FILE: /run/secrets/n8n-proffer-auth
       PROFFER_PREVIEW_CURSOR_KEY_FILE: /run/secrets/proffer-preview-cursor-key
       PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
-      # Byline: Codex · GPT-6 · 2026-10-06. Authenticated worker access to bounded read-only case scope only.
-      PROFFER_CASE_SCOPE_SERVICE_CIDRS: "172.25.0.0/16"
+      # Byline: Codex · GPT-5 · 2026-10-07. Shared service admission for reads AND writes.
+      # Empty = tailnet only. Set the measured internal Docker/VPS network inventory in Coolify:
+      # comma-separated canonical private IPv4 CIDRs, /16 or narrower. No RFC1918 blankets.
+      # Mounted-token routes still require the Proffer token; upload/object and legacy Temporal
+      # HTTP keep their existing network-only contract. Actor/idempotency, case binding and DEV
+      # write fences remain in force where applicable. Forwarded headers grant no admission.
+      # Invalid configuration denies all shared-service requests; network changes require redeploy.
+      PROFFER_INTERNAL_SERVICE_CIDRS: ${PROFFER_INTERNAL_SERVICE_CIDRS:-}
       # Byline: Codex, GPT-6, 2026-10-04. Dedicated proposal validation dispatch from the probata Docker network.
       TOOLKIT_VALIDATION_TOKEN_FILE: /run/secrets/toolkit-validation-token
-      TOOLKIT_VALIDATION_SERVICE_CIDRS: "172.25.0.0/16"
+      TOOLKIT_VALIDATION_SERVICE_CIDRS: ${TOOLKIT_VALIDATION_SERVICE_CIDRS:-172.25.0.0/16}
       # Byline: Codex, GPT-6, 2026-10-05. Read-only original reader and idempotent outbox dispatch on this starter.
       TOOLKIT_LIBRARY_SYNC_BACKEND_URL: ${TOOLKIT_LIBRARY_SYNC_BACKEND_URL:-}
       TOOLKIT_LIBRARY_SYNC_TOKEN_FILE: /run/secrets/toolkit-library-sync-token
@@ -80,7 +86,7 @@ services:
       TOOLKIT_LIBRARY_SYNC_B2_BUCKET: salem-data
       TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE: ${TOOLKIT_LIBRARY_SYNC_ACCOUNT_SCOPE:-}
       TOOLKIT_LIBRARY_SYNC_LEGAL_ROOT: consignatio/casevault/KnowledgeBase/legal/
-      TOOLKIT_LIBRARY_SYNC_SERVICE_CIDRS: "172.25.0.0/16"
+      TOOLKIT_LIBRARY_SYNC_SERVICE_CIDRS: ${TOOLKIT_LIBRARY_SYNC_SERVICE_CIDRS:-172.25.0.0/16}
       # How many items of one folder batch may run at once. One at a time is
       # the owner's instruction (2026-09-20 23:52) and the fallback for any
       # unreadable or out-of-range value; a request may ask for fewer or more

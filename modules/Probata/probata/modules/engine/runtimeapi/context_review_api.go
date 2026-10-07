@@ -16,11 +16,9 @@
 package runtimeapi
 
 import (
-	"crypto/hmac"
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"strings"
 
@@ -58,27 +56,12 @@ func (h *ContextReviewHTTPHandler) Routes() http.Handler {
 	return mux
 }
 
-// overlayAuth is the starter's tailnet + service-token boundary, shared by the
-// Review overlay handlers.
+// overlayAuth applies shared direct-peer/service-token admission and canonical-write fencing.
+// Inputs: mounted token, route label, next handler. Outputs: authenticated handler.
+// Effects: per-request credential reads; downstream actor/idempotency checks remain unchanged.
+// Choose for Review, metadata, investigation, legal context and Case routes.
 func overlayAuth(serviceTokenPath, label string, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-		ip := net.ParseIP(host).To4()
-		serviceToken, tokenErr := loadServiceToken(serviceTokenPath)
-		header := strings.TrimSpace(r.Header.Get("Authorization"))
-		provided := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
-		trusted := tokenErr == nil && strings.HasPrefix(header, "Bearer ") && hmac.Equal([]byte(provided), serviceToken)
-		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 || !trusted {
-			previewError(w, http.StatusUnauthorized, errors.New("proffer "+label+" tailnet authorization required"))
-			return
-		}
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if !canonicalRequestWrite(w, r) {
-			return
-		}
-		next(w, r)
-	}
+	return profferServiceAuth(serviceTokenPath, "proffer "+label+" service authorization required", next)
 }
 
 // decodeOverlayJSON reads exactly one bounded JSON object with no unknown fields.

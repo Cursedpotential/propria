@@ -3,12 +3,10 @@
 package runtimeapi
 
 import (
-	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -43,24 +41,7 @@ func (h *SourceContextHTTPHandler) Routes() http.Handler {
 }
 
 func (h *SourceContextHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-		ip := net.ParseIP(host).To4()
-		serviceToken, tokenErr := loadServiceToken(h.serviceTokenPath)
-		auth := strings.TrimSpace(r.Header.Get("Authorization"))
-		provided := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
-		trusted := tokenErr == nil && strings.HasPrefix(auth, "Bearer ") && hmac.Equal([]byte(provided), serviceToken)
-		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 || !trusted {
-			previewError(w, http.StatusUnauthorized, errors.New("proffer source context tailnet authorization required"))
-			return
-		}
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if !canonicalRequestWrite(w, r) {
-			return
-		}
-		next(w, r)
-	}
+	return profferServiceAuth(h.serviceTokenPath, "proffer source context service authorization required", next)
 }
 
 type sourceContextRequest struct {
