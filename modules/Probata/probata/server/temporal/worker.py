@@ -1,6 +1,7 @@
 """server/temporal/worker.py — the Temporal worker entrypoint (P1 task 1).
 
 Byline: Claude Code · Fable 5 · 2026-08-24
+Byline: Codex · GPT-6 · 2026-10-07 (register real graph preparation Activity).
 
 Runs as its OWN Coolify app (docker/temporal-worker/Dockerfile, CMD
 ``python -m server.temporal.worker``). Joins task queue ``evidence-pipeline``
@@ -39,6 +40,7 @@ from server.temporal.activities import (
     store_activity,
 )
 from server.temporal.ai_content_activities import AI_CONTENT_ACTIVITIES
+from server.temporal.ai_context_graph_activities import AI_CONTEXT_GRAPH_ACTIVITIES
 from server.temporal.chunk_activities import (
     chunk_context_threads_activity,
     publish_call_log_files_activity,
@@ -94,6 +96,7 @@ async def main() -> None:
                 # Six independent AI content operations, external retained payloads.
                 # Codex / GPT-6.1-Sol / 2026-10-06.
                 *AI_CONTENT_ACTIVITIES,
+                *AI_CONTEXT_GRAPH_ACTIVITIES,
                 custody_activity,
                 parse_activity,
                 store_activity,

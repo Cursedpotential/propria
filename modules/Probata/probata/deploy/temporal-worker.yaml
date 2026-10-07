@@ -89,6 +89,12 @@ services:
       CONTEXT_SEARCH_AI_CHAT_COLLECTION: ${CONTEXT_SEARCH_AI_CHAT_COLLECTION:-AiChatEvents20260918}
       CONTEXT_SEARCH_VECTOR_NAME: text_nim
       AI_CONTENT_ROOT: /data/proffer/derive-scratch/ai-content
+      # Byline: Codex / GPT-6 / 2026-10-07. Real graph preparation reuses the private AI bind mount.
+      ANALYSIS_GRAPH_ROOT: /data/proffer/derive-scratch/ai-content/analysis-graphs
+      ANALYSIS_GRAPH_MATTER_ID: ${ANALYSIS_GRAPH_MATTER_ID:?set}
+      ANALYSIS_GRAPH_CASE_ID: ${ANALYSIS_GRAPH_CASE_ID:?set}
+      ANALYSIS_GRAPH_ACCESS_POLICY_ID: ${ANALYSIS_GRAPH_ACCESS_POLICY_ID:?set}
+      ANALYSIS_GRAPH_CREATED_BY_SERVICE: ${ANALYSIS_GRAPH_CREATED_BY_SERVICE:?set}
       # AI-only optional routes, explicitly enabled through Coolify after task qualification.
       # Secrets remain mounted files; the proof reference pins retained catalog/task receipts.
       # Byline: Codex / GPT-6 / 2026-10-07.

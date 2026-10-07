@@ -81,6 +81,18 @@ services:
       NORMALIZED_BUNDLE_DIR: /data/proffer/normalized-bundles
       INVENTORY_MANIFEST_DIR: /data/proffer/inventory-manifests
       DERIVE_SCRATCH_DIR: /data/proffer/derive-scratch
+      # Byline: Codex / GPT-6 / 2026-10-07. Dedicated analytical target; the operational sink keeps its own configuration.
+      ANALYSIS_GRAPH_ROOT: /data/proffer/derive-scratch/ai-content/analysis-graphs
+      ANALYSIS_GRAPH_MATTER_ID: ${ANALYSIS_GRAPH_MATTER_ID:?set}
+      ANALYSIS_GRAPH_CASE_ID: ${ANALYSIS_GRAPH_CASE_ID:?set}
+      ANALYSIS_GRAPH_ACCESS_POLICY_ID: ${ANALYSIS_GRAPH_ACCESS_POLICY_ID:?set}
+      ANALYSIS_GRAPH_CREATED_BY_SERVICE: ${ANALYSIS_GRAPH_CREATED_BY_SERVICE:?set}
+      ANALYSIS_SURREAL_URL: http://surreal-case:8000
+      ANALYSIS_SURREAL_NAMESPACE: fct
+      ANALYSIS_SURREAL_DATABASE: analysis
+      ANALYSIS_SURREAL_AUTH_LEVEL: database
+      ANALYSIS_SURREAL_USER_FILE: /run/secrets/analysis-surreal-user
+      ANALYSIS_SURREAL_PASSWORD_FILE: /run/secrets/analysis-surreal-password
       # Native ZIP inventory on this worker (Codex, 2026-10-04): opt-in absolute
       # container root; unset fails closed. Existing derive-scratch mount maps
       # /data/probata/volumes/proffer/derive-scratch on the host. Stage sources
@@ -183,6 +195,18 @@ services:
       CONTEXT_SEARCH_VECTOR_NAME: text_nim
       CONTEXT_SEARCH_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
     volumes:
+      - type: bind
+        source: /data/probata/secrets/analysis-graph/analysis-surreal-user
+        target: /run/secrets/analysis-surreal-user
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /data/probata/secrets/analysis-graph/analysis-surreal-password
+        target: /run/secrets/analysis-surreal-password
+        read_only: true
+        bind:
+          create_host_path: false
       # Dedicated service credential; ordinary MCP/browser credentials do not admit sync requests.
       - /data/probata/secrets/family-court/library-sync-token:/run/secrets/toolkit-library-sync-token:ro
       - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
