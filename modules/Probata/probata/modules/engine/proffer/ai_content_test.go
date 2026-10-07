@@ -19,6 +19,7 @@ import (
 func registerAIContentMocks(env *testsuite.TestWorkflowEnvironment, badStage string) {
 	for _, step := range []struct{ name, stage string }{
 		{AIPrepareContentActivityName, "prepared"}, {AIExtractCandidatesActivityName, "candidates"},
+		{AIExtractWorkProductsActivityName, "work_products"},
 		{AIEmbedContentActivityName, "embedded"}, {AIPublishContentActivityName, "published"},
 		{AIVerifyContentPublicationActivityName, "verified"},
 	} {
@@ -46,14 +47,14 @@ func registerAIContentMocks(env *testsuite.TestWorkflowEnvironment, badStage str
 // Inputs: verified AI applicability, legacy replay marker, and malformed stage receipts. Outputs: assertions.
 // Effects: mocked Temporal history only. Choose as regression protection against AI per-message publication.
 func TestAIContentPathReplacesPerMessageSearchAndRejectsDrift(t *testing.T) {
-	for _, bad := range []string{"", "prepared", "candidates", "embedded", "published", "verified", "legacy"} {
+	for _, bad := range []string{"", "prepared", "work_products", "candidates", "embedded", "published", "verified", "legacy"} {
 		t.Run("stage-"+bad, func(t *testing.T) {
 			var suite testsuite.WorkflowTestSuite
 			env := suite.NewTestWorkflowEnvironment()
 			env.RegisterWorkflow(ProfferWorkflow)
 			registerAIContentMocks(env, bad)
 			mockAllStagesSucceed(env)
-			env.OnActivity(string(stagegraph.ResolveContextParticipants), mock.Anything, mock.Anything).Return(StageResult{Stage: stagegraph.ResolveContextParticipants, Status: StatusNotApplicable, ReceiptRef: "verified-ai-receipt", AIChatSource: true}, nil).Once()
+			env.OnActivity(string(stagegraph.ResolveContextParticipants), mock.Anything, mock.Anything).Return(StageResult{Stage: stagegraph.ResolveContextParticipants, Status: StatusNotApplicable, ReceiptRef: "verified-ai-receipt", AIChatSource: true, Reason: "verified AI conversation roles"}, nil).Once()
 			if bad == "legacy" {
 				env.OnGetVersion(aiContentChangeID, workflow.DefaultVersion, aiContentVersion).Return(workflow.DefaultVersion).Once()
 			}
@@ -79,7 +80,7 @@ func TestAIContentPathReplacesPerMessageSearchAndRejectsDrift(t *testing.T) {
 				t.Fatal(err)
 			}
 			prior := -1
-			for _, name := range []string{AIPrepareContentActivityName, AIExtractCandidatesActivityName, AIEmbedContentActivityName, AIPublishContentActivityName, AIVerifyContentPublicationActivityName, string(stagegraph.PublishPreview)} {
+			for _, name := range []string{AIPrepareContentActivityName, AIExtractWorkProductsActivityName, AIExtractCandidatesActivityName, AIEmbedContentActivityName, AIPublishContentActivityName, AIVerifyContentPublicationActivityName, string(stagegraph.PublishPreview)} {
 				at := order.indexOf(name)
 				if at <= prior {
 					t.Fatalf("stage order %v", order.snapshot())

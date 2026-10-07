@@ -1057,6 +1057,8 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 	//    hold a slice of. Anything else — including a new local struct — is a
 	//    failure until it is added here deliberately.
 	countBearing := map[reflect.Type]bool{
+		// AI summary holds bounded counts and retained references; no conversation/candidate payloads.
+		reflect.TypeOf(AIContentSummary{}): true,
 		reflect.TypeOf(DeriveResult{}):    true,
 		reflect.TypeOf(DerivedChunkRef{}): true,
 	}
@@ -1064,6 +1066,7 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 		reflect.Bool: true, reflect.Int: true, reflect.Int64: true, reflect.Uint64: true,
 	}
 	nestable := map[reflect.Type]bool{
+		reflect.TypeOf(AIContentSummary{}): true,
 		reflect.TypeOf(AutoApprovalCheck{}): true,
 		reflect.TypeOf(StageResult{}):       true,
 		reflect.TypeOf(DeriveResult{}):      true,

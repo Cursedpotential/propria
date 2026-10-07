@@ -14,6 +14,7 @@ const (
 	aiContentChangeID                      = "proffer-ai-conversation-content-v1"
 	aiContentVersion                       = workflow.Version(1)
 	AIPrepareContentActivityName           = "ai_prepare_content_activity"
+	AIExtractWorkProductsActivityName      = "ai_extract_work_products_activity"
 	AIExtractCandidatesActivityName        = "ai_extract_candidates_activity"
 	AIEmbedContentActivityName             = "ai_embed_content_activity"
 	AIPublishContentActivityName           = "ai_publish_content_activity"
@@ -33,6 +34,7 @@ type AIContentRequest struct {
 	MatterID               string `json:"matter_id"`
 	CourtCaseID            string `json:"court_case_id"`
 	PreparedRef            Ref    `json:"prepared_ref,omitempty"`
+	WorkProductsRef        Ref    `json:"work_products_ref,omitempty"`
 	CandidatesRef          Ref    `json:"candidates_ref,omitempty"`
 	EmbeddingsRef          Ref    `json:"embeddings_ref,omitempty"`
 	PublicationRef         Ref    `json:"publication_ref,omitempty"`
@@ -59,6 +61,7 @@ type AIContentResult struct {
 	Records                int    `json:"records"`
 	Chunks                 int    `json:"chunks"`
 	Candidates             int    `json:"candidates"`
+	WorkProducts           int    `json:"work_products"`
 	ModelCalls             int    `json:"model_calls"`
 	ObjectsWritten         int    `json:"objects_written"`
 	ObjectsVerified        int    `json:"objects_verified"`
@@ -71,6 +74,7 @@ type AIContentResult struct {
 // Effects: retained in the workflow result. Choose to locate content without embedding payloads.
 type AIContentSummary struct {
 	PreparedRef     Ref `json:"prepared_ref"`
+	WorkProductsRef Ref `json:"work_products_ref"`
 	CandidatesRef   Ref `json:"candidates_ref"`
 	EmbeddingsRef   Ref `json:"embeddings_ref"`
 	PublicationRef  Ref `json:"publication_ref"`
@@ -78,12 +82,16 @@ type AIContentSummary struct {
 	Conversations   int `json:"conversations"`
 	Chunks          int `json:"chunks"`
 	Candidates      int `json:"candidates"`
+	WorkProducts    int `json:"work_products"`
 }
 
 // validate checks exact provenance and bounded counts before another Activity can be scheduled.
 // Inputs: original pins and expected terminal stage. Outputs: an error on missing or drifting evidence.
 // Effects: none. Choose at every Activity boundary, including readback, rather than trusting success text.
 func (out AIContentResult) validate(req AIContentRequest, stage string) error {
+	if out.WorkProducts < 0 {
+		return fmt.Errorf("AI content %s returned a negative work-product count", stage)
+	}
 	if out.Stage != stage || strings.TrimSpace(string(out.BundleRef)) == "" || len(out.BundleRef) > 4096 {
 		return fmt.Errorf("AI content %s returned an invalid stage or bundle reference", stage)
 	}
@@ -113,6 +121,7 @@ func (r *run) execAIContent(ctx workflow.Context, generation, verification Ref) 
 	summary := &AIContentSummary{}
 	steps := []struct{ name, stage string }{
 		{AIPrepareContentActivityName, "prepared"},
+		{AIExtractWorkProductsActivityName, "work_products"},
 		{AIExtractCandidatesActivityName, "candidates"},
 		{AIEmbedContentActivityName, "embedded"},
 		{AIPublishContentActivityName, "published"},
@@ -146,6 +155,10 @@ func (r *run) execAIContent(ctx workflow.Context, generation, verification Ref) 
 		}
 		r.results = append(r.results, StageResult{Stage: id, Status: StatusSuccess, Ref: out.BundleRef, ReceiptRef: out.BundleRef})
 		switch step.stage {
+		case "work_products":
+			req.WorkProductsRef = out.BundleRef
+			summary.WorkProductsRef = out.BundleRef
+			summary.WorkProducts = out.WorkProducts
 		case "prepared":
 			req.PreparedRef = out.BundleRef
 			summary.PreparedRef = out.BundleRef
