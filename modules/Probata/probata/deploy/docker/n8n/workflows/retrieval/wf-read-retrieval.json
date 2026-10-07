@@ -1,0 +1,175 @@
+{
+  "name": "Read retrieval composition — UNBOUND source",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Read-only context composition — unbound source\nByline: Codex · GPT-6.1-Sol · 2026-10-06.\n\nInputs: {flow:\"read_retrieval\", request_id, inputs:{query, leg_names:\"intake,proffer\", mode?:\"keyword\"|\"hybrid\", scope_json?:JSON-string, limit?, per_leg_limit?, leg_timeout_seconds?}}.\nOutput: compact FlowResult from server.core.retrieval_composition.retrieve_flow; citations/ranks and explicit success/partial/failed, no excerpt bodies.\nEffects: existing injected read legs only. Use for a Temporal-owned context read; never evidence promotion or indexing.\n\nNo API route or worker binding exists for this composition in this commit. HTTP URL is deliberately empty, credentials are unbound, and active=false. Do not activate until the existing server owner exposes this exact contract, injects configured read-only readers, installs the retrieval extra, and binds both webhook and runtime header-auth credentials. This export makes no runnable/live claim.\n\nInstalled n8n 2.36.6 Weaviate node 1.3 lacks named-vector target selection. Reader wiring must use existing Intake HTTP or explicit Weaviate HTTP: IntakeCorpus/text_vector; ProfferChunks20261002/text_nim. No default-vector substitution. Temporal owns durable retries; no n8n retry/wait/gate is added.\n\nScope JSON supports matter_id, source_id, source_version_ids, thread_id and path_prefix. Only server-authorized scope is admitted; each injected leg must declare/enforce supported modes/scopes before top-k, otherwise it returns unsupported_mode/unsupported_scope. No post-filter or broader fallback. Direct library callers pass a typed scope object; FlowRequest.inputs keeps scope_json scalar.",
+        "height": 620,
+        "width": 700
+      },
+      "id": "read-retrieval-notes",
+      "name": "Binding seam and contract",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -650,
+        -680
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "read/retrieval",
+        "responseMode": "responseNode",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "id": "read-retrieval-webhook",
+      "name": "Read retrieval webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "/** Validate a compact read_retrieval FlowRequest; output the same envelope, with no I/O or source payloads.\n * Inputs: flow/request_id and bounded scalar inputs. Output: one n8n item. Pick for the generic named-flow caller.\n * Byline: Codex · GPT-6.1-Sol · 2026-10-06.\n */\nconst item=$input.first()||{};\nconst body=item.json?.body ?? item.json;\nif(item.binary || !body || typeof body!=='object' || Array.isArray(body)) throw new Error('Invalid retrieval envelope');\nif(Object.keys(body).sort().join(',')!=='flow,inputs,request_id' || body.flow!=='read_retrieval') throw new Error('Unsupported retrieval envelope');\nif(typeof body.request_id!=='string' || !/\\S/.test(body.request_id) || body.request_id.length>2048) throw new Error('Invalid request identity');\nconst i=body.inputs;\nconst allowed=['query','leg_names','mode','scope_json','limit','per_leg_limit','leg_timeout_seconds'];\nif(!i || typeof i!=='object' || Array.isArray(i) || Object.keys(i).some(k=>!allowed.includes(k))) throw new Error('Unsupported retrieval inputs');\nif(typeof i.query!=='string' || !/\\S/.test(i.query) || i.query.length>2000) throw new Error('Invalid retrieval query');\nif(typeof i.leg_names!=='string') throw new Error('Invalid leg names');\nconst legs=i.leg_names.split(',');\nif(legs.length<1 || legs.length>4 || new Set(legs).size!==legs.length || legs.some(n=>!/^[a-z][a-z0-9_]{0,63}$/.test(n))) throw new Error('Invalid leg names');\nfor(const [key,max] of [['limit',50],['per_leg_limit',100]]) if(i[key]!==undefined && (!Number.isInteger(i[key]) || i[key]<1 || i[key]>max)) throw new Error('Invalid retrieval limit');\nif(i.leg_timeout_seconds!==undefined && (typeof i.leg_timeout_seconds!=='number' || !Number.isFinite(i.leg_timeout_seconds) || i.leg_timeout_seconds<=0 || i.leg_timeout_seconds>30)) throw new Error('Invalid retrieval deadline');\nif(i.mode!==undefined && !['keyword','hybrid'].includes(i.mode)) throw new Error('Invalid retrieval mode');\nif(i.scope_json!==undefined) {\n  if(typeof i.scope_json!=='string' || i.scope_json.length>16384) throw new Error('Invalid scope');\n  let scope; try {scope=JSON.parse(i.scope_json);} catch {throw new Error('Invalid scope');}\n  if(!scope || typeof scope!=='object' || Array.isArray(scope) || Object.keys(scope).some(k=>!['matter_id','source_id','source_version_ids','thread_id','path_prefix'].includes(k))) throw new Error('Unsupported scope');\n  for(const [key,value] of Object.entries(scope)) {\n    /** Check one supplied scope coordinate; return validity without I/O or normalization. */\n    const validId=v=>typeof v==='string' && /\\S/.test(v) && v.length<=2048;\n    if(key==='source_version_ids' ? (!Array.isArray(value) || value.length>32 || value.some(v=>!validId(v))) : (value!==null && !validId(value))) throw new Error('Invalid scope coordinate');\n  }\n}\nreturn [{json:body}];"
+      },
+      "id": "read-retrieval-request",
+      "name": "Validate flow request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "enterBelow",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Request-ID",
+              "value": "={{ $json.request_id }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.request_id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": false,
+              "fullResponse": false
+            }
+          },
+          "timeout": 45000
+        }
+      },
+      "id": "read-retrieval-http",
+      "name": "UNBOUND read composition HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -80,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "/** Validate the compact composition response without altering citations or hiding partial failures.\n * Input: retrieve_flow result. Output: the unchanged FlowResult. Effects: none; use before Respond to Webhook.\n * Byline: Codex · GPT-6.1-Sol · 2026-10-06.\n */\nconst body=$input.first()?.json;\nif(!body || typeof body!=='object' || Array.isArray(body) || Object.keys(body).some(k=>!['flow','status','outputs'].includes(k))) throw new Error('Invalid retrieval result');\nif(body.flow!=='read_retrieval' || !['success','failed'].includes(body.status)) throw new Error('Invalid flow result identity/status');\nconst out=body.outputs;\nif(!out || !['success','partial','failed'].includes(out.status) || out.verification!=='coordinates_preserved' || !Array.isArray(out.items) || !Array.isArray(out.legs) || out.legs.length<1 || out.legs.length>4 || out.items.length>50) throw new Error('Invalid retrieval outputs');\nif((out.status==='failed')!==(body.status==='failed') || out.items.some(h=>!h.citation?.collection || !h.citation?.object_id || Object.hasOwn(h,'text'))) throw new Error('Invalid compact citation result');\nif(out.request_id!==$('Validate flow request').first().json.request_id) throw new Error('Mismatched retrieval request identity');\nif(Object.keys(out).some(k=>!['request_id','mode','scope','status','items','legs','verification'].includes(k))) throw new Error('Unsupported output field');\nif(!['keyword','hybrid'].includes(out.mode) || !out.scope || typeof out.scope!=='object' || Array.isArray(out.scope)) throw new Error('Invalid returned context');\nif(out.legs.some(l=>!['success','failed'].includes(l.status))) throw new Error('Invalid leg status');\nconst failures=out.legs.filter(l=>l.status==='failed').length;\nconst expected=failures===out.legs.length?'failed':failures?'partial':'success';\nif(out.status!==expected || (expected==='failed' && out.items.length)) throw new Error('Hidden leg failure');\nif(Buffer.byteLength(JSON.stringify(body),'utf8')>65536) throw new Error('Compact response exceeds Activity bound');\nreturn [{json:body}];"
+      },
+      "id": "read-retrieval-response",
+      "name": "Validate compact result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "read-retrieval-respond",
+      "name": "Return compact citations",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Read retrieval webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate flow request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate flow request": {
+      "main": [
+        [
+          {
+            "node": "UNBOUND read composition HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UNBOUND read composition HTTP": {
+      "main": [
+        [
+          {
+            "node": "Validate compact result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate compact result": {
+      "main": [
+        [
+          {
+            "node": "Return compact citations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
