@@ -49,6 +49,7 @@
 # Byline: Claude Code · Sonnet · 2026-10-02
 # Byline: Claude Code · Sonnet 5.5 · 2026-10-02 (conversation-chunk env and the NIM key mount)
 # Byline: Codex · orchestrator · 2026-10-05 (explicit single-case write admission)
+# Byline: Codex · GPT-6.1-Sol · 2026-10-06 (independent AI content Activities and retained outputs)
 
 services:
   temporal-worker:
@@ -84,11 +85,21 @@ services:
       # json_object replies, max tokens >= 1500); the same NIM key file the chunk Activities read.
       # Byline: Claude Code · Sonnet 5.5 · 2026-10-02
       ENTITY_MODEL_API_KEY_FILE: /run/secrets/nvidia-api-key
+      # Existing AI search collection; Activities validate schema without creating it.
+      CONTEXT_SEARCH_AI_CHAT_COLLECTION: ${CONTEXT_SEARCH_AI_CHAT_COLLECTION:-AiChatEvents20260918}
+      CONTEXT_SEARCH_VECTOR_NAME: text_nim
+      AI_CONTENT_ROOT: /data/proffer/derive-scratch/ai-content
     command:
       - sh
       - -c
       - 'PLATFORM_DB_URL="$$(tr -d "\r\n" < /run/secrets/platform-database-url | sed "s#^postgresql://#postgresql+psycopg://#")" exec python -m server.temporal.worker'
     volumes:
+      # Pre-create only this dedicated retained directory owned by 10001:10001.
+      - type: bind
+        source: /data/probata/volumes/proffer/derive-scratch/ai-content
+        target: /data/proffer/derive-scratch/ai-content
+        bind:
+          create_host_path: false
       - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro
       - /data/probata/secrets/intake-engine/nvidia-api-key:/run/secrets/nvidia-api-key:ro
       - type: bind

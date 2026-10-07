@@ -38,6 +38,7 @@ from server.temporal.activities import (
     parse_activity,
     store_activity,
 )
+from server.temporal.ai_content_activities import AI_CONTENT_ACTIVITIES
 from server.temporal.chunk_activities import (
     chunk_context_threads_activity,
     publish_call_log_files_activity,
@@ -90,6 +91,9 @@ async def main() -> None:
             # the first-party context is proposed and BEFORE the preview (Claude Code · Sonnet 5.5 · 2026-10-02).
             # list/estimate/verify/remove: the re-chunk and the per-message removal, as Activities of two Go workflows.
             activities=[
+                # Six independent AI content operations, external retained payloads.
+                # Codex / GPT-6.1-Sol / 2026-10-06.
+                *AI_CONTENT_ACTIVITIES,
                 custody_activity,
                 parse_activity,
                 store_activity,

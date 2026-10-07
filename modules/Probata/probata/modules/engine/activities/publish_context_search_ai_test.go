@@ -3,7 +3,6 @@ package activities
 
 import (
 	"context"
-	"reflect"
 	"testing"
 	"time"
 
@@ -27,10 +26,10 @@ func (s *aiSearchSource) PersistContextSearchPublication(_ context.Context, _ Pu
 	return "publication", "receipt", nil
 }
 
-// TestAINeutralSearchNeedsNoHumanResolutionAndKeepsDatesRoles verifies the complete AI Activity payload.
+// TestAIRecordPublicationRejectsVerifiedAIFormats rejects the retired AI per-record publisher.
 // Inputs: verified AI declared/raw formats, source times/role labels and a human message skip list. Outputs: assertions.
-// Effects: in-memory target/receipt writes only. Choose to prove no owner alias, match suppression or invented tier is needed.
-func TestAINeutralSearchNeedsNoHumanResolutionAndKeepsDatesRoles(t *testing.T) {
+// Effects: no target or receipt writes. Choose to prove both persisted format signals close the old path.
+func TestAIRecordPublicationRejectsVerifiedAIFormats(t *testing.T) {
 	for _, rawOnly := range []bool{false, true} {
 		plan := skipTestPlan(t, "message")
 		plan.Provenance.SourceFormat = "chatgpt_official_json"
@@ -53,19 +52,8 @@ func TestAINeutralSearchNeedsNoHumanResolutionAndKeepsDatesRoles(t *testing.T) {
 		a.Source = source
 		req := proffer.StageRequest{RequestID: "r", SourceVersionRef: "s", DeclaredFormat: "smsbackuprestore_xml", Refs: map[string]proffer.Ref{"normalized_generation": "g", "normalized_verification": "v", "extraction_attempt": "e", "message_matches": "stale-human-match", SkipRecordKindsRefKey: "message,call"}}
 		result, err := a.PublishContextSearch(context.Background(), req)
-		if err != nil || result.Status != proffer.StatusSuccess {
-			t.Fatalf("result=%+v err=%v", result, err)
-		}
-		objects := target.published["Chats"]
-		if len(objects) != 1 || source.outcome.DisclosureBasis != "" || len(source.outcome.Tiers) != 0 || source.outcome.SkippedMatched != 0 {
-			t.Fatalf("objects=%+v outcome=%+v", objects, source.outcome)
-		}
-		o := objects[0]
-		if !reflect.DeepEqual(o.People.RoleLabels, []string{"assistant", "user"}) || !reflect.DeepEqual(o.People.Participants, []string{"assistant", "user"}) || o.Temporal.DisclosureTier != "" || o.Temporal.DisclosureTierBasis != "" || !o.Temporal.OccurredAt.Equal(occurred) || !o.Temporal.KnowledgeTime.Equal(occurred.Add(time.Hour)) || o.Temporal.TimestampCertainty != "exact" || o.Temporal.OccurredAtRaw != reader.records[0].OccurredAtRaw || o.Provenance.RawFormatID != plan.FormatID {
-			t.Fatalf("AI source fields changed: %+v", o)
-		}
-		if err := o.Validate(); err != nil {
-			t.Fatal(err)
+		if err == nil || result.Status == proffer.StatusSuccess || len(target.published) != 0 || len(embedder.texts) != 0 || source.outcome.Published != 0 {
+			t.Fatalf("AI per-record path was not closed: result=%+v err=%v target=%v", result, err, target.published)
 		}
 	}
 }

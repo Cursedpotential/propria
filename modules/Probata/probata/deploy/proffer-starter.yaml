@@ -68,6 +68,8 @@ services:
       N8N_PROFFER_AUTH_VALUE_FILE: /run/secrets/n8n-proffer-auth
       PROFFER_PREVIEW_CURSOR_KEY_FILE: /run/secrets/proffer-preview-cursor-key
       PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
+      # Byline: Codex · GPT-6 · 2026-10-06. Authenticated worker access to bounded read-only case scope only.
+      PROFFER_CASE_SCOPE_SERVICE_CIDRS: "172.25.0.0/16"
       # Byline: Codex, GPT-6, 2026-10-04. Dedicated proposal validation dispatch from the probata Docker network.
       TOOLKIT_VALIDATION_TOKEN_FILE: /run/secrets/toolkit-validation-token
       TOOLKIT_VALIDATION_SERVICE_CIDRS: "172.25.0.0/16"

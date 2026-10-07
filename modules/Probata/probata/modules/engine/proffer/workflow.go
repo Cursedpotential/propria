@@ -733,7 +733,18 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 	chunksOn := workflow.GetVersion(ctx, contextChunksChangeID, workflow.DefaultVersion, contextChunksVersion) != workflow.DefaultVersion
 
-	if workflow.GetVersion(ctx, contextSearchChangeID, workflow.DefaultVersion, contextSearchVersion) != workflow.DefaultVersion {
+	// AI content has its own chunk/extraction path; the previous per-record publisher must never run on it.
+	// The version marker preserves recorded commands on replay. New AI histories use independent Python Activities.
+	// Byline: Codex · GPT-6 · 2026-10-06.
+	aiContentOn := aiChatSource && workflow.GetVersion(ctx, aiContentChangeID, workflow.DefaultVersion, aiContentVersion) != workflow.DefaultVersion
+	if aiContentOn {
+		r.aiContent, err = r.execAIContent(ctx, normalizedGenerationRef, normalizedVerificationRef)
+		if err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+	}
+	if workflow.GetVersion(ctx, contextSearchChangeID, workflow.DefaultVersion, contextSearchVersion) != workflow.DefaultVersion && !aiContentOn {
 		extractionAttemptRef := rawBundleRef
 		if contextChunkingInput != nil && contextChunkingInput.AttemptRef != "" {
 			extractionAttemptRef = contextChunkingInput.AttemptRef
@@ -1162,6 +1173,7 @@ type run struct {
 	ctx workflow.Context
 	// autoExtraction records whether the automatic extraction child started.
 	autoExtraction string
+	aiContent *AIContentSummary
 }
 
 // pending is an in-flight Activity future paired with the stage id that
@@ -1510,6 +1522,7 @@ func (r *run) result(publicationRef Ref) WorkflowResult {
 		Status:           status,
 		Stages:           r.results,
 		AutoExtraction:   r.autoExtraction,
+		AIContent:        r.aiContent,
 	}
 }
 
