@@ -23,6 +23,16 @@ from uuid import UUID
 import httpx
 
 from server.core.retrieval_adapters import intake_hits, proffer_hits
+from server.core.retrieval_casebible import (
+    CASEBIBLE_EMBED_DIMENSIONS,
+    CASEBIBLE_EMBED_MODEL,
+    CASEBIBLE_FIELDS,
+    CASEBIBLE_MODES,
+    CASEBIBLE_SCOPES,
+    CASEBIBLE_VECTOR_NAME,
+    casebible_hits,
+    casebible_where,
+)
 from server.core.retrieval_composition import RetrievalLeg
 from server.core.retrieval_contracts import ReadHit, RetrievalRequest
 
@@ -70,6 +80,7 @@ class ReaderConfig:
     intake_collection: str = ""
     intake_vector: str = ""
     weaviate_url: str = ""
+    casebible_collection: str = ""
     proffer_collection: str = ""
     proffer_vector: str = ""
     proffer_matter_id: str = ""
@@ -158,14 +169,22 @@ class ContextReaders:
 
     async def graphql(
         self, request: RetrievalRequest, collection: str, vector_name: str, where: str, fields: str,
+        *, lexical_properties: tuple[str, ...] | None = ("text",),
     ) -> list[dict[str, Any]]:
-        """Query one configured collection with pre-ranking scope; return original rows using explicit named-vector targets."""
+        """Query one configured collection with pre-ranking scope and explicit vector target; return original rows.
+
+        Inputs are the bounded request, server collection/vector, GraphQL scope/fields and optional lexical property list.
+        Effects are one bounded Weaviate read plus a query embedding for vector modes. Set lexical_properties=None only
+        when matching a collection's native BM25/hybrid contract; existing context readers retain their `text` default.
+        """
         origin = configured_origin(self.config.weaviate_url)
         collection = configured_name(collection, collection=True)
         query = json.dumps(request.query)
+        properties = (f", properties: {json.dumps(lexical_properties)}"
+                      if lexical_properties is not None else "")
         additional = "id score"
         if request.mode == "keyword":
-            operator = f"bm25: {{query: {query}, properties: [\"text\"]}}"
+            operator = f"bm25: {{query: {query}{properties}}}"
         else:
             target = json.dumps(configured_name(vector_name))
             vector = json.dumps(await self.embedding(request), allow_nan=False)
@@ -173,8 +192,8 @@ class ContextReaders:
                 operator = f"nearVector: {{vector: {vector}, targetVectors: [{target}]}}"
                 additional = "id distance"
             else:
-                # Match the existing filesystem searcher's explicit alpha and text query contract.
-                operator = (f"hybrid: {{query: {query}, alpha: {HYBRID_ALPHA}, properties: [\"text\"], "
+                # Keep the selected reader's alpha and target-vector contract explicit.
+                operator = (f"hybrid: {{query: {query}, alpha: {HYBRID_ALPHA}{properties}, "
                             f"vector: {vector}, targetVectors: [{target}]}}")
         result = await self.post(origin + "/v1/graphql", {"query": (
             f"{{ Get {{ {collection}(limit: {request.per_leg_limit}, {operator}, where: {where}) "
@@ -225,10 +244,33 @@ class ContextReaders:
         return proffer_hits(self.config.proffer_collection, rows, mode=request.mode,
                             vector_name=self.config.proffer_vector if request.mode != "keyword" else None)
 
+    async def casebible(self, request: RetrievalRequest) -> list[ReadHit]:
+        """Read active CaseBible chunks from an explicitly configured collection and preserve native source/version locators.
+
+        Inputs are a bounded query and source/thread/path scope; output is cited CaseBible context. Effects are
+        Weaviate reads and query embedding only. Pick this for the native CaseBible chunk schema; no collection is
+        guessed, `active=true` is prefiltered, and an absent/unavailable collection fails instead of returning empty.
+        """
+        collection = configured_name(self.config.casebible_collection, collection=True)
+        vector_name = CASEBIBLE_VECTOR_NAME
+        if request.mode != "keyword":
+            _, model, dimensions = self.config.embedding_settings()
+            if model != CASEBIBLE_EMBED_MODEL or dimensions != CASEBIBLE_EMBED_DIMENSIONS:
+                raise RuntimeError("CaseBible query embedding does not match text_nim")
+        rows = await self.graphql(
+            request, collection, vector_name, casebible_where(request.scope), CASEBIBLE_FIELDS,
+            lexical_properties=None,
+        )
+        return casebible_hits(
+            collection, rows, mode=request.mode,
+            vector_name=vector_name if request.mode != "keyword" else None,
+        )
+
     def legs(self) -> Mapping[str, RetrievalLeg]:
-        """Return the Intake/Proffer port allowlist without I/O; evidence and unbound graph readers remain excluded."""
+        """Return the Intake/CaseBible/Proffer port allowlist without I/O; evidence and unbound graph readers stay excluded."""
         return {"intake": RetrievalLeg(self.intake, MODES),
-                "proffer": RetrievalLeg(self.proffer, MODES, frozenset({"source_version_ids"}))}
+                "proffer": RetrievalLeg(self.proffer, MODES, frozenset({"source_version_ids"})),
+                "casebible": RetrievalLeg(self.casebible, CASEBIBLE_MODES, CASEBIBLE_SCOPES)}
 
     def capabilities(self) -> dict[str, Any]:
         """Describe configured support without network health claims or credential/endpoint disclosure; never infer coverage."""
@@ -251,5 +293,34 @@ class ContextReaders:
             result[name] = {"configured_modes": modes, "supported_scopes": sorted(self.legs()[name].supported_scopes),
                             "scope_policy": "server_matter" if name == "proffer" else "global_index",
                             "coverage": "unknown", "live_verified": False}
+        result["casebible"] = self.casebible_capability()
         return {"legs": result, "graph": {"available": False, "reason": "reader_not_bound"},
                 "evidence": {"available": False, "reason": "approved_capability_adapter_required"}}
+
+    def casebible_capability(self) -> dict[str, Any]:
+        """Describe opt-in CaseBible configuration and schema-compatible modes without probing the collection or claiming coverage.
+
+        Inputs are server environment settings; output distinguishes unconfigured, incomplete, and configured state.
+        No network or index operation occurs. Pick this capability before exposing modes; collection absence at query
+        time remains a leg failure, while a valid collection returning zero active rows is a successful empty result.
+        """
+        base = {"configured_modes": [], "supported_scopes": sorted(CASEBIBLE_SCOPES),
+                "scope_policy": "server_allowlisted_collection", "coverage": "unknown", "live_verified": False,
+                "collection_configured": bool(self.config.casebible_collection.strip())}
+        if not self.config.casebible_collection.strip():
+            return {"state": "unconfigured", **base}
+        try:
+            configured_name(self.config.casebible_collection, collection=True)
+            configured_origin(self.config.weaviate_url)
+        except RuntimeError:
+            return {"state": "invalid_configuration", **base}
+        modes = ["keyword"]
+        try:
+            _, model, dimensions = self.config.embedding_settings()
+            if model == CASEBIBLE_EMBED_MODEL and dimensions == CASEBIBLE_EMBED_DIMENSIONS:
+                modes.extend(("hybrid", "vector"))
+        except RuntimeError:
+            pass
+        return {"state": "configured", **base, "configured_modes": modes,
+                "vector_name": CASEBIBLE_VECTOR_NAME if len(modes) > 1 else None,
+                "vector_dimensions": CASEBIBLE_EMBED_DIMENSIONS if len(modes) > 1 else None}

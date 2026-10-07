@@ -47,7 +47,7 @@ class ContextQuery(ReadModel):
     query: str = Field(min_length=1, max_length=2000, pattern=r"\S")
     mode: Literal["keyword", "hybrid", "vector"] = "keyword"
     scope: PublicScope = Field(default_factory=PublicScope)
-    legs: tuple[LegName, ...] = Field(default=("intake", "proffer"), min_length=1, max_length=2)
+    legs: tuple[LegName, ...] = Field(default=("intake", "proffer"), min_length=1, max_length=3)
     limit: int = Field(default=20, ge=1, le=50, strict=True)
     per_leg_limit: int = Field(default=50, ge=1, le=100, strict=True)
     leg_timeout_seconds: float = Field(default=10, gt=0, le=30, strict=True)
@@ -55,7 +55,7 @@ class ContextQuery(ReadModel):
     def internal(self) -> RetrievalRequest:
         """Return a validated internal request without selecting authority; Proffer's reader injects configured matter only."""
         request = RetrievalRequest.model_validate(self.model_dump())
-        if set(request.legs) - {"intake", "proffer"}:
+        if set(request.legs) - {"intake", "proffer", "casebible"}:
             raise ValueError("reader is not allowlisted")
         return request
 
@@ -107,10 +107,10 @@ def register_context_retrieval_routes(app: FastAPI, *, readers: ContextReaders |
 
     @app.post("/v1/context/retrieve")
     async def retrieve(request: Request) -> dict[str, Any]:
-        """Read Intake/Proffer context for a bounded query; return original citations and partial failures without writes.
+        """Read allowlisted context for a bounded query; return original citations and partial failures without writes.
 
         Inputs: ContextQuery JSON and Platform owner bearer. Output: RetrievalResponse; default legs intake/proffer.
-        Proffer is server-matter scoped, Intake global unless unsupported caller scope fails that leg. No evidence access.
+        CaseBible is optional and requires an explicit server collection allowlist; no evidence access is provided.
         """
         body = await request_body(request)
         try:
@@ -135,7 +135,7 @@ def register_context_retrieval_routes(app: FastAPI, *, readers: ContextReaders |
         """Read the compact named-flow contract for n8n/Temporal; return citations without excerpt bodies or durable retries.
 
         Input: read_retrieval FlowRequest and Platform owner bearer. Output: bounded FlowResult with explicit partial status.
-        Only allowlisted Intake/Proffer readers run. Server matter is never accepted through scope_json or other caller knobs.
+        Only allowlisted Intake/CaseBible/Proffer readers run. Server matter is never accepted through scope_json or other caller knobs.
         """
         body = await request_body(request)
         try:
