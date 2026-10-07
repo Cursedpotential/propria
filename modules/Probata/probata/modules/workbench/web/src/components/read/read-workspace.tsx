@@ -112,7 +112,7 @@ export function ReadWorkspace() {
           </section>
         </aside>
         <div className="min-w-0 space-y-5">
-          <ReadSearch key={params.get("q") ?? ""} params={params} />
+          <ReadSearch params={params} />
           {threadId ? <ReadConversation key={`${threadId}:${around ?? ""}`} threadId={threadId} around={around} params={params} />
             : <section className="rounded-lg border border-border bg-card"><Empty>Choose a conversation or open a search result to start reading. Extracted context and source details appear alongside it.</Empty></section>}
         </div>
