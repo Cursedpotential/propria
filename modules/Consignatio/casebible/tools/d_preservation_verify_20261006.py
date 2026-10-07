@@ -15,6 +15,11 @@ CLI: temporal --manifest PATH --manifest-sha256 HEX --upload-receipt PATH
 --upload-sha256 HEX --upload-workflow ID --upload-run ID --work PATH --workflow-id ID
 [--expected-count N --expected-bytes N]. Copy the receipt's before/after/API/log
 siblings beside the supplied receipt on the VPS. Every batch needs its own receipt.
+Use --whole-d with a pinned --source-path-allowlist and its SHA256 for reviewed
+positive-size non-Backup D paths; this neither walks D nor authorizes another drive.
+Use --literal-path-identity only for a completed upload whose receipt binds that
+mode and the Slash,Del,Ctl,Dot encoder mask. Both B2 listing and retained Linux
+cache downloads use those same identity conversions. Legacy defaults stay distinct.
 Byline: Codex / GPT-6 / 2026-10-06.
 """
 import argparse
@@ -71,12 +76,12 @@ def pinned(path, digest):
     return raw
 
 
-def safe_relative(value):
+def safe_relative(value, whole_d=False):
     """Reject unsafe or line-breaking Backup paths; input string, output path, no effects; choose manifest/cache confinement. Byline: Codex 2026-10-06."""
     if not isinstance(value, str):
         raise ValueError('relative path must be text')
     parts = value.split('/')
-    if len(parts) < 2 or parts[0] != 'Backup' or any(
+    if (not whole_d and (len(parts) < 2 or parts[0] != 'Backup')) or any(
             not p or p in ('.', '..') or p.rstrip(' .') != p or
             any(c in p for c in '\\:*?"<>|') or any(ord(c) < 32 for c in p) or
             re.fullmatch(r'(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?', p) for p in parts):
@@ -84,8 +89,30 @@ def safe_relative(value):
     return value
 
 
-def load_manifest(config):
+def load_allowlist(config):
+    """Validate an explicit whole-D path allowlist without reading source bodies.
+
+    Inputs: whole_d flag and exact path/SHA256 pins. Outputs: reviewed paths or None.
+    Effects: bounded metadata reads only. Choose for positive-size non-Backup D
+    verification; never authorizes F roots or a drive walk.
+    Byline: Codex GPT-6 2026-10-07.
+    """
+    path, digest = config.get('source_path_allowlist'), config.get('source_path_allowlist_sha256')
+    if not config.get('whole_d'):
+        if path or digest:
+            raise ValueError('allowlist requires explicit whole-D mode')
+        return None
+    if not path or not digest or Path(path).stat().st_size > 32 * 1024 * 1024:
+        raise ValueError('whole-D requires bounded pinned allowlist')
+    lines = pinned(path, digest).decode('utf-8-sig').splitlines()
+    if not lines or len(lines) > 150000 or len({p.casefold() for p in lines}) != len(lines):
+        raise ValueError('allowlist empty duplicate or over bound')
+    return {safe_relative(p, True) for p in lines}
+
+
+def load_frozen_manifest(config, allowlist_exact=True):
     """Validate exact frozen identities/count/bytes; input config, output normalized rows, no source reads; choose every stage. Byline: Codex 2026-10-06."""
+    allowed = load_allowlist(config)
     path = Path(config['manifest'])
     if path.stat().st_size > 128 * 1024 * 1024:
         raise ValueError('manifest exceeds 128 MiB')
@@ -99,12 +126,14 @@ def load_manifest(config):
         raise ValueError('manifest must contain 1..150000 rows')
     normalized, seen = [], set()
     for row in rows:
-        relative = safe_relative(row.get('rel_path', row.get('relative_path')))
+        relative = safe_relative(row.get('rel_path', row.get('relative_path')), config.get('whole_d', False))
+        if allowed is not None and relative not in allowed:
+            raise ValueError('manifest identity absent from whole-D allowlist')
         size = row.get('size_bytes', row.get('size'))
         if type(size) is not int or size <= 0 or relative.casefold() in seen:
             raise ValueError('duplicate identity or invalid size')
         seen.add(relative.casefold())
-        if 'rel_path' in row and row.get('source_root') != 'D:/':
+        if ('rel_path' in row or config.get('whole_d')) and row.get('source_root') != 'D:/':
             raise ValueError('unexpected source root')
         if row.get('copy_target_key', PREFIX + relative) != PREFIX + relative or row.get(
                 'copy_target_root', 'b2:salem-data/' + PREFIX).rstrip('/') != ('b2:salem-data/' + PREFIX).rstrip('/'):
@@ -131,7 +160,37 @@ def load_manifest(config):
         normalized.append(dict(relative_path=relative, size=size, mtime_ns=mtime_ns, mtime_precision_ns=precision))
     if len(rows) != config['expected_count'] or sum(r['size'] for r in normalized) != config['expected_bytes']:
         raise ValueError('frozen manifest count/bytes mismatch')
+    if allowed is not None and allowlist_exact and {r['relative_path'] for r in normalized} != allowed:
+        raise ValueError('whole-D allowlist differs from full manifest')
     return normalized
+
+
+def load_manifest(config):
+    """Select an exact pinned verification subset while retaining full upload identity.
+
+    Inputs: full frozen manifest configuration and optional subset path/hash/count/bytes.
+    Outputs: full rows or selected rows proven identical in path, size, mtime and
+    timestamp precision. Effects: metadata reads only. Choose subset mode for
+    reviewed owner-data verification; it never relabels the original upload.
+    Byline: Codex / GPT-6 / 2026-10-07.
+    """
+    full = load_frozen_manifest(config)
+    if config.get('subset_classification') not in (None, 'clear_user_data', 'uncertain'):
+        raise ValueError('invalid subset classification')
+    keys = ('subset_manifest', 'subset_manifest_sha256', 'subset_expected_count', 'subset_expected_bytes')
+    supplied = [config.get(key) is not None for key in keys]
+    if not any(supplied):
+        return full
+    if not all(supplied) or not config['subset_expected_count'] or config['subset_expected_bytes'] <= 0:
+        raise ValueError('complete positive subset pins required')
+    subset = load_frozen_manifest({**config, 'manifest':config['subset_manifest'],
+        'manifest_sha256':config['subset_manifest_sha256'],
+        'expected_count':config['subset_expected_count'], 'expected_bytes':config['subset_expected_bytes']},
+        allowlist_exact=False)
+    indexed = {row['relative_path']:row for row in full}
+    if any(indexed.get(row['relative_path']) != row for row in subset):
+        raise ValueError('subset identity size mtime or precision absent from full upload manifest')
+    return subset
 
 
 def bundled(receipt_path, original):
@@ -149,7 +208,7 @@ def validate_listing(objects, rows):
     expected = {r['relative_path']: r['size'] for r in rows}
     actual = {}
     for item in objects:
-        path = safe_relative(item['Path'])
+        path = safe_relative(item['Path'], True)
         if path in actual or item.get('IsDir') is not False or type(item.get('Size')) is not int or not isinstance(item.get('ID'), str) or not item['ID']:
             raise ValueError('duplicate, non-file or versionless destination')
         actual[path] = item
@@ -158,14 +217,52 @@ def validate_listing(objects, rows):
     return actual
 
 
+def literal_backend_flags(config):
+    """Keep reviewed literal source names, B2 keys and Linux cache paths identical.
+
+    Inputs: explicit literal_path_identity Boolean in the frozen configuration.
+    Outputs: matching local/B2 rclone Standard encoder flags, or legacy defaults.
+    Effects: none; never touches source bytes or changes a running batch.
+    Choose for literal Unicode manifests whose native upload used the same mode.
+    Byline: Codex / GPT-6.1-sol high / 2026-10-07; sibling: validate_upload.
+    """
+    mode = config.get('literal_path_identity', False)
+    if type(mode) is not bool:
+        raise ValueError('literal_path_identity must be a Boolean')
+    return ['--local-encoding', 'Slash,Del,Ctl,Dot', '--b2-encoding', 'Slash,Del,Ctl,Dot'] if mode else []
+
+
 def validate_upload(config, rows):
     """Reject incomplete transport or unaccounted identities; inputs config/rows, output pinned provenance, no D reads; choose before remote listing. Byline: Codex 2026-10-06."""
+    if config.get('subset_manifest') is not None:
+        selected = load_manifest(config)
+        if rows != selected:
+            raise ValueError('selected rows differ from pinned subset')
+        full_config = {key:value for key,value in config.items() if not key.startswith('subset_')}
+        full = load_frozen_manifest(full_config)
+        proof = validate_upload(full_config, full)
+        return {**proof, 'verification_selection':'exact_subset_of_successful_full_upload',
+            'subset_manifest':config['subset_manifest'], 'subset_manifest_sha256':config['subset_manifest_sha256'],
+            'subset_count':len(selected), 'subset_bytes':sum(row['size'] for row in selected),
+            'subset_classification':config.get('subset_classification'),
+            'full_upload_count':len(full), 'full_upload_bytes':sum(row['size'] for row in full)}
     receipt_path = Path(config['upload_receipt'])
     receipt = json.loads(pinned(receipt_path, config['upload_sha256']).decode('utf-8-sig'))
+    literal_backend_flags(config)
+    if receipt.get('literal_path_identity', False) != config.get('literal_path_identity', False):
+        raise ValueError('upload literal-path identity mode differs')
+    if config.get('literal_path_identity'):
+        if receipt.get('backend_encoding') != 'Slash,Del,Ctl,Dot':
+            raise ValueError('upload backend encoder mask differs')
+    elif receipt.get('backend_encoding') not in (None, 'rclone backend defaults'):
+        raise ValueError('unexpected legacy backend encoder mask')
     required = dict(stage='upload', status='completed', manifest_sha256=config['manifest_sha256'],
                     count=len(rows), bytes=sum(r['size'] for r in rows), metadata_unchanged=True,
                     rclone_exit_code=0, api_exit_code=0, api_missing_count=0, api_size_mismatch_count=0,
                     destination='b2:salem-data/' + PREFIX)
+    if config.get('whole_d'):
+        required.update(whole_d=True, empty_files_only=False,
+                        source_path_allowlist_sha256=config['source_path_allowlist_sha256'])
     if any(receipt.get(k) != v for k, v in required.items()) or receipt.get('error') or receipt.get('source_changes'):
         raise ValueError('final successful upload receipt required')
     temporal = receipt.get('temporal', {})
@@ -205,7 +302,9 @@ def validate_upload(config, rows):
         raise ValueError('upload per-object accounting mismatch')
     return dict(upload_receipt_sha256=config['upload_sha256'], manifest_sha256=config['manifest_sha256'],
                 artifact_sha256={k: hashlib.sha256(p.read_bytes()).hexdigest() for k, p in refs.items()},
-                copied_log_count=len(copied), size_only_skip_count=len(skipped), limits=LIMITS)
+                copied_log_count=len(copied), size_only_skip_count=len(skipped),
+                literal_path_identity=config.get('literal_path_identity', False),
+                backend_encoding=receipt.get('backend_encoding', 'rclone backend defaults'), limits=LIMITS)
 
 
 def compare_versions(before, after):
@@ -217,7 +316,7 @@ def compare_versions(before, after):
 
 def hash_file(root, row):
     """Read every retained destination byte with three digests; inputs cache/row, output hashes, no source effects; choose server verification. Byline: Codex 2026-10-06."""
-    relative = safe_relative(row['relative_path'])
+    relative = safe_relative(row['relative_path'], True)
     root = Path(root).resolve(strict=True)
     path = root
     for part in relative.split('/'):
@@ -279,8 +378,10 @@ def pg(sql):
     return [json.loads(line) for line in output.splitlines() if line.startswith('{')]
 
 
-def historical_sources(rows):
+def historical_sources(rows, whole_d=False):
     """Read exact preexisting D occurrences without changing them; input rows, output historical provenance, read-only SQL; choose hash comparison. Byline: Codex 2026-10-06."""
+    if whole_d:
+        return []  # Whole-D historical mapping is unassessed; do not infer Backup identity.
     result = []
     for offset in range(0, len(rows), 1000):
         paths = [r['relative_path'][len('Backup/'):] for r in rows[offset:offset + 1000]]
@@ -297,7 +398,8 @@ def record_rows(config, verified, pg_execute=pg):
         identity = '\n'.join((config['manifest_sha256'], config['upload_sha256'], config['workflow_id'],
                               config['run_id'], row['dest_key'], row['b2_object_version_id']))
         records.append(dict(occurrence_id='d-preservation-verify-20261006:' + hashlib.sha256(identity.encode()).hexdigest(),
-                            source_bucket='local/D-Backup', source_path=row['relative_path'][len('Backup/'):],
+                            source_bucket='local/D' if config.get('whole_d') else 'local/D-Backup',
+                            source_path=row['relative_path'] if config.get('whole_d') else row['relative_path'][len('Backup/'):],
                             preservation_action='preserved_immutable_verified', payload=row))
     for offset in range(0, len(records), 250):
         batch = records[offset:offset + 250]
@@ -354,7 +456,9 @@ def run_stage(stage, config):
     if stage == 'validate':
         result.update(validate_upload(config, rows), upload_temporal=asyncio.run(completed_upload(config)))
     elif stage == 'historical_sources':
-        result['historical_occurrences'] = historical_sources(rows)
+        result['historical_occurrences'] = historical_sources(rows, config.get('whole_d', False))
+        if config.get('whole_d'):
+            result['historical_source_assessment'] = 'unassessed for explicit whole-D scope; no inferred Backup mapping'
     elif stage in ('listing_before', 'listing_after'):
         files = work / 'readback.files'
         if stage == 'listing_before':
@@ -363,12 +467,13 @@ def run_stage(stage, config):
         raw_path = work / (stage + '-raw.json')
         with raw_path.open('xb') as output, (work / (stage + '.log')).open('xb') as errors:
             subprocess.run(['rclone', 'lsjson', REMOTE, '--recursive', '--fast-list', '--files-only',
-                            '--hash', '--metadata', '--files-from-raw', str(files)], stdout=output,
+                            '--hash', '--metadata', '--files-from-raw', str(files), *literal_backend_flags(config)], stdout=output,
                            stderr=errors, check=True, timeout=3600)
         listing = validate_listing(read_json(raw_path), rows)
         if stage == 'listing_before':
             upload = read_json(config['upload_receipt'])
-            previous = validate_listing(read_json(bundled(config['upload_receipt'], upload['api_observation'])), rows)
+            previous = validate_listing(read_json(bundled(config['upload_receipt'], upload['api_observation'])),
+                                        load_frozen_manifest(config) if config.get('subset_manifest') is not None else rows)
             if any(previous[k]['ID'] != listing[k]['ID'] for k in listing):
                 raise ValueError('destination version differs from completed upload API observation')
         else:
@@ -380,7 +485,7 @@ def run_stage(stage, config):
         with (work / 'download.log').open('xb') as log:
             subprocess.run(['rclone', 'copy', REMOTE, str(cache), '--files-from-raw', str(work / 'readback.files'),
                             '--no-traverse', '--immutable', '--transfers', '4', '--checkers', '8',
-                            '--retries', '2', '--stats', '30s'], stdout=log, stderr=log, check=True, timeout=86400)
+                            '--retries', '2', '--stats', '30s', *literal_backend_flags(config)], stdout=log, stderr=log, check=True, timeout=86400)
         result.update(cache=str(cache), basis='fresh retained server cache; no preexisting files accepted')
     elif stage == 'hash_cache':
         before = read_json(work / 'listing_before.json')['objects']
@@ -403,6 +508,17 @@ def run_stage(stage, config):
                                      workflow_id=config['workflow_id'], run_id=config['run_id'],
                                      evidence_root=str(work), upload_receipt_path=config['upload_receipt'],
                                      manifest_path=config['manifest'], byline=BYLINE))
+                if config.get('whole_d'):
+                    verified[-1].update(source_root='D:/', source_path_allowlist_sha256=config['source_path_allowlist_sha256'],
+                        historical_source_assessment='unassessed for explicit whole-D scope; no inferred Backup mapping')
+                if config.get('literal_path_identity'):
+                    verified[-1].update(literal_path_identity=True, backend_encoding='Slash,Del,Ctl,Dot')
+                if config.get('subset_manifest') is not None:
+                    verified[-1].update(verification_selection='exact_subset_of_successful_full_upload',
+                        subset_manifest_path=config['subset_manifest'],
+                        subset_manifest_sha256=config['subset_manifest_sha256'],
+                        subset_classification=config.get('subset_classification'),
+                        full_upload_manifest_sha256=config['manifest_sha256'])
         result['verified'] = verified
     elif stage == 'record':
         before, after = read_json(work / 'listing_before.json'), read_json(work / 'listing_after.json')
@@ -623,6 +739,15 @@ def main():
     parser.add_argument('--manifest-sha256', default=MANIFEST_SHA256)
     parser.add_argument('--expected-count', type=int, default=115005)
     parser.add_argument('--expected-bytes', type=int, default=14915205983)
+    parser.add_argument('--subset-manifest')
+    parser.add_argument('--subset-manifest-sha256')
+    parser.add_argument('--subset-expected-count', type=int)
+    parser.add_argument('--subset-expected-bytes', type=int)
+    parser.add_argument('--subset-classification', choices=['clear_user_data', 'uncertain'])
+    parser.add_argument('--whole-d', action='store_true')
+    parser.add_argument('--literal-path-identity', action='store_true')
+    parser.add_argument('--source-path-allowlist')
+    parser.add_argument('--source-path-allowlist-sha256')
     parser.add_argument('--address', default='100.91.190.107:7233')
     config = vars(parser.parse_args())
     config.pop('action')
