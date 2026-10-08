@@ -39,7 +39,7 @@ from server.temporal.activities import (
     parse_activity,
     store_activity,
 )
-from server.temporal.ai_content_activities import AI_CONTENT_ACTIVITIES
+from server.temporal.ai_content_activities import AI_CONTENT_ACTIVITIES, AI_CONTEXT_ACTIVITIES
 from server.temporal.ai_context_graph_activities import AI_CONTEXT_GRAPH_ACTIVITIES
 from server.temporal.chunk_activities import (
     chunk_context_threads_activity,
@@ -68,6 +68,12 @@ TASK_QUEUE_DEFAULT = "evidence-pipeline"
 
 
 async def main() -> None:
+    """Run the Python Temporal worker with context and historical Activities.
+
+    Inputs: Temporal connection and task-queue environment. Outputs: none.
+    Effects: registers Activities and polls Temporal. Choose for the managed
+    Python worker so ai-context-v1 runs without replacing replayed workflows.
+    """
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -96,6 +102,9 @@ async def main() -> None:
                 # Six independent AI content operations, external retained payloads.
                 # Codex / GPT-6.1-Sol / 2026-10-06.
                 *AI_CONTENT_ACTIVITIES,
+                # Context-only AI source stages; historical names stay registered
+                # for Temporal replay while new requests use ai-context-v1.
+                *AI_CONTEXT_ACTIVITIES,
                 *AI_CONTEXT_GRAPH_ACTIVITIES,
                 custody_activity,
                 parse_activity,
