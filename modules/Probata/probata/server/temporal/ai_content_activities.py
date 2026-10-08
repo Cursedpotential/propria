@@ -193,3 +193,119 @@ AI_CONTENT_ACTIVITIES = (
     ai_publish_content_activity,
     ai_verify_content_publication_activity,
 )
+
+
+@dataclass
+class AIContextParams:
+    """Decode the ai-context-v1 request without evidence or case pins.
+
+    Inputs: exact source/package refs, optional provider version, run identity,
+    stage refs and bounds. Outputs: Activity request. Effects: none. Choose only
+    for the new context-only Activities; historical requests use AIContentParams.
+    """
+    contract_version: str = "ai-context-v1"
+    source_ref: str = ""
+    provider_version_id: str | None = None
+    package_ref: str | None = None
+    source_format: str | None = None
+    request_id: str = ""
+    temporal_run_id: str = ""
+    temporal_activity_id: str = ""
+    prepared_ref: str = ""
+    work_products_ref: str = ""
+    candidates_ref: str = ""
+    embeddings_ref: str = ""
+    publication_ref: str = ""
+    max_source_bytes: int = 33554432
+    max_records: int = 1024
+    max_text_bytes: int = 2097152
+    max_chunks: int = 256
+    max_model_calls: int = 512
+
+
+def _run_context(name: str, params: AIContextParams) -> dict[str, Any]:
+    """Invoke one context-only stage and classify permanent invalid input.
+
+    Inputs: stage name and ai-context-v1 request. Outputs: small receipt.
+    Effects: that stage's bounded I/O. Choose instead of legacy _run so source
+    binding, LIVE admission and custody hash paths cannot be invoked.
+    """
+    from server.analysis import ai_context
+    try:
+        with _heartbeats() as beat:
+            function = getattr(ai_context, name)
+            if name in {"publish", "verify_publication"}:
+                return function(asdict(params), beat=beat)
+            return function(asdict(params))
+    except ai_context.ContextInvalid as error:
+        raise ApplicationError(str(error), type="AIContextInvalid", non_retryable=True) from None
+
+
+@activity.defn(name="ai_context_prepare_activity")
+def ai_context_prepare_activity(params: AIContextParams) -> dict[str, Any]:
+    """Prepare original AI conversation text and Neural topic chunks.
+
+    Inputs: source_ref, provider version and bounds. Outputs: prepared ref.
+    Effects: bounded source read and derived files. Choose first for context.
+    """
+    return _run_context("prepare", params)
+
+
+@activity.defn(name="ai_context_extract_work_products_activity")
+def ai_context_extract_work_products_activity(params: AIContextParams) -> dict[str, Any]:
+    """Retain complete created-work files from AI conversation text.
+
+    Inputs: prepared_ref. Outputs: work_products_ref. Effects: derived files.
+    Choose before optional candidate extraction.
+    """
+    return _run_context("extract_work_products", params)
+
+
+@activity.defn(name="ai_context_extract_candidates_activity")
+def ai_context_extract_candidates_activity(params: AIContextParams) -> dict[str, Any]:
+    """Extract optional source-grounded AI candidates and accounts.
+
+    Inputs: prepared/work-product refs and model bound. Outputs: candidate ref
+    and status. Effects: optional remote calls. Choose for context enrichment.
+    """
+    return _run_context("extract_candidates", params)
+
+
+@activity.defn(name="ai_context_embed_activity")
+def ai_context_embed_activity(params: AIContextParams) -> dict[str, Any]:
+    """Embed AI topic chunks for semantic search when provider is available.
+
+    Inputs: prepared_ref. Outputs: embedding ref and status. Effects: remote
+    embedding and derived file. Choose before publication.
+    """
+    return _run_context("embed", params)
+
+
+@activity.defn(name="ai_context_publish_activity")
+def ai_context_publish_activity(params: AIContextParams) -> dict[str, Any]:
+    """Publish context search chunks including partially enriched chunks.
+
+    Inputs: four prerequisite refs. Outputs: publication ref. Effects: additive
+    search writes. Choose after preparation, works, candidates and embedding.
+    """
+    return _run_context("publish", params)
+
+
+@activity.defn(name="ai_context_verify_publication_activity")
+def ai_context_verify_publication_activity(params: AIContextParams) -> dict[str, Any]:
+    """Verify every published AI context object through search readback.
+
+    Inputs: publication and prerequisite refs. Outputs: verification ref.
+    Effects: read-only search calls and proof file. Choose after publication.
+    """
+    return _run_context("verify_publication", params)
+
+
+AI_CONTEXT_ACTIVITIES = (
+    ai_context_prepare_activity,
+    ai_context_extract_work_products_activity,
+    ai_context_extract_candidates_activity,
+    ai_context_embed_activity,
+    ai_context_publish_activity,
+    ai_context_verify_publication_activity,
+)
