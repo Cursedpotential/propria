@@ -34,7 +34,7 @@ type Claim struct {
 	RecordID            string     `json:"record_id"`
 	RecordSHA256        string     `json:"record_sha256"`
 	OccurredAt          *time.Time `json:"occurred_at,omitempty"`
-	SourceAvailableFrom time.Time  `json:"source_available_from"`
+	SourceAvailableFrom *time.Time `json:"source_available_from"`
 	ApprovedAt          time.Time  `json:"approved_at"`
 	ApprovedBy          string     `json:"approved_by"`
 }
@@ -55,8 +55,8 @@ func BuildClaims(revision Revision) ([]Claim, error) {
 	}
 	makeClaim := func(kind, text, candidateID, candidateHash, recordID string, occurred *time.Time) (Claim, error) {
 		pin, exists := revision.Records[recordID]
-		if text == "" || candidateID == "" || recordID == "" || !exists || pin.SourceAvailableFrom == nil || !validDigest(pin.SHA256) {
-			return Claim{}, fmt.Errorf("approved graph: %s assertion lacks text, record locator, or availability", kind)
+		if text == "" || candidateID == "" || recordID == "" || !exists || !validDigest(pin.SHA256) {
+			return Claim{}, fmt.Errorf("approved graph: %s assertion lacks text or record locator", kind)
 		}
 		return Claim{
 			ID:   flow.DeterministicID("approved_graph_claim", revision.Receipt.ID, kind, candidateID, recordID),
@@ -67,7 +67,7 @@ func BuildClaims(revision Revision) ([]Claim, error) {
 			SourceID: revision.Source.SourceID, SourceVersionID: revision.Scope.SourceVersionID, SourceObjectID: revision.Source.ObjectID,
 			SourceObjectURI: revision.Source.ObjectURI, SourceSHA256: revision.Source.SHA256,
 			RecordID: recordID, RecordSHA256: pin.SHA256, OccurredAt: occurred,
-			SourceAvailableFrom: *pin.SourceAvailableFrom, ApprovedAt: revision.Receipt.FinishedAt,
+			SourceAvailableFrom: pin.SourceAvailableFrom, ApprovedAt: revision.Receipt.FinishedAt,
 			ApprovedBy: revision.Receipt.Actor.SubjectUID,
 		}, nil
 	}

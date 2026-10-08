@@ -50,7 +50,7 @@ func ApprovedGraphSchema() string {
 	for _, field := range []string{"matter_id", "case_id", "source_version_id", "record_id", "record_sha256", "source_available_from", "occurred_at"} {
 		typ := "string"
 		if field == "source_available_from" {
-			typ = "datetime"
+			typ = "option<datetime>"
 		}
 		if field == "occurred_at" {
 			typ = "option<datetime>"

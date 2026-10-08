@@ -162,8 +162,8 @@ func Resolve(ctx context.Context, reader Reader, scope Scope) (Revision, error) 
 		if err != nil {
 			return err
 		}
-		if pin.ID != id || pin.SourceVersionID != scope.SourceVersionID || !validDigest(pin.SHA256) || pin.SourceAvailableFrom == nil {
-			return fmt.Errorf("approved graph: record %s has no canonical source or availability pin", id)
+		if pin.ID != id || pin.SourceVersionID != scope.SourceVersionID || !validDigest(pin.SHA256) || (pin.SourceAvailableFrom != nil && pin.SourceAvailableFrom.IsZero()) {
+			return fmt.Errorf("approved graph: record %s has no canonical source pin or has invalid availability", id)
 		}
 		records[id] = pin
 		return nil

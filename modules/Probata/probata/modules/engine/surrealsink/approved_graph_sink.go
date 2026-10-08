@@ -144,7 +144,7 @@ func (s *ApprovedClaimsSink) approvedSchemaReady(ctx context.Context) error {
 			for _, name := range []string{"matter_id", "case_id", "source_version_id", "record_id", "record_sha256"} {
 				fields[name] = "string"
 			}
-			fields["source_available_from"], fields["occurred_at"] = "datetime", "option<datetime>"
+			fields["source_available_from"], fields["occurred_at"] = "option<datetime>", "option<datetime>"
 		case "ctx_approved_provenance":
 			fields["in"], fields["out"] = "record", "record"
 			for _, name := range []string{"matter_id", "case_id", "approved_revision_id", "approval_digest", "candidate_id", "record_id", "record_sha256", "source_version_id"} {
@@ -175,7 +175,7 @@ func (s *ApprovedClaimsSink) applyClaim(ctx context.Context, claim approvedgraph
 	if err != nil {
 		return err
 	}
-	if !caseidentity.AdmittedIdentity(claim.MatterID, claim.CourtCaseID) || !graphIdentifier(claim.ID) || !graphIdentifier(claim.MatterID) || !graphIdentifier(claim.CourtCaseID) || !graphIdentifier(claim.ReceiptID) || !graphIdentifier(claim.ControlGenerationID) || !graphIdentifier(claim.CandidateID) || !graphIdentifier(claim.RecordID) || !graphIdentifier(claim.SourceID) || !graphIdentifier(claim.SourceVersionID) || !graphIdentifier(claim.SourceObjectID) || !graphDigest(claim.ApprovalDigest) || !graphDigest(claim.CandidateSHA256) || !graphDigest(claim.RecordSHA256) || !graphDigest(claim.SourceSHA256) || !graphExternalRef(claim.SourceObjectURI) || claim.Text == "" || claim.SourceAvailableFrom.IsZero() || claim.ApprovedAt.IsZero() || claim.ApprovedBy == "" {
+	if !caseidentity.AdmittedIdentity(claim.MatterID, claim.CourtCaseID) || !graphIdentifier(claim.ID) || !graphIdentifier(claim.MatterID) || !graphIdentifier(claim.CourtCaseID) || !graphIdentifier(claim.ReceiptID) || !graphIdentifier(claim.ControlGenerationID) || !graphIdentifier(claim.CandidateID) || !graphIdentifier(claim.RecordID) || !graphIdentifier(claim.SourceID) || !graphIdentifier(claim.SourceVersionID) || !graphIdentifier(claim.SourceObjectID) || !graphDigest(claim.ApprovalDigest) || !graphDigest(claim.CandidateSHA256) || !graphDigest(claim.RecordSHA256) || !graphDigest(claim.SourceSHA256) || !graphExternalRef(claim.SourceObjectURI) || claim.Text == "" || (claim.SourceAvailableFrom != nil && claim.SourceAvailableFrom.IsZero()) || claim.ApprovedAt.IsZero() || claim.ApprovedBy == "" {
 		return errors.New("approved graph: incomplete approved assertion")
 	}
 	pin := ContextSourcePin{SourceID: claim.SourceID, SourceVersionID: claim.SourceVersionID, SourceHash: claim.SourceSHA256,
@@ -194,7 +194,7 @@ func (s *ApprovedClaimsSink) applyClaim(ctx context.Context, claim approvedgraph
 		CreatedByService: s.CreatedByService, GenerationID: claim.ControlGenerationID, GenerationKey: "ag_" + claim.ControlGenerationID,
 		BundleHash: graphHash(claim), ExtractionRunRef: claim.ReceiptID, Active: true,
 		NodeID: claim.ID, Kind: table, DerivativeKind: "approved_extraction", SourceOrigin: "owner_commit",
-		SourceAvailableFrom: &claim.SourceAvailableFrom, OccurredAt: claim.OccurredAt,
+		SourceAvailableFrom: claim.SourceAvailableFrom, OccurredAt: claim.OccurredAt,
 		TimePrecision: "unknown", RelativeAnchorRef: "", SourcePins: []ContextSourcePin{pin}, PayloadJSON: string(raw)}
 	vars := graphRowMap(row, false, false)
 	for key, value := range map[string]any{
@@ -235,7 +235,7 @@ IF $source_old != NONE AND ($source_old.source_object_sha256 != $source.source_o
 IF $source_old = NONE { CREATE type::record('ctx_approved_source_version', $source_key) CONTENT $source; };
 LET $record_old = (SELECT * FROM type::record('ctx_approved_record', $record_key))[0];
 IF $record_old != NONE AND ($record_old.record_sha256 != $record.record_sha256 OR $record_old.source_version_id != $record.source_version_id) { THROW 'record pin changed'; };
-IF $record_old = NONE { CREATE type::record('ctx_approved_record', $record_key) CONTENT object::extend($record, {source_available_from: <datetime> $record.source_available_from, occurred_at: <option<datetime>> $record.occurred_at}); };
+IF $record_old = NONE { CREATE type::record('ctx_approved_record', $record_key) CONTENT object::extend($record, {source_available_from: <option<datetime>> $record.source_available_from, occurred_at: <option<datetime>> $record.occurred_at}); };
 LET $old_record_edge = (SELECT * FROM type::record('ctx_approved_record_source', $record_edge_key))[0];
 LET $record_ref = type::record('ctx_approved_record', $record_key);
 LET $source_ref = type::record('ctx_approved_source_version', $source_key);
@@ -244,7 +244,7 @@ IF $old_record_edge = NONE { RELATE $record_ref->$record_edge_ref->$source_ref C
 LET $old = (SELECT * FROM type::record('%s', $claim_key))[0];
 IF $old != NONE AND ($old.bundle_hash != $claim.bundle_hash OR $old.approved_revision_id != $claim.approved_revision_id) { THROW 'approved assertion changed'; };
 IF $old = NONE {
- CREATE type::record('%s', $claim_key) CONTENT object::extend($claim, {source_available_from: <datetime> $claim.source_available_from, occurred_at: <option<datetime>> $claim.occurred_at, approved_at: <datetime> $claim.approved_at});
+ CREATE type::record('%s', $claim_key) CONTENT object::extend($claim, {source_available_from: <option<datetime>> $claim.source_available_from, occurred_at: <option<datetime>> $claim.occurred_at, approved_at: <datetime> $claim.approved_at});
 };
 LET $old_edge = (SELECT * FROM type::record('ctx_approved_provenance', $edge_key))[0];
 LET $claim_ref = type::record('%s', $claim_key);

@@ -93,7 +93,7 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 			RecordID            string     `json:"record_id"`
 			RecordSHA256        string     `json:"record_sha256"`
 			OccurredAt          *time.Time `json:"occurred_at"`
-			SourceAvailableFrom time.Time  `json:"source_available_from"`
+			SourceAvailableFrom *time.Time `json:"source_available_from"`
 			ApprovedAt          time.Time  `json:"approved_at"`
 			ApprovedBy          string     `json:"approved_by"`
 		}
@@ -121,10 +121,17 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 		}
 	}
 	sort.Slice(claims, func(i, j int) bool {
-		if claims[i].SourceAvailableFrom.Equal(claims[j].SourceAvailableFrom) {
+		a, b := claims[i].SourceAvailableFrom, claims[j].SourceAvailableFrom
+		if a == nil || b == nil {
+			if a == nil && b == nil {
+				return claims[i].ID < claims[j].ID
+			}
+			return a != nil
+		}
+		if a.Equal(*b) {
 			return claims[i].ID < claims[j].ID
 		}
-		return claims[i].SourceAvailableFrom.After(claims[j].SourceAvailableFrom)
+		return a.After(*b)
 	})
 	if len(claims) > q.Limit {
 		claims = claims[:q.Limit]
@@ -132,21 +139,21 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 	return ApprovedQueryResult{Perspective: q.Perspective, ApprovedRevisionID: q.ApprovedRevisionID, Claims: claims}, nil
 }
 
-// approvedWhere selects indexed scope and canonical source availability before any relation read.
+// approvedWhere selects indexed scope and applies source availability only to as-lived reads.
 func approvedWhere(perspective string) string {
-	where := `matter_id=$matter AND case_id=$case AND access_policy_id=$policy AND approved_revision_id=$revision AND approval_digest=$digest AND generation_id=$generation AND control_generation_id=$generation AND source_available_from != NONE`
+	where := `matter_id=$matter AND case_id=$case AND access_policy_id=$policy AND approved_revision_id=$revision AND approval_digest=$digest AND generation_id=$generation AND control_generation_id=$generation`
 	if perspective == "as_lived" {
-		where += ` AND source_available_from <= <datetime> $horizon`
+		where += ` AND source_available_from != NONE AND source_available_from <= <datetime> $horizon`
 	}
 	return where
 }
 
 // eligibleAt enforces the historical source clock independently of approval time.
-func eligibleAt(perspective string, available, horizon time.Time) bool {
-	if available.IsZero() {
+func eligibleAt(perspective string, available *time.Time, horizon time.Time) bool {
+	if available != nil && available.IsZero() {
 		return false
 	}
-	return perspective == "hindsight" || (perspective == "as_lived" && !available.After(horizon))
+	return perspective == "hindsight" || (perspective == "as_lived" && available != nil && !available.After(horizon))
 }
 
 func validApprovedLimit(limit int) bool { return limit >= 1 && limit <= maxApprovedQueryLimit }

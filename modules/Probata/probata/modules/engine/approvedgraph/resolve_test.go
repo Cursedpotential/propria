@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -62,7 +63,7 @@ func TestResolveRequiresExactReceiptSetAndCanonicalRecord(t *testing.T) {
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("cited claim: count=%d err=%v", len(claims), err)
 	}
-	if claims[0].SourceAvailableFrom.Year() != 2020 || claims[0].ApprovedAt.Year() != 2026 || claims[0].RecordSHA256 != fixture.record.SHA256 {
+	if claims[0].SourceAvailableFrom == nil || claims[0].SourceAvailableFrom.Year() != 2020 || claims[0].ApprovedAt.Year() != 2026 || claims[0].RecordSHA256 != fixture.record.SHA256 {
 		t.Fatal("historical source clock or canonical record hash was lost")
 	}
 	fixture.receipt.Digest = strings.Repeat("0", 64)
@@ -86,7 +87,16 @@ func TestResolveRequiresExactReceiptSetAndCanonicalRecord(t *testing.T) {
 	}
 	scope, fixture = testRevisionFixture()
 	fixture.record.SourceAvailableFrom = nil
-	if _, err := Resolve(context.Background(), fixture, scope); err == nil {
-		t.Fatal("unknown source availability entered as-lived graph")
+	revision, err = Resolve(context.Background(), fixture, scope)
+	if err != nil {
+		t.Fatalf("unknown availability lost exact approved source pin: %v", err)
+	}
+	claims, err = BuildClaims(revision)
+	if err != nil || len(claims) != 1 || claims[0].SourceAvailableFrom != nil {
+		t.Fatal("unknown availability must remain explicit in approved claim")
+	}
+	raw, err := json.Marshal(claims[0])
+	if err != nil || !strings.Contains(string(raw), `"source_available_from":null`) {
+		t.Fatal("unknown availability must be encoded explicitly without a guessed timestamp")
 	}
 }
