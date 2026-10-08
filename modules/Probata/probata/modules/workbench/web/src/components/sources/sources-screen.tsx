@@ -36,6 +36,8 @@ import {
   getCatalogProvenance,
   getDecodedExists,
   getProfferBatch,
+  getProfferSourceVersion,
+  getAIContextSourceStatus,
   getUnitsUnderPrefix,
   previewProfferSource,
   listProfferProposalResources,
@@ -45,6 +47,7 @@ import {
   proposeSourceUnit,
   recordSourceUnitMark,
   startProffer,
+  startAIContextSource,
   startProfferBatch,
   uploadProfferSource,
 } from "@/lib/api-client";
@@ -80,6 +83,11 @@ function SourcesScreenMode() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set());
   const [handlerOverride, setHandlerOverride] = useState("");
+  const [aiProvider, setAIProvider] = useState<"" | "chatgpt" | "claude" | "gemini_markdown">("");
+  const [aiPending, setAIPending] = useState(false);
+  const [aiError, setAIError] = useState<string | null>(null);
+  const [aiWorkflow, setAIWorkflow] = useState<{ workflow_id: string; run_id: string; source_ref: string } | null>(null);
+  const aiRequests = useRef(new Map<string, string>());
 
   const [query, setQuery] = useState(linkedFile);
   const [showContentSearch, setShowContentSearch] = useState(false);
@@ -180,6 +188,21 @@ function SourcesScreenMode() {
     [objects, selectedRef],
   );
   const activeRootId = rootId || listing?.active_root_id || "";
+
+  const sourceVersionQuery = useQuery({
+    queryKey: ["sources", "provider-version", activeRootId, selectedObject?.source_ref, selectedObject?.etag],
+    queryFn: ({ signal }) => getProfferSourceVersion(selectedObject!, activeRootId, signal),
+    enabled: Boolean(aiProvider && selectedObject && activeRootId),
+    retry: false,
+  });
+
+  const aiStatusQuery = useQuery({
+    queryKey: ["sources", "ai-context", aiWorkflow?.workflow_id],
+    queryFn: () => getAIContextSourceStatus(aiWorkflow!.workflow_id),
+    enabled: Boolean(aiWorkflow),
+    retry: false,
+    refetchInterval: (query) => query.state.data && !["complete", "partial", "needs_parser", "failed"].includes(String(query.state.data.status)) ? 3000 : false,
+  });
 
   const inspectionQuery = useQuery({
     queryKey: ["sources", "inspection", mode, activeRootId, selectedObject?.source_ref],
@@ -408,6 +431,34 @@ function SourcesScreenMode() {
     }
   }
 
+  /** Register a version-pinned AI export in Context through the Go engine.
+   * Inputs: explicit provider, selected B2 object and metadata HEAD version.
+   * Output: Temporal execution IDs and status. Effect: one idempotent Go start;
+   * choose this instead of the case-bound Process path for AI-chat exports.
+   */
+  async function addAIChatToContext() {
+    const version = sourceVersionQuery.data;
+    if (!selectedObject || !version || !aiProvider || aiPending || version.source_ref !== selectedObject.source_ref) return;
+    const identity = JSON.stringify([version.source_ref, version.provider_version_id, aiProvider]);
+    const requestID = aiRequests.current.get(identity) ?? crypto.randomUUID();
+    aiRequests.current.set(identity, requestID);
+    setAIPending(true);
+    setAIError(null);
+    try {
+      const started = await startAIContextSource({
+        source_ref: version.source_ref,
+        provider_version_id: version.provider_version_id,
+        source_kind: "ai_chat",
+        declared_format: aiProvider,
+      }, requestID);
+      setAIWorkflow({ ...started, source_ref: version.source_ref });
+    } catch (error) {
+      setAIError(errorText(error));
+    } finally {
+      setAIPending(false);
+    }
+  }
+
   async function markUnit(confirm: boolean) {
     if (!selectedFolder) return;
     setMarkPending(true);
@@ -471,6 +522,32 @@ function SourcesScreenMode() {
           <span className="flex items-center gap-1 text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">
             <AlertTriangle className="h-3 w-3" /> {processError}
           </span>
+        )}
+        {selectedObject && !selectedFolder && !localSource && selectedFiles.length === 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-l pl-2 text-[11px]">
+            <label htmlFor="ai-chat-provider">AI chat export</label>
+            <select id="ai-chat-provider" aria-label="AI chat provider" className="rounded border bg-background px-2 py-1"
+              value={aiProvider} onChange={(event) => { setAIProvider(event.target.value as "" | "chatgpt" | "claude" | "gemini_markdown"); setAIError(null); setAIWorkflow(null); }}>
+              <option value="">Choose provider</option>
+              <option value="chatgpt">ChatGPT</option>
+              <option value="claude">Claude</option>
+              <option value="gemini_markdown">Gemini Markdown</option>
+            </select>
+            {aiProvider && (
+              <Button size="sm" variant="outline" disabled={aiPending || !sourceVersionQuery.data || sourceVersionQuery.isFetching}
+                onClick={() => void addAIChatToContext()}>
+                {aiPending ? "Starting…" : "Add AI chat to context"}
+              </Button>
+            )}
+            {aiProvider && sourceVersionQuery.isFetching && <span>Checking B2 version…</span>}
+            {aiProvider && sourceVersionQuery.error && <span role="alert">{errorText(sourceVersionQuery.error)}</span>}
+            {aiError && <span role="alert">{aiError}</span>}
+            {aiWorkflow?.source_ref === selectedObject.source_ref && (
+              <span role="status">Workflow {aiWorkflow.workflow_id}: {String(aiStatusQuery.data?.status ?? "submitted")}
+                {aiStatusQuery.data?.reason ? ` · ${String(aiStatusQuery.data.reason)}` : ""}
+                {aiStatusQuery.error ? ` (${errorText(aiStatusQuery.error)})` : ""}</span>
+            )}
+          </div>
         )}
       </div>
 
