@@ -29,12 +29,19 @@ EMBED_MAX_CHARS = 65_536
 _DATA_URI_INTRO_RE = re.compile(r"data:(?=[a-zA-Z0-9.+-]+/)", re.I)
 
 
-def embed_input(text: str) -> str:
-    """The text NIM will accept for `text`; the caller stores the original."""
+def embed_input(text: str, *, allow_truncation: bool = True) -> str:
+    """Prepare text for NIM while optionally refusing any character truncation.
+
+    Inputs: source text and truncation policy. Output: provider-safe text. Side
+    effects: legacy truncation logs; strict overflow raises ValueError. Use the
+    strict mode for contextual prefixes that must never truncate the raw chunk.
+    """
     text = _DATA_URI_INTRO_RE.sub("data: ", text)
     if not text.strip():
         return BLANK_PLACEHOLDER
     if len(text) > EMBED_MAX_CHARS:
+        if not allow_truncation:
+            raise ValueError("Embedding input exceeds the character budget")
         # A chunk this size means the splitter had nothing to split on: a source problem, so say so.
         print(
             f"docstore: embedding input capped at {EMBED_MAX_CHARS} of {len(text)} characters; "

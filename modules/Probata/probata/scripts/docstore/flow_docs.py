@@ -179,6 +179,8 @@ import threading
 import time
 import unicodedata
 from dataclasses import dataclass
+from contextual_retrieval import ContextPolicy, ContextRequest, build_request, cache_identity, describe_context, search_metadata
+from context_sources import contextual_items
 from typing import Annotated, AsyncIterator, Optional
 
 if os.environ.get("DOCSTORE_ONLY_FILES", "").strip():
@@ -542,6 +544,78 @@ class ChunkRow:
     status: str
     domains: Annotated[list[str], STR_ARRAY]
     embedding: Annotated[NDArray, EMBEDDER]
+
+    @property
+    def context_description(self) -> str:
+        """Supply an empty derived description for legacy rows under the optional schema.
+
+        Input: legacy row. Output: empty string. Side effects: none. Use only when
+        the enabled table schema serializes an uncontextualized sibling row.
+        """
+        return ""
+
+    @property
+    def search_text(self) -> str:
+        """Supply an empty contextual keyword field for uncontextualized rows.
+
+        Input: legacy row. Output: empty string. Side effects: none. Raw BM25 remains
+        available; this property is absent from the legacy dataclass field schema.
+        """
+        return ""
+
+    @property
+    def context_provenance(self) -> str:
+        """Supply an empty provenance field when a row has no derived context.
+
+        Input: legacy row. Output: empty string. Side effects: none. Use for optional
+        schema compatibility, never to imply contextualization was performed.
+        """
+        return ""
+
+
+@dataclass
+class ContextualChunkRow(ChunkRow):
+    """Store derived contextual search fields separately from original chunk text.
+
+    Inputs: unchanged ChunkRow fields plus description, search text and provenance.
+    Output: one contextual chunk row. Side effects: none until declared by the
+    existing CocoIndex target. Use only after the additive schema is applied.
+    """
+
+    context_description: str = ""
+    search_text: str = ""
+    context_provenance: str = ""
+
+
+@dataclass(frozen=True)
+class ContextDocument:
+    """Pass one selected document's search context to bounded chunk groups.
+
+    Inputs: policy, existing stored-body hash and normalized text. Output: shared
+    immutable context. Side effects: none. Use without copying the full body per chunk.
+    """
+
+    policy: ContextPolicy
+    source_hash: str
+    normalized_text: str
+    source_byte_hash: str = ""
+
+
+_CONTEXT_GATE = asyncio.Semaphore(1)
+
+
+@coco.fn(memo=True, version=1)
+async def contextual_description(cache_key: str, request: ContextRequest, policy: ContextPolicy) -> str:
+    """Memoize one versioned short description using the existing remote LLM config.
+
+    Inputs: exact source/chunk/context/policy. Output: derived description. Side
+    effects: at most one HTTPS call on a cache miss, bounded to one in flight.
+    Choose this over whole-document enrichment for chunk-specific search context.
+    """
+    if cache_key != cache_identity(request, policy):
+        raise ValueError("Context cache identity does not match its inputs")
+    async with _CONTEXT_GATE:
+        return await describe_context(request, policy, api_key=os.environ.get("DOCSTORE_LLM_API_KEY", ""))
 
 
 # ---------------------------------------------------------------------------
@@ -973,6 +1047,67 @@ async def process_chunk(
     edge.declare_relation(from_id=chunk_id, to_id=doc_id)
 
 
+@coco.fn
+async def process_contextual_chunk(
+    chunk: Chunk,
+    doc_id: str,
+    meta: DocMeta,
+    headings: list[tuple[int, str]],
+    ordinals: dict[int, int],
+    table: surrealdb.TableTarget[ChunkRow],
+    edge: surrealdb.RelationTarget[None],
+    project: str = "probata",
+    context_document: ContextDocument | None = None,
+) -> None:
+    """Declare one original chunk and its optional derived contextual embedding.
+
+    Inputs: normalized chunk, source locator/metadata and optional versioned
+    context. Output: one row and chunk_of edge. Side effects: remote embedding,
+    optional description, CDC declarations. Use inside existing bounded groups.
+    """
+    # `project` added 2026-09-14 (Claude Code · Fable 5.1): multi-root chunks were all
+    # stamped "probata", which breaks project-scoped recall for every other root.
+    offset = chunk.start.char_offset
+    ordinal = ordinals[offset]
+    chunk_id = slug(f"{doc_id}_c{ordinal}")
+    heading = heading_for_offset(headings, offset) or ""
+    embedding_text = chunk.text
+    derived = {}
+    row_type = ContextualChunkRow if os.environ.get("DOCSTORE_CONTEXT_ENABLED") == "1" else ChunkRow
+    if context_document is not None:
+        request = build_request(source_path=meta.source_path, source_hash=context_document.source_hash,
+                                title=meta.title, heading=heading, ordinal=ordinal, offset=offset,
+                                chunk_text=chunk.text, normalized_document=context_document.normalized_text,
+                                policy=context_document.policy, source_byte_hash=context_document.source_byte_hash)
+        provider_description = await contextual_description(cache_identity(request, context_document.policy),
+                                                           request, context_document.policy)
+        description, embedding_text, provenance = search_metadata(
+            request, context_document.policy, fold_non_bmp(provider_description), provider_output=provider_description)
+        derived = dict(context_description=description, search_text=embedding_text, context_provenance=provenance)
+    table.declare_record(
+        row=row_type(
+            id=chunk_id,
+            source_path=meta.source_path,
+            ordinal=ordinal,
+            heading=heading,
+            text=chunk.text,
+            token_est=token_estimate(chunk.text),
+            doc_type=meta.doc_type,
+            project=project,
+            status=meta.status,
+            domains=list(meta.domains),
+            embedding=await coco.use_context(EMBEDDER).embed(embed_input(embedding_text, allow_truncation=context_document is None)),
+            **derived,
+        )
+    )
+
+    # The chunk->document link. RelationTarget emits a real
+    # `RELATE chunk:x->chunk_of->document:y` with raw record ids, so CDC owns
+    # the edge exactly as it owns the row: declared here, reconciled and
+    # deleted with the chunk. This is why there is no backfill pass.
+    edge.declare_relation(from_id=chunk_id, to_id=doc_id)
+
+
 # ---------------------------------------------------------------------------
 # Child component: one BOUNDED GROUP of chunks -> one mounted component ->
 # one SurrealDB transaction. See "CHUNK BATCHING" in the module docstring.
@@ -1011,6 +1146,25 @@ async def process_chunk_group(
 # ---------------------------------------------------------------------------
 
 
+@coco.fn
+async def process_contextual_chunk_group(
+    chunk_group: list[Chunk], doc_id: str, meta: DocMeta,
+    headings: list[tuple[int, str]], ordinals: dict[int, int],
+    table: surrealdb.TableTarget[ChunkRow], edge: surrealdb.RelationTarget[None],
+    project: str, context_document: ContextDocument,
+) -> None:
+    """Declare one bounded selected chunk group using sequential remote descriptions.
+
+    Inputs: existing bounded group/targets and versioned context. Output: original
+    chunk identities with derived search metadata. Side effects: remote calls and
+    CDC declarations. Use at the existing group subpath only for selected files;
+    the original chunk/group functions keep their logic fingerprints unchanged.
+    """
+    for chunk in chunk_group:
+        await process_contextual_chunk(chunk, doc_id, meta, headings, ordinals,
+                                       table, edge, project, context_document)
+
+
 @coco.fn(memo=True, version=8)
 async def process_file(
     file: FileLike,
@@ -1034,7 +1188,8 @@ async def process_file(
     if meta is None and source_path.startswith("docs/private/"):
         # docs/private is gitignored on purpose; it is never indexed.
         return
-    body = fold_non_bmp(decode_markdown(await file.read()))
+    source_bytes = await file.read()
+    body = fold_non_bmp(decode_markdown(source_bytes))
     if not body.strip():
         print(f"docstore: SKIP empty {file.file_path.path.as_posix()}", flush=True)
         return
@@ -1081,11 +1236,21 @@ async def process_file(
     # bounded group of chunks, so each group's writes flush in their own
     # SurrealDB transaction instead of all of this file's chunks sharing one.
     groups = group_for_batching(chunks, CHUNK_BATCH_ROWS)
-    group_handle = await coco.mount_each(
-        process_chunk_group,
-        enumerate(groups),
-        doc_id, meta, headings, ordinals, chunk_table, chunk_edge,
-    )
+    context_policy = getattr(file, "context_policy", None)
+    context_document = (ContextDocument(context_policy, hashlib.sha256(body.encode("utf-8")).hexdigest(), clean,
+                                       hashlib.sha256(source_bytes).hexdigest())
+                        if context_policy is not None else None)
+    if context_document is None:
+        group_handle = await coco.mount_each(
+            process_chunk_group, enumerate(groups),
+            doc_id, meta, headings, ordinals, chunk_table, chunk_edge,
+        )
+    else:
+        group_handle = await coco.mount_each(
+            coco.component_subpath(coco.Symbol("process_chunk_group")),
+            process_contextual_chunk_group, enumerate(groups),
+            doc_id, meta, headings, ordinals, chunk_table, chunk_edge, "probata", context_document,
+        )
     await group_handle.ready()
 
 
@@ -1113,7 +1278,8 @@ async def process_project_file(
     # an emoji hit the same surrogate-pair parse error in source_path that the body fold
     # already prevents. Stable ids come from slug(), which strips non-alphanumerics anyway.
     source_path = fold_non_bmp(canonical_prefix + file.file_path.path.as_posix())
-    body = fold_non_bmp(decode_markdown(await file.read()))
+    source_bytes = await file.read()
+    body = fold_non_bmp(decode_markdown(source_bytes))
     if not body.strip():
         print(f"docstore: SKIP empty {file.file_path.path.as_posix()}", flush=True)
         return
@@ -1148,11 +1314,21 @@ async def process_project_file(
     ordinals = {chunk.start.char_offset: index for index, chunk in enumerate(chunks)}
     # CHUNK BATCHING (module docstring): see process_file's identical comment.
     groups = group_for_batching(chunks, CHUNK_BATCH_ROWS)
-    group_handle = await coco.mount_each(
-        process_chunk_group,
-        enumerate(groups),
-        doc_id, meta, headings, ordinals, chunk_table, chunk_edge, project_id,
-    )
+    context_policy = getattr(file, "context_policy", None)
+    context_document = (ContextDocument(context_policy, hashlib.sha256(body.encode("utf-8")).hexdigest(), clean,
+                                       hashlib.sha256(source_bytes).hexdigest())
+                        if context_policy is not None else None)
+    if context_document is None:
+        group_handle = await coco.mount_each(
+            process_chunk_group, enumerate(groups),
+            doc_id, meta, headings, ordinals, chunk_table, chunk_edge, project_id,
+        )
+    else:
+        group_handle = await coco.mount_each(
+            coco.component_subpath(coco.Symbol("process_chunk_group")),
+            process_contextual_chunk_group, enumerate(groups),
+            doc_id, meta, headings, ordinals, chunk_table, chunk_edge, project_id, context_document,
+        )
     await group_handle.ready()
 
 
@@ -1174,7 +1350,8 @@ async def app_main() -> None:
     chunk_table = await surrealdb.mount_table_target(
         SURREAL_DB,
         "chunk",
-        await surrealdb.TableSchema.from_class(ChunkRow),
+        await surrealdb.TableSchema.from_class(
+            ContextualChunkRow if os.environ.get("DOCSTORE_CONTEXT_ENABLED") == "1" else ChunkRow),
         managed_by="user",
     )
 
@@ -1207,7 +1384,7 @@ async def app_main() -> None:
     # without failing the parent. Await readiness under a raising handler.
     async with coco.exception_handler(_raise_component_error):
         handle = await coco.mount_each(
-            process_file, files.items(), _MAPPING_FINGERPRINT,
+            process_file, contextual_items(files.items(), "docs/", os.environ), _MAPPING_FINGERPRINT,
             doc_table, chunk_table, chunk_edge,
         )
         await handle.ready()
@@ -1226,7 +1403,7 @@ async def app_main() -> None:
             project_handle = await coco.mount_each(
                 coco.component_subpath("project", source.project_id),
                 process_project_file,
-                project_files.items(),
+                contextual_items(project_files.items(), source.canonical_prefix, os.environ),
                 source.project_id,
                 source.canonical_prefix,
                 source.domains,

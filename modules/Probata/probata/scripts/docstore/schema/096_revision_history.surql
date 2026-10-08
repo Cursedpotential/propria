@@ -77,7 +77,7 @@ DEFINE FIELD IF NOT EXISTS at ON docstore_approval TYPE datetime
   READONLY;
 DEFINE INDEX IF NOT EXISTS docstore_approval_document_at ON docstore_approval FIELDS document, at;
 
-DEFINE FUNCTION IF NOT EXISTS fn::docstore_capture_revision PERMISSIONS FULL(
+DEFINE FUNCTION IF NOT EXISTS fn::docstore_capture_revision(
   $key: string,
   $path: string,
   $title: string,
@@ -177,9 +177,9 @@ DEFINE FUNCTION IF NOT EXISTS fn::docstore_capture_revision PERMISSIONS FULL(
     unchanged: false,
     content_appended: $changed,
   };
-};
+} PERMISSIONS FULL;
 
-DEFINE FUNCTION IF NOT EXISTS fn::docstore_approve_revision PERMISSIONS FULL(
+DEFINE FUNCTION IF NOT EXISTS fn::docstore_approve_revision(
   $key: string,
   $number: int,
   $hash: string,
@@ -233,4 +233,4 @@ DEFINE FUNCTION IF NOT EXISTS fn::docstore_approve_revision PERMISSIONS FULL(
     approved_revision = $head.current_revision,
     generation = $expected + 1;
   RETURN { approval: $approval, unchanged: false };
-};
+} PERMISSIONS FULL;

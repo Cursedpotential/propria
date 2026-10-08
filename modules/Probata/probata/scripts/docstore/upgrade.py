@@ -9,7 +9,7 @@ import sq
 
 VERSION = '0.8.1'
 SCHEMA = Path(__file__).parent / 'schema'
-MIGRATIONS = ('100_release_080.surql',)
+MIGRATIONS = ('100_release_080.surql', '101_contextual_chunks.surql')
 REQUIRED = {'document', 'chunk', 'adr', 'decision_log', 'entity', 'docstore_meta', 'docstore_migration',
             'docstore_enrichment', 'statement', 'entity_alias', 'about', 'asserts', 'statement_mentions', 'related_to', 'supports', 'contradicts'}
 
@@ -25,6 +25,12 @@ def digest(value):
 
 
 async def plan(db):
+    """Plan checksum-bound additive upgrades for an existing Docstore database.
+
+    Inputs: connected Docstore client. Output: reviewable migration plan and ID.
+    Side effects: database/file reads only. Pick this before explicit apply; adding
+    contextual fields does not index sources or enable contextual generation.
+    """
     info = rows(await db.query('INFO FOR DB;'))[0]
     tables = set(info.get('tables', {}))
     if not {'document', 'chunk', 'adr', 'decision_log', 'entity'} <= tables:

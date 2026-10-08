@@ -161,6 +161,13 @@ def keyword_terms(query: str) -> str:
 
 async def recall(query: str, kind: str = "doc", status: str = "all", k: int = 8, domain: str | None = None,
                  use_rerank: bool = True) -> tuple[list[dict], dict]:
+    """Recall documentation with existing hybrid ranks and optional contextual keywords.
+
+    Inputs: query/scope/result limit and rerank preference. Output: packed source
+    snippets and retrieval statistics. Side effects: database reads and remote
+    embedding/rerank calls. Select contextual keywords only after its schema exists;
+    raw text always remains the returned snippet and the fallback keyword index.
+    """
     doc_type = KINDS[kind]
     t0 = time.perf_counter()
     status_arg = None if status == "all" else status
@@ -173,6 +180,28 @@ async def recall(query: str, kind: str = "doc", status: str = "all", k: int = 8,
     embed_task = asyncio.create_task(asyncio.to_thread(embed, query))
     keyword_select = ("SELECT id, text, search::score(1) AS score, (->chunk_of->document)[0] AS doc FROM chunk "
                       "WHERE text @1@ ")
+    contextual_keywords = os.environ.get("DOCSTORE_CONTEXT_KEYWORDS", "") == "1"
+    context_select = ("SELECT id, text, search::score(1) AS score, (->chunk_of->document)[0] AS doc FROM chunk "
+                      "WHERE search_text @1@ ")
+
+    async def keyword_query(term_param, query_params, limit):
+        """Read raw BM25 plus optional contextual BM25 without duplicating chunk hits.
+
+        Inputs: bound term parameter/values and bounded limit. Output: merged rows.
+        Side effects: one or two sequential database reads. Use for both all-term
+        and per-term searches so uncontextualized rows keep the original path.
+        """
+        suffix = term_param + extra + f" ORDER BY score DESC LIMIT {limit};"
+        raw = _rows(await db.query(keyword_select + suffix, query_params))
+        if not contextual_keywords:
+            return raw
+        contextual = _rows(await db.query(context_select + suffix, query_params))
+        merged = {str(row["id"]): row for row in raw}
+        for row in contextual:
+            old = merged.get(str(row["id"]))
+            if old is None or row["score"] > old["score"]:
+                merged[str(row["id"])] = row
+        return list(merged.values())
 
     # 0.8.1-r2 (Claude Code · Opus 5.5, 2026-09-26): the any-term fallback used to run one BM25 query per
     # term, one after another, repeated terms included (16 terms: 7.7 s warm and over 30 s cold, past the
@@ -180,7 +209,7 @@ async def recall(query: str, kind: str = "doc", status: str = "all", k: int = 8,
     # queried concurrently on the one multiplexed connection (1.7 s measured for the same 16 terms), and
     # the vector leg (question embedding + KNN) runs alongside the keyword leg instead of after it.
     async def keyword_leg():
-        kw = _rows(await db.query(keyword_select + "$q" + extra + " ORDER BY score DESC LIMIT 80;", params))
+        kw = await keyword_query("$q", params, 80)
         terms = []
         for term in params["q"].split():
             if term.lower() not in {t.lower() for t in terms}:
@@ -194,8 +223,7 @@ async def recall(query: str, kind: str = "doc", status: str = "all", k: int = 8,
 
         async def one_term(term):
             async with gate:
-                return _rows(await db.query(keyword_select + "$t" + extra + " ORDER BY score DESC LIMIT 30;",
-                                            dict(params, t=term)))
+                return await keyword_query("$t", dict(params, t=term), 30)
 
         merged = {str(c["id"]): dict(c) for c in kw}
         for chunks in await asyncio.gather(*[one_term(term) for term in terms]):
