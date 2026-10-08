@@ -13,6 +13,7 @@ import { ReadSearch } from "@/components/read/read-search";
 import { Button } from "@/components/ui/button";
 import { importedApi, type ImportedSource } from "@/lib/imported-client";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
+import { ReadAnalysis } from "@/components/read/read-analysis";
 
 const SOURCE_COLUMNS: ImportedColumn<ImportedSource>[] = [
   { id: "file", title: "Source file", width: 220, grow: 1, phone: true, text: (source) => source.file_name },
@@ -113,6 +114,7 @@ export function ReadWorkspace() {
         </aside>
         <div className="min-w-0 space-y-5">
           <ReadSearch params={params} />
+          <ReadAnalysis params={params} />
           {threadId ? <ReadConversation key={`${threadId}:${around ?? ""}`} threadId={threadId} around={around} params={params} />
             : <section className="rounded-lg border border-border bg-card"><Empty>Choose a conversation or open a search result to start reading. Extracted context and source details appear alongside it.</Empty></section>}
         </div>

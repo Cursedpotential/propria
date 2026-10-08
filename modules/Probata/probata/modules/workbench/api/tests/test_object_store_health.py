@@ -99,16 +99,28 @@ def test_missing_or_wrong_store_configuration_fails_before_provider_io(monkeypat
     store.get_r2_client.assert_not_called()
 
 
-@pytest.mark.parametrize("root_url", ["r2://retired-vault/historical/", "b2://fixture-vault/"])
-def test_retired_or_whole_bucket_roots_never_trigger_a_storage_probe(monkeypatch, active_store, root_url) -> None:
+def test_retired_roots_never_trigger_a_storage_probe(monkeypatch, active_store) -> None:
+    """Reject the retired provider before making any storage request."""
     client, factory = active_store
     monkeypatch.setenv("OBJECT_STORES_JSON", '{"b2":"/fixture/b2.json","r2":"/fixture/retired.json"}')
     monkeypatch.setattr(
-        store, "SOURCE_ROOTS", parse_source_roots(json.dumps([{"id": "bad", "label": "Bad", "url": root_url}]))
+        store, "SOURCE_ROOTS", parse_source_roots('[{"id":"bad","label":"Bad","url":"r2://retired-vault/historical/"}]')
     )
     assert store.check_connectivity() is False
     assert client.calls == []
     factory.assert_not_called()
+    store.get_r2_client.assert_not_called()
+
+
+def test_explicit_whole_bucket_root_uses_a_bounded_read_only_probe(monkeypatch, active_store) -> None:
+    """Allow browsing an explicitly configured bucket using one metadata key only."""
+    client, factory = active_store
+    monkeypatch.setattr(
+        store, "SOURCE_ROOTS", parse_source_roots('[{"id":"bucket","label":"Bucket","url":"b2://fixture-vault/"}]')
+    )
+    assert store.check_connectivity() is True
+    assert client.calls == [{"Bucket": "fixture-vault", "Prefix": "", "MaxKeys": 1}]
+    factory.assert_called_once_with("b2")
     store.get_r2_client.assert_not_called()
 
 
