@@ -224,33 +224,10 @@ class Settings(BaseSettings):
 
     @property
     def mcp_server_configuration_errors(self) -> list[dict[str, str]]:
-        """Describe configured MCP doors excluded from the operator catalog.
+        """Return safe MCP catalog diagnostics without making a rejected door callable."""
+        from app.config.mcp_diagnostics import configuration_errors
 
-        Inputs: the MCP_SERVERS JSON and the diagnostic bypass setting. Outputs:
-        server labels with safe error text. Effects: none. Choose this for the
-        catalog display; mcp_servers_parsed remains the execution allowlist.
-        """
-        try:
-            servers = json.loads(self.mcp_servers)
-        except (TypeError, ValueError):
-            return [{"key": "mcp-config", "label": "Tool configuration", "error": "MCP_SERVERS is not valid JSON."}]
-        if not isinstance(servers, list):
-            return [{"key": "mcp-config", "label": "Tool configuration", "error": "MCP_SERVERS must be a list."}]
-        errors: list[dict[str, str]] = []
-        for index, server in enumerate(servers):
-            if not isinstance(server, dict):
-                errors.append({"key": f"mcp-config-{index}", "label": "Tool configuration", "error": "A configured MCP server is not an object."})
-                continue
-            if server.get("gateway") == "portkey" or self.mcp_direct_bypass_allowed:
-                continue
-            key = str(server.get("key") or f"mcp-config-{index}")
-            label = str(server.get("label") or key)
-            errors.append({
-                "key": key,
-                "label": label,
-                "error": "This MCP server is excluded: normal Workbench tools must use a Portkey gateway publication. Configure the Portkey MCP URL and token environment; direct bypass is disabled.",
-            })
-        return errors
+        return configuration_errors(self.mcp_servers, self.mcp_direct_bypass_allowed)
 
     @property
     def trusted_auth_proxy_cidrs_parsed(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
