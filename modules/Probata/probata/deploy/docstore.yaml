@@ -1,5 +1,5 @@
 # =============================================================================
-# DOCSTORE 0.9.0 — the documentation index, API and control MCP, built from git
+# DOCSTORE — code image with read-only staged documentation sources
 # =============================================================================
 # Byline: Claude Code · Opus 5 · 2026-09-28
 #
@@ -9,21 +9,14 @@
 # docs/pending-review/2026-09-28-docstore-0.9.0-git-build/README.md.
 #
 # COOLIFY APP SETTINGS (they differ from every other Probata app, on purpose):
-#   base_directory        /                       <- the MONOREPO ROOT, not the module: this image
-#                                                    assembles documentation from seven modules.
+#   base_directory        /                       <- the MONOREPO ROOT for service code.
 #   docker_compose_location  /modules/Probata/probata/deploy/docstore.yaml
 #   watch_paths           modules/Probata/probata/scripts/docstore/**
 #                         modules/Probata/probata/plugins/docstore/control/**
 #                         modules/Probata/probata/deploy/docker/docstore/**
 #                         modules/Probata/probata/deploy/docstore.yaml
-#                         modules/Probata/probata/docs/**
-#                         modules/Consignatio/docs/**
-#                         modules/Consignatio/Intake/docs/**
-#                         modules/Legal-desktop/docs/**
-#                         modules/vestigia-geodata_processor/vestigia/docs/**
-#                         modules/FL-MCP/docs/**
-#                         docs/**
-#   A docs push in ANY of those modules rebuilds this image; the start-up pass is the change event.
+#   Source changes are staged and verified under /data/probata/volumes/docstore-sources
+#   before an independently authorized deployment and indexing pass.
 #
 # COOLIFY ENVIRONMENT (values live in Coolify, never in this file — the previous service kept them
 # as literal compose values, so the Coolify API returned every key and password in full):
@@ -35,7 +28,9 @@
 # tailnet-only. They are the same ports the release service published, so the cutover is
 # stop-then-start with no client change.
 #
-# HOST-PREP (once): install -d -m 0750 /data/probata/volumes/docstore-worker
+# HOST-PREP (once): stage and verify /data/probata/volumes/docstore-sources
+#                   with registry monorepo_root=/app and all seven exact roots
+#                   install -d -m 0750 /data/probata/volumes/docstore-worker
 #                   install -d -m 0750 /data/propria/releases/docstore-0.9.0/control-state
 #                   install -d -m 0755 /data/probata/volumes/docstore-extras
 # =============================================================================
@@ -65,12 +60,11 @@ services:
       DOCSTORE_LLM_BASE_URL: ${DOCSTORE_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
       DOCSTORE_LLM_MODEL: ${DOCSTORE_LLM_MODEL:-nvidia/nemotron-3.5-lightning-30b-a3b}
       DOCSTORE_LLM_DISABLE_THINKING: '1'
-      # --- sources: in the image, from git ---------------------------------
-      # /app is the monorepo root as flow_docs.py computes it (parents[2] of its own file), so the
-      # registry's roots (docs, docs/probata, …) resolve to /app/docs/*. No host mirror, no sync.
+      # --- staged sources: read-only bind, complete registry ----------------
       DOCSTORE_PROJECT_REGISTRY: /app/docs/docstore-source-registry.json
       DOCSTORE_MULTI_ROOT_ENABLED: '1'
-      # Host-only documents merged over the git tree at start-up; see the /extras mount below.
+      DOCSTORE_SOURCES_READ_ONLY: '1'
+      # Private host additions must already exist with identical bytes under /app/docs.
       DOCSTORE_LOCAL_SOURCES: /extras
       # --- run state (the one bind mount; survives redeploys) ---------------
       DOCSTORE_COCOINDEX_DB: /data/state/cocoindex_state.db
@@ -91,11 +85,14 @@ services:
     volumes:
       - /data/probata/volumes/docstore-worker:/data/state
       - /data/propria/releases/docstore-0.9.0/control-state:/data/control
-      # Documents that are deliberately not in git and must never reach GitHub (owner
-      # 2026-09-28: "index them so that they're searchable but make sure they don't make it to
-      # GitHub"). Read-only, and service.py merges it additively: it may only ADD a file the
-      # image lacks, never replace one built from git. Populated from the desktop by
-      # tools/push-local-docstore-sources.py.
+      - type: bind
+        source: /data/probata/volumes/docstore-sources
+        target: /app/docs
+        read_only: true
+        bind:
+          create_host_path: false
+      # The private additions remain outside Git and are verified against the
+      # staged source tree at startup; this mount never writes into /app/docs.
       - /data/probata/volumes/docstore-extras:/extras:ro
     healthcheck:
       test:
