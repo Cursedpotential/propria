@@ -1,5 +1,5 @@
 # =============================================================================
-# DOCSTORE — code image with read-only staged documentation sources
+# DOCSTORE — code image with staged documentation sources and durable quarantine
 # =============================================================================
 # Byline: Claude Code · Opus 5 · 2026-09-28
 #
@@ -30,6 +30,7 @@
 #
 # HOST-PREP (once): stage and verify /data/probata/volumes/docstore-sources
 #                   with registry monorepo_root=/app and all seven exact roots
+#                   install -d -m 0750 /data/probata/volumes/docstore-quarantine
 #                   install -d -m 0750 /data/probata/volumes/docstore-worker
 #                   install -d -m 0750 /data/propria/releases/docstore-0.9.0/control-state
 #                   install -d -m 0755 /data/probata/volumes/docstore-extras
@@ -60,10 +61,10 @@ services:
       DOCSTORE_LLM_BASE_URL: ${DOCSTORE_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
       DOCSTORE_LLM_MODEL: ${DOCSTORE_LLM_MODEL:-nvidia/nemotron-3.5-lightning-30b-a3b}
       DOCSTORE_LLM_DISABLE_THINKING: '1'
-      # --- staged sources: read-only bind, complete registry ----------------
+      # --- staged sources: writable for ADR and governed source sync --------
       DOCSTORE_PROJECT_REGISTRY: /app/docs/docstore-source-registry.json
       DOCSTORE_MULTI_ROOT_ENABLED: '1'
-      DOCSTORE_SOURCES_READ_ONLY: '1'
+      DOCSTORE_SOURCES_STAGED: '1'
       # Private host additions must already exist with identical bytes under /app/docs.
       DOCSTORE_LOCAL_SOURCES: /extras
       # --- run state (the one bind mount; survives redeploys) ---------------
@@ -88,7 +89,11 @@ services:
       - type: bind
         source: /data/probata/volumes/docstore-sources
         target: /app/docs
-        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /data/probata/volumes/docstore-quarantine
+        target: /app/to_be_deleted
         bind:
           create_host_path: false
       # The private additions remain outside Git and are verified against the

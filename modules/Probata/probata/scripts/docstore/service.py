@@ -17,7 +17,7 @@ def validate_staged_sources(root: Path, *, require_mount: bool = False) -> dict:
 
     Inputs: service root and whether production requires a real docs mount. Output:
     registry path and root count. Effects: filesystem reads only. Choose in the
-    read-only service before starting APIs; writable legacy overlay uses its own path.
+    staged service before starting APIs; legacy additive overlay uses its own path.
     """
     from scope import ROOTS
     from source_registry import load_sources
@@ -26,6 +26,9 @@ def validate_staged_sources(root: Path, *, require_mount: bool = False) -> dict:
     docs = root / 'docs'
     if not docs.is_dir() or (require_mount and not docs.is_mount()):
         raise ValueError('Docstore requires the staged /app/docs bind mount')
+    quarantine = root / 'to_be_deleted'
+    if require_mount and (not quarantine.is_dir() or not quarantine.is_mount()):
+        raise ValueError('Docstore requires the durable /app/to_be_deleted bind mount')
     registry = docs / 'docstore-source-registry.json'
     if registry.is_symlink() or not registry.is_file():
         raise ValueError('Docstore staged source registry is missing or linked')
@@ -51,8 +54,8 @@ def verify_local_sources(root: Path) -> dict:
     """Require every private addition to have identical bytes in the staged docs bind.
 
     Inputs: service root and DOCSTORE_LOCAL_SOURCES mount. Output: verified file
-    count. Effects: filesystem reads only. Choose for read-only sources instead of
-    overlay_local_sources, which serves the older writable layout.
+    count. Effects: filesystem reads only. Choose for staged sources instead of
+    overlay_local_sources, which serves the older additive copy layout.
     """
     source = Path(os.environ.get('DOCSTORE_LOCAL_SOURCES', '/extras'))
     if source.is_symlink() or not source.is_dir():
@@ -78,7 +81,7 @@ def overlay_local_sources(root: Path) -> dict:
 
     Inputs: writable root and DOCSTORE_LOCAL_SOURCES. Output: merge counts.
     Effects: additive file copies only. Choose only for legacy writable layouts;
-    read-only binds use verify_local_sources.
+    staged binds use verify_local_sources before the APIs start.
 
     Owner ruling 2026-09-28: the session compact summaries are "indexed so that they're
     searchable" but must not "make it to GitHub" -- the same line drawn for dev-resources on
@@ -123,7 +126,7 @@ def main():
     service entry point; the worker owns indexing as a separate operation.
     """
     root=Path(__file__).resolve().parents[2]
-    if os.environ.get('DOCSTORE_SOURCES_READ_ONLY') == '1':
+    if os.environ.get('DOCSTORE_SOURCES_STAGED') == '1':
         print('docstore: staged sources', validate_staged_sources(root, require_mount=True), flush=True)
         print('docstore: private sources', verify_local_sources(root), flush=True)
     else:

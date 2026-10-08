@@ -70,7 +70,15 @@ def test_staged_sources_reject_wrong_monorepo_root(staged):
         service.validate_staged_sources(root)
 
 
-def test_read_only_private_sources_fail_on_missing_or_changed_staging(staged):
+def test_staged_startup_requires_durable_quarantine_mount(staged, monkeypatch):
+    root, _, _ = staged
+    docs = root / 'docs'
+    monkeypatch.setattr(Path, 'is_mount', lambda path: path == docs)
+    with pytest.raises(ValueError, match='to_be_deleted'):
+        service.validate_staged_sources(root, require_mount=True)
+
+
+def test_staged_private_sources_fail_on_missing_or_changed_staging(staged):
     root, extras, _ = staged
     target = root / 'docs/probata/private.md'
     target.write_bytes(b'# different\n')
@@ -92,8 +100,8 @@ def test_legacy_writable_overlay_remains_additive(staged):
     assert (root / 'docs/probata/new.md').read_bytes() == b'# new\n'
 
 
-def test_release_binds_sources_without_baking_documents():
-    """Assert the image and Compose file declare a code-only read-only source bind.
+def test_release_binds_writable_sources_and_durable_quarantine_without_baking_documents():
+    """Assert the code-only image has staged source and quarantine binds.
 
     Inputs: checked-in release definitions. Output: contract assertions. Effects:
     reads files only. Choose as a focused guard for this release boundary.
@@ -104,8 +112,12 @@ def test_release_binds_sources_without_baking_documents():
     assert 'COPY docs/' not in dockerfile
     assert 'COPY modules/Probata/probata/docs/' not in dockerfile
     assert 'COPY --from=docs' not in dockerfile
-    assert 'source: /data/probata/volumes/docstore-sources' in compose
-    assert 'target: /app/docs' in compose
-    assert 'read_only: true' in compose
-    assert 'create_host_path: false' in compose
-    assert "DOCSTORE_SOURCES_READ_ONLY: '1'" in compose
+    source_mount = compose.split('source: /data/probata/volumes/docstore-sources', 1)[1].split('source: /data/probata/volumes/docstore-quarantine', 1)[0]
+    quarantine_mount = compose.split('source: /data/probata/volumes/docstore-quarantine', 1)[1].split('# The private additions', 1)[0]
+    assert 'target: /app/docs' in source_mount
+    assert 'read_only: true' not in source_mount
+    assert 'create_host_path: false' in source_mount
+    assert 'target: /app/to_be_deleted' in quarantine_mount
+    assert 'create_host_path: false' in quarantine_mount
+    assert "DOCSTORE_SOURCES_STAGED: '1'" in compose
+    assert 'DOCSTORE_SOURCES_READ_ONLY' not in compose
