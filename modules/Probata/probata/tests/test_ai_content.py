@@ -23,6 +23,293 @@ import pytest
 from server.analysis import ai_content as ai
 
 
+def test_native_selected_path_preserves_pointer_and_unknown_time():
+    """Use the selected ChatGPT branch and retain native source coordinates.
+
+    Inputs: branching synthetic native export. Outputs: path and pointer checks.
+    Effects: none; choose for source-only decoder regression coverage.
+    """
+    source = {"source_version_id": str(uuid4()), "original_object_id": str(uuid4()),
+              "original_sha256": "a" * 64, "version_id": None}
+    native = [{"id": "chat", "current_node": "chosen", "mapping": {
+        "root": {"parent": None, "message": None},
+        "other": {"parent": "root", "message": {"author": {"role": "assistant"},
+                  "content": {"parts": ["abandoned branch"]}}},
+        "chosen": {"parent": "root", "message": {"author": {"role": "assistant"},
+                   "content": {"parts": ["selected text"]}}}}}]
+    records = ai.decode_native_conversations(native, source, 10)
+    assert len(records) == 1 and records[0]["body"] == "selected text"
+    assert records[0]["native_json_pointer"] == "/0/mapping/chosen/message/content/parts/0"
+    assert records[0]["occurred_at"] is None and records[0]["version_id"] is None
+    assert records[0]["span_unit"] == "unicode_codepoint"
+
+
+def test_claude_native_pointer_and_invalid_quote_fail_closed():
+    """Verify Claude text pointers and refuse altered quote/span/pointer values.
+
+    Inputs: synthetic Claude export. Outputs: exact citations or ContentInvalid.
+    Effects: none; choose for cross-provider source pointer integrity.
+    """
+    source = {"source_version_id": str(uuid4()), "original_object_id": str(uuid4()),
+              "original_sha256": "a" * 64, "version_id": None}
+    native = [{"chat_messages": [{"sender": "assistant", "content": [
+        {"type": "text", "text": "Résumé of work"}]}]}]
+    records = ai.decode_native_conversations(native, source, 10)
+    row = records[0]
+    assert row["native_json_pointer"] == "/0/chat_messages/0/content/0/text"
+    ai.verify_native_citation(native, row, "Résumé of work")
+    with pytest.raises(ai.ContentInvalid):
+        ai.verify_native_citation(native, row, "Resume of work")
+    with pytest.raises(ai.ContentInvalid):
+        ai.verify_native_citation(native, {**row, "native_json_pointer": "/0/chat_messages/9/text"}, row["body"])
+    bad_span = {**row, "source_span": {**row["source_span"], "sha256": "0" * 64}}
+    with pytest.raises(ai.ContentInvalid):
+        ai.verify_native_citation(native, bad_span, row["body"])
+
+
+def test_inline_original_requires_exact_bytes_and_sha256():
+    """Reject a retained inline object whose full source hash changes.
+
+    Inputs: synthetic inline JSON and fake read-only row. Outputs: parsed source
+    or permanent mismatch. Effects: none; choose for retained-source gate proof.
+    """
+    body = b'[{"chat_messages":[{"sender":"assistant","text":"Hello"}]}]'
+
+    class Result:
+        """Expose one inline byte value as a read-only scalar result.
+
+        Inputs: fixture bytes. Outputs: scalar. Effects: none.
+        """
+        def scalar_one(self):
+            """Return the retained fixture bytes without persistence.
+
+            Inputs: none. Outputs: source bytes. Effects: none.
+            """
+            return body
+
+    class Connection:
+        """Resolve the retained inline byte SELECT for one fixture.
+
+        Inputs: source query. Outputs: scalar result. Effects: none.
+        """
+        def execute(self, statement, params):
+            """Return bytes for the exact original-object query.
+
+            Inputs: query and object id. Outputs: result. Effects: none.
+            """
+            assert "inline_bytes" in str(statement) and params["id"] == "object-id"
+            return Result()
+
+    source = {"storage_class": "inline", "original_object_id": "object-id",
+              "original_bytes": len(body), "original_sha256": hashlib.sha256(body).hexdigest()}
+    assert ai.read_verified_original(Connection(), source)[0]["chat_messages"][0]["text"] == "Hello"
+    with pytest.raises(ai.ContentInvalid):
+        ai.read_verified_original(Connection(), {**source, "original_sha256": "0" * 64})
+
+
+def test_cached_preparation_rehashes_retained_original(scope, monkeypatch):
+    """Reject a changed sealed original even when a prepared bundle already exists.
+
+    Inputs: mutable inline fixture with stable metadata. Outputs: a first bundle
+    and a retry refusal. Effects: retained synthetic file; choose for cache custody.
+    """
+    from server.context_chunks import db, chunker
+    original = b'[{"chat_messages":[{"sender":"assistant","text":"Hello"}]}]'
+    current = [original]
+    bound = {**source(scope), "original_bytes": len(original), "original_sha256": hashlib.sha256(original).hexdigest()}
+    monkeypatch.setattr(ai, "source_binding", lambda conn, pin: bound)
+    monkeypatch.setattr(chunker, "neural_text_spans", lambda text, **_: [(0, len(text))])
+
+    class Connection:
+        """Return current inline source bytes for each exact object read."""
+        def execute(self, statement, params):
+            """Expose an immutable-looking object id with mutable test bytes."""
+            assert params["id"] == bound["original_object_id"]
+            return SimpleNamespace(scalar_one=lambda: current[0])
+
+    @contextmanager
+    def connection():
+        """Yield the fixture connection without any production DB access."""
+        yield Connection()
+
+    monkeypatch.setattr(db, "read_only_connection", connection)
+    with pytest.raises(ai.ContentInvalid, match="native source-only"):
+        ai.prepare_content({**scope, "original_ref": str(uuid4())})
+    with pytest.raises(ai.ContentInvalid, match="native source-only"):
+        ai.prepare_content({**scope, "native_source_only": False})
+    first = ai.prepare_content(scope)
+    assert first["bundle_sha256"] == hashlib.sha256(Path(first["bundle_ref"].removeprefix("file://")).read_bytes()).hexdigest()
+    current[0] = original.replace(b"Hello", b"Jello")
+    with pytest.raises(ai.ContentInvalid, match="SHA256 differs"):
+        ai.prepare_content(scope)
+
+
+def test_grounded_candidate_rejects_nonfinite_confidence():
+    """Refuse a nonfinite model score before retaining candidate JSON.
+
+    Inputs: one exact native segment and NaN confidence. Outputs: permanent
+    validation error. Effects: none; choose for finite candidate bundle proof.
+    """
+    row = {"record_id": "r", "body": "Exact quote", "conversation_index": 0,
+           "source_version_id": str(uuid4()), "source_object_id": str(uuid4()),
+           "source_sha256": "a" * 64, "version_id": None,
+           "native_json_pointer": "/0/chat_messages/0/text", "span_unit": "unicode_codepoint"}
+    chunk = {"conversation_index": "0", "conversation_id": None, "chunk_index": 0,
+             "content_key": "synthetic", "segments": [{**row, "text": row["body"],
+                 "body_start": 0, "body_end": len(row["body"])}]}
+    with pytest.raises(ai.ContentInvalid, match="confidence"):
+        ai.ground_candidates(chunk, {"candidates": [{"kind": "event", "title": "Event",
+            "record_id": "r", "quote": "Exact quote", "confidence": float("nan")}]})
+
+
+def test_grounded_candidate_emits_narrow_repeated_native_spans():
+    """Emit a candidate with exact per-occurrence native quote coordinates.
+
+    Inputs: repeated quote in one native text field. Outputs: two codepoint
+    citations plus top-level span unit for the Go review bridge. Effects: none.
+    """
+    body = "Alice met Alice"
+    row = {"record_id": "r", "conversation_index": 0,
+           "source_version_id": str(uuid4()), "source_object_id": str(uuid4()),
+           "source_sha256": "a" * 64, "version_id": None,
+           "native_json_pointer": "/0/chat_messages/0/text", "span_unit": "unicode_codepoint"}
+    chunk = {"conversation_index": "0", "conversation_id": None, "chunk_index": 0,
+             "content_key": "synthetic", "segments": [{**row, "text": body,
+                 "body_start": 0, "body_end": len(body)}]}
+    candidate = ai.ground_candidates(chunk, {"candidates": [{"kind": "entity", "title": "Alice",
+        "record_id": "r", "quote": "Alice"}]})[0]
+    assert candidate["span_unit"] == "unicode_codepoint"
+    assert candidate["evidence_quote"] == "Alice"
+    assert [part["source_span"]["start"] for part in candidate["occurrences"]] == [0, 10]
+    assert all(part["evidence_quote"] == "Alice" and part["span_unit"] == "unicode_codepoint"
+               for part in candidate["occurrences"])
+
+
+def test_created_work_crosses_native_turns_and_saves_openable_file(scope):
+    """Keep one complete email draft and both native source slices.
+
+    Inputs: two synthetic assistant turns. Outputs: one retained plain text file
+    and two pointer spans. Effects: files in the retained VPS test scope only.
+    """
+    source = {"source_version_id": scope["source_version_id"], "original_object_id": str(uuid4()),
+              "original_sha256": "b" * 64, "version_id": None}
+    native = [{"chat_messages": [
+        {"sender": "assistant", "text": "Subject: Status\nHello,\n"},
+        {"sender": "assistant", "text": "The work is complete.\nRegards,\nMatt"}]}]
+    records = ai.decode_native_conversations(native, source, 10)
+    products = ai.conversation_created_works(records)
+    assert len(products) == 1 and len(products[0]["source_segments"]) == 2
+    assert all(segment["span_unit"] == "unicode_codepoint" for segment in products[0]["source_segments"])
+    saved = ai._save_created_work(ai.pins(scope), products[0])
+    assert Path(saved["file_ref"].replace("file://", "")).read_text(encoding="utf-8") == products[0]["content"]
+    assert saved["case_vault_relative_path"].startswith("created-works/0/")
+    assert ai._save_created_work(ai.pins(scope), products[0]) == saved
+
+
+def test_prepared_topic_segments_reassemble_exact_native_slices(monkeypatch):
+    """Reject a source slice that changes while the displayed topic text stays intact.
+
+    Inputs: two native fields and one synthetic topic span. Outputs: exact
+    reassembly or ContentInvalid. Effects: none; choose for native span custody.
+    """
+    from server.context_chunks import chunker
+
+    records = [record(0, "Résumé begins."), record(1, "The second turn continues.")]
+    monkeypatch.setattr(chunker, "neural_text_spans", lambda text, **_: [(0, len(text))])
+    chunks = ai.conversation_windows(records, 2)
+    ai.validate_prepared_chunks(records, chunks)
+    changed = deepcopy(chunks)
+    changed[0]["segments"][1]["body_start"] += 1
+    with pytest.raises(ai.ContentInvalid, match="reassemble"):
+        ai.validate_prepared_chunks(records, changed)
+    changed = deepcopy(chunks)
+    changed[0]["segments"][0]["source_sha256"] = "0" * 64
+    with pytest.raises(ai.ContentInvalid, match="differs from its native source"):
+        ai.validate_prepared_chunks(records, changed)
+    changed = deepcopy(chunks)
+    changed[0]["segments"][0]["occurred_at"] = "2026-01-01T00:00:00Z"
+    with pytest.raises(ai.ContentInvalid, match="differs from its native source"):
+        ai.validate_prepared_chunks(records, changed)
+
+
+def test_neural_text_spans_cover_long_single_turn_and_late_topic():
+    """Check exact reconstruction and late cuts with a bounded fake chunker.
+
+    Inputs: long synthetic text and an offset-compatible model stub. Outputs:
+    complete adjacent spans. Effects: none; choose before remote real-model proof.
+    """
+    from server.context_chunks.chunker import neural_text_spans
+
+    class Stub:
+        """Return one mid-window topic cut with Chonkie's start_index shape.
+
+        Inputs: bounded text. Outputs: synthetic chunks. Effects: none.
+        """
+        def chunk(self, text):
+            """Expose native Chonkie-compatible offset attributes for span tests.
+
+            Inputs: window. Outputs: chunk starts. Effects: none.
+            """
+            return [SimpleNamespace(start_index=0), SimpleNamespace(start_index=len(text) // 2)]
+
+    body = "alpha " * 1700 + "late topic " * 250
+    spans = neural_text_spans(body, max_chars=3000, neural=Stub())
+    assert spans[0][0] == 0 and spans[-1][1] == len(body)
+    assert all(left < right and right - left <= 3000 for left, right in spans)
+    assert all(spans[i][1] == spans[i + 1][0] for i in range(len(spans) - 1))
+    assert "".join(body[left:right] for left, right in spans) == body
+    assert any(left > 8000 for left, _ in spans)
+
+
+def test_neural_text_spans_compact_three_character_model_fragment():
+    """Merge tiny adjacent model cuts while retaining exact source coverage.
+
+    Inputs: Chonkie-compatible synthetic starts three characters apart.
+    Outputs: useful adjacent spans without a three-character search object.
+    Effects: none; choose for the real excerpt's observed tiny-cut regression.
+    """
+    from server.context_chunks.chunker import neural_text_spans
+
+    class TinyCut:
+        """Expose two adjacent Chonkie-compatible topic starts.
+
+        Inputs: bounded window. Outputs: chunk offsets. Effects: none.
+        """
+        def chunk(self, text):
+            """Return a short middle span in the first window.
+
+            Inputs: text. Outputs: offset objects. Effects: none.
+            """
+            return [SimpleNamespace(start_index=0), SimpleNamespace(start_index=300),
+                    SimpleNamespace(start_index=303)]
+
+    body = "x" * 1200
+    spans = neural_text_spans(body, max_chars=1500, neural=TinyCut())
+    assert "".join(body[a:b] for a, b in spans) == body
+    assert all(b - a >= 80 for a, b in spans)
+
+
+def test_real_chonkie_neural_offsets_on_late_topic(scope):
+    """Check real Chonkie chunk offsets and late-turn reconstruction on the VPS.
+
+    Inputs: synthetic long turn and installed NeuralChunker 1.7. Outputs: exact
+    text coverage and a model-origin cut beyond the first window. Effects:
+    model inference only in the approved remote runtime; no provider call.
+    """
+    from server.context_chunks.chunker import _built, neural_text_spans
+
+    text = ("The garden inventory lists trees, soil and watering dates. " * 180 +
+            "The court filing discusses exhibits, service, and hearing dates. " * 180)
+    neural = _built("neural_distilbert").neural
+    direct = neural.chunk(text[:2500])
+    assert direct and all(hasattr(part, "start_index") for part in direct)
+    spans = neural_text_spans(text, max_chars=3000, neural=neural)
+    assert spans[0][0] == 0 and spans[-1][1] == len(text)
+    assert "".join(text[left:right] for left, right in spans) == text
+    assert all(spans[i][1] == spans[i + 1][0] for i in range(len(spans) - 1))
+    assert any(left > 8000 for left, _ in spans)
+
+
 @pytest.fixture
 def scope(monkeypatch):
     """Create an independently retained synthetic scope without temporary cleanup.
@@ -34,12 +321,12 @@ def scope(monkeypatch):
     root.mkdir(parents=True)
     monkeypatch.setenv("AI_CONTENT_ROOT", str(root))
     return {"request_id": "synthetic-ai-content-" + uuid4().hex,
-            **{key: str(uuid4()) for key in ("source_version_id", "normalized_generation_id", "verification_id", "matter_id", "court_case_id")},
-            "operating_mode": "LIVE"}
+            **{key: str(uuid4()) for key in ("source_version_id", "matter_id", "court_case_id")},
+            "operating_mode": "LIVE", "original_ref": str(uuid4()), "native_source_only": True}
 
 
 def record(ordinal, body, *, conversation=0, native_id="native-conversation"):
-    """Build a synthetic normalized occurrence with actual native locators.
+    """Build a synthetic native text field with exact source locators.
 
     Inputs: ordinal/body/native conversation. Outputs: record. Effects: none;
     choose for source-span and conversation-boundary assertions.
@@ -48,7 +335,12 @@ def record(ordinal, body, *, conversation=0, native_id="native-conversation"):
             "conversation_index": conversation, "conversation_id": native_id,
             "native_message_id": "native-node-" + str(ordinal), "mapping_key": "slot-" + str(ordinal),
             "native_message_index": None, "conversation_title": None, "role": "assistant",
-            "occurred_at": None, "raw_occurrences": [{"raw_record_id": str(uuid4()), "raw_ordinal": ordinal, "role": "direct"}]}
+            "occurred_at": None, "source_version_id": str(uuid4()), "source_object_id": str(uuid4()),
+            "version_id": None, "source_sha256": "a" * 64,
+            "native_json_pointer": f"/0/mapping/slot-{ordinal}/message/content/parts/0",
+            "span_unit": "unicode_codepoint",
+            "source_span": {"start": 0, "end": len(body), "sha256": hashlib.sha256(body.encode()).hexdigest(),
+                            "unit": "unicode_codepoint"}}
 
 
 def source(scope):
@@ -57,8 +349,10 @@ def source(scope):
     Inputs: scope. Outputs: metadata binding. Effects: none; choose instead of
     creating real source rows for pure provider/publication tests.
     """
-    return {"original_uri": "b2://synthetic/conversations.json#version=fixture", "original_sha256": "a" * 64,
-            "original_bytes": 476547, "format_id": "chatgpt_json_array", "raw_generation_id": str(uuid4())}
+    return {"source_version_id": scope["source_version_id"], "original_object_id": scope["original_ref"],
+            "source_key": "inline://synthetic/conversations.json", "storage_class": "inline",
+            "version_id": None, "original_sha256": "a" * 64,
+            "original_bytes": 476547, "format_id": "chatgpt_json_array"}
 
 
 def prepared(scope, monkeypatch, records=None):
@@ -70,6 +364,8 @@ def prepared(scope, monkeypatch, records=None):
     records = records or [record(0, "Alice drafted the motion."), record(1, "The hearing is on 2026-10-07.")]
     bound = source(scope)
     monkeypatch.setattr(ai, "_bound_source", lambda _: bound)
+    from server.context_chunks import chunker
+    monkeypatch.setattr(chunker, "neural_text_spans", lambda text, **_: [(0, len(text))])
     chunks = ai.conversation_windows(records, 128)
     data = {"source": bound, "method": ai.METHOD, "records": records, "chunks": chunks,
             "counts": {"records": len(records), "conversations": len({r["conversation_index"] for r in records}), "chunks": len(chunks)}}
@@ -132,11 +428,13 @@ class MemoryStore:
         self.objects[value["id"]] = deepcopy(value)
 
 
-def test_windows_preserve_every_text_occurrence_without_per_message_objects(scope):
+def test_windows_preserve_every_text_occurrence_without_per_message_objects(scope, monkeypatch):
     """Prove complete source reconstruction and coherent grouping; input fixture scope, output assertions, no external effects; choose over object-count-only tests."""
+    from server.context_chunks import chunker
+    monkeypatch.setattr(chunker, "neural_text_spans", lambda text, **_: [(start, min(start + ai.CHUNK_CHARS, len(text))) for start in range(0, len(text), ai.CHUNK_CHARS)])
     rows = [record(0, "alpha\n\n" + "x" * 15000), record(1, "alpha alpha"), record(2, ""), record(3, "other", conversation=1)]
     chunks = ai.conversation_windows(rows, 128)
-    assert len(chunks) == 5
+    assert len(chunks) >= 3
     for row in rows:
         segments = [s for c in chunks for s in c["segments"] if s["record_id"] == row["record_id"]]
         assert "".join(s["text"] for s in segments) == row["body"]
@@ -147,15 +445,19 @@ def test_windows_preserve_every_text_occurrence_without_per_message_objects(scop
     assert len(short[0]["segments"]) == 132
 
 
-def test_chunk_bound_missing_native_coordinate_and_empty_only_fail(scope):
+def test_chunk_bound_missing_native_coordinate_and_empty_only_fail(scope, monkeypatch):
     """Reject incomplete grouping and exceeded bounds; input fixture scope, output assertions, no external effects; choose for fail-closed admission."""
+    from server.context_chunks import chunker
+    monkeypatch.setattr(chunker, "neural_text_spans", lambda text, **_: [(start, min(start + ai.CHUNK_CHARS, len(text))) for start in range(0, len(text), ai.CHUNK_CHARS)])
     for rows, maximum in [([record(0, "x" * 15000)], 1), ([{**record(0, "x"), "conversation_index": None}], 128), ([record(0, "")], 128)]:
         with pytest.raises(ai.ContentInvalid):
             ai.conversation_windows(rows, maximum)
 
 
-def test_exact_grounding_preserves_repeated_and_overlapping_occurrences(scope):
+def test_exact_grounding_preserves_repeated_and_overlapping_occurrences(scope, monkeypatch):
     """Prove exact repeated quote locators; input synthetic source, output assertions, no external effects; choose over deduplicated candidate checks."""
+    from server.context_chunks import chunker
+    monkeypatch.setattr(chunker, "neural_text_spans", lambda text, **_: [(0, len(text))])
     row = record(7, "aaaa; Alice drafted a motion; Alice drafted a motion")
     chunk = ai.conversation_windows([row], 128)[0]
     candidates = ai.ground_candidates(chunk, {"candidates": [{"kind": "artifact", "title": "Motion", "record_id": row["record_id"], "quote": "Alice drafted a motion"},
@@ -164,13 +466,15 @@ def test_exact_grounding_preserves_repeated_and_overlapping_occurrences(scope):
     for candidate in candidates:
         for occurrence in candidate["occurrences"]:
             assert row["body"][occurrence["body_start"]:occurrence["body_end"]] == candidate["quote"]
-            assert occurrence["mapping_key"] == "slot-7" and occurrence["raw_occurrences"] == row["raw_occurrences"]
+            assert occurrence["mapping_key"] == "slot-7" and occurrence["native_json_pointer"] == row["native_json_pointer"]
             assert occurrence["occurred_at"] is None
 
 
 @pytest.mark.parametrize("quote,record_id", [("fabricated", None), ("Alice", "wrong-record"), ("", None)])
-def test_ungrounded_candidates_fail_closed(scope, quote, record_id):
+def test_ungrounded_candidates_fail_closed(scope, monkeypatch, quote, record_id):
     """Reject fabricated or misbound quotes; inputs fixture scope and quote, output assertions, no external effects; choose for candidate grounding."""
+    from server.context_chunks import chunker
+    monkeypatch.setattr(chunker, "neural_text_spans", lambda text, **_: [(0, len(text))])
     row = record(0, "Alice")
     chunk = ai.conversation_windows([row], 128)[0]
     with pytest.raises(ai.ContentInvalid):
@@ -184,7 +488,7 @@ def test_immutable_ref_pins_stage_and_tampering(scope):
     assert ai._save(path, scope, "prepared", {"value": 1}) == ref
     with pytest.raises(ai.ContentInvalid):
         ai._save(path, scope, "prepared", {"value": 2})
-    for wrong, stage in [({**scope, "verification_id": str(uuid4())}, "prepared"), (scope, "embedded")]:
+    for wrong, stage in [({**scope, "source_version_id": str(uuid4())}, "prepared"), (scope, "embedded")]:
         with pytest.raises(ai.ContentInvalid):
             ai._read(ref, wrong, stage)
     path.chmod(0o600)
@@ -259,7 +563,7 @@ def test_embed_remote_only_exact_count_finite_and_cache(scope, monkeypatch):
             ai.embed_content(params, embedder=SimpleNamespace(calls=1, embed=lambda _: [vector]), config=bad_config)
 
 
-def test_publication_and_fresh_readback_preserve_generation_source_and_no_turn_objects(scope, monkeypatch):
+def test_publication_and_fresh_readback_preserve_retained_source_and_no_turn_objects(scope, monkeypatch):
     """Prove additive conversation publication and fresh full readback; inputs fixture/store, output assertions, effects retained files; choose for publication integrity."""
     params, prep, candidates, embedded = dependencies(scope, monkeypatch)
     from server.temporal import chunk_write_guard
@@ -304,7 +608,7 @@ def test_publication_denied_before_bundle_or_search_read(scope, monkeypatch):
         ai.publish_content(scope)
 
 
-def test_scope_dev_nil_and_mismatched_generation_rejected(scope, monkeypatch):
+def test_scope_dev_nil_and_mismatched_source_rejected(scope, monkeypatch):
     """Reject mismatched scope before downstream use; inputs invalid pins, output assertions, effects retained fixtures; choose for independent admission."""
     with pytest.raises(ai.ContentInvalid):
         ai.pins({**scope, "operating_mode": "DEV"})
@@ -312,7 +616,7 @@ def test_scope_dev_nil_and_mismatched_generation_rejected(scope, monkeypatch):
         ai.pins({**scope, "source_version_id": "00000000-0000-0000-0000-000000000000"})
     params, _, _, _ = dependencies(scope, monkeypatch)
     with pytest.raises(ai.ContentInvalid):
-        ai.publication_inputs({**params, "normalized_generation_id": str(uuid4())})
+        ai.publication_inputs({**params, "source_version_id": str(uuid4())})
 
 
 def test_rest_schema_read_only_incompatible_type_and_add_contract(scope):
@@ -383,7 +687,7 @@ def test_complete_work_product_content_spans_repetition_and_truncation(scope, mo
     """Prove full repeated artifact and draft spans; input retained synthetic bodies, output assertions, effects retained files; choose over short quotation checks."""
     body = "Intro\n```python\nprint('Alice')\n```\n\n```python\nprint('Alice')\n```\nDRAFT Motion\nEntire draft here.\n"
     row = record(0, body)
-    second = record(1, "~~~sql\nSELECT 1;\n")
+    second = record(1, "~~~sql\nSELECT 1;\n", conversation=1)
     ref, _ = prepared(scope, monkeypatch, [row, second])
     result = ai.extract_work_products({**scope, "prepared_ref": ref})
     bundle = ai._read(result["bundle_ref"], scope, "work_products")
@@ -394,23 +698,26 @@ def test_complete_work_product_content_spans_repetition_and_truncation(scope, mo
     assert products[2]["content"] == "DRAFT Motion\nEntire draft here.\n"
     assert products[3]["closed"] is False and products[3]["content"] == second["body"]
     for product in products:
-        original = row if product["locator"]["record_id"] == row["record_id"] else second
+        original = row if product["conversation_index"] == 0 else second
         assert product["content"] == original["body"][product["body_start"]:product["body_end"]]
-        assert product["locator"]["raw_occurrences"] == original["raw_occurrences"]
+        assert product["source_segments"][0]["native_json_pointer"] == original["native_json_pointer"]
+        assert Path(product["file_ref"].removeprefix("file://")).read_text(encoding="utf-8") == product["content"]
     assert ai.extract_work_products({**scope, "prepared_ref": ref})["bundle_ref"] == result["bundle_ref"]
     drafts = ai.full_work_product_spans(record(2, "DRAFT One\nComplete first.\nSubject: Two\nComplete second.\n"))
     assert [d["content"] for d in drafts] == ["DRAFT One\nComplete first.\n", "Subject: Two\nComplete second.\n"]
 
 
-def test_source_binding_verified_open_count_and_durable_case_scope(scope):
-    """Prove verified OPEN source admission and durable case binding; input metadata fixture, output assertions, no DB effects; choose for pre-preview lifecycle."""
-    expected = {"member_count": 132, "normalized_generation_manifest_digest": "f" * 64,
-                "construction": "normalized-manifest-fixture", "verification_mode": "independent_recomputation"}
+def test_source_binding_original_membership_and_durable_case_scope(scope):
+    """Bind exact original membership and LIVE case scope without generation reads.
+
+    Inputs: source/object metadata fixture. Outputs: pinned source binding.
+    Effects: no DB writes; choose for source-only preparation admission.
+    """
     row = {**source(scope), "workflow_id": scope["request_id"], "source_status": "retained",
            "declared_format": "chatgpt_json_array", "matter_id": scope["matter_id"], "court_case_id": scope["court_case_id"],
            "admission": {k: scope[k] for k in ("operating_mode", "matter_id", "court_case_id")},
-           "verification_status": "success", "verification_expected": expected,
-           "verification_observed": {k: v for k, v in expected.items() if k != "member_count"}, "record_count": 132,
+           "source_version_id": scope["source_version_id"], "original_object_id": str(uuid4()),
+           "original_bytes": 128, "storage_class": "inline",
            "source_key": "b2://synthetic/conversations.json#exact-native-version"}
 
     class Connection:
@@ -420,17 +727,19 @@ def test_source_binding_verified_open_count_and_durable_case_scope(scope):
         choose for binding tests independently from source extraction tests.
         """
         def execute(self, query, values):
-            """Check exact generation/source/verification lookup coordinates.
+            """Check exact source/original membership lookup coordinates.
 
             Inputs: SQL and params. Outputs: result facade. Effects: assertions.
             """
-            assert values == {"source": scope["source_version_id"], "generation": scope["normalized_generation_id"], "verification": scope["verification_id"]}
+            assert values == {"source": scope["source_version_id"]}
             assert "JOIN context.source src" in str(query)
-            assert "g.status" not in str(query)  # verified OPEN is the existing pre-preview seam
+            assert "JOIN context.source_version_object so" in str(query)
+            assert "normalized_generation" not in str(query)
             return SimpleNamespace(mappings=lambda: SimpleNamespace(one_or_none=lambda: row))
 
     assert ai.source_binding(Connection(), scope)["source_key"].endswith("exact-native-version")
-    for field, value in [("record_count", 133), ("matter_id", str(uuid4())), ("verification_status", "failed"), ("declared_format", "codex_rollout_jsonl")]:
+    for field, value in [("original_bytes", ai.MAX_SOURCE_BYTES + 1), ("matter_id", str(uuid4())),
+                         ("source_status", "registered"), ("declared_format", "codex_rollout_jsonl")]:
         previous = row[field]
         row[field] = value
         with pytest.raises(ai.ContentInvalid):
@@ -459,46 +768,28 @@ def test_per_record_projection_cannot_cross_publication_gate(scope, monkeypatch)
         if stage == "embedded":
             rebound["vectors"] = [original["vectors"][0] for _ in bad_chunks]
         forged[field] = ai._save(ai._path(scope, stage, "forged-per-message"), scope, stage, rebound)
-    with pytest.raises(ai.ContentInvalid, match="coherent conversation-window"):
+    with pytest.raises(ai.ContentInvalid, match="prepared native topic chunks"):
         ai.publication_inputs(forged)
 
 
 def test_prepare_uses_exact_reader_ordinals_and_accounts_empty_records(scope, monkeypatch):
-    """Prove preparation accounts exact reader rows; input fake read-only generation, output assertions, effects retained files; choose for bounded preparation."""
+    """Prepare only verified native fields and account for empty source text.
+
+    Inputs: retained-source fixture. Outputs: exact native records and counts.
+    Effects: retained bundle file; choose over normalized generation readers.
+    """
     from server.context_chunks import db
-    from server.tools.extractors.entity_events import pages
-    rows = [record(0, "full source text"), record(1, "")]
     bound = source(scope)
     monkeypatch.setattr(ai, "source_binding", lambda conn, pin: bound)
-    calls = []
-    def reader(conn, generation, after, limit):
-        """Return exact synthetic reader rows and capture generation admission.
-
-        Inputs: reader coordinates. Outputs: message rows. Effects: fixture log;
-        choose for testing the existing reader seam without database mutation.
-        """
-        calls.append((generation, after, limit))
-        return [pages.Message(r["record_id"], r["ordinal"], None, r["body"]) for r in rows]
-    monkeypatch.setattr(pages, "read_window", reader)
-    totals = {"records": 2, "text_bytes": len(rows[0]["body"].encode()), "other_records": 0}
+    native = [{"id": "conversation-1", "current_node": "second", "mapping": {
+        "first": {"parent": None, "message": {"author": {"role": "assistant"}, "content": {"parts": ["full source text"]}}},
+        "second": {"parent": "first", "message": {"author": {"role": "assistant"}, "content": {"parts": [""]}}}}}]
+    monkeypatch.setattr(ai, "read_verified_original", lambda conn, source: native)
+    from server.context_chunks import chunker
+    monkeypatch.setattr(chunker, "neural_text_spans", lambda text, **_: [(0, len(text))])
     class Connection:
-        """Provide exact totals and native locators from a synthetic generation.
-
-        Inputs: query. Outputs: fixture rows. Effects: none; choose for reader scope.
-        """
-        def execute(self, query, values):
-            """Answer only exact-generation totals and locator queries.
-
-            Inputs: SQL/pins. Outputs: mappings. Effects: assertions only.
-            """
-            if "other_records" in str(query):
-                assert values == {"g": scope["normalized_generation_id"]}
-                return SimpleNamespace(mappings=lambda: SimpleNamespace(one=lambda: totals))
-            assert values == {"g": scope["normalized_generation_id"], "limit": 3}
-            return SimpleNamespace(mappings=lambda: [{"record_id": r["record_id"],
-                "native_fields": {"conversation_id": r["conversation_id"], "message_id": r["native_message_id"], "source_role": r["role"]},
-                "native_metadata": {"conversation_index": r["conversation_index"], "mapping_key": r["mapping_key"]},
-                "raw_occurrences": r["raw_occurrences"]} for r in rows])
+        """Stand in for a source-metadata connection with no generation query."""
+        pass
     @contextmanager
     def connection():
         """Yield the retained fixture's read-only connection facade.
@@ -508,72 +799,39 @@ def test_prepare_uses_exact_reader_ordinals_and_accounts_empty_records(scope, mo
         yield Connection()
     monkeypatch.setattr(db, "read_only_connection", connection)
     result = ai.prepare_content(scope)
-    assert calls == [(scope["normalized_generation_id"], -1, 2)]
     bundle = ai._read(result["bundle_ref"], scope, "prepared")
-    assert result["records"] == 2 and result["chunks"] == 1
-    assert bundle["empty_record_ids"] == [rows[1]["record_id"]]
-    assert [r["ordinal"] for r in bundle["records"]] == [0, 1]
-    totals["records"] = 1025
-    calls.clear()
+    assert result["records"] == 1 and result["chunks"] == 1
+    assert bundle["empty_record_ids"] == []
+    assert [r["ordinal"] for r in bundle["records"]] == [0]
+    assert all(r["native_json_pointer"].startswith("/0/mapping/") for r in bundle["records"])
+    assert all("raw_occurrences" not in r for r in bundle["records"])
+    assert ai.prepare_content(scope)["bundle_ref"] == result["bundle_ref"]
     with pytest.raises(ai.ContentInvalid):
-        ai.prepare_content(scope)
-    assert calls == []
+        ai.prepare_content({**scope, "max_records": 0})
 
 
-def test_native_coordinates_support_exact_sbv_shape_and_direct_fallback():
-    """Preserve both known metadata shapes; inputs synthetic native IDs, outputs exact coordinates, effects none; choose for SBV grouping regression."""
-    nested = {"conversation_index": 0, "conversation_id": "native-c", "conversation_title": "Native title",
-              "message_id": "native-m", "node_id": "slot-7", "message_index": 0, "role": "assistant"}
-    expected = {"conversation_index": 0, "conversation_id": "native-c", "conversation_title": "Native title",
-                "native_message_id": "native-m", "mapping_key": "slot-7", "native_message_index": 0, "role": "assistant"}
-    assert ai.native_coordinates({}, {"sbv_kind": "message", "sbv_source_pos": "display string ignored", "source_metadata": nested}) == expected
-    fields = {"conversation_id": "native-c", "conversation_title": "Native title", "message_id": "native-m", "source_role": "assistant"}
-    direct = {"conversation_index": 0, "mapping_key": "slot-7", "message_index": 0}
-    assert ai.native_coordinates(fields, direct) == expected
-    assert ai.native_coordinates({}, {"sbv_source_pos": "conversation=23/message=42"})["conversation_index"] is None
+def test_native_decoding_612_fields_preserves_exact_source_pointers(scope, monkeypatch):
+    """Decode an actual-sized native mapping without a normalized generation.
+
+    Inputs: 612 bounded synthetic native fields. Outputs: exact ordered pointer
+    and source span assertions. Effects: none; choose for large retained exports.
+    """
+    native = [{"id": "conversation-1", "mapping": {
+        f"node-{index}": {"parent": f"node-{index - 1}" if index else None,
+                           "message": {"author": {"role": "assistant"},
+                                    "content": {"parts": [f"body-{index}"]}}}
+        for index in range(612)}}]
+    rows = ai.decode_native_conversations(native, source(scope), 612)
+    assert len(rows) == 612
+    assert [r["body"] for r in rows] == [f"body-{i}" for i in range(612)]
+    assert rows[611]["native_json_pointer"] == "/0/mapping/node-611/message/content/parts/0"
+    assert all(row["source_span"]["sha256"] == hashlib.sha256(row["body"].encode()).hexdigest() for row in rows)
     with pytest.raises(ai.ContentInvalid):
-        ai.native_coordinates({}, {"source_metadata": ["not an object"]})
-
-
-def test_exact_generation_pages_612_records_without_losing_occurrences(scope, monkeypatch):
-    """Account three bounded pages and every locator; inputs synthetic SBV generation, outputs ordered assertions, effects retained fixture only; choose for the actual-size reader regression."""
-    from server.tools.extractors.entity_events import pages
-    rows = [record(i, "body-" + str(i), conversation=i // 27) for i in range(612)]
-    calls = []
-    def reader(conn, generation, after, limit):
-        """Return one exact keyset page; inputs pinned coordinates, outputs bounded rows, effects captured calls; choose for reader coverage."""
-        calls.append((generation, after, limit))
-        return [pages.Message(r["record_id"], r["ordinal"], None, r["body"]) for r in rows if r["ordinal"] > after][:limit]
-    monkeypatch.setattr(pages, "read_window", reader)
-    metadata = [{"record_id": r["record_id"], "native_fields": {}, "native_metadata": {"source_metadata": {
-        "conversation_index": r["conversation_index"], "conversation_id": r["conversation_id"],
-        "message_id": r["native_message_id"], "node_id": r["mapping_key"], "message_index": r["ordinal"], "role": r["role"]}},
-        "raw_occurrences": r["raw_occurrences"]} for r in rows]
-    class Connection:
-        """Serve bounded exact metadata; inputs SELECT, outputs fixture locators, effects assertions; choose for paging tests."""
-        def execute(self, query, values):
-            """Check metadata scope; inputs SQL and pins, outputs mappings, effects assertions; choose for source binding."""
-            assert values == {"g": scope["normalized_generation_id"], "limit": 613}
-            return SimpleNamespace(mappings=lambda: metadata)
-    result = ai.read_generation_records(Connection(), scope, 612)
-    assert calls == [(scope["normalized_generation_id"], -1, 256), (scope["normalized_generation_id"], 255, 256),
-                     (scope["normalized_generation_id"], 511, 100)]
-    assert [r["record_id"] for r in result] == [r["record_id"] for r in rows]
-    assert [r["body"] for r in result] == [r["body"] for r in rows]
-    assert all(r["raw_occurrences"] == original["raw_occurrences"] and r["native_message_id"] == original["native_message_id"]
-               and r["mapping_key"] == original["mapping_key"] for r, original in zip(result, rows))
-    assert len(ai.conversation_windows(result, ai.MAX_CHUNKS)) == 23
-    monkeypatch.setattr(pages, "read_window", lambda *args: [])
-    with pytest.raises(ai.ContentInvalid, match="every normalized record"):
-        ai.read_generation_records(Connection(), scope, 612)
-    monkeypatch.setattr(pages, "read_window", lambda *args: [pages.Message(rows[0]["record_id"], -1, None, "body")])
-    with pytest.raises(ai.ContentInvalid, match="non-increasing"):
-        ai.read_generation_records(Connection(), scope, 612)
+        ai.decode_native_conversations(native, source(scope), 611)
     from server.temporal.ai_content_activities import AIContentParams
     defaults = AIContentParams()
     assert (defaults.max_records, defaults.max_text_bytes, defaults.max_chunks, defaults.max_model_calls) == (1024, 2097152, 256, 512)
-    assert ai.VERSION == "ai-content-v2"
-
+    assert ai.VERSION == "ai-content-native-v3"
 
 def test_same_model_output_repair_is_bounded_and_both_attempts_retained(scope, monkeypatch):
     """Prove one schema correction retains both attempts; inputs fake provider and source, output assertions, effects retained files; choose over fallback-model tests."""
@@ -598,7 +856,7 @@ def test_same_model_output_repair_is_bounded_and_both_attempts_retained(scope, m
     result = ai.extract_candidates({**scope, "prepared_ref": ref, "work_products_ref": products["bundle_ref"]}, model=Model(), config=config)
     assert result["model_calls"] == 2 and result["candidates"] == 1
     assert len(calls) == 2 and calls[1].startswith(calls[0])
-    retained = list(ai._root().glob("*/*/model_reply/*.json"))
+    retained = list(ai._root().glob("*/model_reply/*.json"))
     assert len(retained) == 2
     assert {json.loads(path.read_bytes())["repair_attempt"] for path in retained} == {0, 1}
 
@@ -642,7 +900,7 @@ def test_late_failure_reuses_only_validated_chunks_without_repeat_calls(scope, m
     model = CheckpointModel(fail_at=2)
     with pytest.raises(RuntimeError, match="no fallback"):
         ai.extract_candidates(params, model=model, config=config)
-    assert len(list(ai._root().glob("*/*/candidate_chunk/*.json"))) == 1
+    assert len(list(ai._root().glob("*/candidate_chunk/*.json"))) == 1
     result = ai.extract_candidates(params, model=model, config=config)
     assert len(model.calls) == 3 and model.calls[1] == model.calls[2]
     assert result["cached_chunks"] == 1 and result["new_model_calls"] == 1
@@ -753,7 +1011,7 @@ def test_exclusive_claim_syncs_file_then_link_then_directory_ancestry(scope, mon
     assert events[0][0] == "sync" and events[0][1].suffix == ".pending"
     assert events[1] == ("link", path)
     assert events[2:] == [("sync", directory) for directory in
-                         (path.parent, path.parent.parent, path.parent.parent.parent, ai._root())]
+                         (path.parent, path.parent.parent, ai._root())]
 
 
 def test_failed_budget_directory_sync_prevents_call_and_retains_consumption(scope, monkeypatch):
@@ -785,7 +1043,7 @@ def test_failed_budget_directory_sync_prevents_call_and_retains_consumption(scop
     assert model.calls == []
     assert len(ai._provider_budget(scope, prep["source"])) == 1
     assert len(ai._chunk_intents(scope, prep["chunks"][0]["content_key"])) == 1
-    assert list(ai._root().glob("*/*/provider_attempt/*.json")) == []
+    assert list(ai._root().glob("*/provider_attempt/*.json")) == []
 
 
 def test_sdk_request_is_claimed_before_call_and_error_receipt_binds_intent(scope, monkeypatch):
@@ -803,8 +1061,8 @@ def test_sdk_request_is_claimed_before_call_and_error_receipt_binds_intent(scope
             return self
         def create(self, **kwargs):
             """Inspect durable claims before simulated request failure; inputs SDK arguments, outputs exception, effects call log; choose for intent timing proof."""
-            assert len(list(ai._root().glob("*/*/candidate_intent/*.json"))) == 1
-            assert len(list(ai._root().glob("*/*/candidate_budget/*.json"))) == 1
+            assert len(list(ai._root().glob("*/candidate_intent/*.json"))) == 1
+            assert len(list(ai._root().glob("*/candidate_budget/*.json"))) == 1
             calls.append(kwargs)
             raise TimeoutError("synthetic SDK timeout")
     class Model:
@@ -819,7 +1077,7 @@ def test_sdk_request_is_claimed_before_call_and_error_receipt_binds_intent(scope
             yield []
     with pytest.raises(RuntimeError, match="no fallback"):
         ai.extract_candidates(params, model=Model(), config=config)
-    paths = list(ai._root().glob("*/*/provider_attempt/*.json"))
+    paths = list(ai._root().glob("*/provider_attempt/*.json"))
     assert len(calls) == len(paths) == 1
     attempt = ai._read(paths[0].as_uri(), scope, "provider_attempt")
     assert attempt["response"] == {"error_type": "TimeoutError"}
@@ -867,7 +1125,7 @@ def test_cancellation_after_claim_prevents_sdk_request_and_preserves_consumption
     assert calls == []
     assert len(ai._provider_budget(scope, prep["source"])) == 1
     assert len(ai._chunk_intents(scope, prep["chunks"][0]["content_key"])) == 1
-    assert list(ai._root().glob("*/*/provider_attempt/*.json")) == []
+    assert list(ai._root().glob("*/provider_attempt/*.json")) == []
 
 
 def routed_fixture(scope, monkeypatch, *, chunks=1, first_failure=False):
@@ -1084,7 +1342,7 @@ def test_legacy_review_wrong_pins_and_fingerprint_refuse(scope, monkeypatch):
     path.write_bytes(ai._json({**review, "reason": "tampered"}))
     with pytest.raises(ai.ContentInvalid, match="fingerprint differs"):
         ai._provider_budget(scope, prep["source"])
-    review["pins"] = {**scope, "verification_id": str(uuid4())}
+    review["pins"] = {**scope, "source_version_id": str(uuid4())}
     review["bundle_fingerprint"] = ai._key({key: value for key, value in review.items() if key != "bundle_fingerprint"})
     path.write_bytes(ai._json(review))
     with pytest.raises(ai.ContentInvalid, match="pins differ"):

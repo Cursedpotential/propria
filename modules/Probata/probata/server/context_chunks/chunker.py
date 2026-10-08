@@ -34,6 +34,7 @@ from server.context_chunks.config import DEFAULT_CHUNKER, DEFAULT_OVERLAP, MAX_C
 
 NEURAL_DISTILBERT_MODEL = "mirth/chonky_distilbert_base_uncased_1"
 NEURAL_MODERNBERT_MODEL = "mirth/chonky_modernbert_large_1"
+MAX_AI_NEURAL_WINDOWS = 1024
 TEXT_FORMAT = "line-v1"  # the chunk-text construction (render.render_line); part of the chunker version
 
 
@@ -223,3 +224,69 @@ def chunk_spans(
         engine = TextEngine(engine)
     spans = split_oversize(spans_from_firsts(engine.firsts(lines, beat), n), lines, max_chars)
     return widen(spans, n, overlap)
+
+
+def neural_text_spans(
+    text: str,
+    *,
+    max_chars: int = MAX_CHUNK_CHARS,
+    neural: Any = None,
+) -> list[tuple[int, int]]:
+    """Partition one native text, including a long single turn, at NeuralChunker topic boundaries.
+
+    Inputs: source text, maximum returned characters, optional injected Chonkie
+    NeuralChunker. Outputs: adjacent code-point spans covering the exact text.
+    Effects: model inference only when no chunker is injected; choose for AI
+    export prose rather than message-boundary thread chunking. The bounded
+    windows avoid NeuralChunker's first-token-window truncation.
+    """
+    if not text:
+        return []
+    if max_chars <= 0:
+        raise ValueError("max_chars must be positive")
+    engine = neural if neural is not None else _built("neural_distilbert").neural
+    # Classify short windows with context on both sides; a long message must not
+    # bypass inference merely because there is only one message in its thread.
+    # Chonkie's model sees a bounded token prefix, so token-count each proposed
+    # window before asking it to split the text.
+    windows: list[tuple[int, int]] = []
+    start = 0
+    while start < len(text):
+        end = min(len(text), start + min(max_chars, 1500))
+        tokenizer = getattr(engine, "tokenizer", None)
+        if tokenizer is not None:
+            while end > start + 1 and tokenizer.count_tokens_batch([text[start:end]])[0] > NEURAL_WINDOW_TOKENS:
+                end = start + max(1, (end - start) // 2)
+        windows.append((start, end))
+        if len(windows) > MAX_AI_NEURAL_WINDOWS:
+            raise ValueError("AI conversation exceeds bounded NeuralChunker windows")
+        if end == len(text):
+            break
+        start += max(1, (end - start) * 3 // 4)
+    cuts_between = [(windows[i][1] + windows[i + 1][0]) // 2 for i in range(len(windows) - 1)]
+    cuts = {0, len(text)}
+    for index, (start, end) in enumerate(windows):
+        chunks = engine.chunk(text[start:end])
+        keep_low = 0 if index == 0 else cuts_between[index - 1]
+        keep_high = len(text) if index == len(windows) - 1 else cuts_between[index]
+        for chunk in chunks:
+            cut = start + int(chunk.start_index)
+            if keep_low < cut < keep_high:
+                cuts.add(cut)
+    ordered = sorted(cuts)
+    # Neural classification can place adjacent boundaries a few characters
+    # apart. Those fragments are poor search units and convey no useful topic.
+    minimum = min(80, max(1, max_chars // 4))
+    compact = [ordered[0]]
+    for cut in ordered[1:-1]:
+        if cut - compact[-1] >= minimum and len(text) - cut >= minimum:
+            compact.append(cut)
+    compact.append(ordered[-1])
+    spans = []
+    for left, right in zip(compact, compact[1:]):
+        while right - left > max_chars:
+            spans.append((left, left + max_chars))
+            left += max_chars
+        if left < right:
+            spans.append((left, right))
+    return spans
