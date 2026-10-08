@@ -37,7 +37,7 @@ import {
   getDecodedExists,
   getProfferBatch,
   getUnitsUnderPrefix,
-  inspectProfferSource,
+  previewProfferSource,
   listProfferProposalResources,
   listProfferSources,
   listSourceUnitMarks,
@@ -183,7 +183,7 @@ function SourcesScreenMode() {
 
   const inspectionQuery = useQuery({
     queryKey: ["sources", "inspection", mode, activeRootId, selectedObject?.source_ref],
-    queryFn: ({ signal }) => inspectProfferSource(selectedObject!, mode, activeRootId, signal),
+    queryFn: ({ signal }) => previewProfferSource(selectedObject!, mode, activeRootId, signal),
     enabled: Boolean(selectedObject && activeRootId),
     retry: false,
   });

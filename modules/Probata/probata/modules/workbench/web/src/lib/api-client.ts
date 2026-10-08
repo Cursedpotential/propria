@@ -99,6 +99,7 @@ import type {
   ProfferUploadResponse,
   ProfferSourceBrowserResponse,
   ProfferSourceInspection,
+  ProfferSourcePreview,
   ProfferSourceObject,
   ProfferHumanSourceAssertions,
   ProfferObservedSource,
@@ -747,6 +748,46 @@ export function listProfferSources(params: {
     }
     return response;
   });
+}
+
+/** Describe one selected file without downloading or hashing its body.
+ * Inputs: listed source, root ID and mode label. Output: ETag-pinned reader URL.
+ * Effect: metadata GET; use for selection, leaving processing to its own action.
+ */
+export function previewProfferSource(source: ProfferSourceObject, mode: MatterMode, rootId: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({
+    mode, root_id: rootId, key: source.key, source_ref: source.source_ref,
+    expected_byte_length: String(source.byte_length),
+  });
+  if (source.etag) query.set("expected_etag", source.etag);
+  return apiFetch<ProfferSourcePreview>(`/api/proffer/source-inspection?${query.toString()}`, {
+    signal,
+  }).then((response) => {
+    if (response.matter_mode !== mode) throw new ApiError("The source inspection did not confirm the active DEV/LIVE mode", 502);
+    if (response.active_root_id !== rootId || response.source_ref !== source.source_ref) throw new ApiError("The source inspection did not confirm the selected source location", 502);
+    return response;
+  });
+}
+
+/** Read at most 250 KB of a selected text source through its ETag-pinned reader.
+ * Inputs: same-origin preview descriptor and cancellation signal. Output: text
+ * and whether more bytes exist. Effect: one Range GET; no hashing or processing.
+ */
+export async function getProfferSourceText(inspection: ProfferSourcePreview, signal?: AbortSignal) {
+  const limit = 250_000;
+  if (!inspection.preview_url) throw new ApiError("This source has no reader URL", 502);
+  if (inspection.byte_length === 0) return { text: "", truncated: false };
+  const end = Math.min(inspection.byte_length, limit) - 1;
+  const response = await fetch(`${API_BASE}${inspection.preview_url}`, {
+    signal, headers: { Range: `bytes=0-${end}` },
+  });
+  if (response.status !== 206 || response.headers.get("ETag") !== inspection.etag
+      || response.headers.get("Content-Range") !== `bytes 0-${end}/${inspection.byte_length}`
+      || response.headers.get("Content-Length") !== String(end + 1)) {
+    await response.body?.cancel();
+    throw new ApiError("The source reader did not confirm the selected byte range and ETag", response.status);
+  }
+  return { text: await response.text(), truncated: inspection.byte_length > limit };
 }
 
 export function inspectProfferSource(source: ProfferSourceObject, mode: MatterMode, rootId: string, signal?: AbortSignal) {

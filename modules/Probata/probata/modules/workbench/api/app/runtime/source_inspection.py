@@ -11,6 +11,9 @@ from typing import Annotated
 from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
+from app.service.source_inspection import preview_source
+from app.types.source_inspection import SourcePreviewResponse
+from app.types.matter_mode import MatterMode
 from app.runtime.operating_mode import OperatingMode
 from app.service.proffer import ProfferError
 from app.service.source_context import create_source_context, run_source_context
@@ -37,6 +40,30 @@ def _actor(request: Request) -> ProfferDecisionActor:
     if not subject_uid or not username:
         raise HTTPException(status_code=401, detail="authenticated subject identity is unavailable")
     return ProfferDecisionActor(subject_uid=subject_uid, username=username)
+
+
+@router.get("/source-inspection", response_model=SourcePreviewResponse)
+def source_preview_endpoint(
+    root_id: Annotated[str, Query(min_length=1, max_length=64)],
+    key: Annotated[str, Query(min_length=1, max_length=1024)],
+    source_ref: Annotated[str, Query(min_length=1, max_length=2048)],
+    expected_byte_length: Annotated[int, Query(ge=0)],
+    expected_etag: Annotated[str | None, Query(min_length=1, max_length=512)] = None,
+    mode: Annotated[MatterMode, Query()] = "LIVE",
+) -> SourcePreviewResponse:
+    """Return read-only metadata and the existing stream URL for file selection.
+
+    Inputs: selected root/key, listing identity and response mode label. Output:
+    reader descriptor with no checksum claim. Effects: one HEAD and no body read.
+    Use GET to preview; POST remains the explicit small-source checksum operation.
+    """
+    try:
+        return preview_source(SourceInspectionRequest(
+            root_id=root_id, key=key, source_ref=source_ref,
+            expected_byte_length=expected_byte_length, expected_etag=expected_etag,
+        ), mode=mode)
+    except SourceInspectionError as error:
+        raise _translate(error) from None
 
 
 @router.post("/source-inspection", response_model=SourceInspectionResponse)

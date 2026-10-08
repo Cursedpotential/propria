@@ -1024,7 +1024,7 @@ export interface ProfferParserCandidate {
 }
 
 export interface ProfferSourceInspection {
-  source: "casebible-raw" | "casebible-sorted" | "casebible-quarantine";
+  source: string;
   root_id: string;
   key: string;
   source_ref: string;
@@ -1049,6 +1049,13 @@ export interface ProfferSourceInspection {
   };
   matter_mode: MatterMode;
 }
+
+/** Metadata-only selection descriptor; checksum inspection keeps its strict digest type. */
+export type ProfferSourcePreview = Omit<ProfferSourceInspection, "sha256" | "digest_status" | "preview_kind"> & {
+  sha256: null;
+  digest_status: "not_computed";
+  preview_kind: "pdf" | "text" | "image" | "audio" | "video" | "unsupported";
+};
 
 export interface ProfferHumanSourceAssertions {
   source_class: "first_party" | "acquired_third_party" | "unknown";

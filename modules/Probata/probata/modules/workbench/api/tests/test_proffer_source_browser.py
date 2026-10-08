@@ -254,6 +254,65 @@ def test_source_inspection_hashes_immediately_without_claiming_a_custody_digest(
     }
 
 
+@pytest.mark.parametrize("key,content_type,kind", [
+    ("source.pdf", "application/octet-stream", "pdf"),
+    ("photo.png", "application/octet-stream", "image"),
+    ("recording.mp3", "audio/mpeg", "audio"),
+    ("clip.mp4", "video/mp4", "video"),
+    ("export.jsonl", "application/octet-stream", "text"),
+])
+def test_selection_preview_reads_only_metadata_even_for_large_files(monkeypatch, key, content_type, kind) -> None:
+    """A file selection above the old hash limit returns a reader without GET bytes.
+
+    Inputs: allowlisted B2 listing and mocked HEAD. Output: reader descriptor.
+    Effects: no source read or write; legacy POST checksum has its own test.
+    """
+    size = source_inspection.MAX_IMMEDIATE_HASH_BYTES + 1
+    monkeypatch.setattr(source_inspection, "head_source_object", lambda *_: {
+        "ContentLength": size, "ETag": '"etag"', "ContentType": content_type,
+    })
+    monkeypatch.setattr(source_inspection, "open_source_object", lambda *_args, **_kwargs: pytest.fail("selection must not read source bytes"))
+    app = FastAPI()
+    app.include_router(source_runtime.router)
+    response = TestClient(app).get("/api/proffer/source-inspection", params={
+        "root_id": "b2-vault", "key": key,
+        "source_ref": f"b2://salem-data/consignatio/casevault/{key}",
+        "expected_byte_length": size, "expected_etag": '"etag"',
+    })
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sha256"] is None and body["digest_status"] == "not_computed"
+    assert body["source_location"] == "b2" and body["preview_kind"] == kind
+    assert body["preview_text"] == "" and body["matter_mode"] == "LIVE"
+    assert "etag=%22etag%22" in body["preview_url"]
+
+
+def test_selection_preview_rejects_changed_listing_before_opening_reader(monkeypatch) -> None:
+    """Reject stale selection identity without reading or hashing any source bytes."""
+    monkeypatch.setattr(source_inspection, "head_source_object", lambda *_: {"ContentLength": 10, "ETag": '"new"'})
+    monkeypatch.setattr(source_inspection, "open_source_object", lambda *_args, **_kwargs: pytest.fail("stale selection must not read bytes"))
+    app = FastAPI()
+    app.include_router(source_runtime.router)
+    response = TestClient(app).get("/api/proffer/source-inspection", params={
+        "root_id": "b2-vault", "key": "source.pdf",
+        "source_ref": "b2://salem-data/consignatio/casevault/source.pdf",
+        "expected_byte_length": 10, "expected_etag": '"old"',
+    })
+    assert response.status_code == 409
+
+
+def test_selection_preview_rejects_a_locator_outside_the_selected_root(monkeypatch) -> None:
+    """A mismatched source locator is rejected before provider I/O."""
+    monkeypatch.setattr(source_inspection, "head_source_object", lambda *_: pytest.fail("wrong root must not reach provider"))
+    app = FastAPI()
+    app.include_router(source_runtime.router)
+    response = TestClient(app).get("/api/proffer/source-inspection", params={
+        "root_id": "b2-vault", "key": "source.pdf",
+        "source_ref": "b2://another-bucket/source.pdf", "expected_byte_length": 10,
+    })
+    assert response.status_code == 422
+
+
 def test_image_extensions_share_one_preview_and_preflight_classification() -> None:
     expected_extensions = {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
 
@@ -296,7 +355,7 @@ def test_source_content_is_same_origin_etag_pinned_and_range_bounded(monkeypatch
     monkeypatch.setattr(
         source_inspection,
         "head_source_object",
-        lambda root_id, key: {"ContentLength": len(payload), "ETag": '"etag"', "ContentType": "application/pdf"},
+        lambda root_id, key: {"ContentLength": len(payload), "ETag": '"etag"', "ContentType": "application/octet-stream"},
     )
 
     def fake_open(root_id, key, **kwargs):
@@ -317,6 +376,7 @@ def test_source_content_is_same_origin_etag_pinned_and_range_bounded(monkeypatch
     assert response.content == b"2345"
     assert response.headers["content-range"] == "bytes 2-5/10"
     assert response.headers["accept-ranges"] == "bytes"
+    assert response.headers["content-type"] == "application/pdf"
     assert captured == {"if_match": '"etag"', "byte_range": "bytes=2-5"}
 
 

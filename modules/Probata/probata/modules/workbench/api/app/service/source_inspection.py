@@ -16,6 +16,7 @@ import re
 from typing import Iterator
 from urllib.parse import quote
 
+from app.types.source_inspection import SourcePreviewResponse
 from app.repo.object_store_client import (
     get_source_root,
     head_source_object,
@@ -183,6 +184,51 @@ def inspect_source(request: SourceInspectionRequest, *, mode: MatterMode) -> Sou
     )
 
 
+def _source_content_type(key: str, head: dict) -> str:
+    """Resolve the reader MIME type from provider metadata and the filename.
+
+    Inputs: object key and HEAD metadata. Output: media type. Effects: none.
+    Prefer a specific provider type; use the filename for generic binary types.
+    """
+    reported = str(head.get("ContentType") or "").strip()
+    if reported and reported.partition(";")[0].lower() not in {"application/octet-stream", "binary/octet-stream"}:
+        return reported
+    return mimetypes.guess_type(key)[0] or reported or "application/octet-stream"
+
+
+def preview_source(request: SourceInspectionRequest, *, mode: MatterMode) -> SourcePreviewResponse:
+    """Describe a selected source for the existing reader without reading bytes.
+
+    Inputs: selected allowlisted root/key and listing size/ETag. Output: metadata,
+    filename routing hint and ETag-pinned stream URL. Effects: one provider HEAD;
+    no hashing, decoding or writes. Choose for file selection, not custody hashing.
+    """
+    key, head = _metadata(request)
+    root = get_source_root(request.root_id)
+    etag = str(head["ETag"])
+    content_type = _source_content_type(key, head)
+    media_type = content_type.partition(";")[0].lower()
+    extension = PurePosixPath(key).suffix.casefold()
+    preview_kind = (
+        "pdf" if media_type == "application/pdf" or extension == ".pdf"
+        else "image" if media_type.startswith("image/") or extension in _IMAGE_EXTENSIONS
+        else "audio" if media_type.startswith("audio/")
+        else "video" if media_type.startswith("video/")
+        else "text" if media_type.startswith("text/") or extension in _TEXT_EXTENSIONS | {".jsonl", ".ndjson", ".log"}
+        else "unsupported"
+    )
+    return SourcePreviewResponse(
+        source=root.bucket, root_id=root.root_id, active_root_id=root.root_id,
+        matter_mode=mode, source_location=root.scheme, bucket=root.bucket,
+        key=key, source_ref=request.source_ref, name=PurePosixPath(key).name,
+        byte_length=int(head["ContentLength"]), etag=etag,
+        last_modified=head.get("LastModified"), content_type=content_type,
+        sha256=None, digest_status="not_computed", preview_kind=preview_kind,
+        preview_url=f"/api/proffer/source-content?root_id={quote(root.root_id, safe='')}&key={quote(key, safe='')}&etag={quote(etag, safe='')}",
+        parser_preflight=_preflight(key),
+    )
+
+
 def _range_header(range_header: str | None, size: int) -> tuple[str | None, int, str | None]:
     if not range_header:
         return None, size, None
@@ -223,7 +269,7 @@ def open_source_content(root_id: str, key: str, etag: str, range_header: str | N
         response = open_source_object(root.root_id, validated, if_match=current_etag, byte_range=byte_range)
     except RuntimeError:
         raise SourceInspectionError(502, "The selected source preview could not be opened") from None
-    content_type = str(head.get("ContentType") or mimetypes.guess_type(validated)[0] or "application/octet-stream")
+    content_type = _source_content_type(validated, head)
     return SourceContent(
         body=response["Body"],
         content_type=content_type,
