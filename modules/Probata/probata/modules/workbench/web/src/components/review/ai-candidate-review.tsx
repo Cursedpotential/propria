@@ -87,6 +87,8 @@ export function AICandidateReview({ workflowId }: { workflowId: string }) {
     {pages.data && !rows.length ? <p className="text-sm">This source has no staged proposals to review.</p> : null}
     {rows.map((row) => {
       const receipt = receipts[row.candidate_id];
+      const reviewState = receipt?.decision ?? row.review_state;
+      const finalDecision = reviewState === "approved" || reviewState === "rejected";
       const published = receipt?.decision === "approved" && projections.data?.items.some((snapshot) =>
         snapshot.approved_revision_id === receipt.decision_id && snapshot.approval_digest === receipt.request_digest
         && snapshot.source_pins?.some((pin) => pin.source_version_id === row.candidate.source_version_id
@@ -104,7 +106,7 @@ export function AICandidateReview({ workflowId }: { workflowId: string }) {
           <dt>Native span</dt><dd>{row.candidate.source_span.start}–{row.candidate.source_span.end} {row.candidate.span_unit} · {row.candidate.source_span.sha256}</dd>
         </dl></details>
       <div className="flex flex-wrap gap-2">{choices.map((choice) => <Button key={choice.value} size="sm" variant={choice.value === "approved" ? "default" : "outline"}
-        disabled={busy !== null || (receipts[row.candidate_id]?.decision ?? row.review_state) === choice.value}
+        disabled={busy !== null || finalDecision || reviewState === choice.value}
         onClick={() => void decide(row, choice.value)}>{busy === row.candidate_id ? "Saving…" : choice.label}</Button>)}</div>
       {(receipts[row.candidate_id] || row.decision_id) ? <p role="status" className="break-all text-xs">Decision recorded: {receipts[row.candidate_id]?.decision_id ?? row.decision_id}.</p> : null}
       {receipts[row.candidate_id]?.decision === "approved" ? <div role="status" className="text-xs text-muted-foreground">

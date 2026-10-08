@@ -27,7 +27,7 @@ class ReviewSource(BaseModel):
     version_id: str | None = Field(default=None, min_length=1, max_length=512)
     source_object_id: Literal[""] = ""
     source_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    prepared_ref: str = Field(pattern=r"^b2://", min_length=8, max_length=2048)
+    prepared_ref: str = Field(pattern=r"^b2://", min_length=8, max_length=4096)
 
 
 class CandidateDecision(BaseModel):
