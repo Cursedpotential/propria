@@ -199,6 +199,16 @@ func run() error {
 	if routes, err = mountAtomicToolRoutes(routes, atomicToolRoutes); err != nil {
 		return err
 	}
+	// Approved context reads share the starter client, queue and service token.
+	// Inputs: actor-bound query and status routes. Output: mounted API.
+	// Effects: route registration only; choose for revision-pinned graph queries.
+	approvedQueryRoutes, err := approvedGraphQueryHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountApprovedGraphQueryRoutes(routes, approvedQueryRoutes); err != nil {
+		return err
+	}
 	// Case identity: the Workbench Case page reads and edits registry, the one
 	// identity store. Byline: Claude Code · Opus 5.5 · 2026-10-01
 	caseIdentityRoutes, err := caseIdentityHandler(pool, serviceTokenFile)
