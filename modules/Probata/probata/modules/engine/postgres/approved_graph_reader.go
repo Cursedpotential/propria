@@ -72,11 +72,7 @@ LIMIT 1`, scope.PreviewHandle, scope.GenerationID, scope.SourceVersionID, scope.
 // Effects: read-only; it never selects normalized message bodies. Pick for SMS citations only.
 func (r *ApprovedGraphReader) ReadRecordPin(ctx context.Context, scope approvedgraph.Scope, recordID string) (approvedgraph.RecordPin, error) {
 	var pin approvedgraph.RecordPin
-	err := r.db.QueryRow(ctx, `SELECT id::text, source_version_id::text,
- encode(sha256(canonical_bytes), 'hex'), occurred_at,
- NULLIF(normalized_payload->>'source_available_from', '')::timestamptz
-FROM context.normalized_record_identity
-WHERE id=$1::uuid AND normalized_generation_id=$2::uuid AND source_version_id=$3::uuid`,
+	err := r.db.QueryRow(ctx, approvedRecordPinSQL,
 		recordID, scope.GenerationID, scope.SourceVersionID).
 		Scan(&pin.ID, &pin.SourceVersionID, &pin.SHA256, &pin.OccurredAt, &pin.SourceAvailableFrom)
 	if err != nil {
@@ -84,6 +80,22 @@ WHERE id=$1::uuid AND normalized_generation_id=$2::uuid AND source_version_id=$3
 	}
 	return pin, nil
 }
+
+// A context record receives a source clock only through its exact approved
+// working spine route. The canonical function applies first-party event time
+// or approved third-party custody acquisition, and returns NULL when unknown.
+const approvedRecordPinSQL = `SELECT c.id::text, c.source_version_id::text,
+ encode(sha256(c.canonical_bytes), 'hex'), c.occurred_at,
+ CASE WHEN route.normalized_record_id IS NOT NULL THEN working.source_available_from(w.id) END
+FROM context.normalized_record_identity c
+LEFT JOIN working.normalized_record w ON w.id=c.id
+ AND w.source_version_id=c.source_version_id
+ AND w.derived_from_raw_table='context.normalized_record_identity'
+ AND w.derived_from_raw_id=c.id AND w.record_type='message'
+LEFT JOIN working.message_projection_route route ON route.normalized_record_id=w.id
+ AND route.decision_state='approved'
+ AND route.projection_kind IN ('first_party', 'acquired_third_party')
+WHERE c.id=$1::uuid AND c.normalized_generation_id=$2::uuid AND c.source_version_id=$3::uuid`
 
 // ReadPromotedEntities reads all entity rows promoted at the receipt transaction timestamp.
 // Inputs: exact timestamp. Outputs: bounded entity rows. Effects: read-only. Pick after receipt read.
