@@ -1,8 +1,9 @@
 # Docstore service code, built from the Propria monorepo root.
 # Byline: Codex · GPT-6.1-sol · 2026-10-07.
 # The seven documentation roots and private additions are staged on the host at
-# /data/probata/volumes/docstore-sources, then bound read-only at /app/docs.
-# service.py verifies that complete source tree before starting either API.
+# /data/probata/volumes/docstore-sources, then bound writable at /app/docs.
+# ADR and governed source sync writes remain durable; service.py verifies the
+# complete source tree and private additions before starting either API.
 FROM python:3.13-slim
 
 WORKDIR /app
