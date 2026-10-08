@@ -428,6 +428,43 @@ func Run(ctx context.Context, cfg Config) error {
 		return err
 	}
 	registrations.ToolkitValidation = toolkitValidation
+	// Approved graph is an optional downstream lane using the existing B2 store.
+	// Inputs: explicit opt-in, shared DB and mounted B2 config; output: optional group.
+	// Effects: credential reads/client construction only; no graph or object writes at boot.
+	var approvedGraph *ApprovedGraphGroup
+	if enabled := strings.TrimSpace(os.Getenv(approvedGraphEnabledEnv)); enabled != "" {
+		if enabled != "true" {
+			return fmt.Errorf("proffer worker: %s must be true or unset", approvedGraphEnabledEnv)
+		}
+		var versionStore libraryvalidation.VersionStore
+		if toolkitValidation != nil {
+			if toolkitValidation.Service == nil {
+				return errors.New("proffer worker: approved graph toolkit artifact service unavailable")
+			}
+			artifacts, ok := toolkitValidation.Service.Artifacts.(libraryvalidation.B2Artifacts)
+			if !ok || artifacts.Store == nil {
+				return errors.New("proffer worker: approved graph requires the existing versioned B2 artifact store")
+			}
+			versionStore = artifacts.Store
+		} else {
+			storageConfig, err := acquisition.LoadObjectStorageConfigFile(strings.TrimSpace(os.Getenv(libraryvalidation.EnvB2ConfigFile)))
+			if err != nil {
+				return errors.New("proffer worker: approved graph B2 configuration unavailable")
+			}
+			if err := libraryvalidation.ValidateB2StorageEndpoint(storageConfig.Endpoint); err != nil {
+				return fmt.Errorf("proffer worker: approved graph B2 endpoint: %w", err)
+			}
+			storageClient, err := acquisition.NewS3Client(storageConfig)
+			if err != nil {
+				return errors.New("proffer worker: approved graph B2 client configuration failed")
+			}
+			versionStore = smsthreads.S3Store{Client: storageClient}
+		}
+		approvedGraph, err = BuildApprovedGraph(pool, versionStore)
+		if err != nil {
+			return err
+		}
+	}
 	// Admit sync only after validator construction so pinned extraction/artifacts/signing are reused.
 	// Inputs: explicit sync environment and configured validator; outputs: optional Activity group.
 	// Effects: bounded configuration reads; no scheduling, source writes or live worker changes.
@@ -453,6 +490,7 @@ func Run(ctx context.Context, cfg Config) error {
 	RegisterAll(temporalWorker, registrations)
 	RegisterExtraction(temporalWorker, registrations.Extraction)
 	RegisterConversationExtraction(temporalWorker, registrations.Conversation)
+	RegisterApprovedGraph(temporalWorker, approvedGraph)
 	if err := temporalWorker.Start(); err != nil {
 		return fmt.Errorf("proffer worker: start Temporal worker: %w", err)
 	}

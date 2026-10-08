@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-08 (fresh snapshot regression coverage)
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30
 // Extended · Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S2): ledger
 // retarget coverage (public.schema_version -> ops.migration_ledger, D-109).
@@ -8,8 +9,10 @@ package postgres
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -34,7 +37,7 @@ func (db *capturingProbeDB) QueryRow(_ context.Context, query string, args ...an
 
 type probeRow struct {
 	database, user, owner                                                 string
-	ledger, tables, columns                                               int
+	tables, columns                                                       int
 	constraintsExact, substrateExact, roleSafe, grantsExact, receiptExact bool
 	err                                                                   error
 }
@@ -44,8 +47,8 @@ func (row probeRow) Scan(dest ...any) error {
 		return row.err
 	}
 	*dest[0].(*string), *dest[1].(*string), *dest[2].(*string) = row.database, row.user, row.owner
-	*dest[3].(*int), *dest[4].(*int), *dest[5].(*int) = row.ledger, row.tables, row.columns
-	*dest[6].(*bool), *dest[7].(*bool), *dest[8].(*bool), *dest[9].(*bool), *dest[10].(*bool) =
+	*dest[3].(*int), *dest[4].(*int) = row.tables, row.columns
+	*dest[5].(*bool), *dest[6].(*bool), *dest[7].(*bool), *dest[8].(*bool), *dest[9].(*bool) =
 		row.constraintsExact, row.substrateExact, row.roleSafe, row.grantsExact, row.receiptExact
 	return nil
 }
@@ -53,7 +56,7 @@ func (row probeRow) Scan(dest ...any) error {
 func admittedProbeRow() probeRow {
 	return probeRow{
 		database: "platform", user: "platform_runtime", owner: "platform_admin",
-		ledger: len(requiredProfferMigrations), tables: len(requiredProfferTables), columns: len(requiredProfferColumns),
+		tables: len(requiredProfferTables), columns: len(requiredProfferColumns),
 		constraintsExact: true, substrateExact: true, roleSafe: true, grantsExact: true, receiptExact: true,
 	}
 }
@@ -74,46 +77,49 @@ func TestProbeProfferSchemaCastsCatalogNamesBeforeTextArrayComparison(t *testing
 	}
 }
 
-func TestProbeProfferSchemaRejectsLegacy0043Substitution(t *testing.T) {
-	row := admittedProbeRow()
-	row.ledger--
-	err := ProbeProfferSchema(context.Background(), probeDB{row: row})
-	if err == nil || !strings.Contains(err.Error(), "ledger=8/9") {
-		t.Fatalf("error = %v, want missing-0054 admission failure", err)
-	}
-}
-
-// TestProbeProfferSchemaLedgerQueriesTheRealLedger locks in D-109: the ledger
-// check must read ops.migration_ledger (sql/0055 PART 5, the actual ledger,
-// no status column -- presence means applied) and must never again read
-// public.schema_version (a data-contract version table that only resembles
-// a ledger; that resemblance destroyed migration state once already,
-// 2026-08-29). Regression guard for the BUILD LANE S2 retarget.
-func TestProbeProfferSchemaLedgerQueriesTheRealLedger(t *testing.T) {
+// TestProbeProfferSchemaAdmitsSnapshotWithoutMigrationHistory checks D-153 admission.
+// Inputs: complete catalog/receipt result. Output: test assertions. Effects: none.
+// Use to prevent retired DDL-history requirements while retaining history write protection.
+func TestProbeProfferSchemaAdmitsSnapshotWithoutMigrationHistory(t *testing.T) {
 	db := &capturingProbeDB{row: admittedProbeRow()}
 	if err := ProbeProfferSchema(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
-	// Executable SQL only -- comments are allowed (and expected) to explain
-	// the D-109 history by naming the retired table, so strip "--" line
-	// comments before asserting what the query actually executes.
-	var executable strings.Builder
-	for _, line := range strings.Split(db.query, "\n") {
-		if idx := strings.Index(line, "--"); idx >= 0 {
-			line = line[:idx]
-		}
-		executable.WriteString(line)
-		executable.WriteByte('\n')
+	if strings.Contains(db.query, "FROM ops.migration_ledger") || strings.Contains(db.query, "migration_id") || strings.Contains(db.query, "public.schema_version") {
+		t.Fatal("fresh snapshot admission must not depend on retired migration or contract-version history")
 	}
-	code := executable.String()
-	if !strings.Contains(code, "FROM ops.migration_ledger") {
-		t.Fatal("ledger check must query ops.migration_ledger, the real migration ledger (D-109)")
+	if !strings.Contains(db.query, "NOT has_table_privilege('platform_runtime','ops.migration_ledger','INSERT')") {
+		t.Fatal("retained history must remain protected from runtime forgery")
 	}
-	if strings.Contains(code, "public.schema_version") {
-		t.Fatal("ledger check must not reference public.schema_version, which is not a migration ledger (D-109)")
+}
+
+// TestProbeProfferSchemaFreshSnapshotReadOnly checks the actual fresh platform catalog.
+// Inputs: optional PROFFER_SCHEMA_PROBE_TEST_DSN for platform_runtime on an existing
+// canonical snapshot with the exact real registry receipt and no August migration rows.
+// Output: live admission assertions. Effects: bounded SELECTs only, no DDL/data writes.
+// Choose after the parent restores the canonical database; no fixture is created here.
+func TestProbeProfferSchemaFreshSnapshotReadOnly(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("PROFFER_SCHEMA_PROBE_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("PROFFER_SCHEMA_PROBE_TEST_DSN is not configured")
 	}
-	if !strings.Contains(code, "has_table_privilege('platform_runtime','ops.migration_ledger','INSERT')") {
-		t.Fatal("write-safety guard must assert platform_runtime lacks INSERT on the real ledger, ops.migration_ledger")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	conn, err := pgx.Connect(ctx, dsn)
+	if err != nil {
+		t.Fatal("fresh snapshot validation connection unavailable")
+	}
+	defer conn.Close(ctx)
+	var historicalRows int
+	if err := conn.QueryRow(ctx, "SELECT count(*) FROM ops.migration_ledger WHERE migration_id=ANY($1::text[])",
+		[]string{"0036", "0037", "0038", "0039", "0042", "0050", "0051", "0053", "0054"}).Scan(&historicalRows); err != nil {
+		t.Fatal("fresh snapshot history verification unavailable")
+	}
+	if historicalRows != 0 {
+		t.Fatal("fresh snapshot proof requires no retired August migration history")
+	}
+	if err := ProbeProfferSchema(ctx, conn); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -122,6 +128,9 @@ func TestProbeProfferSchemaRejectsWrongIdentityOrScope(t *testing.T) {
 		"legacy database": func(row *probeRow) { row.database = "ai" },
 		"wrong role":      func(row *probeRow) { row.user = "ai" },
 		"wrong owner":     func(row *probeRow) { row.owner = "ai" },
+		"missing table":   func(row *probeRow) { row.tables-- },
+		"missing column":  func(row *probeRow) { row.columns-- },
+		"unsafe role":     func(row *probeRow) { row.roleSafe = false },
 		"bad fk":          func(row *probeRow) { row.constraintsExact = false },
 		"bad substrate":   func(row *probeRow) { row.substrateExact = false },
 		"excess grant":    func(row *probeRow) { row.grantsExact = false },
@@ -147,15 +156,15 @@ func TestProbeProfferSchemaDefaultBindsStrictAuthoritativeIdentity(t *testing.T)
 	if err := ProbeProfferSchema(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
-	if len(db.args) != 14 {
-		t.Fatalf("expected 14 bound query args, got %d", len(db.args))
+	if len(db.args) != 13 {
+		t.Fatalf("expected 13 bound query args, got %d", len(db.args))
 	}
-	if db.args[3] != authoritativeMatterID || db.args[4] != authoritativeCourtCaseID {
-		t.Fatalf("flag unset must bind the real authoritative identity, got matter=%v court_case=%v", db.args[3], db.args[4])
+	if db.args[2] != authoritativeMatterID || db.args[3] != authoritativeCourtCaseID {
+		t.Fatalf("flag unset must bind the real authoritative identity, got matter=%v court_case=%v", db.args[2], db.args[3])
 	}
-	if db.args[11] != registryReceiptPayloadByteLength || db.args[12] != registryReceiptApprovedBy || db.args[13] != registryReceiptApprovedOn {
+	if db.args[10] != registryReceiptPayloadByteLength || db.args[11] != registryReceiptApprovedBy || db.args[12] != registryReceiptApprovedOn {
 		t.Fatalf("flag unset must bind the STRICT receipt expectation, got payload_byte_length=%v approved_by=%v approved_on=%v",
-			db.args[11], db.args[12], db.args[13])
+			db.args[10], db.args[11], db.args[12])
 	}
 }
 
@@ -168,9 +177,9 @@ func TestProbeProfferSchemaDevFlagDoesNotChangeIdentity(t *testing.T) {
 		if err := ProbeProfferSchema(context.Background(), db); err != nil {
 			t.Fatal(err)
 		}
-		if db.args[3] != authoritativeMatterID || db.args[4] != authoritativeCourtCaseID || db.args[12] != registryReceiptApprovedBy {
+		if db.args[2] != authoritativeMatterID || db.args[3] != authoritativeCourtCaseID || db.args[11] != registryReceiptApprovedBy {
 			t.Fatalf("PLATFORM_DEV_AUTH_BYPASS=%q bound matter=%v court_case=%v approved_by=%v, want the real identity",
-				value, db.args[3], db.args[4], db.args[12])
+				value, db.args[2], db.args[3], db.args[11])
 		}
 	}
 }
