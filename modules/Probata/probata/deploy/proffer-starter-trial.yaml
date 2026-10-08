@@ -1,0 +1,90 @@
+# Trial adaptation; unavailable Toolkit/catalog siblings explicitly unconfigured.
+services:
+  proffer-starter:
+    build:
+      context: .
+      dockerfile: deploy/docker/proffer-starter/Dockerfile
+    image: ${PROFFER_STARTER_IMAGE:-platform-proffer-starter:latest}
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Case Bible","url":"b2://salem-data/consignatio/casevault/"},{"id":"b2-bucket","label":"B2
+        / salem-data (whole bucket)","url":"b2://salem-data/"}]'
+      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json"}'
+      DERIVED_ROOTS_JSON: ''
+      PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
+      TEMPORAL_HOST_PORT: 100.108.135.88:7233
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-proffer-v1}
+      REFERENCE_STARTER_ADDR: 100.84.202.29:8091
+      REFERENCE_STARTER_HEALTH_URL: http://100.84.202.29:8091/healthz
+      TSNET_LISTENER_ENABLED: 'false'
+      SOURCE_OBJECT_DIR: /data/proffer/source-objects
+      PROFFER_UPLOAD_MAX_BYTES: ${PROFFER_UPLOAD_MAX_BYTES:?set}
+      N8N_PROFFER_BASE_URL: ${N8N_PROFFER_BASE_URL:?set}
+      N8N_PROFFER_AUTH_HEADER: ${N8N_PROFFER_AUTH_HEADER:?set}
+      N8N_PROFFER_AUTH_VALUE_FILE: /run/secrets/n8n-proffer-auth
+      PROFFER_PREVIEW_CURSOR_KEY_FILE: /run/secrets/proffer-preview-cursor-key
+      PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
+      PROFFER_INTERNAL_SERVICE_CIDRS: ${PROFFER_INTERNAL_SERVICE_CIDRS:-}
+      PROFFER_BATCH_MAX_IN_FLIGHT: ${PROFFER_BATCH_MAX_IN_FLIGHT:-1}
+      GOMAXPROCS: '1'
+      GOMEMLIMIT: 384MiB
+      APPROVED_CONTEXT_GRAPH_ENABLED: 'true'
+      ANALYSIS_SURREAL_URL: http://100.108.135.88:8471
+      ANALYSIS_SURREAL_NAMESPACE: fct
+      ANALYSIS_SURREAL_DATABASE: analysis
+      ANALYSIS_SURREAL_AUTH_LEVEL: database
+      ANALYSIS_SURREAL_USER_FILE: /run/secrets/analysis-surreal-user
+      ANALYSIS_SURREAL_PASSWORD_FILE: /run/secrets/analysis-surreal-password
+    volumes:
+    - type: bind
+      source: /data/probata/volumes/proffer/source-objects
+      target: /data/proffer/source-objects
+      read_only: false
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/probata/secrets/proffer/preview-cursor-key
+      target: /run/secrets/proffer-preview-cursor-key
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/probata/secrets/proffer/service-token
+      target: /run/secrets/proffer-service-token
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/probata/secrets/n8n/proffer-auth
+      target: /run/secrets/n8n-proffer-auth
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/probata/secrets/platform/database-url
+      target: /run/secrets/platform-database-url
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/probata/secrets/casebible-b2.json
+      target: /run/secrets/casebible-b2.json
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/probata/secrets/analysis-graph/analysis-surreal-user
+      target: /run/secrets/analysis-surreal-user
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/probata/secrets/analysis-graph/analysis-surreal-password
+      target: /run/secrets/analysis-surreal-password
+      read_only: true
+      bind:
+        create_host_path: false
+    mem_limit: 512m
+    cpus: 1
