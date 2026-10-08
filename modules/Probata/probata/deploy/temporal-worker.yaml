@@ -89,6 +89,9 @@ services:
       CONTEXT_SEARCH_AI_CHAT_COLLECTION: ${CONTEXT_SEARCH_AI_CHAT_COLLECTION:-AiChatEvents20260918}
       CONTEXT_SEARCH_VECTOR_NAME: text_nim
       AI_CONTENT_ROOT: /data/proffer/derive-scratch/ai-content
+      # The native AI reader may open only retained originals in this read-only bind.
+      # Byline: Codex / GPT-6 / 2026-10-07.
+      AI_CONTENT_SOURCE_ROOT: /data/proffer/source-objects
       # Byline: Codex / GPT-6 / 2026-10-07. Real graph preparation reuses the private AI bind mount.
       ANALYSIS_GRAPH_ROOT: /data/proffer/derive-scratch/ai-content/analysis-graphs
       ANALYSIS_GRAPH_MATTER_ID: ${ANALYSIS_GRAPH_MATTER_ID:?set}
@@ -108,6 +111,12 @@ services:
       - -c
       - 'PLATFORM_DB_URL="$$(tr -d "\r\n" < /run/secrets/platform-database-url | sed "s#^postgresql://#postgresql+psycopg://#")" exec python -m server.temporal.worker'
     volumes:
+      - type: bind
+        source: /data/probata/volumes/proffer/source-objects
+        target: /data/proffer/source-objects
+        read_only: true
+        bind:
+          create_host_path: false
       - type: bind
         source: /data/probata/secrets/ai-content-providers
         target: /run/secrets/ai-content
