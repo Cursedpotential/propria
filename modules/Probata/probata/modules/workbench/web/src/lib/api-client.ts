@@ -201,6 +201,32 @@ export async function getSourcePinnedToolStatus(workflowID: string): Promise<{ w
   return apiFetch(`/api/atomic-tool-actions/${encodeURIComponent(workflowID)}`);
 }
 
+/** Submit one complete, version-pinned AI-chat export to Go's context workflow.
+ * Inputs: original source/version refs, explicit provider and stable click key.
+ * Output: real Temporal IDs. Effect: Go start only, never browser-side extraction.
+ * Choose for ChatGPT/Claude exports, not generic JSON or SMS processing.
+ */
+export function startAIContextSource(body: {
+  source_ref: string;
+  provider_version_id: string;
+  package_ref?: string;
+  source_kind: "ai_chat";
+  declared_format: "chatgpt" | "claude";
+}, idempotencyKey: string): Promise<{ workflow_id: string; run_id: string }> {
+  return apiFetch("/api/context/sources", {
+    method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Read actor-owned Go context workflow status without requesting source bodies.
+ * Input: workflow ID from start. Output: bounded status with its original refs.
+ * Effect: read only; choose for the AI-context operation in Sources.
+ */
+export function getAIContextSourceStatus(workflowID: string): Promise<{ workflow_id: string; [key: string]: unknown }> {
+  return apiFetch(`/api/context/sources/workflows/${encodeURIComponent(workflowID)}`);
+}
+
 export async function getHealth() {
   return apiFetch<{ status: string }>("/health");
 }
@@ -784,6 +810,25 @@ export function inspectProfferSource(source: ProfferSourceObject, mode: MatterMo
   }).then((response) => {
     if (response.matter_mode !== mode) throw new ApiError("The source inspection did not confirm the active DEV/LIVE mode", 502);
     if (response.active_root_id !== rootId || response.source_ref !== source.source_ref) throw new ApiError("The source inspection did not confirm the selected R2 source location", 502);
+    return response;
+  });
+}
+
+/** Read an exact provider version for one selected remote object.
+ * Inputs: listed source and root ID. Output: source/version/size/ETag metadata.
+ * Effect: one B2 HEAD through the BFF, no body read; use before AI context start.
+ */
+export function getProfferSourceVersion(source: ProfferSourceObject, rootId: string, signal?: AbortSignal) {
+  return apiFetch<{ source_ref: string; provider_version_id: string; byte_length: number; etag: string }>("/api/proffer/source-version", {
+    method: "POST", signal, headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      key: source.key, source_ref: source.source_ref, root_id: rootId,
+      expected_byte_length: source.byte_length, expected_etag: source.etag ?? null,
+    }),
+  }).then((response) => {
+    if (response.source_ref !== source.source_ref || response.byte_length !== source.byte_length || !response.provider_version_id) {
+      throw new ApiError("The source version did not confirm the selected B2 object", 502);
+    }
     return response;
   });
 }

@@ -30,6 +30,7 @@ from app.runtime import (
     classification,
     compare,
     conversation_actions,
+    context_sources,
     copilot,
     documents,
     entity_extraction,
@@ -164,6 +165,7 @@ app.include_router(run_events.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
 app.include_router(conversation_actions.router)  # /api/extractors, /api/imported/threads/{extract,send-to-surreal,.../extractions}, /api/imported/workflows/* (Claude Code · Sonnet 5.5 · 2026-10-02)
+app.include_router(context_sources.router)  # explicit AI-chat source refs -> Go context Temporal workflow
 app.include_router(atomic_tool_actions.router)  # actor-bound source tool start/status through Proffer
 app.include_router(imported.router)  # /api/imported/* — the mobile Imported view, read-only (Claude Code · Sonnet · 2026-10-02)
 app.include_router(case_management.router)

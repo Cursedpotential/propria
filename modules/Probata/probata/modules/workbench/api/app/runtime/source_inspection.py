@@ -17,14 +17,29 @@ from app.service.source_context import create_source_context, run_source_context
 from app.service.source_inspection import (
     SourceInspectionError,
     inspect_source,
+    read_source_version,
     open_source_content,
     stream_source_content,
 )
 from app.types.proffer import ProfferDecisionActor
 from app.types.source_context import ProfferRunSourceContext, SourceContextCreateRequest, SourceContextReceipt
-from app.types.source_inspection import SourceInspectionRequest, SourceInspectionResponse
+from app.types.source_inspection import SourceInspectionRequest, SourceInspectionResponse, SourceVersionResponse
 
 router = APIRouter(prefix="/api/proffer", tags=["proffer"])
+
+
+@router.post("/source-version", response_model=SourceVersionResponse)
+def source_version_endpoint(body: SourceInspectionRequest) -> SourceVersionResponse:
+    """Return one selected source's exact provider version via metadata only.
+
+    Inputs: source root/key and listing size/ETag. Output: pinned version and
+    matching source reference. Effects: one B2 HEAD, no body read or processing.
+    Choose this for context source registration instead of size-limited preview.
+    """
+    try:
+        return read_source_version(body)
+    except SourceInspectionError as error:
+        raise _translate(error) from None
 
 
 def _translate(error: SourceInspectionError) -> HTTPException:
