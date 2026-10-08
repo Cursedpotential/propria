@@ -89,6 +89,56 @@ def test_extract_forwards_actor_key_and_mode(engine) -> None:
     assert engine.modes == [(HANDLE, "LIVE")]
 
 
+def test_ai_review_forwards_source_pin_actor_key_and_digest(engine, monkeypatch) -> None:
+    """Verify retained-source reads and digest-bound decisions pass through the authenticated BFF."""
+    from app.runtime import operating_mode
+
+    async def verified_scope(_mode):
+        return None
+
+    monkeypatch.setattr(operating_mode, "verify_case_scope", verified_scope)
+    source_version_id = "11111111-1111-4111-8111-111111111111"
+    source_object_id = "22222222-2222-4222-8222-222222222222"
+    candidate_id = "33333333-3333-4333-8333-333333333333"
+    pin = {
+        "source_version_id": source_version_id,
+        "source_object_id": source_object_id,
+        "source_sha256": DIGEST,
+    }
+    engine.answers[("GET", "/reference-import/ai-candidates")] = (
+        200,
+        {"source_version_id": source_version_id, "matter_mode": "LIVE", "candidates": [], "next_cursor": ""},
+    )
+    engine.answers[("POST", "/reference-import/ai-candidates/decision")] = (
+        200,
+        {
+            "candidate_id": candidate_id,
+            "decision_id": "44444444-4444-4444-8444-444444444444",
+            "decision": "approved",
+            "request_digest": "b" * 64,
+            "matter_mode": "LIVE",
+        },
+    )
+    client = TestClient(_app())
+    listing = client.get("/api/ai-candidates", params={"mode": "LIVE", "preview_handle": HANDLE, **pin})
+    assert listing.status_code == 200, listing.text
+    assert engine.calls[0]["params"] == {"preview_handle": HANDLE, "matter_mode": "LIVE", "after_id": "", **pin}
+
+    body = {**pin, "preview_handle": HANDLE, "candidate_id": candidate_id, "expected_content_sha256": "c" * 64, "decision": "approved"}
+    assert client.post("/api/ai-candidates/decision", params={"mode": "LIVE"}, json=body).status_code == 422
+    decision = client.post(
+        "/api/ai-candidates/decision", params={"mode": "LIVE"}, json=body,
+        headers={"Idempotency-Key": "ai-review-0001"},
+    )
+    assert decision.status_code == 200, decision.text
+    assert engine.calls[1]["json"] == {**body, "matter_mode": "LIVE"}
+    assert engine.calls[1]["headers"] == {
+        "X-authentik-uid": "subject-1",
+        "X-authentik-username": "operator",
+        "Idempotency-Key": "ai-review-0001",
+    }
+
+
 def test_writes_require_an_idempotency_key(engine) -> None:
     client = TestClient(_app())
     for path, body in (

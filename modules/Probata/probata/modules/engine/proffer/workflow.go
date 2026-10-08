@@ -250,6 +250,18 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	contextSourceFingerprintRef := fanOut[fingerprint.source]
 	containerManifestRef := fanOut[stagegraph.InventoryContainer]
 	metadataManifestRef := fanOut[stagegraph.ExtractEmbeddedMetadata]
+	// Native AI exports are read from the retained original. They do not create
+	// normalized message IDs or a synthetic raw generation. The Python reader
+	// checks the actual source shape and custody pin before producing a bundle.
+	// GetVersion preserves the parser commands of histories recorded earlier.
+	if in.DeclaredFormat == "chatgpt_official_json" && workflow.GetVersion(ctx, aiContentNativeSourceChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		r.aiContent, err = r.execAIContentWithSource(ctx, "", "", activeOriginalRef)
+		if err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+		return r.nativeAIContentResult(), nil
+	}
 	structuredELTRoute := workflow.GetVersion(ctx, structuredELTRouteChangeID, workflow.DefaultVersion, structuredELTRouteVersion)
 	activeFormat := in.DeclaredFormat
 	useStructuredELT := structuredELTRoute != workflow.DefaultVersion && structuredELTEligible(in.DeclaredFormat)
@@ -1173,7 +1185,7 @@ type run struct {
 	ctx workflow.Context
 	// autoExtraction records whether the automatic extraction child started.
 	autoExtraction string
-	aiContent *AIContentSummary
+	aiContent      *AIContentSummary
 }
 
 // pending is an in-flight Activity future paired with the stage id that
@@ -1563,6 +1575,18 @@ func (r *run) deriveResult(derived DeriveResult) WorkflowResult {
 		Stages:           r.results,
 		Derived:          &derived,
 	}
+}
+
+// nativeAIContentResult completes a retained-source AI branch without claiming a canonical generation publication.
+// Inputs: the six verified AI bundle references on run. Outputs: source and derived-content receipts.
+// Effects: marks the operation complete. Choose only after native content readback succeeded.
+func (r *run) nativeAIContentResult() WorkflowResult {
+	r.operation.ActiveStages = []ActivityName{}
+	r.operation.CurrentStage, r.operation.Wait = "", ""
+	r.operation.Terminal = true
+	r.operation.Lifecycle = OperationCompleted
+	r.operation.Reason = ""
+	return WorkflowResult{SourceVersionRef: r.sourceVersionRef, Status: StatusSuccess, Stages: r.results, AIContent: r.aiContent}
 }
 
 func (r *run) awaiting(lifecycle OperationLifecycle, wait OperationWait) {

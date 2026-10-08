@@ -27,8 +27,13 @@ from app.runtime.operating_mode import OperatingMode
 from app.service import entity_extraction as service
 from app.service.proffer_errors import ProfferError
 from app.types.entity_extraction import (
+    AIReviewCandidatesResponse,
+    AIReviewDecision,
+    AIReviewDecisionApplied,
+    AIReviewSourcePin,
     CommitStarted,
     CorrectionApplied,
+    Digest,
     EntityCommitRequest,
     EntityCorrectionRequest,
     EntityExtractRequest,
@@ -165,5 +170,50 @@ async def event_from_record_endpoint(
     actor = _actor(request)
     try:
         return await service.mark_event(body, actor, key, mode=mode)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.get("/ai-candidates", response_model=AIReviewCandidatesResponse)
+async def ai_candidates_endpoint(
+    preview_handle: Annotated[PreviewHandle, Query()],
+    source_version_id: Annotated[str, Query(min_length=36, max_length=36)],
+    source_object_id: Annotated[str, Query(min_length=36, max_length=36)],
+    source_sha256: Annotated[Digest, Query()],
+    mode: OperatingMode,
+    version_id: Annotated[str | None, Query(max_length=512)] = None,
+    after_id: Annotated[str, Query(max_length=36)] = "",
+):
+    """Read bounded candidates from a retained original after engine custody admission.
+
+    Inputs: preview handle, exact source pin, page cursor and operating mode.
+    Output: source-scoped candidate page. Side effects: none.
+    Choose for the AI review view rather than normalized-message extraction.
+    """
+    pin = AIReviewSourcePin(
+        source_version_id=source_version_id,
+        source_object_id=source_object_id,
+        source_sha256=source_sha256,
+        version_id=version_id,
+    )
+    try:
+        return await service.ai_candidates(preview_handle, pin, after_id, mode=mode)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.post("/ai-candidates/decision", response_model=AIReviewDecisionApplied)
+async def ai_candidate_decision_endpoint(
+    body: AIReviewDecision, request: Request, mode: OperatingMode, key: RequiredKey
+):
+    """Record one attributed AI candidate decision while leaving promotion gated.
+
+    Inputs: exact source pin, candidate digest, actor and idempotency key.
+    Output: durable decision receipt. Side effects: appends a review decision.
+    Choose after the owner inspects a grounded AI candidate.
+    """
+    actor = _actor(request)
+    try:
+        return await service.decide_ai_candidate(body, actor, key, mode=mode)
     except ProfferError as error:
         raise _translate(error) from None

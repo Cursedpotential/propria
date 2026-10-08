@@ -19,6 +19,10 @@ from urllib.parse import quote
 from app.service import proffer
 from app.service.proffer_errors import ProfferError
 from app.types.entity_extraction import (
+    AIReviewCandidatesResponse,
+    AIReviewDecision,
+    AIReviewDecisionApplied,
+    AIReviewSourcePin,
     CommitStarted,
     CorrectionApplied,
     EntityCommitRequest,
@@ -168,3 +172,42 @@ async def commit(
         headers=_actor_headers(actor, idempotency_key),
     )
     return _result(CommitStarted, response, "commit start", mode)
+
+
+async def ai_candidates(
+    preview_handle: str, pin: AIReviewSourcePin, after_id: str = "", *, mode: MatterMode
+) -> AIReviewCandidatesResponse:
+    """Read candidates pinned to one retained original through the engine's durable scope check.
+
+    Inputs: preview handle, source pin, cursor and mode. Output: one candidate page.
+    Side effects: none. Choose for AI content review instead of normalized-message review.
+    """
+    response = await proffer._request(
+        "GET",
+        "/reference-import/ai-candidates",
+        params={"preview_handle": preview_handle, "matter_mode": mode, "after_id": after_id, **pin.model_dump(mode="json", exclude_none=True)},
+    )
+    result = _result(AIReviewCandidatesResponse, response, "AI retained-source candidates", mode)
+    if result.source_version_id != pin.source_version_id:
+        raise ProfferError("AI candidate source correlation failed", 502)
+    return result
+
+
+async def decide_ai_candidate(
+    decision: AIReviewDecision, actor: ProfferDecisionActor, idempotency_key: str, *, mode: MatterMode
+) -> AIReviewDecisionApplied:
+    """Forward one authenticated and idempotent owner review decision without promoting it.
+
+    Inputs: review choice, actor, idempotency key and mode. Output: decision receipt.
+    Side effects: persists a review decision. Choose after owner inspection.
+    """
+    response = await proffer._request(
+        "POST",
+        "/reference-import/ai-candidates/decision",
+        json=_body(decision, mode),
+        headers=_actor_headers(actor, idempotency_key),
+    )
+    result = _result(AIReviewDecisionApplied, response, "AI candidate decision", mode)
+    if result.candidate_id != decision.candidate_id or result.decision != decision.decision:
+        raise ProfferError("AI candidate decision correlation failed", 502)
+    return result

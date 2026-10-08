@@ -75,7 +75,171 @@ func (h *EntityExtractionHTTPHandler) Routes() http.Handler {
 	mux.HandleFunc("POST /reference-import/entities/validate", h.auth(h.validate))
 	mux.HandleFunc("POST /reference-import/entities/commit", h.auth(h.commit))
 	mux.HandleFunc("GET /reference-import/entities/commits/{workflow_id}", h.auth(h.commitStatus))
+	mux.HandleFunc("POST /reference-import/ai-candidates/stage", h.auth(h.stageAICandidates))
+	mux.HandleFunc("GET /reference-import/ai-candidates", h.auth(h.aiCandidates))
+	mux.HandleFunc("POST /reference-import/ai-candidates/decision", h.auth(h.decideAICandidate))
 	return mux
+}
+
+type aiStageRequest struct {
+	runRequest
+	Candidates []service.AICandidate `json:"candidates"`
+}
+
+type aiDecisionRequest struct {
+	runRequest
+	service.AISourcePin
+	CandidateID           string `json:"candidate_id"`
+	ExpectedContentSHA256 string `json:"expected_content_sha256"`
+	Decision              string `json:"decision"`
+}
+
+// aiReviewStore exposes the retained-source branch only when the configured store supports it.
+// Inputs: none. Outputs: store or an unavailable error. Effects: none.
+// Choose for AI candidates, never the SMS generation route.
+func (h *EntityExtractionHTTPHandler) aiReviewStore() (service.AIReviewStore, error) {
+	store, ok := h.store.(service.AIReviewStore)
+	if !ok {
+		return nil, errors.New("retained-source AI review store is unavailable")
+	}
+	return store, nil
+}
+
+// stageAICandidates stages bounded retained-source proposals after authenticated actor and durable scope checks.
+// Inputs: preview, candidates, Idempotency-Key and Authentik actor. Outputs: stable IDs.
+// Effects: pending working rows only. Choose for a verified AI candidate bundle bridge.
+func (h *EntityExtractionHTTPHandler) stageAICandidates(w http.ResponseWriter, r *http.Request) {
+	var body aiStageRequest
+	if err := decodePreviewJSON(w, r, &body); err != nil {
+		previewError(w, http.StatusBadRequest, err)
+		return
+	}
+	actor, key, err := actorAndKey(r)
+	if err != nil {
+		previewError(w, http.StatusUnauthorized, err)
+		return
+	}
+	if !previewHandlePattern.MatchString(body.PreviewHandle) {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("preview_handle is invalid"))
+		return
+	}
+	mode, err := caseidentity.ParseMode(body.MatterMode)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return
+	}
+	store, err := h.aiReviewStore()
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if len(body.Candidates) == 0 {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("candidates are required"))
+		return
+	}
+	verified, err := store.VerifyAISource(r.Context(), body.PreviewHandle, body.Candidates[0].AISourcePin)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if verified != body.MatterMode {
+		previewError(w, http.StatusConflict, errors.New("request mode disagrees with durable source receipt"))
+		return
+	}
+	digest := requestDigest(key, actor, body)
+	runID := flow.DeterministicID("ai_candidate_run", body.Candidates[0].SourceVersionID, digest)
+	ids, err := store.StageAICandidates(r.Context(), body.PreviewHandle, runID, digest, body.Candidates)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	previewJSON(w, http.StatusAccepted, map[string]any{"source_version_id": body.Candidates[0].SourceVersionID, "run_id": runID, "candidate_ids": ids, "matter_mode": verified})
+}
+
+// aiCandidates reads pending and decided AI candidates under the exact retained source pin.
+// Inputs: preview handle and custody pin in query parameters. Outputs: bounded candidate views.
+// Effects: read-only. Choose for the owner AI review surface.
+func (h *EntityExtractionHTTPHandler) aiCandidates(w http.ResponseWriter, r *http.Request) {
+	store, err := h.aiReviewStore()
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	pin := service.AISourcePin{SourceVersionID: r.URL.Query().Get("source_version_id"), SourceObjectID: r.URL.Query().Get("source_object_id"), SourceSHA256: r.URL.Query().Get("source_sha256")}
+	if version := r.URL.Query().Get("version_id"); version != "" {
+		pin.VersionID = &version
+	}
+	mode, err := store.VerifyAISource(r.Context(), r.URL.Query().Get("preview_handle"), pin)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if mode != r.URL.Query().Get("matter_mode") {
+		previewError(w, http.StatusConflict, errors.New("request mode disagrees with durable source receipt"))
+		return
+	}
+	const pageSize = 200
+	rows, err := store.ListAICandidates(r.Context(), pin.SourceVersionID, r.URL.Query().Get("after_id"), pageSize+1)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	nextCursor := ""
+	if len(rows) > pageSize {
+		rows = rows[:pageSize]
+		nextCursor = rows[len(rows)-1].ID
+	}
+	previewJSON(w, http.StatusOK, map[string]any{"source_version_id": pin.SourceVersionID, "candidates": rows, "next_cursor": nextCursor, "matter_mode": mode})
+}
+
+// decideAICandidate records one explicit owner approval, rejection or request for more information.
+// Inputs: retained pin, candidate ID, decision, actor and Idempotency-Key. Outputs: receipt digest.
+// Effects: updates review state and attrs only; no promotion. Choose after inspecting a candidate.
+func (h *EntityExtractionHTTPHandler) decideAICandidate(w http.ResponseWriter, r *http.Request) {
+	var body aiDecisionRequest
+	if err := decodePreviewJSON(w, r, &body); err != nil {
+		previewError(w, http.StatusBadRequest, err)
+		return
+	}
+	actor, key, err := actorAndKey(r)
+	if err != nil {
+		previewError(w, http.StatusUnauthorized, err)
+		return
+	}
+	mode, err := caseidentity.ParseMode(body.MatterMode)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return
+	}
+	store, err := h.aiReviewStore()
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	verified, err := store.VerifyAISource(r.Context(), body.PreviewHandle, body.AISourcePin)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if verified != body.MatterMode {
+		previewError(w, http.StatusConflict, errors.New("request mode disagrees with durable source receipt"))
+		return
+	}
+	digest := requestDigest(key, actor, body)
+	decisionID, err := store.DecideAICandidate(r.Context(), body.AISourcePin, body.CandidateID, body.ExpectedContentSHA256, body.Decision, actor, digest, h.clock().UTC())
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	previewJSON(w, http.StatusOK, map[string]any{"candidate_id": body.CandidateID, "decision": body.Decision, "decision_id": decisionID, "request_digest": digest, "matter_mode": verified})
 }
 
 func (h *EntityExtractionHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {

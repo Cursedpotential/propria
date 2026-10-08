@@ -124,6 +124,11 @@ const ChunkDocument StageID = "chunk_document_activity"
 // never format validation or canonical eligibility. Byline: Codex, 2026-10-06.
 const AssessSourceIntegrity StageID = "assess_source_integrity_activity"
 
+// StageAICandidateBundle stages grounded proposals from a retained AI source for owner review.
+// Inputs: exact source pin and candidate bundle reference/hash. Outputs: bounded staging receipt.
+// Effects: pending working candidates only. Choose on the native source-only AI branch.
+const StageAICandidateBundle StageID = "stage_ai_candidate_bundle_activity"
+
 // DeriveSMSThreads is the canon Activity name for streaming one oversized
 // source that no in-place extractor can read and publishing memory-safe
 // structured text into the configured derived vault directory (owner rulings
@@ -236,6 +241,7 @@ const AutoApprovalActor = "auto:clean-checks"
 // invariant while giving conditional Temporal branches a reviewable
 // dependency contract.
 var OptionalStages = []Descriptor{
+	{ID: StageAICandidateBundle, Responsibility: RespPersist, Result: "retained-source AI candidate staging receipt", DependsOn: []StageID{RetainOriginal, CaptureFilesystemMetadata, FingerprintSource, InventoryContainer, ExtractEmbeddedMetadata}},
 	{ID: AssessSourceIntegrity, Responsibility: RespVerify, Result: "byte integrity assessment receipt reference", DependsOn: []StageID{RetainOriginal}},
 	{
 		ID:             PublishContextSearch,

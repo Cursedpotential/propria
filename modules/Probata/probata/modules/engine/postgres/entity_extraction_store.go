@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
+	"io"
 	"strings"
 	"time"
 
@@ -31,7 +32,10 @@ import (
 )
 
 // EntityExtractionStore is the durable extraction seam.
-type EntityExtractionStore struct{ db DB }
+type EntityExtractionStore struct {
+	db               DB
+	aiOriginalOpener func(context.Context, string) (io.ReadCloser, error)
+}
 
 // NewEntityExtractionStore validates the database seam.
 func NewEntityExtractionStore(db DB) (*EntityExtractionStore, error) {
@@ -39,6 +43,21 @@ func NewEntityExtractionStore(db DB) (*EntityExtractionStore, error) {
 		return nil, errors.New("postgres entity extraction store: database is required")
 	}
 	return &EntityExtractionStore{db: db}, nil
+}
+
+// NewEntityExtractionStoreWithAIOriginal equips retained-source review with a sealed original-object reader.
+// Inputs: database and opener for inline/filesystem retained URI. Outputs: extraction store.
+// Effects: none at construction. Choose when AI candidate staging is enabled; the default constructor fails closed.
+func NewEntityExtractionStoreWithAIOriginal(db DB, opener func(context.Context, string) (io.ReadCloser, error)) (*EntityExtractionStore, error) {
+	if opener == nil {
+		return nil, errors.New("AI original opener is required")
+	}
+	store, err := NewEntityExtractionStore(db)
+	if err != nil {
+		return nil, err
+	}
+	store.aiOriginalOpener = opener
+	return store, nil
 }
 
 var _ service.Store = (*EntityExtractionStore)(nil)
