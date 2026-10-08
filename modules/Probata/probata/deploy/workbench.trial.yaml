@@ -1,0 +1,250 @@
+# Trial APP restore of the existing Workbench; original app and data remain intact.
+# Manual deploy only. Sources are configured B2 roots; selection never imports them.
+# Byline: Codex · GPT-6 · 2026-10-08.
+# Byline: Codex · GPT-5 · 2026-08-18 (owner-only native evidence search credential)
+# Byline: Codex · GPT-5 · 2026-08-28 (unified proffer (then UIW) production surface)
+# Byline: Codex · GPT-5 · 2026-08-29 (Authentik-only Traefik ingress boundary)
+# Byline: Codex · GPT-5 · 2026-08-29 (private movable Tailscale Service ingress)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-29 (private Platform API service-DNS cutover)
+# Byline: Codex · GPT-5.6-Sol · 2026-08-30 (runtime proffer (then UIW) service credential)
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (edge: one tailnet-bound door, declared publish network, no propria-edge)
+# Byline: Claude Code · Opus 5.5 · 2026-09-27 (DF-24 Graphiti env comment removed; DD-05 header true-up)
+# Byline: Claude Code · Opus 5.5 · 2026-09-28 (DF-30 machine-client JWT env)
+# Byline: Claude Code · Sonnet · 2026-10-02 (mobile Imported view: read-only platform login + Weaviate env)
+# =============================================================================
+# PROBATA WORKBENCH — its OWN Coolify app on OVH-1 ("ovh-app", tailnet
+# 100.72.169.40), app uuid xjbuo6drbwjfby75lalk8bk7. Single-service app per the
+# one-concern-per-app rule.
+#
+# Builds from Cursedpotential/propria, branch main, base directory
+# /modules/Probata/probata. Watch paths are repository-root paths:
+# modules/Probata/probata/modules/workbench/** and
+# modules/Probata/probata/deploy/workbench.yaml. Auto-deploy is off; every
+# deploy is an explicit POST /api/v1/deploy.
+#
+# HOST-PREP (once, before first deploy):
+#   sudo mkdir -p /data/probata/volumes/workbench/{inbox,copilot}
+#   sudo chown -R 1000:1000 /data/probata/volumes/workbench
+#   sudo install -d -m 0700 /data/probata/secrets/platform
+#   sudo install -m 0400 /dev/null /data/probata/secrets/platform/api-bearer
+#   # Write the Platform API bearer without a trailing newline; never place it in env.
+#
+# EDGE (Claude Code · Opus 5.5 · 2026-09-27). Two doors, one tailnet-bound port:
+#   - Public: Traefik (tracked file modules/Consignatio/docs/receipts/portal/
+#     propria-public-portal.yaml, router workbench-public-fixed) dials
+#     ${BIND_IP}:9071 behind Authentik's domain forward-auth. Docker masquerades
+#     that hop to the gateway of the declared network workbench-publish, 10.201.8.1,
+#     so Coolify env TRAEFIK_PROXY_CIDR=10.201.8.1/32 (measured, not assumed).
+#   - Tailnet: svc:workbench (deploy/tailscale/workbench-serve.sh) dials the same
+#     ${BIND_IP}:9071 from the host, so its socket peer is the host's own tailnet
+#     address: Coolify env WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS=100.72.169.40/32.
+#     No Authentik on this door (owner 2026-09-26).
+# Accepted cost (parent/owner pick A, 2026-09-27): any other container on this host
+# that dials ${BIND_IP}:9071 is masqueraded to 10.201.8.1 as well and could assert an
+# Authentik identity; tailnet clients keep their own 100.x peer and cannot. The fix
+# is for the Workbench to verify Authentik's signed X-authentik-jwt (app change).
+# No hand-made networks and no pinned container addresses (owner 2026-09-26).
+#
+# C2.5 (Ops Copilot) points at the exec-gateway service. Authentication for
+# user-facing Workbench traffic is owned by Authentik at Traefik; this manifest
+# does not carry a shared-password ingress contract.
+#
+# The released intake path streams source bytes to the Universal Import
+# starter's authenticated acquisition ingress and sends only its opaque
+# reference through Temporal. The retired LanceDB intake store is not mounted
+# or used by this deployment. PostgreSQL remains canonical.
+#
+# Stores and roots are configuration (OBJECT_STORES_JSON, SOURCE_ROOTS_JSON);
+# the B2 vault is the default root. Credentials are read at runtime from mounted
+# documents; no bucket is filesystem-mounted.
+#
+# Coolify gotcha: env values are rendered as literals into the materialized
+# compose at deploy — set ALL envs (bulk API, {"data":[...]} shape) BEFORE the
+# first deploy; later env changes require a redeploy.
+# =============================================================================
+# Byline: Claude Code · Fable 5 · 2026-07-19 (MCP_SERVERS/CONTEXTFORGE_TOKEN added 2026-07-20, C1 rebuild; OPENCODE_*/COPILOT_PRESETS_PATH + copilot bind mount added 2026-07-21, C2.5; agno 2.8 MCP door migration (:8001->:8000 + token_env) + GRAPHITI_MCP_URL added 2026-07-23, Claude Code · Sonnet (agent), C4; Coolify path/watch-path true-up 2026-08-13, Codex · GPT-5; Graphiti host repoint + model-lab Portkey env + held neutral-chat config contract 2026-08-16, Codex · GPT-5)
+
+services:
+  workbench:
+    build:
+      context: ./modules/workbench
+      dockerfile: Dockerfile
+    image: probata-workbench:latest
+    container_name: workbench
+    restart: unless-stopped
+    mem_limit: 1536m
+    cpus: 1.5
+    environment:
+      APP_PORT: "8020"
+      # Exact socket peer allowed to assert Authentik identity: Traefik's hop as the
+      # Workbench sees it, 10.201.8.1/32 (see EDGE above), never a broad Docker/tailnet
+      # range. Missing or malformed configuration fails closed.
+      TRUSTED_AUTH_PROXY_CIDRS: ${TRAEFIK_PROXY_CIDR}  # Coolify renders a `:?` message as the literal VALUE (seen live 2026-09-07); empty still fails closed in auth.py
+      # Feature-gated owner testing path. Traefik remains the trusted socket
+      # peer and X-Real-IP must be inside this Tailscale range. Disable after
+      # Authentik activation without changing application code.
+      TAILNET_AUTH_BYPASS_ENABLED: ${WORKBENCH_TAILNET_AUTH_BYPASS_ENABLED:-false}
+      TAILNET_AUTH_BYPASS_CIDRS: ${WORKBENCH_TAILNET_AUTH_BYPASS_CIDRS:-100.64.0.0/10}
+      # Exact socket peer of svc:workbench's Serve forwarder = ${BIND_IP}/32 (see EDGE
+      # above). Empty fails closed for the tailnet door.
+      TRUSTED_TAILSCALE_SERVE_PROXY_CIDRS: ${WORKBENCH_TAILSCALE_SERVE_PROXY_CIDRS:-}
+      # Serve strips client capability headers. Enable only with an explicit
+      # tailnet app grant and --accept-app-caps on svc:workbench.
+      TAILSCALE_DEVICE_CAPABILITY: ${WORKBENCH_TAILSCALE_DEVICE_CAPABILITY:-}
+      # Machine clients (DF-30, Claude Code · Opus 5.5 · 2026-09-28): an Authentik service
+      # account's access token, `Authorization: Bearer <JWT>`, on either door above. The
+      # Workbench checks the signature against the JWKS, the exact issuer(s), the audience
+      # (the provider's client_id), expiry, and one of the allowed groups. Any of the four
+      # empty = the JWT path is off. None of these values is secret. Intended values:
+      #   ISSUERS     https://authentik.tilapia-skilift.ts.net/application/o/workbench-api/,
+      #               https://auth.int.mitechconsult.com/application/o/workbench-api/
+      #   AUDIENCE    propria-workbench-api
+      #   JWKS_URL    http://authentik-server:9000/application/o/workbench-api/jwks/ (probata network)
+      #   GROUPS      propria-machines
+      MACHINE_JWT_ISSUERS: ${WORKBENCH_MACHINE_JWT_ISSUERS:-}
+      MACHINE_JWT_AUDIENCE: ${WORKBENCH_MACHINE_JWT_AUDIENCE:-}
+      MACHINE_JWT_JWKS_URL: ${WORKBENCH_MACHINE_JWT_JWKS_URL:-}
+      MACHINE_JWT_ALLOWED_GROUPS: ${WORKBENCH_MACHINE_JWT_ALLOWED_GROUPS:-}
+      # Same-host service traffic stays on the shared private Coolify network.
+      # PLATFORM_API_URL remains overridable for a future cross-host Tailscale
+      # Service cutover without changing Workbench application code.
+      PLATFORM_API_URL: ${PLATFORM_API_URL:-http://platform-api:8000}
+      # The Platform API currently uses the backend runtime's native bearer contract. The secret is
+      # read fresh from the read-only mount below for every upstream request;
+      # only this non-secret path is configurable.
+      PLATFORM_API_BEARER_SECRET_FILE: /run/secrets/platform-api-bearer
+      # Direct-tailnet Proffer boundary on ovh-files.
+      PROFFER_STARTER_URL: ${PROFFER_STARTER_URL:-http://100.91.190.107:8091}
+      # Shared service credential for authenticated preview/start/context calls.
+      # The value is runtime-read on every request so rotation needs no rebuild.
+      PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
+      # Byline: Codex, orchestrator, 2026-10-05. One approved identity in Dev and Live.
+      # Set the neutral pair in Coolify before deploying; neither operating mode nor
+      # authentication feature flags select another case. Missing values fail closed.
+      PROFFER_MATTER_ID: ${PROFFER_MATTER_ID:-}
+      PROFFER_COURT_CASE_ID: ${PROFFER_COURT_CASE_ID:-}
+      # Distinct owner-only capability for bounded exploratory evidence search.
+      # It is runtime-read from the mount below and never issued to agents.
+      EVIDENCE_OPERATOR_BEARER_SECRET_FILE: /run/secrets/evidence-operator-security-key
+      # --- MCP tool servers (Tool Explorer, C1 console) ---
+      # Normal MCP traffic uses the Portkey-published ContextForge doors and
+      # their own scoped credentials. The Platform API bearer is not an MCP
+      # environment credential; native calls read it only from the file mount.
+      # Set as a LITERAL, not `${MCP_SERVERS:-<json>}`: Docker Compose's
+      # interpolation has no brace-nesting awareness, so a JSON default
+      # containing `}` would truncate at the JSON's own first `}`. This is
+      # also just this repo's existing Coolify convention anyway (env
+      # values are rendered as literals at deploy — see the file header) —
+      # to override, edit this value directly in the Coolify env editor.
+      # Activation contains only Portkey-published ContextForge virtual-server
+      # endpoints with gateway:"portkey" on every entry. The Platform API has
+      # no MCP surface.
+      # Empty is fail-closed. Direct doors require the explicit diagnostic flag.
+      MCP_SERVERS: ${MCP_SERVERS:-[]}
+      MCP_DIRECT_BYPASS_ALLOWED: ${MCP_DIRECT_BYPASS_ALLOWED:-false}
+      CONTEXTFORGE_TOKEN: ${CONTEXTFORGE_TOKEN:-}
+      # --- LLM gateway (default model-lab route) ---
+      # Self-hosted Portkey accepts the selected upstream in
+      # x-portkey-provider and the corresponding upstream credential as the
+      # bearer token. The Workbench never exposes either value to the browser.
+      # A future Portkey control-plane key can omit PORTKEY_PROVIDER and use
+      # the same variables for the integrated cloud Model Catalog instead.
+      PORTKEY_BASE_URL: ${PORTKEY_BASE_URL:-http://100.72.169.40:8787/v1}
+      PORTKEY_PROVIDER: ${PORTKEY_PROVIDER:-}
+      PORTKEY_API_KEY: ${PORTKEY_API_KEY:-}
+      PORTKEY_MODEL_ID: ${PORTKEY_MODEL_ID:-gpt-4o}
+      # Required by POST /v1/chat. The saved config owns fallback/load-balance
+      # policy; empty fails closed. Provision only during the separately
+      # approved Workbench activation.
+      PORTKEY_CONFIG: ${PORTKEY_CONFIG:-}
+      PORTKEY_ENVIRONMENT: ${PORTKEY_ENVIRONMENT:-production}
+      # --- Ops Copilot (C2.5) — headless OpenCode server, exec-gateway app ---
+      OPENCODE_URL: ${OPENCODE_URL:-http://100.72.169.40:4096}
+      OPENCODE_USERNAME: ${OPENCODE_USERNAME:-opencode}
+      OPENCODE_MODEL: ${OPENCODE_MODEL:-groq/llama-3.3-70b-versatile}
+      OPENCODE_WORKSPACE_DIR: ${OPENCODE_WORKSPACE_DIR:-/workspace/copilot}
+      COPILOT_PRESETS_PATH: ${COPILOT_PRESETS_PATH:-/data/copilot/presets.json}
+      # Byline: Codex, 2026-09-20. Read the existing pre-ingest catalog.
+      INTAKE_DISCOVERY_PG_HOST: ${INTAKE_DISCOVERY_PG_HOST:-100.91.190.107}
+      # The catalog (casebible-pg18) is reached through ovh-files tailscale serve tcp 5433 -> 127.0.0.1:5475 (the
+      # Coolify-declared port; deploy/tailscale/catalog-serve.sh);
+      # the old tailnet bind 100.91.190.107:5475 was a hand edit of the rendered compose that a redeploy dropped
+      # (Claude Code · Opus 5.5 · 2026-10-02).
+      INTAKE_DISCOVERY_PG_PORT: ${INTAKE_DISCOVERY_PG_PORT:-5433}
+      INTAKE_DISCOVERY_PG_DATABASE: casebible
+      INTAKE_DISCOVERY_PG_USER: metabase_ro
+      INTAKE_DISCOVERY_PG_PASSWORD_FILE: /run/secrets/intake-catalog-readonly
+      INTAKE_DISCOVERY_INDEX_URL: ${INTAKE_DISCOVERY_INDEX_URL:-}
+      # Mobile Imported view (/m, Claude Code · Sonnet · 2026-10-02): reads context.* and working.* on the
+      # platform database (ovh-files) through its own SELECT-only login, workbench_reader
+      # (sql/bootstrap/workbench_reader_20261002.sql), and searches the Weaviate projection of the imported
+      # messages. The password is runtime-read from the mount below.
+      IMPORTED_PG_HOST: ${IMPORTED_PG_HOST:-100.91.190.107}
+      IMPORTED_PG_PORT: ${IMPORTED_PG_PORT:-5432}
+      IMPORTED_PG_DATABASE: platform
+      IMPORTED_PG_USER: workbench_reader
+      IMPORTED_PG_PASSWORD_FILE: /run/secrets/workbench-pg-reader
+      IMPORTED_WEAVIATE_URL: ${IMPORTED_WEAVIATE_URL:-http://100.91.190.107:8082}
+      # Read searches conversation chunks; raw message events have a different schema.
+      IMPORTED_WEAVIATE_CLASS: ProfferChunks20261002
+      # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
+      # store: scheme -> credential file. Switching provider = a credential file + these two
+      # values, identical in every Proffer/Workbench service. The first root is the default.
+      # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
+      # Byline: Codex · GPT-6-Luna · 2026-10-04 (B2 Casevault only; no R2 source roots).
+      OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json"}'
+      SOURCE_ROOTS_JSON: ${SOURCE_ROOTS_JSON}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
+    volumes:
+      # Bind mounts only — owner backs up host dirs (no named volumes).
+      - /data/probata/volumes/workbench/inbox:/data/inbox
+      # C2.5 Ops Copilot preset-prompt override (optional — see
+      # app/service/copilot_presets.py; absent file = in-code defaults only).
+      - /data/probata/volumes/workbench/copilot:/data/copilot
+      # Runtime-read bearer rotation takes effect on the next request without
+      # rebuilding, restarting, or redeploying Workbench.
+      - /data/probata/secrets/platform/api-bearer:/run/secrets/platform-api-bearer:ro
+      - /data/probata/secrets/platform/evidence-operator-security-key:/run/secrets/evidence-operator-security-key:ro
+      - /data/probata/secrets/progress-board/metabase-ro:/run/secrets/intake-catalog-readonly:ro
+      - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
+      - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
+      - /data/probata/secrets/workbench/pg-reader:/run/secrets/workbench-pg-reader:ro
+    ports:
+      # The one door for both svc:workbench and Traefik (see EDGE in the header),
+      # tailnet-bound, fail-closed to loopback if BIND_IP is unset. Port registered in
+      # deploy/service-port-registry.json (probata, portal family). No tsnet-front
+      # sidecar: it crash-looped without an auth key and took the app down (194a3603).
+      - "${BIND_IP:-127.0.0.1}:9071:8020"
+    healthcheck:
+      # /health deliberately stays HTTP 200 while degraded; require its JSON
+      # contract so missing B2 access cannot be reported healthy by Docker.
+      test: ["CMD-SHELL", "python3 -c \"import json,urllib.request,sys; body=json.load(urllib.request.urlopen('http://127.0.0.1:8020/health', timeout=5)); sys.exit(0 if body.get('status') == 'ok' and body.get('object_store') is True else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # gw_priority makes workbench-publish the network the published port maps through, so
+    # the address Traefik's hop is masqueraded to is that network's declared gateway,
+    # 10.201.8.1. probata is the shared private network the PLATFORM_API_URL default
+    # (http://platform-api:8000) resolves on. Coolify also attaches its own app network.
+    # Every entry has a mapping value on purpose: Coolify 4.1.2 silently drops null-valued
+    # entries, which is why the Workbench was not actually on probata before 2026-09-27.
+    networks:
+      workbench-publish:
+        gw_priority: 1
+      probata: {}
+    # No Traefik docker labels: the public route is the tracked Traefik file's
+    # workbench-public-fixed router (Authentik domain forward-auth), see EDGE above.
+
+networks:
+  probata:
+    external: true   # shared private network (platform-api); Traefik does not use it
+  workbench-publish:
+    # Declared here so its gateway, the Workbench's trusted Traefik peer, is fixed by this
+    # file rather than by Docker's address pool (default pools are 10.200.0.0/16).
+    name: workbench-publish
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.201.8.0/29
+          gateway: 10.201.8.1

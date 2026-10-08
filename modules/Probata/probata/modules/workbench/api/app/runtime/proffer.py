@@ -32,6 +32,7 @@ from app.service.proffer import (
 from app.service.proffer_flags import create_potential_promotion_flag, list_potential_promotion_flags
 from app.service.proffer_operations import list_operations, operation
 from app.service.proffer_operator import operator_snapshot
+from app.types.matter_mode import MatterMode
 from app.types.proffer import (
     ProfferContentResponse,
     ProfferDecisionActor,
@@ -84,7 +85,7 @@ def _decision_actor(request: Request) -> ProfferDecisionActor:
 
 @router.get("/sources", response_model=ProfferSourceBrowserResponse)
 def sources_endpoint(
-    mode: OperatingMode,
+    mode: Annotated[MatterMode, Query()] = "LIVE",
     root_id: Annotated[str, Query(min_length=1, max_length=64)] = DEFAULT_SOURCE_ROOT_ID,
     prefix: Annotated[str, Query(max_length=1024)] = "",
     continuation_token: Annotated[str | None, Query(max_length=4096)] = None,
@@ -93,6 +94,12 @@ def sources_endpoint(
     file_type: Annotated[list[str] | None, Query()] = None,
     page_size: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
+    """Browse one configured object-store root without admitting a case.
+
+    Inputs: root ID, relative prefix, optional filename filter and page cursor.
+    Output: bounded files/folders and available configured roots. Effects: one
+    provider listing; use for navigation, not processing authorization.
+    """
     try:
         return browse_sources(
             mode=mode,
