@@ -1,12 +1,13 @@
+# Trial recovery: only tailnet enabled; public profile stays held for existing Authentik.
 # =============================================================================
 # PROPRIA PORTAL — the owner's Homepage (gethomepage v1.13.2): both instances, one Coolify app.
 #
 #   homepage         tailnet  https://homepage.tilapia-skilift.ts.net
-#                    tailscale serve svc:homepage on ovh-app: / -> 100.72.169.40:3010,
+#                    tailscale serve svc:homepage on ovh-app: / -> 100.84.202.29:3010,
 #                    /progress -> the progress board on :3020.
 #   homepage-public  public    https://homepage.int.mitechconsult.com
 #                    Traefik file route `homepage-public` (ovh-app
-#                    /data/coolify/proxy/dynamic/propria-public-portal.yaml) -> 100.72.169.40:3012,
+#                    /data/coolify/proxy/dynamic/propria-public-portal.yaml) -> 100.84.202.29:3012,
 #                    behind the one Authentik login.
 #
 # Source: deploy/portal/ — Dockerfile, shared/ (settings, widgets, bookmarks, custom.css/js, the
@@ -46,10 +47,12 @@ services:
         INSTANCE: tailnet
     image: propria-portal:tailnet
     restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
     ports:
-      - "100.72.169.40:3010:3000"
+      - "100.84.202.29:3010:3000"
     environment:
-      HOMEPAGE_ALLOWED_HOSTS: "homepage.tilapia-skilift.ts.net,100.72.169.40:3010"
+      HOMEPAGE_ALLOWED_HOSTS: "homepage.tilapia-skilift.ts.net,100.84.202.29:3010"
       HOMEPAGE_VAR_PORTAL_TITLE: "Propria Project Portal"
     healthcheck:
       # /api/revalidate re-renders the index page from the baked configuration. Homepage serves the
@@ -67,6 +70,7 @@ services:
       - traefik.enable=false
 
   homepage-public:
+    profiles: [public]
     build:
       context: ./deploy/portal
       dockerfile: Dockerfile
@@ -74,10 +78,12 @@ services:
         INSTANCE: public
     image: propria-portal:public
     restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
     ports:
-      - "100.72.169.40:3012:3000"
+      - "100.84.202.29:3012:3000"
     environment:
-      HOMEPAGE_ALLOWED_HOSTS: "homepage.int.mitechconsult.com,100.72.169.40:3012"
+      HOMEPAGE_ALLOWED_HOSTS: "homepage.int.mitechconsult.com,100.84.202.29:3012"
       HOMEPAGE_VAR_PORTAL_TITLE: "Propria Project Portal (Public)"
     healthcheck:
       # Same as above: re-render the cached index from the baked configuration.
