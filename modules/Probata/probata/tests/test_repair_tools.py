@@ -53,6 +53,23 @@ def test_gateway_writes_and_verifies_execution_audit(tmp_path: Path) -> None:
     assert verified["entries"] == 2
 
 
+def test_temporal_tool_result_is_always_a_content_reference(tmp_path: Path) -> None:
+    """Keep even a tiny source-derived result out of durable Temporal history."""
+    from server.tools.gateway.content_store import ContentStore
+
+    source = tmp_path / "source.csv"
+    source.write_text("name,value\na,1\n", encoding="utf-8")
+    store = ContentStore(tmp_path / "gateway")
+    result = execute_tool(
+        "repair.detect", {"path": str(source), "_execution_mode": "temporal", "_operation_id": "test-temporal-ref"},
+        store=store,
+    )
+    assert result["inline"] is False
+    assert result["ref"].startswith("sha256:")
+    assert "result" not in result
+    assert store.exists(result["ref"].split(":", 1)[1])
+
+
 def test_execution_audit_detects_tampering(tmp_path: Path) -> None:
     from server.tools.gateway.execution_audit import append_event, verify_ledger
 

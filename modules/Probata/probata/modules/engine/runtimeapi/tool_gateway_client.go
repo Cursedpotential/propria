@@ -109,3 +109,44 @@ func (c *ToolGatewayClient) Run(ctx context.Context, toolID string, sourceRef pr
 	}
 	return append(json.RawMessage(nil), data...), nil
 }
+
+// RunPinned invokes the policy-checked source-file route with an exact reviewed
+// SHA-256. Inputs are tool ID, immutable locator, digest and options; output is
+// the tool-runtime envelope. It cannot execute the gateway's unpinned route.
+func (c *ToolGatewayClient) RunPinned(ctx context.Context, toolID string, sourceRef proffer.Ref, sourceSHA256, operationID string, args map[string]any) (json.RawMessage, error) {
+	if c == nil || c.client == nil {
+		return nil, errors.New("tool gateway client is not configured")
+	}
+	if strings.TrimSpace(toolID) == "" || strings.ContainsAny(toolID, "/?#") {
+		return nil, errors.New("tool gateway client requires a safe exact tool id")
+	}
+	if strings.TrimSpace(string(sourceRef)) == "" || len(sourceSHA256) != 64 || len(operationID) < 16 || len(operationID) > 128 {
+		return nil, errors.New("pinned tool action requires a source locator, SHA-256 and operation ID")
+	}
+	for key := range args {
+		if key == "path" || strings.HasPrefix(key, "_") {
+			return nil, errors.New("pinned tool action cannot supply host paths or reserved options")
+		}
+	}
+	body, err := json.Marshal(struct {
+		SourceRef    string         `json:"source_ref"`
+		SourceSHA256 string         `json:"source_sha256"`
+		OperationID  string         `json:"operation_id"`
+		Args         map[string]any `json:"args"`
+	}{string(sourceRef), sourceSHA256, operationID, args})
+	if err != nil { return nil, fmt.Errorf("encode pinned tool payload: %w", err) }
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/tools/"+url.PathEscape(toolID)+"/run-pinned", bytes.NewReader(body))
+	if err != nil { return nil, err }
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.serviceToken)
+	resp, err := c.client.Do(req)
+	if err != nil { return nil, fmt.Errorf("call pinned tool gateway %q: %w", toolID, err) }
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxToolGatewayResponseBytes+1))
+	if err != nil { return nil, err }
+	if int64(len(data)) > maxToolGatewayResponseBytes { return nil, errors.New("pinned tool response exceeds limit") }
+	if resp.StatusCode != http.StatusOK { return nil, fmt.Errorf("pinned tool gateway %q returned %d", toolID, resp.StatusCode) }
+	var object map[string]any
+	if err := json.Unmarshal(data, &object); err != nil || object == nil { return nil, errors.New("pinned tool gateway returned invalid JSON object") }
+	return append(json.RawMessage(nil), data...), nil
+}

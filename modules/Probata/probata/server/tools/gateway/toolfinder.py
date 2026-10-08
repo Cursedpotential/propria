@@ -174,7 +174,9 @@ def execute_tool(
         status="completed",
     )
 
-    if len(body.encode("utf-8")) <= inline_threshold:
+    # A Temporal Activity must receive a reference even for a tiny result:
+    # otherwise source-derived content is copied into durable workflow history.
+    if execution_mode != "temporal" and len(body.encode("utf-8")) <= inline_threshold:
         return {
             "tool_id": tool_id,
             "operation_id": operation_id,

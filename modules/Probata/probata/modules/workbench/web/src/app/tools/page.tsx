@@ -1,6 +1,7 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-20
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (monitored Atomic Tools surface)
 import { AtomicTools } from "@/components/tools/atomic-tools";
+import { SourcePinnedAction } from "@/components/tools/source-pinned-action";
 
 export default function ToolsPage() {
   return (
@@ -12,7 +13,11 @@ export default function ToolsPage() {
           Run one bounded capability inside a durable, matter-scoped monitor. The browser never calls an operational tool directly.
         </p>
       </header>
-      <AtomicTools />
+      <SourcePinnedAction />
+      <details className="border bg-card p-4">
+        <summary className="cursor-pointer text-sm font-semibold">Full tool catalog and future actions</summary>
+        <div className="mt-4"><AtomicTools /></div>
+      </details>
     </div>
   );
 }
