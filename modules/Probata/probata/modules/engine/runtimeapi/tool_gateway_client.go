@@ -134,19 +134,33 @@ func (c *ToolGatewayClient) RunPinned(ctx context.Context, toolID string, source
 		OperationID  string         `json:"operation_id"`
 		Args         map[string]any `json:"args"`
 	}{string(sourceRef), sourceSHA256, operationID, args})
-	if err != nil { return nil, fmt.Errorf("encode pinned tool payload: %w", err) }
+	if err != nil {
+		return nil, fmt.Errorf("encode pinned tool payload: %w", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/tools/"+url.PathEscape(toolID)+"/run-pinned", bytes.NewReader(body))
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.serviceToken)
 	resp, err := c.client.Do(req)
-	if err != nil { return nil, fmt.Errorf("call pinned tool gateway %q: %w", toolID, err) }
+	if err != nil {
+		return nil, fmt.Errorf("call pinned tool gateway %q: %w", toolID, err)
+	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxToolGatewayResponseBytes+1))
-	if err != nil { return nil, err }
-	if int64(len(data)) > maxToolGatewayResponseBytes { return nil, errors.New("pinned tool response exceeds limit") }
-	if resp.StatusCode != http.StatusOK { return nil, fmt.Errorf("pinned tool gateway %q returned %d", toolID, resp.StatusCode) }
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxToolGatewayResponseBytes {
+		return nil, errors.New("pinned tool response exceeds limit")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("pinned tool gateway %q returned %d", toolID, resp.StatusCode)
+	}
 	var object map[string]any
-	if err := json.Unmarshal(data, &object); err != nil || object == nil { return nil, errors.New("pinned tool gateway returned invalid JSON object") }
+	if err := json.Unmarshal(data, &object); err != nil || object == nil {
+		return nil, errors.New("pinned tool gateway returned invalid JSON object")
+	}
 	return append(json.RawMessage(nil), data...), nil
 }

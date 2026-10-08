@@ -1,6 +1,6 @@
 // Byline: Codex · 2026-10-06.
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorBox, Loading } from "@/components/mobile/mobile-ui";
 import { searchContext } from "@/lib/api-client";
@@ -19,18 +19,16 @@ const families: { id: RetrievalLeg; label: string }[] = [
  * Use on both Sources and Read instead of duplicating retrieval logic in page components.
  */
 export function ContextSearch({ initialQuery = "", onSubmit }: { initialQuery?: string; onSubmit?: (query: string) => void }) {
+  return <ContextSearchInput key={initialQuery} initialQuery={initialQuery} onSubmit={onSubmit} />;
+}
+
+function ContextSearchInput({ initialQuery, onSubmit }: { initialQuery: string; onSubmit?: (query: string) => void }) {
   const [draft, setDraft] = useState(initialQuery);
   const [mode, setMode] = useState<RetrievalMode>("hybrid");
   const [legs, setLegs] = useState<RetrievalLeg[]>(["intake", "proffer"]);
   const [submitted, setSubmitted] = useState<{ text: string; mode: RetrievalMode; legs: RetrievalLeg[]; id: string } | null>(
     () => initialQuery ? { text: initialQuery, mode: "hybrid", legs: ["intake", "proffer"], id: crypto.randomUUID() } : null,
   );
-  useEffect(() => {
-    setDraft(initialQuery);
-    setSubmitted((previous) => previous?.text === initialQuery ? previous : initialQuery
-      ? { text: initialQuery, mode: previous?.mode ?? "hybrid", legs: previous?.legs ?? ["intake", "proffer"], id: crypto.randomUUID() }
-      : null);
-  }, [initialQuery]);
   const query = useQuery({
     queryKey: ["context-retrieval", submitted],
     queryFn: ({ signal }) => searchContext(submitted!.text, submitted!.mode, submitted!.legs, submitted!.id, signal),

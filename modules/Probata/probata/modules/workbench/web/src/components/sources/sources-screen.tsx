@@ -18,7 +18,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { AlertTriangle, Loader2, Play, Upload, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SourceMetadataPanel, type SourceSelection } from "@/components/sources/source-metadata-panel";
@@ -64,7 +64,9 @@ function newBatchId() {
 
 export function SourcesScreen() {
   const { mode } = useFixedCase();
-  return <SourcesScreenMode key={mode} />;
+  const searchParams = useBrowserSearchParams();
+  const selectionKey = [mode, searchParams.get("root") ?? "", searchParams.get("file") ?? ""].join(":");
+  return <SourcesScreenMode key={selectionKey} />;
 }
 
 function SourcesScreenMode() {
@@ -83,11 +85,10 @@ function SourcesScreenMode() {
 
   const [query, setQuery] = useState(linkedFile);
   const [showContentSearch, setShowContentSearch] = useState(false);
-  const [searchSummary, setSearchSummary] = useState<string | null>(null);
-  useEffect(() => {
-    setAppliedFilter(linkedFile); setQuery(linkedFile); setShowContentSearch(false);
-    setSearchSummary(linkedFile ? `Recorded file location: ${linkedFile}` : null);
-  }, [linkedFile, rootId]);
+  const [searchSummary, setSearchSummary] = useState<string | null>(
+    linkedFile ? `Recorded file location: ${linkedFile}` : null,
+  );
+  // A changed URL selection remounts SourcesScreenMode from SourcesScreen.
 
   const [unitMarkKind, setUnitMarkKind] = useState<SourceUnitKind | "">("");
   const [markPending, setMarkPending] = useState(false);

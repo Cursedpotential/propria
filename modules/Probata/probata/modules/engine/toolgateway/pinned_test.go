@@ -39,7 +39,9 @@ func TestPinnedHTTPRejectsUnsafePolicy(t *testing.T) {
 	r.RemoteAddr = "100.91.190.107:5555"
 	w := httptest.NewRecorder()
 	h.Routes().ServeHTTP(w, r)
-	if w.Code != http.StatusForbidden || runner.calls != 0 { t.Fatalf("unsafe policy ran: status=%d calls=%d", w.Code, runner.calls) }
+	if w.Code != http.StatusForbidden || runner.calls != 0 {
+		t.Fatalf("unsafe policy ran: status=%d calls=%d", w.Code, runner.calls)
+	}
 }
 
 // TestPinnedHTTPRunsReviewedSource proves a live read-only manifest and exact
@@ -56,7 +58,9 @@ func TestPinnedHTTPRunsReviewedSource(t *testing.T) {
 	r.RemoteAddr = "100.91.190.107:5555"
 	w := httptest.NewRecorder()
 	h.Routes().ServeHTTP(w, r)
-	if w.Code != http.StatusOK || runner.calls != 1 { t.Fatalf("reviewed source not run once: status=%d calls=%d body=%s", w.Code, runner.calls, w.Body.String()) }
+	if w.Code != http.StatusOK || runner.calls != 1 {
+		t.Fatalf("reviewed source not run once: status=%d calls=%d body=%s", w.Code, runner.calls, w.Body.String())
+	}
 	if runner.lastArgs["_input_sha256"] != hex.EncodeToString(sum[:]) || runner.lastArgs["_execution_mode"] != "temporal" || runner.lastArgs["_operation_id"] != "11111111-1111-1111-1111-111111111111" {
 		t.Fatalf("gateway did not attach audited pin: %#v", runner.lastArgs)
 	}
