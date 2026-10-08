@@ -44,6 +44,9 @@ import (
 // implement all 26 Proffer stages. Filesystem and embedded observation bodies are
 // separate values so extractor provenance cannot cross activity boundaries.
 type Registrations struct {
+	// ContextPackage reuses exact native placement and compact metadata registration.
+	// Inputs: sealed refs. Outputs: package pins. Effects: none until its Activity runs.
+	ContextPackage activities.AIContextPackageActivities
 	// ContextSource records discoverable native source identity before any parser runs.
 	// Inputs: the existing platform registration store. Outputs: one named Activity.
 	// Effects: registration write only; choose for context-v1, not legacy retention.
@@ -192,6 +195,10 @@ func RegisterAll(registrar interface {
 	// Inputs: context-v1 source coordinates. Outputs: durable version and receipt refs.
 	// Effects: named Activity registration; choose before Python decode or chunk work.
 	registrar.RegisterActivityWithOptions(registrations.ContextSource.RegisterContextSourceActivity, activity.RegisterOptions{Name: "context_register_source_activity"})
+	// Retain the complete native unit using the existing placement/store and metadata seams.
+	// Inputs: sealed context refs. Outputs: package pins. Effects: registry only until invoked.
+	registrar.RegisterActivityWithOptions(registrations.ContextPackage.RetainAIContextPackage, activity.RegisterOptions{Name: activities.AIContextPackageActivityName})
+	registrar.RegisterActivityWithOptions(registrations.ContextPackage.CatalogAIContextPackage, activity.RegisterOptions{Name: activities.AIContextCatalogActivityName})
 	// Reuse exact verified AI generations after content-stage failures; no new-source admission.
 	// Byline: Codex / 2026-10-06.
 	registrar.RegisterWorkflowWithOptions(proffer.AIContentResumeWorkflow, workflow.RegisterOptions{Name: proffer.AIContentResumeWorkflowName})
@@ -834,14 +841,16 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	aiWorkproductPlacement := activities.NewAIWorkproductPlacementActivities(cfg.DeriveScratchDir, objectStores)
 	return Registrations{
-		ContextSource: activities.ContextSourceRegistrationActivities{Store: contextSourceStore},
+		ContextPackage: activities.AIContextPackageActivities{Placement: aiWorkproductPlacement, Metadata: contextSourceStore, Catalog: nativeContextCatalog(os.Getenv("AI_CONTEXT_CATALOG_DATABASE_URL_FILE"))},
+		ContextSource:  activities.ContextSourceRegistrationActivities{Store: contextSourceStore},
 		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.
 		// Byline: Codex, 2026-10-04.
 		ToolkitInventory:        activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),
 		ToolkitPreservation:     activities.NewToolkitPackagePreservationActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
 		ToolkitContentPlacement: activities.NewToolkitContentPlacementActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
-		AIWorkproductPlacement:  activities.NewAIWorkproductPlacementActivities(cfg.DeriveScratchDir, objectStores),
+		AIWorkproductPlacement:  aiWorkproductPlacement,
 		Contacts:                contactsActivities,
 		ContextSearch:           contextSearch,
 		FirstPartyContext:       activities.NewFirstPartyContextActivities(firstPartyStore),

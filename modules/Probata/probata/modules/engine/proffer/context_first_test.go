@@ -52,6 +52,39 @@ func TestContextFirstGeminiUsesExistingSequentialActivities(t *testing.T) {
 			return aiContextReceipt{ContractVersion: "ai-context-v1", Stage: step.stage, BundleRef: "file:///private/" + step.stage + ".json", Status: "complete", Records: 8, Conversations: 1, Chunks: 2, WorkProducts: 1, Candidates: 1, ObjectsWritten: 2, ObjectsVerified: 2}, nil
 		})
 	}
+	stageFn := func(context.Context, ContextReviewRequest) (ContextReviewResult, error) {
+		return ContextReviewResult{}, nil
+	}
+	env.RegisterActivityWithOptions(stageFn, activity.RegisterOptions{Name: "stage_ai_candidate_bundle_activity"})
+	env.OnActivity("stage_ai_candidate_bundle_activity", mock.Anything, mock.Anything).Return(func(_ context.Context, in ContextReviewRequest) (ContextReviewResult, error) {
+		order = append(order, "stage_ai_candidate_bundle_activity")
+		if in.ContractVersion != "ai-context-v1" || in.OperatingMode != "LIVE" || in.Source.SourceVersionID != "version" || in.Source.SourceRef != "file:///private/original.md" || in.Source.VersionID != nil || in.PreparedRef != "file:///private/prepared.json" || in.BundleRef != "file:///private/candidates.json" {
+			t.Fatal("staging lost exact native source/registration/predecessor contract")
+		}
+		return ContextReviewResult{RunID: "review-run", RequestDigest: "review-digest", CandidateIDs: []string{"real-staged-id"}, Candidates: 1, Staged: 1, Source: &ContextVerifiedReviewSource{ContextReviewSource: in.Source, SourceObjectID: "", SourceSHA256: "verified-original-hash", PreparedRef: in.PreparedRef}}, nil
+	})
+	packageFn := func(context.Context, ContextPackageRequest) (ContextPackageResult, error) {
+		return ContextPackageResult{}, nil
+	}
+	env.RegisterActivityWithOptions(packageFn, activity.RegisterOptions{Name: "retain_ai_context_package_activity"})
+	env.OnActivity("retain_ai_context_package_activity", mock.Anything, mock.Anything).Return(func(_ context.Context, in ContextPackageRequest) (ContextPackageResult, error) {
+		order = append(order, "retain_ai_context_package_activity")
+		if in.SourceVersionRef != "version" || in.PreparedRef != "file:///private/prepared.json" || in.WorkProductsRef != "file:///private/work_products.json" || in.VerificationRef != "file:///private/verified.json" {
+			t.Fatal("package lost actual source/complete bundle lineage")
+		}
+		return ContextPackageResult{Complete: true, ManifestRef: "b2://salem-data/unit/package-manifest.json?versionId=exact", ManifestSHA256: "actual", CatalogStatus: "pending"}, nil
+	})
+	catalogFn := func(context.Context, ContextCatalogRequest) (ContextPackageResult, error) {
+		return ContextPackageResult{}, nil
+	}
+	env.RegisterActivityWithOptions(catalogFn, activity.RegisterOptions{Name: "catalog_ai_context_package_activity"})
+	env.OnActivity("catalog_ai_context_package_activity", mock.Anything, mock.Anything).Return(func(_ context.Context, in ContextCatalogRequest) (ContextPackageResult, error) {
+		order = append(order, "catalog_ai_context_package_activity")
+		if in.Request.SourceVersionRef != "version" || in.Package.ManifestSHA256 != "actual" {
+			t.Fatal("catalog lost exact physical/source pin")
+		}
+		return in.Package, nil // Explicitly pending fixture; no fake catalog completion.
+	})
 	env.ExecuteWorkflow(contextFirstWorkflow, WorkflowInput{ContextContract: ContextContractVersion, RequestID: ContextWorkflowIDPrefix + "bounded", ActorSubjectUID: "owner", SourceRef: "file:///private/original.md", SourceKind: "ai_chat", DeclaredFormat: "gemini_markdown", ContextResourceBounds: limits})
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatal(err)
@@ -60,8 +93,8 @@ func TestContextFirstGeminiUsesExistingSequentialActivities(t *testing.T) {
 	if err := env.GetWorkflowResult(&result); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{contextRegisterActivityName, contextPrepareActivityName, contextWorkProductsActivityName, contextCandidatesActivityName, contextEmbedActivityName, contextPublishActivityName, contextVerifyActivityName}
-	if !reflect.DeepEqual(order, want) || result.Context == nil || result.Context.Status != "complete" || result.Context.Records != 8 {
+	want := []string{contextRegisterActivityName, contextPrepareActivityName, contextWorkProductsActivityName, contextCandidatesActivityName, "stage_ai_candidate_bundle_activity", contextEmbedActivityName, contextPublishActivityName, contextVerifyActivityName, "retain_ai_context_package_activity", "catalog_ai_context_package_activity"}
+	if !reflect.DeepEqual(order, want) || result.Context == nil || result.Context.Status != "partial" || result.Context.Reason != "catalog_pending" || result.Context.Package == nil || result.Context.Records != 8 || result.Context.Review == nil || result.Context.Review.RunID != "review-run" || result.Context.Review.RequestDigest != "review-digest" || !reflect.DeepEqual(result.Context.Review.CandidateIDs, []string{"real-staged-id"}) || result.Context.ReviewSource == nil || result.Context.ReviewSource.SourceSHA256 != "verified-original-hash" || result.Context.ReviewSource.SourceObjectID != "" || result.Context.CandidateStage == nil || result.Context.CandidateStage.Status != "staged" || result.Context.CandidateStage.Staged != 1 {
 		t.Fatalf("unexpected context completion/sequence: %+v %v", result.Context, order)
 	}
 }

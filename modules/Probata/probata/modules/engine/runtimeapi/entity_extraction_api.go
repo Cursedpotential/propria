@@ -198,7 +198,8 @@ func (h *EntityExtractionHTTPHandler) aiCandidates(w http.ResponseWriter, r *htt
 
 // decideAICandidate records one explicit owner approval, rejection or request for more information.
 // Inputs: retained pin, candidate ID, decision, actor and Idempotency-Key. Outputs: receipt digest.
-// Effects: updates review state and attrs only; no promotion. Choose after inspecting a candidate.
+// Effects: commits review state, then attempts approved graph dispatch; enqueue failure retains the receipt.
+// Choose after inspecting a candidate; pending projection can retry the identical decision request.
 func (h *EntityExtractionHTTPHandler) decideAICandidate(w http.ResponseWriter, r *http.Request) {
 	var body aiDecisionRequest
 	if err := decodePreviewJSON(w, r, &body); err != nil {
@@ -239,7 +240,11 @@ func (h *EntityExtractionHTTPHandler) decideAICandidate(w http.ResponseWriter, r
 		h.fail(w, err)
 		return
 	}
-	previewJSON(w, http.StatusOK, map[string]any{"candidate_id": body.CandidateID, "decision": body.Decision, "decision_id": decisionID, "request_digest": digest, "matter_mode": verified})
+	previewJSON(w, http.StatusOK, map[string]any{
+		"candidate_id": body.CandidateID, "decision": body.Decision, "decision_id": decisionID,
+		"request_digest": digest, "matter_mode": verified, "decision_committed": true,
+		"projection": h.dispatchApprovedAIDecisionProjection(r.Context(), body.Decision, body.SourceVersionID, body.CandidateID, decisionID, digest),
+	})
 }
 
 func (h *EntityExtractionHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {

@@ -43,7 +43,11 @@ func entityExtractionHandler(db platformpostgres.DB, temporalClient client.Clien
 	if err != nil {
 		return nil, err
 	}
-	handler, err := runtimeapi.NewEntityExtractionHTTPHandler(store, starter, serviceTokenFile)
+	workflows, err := withApprovedAIProjectionDispatch(starter, temporalClient, taskQueue)
+	if err != nil {
+		return nil, err
+	}
+	handler, err := runtimeapi.NewEntityExtractionHTTPHandler(store, workflows, serviceTokenFile)
 	if err != nil {
 		return nil, err
 	}

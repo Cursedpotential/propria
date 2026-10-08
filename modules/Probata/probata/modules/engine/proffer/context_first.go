@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -27,25 +28,29 @@ const (
 // Inputs: registration and bounded Activity receipts. Outputs: reference-only status.
 // Effects: none; choose for context-first imports, not legacy custody results.
 type ContextSummary struct {
-	ActorSubjectUID  string `json:"actor_subject_uid"`
-	Status           string `json:"status"`
-	Reason           string `json:"reason,omitempty"`
-	SourceVersionRef string `json:"source_version_ref,omitempty"`
-	ReceiptRef       string `json:"receipt_ref,omitempty"`
-	DecodedRef       string `json:"decoded_ref,omitempty"`
-	PreparedRef      string `json:"prepared_ref,omitempty"`
-	WorkProductsRef  string `json:"work_products_ref,omitempty"`
-	CandidatesRef    string `json:"candidates_ref,omitempty"`
-	EmbeddingsRef    string `json:"embeddings_ref,omitempty"`
-	PublicationRef   string `json:"publication_ref,omitempty"`
-	VerificationRef  string `json:"verification_ref,omitempty"`
-	Conversations    int    `json:"conversations,omitempty"`
-	Records          int    `json:"records,omitempty"`
-	Chunks           int    `json:"chunks,omitempty"`
-	WorkProducts     int    `json:"work_products,omitempty"`
-	Candidates       int    `json:"candidates,omitempty"`
-	ObjectsWritten   int    `json:"objects_written,omitempty"`
-	ObjectsVerified  int    `json:"objects_verified,omitempty"`
+	ReviewSource     *ContextVerifiedReviewSource `json:"review_source,omitempty"`
+	CandidateStage   *ContextCandidateStage       `json:"candidate_stage,omitempty"`
+	Review           *ContextReviewResult         `json:"candidate_review,omitempty"`
+	Package          *ContextPackageResult        `json:"package,omitempty"`
+	ActorSubjectUID  string                       `json:"actor_subject_uid"`
+	Status           string                       `json:"status"`
+	Reason           string                       `json:"reason,omitempty"`
+	SourceVersionRef string                       `json:"source_version_ref,omitempty"`
+	ReceiptRef       string                       `json:"receipt_ref,omitempty"`
+	DecodedRef       string                       `json:"decoded_ref,omitempty"`
+	PreparedRef      string                       `json:"prepared_ref,omitempty"`
+	WorkProductsRef  string                       `json:"work_products_ref,omitempty"`
+	CandidatesRef    string                       `json:"candidates_ref,omitempty"`
+	EmbeddingsRef    string                       `json:"embeddings_ref,omitempty"`
+	PublicationRef   string                       `json:"publication_ref,omitempty"`
+	VerificationRef  string                       `json:"verification_ref,omitempty"`
+	Conversations    int                          `json:"conversations,omitempty"`
+	Records          int                          `json:"records,omitempty"`
+	Chunks           int                          `json:"chunks,omitempty"`
+	WorkProducts     int                          `json:"work_products,omitempty"`
+	Candidates       int                          `json:"candidates,omitempty"`
+	ObjectsWritten   int                          `json:"objects_written,omitempty"`
+	ObjectsVerified  int                          `json:"objects_verified,omitempty"`
 }
 
 // ContextProgress exposes the actor-bound source state while its Proffer run is open.
@@ -200,6 +205,40 @@ func contextFirstWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResul
 		return WorkflowResult{}, fmt.Errorf("register context status query: %w", err)
 	}
 	finish := func(status, reason string) (WorkflowResult, error) {
+		// A partial enrichment/publication still retains all complete native outputs available.
+		if summary.PreparedRef != "" && summary.WorkProductsRef != "" {
+			info := workflow.GetInfo(ctx)
+			request := ContextPackageRequest{RequestID: in.RequestID, WorkflowID: info.WorkflowExecution.ID, RunID: info.WorkflowExecution.RunID, SourceRef: string(in.SourceRef), ProviderVersionID: in.ProviderVersionID, PackageRef: string(in.PackageRef), SourceFormat: in.DeclaredFormat, SourceVersionRef: summary.SourceVersionRef, RegistrationReceiptRef: summary.ReceiptRef, PreparedRef: summary.PreparedRef, WorkProductsRef: summary.WorkProductsRef, CandidatesRef: summary.CandidatesRef, EmbeddingsRef: summary.EmbeddingsRef, PublicationRef: summary.PublicationRef, VerificationRef: summary.VerificationRef}
+			options := workflow.ActivityOptions{StartToCloseTimeout: 20 * time.Minute, ScheduleToCloseTimeout: 30 * time.Minute, HeartbeatTimeout: time.Minute, WaitForCancellation: true, RetryPolicy: &temporal.RetryPolicy{MaximumAttempts: 1}}
+			var packageResult ContextPackageResult
+			err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, options), "retain_ai_context_package_activity", request).Get(ctx, &packageResult)
+			if err != nil || !packageResult.Complete || packageResult.ManifestRef == "" || packageResult.ManifestSHA256 == "" {
+				if reason == "" {
+					reason = "package_retention_failed"
+				} else {
+					reason += ";package_retention_failed"
+				}
+				status = "partial"
+			} else {
+				summary.Package = &packageResult
+				catalogRequest := ContextCatalogRequest{Request: request, Package: packageResult}
+				catalogOptions := workflow.ActivityOptions{StartToCloseTimeout: 20 * time.Minute, ScheduleToCloseTimeout: 30 * time.Minute, RetryPolicy: &temporal.RetryPolicy{MaximumAttempts: 1}}
+				var catalogResult ContextPackageResult
+				catalogErr := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, catalogOptions), "catalog_ai_context_package_activity", catalogRequest).Get(ctx, &catalogResult)
+				if catalogErr == nil && catalogResult.CatalogStatus == "complete" && catalogResult.ManifestRef == packageResult.ManifestRef && catalogResult.ManifestSHA256 == packageResult.ManifestSHA256 && catalogResult.CatalogReceiptRef != "" && catalogResult.CatalogReceiptSHA256 != "" {
+					packageResult = catalogResult
+					summary.Package = &packageResult
+				}
+				if packageResult.CatalogStatus != "complete" {
+					if reason == "" {
+						reason = "catalog_pending"
+					} else {
+						reason += ";catalog_pending"
+					}
+					status = "partial"
+				}
+			}
+		}
 		summary.Status, summary.Reason = status, reason
 		resultStatus := StatusSuccess
 		if status != "complete" {
@@ -260,9 +299,30 @@ func contextFirstWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResul
 	summary.WorkProducts = works.WorkProducts
 	summary.Status = "enriching"
 	candidates, candidateErr := step(contextCandidatesActivityName, "candidates", request)
+	var reviewErr error
 	if candidateErr == nil {
 		request.CandidatesRef, summary.CandidatesRef = candidates.BundleRef, candidates.BundleRef
 		summary.Candidates = candidates.Candidates
+		var providerVersion *string
+		if in.ProviderVersionID != "" {
+			value := in.ProviderVersionID
+			providerVersion = &value
+		}
+		reviewRequest := ContextReviewRequest{ContractVersion: "ai-context-v1", OperatingMode: "LIVE", MatterID: in.MatterID, CourtCaseID: in.CourtCaseID, RequestID: in.RequestID, Source: ContextReviewSource{SourceVersionID: registered.SourceVersionRef, SourceRef: string(in.SourceRef), VersionID: providerVersion}, PreparedRef: request.PreparedRef, BundleRef: request.CandidatesRef}
+		reviewOptions := workflow.ActivityOptions{StartToCloseTimeout: 2 * time.Minute, ScheduleToCloseTimeout: 10 * time.Minute, RetryPolicy: &temporal.RetryPolicy{MaximumAttempts: 3}}
+		var reviewResult ContextReviewResult
+		reviewErr = workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, reviewOptions), "stage_ai_candidate_bundle_activity", reviewRequest).Get(ctx, &reviewResult)
+		if reviewErr == nil {
+			summary.Review = &reviewResult
+			summary.ReviewSource = reviewResult.Source
+			summary.CandidateStage = &ContextCandidateStage{Status: "staged", Candidates: reviewResult.Candidates, Staged: reviewResult.Staged}
+			if reviewResult.Source == nil {
+				summary.CandidateStage.Status = "verified_source_unavailable"
+				reviewErr = errors.New("native staging omitted independently verified source")
+			}
+		} else {
+			summary.CandidateStage = &ContextCandidateStage{Status: "failed"}
+		}
 	}
 	embedded, embedErr := step(contextEmbedActivityName, "embedded", request)
 	if embedErr == nil {
@@ -286,6 +346,9 @@ func contextFirstWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResul
 	summary.VerificationRef, summary.ObjectsVerified = verified.BundleRef, verified.ObjectsVerified
 	if summary.ObjectsWritten != summary.Chunks || summary.ObjectsVerified != summary.Chunks {
 		return finish("partial", "publication_count_mismatch")
+	}
+	if reviewErr != nil {
+		return finish("partial", "candidate_review_failed")
 	}
 	if published.Status == "partial_enrichment" || verified.Status == "partial_enrichment" {
 		return finish("partial_enrichment", "optional_enrichment_unavailable")
