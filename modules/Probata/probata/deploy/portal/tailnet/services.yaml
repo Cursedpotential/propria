@@ -30,7 +30,8 @@
       description: Not restored — Consignatio · Xplorer and metadata review
       icon: mdi-folder-search-outline
   - Probata Workbench:
-      description: Not restored — Evidence review workspace
+      href: https://workbench.tilapia-skilift.ts.net/
+      description: Running — Sources, reading, case and activity workspace
       icon: mdi-briefcase-search-outline
   - Family Law Toolkit:
       description: 'Not restored — Family Law Toolkit: case, documents, notes, law and sources'
