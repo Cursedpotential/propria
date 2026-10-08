@@ -200,3 +200,58 @@ def test_failed_candidate_provider_still_publishes_chunks(monkeypatch):
     result = context.publish(params, store=store)
     assert result["status"] == "partial_enrichment" and result["objects_written"] == 1
     assert next(iter(store.objects.values()))["properties"]["body"] == "source text"
+
+
+def test_rate_limit_defers_remaining_enrichment_calls(monkeypatch):
+    """Stop provider requests after a throttle while retaining every topic chunk.
+
+    Inputs: three synthetic chunks and a 429 model response. Outputs: one call
+    and three partial entries. Effects: in-memory bundle writes only. Choose to
+    prove provider cooldown does not discard context or hammer the endpoint.
+    """
+    context = _module()
+    params = {**_request(), "prepared_ref": "file:///synthetic/prepared.json",
+              "work_products_ref": "file:///synthetic/work_products.json"}
+    chunks = [{"conversation_index": 0, "chunk_index": index, "segments": []}
+              for index in range(3)]
+    prepared = {"chunks": chunks, "counts": {"chunks": 3}}
+    products = {"prepared_ref": params["prepared_ref"]}
+    saved = {}
+    monkeypatch.setattr(context, "_read", lambda ref, request, stage:
+                        prepared if stage == "prepared" else products)
+
+    def save(path, bundle):
+        """Capture the candidate bundle without writing a file.
+
+        Inputs: output path and bundle. Outputs: synthetic URI. Effects: memory
+        assignment only. Choose for focused cooldown contract validation.
+        """
+        saved["bundle"] = bundle
+        return "file:///synthetic/candidates.json"
+
+    monkeypatch.setattr(context, "_write", save)
+
+    class Throttle(Exception):
+        """Model a provider HTTP 429 response.
+
+        Inputs: none. Outputs: exception. Effects: none. Choose to exercise
+        cooldown detection without an SDK dependency.
+        """
+        status_code = 429
+
+    calls = []
+
+    def throttled_model(prompt):
+        """Record one attempted model request and return a throttle.
+
+        Inputs: prompt. Outputs: exception. Effects: call count only. Choose
+        to prove later chunks are not sent to the overloaded provider.
+        """
+        calls.append(prompt)
+        raise Throttle()
+
+    result = context.extract_candidates(params, model=throttled_model)
+    assert len(calls) == 1
+    assert result["status"] == "partial_enrichment"
+    assert [entry["reason"] for entry in saved["bundle"]["chunks"]] == ["provider_cooldown"] * 3
+    assert saved["bundle"]["counts"]["model_calls"] == 1

@@ -478,6 +478,19 @@ def _model_reply(chunk: dict[str, Any], model: Any = None) -> dict[str, Any]:
     return json.loads(response) if isinstance(response, str) else response
 
 
+def _provider_cooldown(error: Exception) -> bool:
+    """Recognize a provider throttle or temporary overload without retrying it here.
+
+    Inputs: model exception. Outputs: whether later chunks should defer. Effects:
+    none. Choose inside optional enrichment to avoid repeated charged failures.
+    """
+    status = getattr(error, "status_code", None)
+    response = getattr(error, "response", None)
+    if status is None and response is not None:
+        status = getattr(response, "status_code", None)
+    return status in {429, 503}
+
+
 def extract_candidates(params: dict[str, Any], *, model: Any = None) -> dict[str, Any]:
     """Extract optional grounded candidates while preserving publishable chunks.
 
@@ -493,8 +506,12 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None) -> dict[str
     if products.get("prepared_ref") != params["prepared_ref"]:
         raise ContextInvalid("work products belong to another prepared bundle")
     maximum = _bound(params, "max_model_calls", MAX_MODEL_CALLS)
-    entries, candidates, calls = [], [], 0
+    entries, candidates, calls, cooldown = [], [], 0, False
     for chunk in prepared["chunks"]:
+        if cooldown:
+            entries.append({"conversation_index": chunk["conversation_index"], "chunk_index": chunk["chunk_index"],
+                            "status": "partial_enrichment", "reason": "provider_cooldown", "candidates": 0})
+            continue
         if calls >= maximum:
             entries.append({"conversation_index": chunk["conversation_index"], "chunk_index": chunk["chunk_index"],
                             "status": "partial_enrichment", "reason": "model_call_bound", "candidates": 0})
@@ -508,8 +525,10 @@ def extract_candidates(params: dict[str, Any], *, model: Any = None) -> dict[str
             entries.append({"conversation_index": chunk["conversation_index"], "chunk_index": chunk["chunk_index"],
                             "status": status, "rejected": rejected, "candidates": len(grounded)})
         except Exception as error:
+            cooldown = _provider_cooldown(error)
             entries.append({"conversation_index": chunk["conversation_index"], "chunk_index": chunk["chunk_index"],
-                            "status": "partial_enrichment", "reason": type(error).__name__, "candidates": 0})
+                            "status": "partial_enrichment", "reason": "provider_cooldown" if cooldown else type(error).__name__,
+                            "candidates": 0})
     status = "partial_enrichment" if any(entry["status"] != "complete" for entry in entries) else "complete"
     bundle = {"contract_version": VERSION, "stage": "candidates", "source": identity(params),
               "prepared_ref": params["prepared_ref"], "work_products_ref": params["work_products_ref"],
