@@ -240,7 +240,9 @@ func (h *HTTPHandler) handlePinnedRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.Args == nil { req.Args = map[string]any{} }
+	if req.Args == nil {
+		req.Args = map[string]any{}
+	}
 	req.Args["_execution_mode"] = "temporal"
 	req.Args["_input_sha256"] = req.SourceSHA256
 	req.Args["_operation_id"] = req.OperationID

@@ -19,12 +19,19 @@ type AtomicToolWorkflows interface {
 
 // AtomicToolHTTPHandler serves actor-scoped source-pinned actions and status.
 // It uses the same tailnet service token as the other Proffer starter routes.
-type AtomicToolHTTPHandler struct { workflows AtomicToolWorkflows; serviceTokenPath string }
+type AtomicToolHTTPHandler struct {
+	workflows        AtomicToolWorkflows
+	serviceTokenPath string
+}
 
 // NewAtomicToolHTTPHandler validates the existing workflow client and token.
 func NewAtomicToolHTTPHandler(workflows AtomicToolWorkflows, serviceTokenPath string) (*AtomicToolHTTPHandler, error) {
-	if workflows == nil { return nil, errors.New("atomic tool handler requires a workflow client") }
-	if _, err := loadServiceToken(serviceTokenPath); err != nil { return nil, err }
+	if workflows == nil {
+		return nil, errors.New("atomic tool handler requires a workflow client")
+	}
+	if _, err := loadServiceToken(serviceTokenPath); err != nil {
+		return nil, err
+	}
 	return &AtomicToolHTTPHandler{workflows, serviceTokenPath}, nil
 }
 
@@ -51,20 +58,35 @@ type atomicToolBody struct {
 // or joins one Temporal action identified by the caller's Idempotency-Key.
 func (h *AtomicToolHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 	var body atomicToolBody
-	if err := decodePreviewJSON(w, r, &body); err != nil { previewError(w, http.StatusBadRequest, err); return }
+	if err := decodePreviewJSON(w, r, &body); err != nil {
+		previewError(w, http.StatusBadRequest, err)
+		return
+	}
 	mode, err := caseidentity.ParseMode(body.OperatingMode)
-	if err != nil { previewError(w, http.StatusUnprocessableEntity, err); return }
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
 	actor, key, err := actorAndKey(r)
-	if err != nil { previewError(w, http.StatusUnauthorized, err); return }
+	if err != nil {
+		previewError(w, http.StatusUnauthorized, err)
+		return
+	}
 	in := atomictool.Request{
 		OperatingMode: string(mode), CourtCaseID: body.CourtCaseID,
 		MatterID: body.MatterID, Actor: actor,
 		RequestID: flow.DeterministicID("atomic_tool_action", key, actor.SubjectUID, body.MatterID),
-		ToolID: body.ToolID, SourceRef: body.SourceRef, SourceSHA256: body.SourceSHA256, Args: body.Args,
+		ToolID:    body.ToolID, SourceRef: body.SourceRef, SourceSHA256: body.SourceSHA256, Args: body.Args,
 	}
-	if err := in.Validate(); err != nil { previewError(w, http.StatusUnprocessableEntity, err); return }
+	if err := in.Validate(); err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
 	started, err := h.workflows.Start(r.Context(), in)
-	if err != nil { previewError(w, http.StatusServiceUnavailable, err); return }
+	if err != nil {
+		previewError(w, http.StatusServiceUnavailable, err)
+		return
+	}
 	previewJSON(w, http.StatusAccepted, started)
 }
 
@@ -72,11 +94,23 @@ func (h *AtomicToolHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 // It returns bounded outcome, ref and audit metadata, never tool output.
 func (h *AtomicToolHTTPHandler) status(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("workflow_id")
-	if !strings.HasPrefix(id, atomictool.WorkflowIDPrefix) || len(id) > 160 { previewError(w, http.StatusNotFound, errors.New("unknown atomic tool workflow")); return }
+	if !strings.HasPrefix(id, atomictool.WorkflowIDPrefix) || len(id) > 160 {
+		previewError(w, http.StatusNotFound, errors.New("unknown atomic tool workflow"))
+		return
+	}
 	actor, _, err := authenticatedActor(r)
-	if err != nil { previewError(w, http.StatusUnauthorized, err); return }
+	if err != nil {
+		previewError(w, http.StatusUnauthorized, err)
+		return
+	}
 	progress, err := h.workflows.Status(r.Context(), id)
-	if err != nil { previewError(w, http.StatusServiceUnavailable, err); return }
-	if progress.ActorSubjectUID == "" || progress.ActorSubjectUID != actor { previewError(w, http.StatusNotFound, errors.New("unknown atomic tool workflow")); return }
+	if err != nil {
+		previewError(w, http.StatusServiceUnavailable, err)
+		return
+	}
+	if progress.ActorSubjectUID == "" || progress.ActorSubjectUID != actor {
+		previewError(w, http.StatusNotFound, errors.New("unknown atomic tool workflow"))
+		return
+	}
 	previewJSON(w, http.StatusOK, map[string]any{"workflow_id": id, "outcome": progress.Outcome, "result": progress.Result, "error": progress.Error})
 }

@@ -140,6 +140,12 @@ def execute_tool(
     )
     try:
         result = tool.run(payload)
+        if execution_mode == "temporal" and isinstance(result, dict) and (
+            result.get("ok") is False
+            or result.get("status") in ("failed", "error")
+            or result.get("error") not in (None, "", False)
+        ):
+            raise RuntimeError("tool returned a failed result")
     except Exception as exc:
         append_execution_event(
             audit_path,

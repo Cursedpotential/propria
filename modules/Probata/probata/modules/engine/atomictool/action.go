@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	WorkflowName = "source_pinned_atomic_tool_workflow"
-	ActivityName = "run_source_pinned_atomic_tool_activity"
-	StatusQuery = "status"
+	WorkflowName     = "source_pinned_atomic_tool_workflow"
+	ActivityName     = "run_source_pinned_atomic_tool_activity"
+	StatusQuery      = "status"
 	WorkflowIDPrefix = "source-pinned-tool:"
 )
 
@@ -41,14 +41,34 @@ type Request struct {
 // Validate rejects missing case identity, source pin or reserved tool options.
 // It changes no state and should be called at both starter and workflow entry.
 func (r Request) Validate() error {
-	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(r.OperatingMode)); err != nil { return err }
-	if !caseidentity.AdmittedIdentity(r.MatterID, r.CourtCaseID) { return errors.New("atomic tool action requires the approved matter and court case") }
-	if r.Actor.SubjectUID == "" || r.RequestID == "" || len(r.RequestID) > 128 { return errors.New("atomic tool action requires actor and bounded request ID") }
-	if !toolgateway.IsInitialSourceTool(r.ToolID) { return errors.New("atomic tool action is not in the initial source-backed catalog") }
-	if !strings.HasPrefix(r.SourceRef, "r2://") && !strings.HasPrefix(r.SourceRef, "b2://") && !strings.HasPrefix(r.SourceRef, "upload://") { return errors.New("atomic tool action requires a supported immutable source locator") }
-	if len(r.SourceSHA256) != 64 { return errors.New("atomic tool action requires an exact source SHA-256") }
-	for _, c := range r.SourceSHA256 { if !strings.ContainsRune("0123456789abcdef", c) { return errors.New("atomic tool action requires lowercase hex SHA-256") } }
-	for key := range r.Args { if key == "path" || strings.HasPrefix(key, "_") { return errors.New("atomic tool action cannot supply host paths or reserved options") } }
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(r.OperatingMode)); err != nil {
+		return err
+	}
+	if !caseidentity.AdmittedIdentity(r.MatterID, r.CourtCaseID) {
+		return errors.New("atomic tool action requires the approved matter and court case")
+	}
+	if r.Actor.SubjectUID == "" || r.RequestID == "" || len(r.RequestID) > 128 {
+		return errors.New("atomic tool action requires actor and bounded request ID")
+	}
+	if !toolgateway.IsInitialSourceTool(r.ToolID) {
+		return errors.New("atomic tool action is not in the initial source-backed catalog")
+	}
+	if !strings.HasPrefix(r.SourceRef, "r2://") && !strings.HasPrefix(r.SourceRef, "b2://") && !strings.HasPrefix(r.SourceRef, "upload://") {
+		return errors.New("atomic tool action requires a supported immutable source locator")
+	}
+	if len(r.SourceSHA256) != 64 {
+		return errors.New("atomic tool action requires an exact source SHA-256")
+	}
+	for _, c := range r.SourceSHA256 {
+		if !strings.ContainsRune("0123456789abcdef", c) {
+			return errors.New("atomic tool action requires lowercase hex SHA-256")
+		}
+	}
+	for key := range r.Args {
+		if key == "path" || strings.HasPrefix(key, "_") {
+			return errors.New("atomic tool action cannot supply host paths or reserved options")
+		}
+	}
 	return nil
 }
 
@@ -70,15 +90,21 @@ type Client interface {
 }
 
 // Activities supplies the one source-backed read-only tool Activity.
-type Activities struct { Client Client }
+type Activities struct{ Client Client }
 
 // Run invokes the pinned gateway and returns only a content-store pointer and
 // audit metadata. It does not return inline tool output or mutate the source.
 func (a Activities) Run(ctx context.Context, in Request) (Result, error) {
-	if a.Client == nil { return Result{}, errors.New("atomic tool action requires the pinned gateway client") }
-	if err := in.Validate(); err != nil { return Result{}, err }
+	if a.Client == nil {
+		return Result{}, errors.New("atomic tool action requires the pinned gateway client")
+	}
+	if err := in.Validate(); err != nil {
+		return Result{}, err
+	}
 	raw, err := a.Client.RunPinned(ctx, in.ToolID, proffer.Ref(in.SourceRef), in.SourceSHA256, in.RequestID, in.Args)
-	if err != nil { return Result{}, fmt.Errorf("pinned tool action: %w", err) }
+	if err != nil {
+		return Result{}, fmt.Errorf("pinned tool action: %w", err)
+	}
 	var envelope struct {
 		OperationID    string `json:"operation_id"`
 		AuditChainHead string `json:"audit_chain_head"`
@@ -86,7 +112,9 @@ func (a Activities) Run(ctx context.Context, in Request) (Result, error) {
 		Ref            string `json:"ref"`
 		Size           int64  `json:"size"`
 	}
-	if err := json.Unmarshal(raw, &envelope); err != nil { return Result{}, errors.New("pinned tool action returned an invalid envelope") }
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return Result{}, errors.New("pinned tool action returned an invalid envelope")
+	}
 	if envelope.Inline || !strings.HasPrefix(envelope.Ref, "sha256:") || len(envelope.Ref) != 71 || envelope.OperationID != in.RequestID || envelope.AuditChainHead == "" {
 		return Result{}, errors.New("pinned tool action did not return a durable audited content reference")
 	}
