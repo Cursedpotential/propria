@@ -209,6 +209,16 @@ func run() error {
 	if routes, err = mountApprovedGraphQueryRoutes(routes, approvedQueryRoutes); err != nil {
 		return err
 	}
+	// Projection choices share the existing analytical identity and service token.
+	// Inputs: guarded listing handler; output: mounted exact GET route.
+	// Effects: configuration reads/route registration; choose before query selection.
+	projectionRoutes, err := approvedGraphProjectionsHandler(serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountApprovedGraphProjectionsRoutes(routes, projectionRoutes); err != nil {
+		return err
+	}
 	// Case identity: the Workbench Case page reads and edits registry, the one
 	// identity store. Byline: Claude Code · Opus 5.5 · 2026-10-01
 	caseIdentityRoutes, err := caseIdentityHandler(pool, serviceTokenFile)

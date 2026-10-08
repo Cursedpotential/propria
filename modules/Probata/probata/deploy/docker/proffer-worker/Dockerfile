@@ -1,6 +1,11 @@
 # Toolchain pinned to match modules/engine/go.mod (`go 1.26.6`).
 FROM golang:1.26-bookworm AS builder
 
+# Bound compiler/test concurrency within the existing trial host build slot.
+# Inputs: vendored Go source; outputs: tested binaries. Effects: image build only.
+# Byline: Codex · GPT-6.1-sol · 2026-10-08.
+ENV GOMAXPROCS=1 GOMEMLIMIT=1024MiB GOFLAGS=-p=1
+
 # Hermetic vendored build (repair post-restructure, 2026-09-02): engine/ moved to
 # modules/engine/ and sbv moved to modules/forks/sbv/ (a private, gitignored-locally
 # submodule Coolify's clone may not have credentials for). modules/engine/vendor/
@@ -10,6 +15,11 @@ FROM golang:1.26-bookworm AS builder
 # absent. Build context is the repo root (see deploy/*.yaml `context: ..`).
 WORKDIR /src/engine
 COPY modules/engine/ ./
+# One focused test invocation shares the existing CGO/fts5/vendor build runtime.
+RUN CGO_ENABLED=1 go test -mod=vendor -tags fts5 \
+    ./surrealsink ./runtimeapi ./temporal/cmd/starter \
+    ./approvedgraphprojectionflow ./approvedgraphqueryflow ./profferworker \
+    ./postgres ./cmd/context-graph
 RUN CGO_ENABLED=1 go build \
     -mod=vendor \
     -tags fts5 \
@@ -22,6 +32,9 @@ RUN CGO_ENABLED=1 go build -mod=vendor -tags fts5 -trimpath -ldflags="-s -w" \
 # Byline: Codex, 2026-10-04. Protected operator CLI shares this image's actual parser runtime.
 RUN CGO_ENABLED=1 go build -mod=vendor -tags fts5 -trimpath -ldflags="-s -w" \
     -o /out/toolkit-currency-review ./cmd/toolkit-currency-review
+# Canonical graph schema emission and bounded operator operations use the same image.
+RUN CGO_ENABLED=1 go build -mod=vendor -tags fts5 -trimpath -ldflags="-s -w" \
+    -o /out/context-graph ./cmd/context-graph
 
 FROM debian:bookworm-slim
 
@@ -56,6 +69,7 @@ COPY --from=builder /out/proffer-worker /usr/local/bin/proffer-worker
 # derive-sms (2026-09-20): SBV streams a large SMS XML into per-thread NDJSON + media beside the source.
 COPY --from=builder /out/derive-sms /usr/local/bin/derive-sms
 COPY --from=builder /out/toolkit-currency-review /usr/local/bin/toolkit-currency-review
+COPY --from=builder /out/context-graph /usr/local/bin/context-graph
 
 USER 10001:10001
 ENV SOURCE_OBJECT_DIR=/data/proffer/source-objects \
