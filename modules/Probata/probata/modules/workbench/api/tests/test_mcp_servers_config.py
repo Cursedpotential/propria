@@ -6,7 +6,10 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.config.settings import Settings
+from app.service import tools as tools_service
 
 
 def test_default_exposes_no_direct_mcp_door():
@@ -34,8 +37,20 @@ def test_portkey_token_env_resolves_from_process_env(monkeypatch):
 
 def test_direct_server_is_rejected_without_explicit_diagnostic_bypass():
     direct = json.dumps([{"key": "contextforge", "url": "http://contextforge/mcp"}])
-    assert Settings(mcp_servers=direct).mcp_servers_parsed == []
+    rejected = Settings(mcp_servers=direct)
+    assert rejected.mcp_servers_parsed == []
+    assert rejected.mcp_server_configuration_errors[0]["key"] == "contextforge"
+    assert "Portkey gateway publication" in rejected.mcp_server_configuration_errors[0]["error"]
     assert Settings(mcp_servers=direct, mcp_direct_bypass_allowed=True).mcp_servers_parsed[0]["key"] == "contextforge"
+
+
+def test_rejected_door_is_visible_but_never_callable(monkeypatch):
+    settings = Settings(mcp_servers=json.dumps([{"key": "docs", "label": "Documents", "url": "http://direct.example/mcp"}]))
+    monkeypatch.setattr(tools_service, "settings", settings)
+    assert tools_service.list_tools() == settings.mcp_server_configuration_errors
+    with pytest.raises(tools_service.ToolsError) as exc:
+        tools_service.call_tool("docs", "search", {})
+    assert exc.value.status_code == 404
 
 
 def test_literal_token_wins_over_token_env(monkeypatch):

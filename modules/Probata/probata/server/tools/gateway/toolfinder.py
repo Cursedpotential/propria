@@ -140,6 +140,12 @@ def execute_tool(
     )
     try:
         result = tool.run(payload)
+        if execution_mode == "temporal" and isinstance(result, dict) and (
+            result.get("ok") is False
+            or result.get("status") in ("failed", "error")
+            or result.get("error") not in (None, "", False)
+        ):
+            raise RuntimeError("tool returned a failed result")
     except Exception as exc:
         append_execution_event(
             audit_path,
@@ -174,7 +180,9 @@ def execute_tool(
         status="completed",
     )
 
-    if len(body.encode("utf-8")) <= inline_threshold:
+    # A Temporal Activity must receive a reference even for a tiny result:
+    # otherwise source-derived content is copied into durable workflow history.
+    if execution_mode != "temporal" and len(body.encode("utf-8")) <= inline_threshold:
         return {
             "tool_id": tool_id,
             "operation_id": operation_id,

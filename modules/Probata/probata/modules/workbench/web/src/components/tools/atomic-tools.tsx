@@ -134,6 +134,7 @@ export function AtomicTools({ embedded = false, initialSearch = "", requiredTool
       .filter(({ serverLabel, tool }) => !requiredToolTerm || `${serverLabel} ${tool.name} ${tool.description ?? ""}`.toLowerCase().includes(requiredToolTerm.toLowerCase())),
     [requiredToolTerm, servers],
   );
+  const serverErrors = servers.filter((server) => server.error);
   const visibleTools = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return tools;
@@ -205,6 +206,15 @@ export function AtomicTools({ embedded = false, initialSearch = "", requiredTool
         <div className="flex items-start justify-between gap-4 border border-[#ead5a9] bg-[#fff4dd] px-4 py-3 text-sm text-[#684b18] dark:bg-[#43351f] dark:text-[#ffe0a6]" role="status">
           <span className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> <span><strong className="block">Execution unavailable</strong>{capabilityError}</span></span>
           <Button variant="outline" size="sm" onClick={recheckSurface}><RefreshCw className="h-3.5 w-3.5" /> Recheck</Button>
+        </div>
+      )}
+
+      {serverErrors.length > 0 && (
+        <div className="border border-[#ead5a9] bg-[#fff4dd] px-4 py-3 text-sm text-[#684b18] dark:bg-[#43351f] dark:text-[#ffe0a6]" role="status">
+          <strong className="block">Tool catalog configuration</strong>
+          {serverErrors.map((server) => (
+            <p key={server.key} className="mt-1">{server.label}: {server.error}</p>
+          ))}
         </div>
       )}
 
