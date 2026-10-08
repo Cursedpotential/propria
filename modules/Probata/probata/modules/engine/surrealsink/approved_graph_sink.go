@@ -237,15 +237,20 @@ LET $record_old = (SELECT * FROM type::record('ctx_approved_record', $record_key
 IF $record_old != NONE AND ($record_old.record_sha256 != $record.record_sha256 OR $record_old.source_version_id != $record.source_version_id) { THROW 'record pin changed'; };
 IF $record_old = NONE { CREATE type::record('ctx_approved_record', $record_key) CONTENT object::extend($record, {source_available_from: <datetime> $record.source_available_from, occurred_at: <option<datetime>> $record.occurred_at}); };
 LET $old_record_edge = (SELECT * FROM type::record('ctx_approved_record_source', $record_edge_key))[0];
-IF $old_record_edge = NONE { RELATE type::record('ctx_approved_record', $record_key)->type::record('ctx_approved_record_source', $record_edge_key)->type::record('ctx_approved_source_version', $source_key) CONTENT $record_edge; };
+LET $record_ref = type::record('ctx_approved_record', $record_key);
+LET $source_ref = type::record('ctx_approved_source_version', $source_key);
+LET $record_edge_ref = type::record('ctx_approved_record_source', $record_edge_key);
+IF $old_record_edge = NONE { RELATE $record_ref->$record_edge_ref->$source_ref CONTENT $record_edge; };
 LET $old = (SELECT * FROM type::record('%s', $claim_key))[0];
 IF $old != NONE AND ($old.bundle_hash != $claim.bundle_hash OR $old.approved_revision_id != $claim.approved_revision_id) { THROW 'approved assertion changed'; };
 IF $old = NONE {
  CREATE type::record('%s', $claim_key) CONTENT object::extend($claim, {source_available_from: <datetime> $claim.source_available_from, occurred_at: <option<datetime>> $claim.occurred_at, approved_at: <datetime> $claim.approved_at});
 };
 LET $old_edge = (SELECT * FROM type::record('ctx_approved_provenance', $edge_key))[0];
+LET $claim_ref = type::record('%s', $claim_key);
+LET $claim_edge_ref = type::record('ctx_approved_provenance', $edge_key);
 IF $old_edge = NONE {
- RELATE type::record('%s', $claim_key)->type::record('ctx_approved_provenance', $edge_key)->type::record('ctx_approved_record', $record_key) CONTENT $edge;
+ RELATE $claim_ref->$claim_edge_ref->$record_ref CONTENT $edge;
 };
 COMMIT TRANSACTION;`, table, table, table)
 	if n, err := contextGraphRPCBytes(sql, bound); err != nil || n > maxBody {
