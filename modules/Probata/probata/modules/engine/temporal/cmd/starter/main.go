@@ -219,6 +219,16 @@ func run() error {
 	if routes, err = mountApprovedGraphProjectionsRoutes(routes, projectionRoutes); err != nil {
 		return err
 	}
+	// Context-first intake reuses this Go starter's Temporal client, queue and service token.
+	// Inputs: native source pointer and actor-bound polling. Output: mounted API.
+	// Effects: route registration only; choose for context-v1 before legacy preview gates.
+	contextRoutes, err := contextSourceHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountContextSourceRoutes(routes, contextRoutes); err != nil {
+		return err
+	}
 	// Case identity: the Workbench Case page reads and edits registry, the one
 	// identity store. Byline: Claude Code · Opus 5.5 · 2026-10-01
 	caseIdentityRoutes, err := caseIdentityHandler(pool, serviceTokenFile)

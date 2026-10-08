@@ -44,6 +44,10 @@ import (
 // implement all 26 Proffer stages. Filesystem and embedded observation bodies are
 // separate values so extractor provenance cannot cross activity boundaries.
 type Registrations struct {
+	// ContextSource records discoverable native source identity before any parser runs.
+	// Inputs: the existing platform registration store. Outputs: one named Activity.
+	// Effects: registration write only; choose for context-v1, not legacy retention.
+	ContextSource         activities.ContextSourceRegistrationActivities
 	Lifecycle             activities.SourceLifecycleActivities
 	FilesystemObservation activities.SourceObservationActivities
 	InventoryObservation  activities.SourceObservationActivities
@@ -184,6 +188,10 @@ func RegisterAll(registrar interface {
 }, registrations Registrations) {
 	registrar = operatingRegistrar{registrar}
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
+	// The new context branch uses a separate registration body outside legacy case admission.
+	// Inputs: context-v1 source coordinates. Outputs: durable version and receipt refs.
+	// Effects: named Activity registration; choose before Python decode or chunk work.
+	registrar.RegisterActivityWithOptions(registrations.ContextSource.RegisterContextSourceActivity, activity.RegisterOptions{Name: "context_register_source_activity"})
 	// Reuse exact verified AI generations after content-stage failures; no new-source admission.
 	// Byline: Codex / 2026-10-06.
 	registrar.RegisterWorkflowWithOptions(proffer.AIContentResumeWorkflow, workflow.RegisterOptions{Name: proffer.AIContentResumeWorkflowName})
@@ -727,6 +735,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	contextSourceStore, err := platformpostgres.NewContextSourceRegistrationStore(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
 	n8nClient, err := platformtemporal.NewN8NClient(cfg.temporalConfig())
 	if err != nil {
 		return Registrations{}, err
@@ -815,6 +827,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		return Registrations{}, err
 	}
 	return Registrations{
+		ContextSource: activities.ContextSourceRegistrationActivities{Store: contextSourceStore},
 		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.
 		// Byline: Codex, 2026-10-04.
 		ToolkitInventory:        activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),
