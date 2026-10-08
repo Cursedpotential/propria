@@ -123,6 +123,12 @@ class AnalysisClaim(BaseModel):
     source_sha256: Digest
     record_id: Identifier
     record_sha256: Digest
+    predicate: str | None = None
+    native_json_pointer: str | None = None
+    native_span_start: int | None = Field(default=None, ge=0, strict=True)
+    native_span_end: int | None = Field(default=None, ge=0, strict=True)
+    native_span_unit: Literal["unicode_codepoint"] | None = None
+    native_span_sha256: Digest | None = None
     occurred_at: AwareDatetime | None = None
     source_available_from: AwareDatetime | None = None
     approved_at: AwareDatetime

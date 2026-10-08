@@ -37,6 +37,12 @@ export interface AnalysisClaim {
   record_sha256: string;
   candidate_id: string;
   candidate_sha256: string;
+  predicate?: string | null;
+  native_json_pointer?: string | null;
+  native_span_start?: number | null;
+  native_span_end?: number | null;
+  native_span_unit?: "unicode_codepoint" | null;
+  native_span_sha256?: string | null;
   occurred_at?: string;
   source_available_from: string | null;
   approved_at: string;

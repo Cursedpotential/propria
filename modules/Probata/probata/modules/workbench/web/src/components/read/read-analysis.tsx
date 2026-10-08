@@ -97,12 +97,15 @@ export function ReadAnalysis({ params }: { params: URLSearchParams }) {
       {!content.data.claims.length ? <p className="text-sm">No findings match this snapshot and perspective.</p> : null}
       <ul className="max-h-[65vh] space-y-3 overflow-auto">{content.data.claims.map((claim) => <li key={claim.id} className="space-y-2 rounded border p-3">
         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{claim.text}</p>
-        <p className="text-xs text-muted-foreground">{claim.kind.replaceAll("_", " ")}{claim.occurred_at ? ` · occurred ${new Date(claim.occurred_at).toLocaleString()}` : ""} · source available {claim.source_available_from ? new Date(claim.source_available_from).toLocaleString() : "date not recorded"}</p>
+        <p className="text-xs text-muted-foreground">{claim.kind.replaceAll("_", " ")}{claim.predicate ? ` · ${claim.predicate}` : ""}{claim.occurred_at ? ` · occurred ${new Date(claim.occurred_at).toLocaleString()}` : ""} · source available {claim.source_available_from ? new Date(claim.source_available_from).toLocaleString() : "precise timestamp unknown"}</p>
         <details className="text-xs"><summary className="cursor-pointer underline underline-offset-4">Source citation</summary>
           <dl className="mt-2 space-y-1 break-all">
             <div><dt>Original source</dt><dd>{claim.source_object_uri}</dd></div>
             <div><dt>Source version</dt><dd>{claim.source_version_id}</dd></div>
             <div><dt>Original SHA-256</dt><dd>{claim.source_sha256}</dd></div>
+            {claim.native_json_pointer ? <div><dt>Original JSON field</dt><dd>{claim.native_json_pointer}</dd></div> : null}
+            {claim.native_span_start != null && claim.native_span_end != null ? <div><dt>Native source span ({claim.native_span_unit})</dt><dd>{claim.native_span_start}–{claim.native_span_end}{!claim.native_json_pointer ? " in the original document" : " in the original JSON field"}</dd></div> : null}
+            {claim.native_span_sha256 ? <div><dt>Native span SHA-256</dt><dd>{claim.native_span_sha256}</dd></div> : null}
             <div><dt>Source record</dt><dd>{claim.record_id}</dd></div>
             <div><dt>Record SHA-256</dt><dd>{claim.record_sha256}</dd></div>
             <div><dt>Approved candidate</dt><dd>{claim.candidate_id} · {claim.candidate_sha256}</dd></div>

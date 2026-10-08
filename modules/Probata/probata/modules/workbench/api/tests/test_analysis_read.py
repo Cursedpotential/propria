@@ -114,7 +114,7 @@ def test_exact_artifact_reads_only_query_prefix(monkeypatch):
 
 @pytest.mark.parametrize("violation", [None, "actor", "case", "revision", "future", "unknown-clock"])
 def test_findings_validate_actor_scope_and_as_lived_source_clock(monkeypatch, violation):
-    """Keep unverified scope or hindsight-only source knowledge out of as-lived findings."""
+    """Keep mismatched scope and unverified precise source timing out of cutoff reads."""
     case = dict(matter_id="matter-one", court_case_id="case-one")
     content = {**pins(), **case, "actor_subject_uid": "tailscale:owner", "perspective": "as_lived",
         "horizon": "2020-01-01T12:00:00Z", "limit": 25, "has_more": False, "claims": [{
@@ -124,6 +124,9 @@ def test_findings_validate_actor_scope_and_as_lived_source_clock(monkeypatch, vi
             "source_version_id": "source-version-one", "source_object_id": "source-object-one",
             "source_object_uri": "b2://salem-data/consignatio/casevault/Original/one.json", "source_sha256": "d" * 64,
             "record_id": "record-one", "record_sha256": "e" * 64, "source_available_from": "2019-01-01T12:00:00Z",
+            "predicate": "recorded_statement", "native_json_pointer": "/messages/0/text",
+            "native_span_start": 0, "native_span_end": 5, "native_span_unit": "unicode_codepoint",
+            "native_span_sha256": "f" * 64,
             "approved_at": "2026-01-01T12:00:00Z", "approved_by": "tailscale:owner",
         }]}
     result = {**pins(), **case, "perspective": "as_lived", "claim_count": 1, "has_more": False,
@@ -152,3 +155,9 @@ def test_findings_validate_actor_scope_and_as_lived_source_clock(monkeypatch, vi
         got = asyncio.run(analysis.analysis_query_content("approved-context-query:one", request()))
         assert got.claims[0].text == "Recorded finding"
         assert got.claims[0].record_id == "record-one"
+        assert got.claims[0].predicate == "recorded_statement"
+        assert got.claims[0].native_json_pointer == "/messages/0/text"
+        assert got.claims[0].native_span_start == 0
+        assert got.claims[0].native_span_end == 5
+        assert got.claims[0].native_span_unit == "unicode_codepoint"
+        assert got.claims[0].native_span_sha256 == "f" * 64
