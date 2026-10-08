@@ -73,6 +73,11 @@ type Registrations struct {
 	// Extraction serves the entity/event extraction workflows (extraction.go).
 	// Byline: Claude Code · Opus 5.5 · 2026-09-25
 	Extraction activities.EntityExtractionActivities
+	// AICandidates stages typed occurrences from an exact retained-source bundle.
+	// Inputs: derived root and the existing original-aware review store. Outputs: pending proposal IDs.
+	// Effects: none at registration; execution verifies source pins and writes pending proposals only.
+	// Choose for native AI content after extraction, before the owner's existing review decision.
+	AICandidates activities.AICandidateStagingActivities
 	// Conversation serves the conversation-level extraction request and the
 	// Surreal send (conversation_extraction.go).
 	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
@@ -192,6 +197,7 @@ func RegisterAll(registrar interface {
 	// Effects: registry only; execution remains actor-bound and read-only.
 	registrar.RegisterWorkflowWithOptions(atomictool.Workflow, workflow.RegisterOptions{Name: atomictool.WorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.AtomicTool.Run, activity.RegisterOptions{Name: atomictool.ActivityName})
+	registrar.RegisterActivityWithOptions(registrations.AICandidates.StageAICandidateBundle, activity.RegisterOptions{Name: "stage_ai_candidate_bundle_activity"})
 	// Back-fill of call logs imported before commit_call_log existed.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	registrar.RegisterWorkflowWithOptions(proffer.CallLogBackfillWorkflow, workflow.RegisterOptions{Name: proffer.CallLogBackfillWorkflowName})
@@ -542,6 +548,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	aiReviewStore, err := platformpostgres.NewEntityExtractionStoreWithAIOriginal(pool, openObject)
+	if err != nil {
+		return Registrations{}, err
+	}
 	// The API boundary (runtimeapi/source_ref.go) admits only upload:// and
 	// r2:// source refs, so a worker wired with the file:// resolver alone can
 	// never resolve anything a caller is allowed to send: every run died in
@@ -781,6 +791,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		MessageDedupe:           activities.NewMessageDedupeActivities(messageDedupeStore),
 		RepairPlan:              repairPlan,
 		Extraction:              extraction,
+		AICandidates:            activities.AICandidateStagingActivities{DerivedRoot: filepath.Join(cfg.DeriveScratchDir, "ai-content"), Store: aiReviewStore},
 		Conversation:            conversation,
 		AtomicTool:              atomictool.Activities{Client: toolsClient},
 		ContextGraph:            contextGraph,

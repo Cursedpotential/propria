@@ -26,10 +26,16 @@ func mountEntityExtractionRoutes(existing, extraction http.Handler) (http.Handle
 	return mux, nil
 }
 
-// entityExtractionHandler builds the extraction routes over the starter's
-// database pool and Temporal client (same task queue as the worker).
+// entityExtractionHandler builds source-aware review routes on the existing Temporal starter.
+// Inputs: database, Temporal client, task queue and existing service token file. Outputs: HTTP routes.
+// Effects: constructs adapters only; request handlers verify retained originals before pending AI writes.
+// Choose for both normalized-message extraction and native AI review using the same owner decision surface.
 func entityExtractionHandler(db platformpostgres.DB, temporalClient client.Client, taskQueue, serviceTokenFile string) (http.Handler, error) {
-	store, err := platformpostgres.NewEntityExtractionStore(db)
+	openOriginal, err := runtimeapi.NewRetainedObjectOpener(db)
+	if err != nil {
+		return nil, err
+	}
+	store, err := platformpostgres.NewEntityExtractionStoreWithAIOriginal(db, openOriginal)
 	if err != nil {
 		return nil, err
 	}

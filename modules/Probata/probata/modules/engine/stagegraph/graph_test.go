@@ -97,8 +97,8 @@ func TestOptionalNonMessagingChunkStageIsVersionedAfterNormalizedVerification(t 
 		}
 		optional[stage.ID] = stage
 	}
-	if len(optional) != 12 {
-		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, derive, context search, participant resolution, four first-party context stages, automatic approval, call log commit, message match-up, and source integrity", len(optional))
+	if len(optional) != 13 {
+		t.Fatalf("optional stage count = %d, want the D-158 chunk stage, derive, context search, participant resolution, four first-party context stages, automatic approval, call log commit, message match-up, source integrity, and native AI candidate staging", len(optional))
 	}
 	// Source integrity is an independent optional verification over retained
 	// bytes, not a stage on the universal processing path. Byline: Codex · GPT-6-Luna · 2026-10-06

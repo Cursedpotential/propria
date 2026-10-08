@@ -94,11 +94,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: synthetic provider probe (Codex, 2026-10-04).
 	// +1: independent source integrity; base graph remains 26 stages. Byline: Codex, 2026-10-06.
 	// +1: source-pinned atomic tool action; no direct browser-to-gateway execution.
-	const standaloneActivityCount = 37
+	// +1: exact native AI candidate bundle staging into the existing owner review store.
+	const standaloneActivityCount = 38
 	const batchActivityCount = 4
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 37 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 38 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0
@@ -131,6 +132,9 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	}
 	if registered[atomictool.ActivityName] != 1 {
 		t.Fatal("source-pinned atomic tool Activity must be registered exactly once")
+	}
+	if registered["stage_ai_candidate_bundle_activity"] != 1 {
+		t.Fatal("native AI candidate staging Activity must be registered exactly once")
 	}
 	if registered[activities.ToolkitPackageInventoryActivityName] != 1 {
 		t.Fatal("native toolkit inventory Activity must be registered exactly once")
