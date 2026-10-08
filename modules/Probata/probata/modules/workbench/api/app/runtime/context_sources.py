@@ -12,10 +12,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.runtime.analysis import _actor_headers
+from app.runtime import ai_candidate_review
 from app.service import proffer
 from app.service.proffer_errors import ProfferError
 
@@ -83,3 +84,33 @@ async def ai_context_source_status(workflow_id: str, request: Request) -> dict:
     if not isinstance(payload, dict) or payload.get("workflow_id") != workflow_id:
         raise HTTPException(status_code=502, detail="Go context starter returned invalid workflow status")
     return payload
+
+
+@router.get("/workflows/{workflow_id}/candidates")
+async def ai_context_candidates(workflow_id: str, request: Request,
+                                after_id: str = Query(default="", max_length=128)):
+    """Read staged candidates for the workflow's verified original source.
+
+    Inputs: actual workflow ID and returned page cursor. Output: bounded review
+    page. Effects: Go status/list reads only; use for the existing Read screen.
+    """
+    status = await ai_context_source_status(workflow_id, request)
+    try:
+        return await ai_candidate_review.candidates(status, request, after_id)
+    except ProfferError as error:
+        raise HTTPException(error.status_code, error.detail) from None
+
+
+@router.post("/workflows/{workflow_id}/candidates/decision")
+async def ai_context_candidate_decision(workflow_id: str, body: ai_candidate_review.CandidateDecision,
+                                        request: Request, idempotency_key: str = Header(alias="Idempotency-Key")):
+    """Record the owner's choice for one candidate without additional gates.
+
+    Inputs: actual workflow, item digest, decision and retry key. Output: committed
+    decision receipt. Effects: existing Go decision; graph publication is separate.
+    """
+    status = await ai_context_source_status(workflow_id, request)
+    try:
+        return await ai_candidate_review.decide(status, body, request, idempotency_key)
+    except ProfferError as error:
+        raise HTTPException(error.status_code, error.detail) from None

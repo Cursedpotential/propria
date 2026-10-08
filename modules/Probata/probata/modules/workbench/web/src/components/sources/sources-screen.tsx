@@ -545,7 +545,9 @@ function SourcesScreenMode() {
             {aiWorkflow?.source_ref === selectedObject.source_ref && (
               <span role="status">Workflow {aiWorkflow.workflow_id}: {String(aiStatusQuery.data?.status ?? "submitted")}
                 {aiStatusQuery.data?.reason ? ` · ${String(aiStatusQuery.data.reason)}` : ""}
-                {aiStatusQuery.error ? ` (${errorText(aiStatusQuery.error)})` : ""}</span>
+                {aiStatusQuery.error ? ` (${errorText(aiStatusQuery.error)})` : ""}
+                <AppLink className="ml-3 underline underline-offset-4" href={`/read?context_workflow=${encodeURIComponent(aiWorkflow.workflow_id)}`}>Review extracted context</AppLink>
+              </span>
             )}
           </div>
         )}

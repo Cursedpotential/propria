@@ -4,6 +4,7 @@ Inputs: recorded projection pins and perspective. Outputs: typed Go contracts.
 Effects: none; use for reading analysis, never ingestion or evidence promotion.
 """
 from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
@@ -55,9 +56,24 @@ class ProjectionSourcePin(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_id: Identifier
     source_version_id: Identifier
-    source_object_id: Identifier
+    source_object_id: Identifier | Literal[""]
     source_object_sha256: Digest
     source_object_uri: str = Field(min_length=1, max_length=2048)
+
+
+    @model_validator(mode="after")
+    def native_original_identity(self):
+        """Permit no retained object only for real registered native B2 sources.
+
+        Inputs: graph source coordinates. Output: unchanged honest pin. Effects:
+        none; source and version remain actual UUIDs, never substitute object IDs.
+        """
+        if self.source_object_id == "":
+            UUID(self.source_id)
+            UUID(self.source_version_id)
+            if not self.source_object_uri.startswith("b2://"):
+                raise ValueError("native original needs its actual B2 locator")
+        return self
 
 
 class ProjectionSnapshot(ProjectionPin):
@@ -118,7 +134,7 @@ class AnalysisClaim(BaseModel):
     candidate_sha256: Digest
     source_id: Identifier
     source_version_id: Identifier
-    source_object_id: Identifier
+    source_object_id: Identifier | Literal[""]
     source_object_uri: str = Field(min_length=1, max_length=2048)
     source_sha256: Digest
     record_id: Identifier
@@ -133,6 +149,25 @@ class AnalysisClaim(BaseModel):
     source_available_from: AwareDatetime | None = None
     approved_at: AwareDatetime
     approved_by: Identifier
+
+
+    @model_validator(mode="after")
+    def native_original_locator(self):
+        """Require the native citation when no retained object exists.
+
+        Inputs: registered source UUIDs, original B2 URI/hash and native span.
+        Output: unchanged cited claim. Effects: none; never normalize AI messages.
+        """
+        if self.source_object_id == "":
+            UUID(self.source_id)
+            UUID(self.source_version_id)
+            if (not self.source_object_uri.startswith("b2://")
+                    or self.native_span_unit != "unicode_codepoint"
+                    or self.native_span_start is None or self.native_span_end is None
+                    or self.native_span_end <= self.native_span_start
+                    or self.native_span_sha256 is None):
+                raise ValueError("native original requires its genuine source and span citation")
+        return self
 
 
 class AnalysisContent(AnalysisQuery):
