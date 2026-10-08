@@ -194,7 +194,9 @@ async def operation(action, payload=None):
     id/ids/number/numbers (1..50) and optional integer limit (1..50).
     Outputs: records or projections, with missing_ids for exact selections.
     Effects: list/projections/verify never materialize; create/update/migration-apply
-    retain their governed writes and materialization. Unselected list preserves
+    retain their governed writes and materialization. Create/update materialize
+    only their changed record; bulk migration retains corpus materialization.
+    Unselected list preserves
     the legacy first-200 browse, while unselected projections/verify retain their
     legacy 5000-row safety bound unless a smaller explicit limit is supplied.
     Pick list for authoritative rows, projections for Markdown, verify for index
@@ -264,6 +266,11 @@ async def operation(action, payload=None):
             raise ValueError('Unknown ADR action')
     finally:
         await db.close()
-    result.update(await refresh_projections(materialize=action in {'create','update','migration-apply'}))
+    # A single revision must not rewrite unrelated ADR source files or return
+    # their full bodies. Bulk migration keeps its explicit corpus behavior.
+    projection_scope = {'id': rid} if action in {'create', 'update'} else None
+    result.update(await refresh_projections(
+        materialize=action in {'create','update','migration-apply'},
+        payload=projection_scope))
     result['projection_sync_required']=any(not p['indexed'] for p in result['projections'])
     return result

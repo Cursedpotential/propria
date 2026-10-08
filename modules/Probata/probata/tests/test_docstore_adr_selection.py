@@ -188,3 +188,38 @@ def test_unselected_projection_corpus_limit_is_preserved(adr, monkeypatch):
     with pytest.raises(ValueError, match='Projection limit exceeded'):
         asyncio.run(adr.refresh_projections())
     assert db.closed == 1
+
+
+@pytest.mark.parametrize('action', ['create', 'update'])
+def test_single_adr_mutation_never_refreshes_unrelated_records(adr, monkeypatch, action):
+    """Keep one governed revision's projection writes and response scoped.
+
+    Inputs: offline rows and a single mutation. Outputs: scoped query assertions.
+    Effects: in-memory only; choose when changing ADR mutation materialization.
+    """
+    class MutationDB(ReadOnlyDB):
+        async def query(self, sql, params=None):
+            if sql.startswith('CREATE type::record($id) CONTENT $fields;'):
+                self.calls.append((sql, params))
+                self.records[params['id']] = {'id': params['id'], **params['fields']}
+                return []
+            if 'revision_conflict' in sql or sql.startswith('UPDATE type::record($id) SET projection_'):
+                self.calls.append((sql, params))
+                if 'fields' in params:
+                    self.records[params['id']].update(params['fields'])
+                return []
+            return await super().query(sql, params)
+
+    # Browsing fails in this double, even though an unrelated record exists.
+    db = MutationDB([record(1)] + ([record(100, version=1)] if action == 'update' else []))
+    connect_stub(adr, monkeypatch, db)
+    monkeypatch.delenv('DOCSTORE_PROJECT_REGISTRY', raising=False)
+    payload = {'title': 'Revised context rule', 'decision': 'Ingest as context'}
+    payload.update({'number': 100} if action == 'create' else
+                   {'id': 'adr:propria_0100', 'expected_version': 1})
+    result = asyncio.run(adr.operation(action, payload))
+    assert [p['adr_id'] for p in result['projections']] == ['adr:propria_0100']
+    assert result['missing_ids'] == []
+    assert db.records['adr:propria_0001'] == record(1)
+    assert all(params.get('id') == 'adr:propria_0100' for sql, params in db.calls
+               if not sql.startswith('SELECT id FROM document'))
