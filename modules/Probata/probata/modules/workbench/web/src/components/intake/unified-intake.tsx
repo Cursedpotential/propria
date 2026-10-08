@@ -21,7 +21,8 @@ import {
   Upload,
 } from "lucide-react";
 
-import { AtomicTools } from "@/components/tools/atomic-tools";
+import { SourcePinnedAction } from "@/components/tools/source-pinned-action";
+import { ToolExplorer } from "@/components/tools/tool-explorer";
 import { ContextFlowRail } from "@/components/intake/context-flow-rail";
 import { ParserSelectionPanel } from "@/components/intake/parser-selection-panel";
 import { SourceAssertionsFields } from "@/components/intake/source-assertions-fields";
@@ -580,7 +581,17 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "DEV" | "LIVE"; stage
         <button type="button" role="tab" aria-selected={operatorTab === "atomic_tools"} onClick={() => setOperatorTab("atomic_tools")} className={cn("h-12 border-b-2 px-1 text-xs font-semibold", operatorTab === "atomic_tools" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>Atomic Tools</button>
       </nav>
       {operatorTab === "atomic_tools" ? (
-        <div className="px-5 py-5 lg:px-8"><AtomicTools embedded /></div>
+        <div className="space-y-5 px-5 py-5 lg:px-8">
+          <SourcePinnedAction
+            key={`${selectedSourceRef ?? ""}:${inspection?.sha256 ?? digest ?? ""}`}
+            initialSourceRef={selectedSourceRef ?? ""}
+            initialSHA256={inspection?.sha256 ?? digest ?? ""}
+          />
+          <details className="border bg-card p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Browse published tools</summary>
+            <div className="mt-4"><ToolExplorer /></div>
+          </details>
+        </div>
       ) : (
       <div>
       <section className="border-b bg-card px-6 py-5">

@@ -1,10 +1,9 @@
-// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: Essentials shelf, recently-used, retry, full descriptions)
+// Byline: Claude Code · Sonnet (agent) · 2026-07-21 (C2.7: Essentials shelf, retry, full descriptions)
+// Byline: Codex · GPT-6 · 2026-10-07 (read-only governed catalog)
 "use client";
 
 /**
- * Tools page curation (C2.7 — requirements addendum 8 / owner directive #2):
- *  - a "Recently used" row (last 8 invoked, localStorage) above Essentials
- *    when non-empty;
+ * Read-only tool catalog (C2.7 — requirements addendum 8 / owner directive #2):
  *  - a pinned "Essentials" shelf, always first, config-driven via
  *    lib/tools-essentials.ts (isEssential) — flattened across servers, so
  *    it's not itself collapsible/grouped;
@@ -24,12 +23,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ToolForm, type ToolInvokeResult } from "./tool-form";
-import { ToolResultPane } from "./tool-result-pane";
 import { listTools } from "@/lib/api-client";
+import { AppLink } from "@/lib/router-compat";
 import { cn } from "@/lib/utils";
 import { isEssential } from "@/lib/tools-essentials";
-import { getRecentTools, recordToolUsed, type RecentToolEntry } from "@/lib/recent-tools";
 import type { McpTool, ToolServerGroup } from "@/lib/shared/types";
 
 interface FlatTool {
@@ -45,25 +42,31 @@ function matchesSearch(tool: McpTool, q: string): boolean {
   );
 }
 
+/** Browse governed MCP contracts without offering the retired monitor route.
+ * Input: the governed catalog. Output: searchable descriptions.
+ * Effect: read-only tools/list; use the separate source-pinned form for execution.
+ */
 export function ToolExplorer() {
   const [servers, setServers] = useState<ToolServerGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<{ serverKey: string; tool: McpTool } | null>(null);
-  const [result, setResult] = useState<ToolInvokeResult | null>(null);
-  const [recent, setRecent] = useState<RecentToolEntry[]>([]);
 
   const fetchServers = () => {
     return listTools()
-      .then(setServers)
-      .catch(() => setServers([]));
+      .then((next) => { setServers(next); setCatalogError(null); })
+      .catch(() => {
+        setServers([]);
+        setSelected(null);
+        setCatalogError("The governed tool catalog could not be loaded.");
+      });
   };
 
   useEffect(() => {
     fetchServers().finally(() => setLoading(false));
-    queueMicrotask(() => setRecent(getRecentTools()));
   }, []);
 
   const handleRetry = () => {
@@ -79,18 +82,6 @@ export function ToolExplorer() {
         (s.tools ?? []).map((tool) => ({ serverKey: s.key, serverLabel: s.label, tool })),
       ),
     [servers],
-  );
-
-  const findFlat = (serverKey: string, toolName: string) =>
-    allTools.find((f) => f.serverKey === serverKey && f.tool.name === toolName);
-
-  const recentFlat = useMemo(
-    () =>
-      recent
-        .map((r) => findFlat(r.serverKey, r.toolName))
-        .filter((f): f is FlatTool => !!f && matchesSearch(f.tool, q)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recent, allTools, q],
   );
 
   const essentialFlat = useMemo(
@@ -116,15 +107,6 @@ export function ToolExplorer() {
 
   const handleSelect = (serverKey: string, tool: McpTool) => {
     setSelected({ serverKey, tool });
-    setResult(null);
-  };
-
-  const handleResult = (r: ToolInvokeResult) => {
-    setResult(r);
-    if (r.ok && selected) {
-      recordToolUsed(selected.serverKey, selected.tool.name);
-      setRecent(getRecentTools());
-    }
   };
 
   const toggleExpanded = (key: string) =>
@@ -175,6 +157,7 @@ export function ToolExplorer() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {catalogError && <div role="alert" className="flex items-center gap-2 text-xs text-destructive"><span>{catalogError}</span><Button variant="outline" size="sm" onClick={handleRetry} disabled={retrying}>Retry</Button></div>}
           {loading ? (
             <div className="space-y-2">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -183,13 +166,6 @@ export function ToolExplorer() {
             </div>
           ) : (
             <>
-              {recentFlat.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-sm font-semibold">Recently used</p>
-                  <ul className="space-y-0.5">{recentFlat.map((f) => renderToolButton(f, true))}</ul>
-                </div>
-              )}
-
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold">Essentials</p>
@@ -275,12 +251,10 @@ export function ToolExplorer() {
         <CardContent className="space-y-6">
           {selected ? (
             <>
-              <ToolForm serverKey={selected.serverKey} tool={selected.tool} onResult={handleResult} />
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Result
-                </p>
-                <ToolResultPane result={result} />
+              <div className="space-y-4 text-sm">
+                <p>This catalog describes published tools. To run one of the approved source-file actions, use the reviewed source and hash form.</p>
+                <AppLink href="/tools#source-pinned-action" className="inline-flex rounded border px-3 py-2 font-medium hover:bg-accent">Run an approved source action</AppLink>
+                {selected.tool.inputSchema?.required?.length ? <p className="text-xs text-muted-foreground">Catalog inputs: {selected.tool.inputSchema.required.join(", ")}</p> : null}
               </div>
             </>
           ) : (

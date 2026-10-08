@@ -20,10 +20,10 @@ type Status = Awaited<ReturnType<typeof getSourcePinnedToolStatus>>;
  * This is separate from direct MCP browsing because the browser never runs a
  * tool or names a host path.
  */
-export function SourcePinnedAction() {
+export function SourcePinnedAction({ initialSourceRef = "", initialSHA256 = "" }: { initialSourceRef?: string; initialSHA256?: string }) {
   const [toolID, setToolID] = useState<(typeof SOURCE_TOOLS)[number]["id"]>(SOURCE_TOOLS[0].id);
-  const [sourceRef, setSourceRef] = useState("");
-  const [sha256, setSha256] = useState("");
+  const [sourceRef, setSourceRef] = useState(initialSourceRef);
+  const [sha256, setSha256] = useState(initialSHA256);
   const [options, setOptions] = useState("{}");
   const [clickKey, setClickKey] = useState(() => crypto.randomUUID());
   const [started, setStarted] = useState<{ workflow_id: string; run_id: string } | null>(null);
@@ -65,7 +65,7 @@ export function SourcePinnedAction() {
     } finally { setPending(false); }
   }
 
-  return <section className="border bg-card p-5" aria-label="Source-pinned tool action">
+  return <section id="source-pinned-action" className="border bg-card p-5" aria-label="Source-pinned tool action">
     <p className="platform-rule-title">One source · one tool</p>
     <h2 className="mt-1 text-lg font-semibold">Run a source-backed tool</h2>
     <p className="mt-1 text-sm text-muted-foreground">Choose an existing immutable source and enter its verified SHA-256. The tool reads a checked copy; the result stays in the content store.</p>
