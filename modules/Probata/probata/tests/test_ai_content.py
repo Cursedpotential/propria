@@ -683,6 +683,50 @@ def test_temporal_names_shared_go_fields_and_permanent_errors(scope, monkeypatch
     assert "*AI_CONTENT_ACTIVITIES" in worker.read_text(encoding="utf-8")
 
 
+def test_temporal_prepare_entrypoint_decodes_native_wire_and_legacy_defaults(scope, monkeypatch):
+    """Pass Go's native source coordinates through the actual prepare Activity.
+
+    Inputs: native and legacy-shaped request dictionaries. Outputs: exact
+    delegated wire fields. Effects: monkeypatched stage call only; choose over
+    testing the dataclass without the Temporal entrypoint.
+    """
+    from server.temporal import ai_content_activities as activities
+
+    observed = []
+
+    def capture(request):
+        """Record an Activity request without opening a source or provider.
+
+        Inputs: delegated request. Outputs: bounded test receipt. Effects: appends
+        one in-memory value; choose to prove the real entrypoint's asdict handoff.
+        """
+        observed.append(request)
+        return {"stage": "prepared", "bundle_ref": "file:///fixture/prepared.json"}
+
+    monkeypatch.setattr(ai, "prepare_content", capture)
+    native = {**scope, "source_object_id": scope["original_ref"],
+              "source_sha256": "", "version_id": None,
+              "normalized_generation_id": "", "verification_id": ""}
+    result = activities.ai_prepare_content_activity(activities.AIContentParams(**native))
+    assert result["stage"] == "prepared"
+    assert {field: observed[-1][field] for field in native} == native
+
+    monkeypatch.setattr(ai, "extract_work_products", capture)
+    later = {**native, "source_sha256": "a" * 64,
+             "prepared_ref": "file:///fixture/prepared.json"}
+    activities.ai_extract_work_products_activity(activities.AIContentParams(**later))
+    assert {field: observed[-1][field] for field in later} == later
+
+    legacy = {field: scope[field] for field in (
+        "request_id", "source_version_id", "operating_mode", "matter_id", "court_case_id")}
+    legacy.update(normalized_generation_id=str(uuid4()), verification_id=str(uuid4()))
+    activities.ai_prepare_content_activity(activities.AIContentParams(**legacy))
+    assert observed[-1]["normalized_generation_id"] == legacy["normalized_generation_id"]
+    assert observed[-1]["verification_id"] == legacy["verification_id"]
+    assert observed[-1]["native_source_only"] is False
+    assert observed[-1]["version_id"] is None
+
+
 def test_complete_work_product_content_spans_repetition_and_truncation(scope, monkeypatch):
     """Prove full repeated artifact and draft spans; input retained synthetic bodies, output assertions, effects retained files; choose over short quotation checks."""
     body = "Intro\n```python\nprint('Alice')\n```\n\n```python\nprint('Alice')\n```\nDRAFT Motion\nEntire draft here.\n"

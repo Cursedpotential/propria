@@ -1,6 +1,6 @@
 """Expose six independent, bounded AI content stages to the evidence worker.
 
-Inputs: exact source/generation/verification/case pins and retained file refs.
+Inputs: exact retained-source/case pins, optional legacy generation pins and file refs.
 Outputs: bounded stage receipts. Effects: delegated per Activity, never source
 payloads in Temporal history. Pick for verified standard AI exports rather than
 human chunks or the legacy chat-file/pending projector.
@@ -21,16 +21,21 @@ from temporalio.exceptions import ApplicationError, CancelledError
 
 @dataclass
 class AIContentParams:
-    """Carry the shared versioned Go AIContentRequest with external stage refs.
+    """Decode the shared Go AIContentRequest for native and legacy content runs.
 
-    Inputs: seven exact pins, optional stage refs and approved bounds. Outputs:
-    dataclass request. Effects: none; choose for all six stages so the shared Go
-    request remains decodable while bodies stay outside workflow history.
+    Inputs: exact source/case and native original fields, optional legacy
+    generation pins, stage refs and approved bounds. Outputs: dataclass request.
+    Effects: none; choose for all six Activities while bodies stay outside history.
     """
     request_id: str = ""
     source_version_id: str = ""
     normalized_generation_id: str = ""
     verification_id: str = ""
+    original_ref: str = ""
+    native_source_only: bool = False
+    source_object_id: str = ""
+    source_sha256: str = ""
+    version_id: str | None = None
     operating_mode: str = ""
     matter_id: str = ""
     court_case_id: str = ""
@@ -116,11 +121,11 @@ def _run(name: str, params: AIContentParams) -> dict[str, Any]:
 
 @activity.defn(name="ai_prepare_content_activity")
 def ai_prepare_content_activity(params: AIContentParams) -> dict[str, Any]:
-    """Prepare coherent conversation windows from one exact verified AI generation.
+    """Prepare Neural topic chunks from one exact retained native AI original.
 
-    Inputs: shared pins and bounds. Outputs: prepared bundle_ref and counts.
-    Effects: read-only DB and retained files; choose before extraction/embedding,
-    never the legacy source parser or a per-message search publisher.
+    Inputs: source/case pins, original_ref, native_source_only and bounds. Outputs:
+    prepared bundle_ref, source hash and counts. Effects: retained-original read,
+    Neural inference and derived file; choose before extraction and embedding.
     """
     return _run("prepare_content", params)
 
