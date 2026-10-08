@@ -250,7 +250,8 @@ def decode_records(data: Any, params: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(conversation, dict):
             raise ContextInvalid("native conversation is malformed")
         base = f"{prefix}/{ci}" if prefix or isinstance(data, list) else ""
-        common = {"conversation_index": ci, "conversation_id": conversation.get("id") or conversation.get("uuid"),
+        native_conversation_id = conversation.get("conversation_id") or conversation.get("id") or conversation.get("uuid")
+        common = {"conversation_index": ci, "conversation_id": native_conversation_id,
                   "conversation_title": conversation.get("title") or conversation.get("name")}
         if isinstance(conversation.get("mapping"), dict):
             items = []

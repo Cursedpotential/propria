@@ -113,6 +113,21 @@ def test_native_pointers_and_partial_candidates_remain_searchable(monkeypatch):
     assert "source_sha256" not in obj["properties"]["provenance"][0]
 
 
+def test_chatgpt_conversation_id_is_retained():
+    """Keep ChatGPT's native conversation_id in derived source locators.
+
+    Inputs: one synthetic mapping export. Outputs: native conversation ID.
+    Effects: none. Choose for ChatGPT export citation identity.
+    """
+    context = _module()
+    native = [{"conversation_id": "native-conversation-7", "current_node": "turn-1",
+               "mapping": {"turn-1": {"parent": None, "message": {"author": {"role": "user"},
+                           "content": {"parts": ["hello"]}}}}}]
+    records = context.decode_records(native, {**_request(), "source_format": "chatgpt"})
+    assert records[0]["conversation_id"] == "native-conversation-7"
+    assert records[0]["native_json_pointer"] == "/0/mapping/turn-1/message/content/parts/0"
+
+
 def test_failed_candidate_provider_still_publishes_chunks(monkeypatch):
     """Publish prepared context after optional extraction fails.
 
