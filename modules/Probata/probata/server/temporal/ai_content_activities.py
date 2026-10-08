@@ -208,6 +208,7 @@ class AIContextParams:
     provider_version_id: str | None = None
     package_ref: str | None = None
     source_format: str | None = None
+    source_sha256: str | None = None
     request_id: str = ""
     temporal_run_id: str = ""
     temporal_activity_id: str = ""

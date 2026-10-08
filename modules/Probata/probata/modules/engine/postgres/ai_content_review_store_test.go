@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Cursedpotential/probata/engine/extraction/service"
 )
@@ -36,6 +37,11 @@ func TestAISourceSpanProof(t *testing.T) {
 		t.Fatal("out-of-bounds span admitted")
 	}
 	bad = candidate
+	bad.SourceSpan.Start = -1
+	if err := verifyAISpans(document, []service.AICandidate{bad}); err == nil {
+		t.Fatal("negative span admitted")
+	}
+	bad = candidate
 	bad.EvidenceQuote = "B"
 	if err := verifyAISpans(document, []service.AICandidate{bad}); err == nil {
 		t.Fatal("unsupported quote admitted")
@@ -44,6 +50,53 @@ func TestAISourceSpanProof(t *testing.T) {
 	bad.SourceSpan.SHA256 = strings.Repeat("0", 64)
 	if err := verifyAISpans(document, []service.AICandidate{bad}); err == nil {
 		t.Fatal("wrong span hash admitted")
+	}
+}
+
+// TestAINativeMarkdownSpanProof verifies UTF-8 whole-text codepoint locators without a JSON wrapper.
+// Inputs: one exact native string and its quoted span. Outputs: agreement or fail-closed error.
+// Effects: none. Choose for the declared Markdown verifier branch.
+func TestAINativeMarkdownSpanProof(t *testing.T) {
+	const native = "A🧭B"
+	sum := sha256.Sum256([]byte("🧭"))
+	candidate := service.AICandidate{SpanUnit: "unicode_codepoint", SourceSpan: service.AISourceSpan{Start: 1, End: 2, SHA256: hex.EncodeToString(sum[:])}, EvidenceQuote: "🧭"}
+	if err := verifyAISpans(native, []service.AICandidate{candidate}); err != nil {
+		t.Fatal(err)
+	}
+	candidate.NativeJSONPointer = "/text"
+	if err := verifyAISpans(native, []service.AICandidate{candidate}); err == nil {
+		t.Fatal("native text accepted a fabricated JSON pointer")
+	}
+	candidate.NativeJSONPointer = ""
+	if err := verifyAISpans(map[string]any{"text": native}, []service.AICandidate{candidate}); err == nil {
+		t.Fatal("JSON source accepted an unlocated whole-text span")
+	}
+}
+
+// TestAINativeClockRequiresExactMessage checks source availability only against a cited native JSON message.
+// Inputs: ChatGPT and Claude native fields with verified clocks. Outputs: exact match or rejection.
+// Effects: none. Pick for first-party knowledge clocks, never candidate event time.
+func TestAINativeClockRequiresExactMessage(t *testing.T) {
+	chatClock := time.Unix(1735689600, 125000000).UTC()
+	chat := map[string]any{"mapping": map[string]any{"node": map[string]any{"message": map[string]any{"create_time": float64(1735689600.125), "content": map[string]any{"parts": []any{"source"}}}}}}
+	candidate := service.AICandidate{NativeJSONPointer: "/mapping/node/message/content/parts/0", SourceAvailableFrom: &chatClock}
+	if err := verifyAINativeClock(chat, "chatgpt_official_json", candidate); err != nil {
+		t.Fatal(err)
+	}
+	wrong := chatClock.Add(time.Second)
+	candidate.SourceAvailableFrom = &wrong
+	if err := verifyAINativeClock(chat, "chatgpt_official_json", candidate); err == nil {
+		t.Fatal("different message clock admitted")
+	}
+	claudeClock := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	claude := map[string]any{"chat_messages": []any{map[string]any{"created_at": claudeClock.Format(time.RFC3339Nano), "text": "source"}}}
+	candidate.NativeJSONPointer, candidate.SourceAvailableFrom = "/chat_messages/0/text", &claudeClock
+	if err := verifyAINativeClock(claude, "claude_ai_export_json", candidate); err != nil {
+		t.Fatal(err)
+	}
+	candidate.NativeJSONPointer = "/other/text"
+	if err := verifyAINativeClock(claude, "claude_ai_export_json", candidate); err == nil {
+		t.Fatal("unlocated clock admitted")
 	}
 }
 

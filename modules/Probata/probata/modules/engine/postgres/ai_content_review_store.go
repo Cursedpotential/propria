@@ -8,15 +8,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/extraction/entities"
 	"github.com/Cursedpotential/probata/engine/extraction/flow"
 	"github.com/Cursedpotential/probata/engine/extraction/service"
 	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
+	"github.com/Cursedpotential/probata/engine/sourceformat"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -278,11 +281,11 @@ func sameAIExistingCandidate(table, source string, digest []byte, expectedSource
 // Inputs: custody pin and bounded candidates. Outputs: validation error or exact source proof.
 // Effects: reads the retained original; no writes. Choose immediately before staging, even on retries.
 func (s *EntityExtractionStore) verifyAIEvidence(ctx context.Context, pin service.AISourcePin, candidates []service.AICandidate) error {
-	var storageClass, uri string
+	var storageClass, uri, declaredFormat string
 	var length int64
-	err := s.db.QueryRow(ctx, `SELECT original.storage_class, original.object_uri, original.byte_length
+	err := s.db.QueryRow(ctx, `SELECT original.storage_class, original.object_uri, original.byte_length, version.declared_format
 FROM context.source_version version JOIN context.retained_object original ON original.id=version.original_object_id
-WHERE version.id=$1::uuid AND version.original_object_id=$2::uuid`, pin.SourceVersionID, pin.SourceObjectID).Scan(&storageClass, &uri, &length)
+WHERE version.id=$1::uuid AND version.original_object_id=$2::uuid`, pin.SourceVersionID, pin.SourceObjectID).Scan(&storageClass, &uri, &length, &declaredFormat)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return service.ErrNotFound
 	}
@@ -312,11 +315,39 @@ WHERE version.id=$1::uuid AND version.original_object_id=$2::uuid`, pin.SourceVe
 	if hex.EncodeToString(digest[:]) != pin.SourceSHA256 {
 		return service.ErrInvalid{Err: errors.New("retained original SHA256 changed")}
 	}
-	var document any
-	if err := json.Unmarshal(raw, &document); err != nil {
-		return service.ErrInvalid{Err: fmt.Errorf("retained original is not JSON: %w", err)}
+	switch declaredFormat {
+	case sourceformat.ChatGPTMarkdown, sourceformat.ClaudeMarkdown, sourceformat.GeminiMarkdown:
+		if !utf8.Valid(raw) {
+			return service.ErrInvalid{Err: errors.New("retained native Markdown is not UTF-8")}
+		}
+		for _, candidate := range candidates {
+			if candidate.SourceAvailableFrom != nil {
+				return service.ErrInvalid{Err: errors.New("native Markdown has no verified per-turn source clock")}
+			}
+		}
+		return verifyAISpans(string(raw), candidates)
+	case sourceformat.ClaudeAIExportJSON, "chatgpt_official_json", "chatgpt_json_array", "chatgpt_conversations_json", "claude_conversations_json":
+		var document any
+		if err := json.Unmarshal(raw, &document); err != nil {
+			return service.ErrInvalid{Err: fmt.Errorf("retained native JSON is malformed: %w", err)}
+		}
+		if _, scalar := document.(string); scalar {
+			return service.ErrInvalid{Err: errors.New("native JSON source must contain a pointer-addressable export")}
+		}
+		if err := verifyAISpans(document, candidates); err != nil {
+			return err
+		}
+		for _, candidate := range candidates {
+			if candidate.SourceAvailableFrom != nil {
+				if err := verifyAINativeClock(document, declaredFormat, candidate); err != nil {
+					return service.ErrInvalid{Err: err}
+				}
+			}
+		}
+		return nil
+	default:
+		return service.ErrInvalid{Err: errors.New("retained AI source format is not admitted for native span verification")}
 	}
-	return verifyAISpans(document, candidates)
 }
 
 // aiStorageAvailable permits only originals that the sealed local opener can read by immutable URI.
@@ -329,14 +360,30 @@ func aiStorageAvailable(storageClass string) error {
 	return nil
 }
 
-// verifyAISpans compares every candidate quote with its exact codepoint slice from the native JSON field.
-// Inputs: parsed original and candidates. Outputs: validation error or success.
+// verifyAISpans compares every candidate quote with its exact codepoint slice from the native field or whole text.
+// Inputs: parsed JSON or native UTF-8 text and candidates. Outputs: validation error or success.
 // Effects: none. Choose after whole-object length and SHA validation.
 func verifyAISpans(document any, candidates []service.AICandidate) error {
 	for _, candidate := range candidates {
-		value, err := aiStringAtPointer(document, candidate.NativeJSONPointer)
-		if err != nil {
-			return service.ErrInvalid{Err: err}
+		if candidate.SourceSpan.Start < 0 || candidate.SourceSpan.End <= candidate.SourceSpan.Start {
+			return service.ErrInvalid{Err: errors.New("AI source span has invalid bounds")}
+		}
+		var value string
+		switch native := document.(type) {
+		case string:
+			if candidate.NativeJSONPointer != "" {
+				return service.ErrInvalid{Err: errors.New("native text source cannot have a JSON pointer")}
+			}
+			value = native
+		default:
+			if candidate.NativeJSONPointer == "" {
+				return service.ErrInvalid{Err: errors.New("native JSON source requires an exact pointer")}
+			}
+			var err error
+			value, err = aiStringAtPointer(document, candidate.NativeJSONPointer)
+			if err != nil {
+				return service.ErrInvalid{Err: err}
+			}
 		}
 		points := []rune(value)
 		if candidate.SourceSpan.End > len(points) {
@@ -355,14 +402,29 @@ func verifyAISpans(document any, candidates []service.AICandidate) error {
 // Inputs: parsed original JSON and pointer. Outputs: string or validation error.
 // Effects: none. Choose for source spans; arrays use exact zero-based indexes.
 func aiStringAtPointer(document any, pointer string) (string, error) {
+	value, err := aiValueAtPointer(document, pointer)
+	if err != nil {
+		return "", err
+	}
+	result, ok := value.(string)
+	if !ok {
+		return "", errors.New("native JSON pointer does not resolve to a string")
+	}
+	return result, nil
+}
+
+// aiValueAtPointer resolves an exact RFC6901 path without inventing an envelope.
+// Inputs: parsed native JSON and pointer. Outputs: native value or error. Effects: none.
+// Choose for source text and its containing message clock.
+func aiValueAtPointer(document any, pointer string) (any, error) {
 	if !strings.HasPrefix(pointer, "/") {
-		return "", errors.New("native JSON pointer must identify a string field")
+		return nil, errors.New("native JSON pointer must identify a field")
 	}
 	var value any = document
 	for _, encoded := range strings.Split(pointer[1:], "/") {
 		for i := 0; i < len(encoded); i++ {
 			if encoded[i] == '~' && (i+1 == len(encoded) || encoded[i+1] != '0' && encoded[i+1] != '1') {
-				return "", errors.New("native JSON pointer has an invalid escape")
+				return nil, errors.New("native JSON pointer has an invalid escape")
 			}
 			if encoded[i] == '~' {
 				i++
@@ -374,23 +436,80 @@ func aiStringAtPointer(document any, pointer string) (string, error) {
 			var ok bool
 			value, ok = node[segment]
 			if !ok {
-				return "", errors.New("native JSON pointer is absent")
+				return nil, errors.New("native JSON pointer is absent")
 			}
 		case []any:
 			index, err := strconv.Atoi(segment)
 			if err != nil || index < 0 || index >= len(node) || strconv.Itoa(index) != segment {
-				return "", errors.New("native JSON pointer array index is invalid")
+				return nil, errors.New("native JSON pointer array index is invalid")
 			}
 			value = node[index]
 		default:
-			return "", errors.New("native JSON pointer traverses a scalar")
+			return nil, errors.New("native JSON pointer traverses a scalar")
 		}
 	}
-	result, ok := value.(string)
-	if !ok {
-		return "", errors.New("native JSON pointer does not resolve to a string")
+	return value, nil
+}
+
+// verifyAINativeClock checks a supplied source clock against the same message as the cited string.
+// Inputs: parsed native JSON, declared format and candidate locator/clock. Outputs: error or nil.
+// Effects: none. Choose only for a producer-supplied first-party clock, never event or approval time.
+func verifyAINativeClock(document any, format string, candidate service.AICandidate) error {
+	segments := strings.Split(strings.TrimPrefix(candidate.NativeJSONPointer, "/"), "/")
+	messagePath := ""
+	clockField := ""
+	switch format {
+	case "chatgpt_official_json", "chatgpt_json_array", "chatgpt_conversations_json":
+		for i := 0; i+2 < len(segments); i++ {
+			if segments[i] == "mapping" && segments[i+2] == "message" {
+				messagePath = "/" + strings.Join(segments[:i+3], "/")
+				clockField = "create_time"
+				break
+			}
+		}
+	case sourceformat.ClaudeAIExportJSON, "claude_conversations_json":
+		for i := 0; i+1 < len(segments); i++ {
+			if segments[i] == "chat_messages" {
+				messagePath = "/" + strings.Join(segments[:i+2], "/")
+				clockField = "created_at"
+				break
+			}
+		}
 	}
-	return result, nil
+	if messagePath == "" {
+		return errors.New("source clock has no exact native message path")
+	}
+	message, err := aiValueAtPointer(document, messagePath)
+	if err != nil {
+		return err
+	}
+	fields, ok := message.(map[string]any)
+	if !ok {
+		return errors.New("native source clock is not on a message object")
+	}
+	var actual time.Time
+	switch value := fields[clockField].(type) {
+	case float64:
+		if clockField != "create_time" || math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 {
+			return errors.New("native message time is invalid")
+		}
+		seconds, fraction := math.Modf(value)
+		actual = time.Unix(int64(seconds), int64(math.Round(fraction*1e6))*1000).UTC()
+	case string:
+		if clockField != "created_at" {
+			return errors.New("native message time is invalid")
+		}
+		actual, err = time.Parse(time.RFC3339Nano, value)
+		if err != nil {
+			return errors.New("native message time is malformed")
+		}
+	default:
+		return errors.New("native message has no verifiable source clock")
+	}
+	if candidate.SourceAvailableFrom == nil || candidate.SourceAvailableFrom.IsZero() || actual.UnixMicro() != candidate.SourceAvailableFrom.UnixMicro() {
+		return errors.New("source clock differs from exact native message")
+	}
+	return nil
 }
 
 // ListAICandidates reads retained-source proposal rows across the existing entity/event/fact review tables.

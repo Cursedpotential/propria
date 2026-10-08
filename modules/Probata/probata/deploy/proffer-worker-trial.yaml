@@ -2,8 +2,8 @@
 services:
   proffer-worker:
     build:
-      context: .
-      dockerfile: deploy/docker/proffer-worker/Dockerfile
+      context: ../../..
+      dockerfile: modules/Probata/probata/deploy/docker/proffer-worker/Dockerfile
     image: ${PROFFER_WORKER_IMAGE:-platform-proffer-worker:latest}
     restart: unless-stopped
     networks:

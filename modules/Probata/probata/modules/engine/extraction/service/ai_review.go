@@ -26,7 +26,7 @@ type AISourcePin struct {
 }
 
 // AISourceSpan locates a bounded source excerpt in the retained native export.
-// Inputs: native JSON pointer and byte/rune interval with exact excerpt hash. Outputs: a validated locator.
+// Inputs: native JSON pointer or whole-text source and codepoint interval with exact excerpt hash. Outputs: a validated locator.
 // Effects: none. Choose for review evidence instead of storing a conversation body.
 type AISourceSpan struct {
 	Start  int    `json:"start"`
@@ -39,20 +39,21 @@ type AISourceSpan struct {
 // Effects: none until StageAICandidates persists it. Choose fact for accounts without a known event time.
 type AICandidate struct {
 	AISourcePin
-	NativeJSONPointer string       `json:"native_json_pointer"`
-	SourceSpan        AISourceSpan `json:"source_span"`
-	SpanUnit          string       `json:"span_unit"`
-	Kind              string       `json:"kind"`
-	ReportedKind      string       `json:"reported_kind"`
-	ReviewDomain      string       `json:"review_domain"`
-	Name              string       `json:"name,omitempty"`
-	EntityType        string       `json:"entity_type,omitempty"`
-	EventType         string       `json:"event_type,omitempty"`
-	Predicate         string       `json:"predicate,omitempty"`
-	Statement         string       `json:"statement,omitempty"`
-	EvidenceQuote     string       `json:"evidence_quote,omitempty"`
-	OccurredAt        *time.Time   `json:"occurred_at"`
-	Confidence        float64      `json:"confidence"`
+	NativeJSONPointer   string       `json:"native_json_pointer"`
+	SourceSpan          AISourceSpan `json:"source_span"`
+	SpanUnit            string       `json:"span_unit"`
+	Kind                string       `json:"kind"`
+	ReportedKind        string       `json:"reported_kind"`
+	ReviewDomain        string       `json:"review_domain"`
+	Name                string       `json:"name,omitempty"`
+	EntityType          string       `json:"entity_type,omitempty"`
+	EventType           string       `json:"event_type,omitempty"`
+	Predicate           string       `json:"predicate,omitempty"`
+	Statement           string       `json:"statement,omitempty"`
+	EvidenceQuote       string       `json:"evidence_quote,omitempty"`
+	OccurredAt          *time.Time   `json:"occurred_at"`
+	SourceAvailableFrom *time.Time   `json:"source_available_from,omitempty"`
+	Confidence          float64      `json:"confidence"`
 }
 
 // AIReviewRow is the bounded row exposed to the owner for an explicit decision.
@@ -97,8 +98,8 @@ func ValidateAICandidate(c AICandidate) error {
 	if c.VersionID != nil && (strings.TrimSpace(*c.VersionID) == "" || len(*c.VersionID) > 512) {
 		return errors.New("version_id must be a bounded verified value or null")
 	}
-	if !strings.HasPrefix(c.NativeJSONPointer, "/") || len(c.NativeJSONPointer) > 2048 || c.SourceSpan.Start < 0 || c.SourceSpan.End <= c.SourceSpan.Start {
-		return errors.New("native JSON pointer and source span are required")
+	if (c.NativeJSONPointer != "" && !strings.HasPrefix(c.NativeJSONPointer, "/")) || len(c.NativeJSONPointer) > 2048 || c.SourceSpan.Start < 0 || c.SourceSpan.End <= c.SourceSpan.Start {
+		return errors.New("native JSON pointer or whole-text source span is required")
 	}
 	if c.SpanUnit != "unicode_codepoint" {
 		return errors.New("span_unit must be unicode_codepoint")
@@ -108,6 +109,9 @@ func ValidateAICandidate(c AICandidate) error {
 	}
 	if math.IsNaN(c.Confidence) || math.IsInf(c.Confidence, 0) || c.Confidence < 0 || c.Confidence > 1 {
 		return errors.New("confidence must be between zero and one")
+	}
+	if c.SourceAvailableFrom != nil && c.SourceAvailableFrom.IsZero() {
+		return errors.New("source_available_from must be a verified nonzero native source clock")
 	}
 	if len(c.Name) > 200 || len(c.Statement) > 2000 || len(c.Predicate) > 100 || len(c.EventType) > 100 {
 		return errors.New("candidate text exceeds review bounds")

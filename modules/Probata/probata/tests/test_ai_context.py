@@ -15,6 +15,241 @@ from types import SimpleNamespace
 import pytest
 
 
+def test_gemini_markdown_preserves_eight_native_turns_and_unicode_spans():
+    """Preserve eight exact native turns without timestamp or JSON-pointer invention.
+
+    Inputs: Unicode CRLF Markdown with an export header and role-like fenced code.
+    Outputs: exact original-document slices and eight native roles. Effects: none;
+    choose to catch text stripping, byte/codepoint confusion and fence splitting.
+    """
+    context = _module()
+    bodies = ["\r\nFirst 😀 question\r\n", "\r\n# Keep this heading\r\n```md\r\n**You:**\r\nnot a turn\r\n```\r\n",
+              "\r\nSecond question\r\n", "\r\nSecond answer\r\n", "\r\nThird question\r\n",
+              "\r\nThird answer\r\n", "\r\nFourth question\r\n", "\r\nFourth answer\r\n"]
+    text = "\ufeff# Native title\r\nExported on: 4/14/2026, 7:08:32 PM\r\n---\r\n" + "".join(
+        ("**You:**\r\n" if index % 2 == 0 else "**Gemini:**\r\n") + body
+        for index, body in enumerate(bodies))
+    params = {**_request(), "source_format": "gemini_markdown"}
+    records = context.decode_markdown_records(text, params)
+    assert len(records) == 8
+    assert [record["role"] for record in records] == ["user", "assistant"] * 4
+    assert [record["body"] for record in records] == bodies
+    for record in records:
+        span = record["source_span"]
+        assert text[span["start"]:span["end"]] == record["body"]
+        assert record["native_json_pointer"] == ""
+        assert record["native_time"] is None and record["source_available_from"] is None
+    assert "# Keep this heading" in records[1]["body"]
+
+
+def test_markdown_grounding_uses_absolute_native_document_offsets():
+    """Ground a quote after an astral character in whole-source coordinates.
+
+    Inputs: native Markdown and a bounded chunk slice. Outputs: exact quote and
+    absolute codepoint occurrence. Effects: none; choose for Go review verifier
+    interoperability without converting the transcript to synthetic JSON.
+    """
+    context = _module()
+    text = "# Topic\n**You:**\n😀 ask\n**Gemini:**\n\nA precise response.\n"
+    records = context.decode_markdown_records(text, {**_request(), "source_format": "gemini_markdown"})
+    record = records[1]
+    segment = {**{k: v for k, v in record.items() if k != "body"}, "body_start": 3,
+               "body_end": len(record["body"]), "text": record["body"][3:]}
+    candidate = {"record_id": record["record_id"], "quote": "precise response", "kind": "fact",
+                 "statement": "Reported statement", "predicate": "reported"}
+    accepted, rejected = context._ground({"segments": [segment]}, {"candidates": [candidate]})
+    assert rejected == 0 and len(accepted) == 1
+    occurrence = accepted[0]["occurrences"][0]
+    assert text[occurrence["start"]:occurrence["end"]] == candidate["quote"]
+    assert occurrence["native_json_pointer"] == ""
+    assert occurrence["source_available_from"] is None
+    assert accepted[0]["reported"]["statement"] == candidate["statement"]
+    assert accepted[0]["reported"]["predicate"] == candidate["predicate"]
+
+
+def test_markdown_prepare_retains_exact_original_bytes(monkeypatch, tmp_path):
+    """Retain the full Markdown original alongside native turn records on retry.
+
+    Inputs: bounded in-memory source and temporary context root. Outputs: exact
+    original.md bytes and stable stage receipt. Effects: temporary test files;
+    choose for original preservation independently of model inference.
+    """
+    context = _module()
+    raw = "# Title\r\n**You:**\r\n 😀 question \r\n**Gemini:**\r\n answer \r\n".encode()
+    import hashlib
+    digest = hashlib.sha256(raw).hexdigest()
+    params = {**_request(), "source_format": "gemini_markdown", "source_sha256": digest}
+    monkeypatch.setenv("AI_CONTEXT_ROOT", str(tmp_path.resolve()))
+    monkeypatch.setattr(context, "_source_bytes", lambda request: raw)
+    monkeypatch.setattr(context, "topic_chunks", lambda records, request, neural=None: [])
+    receipt = context.prepare(params)
+    prepared = context._read(receipt["bundle_ref"], params, "prepared")
+    assert Path(prepared["original_ref"].removeprefix("file://")).name == "original.md"
+    original = context._root() / context._scope(params) / "original.md"
+    assert original.read_bytes() == raw
+    assert prepared["source"]["source_sha256"] == prepared["original_sha256"] == digest
+    assert receipt["records"] == 2
+    assert context.prepare(params) == receipt
+    original.write_bytes(raw + b"tampered")
+    with pytest.raises(context.ContextInvalid, match="retained original SHA256 differs"):
+        context.prepare(params)
+
+
+def test_source_hash_mismatch_rejects_before_retention(monkeypatch, tmp_path):
+    """Reject a supplied source hash mismatch before any original is retained.
+
+    Inputs: bounded native source with deliberately mismatched digest. Outputs:
+    permanent rejection and no retained files. Effects: temporary test root only;
+    choose to prove the source pin is checked rather than merely propagated.
+    """
+    context = _module()
+    params = {**_request(), "source_format": "gemini_markdown", "source_sha256": "a" * 64}
+    monkeypatch.setenv("AI_CONTEXT_ROOT", str(tmp_path.resolve()))
+    monkeypatch.setattr(context, "_source_bytes", lambda request: b"**You:**\nsource\n")
+    with pytest.raises(context.ContextInvalid, match="source SHA256 differs"):
+        context.prepare(params)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_actual_original_hash_without_identity_mutation(monkeypatch, tmp_path):
+    """Record the actual original digest without adding a new source identity pin.
+
+    Inputs: native source with no supplied digest. Outputs: prepared original
+    hash and unchanged request identity. Effects: temporary retained files only;
+    choose for callers that rely on exact provider version rather than SHA pins.
+    """
+    import hashlib
+    context = _module()
+    raw = b"**You:**\nsource\n"
+    params = {**_request(), "source_format": "gemini_markdown"}
+    monkeypatch.setenv("AI_CONTEXT_ROOT", str(tmp_path.resolve()))
+    monkeypatch.setattr(context, "_source_bytes", lambda request: raw)
+    monkeypatch.setattr(context, "topic_chunks", lambda records, request, neural=None: [])
+    before = context.identity(params)
+    receipt = context.prepare(params)
+    prepared = context._read(receipt["bundle_ref"], params, "prepared")
+    assert prepared["original_sha256"] == hashlib.sha256(raw).hexdigest()
+    assert prepared["source"] == context.identity(params) == before
+    assert "source_sha256" not in before
+
+
+def test_json_native_record_time_carries_existing_source_availability():
+    """Carry native first-party message time independently of candidate event time.
+
+    Inputs: Claude original-message metadata. Outputs: source availability copied
+    from that original metadata. Effects: none; choose to keep knowledge time out
+    of model-invented occurrence times and import/approval timestamps.
+    """
+    context = _module()
+    record = context.decode_records({"chat_messages": [{"sender": "human", "text": "Statement",
+        "created_at": "2024-01-02T00:01:00Z"}]}, _request())[0]
+    assert record["source_available_from"] == "2024-01-02T00:01:00.000000Z"
+
+
+def test_source_available_time_is_verified_native_utc():
+    """Serialize real native epoch and ISO times without inventing missing zones.
+
+    Inputs: native epoch and timezone-bearing values plus invalid/unknown values.
+    Outputs: microsecond UTC RFC3339 or null. Effects: none. Choose to protect
+    the Go time.Time contract and keep source knowledge separate from event time.
+    """
+    context = _module()
+    assert context.source_available_time(1704153660.123456) == "2024-01-02T00:01:00.123456Z"
+    assert context.source_available_time("2024-01-01T19:01:00.123456-05:00") == "2024-01-02T00:01:00.123456Z"
+    for missing in (None, True, "2024-01-02T00:01:00", "not a date", float("nan"), 1e100):
+        assert context.source_available_time(missing) is None
+
+
+def test_context_primary_call_reuses_existing_ai_only_options(monkeypatch):
+    """Apply the existing AI-only primary completion settings without SDK retries.
+
+    Inputs: configured primary model and mocked SDK. Outputs: exact JSON/token/
+    thinking/n request options and one call. Effects: memory only. Choose to keep
+    max_model_calls meaningful and prevent thinking prose from breaking JSON.
+    """
+    import sys
+    from types import SimpleNamespace, ModuleType
+    context = _module()
+    provider = ModuleType("server.analysis.ai_content_provider")
+    provider.PRIMARY_MODELS = ("moonshotai/kimi-k3", "nvidia/nemotron-3-super-120b-a12b")
+    provider.NIM_URL = "https://integrate.api.nvidia.com/v1"
+    provider.MAX_OUTPUT_TOKENS = 6000
+    monkeypatch.setitem(sys.modules, provider.__name__, provider)
+    calls = {}
+
+    def create(**kwargs):
+        """Capture one test completion without provider traffic.
+
+        Inputs: SDK keyword arguments. Outputs: synthetic empty candidate JSON.
+        Effects: memory assignment only; choose to test the exact wire request.
+        """
+        calls["request"] = kwargs
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"candidates":[]}'))])
+
+    def client(**kwargs):
+        """Capture SDK retry and timeout configuration without allocating a client.
+
+        Inputs: constructor arguments. Outputs: mock completion client. Effects:
+        memory only; choose to verify bounded provider call behavior.
+        """
+        calls["client"] = kwargs
+        return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=client))
+    monkeypatch.setenv("AI_CONTEXT_MODEL_BASE_URL", provider.NIM_URL)
+    monkeypatch.setenv("AI_CONTEXT_MODEL_ID", provider.PRIMARY_MODELS[0])
+    monkeypatch.setenv("AI_CONTEXT_MODEL_API_KEY", "unit-test-key")
+    assert context._model_reply({"segments": []}, None) == {"candidates": []}
+    assert calls["client"]["max_retries"] == 0
+    assert calls["request"]["model"] == provider.PRIMARY_MODELS[0]
+    assert calls["request"]["response_format"] == {"type": "json_object"}
+    assert calls["request"]["max_tokens"] == 6000 and calls["request"]["n"] == 1
+    assert calls["request"]["extra_body"] == {"chat_template_kwargs": {"thinking": False}}
+
+
+def test_b2_mounted_credentials_preserve_exact_version(monkeypatch, tmp_path):
+    """Use mounted existing B2 credential shape while preserving VersionId checks.
+
+    Inputs: temporary synthetic credentials and an in-memory object client.
+    Outputs: bounded body and exact provider-version request. Effects: temporary
+    test file only; choose to verify the managed worker's private mount contract.
+    """
+    import json
+    context = _module()
+    credentials = {"endpoint_url": "https://synthetic.invalid", "region": "region-test",
+                   "access_key_id": "test-id", "secret_access_key": "test-secret"}
+    path = tmp_path / "credentials.json"
+    path.write_text(json.dumps(credentials))
+    monkeypatch.setenv("AI_CONTEXT_B2_CREDENTIALS_FILE", str(path))
+    monkeypatch.delenv("AI_CONTEXT_B2_ENDPOINT_URL", raising=False)
+    calls = []
+
+    def client(kind, **options):
+        """Assert file-derived connection options and return a bounded fake body.
+
+        Inputs: service/options. Outputs: fake S3 client. Effects: request capture;
+        choose to prove secrets need not become process command-line arguments.
+        """
+        assert kind == "s3"
+        assert options["endpoint_url"] == credentials["endpoint_url"]
+        assert options["aws_access_key_id"] == credentials["access_key_id"]
+        assert options["aws_secret_access_key"] == credentials["secret_access_key"]
+
+        def get_object(**kwargs):
+            """Capture versioned object coordinates and return original bytes.
+
+            Inputs: bucket/key/version. Outputs: bounded object response. Effects:
+            memory capture only; choose instead of live provider calls in tests.
+            """
+            calls.append(kwargs)
+            return {"ContentLength": 2, "VersionId": "v7", "Body": io.BytesIO(b"{}")}
+        return SimpleNamespace(get_object=get_object)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=client))
+    assert context._source_bytes(_request()) == b"{}"
+    assert calls[0]["VersionId"] == "v7"
+
+
 def _module():
     """Load the owned context module without importing legacy providers.
 

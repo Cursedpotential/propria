@@ -24,9 +24,12 @@ import (
 const maxAICandidateBundleBytes = 32 << 20
 
 // AICandidateStageInput pins one persisted producer bundle and its retained original.
-// Inputs: preview handle, exact source pin, file URI and persisted byte hash; outputs: Activity coordinates.
+// Inputs: canonical operating context, preview handle, exact source pin, file URI and persisted byte hash; outputs: Activity coordinates.
 // Effects: none. Choose after AI extraction, before owner review or separate work-product placement.
 type AICandidateStageInput struct {
+	OperatingMode string              `json:"operating_mode"`
+	MatterID      string              `json:"matter_id"`
+	CourtCaseID   string              `json:"court_case_id"`
 	RequestID     string              `json:"request_id"`
 	PreviewHandle string              `json:"preview_handle"`
 	Source        service.AISourcePin `json:"source"`
@@ -103,8 +106,9 @@ type aiProducerOccurrence struct {
 		SHA256 string `json:"sha256"`
 		Unit   string `json:"unit"`
 	} `json:"source_span"`
-	Quote         string `json:"quote"`
-	EvidenceQuote string `json:"evidence_quote"`
+	Quote               string     `json:"quote"`
+	EvidenceQuote       string     `json:"evidence_quote"`
+	SourceAvailableFrom *time.Time `json:"source_available_from,omitempty"`
 }
 
 // StageAICandidateBundle verifies persisted bytes and stages each eligible exact occurrence for review.
@@ -165,7 +169,7 @@ func (a AICandidateStagingActivities) StageAICandidateBundle(ctx context.Context
 			if occurrence.SourceVersionID != in.Source.SourceVersionID || occurrence.SourceObjectID != in.Source.SourceObjectID ||
 				occurrence.SourceSHA256 != in.Source.SourceSHA256 || !sameAIVersion(occurrence.VersionID, in.Source.VersionID) ||
 				occurrence.SpanUnit != "unicode_codepoint" || occurrence.SourceSpan.Unit != "unicode_codepoint" || occurrence.Quote != occurrence.EvidenceQuote ||
-				occurrence.NativeJSONPointer == "" || occurrence.SourceSpan.End <= occurrence.SourceSpan.Start ||
+				occurrence.SourceSpan.End <= occurrence.SourceSpan.Start ||
 				hex.EncodeToString(quoteHash[:]) != occurrence.SourceSpan.SHA256 {
 				return AICandidateStageResult{}, errors.New("AI occurrence has a mismatched source pin, span or quote")
 			}
@@ -190,7 +194,8 @@ func (a AICandidateStagingActivities) StageAICandidateBundle(ctx context.Context
 				SourceSpan: service.AISourceSpan{Start: occurrence.SourceSpan.Start, End: occurrence.SourceSpan.End, SHA256: occurrence.SourceSpan.SHA256},
 				SpanUnit:   occurrence.SpanUnit, Kind: item.Kind, ReportedKind: item.ReportedKind, ReviewDomain: item.ReviewDomain,
 				Name: item.Name, EntityType: item.EntityType, EventType: item.EventType, Predicate: item.Predicate,
-				Statement: item.Statement, EvidenceQuote: occurrence.EvidenceQuote, OccurredAt: item.OccurredAt, Confidence: *item.Confidence}
+				Statement: item.Statement, EvidenceQuote: occurrence.EvidenceQuote, OccurredAt: item.OccurredAt,
+				SourceAvailableFrom: occurrence.SourceAvailableFrom, Confidence: *item.Confidence}
 			if err := service.ValidateAICandidate(row); err != nil {
 				return AICandidateStageResult{}, err
 			}

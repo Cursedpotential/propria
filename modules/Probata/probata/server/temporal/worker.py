@@ -127,6 +127,9 @@ async def main() -> None:
                 extract_entities_events_langextract_activity,
             ],
             activity_executor=executor,
+            # Keep admitted Activities within the configured bounded executor;
+            # the trial worker sets TEMPORAL_ACTIVITY_THREADS=1.
+            max_concurrent_activities=threads,
         )
         log.info("worker running — workflows: ChatTranscriptIngest, P0DurabilityProbe, ClassificationBatchPipeline")
         await worker.run()

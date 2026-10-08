@@ -26,6 +26,7 @@ func TestImportActivityGuardPreservesSignaturesAndDeniesLegacyBodies(t *testing.
 		proffer.AutoApprovalRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
 		activities.ListBatchFolderRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
 		activities.BindImportOperationRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
+		activities.AICandidateStageInput{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
 		repairplan.StepRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
 		repairplan.ReceiptRequest{OperatingMode: "LIVE", MatterID: live.MatterID, CourtCaseID: live.CourtCaseID},
 	} {

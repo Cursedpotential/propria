@@ -99,3 +99,31 @@ func TestApprovedQueryScopeDecodesHTTPFieldNames(t *testing.T) {
 		t.Fatalf("snake-case HTTP query scope was not decoded: %+v", scope)
 	}
 }
+
+// TestApprovedNativePayloadRoundTrip keeps a zero-start citation and typed predicate inside immutable graph hashes.
+// Inputs: one native AI claim JSON and column-shaped reconstruction. Outputs: hash agreement or tamper rejection.
+// Effects: none. Pick for the native payload extension; SMS optional fields stay absent.
+func TestApprovedNativePayloadRoundTrip(t *testing.T) {
+	start, end := 0, 4
+	claim := approvedgraph.Claim{ID: "claim", Kind: "statement", Text: "typed statement", Predicate: "direct_account",
+		NativeSpanStart: &start, NativeSpanEnd: &end, NativeSpanUnit: "unicode_codepoint", NativeSpanSHA256: strings.Repeat("a", 64)}
+	raw, err := json.Marshal(claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	copy := claim
+	copy.Predicate, copy.NativeSpanStart, copy.NativeSpanEnd, copy.NativeSpanUnit, copy.NativeSpanSHA256 = "", nil, nil, "", ""
+	if err := restoreApprovedNativeFields(string(raw), &copy); err != nil {
+		t.Fatal(err)
+	}
+	if copy.NativeSpanStart == nil || *copy.NativeSpanStart != 0 || graphHash(copy) != graphHash(claim) {
+		t.Fatal("native locator was lost in query reconstruction")
+	}
+	copy.Predicate = "changed"
+	if graphHash(copy) == graphHash(claim) {
+		t.Fatal("typed predicate tampering kept immutable hash")
+	}
+	if err := restoreApprovedNativeFields("{", &copy); err == nil {
+		t.Fatal("malformed stored payload admitted")
+	}
+}

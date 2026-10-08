@@ -33,6 +33,12 @@ type Claim struct {
 	SourceSHA256        string     `json:"source_sha256"`
 	RecordID            string     `json:"record_id"`
 	RecordSHA256        string     `json:"record_sha256"`
+	Predicate           string     `json:"predicate,omitempty"`
+	NativeJSONPointer   string     `json:"native_json_pointer,omitempty"`
+	NativeSpanStart     *int       `json:"native_span_start,omitempty"`
+	NativeSpanEnd       *int       `json:"native_span_end,omitempty"`
+	NativeSpanUnit      string     `json:"native_span_unit,omitempty"`
+	NativeSpanSHA256    string     `json:"native_span_sha256,omitempty"`
 	OccurredAt          *time.Time `json:"occurred_at,omitempty"`
 	SourceAvailableFrom *time.Time `json:"source_available_from"`
 	ApprovedAt          time.Time  `json:"approved_at"`

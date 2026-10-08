@@ -59,23 +59,25 @@ services:
     image: ${TEMPORAL_WORKER_IMAGE:-platform-temporal-worker:latest}
     restart: unless-stopped
     user: "10001:10001"
+    mem_limit: 1024m
+    cpus: 1.0
     networks:
       - probata
     environment:
-      TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal-server:7233}
+      TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-100.108.135.88:7233}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       TEMPORAL_TASK_QUEUE: evidence-pipeline
-      TEMPORAL_ACTIVITY_THREADS: ${TEMPORAL_ACTIVITY_THREADS:-8}
+      TEMPORAL_ACTIVITY_THREADS: ${TEMPORAL_ACTIVITY_THREADS:-1}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Match the engine's approved case. Background writes require explicit
       # Live mode and this pair; absent historical mode cannot authorize them.
       PROFFER_MATTER_ID: ${PROFFER_MATTER_ID:-}
       PROFFER_COURT_CASE_ID: ${PROFFER_COURT_CASE_ID:-}
-      PROFFER_STARTER_URL: ${PROFFER_STARTER_URL:-http://100.91.190.107:8091}
+      PROFFER_STARTER_URL: ${PROFFER_STARTER_URL:-http://100.84.202.29:8091}
       PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
       # Conversation chunks (owner 2026-10-02). The collection is owner-approved ProfferChunks20261002 and is the
       # code default; the worker creates it when absent (additive schema only afterwards).
-      CONTEXT_CHUNKS_WEAVIATE_URL: ${CONTEXT_CHUNKS_WEAVIATE_URL:-http://100.91.190.107:8082}
+      CONTEXT_CHUNKS_WEAVIATE_URL: ${CONTEXT_CHUNKS_WEAVIATE_URL:-http://100.108.135.88:8082}
       CONTEXT_CHUNKS_COLLECTION: ProfferChunks20261002
       # A chunk the Super Index (CocoIndex) already cut and embedded is copied with its vectors when its content key
       # matches (server/context_chunks/ids.chunk_content_key). Absent collection = no reuse.
@@ -89,6 +91,16 @@ services:
       CONTEXT_SEARCH_AI_CHAT_COLLECTION: ${CONTEXT_SEARCH_AI_CHAT_COLLECTION:-AiChatEvents20260918}
       CONTEXT_SEARCH_VECTOR_NAME: text_nim
       AI_CONTENT_ROOT: /data/proffer/derive-scratch/ai-content
+      # Native context uses the existing retained writable bind, separate namespace.
+      # Byline: Codex / GPT-6.1-Sol / 2026-10-08.
+      AI_CONTEXT_ROOT: /data/proffer/derive-scratch/ai-content/context
+      AI_CONTEXT_SOURCE_ROOT: /data/proffer/source-objects
+      AI_CONTEXT_B2_CREDENTIALS_FILE: /run/secrets/casebible-b2.json
+      AI_CONTEXT_MODEL_API_KEY_FILE: /run/secrets/nvidia-api-key
+      AI_CONTEXT_MODEL_BASE_URL: ${AI_CONTEXT_MODEL_BASE_URL:?set}
+      AI_CONTEXT_MODEL_ID: ${AI_CONTEXT_MODEL_ID:?set}
+      CONTEXT_SEARCH_AI_COLLECTION: ${CONTEXT_SEARCH_AI_COLLECTION:-AiChatEvents20260918}
+      CONTEXT_SEARCH_AI_VECTOR: text_nim
       # The native AI reader may open only retained originals in this read-only bind.
       # Byline: Codex / GPT-6 / 2026-10-07.
       AI_CONTENT_SOURCE_ROOT: /data/proffer/source-objects
@@ -127,6 +139,12 @@ services:
       - type: bind
         source: /data/probata/volumes/proffer/derive-scratch/ai-content
         target: /data/proffer/derive-scratch/ai-content
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /data/probata/secrets/casebible-b2.json
+        target: /run/secrets/casebible-b2.json
+        read_only: true
         bind:
           create_host_path: false
       - /data/probata/secrets/platform/database-url:/run/secrets/platform-database-url:ro

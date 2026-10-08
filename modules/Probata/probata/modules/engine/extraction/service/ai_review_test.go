@@ -32,6 +32,11 @@ func TestAICandidateAdmission(t *testing.T) {
 		t.Fatal("wrong span unit admitted")
 	}
 	candidate.SpanUnit = "unicode_codepoint"
+	candidate.NativeJSONPointer = ""
+	if err := ValidateAICandidate(candidate); err != nil {
+		t.Fatalf("native text whole-source locator was rejected: %v", err)
+	}
+	candidate.NativeJSONPointer = "/messages/0/text"
 	candidate.Kind, candidate.ReportedKind = "document", "document"
 	if err := ValidateAICandidate(candidate); err == nil {
 		t.Fatal("document was silently staged as a fact")

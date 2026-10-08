@@ -484,6 +484,13 @@ func Run(ctx context.Context, cfg Config) error {
 	if toolkitSync != nil && cfg.TemporalTaskQueue != librarysync.TaskQueue {
 		return errors.New("proffer worker: toolkit sync requires proffer-v1 task queue")
 	}
+	// Reuse the configured analysis sink for genuinely approved native AI candidates.
+	// Inputs: existing DB and graph group. Output: optional Activity group.
+	// Effects: construction only; registration performs no source or graph writes.
+	approvedAIGraph, err := BuildApprovedAIGraph(pool, approvedGraph)
+	if err != nil {
+		return err
+	}
 	registrations.ToolkitSync = toolkitSync
 	if toolkitSync != nil {
 		backend, ok := toolkitSync.Service.Backend.(activities.ToolkitLibraryBindingBackend)
@@ -499,6 +506,7 @@ func Run(ctx context.Context, cfg Config) error {
 	RegisterExtraction(temporalWorker, registrations.Extraction)
 	RegisterConversationExtraction(temporalWorker, registrations.Conversation)
 	RegisterApprovedGraph(temporalWorker, approvedGraph)
+	RegisterApprovedAIGraph(temporalWorker, approvedAIGraph)
 	if err := temporalWorker.Start(); err != nil {
 		return fmt.Errorf("proffer worker: start Temporal worker: %w", err)
 	}

@@ -83,7 +83,7 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 			where += approvedAfterCursor(*cursor, table)
 			vars["cursor_id"], vars["cursor_table"], vars["cursor_available"] = cursor.ID, cursor.Table, cursor.Available
 		}
-		sql += fmt.Sprintf("SELECT node_id, kind, bundle_hash, claim_text, matter_id, case_id, approved_revision_id, approval_digest, control_generation_id, candidate_id, candidate_sha256, source_id, source_version_id, source_object_id, source_object_sha256, source_object_uri, record_id, record_sha256, occurred_at, source_available_from, approved_at, approved_by FROM %s WHERE %s ORDER BY source_available_from DESC, node_id ASC LIMIT $scan_limit;\n", table, where)
+		sql += fmt.Sprintf("SELECT node_id, kind, bundle_hash, payload_json, claim_text, matter_id, case_id, approved_revision_id, approval_digest, control_generation_id, candidate_id, candidate_sha256, source_id, source_version_id, source_object_id, source_object_sha256, source_object_uri, record_id, record_sha256, occurred_at, source_available_from, approved_at, approved_by FROM %s WHERE %s ORDER BY source_available_from DESC, node_id ASC LIMIT $scan_limit;\n", table, where)
 	}
 	results, err := s.Client.graphQuery(ctx, sql, vars)
 	if err != nil || len(results) != 3 {
@@ -95,6 +95,7 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 			ID                  string     `json:"node_id"`
 			Kind                string     `json:"kind"`
 			BundleHash          string     `json:"bundle_hash"`
+			PayloadJSON         string     `json:"payload_json"`
 			Text                string     `json:"claim_text"`
 			MatterID            string     `json:"matter_id"`
 			CourtCaseID         string     `json:"case_id"`
@@ -129,6 +130,9 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 				SourceObjectID: row.SourceObjectID, SourceSHA256: row.SourceSHA256, SourceObjectURI: row.SourceObjectURI,
 				RecordID: row.RecordID, RecordSHA256: row.RecordSHA256, OccurredAt: row.OccurredAt,
 				SourceAvailableFrom: row.SourceAvailableFrom, ApprovedAt: row.ApprovedAt, ApprovedBy: row.ApprovedBy}
+			if err := restoreApprovedNativeFields(row.PayloadJSON, &claim); err != nil {
+				return ApprovedQueryResult{}, err
+			}
 			if graphHash(claim) != row.BundleHash {
 				return ApprovedQueryResult{}, errors.New("approved graph: assertion content differs from immutable hash")
 			}
@@ -147,6 +151,26 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 	}
 	result.Claims = claims
 	return result, nil
+}
+
+// restoreApprovedNativeFields restores only optional typed AI citation fields from the immutable payload.
+// Inputs: stored full claim JSON and column-reconstructed claim. Outputs: error or completed claim.
+// Effects: mutates the supplied claim. Pick before bundle-hash verification, including legacy SMS rows.
+func restoreApprovedNativeFields(payload string, claim *approvedgraph.Claim) error {
+	var native struct {
+		Predicate         string `json:"predicate"`
+		NativeJSONPointer string `json:"native_json_pointer"`
+		NativeSpanStart   *int   `json:"native_span_start"`
+		NativeSpanEnd     *int   `json:"native_span_end"`
+		NativeSpanUnit    string `json:"native_span_unit"`
+		NativeSpanSHA256  string `json:"native_span_sha256"`
+	}
+	if claim == nil || payload == "" || json.Unmarshal([]byte(payload), &native) != nil {
+		return errors.New("approved graph: assertion payload unavailable")
+	}
+	claim.Predicate, claim.NativeJSONPointer = native.Predicate, native.NativeJSONPointer
+	claim.NativeSpanStart, claim.NativeSpanEnd, claim.NativeSpanUnit, claim.NativeSpanSHA256 = native.NativeSpanStart, native.NativeSpanEnd, native.NativeSpanUnit, native.NativeSpanSHA256
+	return nil
 }
 
 // approvedWhere selects indexed scope and applies source availability only to as-lived reads.
