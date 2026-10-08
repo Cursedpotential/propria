@@ -71,6 +71,15 @@ ORDER BY binding.preview_handle LIMIT 2`, requestID, pin.SourceVersionID, pin.So
 // Inputs: preview handle and exact source version/object/SHA pin. Outputs: durable matter mode.
 // Effects: read-only. Choose for AI review before any candidate staging or owner decision.
 func (s *EntityExtractionStore) VerifyAISource(ctx context.Context, previewHandle string, pin service.AISourcePin) (string, error) {
+	if pin.SourceRef != "" {
+		if previewHandle != "" {
+			return "", service.ErrInvalid{Err: errors.New("native context source cannot use a retained preview handle")}
+		}
+		if _, err := verifyAIContextSource(ctx, s.db, pin); err != nil {
+			return "", err
+		}
+		return string(caseidentity.ModeLive), nil
+	}
 	// The sealed local opener has no independent provider-version readback. Reject
 	// caller-supplied versions until an opener can verify them against the original.
 	if pin.VersionID != nil {
@@ -112,7 +121,7 @@ func (s *EntityExtractionStore) StageAICandidates(ctx context.Context, previewHa
 		if err := service.ValidateAICandidate(candidate); err != nil {
 			return nil, service.ErrInvalid{Err: err}
 		}
-		if candidate.AISourcePin.SourceVersionID != pin.SourceVersionID || candidate.SourceObjectID != pin.SourceObjectID || candidate.SourceSHA256 != pin.SourceSHA256 || !sameVersionID(candidate.VersionID, pin.VersionID) {
+		if candidate.AISourcePin.SourceVersionID != pin.SourceVersionID || candidate.SourceObjectID != pin.SourceObjectID || candidate.SourceSHA256 != pin.SourceSHA256 || candidate.SourceRef != pin.SourceRef || candidate.PreparedRef != pin.PreparedRef || !sameVersionID(candidate.VersionID, pin.VersionID) {
 			return nil, service.ErrInvalid{Err: errors.New("AI batch changes its retained source pin")}
 		}
 	}
@@ -123,8 +132,10 @@ func (s *EntityExtractionStore) StageAICandidates(ctx context.Context, previewHa
 	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(mode)); err != nil {
 		return nil, err
 	}
-	if err := aiOpenerAvailable(s.aiOriginalOpener); err != nil {
-		return nil, err
+	if pin.SourceRef == "" {
+		if err := aiOpenerAvailable(s.aiOriginalOpener); err != nil {
+			return nil, err
+		}
 	}
 	if len(requestDigest) != 64 {
 		return nil, service.ErrInvalid{Err: errors.New("request digest is required")}
@@ -281,6 +292,9 @@ func sameAIExistingCandidate(table, source string, digest []byte, expectedSource
 // Inputs: custody pin and bounded candidates. Outputs: validation error or exact source proof.
 // Effects: reads the retained original; no writes. Choose immediately before staging, even on retries.
 func (s *EntityExtractionStore) verifyAIEvidence(ctx context.Context, pin service.AISourcePin, candidates []service.AICandidate) error {
+	if pin.SourceRef != "" {
+		return s.verifyAIContextEvidence(ctx, pin, candidates)
+	}
 	var storageClass, uri, declaredFormat string
 	var length int64
 	err := s.db.QueryRow(ctx, `SELECT original.storage_class, original.object_uri, original.byte_length, version.declared_format
@@ -574,7 +588,7 @@ WHERE id=$1::uuid AND source_raw_table='context.source_version' AND source_raw_i
 		if err := json.Unmarshal(candidateJSON, &candidate); err != nil {
 			return "", entities.ErrConflict
 		}
-		if candidate.SourceVersionID != pin.SourceVersionID || candidate.SourceObjectID != pin.SourceObjectID || candidate.SourceSHA256 != pin.SourceSHA256 || !sameVersionID(candidate.VersionID, pin.VersionID) {
+		if candidate.SourceVersionID != pin.SourceVersionID || candidate.SourceObjectID != pin.SourceObjectID || candidate.SourceSHA256 != pin.SourceSHA256 || candidate.SourceRef != pin.SourceRef || candidate.PreparedRef != pin.PreparedRef || !sameVersionID(candidate.VersionID, pin.VersionID) {
 			return "", entities.ErrConflict
 		}
 		if candidate.ReportedKind != reportedKind || candidate.ReviewDomain != reviewDomain {

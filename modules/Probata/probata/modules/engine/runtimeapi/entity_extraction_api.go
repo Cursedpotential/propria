@@ -169,7 +169,7 @@ func (h *EntityExtractionHTTPHandler) aiCandidates(w http.ResponseWriter, r *htt
 		h.fail(w, err)
 		return
 	}
-	pin := service.AISourcePin{SourceVersionID: r.URL.Query().Get("source_version_id"), SourceObjectID: r.URL.Query().Get("source_object_id"), SourceSHA256: r.URL.Query().Get("source_sha256")}
+	pin := service.AISourcePin{SourceVersionID: r.URL.Query().Get("source_version_id"), SourceObjectID: r.URL.Query().Get("source_object_id"), SourceSHA256: r.URL.Query().Get("source_sha256"), SourceRef: r.URL.Query().Get("source_ref"), PreparedRef: r.URL.Query().Get("prepared_ref")}
 	if version := r.URL.Query().Get("version_id"); version != "" {
 		pin.VersionID = &version
 	}

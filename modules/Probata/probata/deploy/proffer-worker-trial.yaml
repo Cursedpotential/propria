@@ -21,6 +21,8 @@ services:
       SELECT_PARSER_HTTP_TIMEOUT: ${SELECT_PARSER_HTTP_TIMEOUT:-35s}
       EXECUTE_PARSER_HTTP_TIMEOUT: ${EXECUTE_PARSER_HTTP_TIMEOUT:-31m}
       SOURCE_OBJECT_DIR: /data/proffer/source-objects
+      AI_CONTEXT_CATALOG_DATABASE_URL_FILE: /run/secrets/ai-context-catalog-database-url
+      AI_CONTEXT_ROOT: /data/proffer/derive-scratch/ai-content/context
       PARSER_BUNDLE_DIR: /data/proffer/parser-bundles
       NORMALIZED_BUNDLE_DIR: /data/proffer/normalized-bundles
       INVENTORY_MANIFEST_DIR: /data/proffer/inventory-manifests
@@ -61,6 +63,18 @@ services:
       APPROVED_CONTEXT_GRAPH_ENABLED: 'true'
       PROFFER_MAX_CONCURRENT_ACTIVITIES: '1'
     volumes:
+    - type: bind
+      source: /data/probata/secrets/casebible-catalog/writer.dsn
+      target: /run/secrets/ai-context-catalog-database-url
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: /data/probata/volumes/proffer/derive-scratch/ai-content
+      target: /data/proffer/derive-scratch/ai-content
+      read_only: false
+      bind:
+        create_host_path: false
     - type: bind
       source: /data/probata/secrets/analysis-graph/analysis-surreal-user
       target: /run/secrets/analysis-surreal-user

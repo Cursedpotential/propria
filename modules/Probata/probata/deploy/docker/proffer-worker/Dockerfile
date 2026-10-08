@@ -4,7 +4,7 @@ FROM golang:1.26-bookworm AS builder
 # Bound compiler/test concurrency within the existing trial host build slot.
 # Inputs: vendored Go source; outputs: tested binaries. Effects: image build only.
 # Byline: Codex · GPT-6.1-sol · 2026-10-08.
-ENV GOMAXPROCS=1 GOMEMLIMIT=1024MiB GOFLAGS=-p=1
+ENV GOMAXPROCS=1 GOMEMLIMIT=1024MiB GOFLAGS=-p=1 AI_WORKPRODUCT_TEST_ROOT=/tmp/to_be_deleted
 
 # Hermetic vendored build (repair post-restructure, 2026-09-02): engine/ moved to
 # modules/engine/ and sbv moved to modules/forks/sbv/ (a private, gitignored-locally
@@ -28,7 +28,9 @@ COPY modules/Probata/probata/sql/bootstrap/toolkit_working_catalog_20261005.sql 
 RUN CGO_ENABLED=1 go test -mod=vendor -tags fts5 \
     ./surrealsink ./runtimeapi ./temporal/cmd/starter \
     ./approvedgraphprojectionflow ./approvedgraphqueryflow ./extraction/service ./sourceformat ./approvedgraphai ./approvedaigraphprojectionflow ./profferworker \
-    ./postgres ./proffer ./cmd/context-graph
+    ./postgres ./proffer ./aicontextsource ./cmd/context-graph
+# Check only the existing AI context packaging Activities without broad activity tests.
+RUN CGO_ENABLED=1 go test -mod=vendor -tags fts5 ./activities -run '^TestAIContextPackage' -count=1
 RUN CGO_ENABLED=1 go build \
     -mod=vendor \
     -tags fts5 \

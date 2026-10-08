@@ -23,6 +23,8 @@ type AISourcePin struct {
 	SourceObjectID  string  `json:"source_object_id"`
 	VersionID       *string `json:"version_id"`
 	SourceSHA256    string  `json:"source_sha256"`
+	SourceRef       string  `json:"source_ref,omitempty"`
+	PreparedRef     string  `json:"prepared_ref,omitempty"`
 }
 
 // AISourceSpan locates a bounded source excerpt in the retained native export.
@@ -89,8 +91,12 @@ func ValidateAICandidate(c AICandidate) error {
 	if _, err := uuid.Parse(c.SourceVersionID); err != nil {
 		return errors.New("source_version_id must be a UUID")
 	}
-	if _, err := uuid.Parse(c.SourceObjectID); err != nil {
-		return errors.New("source_object_id must be a UUID")
+	if c.SourceRef == "" {
+		if _, err := uuid.Parse(c.SourceObjectID); err != nil {
+			return errors.New("source_object_id must be a UUID")
+		}
+	} else if c.SourceObjectID != "" || c.PreparedRef == "" || len(c.SourceRef) > 2048 || len(c.PreparedRef) > 4096 || strings.ContainsAny(c.SourceRef+c.PreparedRef, "\x00\r\n") {
+		return errors.New("native context requires its exact source and prepared references without a retained object ID")
 	}
 	if !isSHA256(c.SourceSHA256) || !isSHA256(c.SourceSpan.SHA256) {
 		return errors.New("source and span SHA256 must be full lowercase hex digests")

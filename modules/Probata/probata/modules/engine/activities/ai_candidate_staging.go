@@ -27,30 +27,34 @@ const maxAICandidateBundleBytes = 32 << 20
 // Inputs: canonical operating context, preview handle, exact source pin, file URI and persisted byte hash; outputs: Activity coordinates.
 // Effects: none. Choose after AI extraction, before owner review or separate work-product placement.
 type AICandidateStageInput struct {
-	OperatingMode string              `json:"operating_mode"`
-	MatterID      string              `json:"matter_id"`
-	CourtCaseID   string              `json:"court_case_id"`
-	RequestID     string              `json:"request_id"`
-	PreviewHandle string              `json:"preview_handle"`
-	Source        service.AISourcePin `json:"source"`
-	BundleRef     string              `json:"bundle_ref"`
-	BundleSHA256  string              `json:"bundle_sha256"`
+	ContractVersion string              `json:"contract_version,omitempty"`
+	OperatingMode   string              `json:"operating_mode"`
+	MatterID        string              `json:"matter_id"`
+	CourtCaseID     string              `json:"court_case_id"`
+	RequestID       string              `json:"request_id"`
+	PreviewHandle   string              `json:"preview_handle"`
+	Source          service.AISourcePin `json:"source"`
+	BundleRef       string              `json:"bundle_ref"`
+	BundleSHA256    string              `json:"bundle_sha256"`
+	PreparedRef     string              `json:"prepared_ref,omitempty"`
 }
 
 // AICandidateStageResult reports pending rows and held source material without carrying conversation text.
 // Inputs: staged review IDs and manifest reference; outputs: bounded counts, pins and deterministic run identity.
 // Effects: none. Choose as the Temporal result for staging, never as an owner decision.
 type AICandidateStageResult struct {
-	RunID            string `json:"run_id,omitempty"`
-	RequestDigest    string `json:"request_digest,omitempty"`
-	BundleRef        string `json:"bundle_ref"`
-	BundleSHA256     string `json:"bundle_sha256"`
-	WorkProductsRef  string `json:"work_products_ref,omitempty"`
-	Candidates       int    `json:"candidates"`
-	Staged           int    `json:"staged_occurrences"`
-	HeldUnclassified int    `json:"held_unclassified"`
-	HeldManifest     int    `json:"held_manifest"`
-	HeldDuplicate    int    `json:"held_duplicate"`
+	Source           *service.AISourcePin `json:"source,omitempty"`
+	CandidateIDs     []string             `json:"candidate_ids,omitempty"`
+	RunID            string               `json:"run_id,omitempty"`
+	RequestDigest    string               `json:"request_digest,omitempty"`
+	BundleRef        string               `json:"bundle_ref"`
+	BundleSHA256     string               `json:"bundle_sha256"`
+	WorkProductsRef  string               `json:"work_products_ref,omitempty"`
+	Candidates       int                  `json:"candidates"`
+	Staged           int                  `json:"staged_occurrences"`
+	HeldUnclassified int                  `json:"held_unclassified"`
+	HeldManifest     int                  `json:"held_manifest"`
+	HeldDuplicate    int                  `json:"held_duplicate"`
 }
 
 // AICandidateStagingActivities binds a server-owned derived root and pending-only review store.
@@ -116,6 +120,12 @@ type aiProducerOccurrence struct {
 // Effects: reads the bounded derived file, verifies custody via Store and writes pending candidates.
 // Choose after the producer's candidates stage; work-product placement remains a separate Activity.
 func (a AICandidateStagingActivities) StageAICandidateBundle(ctx context.Context, in AICandidateStageInput) (AICandidateStageResult, error) {
+	if in.ContractVersion == "ai-context-v1" {
+		return a.stageAIContextCandidateBundle(ctx, in)
+	}
+	if in.ContractVersion != "" {
+		return AICandidateStageResult{}, errors.New("AI candidate bundle contract version is unsupported")
+	}
 	result := AICandidateStageResult{BundleRef: in.BundleRef, BundleSHA256: in.BundleSHA256}
 	if a.Store == nil || (in.RequestID == "" && in.PreviewHandle == "") || len(in.PreviewHandle) > 300 || !validSHA256(in.BundleSHA256) {
 		return AICandidateStageResult{}, errors.New("AI staging requires a store, request or bounded preview, and bundle SHA256")

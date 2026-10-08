@@ -40,6 +40,50 @@ func TestResolveApprovedNativeFact(t *testing.T) {
 	}
 }
 
+// TestResolveApprovedContextWithoutRetainedObject binds an approved claim to an actual native source URI.
+// Inputs: digest-bound approved fixture with a registered context source and empty object ID.
+// Outputs: cited claim and a rejection for changed URI. Effects: none.
+// Pick for context registrations that have no retained-object or preview row.
+func TestResolveApprovedContextWithoutRetainedObject(t *testing.T) {
+	scope, row := approvedFixture(t)
+	var attrs map[string]any
+	if err := json.Unmarshal(row.Attrs, &attrs); err != nil {
+		t.Fatal(err)
+	}
+	var candidate service.AICandidate
+	raw, _ := json.Marshal(attrs["candidate"])
+	if err := json.Unmarshal(raw, &candidate); err != nil {
+		t.Fatal(err)
+	}
+	candidate.SourceObjectID = ""
+	candidate.SourceRef = "b2://original/native.md"
+	candidate.PreparedRef = "file:///data/proffer/derive-scratch/ai-content/context/scope/prepared.json"
+	attrs["candidate"] = candidate
+	digest := service.AICandidateDigest(candidate)
+	row.CandidateSHA256 = hex.EncodeToString(digest[:])
+	attrs["review_decision"].(map[string]any)["approved_content_sha256"] = row.CandidateSHA256
+	row.Attrs, _ = json.Marshal(attrs)
+	var rationale map[string]any
+	if err := json.Unmarshal(row.LedgerRationale, &rationale); err != nil {
+		t.Fatal(err)
+	}
+	rationale["candidate_content_sha256"] = row.CandidateSHA256
+	row.LedgerRationale, _ = json.Marshal(rationale)
+	row.SourceObjectID = ""
+	row.SourceObjectURI = candidate.SourceRef
+	claim, err := Resolve(context.Background(), staticAIReader{row: row}, scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claim.SourceObjectID != "" || claim.SourceObjectURI != candidate.SourceRef || claim.NativeSpanStart == nil || *claim.NativeSpanStart != 0 {
+		t.Fatalf("native source identity lost: %+v", claim)
+	}
+	row.SourceObjectURI = "b2://other/original.md"
+	if _, err := Resolve(context.Background(), staticAIReader{row: row}, scope); err == nil {
+		t.Fatal("cross-source URI admitted")
+	}
+}
+
 // TestResolveApprovedNativeRejectsDrift rejects held decisions, altered source digests and ledger mismatches.
 // Inputs: same persisted fixture with one field changed. Outputs: fail-closed error.
 // Effects: none. Pick to guard against fabricated approval and cross-source projection.

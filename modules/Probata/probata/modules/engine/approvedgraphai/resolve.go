@@ -101,7 +101,7 @@ func Resolve(ctx context.Context, reader Reader, scope Scope) (approvedgraph.Cla
 	if err != nil {
 		return approvedgraph.Claim{}, err
 	}
-	if row.ReviewState != "approved" || row.LedgerDecision != "approved" || row.LedgerTargetID != scope.CandidateID || row.LedgerTargetKind != row.Table || row.SourceRawTable != "context.source_version" || row.SourceRawID != scope.SourceVersionID || row.DecidedAt.IsZero() || row.SourceID == "" || row.SourceObjectID == "" || row.SourceObjectURI == "" || !digest(row.SourceSHA256) || !digest(row.CandidateSHA256) {
+	if row.ReviewState != "approved" || row.LedgerDecision != "approved" || row.LedgerTargetID != scope.CandidateID || row.LedgerTargetKind != row.Table || row.SourceRawTable != "context.source_version" || row.SourceRawID != scope.SourceVersionID || row.DecidedAt.IsZero() || row.SourceID == "" || row.SourceObjectURI == "" || !digest(row.SourceSHA256) || !digest(row.CandidateSHA256) {
 		return approvedgraph.Claim{}, errors.New("approved AI graph: review or source pin incomplete")
 	}
 	var attrs struct {
@@ -127,7 +127,9 @@ func Resolve(ctx context.Context, reader Reader, scope Scope) (approvedgraph.Cla
 	}
 	c := attrs.Candidate
 	computed := service.AICandidateDigest(c)
-	if hex.EncodeToString(computed[:]) != row.CandidateSHA256 || c.SourceVersionID != scope.SourceVersionID || c.SourceObjectID != row.SourceObjectID || c.SourceSHA256 != row.SourceSHA256 || c.VersionID != nil || c.ReportedKind != attrs.ReportedKind || c.ReviewDomain != attrs.ReviewDomain || (c.ReviewDomain != "ai_chat_content" && c.ReviewDomain != "ai_chat_account") || attrs.GraphPromotion != "approved_context" || attrs.ProjectionScope != "context" || attrs.ReviewDecision.DecisionID != scope.DecisionID || attrs.ReviewDecision.RequestDigest != scope.RequestDigest || attrs.ReviewDecision.ApprovedContentSHA256 != row.CandidateSHA256 || attrs.ReviewDecision.Decision != "approved" || attrs.ReviewDecision.At.IsZero() || attrs.ReviewDecision.At.UTC().UnixMicro() != row.DecidedAt.UTC().UnixMicro() || attrs.ReviewDecision.Actor.SubjectUID == "" || attrs.ReviewDecision.Actor.Username != row.LedgerReviewer {
+	nativeSource := row.SourceObjectID == "" && c.SourceObjectID == "" && c.SourceRef == row.SourceObjectURI && c.PreparedRef != ""
+	retainedSource := row.SourceObjectID != "" && c.SourceObjectID == row.SourceObjectID && c.SourceRef == "" && c.VersionID == nil
+	if (!nativeSource && !retainedSource) || hex.EncodeToString(computed[:]) != row.CandidateSHA256 || c.SourceVersionID != scope.SourceVersionID || c.SourceSHA256 != row.SourceSHA256 || c.ReportedKind != attrs.ReportedKind || c.ReviewDomain != attrs.ReviewDomain || (c.ReviewDomain != "ai_chat_content" && c.ReviewDomain != "ai_chat_account") || attrs.GraphPromotion != "approved_context" || attrs.ProjectionScope != "context" || attrs.ReviewDecision.DecisionID != scope.DecisionID || attrs.ReviewDecision.RequestDigest != scope.RequestDigest || attrs.ReviewDecision.ApprovedContentSHA256 != row.CandidateSHA256 || attrs.ReviewDecision.Decision != "approved" || attrs.ReviewDecision.At.IsZero() || attrs.ReviewDecision.At.UTC().UnixMicro() != row.DecidedAt.UTC().UnixMicro() || attrs.ReviewDecision.Actor.SubjectUID == "" || attrs.ReviewDecision.Actor.Username != row.LedgerReviewer {
 		return approvedgraph.Claim{}, errors.New("approved AI graph: candidate hash or review receipt differs")
 	}
 	var rationale struct {
@@ -177,14 +179,15 @@ func Resolve(ctx context.Context, reader Reader, scope Scope) (approvedgraph.Cla
 		return approvedgraph.Claim{}, errors.New("approved AI graph: exact typed text missing")
 	}
 	locator, _ := json.Marshal(struct {
-		Version string `json:"source_version_id"`
-		Object  string `json:"source_object_id"`
-		SHA     string `json:"source_sha256"`
-		Pointer string `json:"native_json_pointer"`
-		Start   int    `json:"start"`
-		End     int    `json:"end"`
-		SpanSHA string `json:"span_sha256"`
-	}{scope.SourceVersionID, row.SourceObjectID, row.SourceSHA256, c.NativeJSONPointer, c.SourceSpan.Start, c.SourceSpan.End, c.SourceSpan.SHA256})
+		Version   string `json:"source_version_id"`
+		Object    string `json:"source_object_id"`
+		SourceRef string `json:"source_ref,omitempty"`
+		SHA       string `json:"source_sha256"`
+		Pointer   string `json:"native_json_pointer"`
+		Start     int    `json:"start"`
+		End       int    `json:"end"`
+		SpanSHA   string `json:"span_sha256"`
+	}{scope.SourceVersionID, row.SourceObjectID, c.SourceRef, row.SourceSHA256, c.NativeJSONPointer, c.SourceSpan.Start, c.SourceSpan.End, c.SourceSpan.SHA256})
 	locatorHash := sha256.Sum256(locator)
 	locatorID := flow.DeterministicID("approved_ai_native_locator", scope.SourceVersionID, c.NativeJSONPointer, fmt.Sprint(c.SourceSpan.Start), fmt.Sprint(c.SourceSpan.End), c.SourceSpan.SHA256)
 	start, end := c.SourceSpan.Start, c.SourceSpan.End

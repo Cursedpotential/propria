@@ -20,6 +20,7 @@ services:
       REFERENCE_STARTER_HEALTH_URL: http://100.84.202.29:8091/healthz
       TSNET_LISTENER_ENABLED: 'false'
       SOURCE_OBJECT_DIR: /data/proffer/source-objects
+      AI_CONTEXT_ROOT: /data/proffer/derive-scratch/ai-content/context
       PROFFER_UPLOAD_MAX_BYTES: ${PROFFER_UPLOAD_MAX_BYTES:?set}
       N8N_PROFFER_BASE_URL: ${N8N_PROFFER_BASE_URL:?set}
       N8N_PROFFER_AUTH_HEADER: ${N8N_PROFFER_AUTH_HEADER:?set}
@@ -38,6 +39,12 @@ services:
       ANALYSIS_SURREAL_USER_FILE: /run/secrets/analysis-surreal-user
       ANALYSIS_SURREAL_PASSWORD_FILE: /run/secrets/analysis-surreal-password
     volumes:
+    - type: bind
+      source: /data/probata/volumes/proffer/derive-scratch/ai-content
+      target: /data/proffer/derive-scratch/ai-content
+      read_only: true
+      bind:
+        create_host_path: false
     - type: bind
       source: /data/probata/volumes/proffer/source-objects
       target: /data/proffer/source-objects

@@ -196,7 +196,7 @@ func (s *ApprovedClaimsSink) approvedProjectionPins(ctx context.Context, matter,
 			return nil, errors.New("approved graph: projection source pin count exceeds bound")
 		}
 		for _, pin := range pins {
-			if !graphIdentifier(pin.SourceID) || !graphIdentifier(pin.SourceVersionID) || !graphIdentifier(pin.SourceObjectID) || !graphDigest(pin.SourceObjectSHA256) || !graphExternalRef(pin.SourceObjectURI) {
+			if !graphIdentifier(pin.SourceID) || !graphIdentifier(pin.SourceVersionID) || (pin.SourceObjectID != "" && !graphIdentifier(pin.SourceObjectID)) || !graphDigest(pin.SourceObjectSHA256) || !graphExternalRef(pin.SourceObjectURI) {
 				return nil, errors.New("approved graph: projection source pin is incomplete")
 			}
 			if prior, ok := unique[pin.SourceVersionID]; ok && prior != pin {

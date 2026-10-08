@@ -2,10 +2,12 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/Cursedpotential/probata/engine/approvedgraphai"
+	"github.com/Cursedpotential/probata/engine/extraction/service"
 )
 
 // ApprovedAIGraphReader fetches one native AI decision and retained source without normalized turns.
@@ -25,7 +27,7 @@ func NewApprovedAIGraphReader(db DB) (*ApprovedAIGraphReader, error) {
 
 var _ approvedgraphai.Reader = (*ApprovedAIGraphReader)(nil)
 
-// ReadApprovedAI reads only the exact candidate, owner ledger and retained original metadata.
+// ReadApprovedAI reads the exact candidate, owner ledger and registered original metadata.
 // Inputs: canonical case and actual review IDs. Outputs: at most one snapshot.
 // Effects: read-only SQL. Pick after approval; the resolver checks every returned field.
 func (r *ApprovedAIGraphReader) ReadApprovedAI(ctx context.Context, s approvedgraphai.Scope) (approvedgraphai.Snapshot, error) {
@@ -39,12 +41,13 @@ func (r *ApprovedAIGraphReader) ReadApprovedAI(ctx context.Context, s approvedgr
 )
 SELECT c.table_name,c.review_state,c.source_raw_table,c.source_raw_id,c.attrs,encode(c.content_sha256,'hex'),
  d.decision,d.target_kind,d.target_id::text,d.reviewer,d.rationale,d.decided_at,
- v.source_id::text,o.id::text,o.object_uri,encode(o.content_sha256,'hex')
+ v.source_id::text,coalesce(o.id::text,''),coalesce(o.object_uri,source.source_key),coalesce(encode(o.content_sha256,'hex'),'')
 FROM candidates c
 JOIN analysis.review_decision d ON d.decision_id=$3::uuid AND d.target_id=c.id
 JOIN context.source_version v ON v.id=$2::uuid AND v.id::text=c.source_raw_id
-JOIN context.retained_object o ON o.id=v.original_object_id
-WHERE v.matter_id=$4::uuid AND v.court_case_id=$5::uuid AND v.status='retained'
+JOIN context.source source ON source.id=v.source_id
+LEFT JOIN context.retained_object o ON o.id=v.original_object_id
+WHERE v.matter_id=$4::uuid AND v.court_case_id=$5::uuid AND (v.original_object_id IS NULL OR v.status='retained')
 ORDER BY c.table_name LIMIT 2`, s.CandidateID, s.SourceVersionID, s.DecisionID, s.MatterID, s.CourtCaseID)
 	if err != nil {
 		return approvedgraphai.Snapshot{}, fmt.Errorf("approved AI graph: read review: %w", err)
@@ -65,6 +68,22 @@ ORDER BY c.table_name LIMIT 2`, s.CandidateID, s.SourceVersionID, s.DecisionID, 
 	}
 	if err := rows.Err(); err != nil {
 		return approvedgraphai.Snapshot{}, err
+	}
+	if out.SourceObjectID == "" {
+		var attrs struct {
+			Candidate service.AICandidate `json:"candidate"`
+		}
+		if err := json.Unmarshal(out.Attrs, &attrs); err != nil {
+			return approvedgraphai.Snapshot{}, fmt.Errorf("approved AI graph: native candidate attrs: %w", err)
+		}
+		pin := attrs.Candidate.AISourcePin
+		if pin.SourceVersionID != s.SourceVersionID || pin.SourceRef != out.SourceObjectURI || pin.SourceObjectID != "" {
+			return approvedgraphai.Snapshot{}, errors.New("approved AI graph: native source pin differs")
+		}
+		if _, err := verifyAIContextSource(ctx, r.db, pin); err != nil {
+			return approvedgraphai.Snapshot{}, err
+		}
+		out.SourceSHA256 = pin.SourceSHA256
 	}
 	return out, nil
 }
