@@ -52,15 +52,22 @@ class FakeDB:
 
 @pytest.fixture
 def revision_rows(monkeypatch):
+    """Provide synthetic revision and projection rows with exact multiline bodies.
+
+    Input: pytest monkeypatch; output: fake database, IDs, and revision body.
+    Side effects: Replaces only the API module's connector for these tests.
+    Use for read roundtrips rather than tests requiring a live Docstore.
+    Byline: Codex · GPT-6 · 2026-10-07.
+    """
     monkeypatch.setattr(_api, "TOKEN", "synthetic-token")
     document_key = "note:synthetic_revision_read"
     document_id = emitted_document_id(document_key)
-    body = "Current governed body - synthetic only."
+    body = "Current governed body - synthetic only.\n\n    Indented line  with  spaces.\n"
     body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
     revision_id = emitted_revision_id(document_key, 3)
     head = {
         "id": document_id, "document_key": document_key, "source_path": "docs/synthetic.md",
-        "title": "Synthetic revision", "generation": 3, "latest_number": 3,
+        "title": "Synthetic  revision", "generation": 3, "latest_number": 3,
         "current_revision": revision_id, "approved_revision": None, "current_hash": body_hash,
         "updated_at": "2026-10-07 12:00:00",
     }
@@ -73,7 +80,7 @@ def revision_rows(monkeypatch):
     projection = {
         "id": "document:docs_legacy_md", "source_path": "docs/legacy.md", "title": "Legacy",
         "doc_type": "doc", "domains": ["docs"], "status": "active", "observed_at": "today",
-        "body": "Legacy projected body.",
+        "body": "Legacy projected body.\n\n    Indented line  with  spaces.\n",
     }
     db = FakeDB(head, revision, projection)
 
@@ -86,6 +93,12 @@ def revision_rows(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_emitted_revision_document_id_reads_verified_current_body(revision_rows):
+    """Read an exact multiline revision body through MCP with its integrity hash.
+
+    Input: synthetic revision rows; output: assertions on the returned document.
+    Side effects: Only fake database reads; use for governed revision IDs.
+    Byline: Codex · GPT-6 · 2026-10-07.
+    """
     db, document_id, revision_id, body = revision_rows
     _api.TOKEN = "synthetic-token"
     source_root = Path(__file__).resolve().parents[4]
@@ -98,6 +111,7 @@ async def test_emitted_revision_document_id_reads_verified_current_body(revision
     assert result["id"] == document_id
     assert result["document_key"] == "note:synthetic_revision_read"
     assert result["body"] == body
+    assert result["title"] == "Synthetic revision"
     assert result["generation"] == result["latest_number"] == result["revision"]["number"] == 3
     assert result["current_revision"] == result["revision"]["id"] == revision_id
     assert result["revision"]["raw_sha256"] == result["current_hash"]
@@ -110,12 +124,26 @@ async def test_emitted_revision_document_id_reads_verified_current_body(revision
 
 @pytest.mark.asyncio
 async def test_legacy_projection_id_still_uses_existing_document_read(revision_rows):
+    """Read an exact multiline legacy body through the API and MCP surfaces.
+
+    Input: synthetic projection row; output: assertions on both read surfaces.
+    Side effects: Only fake database reads; use for legacy document IDs.
+    Byline: Codex · GPT-6 · 2026-10-07.
+    """
     db, *_ = revision_rows
     result = await _api.doc("document:docs_legacy_md", authorization="Bearer synthetic-token")
     assert result["id"] == "document:docs_legacy_md"
-    assert result["body"] == "Legacy projected body."
-    assert len(db.calls) == 1
-    assert db.calls[0][1] == {"r": "document:docs_legacy_md"}
+    assert result["body"] == db.projection["body"]
+    source_root = Path(__file__).resolve().parents[4]
+    config = _control.Config(
+        "https://docstore.invalid", source_root, source_root.parent / "test-control-state",
+        "docstore-api-roundtrip", "synthetic-token")
+    server = _control.build_server(config, httpx.ASGITransport(app=_api.app))
+    async with Client(server) as client:
+        via_mcp = (await client.call_tool("docstore_get", {"record_id": "document:docs_legacy_md"})).data
+    assert via_mcp["body"] == db.projection["body"]
+    assert len(db.calls) == 2
+    assert all(params == {"r": "document:docs_legacy_md"} for _, params in db.calls)
 
 
 @pytest.mark.asyncio

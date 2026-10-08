@@ -49,7 +49,13 @@ def _env(path: pathlib.Path) -> dict:
 
 
 def norm(v, show_hidden: bool, key: str | None = None):
-    """SDK value -> plain JSON-safe value."""
+    """Convert an SDK value to JSON-safe data while preserving document body text.
+
+    Inputs: SDK value, hidden-field visibility, and the containing field name.
+    Output: JSON-safe value with exact body strings and compacted metadata strings.
+    Side effects: None; use this for SDK responses rather than display-only _flat.
+    Byline: Codex · GPT-6 · 2026-10-07.
+    """
     name = type(v).__name__
     if key in HIDE and not show_hidden and v is not None:
         return f"<{len(v)} chars>" if isinstance(v, str) else f"<vec {len(v)}>" if hasattr(v, "__len__") else "<hidden>"
@@ -63,7 +69,7 @@ def norm(v, show_hidden: bool, key: str | None = None):
     if name == "Duration":
         return str(v)
     if isinstance(v, str):
-        return " ".join(v.split())
+        return v if key == "body" else " ".join(v.split())
     if isinstance(v, list):
         if len(v) > 8 and all(isinstance(x, (int, float)) for x in v[:8]):
             return f"<vec {len(v)}>"
