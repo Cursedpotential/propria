@@ -16,16 +16,17 @@ import (
 
 // ApprovedQueryScope selects an approval revision independently of a historical perspective.
 type ApprovedQueryScope struct {
-	MatterID               string
-	CourtCaseID            string
-	AccessPolicyID         string
-	ApprovedRevisionID     string
-	ApprovalDigest         string
-	ProjectionGenerationID string
-	ProjectionHash         string
-	Perspective            string
-	Horizon                time.Time
-	Limit                  int
+	MatterID               string    `json:"matter_id"`
+	CourtCaseID            string    `json:"court_case_id"`
+	AccessPolicyID         string    `json:"access_policy_id"`
+	ApprovedRevisionID     string    `json:"approved_revision_id"`
+	ApprovalDigest         string    `json:"approval_digest"`
+	ProjectionGenerationID string    `json:"projection_generation_id"`
+	ProjectionHash         string    `json:"projection_hash"`
+	Perspective            string    `json:"perspective"`
+	Horizon                time.Time `json:"horizon"`
+	Limit                  int       `json:"limit"`
+	Cursor                 string    `json:"cursor,omitempty"`
 }
 
 // ApprovedQueryResult contains only bounded source-cited claims from the selected revision.
@@ -33,6 +34,8 @@ type ApprovedQueryResult struct {
 	Perspective        string                `json:"perspective"`
 	ApprovedRevisionID string                `json:"approved_revision_id"`
 	Claims             []approvedgraph.Claim `json:"claims"`
+	HasMore            bool                  `json:"has_more"`
+	NextCursor         string                `json:"next_cursor,omitempty"`
 }
 
 const maxApprovedQueryLimit = 100
@@ -59,13 +62,28 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 	if err := s.projectionReady(ctx, q); err != nil {
 		return ApprovedQueryResult{}, err
 	}
-	where := approvedWhere(q.Perspective)
+	var cursor *approvedCursor
+	if q.Cursor != "" {
+		parsed, err := decodeApprovedCursor(q, q.Cursor)
+		if err != nil {
+			return ApprovedQueryResult{}, err
+		}
+		if err := s.verifyApprovedCursor(ctx, q, parsed); err != nil {
+			return ApprovedQueryResult{}, err
+		}
+		cursor = &parsed
+	}
 	vars := map[string]any{"matter": q.MatterID, "case": q.CourtCaseID, "policy": q.AccessPolicyID,
 		"revision": q.ApprovedRevisionID, "digest": q.ApprovalDigest,
-		"generation": q.ProjectionGenerationID, "horizon": q.Horizon, "limit": q.Limit}
+		"generation": q.ProjectionGenerationID, "horizon": q.Horizon, "scan_limit": q.Limit + 1}
 	var sql string
 	for _, table := range []string{"ctx_entity_mention", "ctx_statement", "ctx_event_account"} {
-		sql += fmt.Sprintf("SELECT node_id, kind, bundle_hash, claim_text, matter_id, case_id, approved_revision_id, approval_digest, control_generation_id, candidate_id, candidate_sha256, source_id, source_version_id, source_object_id, source_object_sha256, source_object_uri, record_id, record_sha256, occurred_at, source_available_from, approved_at, approved_by FROM %s WHERE %s ORDER BY source_available_from DESC LIMIT $limit;\n", table, where)
+		where := approvedWhere(q.Perspective)
+		if cursor != nil {
+			where += approvedAfterCursor(*cursor, table)
+			vars["cursor_id"], vars["cursor_table"], vars["cursor_available"] = cursor.ID, cursor.Table, cursor.Available
+		}
+		sql += fmt.Sprintf("SELECT node_id, kind, bundle_hash, claim_text, matter_id, case_id, approved_revision_id, approval_digest, control_generation_id, candidate_id, candidate_sha256, source_id, source_version_id, source_object_id, source_object_sha256, source_object_uri, record_id, record_sha256, occurred_at, source_available_from, approved_at, approved_by FROM %s WHERE %s ORDER BY source_available_from DESC, node_id ASC LIMIT $scan_limit;\n", table, where)
 	}
 	results, err := s.Client.graphQuery(ctx, sql, vars)
 	if err != nil || len(results) != 3 {
@@ -97,7 +115,7 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 			ApprovedAt          time.Time  `json:"approved_at"`
 			ApprovedBy          string     `json:"approved_by"`
 		}
-		if json.Unmarshal(raw, &rows) != nil || len(rows) > q.Limit {
+		if json.Unmarshal(raw, &rows) != nil || len(rows) > q.Limit+1 {
 			return ApprovedQueryResult{}, errors.New("approved graph: malformed or unbounded assertion result")
 		}
 		for _, row := range rows {
@@ -120,23 +138,15 @@ func (s *ApprovedClaimsSink) QueryApprovedClaims(ctx context.Context, q Approved
 			claims = append(claims, claim)
 		}
 	}
-	sort.Slice(claims, func(i, j int) bool {
-		a, b := claims[i].SourceAvailableFrom, claims[j].SourceAvailableFrom
-		if a == nil || b == nil {
-			if a == nil && b == nil {
-				return claims[i].ID < claims[j].ID
-			}
-			return a != nil
-		}
-		if a.Equal(*b) {
-			return claims[i].ID < claims[j].ID
-		}
-		return a.After(*b)
-	})
+	sort.Slice(claims, func(i, j int) bool { return approvedClaimLess(claims[i], claims[j]) })
+	result := ApprovedQueryResult{Perspective: q.Perspective, ApprovedRevisionID: q.ApprovedRevisionID}
 	if len(claims) > q.Limit {
+		result.HasMore = true
+		result.NextCursor = encodeApprovedCursor(q, claims[q.Limit-1])
 		claims = claims[:q.Limit]
 	}
-	return ApprovedQueryResult{Perspective: q.Perspective, ApprovedRevisionID: q.ApprovedRevisionID, Claims: claims}, nil
+	result.Claims = claims
+	return result, nil
 }
 
 // approvedWhere selects indexed scope and applies source availability only to as-lived reads.
