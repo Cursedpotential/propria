@@ -5,6 +5,7 @@ import asyncio
 import json
 import sys
 import unittest
+from unittest.mock import AsyncMock, patch
 from dataclasses import replace
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
@@ -225,6 +226,37 @@ class UpgradeContracts(unittest.TestCase):
                 return [{"version": upgrade.VERSION}]
         with self.assertRaisesRegex(ValueError, "checksum drift"):
             asyncio.run(upgrade.plan(Database()))
+
+    def test_verify_requires_ready_index_even_with_applied_ledger(self):
+        import upgrade
+        state = dict(pending=[], missing_tables=[], current_version=upgrade.VERSION)
+        for status in ("cleaning", "indexing", "error", None, "ready"):
+            with self.subTest(status=status):
+                database = SimpleNamespace(query=AsyncMock(return_value=[{"building": {"status": status}}]),
+                                           close=AsyncMock())
+                with patch.object(upgrade.sq, "connect", AsyncMock(return_value=database)), \
+                     patch.object(upgrade, "plan", AsyncMock(return_value=dict(state))):
+                    result = asyncio.run(upgrade.operation("verify"))
+                self.assertEqual(result["verified"], status == "ready")
+                database.close.assert_awaited_once()
+
+    def test_pending_migration_does_not_query_absent_index(self):
+        import upgrade
+        state = dict(pending=[{"name": "101_contextual_chunks.surql"}], missing_tables=[],
+                     current_version=upgrade.VERSION)
+        database = SimpleNamespace(query=AsyncMock(), close=AsyncMock())
+        with patch.object(upgrade.sq, "connect", AsyncMock(return_value=database)), \
+             patch.object(upgrade, "plan", AsyncMock(return_value=state)):
+            result = asyncio.run(upgrade.operation("verify"))
+        self.assertFalse(result["verified"])
+        self.assertEqual(result["contextual_index"]["status"], "migration-pending")
+        database.query.assert_not_awaited()
+
+    def test_indexing_admission_refuses_unready_index(self):
+        import upgrade
+        with patch.object(upgrade, "operation", AsyncMock(return_value={"verified": False})):
+            with self.assertRaisesRegex(RuntimeError, "ready contextual index"):
+                asyncio.run(upgrade.verify_required())
 
 
 if __name__ == "__main__":

@@ -54,7 +54,28 @@ async def plan(db):
     return state
 
 
+async def contextual_index_readiness(db):
+    """Read contextual keyword index readiness without waiting for its build.
+
+    Input: connected Docstore client. Output: ready flag, status and index details.
+    Side effects: one INFO query only. Use after migration101 is ledger-applied;
+    missing, failed or unknown index states must never permit indexing admission.
+    """
+    result = rows(await db.query('INFO FOR INDEX chunk_context_ft ON chunk;'))
+    info = result[0] if result and isinstance(result[0], dict) else {}
+    building = info.get('building', {})
+    status = building.get('status') if isinstance(building, dict) else None
+    return {'ready': status == 'ready', 'status': status or 'unknown', 'details': info}
+
+
 async def operation(action='status', plan_id=None):
+    """Plan, apply or verify a checksum-bound upgrade with index readiness admission.
+
+    Inputs: action and reviewed plan ID for apply. Output: plan and verification
+    state. Side effects: apply alone writes the governed migration transaction;
+    verification performs bounded reads and never waits for concurrent builds.
+    Pick verify before admitting indexing or enabling contextual keyword search.
+    """
     db = await sq.connect('docs', 'probata', 'docs')
     try:
         state = await plan(db)
@@ -75,16 +96,25 @@ async def operation(action='status', plan_id=None):
             state = await plan(db)
         if action not in {'verify', 'apply'}:
             raise ValueError('Unknown upgrade operation')
-        state['verified'] = not state['pending'] and not state['missing_tables'] and state['current_version'] == VERSION
+        state['contextual_index'] = (await contextual_index_readiness(db) if not state['pending']
+                                     else {'ready': False, 'status': 'migration-pending'})
+        state['verified'] = (not state['pending'] and not state['missing_tables']
+                             and state['current_version'] == VERSION and state['contextual_index']['ready'])
         return state
     finally:
         await db.close()
 
 
 async def verify_required():
+    """Require applied migrations and a ready contextual index before indexing.
+
+    Input: current configured Docstore connection. Output: verified schema state.
+    Side effects: database reads only; raises while schema or index is unready.
+    Use at the existing indexing admission boundary, never to start a migration.
+    """
     state = await operation('verify')
     if not state['verified']:
-        raise RuntimeError('Schema upgrade/verification required before indexing')
+        raise RuntimeError('Schema upgrade and ready contextual index required before indexing')
     return state
 
 

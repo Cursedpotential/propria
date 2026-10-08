@@ -8,4 +8,4 @@ DEFINE FIELD IF NOT EXISTS context_description ON chunk TYPE option<string> DEFA
 DEFINE FIELD IF NOT EXISTS search_text ON chunk TYPE option<string> DEFAULT "";
 DEFINE FIELD IF NOT EXISTS context_provenance ON chunk TYPE option<string> DEFAULT "";
 DEFINE INDEX IF NOT EXISTS chunk_context_ft ON chunk FIELDS search_text
-  FULLTEXT ANALYZER doc_text BM25;
+  FULLTEXT ANALYZER doc_text BM25 CONCURRENTLY;

@@ -117,7 +117,7 @@ async def app_main() -> None:
 
 
 async def run(directory: Path) -> dict:
-    """Execute baseline, selection, stable-cache and model-change proof phases.
+    """Execute baseline, selection, stable-cache, model-change and disable phases.
 
     Input: fresh scratch directory. Output: counts with exact SDK version. Side
     effects: tiny fixture/tracking files only. Pick this before production activation.
@@ -132,12 +132,14 @@ async def run(directory: Path) -> dict:
     env.context_provider.provide(BASE, source)
     app = coco.App(coco.AppConfig(name="ContextualMemoProof", environment=env, max_inflight_components=4), app_main)
     phases = []
-    for phase in ("baseline", "selected-a", "same-policy", "model-change-a"):
+    for phase in ("baseline", "selected-a", "same-policy", "model-change-a", "disabled"):
         if phase == "selected-a":
             CONFIG.update(DOCSTORE_CONTEXT_ENABLED="1", DOCSTORE_CONTEXT_SOURCES='["docs/a.md"]',
                           DOCSTORE_LLM_MODEL="proof/model-v1", DOCSTORE_LLM_BASE_URL="https://example.invalid/v1")
         if phase == "model-change-a":
             CONFIG["DOCSTORE_LLM_MODEL"] = "proof/model-v2"
+        if phase == "disabled":
+            CONFIG["DOCSTORE_CONTEXT_ENABLED"] = "0"
         CALLS.clear()
         CHUNKS.clear()
         handle = app.update()
@@ -149,7 +151,14 @@ async def run(directory: Path) -> dict:
         expected = ["a.md", "b.md", "c.md"] if phase == "baseline" else [] if phase == "same-policy" else ["a.md"]
         if calls != expected:
             raise AssertionError((phase, calls, expected))
-        phases.append({"phase": phase, "file_executions": calls, "group_executions": sorted(CHUNKS)})
+        phase_result = {"phase": phase, "file_executions": calls, "group_executions": sorted(CHUNKS)}
+        if phase == "disabled":
+            if CHUNKS != [("a.md", "raw")]:
+                raise AssertionError(("Disable did not restore selected raw group", CHUNKS))
+            phase_result.update(raw_reexecuted=True,
+                                target_cdc_verified=False,
+                                note="Selected raw group reexecuted; no target mounted, so vector readback remains unverified.")
+        phases.append(phase_result)
     return {"sdk_version": importlib.metadata.version("cocoindex"), "phases": phases,
             "table_identity": await table_target_identity(),
             "source_membership": ["a.md", "b.md", "c.md"], "target_writes": 0,
