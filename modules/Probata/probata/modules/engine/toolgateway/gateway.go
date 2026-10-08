@@ -131,6 +131,24 @@ func ValidateToolID(id string) error {
 // NOT carry "path": callers never name a host path, because naming one is the
 // bug this component exists to prevent.
 func (g *Gateway) Run(ctx context.Context, toolID string, sourceRef proffer.Ref, args map[string]any) (json.RawMessage, error) {
+	return g.runWithDigest(ctx, toolID, sourceRef, "", args)
+}
+
+// RunPinned executes a source-backed tool only when the resolved immutable
+// object's SHA-256 equals the digest the operator reviewed. Inputs are an
+// exact locator, lowercase hex digest, and tool options; output is the tool
+// envelope. It materializes a verified scratch copy but never changes source.
+func (g *Gateway) RunPinned(ctx context.Context, toolID string, sourceRef proffer.Ref, sourceSHA256 string, args map[string]any) (json.RawMessage, error) {
+	if len(sourceSHA256) != 64 || strings.ToLower(sourceSHA256) != sourceSHA256 {
+		return nil, errors.New("tool gateway: source_sha256 must be a lowercase sha256 hex digest")
+	}
+	if _, err := hex.DecodeString(sourceSHA256); err != nil {
+		return nil, errors.New("tool gateway: source_sha256 must be a lowercase sha256 hex digest")
+	}
+	return g.runWithDigest(ctx, toolID, sourceRef, sourceSHA256, args)
+}
+
+func (g *Gateway) runWithDigest(ctx context.Context, toolID string, sourceRef proffer.Ref, sourceSHA256 string, args map[string]any) (json.RawMessage, error) {
 	if err := g.validate(); err != nil {
 		return nil, err
 	}
@@ -147,6 +165,9 @@ func (g *Gateway) Run(ctx context.Context, toolID string, sourceRef proffer.Ref,
 	acquired, err := g.Resolve(ctx, sourceRef)
 	if err != nil {
 		return nil, fmt.Errorf("tool gateway: resolve %q: %w", sourceRef, err)
+	}
+	if sourceSHA256 != "" && hex.EncodeToString(acquired.ContentSHA256) != sourceSHA256 {
+		return nil, errors.New("tool gateway: source_sha256 does not match the immutable acquisition")
 	}
 
 	localPath, cleanup, err := g.materialize(ctx, acquired)
