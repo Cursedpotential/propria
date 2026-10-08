@@ -20,6 +20,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/acquisition"
 	"github.com/Cursedpotential/probata/engine/activities"
 	sbvadapter "github.com/Cursedpotential/probata/engine/adapters/sbv"
+	"github.com/Cursedpotential/probata/engine/atomictool"
 	"github.com/Cursedpotential/probata/engine/contacts"
 	"github.com/Cursedpotential/probata/engine/contextgraphflow"
 	"github.com/Cursedpotential/probata/engine/dedupe"
@@ -76,6 +77,10 @@ type Registrations struct {
 	// Surreal send (conversation_extraction.go).
 	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 	Conversation activities.ConversationActivities
+	// AtomicTool runs one pinned read-only gateway tool for a reviewed source.
+	// Input: the existing tool gateway client. Output: a bounded result reference.
+	// Effects: none at registration; choose for operator-started atomic actions.
+	AtomicTool atomictool.Activities
 	// ContextGraph serves independent downstream projection when explicitly configured.
 	// Inputs are sealed source refs; outputs are verified checkpoints. Registration
 	// alone has no data effects and does not add an intake requirement.
@@ -182,6 +187,11 @@ func RegisterAll(registrar interface {
 		activities.RegisterContextGraphActivities(registrar, *registrations.ContextGraph)
 	}
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
+	// Register the operator-started source tool on the existing Proffer task queue.
+	// Inputs: configured gateway Activity. Outputs: named workflow and Activity.
+	// Effects: registry only; execution remains actor-bound and read-only.
+	registrar.RegisterWorkflowWithOptions(atomictool.Workflow, workflow.RegisterOptions{Name: atomictool.WorkflowName})
+	registrar.RegisterActivityWithOptions(registrations.AtomicTool.Run, activity.RegisterOptions{Name: atomictool.ActivityName})
 	// Back-fill of call logs imported before commit_call_log existed.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	registrar.RegisterWorkflowWithOptions(proffer.CallLogBackfillWorkflow, workflow.RegisterOptions{Name: proffer.CallLogBackfillWorkflowName})
@@ -772,6 +782,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		RepairPlan:              repairPlan,
 		Extraction:              extraction,
 		Conversation:            conversation,
+		AtomicTool:              atomictool.Activities{Client: toolsClient},
 		ContextGraph:            contextGraph,
 		Lifecycle:               activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation:   activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),

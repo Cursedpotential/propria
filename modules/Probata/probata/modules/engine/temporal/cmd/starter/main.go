@@ -189,6 +189,16 @@ func run() error {
 	if routes, err = mountConversationExtractionRoutes(routes, conversationRoutes); err != nil {
 		return err
 	}
+	// Source-pinned atomic tool actions share this Temporal client and queue.
+	// Inputs: existing service token and actor-bound action routes. Output: mounted API.
+	// Effects: route registration only; choose for operator-started tool actions.
+	atomicToolRoutes, err := atomicToolHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountAtomicToolRoutes(routes, atomicToolRoutes); err != nil {
+		return err
+	}
 	// Case identity: the Workbench Case page reads and edits registry, the one
 	// identity store. Byline: Claude Code · Opus 5.5 · 2026-10-01
 	caseIdentityRoutes, err := caseIdentityHandler(pool, serviceTokenFile)

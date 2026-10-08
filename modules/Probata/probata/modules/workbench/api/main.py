@@ -23,6 +23,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.runtime import (
+    atomic_tool_actions,
     case_identity,
     case_management,
     chat,
@@ -163,6 +164,7 @@ app.include_router(run_events.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
 app.include_router(conversation_actions.router)  # /api/extractors, /api/imported/threads/{extract,send-to-surreal,.../extractions}, /api/imported/workflows/* (Claude Code · Sonnet 5.5 · 2026-10-02)
+app.include_router(atomic_tool_actions.router)  # actor-bound source tool start/status through Proffer
 app.include_router(imported.router)  # /api/imported/* — the mobile Imported view, read-only (Claude Code · Sonnet · 2026-10-02)
 app.include_router(case_management.router)
 app.include_router(case_identity.router)  # /api/case-identity/* — the Case page over registry (Claude Code · Opus 5.5 · 2026-10-01)
