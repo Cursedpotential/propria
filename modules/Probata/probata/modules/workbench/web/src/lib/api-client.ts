@@ -183,6 +183,41 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/** Submit a human source through the context BFF with its existing owner/export attribution.
+ * Inputs: context-v1 source fields and stable retry key. Outputs: real Temporal execution IDs.
+ * Effects: one POST. Choose for SMS Process instead of the legacy handler/retention route.
+ */
+export function startHumanContextSource(body: import("@/lib/human-context").HumanContextSourceRequest, idempotencyKey: string) {
+  return apiFetch<import("@/lib/human-context").HumanContextProgress>("/api/context/sources", {
+    method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify(body),
+  });
+}
+
+/** Poll human registration using the actor-bound context workflow relay.
+ * Inputs: real workflow ID and cancellation signal. Outputs: status and source-version reference.
+ * Effects: one GET. Choose for Process tracking before a native preview handle exists.
+ */
+export function getHumanContextSourceStatus(workflowID: string, signal?: AbortSignal) {
+  return apiFetch<import("@/lib/human-context").HumanContextProgress>(`/api/context/sources/workflows/${encodeURIComponent(workflowID)}`, { signal });
+}
+
+/** Read native source/stage metadata through the same-origin BFF relay.
+ * Inputs: actual human source handle and signal. Outputs: native snapshot.
+ * Effects: one GET. Choose instead of legacy preview/handler status for human bundles.
+ */
+export function getHumanContextPreview(handle: string, signal?: AbortSignal) {
+  return apiFetch<import("@/lib/human-context").HumanContextSnapshot>(`/api/context/previews/${encodeURIComponent(handle)}`, { signal });
+}
+
+/** Read one explicit page of native human records through the BFF relay.
+ * Inputs: actual human handle, offset, limit and signal. Outputs: exact native envelopes and continuation.
+ * Effects: one GET. Choose for the existing SBV browser; no source bytes or media are materialized locally.
+ */
+export function getHumanContextContent(handle: string, offset = 0, limit = 25, signal?: AbortSignal) {
+  const query = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  return apiFetch<import("@/lib/human-context").HumanContextPage>(`/api/context/previews/${encodeURIComponent(handle)}/content?${query}`, { signal });
+}
+
 /** Submit one complete, version-pinned AI-chat export to Go's context workflow.
  * Inputs: original source/version refs, explicit provider and stable click key.
  * Output: real Temporal IDs. Effect: Go start only, never browser-side extraction.

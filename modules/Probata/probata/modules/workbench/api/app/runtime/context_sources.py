@@ -20,7 +20,7 @@ from app.runtime import ai_candidate_review
 from app.service import proffer
 from app.service.proffer_errors import ProfferError
 
-router = APIRouter(prefix="/api/context/sources", tags=["context-sources"])
+router = APIRouter(prefix="/api/context", tags=["context-sources"])
 
 
 class AIContextSource(BaseModel):
@@ -38,9 +38,30 @@ class AIContextSource(BaseModel):
     declared_format: Literal["chatgpt", "claude", "gemini_markdown"]
 
 
-@router.post("", status_code=202)
+class HumanContextSource(BaseModel):
+    """Relay native SMS source coordinates and attribution to the existing Go starter.
+
+    Inputs: original source/version, optional registry references and provider pins.
+    Outputs: bounded request. Effects: none; no AI normalization or legacy handler prerequisite.
+    """
+
+    source_ref: str = Field(min_length=8, max_length=2048)
+    provider_version_id: str = Field(default="", max_length=512)
+    package_ref: str | None = Field(default=None, max_length=2048)
+    source_kind: Literal["sms"]
+    declared_format: Literal["smsbackuprestore_xml"]
+    matter_id: str = Field(default="", max_length=160)
+    court_case_id: str = Field(default="", max_length=160)
+    owner_person_ref: str | None = Field(default=None, max_length=160)
+    perspective_person_ref: str | None = Field(default=None, max_length=160)
+    perspective: str | None = Field(default=None, max_length=160)
+    byte_length: int = Field(default=0, ge=0)
+    etag: str | None = Field(default=None, max_length=1024)
+
+
+@router.post("/sources", status_code=202)
 async def submit_ai_context_source(
-    body: AIContextSource,
+    body: AIContextSource | HumanContextSource,
     request: Request,
     idempotency_key: str = Header(alias="Idempotency-Key"),
 ) -> dict[str, str]:
@@ -64,7 +85,7 @@ async def submit_ai_context_source(
     return {"workflow_id": payload["workflow_id"], "run_id": payload["run_id"]}
 
 
-@router.get("/workflows/{workflow_id}")
+@router.get("/sources/workflows/{workflow_id}")
 async def ai_context_source_status(workflow_id: str, request: Request) -> dict:
     """Read the actor-owned status of a previously started context workflow.
 
@@ -86,7 +107,7 @@ async def ai_context_source_status(workflow_id: str, request: Request) -> dict:
     return payload
 
 
-@router.get("/workflows/{workflow_id}/candidates")
+@router.get("/sources/workflows/{workflow_id}/candidates")
 async def ai_context_candidates(workflow_id: str, request: Request,
                                 after_id: str = Query(default="", max_length=128)):
     """Read staged candidates for the workflow's verified original source.
@@ -101,7 +122,7 @@ async def ai_context_candidates(workflow_id: str, request: Request,
         raise HTTPException(error.status_code, error.detail) from None
 
 
-@router.post("/workflows/{workflow_id}/candidates/decision")
+@router.post("/sources/workflows/{workflow_id}/candidates/decision")
 async def ai_context_candidate_decision(workflow_id: str, body: ai_candidate_review.CandidateDecision,
                                         request: Request, idempotency_key: str = Header(alias="Idempotency-Key")):
     """Record the owner's choice for one candidate without additional gates.
@@ -114,3 +135,49 @@ async def ai_context_candidate_decision(workflow_id: str, body: ai_candidate_rev
         return await ai_candidate_review.decide(status, body, request, idempotency_key)
     except ProfferError as error:
         raise HTTPException(error.status_code, error.detail) from None
+
+
+@router.get("/previews/{handle}")
+async def human_context_snapshot(handle: str, request: Request) -> dict:
+    """Relay actual native source metadata through the existing protected Go connection.
+
+    Inputs: real human handle and existing actor. Outputs: stage refs/counts.
+    Effects: read-only Go GET; no legacy preview or normalized table lookup.
+    """
+    return await _human_context_read(handle, request)
+
+
+@router.get("/previews/{handle}/content")
+async def human_context_content(handle: str, request: Request, offset: int = 0, limit: int = 25) -> dict:
+    """Relay one bounded native SBV page without collecting the complete source.
+
+    Inputs: real human handle, offset and limit 1..50. Outputs: native envelopes and continuation.
+    Effects: read-only Go GET; attachment payload remains in its original source.
+    """
+    if offset < 0 or not 1 <= limit <= 50:
+        raise HTTPException(status_code=422, detail="native page bounds invalid")
+    return await _human_context_read(handle, request, offset=offset, limit=limit)
+
+
+async def _human_context_read(handle: str, request: Request, *, offset: int | None = None, limit: int = 25) -> dict:
+    """Validate a native UUID handle and relay its snapshot or bounded page without writes."""
+    from uuid import UUID
+    if not handle.startswith("human-"):
+        raise HTTPException(status_code=404, detail="unknown native source")
+    try:
+        identifier = str(UUID(handle[6:]))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="unknown native source") from None
+    path = f"/reference-import/context/previews/human-{identifier}"
+    if offset is not None:
+        path += f"/content?offset={offset}&limit={limit}"
+    try:
+        response = await proffer._request("GET", path, headers=_actor_headers(request))
+        if len(getattr(response, "content", b"")) > 4 * 1024 * 1024:
+            raise HTTPException(status_code=502, detail="native page exceeds relay byte budget")
+        payload = proffer._json_payload(response, "native human context read")
+    except ProfferError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from None
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=502, detail="Go native reader returned invalid data")
+    return payload
