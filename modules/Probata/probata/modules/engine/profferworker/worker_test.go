@@ -17,6 +17,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/dedupe"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/repairplan"
+	"github.com/Cursedpotential/probata/engine/sourcepreview"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/Cursedpotential/probata/engine/superindex"
 )
@@ -63,10 +64,12 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: independent synthetic provider probe (Codex, 2026-10-04).
 	// +1: reuse an existing verified AI generation after a content-stage failure.
 	// +1: operator-started source-pinned atomic tool action.
-	if recorder.workflowCount != 17 {
-		t.Fatalf("workflow registration count = %d, want 17", recorder.workflowCount)
+	// +1: bounded raw-source read preview, independent of the ingestion graph.
+	if recorder.workflowCount != 18 {
+		t.Fatalf("workflow registration count = %d, want 18", recorder.workflowCount)
 	}
 	wantNamed := []string{
+		sourcepreview.WorkflowName,
 		proffer.AIContentResumeWorkflowName,
 		proffer.BatchWorkflowName, atomictool.WorkflowName, proffer.CallLogBackfillWorkflowName, proffer.SourceIntegrityWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
 		proffer.ConversationChunksRemovalWorkflowName, dedupe.WorkflowName, superindex.WorkflowName, repairplan.WorkflowName, contacts.WorkflowName, activities.ToolkitPackageInventoryWorkflowName, activities.ToolkitSelectedTextWorkflowName, activities.ToolkitLedgerComparisonWorkflowName,

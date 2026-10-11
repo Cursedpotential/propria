@@ -34,6 +34,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/repairplan"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
+	"github.com/Cursedpotential/probata/engine/sourcepreview"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 	"github.com/Cursedpotential/probata/engine/superindex"
 	platformtemporal "github.com/Cursedpotential/probata/engine/temporal"
@@ -44,6 +45,10 @@ import (
 // implement all 26 Proffer stages. Filesystem and embedded observation bodies are
 // separate values so extractor provenance cannot cross activity boundaries.
 type Registrations struct {
+	// SourcePreview reads one raw page and privately callbacks the ephemeral starter cache.
+	// Inputs: configured provider/callback; outputs: opaque receipts. Effects: registration until invoked.
+	// Choose independently of ingestion, normalized preview and structured ELT.
+	SourcePreview *sourcepreview.Activity
 	// ContextPackage reuses exact native placement and compact metadata registration.
 	// Inputs: sealed refs. Outputs: package pins. Effects: none until its Activity runs.
 	ContextPackage activities.AIContextPackageActivities
@@ -189,6 +194,10 @@ func RegisterAll(registrar interface {
 	RegisterWorkflow(interface{})
 	RegisterWorkflowWithOptions(interface{}, workflow.RegisterOptions)
 }, registrations Registrations) {
+	registrar.RegisterWorkflowWithOptions(sourcepreview.Workflow, workflow.RegisterOptions{Name: sourcepreview.WorkflowName})
+	if registrations.SourcePreview != nil {
+		registrar.RegisterActivityWithOptions(registrations.SourcePreview.Read, activity.RegisterOptions{Name: sourcepreview.ActivityName})
+	}
 	registrar = operatingRegistrar{registrar}
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	// The new context branch uses a separate registration body outside legacy case admission.
@@ -654,6 +663,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	sourcePreview, err := newSourcePreviewActivity(stores)
+	if err != nil {
+		return Registrations{}, err
+	}
 	storeResolvers, err := acquisition.ObjectStoreResolvers(cfg.SourceObjectDir, stores, map[string]string{
 		"r2": os.Getenv("CASEBIBLE_R2_CONFIG_PATH"),
 		"b2": os.Getenv("B2_CONFIG_PATH"),
@@ -843,6 +856,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	}
 	aiWorkproductPlacement := activities.NewAIWorkproductPlacementActivities(cfg.DeriveScratchDir, objectStores)
 	return Registrations{
+		SourcePreview:  sourcePreview,
 		ContextPackage: activities.AIContextPackageActivities{Placement: aiWorkproductPlacement, Metadata: contextSourceStore, Catalog: nativeContextCatalog(os.Getenv("AI_CONTEXT_CATALOG_DATABASE_URL_FILE"))},
 		ContextSource:  activities.ContextSourceRegistrationActivities{Store: contextSourceStore},
 		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.

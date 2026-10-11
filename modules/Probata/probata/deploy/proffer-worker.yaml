@@ -65,6 +65,9 @@ services:
       - coolify
     environment:
       PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
+      # One bounded raw-view callback; no extraction or indexing side effects.
+      SOURCE_PREVIEW_CALLBACK_URL: ${SOURCE_PREVIEW_CALLBACK_URL:-}
+      PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-proffer-v1}
@@ -200,6 +203,13 @@ services:
       CONTEXT_SEARCH_VECTOR_NAME: text_nim
       CONTEXT_SEARCH_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
     volumes:
+      # Reuse the existing starter service token for private ephemeral preview callbacks.
+      - type: bind
+        source: /data/probata/secrets/proffer/service-token
+        target: /run/secrets/proffer-service-token
+        read_only: true
+        bind:
+          create_host_path: false
       - type: bind
         source: /data/probata/secrets/family-court/casebible-recovery-database-url
         target: /run/secrets/ai-context-catalog-database-url
