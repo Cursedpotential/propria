@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-11
 // Package discoveryflow durably orchestrates optional finite discovery independently of ingestion.
 package discoveryflow
 

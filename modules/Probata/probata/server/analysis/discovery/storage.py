@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-6.1-sol · 2026-10-11
 """Retain bounded discovery JSON outside workflow history with exact replay.
 
 Inputs: explicit shared scratch root and immutable references. Outputs: verified

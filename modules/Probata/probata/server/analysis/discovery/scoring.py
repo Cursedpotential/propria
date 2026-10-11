@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-6.1-sol · 2026-10-11
 """Retrieve independent detector labels with bounded local CPU embeddings.
 
 Inputs: episode contexts, human-readable hypotheses and immutable human feedback.

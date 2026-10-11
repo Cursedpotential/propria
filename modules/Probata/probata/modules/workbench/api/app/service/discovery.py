@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-6.1-sol · 2026-10-11
 """Forward optional discovery through the authenticated engine boundary.
 
 Inputs: admitted case, server dataset pins and explicit owner feedback. Outputs:

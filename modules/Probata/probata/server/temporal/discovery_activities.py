@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-6.1-sol · 2026-10-11
 """Expose one reference-only CPU scoring operation on the evidence pipeline.
 
 Inputs: run ID, immutable batch reference and feedback revision. Outputs: retained

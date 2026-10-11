@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-11
 package discovery
 
 import (
@@ -12,6 +13,31 @@ import (
 
 const testID = "11111111-1111-4111-8111-111111111111"
 const testOther = "22222222-2222-4222-8222-222222222222"
+
+// TestResultRetainsPythonScoringProvenance protects the canonical writer's cross-language metadata.
+// Inputs: Python score policy/model/input pins. Outputs: unchanged PG-bound JSON metadata.
+// Effects: none; use to catch silently discarded wire fields needed for model revision review.
+func TestResultRetainsPythonScoringProvenance(t *testing.T) {
+	var result Result
+	if err := json.Unmarshal([]byte(`{"score_revision":"prototype-exemplar-v3","pins":{"model_revision":"retained-weights-v1","input_revision":"source-pins-v1"}}`), &result); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored map[string]json.RawMessage
+	if err = json.Unmarshal(raw, &stored); err != nil {
+		t.Fatal(err)
+	}
+	if string(stored["score_revision"]) != `"prototype-exemplar-v3"` {
+		t.Fatal("canonical score lost its scoring-policy revision")
+	}
+	var pins map[string]string
+	if err = json.Unmarshal(stored["pins"], &pins); err != nil || pins["model_revision"] != "retained-weights-v1" || pins["input_revision"] != "source-pins-v1" {
+		t.Fatal("canonical score lost its model/input pins")
+	}
+}
 
 func testScope() Scope { return Scope{Mode: "LIVE", MatterID: testID, CourtCaseID: testOther} }
 func TestEpisodesHonorNativeConversationAndExplicitCrossPlatformOnly(t *testing.T) {

@@ -39,6 +39,7 @@ function SourceContext({ records, scope }: { records: DiscoveryRecord[]; scope: 
     <p className="text-xs text-muted-foreground">{record.occurred_at ? new Date(record.occurred_at).toLocaleString() : "Time not recorded"} · {record.platform || record.source_kind}
       {record.participants?.length ? ` · ${record.participants.map((person) => `${person.display_name || person.identifier} (${person.role})`).join(", ")}` : ""}</p>
     <p className="my-2 whitespace-pre-wrap break-words text-sm">{record.text}</p>
+    {record.context_uncertainty?.map((note, index) => <p key={index} className="text-xs text-muted-foreground">{note}</p>)}
     {discoveryRecordHref(record, scope) ? <AppLink href={discoveryRecordHref(record, scope)!} className="text-xs underline">Open original message</AppLink> : null}
     <details className="break-all text-xs"><summary className="cursor-pointer">Source citation</summary>
       <dl className="mt-2 grid gap-1"><dt>Source version</dt><dd>{record.source_version_id}</dd>

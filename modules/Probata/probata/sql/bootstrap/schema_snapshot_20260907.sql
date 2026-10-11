@@ -40823,6 +40823,7 @@ GRANT message_dedupe_writer TO platform_runtime WITH INHERIT FALSE, SET TRUE;
 
 
 -- Optional adaptive discovery: canonical derived analysis; normalized inputs remain read-only.
+-- Byline: Codex · GPT-6.1-sol · 2026-10-11.
 -- Inputs are bounded immutable manifests. Feedback and score generations are append-only.
 CREATE TABLE analysis.discovery_run (
  run_id uuid PRIMARY KEY,

@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-11
 // Package discovery defines optional source-linked analysis without changing normalized inputs.
 package discovery
 
@@ -261,14 +262,16 @@ type ScoreReceipt struct {
 
 // Result is an immutable external score generation; no bodies cross Temporal history.
 type Result struct {
-	Schema           string          `json:"schema"`
-	RunID            string          `json:"run_id"`
-	FeedbackRevision int64           `json:"feedback_revision"`
-	ModelVersion     string          `json:"model_version"`
-	Candidates       []Candidate     `json:"candidates"`
-	Abstained        int             `json:"abstained,omitempty"`
-	ModelMetadata    json.RawMessage `json:"model_metadata,omitempty"`
-	Counts           json.RawMessage `json:"counts,omitempty"`
+	Schema                string          `json:"schema"`
+	RunID                 string          `json:"run_id"`
+	FeedbackRevision      int64           `json:"feedback_revision"`
+	ModelVersion          string          `json:"model_version"`
+	ScoringPolicyRevision string          `json:"score_revision,omitempty"`
+	Pins                  json.RawMessage `json:"pins,omitempty"`
+	Candidates            []Candidate     `json:"candidates"`
+	Abstained             int             `json:"abstained,omitempty"`
+	ModelMetadata         json.RawMessage `json:"model_metadata,omitempty"`
+	Counts                json.RawMessage `json:"counts,omitempty"`
 }
 
 // CandidatePage is a bounded HTTP queue; current_revision is the feedback compare-and-swap token.

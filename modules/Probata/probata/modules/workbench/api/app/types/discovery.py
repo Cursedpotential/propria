@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-6.1-sol · 2026-10-11
 """Validate bounded discovery configuration and attributed feedback.
 
 Inputs: browser choices from server datasets and descriptions. Outputs: typed

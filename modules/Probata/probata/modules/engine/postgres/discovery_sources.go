@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-11
 package postgres
 
 import (
@@ -38,6 +39,7 @@ const DiscoverySourceSQL = `SELECT jsonb_build_object(
  'explicit_episode_id',merged.thread_version_id,'group_revision',merged.group_revision,
  'source_available_from',COALESCE(NULLIF(n.normalized_payload->>'source_available_from','')::timestamptz,merged.source_available_from),
  'group_knowledge_available_from',merged.knowledge_available_from,'working_message_id',merged.message_id,
+ 'context_uncertainty',CASE WHEN merged.review_state='proposed' THEN jsonb_build_array('cross-platform membership is proposed and requires review') ELSE '[]'::jsonb END,
  'imported_export_key',regexp_replace(s.source_key, '\.derived/.*$', ''),
  'imported_conversation_key',COALESCE(substring(s.source_key from '\.derived/threads/(.+?)(?:\.[0-9]{4})?\.ndjson$'),regexp_replace(s.source_key, '^.*/', '')),
  'payload',n.normalized_payload,'source_kind',s.provenance_class,'declared_format',v.declared_format,
@@ -54,7 +56,7 @@ const DiscoverySourceSQL = `SELECT jsonb_build_object(
  LEFT JOIN context.retained_object o ON o.id=v.original_object_id
  LEFT JOIN LATERAL (
  SELECT version.id::text AS thread_version_id,encode(version.assertion_digest,'hex') AS group_revision,
- membership.source_available_from,version.knowledge_available_from,message.id::text AS message_id
+ membership.source_available_from,version.knowledge_available_from,version.review_state,message.id::text AS message_id
  FROM working.message message
  LEFT JOIN working.message_occurrence occurrence ON occurrence.normalized_record_id=n.id AND occurrence.source_version_id=n.source_version_id
  JOIN working.first_party_context_thread_message membership ON membership.message_id=message.id
@@ -62,6 +64,7 @@ const DiscoverySourceSQL = `SELECT jsonb_build_object(
  JOIN working.first_party_context_thread thread ON thread.context_thread_id=version.context_thread_id
  WHERE (message.id=COALESCE(occurrence.primary_record_id,n.id) OR message.derived_from_record_id=COALESCE(occurrence.primary_record_id,n.id))
  AND thread.matter_id=$1::uuid AND thread.court_case_id=$2::uuid
+ AND version.review_state <> 'rejected'
  AND NOT EXISTS(SELECT 1 FROM working.first_party_context_thread_version later WHERE later.supersedes_id=version.id AND ($6::timestamptz IS NULL OR later.knowledge_available_from <= $6))
  AND ($6::timestamptz IS NULL OR (version.knowledge_available_from <= $6 AND membership.source_available_from <= $6))
  ORDER BY version.version_ordinal DESC,version.id,membership.thread_ordinal LIMIT 1

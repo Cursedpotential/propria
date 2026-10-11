@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-6.1-sol · 2026-10-11
 """Provide bounded, reviewable adaptive discovery over immutable record snapshots.
 
 Inputs: retained record/feedback snapshots. Outputs: derived candidates only.

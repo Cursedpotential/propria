@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-6.1-sol · 2026-10-11
 """Verify immutable external scoring, process restart, corruption and path bounds."""
 
 import asyncio

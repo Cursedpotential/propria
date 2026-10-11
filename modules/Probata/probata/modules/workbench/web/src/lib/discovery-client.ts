@@ -34,6 +34,7 @@ export interface DiscoveryRecord {
   participants: { role: string; identifier: string; display_name: string }[];
   source_ref?: string; source_sha256?: string; source_object_id?: string; source_provider_version?: string; record_revision?: string; input_revision?: string;
   imported_thread_id?: string; imported_source_id?: string; imported_message_id?: string; working_message_id?: string;
+  context_uncertainty?: string[];
   group_revision?: string; native_source_available_from?: string; group_knowledge_available_from?: string;
   locators: { locator_id: string; source_version_id: string; coordinate_system: string; range_start: number; range_end: number;
     projection: Record<string, unknown>; exact_slice_sha256?: string; verification_activity_receipt_id?: string }[];

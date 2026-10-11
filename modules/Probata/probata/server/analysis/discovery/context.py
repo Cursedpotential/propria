@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-6.1-sol · 2026-10-11
 """Assemble deterministic episode context without inventing identity or clocks.
 
 Inputs: immutable normalized record dictionaries and explicit grouping. Outputs:

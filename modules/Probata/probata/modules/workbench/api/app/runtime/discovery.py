@@ -1,3 +1,4 @@
+# Byline: Codex · GPT-6.1-sol · 2026-10-11
 """Expose optional discovery without altering source-processing workflows.
 
 Inputs: case-scoped dataset choices and owner review requests. Outputs: real
