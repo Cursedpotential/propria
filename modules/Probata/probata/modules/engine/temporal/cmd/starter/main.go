@@ -210,6 +210,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Byline: Codex · GPT-6 · 2026-10-11. Optional downstream discovery remains independently configured.
+	discoveryRoutes, recoverDiscovery := optionalDiscoveryHandler(pool, c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if routes, err = mountDiscoveryRoutes(routes, discoveryRoutes); err != nil {
+		return err
+	}
 	// Tailnet-only listener (owner directive 2026-09-07; D-134). With the
 	// rollout flag on, the starter's only socket belongs to its own Tailscale
 	// identity: no host bind, no published docker port, no Traefik router. The
@@ -230,6 +235,9 @@ func run() error {
 
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if recoverDiscovery != nil {
+		go recoverDiscovery(shutdownContext)
+	}
 	serveErrors := make(chan error, 1)
 	go func() {
 		slog.Info("proffer starter listening",

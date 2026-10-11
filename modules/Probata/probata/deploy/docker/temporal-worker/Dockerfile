@@ -69,6 +69,11 @@ ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 # Prove at build time that the baked model loads offline and classifies, so a bad image never reaches a run.
 RUN python -c "import chonkie; c = chonkie.NeuralChunker(model='mirth/chonky_distilbert_base_uncased_1', min_characters_per_chunk=1); print('neural chunker ok,', len(c.chunk('see you at six sounds good did you eat yes thanks')), 'chunk(s)')"
 
+# Byline: Codex · GPT-6 · 2026-10-11. Optional description retrieval reuses CPU torch.
+# Weights remain a pinned local deployment directory; no discovery model is downloaded at run time.
+COPY requirements-discovery.txt ./
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements-discovery.txt
+
 # Activities call into the existing pipeline code, so the worker needs the
 # same application surface as agentos-api, not just an SDK stub.
 COPY server/ ./server/

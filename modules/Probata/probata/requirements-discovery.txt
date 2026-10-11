@@ -1,0 +1,4 @@
+# Byline: Codex · GPT-6 · 2026-10-11.
+# Optional local CPU description retrieval; model weights are explicitly retained offline.
+# Reuses the Python worker's existing CPU torch; no training/provider dependency.
+sentence-transformers[onnx]==5.7.0

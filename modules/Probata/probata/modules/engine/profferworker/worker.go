@@ -437,6 +437,8 @@ func Run(ctx context.Context, cfg Config) error {
 	RegisterAll(temporalWorker, registrations)
 	RegisterExtraction(temporalWorker, registrations.Extraction)
 	RegisterConversationExtraction(temporalWorker, registrations.Conversation)
+	// Byline: Codex · GPT-6 · 2026-10-11. Independently enabled downstream analysis.
+	registerOptionalDiscovery(temporalWorker, pool)
 	if err := temporalWorker.Start(); err != nil {
 		return fmt.Errorf("proffer worker: start Temporal worker: %w", err)
 	}
