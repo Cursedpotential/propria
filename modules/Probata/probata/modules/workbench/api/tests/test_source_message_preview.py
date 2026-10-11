@@ -89,6 +89,12 @@ def test_ready_source_must_match_head(monkeypatch):
         asyncio.run(service.start_page(SourceMessagePreviewRequest(**REQUEST)))
 
 
+def test_metadata_truncation_is_preserved(monkeypatch):
+    transport(monkeypatch, ready(messages=[dict(id="m1", kind="sms", direction="incoming", metadata_truncated=True)]))
+    page, _ = asyncio.run(service.poll_page("page-1"))
+    assert page.messages[0].metadata_truncated is True
+
+
 def test_routes_have_no_case_or_owner_gate(monkeypatch):
     async def start(body):
         return service.SourceMessagePreviewReady.model_validate(ready()), 200

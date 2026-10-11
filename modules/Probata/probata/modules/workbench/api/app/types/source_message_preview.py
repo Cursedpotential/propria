@@ -32,6 +32,7 @@ class PreviewMessage(BaseModel):
     participants: Annotated[list[Short], Field(max_length=64)] = []
     body: Annotated[str, StringConstraints(max_length=16384)] = ""
     body_truncated: bool = False
+    metadata_truncated: bool = False
     attachments: Annotated[list[PreviewAttachment], Field(max_length=64)] = []
 
 
