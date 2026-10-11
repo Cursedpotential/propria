@@ -38,7 +38,11 @@ function applyCors(req, res) {
 }
 const HEALTH_HISTORY_MAX = 120; // ~1h at a 30s sample interval
 const healthHistory = [];
-function summarizeHealthSample(h) {
+/** Summarize endpoint observations without treating restricted or missing monitors as outages.
+ * Inputs: health snapshot. Outputs: mutually exclusive counts and latency percentiles.
+ * Effects: none. Choose this for summary responses and history so their totals reconcile.
+ */
+export function summarizeHealthSample(h) {
   const endpoints = Array.isArray(h.endpoints) ? h.endpoints : [];
   const latencies = endpoints
     .map((e) => e.latency_ms)
@@ -52,25 +56,39 @@ function summarizeHealthSample(h) {
     ["responding", "TCP open"].includes(e.state),
   ).length;
   const warn = endpoints.filter((e) =>
-    ["auth required", "redirect", "unexpected content"].includes(e.state),
+    ["redirect", "unexpected content"].includes(e.state),
   ).length;
-  const fail = endpoints.length - up - warn;
+  const auth_required = endpoints.filter(e => e.state === "auth required").length;
+  const monitor_denied = endpoints.filter(e => e.state === "monitor access denied").length;
+  const unconfigured = endpoints.filter(e => e.state === "not connected").length;
+  const fail = endpoints.length - up - warn - auth_required - monitor_denied - unconfigured;
   return {
     ts: h.generated_at,
     ok: up,
     warn,
     fail,
+    auth_required,
+    monitor_denied,
+    unconfigured,
     total: endpoints.length,
     p50_ms: pct(0.5),
     p95_ms: pct(0.95),
   };
 }
+/** Append one classified sample to the bounded in-memory health history.
+ * Inputs: snapshot, optional store and maximum length. Outputs: updated history.
+ * Effects: mutates only the supplied process-local ring. Choose for historical count charts.
+ */
 export function recordHealthHistory(h, store = healthHistory, max = HEALTH_HISTORY_MAX) {
   store.push(summarizeHealthSample(h));
   while (store.length > max) store.shift();
   return store;
 }
-function classifySurfaceState(state) {
+/** Classify a browser probe independently of its public health check.
+ * Inputs: raw probe state. Outputs: stable surface category. Effects: none.
+ * Choose this for browser access status; public reachability must never override it.
+ */
+export function classifySurfaceState(state) {
   if (["responding", "TCP open"].includes(state)) return "up";
   if (state === 'monitor access denied') return 'monitor_denied';
   if (state === "auth required") return "auth_required";
@@ -318,15 +336,21 @@ export async function readSurfaces(path = resolve(root, "surfaces.json")) {
     return [];
   }
 }
+/** Create the existing board server with independently cached read-only health projections.
+ * Inputs: existing data/fetch configuration and optional health reader for isolated tests.
+ * Outputs: an unstarted HTTP server. Effects: initializes existing adapters; no new listeners.
+ * Choose this for the board service; health routes neither authenticate users nor change access.
+ */
 export function createServer({
   config = configFromEnv(),
   fetcher = fetch,
   surfacesPath,
   todoPath = resolve(root, "data", "URGENT-TODO.md"),
   cacheMs = 10000,
+  healthReader = cachedHealth,
 } = {}) {
   const usageLimits=createProviderLimits();
-  const repairQueue = createRepairQueue({readLimits:usageLimits.read,readTasks:async()=>{const value=await board();return [...value.tasks,...value.observations.filter(row=>row.kind==='task')];},readSurfaces: () => readSurfaces(surfacesPath), readHealth: cachedHealth});
+  const repairQueue = createRepairQueue({readLimits:usageLimits.read,readTasks:async()=>{const value=await board();return [...value.tasks,...value.observations.filter(row=>row.kind==='task')];},readSurfaces: () => readSurfaces(surfacesPath), readHealth: healthReader});
   const storage = createOpenListBridge({
     token: process.env.OPENLIST_TOKEN,
     fetchImpl: fetcher,
@@ -478,7 +502,10 @@ export function createServer({
         return;
       }
       if (path === "/api/health-report") {
-        const value = await cachedHealth();
+        // Return bounded endpoint observations, preserving browser access and public health separately.
+        // Inputs: none. Outputs: cached status metadata; no response bodies or credentials.
+        // Effects: bounded probes when stale. Choose for detailed service reachability reports.
+        const value = await healthReader();
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(value));
         return;
@@ -586,8 +613,11 @@ export function createServer({
         return;
       }
       if (path === "/api/surfaces-summary") {
+        // Summarize browser access and separately observed public server reachability.
+        // Inputs: no query or credentials. Outputs: counts and original browser links/statuses.
+        // Effects: cached bounded probes/local registry read. Choose for surface widgets.
         const [health, surfaces] = await Promise.all([
-          cachedHealth(),
+          healthReader(),
           readSurfaces(surfacesPath),
         ]);
         const laneByName = new Map(surfaces.map((s) => [s.name, s.lane]));
@@ -603,6 +633,7 @@ export function createServer({
               state,
               raw_state: e.state,
               checked_at: e.checked_at,
+               public_reachability: e.public_reachability || null,
               // 2026-09-15 (Claude Code · Sonnet 5): dropped the leading
               // `${e.service} · ` — the dynamic-list widget already shows
               // `name` (== e.service) on the left of this row, so repeating
@@ -610,7 +641,7 @@ export function createServer({
               // (observed live: "SurrealDB Studio / Surrealist · down · not
               // connected"). Same fix as lane-rollups: no data lost, just no
               // longer duplicated.
-              summary: `${state} · ${e.state}`,
+               summary: `${state === 'monitor_denied' ? 'Monitor restricted' : state === 'auth_required' ? 'Sign-in required' : state} · ${e.public_reachability?.state === 'responding' ? 'Server reachable via public health check; protected access not verified' : e.state}`,
             };
           });
         const up = rows.filter((r) => r.state === "up").length;
@@ -637,7 +668,10 @@ export function createServer({
         return;
       }
       if (path === "/api/health-summary") {
-        const health = await cachedHealth();
+        // Return mutually exclusive endpoint counts with restricted/missing checks separated.
+        // Inputs: none. Outputs: compatible ok/warn/fail fields plus explicit access categories.
+        // Effects: cached bounded probes. Choose for global counts rather than browser-only counts.
+        const health = await healthReader();
         const endpoints = Array.isArray(health.endpoints) ? health.endpoints : [];
         const sample = summarizeHealthSample(health);
         const withLatency = endpoints.filter((e) => Number.isFinite(e.latency_ms));
@@ -660,6 +694,9 @@ export function createServer({
             ok: sample.ok,
             warn: sample.warn,
             fail: sample.fail,
+             auth_required: sample.auth_required,
+             monitor_denied: sample.monitor_denied,
+             unconfigured: sample.unconfigured,
             total: sample.total,
             p50_ms: sample.p50_ms,
             p95_ms: sample.p95_ms,
@@ -669,6 +706,9 @@ export function createServer({
         return;
       }
       if (path === "/api/health-history") {
+        // Return the bounded process-local history with the same categories as health-summary.
+        // Inputs: none. Outputs: timestamped count samples. Effects: none.
+        // Choose for trends; each sample describes monitor observations rather than user access.
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({

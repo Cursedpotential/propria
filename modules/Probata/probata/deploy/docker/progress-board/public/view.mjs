@@ -24,17 +24,34 @@ export function taskDistribution(rows) {
   if(!rows.length)return '<p class="empty">No matching tasks reported.</p>';
   return groups.map(({key,label,count})=>`<div class="chart-row ${key}"><span>${label}</span><meter min="0" max="${rows.length}" value="${count}" aria-label="${label}: ${count} of ${rows.length} reported tasks"></meter><strong>${count}</strong></div>`).join('');
 }
+/** Count reachability, access restrictions, errors and unconfigured checks separately.
+ * Inputs: endpoint observations. Outputs: mutually exclusive display counts. Effects: none.
+ * Choose this for charts; public health results never replace a protected browser result.
+ */
 export function healthCounts(rows) {
-  const counts={reachable:0,gated:0,attention:0,unknown:0};
-  for(const row of rows) { if(['responding','TCP open'].includes(row.state))counts.reachable++;else if(['auth required','redirect'].includes(row.state))counts.gated++;else if(['unreachable','timeout','HTTP error','unexpected content'].includes(row.state))counts.attention++;else counts.unknown++; }
+  const counts={reachable:0,gated:0,attention:0,unknown:0,monitor_denied:0};
+  for(const row of rows) { if(['responding','TCP open'].includes(row.state))counts.reachable++;else if(row.state==='monitor access denied')counts.monitor_denied++;else if(['auth required','redirect'].includes(row.state))counts.gated++;else if(row.state==='not connected')counts.unknown++;else counts.attention++; }
   return counts;
 }
+/** Render a reachability chart whose restricted monitors are visibly distinct from outages.
+ * Inputs: endpoint observations. Outputs: escaped HTML. Effects: none.
+ * Choose this for the compact board chart, with publicReachabilityList for paired checks.
+ */
 export function healthChart(rows) {
   if(!rows.length)return '<p class="empty">No endpoint observations are available.</p>';
   const counts=healthCounts(rows);let offset=0;
-  const rings=Object.entries(counts).map(([key,count])=>{const size=count/rows.length*100;const circle=key==='unknown'?'':`<circle class="ring-${key}" cx="50" cy="50" r="36" pathLength="100" stroke-dasharray="${size} ${100-size}" stroke-dashoffset="${-offset}" transform="rotate(-90 50 50)"></circle>`;offset+=size;return circle;}).join('');
-  const labels={reachable:'Responding / TCP',gated:'Auth / redirect',attention:'Needs attention',unknown:'Not connected'};
-  return `<div class="health-plot"><svg viewBox="0 0 100 100" role="img" aria-label="Endpoint snapshot: ${counts.reachable} responding or TCP open, ${counts.gated} require authentication or redirect, ${counts.attention} need attention, ${counts.unknown} not connected"><circle class="ring-base" cx="50" cy="50" r="36"></circle>${rings}</svg><div class="health-legend">${Object.entries(counts).map(([key,count])=>`<div><span class="legend-key ${key}">${labels[key]}</span><strong>${count}</strong></div>`).join('')}</div></div><p class="widget-note">${rows.length} endpoints</p>`;
+   const rings=Object.entries(counts).map(([key,count])=>{const size=count/rows.length*100;const circle=key==='unknown'?'':`<circle class="ring-${key==='monitor_denied'?'gated':key}" cx="50" cy="50" r="36" pathLength="100" stroke-dasharray="${size} ${100-size}" stroke-dashoffset="${-offset}" transform="rotate(-90 50 50)"></circle>`;offset+=size;return circle;}).join('');
+   const labels={reachable:'Responding / TCP',gated:'Sign-in / redirect',attention:'Request / HTTP errors',unknown:'Unconfigured',monitor_denied:'Monitor restricted'};
+   return `<div class="health-plot"><svg viewBox="0 0 100 100" role="img" aria-label="Endpoint snapshot: ${counts.reachable} responding or TCP open, ${counts.gated} require authentication or redirect, ${counts.attention} need attention, ${counts.unknown} unconfigured, ${counts.monitor_denied} monitor restricted"><circle class="ring-base" cx="50" cy="50" r="36"></circle>${rings}</svg><div class="health-legend">${Object.entries(counts).map(([key,count])=>`<div><span class="legend-key ${key==='monitor_denied'?'gated':key}">${labels[key]}</span><strong>${count}</strong></div>`).join('')}</div></div><p class="widget-note">${rows.length} endpoint observations; public health checks do not verify protected browser access.</p>`;
+}
+/** Render separate public health evidence beside the unchanged protected browser result.
+ * Inputs: endpoint observations. Outputs: escaped HTML with original browser links.
+ * Effects: none. Choose for paired server reachability and monitor access labels.
+ */
+export function publicReachabilityList(rows) {
+ const paired=rows.filter(row=>row.kind==='Browser surface'&&row.public_reachability);
+ if(!paired.length)return '';
+ return '<ul class="attention-list">'+paired.map(row=>{const link=safeLink(row.endpoint);const health=row.public_reachability;const access=row.state==='monitor access denied'?'Monitor restricted (HTTP 403)':row.state==='auth required'?'Sign-in required (HTTP 401)':row.state;return `<li><span>${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.service)}</a>`:escapeHtml(row.service)}<br><small>${escapeHtml(access)}</small></span><span>${escapeHtml(health.label)}<br><small>Protected browser access not verified by this health check</small></span></li>`;}).join('')+'</ul>';
 }
 export function bytes(value) { if(typeof value!=='number'||!Number.isFinite(value)||value<0)return 'Unknown';if(value===0)return '0 B';const index=Math.min(4,Math.floor(Math.log(value)/Math.log(1024)));return `${(value/1024**index).toLocaleString('en-US',{maximumFractionDigits:1})} ${['B','KiB','MiB','GiB','TiB'][index]}`; }
 export function storageCard(storage, now=Date.now()) {
@@ -118,9 +135,13 @@ export function laneTotalsWidget(tasks) {
   return totals.slice(0, 12).map(([lane, count]) => `<div class="chart-row lane"><span>${escapeHtml(lane)}</span><meter min="0" max="${max}" value="${count}" aria-label="${escapeHtml(lane)}: ${count} tasks"></meter><strong>${count}</strong></div>`).join('');
 }
 
+/** Project compact KPI counts without promoting public health into protected access success.
+ * Inputs: endpoint observations. Outputs: compatible KPI counts plus restricted monitors.
+ * Effects: none. Choose this for the endpoint KPI instead of workflow readiness claims.
+ */
 export function healthSummary(endpoints) {
   const counts = healthCounts(endpoints || []);
-  return { healthy: counts.reachable, gated: counts.gated, attention: counts.attention, unknown: counts.unknown, total: (endpoints || []).length };
+  return { healthy: counts.reachable, gated: counts.gated, attention: counts.attention, unknown: counts.unknown, monitor_denied:counts.monitor_denied, total: (endpoints || []).length };
 }
 
 export function kanbanColumnsHtml(rows) {
