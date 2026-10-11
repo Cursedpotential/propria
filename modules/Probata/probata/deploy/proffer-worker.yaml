@@ -203,13 +203,9 @@ services:
       CONTEXT_SEARCH_VECTOR_NAME: text_nim
       CONTEXT_SEARCH_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
     volumes:
-      # Reuse the existing starter service token for private ephemeral preview callbacks.
-      - type: bind
-        source: /data/probata/secrets/proffer/service-token
-        target: /run/secrets/proffer-service-token
-        read_only: true
-        bind:
-          create_host_path: false
+      # Match the existing starter mount: Coolify preserves :ro but drops long-form read_only.
+      # The existing host token is verified before deployment; callbacks never create or rotate it.
+      - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
       - type: bind
         source: /data/probata/secrets/family-court/casebible-recovery-database-url
         target: /run/secrets/ai-context-catalog-database-url
