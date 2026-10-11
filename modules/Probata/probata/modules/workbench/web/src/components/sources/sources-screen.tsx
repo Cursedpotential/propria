@@ -31,6 +31,8 @@ import { detectedFormat, runsBySource, sourceState } from "@/components/sources/
 import { Button } from "@/components/ui/button";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 import { processSelection, type SourceSubmission } from "@/components/sources/process-selection";
+import { confirmedCaseOwner, processingIdentity, requiresMessagePerspective, sourcePerspectiveScope, type SourcePerspectiveChoice } from "@/components/sources/source-perspective";
+import { getCaseIdentity } from "@/lib/case-identity-client";
 import {
   ApiError,
   getCatalogProvenance,
@@ -86,6 +88,7 @@ function SourcesScreenMode() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set());
   const [handlerOverride, setHandlerOverride] = useState("");
+  const [perspectiveChoice, setPerspectiveChoice] = useState<SourcePerspectiveChoice | null>(null);
   const [aiProvider, setAIProvider] = useState<"" | "chatgpt" | "claude" | "gemini_markdown">("");
   const [aiPending, setAIPending] = useState(false);
   const [aiError, setAIError] = useState<string | null>(null);
@@ -116,6 +119,11 @@ function SourcesScreenMode() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // --- reads ---------------------------------------------------------------
+  const identityQuery = useQuery({
+    queryKey: ["sources", "case-identity", mode],
+    queryFn: () => getCaseIdentity(mode),
+    retry: false,
+  });
   const listingQuery = useInfiniteQuery({
     queryKey: ["sources", "listing", mode, rootId, prefix, appliedFilter],
     initialPageParam: undefined as string | undefined,
@@ -315,12 +323,19 @@ function SourcesScreenMode() {
       : selectedObject
         ? selectedObject.name
         : null;
+  const processFiles = selectedFiles.length ? selectedFiles : selectedObject ? [selectedObject] : [];
+  const perspectiveScope = sourcePerspectiveScope(mode, localSource
+    ? [[localSource.requestId, null, localSource.file.size]]
+    : processFiles.map((object) => [object.source_ref, object.etag, object.byte_length]));
+  const registryPeople = identityQuery.data?.people ?? [];
+  const registryOwner = confirmedCaseOwner(registryPeople);
 
   // --- actions -------------------------------------------------------------
   const runSearch = useCallback(() => {
     const text = query.trim();
     if (!text) return;
     setAppliedFilter(text);
+    setPerspectiveChoice(null);
     setSelectedRef(null);
     setSelectedFolder(null);
     setSearchSummary(`Names and paths across this location: “${text}”.`);
@@ -338,6 +353,7 @@ function SourcesScreenMode() {
    */
   function browse(nextRoot: string, nextPrefix: string) {
     clearSearch();
+    setPerspectiveChoice(null);
     setLocalSource(null); setSelectedFolder(null); setSelectedRef(null); setCheckedRefs(new Set());
     void router.navigate({ href: `/sources?${new URLSearchParams({ root: nextRoot, prefix: nextPrefix, mode })}` });
   }
@@ -354,15 +370,19 @@ function SourcesScreenMode() {
     setProcessError(null);
     setProcessMessage(null);
     try {
+      const identity = processingIdentity(registryPeople, perspectiveScope, perspectiveChoice, localSource
+        ? requiresMessagePerspective(localSource.file.name, detectedFormat(localSource.file.name))
+        : processFiles.some((object) => requiresMessagePerspective(object.name, handlerOverride || detectedFormat(object.name))));
       if (localSource) {
         // Acquisition returns a verified canonical receipt; re-trying start must not upload twice.
         const sealed = localUploads.current.get(localSource.requestId) ?? await uploadProfferSource(localSource.file, mode, setUploadProgress);
         localUploads.current.set(localSource.requestId, sealed);
-        const key = localSource.requestId;
+        const key = JSON.stringify([localSource.requestId, matter.id, primaryCourtCase.id, mode, identity]);
         let entry = submissions.current.get(key);
         if (!entry) {
           entry = { request: {
-            request_id: key, source_ref: sealed.acquisition_ref,
+            request_id: `proffer-${matter.id}-${crypto.randomUUID()}`, source_ref: sealed.acquisition_ref,
+            ...identity,
             declared_format: detectedFormat(localSource.file.name),
             parser_options_ref: "pending-handler-selection/v1",
             matter_id: matter.id, court_case_id: primaryCourtCase.id, matter_mode: mode,
@@ -379,12 +399,13 @@ function SourcesScreenMode() {
       const files = selectedFiles.length ? selectedFiles : selectedObject ? [selectedObject] : [];
       if (files.length) {
         const entries = files.map((object) => {
-          const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, object.source_ref, handlerOverride]);
+          const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, object.source_ref, object.etag, object.byte_length, handlerOverride, identity]);
           let entry = submissions.current.get(key);
           if (entry) return entry;
           entry = { request: {
             request_id: `proffer-${matter.id}-${crypto.randomUUID()}`,
             source_ref: object.source_ref,
+            ...identity,
             declared_format: handlerOverride || detectedFormat(object.name),
             parser_options_ref: "pending-handler-selection/v1",
             matter_id: matter.id,
@@ -498,12 +519,29 @@ function SourcesScreenMode() {
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) {
+              setPerspectiveChoice(null);
               setLocalSource({ file, requestId: `proffer-${matter?.id ?? "upload"}-${crypto.randomUUID()}` });
               setProcessMessage(null); setProcessError(null); setActivityHref(null);
             }
             event.target.value = "";
           }} />
         <Button size="sm" variant="outline" disabled={processing} onClick={() => fileInput.current?.click()}><Upload className="h-3.5 w-3.5" /> Add file</Button>
+        {(localSource || (!selectedFolder && processFiles.length > 0)) && (
+          <label className="flex items-center gap-2 text-[11px]">
+            Whose phone/export?
+            <select aria-label="Whose phone/export?" className="rounded border bg-background px-2 py-1"
+              disabled={processing || identityQuery.isPending}
+              value={perspectiveChoice?.scope === perspectiveScope ? perspectiveChoice.personId : ""}
+              onChange={(event) => setPerspectiveChoice(event.target.value ? { scope: perspectiveScope, personId: event.target.value } : null)}>
+              <option value="">Choose for selected file(s)</option>
+              {registryOwner && <option value={registryOwner.id}>My phone/export</option>}
+              {registryPeople.filter((person) => person.id !== registryOwner?.id && person.verification_state === "confirmed").map((person) => (
+                <option key={person.id} value={person.id}>{person.display_name}’s phone/export</option>
+              ))}
+            </select>
+            {identityQuery.error && <span role="alert">{errorText(identityQuery.error)}</span>}
+          </label>
+        )}
         <Button
           size="sm"
           disabled={processing || !processTarget || !matter || !primaryCourtCase}
@@ -514,7 +552,7 @@ function SourcesScreenMode() {
         <span className="text-[11px] text-muted-foreground">
           {uploadProgress !== null ? `Uploading ${uploadProgress}%` : processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
         </span>
-        {localSource && <Button size="icon" variant="ghost" aria-label="Clear local file selection" disabled={processing} onClick={() => setLocalSource(null)}><X className="h-3.5 w-3.5" /></Button>}
+        {localSource && <Button size="icon" variant="ghost" aria-label="Clear local file selection" disabled={processing} onClick={() => { setLocalSource(null); setPerspectiveChoice(null); }}><X className="h-3.5 w-3.5" /></Button>}
         {processMessage && <span className="text-[11px] text-[#17794b] dark:text-[#72d9a1]">{processMessage}</span>}
         {activityHref && <Button asChild variant="outline" size="sm"><AppLink href={activityHref}>View activity</AppLink></Button>}
         {processError && (
@@ -569,6 +607,7 @@ function SourcesScreenMode() {
               browse(activeRootId, nextPrefix);
             }}
             onSelectFolder={(nextFolder) => {
+              setPerspectiveChoice(null);
               setLocalSource(null);
               setCheckedRefs(new Set());
               setSelectedFolder(nextFolder);
@@ -595,12 +634,13 @@ function SourcesScreenMode() {
                     selectedIndex={selectedIndex}
                     checkedRefs={checkedRefs}
                     onSelectIndex={(index) => {
+                      setPerspectiveChoice(null);
                       setLocalSource(null);
                       setSelectedRef(rows[index]?.sourceRef ?? null);
                       setSelectedFolder(null);
                       setHandlerOverride("");
                     }}
-                    onToggleChecked={(refs) => { setLocalSource(null); setCheckedRefs(new Set(refs)); }}
+                    onToggleChecked={(refs) => { setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set(refs)); }}
                     onReachEnd={() => { if (!nextPageError) loadNextPage(); }}
                   />
                 </div>

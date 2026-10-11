@@ -1126,6 +1126,9 @@ export interface ProfferRunSourceContext {
 }
 
 export interface ProfferStartRequest {
+  /** Existing registry owner and explicitly source-bound device/export perspective; never inferred from login. */
+  owner_person_id?: string | null;
+  perspective_person_id?: string | null;
   request_id: string;
   source_ref: string;
   declared_format: string;
