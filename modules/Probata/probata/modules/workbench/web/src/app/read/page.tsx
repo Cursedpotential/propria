@@ -3,6 +3,7 @@ import { AICandidateReview } from "@/components/review/ai-candidate-review";
 import { ReadWorkspace } from "@/components/read/read-workspace";
 import { importedReadingHref, isProcessingPreview } from "@/components/read/read-location";
 import { ProfferPreviewClient } from "@/components/sbv/proffer-preview-client";
+import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 
 /** Render imported reading or the existing processing preview selected by the URL.
@@ -12,6 +13,15 @@ import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
  */
 export default function ReadPage() {
   const params = useBrowserSearchParams();
+  const decodedSource = params.get("decoded_source_ref");
+  if (decodedSource) return <div className="space-y-4 p-4">
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <div><h1 className="text-xl font-semibold">Messages</h1>
+        <p className="mt-1 break-all text-sm text-muted-foreground">{decodedSource.split("/").at(-1)}</p></div>
+      <AppLink href={`/sources?${new URLSearchParams({ root: params.get("root") ?? "", file: decodedSource.split("/").at(-1) ?? "", mode: params.get("mode") ?? "LIVE" })}`} className="text-sm underline underline-offset-4">Back to Sources</AppLink>
+    </header>
+    <DecodedSourceViewer key={decodedSource} sourceRef={decodedSource} />
+  </div>;
   const contextWorkflow = params.get("context_workflow");
   if (contextWorkflow) return <div className="space-y-4 p-4">
     <header className="flex items-center justify-between gap-3"><h1 className="text-xl font-semibold">Read</h1>

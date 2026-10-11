@@ -363,11 +363,14 @@ function FileDetail({
       <section className="border-b px-3 py-3">
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Decode</p>
         {manifest ? (
-          <p className="mt-1 text-xs">
+          <><p className="mt-1 text-xs">
             {manifest.records.toLocaleString()} records · {manifest.threads.length.toLocaleString()} threads ·{" "}
             {manifest.media_objects.toLocaleString()} media · {manifest.rejected.toLocaleString()} rejected
             {manifest.decoder ? ` · ${manifest.decoder}` : ""}
           </p>
+          <Button asChild variant="outline" size="sm" className="mt-2">
+            <AppLink href={`/read?${new URLSearchParams({ decoded_source_ref: object.source_ref, root: inspection?.root_id ?? "", mode })}`}>Open message viewer</AppLink>
+          </Button></>
         ) : (
           <p className="mt-1 text-xs text-muted-foreground">Not decoded yet.</p>
         )}
