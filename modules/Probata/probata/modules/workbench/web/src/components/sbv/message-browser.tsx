@@ -113,7 +113,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
   }, [fetchNextPage]);
 
   // Per-attempt reset is handled by the caller's `key`, which remounts this
-  // component when the preview handle or TEST/REAL mode changes.
+  // component when the preview handle or DEV/LIVE mode changes.
   if (query.isError) {
     return (
       <div className="border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive" role="alert">

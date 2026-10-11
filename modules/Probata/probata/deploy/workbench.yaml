@@ -113,10 +113,11 @@ services:
       # Shared service credential for authenticated preview/start/context calls.
       # The value is runtime-read on every request so rotation needs no rebuild.
       PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
-      # The live case identity (registry matter + primary court case minted 2026-10-02). Unset, every
-      # live-mode route answered 503 "matter identity is not configured" (Claude Code · Opus 5.5 · 2026-10-02).
-      PROFFER_REAL_MATTER_ID: ${PROFFER_REAL_MATTER_ID:-}
-      PROFFER_REAL_COURT_CASE_ID: ${PROFFER_REAL_COURT_CASE_ID:-}
+      # Byline: Codex, orchestrator, 2026-10-05. One approved identity in Dev and Live.
+      # Set the neutral pair in Coolify before deploying; neither operating mode nor
+      # authentication feature flags select another case. Missing values fail closed.
+      PROFFER_MATTER_ID: ${PROFFER_MATTER_ID:-}
+      PROFFER_COURT_CASE_ID: ${PROFFER_COURT_CASE_ID:-}
       # Distinct owner-only capability for bounded exploratory evidence search.
       # It is runtime-read from the mount below and never issued to agents.
       EVIDENCE_OPERATOR_BEARER_SECRET_FILE: /run/secrets/evidence-operator-security-key
@@ -179,7 +180,8 @@ services:
       IMPORTED_PG_USER: workbench_reader
       IMPORTED_PG_PASSWORD_FILE: /run/secrets/workbench-pg-reader
       IMPORTED_WEAVIATE_URL: ${IMPORTED_WEAVIATE_URL:-http://100.91.190.107:8082}
-      IMPORTED_WEAVIATE_CLASS: ProfferMsgEvents20261002
+      # Read searches conversation chunks; raw message events have a different schema.
+      IMPORTED_WEAVIATE_CLASS: ProfferChunks20261002
       # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
       # store: scheme -> credential file. Switching provider = a credential file + these two
       # values, identical in every Proffer/Workbench service. The first root is the default.

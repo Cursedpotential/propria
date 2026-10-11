@@ -60,7 +60,7 @@ var toolkitProposalPattern = regexp.MustCompile(`^library_proposal:[a-f0-9]{8}-[
 
 // toolkitValidationServiceNetworks admits only explicit private service networks beside the existing tailnet.
 // Inputs: comma-separated CIDRs. Outputs: parsed network allowlist or a configuration error.
-// Effects: none. Choose for container-to-starter validation only; no other route's authentication changes.
+// Effects: none. Choose for explicitly configured container-to-starter service routes; never changes global overlay auth.
 func toolkitValidationServiceNetworks(value string) ([]*net.IPNet, error) {
 	_, tailnet, _ := net.ParseCIDR("100.64.0.0/10")
 	result := []*net.IPNet{tailnet}
@@ -84,7 +84,7 @@ func toolkitValidationServiceNetworks(value string) ([]*net.IPNet, error) {
 
 // toolkitValidationServiceAuth checks the actual socket peer and the dedicated mounted service token.
 // Inputs: credential file and private peer allowlist. Outputs: authenticated handler.
-// Effects: authorization only; never trusts forwarded identity headers. Choose solely for retained-proposal validation dispatch.
+// Effects: authorization only; never trusts forwarded identity headers. Choose for retained-proposal dispatch or bounded read-only case scope.
 func toolkitValidationServiceAuth(tokenFile string, networks []*net.IPNet, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -101,7 +101,7 @@ func toolkitValidationServiceAuth(tokenFile string, networks []*net.IPNet, next 
 		credential, tokenErr := loadServiceToken(tokenFile)
 		header := r.Header.Get("Authorization")
 		if !allowed || tokenErr != nil || !strings.HasPrefix(header, "Bearer ") || !hmac.Equal([]byte(strings.TrimPrefix(header, "Bearer ")), credential) {
-			previewError(w, http.StatusUnauthorized, errors.New("toolkit validation service authorization required"))
+			previewError(w, http.StatusUnauthorized, errors.New("proffer service authorization required"))
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")

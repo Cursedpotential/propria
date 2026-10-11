@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01
 package runtimeapi
 
@@ -113,7 +114,7 @@ func TestCaseIdentityReadRequiresTailnetTokenAndMode(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, servePreviewRequest(routes, wrongToken).Code)
 	require.Zero(t, store.readCalls)
 
-	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, newPreviewRequest(http.MethodGet, "/case-identity", nil)).Code)
+	require.Equal(t, http.StatusOK, servePreviewRequest(routes, newPreviewRequest(http.MethodGet, "/case-identity", nil)).Code)
 	recorder := servePreviewRequest(routes, newPreviewRequest(http.MethodGet, "/case-identity?mode=REAL", nil))
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.Equal(t, caseidentity.ModeReal, store.readMode)
@@ -199,7 +200,7 @@ func TestCaseIdentityPersonAndHeaderEdits(t *testing.T) {
 	noMode := newPreviewRequest(http.MethodPost, "/case-identity/header",
 		[]byte(`{"target":"matter","id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","fields":{"title":"x"},"change_reason":"x"}`))
 	noMode.Header.Set("Idempotency-Key", "no-mode")
-	require.Equal(t, http.StatusUnprocessableEntity, servePreviewRequest(routes, noMode).Code)
+	require.Equal(t, http.StatusCreated, servePreviewRequest(routes, noMode).Code)
 }
 
 func TestCaseIdentityErrorMappingAndLookup(t *testing.T) {

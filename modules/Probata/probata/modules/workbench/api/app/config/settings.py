@@ -50,12 +50,13 @@ class Settings(BaseSettings):
     # SOURCE_ROOTS_JSON, read by app.types.source_roots (shared with the Go engine).
     # Direct-tailnet Proffer starter boundary; blank values fail closed in the adapter.
     proffer_starter_url: str = ""
-    # Explicit TEST/REAL matter identities for the Proffer intake surface.
-    # Neither identity is discovered by title. Blank or malformed values fail
-    # the corresponding mode closed at the BFF boundary.
-    proffer_test_matter_id: str = "deadbeef-dead-beef-dead-beefdeadbeef"
+    # One authoritative case for both operational modes. REAL names are
+    # rollout fallbacks only; old TEST identities never select another case.
+    proffer_matter_id: str = ""
+    proffer_court_case_id: str = ""
+    proffer_test_matter_id: str = ""
     proffer_real_matter_id: str = ""
-    proffer_test_court_case_id: str = "cafebabe-cafe-babe-cafe-babecafebabe"
+    proffer_test_court_case_id: str = ""
     proffer_real_court_case_id: str = ""
     # Optional absolute root containing immutable per-attempt proposal bundles.
     # The adapter discovers only canonical ``bundle-manifest.json`` envelopes
@@ -68,17 +69,16 @@ class Settings(BaseSettings):
     evidence_operator_bearer_secret_file: str = "/run/secrets/evidence-operator-security-key"
 
     # --- MCP tool servers (Tool Explorer) ---
-    # ContextForge is the authored registry; Portkey is the downstream audited
-    # gateway. Default empty is intentional: an unprovisioned chain exposes no
-    # tools instead of falling back to a direct ContextForge door. Each
+    # ContextForge virtual servers are the one MCP client door. The proposed
+    # Portkey MCP publication was never built in this self-hosted installation;
+    # Portkey serves LLM traffic. Default empty exposes no tools. Each
     # entry may carry its own literal "token" (bearer), or a "token_env" —
     # the NAME of an env var holding the bearer, resolved at read time via
     # mcp_servers_parsed (never baked into the JSON literal itself, so the
     # actual secret value lives only in the process env / Coolify env editor,
     # never in this file or compose.workbench.yaml's MCP_SERVERS string).
-    # Each normal entry declares gateway:"portkey" and names Portkey's
-    # /<server-slug>/mcp endpoint. ContextForge's /servers/<uuid>/mcp URL is
-    # an upstream publication target, never a normal Workbench client door.
+    # Each normal entry declares gateway:"contextforge" and names a hosted
+    # ContextForge /servers/<uuid>/mcp route. Direct upstream URLs are refused.
     mcp_servers: str = "[]"
     # Temporary diagnostics may explicitly opt into a direct door. This must
     # never become the production default or an automatic failure fallback.
@@ -194,8 +194,8 @@ class Settings(BaseSettings):
            token_env convention).
 
         Malformed/non-list JSON degrades to an empty list rather than
-        raising. Entries without gateway:"portkey" are filtered unless the
-        explicit diagnostic bypass is enabled.
+        raising. Only ContextForge virtual-server URLs are admitted unless
+        the explicit diagnostic bypass is enabled.
         """
         try:
             servers = json.loads(self.mcp_servers)
@@ -203,11 +203,13 @@ class Settings(BaseSettings):
             return []
         if not isinstance(servers, list):
             return []
+        from app.config.mcp_diagnostics import admitted_publication
+
         allowed_servers = []
         for server in servers:
             if not isinstance(server, dict):
                 continue
-            if server.get("gateway") != "portkey" and not self.mcp_direct_bypass_allowed:
+            if not admitted_publication(server, self.mcp_direct_bypass_allowed):
                 continue
             if server.get("token"):
                 allowed_servers.append(server)
@@ -220,6 +222,13 @@ class Settings(BaseSettings):
                 server["token"] = self.contextforge_token
             allowed_servers.append(server)
         return allowed_servers
+
+    @property
+    def mcp_server_configuration_errors(self) -> list[dict[str, str]]:
+        """Return safe MCP catalog diagnostics without making a rejected door callable."""
+        from app.config.mcp_diagnostics import configuration_errors
+
+        return configuration_errors(self.mcp_servers, self.mcp_direct_bypass_allowed)
 
     @property
     def trusted_auth_proxy_cidrs_parsed(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:

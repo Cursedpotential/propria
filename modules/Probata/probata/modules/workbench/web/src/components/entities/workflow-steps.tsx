@@ -65,7 +65,7 @@ export function WorkflowSteps({ progress, title }: { progress: WorkflowProgress 
 }
 
 const RULE_LABEL: Record<string, string> = {
-  live_mode: "Live (REAL) run",
+  live_mode: "Live run",
   has_proposals: "Something to commit",
   current_generation: "Proposals match the run's current data",
   names_and_types: "Every entity has a name and type",

@@ -46,7 +46,7 @@ services:
       EVIDENCE_PLATFORM_BASE_URL: ${EVIDENCE_PLATFORM_BASE_URL:-http://contextforge:4444}
       PROBATA_RECORDS_BASE_URL: ${PROBATA_RECORDS_BASE_URL:-http://ovh-files.tilapia-skilift.ts.net:8091}
       PROBATA_RECORDS_TOKEN_FILE: /run/secrets/probata-records-token
-      PROBATA_RECORDS_MODE: REAL
+      PROBATA_RECORDS_MODE: LIVE
       MODEL_GATEWAY_BASE_URL: ${MODEL_GATEWAY_BASE_URL:-http://model-gateway:4000}
       LEGAL_RENDERER_BASE_URL: http://legal-renderer:3000
       OFFICE_EDITOR_PUBLIC_URL: https://legal.tilapia-skilift.ts.net/office

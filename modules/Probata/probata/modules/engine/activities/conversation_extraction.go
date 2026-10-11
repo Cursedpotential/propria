@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 //
 // Conversation-level extraction and the Surreal send, as Activities. Each one has a
@@ -16,6 +17,7 @@ import (
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/extraction/entities"
 	"github.com/Cursedpotential/probata/engine/extraction/events"
 	"github.com/Cursedpotential/probata/engine/extraction/flow"
@@ -109,6 +111,9 @@ func (a ConversationActivities) ResolveConversations(ctx context.Context, reques
 
 // BeginExternalExtractionRun opens the compare-only working.extraction_run row of one external extractor over one run.
 func (a ConversationActivities) BeginExternalExtractionRun(ctx context.Context, start flow.ExternalRunStart) (flow.ExternalRunStart, error) {
+	if err := (EntityExtractionActivities{Store: a.Store}).admitRun(ctx, start.Input.Run); err != nil {
+		return start, err
+	}
 	if a.Store == nil {
 		return start, errors.New("entity extraction store is not configured")
 	}
@@ -129,6 +134,9 @@ func (a ConversationActivities) BeginExternalExtractionRun(ctx context.Context, 
 
 // StageExternalExtractionPage validates an external extractor's reply for one window of messages, grounds it in those messages and stages it under the run.
 func (a ConversationActivities) StageExternalExtractionPage(ctx context.Context, stage flow.StageExternalPage) (flow.StagePageResult, error) {
+	if err := (EntityExtractionActivities{Store: a.Store}).admitRun(ctx, stage.Input.Run); err != nil {
+		return flow.StagePageResult{}, err
+	}
 	if a.Store == nil {
 		return flow.StagePageResult{}, errors.New("entity extraction store is not configured")
 	}
@@ -190,6 +198,9 @@ func (a ConversationActivities) StageExternalExtractionPage(ctx context.Context,
 
 // FinishExternalExtractionRun closes an external extractor's run row with its counts.
 func (a ConversationActivities) FinishExternalExtractionRun(ctx context.Context, finish flow.FinishExternalRun) error {
+	if err := (EntityExtractionActivities{Store: a.Store}).admitRun(ctx, finish.Run); err != nil {
+		return err
+	}
 	if a.Store == nil {
 		return errors.New("entity extraction store is not configured")
 	}
@@ -257,6 +268,9 @@ type sendProgress struct {
 
 // UpsertConversationToSurreal reads the conversation's messages from PostgreSQL a page at a time and upserts the thread and each message into surreal-case under deterministic ids.
 func (a ConversationActivities) UpsertConversationToSurreal(ctx context.Context, target flow.SendTarget) (flow.SendWritten, error) {
+	if err := a.admitSend(ctx, target); err != nil {
+		return flow.SendWritten{}, err
+	}
 	client, err := a.sink()
 	if err != nil {
 		return flow.SendWritten{}, err
@@ -349,6 +363,9 @@ func surrealMessage(threadID, matterID string, message service.ConversationMessa
 
 // UpsertExtractionsToSurreal upserts every extraction run, entity and event the conversation's generations hold, each tagged with its extractor.
 func (a ConversationActivities) UpsertExtractionsToSurreal(ctx context.Context, target flow.SendTarget) (flow.SendWritten, error) {
+	if err := a.admitSend(ctx, target); err != nil {
+		return flow.SendWritten{}, err
+	}
 	client, err := a.sink()
 	if err != nil {
 		return flow.SendWritten{}, err
@@ -466,4 +483,30 @@ func (a ConversationActivities) VerifySurrealSend(ctx context.Context, request f
 	match := counts.Messages == request.Plan.Messages &&
 		counts.Entities >= request.Written.Entities && counts.Events >= request.Written.Events
 	return flow.SendVerified{Messages: counts.Messages, Entities: counts.Entities, Events: counts.Events, Match: match}, nil
+}
+
+// admitSend verifies explicit durable send policy and every included operation receipt before outbound writes.
+func (a ConversationActivities) admitSend(ctx context.Context, target flow.SendTarget) error {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(target.OperatingMode)); err != nil {
+		return stopRetryingPermanent(permanent(err))
+	}
+	if !caseidentity.AdmittedIdentity(target.MatterID, target.CourtCaseID) {
+		return stopRetryingPermanent(permanent(errors.New("send requires the approved case identity")))
+	}
+	if err := a.requireConversations(); err != nil {
+		return err
+	}
+	runs, err := a.Conversations.ResolveConversation(ctx, target.MatterID, target.Ref)
+	if err != nil {
+		return err
+	}
+	if len(runs) == 0 {
+		return stopRetryingPermanent(permanent(errors.New("send has no verified operation receipts")))
+	}
+	for _, run := range runs {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(run.MatterMode)); err != nil {
+			return stopRetryingPermanent(permanent(err))
+		}
+	}
+	return nil
 }

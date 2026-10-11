@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30
+// Byline: Codex · GPT-6 · 2026-10-06 (ratified Workbench workflow identity).
 // Byline: Claude Code · Opus 5 · 2026-09-20 (TanStack Query host for cursor-paged operator reads)
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Outlet } from "@tanstack/react-router";
@@ -35,8 +36,8 @@ export function AppShell() {
                     <Outlet />
                   </main>
                   <footer className="hidden h-9 shrink-0 items-center justify-between border-t border-[#3c4952] bg-[#172129] px-5 text-[10px] text-[#aeb7bc] md:flex">
-                    <span>PostgreSQL remains canonical authority</span>
-                    <span>Surface actions require governed receipts</span>
+                    <span>Probata Workbench</span>
+                    <span>Sources · Activity · Read</span>
                   </footer>
                 </div>
               </div>

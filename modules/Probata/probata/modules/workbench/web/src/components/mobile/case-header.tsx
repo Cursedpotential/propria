@@ -8,7 +8,7 @@ import { getCaseIdentity } from "@/lib/case-identity-client";
 import { cn } from "@/lib/utils";
 
 // Wire value of the live case on the existing routes; the screen only ever says "live".
-const LIVE_MODE = "REAL" as const;
+const LIVE_MODE = "LIVE" as const;
 
 const ROLE_LABEL: Record<string, string> = { user: "You", co_parent: "Co-parent" };
 

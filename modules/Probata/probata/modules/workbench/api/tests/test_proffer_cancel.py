@@ -8,15 +8,14 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from fastapi import HTTPException
-from pydantic import ValidationError
-from starlette.requests import Request
-
 from app.runtime import proffer_cancel as runtime
 from app.service import proffer, proffer_cancel
 from app.service.matter_mode import _clear_preview_modes_for_tests, bind_preview_mode
 from app.types.proffer import ProfferDecisionActor
 from app.types.proffer_cancel import ProfferCancelRequest
+from fastapi import HTTPException
+from pydantic import ValidationError
+from starlette.requests import Request
 
 PREVIEW_HANDLE = "preview_handle_abcdefghijklmnopqrstuvwxyz"
 
@@ -24,7 +23,7 @@ PREVIEW_HANDLE = "preview_handle_abcdefghijklmnopqrstuvwxyz"
 @pytest.fixture(autouse=True)
 def preview_mode_binding():
     _clear_preview_modes_for_tests()
-    bind_preview_mode(PREVIEW_HANDLE, "TEST")
+    bind_preview_mode(PREVIEW_HANDLE, "LIVE")
     yield
     _clear_preview_modes_for_tests()
 
@@ -50,10 +49,10 @@ def test_cancel_posts_to_the_engine_route_with_the_actor_in_trusted_headers(monk
     monkeypatch.setattr(proffer, "_request", fake_request)
     actor = ProfferDecisionActor(subject_uid="tailscale:owner@example.com", username="owner@example.com")
     result = asyncio.run(
-        proffer_cancel.cancel(PREVIEW_HANDLE, ProfferCancelRequest(reason="started by mistake"), actor, mode="TEST")
+        proffer_cancel.cancel(PREVIEW_HANDLE, ProfferCancelRequest(reason="started by mistake"), actor, mode="LIVE")
     )
 
-    assert result.status == "cancel_requested" and result.matter_mode == "TEST"
+    assert result.status == "cancel_requested" and result.matter_mode == "LIVE"
     assert captured["method"] == "POST"
     assert captured["path"] == f"/reference-import/previews/{PREVIEW_HANDLE}/cancel"
     assert captured["kwargs"]["json"] == {"reason": "started by mistake"}
@@ -66,7 +65,7 @@ def test_cancel_posts_to_the_engine_route_with_the_actor_in_trusted_headers(monk
 def test_cancel_route_fails_closed_without_an_authenticated_subject() -> None:
     request = Request({"type": "http", "headers": []})
     with pytest.raises(HTTPException) as error:
-        asyncio.run(runtime.cancel_endpoint(PREVIEW_HANDLE, ProfferCancelRequest(reason="x"), request, "TEST"))
+        asyncio.run(runtime.cancel_endpoint(PREVIEW_HANDLE, ProfferCancelRequest(reason="x"), request, "LIVE"))
     assert error.value.status_code == 401
 
 

@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // Entity and event extraction routes on the Proffer starter. Same boundary as
@@ -18,17 +19,16 @@ package runtimeapi
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/extraction/commitcheck"
 	"github.com/Cursedpotential/probata/engine/extraction/entities"
 	"github.com/Cursedpotential/probata/engine/extraction/events"
@@ -75,30 +75,187 @@ func (h *EntityExtractionHTTPHandler) Routes() http.Handler {
 	mux.HandleFunc("POST /reference-import/entities/validate", h.auth(h.validate))
 	mux.HandleFunc("POST /reference-import/entities/commit", h.auth(h.commit))
 	mux.HandleFunc("GET /reference-import/entities/commits/{workflow_id}", h.auth(h.commitStatus))
+	mux.HandleFunc("POST /reference-import/ai-candidates/stage", h.auth(h.stageAICandidates))
+	mux.HandleFunc("GET /reference-import/ai-candidates", h.auth(h.aiCandidates))
+	mux.HandleFunc("POST /reference-import/ai-candidates/decision", h.auth(h.decideAICandidate))
 	return mux
+}
+
+type aiStageRequest struct {
+	runRequest
+	Candidates []service.AICandidate `json:"candidates"`
+}
+
+type aiDecisionRequest struct {
+	runRequest
+	service.AISourcePin
+	CandidateID           string `json:"candidate_id"`
+	ExpectedContentSHA256 string `json:"expected_content_sha256"`
+	Decision              string `json:"decision"`
+}
+
+// aiReviewStore exposes the retained-source branch only when the configured store supports it.
+// Inputs: none. Outputs: store or an unavailable error. Effects: none.
+// Choose for AI candidates, never the SMS generation route.
+func (h *EntityExtractionHTTPHandler) aiReviewStore() (service.AIReviewStore, error) {
+	store, ok := h.store.(service.AIReviewStore)
+	if !ok {
+		return nil, errors.New("retained-source AI review store is unavailable")
+	}
+	return store, nil
+}
+
+// stageAICandidates stages bounded retained-source proposals after authenticated actor and durable scope checks.
+// Inputs: preview, candidates, Idempotency-Key and Authentik actor. Outputs: stable IDs.
+// Effects: pending working rows only. Choose for a verified AI candidate bundle bridge.
+func (h *EntityExtractionHTTPHandler) stageAICandidates(w http.ResponseWriter, r *http.Request) {
+	var body aiStageRequest
+	if err := decodePreviewJSON(w, r, &body); err != nil {
+		previewError(w, http.StatusBadRequest, err)
+		return
+	}
+	actor, key, err := actorAndKey(r)
+	if err != nil {
+		previewError(w, http.StatusUnauthorized, err)
+		return
+	}
+	if !previewHandlePattern.MatchString(body.PreviewHandle) {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("preview_handle is invalid"))
+		return
+	}
+	mode, err := caseidentity.ParseMode(body.MatterMode)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return
+	}
+	store, err := h.aiReviewStore()
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if len(body.Candidates) == 0 {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("candidates are required"))
+		return
+	}
+	verified, err := store.VerifyAISource(r.Context(), body.PreviewHandle, body.Candidates[0].AISourcePin)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if verified != body.MatterMode {
+		previewError(w, http.StatusConflict, errors.New("request mode disagrees with durable source receipt"))
+		return
+	}
+	digest := requestDigest(key, actor, body)
+	runID := flow.DeterministicID("ai_candidate_run", body.Candidates[0].SourceVersionID, digest)
+	ids, err := store.StageAICandidates(r.Context(), body.PreviewHandle, runID, digest, body.Candidates)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	previewJSON(w, http.StatusAccepted, map[string]any{"source_version_id": body.Candidates[0].SourceVersionID, "run_id": runID, "candidate_ids": ids, "matter_mode": verified})
+}
+
+// aiCandidates reads pending and decided AI candidates under the exact retained source pin.
+// Inputs: preview handle and custody pin in query parameters. Outputs: bounded candidate views.
+// Effects: read-only. Choose for the owner AI review surface.
+func (h *EntityExtractionHTTPHandler) aiCandidates(w http.ResponseWriter, r *http.Request) {
+	store, err := h.aiReviewStore()
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	pin := service.AISourcePin{SourceVersionID: r.URL.Query().Get("source_version_id"), SourceObjectID: r.URL.Query().Get("source_object_id"), SourceSHA256: r.URL.Query().Get("source_sha256"), SourceRef: r.URL.Query().Get("source_ref"), PreparedRef: r.URL.Query().Get("prepared_ref")}
+	if version := r.URL.Query().Get("version_id"); version != "" {
+		pin.VersionID = &version
+	}
+	mode, err := store.VerifyAISource(r.Context(), r.URL.Query().Get("preview_handle"), pin)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if mode != r.URL.Query().Get("matter_mode") {
+		previewError(w, http.StatusConflict, errors.New("request mode disagrees with durable source receipt"))
+		return
+	}
+	const pageSize = 200
+	rows, err := store.ListAICandidates(r.Context(), pin.SourceVersionID, r.URL.Query().Get("after_id"), pageSize+1)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	nextCursor := ""
+	if len(rows) > pageSize {
+		rows = rows[:pageSize]
+		nextCursor = rows[len(rows)-1].ID
+	}
+	previewJSON(w, http.StatusOK, map[string]any{"source_version_id": pin.SourceVersionID, "candidates": rows, "next_cursor": nextCursor, "matter_mode": mode})
+}
+
+// decideAICandidate records one explicit owner approval, rejection or request for more information.
+// Inputs: retained pin, candidate ID, decision, actor and Idempotency-Key. Outputs: receipt digest.
+// Effects: commits review state, then attempts approved graph dispatch; enqueue failure retains the receipt.
+// Choose after inspecting a candidate; pending projection can retry the identical decision request.
+func (h *EntityExtractionHTTPHandler) decideAICandidate(w http.ResponseWriter, r *http.Request) {
+	var body aiDecisionRequest
+	if err := decodePreviewJSON(w, r, &body); err != nil {
+		previewError(w, http.StatusBadRequest, err)
+		return
+	}
+	actor, key, err := actorAndKey(r)
+	if err != nil {
+		previewError(w, http.StatusUnauthorized, err)
+		return
+	}
+	mode, err := caseidentity.ParseMode(body.MatterMode)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return
+	}
+	store, err := h.aiReviewStore()
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	verified, err := store.VerifyAISource(r.Context(), body.PreviewHandle, body.AISourcePin)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if verified != body.MatterMode {
+		previewError(w, http.StatusConflict, errors.New("request mode disagrees with durable source receipt"))
+		return
+	}
+	digest := requestDigest(key, actor, body)
+	decisionID, err := store.DecideAICandidate(r.Context(), body.AISourcePin, body.CandidateID, body.ExpectedContentSHA256, body.Decision, actor, digest, h.clock().UTC())
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	previewJSON(w, http.StatusOK, map[string]any{
+		"candidate_id": body.CandidateID, "decision": body.Decision, "decision_id": decisionID,
+		"request_digest": digest, "matter_mode": verified, "decision_committed": true,
+		"projection": h.dispatchApprovedAIDecisionProjection(r.Context(), body.Decision, body.SourceVersionID, body.CandidateID, decisionID, digest),
+	})
 }
 
 func (h *EntityExtractionHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return tailnetServiceAuth(h.serviceTokenPath, "proffer entity extraction tailnet authorization required", next)
 }
 
-// tailnetServiceAuth admits only a tailnet peer that presents the mounted service token.
+// tailnetServiceAuth preserves extraction callers while applying shared Proffer service admission.
+// Inputs: mounted token, denial text and handler. Outputs: authenticated handler.
+// Effects: token reload and canonical-write fencing. Choose for entity and conversation extraction.
 func tailnetServiceAuth(serviceTokenPath, denied string, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-		ip := net.ParseIP(host).To4()
-		serviceToken, tokenErr := loadServiceToken(serviceTokenPath)
-		header := strings.TrimSpace(r.Header.Get("Authorization"))
-		provided := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
-		trusted := tokenErr == nil && strings.HasPrefix(header, "Bearer ") && hmac.Equal([]byte(provided), serviceToken)
-		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 || !trusted {
-			previewError(w, http.StatusUnauthorized, errors.New(denied))
-			return
-		}
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		next(w, r)
-	}
+	return profferServiceAuth(serviceTokenPath, denied, next)
 }
 
 type runRequest struct {
@@ -106,12 +263,16 @@ type runRequest struct {
 	MatterMode    string `json:"matter_mode"`
 }
 
-func (h *EntityExtractionHTTPHandler) resolveRun(ctx context.Context, handle, mode string) (flow.RunRef, int, error) {
+func (h *EntityExtractionHTTPHandler) resolveRun(ctx context.Context, handle, mode string, write bool) (flow.RunRef, int, error) {
 	if !previewHandlePattern.MatchString(handle) {
 		return flow.RunRef{}, http.StatusUnprocessableEntity, errors.New("preview_handle is invalid")
 	}
-	if mode != "" && mode != "TEST" && mode != "REAL" {
-		return flow.RunRef{}, http.StatusUnprocessableEntity, errors.New("matter_mode must be TEST or REAL")
+	requested, modeErr := caseidentity.ParseMode(mode)
+	if modeErr != nil {
+		return flow.RunRef{}, http.StatusUnprocessableEntity, modeErr
+	}
+	if modeErr := caseidentity.RequireCanonicalWrite(requested); write && modeErr != nil {
+		return flow.RunRef{}, http.StatusConflict, modeErr
 	}
 	run, err := h.store.ResolveRun(ctx, handle)
 	if err != nil {
@@ -121,7 +282,12 @@ func (h *EntityExtractionHTTPHandler) resolveRun(ctx context.Context, handle, mo
 		}
 		return flow.RunRef{}, status, err
 	}
-	run.MatterMode = mode
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(run.MatterMode)); write && err != nil {
+		return flow.RunRef{}, http.StatusConflict, err
+	}
+	if write && run.MatterMode != string(requested) {
+		return flow.RunRef{}, http.StatusConflict, errors.New("request mode disagrees with the durable operating_mode receipt")
+	}
 	return run, 0, nil
 }
 
@@ -174,7 +340,7 @@ func (h *EntityExtractionHTTPHandler) extract(w http.ResponseWriter, r *http.Req
 		previewError(w, http.StatusUnauthorized, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -228,7 +394,7 @@ func (h *EntityExtractionHTTPHandler) commitStatus(w http.ResponseWriter, r *htt
 const maxMentionsShown = 25
 
 func (h *EntityExtractionHTTPHandler) proposals(w http.ResponseWriter, r *http.Request) {
-	run, status, err := h.resolveRun(r.Context(), r.URL.Query().Get("preview_handle"), r.URL.Query().Get("matter_mode"))
+	run, status, err := h.resolveRun(r.Context(), r.URL.Query().Get("preview_handle"), r.URL.Query().Get("matter_mode"), false)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -335,7 +501,7 @@ func (h *EntityExtractionHTTPHandler) correct(w http.ResponseWriter, r *http.Req
 		previewError(w, http.StatusUnauthorized, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -364,7 +530,7 @@ func (h *EntityExtractionHTTPHandler) markEvent(w http.ResponseWriter, r *http.R
 		previewError(w, http.StatusUnauthorized, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -378,7 +544,7 @@ func (h *EntityExtractionHTTPHandler) markEvent(w http.ResponseWriter, r *http.R
 }
 
 func (h *EntityExtractionHTTPHandler) record(w http.ResponseWriter, r *http.Request) {
-	run, status, err := h.resolveRun(r.Context(), r.URL.Query().Get("preview_handle"), "")
+	run, status, err := h.resolveRun(r.Context(), r.URL.Query().Get("preview_handle"), "", false)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -420,7 +586,7 @@ func (h *EntityExtractionHTTPHandler) validate(w http.ResponseWriter, r *http.Re
 		previewError(w, http.StatusBadRequest, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return
@@ -453,7 +619,7 @@ func (h *EntityExtractionHTTPHandler) commit(w http.ResponseWriter, r *http.Requ
 		previewError(w, http.StatusUnauthorized, err)
 		return
 	}
-	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode)
+	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
 		return

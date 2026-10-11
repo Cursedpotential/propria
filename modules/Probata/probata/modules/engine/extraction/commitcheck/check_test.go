@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package commitcheck
@@ -26,7 +27,7 @@ func goodSnapshot() Snapshot {
 		TemporalPrecision: events.PrecisionPoint, GenerationID: "gen-1", ReviewState: entities.StatePending,
 		SourceRecords: []events.SourceRecord{{RecordID: "r1", SourceAvailableFrom: when("2026-09-21T01:14:39Z")}},
 		EntityKeys:    []string{"name:person:kat"}}
-	return Snapshot{MatterMode: "REAL", PreviewHandle: "h", CurrentGenerationID: "gen-1",
+	return Snapshot{MatterMode: "LIVE", PreviewHandle: "h", CurrentGenerationID: "gen-1",
 		Entities: []entities.Proposal{person, self}, Events: []events.Proposal{event}}
 }
 

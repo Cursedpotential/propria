@@ -18,7 +18,7 @@ import type { ProfferPreviewMessage, ProfferPreviewParticipant } from "@/lib/sha
 import { cn } from "@/lib/utils";
 
 // Wire value of the live case on the existing Proffer routes; the screen only ever says "live".
-const LIVE_MODE = "REAL" as const;
+const LIVE_MODE = "LIVE" as const;
 
 export function ReviewQueueView() {
   const query = useQuery({ queryKey: ["m-review-queue"], queryFn: ({ signal }) => importedApi.reviewQueue(signal), staleTime: 10_000 });

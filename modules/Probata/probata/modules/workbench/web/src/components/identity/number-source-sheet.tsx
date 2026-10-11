@@ -63,7 +63,7 @@ export function NumberSourceSheet({ open, onOpenChange, number, onNavigate }: {
                 <SourceCaption record={record} />
                 {record.type === "message" ? (
                   <>
-                    <MessageBubble row={toMessageRow(record.message, index)} previewHandle="" mode="REAL" showSenderLabel />
+                    <MessageBubble row={toMessageRow(record.message, index)} previewHandle="" mode="LIVE" showSenderLabel />
                     <Button asChild variant="outline" size="sm" className="mt-1 h-10">
                       <AppLink href={`/m/thread/${record.source.thread_id}?focus=${record.id}`} onClick={() => onNavigate?.()}>Open this conversation at this message</AppLink>
                     </Button>

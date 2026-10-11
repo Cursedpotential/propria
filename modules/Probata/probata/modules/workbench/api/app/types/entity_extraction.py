@@ -197,3 +197,61 @@ class RegistrySearchResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     entities: list[RegistryEntityView]
+
+
+class AIReviewSourcePin(BaseModel):
+    """Bind an AI review request to the retained original; null version means unknown."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_version_id: str
+    source_object_id: str
+    version_id: str | None = None
+    source_sha256: Digest
+
+
+class AIReviewDecision(AIReviewSourcePin):
+    """Carry one explicit owner decision and the preview receipt that admits it."""
+
+    preview_handle: PreviewHandle
+    candidate_id: str
+    expected_content_sha256: Digest
+    decision: Literal["approved", "rejected", "needs_info"]
+
+
+class AIReviewCandidate(BaseModel):
+    """Expose one bounded candidate and its state without a conversation body."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    candidate_id: str
+    kind: Literal["entity", "event", "fact"]
+    reported_kind: str
+    review_domain: str
+    review_state: Literal["pending", "approved", "rejected", "needs_info", "superseded"]
+    content_sha256: Digest
+    decision_id: str | None = None
+    candidate: dict[str, Any]
+
+
+class AIReviewCandidatesResponse(BaseModel):
+    """Return source-scoped candidates for the owner review surface."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    source_version_id: str
+    matter_mode: MatterMode
+    candidates: Annotated[list[AIReviewCandidate], Field(max_length=500)]
+    next_cursor: str = ""
+
+
+class AIReviewDecisionApplied(BaseModel):
+    """Confirm a digest-bound owner decision without implying promotion."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    candidate_id: str
+    decision_id: str
+    decision: Literal["approved", "rejected", "needs_info"]
+    request_digest: Digest
+    matter_mode: MatterMode

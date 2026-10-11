@@ -31,6 +31,7 @@ import {
   type CaseReceipt,
 } from "@/lib/case-identity-client";
 import type { MatterMode } from "@/lib/shared/types";
+import { useFixedCase } from "@/lib/fixed-case-context";
 
 const IDENTIFIER_KINDS = ["phone", "name", "email", "account", "handle", "nickname", "legal", "maiden", "misspelling", "other"];
 const ROLE_OPTIONS = ["user", "co_parent", "partner", "child", "witness", "evaluator", "attorney", "third_party", "neutral", "unknown"];
@@ -63,11 +64,12 @@ function Select({ value, onChange, options, allowEmpty, name }: { value: string;
   );
 }
 
-function useCaseSave<T>(save: (body: T, key: string) => Promise<CaseReceipt>, onDone: () => void) {
+function useCaseSave<T>(save: (body: T, key: string, mode: MatterMode) => Promise<CaseReceipt>, onDone: () => void) {
+  const { mode } = useFixedCase();
   const queryClient = useQueryClient();
   const key = useMemo(() => newIdempotencyKey("case"), []);
   return useMutation({
-    mutationFn: (body: T) => save(body, key),
+    mutationFn: (body: T) => save(body, key, mode),
     onSuccess: async (receipt) => {
       toast.success(receipt.replayed ? "Already saved (same click)" : "Saved", { description: `logged in registry.identity_change · ${receipt.kind} ${receipt.ref}` });
       await queryClient.invalidateQueries({ queryKey: ["case-identity"] });
@@ -117,7 +119,7 @@ function IdentifierForm({ target, onClose }: { target: IdentifierDialogTarget; o
   const [reason, setReason] = useState("");
   const add = useCaseSave(addIdentifier, onClose);
   const edit = useCaseSave(
-    (fields: Record<string, string | null>, key: string) => editIdentifier(existing!.id, { fields, change_reason: reason }, key),
+    (fields: Record<string, string | null>, key: string, mode: MatterMode) => editIdentifier(existing!.id, { fields, change_reason: reason }, key, mode),
     onClose,
   );
   const editing = target.mode === "edit";
@@ -196,7 +198,7 @@ function IdentifierForm({ target, onClose }: { target: IdentifierDialogTarget; o
 
 export function DeleteIdentifierDialog({ identifier, onClose }: { identifier: CaseIdentifier; onClose: () => void }) {
   const [reason, setReason] = useState("");
-  const save = useCaseSave((body: { change_reason: string }, key: string) => deleteIdentifier(identifier.id, body, key), onClose);
+  const save = useCaseSave((body: { change_reason: string }, key: string, mode: MatterMode) => deleteIdentifier(identifier.id, body, key, mode), onClose);
   return (
     <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent className="sm:max-w-md">
@@ -246,11 +248,11 @@ function PersonForm({ person, onClose }: { person: CasePerson | null; onClose: (
   const [isMinor, setIsMinor] = useState(person?.is_minor ?? false);
   const [reason, setReason] = useState("");
   const edit = useCaseSave(
-    (fields: Record<string, string | null>, key: string) => editPerson(person!.id, { fields, change_reason: reason }, key),
+    (fields: Record<string, string | null>, key: string, mode: MatterMode) => editPerson(person!.id, { fields, change_reason: reason }, key, mode),
     onClose,
   );
   const add = useCaseSave(
-    (_: null, key: string) =>
+    (_: null, key: string, mode: MatterMode) =>
       addPerson(
         {
           display_name: displayName,
@@ -262,6 +264,7 @@ function PersonForm({ person, onClose }: { person: CasePerson | null; onClose: (
           change_reason: reason,
         },
         key,
+        mode,
       ),
     onClose,
   );
@@ -431,7 +434,7 @@ function HeaderForm({ mode, matter, courtCase, onClose }: { mode: MatterMode; ma
 
 export function DismissDialog({ raw, onClose }: { raw: string; onClose: () => void }) {
   const [basis, setBasis] = useState("");
-  const save = useCaseSave((body: { raw_value: string; decision: "dismissed"; basis: string }, key: string) => triageIdentifier(body, key), onClose);
+  const save = useCaseSave((body: { raw_value: string; decision: "dismissed"; basis: string }, key: string, mode: MatterMode) => triageIdentifier(body, key, mode), onClose);
   return (
     <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent className="sm:max-w-md">

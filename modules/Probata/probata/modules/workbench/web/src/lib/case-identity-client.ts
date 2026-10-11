@@ -187,8 +187,8 @@ async function caseFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json();
 }
 
-function write<T>(path: string, body: unknown, idempotencyKey: string): Promise<T> {
-  return caseFetch<T>(path, {
+function write<T>(path: string, body: unknown, idempotencyKey: string, mode: MatterMode): Promise<T> {
+  return caseFetch<T>(`${path}${path.includes("?") ? "&" : "?"}mode=${encodeURIComponent(mode)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
     body: JSON.stringify(body),
@@ -205,16 +205,16 @@ export function getCatalogEvents(identifier: string, matchOn: string, before?: s
   return caseFetch<CatalogEventsPage>(`/api/case-identity/catalog-events?${query.toString()}`);
 }
 
-export function addIdentifier(body: IdentifierAdd, key: string) {
-  return write<CaseReceipt>("/api/case-identity/identifiers", body, key);
+export function addIdentifier(body: IdentifierAdd, key: string, mode: MatterMode) {
+  return write<CaseReceipt>("/api/case-identity/identifiers", body, key, mode);
 }
 
-export function editIdentifier(id: string, body: { fields: Record<string, string | null>; change_reason: string }, key: string) {
-  return write<CaseReceipt>(`/api/case-identity/identifiers/${encodeURIComponent(id)}`, body, key);
+export function editIdentifier(id: string, body: { fields: Record<string, string | null>; change_reason: string }, key: string, mode: MatterMode) {
+  return write<CaseReceipt>(`/api/case-identity/identifiers/${encodeURIComponent(id)}`, body, key, mode);
 }
 
-export function deleteIdentifier(id: string, body: { change_reason: string }, key: string) {
-  return write<CaseReceipt>(`/api/case-identity/identifiers/${encodeURIComponent(id)}/delete`, body, key);
+export function deleteIdentifier(id: string, body: { change_reason: string }, key: string, mode: MatterMode) {
+  return write<CaseReceipt>(`/api/case-identity/identifiers/${encodeURIComponent(id)}/delete`, body, key, mode);
 }
 
 export function editCaseHeader(
@@ -222,18 +222,19 @@ export function editCaseHeader(
   body: { target: "matter" | "court_case"; id: string; fields: Record<string, string | null>; change_reason: string; expected_updated_at?: string },
   key: string,
 ) {
-  return write<CaseReceipt>(`/api/case-identity/header?mode=${encodeURIComponent(mode)}`, body, key);
+  return write<CaseReceipt>("/api/case-identity/header", body, key, mode);
 }
 
-export function editPerson(personId: string, body: { fields: Record<string, string | null>; change_reason: string }, key: string) {
-  return write<CaseReceipt>(`/api/case-identity/people/${encodeURIComponent(personId)}`, body, key);
+export function editPerson(personId: string, body: { fields: Record<string, string | null>; change_reason: string }, key: string, mode: MatterMode) {
+  return write<CaseReceipt>(`/api/case-identity/people/${encodeURIComponent(personId)}`, body, key, mode);
 }
 
 export function addPerson(
   body: { display_name: string; short_name: string | null; role_in_case: string; connection_to: string; is_minor: boolean; notes: string | null; change_reason: string },
   key: string,
+  mode: MatterMode,
 ) {
-  return write<CaseReceipt>("/api/case-identity/people", body, key);
+  return write<CaseReceipt>("/api/case-identity/people", body, key, mode);
 }
 
 export interface PlaceholderReceipt extends CaseReceipt {
@@ -248,17 +249,17 @@ export interface PlaceholderReceipt extends CaseReceipt {
 }
 
 /** One placeholder person per unidentified number; the engine links every NULL row for it. */
-export function addPlaceholders(body: { numbers: string[]; change_reason: string; dry_run?: boolean }, key: string) {
-  return write<PlaceholderReceipt>("/api/case-identity/placeholders", body, key);
+export function addPlaceholders(body: { numbers: string[]; change_reason: string; dry_run?: boolean }, key: string, mode: MatterMode) {
+  return write<PlaceholderReceipt>("/api/case-identity/placeholders", body, key, mode);
 }
 
 /** Merge a placeholder into an existing person: identifiers and linked rows move, nothing is deleted. */
-export function mergePerson(fromId: string, body: { into_id: string; change_reason: string }, key: string) {
-  return write<CaseReceipt>(`/api/case-identity/people/${encodeURIComponent(fromId)}/merge`, body, key);
+export function mergePerson(fromId: string, body: { into_id: string; change_reason: string }, key: string, mode: MatterMode) {
+  return write<CaseReceipt>(`/api/case-identity/people/${encodeURIComponent(fromId)}/merge`, body, key, mode);
 }
 
-export function triageIdentifier(body: { raw_value: string; decision: "dismissed" | "reopened"; basis: string }, key: string) {
-  return write<CaseReceipt>("/api/case-identity/triage", body, key);
+export function triageIdentifier(body: { raw_value: string; decision: "dismissed" | "reopened"; basis: string }, key: string, mode: MatterMode) {
+  return write<CaseReceipt>("/api/case-identity/triage", body, key, mode);
 }
 
 export function newIdempotencyKey(prefix: string) {

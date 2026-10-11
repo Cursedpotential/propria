@@ -1,6 +1,7 @@
 """server/temporal/worker.py — the Temporal worker entrypoint (P1 task 1).
 
 Byline: Claude Code · Fable 5 · 2026-08-24
+Byline: Codex · GPT-6 · 2026-10-07 (register real graph preparation Activity).
 
 Runs as its OWN Coolify app (docker/temporal-worker/Dockerfile, CMD
 ``python -m server.temporal.worker``). Joins task queue ``evidence-pipeline``
@@ -38,6 +39,8 @@ from server.temporal.activities import (
     parse_activity,
     store_activity,
 )
+from server.temporal.ai_content_activities import AI_CONTENT_ACTIVITIES, AI_CONTEXT_ACTIVITIES
+from server.temporal.ai_context_graph_activities import AI_CONTEXT_GRAPH_ACTIVITIES
 from server.temporal.chunk_activities import (
     chunk_context_threads_activity,
     publish_call_log_files_activity,
@@ -65,6 +68,12 @@ TASK_QUEUE_DEFAULT = "evidence-pipeline"
 
 
 async def main() -> None:
+    """Run the Python Temporal worker with context and historical Activities.
+
+    Inputs: Temporal connection and task-queue environment. Outputs: none.
+    Effects: registers Activities and polls Temporal. Choose for the managed
+    Python worker so ai-context-v1 runs without replacing replayed workflows.
+    """
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -90,6 +99,13 @@ async def main() -> None:
             # the first-party context is proposed and BEFORE the preview (Claude Code · Sonnet 5.5 · 2026-10-02).
             # list/estimate/verify/remove: the re-chunk and the per-message removal, as Activities of two Go workflows.
             activities=[
+                # Six independent AI content operations, external retained payloads.
+                # Codex / GPT-6.1-Sol / 2026-10-06.
+                *AI_CONTENT_ACTIVITIES,
+                # Context-only AI source stages; historical names stay registered
+                # for Temporal replay while new requests use ai-context-v1.
+                *AI_CONTEXT_ACTIVITIES,
+                *AI_CONTEXT_GRAPH_ACTIVITIES,
                 custody_activity,
                 parse_activity,
                 store_activity,
@@ -111,6 +127,9 @@ async def main() -> None:
                 extract_entities_events_langextract_activity,
             ],
             activity_executor=executor,
+            # Keep admitted Activities within the configured bounded executor;
+            # the trial worker sets TEMPORAL_ACTIVITY_THREADS=1.
+            max_concurrent_activities=threads,
         )
         log.info("worker running — workflows: ChatTranscriptIngest, P0DurabilityProbe, ClassificationBatchPipeline")
         await worker.run()

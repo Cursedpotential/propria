@@ -1,7 +1,7 @@
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 //
 // skip_record_kinds (owner 2026-10-02): messages and calls are published as chunks after the commit, so the
-// Weaviate-first stage leaves them out; AI chats and documents keep their per-record path.
+// Weaviate-first stage leaves them out; AI exports use their own conversation-content Activities.
 package activities
 
 import (
@@ -162,13 +162,13 @@ func TestWithoutTheSkipListEveryKindIsStillPublishedPerRecord(t *testing.T) {
 	}
 }
 
-func TestSkipNeverAppliesToAIChats(t *testing.T) {
+func TestAIChatsCannotPublishIndividualRecords(t *testing.T) {
 	embedder, target := &skipRecordingEmbedder{}, &skipRecordingTarget{}
 	plan := skipTestPlan(t, "message")
 	plan.Provenance.SourceFormat = "chatgpt_official_json"
 	spec := skipSpec(map[string]bool{"message": true, "call": true})
 	outcome, err := skipTestActivities(embedder, target).publishStream(context.Background(), spec, plan, nil)
-	if err != nil || outcome.Published != 1 || outcome.SkippedToChunks != 0 || len(target.published["Chats"]) != 1 {
-		t.Fatalf("outcome %+v, err %v; want the AI chat message published to its own collection", outcome, err)
+	if err == nil || outcome.Published != 0 || len(target.published) != 0 || len(embedder.texts) != 0 {
+		t.Fatalf("outcome %+v, err %v; AI per-record publication must fail before embedding or writing", outcome, err)
 	}
 }

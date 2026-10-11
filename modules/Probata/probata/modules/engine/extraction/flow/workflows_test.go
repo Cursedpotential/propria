@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package flow
@@ -56,7 +57,7 @@ func okReport(digest string) CommitStepResult {
 }
 
 func commitRequest() CommitRequest {
-	return CommitRequest{CommitID: "c-1", Digest: "digest-1", Run: RunRef{PreviewHandle: "h", GenerationID: "g", MatterMode: "REAL"}, CollectionSlug: "primary"}
+	return CommitRequest{CommitID: "c-1", Digest: "digest-1", Run: RunRef{PreviewHandle: "h", GenerationID: "g", MatterMode: "LIVE"}, CollectionSlug: "primary"}
 }
 
 func TestCommitWorkflowRunsEveryStepInOrderThenProjects(t *testing.T) {
@@ -205,7 +206,7 @@ func TestExtractionFlagsInvalidModelBatchesButStillReconciles(t *testing.T) {
 		reconcile = request
 		return ReconcileResult{Proposals: 7}, nil
 	}).Once()
-	env.ExecuteWorkflow(ExtractionWorkflowName, ExtractionRequest{ExtractionID: "x", UseModel: true})
+	env.ExecuteWorkflow(ExtractionWorkflowName, ExtractionRequest{Run: RunRef{MatterMode: "LIVE"}, ExtractionID: "x", UseModel: true})
 	var progress Progress
 	if err := env.GetWorkflowResult(&progress); err != nil {
 		t.Fatal(err)
@@ -231,7 +232,7 @@ func TestExtractionWithoutModelSkipsIt(t *testing.T) {
 	env := extractionEnv(t)
 	env.OnActivity(ProposeRulesActivity, mock.Anything, mock.Anything).Return(ProposeResult{ExtractionRunID: "run-rules"}, nil).Once()
 	env.OnActivity(ReconcileActivity, mock.Anything, mock.Anything).Return(ReconcileResult{}, nil).Once()
-	env.ExecuteWorkflow(ExtractionWorkflowName, ExtractionRequest{ExtractionID: "x", UseModel: false})
+	env.ExecuteWorkflow(ExtractionWorkflowName, ExtractionRequest{Run: RunRef{MatterMode: "LIVE"}, ExtractionID: "x", UseModel: false})
 	var progress Progress
 	if err := env.GetWorkflowResult(&progress); err != nil {
 		t.Fatal(err)

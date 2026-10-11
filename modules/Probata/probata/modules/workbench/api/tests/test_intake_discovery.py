@@ -61,6 +61,29 @@ async def test_index_uses_intake_filesystem_endpoint_preserves_coverage(monkeypa
     assert result["items"][0]["source_ref"] is None
 
 
+@pytest.mark.asyncio
+async def test_index_preserves_distinct_source_locators_without_inventing_ingest_refs(monkeypatch):
+    """Keep distinct source occurrences even when their retrieved text is identical."""
+    async def upstream(path, payload):
+        return {"collection": "IntakeCorpus", "hits": [
+            {"object_id": suffix, "source_path": "export/chat.json",
+             "filename": "chat.json", "source_id": "source-" + suffix,
+             "document_id": "document-" + suffix, "chunk_id": "chunk-" + suffix,
+             "text": "same excerpt", "score": 1,
+             "vault_key": "originals/" + suffix + "/chat.json",
+             "resolution": resolution}
+            for suffix, resolution in (("one", "resolved"), ("two", "unresolved"))
+        ]}
+    monkeypatch.setattr(service, "_upstream", upstream)
+    result = await service.search_index("term", "hybrid", 10)
+    assert result["collection"] == "IntakeCorpus"
+    assert [item["vault_key"] for item in result["items"]] == [
+        "originals/one/chat.json", "originals/two/chat.json"]
+    assert [item["resolution"] for item in result["items"]] == ["resolved", "unresolved"]
+    assert [item["source_id"] for item in result["items"]] == ["source-one", "source-two"]
+    assert all(item["source_ref"] is None for item in result["items"])
+
+
 def test_atomic_members_are_historical_not_ingest_refs(monkeypatch):
     monkeypatch.setattr(repo, "_query", lambda sql, params: [{"unit_id": 7, "key": "historical/a"}])
     result = repo.atomic_members(7)

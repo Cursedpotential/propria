@@ -19,7 +19,7 @@ import (
 func TestSelectionReceiptResultRoundTrip(t *testing.T) {
 	receiptID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	sourceID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
-	raw := selectionResultJSON(receiptID, "sms-parser", "2.1.0", "sms_xml_backup")
+	raw := selectionResultJSON(receiptID, "sms-parser", "2.1.0", "sms_xml_backup", "")
 	selection, err := decodeSelectionReceipt(receiptID, raw, sourceID)
 	if err != nil {
 		t.Fatal(err)
@@ -28,6 +28,30 @@ func TestSelectionReceiptResultRoundTrip(t *testing.T) {
 		selection.ParserID != "sms-parser" || selection.ParserVersion != "2.1.0" ||
 		selection.DeclaredFormat != parser.FormatID("sms_xml_backup") {
 		t.Fatalf("selection = %+v", selection)
+	}
+}
+
+// TestSelectionReceiptPinsTemplateAndReadsLegacy verifies additive receipt JSON.
+// Inputs are versioned template identities and legacy receipts; outputs are
+// loaded pins. No database I/O occurs in this encoding/decoding test.
+func TestSelectionReceiptPinsTemplateAndReadsLegacy(t *testing.T) {
+	receiptID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	sourceID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	for _, pin := range []string{"", "claude_ai_export_json_v1"} {
+		raw := selectionResultJSON(receiptID, activities.StructuredELTParserID, activities.StructuredELTParserVersion, "json", pin)
+		selection, err := decodeSelectionReceipt(receiptID, raw, sourceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if selection.TemplateID != pin {
+			t.Fatalf("selection template=%q, want %q", selection.TemplateID, pin)
+		}
+		if pin == "" && strings.Contains(string(raw), "duckdb_template") {
+			t.Fatal("legacy/decoder receipt gained an empty template field")
+		}
+		if pin != "" && !strings.Contains(string(raw), `"duckdb_template":"`+pin+`"`) {
+			t.Fatal("selection receipt omitted exact template identity")
+		}
 	}
 }
 
@@ -172,7 +196,7 @@ func TestSelectionReceiptRejectsMutableOrMismatchedReference(t *testing.T) {
 	sourceID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	for name, raw := range map[string][]byte{
 		"wrong kind":     []byte(`{"ref_kind":"parser_bundle","ref_id":"00000000-0000-0000-0000-000000000001","parser_id":"p","parser_version":"1","declared_format":"sms_xml_backup"}`),
-		"wrong receipt":  selectionResultJSON(uuid.MustParse("00000000-0000-0000-0000-000000000003"), "p", "1", "sms_xml_backup"),
+		"wrong receipt":  selectionResultJSON(uuid.MustParse("00000000-0000-0000-0000-000000000003"), "p", "1", "sms_xml_backup", ""),
 		"missing parser": []byte(`{"ref_kind":"parser_selection","ref_id":"00000000-0000-0000-0000-000000000001","parser_version":"1","declared_format":"sms_xml_backup"}`),
 	} {
 		t.Run(name, func(t *testing.T) {

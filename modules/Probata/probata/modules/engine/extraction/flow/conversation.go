@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 //
 // Conversation-level extraction and the Surreal send. A conversation is what the
@@ -199,6 +200,8 @@ type ResolveResult struct {
 // runs; Runs adds runs that are already known (the automatic start after a
 // Proffer commit knows its own run).
 type RequestInput struct {
+	OperatingMode string            `json:"operating_mode,omitempty"`
+	CourtCaseID   string            `json:"court_case_id,omitempty"`
 	RequestID     string            `json:"request_id"`
 	MatterID      string            `json:"matter_id"`
 	Conversations []ConversationRef `json:"conversations,omitempty"`
@@ -300,6 +303,7 @@ type StagePageResult struct {
 
 // FinishExternalRun closes the run row.
 type FinishExternalRun struct {
+	Run    RunRef         `json:"run"`
 	RunID  string         `json:"run_id"`
 	Status string         `json:"status"`
 	Error  string         `json:"error,omitempty"`
@@ -308,6 +312,8 @@ type FinishExternalRun struct {
 
 // SendInput starts send_to_surreal_workflow.
 type SendInput struct {
+	OperatingMode      string            `json:"operating_mode,omitempty"`
+	CourtCaseID        string            `json:"court_case_id,omitempty"`
 	RequestID          string            `json:"request_id"`
 	MatterID           string            `json:"matter_id"`
 	Conversations      []ConversationRef `json:"conversations"`
@@ -334,10 +340,12 @@ func (s SendInput) Validate() error {
 
 // SendTarget is one conversation in a send, with its runs.
 type SendTarget struct {
-	MatterID string          `json:"matter_id"`
-	Ref      ConversationRef `json:"ref"`
-	Request  string          `json:"request_id"`
-	Actor    entities.Actor  `json:"actor"`
+	OperatingMode string          `json:"operating_mode,omitempty"`
+	CourtCaseID   string          `json:"court_case_id,omitempty"`
+	MatterID      string          `json:"matter_id"`
+	Ref           ConversationRef `json:"ref"`
+	Request       string          `json:"request_id"`
+	Actor         entities.Actor  `json:"actor"`
 }
 
 // SendPlan is what a conversation holds before it is sent.

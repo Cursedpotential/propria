@@ -24,7 +24,7 @@ from app.repo.object_store_client import (
 )
 from app.service.proffer import _require_mode_configuration
 from app.types.proffer import MatterMode
-from app.types.source_inspection import ParserPreflight, SourceInspectionRequest, SourceInspectionResponse
+from app.types.source_inspection import ParserPreflight, SourceInspectionRequest, SourceInspectionResponse, SourceVersionResponse
 
 
 MAX_IMMEDIATE_HASH_BYTES = 256 * 1024 * 1024
@@ -92,6 +92,25 @@ def _metadata(request: SourceInspectionRequest) -> tuple[str, dict]:
     if size != request.expected_byte_length or (listed_etag and etag.strip('"') != listed_etag):
         raise SourceInspectionError(409, "The selected source changed after it was listed; choose it again")
     return key, head
+
+
+def read_source_version(request: SourceInspectionRequest) -> SourceVersionResponse:
+    """Read one selected B2 object's provider version without reading its body.
+
+    Inputs: exact source root, key and listing metadata. Output: VersionId and
+    matching locator/size/ETag. Effects: one HEAD; use for version-pinned context
+    registration even when the source is too large for immediate preview.
+    """
+    _, head = _metadata(request)
+    version = head.get("VersionId")
+    if not isinstance(version, str) or not version.strip() or version.strip().lower() == "null":
+        raise SourceInspectionError(409, "This source has no provider version ID; context import was not started")
+    return SourceVersionResponse(
+        source_ref=request.source_ref,
+        provider_version_id=version.strip(),
+        byte_length=int(head["ContentLength"]),
+        etag=str(head["ETag"]),
+    )
 
 
 def _preflight(key: str) -> ParserPreflight:

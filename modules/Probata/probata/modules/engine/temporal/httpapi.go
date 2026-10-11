@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/servicepeer"
 )
 
 const maxStarterRequestBytes int64 = 16 << 10
@@ -68,10 +68,16 @@ func (h *StarterHTTPHandler) Routes() http.Handler {
 
 func (h *StarterHTTPHandler) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Explicit misconfiguration fails closed even when the legacy dev bypass is enabled.
+		networks, err := servicepeer.FromEnvironment()
+		if err != nil {
+			writeStarterError(w, http.StatusUnauthorized, errors.New("reference import starter network configuration invalid"))
+			return
+		}
 		// D-127 Rule 4: the tailnet check itself stays intact and is always
 		// evaluated -- the flag never deletes it, it only decides what
 		// happens when it fails.
-		if authorizedTailnetPeer(r) {
+		if networks.Allows(r.RemoteAddr) {
 			next(w, r)
 			return
 		}
@@ -233,12 +239,8 @@ type previewResponse struct {
 }
 
 func authorizedTailnetPeer(r *http.Request) bool {
-	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-	if err != nil {
-		return false
-	}
-	ip := net.ParseIP(host).To4()
-	return ip != nil && ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127
+	networks, err := servicepeer.FromEnvironment()
+	return err == nil && networks.Allows(r.RemoteAddr)
 }
 
 // platformDevAuthBypassEnv is the one flag D-125 defines for every ingest

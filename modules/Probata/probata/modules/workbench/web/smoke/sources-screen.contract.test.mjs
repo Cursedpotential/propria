@@ -23,9 +23,9 @@ const intake = source("../src/components/intake/unified-intake.tsx");
 const client = source("../src/lib/api-client.ts");
 const packageManifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
-test("Sources is a route and the navigation entry; Intake stays reachable but off the nav", () => {
+test("Sources is a route and the navigation entry; Intake bookmarks redirect", () => {
   assert.match(router, /applicationRoute\("sources"/);
-  assert.match(router, /applicationRoute\("intake"/);
+  assert.match(router, /legacyRoute\("intake"/);
   assert.match(navigation, /title: "Sources"/);
   assert.match(navigation, /href: "\/sources"/);
   assert.doesNotMatch(navigation, /href: "\/intake"/);
@@ -71,18 +71,16 @@ test("units are marked on folders and members, and the catalog stays read-only",
   assert.match(client, /\/api\/sources\/unit-marks/);
 });
 
-test("search ships with four modes and one small flag per unreachable mode", () => {
-  for (const label of ["Names and paths", "Contents", "Meaning", "Relationships"]) {
-    assert.ok(search.includes(label), `missing search mode ${label}`);
-  }
-  assert.match(search, /not available yet/);
-  // One flag on the mode, never a caveat paragraph or a banner.
-  assert.doesNotMatch(search, /role="alert"/);
+test("Sources uses the shared content retrieval component beside its location filter", () => {
+  assert.match(screen, /<ContextSearch/);
+  assert.match(screen, /Search content and relationships/);
+  assert.match(search, /File names and paths/);
+  assert.doesNotMatch(screen, /searchDiscovery|modeAvailable/);
 });
 
 test("Process is one button and never auto-starts, and no sort or mark gates it", () => {
   assert.match(screen, /Process\s*<\/Button>/);
-  assert.match(screen, /startProffer\(/);
+  assert.match(screen, /processSelection\(entries, startProffer/);
   assert.match(screen, /startProfferBatch\(/);
   assert.match(client, /\/api\/proffer\/start-batch/);
   assert.match(client, /\/api\/proffer\/batches\//);
@@ -92,7 +90,7 @@ test("Process is one button and never auto-starts, and no sort or mark gates it"
 });
 
 test("the Test / Live switch is shown once, in the top bar", () => {
-  assert.match(selector, /TEST: "Test", REAL: "Live"/);
+  assert.match(selector, /DEV: "Dev", LIVE: "Live"/);
   assert.doesNotMatch(screen, /MatterModeSelector/);
   assert.doesNotMatch(intake, /MatterModeSelector/);
 });

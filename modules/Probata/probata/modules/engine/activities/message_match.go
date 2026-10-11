@@ -16,6 +16,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/firstparty"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
@@ -102,6 +103,9 @@ func (a MessageMatchActivities) match(ctx context.Context, req proffer.StageRequ
 			return proffer.StageResult{}, err
 		}
 		return proffer.StageResult{Stage: stage, Status: proffer.StatusNotApplicable, ReceiptRef: receiptRef, Reason: reason}, nil
+	}
+	if input.AIChatSource || contextsearch.IsAIChatFormat(input.Source.DeclaredFormat) {
+		return notApplicable("AI chat records use their source identities and are not matched against human messages")
 	}
 	if len(input.Messages) == 0 {
 		return notApplicable("the normalized generation holds no message records")

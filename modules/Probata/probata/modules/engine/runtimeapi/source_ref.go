@@ -51,9 +51,32 @@ func safeObjectKey(key string) bool {
 	return true
 }
 
+// validSourceVersionQuery admits only the exact object-version selector used by acquisition.
+// Inputs: parsed source URI. Outputs: whether its query is absent or one bounded versionId.
+// Effects: none; choose before root matching so version pins never broaden source authority.
+// Byline: Codex / 2026-10-06.
+func validSourceVersionQuery(parsed *url.URL) bool {
+	if parsed.RawQuery == "" {
+		return !parsed.ForceQuery
+	}
+	if parsed.Scheme == "upload" {
+		return false
+	}
+	query, err := url.ParseQuery(parsed.RawQuery)
+	if err != nil || len(query) != 1 {
+		return false
+	}
+	versions := query["versionId"]
+	return len(versions) == 1 && versions[0] != "" && versions[0] != "null" && len(versions[0]) <= 2048 && !strings.ContainsAny(versions[0], "\r\n\x00")
+}
+
+// validateAuthorizedSourceRef verifies source roots while preserving an optional exact version pin.
+// Inputs: caller source URI. Outputs: admitted provider and object key or error.
+// Effects: reads configured roots; the original URI is forwarded intact to acquisition.
+// Choose for individual import admission; a query never admits a different root.
 func validateAuthorizedSourceRef(value string) (string, string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(value))
-	if err != nil || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.User != nil || parsed.Fragment != "" || !validSourceVersionQuery(parsed) {
 		return "", "", errors.New("source_ref is outside the authorized Case Bible intake roots")
 	}
 	if parsed.Scheme == "upload" && parsed.Path == "" {

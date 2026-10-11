@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package repairplan
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/objectstores"
 )
@@ -52,6 +54,7 @@ const (
 // options and declared format scope the re-entry run, and its source version
 // anchors every step receipt.
 type Anchor struct {
+	OperatingMode    string `json:"operating_mode"`
 	PreviewHandle    string `json:"preview_handle"`
 	RequestID        string `json:"request_id"`
 	WorkflowID       string `json:"workflow_id"`
@@ -88,8 +91,8 @@ type Environment struct {
 	DerivedRoots smsthreads.DerivedRoots
 	Stores       objectstores.Stores
 	SourceRoots  objectstores.Roots
-	// MatterMode classifies a matter identity as TEST or REAL.
-	MatterMode func(matterID, courtCaseID string) (string, bool)
+	// IdentityAdmitted verifies the one case pair and never derives operating mode.
+	IdentityAdmitted func(matterID, courtCaseID string) bool
 }
 
 // ValidatedPlan is the validator's full result. When OK it is exactly what
@@ -516,24 +519,25 @@ func (e Environment) checkDestination(plan Plan, specs []*ToolSpec, location sms
 }
 
 func (e Environment) checkTestLive(plan Plan, anchor *Anchor) (string, bool) {
-	if plan.MatterMode != ModeTest && plan.MatterMode != ModeReal {
-		return `matter_mode must be "TEST" or "REAL".`, false
+	if plan.MatterMode != ModeDev && plan.MatterMode != ModeLive {
+		return "matter_mode must be DEV or LIVE.", false
 	}
 	if anchor == nil {
-		return "Test/Live cannot be proven without the Review run's matter.", false
+		return "Operating mode cannot be proven without the Review run.", false
 	}
-	if e.MatterMode == nil {
-		return "This engine has no TEST/REAL matter identities configured, so the mode cannot be proven.", false
+	if e.IdentityAdmitted == nil {
+		return "No admitted case identity predicate is configured.", false
 	}
-	mode, known := e.MatterMode(anchor.MatterID, anchor.CourtCaseID)
-	if !known {
-		return fmt.Sprintf("Review run %s belongs to matter %q, which is neither the TEST nor the REAL matter.", anchor.PreviewHandle, anchor.MatterID), false
+	if !e.IdentityAdmitted(anchor.MatterID, anchor.CourtCaseID) {
+		return "Review run is not under the approved case identity.", false
 	}
-	if mode != plan.MatterMode {
-		return fmt.Sprintf("The plan says %s but Review run %s belongs to the %s matter.", plan.MatterMode, anchor.PreviewHandle, mode), false
+	if anchor.OperatingMode != plan.MatterMode {
+		return "The plan does not match the Review run's explicit operating_mode receipt.", false
 	}
-	return fmt.Sprintf("The plan is %s and Review run %s belongs to the %s matter; the re-entry run starts under that same "+
-		"matter and court case.", plan.MatterMode, anchor.PreviewHandle, mode), true
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(anchor.OperatingMode)); err != nil {
+		return err.Error(), false
+	}
+	return "LIVE re-entry preserves the approved case identity and existing safety gates.", true
 }
 
 func checkBounded(plan Plan, specs []*ToolSpec) (string, bool) {

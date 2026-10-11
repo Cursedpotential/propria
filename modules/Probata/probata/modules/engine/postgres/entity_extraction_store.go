@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // EntityExtractionStore implements extraction/service.Store over the platform
@@ -16,6 +17,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
+	"io"
 	"strings"
 	"time"
 
@@ -29,7 +32,10 @@ import (
 )
 
 // EntityExtractionStore is the durable extraction seam.
-type EntityExtractionStore struct{ db DB }
+type EntityExtractionStore struct {
+	db               DB
+	aiOriginalOpener func(context.Context, string) (io.ReadCloser, error)
+}
 
 // NewEntityExtractionStore validates the database seam.
 func NewEntityExtractionStore(db DB) (*EntityExtractionStore, error) {
@@ -37,6 +43,21 @@ func NewEntityExtractionStore(db DB) (*EntityExtractionStore, error) {
 		return nil, errors.New("postgres entity extraction store: database is required")
 	}
 	return &EntityExtractionStore{db: db}, nil
+}
+
+// NewEntityExtractionStoreWithAIOriginal equips retained-source review with a sealed original-object reader.
+// Inputs: database and opener for inline/filesystem retained URI. Outputs: extraction store.
+// Effects: none at construction. Choose when AI candidate staging is enabled; the default constructor fails closed.
+func NewEntityExtractionStoreWithAIOriginal(db DB, opener func(context.Context, string) (io.ReadCloser, error)) (*EntityExtractionStore, error) {
+	if opener == nil {
+		return nil, errors.New("AI original opener is required")
+	}
+	store, err := NewEntityExtractionStore(db)
+	if err != nil {
+		return nil, err
+	}
+	store.aiOriginalOpener = opener
+	return store, nil
 }
 
 var _ service.Store = (*EntityExtractionStore)(nil)
@@ -412,16 +433,22 @@ WHERE NOT EXISTS (SELECT 1 FROM context.normalized_record_identity n WHERE n.id 
 // ResolveRun maps a preview handle to its current normalized generation.
 func (s *EntityExtractionStore) ResolveRun(ctx context.Context, previewHandle string) (flow.RunRef, error) {
 	var run flow.RunRef
-	err := s.db.QueryRow(ctx, `SELECT b.preview_handle, s.normalized_generation_id::text, s.source_version_id::text
+	var modeDetail string
+	err := s.db.QueryRow(ctx, `SELECT b.preview_handle, s.normalized_generation_id::text, s.source_version_id::text,
+ COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=b.preview_handle AND event_id=0), '')
 FROM context.proffer_preview_binding b
 JOIN LATERAL (
   SELECT normalized_generation_id, source_version_id FROM context.proffer_preview_snapshot sn
   WHERE sn.preview_handle = b.preview_handle ORDER BY snapshot_seq DESC LIMIT 1
 ) s ON true
-WHERE b.preview_handle = $1`, previewHandle).Scan(&run.PreviewHandle, &run.GenerationID, &run.SourceVersionID)
+JOIN context.source_version version ON version.id=s.source_version_id
+WHERE b.preview_handle = $1 AND version.matter_id=$2::uuid AND version.court_case_id=$3::uuid`, previewHandle, authoritativeMatterID, authoritativeCourtCaseID).Scan(&run.PreviewHandle, &run.GenerationID, &run.SourceVersionID, &modeDetail)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return flow.RunRef{}, fmt.Errorf("run %s has no normalized generation yet: %w", previewHandle, service.ErrNotFound)
 	}
+	admission := previewmodel.Binding{OperatingMode: recordedOperatingMode(modeDetail)}
+	applyBindingAdmission(&admission, modeDetail)
+	run.MatterMode = admission.OperatingMode
 	return run, err
 }
 

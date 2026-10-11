@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 //
 // Conversation extraction and Surreal send routes on the Proffer starter. Same boundary as
@@ -19,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/extraction/flow"
 )
 
@@ -67,6 +69,7 @@ func (h *ConversationExtractionHTTPHandler) extractors(w http.ResponseWriter, _ 
 }
 
 type conversationRequest struct {
+	OperatingMode string                 `json:"operating_mode,omitempty"`
 	MatterID      string                 `json:"matter_id"`
 	Conversations []flow.ConversationRef `json:"conversations"`
 	Extractors    []string               `json:"extractors"`
@@ -84,6 +87,20 @@ func (h *ConversationExtractionHTTPHandler) decode(w http.ResponseWriter, r *htt
 		previewError(w, http.StatusUnprocessableEntity, errors.New("matter_id must be a uuid"))
 		return body, false
 	}
+	mode, err := caseidentity.ParseMode(body.OperatingMode)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return body, false
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return body, false
+	}
+	if !caseidentity.AdmittedIdentity(body.MatterID, caseidentity.AuthoritativeCourtCaseID) {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("conversation request requires the approved matter"))
+		return body, false
+	}
+	body.OperatingMode = string(mode)
 	return body, true
 }
 
@@ -99,6 +116,7 @@ func (h *ConversationExtractionHTTPHandler) extract(w http.ResponseWriter, r *ht
 		return
 	}
 	input := flow.RequestInput{
+		OperatingMode: body.OperatingMode, CourtCaseID: caseidentity.AuthoritativeCourtCaseID,
 		RequestID: flow.DeterministicID("conversation_extraction_request", key, actor.SubjectUID, body.MatterID),
 		MatterID:  body.MatterID, Conversations: body.Conversations, Extractors: body.Extractors,
 		Actor: actor, RequestedAt: h.clock().UTC(),
@@ -136,6 +154,7 @@ func (h *ConversationExtractionHTTPHandler) send(w http.ResponseWriter, r *http.
 	}
 	include := body.IncludeExtractions == nil || *body.IncludeExtractions
 	input := flow.SendInput{
+		OperatingMode: body.OperatingMode, CourtCaseID: caseidentity.AuthoritativeCourtCaseID,
 		RequestID: flow.DeterministicID("surreal_send_request", key, actor.SubjectUID, body.MatterID),
 		MatterID:  body.MatterID, Conversations: body.Conversations, IncludeExtractions: include,
 		Actor: actor, RequestedAt: h.clock().UTC(),

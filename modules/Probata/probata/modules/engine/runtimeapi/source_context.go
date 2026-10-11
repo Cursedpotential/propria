@@ -1,19 +1,19 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (pre-import operating policy)
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (durable inline source context)
 package runtimeapi
 
 import (
-	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/sourcecontext"
 )
 
@@ -41,24 +41,11 @@ func (h *SourceContextHTTPHandler) Routes() http.Handler {
 }
 
 func (h *SourceContextHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-		ip := net.ParseIP(host).To4()
-		serviceToken, tokenErr := loadServiceToken(h.serviceTokenPath)
-		auth := strings.TrimSpace(r.Header.Get("Authorization"))
-		provided := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
-		trusted := tokenErr == nil && strings.HasPrefix(auth, "Bearer ") && hmac.Equal([]byte(provided), serviceToken)
-		if err != nil || ip == nil || ip[0] != 100 || ip[1] < 64 || ip[1] > 127 || !trusted {
-			previewError(w, http.StatusUnauthorized, errors.New("proffer source context tailnet authorization required"))
-			return
-		}
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		next(w, r)
-	}
+	return profferServiceAuth(h.serviceTokenPath, "proffer source context service authorization required", next)
 }
 
 type sourceContextRequest struct {
+	OperatingMode  string                        `json:"operating_mode,omitempty"`
 	RequestID      string                        `json:"request_id"`
 	MatterID       string                        `json:"matter_id"`
 	CourtCaseID    string                        `json:"court_case_id"`
@@ -76,6 +63,20 @@ func (h *SourceContextHTTPHandler) create(w http.ResponseWriter, r *http.Request
 		previewError(w, http.StatusBadRequest, err)
 		return
 	}
+	mode, err := caseidentity.ParseMode(req.OperatingMode)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if err := caseidentity.RequireCanonicalWrite(mode); err != nil {
+		previewError(w, http.StatusConflict, err)
+		return
+	}
+	if !caseidentity.AdmittedIdentity(req.MatterID, req.CourtCaseID) {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("source context requires the exact approved matter and court case"))
+		return
+	}
+	req.OperatingMode = string(mode)
 	actor, username, err := authenticatedActor(r)
 	if err != nil {
 		previewError(w, http.StatusUnauthorized, err)
@@ -96,7 +97,8 @@ func (h *SourceContextHTTPHandler) create(w http.ResponseWriter, r *http.Request
 		return
 	}
 	spec := sourcecontext.Spec{
-		RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID,
+		OperatingMode: req.OperatingMode,
+		RequestID:     req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID,
 		SourceRef: req.SourceRef, SupersedesRef: req.SupersedesRef,
 		ObservedSource: req.ObservedSource, Assertions: req.Assertions,
 		ChangeReason: req.ChangeReason, ActorSubjectUID: actor, ActorUsername: username,

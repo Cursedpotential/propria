@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // The repair routes through PreviewHTTPHandler.Routes(): same tailnet +
@@ -37,10 +38,11 @@ func (a repairAnchors) ResolveAnchor(_ context.Context, sourceRef, handle string
 		return repairplan.Anchor{}, repairplan.ErrAnchorNotFound
 	}
 	return repairplan.Anchor{
+		OperatingMode: "LIVE",
 		PreviewHandle: repairTestHandle, RequestID: "r", WorkflowID: "r", SourceRef: repairTestSource,
 		SourceVersionID: "0199aaaa-0000-7000-8000-000000000001", DeclaredFormat: "smsbackuprestore_xml",
 		ParserOptionsRef: "pending-handler-selection/v1",
-		MatterID:         "deadbeef-dead-beef-dead-beefdeadbeef", CourtCaseID: "cafebabe-cafe-babe-cafe-babecafebabe",
+		MatterID:         "01a0f751-e07b-75cc-9ad5-63ad9449a8ba", CourtCaseID: "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
 		RepairReport: json.RawMessage(`{"clean":false,"truncated":true}`),
 	}, nil
 }
@@ -64,7 +66,7 @@ func (r *repairRuns) PlanStatus(_ context.Context, workflowID string) (repairpla
 	}
 	handle := repairTestHandle
 	return repairplan.RunStatus{WorkflowID: workflowID, PlanID: "plan-0001-abcd", PreviewHandle: &handle,
-		MatterMode: repairplan.ModeTest, Status: repairplan.RunRunning}, nil
+		MatterMode: repairplan.ModeLive, Status: repairplan.RunRunning}, nil
 }
 
 func repairHandler(t *testing.T, anchors repairplan.AnchorResolver, runs *repairRuns) http.Handler {
@@ -76,8 +78,8 @@ func repairHandler(t *testing.T, anchors repairplan.AnchorResolver, runs *repair
 		Env: repairplan.Environment{
 			Registry: repairplan.DefaultRegistry(), Anchors: anchors,
 			Stores: objectstores.Stores{"b2": "/run/secrets/b2.json"}, SourceRoots: roots,
-			MatterMode: func(matter, court string) (string, bool) {
-				return repairplan.ModeTest, matter == "deadbeef-dead-beef-dead-beefdeadbeef"
+			IdentityAdmitted: func(matter, court string) bool {
+				return matter == "01a0f751-e07b-75cc-9ad5-63ad9449a8ba" && court == "01a0f751-e07b-76a1-a738-eb3e3aa3e68c"
 			},
 		},
 		Runs: runs,
@@ -92,7 +94,7 @@ func planBody(activities ...string) []byte {
 	}
 	body, _ := json.Marshal(map[string]any{
 		"plan_id": "plan-0001-abcd", "source_ref": repairTestSource, "preview_handle": repairTestHandle,
-		"matter_mode": "TEST", "steps": steps,
+		"matter_mode": "LIVE", "steps": steps,
 	})
 	return body
 }
@@ -187,7 +189,7 @@ func TestRepairValidateRoute(t *testing.T) {
 
 	for name, body := range map[string][]byte{
 		"malformed json":   []byte(`{"plan_id":`),
-		"bad matter mode":  []byte(strings.Replace(string(planBody("repair.salvage_truncated_xml")), `"TEST"`, `"LIVE"`, 1)),
+		"bad matter mode":  []byte(strings.Replace(string(planBody("repair.salvage_truncated_xml")), `"LIVE"`, `"invalid"`, 1)),
 		"an unknown field": []byte(strings.Replace(string(planBody("repair.salvage_truncated_xml")), `"matter_mode"`, `"extra":1,"matter_mode"`, 1)),
 	} {
 		bad := servePreview(routes, http.MethodPost, "/reference-import/repair/validate", body)

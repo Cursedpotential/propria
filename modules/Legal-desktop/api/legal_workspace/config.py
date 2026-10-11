@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import re
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,7 +33,7 @@ class Settings(BaseSettings):
     evidence_platform_base_url: str = Field(default="http://evidence-platform:8000")
     probata_records_base_url: str = Field(default="", alias="PROBATA_RECORDS_BASE_URL")
     probata_records_token_file: str = Field(default="", alias="PROBATA_RECORDS_TOKEN_FILE")
-    probata_records_mode: str = Field(default="REAL", pattern="^(REAL|TEST)$", alias="PROBATA_RECORDS_MODE")
+    probata_records_mode: Literal["DEV", "LIVE"] = Field(default="LIVE", alias="PROBATA_RECORDS_MODE")
     model_gateway_base_url: str = Field(default="http://model-gateway:4000")
     legal_renderer_base_url: str = Field(default="http://legal-renderer:3000")
     database_url: str = Field(default_factory=default_sqlite_url)
@@ -73,6 +74,16 @@ class Settings(BaseSettings):
     # is the console's MCP_BEARER_TOKEN and never leaves the API. Claude Code · Opus 5.5 · 2026-10-02.
     family_court_console_mcp_url: str = Field(default="", alias="FAMILY_COURT_CONSOLE_MCP_URL")
     family_court_console_mcp_token: str = Field(default="", alias="FAMILY_COURT_CONSOLE_MCP_TOKEN")
+
+    @field_validator("probata_records_mode", mode="before")
+    @classmethod
+    def canonical_probata_records_mode(cls, value: str) -> str:
+        """Map legacy deployment values to the operating mode sent to Probata.
+
+        Input: PROBATA_RECORDS_MODE. Output: DEV or LIVE. Side effects: none.
+        Use this only for rollout compatibility; unknown values fail validation.
+        """
+        return {"TEST": "DEV", "REAL": "LIVE"}.get(value, value)
 
     @field_validator(
         "consignatio_catalog_url",

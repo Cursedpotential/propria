@@ -3,17 +3,11 @@
 // /intake stays a reachable route, off the navigation.)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01 (Case: people and identifiers over registry, step 6)
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02 (Conversations: Extract and Send to Surreal on the desktop)
-import { FileSearch, FolderTree, LayoutDashboard, MessagesSquare, Users } from "lucide-react";
+// Byline: Codex · GPT-6 · 2026-10-06 — the ratified Sources → Activity → Read workflow.
+import { Activity, BookOpen, FolderTree, Users } from "lucide-react";
 import type { WorkbenchNavigationItem } from "@/platform-ui/navigation";
 
 export const primaryNavigationItems = [
-  {
-    title: "Desk",
-    pageTitle: "Context Intake Desk",
-    href: "/",
-    icon: LayoutDashboard,
-    surface: "primary",
-  },
   {
     title: "Sources",
     pageTitle: "Sources",
@@ -22,17 +16,17 @@ export const primaryNavigationItems = [
     surface: "primary",
   },
   {
-    title: "Conversations",
-    pageTitle: "Imported conversations — extract and send",
-    href: "/conversations",
-    icon: MessagesSquare,
+    title: "Activity",
+    pageTitle: "Activity",
+    href: "/activity",
+    icon: Activity,
     surface: "primary",
   },
   {
-    title: "Review",
-    pageTitle: "Review extracted context",
-    href: "/review",
-    icon: FileSearch,
+    title: "Read",
+    pageTitle: "Read",
+    href: "/read",
+    icon: BookOpen,
     surface: "primary",
   },
   {

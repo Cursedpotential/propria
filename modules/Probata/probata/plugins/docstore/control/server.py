@@ -325,13 +325,13 @@ def build_server(config: Config, transport=None) -> FastMCP:
             raise ToolError("Compact rendering failed; use the original retrieval tool") from None
 
     async def document(record_id: str):
-        if not re.fullmatch(r"(?:document:)?[A-Za-z0-9_-]{1,128}", record_id):
+        if not re.fullmatch(r"(?:document:)?[A-Za-z0-9_-]{1,128}|docstore_document:[a-f0-9]{64}", record_id):
             raise ToolError("Unsupported document record ID syntax")
         return await get("/doc/" + quote(record_id, safe=""))
 
     @mcp.tool(annotations={**READ, "title": "Get document"})
     async def docstore_get(record_id: str) -> dict:
-        """Retrieve a document by returned record ID; preserves status and body."""
+        """Retrieve a projection or governed revision by returned ID; accepts legacy document IDs or emitted revision-state IDs, returns the current record and body, and reads through the Docstore API rather than the database directly."""
         return await document(record_id)
 
     @mcp.tool(annotations={**READ, "title": "Docstore graph"})

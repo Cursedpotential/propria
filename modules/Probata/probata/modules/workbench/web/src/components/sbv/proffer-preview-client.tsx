@@ -6,6 +6,7 @@
 import { ChevronLeft, CircleDot, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useRouter } from "@tanstack/react-router";
 
 import { ProfferOperatorPreview } from "@/components/sbv/proffer-operator-preview";
 import { ReviewResourceList } from "@/components/sbv/review-resource-list";
@@ -27,7 +28,9 @@ import {
 } from "@/lib/api-client";
 import { PROFFER_CONTEXT_CHECKPOINTS, profferContextFlowComplete } from "@/lib/proffer-context-checkpoints";
 import { useFixedCase } from "@/lib/fixed-case-context";
-import { AppLink } from "@/lib/router-compat";
+import { parseOperatingMode } from "@/lib/operating-mode";
+import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
+import { previewSelectionHref } from "@/lib/workflow-links";
 import type {
   ProfferPreviewEvent,
   ProfferPreviewMessage,
@@ -44,10 +47,10 @@ import type {
 // Shown as one small line inside the Decision block while Approve is locked.
 const APPROVAL_LOCK_REASON = "Approval remains locked until this exact attempt has normalized records, source locators, and every required completed receipt.";
 
-function initialHandle(mode: "TEST" | "REAL") {
+function initialHandle(mode: "DEV" | "LIVE") {
   if (typeof window === "undefined") return "";
   const query = new URLSearchParams(window.location.search);
-  if (query.get("mode") !== mode) return "";
+  if (parseOperatingMode(query.get("mode")) !== mode) return "";
   return (query.get("resource") ?? query.get("preview_handle") ?? query.get("attempt"))?.trim() ?? "";
 }
 
@@ -56,7 +59,9 @@ export function ProfferPreviewClient() {
   return <ModeScopedPreviewClient key={mode} mode={mode} />;
 }
 
-function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
+function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
+  const router = useRouter();
+  const routeParams = useBrowserSearchParams();
   const [initialUrlHandle] = useState(() => initialHandle(mode));
   const [previewHandle, setPreviewHandle] = useState(initialUrlHandle);
   const [resources, setResources] = useState<ProfferProposalResource[]>([]);
@@ -125,24 +130,18 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
 
   const selectResource = useCallback((handle: string) => {
     activateHandle(handle);
-    const url = new URL(window.location.href);
-    url.search = "";
-    url.searchParams.set("mode", mode);
-    if (handle) url.searchParams.set("resource", handle);
-    window.history.replaceState({}, "", url);
-  }, [activateHandle, mode]);
+    void router.navigate({ href: previewSelectionHref(window.location.search, handle, mode), replace: true });
+  }, [activateHandle, mode, router]);
 
+  // Byline: Codex · GPT-6 · 2026-10-06. External links update the attempt without
+  // remounting pending repair answers when this component initiates navigation.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const handle = initialHandle(mode);
-      const url = new URL(window.location.href);
-      url.search = "";
-      url.searchParams.set("mode", mode);
-      if (handle) url.searchParams.set("resource", handle);
-      window.history.replaceState({}, "", url);
-    }, 0);
+    if (parseOperatingMode(routeParams.get("mode")) !== mode) return;
+    const handle = (routeParams.get("resource") ?? routeParams.get("preview_handle") ?? routeParams.get("attempt"))?.trim() ?? "";
+    if (!handle || handle === activeHandleRef.current) return;
+    const timer = window.setTimeout(() => activateHandle(handle), 0);
     return () => window.clearTimeout(timer);
-  }, [mode]);
+  }, [activateHandle, mode, routeParams]);
 
   const loadResources = useCallback(async () => {
     resourcesControllerRef.current?.abort();
@@ -321,7 +320,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "TEST" | "REAL" }) {
         if (generation !== generationRef.current || activeHandleRef.current !== previewHandle) return;
         const event = JSON.parse(raw.data) as ProfferPreviewEvent;
         if (event.preview_handle !== previewHandle) throw new Error("Preview event correlation failed");
-        if (event.matter_mode !== mode) throw new Error("Preview event crossed the active TEST/REAL boundary");
+        if (event.matter_mode !== mode) throw new Error("Preview event crossed the active DEV/LIVE boundary");
         setEvents((current) => [...current.filter((item) => item.event_id !== event.event_id), event]
           .sort((left, right) => left.event_id - right.event_id)
           .slice(-100));

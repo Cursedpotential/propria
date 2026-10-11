@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request
+from fastapi import APIRouter, HTTPException, Path, Request
 
+from app.runtime.operating_mode import OperatingMode
 from app.service.proffer_cancel import cancel
 from app.service.proffer_errors import ProfferError
-from app.types.matter_mode import MatterMode
 from app.types.proffer import ProfferDecisionActor
 from app.types.proffer_cancel import ProfferCancelRequest, ProfferCancelResponse
 
@@ -36,7 +36,7 @@ async def cancel_endpoint(
     preview_handle: PreviewHandle,
     body: ProfferCancelRequest,
     request: Request,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     actor = _actor(request)
     try:

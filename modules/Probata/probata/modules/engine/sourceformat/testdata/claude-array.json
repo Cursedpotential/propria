@@ -1,0 +1,12 @@
+[
+ {"uuid":"conv-1","name":"Synthetic native Claude","created_at":"2026-10-01T00:00:00Z","custom_conversation_field":{"keep":true},"chat_messages":[
+  {"uuid":"m-1","sender":"human","created_at":"2026-10-01T01:00:00Z","text":"Native human text","content":[{"type":"text","text":"must not replace text"}],"custom_native":"retained"},
+  {"uuid":"m-2","sender":"assistant","created_at":"2026-10-01T01:01:00.123Z","text":"","content":[{"type":"text","text":"Block one"},{"type":"tool_use","name":"calculator","input":{"x":2}},{"type":"text","text":"Block two"}]},
+  {"uuid":"m-3","sender":"human","created_at":"2026-10-01T01:02:00Z","text":"","attachments":[{"file_name":"synthetic.png","file_size":12}],"files":[{"uuid":"f-1","file_name":"synthetic.pdf"}]},
+  {"uuid":"m-4","sender":"assistant","created_at":"2026-10-01T01:03:00Z","content":[{"type":"tool_result","content":{"ok":true}},{"type":"image","source":{"type":"url","url":"https://example.invalid/test.png"}}]},
+  {"uuid":"m-5","sender":"assistant","created_at":"invalid-native-time","text":""},
+  {"uuid":"m-6","sender":"system","created_at":null,"content":[{"type":"text","text":"  unknown sender retained  "}]}
+ ]},
+ {"uuid":"conv-2","name":"Second conversation","chat_messages":[{"uuid":"m-7","sender":"human","created_at":"2026-10-01T02:00:00-04:00","text":"Unicode 😀 café quote ' preserved"}]},
+ {"uuid":"conv-empty","name":"Empty conversation","chat_messages":[]}
+]

@@ -44,6 +44,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/contextthread"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/disclosure"
@@ -170,8 +171,14 @@ type Plan struct {
 
 // Build plans one generation against its recorded participant resolution.
 // It refuses an incomplete identity, a resolution made for other people, an
-// unregistered platform, and a record that cannot be projected.
+// unregistered platform, AI conversation provenance, and a record that cannot be projected.
+// Inputs: verified source, normalized messages, explicit identity and recorded participant resolution.
+// Outputs: a deterministic messaging plan or validation error. Side effects: none.
+// Pick for human messaging projections; AI conversations retain their separate context-search route.
 func Build(identity contextthread.Identity, source Source, records []SourceMessage, resolution disclosure.Resolution) (Plan, error) {
+	if contextsearch.IsAIChatFormat(source.DeclaredFormat) {
+		return Plan{}, errors.New("AI chat sources remain AI context and are not first-party messaging")
+	}
 	if err := identity.Validate(); err != nil {
 		return Plan{}, err
 	}

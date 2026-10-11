@@ -23,12 +23,14 @@ from pathlib import Path
 
 from app.config import settings
 from app.runtime import (
+    atomic_tool_actions,
     case_identity,
     case_management,
     chat,
     classification,
     compare,
     conversation_actions,
+    context_sources,
     copilot,
     documents,
     entity_extraction,
@@ -45,6 +47,7 @@ from app.runtime import (
     proffer_resources,
     promote,
     repairs,
+    retrieval,
     review_overlays,
     run_events,
     runs,
@@ -59,7 +62,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import FileResponse
+from starlette.requests import Request
+from starlette.responses import FileResponse, JSONResponse
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workbench")
@@ -115,14 +119,35 @@ Workbench are not accepted. Only `/health` is public.
     ],
 )
 
+
+async def development_write_guard(request: Request, call_next):
+    """Deny Dev API mutations before any downstream engine or spine dispatch.
+
+    Inputs: request mode query and HTTP method. Output: 409/422 or downstream response.
+    Side effects: none on rejection. Use until a genuinely isolated Dev data
+    workspace is implemented; this is not an authorization substitute.
+    """
+    if request.url.path.startswith("/api/") and request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        operating_mode = request.query_params.get("mode")
+        if operating_mode is not None and operating_mode not in {"DEV", "LIVE", "TEST", "REAL"}:
+            return JSONResponse({"detail": "Unknown operating mode"}, status_code=422)
+        if operating_mode in {"DEV", "TEST"}:
+            return JSONResponse(
+                {"detail": "Development writes require an isolated data workspace; no canonical write was dispatched"},
+                status_code=409,
+            )
+    return await call_next(request)
+
 # Request timing + in-process metrics counters (app.runtime.metrics)
 app.add_middleware(BaseHTTPMiddleware, dispatch=metrics.timing_middleware)
+app.add_middleware(BaseHTTPMiddleware, dispatch=development_write_guard)
 # Added after timing so authentication is the outermost boundary around API,
 # documentation, and the static frontend alike.
 app.add_middleware(BaseHTTPMiddleware, dispatch=authentication_middleware)
 
 app.include_router(health.router)
 app.include_router(intake_discovery.router)
+app.include_router(retrieval.router)
 app.include_router(upload.router)
 app.include_router(proffer.router)
 app.include_router(proffer_batch.router)
@@ -140,6 +165,8 @@ app.include_router(run_events.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
 app.include_router(conversation_actions.router)  # /api/extractors, /api/imported/threads/{extract,send-to-surreal,.../extractions}, /api/imported/workflows/* (Claude Code · Sonnet 5.5 · 2026-10-02)
+app.include_router(context_sources.router)  # explicit AI-chat source refs -> Go context Temporal workflow
+app.include_router(atomic_tool_actions.router)  # actor-bound source tool start/status through Proffer
 app.include_router(imported.router)  # /api/imported/* — the mobile Imported view, read-only (Claude Code · Sonnet · 2026-10-02)
 app.include_router(case_management.router)
 app.include_router(case_identity.router)  # /api/case-identity/* — the Case page over registry (Claude Code · Opus 5.5 · 2026-10-01)

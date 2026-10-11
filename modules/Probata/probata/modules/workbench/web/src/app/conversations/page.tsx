@@ -100,7 +100,7 @@ function Messages({ threadId }: { threadId: string }) {
         ? <LoadMore onClick={() => void query.fetchNextPage()} loading={query.isFetchingNextPage} label="Load earlier messages" />
         : <p className="py-2 text-center text-xs text-muted-foreground">Start of this conversation</p>}
       {messages.map((message, index) => (
-        <MessageBubble key={message.id} row={toMessageRow(message, index)} previewHandle="" mode="REAL" showSenderLabel={!message.outgoing} highlighted={false} />
+        <MessageBubble key={message.id} row={toMessageRow(message, index)} previewHandle="" mode="LIVE" showSenderLabel={!message.outgoing} highlighted={false} />
       ))}
     </div>
   );

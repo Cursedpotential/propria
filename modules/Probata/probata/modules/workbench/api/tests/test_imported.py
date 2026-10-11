@@ -5,7 +5,7 @@ Byline: Claude Code · Sonnet · 2026-10-02
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from app.repo import imported_pg as pg
@@ -28,6 +28,7 @@ PEOPLE = [
 def _fresh(monkeypatch):
     service._cache.clear()
     monkeypatch.setattr(service.settings, "proffer_real_matter_id", MATTER)
+    monkeypatch.setattr(service.settings, "proffer_matter_id", MATTER)
     monkeypatch.setattr(pg, "people", lambda: PEOPLE)
 
 
@@ -46,7 +47,7 @@ def test_opaque_ids_round_trip_and_reject_garbage():
 
 
 def test_cursor_rejects_a_forged_value():
-    ts = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    ts = datetime(2026, 1, 1, tzinfo=UTC)
     cursor = service._cursor_encode(ts, "01a0fd2b-02bd-78ea-874e-dc97c6edd63b")
     assert service._cursor_decode(cursor) == (ts.isoformat(), "01a0fd2b-02bd-78ea-874e-dc97c6edd63b")
     with pytest.raises(service.ImportedError):
@@ -97,7 +98,7 @@ def test_a_versions_own_status_prefers_the_publish_receipt_and_never_guesses_wit
 
 
 def _version(i, key, *, raw=1, norm=1, approved=False, published=False, ordinal=1, msgs=None, calls=0, source=None):
-    ts = datetime(2026, 10, 2, 12, i, tzinfo=timezone.utc)
+    ts = datetime(2026, 10, 2, 12, i, tzinfo=UTC)
     return {"id": f"v{i}", "source_key": key, "export_key": key.split(".derived/")[0], "acquired_at": ts, "version_ordinal": ordinal,
             "published": published, "raw_n": raw, "norm_n": norm, "msgs": norm if msgs is None else msgs, "calls": calls,
             "first_at": ts, "last_at": ts, "approved": approved, "rejected": False}
@@ -205,7 +206,7 @@ def test_number_status_tells_named_placeholder_and_unknown_apart():
 
 
 def test_number_records_show_each_message_and_call_with_its_source_and_thread(monkeypatch):
-    ts = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+    ts = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
     base = {"source_key": KEY + ".derived/threads/8102595720.0001.ndjson", "export_key": KEY, "conv": "8102595720", "certainty": "exact",
             "projection_kind": None, "has_attachments": False, "attachment_count": 0, "source_version_id": "v1"}
     rows = [

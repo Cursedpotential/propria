@@ -6,6 +6,7 @@ Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from app.repo import imported_pg as pg
@@ -43,7 +44,7 @@ CALLS = {
 @pytest.fixture(autouse=True)
 def _fresh(monkeypatch):
     service._cache.clear()
-    monkeypatch.setattr(service.settings, "proffer_real_matter_id", MATTER)
+    monkeypatch.setattr(service.settings, "proffer_matter_id", MATTER)
     monkeypatch.setattr(pg, "people", lambda: PEOPLE)
     monkeypatch.setattr(pg, "versions_to_threads", lambda matter, ids: [
         {"id": SV, "export_key": KEY, "conv": "8102689630"}] if SV in ids else [])
@@ -86,6 +87,18 @@ def test_search_targets_the_chunk_collection_and_filters_to_the_live_matter(monk
     assert "ProfferMsgEvents" not in body["query"]
 
 
+def test_deployment_uses_the_chunk_reader_collection():
+    """Reject deployment drift that makes Read query chunk fields on raw events.
+
+    Input: tracked Workbench compose. Output: matching reader collection. No
+    network or writes; this checks the deployment boundary omitted by unit mocks.
+    """
+    compose = Path(__file__).resolve().parents[4] / "deploy" / "workbench.yaml"
+    value = next(line.split(":", 1)[1].strip() for line in compose.read_text(encoding="utf-8").splitlines()
+                 if line.strip().startswith("IMPORTED_WEAVIATE_CLASS:"))
+    assert value == service.settings.imported_weaviate_class
+
+
 def test_a_chunk_hit_opens_its_thread_at_the_first_message_with_the_matching_lines(monkeypatch):
     sent: list = []
     _weaviate(monkeypatch, [CHUNK, CALLS], sent)
@@ -107,3 +120,28 @@ def test_snippet_and_names_label_edges():
     assert len(service._snippet(long, "x")) <= 424
     assert service._names_label([]) == "Unknown"
     assert service._names_label(["A", "B", "C", "D", "A"]) == "A, B, C +1"
+
+
+def test_search_keeps_all_chunk_source_versions_and_distinct_object_identities(monkeypatch):
+    """Synthetic overlapping chunks keep provenance without inventing missing locators."""
+    first, second = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+    resolved = "b2://synthetic/original-one.txt"
+    requested = []
+    def resolve(matter, ids):
+        requested.extend(ids)
+        return [{"id": first, "export_key": resolved, "conv": "synthetic"}]
+    monkeypatch.setattr(pg, "versions_to_threads", resolve)
+    monkeypatch.setattr(service, "describe_export", lambda *args: {"file_name": "original-one.txt", "format": "Other", "device": None})
+    hits = [{"text": "same synthetic passage", "source_version_ids": [first, second],
+             "source_version_id": first, "participant_names": [],
+             "_additional": {"id": object_id, "score": 1}}
+            for object_id in ("chunk-one", "chunk-two")]
+    sent = []
+    _weaviate(monkeypatch, hits, sent)
+    body = TestClient(_app()).get("/api/imported/search", params={"q": "synthetic passage"}).json()
+    assert requested == [first, second]
+    assert [item["object_id"] for item in body["items"]] == ["chunk-one", "chunk-two"]
+    assert all(item["source_version_ids"] == [first, second] for item in body["items"])
+    assert body["items"][0]["source_versions"] == [
+        {"id": first, "source_uri": resolved}, {"id": second, "source_uri": None}]
+    assert "_additional { id score }" in sent[0][1]["query"]

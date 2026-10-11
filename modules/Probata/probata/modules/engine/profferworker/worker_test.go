@@ -12,6 +12,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/atomictool"
 	"github.com/Cursedpotential/probata/engine/contacts"
 	"github.com/Cursedpotential/probata/engine/dedupe"
 	"github.com/Cursedpotential/probata/engine/proffer"
@@ -60,11 +61,14 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: ledger comparison workflow (Codex, 2026-10-04).
 	// +1: separate recovered-archive preservation workflow (Codex, 2026-10-04).
 	// +1: independent synthetic provider probe (Codex, 2026-10-04).
-	if recorder.workflowCount != 14 {
-		t.Fatalf("workflow registration count = %d, want 14", recorder.workflowCount)
+	// +1: reuse an existing verified AI generation after a content-stage failure.
+	// +1: operator-started source-pinned atomic tool action.
+	if recorder.workflowCount != 17 {
+		t.Fatalf("workflow registration count = %d, want 17", recorder.workflowCount)
 	}
 	wantNamed := []string{
-		proffer.BatchWorkflowName, proffer.CallLogBackfillWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
+		proffer.AIContentResumeWorkflowName,
+		proffer.BatchWorkflowName, atomictool.WorkflowName, proffer.CallLogBackfillWorkflowName, proffer.SourceIntegrityWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
 		proffer.ConversationChunksRemovalWorkflowName, dedupe.WorkflowName, superindex.WorkflowName, repairplan.WorkflowName, contacts.WorkflowName, activities.ToolkitPackageInventoryWorkflowName, activities.ToolkitSelectedTextWorkflowName, activities.ToolkitLedgerComparisonWorkflowName,
 		activities.ToolkitPackagePreservationWorkflowName,
 		activities.ToolkitPackageConditionalWriteProbeWorkflowName,
@@ -88,11 +92,15 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: ledger comparison Activity (Codex, 2026-10-04).
 	// +2: preservation copy and independent verification (Codex, 2026-10-04).
 	// +1: synthetic provider probe (Codex, 2026-10-04).
-	const standaloneActivityCount = 35
+	// +1: independent source integrity; base graph remains 26 stages. Byline: Codex, 2026-10-06.
+	// +1: source-pinned atomic tool action; no direct browser-to-gateway execution.
+	// +1: exact native AI candidate bundle staging into the existing owner review store.
+	// +3: context source registration, package retention and package cataloging.
+	const standaloneActivityCount = 41
 	const batchActivityCount = 4
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 35 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 41 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0
@@ -122,6 +130,17 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	registered := make(map[string]int, len(recorder.names))
 	for _, name := range recorder.names {
 		registered[name]++
+	}
+	for _, name := range []string{"context_register_source_activity", activities.AIContextPackageActivityName, activities.AIContextCatalogActivityName} {
+		if registered[name] != 1 {
+			t.Errorf("context source/package Activity %q registered %d times", name, registered[name])
+		}
+	}
+	if registered[atomictool.ActivityName] != 1 {
+		t.Fatal("source-pinned atomic tool Activity must be registered exactly once")
+	}
+	if registered["stage_ai_candidate_bundle_activity"] != 1 {
+		t.Fatal("native AI candidate staging Activity must be registered exactly once")
 	}
 	if registered[activities.ToolkitPackageInventoryActivityName] != 1 {
 		t.Fatal("native toolkit inventory Activity must be registered exactly once")

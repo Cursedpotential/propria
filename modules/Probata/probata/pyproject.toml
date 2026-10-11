@@ -76,6 +76,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Read-only context composition; no indexing extras or default model-provider integration.
+# Byline: Codex · GPT-6.1-Sol · 2026-10-06. Install on the existing runtime before wiring its read port.
+retrieval = ["llama-index-core==0.14.25", "langgraph==1.2.14"]
 # sqlparse: declared here because it wasn't declared anywhere (pytest collection
 # audit, 2026-09-26). tests/test_00NN_*.py and friends `import sqlparse`
 # unconditionally to tokenize migration SQL; with it absent, collection raised

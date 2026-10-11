@@ -20,6 +20,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { addPlaceholders, editPerson, mergePerson, newIdempotencyKey } from "@/lib/case-identity-client";
 import { importedApi } from "@/lib/imported-client";
+import { useOperatingMode } from "@/lib/fixed-case-context";
 import { cn } from "@/lib/utils";
 
 export { prettyNumber };
@@ -72,6 +73,7 @@ export function WhoIsThisSheet({ open, onOpenChange, number, label, currentName,
   entityId: string | null; candidates: string[]; context: string;
 }) {
   const client = useQueryClient();
+  const operatingMode = useOperatingMode();
   const [mode, setMode] = useState<"name" | "same">("name");
   const [name, setName] = useState(currentName ?? "");
   const [role, setRole] = useState("third_party");
@@ -96,7 +98,7 @@ export function WhoIsThisSheet({ open, onOpenChange, number, label, currentName,
   async function ensurePerson(): Promise<string> {
     if (entityId) return entityId;
     if (!number) throw new Error("This person has no number to start from.");
-    const made = await addPlaceholders({ numbers: [number], change_reason: `number seen in ${context}, identified from the Workbench` }, newIdempotencyKey("placeholder"));
+    const made = await addPlaceholders({ numbers: [number], change_reason: `number seen in ${context}, identified from the Workbench` }, newIdempotencyKey("placeholder"), operatingMode);
     const created = made.detail?.entity_ids?.[number] ?? Object.values((await importedApi.numberStatus([number])).items)[0]?.entity_id ?? null;
     if (!created) throw new Error("The person for this number could not be found. Try again.");
     return created;
@@ -118,7 +120,7 @@ export function WhoIsThisSheet({ open, onOpenChange, number, label, currentName,
 
   const mergeInto = (targetId: string, targetName: string, reason: string) => run(async () => {
     const personId = await ensurePerson();
-    await mergePerson(personId, { into_id: targetId, change_reason: `owner: ${shown} ${reason} (seen in ${context})` }, newIdempotencyKey("merge"));
+    await mergePerson(personId, { into_id: targetId, change_reason: `owner: ${shown} ${reason} (seen in ${context})` }, newIdempotencyKey("merge"), operatingMode);
     return `Saved. ${shown} is now ${targetName}.`;
   });
 
@@ -129,7 +131,7 @@ export function WhoIsThisSheet({ open, onOpenChange, number, label, currentName,
       verification_state: "confirmed", requires_human_review: "false", review_status: "approved",
     };
     if (note.trim()) fields.relationship_type = note.trim().slice(0, 200);
-    await editPerson(personId, { fields, change_reason: `named by the owner (seen in ${context})` }, newIdempotencyKey("name"));
+    await editPerson(personId, { fields, change_reason: `named by the owner (seen in ${context})` }, newIdempotencyKey("name"), operatingMode);
     return `Saved. ${shown} is ${name.trim()}.`;
   });
 
@@ -139,7 +141,7 @@ export function WhoIsThisSheet({ open, onOpenChange, number, label, currentName,
     await editPerson(personId, {
       fields: { verification_state: "confirmed", requires_human_review: "false", review_status: "approved" },
       change_reason: `owner confirmed the contact-export mapping (seen in ${context})`,
-    }, newIdempotencyKey("confirm"));
+    }, newIdempotencyKey("confirm"), operatingMode);
     return `Confirmed. ${shown} is ${currentName}.`;
   });
 

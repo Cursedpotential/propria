@@ -1,4 +1,9 @@
 #!/bin/bash
+# Generate pinned Platform runtime requirements, including the shipped retrieval composition.
+# Inputs: optional "upgrade" argument and pyproject.toml base/retrieval dependencies.
+# Output: requirements.txt for Python 3.12/Linux; effects: package metadata reads and replacement of that file.
+# Pick standard mode to retain existing pins, upgrade mode only for an intentional dependency refresh.
+# Byline: Codex · GPT-6.1-Sol · 2026-10-06.
 
 ############################################################################
 #
@@ -36,7 +41,8 @@ REPO_ROOT="$(dirname "${CURR_DIR}")"
 #   Python 3.12.8 · linux · x86_64 · glibc 2.36
 # Keep these in step with docker/postgres + the app image base if they change.
 PYTHON_VERSION="3.12"
-PYTHON_PLATFORM="x86_64-manylinux2014"
+# Match the documented glibc 2.36 runtime; existing greenlet pins have no manylinux2014 wheel.
+PYTHON_PLATFORM="x86_64-manylinux_2_36"
 
 # Colors
 ORANGE='\033[38;5;208m'
@@ -48,24 +54,24 @@ echo ""
 echo -e "    ${ORANGE}▸${NC} ${BOLD}Generating requirements.txt${NC}"
 echo ""
 
-if [[ "$1" = "upgrade" ]]; then
+if [[ "${1:-}" = "upgrade" ]]; then
     echo -e "    ${DIM}Mode: upgrade${NC}"
-    echo -e "    ${DIM}> uv pip compile pyproject.toml --no-cache --upgrade --python-version ${PYTHON_VERSION} --python-platform ${PYTHON_PLATFORM} -o requirements.txt${NC}"
+    echo -e "    ${DIM}> uv pip compile pyproject.toml --extra retrieval --no-cache --upgrade --python-version ${PYTHON_VERSION} --python-platform ${PYTHON_PLATFORM} -o requirements.txt${NC}"
     echo ""
     UV_CUSTOM_COMPILE_COMMAND="./scripts/generate_requirements.sh upgrade" \
-        uv pip compile ${REPO_ROOT}/pyproject.toml --no-cache --upgrade \
+        uv pip compile "${REPO_ROOT}/pyproject.toml" --extra retrieval --no-cache --upgrade \
             --python-version "${PYTHON_VERSION}" \
             --python-platform "${PYTHON_PLATFORM}" \
-            -o ${REPO_ROOT}/requirements.txt
+            -o "${REPO_ROOT}/requirements.txt"
 else
     echo -e "    ${DIM}Mode: standard${NC}"
-    echo -e "    ${DIM}> uv pip compile pyproject.toml --no-cache --python-version ${PYTHON_VERSION} --python-platform ${PYTHON_PLATFORM} -o requirements.txt${NC}"
+    echo -e "    ${DIM}> uv pip compile pyproject.toml --extra retrieval --no-cache --python-version ${PYTHON_VERSION} --python-platform ${PYTHON_PLATFORM} -o requirements.txt${NC}"
     echo ""
     UV_CUSTOM_COMPILE_COMMAND="./scripts/generate_requirements.sh" \
-        uv pip compile ${REPO_ROOT}/pyproject.toml --no-cache \
+        uv pip compile "${REPO_ROOT}/pyproject.toml" --extra retrieval --no-cache \
             --python-version "${PYTHON_VERSION}" \
             --python-platform "${PYTHON_PLATFORM}" \
-            -o ${REPO_ROOT}/requirements.txt
+            -o "${REPO_ROOT}/requirements.txt"
 fi
 
 echo ""

@@ -1,4 +1,5 @@
 // Byline: Claude Code · Sonnet (agent) · 2026-07-19
+// Byline amendment: Codex · GPT-6.1-Sol · 2026-10-05 (canonical acquisition upload journey).
 "use client";
 
 import { useCallback, useState } from "react";
@@ -8,16 +9,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dropzone } from "./dropzone";
 import { UploadProgress, type UploadItem } from "./upload-progress";
-import { UploadResult } from "./upload-result";
-import { uploadFile, ApiError } from "@/lib/api-client";
+import { uploadProfferSource, ApiError } from "@/lib/api-client";
+import { useOperatingMode } from "@/lib/fixed-case-context";
 import { humanizeBytes } from "@/lib/utils";
 import { useRefresh } from "@/lib/refresh-context";
-import type { UploadResponse } from "@/lib/shared/types";
+import type { ProfferUploadResponse } from "@/lib/shared/types";
 
+/** Upload selected originals with progress and their actual acquisition receipts.
+ * Inputs: local files and current policy context. Output: queue and receipt UI.
+ * Effects: canonical upload POSTs and refresh after success; no staged identities.
+ * Pick for standalone uploads; New Run additionally authors context and starts intake.
+ */
 export function UploadForm() {
+  const mode = useOperatingMode();
   const [items, setItems] = useState<UploadItem[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [results, setResults] = useState<UploadResponse[]>([]);
+  const [results, setResults] = useState<(ProfferUploadResponse & { name: string; mime: string })[]>([]);
   const { triggerRefresh } = useRefresh();
 
   const handleFilesRejected = useCallback((rejections: FileRejection[]) => {
@@ -48,7 +55,7 @@ export function UploadForm() {
         let anySuccess = false;
         for (const item of newItems) {
           try {
-            const result = await uploadFile(item.file, (percent) => {
+            const result = await uploadProfferSource(item.file, mode, (percent) => {
               setItems((prev) =>
                 prev.map((i) => (i.id === item.id ? { ...i, progress: percent } : i)),
               );
@@ -59,12 +66,8 @@ export function UploadForm() {
                 i.id === item.id ? { ...i, status: "complete", progress: 100 } : i,
               ),
             );
-            setResults((prev) => [...prev, result]);
-            if (result.duplicate) {
-              toast.warning(`${item.file.name} is already staged`);
-            } else {
-              toast.success(`${item.file.name} staged`);
-            }
+            setResults((prev) => [...prev, { ...result, name: item.file.name, mime: item.file.type || "application/octet-stream" }]);
+            toast.success(`${item.file.name} uploaded`);
             anySuccess = true;
           } catch (err) {
             const message = err instanceof ApiError ? err.message : "Upload failed";
@@ -82,7 +85,7 @@ export function UploadForm() {
 
       uploadQueue().catch(console.error);
     },
-    [triggerRefresh],
+    [triggerRefresh, mode],
   );
 
   const clearCompleted = useCallback(() => {
@@ -109,7 +112,15 @@ export function UploadForm() {
         {results.length > 0 && (
           <div className="space-y-2">
             {results.map((r, i) => (
-              <UploadResult key={`${r.id}-${i}`} result={r} />
+              <div key={`${r.sha256}-${i}`} className="rounded-md border p-3 text-sm">
+                <p>{r.name} uploaded · {humanizeBytes(r.byte_length)} · {r.mime}</p>
+                <details className="mt-1 text-xs text-muted-foreground">
+                  <summary>Acquisition receipt</summary>
+                  <p className="break-all">{r.acquisition_ref}</p>
+                  <p className="break-all">SHA-256: {r.sha256}</p>
+                  <p>Operating policy: {r.matter_mode}</p>
+                </details>
+              </div>
             ))}
           </div>
         )}

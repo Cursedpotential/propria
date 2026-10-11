@@ -913,7 +913,7 @@ export type EvidenceReviewDecision =
 export type KnowledgeLane = "platform" | "legal" | "personal_history" | "context" | "evidence";
 export type RecordSourceKind = "first_party" | "third_party_acquired" | "unclassified";
 export type RecordProjectionKind = "authored_normalized" | "derived_third_party";
-export type MatterMode = "TEST" | "REAL";
+export type MatterMode = "DEV" | "LIVE";
 
 export interface Matter {
   id: string;
@@ -950,6 +950,7 @@ export interface CourtCase {
 }
 
 export interface MatterDetail extends Matter {
+  admitted_court_case_id?: string;
   court_cases: CourtCase[];
 }
 

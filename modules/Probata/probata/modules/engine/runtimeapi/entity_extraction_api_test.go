@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package runtimeapi
@@ -32,7 +33,7 @@ func (s *apiStore) ResolveRun(_ context.Context, handle string) (flow.RunRef, er
 	if handle != extractionHandle {
 		return flow.RunRef{}, service.ErrNotFound
 	}
-	return flow.RunRef{PreviewHandle: handle, GenerationID: "gen-1", SourceVersionID: "src-1"}, nil
+	return flow.RunRef{MatterMode: "LIVE", PreviewHandle: handle, GenerationID: "gen-1", SourceVersionID: "src-1"}, nil
 }
 func (s *apiStore) ParticipantAggregates(context.Context, string) ([]entities.ParticipantAggregate, error) {
 	return nil, nil
@@ -193,17 +194,16 @@ func TestValidateAndCommitAreFailClosed(t *testing.T) {
 	handler, _, workflows := extractionTestHandler(t)
 	testMode := map[string]any{"preview_handle": extractionHandle, "matter_mode": "TEST"}
 	validation := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/entities/validate", testMode, ""))
-	require.Equal(t, http.StatusOK, validation.Code)
+	require.Equal(t, http.StatusConflict, validation.Code)
 	var report struct {
 		OK     bool   `json:"ok"`
 		Digest string `json:"digest"`
 	}
-	require.NoError(t, json.Unmarshal(validation.Body.Bytes(), &report))
-	require.False(t, report.OK, "TEST mode must not validate for commit")
+	require.Empty(t, workflows.commits)
 	blocked := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/entities/commit",
 		map[string]any{"preview_handle": extractionHandle, "matter_mode": "TEST", "digest": report.Digest}, "commit-1"))
-	require.Equal(t, http.StatusUnprocessableEntity, blocked.Code)
-	require.Contains(t, blocked.Body.String(), "live_mode")
+	require.Equal(t, http.StatusConflict, blocked.Code)
+	require.Contains(t, blocked.Body.String(), "isolated")
 	require.Empty(t, workflows.commits)
 
 	live := map[string]any{"preview_handle": extractionHandle, "matter_mode": "REAL"}

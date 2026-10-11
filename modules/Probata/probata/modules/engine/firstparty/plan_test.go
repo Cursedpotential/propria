@@ -78,6 +78,21 @@ func build(t *testing.T, identity contextthread.Identity, records []SourceMessag
 	return plan
 }
 
+// TestAIFormatsCannotBuildMessagingPlan rejects AI provenance even when callers supply a plausible SMS platform.
+// Inputs: synthetic baseline with persisted AI formats. Outputs: assertions. Effects: none.
+// Use to protect direct planning callers as well as Activity rebuilds.
+func TestAIFormatsCannotBuildMessagingPlan(t *testing.T) {
+	for _, format := range []string{"chatgpt_official_json", "chatgpt_json_array", "claude_conversations_json", "claude_ai_export_json", "gemini_activity_json", "ai_markdown_transcript", "ai_generic_json", "ai_conversations_json", "ai_chat_file"} {
+		t.Run(format, func(t *testing.T) {
+			source := testSource()
+			source.DeclaredFormat = format
+			if _, err := Build(testIdentity(), source, testRecords(), testResolution(testIdentity())); err == nil || !strings.Contains(err.Error(), "AI chat") {
+				t.Fatalf("AI source built a messaging plan: %v", err)
+			}
+		})
+	}
+}
+
 func TestOwnerParticipationSplitsTheGeneration(t *testing.T) {
 	plan := build(t, testIdentity(), testRecords())
 	first, third := plan.FirstParty(), plan.ThirdParty()

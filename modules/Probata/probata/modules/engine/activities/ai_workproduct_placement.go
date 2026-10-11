@@ -493,6 +493,13 @@ func (a *AIWorkproductPlacementActivities) runAIWorkproductStage(ctx context.Con
 // aiWorkproductCopy records a fresh retained PUT response and bounded before/after versions.
 // Inputs: authenticated source bytes, fixed mapping and exclusive response checkpoint; outputs: returned provider version in the mapping. Effects: one retained B2 PUT only after absence observations plus durable returned-version checkpoint; choose no lost-response recovery and leave byte readback to its sibling Activity.
 func aiWorkproductCopy(ctx context.Context, s toolkitPlacementStore, b []byte, obj *ToolkitContentPlacementObject, pulse func() error, checkpoint func() error) error {
+	return aiWorkproductCopyMedia(ctx, s, b, obj, pulse, checkpoint, "text/markdown; charset=utf-8")
+}
+
+// aiWorkproductCopyMedia reuses exact retained placement for a caller's complete native media type.
+// Inputs: existing store, pinned bytes/mapping, checkpoint and media type. Outputs: PUT-returned version.
+// Effects: the same bounded absence/race checks and fresh retained PUT; choose for native JSON/text packages.
+func aiWorkproductCopyMedia(ctx context.Context, s toolkitPlacementStore, b []byte, obj *ToolkitContentPlacementObject, pulse func() error, checkpoint func() error, media string) error {
 	var err error
 	obj.BeforeVersions, err = s.PlacementVersions(ctx, "salem-data", obj.ObjectKey)
 	if err != nil {
@@ -514,7 +521,7 @@ func aiWorkproductCopy(ctx context.Context, s toolkitPlacementStore, b []byte, o
 	if err = pulse(); err != nil {
 		return err
 	}
-	obj.VersionID, err = s.PutRecoveredVersion(ctx, "salem-data", obj.ObjectKey, bytes.NewReader(b), obj.Bytes, "text/markdown; charset=utf-8", obj.SHA256, nil)
+	obj.VersionID, err = s.PutRecoveredVersion(ctx, "salem-data", obj.ObjectKey, bytes.NewReader(b), obj.Bytes, media, obj.SHA256, nil)
 	if validToolkitVersionID(obj.VersionID) {
 		u := url.URL{Scheme: "b2", Host: "salem-data", Path: "/" + obj.ObjectKey, RawQuery: url.Values{"versionId": []string{obj.VersionID}}.Encode()}
 		obj.ObjectRef = proffer.Ref(u.String())

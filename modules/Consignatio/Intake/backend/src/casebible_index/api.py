@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field, field_validator
 
 from .chunk_search import (
     ChunkSearchError,
@@ -24,7 +26,10 @@ from .ledger import last_commit, read_stage_receipts
 from .models import LakeQueryRequest, SearchRequest, SearchResponse
 from .nim import NimClient, NimError
 from .projections.runtime import connect_graph
-from .projections.surreal import GraphRecordRef
+from .projections.surreal import (
+    GraphOccurrenceProjectionError,
+    GraphRecordRef,
+)
 from .run_status import latest_run_status
 from .search import (
     DuckDbQueryError,
@@ -35,6 +40,66 @@ from .search import (
 )
 from .secrets import get_secret
 from .snapshots import newest_snapshot
+
+
+class GraphOccurrenceResolveRequest(BaseModel):
+    """Identify an Intake occurrence from exact indexed source identity.
+
+    Inputs: required source and document IDs plus an optional exact version ID.
+    Output: validated request values. Side effects: none. Pick this contract when resolving a
+    search result to graph records; omitting version intentionally allows multiple versions.
+    """
+
+    source_id: str = Field(min_length=1, max_length=255)
+    document_id: str = Field(min_length=1, max_length=255)
+    version_id: str | None = Field(default=None, min_length=1, max_length=255)
+
+    @field_validator("source_id", "document_id", "version_id")
+    @classmethod
+    def identity_has_non_whitespace(cls, value: str | None) -> str | None:
+        """Reject blank identity fields while preserving their exact indexed values.
+
+        Inputs: a source, document, or optional version ID. Output: the unchanged value.
+        Side effects: none. Pick this validation over trimming IDs that must match source data.
+        """
+        if value is not None and not value.strip():
+            raise ValueError("Identity values must contain non-whitespace text")
+        return value
+
+
+class GraphOccurrenceReference(BaseModel):
+    """Carry a typed occurrence ID and its immutable projection provenance.
+
+    Inputs: one validated graph match. Output: safe identity and completion fields only.
+    Side effects: none. Pick this model for graph resolution responses instead of exposing a
+    stored record or source body.
+    """
+
+    table: Literal["occurrence"]
+    key: str
+    record_id: str
+    snapshot_id: str
+    snapshot_key: str
+    manifest_sha256: str
+    version_id: str | None
+    completion_run_id: str
+    completion_tool_version: str | None
+
+
+class GraphOccurrenceResolveResponse(BaseModel):
+    """Report every bounded exact-identity match without selecting a latest snapshot.
+
+    Inputs: echoed request identity, validated match references, and ambiguity/overflow flags.
+    Output: a bounded response suitable for a caller to choose among exact versions.
+    Side effects: none. Pick this over neighborhood output when resolving a filesystem hit.
+    """
+
+    source_id: str
+    document_id: str
+    version_id: str | None
+    matches: list[GraphOccurrenceReference]
+    ambiguous: bool
+    overflow: bool
 
 
 def create_api(settings: Settings | None = None) -> FastAPI:
@@ -114,6 +179,58 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         except Exception:
             raise HTTPException(status_code=503, detail="Intake graph unavailable") from None
 
+    @api.post(
+        "/filesystem/graph/resolve",
+        response_model=GraphOccurrenceResolveResponse,
+    )
+    async def graph_resolve_occurrences(
+        request: GraphOccurrenceResolveRequest,
+    ) -> GraphOccurrenceResolveResponse:
+        """Resolve source/document identity to completed filesystem occurrence references.
+
+        Inputs: exact source and document IDs, optionally constrained to one version.
+        Output: bounded typed IDs and snapshot provenance, with ambiguity/overflow flags.
+        Side effects: read-only Intake graph queries. Pick this before `/neighbors` when a
+        search result has identity metadata but no Surreal record key; it never returns bodies.
+        """
+        try:
+            async with await connect_graph() as graph:
+                resolution = await graph.resolve_occurrences(
+                    request.source_id,
+                    request.document_id,
+                    version_id=request.version_id,
+                )
+            return GraphOccurrenceResolveResponse(
+                source_id=request.source_id,
+                document_id=request.document_id,
+                version_id=request.version_id,
+                matches=[
+                    GraphOccurrenceReference(
+                        table="occurrence",
+                        key=match.occurrence_key,
+                        record_id=match.occurrence_id,
+                        snapshot_id=match.snapshot_id,
+                        snapshot_key=match.snapshot_key,
+                        manifest_sha256=match.manifest_sha256,
+                        version_id=match.version_id,
+                        completion_run_id=match.completion_run_id,
+                        completion_tool_version=match.completion_tool_version,
+                    )
+                    for match in resolution.matches
+                ],
+                ambiguous=resolution.ambiguous,
+                overflow=resolution.overflow,
+            )
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid graph identity request") from None
+        except GraphOccurrenceProjectionError:
+            raise HTTPException(
+                status_code=503,
+                detail="Intake graph projection is incomplete or inconsistent",
+            ) from None
+        except Exception:
+            raise HTTPException(status_code=503, detail="Intake graph unavailable") from None
+
     @api.get("/filesystem/graph/projections/{snapshot_key}")
     async def graph_projection(snapshot_key: str) -> dict:
         try:
@@ -141,7 +258,13 @@ def create_api(settings: Settings | None = None) -> FastAPI:
 
     @api.post("/filesystem/search", response_model=FilesystemSearchResponse)
     async def filesystem_search(request: FilesystemSearchRequest) -> FilesystemSearchResponse:
-        """Search across indexed stores; never scan or mutate source paths."""
+        """Search indexed filesystem objects without scanning or mutating source paths.
+
+        Inputs: a query, keyword/hybrid/vector mode, and an optional caller-supplied vector.
+        Output: bounded source-preserving Weaviate hits. Side effects: read-only index requests;
+        hybrid may embed through the existing NIM client. Pick vector mode to use an embedding
+        already generated by the caller without starting an embedding provider here.
+        """
         try:
             search_config = WeaviateSearchConfig(
                 url=os.getenv("INTAKE_WEAVIATE_URL", ""),
@@ -151,7 +274,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 api_key=get_secret("INTAKE_WEAVIATE_API_KEY") or "",
             )
             searcher = WeaviateFilesystemSearcher(search_config)
-            vector = None
+            vector = request.vector if request.mode == "vector" else None
             if request.mode == "hybrid":
                 # Defaults to the configured NIM model, as the indexer does; an explicit
                 # mismatch is still refused (Claude Code · Opus 5 · 2026-09-22).
@@ -191,6 +314,8 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         Inputs: filesystem query and existing results. Output: results with image hits.
         Side effects: image search requests only. Pick this to compose the two search surfaces.
         """
+        if request.mode == "vector":
+            return response
         image_url = os.getenv("INTAKE_IMAGES_WEAVIATE_URL", "")
         if not image_url:
             return response

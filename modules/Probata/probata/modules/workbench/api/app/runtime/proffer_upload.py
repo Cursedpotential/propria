@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request
+from fastapi import APIRouter, HTTPException, Path, Request
 
+from app.runtime.operating_mode import OperatingMode
 from app.service.proffer import ProfferError, complete_upload_response, open_upload_stream
-from app.types.matter_mode import MatterMode
 from app.types.proffer import ProfferUploadResponse
 
 router = APIRouter(tags=["proffer"])
@@ -22,7 +22,7 @@ def _translate(error: ProfferError) -> HTTPException:
 
 
 @router.post("/upload", response_model=ProfferUploadResponse, status_code=201)
-async def upload_endpoint(request: Request, mode: Annotated[MatterMode, Query()]):
+async def upload_endpoint(request: Request, mode: OperatingMode):
     try:
         client, response = await open_upload_stream(
             request.stream(),
@@ -38,7 +38,7 @@ async def upload_endpoint(request: Request, mode: Annotated[MatterMode, Query()]
 @router.post("/staged/{staged_id}/acquisition", response_model=ProfferUploadResponse, status_code=201)
 async def staged_acquisition_endpoint(
     staged_id: Annotated[str, Path(pattern=r"^[a-f0-9]{64}$")],
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     from app.service.proffer_staged import acquire_staged
 

@@ -265,6 +265,29 @@ async def test_documents_graph_and_resources(config):
         assert requests[-1].url.path == "/graph/document:abc_123"
 
 
+async def test_revision_state_document_id_is_forwarded_to_get(config):
+    record_id = "docstore_document:" + "a" * 64
+    server, requests = harness(config)
+    async with Client(server) as client:
+        result = (await client.call_tool("docstore_get", {"record_id": record_id})).data
+    assert result["path"] == "/doc/" + record_id
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("record_id", [
+    "docstore_document:ABCDEF" + "a" * 58,
+    "docstore_document:" + "a" * 63,
+    "docstore_document:" + "a" * 64 + "?x=1",
+    "docstore_revision:" + "a" * 64 + "_1",
+])
+async def test_unknown_or_malformed_record_family_rejected(config, record_id):
+    server, requests = harness(config)
+    async with Client(server) as client:
+        result = await client.call_tool("docstore_get", {"record_id": record_id}, raise_on_error=False)
+        assert result.is_error
+    assert not requests
+
+
 @pytest.mark.parametrize("tool,record_id", [
     ("docstore_get", "../secrets"), ("docstore_get", "document:a?x=1"),
     ("docstore_graph", "abc"), ("docstore_graph", "document:../abc"),

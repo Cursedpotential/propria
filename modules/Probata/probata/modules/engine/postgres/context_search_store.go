@@ -28,6 +28,7 @@ import (
 
 	"github.com/Cursedpotential/probata/engine/activities"
 	"github.com/Cursedpotential/probata/engine/contextsearch"
+	"github.com/Cursedpotential/probata/engine/disclosure"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
@@ -116,9 +117,15 @@ func (s *ContextSearchStore) OpenContextSearchRecords(ctx context.Context, spec 
 	if matterID.Valid {
 		coordinates.MatterID = matterID.UUID
 	}
-	resolution, err := LoadParticipantResolution(ctx, s.db, string(spec.ParticipantResolutionRef))
-	if err != nil {
-		return activities.ContextSearchPlan{}, err
+	var resolution disclosure.Resolution
+	if !contextsearch.IsAIChatFormat(declared) && !contextsearch.IsAIChatFormat(formatID) {
+		if spec.ParticipantResolutionRef == "" {
+			return activities.ContextSearchPlan{}, errors.New("human context search requires a participant resolution reference")
+		}
+		resolution, err = LoadParticipantResolution(ctx, s.db, string(spec.ParticipantResolutionRef))
+		if err != nil {
+			return activities.ContextSearchPlan{}, err
+		}
 	}
 	return activities.ContextSearchPlan{
 		FormatID:   formatID,
@@ -287,7 +294,7 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 	publicationID := uuid.New()
 	receiptID := uuid.New()
 	now := s.now()
-	result, err := json.Marshal(map[string]any{
+	resultFields := map[string]any{
 		"ref_kind":               "context_search_publication",
 		"ref_id":                 publicationID.String(),
 		"collections":            outcome.Collections,
@@ -307,7 +314,15 @@ func (s *ContextSearchStore) PersistContextSearchPublication(ctx context.Context
 		"skipped_matched":        outcome.SkippedMatched,
 		"skipped_to_chunks":      outcome.SkippedToChunks,
 		"message_matches":        string(spec.MessageMatchesRef),
-	})
+	}
+	if outcome.DisclosureBasis == "" {
+		// The source was independently classified as AI: its receipt carries no human classification or identity refs.
+		delete(resultFields, "disclosure_basis")
+		delete(resultFields, "disclosure_tiers")
+		delete(resultFields, "participant_resolution")
+		delete(resultFields, "message_matches")
+	}
+	result, err := json.Marshal(resultFields)
 	if err != nil {
 		return "", "", err
 	}

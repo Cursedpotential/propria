@@ -6,11 +6,13 @@
 // do (workbench/api/app/repo/imported_pg.py, the sv CTE), then reads the current
 // normalized generation of each of its source versions. Reads only.
 
+// Byline: Codex · GPT-5 · 2026-10-05 (durable operation receipt resolution).
 package postgres
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -84,7 +86,14 @@ func (s *EntityExtractionStore) ResolveConversation(ctx context.Context, matterI
 			// A generation nobody previewed has no handle to attribute proposals to.
 			continue
 		}
-		runs = append(runs, flow.RunRef{PreviewHandle: file.PreviewHandle, GenerationID: file.GenerationID, SourceVersionID: file.SourceVersionID})
+		run, readErr := s.ResolveRun(ctx, file.PreviewHandle)
+		if readErr != nil {
+			return nil, readErr
+		}
+		if run.GenerationID != file.GenerationID || run.SourceVersionID != file.SourceVersionID {
+			return nil, errors.New("conversation source disagrees with its durable operation")
+		}
+		runs = append(runs, run)
 	}
 	return runs, nil
 }

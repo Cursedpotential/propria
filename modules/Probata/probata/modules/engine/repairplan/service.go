@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package repairplan
@@ -75,10 +76,7 @@ func (s Service) Propose(ctx context.Context, request ProposeRequest) (ProposeRe
 	if !covered {
 		return response, nil
 	}
-	mode := ""
-	if s.Env.MatterMode != nil {
-		mode, _ = s.Env.MatterMode(anchor.MatterID, anchor.CourtCaseID)
-	}
+	mode := anchor.OperatingMode
 	for _, candidate := range candidates {
 		if len(candidate.Steps) == 0 {
 			response.Proposals = append(response.Proposals, candidate)

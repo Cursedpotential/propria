@@ -1,4 +1,5 @@
 // Byline: Claude Code · Opus 5 · 2026-09-22
+// Byline: Codex · GPT-6 · 2026-10-06 (durable selection, upload, partial retries and Activity links).
 // Sources — the front door that replaces the Intake page.
 //
 // Ratified 2026-09-22 09:09 (docs/pending-review/2026-09-21-intake-review-module-rethink.md,
@@ -15,23 +16,28 @@
 "use client";
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Play } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
+import { AlertTriangle, Loader2, Play, Upload, X } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SourceMetadataPanel, type SourceSelection } from "@/components/sources/source-metadata-panel";
 import { mergeSourcePages, sourceContinuation } from "@/components/sources/source-pages";
 import { SourceRowsGrid, type SourceGridRow } from "@/components/sources/source-rows-grid";
-import { SourceSearch, modeAvailable, type SearchMode } from "@/components/sources/source-search";
+import { SourceSearch } from "@/components/sources/source-search";
+import { ContextSearch } from "@/components/read/context-search";
 import { SourceTree } from "@/components/sources/source-tree";
 import { detectedFormat, runsBySource, sourceState } from "@/components/sources/source-state";
 import { Button } from "@/components/ui/button";
+import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
+import { processSelection, type SourceSubmission } from "@/components/sources/process-selection";
 import {
   ApiError,
   getCatalogProvenance,
   getDecodedExists,
-  getDiscoveryCapabilities,
   getProfferBatch,
+  getProfferSourceVersion,
+  getAIContextSourceStatus,
   getUnitsUnderPrefix,
   inspectProfferSource,
   listProfferProposalResources,
@@ -40,14 +46,14 @@ import {
   lookupCatalogUnits,
   proposeSourceUnit,
   recordSourceUnitMark,
-  searchDiscovery,
   startProffer,
+  startAIContextSource,
   startProfferBatch,
+  uploadProfferSource,
 } from "@/lib/api-client";
 import { getDecodedManifest } from "@/lib/decoded-source-client";
-import type { DiscoveryItem } from "@/lib/discovery-types";
 import { useFixedCase } from "@/lib/fixed-case-context";
-import type { CatalogUnitLookup, SourceUnitKind, SourceUnitMark } from "@/lib/shared/types";
+import type { CatalogUnitLookup, ProfferUploadResponse, SourceUnitKind, SourceUnitMark } from "@/lib/shared/types";
 
 type CatalogUnit = CatalogUnitLookup["units"][number];
 
@@ -61,24 +67,36 @@ function newBatchId() {
 
 export function SourcesScreen() {
   const { mode } = useFixedCase();
-  return <SourcesScreenMode key={mode} />;
+  const searchParams = useBrowserSearchParams();
+  const selectionKey = [mode, searchParams.get("root") ?? "", searchParams.get("file") ?? ""].join(":");
+  return <SourcesScreenMode key={selectionKey} />;
 }
 
 function SourcesScreenMode() {
   const { matter, primaryCourtCase, mode } = useFixedCase();
+  const searchParams = useBrowserSearchParams();
+  const router = useRouter();
 
-  const [rootId, setRootId] = useState("");
-  const [prefix, setPrefix] = useState("");
-  const [appliedFilter, setAppliedFilter] = useState("");
+  const rootId = searchParams.get("root") ?? "";
+  const prefix = searchParams.get("prefix") ?? "";
+  const linkedFile = searchParams.get("file") ?? "";
+  const [appliedFilter, setAppliedFilter] = useState(linkedFile);
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set());
   const [handlerOverride, setHandlerOverride] = useState("");
+  const [aiProvider, setAIProvider] = useState<"" | "chatgpt" | "claude">("");
+  const [aiPending, setAIPending] = useState(false);
+  const [aiError, setAIError] = useState<string | null>(null);
+  const [aiWorkflow, setAIWorkflow] = useState<{ workflow_id: string; run_id: string; source_ref: string } | null>(null);
+  const aiRequests = useRef(new Map<string, string>());
 
-  const [query, setQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<SearchMode>("names");
-  const [indexQuery, setIndexQuery] = useState<{ text: string; mode: SearchMode } | null>(null);
-  const [searchSummary, setSearchSummary] = useState<string | null>(null);
+  const [query, setQuery] = useState(linkedFile);
+  const [showContentSearch, setShowContentSearch] = useState(false);
+  const [searchSummary, setSearchSummary] = useState<string | null>(
+    linkedFile ? `Recorded file location: ${linkedFile}` : null,
+  );
+  // A changed URL selection remounts SourcesScreenMode from SourcesScreen.
 
   const [unitMarkKind, setUnitMarkKind] = useState<SourceUnitKind | "">("");
   const [markPending, setMarkPending] = useState(false);
@@ -89,6 +107,15 @@ function SourcesScreenMode() {
   const [processing, setProcessing] = useState(false);
   const [processMessage, setProcessMessage] = useState<string | null>(null);
   const [processError, setProcessError] = useState<string | null>(null);
+  // Keep transport retries bound to the same requests, including partial selections.
+  const submissions = useRef(new Map<string, SourceSubmission>());
+  const batchRequests = useRef(new Map<string, string>());
+  const processBusy = useRef(false);
+  const [activityHref, setActivityHref] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [localSource, setLocalSource] = useState<{ file: File; requestId: string } | null>(null);
+  const localUploads = useRef(new Map<string, ProfferUploadResponse>());
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // --- reads ---------------------------------------------------------------
   const listingQuery = useInfiniteQuery({
@@ -117,12 +144,6 @@ function SourcesScreenMode() {
     queryFn: ({ signal }) => listProfferProposalResources(mode, { limit: 100 }, signal),
   });
   const runsIndex = useMemo(() => runsBySource(runsQuery.data?.items ?? []), [runsQuery.data]);
-
-  const capabilitiesQuery = useQuery({
-    queryKey: ["sources", "discovery-capabilities"],
-    queryFn: ({ signal }) => getDiscoveryCapabilities(signal),
-    retry: false,
-  });
 
   const marksQuery = useQuery({
     queryKey: ["sources", "unit-marks"],
@@ -163,19 +184,25 @@ function SourcesScreenMode() {
     retry: false,
   });
 
-  const indexSearchQuery = useQuery({
-    queryKey: ["sources", "index-search", indexQuery?.text, indexQuery?.mode],
-    queryFn: ({ signal }) =>
-      searchDiscovery(indexQuery!.text, "", indexQuery!.mode === "contents" ? "contents" : "hybrid", undefined, signal),
-    enabled: Boolean(indexQuery),
-    retry: false,
-  });
-
   const selectedObject = useMemo(
     () => objects.find((object) => object.source_ref === selectedRef) ?? null,
     [objects, selectedRef],
   );
   const activeRootId = rootId || listing?.active_root_id || "";
+
+  const sourceVersionQuery = useQuery({
+    queryKey: ["sources", "provider-version", activeRootId, selectedObject?.source_ref, selectedObject?.etag],
+    queryFn: ({ signal }) => getProfferSourceVersion(selectedObject!, activeRootId, signal),
+    enabled: Boolean(aiProvider && selectedObject && activeRootId),
+    retry: false,
+  });
+
+  const aiStatusQuery = useQuery({
+    queryKey: ["sources", "ai-context", aiWorkflow?.workflow_id],
+    queryFn: () => getAIContextSourceStatus(aiWorkflow!.workflow_id),
+    enabled: Boolean(aiWorkflow),
+    retry: false,
+  });
 
   const inspectionQuery = useQuery({
     queryKey: ["sources", "inspection", mode, activeRootId, selectedObject?.source_ref],
@@ -282,7 +309,7 @@ function SourcesScreenMode() {
     () => objects.filter((object) => checkedRefs.has(object.source_ref)),
     [checkedRefs, objects],
   );
-  const processTarget = selectedFiles.length
+  const processTarget = localSource ? localSource.file.name : selectedFiles.length
     ? `${selectedFiles.length} file(s)`
     : selectedFolder
       ? `folder ${selectedFolder}`
@@ -294,41 +321,69 @@ function SourcesScreenMode() {
   const runSearch = useCallback(() => {
     const text = query.trim();
     if (!text) return;
-    if (searchMode === "names") {
-      setIndexQuery(null);
-      setAppliedFilter(text);
-      setSelectedRef(null);
-      setSelectedFolder(null);
-      setSearchSummary(`Names and paths across this location: “${text}”.`);
-      return;
-    }
-    if (!modeAvailable(searchMode, capabilitiesQuery.data ?? null)) {
-      setIndexQuery(null);
-      setSearchSummary(null);
-      return;
-    }
-    setAppliedFilter("");
-    setIndexQuery({ text, mode: searchMode });
-    setSearchSummary(`Index search: “${text}”.`);
-  }, [capabilitiesQuery.data, query, searchMode]);
+    setAppliedFilter(text);
+    setSelectedRef(null);
+    setSelectedFolder(null);
+    setSearchSummary(`Names and paths across this location: “${text}”.`);
+  }, [query]);
 
   const clearSearch = useCallback(() => {
     setQuery("");
     setAppliedFilter("");
-    setIndexQuery(null);
     setSearchSummary(null);
   }, []);
 
+  /** Browse an exact source location with a bookmarkable URL and fresh selection.
+   * Inputs: allowlisted root ID and relative prefix. Output: navigation; no evidence writes.
+   * Use for folder/root clicks so Back and shared links return to the same location.
+   */
+  function browse(nextRoot: string, nextPrefix: string) {
+    clearSearch();
+    setLocalSource(null); setSelectedFolder(null); setSelectedRef(null); setCheckedRefs(new Set());
+    void router.navigate({ href: `/sources?${new URLSearchParams({ root: nextRoot, prefix: nextPrefix, mode })}` });
+  }
+
+  /** Submit selected sources and expose the returned durable Activity link.
+   * Input: selected files/folder and admitted case. Output: receipts/status in UI.
+   * Effects: starts processing through the existing API; never copies or moves originals.
+   * Byline: Codex · GPT-6 · 2026-10-06.
+   */
   async function process() {
-    if (!matter || !primaryCourtCase) return;
+    if (!matter || !primaryCourtCase || processBusy.current) return;
+    processBusy.current = true;
     setProcessing(true);
     setProcessError(null);
     setProcessMessage(null);
     try {
+      if (localSource) {
+        // Acquisition returns a verified canonical receipt; re-trying start must not upload twice.
+        const sealed = localUploads.current.get(localSource.requestId) ?? await uploadProfferSource(localSource.file, mode, setUploadProgress);
+        localUploads.current.set(localSource.requestId, sealed);
+        const key = localSource.requestId;
+        let entry = submissions.current.get(key);
+        if (!entry) {
+          entry = { request: {
+            request_id: key, source_ref: sealed.acquisition_ref,
+            declared_format: detectedFormat(localSource.file.name),
+            parser_options_ref: "pending-handler-selection/v1",
+            matter_id: matter.id, court_case_id: primaryCourtCase.id, matter_mode: mode,
+          } };
+          submissions.current.set(key, entry);
+        }
+        const result = await processSelection([entry], startProffer, (accepted) => {
+          setActivityHref(`/activity?${new URLSearchParams({ preview_handle: accepted.response!.preview_handle, mode })}`);
+        });
+        setProcessMessage(result.accepted ? `${localSource.file.name} submitted.` : "File received; processing has not started.");
+        setProcessError(result.error);
+        return;
+      }
       const files = selectedFiles.length ? selectedFiles : selectedObject ? [selectedObject] : [];
       if (files.length) {
-        for (const object of files) {
-          await startProffer({
+        const entries = files.map((object) => {
+          const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, object.source_ref, handlerOverride]);
+          let entry = submissions.current.get(key);
+          if (entry) return entry;
+          entry = { request: {
             request_id: `proffer-${matter.id}-${crypto.randomUUID()}`,
             source_ref: object.source_ref,
             declared_format: handlerOverride || detectedFormat(object.name),
@@ -336,28 +391,71 @@ function SourcesScreenMode() {
             matter_id: matter.id,
             court_case_id: primaryCourtCase.id,
             matter_mode: mode,
-          });
-        }
-        setProcessMessage(`Started ${files.length} run(s).`);
+          } };
+          submissions.current.set(key, entry);
+          return entry;
+        });
+        const result = await processSelection(entries, startProffer, (entry) => {
+          const handle = entry.response!.preview_handle;
+          setActivityHref(`/activity?${new URLSearchParams({ preview_handle: handle, mode })}`);
+        });
+        setProcessMessage(`${result.accepted} of ${files.length} files submitted.`);
+        if (result.error) setProcessError(`${result.error} Retry keeps the accepted files and resends only the unfinished requests.`);
+        void runsQuery.refetch();
       } else if (selectedFolder && listing) {
         const root = listing.available_roots.find((entry) => entry.root_id === activeRootId);
         if (!root) throw new Error("This folder has no confirmed source location.");
+        const folderRef = `${root.root_ref.replace(/\/$/, "")}/${selectedFolder.replace(/^\//, "")}`;
+        const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, folderRef, handlerOverride]);
+        const batchId = batchRequests.current.get(key) ?? newBatchId();
+        batchRequests.current.set(key, batchId);
         const started = await startProfferBatch({
-          batch_id: newBatchId(),
+          batch_id: batchId,
           matter_id: matter.id,
           court_case_id: primaryCourtCase.id,
-          folder_ref: `${root.root_ref.replace(/\/$/, "")}/${selectedFolder.replace(/^\//, "")}`,
+          folder_ref: folderRef,
           declared_format: handlerOverride || detectedFormat(selectedFolder),
           parser_options_ref: "pending-handler-selection/v1",
           matter_mode: mode,
         });
         setBatchIdent(started.batch_id);
+        setActivityHref(`/activity?${new URLSearchParams({ batch: started.batch_id, mode })}`);
         setProcessMessage(`Batch started for ${selectedFolder}.`);
       }
     } catch (error) {
       setProcessError(errorText(error));
     } finally {
+      processBusy.current = false;
       setProcessing(false);
+      setUploadProgress(null);
+    }
+  }
+
+  /** Register a version-pinned AI export in Context through the Go engine.
+   * Inputs: explicit provider, selected B2 object and metadata HEAD version.
+   * Output: Temporal execution IDs and status. Effect: one idempotent Go start;
+   * choose this instead of the case-bound Process path for AI-chat exports.
+   */
+  async function addAIChatToContext() {
+    const version = sourceVersionQuery.data;
+    if (!selectedObject || !version || !aiProvider || aiPending || version.source_ref !== selectedObject.source_ref) return;
+    const identity = JSON.stringify([version.source_ref, version.provider_version_id, aiProvider]);
+    const requestID = aiRequests.current.get(identity) ?? crypto.randomUUID();
+    aiRequests.current.set(identity, requestID);
+    setAIPending(true);
+    setAIError(null);
+    try {
+      const started = await startAIContextSource({
+        source_ref: version.source_ref,
+        provider_version_id: version.provider_version_id,
+        source_kind: "ai_chat",
+        declared_format: aiProvider,
+      }, requestID);
+      setAIWorkflow({ ...started, source_ref: version.source_ref });
+    } catch (error) {
+      setAIError(errorText(error));
+    } finally {
+      setAIPending(false);
     }
   }
 
@@ -380,23 +478,33 @@ function SourcesScreenMode() {
   const loadNextPage = () => {
     if (continuation.token && !listingQuery.isFetchingNextPage) void listingQuery.fetchNextPage();
   };
-  const indexResults = indexQuery ? indexSearchQuery.data?.items ?? [] : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="sources-screen">
       <SourceSearch
         query={query}
-        mode={searchMode}
-        capabilities={capabilitiesQuery.data ?? null}
-        searching={listingQuery.isFetching || indexSearchQuery.isFetching}
+        searching={listingQuery.isFetching}
         onQueryChange={setQuery}
-        onModeChange={setSearchMode}
         onSubmit={runSearch}
         onClear={clearSearch}
         resultSummary={searchSummary}
       />
 
       <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
+        <Button size="sm" variant={showContentSearch ? "default" : "outline"}
+          aria-expanded={showContentSearch} onClick={() => setShowContentSearch((value) => !value)}>
+          {showContentSearch ? "Back to files" : "Search content and relationships"}
+        </Button>
+        <input ref={fileInput} type="file" className="sr-only" aria-label="Choose a file to add" disabled={processing}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              setLocalSource({ file, requestId: `proffer-${matter?.id ?? "upload"}-${crypto.randomUUID()}` });
+              setProcessMessage(null); setProcessError(null); setActivityHref(null);
+            }
+            event.target.value = "";
+          }} />
+        <Button size="sm" variant="outline" disabled={processing} onClick={() => fileInput.current?.click()}><Upload className="h-3.5 w-3.5" /> Add file</Button>
         <Button
           size="sm"
           disabled={processing || !processTarget || !matter || !primaryCourtCase}
@@ -405,13 +513,39 @@ function SourcesScreenMode() {
           {processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Process
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          {processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
+          {uploadProgress !== null ? `Uploading ${uploadProgress}%` : processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
         </span>
+        {localSource && <Button size="icon" variant="ghost" aria-label="Clear local file selection" disabled={processing} onClick={() => setLocalSource(null)}><X className="h-3.5 w-3.5" /></Button>}
         {processMessage && <span className="text-[11px] text-[#17794b] dark:text-[#72d9a1]">{processMessage}</span>}
+        {activityHref && <Button asChild variant="outline" size="sm"><AppLink href={activityHref}>View activity</AppLink></Button>}
         {processError && (
           <span className="flex items-center gap-1 text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">
             <AlertTriangle className="h-3 w-3" /> {processError}
           </span>
+        )}
+        {selectedObject && !selectedFolder && !localSource && selectedFiles.length === 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-l pl-2 text-[11px]">
+            <label htmlFor="ai-chat-provider">AI chat export</label>
+            <select id="ai-chat-provider" aria-label="AI chat provider" className="rounded border bg-background px-2 py-1"
+              value={aiProvider} onChange={(event) => { setAIProvider(event.target.value as "" | "chatgpt" | "claude"); setAIError(null); setAIWorkflow(null); }}>
+              <option value="">Choose provider</option>
+              <option value="chatgpt">ChatGPT</option>
+              <option value="claude">Claude</option>
+            </select>
+            {aiProvider && (
+              <Button size="sm" variant="outline" disabled={aiPending || !sourceVersionQuery.data || sourceVersionQuery.isFetching}
+                onClick={() => void addAIChatToContext()}>
+                {aiPending ? "Starting…" : "Add AI chat to context"}
+              </Button>
+            )}
+            {aiProvider && sourceVersionQuery.isFetching && <span>Checking B2 version…</span>}
+            {aiProvider && sourceVersionQuery.error && <span role="alert">{errorText(sourceVersionQuery.error)}</span>}
+            {aiError && <span role="alert">{aiError}</span>}
+            {aiWorkflow?.source_ref === selectedObject.source_ref && (
+              <span role="status">Workflow {aiWorkflow.workflow_id}: {String(aiStatusQuery.data?.status ?? "submitted")}
+                {aiStatusQuery.error ? ` (${errorText(aiStatusQuery.error)})` : ""}</span>
+            )}
+          </div>
         )}
       </div>
 
@@ -426,21 +560,14 @@ function SourcesScreenMode() {
             unitRoots={unitRoots}
             selectedFolder={selectedFolder}
             onRootChange={(nextRoot) => {
-              setRootId(nextRoot);
-              setPrefix("");
-              setAppliedFilter("");
-              setSelectedFolder(null);
-              setSelectedRef(null);
-              setCheckedRefs(new Set());
+              browse(nextRoot, "");
             }}
             onPrefixChange={(nextPrefix) => {
-              setPrefix(nextPrefix);
-              setAppliedFilter("");
-              setSelectedFolder(null);
-              setSelectedRef(null);
-              setCheckedRefs(new Set());
+              browse(activeRootId, nextPrefix);
             }}
             onSelectFolder={(nextFolder) => {
+              setLocalSource(null);
+              setCheckedRefs(new Set());
               setSelectedFolder(nextFolder);
               setSelectedRef(null);
               setUnitMarkKind("");
@@ -455,15 +582,8 @@ function SourcesScreenMode() {
                 <AlertTriangle className="h-3 w-3" /> {listingError}
               </p>
             )}
-            {indexResults ? (
-              <IndexResults
-                results={indexResults}
-                pending={indexSearchQuery.isPending}
-                onOpen={(item) => {
-                  setPrefix(item.parent ? `${item.parent}/` : "");
-                  setIndexQuery(null);
-                }}
-              />
+            {showContentSearch ? (
+              <div className="min-h-0 flex-1 overflow-auto p-3"><ContextSearch /></div>
             ) : rows.length ? (
               <>
                 <div className="min-h-0 flex-1">
@@ -472,11 +592,12 @@ function SourcesScreenMode() {
                     selectedIndex={selectedIndex}
                     checkedRefs={checkedRefs}
                     onSelectIndex={(index) => {
+                      setLocalSource(null);
                       setSelectedRef(rows[index]?.sourceRef ?? null);
                       setSelectedFolder(null);
                       setHandlerOverride("");
                     }}
-                    onToggleChecked={(refs) => setCheckedRefs(new Set(refs))}
+                    onToggleChecked={(refs) => { setLocalSource(null); setCheckedRefs(new Set(refs)); }}
                     onReachEnd={() => { if (!nextPageError) loadNextPage(); }}
                   />
                 </div>
@@ -547,40 +668,5 @@ function findUnit(units: readonly CatalogUnit[], folder: string): CatalogUnit | 
       (unit) =>
         unit.unit_root.replace(/\/$/, "") === trimmed || (unit.export_root ?? "").replace(/\/$/, "") === trimmed,
     ) ?? null
-  );
-}
-
-/** Index hits (contents / meaning) stay read-only until they carry a resolvable B2 key. */
-function IndexResults({
-  results,
-  pending,
-  onOpen,
-}: {
-  results: readonly DiscoveryItem[];
-  pending: boolean;
-  onOpen: (item: DiscoveryItem) => void;
-}) {
-  if (pending) {
-    return (
-      <p className="flex items-center gap-2 px-3 py-4 text-xs text-muted-foreground" role="status">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching the index
-      </p>
-    );
-  }
-  if (!results.length) {
-    return <p className="px-3 py-4 text-xs text-muted-foreground">No indexed results.</p>;
-  }
-  return (
-    <ul className="min-h-0 flex-1 divide-y overflow-auto text-xs">
-      {results.map((item) => (
-        <li key={item.id} className="px-3 py-2">
-          <button type="button" className="text-left font-medium hover:text-primary" onClick={() => onOpen(item)}>
-            {item.name}
-          </button>
-          <span className="mt-0.5 block break-all font-mono text-[10px] text-muted-foreground">{item.rel}</span>
-          {item.text && <span className="mt-1 block text-[11px] text-muted-foreground">{item.text.slice(0, 200)}</span>}
-        </li>
-      ))}
-    </ul>
   );
 }

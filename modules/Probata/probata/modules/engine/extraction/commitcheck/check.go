@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 //
 // Package commitcheck validates a run's current entity and event proposals
@@ -127,8 +128,8 @@ func Validate(snapshot Snapshot) Report {
 	}
 
 	// 1. Test data never becomes canonical.
-	if snapshot.MatterMode == "REAL" {
-		add("live_mode", nil, "Live (REAL) run: the registry and timeline are valid destinations")
+	if snapshot.MatterMode == "LIVE" {
+		add("live_mode", nil, "Live (LIVE) run: the registry and timeline are valid destinations")
 	} else {
 		add("live_mode", []string{fmt.Sprintf("this is a %s-mode run; proposals can be reviewed but only a Live-mode run commits to the registry and timeline", nonEmpty(snapshot.MatterMode, "unknown"))}, "")
 	}

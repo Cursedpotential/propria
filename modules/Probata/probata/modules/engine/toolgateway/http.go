@@ -42,6 +42,25 @@ type runRequest struct {
 	Args      map[string]any `json:"args"`
 }
 
+type pinnedRunRequest struct {
+	SourceRef    string         `json:"source_ref"`
+	SourceSHA256 string         `json:"source_sha256"`
+	OperationID  string         `json:"operation_id"`
+	Args         map[string]any `json:"args"`
+}
+
+// Initial source-file tools are explicit until the manifest declares a
+// source_required contract. A read-only no-input tool must never be admitted
+// merely because it shares an execution_policy with a parser.
+var initialSourceTools = map[string]bool{
+	"repair.detect": true, "repair.preview": true,
+	"repair.pdf-inspect": true, "documents.extract-text": true,
+}
+
+// IsInitialSourceTool reports whether a tool is in the first explicitly
+// source-backed read-only slice. The HTTP boundary also checks the live policy.
+func IsInitialSourceTool(id string) bool { return initialSourceTools[id] }
+
 // Routes returns the mux. Tool ids contain dots but no slashes, so a single
 // path segment holds them.
 func (h *HTTPHandler) Routes() http.Handler {
@@ -52,6 +71,7 @@ func (h *HTTPHandler) Routes() http.Handler {
 	})
 	mux.HandleFunc("GET /tools", h.auth(h.handleIndex))
 	mux.HandleFunc("POST /tools/{tool_id}/run", h.auth(h.handleRun))
+	mux.HandleFunc("POST /tools/{tool_id}/run-pinned", h.auth(h.handlePinnedRun))
 	// One MCP tool over the whole atomic catalog (see mcp.go). Tailnet-only, no bearer token,
 	// per the owner's tailnet rule. Claude Code · Opus 5.5 · 2026-09-28.
 	mux.Handle("/mcp", h.tailnetOnly(h.mcpHandler()))
@@ -160,6 +180,75 @@ func (h *HTTPHandler) handleRun(w http.ResponseWriter, r *http.Request) {
 	result, err := h.Gateway.Run(r.Context(), toolID, proffer.Ref(req.SourceRef), req.Args)
 	if err != nil {
 		slog.Warn("tool gateway run failed", "tool_id", toolID, "error", err.Error())
+		writeError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(result)
+}
+
+// handlePinnedRun runs an explicitly source-backed, read-only catalog tool.
+// The caller supplies a locator, its reviewed SHA-256 and options; the route
+// checks the live manifest, source pin and policy before any tool side effect.
+// Its response is the tool-runtime envelope, preferably a ContentStore ref.
+func (h *HTTPHandler) handlePinnedRun(w http.ResponseWriter, r *http.Request) {
+	toolID := r.PathValue("tool_id")
+	if err := ValidateToolID(toolID); err != nil || !initialSourceTools[toolID] {
+		writeError(w, http.StatusBadRequest, errors.New("tool gateway: source-backed tool is not in the initial approved catalog"))
+		return
+	}
+	if h.Index == nil || h.Gateway == nil {
+		writeError(w, http.StatusServiceUnavailable, errors.New("tool gateway: catalog or gateway is unavailable"))
+		return
+	}
+	raw, err := h.Index()
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	var entries []struct {
+		ID              string `json:"id"`
+		SideEffect      string `json:"side_effect"`
+		ExecutionPolicy string `json:"execution_policy"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		writeError(w, http.StatusBadGateway, errors.New("tool gateway: invalid live tool catalog"))
+		return
+	}
+	approved := false
+	for _, entry := range entries {
+		if entry.ID == toolID && entry.SideEffect == "read_only" && entry.ExecutionPolicy != "manual_approval_required" {
+			approved = true
+			break
+		}
+	}
+	if !approved {
+		writeError(w, http.StatusForbidden, errors.New("tool gateway: live tool policy does not allow read-only source execution"))
+		return
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBytes))
+	decoder.DisallowUnknownFields()
+	var req pinnedRunRequest
+	if err := decoder.Decode(&req); err != nil || strings.TrimSpace(req.SourceRef) == "" || len(req.OperationID) < 16 || len(req.OperationID) > 128 {
+		writeError(w, http.StatusBadRequest, errors.New("tool gateway: source_ref, source_sha256 and a bounded operation_id are required"))
+		return
+	}
+	for key := range req.Args {
+		if key == "path" || strings.HasPrefix(key, "_") {
+			writeError(w, http.StatusBadRequest, errors.New("tool gateway: caller may not supply a host path or reserved option"))
+			return
+		}
+	}
+	if req.Args == nil {
+		req.Args = map[string]any{}
+	}
+	req.Args["_execution_mode"] = "temporal"
+	req.Args["_input_sha256"] = req.SourceSHA256
+	req.Args["_operation_id"] = req.OperationID
+	result, err := h.Gateway.RunPinned(r.Context(), toolID, proffer.Ref(req.SourceRef), req.SourceSHA256, req.Args)
+	if err != nil {
+		slog.Warn("tool gateway pinned run failed", "tool_id", toolID, "error", err.Error())
 		writeError(w, http.StatusUnprocessableEntity, err)
 		return
 	}

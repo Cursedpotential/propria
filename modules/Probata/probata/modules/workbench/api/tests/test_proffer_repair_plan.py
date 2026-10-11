@@ -13,22 +13,20 @@ from uuid import UUID
 
 import httpx
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 from app.runtime.proffer_repair_plan import router
 from app.service import matter_mode, proffer
 from app.service.matter_mode import _clear_preview_modes_for_tests, bind_preview_mode
 from app.service.proffer_repair_plan import _clear_run_modes_for_tests
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 STARTER = "https://starter.internal"
 TOKEN = "t" * 40
-HANDLE = "test_mode_review_run_handle_abcdefghij"
-REAL_HANDLE = "real_mode_review_run_handle_abcdefghij"
+HANDLE = "live_policy_review_run_handle_abcdefghij"
+DEV_HANDLE = "dev_policy_review_run_handle_abcdefghij"
 SOURCE = "b2://salem-data/consignatio/vault/v1/sms/sms-20240101.xml"
 WORKFLOW_ID = "repair-plan-rp-abcdefgh-0123456789ab"
-TEST_MATTER = UUID("11111111-1111-4111-8111-111111111111")
-REAL_MATTER = UUID("22222222-2222-4222-8222-222222222222")
+CASE_MATTER = UUID("11111111-1111-4111-8111-111111111111")
 
 FIND_SCHEMA = {
     "type": "object",
@@ -71,19 +69,23 @@ class FakeEngine:
 
 @pytest.fixture
 def engine(monkeypatch, tmp_path):
+    from app.runtime import operating_mode
+    async def verified_scope(_mode):
+        return None
+    monkeypatch.setattr(operating_mode, "verify_case_scope", verified_scope)
     secret = tmp_path / "proffer-service-token"
     secret.write_text(TOKEN, encoding="utf-8")
     fake = FakeEngine()
     monkeypatch.setattr(proffer.settings, "proffer_starter_url", STARTER)
     monkeypatch.setattr(proffer.settings, "proffer_service_token_file", str(secret))
     monkeypatch.setattr(proffer.httpx, "AsyncClient", fake.client_class())
-    configured = lambda mode: TEST_MATTER if mode == "TEST" else REAL_MATTER  # noqa: E731
+    configured = lambda mode: CASE_MATTER
     monkeypatch.setattr(proffer, "configured_matter_id", configured)
     monkeypatch.setattr(matter_mode, "configured_matter_id", configured)
     _clear_preview_modes_for_tests()
     _clear_run_modes_for_tests()
-    bind_preview_mode(HANDLE, "TEST")
-    bind_preview_mode(REAL_HANDLE, "REAL")
+    bind_preview_mode(HANDLE, "LIVE")
+    bind_preview_mode(DEV_HANDLE, "DEV")
     yield fake
     _clear_preview_modes_for_tests()
     _clear_run_modes_for_tests()
@@ -101,7 +103,7 @@ def _plan(**overrides) -> dict:
         "plan_id": "rp-abcdefgh",
         "source_ref": SOURCE,
         "preview_handle": HANDLE,
-        "matter_mode": "TEST",
+        "matter_mode": "LIVE",
         "steps": [
             {"step_id": "s1", "activity": "repair.find_other_version", "params": {"max_candidates": 3}},
             {"step_id": "s2", "activity": "repair.salvage_truncated_xml", "params": None},
@@ -116,7 +118,7 @@ def _status(**overrides) -> dict:
         "workflow_id": WORKFLOW_ID,
         "plan_id": "rp-abcdefgh",
         "preview_handle": HANDLE,
-        "matter_mode": "TEST",
+        "matter_mode": "LIVE",
         "status": "running",
         "steps": [
             {
@@ -166,11 +168,11 @@ def test_tools_pass_through_with_null_lists_emptied_and_the_mode_echoed(client, 
         },
     )
 
-    response = client.get("/api/proffer/repair/tools?mode=TEST")
+    response = client.get("/api/proffer/repair/tools?mode=LIVE")
 
     assert response.status_code == 200
     body = response.json()
-    assert body["matter_mode"] == "TEST"
+    assert body["matter_mode"] == "LIVE"
     assert body["tools"][0]["params_schema"] == FIND_SCHEMA
     assert body["tools"][1] == {
         "id": "repair.lenient_decode",
@@ -187,23 +189,25 @@ def test_tools_pass_through_with_null_lists_emptied_and_the_mode_echoed(client, 
 
 def test_a_null_tool_list_is_an_empty_list(client, engine):
     engine.reply("GET", "/reference-import/repair/tools", 200, {"tools": None})
-    assert client.get("/api/proffer/repair/tools?mode=REAL").json() == {"tools": [], "matter_mode": "REAL"}
+    assert client.get("/api/proffer/repair/tools?mode=DEV").json() == {"tools": [], "matter_mode": "DEV"}
 
 
 def test_tools_keep_the_engines_status_and_detail(client, engine):
     engine.reply(
         "GET", "/reference-import/repair/tools", 503, {"detail": "repair plans are not configured on this service"}
     )
-    response = client.get("/api/proffer/repair/tools?mode=TEST")
+    response = client.get("/api/proffer/repair/tools?mode=LIVE")
     assert response.status_code == 503
     assert response.json() == {"detail": "repair plans are not configured on this service"}
 
 
-def test_every_route_requires_the_mode_query(client, engine):
-    assert client.get("/api/proffer/repair/tools").status_code == 422
-    assert client.post("/api/proffer/repair/validate", json=_plan()).status_code == 422
-    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}").status_code == 422
-    assert engine.calls == []
+def test_every_route_defaults_to_live_policy(client, engine):
+    engine.reply("GET", "/reference-import/repair/tools", 200, {"tools": []})
+    engine.reply("POST", "/reference-import/repair/validate", 200, {"ok": True, "checks": []})
+    engine.reply("GET", f"/reference-import/repair/runs/{WORKFLOW_ID}", 200, _status())
+    assert client.get("/api/proffer/repair/tools").json()["matter_mode"] == "LIVE"
+    assert client.post("/api/proffer/repair/validate", json=_plan()).json()["matter_mode"] == "LIVE"
+    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}").json()["matter_mode"] == "LIVE"
 
 
 # --- propose -----------------------------------------------------------------
@@ -237,12 +241,12 @@ def test_propose_forwards_the_run_and_empties_null_lists(client, engine):
     )
 
     response = client.post(
-        "/api/proffer/repair/propose?mode=TEST", json={"source_ref": SOURCE, "preview_handle": HANDLE}
+        "/api/proffer/repair/propose?mode=LIVE", json={"source_ref": SOURCE, "preview_handle": HANDLE}
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["signature"] == "sms_backup_xml:truncated" and body["matter_mode"] == "TEST"
+    assert body["signature"] == "sms_backup_xml:truncated" and body["matter_mode"] == "LIVE"
     assert body["proposals"][0]["steps"] == [{"step_id": "s1", "activity": "repair.find_other_version", "params": {}}]
     assert body["proposals"][1]["steps"] == []
     assert engine.calls[0]["json"] == {"source_ref": SOURCE, "preview_handle": HANDLE}
@@ -256,14 +260,14 @@ def test_an_uncovered_signature_proposes_nothing(client, engine):
         {"signature": "pdf:damaged", "proposals": None, "agent_available": False},
     )
     body = client.post(
-        "/api/proffer/repair/propose?mode=TEST", json={"source_ref": SOURCE, "preview_handle": HANDLE}
+        "/api/proffer/repair/propose?mode=LIVE", json={"source_ref": SOURCE, "preview_handle": HANDLE}
     ).json()
     assert body["proposals"] == [] and body["signature"] == "pdf:damaged"
 
 
 def test_propose_refuses_a_run_of_the_other_mode_before_the_engine(client, engine):
     response = client.post(
-        "/api/proffer/repair/propose?mode=TEST", json={"source_ref": SOURCE, "preview_handle": REAL_HANDLE}
+        "/api/proffer/repair/propose?mode=LIVE", json={"source_ref": SOURCE, "preview_handle": DEV_HANDLE}
     )
     assert response.status_code == 409
     assert "different matter mode" in response.json()["detail"]
@@ -272,17 +276,17 @@ def test_propose_refuses_a_run_of_the_other_mode_before_the_engine(client, engin
 
 def test_propose_rebinds_a_run_from_its_durable_matter_after_a_restart(client, engine):
     _clear_preview_modes_for_tests()
-    engine.reply("GET", f"/reference-import/operations/{HANDLE}", 200, {"matter_id": str(TEST_MATTER)})
+    engine.reply("GET", f"/reference-import/operations/{HANDLE}", 200, {"preview_handle": HANDLE, "matter_id": str(CASE_MATTER), "operating_mode": "LIVE"})
     engine.reply("POST", "/reference-import/repair/propose", 200, {"signature": "xml:clean", "proposals": []})
 
     assert (
         client.post(
-            "/api/proffer/repair/propose?mode=TEST", json={"source_ref": SOURCE, "preview_handle": HANDLE}
+            "/api/proffer/repair/propose?mode=LIVE", json={"source_ref": SOURCE, "preview_handle": HANDLE}
         ).status_code
         == 200
     )
     _clear_preview_modes_for_tests()
-    wrong = client.post("/api/proffer/repair/propose?mode=REAL", json={"source_ref": SOURCE, "preview_handle": HANDLE})
+    wrong = client.post("/api/proffer/repair/propose?mode=DEV", json={"source_ref": SOURCE, "preview_handle": HANDLE})
     assert wrong.status_code == 409
 
 
@@ -290,7 +294,7 @@ def test_propose_keeps_the_engines_422(client, engine):
     detail = "no Review run exists for this source; start it in Review first"
     engine.reply("POST", "/reference-import/repair/propose", 422, {"detail": detail})
     response = client.post(
-        "/api/proffer/repair/propose?mode=TEST", json={"source_ref": SOURCE, "preview_handle": HANDLE}
+        "/api/proffer/repair/propose?mode=LIVE", json={"source_ref": SOURCE, "preview_handle": HANDLE}
     )
     assert response.status_code == 422
     assert response.json() == {"detail": detail}
@@ -306,34 +310,34 @@ def test_validate_passes_the_plan_through_and_returns_every_check(client, engine
     ]
     engine.reply("POST", "/reference-import/repair/validate", 200, {"ok": False, "checks": checks})
 
-    response = client.post("/api/proffer/repair/validate?mode=TEST", json=_plan())
+    response = client.post("/api/proffer/repair/validate?mode=LIVE", json=_plan())
 
     assert response.status_code == 200
-    assert response.json() == {"ok": False, "checks": checks, "matter_mode": "TEST"}
+    assert response.json() == {"ok": False, "checks": checks, "matter_mode": "LIVE"}
     forwarded = engine.calls[0]["json"]
-    assert forwarded["matter_mode"] == "TEST" and forwarded["preview_handle"] == HANDLE
+    assert forwarded["matter_mode"] == "LIVE" and forwarded["preview_handle"] == HANDLE
     assert forwarded["steps"][1] == {"step_id": "s2", "activity": "repair.salvage_truncated_xml", "params": {}}
 
 
 def test_validate_empties_a_null_checklist(client, engine):
     engine.reply("POST", "/reference-import/repair/validate", 200, {"ok": True, "checks": None})
-    assert client.post("/api/proffer/repair/validate?mode=TEST", json=_plan()).json()["checks"] == []
+    assert client.post("/api/proffer/repair/validate?mode=LIVE", json=_plan()).json()["checks"] == []
 
 
 def test_a_plan_whose_mode_contradicts_the_query_never_reaches_the_engine(client, engine):
-    response = client.post("/api/proffer/repair/validate?mode=REAL", json=_plan())
+    response = client.post("/api/proffer/repair/validate?mode=DEV", json=_plan())
     assert response.status_code == 409
     assert engine.calls == []
 
 
 def test_a_plan_anchored_to_the_other_modes_run_is_refused(client, engine):
-    response = client.post("/api/proffer/repair/validate?mode=TEST", json=_plan(preview_handle=REAL_HANDLE))
+    response = client.post("/api/proffer/repair/validate?mode=LIVE", json=_plan(preview_handle=DEV_HANDLE))
     assert response.status_code == 409
     assert engine.calls == []
 
 
 def test_a_plan_without_a_provable_run_is_refused(client, engine):
-    assert client.post("/api/proffer/repair/validate?mode=TEST", json=_plan(preview_handle=None)).status_code == 422
+    assert client.post("/api/proffer/repair/validate?mode=LIVE", json=_plan(preview_handle=None)).status_code == 422
     assert engine.calls == []
 
 
@@ -341,14 +345,14 @@ def test_validate_keeps_the_engines_400_for_a_malformed_plan(client, engine):
     engine.reply(
         "POST", "/reference-import/repair/validate", 400, {"detail": "plan_id must be 8-96 URL-safe characters"}
     )
-    response = client.post("/api/proffer/repair/validate?mode=TEST", json=_plan(plan_id="short"))
+    response = client.post("/api/proffer/repair/validate?mode=LIVE", json=_plan(plan_id="short"))
     assert response.status_code == 400
     assert response.json() == {"detail": "plan_id must be 8-96 URL-safe characters"}
 
 
 def test_an_upstream_answer_for_the_other_mode_is_a_bad_gateway(client, engine):
-    engine.reply("POST", "/reference-import/repair/validate", 200, {"ok": True, "checks": [], "matter_mode": "REAL"})
-    assert client.post("/api/proffer/repair/validate?mode=TEST", json=_plan()).status_code == 502
+    engine.reply("POST", "/reference-import/repair/validate", 200, {"ok": True, "checks": [], "matter_mode": "DEV"})
+    assert client.post("/api/proffer/repair/validate?mode=LIVE", json=_plan()).status_code == 502
 
 
 # --- run ---------------------------------------------------------------------
@@ -357,10 +361,10 @@ def test_an_upstream_answer_for_the_other_mode_is_a_bad_gateway(client, engine):
 def test_run_starts_the_plan_and_records_its_mode(client, engine):
     engine.reply("POST", "/reference-import/repair/run", 201, {"workflow_id": WORKFLOW_ID, "run_id": "run-1"})
 
-    response = client.post("/api/proffer/repair/run?mode=TEST", json=_plan())
+    response = client.post("/api/proffer/repair/run?mode=LIVE", json=_plan())
 
     assert response.status_code == 201
-    assert response.json() == {"workflow_id": WORKFLOW_ID, "run_id": "run-1", "matter_mode": "TEST"}
+    assert response.json() == {"workflow_id": WORKFLOW_ID, "run_id": "run-1", "matter_mode": "LIVE"}
     # An engine status without a mode echo is proven by the binding /run recorded ...
     engine.reply(
         "GET",
@@ -368,9 +372,9 @@ def test_run_starts_the_plan_and_records_its_mode(client, engine):
         200,
         {k: v for k, v in _status().items() if k != "matter_mode"},
     )
-    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=TEST").json()["matter_mode"] == "TEST"
+    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=LIVE").json()["matter_mode"] == "LIVE"
     # ... and still refuses the other mode.
-    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=REAL").status_code == 409
+    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=DEV").status_code == 409
 
 
 def test_a_refused_run_keeps_its_detail_and_checks(client, engine):
@@ -381,7 +385,7 @@ def test_a_refused_run_keeps_its_detail_and_checks(client, engine):
     detail = "plan failed validation — bounded: 13 steps; at most 12."
     engine.reply("POST", "/reference-import/repair/run", 422, {"detail": detail, "ok": False, "checks": checks})
 
-    response = client.post("/api/proffer/repair/run?mode=TEST", json=_plan())
+    response = client.post("/api/proffer/repair/run?mode=LIVE", json=_plan())
 
     assert response.status_code == 422
     assert response.json() == {"detail": detail, "ok": False, "checks": checks}
@@ -389,7 +393,7 @@ def test_a_refused_run_keeps_its_detail_and_checks(client, engine):
 
 def test_a_refused_run_with_no_checklist_keeps_its_detail(client, engine):
     engine.reply("POST", "/reference-import/repair/run", 422, {"detail": "plan failed validation", "checks": None})
-    response = client.post("/api/proffer/repair/run?mode=TEST", json=_plan())
+    response = client.post("/api/proffer/repair/run?mode=LIVE", json=_plan())
     assert response.status_code == 422
     assert response.json() == {"detail": "plan failed validation", "ok": False, "checks": []}
 
@@ -398,13 +402,13 @@ def test_a_run_the_engine_cannot_start_keeps_its_status(client, engine):
     engine.reply(
         "POST", "/reference-import/repair/run", 503, {"detail": "the repair run could not start: temporal unavailable"}
     )
-    response = client.post("/api/proffer/repair/run?mode=TEST", json=_plan())
+    response = client.post("/api/proffer/repair/run?mode=LIVE", json=_plan())
     assert response.status_code == 503
     assert response.json()["detail"] == "the repair run could not start: temporal unavailable"
 
 
 def test_a_run_of_the_other_mode_is_refused_before_the_engine(client, engine):
-    assert client.post("/api/proffer/repair/run?mode=REAL", json=_plan()).status_code == 409
+    assert client.post("/api/proffer/repair/run?mode=DEV", json=_plan()).status_code == 409
     assert engine.calls == []
 
 
@@ -414,16 +418,16 @@ def test_a_run_of_the_other_mode_is_refused_before_the_engine(client, engine):
 def test_run_status_is_proven_from_the_engine_after_a_restart(client, engine):
     engine.reply("GET", f"/reference-import/repair/runs/{WORKFLOW_ID}", 200, _status(checks=None))
 
-    response = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=TEST")
+    response = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=LIVE")
 
     assert response.status_code == 200
     body = response.json()
-    assert body["matter_mode"] == "TEST" and body["status"] == "running"
+    assert body["matter_mode"] == "LIVE" and body["status"] == "running"
     assert body["checks"] == []
     assert [step["status"] for step in body["steps"]] == ["succeeded", "pending"]
     assert body["steps"][0]["summary"] == {"candidates": 1}
     assert body["steps"][1]["receipt_ref"] == ""
-    wrong = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=REAL")
+    wrong = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=DEV")
     assert wrong.status_code == 409
     assert "different matter mode" in wrong.json()["detail"]
 
@@ -440,7 +444,7 @@ def test_run_status_carries_the_reentry(client, engine):
             reentry_receipt_ref="r-9",
         ),
     )
-    body = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=TEST").json()
+    body = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=LIVE").json()
     assert body["steps"] == []
     assert body["reentry_batch_id"] == "repair-" + "a" * 40
     assert body["reentry_receipt_ref"] == "r-9"
@@ -449,16 +453,16 @@ def test_run_status_carries_the_reentry(client, engine):
 
 def test_an_unbound_run_the_engine_cannot_prove_fails_closed(client, engine):
     engine.reply("GET", f"/reference-import/repair/runs/{WORKFLOW_ID}", 200, _status(matter_mode=""))
-    response = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=TEST")
+    response = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=LIVE")
     assert response.status_code == 409
     assert "no provable TEST/REAL binding" in response.json()["detail"]
 
 
 def test_a_binding_the_engine_contradicts_is_a_bad_gateway(client, engine):
     engine.reply("POST", "/reference-import/repair/run", 201, {"workflow_id": WORKFLOW_ID, "run_id": "run-1"})
-    assert client.post("/api/proffer/repair/run?mode=TEST", json=_plan()).status_code == 201
-    engine.reply("GET", f"/reference-import/repair/runs/{WORKFLOW_ID}", 200, _status(matter_mode="REAL"))
-    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=TEST").status_code == 502
+    assert client.post("/api/proffer/repair/run?mode=LIVE", json=_plan()).status_code == 201
+    engine.reply("GET", f"/reference-import/repair/runs/{WORKFLOW_ID}", 200, _status(matter_mode="DEV"))
+    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=LIVE").status_code == 502
 
 
 def test_a_status_for_another_workflow_is_a_bad_gateway(client, engine):
@@ -468,19 +472,19 @@ def test_a_status_for_another_workflow_is_a_bad_gateway(client, engine):
         200,
         _status(workflow_id="repair-plan-other-000000000000"),
     )
-    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=TEST").status_code == 502
+    assert client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=LIVE").status_code == 502
 
 
 def test_an_unknown_run_keeps_the_engines_404(client, engine):
     engine.reply("GET", f"/reference-import/repair/runs/{WORKFLOW_ID}", 404, {"detail": "repair run not found"})
-    response = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=TEST")
+    response = client.get(f"/api/proffer/repair/runs/{WORKFLOW_ID}?mode=LIVE")
     assert response.status_code == 404
     assert response.json() == {"detail": "repair run not found"}
 
 
 def test_a_malformed_workflow_id_never_reaches_the_engine(client, engine):
-    assert client.get("/api/proffer/repair/runs/short?mode=TEST").status_code == 422
-    assert client.get("/api/proffer/repair/runs/has%2Fslash-0123456789?mode=TEST").status_code in {404, 422}
+    assert client.get("/api/proffer/repair/runs/short?mode=LIVE").status_code == 422
+    assert client.get("/api/proffer/repair/runs/has%2Fslash-0123456789?mode=LIVE").status_code in {404, 422}
     assert engine.calls == []
 
 

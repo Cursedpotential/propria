@@ -1,5 +1,68 @@
 # Propria — Monorepo Root Contract
 
+## Context-first ingestion is the current operating rule (owner, 2026-10-08)
+
+**Every source enters context first, without an admission, approval, custody,
+evidence-promotion, or hashing gate.** Context is usable and searchable before
+optional review or deeper analysis. Keep three distinct source types and parser
+contracts: first-party human messaging, second-party human messaging, and the
+owner's conversations with AI. Preserve each complete conversation or export
+package and navigable source locators; extract created works and topic chunks
+from AI chats without publishing individual messages as search results.
+
+All three types can feed context analysis. Only qualifying real messages,
+documents, media, or other primary material may later enter a **separate,
+owner-directed evidence-promotion process**. AI chats remain context and are
+never evidence. Do not run current ingestion through `evidence.*`, custody H1/H2/H3,
+evidence admission/promotion, or a hash-mandatory context table merely to reuse
+an older workflow. Uncertainty becomes context metadata for later work, not a
+reason to withhold the source from context/search. Keep the older evidence code
+intact for the later phase; do not invoke it during context ingestion.
+
+The Go engine owns ingestion orchestration through Temporal; each processing
+operation is an Activity on the server. Chonkie NeuralChunker is the AI-chat
+topic splitter. n8n may coordinate peripheral image or notification work, but
+is not the ingestion authority or a prerequisite. This section supersedes
+older hash-first, custody-first, evidence-first and approval-before-context
+instructions throughout this repository. It records the owner's rule, not a
+claim that the current runtime has already been corrected or deployed.
+
+_Byline: Codex · GPT-6 · 2026-10-08; direct owner correction in this chat._
+
+## One case identity; independent operating and feature flags (owner, 2026-10-05)
+
+**Live is the normal operating mode. Dev is an explicit operating policy, not a
+different case, dataset identity, person or source identity.** Every surface uses
+the same approved matter and court-case identifiers in both modes. Never select,
+mint or restore a placeholder/alternate case because Dev or an authentication
+flag is enabled. Use **Dev / Live** and **Case page** in current product guidance.
+
+Feature flags are separate, narrowly named controls. Operating mode must not
+silently flip authentication, evidence guards, retention, rollback or unrelated
+features together. Preserve and test each gated capability; an off switch is not
+permission to leave the capability unbuilt. Authentication remains the existing
+tailnet/public-proxy contract and is not changed by a case-mode repair.
+
+Dev data isolation is separate work: the owner proposed a frozen/disposable view
+of current Live data whose changes are absent after leaving Dev. Do not claim
+this exists before its lifecycle is implemented and verified. Never restore an
+old snapshot over the shared Live database or erase concurrent Live changes.
+Until isolation exists, Dev canonical mutations must fail before persistence or
+dispatch, with the blocker stated explicitly; Live retains its existing gates.
+
+This supersedes the identity-switching and pre-launch reset instructions in
+historical D-126 and any inherited TEST/REAL case-selection contract. Historical
+records stay preserved as history. Temporary request/environment aliases and
+legacy SQL storage values may exist only at explicit compatibility boundaries;
+they must normalize to DEV/LIVE and must never select different identifiers.
+Durable operation mode is explicit receipt/history metadata, never inferred from
+a matter ID. Unknown old bindings cannot be guessed into an operating mode.
+
+Current contract: `docs/decisions/2026-10-05-single-case-operating-flags.md`.
+This instruction records the owner decision, not a claim of completed deployment.
+
+_Byline: Codex, orchestrator, 2026-10-05; owner corrections and core-fix authorization._
+
 ## Documentation comes from docstrings (owner rule, 2026-10-02)
 
 Every tool, Activity, workflow, API route and MCP tool written from now on carries a docstring or
@@ -15,7 +78,7 @@ can get some good documentation when we're done." _Claude Code · Opus 5.5 · 20
 
 Every fact, source, resource, guide, law and case reference throughout Propria
 must carry a citation chain to its root source and validation evidence. Preserve
-source identity, version/hash and the applicable locator or pinpoint with the
+source identity, version and the applicable locator or pinpoint with the
 supported claim; a reachable URL alone does not establish that the claim is true.
 This applies to every module and surface, including phone, desktop, workdesk,
 platform and agent tools. Revalidate library updates before propagation, retain

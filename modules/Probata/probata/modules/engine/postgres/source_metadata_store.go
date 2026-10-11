@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (durable single-case write admission)
 // Byline: Claude Code · Opus 5.5 · 2026-09-26
 //
 // Read model behind the Review metadata screen (sourcemeta.Store) and the
@@ -392,6 +393,9 @@ func (s *SourceMetadataStore) PersistCorrection(ctx context.Context, spec source
 	if err != nil {
 		return sourcemeta.Receipt{}, err
 	}
+	if err := requirePreviewWrite(ctx, s.db, spec.PreviewHandle); err != nil {
+		return sourcemeta.Receipt{}, fmt.Errorf("admit source correction: %w: %v", sourcemeta.ErrScopeMissing, err)
+	}
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return sourcemeta.Receipt{}, err
@@ -406,7 +410,7 @@ func (s *SourceMetadataStore) PersistCorrection(ctx context.Context, spec source
 		rollback()
 		return sourcemeta.Receipt{}, sourcemeta.ErrNotFound
 	}
-	if run.source.MatterID == nil || run.source.CourtCaseID == nil {
+	if run.source.MatterID == nil || run.source.CourtCaseID == nil || !AdmittedCaseIdentity(*run.source.MatterID, *run.source.CourtCaseID) {
 		rollback()
 		return sourcemeta.Receipt{}, sourcemeta.ErrScopeMissing
 	}

@@ -37,13 +37,17 @@ Routes:
 # Byline: Codex · GPT-5 · 2026-08-16 (read-only Data Explorer contracts)
 # Byline: Codex · GPT-5 · 2026-08-18 (message projection and realization read model)
 # Byline amendment: Codex · GPT-5 · 2026-08-18 (governed third-party review HTTP surface)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (single-case Proffer operating-mode boundary)
+# Byline amendment: Codex · orchestrator · 2026-10-05 (durable preview-mode admission)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (authenticated authoritative case-pair admission)
+# Byline amendment: Codex · GPT-5 · 2026-10-05 (registered source court-case verification)
+# Byline amendment: Codex · gpt-6.1-sol · 2026-10-06 (await total-deadline authoritative admission)
 
 from __future__ import annotations
 
 import hashlib
 import hmac
 import json
-import os
 import shutil
 import tempfile
 import time
@@ -58,6 +62,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import create_engine, text
 
 from server.core.knowledge_handle import resolve_knowledge
+from server.case_management.authoritative_case_scope import (
+    CaseScopeVerificationError,
+    configured_case_scope,
+    require_authoritative_live_case_scope_async,
+)
 from server.evidence.custody import blob_root
 
 _engine = None
@@ -1006,6 +1015,8 @@ _ALLOWED_TARGET_KINDS = {"record", "knowledge", "run"}
 _ALLOWED_FLAG_STATUSES = {"open", "partial", "corroborated", "unobtainable"}
 _PROFFER_FLAG_CONTRACT = "proffer-potential-promotion/v1"
 _PROFFER_DELEGATION_KEY_FILE = Path("/run/secrets/proffer-flag-delegation-key")
+ProfferWireMode = Literal["DEV", "LIVE", "TEST", "REAL"]
+ProfferOperatingMode = Literal["DEV", "LIVE"]
 
 
 def _reserved_proffer_notes(notes: str | None) -> bool:
@@ -1018,8 +1029,18 @@ def _reserved_proffer_notes(notes: str | None) -> bool:
     return isinstance(parsed, dict) and parsed.get("contract") == _PROFFER_FLAG_CONTRACT
 
 
-def _verify_proffer_delegation(request: Request, body: "ProfferPotentialPromotionFlagCreate") -> None:
-    """Only the BFF may attest the actor it obtained from its user boundary."""
+def _verify_proffer_delegation(
+    request: Request,
+    wire_payload: dict[str, Any],
+) -> None:
+    """Verify the BFF's signature over the exact request representation.
+
+    Inputs: request headers and the raw validated JSON fields.
+    Outputs: None when attestation is valid; raises HTTPException otherwise.
+    Side effects: reads the mounted delegation key; never accesses the database.
+    Sibling choice: this authenticates a Proffer BFF actor and does not replace
+    the platform's normal user authentication or generic flag authorization.
+    """
     try:
         key = _PROFFER_DELEGATION_KEY_FILE.read_bytes().strip()
     except OSError:
@@ -1032,18 +1053,37 @@ def _verify_proffer_delegation(request: Request, body: "ProfferPotentialPromotio
         raise HTTPException(401, "Proffer flag delegation is required")
     if abs(int(time.time()) - int(issued_at)) > 60:
         raise HTTPException(401, "Proffer flag delegation expired")
-    canonical = json.dumps(body.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode("utf-8")
+    canonical = json.dumps(wire_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     expected = hmac.new(key, issued_at.encode("ascii") + b"." + canonical, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(signature, expected):
         raise HTTPException(401, "Proffer flag delegation is invalid")
 
 
-def _configured_proffer_matter(mode: str) -> UUID:
-    raw = os.getenv(f"PROFFER_{mode}_MATTER_ID", "")
+def _canonical_proffer_mode(mode: ProfferWireMode) -> ProfferOperatingMode:
+    """Normalize the legacy Proffer wire aliases to the current operating policy.
+
+    Inputs: DEV/LIVE or rollout aliases TEST/REAL.
+    Outputs: canonical DEV/LIVE policy value.
+    Side effects: none.
+    Sibling choice: use this only at the Proffer flag API compatibility boundary.
+    """
+    return {"TEST": "DEV", "REAL": "LIVE"}.get(mode, mode)
+
+
+def _configured_proffer_matter(mode: ProfferWireMode) -> UUID:
+    """Resolve the single configured Proffer matter independent of operating mode.
+
+    Inputs: canonical DEV/LIVE or rollout aliases TEST/REAL.
+    Outputs: the configured matter UUID shared by every operating mode.
+    Side effects: reads environment configuration only.
+    Sibling choice: use this for potential-promotion preview validation; it is
+    not a general case-identity resolver or feature-flag selector.
+    """
+    _canonical_proffer_mode(mode)
     try:
-        return UUID(raw)
+        return UUID(configured_case_scope()[0])
     except ValueError:
-        raise HTTPException(503, f"{mode} matter identity is not configured") from None
+        raise HTTPException(503, "Proffer case identity is not configured or is invalid") from None
 
 
 class FlagCreate(BaseModel):
@@ -1065,10 +1105,12 @@ class FlagPatch(BaseModel):
 
 
 class ProfferPotentialPromotionFlagCreate(BaseModel):
+    """Describe a potential-promotion flag request from the trusted Proffer BFF."""
+
     model_config = ConfigDict(extra="forbid")
 
     preview_handle: str = Field(min_length=32, max_length=64)
-    matter_mode: Literal["TEST", "REAL"]
+    matter_mode: ProfferWireMode = "LIVE"
     scope: Literal["record", "chunk"]
     target_id: UUID
     attempt_id: UUID
@@ -1140,18 +1182,51 @@ def _register_flags_routes(app: FastAPI) -> None:
         body: ProfferPotentialPromotionFlagCreate,
         request: Request,
     ) -> dict[str, Any]:
-        _verify_proffer_delegation(request, body)
-        canonical_request = json.dumps(
-            body.model_dump(mode="json", exclude={"idempotency_key"}), sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-        if not hmac.compare_digest(body.idempotency_key, hashlib.sha256(canonical_request).hexdigest()):
+        """Record a governed potential-promotion flag for a verified Proffer preview.
+
+        Inputs: signed BFF actor attestation and the preview, target, mode, and claim.
+        Outputs: the existing or newly persisted corroboration flag.
+        Side effects: verifies the configured pair through an authenticated starter
+        read with an async total deadline before SQL, then persists only after the current
+        preview's Live admission receipt, full case pair and target are verified;
+        DEV requests are rejected before any database access while isolation is absent.
+        Sibling choice: use this content-review route instead of generic feature flags
+        or `/v1/flags` when recording a Proffer promotion candidate.
+        """
+        wire_payload = await request.json()
+        _verify_proffer_delegation(request, wire_payload)
+        canonical_mode = _canonical_proffer_mode(body.matter_mode)
+        wire_request = {key: value for key, value in wire_payload.items() if key != "idempotency_key"}
+        canonical_request = json.dumps(wire_request, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        canonicalized_wire_request = dict(wire_request)
+        canonicalized_wire_request["matter_mode"] = canonical_mode
+        normalized_request = json.dumps(canonicalized_wire_request, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+        accepted_idempotency_keys = {
+            hashlib.sha256(canonical_request).hexdigest(),
+            hashlib.sha256(normalized_request).hexdigest(),
+        }
+        if not any(hmac.compare_digest(body.idempotency_key, accepted) for accepted in accepted_idempotency_keys):
             raise HTTPException(409, "Proffer flag idempotency key conflicts with the request")
-        expected_matter_id = _configured_proffer_matter(body.matter_mode)
+
+        if canonical_mode == "DEV":
+            raise HTTPException(409, "Dev promotion flags are blocked until isolated workspace support is available")
+
+        try:
+            configured_matter_id, configured_court_case_id = configured_case_scope()
+            expected_matter_id, expected_court_case_id = await require_authoritative_live_case_scope_async(
+                canonical_mode, configured_matter_id, configured_court_case_id
+            )
+        except CaseScopeVerificationError as error:
+            raise HTTPException(error.http_status, str(error)) from None
+        except ValueError:
+            raise HTTPException(503, "Proffer case identity is not configured or is invalid") from None
         metadata = {
             "contract": _PROFFER_FLAG_CONTRACT,
             "classification": "potential_promotion",
             "preview_handle": body.preview_handle,
-            "matter_mode": body.matter_mode,
+            "matter_mode": canonical_mode,
             "scope": body.scope,
             "target_id": str(body.target_id),
             "attempt_id": str(body.attempt_id),
@@ -1160,6 +1235,10 @@ def _register_flags_routes(app: FastAPI) -> None:
             "idempotency_key": body.idempotency_key,
         }
         notes = json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+        # Rolling-upgrade compatibility changes only the stored mode spelling.
+        # Keep the signed request's accepted key unchanged: raw REAL and canonical
+        # LIVE request hashes are distinct keys, not permission to rewrite history.
+        legacy_notes = json.dumps({**metadata, "matter_mode": "REAL"}, sort_keys=True, separators=(",", ":"))
         with _get_engine().begin() as conn:
             conn.execute(
                 text("SELECT pg_advisory_xact_lock(hashtextextended(:preview_handle, 0))"),
@@ -1169,7 +1248,10 @@ def _register_flags_routes(app: FastAPI) -> None:
                 conn.execute(
                     text(
                         "SELECT snapshot.normalized_generation_id, snapshot.source_version_id, "
-                        "version.matter_id "
+                        "version.matter_id, version.court_case_id, COALESCE((SELECT event.detail "
+                        "FROM context.proffer_preview_event event "
+                        "WHERE event.preview_handle = binding.preview_handle AND event.event_id = 0), '') "
+                        "AS mode_detail "
                         "FROM context.proffer_preview_binding binding "
                         "JOIN context.proffer_preview_snapshot snapshot USING (preview_handle) "
                         "JOIN context.source_version version ON version.id = snapshot.source_version_id "
@@ -1184,7 +1266,22 @@ def _register_flags_routes(app: FastAPI) -> None:
             if snapshot is None:
                 raise HTTPException(409, "preview attempt is unavailable")
             if snapshot["matter_id"] is None or str(snapshot["matter_id"]) != str(expected_matter_id):
-                raise HTTPException(409, "preview matter does not match the requested mode")
+                raise HTTPException(409, "preview matter does not match the configured case")
+            if str(snapshot.get("court_case_id", "")) != expected_court_case_id:
+                raise HTTPException(409, "preview source court case does not match the configured case")
+            # A shared case ID is not mode evidence. Only the initial admission
+            # receipt may authorize this write; old/unknown receipts stay closed.
+            try:
+                admission = json.loads(snapshot.get("mode_detail", ""))
+            except (TypeError, ValueError):
+                admission = None
+            if not isinstance(admission, dict) or admission.get("operating_mode") != "LIVE":
+                raise HTTPException(409, "preview has no verified Live operating-mode admission")
+            if (
+                admission.get("matter_id") != expected_matter_id
+                or admission.get("court_case_id") != expected_court_case_id
+            ):
+                raise HTTPException(409, "preview admission case does not match the configured case")
             normalized_generation_id = str(snapshot["normalized_generation_id"])
             if normalized_generation_id != str(body.attempt_id):
                 raise HTTPException(409, "flag attempt does not match the current preview attempt")
@@ -1224,10 +1321,15 @@ def _register_flags_routes(app: FastAPI) -> None:
                     text(
                         "SELECT * FROM analysis.corroboration_flag "
                         "WHERE target_kind = 'run' AND target_id = :target_id "
-                        "AND claim = :claim AND notes = :notes "
+                        "AND claim = :claim AND (notes = :notes OR notes = :legacy_notes) "
                         "ORDER BY created_at, flag_id LIMIT 2"
                     ),
-                    {"target_id": body.preview_handle, "claim": body.claim, "notes": notes},
+                    {
+                        "target_id": body.preview_handle,
+                        "claim": body.claim,
+                        "notes": notes,
+                        "legacy_notes": legacy_notes,
+                    },
                 )
                 .mappings()
                 .all()

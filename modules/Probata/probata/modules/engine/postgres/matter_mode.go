@@ -1,22 +1,13 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package postgres
 
-import "strings"
+import "github.com/Cursedpotential/probata/engine/caseidentity"
 
-// MatterModeForIdentity names the Workbench mode a matter/court-case identity
-// belongs to, from the engine's own two admitted identities — the same
-// constants ProbeProfferSchema admits (D-125, D-126): the pre-launch DEV
-// sentinel is TEST (the Workbench's TEST matter), the authoritative go-live
-// identity is REAL. Any other identity is neither, and callers must fail
-// closed rather than guess.
-func MatterModeForIdentity(matterID, courtCaseID string) (string, bool) {
-	matter, court := strings.ToLower(strings.TrimSpace(matterID)), strings.ToLower(strings.TrimSpace(courtCaseID))
-	switch {
-	case matter == devMatterID && court == devCourtCaseID:
-		return "TEST", true
-	case matter == authoritativeMatterID && court == authoritativeCourtCaseID:
-		return "REAL", true
-	}
-	return "", false
+// AdmittedCaseIdentity validates the authoritative pair without deriving mode.
+// Inputs: matter/court-case IDs. Outputs: admission only. Side effects: none.
+// Use for scope checks; the Oct 5 owner ruling supersedes D-126 case selection.
+func AdmittedCaseIdentity(matterID, courtCaseID string) bool {
+	return caseidentity.AdmittedIdentity(matterID, courtCaseID)
 }

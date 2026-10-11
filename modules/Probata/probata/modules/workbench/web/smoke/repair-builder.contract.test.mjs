@@ -156,10 +156,10 @@ test("a picked proposal becomes an editable step list that the plan numbers in o
   assert.deepEqual(steps.map((step) => step.activity), [FIND.id, LENIENT.id, SALVAGE.id]);
   assert.deepEqual(moveStep(steps, 0, -1).map((step) => step.activity), steps.map((step) => step.activity));
   steps = removeStep(steps, 1);
-  const plan = planFromDraft({ planId: newPlanId(HANDLE), sourceRef: "b2://bucket/sms-1.xml", previewHandle: HANDLE, mode: "TEST", steps });
+  const plan = planFromDraft({ planId: newPlanId(HANDLE), sourceRef: "b2://bucket/sms-1.xml", previewHandle: HANDLE, mode: "LIVE", steps });
   assert.deepEqual(plan.steps.map((step) => [step.step_id, step.activity]), [["s1", FIND.id], ["s2", SALVAGE.id]]);
   assert.equal(plan.preview_handle, HANDLE);
-  assert.equal(plan.matter_mode, "TEST");
+  assert.equal(plan.matter_mode, "LIVE");
   assert.match(plan.plan_id, /^[A-Za-z0-9_-]{8,96}$/);
 });
 
@@ -171,7 +171,7 @@ test("a plan is bounded to the engine's twelve steps", () => {
 
 test("an edit changes the plan key, so an old validation never vouches for a new plan", () => {
   const steps = draftFromProposal(findProposal);
-  const base = { planId: "rp-abcdefgh", sourceRef: "b2://bucket/sms-1.xml", previewHandle: HANDLE, mode: "TEST" };
+  const base = { planId: "rp-abcdefgh", sourceRef: "b2://bucket/sms-1.xml", previewHandle: HANDLE, mode: "LIVE" };
   const before = planKey(planFromDraft({ ...base, steps }));
   const edited = [{ ...steps[0], params: setParam(steps[0].params, "max_candidates", 3) }];
   assert.notEqual(planKey(planFromDraft({ ...base, steps: edited })), before);
@@ -225,7 +225,7 @@ test("a step summary is one short line of counts", () => {
 
 test("proposals show their rationale and steps; only a proposal with steps can be used", () => {
   const markup = html(React.createElement(RepairProposalList, {
-    response: { signature: "sms_backup_xml:truncated", proposals: [findProposal, waitProposal], agent_available: false, matter_mode: "TEST" },
+    response: { signature: "sms_backup_xml:truncated", proposals: [findProposal, waitProposal], agent_available: false, matter_mode: "LIVE" },
     onUse: noop,
   }));
   assert.match(markup, /Look in the Case Bible catalog/);
@@ -239,13 +239,13 @@ test("proposals show their rationale and steps; only a proposal with steps can b
 
 test("when no proposal has steps the list says so in one line", () => {
   const onlyWait = html(React.createElement(RepairProposalList, {
-    response: { signature: "xml:unassessed", proposals: [waitProposal], agent_available: false, matter_mode: "TEST" },
+    response: { signature: "xml:unassessed", proposals: [waitProposal], agent_available: false, matter_mode: "LIVE" },
     onUse: noop,
   }));
   assert.match(onlyWait, /No known repair for this file type/);
   assert.doesNotMatch(onlyWait, /Use this plan/);
   const clean = html(React.createElement(RepairProposalList, {
-    response: { signature: "sms_backup_xml:clean", proposals: [], agent_available: false, matter_mode: "TEST" },
+    response: { signature: "sms_backup_xml:clean", proposals: [], agent_available: false, matter_mode: "LIVE" },
     onUse: noop,
   }));
   assert.match(clean, /Nothing to repair: the repair check found this file clean\./);
@@ -291,7 +291,7 @@ test("a run shows each step's status and receipt, then links its re-entered run"
     workflow_id: "repair-plan-rp-anchor-abc-0123456789ab",
     plan_id: "rp-anchor-abc",
     preview_handle: HANDLE,
-    matter_mode: "TEST",
+    matter_mode: "LIVE",
     status: "completed",
     reason: "",
     steps: [
@@ -340,7 +340,7 @@ test("a batch re-entry lists that batch's runs, each opening in Review once boun
         { key: "threads/a.ndjson", source_ref: "b2://bucket/x/threads/a.ndjson", request_id: "r-a", preview_handle: "bound_batch_run_handle_0123456789abcd", status: "waiting_on_gate", reason: "" },
         { key: "threads/b.ndjson", source_ref: "b2://bucket/x/threads/b.ndjson", request_id: "r-b", preview_handle: "", status: "running", reason: "" },
       ],
-      matter_mode: "TEST",
+      matter_mode: "LIVE",
     },
   }));
   assert.match(markup, /Repaired →/);
@@ -380,7 +380,7 @@ const panel = source("../src/components/sbv/review-actions-panel.tsx");
 const review = source("../src/components/sbv/proffer-preview-client.tsx");
 const surface = source("../src/components/sbv/proffer-operator-preview.tsx");
 
-test("every repair call goes through the BFF with the Test/Live mode and checks its echo", () => {
+test("every repair call goes through the BFF with the Dev/Live mode and checks its echo", () => {
   for (const route of ["tools", "propose", "validate", "run"]) {
     assert.match(client, new RegExp(`/api/proffer/repair/${route}\\?\\$\\{query\\.toString\\(\\)\\}`));
   }

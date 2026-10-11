@@ -21,7 +21,8 @@ import {
   Upload,
 } from "lucide-react";
 
-import { AtomicTools } from "@/components/tools/atomic-tools";
+import { SourcePinnedAction } from "@/components/tools/source-pinned-action";
+import { ToolExplorer } from "@/components/tools/tool-explorer";
 import { ContextFlowRail } from "@/components/intake/context-flow-rail";
 import { ParserSelectionPanel } from "@/components/intake/parser-selection-panel";
 import { SourceAssertionsFields } from "@/components/intake/source-assertions-fields";
@@ -93,7 +94,7 @@ function previewIsActionableOrSettled(state: ProfferPreviewResponse, ignoredPrev
 
 async function waitForPreview(
   previewHandle: string,
-  mode: "TEST" | "REAL",
+  mode: "DEV" | "LIVE",
   attempts = 80,
   ignoredTerminalPhases: ReadonlySet<string> = new Set(),
   onState?: (state: ProfferPreviewResponse) => void,
@@ -138,7 +139,7 @@ function parserCandidateKey(candidate: ProfferParserCandidate) {
   return [candidate.handler_id, candidate.handler_version, candidate.execution_path, candidate.compatibility_ref].join("\u0000");
 }
 
-function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stagedSource?: StagedSource }) {
+function UnifiedIntakeMode({ mode, stagedSource }: { mode: "DEV" | "LIVE"; stagedSource?: StagedSource }) {
   const { matter, primaryCourtCase, loading: scopeLoading, error: scopeError } = useFixedCase();
   const [staged, setStaged] = useState(stagedSource);
   const [file, setFile] = useState<File | null>(null);
@@ -219,7 +220,7 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
       try {
         const event = JSON.parse(raw.data) as ProfferPreviewEvent;
         if (event.preview_handle !== run.preview_handle) throw new Error("Checkpoint event did not match this import.");
-        if (event.matter_mode !== mode) throw new Error("Checkpoint event crossed the active TEST/REAL boundary.");
+        if (event.matter_mode !== mode) throw new Error("Checkpoint event crossed the active DEV/LIVE boundary.");
         setWorkflowEvents((current) => [...current.filter((item) => item.event_id !== event.event_id), event]
           .sort((left, right) => left.event_id - right.event_id)
           .slice(-100));
@@ -580,7 +581,17 @@ function UnifiedIntakeMode({ mode, stagedSource }: { mode: "TEST" | "REAL"; stag
         <button type="button" role="tab" aria-selected={operatorTab === "atomic_tools"} onClick={() => setOperatorTab("atomic_tools")} className={cn("h-12 border-b-2 px-1 text-xs font-semibold", operatorTab === "atomic_tools" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>Atomic Tools</button>
       </nav>
       {operatorTab === "atomic_tools" ? (
-        <div className="px-5 py-5 lg:px-8"><AtomicTools embedded /></div>
+        <div className="space-y-5 px-5 py-5 lg:px-8">
+          <SourcePinnedAction
+            key={`${selectedSourceRef ?? ""}:${inspection?.sha256 ?? digest ?? ""}`}
+            initialSourceRef={selectedSourceRef ?? ""}
+            initialSHA256={inspection?.sha256 ?? digest ?? ""}
+          />
+          <details className="border bg-card p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Browse published tools</summary>
+            <div className="mt-4"><ToolExplorer /></div>
+          </details>
+        </div>
       ) : (
       <div>
       <section className="border-b bg-card px-6 py-5">

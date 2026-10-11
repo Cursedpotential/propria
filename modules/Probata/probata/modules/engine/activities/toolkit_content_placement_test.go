@@ -48,18 +48,12 @@ func (s *placementFake) PlacementVersions(_ context.Context, bucket, key string)
 	return out, nil
 }
 
-// placementFixture retains tiny mounted sources and manifests in the worktree quarantine fixture directory.
+// placementFixture retains tiny mounted sources and manifests beneath the explicit toolkit quarantine.
 // Inputs: test; outputs: activity, request, fake store and root. Effects: creates bounded files with no cleanup/delete; choose instead of testing.T.TempDir.
 func placementFixture(t *testing.T) (*ToolkitContentPlacementActivities, ToolkitContentPlacementInput, *placementFake, string) {
 	t.Helper()
-	base := filepath.FromSlash("E:/AI_Workspace/Projects/Propria/_worktrees/toolkit-catalog-registration-20261004/to_be_deleted/toolkit-content-placement-tests")
-	if err := os.MkdirAll(base, 0700); err != nil {
-		t.Fatal(err)
-	}
-	root, err := os.MkdirTemp(base, "case-*")
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := retainedToolkitFixtureRoot(t, "toolkit-content-case-*")
+	var err error
 	if err = os.Mkdir(filepath.Join(root, "source"), 0700); err != nil {
 		t.Fatal(err)
 	}

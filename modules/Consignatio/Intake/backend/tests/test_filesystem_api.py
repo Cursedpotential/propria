@@ -93,7 +93,7 @@ def response_for(request):
     return FilesystemSearchResponse(
         query=request.query,
         collection="IntakeApiSynthetic",
-        target_vector="text_nim",
+        target_vector="text_nim" if request.mode in {"hybrid", "vector"} else None,
         hits=[
             FilesystemHit(
                 object_id="object-1",
@@ -103,7 +103,8 @@ def response_for(request):
                 chunk_id="chunk-1",
                 filename="note.txt",
                 text="Fictional scheduling note",
-                score=0.82,
+                score=None if request.mode == "vector" else 0.82,
+                distance=0.12 if request.mode == "vector" else None,
             )
         ],
     )
@@ -185,6 +186,43 @@ async def test_hybrid_api_uses_query_vector(configured, monkeypatch, api_setting
     assert result.status_code == 200
     assert calls == ["meeting"]
     assert result.json()["target_vector"] == "text_nim"
+
+
+@pytest.mark.asyncio
+async def test_vector_api_uses_supplied_vector_without_embedding_or_image_provider(
+    configured, monkeypatch, api_settings
+):
+    calls = []
+
+    def forbidden_nim(**kwargs):
+        pytest.fail("Pure vector mode must use its supplied vector without initializing NIM")
+
+    async def search(self, request, *, vector=None):
+        calls.append((request, vector))
+        assert request.mode == "vector"
+        return response_for(request)
+
+    async def forbidden_image_search(request):
+        pytest.fail("Pure filesystem vector mode must not substitute the image embedder")
+
+    monkeypatch.setenv("INTAKE_IMAGES_WEAVIATE_URL", "https://images.example")
+    monkeypatch.setattr(api_module, "NimClient", forbidden_nim)
+    monkeypatch.setattr(api_module.WeaviateFilesystemSearcher, "search", search)
+    monkeypatch.setattr(api_module, "search_images", forbidden_image_search)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=api_module.create_api(api_settings)),
+        base_url="http://test",
+    ) as client:
+        result = await client.post(
+            "/filesystem/search",
+            json={"query": "meeting", "mode": "vector", "vector": [1, 0, 0]},
+        )
+    assert result.status_code == 200
+    assert len(calls) == 1
+    assert calls[0][1] == [1, 0, 0]
+    assert result.json()["target_vector"] == "text_nim"
+    assert result.json()["hits"][0]["score"] is None
+    assert result.json()["hits"][0]["distance"] == 0.12
 
 
 @pytest.mark.asyncio

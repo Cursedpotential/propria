@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-09-25
 
 package activities
@@ -39,7 +40,7 @@ func newMemStore() *memStore {
 	at := func(value string) *time.Time { parsed, _ := time.Parse(time.RFC3339, value); return &parsed }
 	available := at("2026-09-21T01:14:39Z")
 	store := &memStore{
-		run:      flow.RunRef{PreviewHandle: "handle_abcdefghijklmnopqrstuvwxyz0123", GenerationID: "11111111-1111-4111-8111-111111111111", SourceVersionID: "22222222-2222-4222-8222-222222222222", MatterMode: "REAL"},
+		run:      flow.RunRef{PreviewHandle: "handle_abcdefghijklmnopqrstuvwxyz0123", GenerationID: "11111111-1111-4111-8111-111111111111", SourceVersionID: "22222222-2222-4222-8222-222222222222", MatterMode: "LIVE"},
 		runs:     map[string]string{},
 		entities: map[string]entities.Proposal{}, events: map[string]events.Proposal{},
 		registry: map[string]entities.RegistryEntity{}, written: map[string]map[string]any{},
@@ -79,7 +80,6 @@ func (s *memStore) ResolveRun(_ context.Context, handle string) (flow.RunRef, er
 		return flow.RunRef{}, service.ErrNotFound
 	}
 	run := s.run
-	run.MatterMode = ""
 	return run, nil
 }
 func (s *memStore) ParticipantAggregates(context.Context, string) ([]entities.ParticipantAggregate, error) {

@@ -6,16 +6,16 @@ Byline amendment: Codex · GPT-5 · 2026-08-18 (third-party detail compatibility
 
 from __future__ import annotations
 
-import pytest
 from uuid import UUID
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from pydantic import ValidationError
 
+import pytest
 from app.repo.spine_client import SpineError
 from app.runtime import case_management as runtime
 from app.service import matter_mode
 from app.types.evidence_detail import CourtReadiness, EvidenceDetail
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 MATTER_ID = "11111111-1111-4111-8111-111111111111"
 COURT_CASE_ID = "22222222-2222-4222-8222-222222222222"
@@ -43,8 +43,8 @@ def _client() -> TestClient:
 
 @pytest.fixture(autouse=True)
 def configured_test_scope(monkeypatch):
-    monkeypatch.setattr(matter_mode.settings, "proffer_test_matter_id", MATTER_ID)
-    monkeypatch.setattr(matter_mode.settings, "proffer_test_court_case_id", COURT_CASE_ID)
+    monkeypatch.setattr(matter_mode.settings, "proffer_matter_id", MATTER_ID)
+    monkeypatch.setattr(matter_mode.settings, "proffer_court_case_id", COURT_CASE_ID)
 
 
 def test_capability_503_is_preserved_exactly(monkeypatch):
@@ -63,7 +63,7 @@ def test_capability_503_is_preserved_exactly(monkeypatch):
 
 def test_resolve_requires_custody_coordinates():
     response = _client().post(
-        f"/api/matters/{MATTER_ID}/knowledge/resolve?mode=TEST",
+        f"/api/matters/{MATTER_ID}/knowledge/resolve?mode=LIVE",
         json={"lane": "evidence", "partition_key": "primary"},
     )
     assert response.status_code == 422
@@ -89,7 +89,7 @@ def test_resolve_returns_exact_candidates(monkeypatch):
     )
 
     response = _client().post(
-        f"/api/matters/{MATTER_ID}/knowledge/resolve?mode=TEST",
+        f"/api/matters/{MATTER_ID}/knowledge/resolve?mode=LIVE",
         json={
             "lane": "evidence",
             "partition_key": "primary",
@@ -130,7 +130,7 @@ def test_promoted_item_is_explicitly_unsafe_and_unreviewed(monkeypatch):
         },
     )
     response = _client().post(
-        f"/api/matters/{MATTER_ID}/evidence-items?mode=TEST",
+        f"/api/matters/{MATTER_ID}/evidence-items?mode=LIVE",
         json={
             "court_case_id": COURT_CASE_ID,
             "source": {
@@ -178,7 +178,7 @@ def test_idempotent_retry_accepts_existing_reviewed_unsafe_item(monkeypatch):
         },
     )
     response = _client().post(
-        f"/api/matters/{MATTER_ID}/evidence-items?mode=TEST",
+        f"/api/matters/{MATTER_ID}/evidence-items?mode=LIVE",
         json={
             "court_case_id": COURT_CASE_ID,
             "source": {
@@ -200,7 +200,7 @@ def test_idempotent_retry_accepts_existing_reviewed_unsafe_item(monkeypatch):
 
 def test_workbench_rejects_spoofed_actor_fields():
     response = _client().post(
-        "/api/matters?mode=TEST",
+        "/api/matters?mode=LIVE",
         json={"title": "Spoof attempt", "partition_key": "primary", "created_by": "attacker"},
     )
     assert response.status_code == 422
@@ -214,7 +214,7 @@ def test_spine_cross_matter_denial_is_preserved(monkeypatch):
         "get_matter",
         lambda matter_id: (_ for _ in ()).throw(SpineError("matter not found", 404)),
     )
-    response = _client().get(f"/api/matters/{MATTER_ID}?mode=TEST")
+    response = _client().get(f"/api/matters/{MATTER_ID}?mode=LIVE")
     assert response.status_code == 404
     assert response.json()["detail"] == "matter not found"
 
@@ -249,7 +249,7 @@ def test_review_approval_remains_unauthenticated_and_legally_unsafe(monkeypatch)
     )
 
     response = _client().post(
-        f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/reviews?mode=TEST",
+        f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/reviews?mode=LIVE",
         json={"decision": "approved", "rationale": "Reviewed exact record."},
     )
 
@@ -261,7 +261,7 @@ def test_review_approval_remains_unauthenticated_and_legally_unsafe(monkeypatch)
 
 def test_review_rejects_blank_rationale():
     response = _client().post(
-        f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/reviews?mode=TEST",
+        f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/reviews?mode=LIVE",
         json={"decision": "approved", "rationale": "   "},
     )
     assert response.status_code == 422
@@ -288,7 +288,7 @@ def test_review_history_exposes_reviewer_rationale_and_time(monkeypatch):
         },
     )
 
-    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/reviews?mode=TEST")
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/reviews?mode=LIVE")
 
     assert response.status_code == 200
     assert response.json()["total"] == 1
@@ -451,7 +451,7 @@ def test_evidence_detail_is_matter_scoped_and_sanitized(monkeypatch):
         lambda matter_id, item_id: _evidence_detail(),
     )
 
-    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}?mode=TEST")
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}?mode=LIVE")
 
     assert response.status_code == 200
     body = response.json()
@@ -499,7 +499,7 @@ def test_evidence_detail_preserves_third_party_acquisition_and_realization_histo
     )
     monkeypatch.setattr(runtime.service, "get_evidence_detail", lambda matter_id, item_id: detail)
 
-    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}?mode=TEST")
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}?mode=LIVE")
 
     assert response.status_code == 200
     record = response.json()["record"]
@@ -555,7 +555,7 @@ def test_original_source_endpoint_is_matter_scoped(monkeypatch):
         },
     )
 
-    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/source-content?mode=TEST")
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/source-content?mode=LIVE")
 
     assert response.status_code == 200
     assert response.json()["content"] == "original"
@@ -592,7 +592,7 @@ def test_conversation_context_endpoint_preserves_source_parties_and_bounds(monke
 
     response = _client().get(
         f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/conversation-context",
-        params={"mode": "TEST", "before": 2, "after": 3},
+        params={"mode": "LIVE", "before": 2, "after": 3},
     )
 
     assert response.status_code == 200
@@ -610,7 +610,7 @@ def test_court_readiness_is_matter_scoped_explicit_and_fail_closed(monkeypatch):
         lambda matter_id, item_id: _court_readiness(),
     )
 
-    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/court-readiness?mode=TEST")
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/court-readiness?mode=LIVE")
 
     assert response.status_code == 200
     assert response.json()["blockers"] == [
@@ -641,6 +641,6 @@ def test_court_readiness_rejects_cross_scope_response(monkeypatch):
     wrong["matter_id"] = "11111111-1111-4111-8111-999999999999"
     monkeypatch.setattr(runtime.service, "get_court_readiness", lambda *_: wrong)
 
-    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/court-readiness?mode=TEST")
+    response = _client().get(f"/api/matters/{MATTER_ID}/evidence-items/{ITEM_ID}/court-readiness?mode=LIVE")
 
     assert response.status_code == 502

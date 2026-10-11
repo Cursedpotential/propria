@@ -1,32 +1,25 @@
 package postgres
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/csv"
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/Cursedpotential/probata/engine/activities"
 	"github.com/Cursedpotential/probata/engine/parser"
 	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/sourceformat"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-const handlerSignatureReadLimit int64 = 8 << 20
-
-var transcriptSignatureLine = regexp.MustCompile(`^\[\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\]\s*[^:]+:\s*$`)
-var imessageSignatureLine = regexp.MustCompile(`(?i)^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}, \d{4}\s+\d{1,2}:\d{2}(?::\d{2})?\s*[AP]M(?:\s*\([^\r\n]*\))?\s*$`)
+const handlerSignatureReadLimit int64 = sourceformat.ReadLimit
 
 // HandlerSelectionStore is the durable, content-backed implementation of the
 // recommendation and validation Activities and the authenticated HTTP
@@ -66,6 +59,9 @@ func newHandlerSelectionStore(db DB, open ObjectOpener, registry *parser.Registr
 
 // RecommendHandler derives one bounded candidate set from retained content and
 // persists every reference returned to Temporal in one transaction.
+// Inputs: durable source references and attempt. Output: recommendation or fixed credential exclusion error.
+// Side effects: 8 MiB format read, independent whole-stream credential scan, persistence only after admission.
+// Pick for handler selection; EOF scan completion covers this credential signature policy rather than every possible secret.
 func (s *HandlerSelectionStore) RecommendHandler(ctx context.Context, req proffer.StageRequest, attempt int32) (proffer.HandlerRecommendationResult, error) {
 	sourceID, originalID, err := handlerRequestIDs(req)
 	if err != nil || attempt < 1 {
@@ -90,14 +86,21 @@ func (s *HandlerSelectionStore) RecommendHandler(ctx context.Context, req proffe
 		return proffer.HandlerRecommendationResult{}, err
 	}
 	defer reader.Close()
-	head, err := io.ReadAll(io.LimitReader(reader, handlerSignatureReadLimit+1))
+	rawHead, err := io.ReadAll(io.LimitReader(reader, handlerSignatureReadLimit+1))
 	if err != nil {
 		return proffer.HandlerRecommendationResult{}, fmt.Errorf("read retained content signature: %w", err)
 	}
-	head = signatureHead(head, handlerSignatureReadLimit)
-	detected, signatureKind, err := detectHandlerContent(head)
+	head := signatureHead(rawHead, handlerSignatureReadLimit)
+	detected, signatureKind, err := admittedHandlerContent(head)
 	if err != nil {
 		return proffer.HandlerRecommendationResult{}, err
+	}
+	scan, scanErr := sourceformat.ScanCredentials(io.MultiReader(bytes.NewReader(rawHead), reader))
+	if scan.Signature != "" {
+		return proffer.HandlerRecommendationResult{}, fmt.Errorf("retained source excluded by %s: %s", sourceformat.PolicyID, scan.Signature)
+	}
+	if scanErr != nil || !scan.Complete {
+		return proffer.HandlerRecommendationResult{}, errors.New("retained source credential scan incomplete")
 	}
 	var decoderCapability parser.Capability
 	if _, templateErr := activities.StructuredELTFormatForDeclaredFormat(detected); templateErr != nil && !activities.DeriveEligibleFormat(detected) {
@@ -124,22 +127,10 @@ func (s *HandlerSelectionStore) RecommendHandler(ctx context.Context, req proffe
 	return result, err
 }
 
-// signatureHead bounds the bytes a signature is detected on. When the read
-// stopped inside the source its last line is almost always cut short, so
-// detection runs on whole lines only: a 34 MB derived thread chunk was
-// detected as "json" because its final, truncated line was not valid JSON
-// (live 2026-10-02). Byline: Claude Code · Opus 5.5 · 2026-10-02
-func signatureHead(head []byte, limit int64) []byte {
-	if int64(len(head)) <= limit {
-		return head
-	}
-	head = head[:limit]
-	if cut := bytes.LastIndexByte(head, '\n'); cut > 0 {
-		return head[:cut+1]
-	}
-	return head
-}
-
+// signatureHead delegates bounded retained-prefix preparation to sourceformat.
+// Inputs: prefix and limit. Output: bounded byte view. Side effects: none.
+// Pick this compatibility wrapper before retained-content detection.
+func signatureHead(head []byte, limit int64) []byte { return sourceformat.SignatureHead(head, limit) }
 func handlerRequestIDs(req proffer.StageRequest) (uuid.UUID, uuid.UUID, error) {
 	sourceID, sourceErr := uuid.Parse(string(req.SourceVersionRef))
 	originalID, originalErr := uuid.Parse(string(req.Refs["original"]))
@@ -149,220 +140,23 @@ func handlerRequestIDs(req proffer.StageRequest) (uuid.UUID, uuid.UUID, error) {
 	return sourceID, originalID, nil
 }
 
+// detectHandlerContent delegates retained-byte detection to the shared sourceformat unit.
+// Inputs: retained source prefix. Outputs: format and signature IDs, or an empty-source error.
+// Side effects: none. Pick this compatibility wrapper for existing postgres callers and tests.
 func detectHandlerContent(head []byte) (format, signatureKind string, err error) {
-	trimmed := bytes.TrimSpace(bytes.TrimPrefix(head, []byte{0xef, 0xbb, 0xbf}))
-	if len(trimmed) == 0 {
-		return "", "", errors.New("retained source is empty")
-	}
-	if bytes.HasPrefix(trimmed, []byte("%PDF-")) {
-		return "pdf", "pdf_header_v1", nil
-	}
-	if isZIPContent(trimmed) {
-		if bytes.Contains(trimmed, []byte("[Content_Types].xml")) && bytes.Contains(trimmed, []byte("word/")) {
-			return "docx", "office_open_xml_word_package_v1", nil
-		}
-		return "archive", "zip_container_v1", nil
-	}
-	if isArchiveContent(trimmed) {
-		return "archive", "archive_magic_v1", nil
-	}
-	if trimmed[0] == '<' {
-		if format, kind, ok := detectHTMLContent(trimmed); ok {
-			return format, kind, nil
-		}
-		decoder := xml.NewDecoder(bytes.NewReader(trimmed))
-		for {
-			token, tokenErr := decoder.Token()
-			if tokenErr != nil {
-				return "xml", "xml_prefix_v1", nil
-			}
-			if start, ok := token.(xml.StartElement); ok {
-				switch strings.ToLower(start.Name.Local) {
-				case "smses":
-					return "smsbackuprestore_xml", "sms_backup_restore_smses_root_v1", nil
-				case "calls":
-					return "callsbackuprestore_xml", "sms_backup_restore_calls_root_v1", nil
-				default:
-					return "xml", "xml_root_v1", nil
-				}
-			}
-		}
-	}
-	if trimmed[0] == '[' {
-		decoder := json.NewDecoder(bytes.NewReader(trimmed))
-		opening, openingErr := decoder.Token()
-		if openingErr == nil && opening == json.Delim('[') && decoder.More() {
-			var conversation json.RawMessage
-			var first map[string]json.RawMessage
-			if decoder.Decode(&conversation) == nil && json.Unmarshal(conversation, &first) == nil && chatGPTConversationSignature(first) {
-				return "chatgpt_official_json", "chatgpt_official_conversations_array_v1", nil
-			}
-		}
-	}
-	if trimmed[0] == '{' && facebookMessengerThreadSignature(trimmed) {
-		return "facebook_messenger_json", "facebook_messenger_thread_json_v1", nil
-	}
-	if detectedJSONLines(trimmed) {
-		return "ndjson", "newline_delimited_json_v1", nil
-	}
-	scanner := bufio.NewScanner(bytes.NewReader(trimmed))
-	scanner.Buffer(make([]byte, 4096), 1<<20)
-	lines := make([]string, 0, 64)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		lines = append(lines, line)
-		if transcriptSignatureLine.MatchString(line) {
-			return "messages_transcript", "bracketed_message_transcript_v1", nil
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return "", "", fmt.Errorf("inspect retained transcript signature: %w", err)
-	}
-	for index, line := range lines {
-		if !imessageSignatureLine.MatchString(line) {
-			continue
-		}
-		nonblank := 0
-		for next := index + 1; next < len(lines) && next <= index+4; next++ {
-			if lines[next] != "" {
-				nonblank++
-			}
-		}
-		if nonblank >= 2 {
-			return "messages_transcript", "apple_messages_timestamp_sender_body_v1", nil
-		}
-	}
-	if trimmed[0] == '{' || trimmed[0] == '[' {
-		return "json", "json_container_prefix_v1", nil
-	}
-	if detectedCSV(trimmed) {
-		return "csv", "delimited_rows_v1", nil
-	}
-	if utf8.Valid(trimmed) && !bytes.ContainsRune(trimmed, '\x00') {
-		return "text", "utf8_text_v1", nil
-	}
-	return "binary", "opaque_binary_v1", nil
+	return sourceformat.Detect(head)
 }
 
-func isZIPContent(content []byte) bool {
-	return bytes.HasPrefix(content, []byte{'P', 'K', 0x03, 0x04}) ||
-		bytes.HasPrefix(content, []byte{'P', 'K', 0x05, 0x06}) ||
-		bytes.HasPrefix(content, []byte{'P', 'K', 0x07, 0x08})
+// admittedHandlerContent rejects secret-bearing prefixes before any parser capability is recommended.
+// Input: bounded retained bytes. Output: format/signature or a fixed policy/credential reason, never secret values.
+// Side effects: none. Pick from RecommendHandler; Detect remains available for format-only callers.
+func admittedHandlerContent(head []byte) (format, signature string, err error) {
+	detection, err := sourceformat.Inspect(head)
+	if detection.Credential != "" {
+		return "", "", fmt.Errorf("retained source excluded by %s: %s", sourceformat.PolicyID, detection.Credential)
+	}
+	return detection.Format, detection.Signature, err
 }
-
-func isArchiveContent(content []byte) bool {
-	return bytes.HasPrefix(content, []byte{0x1f, 0x8b}) ||
-		bytes.HasPrefix(content, []byte{'7', 'z', 0xbc, 0xaf, 0x27, 0x1c}) ||
-		bytes.HasPrefix(content, []byte("Rar!\x1a\x07")) ||
-		(len(content) > 262 && string(content[257:262]) == "ustar")
-}
-
-func detectedJSONLines(content []byte) bool {
-	scanner := bufio.NewScanner(bytes.NewReader(content))
-	scanner.Buffer(make([]byte, 4096), 1<<20)
-	values := 0
-	var first []byte
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
-		if len(line) == 0 {
-			continue
-		}
-		if !json.Valid(line) {
-			return false
-		}
-		if values == 0 {
-			first = append([]byte(nil), line...)
-		}
-		values++
-	}
-	if scanner.Err() != nil {
-		return false
-	}
-	// A derived SMS thread chunk with exactly one message is one line; it is
-	// still a newline-delimited thread file, not a JSON document. Only that
-	// derive/smsthreads line shape is accepted on its own, so a minified
-	// one-line JSON document keeps its own signature.
-	// Byline: Claude Code · Opus 5.5 · 2026-10-02 (live: 105-chunk backup, one-message threads failed as "json")
-	return values >= 2 || (values == 1 && smsThreadsLine(first))
-}
-
-func smsThreadsLine(line []byte) bool {
-	var fields struct {
-		Thread    *string `json:"thread"`
-		SourcePos *string `json:"source_pos"`
-		Kind      *string `json:"kind"`
-	}
-	return json.Unmarshal(line, &fields) == nil && fields.Thread != nil && fields.SourcePos != nil && fields.Kind != nil
-}
-
-func detectedCSV(content []byte) bool {
-	reader := csv.NewReader(bytes.NewReader(content))
-	reader.FieldsPerRecord = 0
-	records := 0
-	columns := 0
-	for records < 8 {
-		record, err := reader.Read()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return false
-		}
-		if records == 0 {
-			columns = len(record)
-			if columns < 2 {
-				return false
-			}
-		} else if len(record) != columns {
-			return false
-		}
-		records++
-	}
-	return records >= 2
-}
-
-// facebookMessengerThreadSignature recognizes one thread file of a Facebook
-// "Download your information" export: a JSON object whose first member is
-// "participants" and whose head carries the messages[] entry keys
-// sender_name and timestamp_ms. Only the head is read, so the document is not
-// decoded whole. Byline: Claude Code · Opus 5.5 · 2026-10-02
-func facebookMessengerThreadSignature(head []byte) bool {
-	decoder := json.NewDecoder(bytes.NewReader(head))
-	if opening, err := decoder.Token(); err != nil || opening != json.Delim('{') {
-		return false
-	}
-	if key, err := decoder.Token(); err != nil || key != "participants" {
-		return false
-	}
-	for _, marker := range []string{`"messages"`, `"sender_name"`, `"timestamp_ms"`} {
-		if !bytes.Contains(head, []byte(marker)) {
-			return false
-		}
-	}
-	return true
-}
-
-func chatGPTConversationSignature(first map[string]json.RawMessage) bool {
-	if first["mapping"] == nil || (first["title"] == nil && first["conversation_id"] == nil && first["id"] == nil) {
-		return false
-	}
-	var mapping map[string]struct {
-		Message *struct {
-			Author  map[string]json.RawMessage `json:"author"`
-			Content map[string]json.RawMessage `json:"content"`
-		} `json:"message"`
-	}
-	if json.Unmarshal(first["mapping"], &mapping) != nil {
-		return false
-	}
-	for _, node := range mapping {
-		if node.Message != nil && node.Message.Author != nil && node.Message.Content != nil {
-			return true
-		}
-	}
-	return false
-}
-
 func handlerCandidatesForDetectedFormat(detected string, decoder parser.Capability) []proffer.HandlerCandidate {
 	candidates := make([]proffer.HandlerCandidate, 0, 2)
 	// Signature-based routing: one registry entry per signature, no ladder.

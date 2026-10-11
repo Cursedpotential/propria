@@ -8,13 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"strings"
 
 	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/Cursedpotential/probata/engine/servicepeer"
 )
 
 // uploadRefScheme is the opaque acquisition-reference scheme minted for a
@@ -85,8 +85,8 @@ type uploadAcceptedResponse struct {
 }
 
 // ServeHTTP implements http.Handler. Only POST is accepted; the body is
-// bound to MaxBytes; the socket peer must be in the 100.64.0.0/10 tailnet
-// range. Forwarded identity headers are ignored. On success it
+// bound to MaxBytes; the socket peer must be in the tailnet or explicitly
+// configured owned internal network. Forwarded identity headers are ignored. On success it
 // streams the request body straight into sealStream (single pass, no
 // intermediate unbounded buffering) and returns the resulting acquisition
 // registry.
@@ -124,12 +124,8 @@ func (u *UploadIngress) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func authorizedTailnetPeer(r *http.Request) bool {
-	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-	if err != nil {
-		return false
-	}
-	ip := net.ParseIP(host).To4()
-	return ip != nil && ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127
+	networks, err := servicepeer.FromEnvironment()
+	return err == nil && networks.Allows(r.RemoteAddr)
 }
 
 // NewUploadIngressResolver resolves "upload://<sha256-hex>" acquisition

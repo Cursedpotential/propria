@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Codex · GPT-5.6 · 2026-08-29 (Proffer preview storage model)
 package previewmodel
 
@@ -36,9 +37,12 @@ type Binding struct {
 	RawGenerationID        uuid.UUID
 	NormalizedGenerationID uuid.UUID
 	CreatedAt              time.Time
+	// OperatingMode is explicit; absent legacy receipts cannot authorize writes.
+	OperatingMode string
 	// MatterID is the durable intake scope (context.source_version.matter_id). The
-	// Workbench derives TEST/REAL from it, so a BFF restart cannot orphan a run.
-	MatterID *uuid.UUID
+	// OperatingMode, not this ID, carries durable operating context.
+	MatterID    *uuid.UUID
+	CourtCaseID *uuid.UUID
 }
 
 // BindingCursor is a stable keyset coordinate over the append-only preview

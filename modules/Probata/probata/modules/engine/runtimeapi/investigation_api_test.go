@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (canonical admission fixtures)
 package runtimeapi
 
 import (
@@ -32,7 +33,7 @@ func TestInvestigationHTTPAdmissionAndErrors(t *testing.T) {
 	handler, e := NewInvestigationHTTPHandler(store, serviceTokenPath(t))
 	require.NoError(t, e)
 	routes := handler.Routes()
-	body, _ := json.Marshal(investigation.Request{Scope: investigation.Scope{Mode: caseidentity.ModeTest, MatterID: id, CourtCaseID: id}, LegalMatterID: id, ClaimID: id, FollowupID: id, Question: "Find missing context", Sources: []investigation.Source{}})
+	body, _ := json.Marshal(investigation.Request{Scope: investigation.Scope{Mode: caseidentity.ModeLive, MatterID: caseidentity.AuthoritativeMatterID, CourtCaseID: caseidentity.AuthoritativeCourtCaseID}, LegalMatterID: id, ClaimID: id, FollowupID: id, Question: "Find missing context", Sources: []investigation.Source{}})
 	request := func(text string) *http.Request {
 		r := newPreviewRequest("POST", "/legal-context/investigations", []byte(text))
 		r.Header.Set("X-authentik-uid", "actor")

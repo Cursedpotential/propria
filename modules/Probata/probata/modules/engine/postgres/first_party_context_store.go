@@ -1,3 +1,5 @@
+// Byline: Codex · GPT-5 · 2026-10-06 (preserve both upstream and operating-policy imports)
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5.5 · 2026-10-01
 // Byline: Claude Code · Opus 5.5 · 2026-10-02 (participant resolution; third-party projection)
 //
@@ -43,6 +45,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Cursedpotential/probata/engine/activities"
+	"github.com/Cursedpotential/probata/engine/caseidentity"
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/contextthread"
 	"github.com/Cursedpotential/probata/engine/disclosure"
 	"github.com/Cursedpotential/probata/engine/firstparty"
@@ -72,6 +76,10 @@ func NewFirstPartyContextStore(db DB) (*FirstPartyContextStore, error) {
 }
 
 // LoadFirstPartyContext implements activities.FirstPartyContextStore.
+// Inputs: run identity, retained source version, normalized generation and successful verification references.
+// Outputs: verified records and messaging applicability, including AI-source exclusion.
+// Side effects: bounded PostgreSQL reads only. Pick for participant resolution or first-party planning;
+// AI search reads its own context records and is not a human messaging projection.
 func (s *FirstPartyContextStore) LoadFirstPartyContext(
 	ctx context.Context, req proffer.StageRequest, generationRef, verificationRef proffer.Ref,
 ) (activities.FirstPartyContextInput, error) {
@@ -101,16 +109,17 @@ func (s *FirstPartyContextStore) LoadFirstPartyContext(
 	}
 
 	var generationSource uuid.UUID
-	var workflowID, status, declaredFormat, sourceKey string
+	var workflowID, status, declaredFormat, formatID, sourceKey string
 	var matterID, courtCaseID uuid.NullUUID
 	if err := s.db.QueryRow(ctx, `
 		SELECT generation.source_version_id, version.workflow_id, version.status, version.declared_format,
-		       source.source_key, version.matter_id, version.court_case_id
+		       source.source_key, version.matter_id, version.court_case_id, coalesce(raw.format_id, '')
 		FROM context.normalized_generation generation
+		JOIN context.raw_generation raw ON raw.id = generation.raw_generation_id
 		JOIN context.source_version version ON version.id = generation.source_version_id
 		JOIN context.source source ON source.id = version.source_id
 		WHERE generation.id = $1::uuid`, generationID).
-		Scan(&generationSource, &workflowID, &status, &declaredFormat, &sourceKey, &matterID, &courtCaseID); err != nil {
+		Scan(&generationSource, &workflowID, &status, &declaredFormat, &sourceKey, &matterID, &courtCaseID, &formatID); err != nil {
 		return activities.FirstPartyContextInput{}, fmt.Errorf("resolve first-party context source: %w", err)
 	}
 	if generationSource != sourceVersionID || workflowID != req.RequestID || status != "retained" {
@@ -132,6 +141,15 @@ func (s *FirstPartyContextStore) LoadFirstPartyContext(
 			DeclaredFormat: declaredFormat, SourceKey: sourceKey,
 		},
 		Messages: messages, StatedIdentifiers: stated,
+	}
+	// Match the AI search classifier using verified persisted provenance,
+	// before any SMS derivation or Facebook platform inference. Keep records
+	// and identifiers available to the shared participant/search stages.
+	// Byline: Codex · GPT-6-Sol · 2026-10-05.
+	if contextsearch.IsAIChatFormat(declaredFormat) || contextsearch.IsAIChatFormat(formatID) {
+		input.AIChatSource = true
+		input.NotApplicable = "AI chat sources remain AI context and are not first-party messaging"
+		return input, nil
 	}
 	if len(messages) == 0 {
 		return input, nil
@@ -294,7 +312,7 @@ func (s *FirstPartyContextStore) ResolveFirstPartyIdentity(
 	if err != nil {
 		return contextthread.Identity{}, fmt.Errorf("run court case %q is not a uuid", req.CourtCaseID)
 	}
-	if _, admitted := MatterModeForIdentity(matter.String(), courtCase.String()); !admitted {
+	if !AdmittedCaseIdentity(matter.String(), courtCase.String()) {
 		return contextthread.Identity{}, fmt.Errorf("matter %s with court case %s is not an admitted platform identity", matter, courtCase)
 	}
 	var ownerRole pgtype.Text
@@ -560,6 +578,9 @@ type commitReceipt struct {
 func (s *FirstPartyContextStore) beginCommit(
 	ctx context.Context, spec activities.FirstPartyCommitSpec, stage stagegraph.StageID, gateKind string,
 ) (executionID uuid.UUID, prior proffer.Ref, found bool, err error) {
+	if contextsearch.IsAIChatFormat(spec.Plan.Source.DeclaredFormat) {
+		return uuid.Nil, "", false, errors.New("AI chat sources remain AI context and are not first-party messaging")
+	}
 	sourceVersionID, err := uuid.Parse(string(spec.SourceVersionRef))
 	if err != nil {
 		return uuid.Nil, "", false, fmt.Errorf("source version reference %q: %w", spec.SourceVersionRef, err)
@@ -592,6 +613,11 @@ func (s *FirstPartyContextStore) beginCommit(
 		return uuid.Nil, "", false, err
 	}
 	defer func() { cleanup, cancel := boundedCleanup(ctx); defer cancel(); _ = tx.Rollback(cleanup) }()
+	// Independently prove the real persisted generation before any first-party write or prior-success return.
+	// A caller-supplied SMS Plan cannot conceal a retained AI raw generation behind a matching gate digest.
+	if err := verifyHumanCommitSource(ctx, tx, sourceVersionID, spec); err != nil {
+		return uuid.Nil, "", false, err
+	}
 	executionID, err = parserEnsureExecution(ctx, tx, sourceVersionID, spec.RequestID, string(stage), string(stage)+":"+gateID.String())
 	if err != nil {
 		return uuid.Nil, "", false, err
@@ -607,6 +633,34 @@ func (s *FirstPartyContextStore) beginCommit(
 		return executionID, proffer.Ref(receiptID.String()), true, nil
 	}
 	return executionID, "", false, nil
+}
+
+// verifyHumanCommitSource binds direct commit plans to retained source/raw generation provenance and rejects AI.
+// Inputs: commit transaction, source id and caller plan. Output: error on AI, a foreign generation or invalid ownership.
+// Effects: one read inside the commit transaction, no writes. Choose for both SQL commits, even after Activity rebuilds.
+func verifyHumanCommitSource(ctx context.Context, tx pgx.Tx, sourceID uuid.UUID, spec activities.FirstPartyCommitSpec) error {
+	generationID, err := uuid.Parse(spec.Plan.Source.NormalizedGenerationID)
+	if err != nil {
+		return fmt.Errorf("commit normalized generation reference: %w", err)
+	}
+	var persistedSource uuid.UUID
+	var declared, format, status, request string
+	if err := tx.QueryRow(ctx, `
+		SELECT generation.source_version_id, version.declared_format, coalesce(raw.format_id, ''),
+		       version.status, version.workflow_id
+		FROM context.normalized_generation generation
+		JOIN context.raw_generation raw ON raw.id = generation.raw_generation_id
+		JOIN context.source_version version ON version.id = generation.source_version_id
+		WHERE generation.id = $1::uuid`, generationID).Scan(&persistedSource, &declared, &format, &status, &request); err != nil {
+		return fmt.Errorf("verify commit source provenance: %w", err)
+	}
+	if persistedSource != sourceID || spec.Plan.Source.SourceVersionID != sourceID.String() || status != "retained" || request != spec.RequestID {
+		return errors.New("first-party commit plan does not belong to this retained source/run")
+	}
+	if contextsearch.IsAIChatFormat(declared) || contextsearch.IsAIChatFormat(format) {
+		return errors.New("AI chat sources remain AI context and are not first-party messaging")
+	}
+	return nil
 }
 
 func (s *FirstPartyContextStore) finishCommit(ctx context.Context, executionID uuid.UUID, attempt int32, result commitReceipt) (proffer.Ref, error) {
@@ -1064,8 +1118,7 @@ func (s *FirstPartyContextStore) CommitFirstPartyContextThreads(ctx context.Cont
 	if found {
 		return prior, prior, nil
 	}
-	mode, admitted := MatterModeForIdentity(spec.Plan.Identity.MatterID, spec.Plan.Identity.CourtCaseID)
-	if !admitted {
+	if !AdmittedCaseIdentity(spec.Plan.Identity.MatterID, spec.Plan.Identity.CourtCaseID) {
 		return "", "", fmt.Errorf("matter %s with court case %s is not an admitted platform identity", spec.Plan.Identity.MatterID, spec.Plan.Identity.CourtCaseID)
 	}
 	// Only first-party conversations become first-party context threads.
@@ -1073,7 +1126,7 @@ func (s *FirstPartyContextStore) CommitFirstPartyContextThreads(ctx context.Cont
 	// Proffer run never creates; promotion supplies it.
 	threads := make([]map[string]any, 0, len(spec.Plan.Conversations))
 	for _, conversation := range spec.Plan.FirstParty() {
-		outcome, err := s.commitConversationThread(ctx, spec.Plan, conversation, mode)
+		outcome, err := s.commitConversationThread(ctx, spec.Plan, conversation, string(caseidentity.ModeLive))
 		if err != nil {
 			return "", "", fmt.Errorf("commit thread for conversation %s: %w", conversation.Key, err)
 		}

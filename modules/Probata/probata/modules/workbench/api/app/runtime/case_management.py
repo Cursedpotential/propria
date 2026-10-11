@@ -11,8 +11,9 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import ValidationError
 
+from app.runtime.operating_mode import OperatingMode
 from app.service import case_management as service
-from app.service.matter_mode import MatterModeError, configured_matter_id, require_matter, require_scope
+from app.service.matter_mode import MatterModeError, configured_court_case_id, configured_matter_id, require_matter, require_scope
 from app.types.case_management import (
     CaseManagementCapabilities,
     CourtCase,
@@ -30,9 +31,9 @@ from app.types.case_management import (
     OriginalSourceContent,
 )
 from app.types.case_management_mode import ModeBoundMatter, ModeBoundMatterDetail, ModeBoundMatterList
-from app.types.matter_mode import MatterMode
 from app.types.conversation_context import ConversationContext
 from app.types.evidence_detail import CourtReadiness, EvidenceDetail
+from app.types.matter_mode import MatterMode
 
 router = APIRouter(prefix="/api", tags=["matters"])
 
@@ -79,7 +80,7 @@ def _require_mode_scope(mode: MatterMode, matter_id: UUID, court_case_id: UUID) 
 
 @router.get("/matters", response_model=ModeBoundMatterList)
 def list_matters_endpoint(
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ):
@@ -98,7 +99,7 @@ def list_matters_endpoint(
 
 
 @router.post("/matters", response_model=Matter, status_code=201)
-def create_matter_endpoint(payload: MatterCreate, mode: Annotated[MatterMode, Query()]):
+def create_matter_endpoint(payload: MatterCreate, mode: OperatingMode):
     try:
         configured_matter_id(mode)
     except MatterModeError as error:
@@ -106,18 +107,20 @@ def create_matter_endpoint(payload: MatterCreate, mode: Annotated[MatterMode, Qu
     raise HTTPException(
         status_code=409,
         detail=(
-            "Matter creation is disabled in fixed TEST/REAL mode; "
+            "Matter creation is disabled in single-case DEV/LIVE mode; "
             "provision the configured matter identity outside this scoped runtime"
         ),
     )
 
 
 @router.get("/matters/{matter_id}", response_model=ModeBoundMatterDetail)
-def get_matter_endpoint(matter_id: UUID, mode: Annotated[MatterMode, Query()]):
+def get_matter_endpoint(matter_id: UUID, mode: OperatingMode):
     _require_mode_matter(mode, matter_id)
     _, payload = _configured_mode_matter(mode)
     try:
-        return ModeBoundMatterDetail.model_validate({**payload, "matter_mode": mode})
+        return ModeBoundMatterDetail.model_validate({
+            **payload, "matter_mode": mode, "admitted_court_case_id": configured_court_case_id(mode)
+        })
     except (ValidationError, ValueError, TypeError):
         raise HTTPException(status_code=502, detail="Spine returned an invalid configured matter") from None
 
@@ -126,7 +129,7 @@ def get_matter_endpoint(matter_id: UUID, mode: Annotated[MatterMode, Query()]):
 def create_court_case_endpoint(
     matter_id: UUID,
     payload: CourtCaseCreate,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     _require_mode_matter(mode, matter_id)
     try:
@@ -142,7 +145,7 @@ def create_court_case_endpoint(
 def resolve_knowledge_source_endpoint(
     matter_id: UUID,
     payload: KnowledgeSourceRef,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     _require_mode_matter(mode, matter_id)
     try:
@@ -159,7 +162,7 @@ def resolve_knowledge_source_endpoint(
 def create_evidence_item_endpoint(
     matter_id: UUID,
     payload: EvidenceItemCreate,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     _require_mode_scope(mode, matter_id, payload.court_case_id)
     try:
@@ -171,7 +174,7 @@ def create_evidence_item_endpoint(
 @router.get("/matters/{matter_id}/evidence-items", response_model=EvidenceItemList)
 def list_evidence_items_endpoint(
     matter_id: UUID,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ):
@@ -189,7 +192,7 @@ def list_evidence_items_endpoint(
 def get_evidence_detail_endpoint(
     matter_id: UUID,
     evidence_item_id: UUID,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     _require_mode_matter(mode, matter_id)
     try:
@@ -205,7 +208,7 @@ def get_evidence_detail_endpoint(
 def get_court_readiness_endpoint(
     matter_id: UUID,
     evidence_item_id: UUID,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     _require_mode_matter(mode, matter_id)
     try:
@@ -224,7 +227,7 @@ def get_court_readiness_endpoint(
 def get_original_source_content_endpoint(
     matter_id: UUID,
     evidence_item_id: UUID,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     _require_mode_matter(mode, matter_id)
     try:
@@ -240,7 +243,7 @@ def get_original_source_content_endpoint(
 def get_conversation_context_endpoint(
     matter_id: UUID,
     evidence_item_id: UUID,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
     before: Annotated[int, Query(ge=0, le=100)] = 25,
     after: Annotated[int, Query(ge=0, le=100)] = 25,
 ):
@@ -264,7 +267,7 @@ def review_evidence_item_endpoint(
     matter_id: UUID,
     evidence_item_id: UUID,
     payload: EvidenceReviewCreate,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     _require_mode_matter(mode, matter_id)
     try:
@@ -280,7 +283,7 @@ def review_evidence_item_endpoint(
 def list_evidence_reviews_endpoint(
     matter_id: UUID,
     evidence_item_id: UUID,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     _require_mode_matter(mode, matter_id)
     try:

@@ -20,7 +20,7 @@ def _preview(phase: str, lifecycle: str) -> ProfferPreviewResponse:
     payload = {
         "preview_handle": HANDLE,
         "phase": phase,
-        "matter_mode": "TEST",
+        "matter_mode": "LIVE",
         "lifecycle": lifecycle,
         "active_stages": [],
     }
@@ -81,7 +81,7 @@ def test_repair_wait_has_forward_action_and_does_not_fabricate_repair_tool(monke
         _operation("awaiting_repair_decision"),
     )
 
-    result = asyncio.run(proffer_operator.operator_snapshot(HANDLE, mode="TEST"))
+    result = asyncio.run(proffer_operator.operator_snapshot(HANDLE, mode="LIVE"))
 
     actions = {item.action for item in result.valid_actions}
     gaps = {item.control: item.reason for item in result.unavailable_controls}
@@ -105,7 +105,7 @@ def test_repair_wait_has_forward_action_and_does_not_fabricate_repair_tool(monke
 def test_failed_stage_exposes_truthful_restart_and_exact_missing_controls(monkeypatch) -> None:
     _wire(monkeypatch, _preview("failed", "failed"), _operation("failed", "normalize_generation_activity"))
 
-    result = asyncio.run(proffer_operator.operator_snapshot(HANDLE, mode="TEST"))
+    result = asyncio.run(proffer_operator.operator_snapshot(HANDLE, mode="LIVE"))
 
     assert result.reason == "exact stage failure"
     assert result.retry_count == 1
@@ -118,7 +118,7 @@ def test_failed_stage_exposes_truthful_restart_and_exact_missing_controls(monkey
 def test_operator_projection_marks_newest_package_contract_as_governing(monkeypatch) -> None:
     _wire(monkeypatch, _preview("starting", "running"), _operation("running", "execute_parser_activity"))
 
-    result = asyncio.run(proffer_operator.operator_snapshot(HANDLE, mode="TEST"))
+    result = asyncio.run(proffer_operator.operator_snapshot(HANDLE, mode="LIVE"))
 
     assert result.contracts[0].contract == "Intake Source Package and source-type context storage"
     assert result.contracts[0].version == "D-158-2026-09-13"
@@ -134,7 +134,7 @@ def test_operator_projection_fails_closed_on_cross_mode_preview(monkeypatch) -> 
     _wire(monkeypatch, _preview("starting", "running"), _operation("running"))
 
     with pytest.raises(proffer.ProfferError, match="correlation failed"):
-        asyncio.run(proffer_operator.operator_snapshot(HANDLE, mode="REAL"))
+        asyncio.run(proffer_operator.operator_snapshot(HANDLE, mode="DEV"))
 
 
 def test_operator_route_returns_the_correlated_projection(monkeypatch) -> None:
@@ -144,8 +144,8 @@ def test_operator_route_returns_the_correlated_projection(monkeypatch) -> None:
         _operation("awaiting_repair_decision"),
     )
 
-    result = asyncio.run(runtime.operator_snapshot_endpoint(HANDLE, "TEST"))
+    result = asyncio.run(runtime.operator_snapshot_endpoint(HANDLE, "LIVE"))
 
     assert result.preview_handle == HANDLE
-    assert result.matter_mode == "TEST"
+    assert result.matter_mode == "LIVE"
     assert result.valid_actions[0].action == "refresh"

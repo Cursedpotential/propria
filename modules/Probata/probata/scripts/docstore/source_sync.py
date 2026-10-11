@@ -15,12 +15,30 @@ def excluded(project,parts):
     return any(p.startswith('.') or p.lower() in {'private','to_be_deleted','_to_be_deleted'} for p in parts) or (project=='propria' and parts[0].lower() in ALIASES)
 
 
-def validated(files):
-    if not isinstance(files,list) or not 5<=len(files)<=5000:
-        raise ValueError('A complete bounded five-root manifest is required')
-    seen=set(); roots=set(); size=0
+def validated(files, declared_roots=None):
+    """Validate bounded docs and independent root coverage without writing.
+
+    Inputs are hashed file entries and optional approved project IDs; output is
+    the validated file list. Like state(), root identity comes from ROOTS, not
+    file presence. Legacy files-only callers must still represent every root.
+    Byline: Codex / GPT-6.1 / 2026-10-07.
+    """
+    if declared_roots is not None:
+        if (not isinstance(declared_roots,list)
+            or not all(isinstance(root,str) for root in declared_roots)
+            or len(declared_roots)!=len(ROOTS)
+            or set(declared_roots)!=set(ROOTS)):
+            raise ValueError('roots must declare exactly the seven approved docs roots')
+    minimum = 0 if declared_roots is not None else len(ROOTS)
+    if not isinstance(files,list) or not minimum<=len(files)<=5000:
+        raise ValueError('A complete bounded seven-root manifest is required')
+    seen=set(); file_roots=set(); size=0
     for item in files:
+        if not isinstance(item,dict):
+            raise ValueError('Source entries must be objects')
         project=item.get('project'); path=item.get('path',''); content=item.get('content','')
+        if not isinstance(project,str) or not isinstance(path,str):
+            raise ValueError('Source project and path must be text')
         relative=PurePosixPath(path)
         if (project not in ROOTS or not path or '\\' in path or ':' in path or relative.is_absolute()
             or '..' in relative.parts or path!=relative.as_posix() or relative.suffix.lower()!='.md'
@@ -33,8 +51,8 @@ def validated(files):
             raise ValueError('Duplicate or oversized source')
         if hashlib.sha256(data).hexdigest()!=item.get('sha256'):
             raise ValueError('Source hash mismatch')
-        roots.add(project); seen.add((project,path))
-    if roots!=set(ROOTS):
+        file_roots.add(project); seen.add((project,path))
+    if declared_roots is None and file_roots!=set(ROOTS):
         raise ValueError('Every docs root must be represented; empty-root removal needs a separate reviewed migration')
     return files
 
@@ -85,9 +103,17 @@ def read(payload):
 
 
 def operation(action,payload):
+    """Plan/apply an exact hashed projection, or read named mirror files.
+
+    Input is a source operation payload; output is its bounded receipt. Plan
+    and read are nonmutating; apply quarantines changes after the exact-plan
+    and named-retraction guards. roots decouples coverage from file presence.
+    Byline: Codex / GPT-6.1 / 2026-10-07.
+    """
     if action=='read':
         return read(payload)
-    files=validated(payload.get('files'))
+    declared_roots=payload.get('roots')
+    files=validated(payload.get('files'),declared_roots)
     lock=Path(os.environ.get('DOCSTORE_SYNC_LOCK','/data/state/sync.lock'))
     with worker_lock(lock):
         root,existing=state()
@@ -99,6 +125,9 @@ def operation(action,payload):
               # 0.8.1-r3: the mirror's hash of every document this plan would retract, so a client can
               # restore it byte-for-byte instead (retraction guard, owner order 2026-09-26).
               'retracted_hashes':{k:existing[k] for k in retracted}}
+        if declared_roots is not None:
+            # Bind independent root coverage into the exact plan receipt.
+            plan['roots']=sorted(declared_roots)
         plan['plan_id']=digest(plan)
         if action=='plan':
             return plan

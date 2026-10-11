@@ -14,15 +14,14 @@ import io
 import json
 
 import pytest
-from botocore.exceptions import ClientError
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 from app.repo import proffer_media_store
 from app.runtime import proffer as proffer_runtime
 from app.service import matter_mode, proffer_media
 from app.service.proffer_media_prefix import derived_media_prefix
 from app.types.source_roots import ROOTS_ENV
+from botocore.exceptions import ClientError
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 SHA_A = hashlib.sha256(b"attachment-a").hexdigest()
 SHA_B = hashlib.sha256(b"attachment-b").hexdigest()
@@ -87,8 +86,8 @@ def _bindings_and_root(monkeypatch):
         json.dumps([{"id": "b2-vault", "label": "B2 Vault", "url": "b2://salem-data/consignatio/vault/v1/"}]),
     )
     matter_mode._clear_preview_modes_for_tests()
-    matter_mode.bind_preview_mode(HANDLE_A, "TEST")
-    matter_mode.bind_preview_mode(HANDLE_B, "TEST")
+    matter_mode.bind_preview_mode(HANDLE_A, "LIVE")
+    matter_mode.bind_preview_mode(HANDLE_B, "LIVE")
     yield
     matter_mode._clear_preview_modes_for_tests()
 
@@ -111,7 +110,7 @@ def test_happy_path_streams_bytes_with_correct_headers(monkeypatch) -> None:
     data = b"\xff\xd8\xff-not-a-real-jpeg-but-bytes"
     _wire_store(monkeypatch, FakeClient({f"{prefix}{SHA_A}.jpg": data}))
 
-    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "TEST"})
+    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "LIVE"})
 
     assert response.status_code == 200
     assert response.content == data
@@ -132,7 +131,7 @@ def test_range_request_returns_206_with_correct_slice(monkeypatch) -> None:
 
     response = _app().get(
         f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}",
-        params={"mode": "TEST"},
+        params={"mode": "LIVE"},
         headers={"Range": "bytes=2-5"},
     )
 
@@ -152,7 +151,7 @@ def test_malformed_range_is_refused_with_416(monkeypatch) -> None:
 
     response = _app().get(
         f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}",
-        params={"mode": "TEST"},
+        params={"mode": "LIVE"},
         headers={"Range": "bytes=999-1000"},
     )
 
@@ -166,7 +165,7 @@ def test_object_outside_the_allowed_prefix_is_never_selected(monkeypatch) -> Non
     decoy_prefix = derived_media_prefix(SOURCE_KEY_B)
     _wire_store(monkeypatch, FakeClient({f"{decoy_prefix}{SHA_A}.jpg": b"someone else's photo"}))
 
-    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "TEST"})
+    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "LIVE"})
 
     assert response.status_code == 404
 
@@ -177,7 +176,7 @@ def test_sha256_prefix_collision_is_not_served(monkeypatch) -> None:
     prefix = derived_media_prefix(SOURCE_KEY_A)
     _wire_store(monkeypatch, FakeClient({f"{prefix}{SHA_A}deadbeef.jpg": b"not this one"}))
 
-    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "TEST"})
+    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "LIVE"})
 
     assert response.status_code == 404
 
@@ -189,7 +188,7 @@ def test_unsafe_extension_is_dropped_not_reflected_into_headers(monkeypatch) -> 
     hostile_key = f'{prefix}{SHA_A}."evil\r\nX-Injected: 1'
     _wire_store(monkeypatch, FakeClient({hostile_key: b"payload"}))
 
-    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "TEST"})
+    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "LIVE"})
 
     assert response.status_code == 200
     assert response.content == b"payload"
@@ -204,7 +203,7 @@ def test_media_from_a_different_run_is_refused(monkeypatch) -> None:
     prefix_b = derived_media_prefix(SOURCE_KEY_B)
     _wire_store(monkeypatch, FakeClient({f"{prefix_b}{SHA_B}.jpg": b"belongs to run b"}))
 
-    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_B}", params={"mode": "TEST"})
+    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_B}", params={"mode": "LIVE"})
 
     assert response.status_code == 404
 
@@ -213,7 +212,7 @@ def test_unknown_sha256_is_404(monkeypatch) -> None:
     _wire_run(monkeypatch, HANDLE_A, SOURCE_KEY_A)
     _wire_store(monkeypatch, FakeClient({}))
 
-    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "TEST"})
+    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{SHA_A}", params={"mode": "LIVE"})
 
     assert response.status_code == 404
 
@@ -231,7 +230,7 @@ def test_malformed_sha256_is_422(monkeypatch, bad_sha) -> None:
     _wire_run(monkeypatch, HANDLE_A, SOURCE_KEY_A)
     _wire_store(monkeypatch, FakeClient({}))
 
-    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{bad_sha}", params={"mode": "TEST"})
+    response = _app().get(f"/api/proffer/previews/{HANDLE_A}/media/{bad_sha}", params={"mode": "LIVE"})
 
     assert response.status_code == 422
 

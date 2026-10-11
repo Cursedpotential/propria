@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package proffer
 
 // The re-chunk of what is already committed, and the removal of the per-message search objects, as Go workflows over
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -36,7 +38,10 @@ const (
 
 // ConversationChunksBackfillInput is the workflow input (JSON names match server/context_chunks/start.py).
 type ConversationChunksBackfillInput struct {
-	RequestID string `json:"request_id"`
+	OperatingMode string `json:"operating_mode,omitempty"`
+	MatterID      string `json:"matter_id,omitempty"`
+	CourtCaseID   string `json:"court_case_id,omitempty"`
+	RequestID     string `json:"request_id"`
 	// DryRun only counts: threads, messages, estimated (or, with Exact, exact) chunks and embed calls.
 	DryRun      bool   `json:"dry_run"`
 	Exact       bool   `json:"exact"`
@@ -75,10 +80,13 @@ type ConversationChunksProgress struct {
 
 // ConversationChunksBackfillResult is the workflow's receipt.
 type ConversationChunksBackfillResult struct {
-	RequestID string                     `json:"request_id"`
-	DryRun    bool                       `json:"dry_run"`
-	Estimate  map[string]interface{}     `json:"estimate,omitempty"`
-	Progress  ConversationChunksProgress `json:"progress"`
+	OperatingMode string                     `json:"operating_mode,omitempty"`
+	MatterID      string                     `json:"matter_id,omitempty"`
+	CourtCaseID   string                     `json:"court_case_id,omitempty"`
+	RequestID     string                     `json:"request_id"`
+	DryRun        bool                       `json:"dry_run"`
+	Estimate      map[string]interface{}     `json:"estimate,omitempty"`
+	Progress      ConversationChunksProgress `json:"progress"`
 	// Failed names each thread that did not complete, with the Activity's reason; the workflow also fails when any did.
 	Failed        []string `json:"failed,omitempty"`
 	StaleDeleted  int      `json:"stale_deleted"`
@@ -87,7 +95,15 @@ type ConversationChunksBackfillResult struct {
 
 // ConversationChunksBackfillWorkflow is ConversationChunksBackfillWorkflowName.
 func ConversationChunksBackfillWorkflow(ctx workflow.Context, in ConversationChunksBackfillInput) (ConversationChunksBackfillResult, error) {
-	result := ConversationChunksBackfillResult{RequestID: in.RequestID, DryRun: in.DryRun}
+	if !in.DryRun && workflow.GetVersion(ctx, operatingContextChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(in.OperatingMode)); err != nil {
+			return ConversationChunksBackfillResult{}, err
+		}
+		if !caseidentity.AdmittedIdentity(in.MatterID, in.CourtCaseID) {
+			return ConversationChunksBackfillResult{}, errors.New("chunk backfill requires the approved case identity")
+		}
+	}
+	result := ConversationChunksBackfillResult{OperatingMode: in.OperatingMode, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID, RequestID: in.RequestID, DryRun: in.DryRun}
 	if strings.TrimSpace(in.RequestID) == "" {
 		return result, errors.New("conversation chunks back-fill requires a request id")
 	}
@@ -138,7 +154,7 @@ func ConversationChunksBackfillWorkflow(ctx workflow.Context, in ConversationChu
 		for i, thread := range batch {
 			chunkFutures[i] = workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(4*time.Hour)),
 				ChunkContextThreadsActivityName, ChunkThreadsRequest{
-					RequestID: in.RequestID, Chunker: in.Chunker, Overlap: in.Overlap,
+					OperatingMode: in.OperatingMode, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID, RequestID: in.RequestID, Chunker: in.Chunker, Overlap: in.Overlap,
 					ThreadRefs: []ContextThreadSelector{{Corpus: thread.Corpus, ThreadID: thread.ThreadID}},
 				})
 		}
@@ -159,7 +175,7 @@ func ConversationChunksBackfillWorkflow(ctx workflow.Context, in ConversationChu
 				continue
 			}
 			publishFutures[i] = workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(3*time.Hour)),
-				PublishContextChunksActivityName, PublishChunksRequest{RequestID: in.RequestID, Plan: plan.Threads[0]})
+				PublishContextChunksActivityName, PublishChunksRequest{OperatingMode: in.OperatingMode, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID, RequestID: in.RequestID, Plan: plan.Threads[0]})
 		}
 		for i, future := range publishFutures {
 			if future == nil {
@@ -188,7 +204,7 @@ func ConversationChunksBackfillWorkflow(ctx workflow.Context, in ConversationChu
 		for _, version := range listed.CallSourceVersions {
 			var files PublishCallLogFilesResult
 			err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(time.Hour)),
-				PublishCallLogFilesActivityName, PublishCallLogFilesRequest{RequestID: in.RequestID, SourceVersionID: version}).Get(ctx, &files)
+				PublishCallLogFilesActivityName, PublishCallLogFilesRequest{OperatingMode: in.OperatingMode, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID, RequestID: in.RequestID, SourceVersionID: version}).Get(ctx, &files)
 			if err != nil {
 				result.Failed = append(result.Failed, fmt.Sprintf("call-log file %s: %v", version, err))
 				continue
@@ -207,6 +223,9 @@ func ConversationChunksBackfillWorkflow(ctx workflow.Context, in ConversationChu
 
 // ConversationChunksRemovalInput is the removal workflow's input.
 type ConversationChunksRemovalInput struct {
+	OperatingMode string `json:"operating_mode,omitempty"`
+	MatterID      string `json:"matter_id,omitempty"`
+	CourtCaseID   string `json:"court_case_id,omitempty"`
 	RequestID     string `json:"request_id"`
 	DryRun        bool   `json:"dry_run"`
 	OnlyCovered   bool   `json:"only_covered"`
@@ -216,20 +235,32 @@ type ConversationChunksRemovalInput struct {
 // ConversationChunksRemovalResult is the removal workflow's receipt: the verification report and what was (or, in a
 // dry run, would be) deleted.
 type ConversationChunksRemovalResult struct {
-	RequestID    string                 `json:"request_id"`
-	DryRun       bool                   `json:"dry_run"`
-	Verification map[string]interface{} `json:"verification"`
-	Removal      map[string]interface{} `json:"removal,omitempty"`
+	OperatingMode string                 `json:"operating_mode,omitempty"`
+	MatterID      string                 `json:"matter_id,omitempty"`
+	CourtCaseID   string                 `json:"court_case_id,omitempty"`
+	RequestID     string                 `json:"request_id"`
+	DryRun        bool                   `json:"dry_run"`
+	Verification  map[string]interface{} `json:"verification"`
+	Removal       map[string]interface{} `json:"removal,omitempty"`
 }
 
 // ConversationChunksRemovalWorkflow is ConversationChunksRemovalWorkflowName. It verifies first, as its own Activity,
 // so the report is in the history even when the removal is refused.
 func ConversationChunksRemovalWorkflow(ctx workflow.Context, in ConversationChunksRemovalInput) (ConversationChunksRemovalResult, error) {
-	result := ConversationChunksRemovalResult{RequestID: in.RequestID, DryRun: in.DryRun}
+	if !in.DryRun && workflow.GetVersion(ctx, operatingContextChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(in.OperatingMode)); err != nil {
+			return ConversationChunksRemovalResult{}, err
+		}
+		if !caseidentity.AdmittedIdentity(in.MatterID, in.CourtCaseID) {
+			return ConversationChunksRemovalResult{}, errors.New("chunk removal requires the approved case identity")
+		}
+	}
+	result := ConversationChunksRemovalResult{OperatingMode: in.OperatingMode, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID, RequestID: in.RequestID, DryRun: in.DryRun}
 	if strings.TrimSpace(in.RequestID) == "" {
 		return result, errors.New("per-message removal requires a request id")
 	}
 	request := map[string]interface{}{
+		"operating_mode": in.OperatingMode, "matter_id": in.MatterID, "court_case_id": in.CourtCaseID,
 		"request_id": in.RequestID, "old_collection": in.OldCollection, "dry_run": in.DryRun, "only_covered": in.OnlyCovered,
 	}
 	if err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, chunkActivityOptions(backfillRemovalTimeout)),

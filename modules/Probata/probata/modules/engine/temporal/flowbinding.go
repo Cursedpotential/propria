@@ -22,6 +22,7 @@
 // Temporal Activity or a direct call invoked it.
 //
 // Byline: Claude Code · Opus 5 · 2026-09-03.
+// Byline: Codex · GPT-5 · 2026-10-05 (registered case-connected flow admission).
 package temporal
 
 import (
@@ -55,6 +56,8 @@ const (
 // The zero value is not usable; construct through LoadFlowBindings or
 // NewFlowRegistry so validation always runs.
 type FlowBinding struct {
+	// RequireCaseScope classifies reviewed case-connected flows independently of caller fields.
+	RequireCaseScope bool `json:"require_case_scope,omitempty"`
 	// Name is the stable Activity-facing identity, e.g. "chunk_preview".
 	// Callers and the operator screen reference this, never the webhook path,
 	// so a flow can be re-pathed in n8n without changing any caller.
@@ -247,6 +250,21 @@ func (r *FlowRegistry) Lookup(name string) (FlowBinding, error) {
 		return FlowBinding{}, fmt.Errorf("flow bindings: no flow named %q is declared", name)
 	}
 	return binding, nil
+}
+
+// AdmitCaseConnected marks every repair tool flow in this process's reviewed registry.
+// Inputs: registered repair binding names. Outputs: missing declaration error.
+// Effects: startup configuration only, before worker polling; no HTTP or data writes.
+func (r *FlowRegistry) AdmitCaseConnected(names []string) error {
+	for _, name := range names {
+		binding, err := r.Lookup(name)
+		if err != nil {
+			return err
+		}
+		binding.RequireCaseScope = true
+		r.byName[name] = binding
+	}
+	return nil
 }
 
 // Names lists declared flows in stable order, for the operator screen's picker

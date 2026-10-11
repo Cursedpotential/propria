@@ -37,14 +37,41 @@ Repository-local memory follows the same path hierarchy: after reading applicabl
 never authority over current canon, ADRs, decisions, or verified handoffs. Format and
 precedence: `docs/agent-memory/README.md`.
 
+## Current intake authority: context first, no gate (owner, 2026-10-08)
+
+All sources enter context and become available for search before analysis or
+optional review. Current intake has **no hashing, custody, evidence admission,
+approval, or promotion gate**. First-party human messages, second-party human
+messages, and AI chats remain distinct source types with distinct parser/output
+shapes. Keep complete AI conversations and created works, then publish semantic
+topic chunks for search; do not turn AI chats into individual-message search
+results or `working.message` rows. AI chats remain context permanently. Only
+qualifying actual messages, documents, media, or other primary material can
+later be considered for a separate owner-directed evidence promotion.
+
+The Go engine orchestrates ingestion through Temporal Activities on a server.
+Python Chonkie NeuralChunker can execute as one AI-chat Activity; n8n can handle
+peripheral image or notification steps without controlling admission or source
+state. Preserve source IDs, versions, conversation boundaries and navigable
+locators, but do not require a hash or evidence/custody receipt for context.
+Uncertain type, date, relevance or extraction becomes context metadata for
+later work, not a reason to reject the source. Existing Proffer evidence-style
+stages must not be silently reused as the current context entry path.
+
+This supersedes older D-159 step 3, custody-first project descriptions,
+hash-first ELT guidance, and approval-before-context instructions below. It is
+an owner rule, not proof that the current runtime is deployed or compliant.
+
+_Byline: Codex · GPT-6 · 2026-10-08; direct owner correction in this chat._
+
 ## THE GOAL — six steps, every surface is measured against them
 
 > _Owner ruling · 2026-09-22 19:54 (D-159). Full record: `docs/PURPOSE.md`. Binding on every surface, screen, API and workflow in this repository._
 
-1. **Open** a file or folder, through an index.
-2. **Verify** whether it is relevant.
-3. **Make sure it has a hash**, so it can be trusted later.
-4. **Pick a parser or extractor** and get it into context and the analysis platforms.
+1. **Open** a file or folder, through an index or source locator.
+2. **Register it as context** with source identity and location, without an admission gate.
+3. **Pick a parser or extractor** and make its content searchable in context.
+4. **Analyze** relevance, source type and extracted material without withholding context.
 5. **Preview** the result to make sure the machine did it right.
 6. **Fill in gaps** and missing context.
 
@@ -59,7 +86,8 @@ never primary content on an operator surface; they are a drawer, or their own sc
 **Indicia Probata** (`probata`) — the evidence-record product under the **propria**
 umbrella (D-137, D-138) — ~~pro se family-law evidence + analysis + legal-strategy
 platform on Agno AgentOS~~ **(renamed D-138, 2026-09-05)**. Naming canon:
-`docs/NAMING.md`. Evidence custody → parse → normalize → store → export.
+`docs/NAMING.md`. Current intake: context → analysis. Evidence custody and
+promotion, if ever used, are later separate work for eligible real material.
 Analysis over a bitemporal graph (splitting off as **Indagatio Veri** / `indagatio`,
 D-139). AI Legal Team (to build; product name **advocatio**, D-138).
 

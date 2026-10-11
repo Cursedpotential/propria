@@ -1,4 +1,5 @@
 // Byline: Claude Code · Opus 5.5 · 2026-10-01; editable identifiers 2026-10-02
+// Byline amendment: Codex · GPT-6 · 2026-10-06; retry failed registry reads with named loading/error states.
 // Case — who the case is about and every way they appear in the data.
 //
 // Owner order 2026-10-01 07:56: "There needs to be a case identity page. Can
@@ -439,6 +440,13 @@ function RecordDrawer({ view, open, onClose, focus }: { view: CaseIdentityView; 
 
 export function CaseIdentityScreen() {
   const { mode } = useFixedCase();
+  // Changing policy discards open dialogs and their idempotency keys, even when
+  // the next read hits a warm cache. A stale Live header must never save in Dev.
+  return <ModeScopedCaseIdentityScreen key={mode} />;
+}
+
+function ModeScopedCaseIdentityScreen() {
+  const { mode } = useFixedCase();
   const query = useQuery({ queryKey: ["case-identity", mode], queryFn: () => getCaseIdentity(mode) });
   const [identifierTarget, setIdentifierTarget] = useState<IdentifierDialogTarget | null>(null);
   const [personTarget, setPersonTarget] = useState<CasePerson | null | undefined>(undefined);
@@ -454,16 +462,19 @@ export function CaseIdentityScreen() {
 
   if (query.isLoading) {
     return (
-      <div className="grid h-full place-content-center text-sm text-muted-foreground">
+      <div className="grid h-full place-content-center text-sm text-muted-foreground" role="status" aria-label="Reading case identity">
         <Loader2 className="mx-auto h-5 w-5 animate-spin" /> Reading the registry…
       </div>
     );
   }
   if (query.isError || !view) {
     return (
-      <div className="grid h-full place-content-center gap-2 text-center text-sm">
+      <div className="grid h-full place-content-center gap-2 text-center text-sm" role="alert" aria-label="Case identity unavailable">
         <AlertTriangle className="mx-auto h-5 w-5 text-destructive" />
         <p>{(query.error as Error | null)?.message ?? "The case identity could not be read"}</p>
+        <Button type="button" variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
+          {query.isFetching ? "Retrying…" : "Retry"}
+        </Button>
       </div>
     );
   }
@@ -554,7 +565,7 @@ export function CaseIdentityScreen() {
       {identifierTarget && <IdentifierDialog target={identifierTarget} onClose={() => setIdentifierTarget(null)} />}
       {personTarget !== undefined && <PersonDialog person={personTarget} onClose={() => setPersonTarget(undefined)} />}
       {headerOpen && view.matter && view.court_case && (
-        <HeaderDialog mode={view.mode} matter={view.matter} courtCase={view.court_case} onClose={() => setHeaderOpen(false)} />
+        <HeaderDialog mode={mode} matter={view.matter} courtCase={view.court_case} onClose={() => setHeaderOpen(false)} />
       )}
       {dismissRaw && <DismissDialog raw={dismissRaw} onClose={() => setDismissRaw(null)} />}
       {deleteTarget && <DeleteIdentifierDialog identifier={deleteTarget} onClose={() => setDeleteTarget(null)} />}

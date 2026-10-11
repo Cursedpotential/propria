@@ -1,14 +1,10 @@
-"""Recover a run's TEST/REAL binding from durable state instead of refusing it.
+"""Recover a run's operating mode only from an explicit durable receipt.
 
-Byline: Claude Code · Fable 5.1 · 2026-09-20
+Byline: Claude Code · Fable 5.1 · 2026-09-20.
+Byline: Codex · GPT-6.1-Sol · 2026-10-05.
 
-`matter_mode` keeps preview-handle bindings in process memory, so every BFF
-restart or redeploy orphaned every existing run: the Review catalog answered
-"cannot prove TEST/REAL ownership ... restart the import" and no earlier run
-could be opened (live 2026-09-20). The durable fact was always there: the
-engine stores each run's `matter_id` (context.source_version), and the matter
-decides the mode. This module re-derives the binding from that id. It never
-guesses: an unknown or missing matter still fails closed.
+The same case belongs to DEV and LIVE, so a matter ID cannot prove a run's
+operating mode. Older receipts without an explicit flag remain unavailable.
 """
 
 from __future__ import annotations
@@ -19,25 +15,31 @@ from uuid import UUID
 from app.service import matter_mode
 from app.types.matter_mode import MatterMode
 
-_MODES: tuple[MatterMode, ...] = ("TEST", "REAL")
+_MODES: tuple[MatterMode, ...] = ("DEV", "LIVE")
 
 
-def mode_for_matter(matter_id: UUID | None) -> MatterMode | None:
-    """Return the mode whose configured matter equals ``matter_id``, else None."""
-    if matter_id is None:
+def mode_for_operation(matter_id: UUID | None, operating_mode: str | None) -> MatterMode | None:
+    """Accept an explicit canonical receipt only for the configured actual case.
+
+    Inputs: durable matter UUID and canonical receipt flag. Output: mode or None.
+    Effects: none. Pick over matter inference because both policies share a case.
+    """
+    if matter_id is None or operating_mode not in _MODES:
         return None
-    for candidate in _MODES:
-        try:
-            if matter_mode.configured_matter_id(candidate) == matter_id:
-                return candidate
-        except matter_mode.MatterModeError:
-            continue  # that mode is not configured on this deployment
-    return None
+    try:
+        return operating_mode if matter_mode.configured_matter_id(operating_mode) == matter_id else None
+    except matter_mode.MatterModeError:
+        return None
 
 
-def rebind(preview_handle: str, matter_id: UUID | None) -> MatterMode | None:
-    """Bind the handle to the mode its durable matter proves; None when unprovable."""
-    proven = mode_for_matter(matter_id)
+def rebind(preview_handle: str, matter_id: UUID | None, operating_mode: str | None) -> MatterMode | None:
+    """Cache a handle only when durable scope and explicit policy are proven.
+
+    Inputs: opaque handle, durable matter and flag. Output: mode or None.
+    Effects: updates process cache only with proof. Pick for catalog recovery;
+    require also enforces the requested policy on an individual operation.
+    """
+    proven = mode_for_operation(matter_id, operating_mode)
     if proven is not None:
         matter_mode.bind_preview_mode(preview_handle, proven)
     return proven
@@ -46,14 +48,20 @@ def rebind(preview_handle: str, matter_id: UUID | None) -> MatterMode | None:
 async def require(
     preview_handle: str,
     mode: MatterMode,
-    fetch_matter_id: Callable[[str], Awaitable[UUID | None]],
+    fetch_binding: Callable[[str], Awaitable[tuple[UUID | None, str | None]]],
 ) -> None:
-    """`require_preview_mode`, recovering a lost in-memory binding exactly once."""
+    """Require a matching explicit policy, recovering a lost cache binding once.
+
+    Inputs: handle, requested mode and durable binding reader. Output: None or
+    MatterModeError. Effects: one GET/cache update when unbound, never persistence.
+    Pick over rebind when mismatch must reject rather than filter catalog rows.
+    """
     try:
         matter_mode.require_preview_mode(preview_handle, mode)
         return
     except matter_mode.MatterModeError as error:
-        if "no active TEST/REAL binding" not in error.detail:
+        if "cannot be verified" not in error.detail:
             raise
-    rebind(preview_handle, await fetch_matter_id(preview_handle))
+    matter_id, operating_mode = await fetch_binding(preview_handle)
+    rebind(preview_handle, matter_id, operating_mode)
     matter_mode.require_preview_mode(preview_handle, mode)

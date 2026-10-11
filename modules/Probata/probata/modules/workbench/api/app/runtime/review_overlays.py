@@ -20,11 +20,11 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
 
+from app.runtime.operating_mode import OperatingMode
 from app.service.context_review import read_context_review, write_context_review, write_foreshadowing
 from app.service.proffer import ProfferError
 from app.service.source_metadata import correct_metadata, metadata_screen
 from app.types.context_review import ContextReviewReceipt, ContextReviewRequest, ForeshadowingRequest, Horizon
-from app.types.matter_mode import MatterMode
 from app.types.proffer import ProfferDecisionActor
 from app.types.source_metadata import MetadataCorrectionReceipt, MetadataCorrectionRequest, MetadataScreenResponse
 
@@ -52,7 +52,7 @@ def _http(error: ProfferError) -> HTTPException:
 @router.get("/previews/{preview_handle}/metadata", response_model=MetadataScreenResponse)
 async def metadata_screen_endpoint(
     preview_handle: PreviewHandle,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
     subject_sha256: Digest = None,
 ):
     """Every metadata fact the platform holds for one file of the run, with its sidecars."""
@@ -71,7 +71,7 @@ async def metadata_correction_endpoint(
     preview_handle: PreviewHandle,
     body: MetadataCorrectionRequest,
     request: Request,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     """Append one attributed correction overlay; the observed value is never written."""
     try:
@@ -84,7 +84,7 @@ async def metadata_correction_endpoint(
 async def context_review_endpoint(
     preview_handle: PreviewHandle,
     message_id: MessageID,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
     horizon: Annotated[Horizon, Query()] = "as_lived",
 ) -> JSONResponse:
     """Review history of one message. `foreshadowing` is present only for horizon=hindsight."""
@@ -108,7 +108,7 @@ async def context_review_write_endpoint(
     message_id: MessageID,
     body: ContextReviewRequest,
     request: Request,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     """Append one review revision: to, about, about the child, relevant."""
     try:
@@ -127,7 +127,7 @@ async def foreshadowing_write_endpoint(
     message_id: MessageID,
     body: ForeshadowingRequest,
     request: Request,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
 ):
     """Set or clear the hindsight-only foreshadowing flag."""
     try:

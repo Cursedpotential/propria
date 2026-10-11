@@ -1,3 +1,5 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (versioned import admission).
+// Byline: Codex · GPT-6 · 2026-10-07 (optional real analytical graph registration).
 package profferworker
 
 import (
@@ -18,7 +20,9 @@ import (
 	"github.com/Cursedpotential/probata/engine/acquisition"
 	"github.com/Cursedpotential/probata/engine/activities"
 	sbvadapter "github.com/Cursedpotential/probata/engine/adapters/sbv"
+	"github.com/Cursedpotential/probata/engine/atomictool"
 	"github.com/Cursedpotential/probata/engine/contacts"
+	"github.com/Cursedpotential/probata/engine/contextgraphflow"
 	"github.com/Cursedpotential/probata/engine/dedupe"
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/extraction/librarysync"
@@ -40,6 +44,13 @@ import (
 // implement all 26 Proffer stages. Filesystem and embedded observation bodies are
 // separate values so extractor provenance cannot cross activity boundaries.
 type Registrations struct {
+	// ContextPackage reuses exact native placement and compact metadata registration.
+	// Inputs: sealed refs. Outputs: package pins. Effects: none until its Activity runs.
+	ContextPackage activities.AIContextPackageActivities
+	// ContextSource records discoverable native source identity before any parser runs.
+	// Inputs: the existing platform registration store. Outputs: one named Activity.
+	// Effects: registration write only; choose for context-v1, not legacy retention.
+	ContextSource         activities.ContextSourceRegistrationActivities
 	Lifecycle             activities.SourceLifecycleActivities
 	FilesystemObservation activities.SourceObservationActivities
 	InventoryObservation  activities.SourceObservationActivities
@@ -47,13 +58,16 @@ type Registrations struct {
 	N8N                   platformtemporal.N8NActivities
 	N8NFlows              platformtemporal.FlowActivities
 	Hash                  activities.HashActivities
-	StructuredELT         activities.StructuredELTActivities
-	DeriveSMSThreads      activities.DeriveSMSThreadsActivities
-	HandlerSelection      HandlerSelectionActivities
-	Raw                   activities.RawPipelineActivities
-	Normalized            activities.NormalizedPipelineActivities
-	Repair                activities.RepairActivities
-	Preview               activities.PreviewProjectionActivity
+	// Independent byte-only check; never inserted into the base Proffer sequence.
+	// Byline: Codex, 2026-10-06.
+	Integrity        activities.SourceIntegrityActivities
+	StructuredELT    activities.StructuredELTActivities
+	DeriveSMSThreads activities.DeriveSMSThreadsActivities
+	HandlerSelection HandlerSelectionActivities
+	Raw              activities.RawPipelineActivities
+	Normalized       activities.NormalizedPipelineActivities
+	Repair           activities.RepairActivities
+	Preview          activities.PreviewProjectionActivity
 	// BatchImport serves the batch-by-folder workflow. Its fields are nil in a
 	// worker built without a Temporal client (RegisterAll still registers the
 	// Activities; they fail closed when called unwired).
@@ -66,10 +80,23 @@ type Registrations struct {
 	// Extraction serves the entity/event extraction workflows (extraction.go).
 	// Byline: Claude Code · Opus 5.5 · 2026-09-25
 	Extraction activities.EntityExtractionActivities
+	// AICandidates stages typed occurrences from an exact retained-source bundle.
+	// Inputs: derived root and the existing original-aware review store. Outputs: pending proposal IDs.
+	// Effects: none at registration; execution verifies source pins and writes pending proposals only.
+	// Choose for native AI content after extraction, before the owner's existing review decision.
+	AICandidates activities.AICandidateStagingActivities
 	// Conversation serves the conversation-level extraction request and the
 	// Surreal send (conversation_extraction.go).
 	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 	Conversation activities.ConversationActivities
+	// AtomicTool runs one pinned read-only gateway tool for a reviewed source.
+	// Input: the existing tool gateway client. Output: a bounded result reference.
+	// Effects: none at registration; choose for operator-started atomic actions.
+	AtomicTool atomictool.Activities
+	// ContextGraph serves independent downstream projection when explicitly configured.
+	// Inputs are sealed source refs; outputs are verified checkpoints. Registration
+	// alone has no data effects and does not add an intake requirement.
+	ContextGraph *activities.ContextGraphActivities
 	// ContextSearch is publish_context_search_activity, the Weaviate-first
 	// stage every new Proffer run schedules before the owner's approval.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-01
@@ -110,6 +137,11 @@ type Registrations struct {
 	// Effects: none until invoked; choose for source inspection, retained copy and pinned readback before ingestion.
 	// Byline: Codex · GPT-6 · 2026-10-05.
 	AIWorkproductPlacement *activities.AIWorkproductPlacementActivities
+	// AIWorkproductCatalog authenticates retained notes and registers their original source occurrences.
+	// Inputs: existing placement adapters and separately admitted catalog writer. Outputs: three optional Activities.
+	// Effects: none until invoked; choose after placement, independently of content indexing and bucket listing refresh.
+	// Byline: Codex · GPT-6 · 2026-10-05.
+	AIWorkproductCatalog *activities.AIWorkproductCatalogActivities
 	// ToolkitCatalog registers verified recovery metadata only when the separate writer is explicitly configured.
 	// Inputs: existing preservation root/store resolver and admitted Case Bible writer. Outputs: optional Activity group.
 	// Effects: none until invoked. Choose alongside preservation; the dated catalog client remains read-only.
@@ -157,11 +189,37 @@ func RegisterAll(registrar interface {
 	RegisterWorkflow(interface{})
 	RegisterWorkflowWithOptions(interface{}, workflow.RegisterOptions)
 }, registrations Registrations) {
+	registrar = operatingRegistrar{registrar}
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
+	// The new context branch uses a separate registration body outside legacy case admission.
+	// Inputs: context-v1 source coordinates. Outputs: durable version and receipt refs.
+	// Effects: named Activity registration; choose before Python decode or chunk work.
+	registrar.RegisterActivityWithOptions(registrations.ContextSource.RegisterContextSourceActivity, activity.RegisterOptions{Name: "context_register_source_activity"})
+	// Retain the complete native unit using the existing placement/store and metadata seams.
+	// Inputs: sealed context refs. Outputs: package pins. Effects: registry only until invoked.
+	registrar.RegisterActivityWithOptions(registrations.ContextPackage.RetainAIContextPackage, activity.RegisterOptions{Name: activities.AIContextPackageActivityName})
+	registrar.RegisterActivityWithOptions(registrations.ContextPackage.CatalogAIContextPackage, activity.RegisterOptions{Name: activities.AIContextCatalogActivityName})
+	// Reuse exact verified AI generations after content-stage failures; no new-source admission.
+	// Byline: Codex / 2026-10-06.
+	registrar.RegisterWorkflowWithOptions(proffer.AIContentResumeWorkflow, workflow.RegisterOptions{Name: proffer.AIContentResumeWorkflowName})
+	if registrations.ContextGraph != nil {
+		registrar.RegisterWorkflowWithOptions(contextgraphflow.ContextGraphWorkflow, workflow.RegisterOptions{Name: contextgraphflow.WorkflowName})
+		activities.RegisterContextGraphActivities(registrar, *registrations.ContextGraph)
+	}
 	registrar.RegisterWorkflowWithOptions(proffer.BatchWorkflow, workflow.RegisterOptions{Name: proffer.BatchWorkflowName})
+	// Register the operator-started source tool on the existing Proffer task queue.
+	// Inputs: configured gateway Activity. Outputs: named workflow and Activity.
+	// Effects: registry only; execution remains actor-bound and read-only.
+	registrar.RegisterWorkflowWithOptions(atomictool.Workflow, workflow.RegisterOptions{Name: atomictool.WorkflowName})
+	registrar.RegisterActivityWithOptions(registrations.AtomicTool.Run, activity.RegisterOptions{Name: atomictool.ActivityName})
+	registrar.RegisterActivityWithOptions(registrations.AICandidates.StageAICandidateBundle, activity.RegisterOptions{Name: "stage_ai_candidate_bundle_activity"})
 	// Back-fill of call logs imported before commit_call_log existed.
 	// Byline: Claude Code · Opus 5.5 · 2026-10-02
 	registrar.RegisterWorkflowWithOptions(proffer.CallLogBackfillWorkflow, workflow.RegisterOptions{Name: proffer.CallLogBackfillWorkflowName})
+	// Explicit wrapper and Activity reuse retained originals and existing receipt tables.
+	// Byline: Codex, 2026-10-06.
+	registrar.RegisterWorkflowWithOptions(proffer.SourceIntegrityWorkflow, workflow.RegisterOptions{Name: proffer.SourceIntegrityWorkflowName})
+	activities.RegisterSourceIntegrityActivity(registrar, registrations.Integrity)
 	// The re-chunk of committed data and the removal of the per-message objects (owner 2026-10-02: Temporal, traceable).
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksBackfillWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksBackfillWorkflowName})
 	registrar.RegisterWorkflowWithOptions(proffer.ConversationChunksRemovalWorkflow, workflow.RegisterOptions{Name: proffer.ConversationChunksRemovalWorkflowName})
@@ -234,6 +292,12 @@ func RegisterAll(registrar interface {
 		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.InspectAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductInspectActivityName})
 		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.CopyAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductCopyActivityName})
 		registrar.RegisterActivityWithOptions(registrations.AIWorkproductPlacement.ReadbackAIWorkproduct, activity.RegisterOptions{Name: activities.AIWorkproductReadbackActivityName})
+	}
+	if registrations.AIWorkproductCatalog != nil {
+		registrar.RegisterWorkflowWithOptions(activities.AIWorkproductCatalogWorkflow, workflow.RegisterOptions{Name: activities.AIWorkproductCatalogWorkflowName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductCatalog.AuthenticateAIWorkproductCatalog, activity.RegisterOptions{Name: activities.AIWorkproductCatalogAuthenticateActivityName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductCatalog.RegisterAIWorkproductCatalog, activity.RegisterOptions{Name: activities.AIWorkproductCatalogRegisterActivityName})
+		registrar.RegisterActivityWithOptions(registrations.AIWorkproductCatalog.ReadbackAIWorkproductCatalog, activity.RegisterOptions{Name: activities.AIWorkproductCatalogReadbackActivityName})
 	}
 	registrar.RegisterWorkflowWithOptions(activities.ToolkitPackagePreservationWorkflow, workflow.RegisterOptions{Name: activities.ToolkitPackagePreservationWorkflowName})
 	registrar.RegisterActivityWithOptions(registrations.ToolkitPreservation.CopyToolkitPackagePreservation, activity.RegisterOptions{Name: activities.ToolkitPackagePreservationCopyActivityName})
@@ -362,6 +426,10 @@ func Run(ctx context.Context, cfg Config) error {
 		defer closeToolkitCatalog()
 	}
 	registrations.ToolkitCatalog = toolkitCatalog
+	registrations.AIWorkproductCatalog, err = configureAIWorkproductCatalog(ctx, toolkitCatalog, registrations.AIWorkproductPlacement)
+	if err != nil {
+		return err
+	}
 	toolkitWorking, closeToolkitWorking, err := ConfigureToolkitWorkingCatalog(ctx, os.Getenv("CASEBIBLE_WORKING_DATABASE_URL_FILE"), registrations.ToolkitPreservation.AllowedRoot)
 	if err != nil {
 		return err
@@ -375,6 +443,43 @@ func Run(ctx context.Context, cfg Config) error {
 		return err
 	}
 	registrations.ToolkitValidation = toolkitValidation
+	// Approved graph is an optional downstream lane using the existing B2 store.
+	// Inputs: explicit opt-in, shared DB and mounted B2 config; output: optional group.
+	// Effects: credential reads/client construction only; no graph or object writes at boot.
+	var approvedGraph *ApprovedGraphGroup
+	if enabled := strings.TrimSpace(os.Getenv(approvedGraphEnabledEnv)); enabled != "" {
+		if enabled != "true" {
+			return fmt.Errorf("proffer worker: %s must be true or unset", approvedGraphEnabledEnv)
+		}
+		var versionStore libraryvalidation.VersionStore
+		if toolkitValidation != nil {
+			if toolkitValidation.Service == nil {
+				return errors.New("proffer worker: approved graph toolkit artifact service unavailable")
+			}
+			artifacts, ok := toolkitValidation.Service.Artifacts.(libraryvalidation.B2Artifacts)
+			if !ok || artifacts.Store == nil {
+				return errors.New("proffer worker: approved graph requires the existing versioned B2 artifact store")
+			}
+			versionStore = artifacts.Store
+		} else {
+			storageConfig, err := acquisition.LoadObjectStorageConfigFile(strings.TrimSpace(os.Getenv(libraryvalidation.EnvB2ConfigFile)))
+			if err != nil {
+				return errors.New("proffer worker: approved graph B2 configuration unavailable")
+			}
+			if err := libraryvalidation.ValidateB2StorageEndpoint(storageConfig.Endpoint); err != nil {
+				return fmt.Errorf("proffer worker: approved graph B2 endpoint: %w", err)
+			}
+			storageClient, err := acquisition.NewS3Client(storageConfig)
+			if err != nil {
+				return errors.New("proffer worker: approved graph B2 client configuration failed")
+			}
+			versionStore = smsthreads.S3Store{Client: storageClient}
+		}
+		approvedGraph, err = BuildApprovedGraph(pool, versionStore)
+		if err != nil {
+			return err
+		}
+	}
 	// Admit sync only after validator construction so pinned extraction/artifacts/signing are reused.
 	// Inputs: explicit sync environment and configured validator; outputs: optional Activity group.
 	// Effects: bounded configuration reads; no scheduling, source writes or live worker changes.
@@ -385,6 +490,13 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	if toolkitSync != nil && cfg.TemporalTaskQueue != librarysync.TaskQueue {
 		return errors.New("proffer worker: toolkit sync requires proffer-v1 task queue")
+	}
+	// Reuse the configured analysis sink for genuinely approved native AI candidates.
+	// Inputs: existing DB and graph group. Output: optional Activity group.
+	// Effects: construction only; registration performs no source or graph writes.
+	approvedAIGraph, err := BuildApprovedAIGraph(pool, approvedGraph)
+	if err != nil {
+		return err
 	}
 	registrations.ToolkitSync = toolkitSync
 	if toolkitSync != nil {
@@ -400,6 +512,8 @@ func Run(ctx context.Context, cfg Config) error {
 	RegisterAll(temporalWorker, registrations)
 	RegisterExtraction(temporalWorker, registrations.Extraction)
 	RegisterConversationExtraction(temporalWorker, registrations.Conversation)
+	RegisterApprovedGraph(temporalWorker, approvedGraph)
+	RegisterApprovedAIGraph(temporalWorker, approvedAIGraph)
 	if err := temporalWorker.Start(); err != nil {
 		return fmt.Errorf("proffer worker: start Temporal worker: %w", err)
 	}
@@ -492,6 +606,10 @@ func batchFolderLister(stores objectstores.Stores) activities.BatchFolderLister 
 
 func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformtemporal.FlowRegistry, temporalClient client.Client, catalog activities.CatalogVersionFinder) (Registrations, error) {
 	openObject, err := runtimeapi.NewRetainedObjectOpener(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
+	aiReviewStore, err := platformpostgres.NewEntityExtractionStoreWithAIOriginal(pool, openObject)
 	if err != nil {
 		return Registrations{}, err
 	}
@@ -632,6 +750,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	contextSourceStore, err := platformpostgres.NewContextSourceRegistrationStore(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
 	n8nClient, err := platformtemporal.NewN8NClient(cfg.temporalConfig())
 	if err != nil {
 		return Registrations{}, err
@@ -647,6 +769,12 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	// acquisition resolvers above use. No provider is named in code.
 	// Byline: Claude Code · Opus 5 · 2026-09-20
 	deriveStore, err := platformpostgres.NewDeriveStore(pool)
+	if err != nil {
+		return Registrations{}, err
+	}
+	// Bind only the already-retained source version through the existing original opener.
+	// Byline: Codex, 2026-10-06.
+	integrityStore, err := platformpostgres.NewSourceIntegrityStore(pool, hashRepo)
 	if err != nil {
 		return Registrations{}, err
 	}
@@ -669,6 +797,9 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	if err := flowRegistry.AdmitCaseConnected(repairPlan.Validate.Environment.Registry.CaseFlowNames()); err != nil {
+		return Registrations{}, fmt.Errorf("repair flow scope classification: %w", err)
+	}
 	extraction, err := buildExtraction(pool)
 	if err != nil {
 		return Registrations{}, err
@@ -676,6 +807,14 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	conversation, err := buildConversationActivities(pool, nil)
 	if err != nil {
 		return Registrations{}, err
+	}
+	var contextGraph *activities.ContextGraphActivities
+	if strings.TrimSpace(os.Getenv("ANALYSIS_GRAPH_ROOT")) != "" {
+		group, graphErr := activities.ContextGraphActivitiesFromEnv()
+		if graphErr != nil {
+			return Registrations{}, fmt.Errorf("proffer worker: configured analytical graph: %w", graphErr)
+		}
+		contextGraph = &group
 	}
 	contextSearch, err := buildContextSearch(pool, cfg.ContextSearch)
 	if err != nil {
@@ -702,13 +841,16 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	aiWorkproductPlacement := activities.NewAIWorkproductPlacementActivities(cfg.DeriveScratchDir, objectStores)
 	return Registrations{
+		ContextPackage: activities.AIContextPackageActivities{Placement: aiWorkproductPlacement, Metadata: contextSourceStore, Catalog: nativeContextCatalog(os.Getenv("AI_CONTEXT_CATALOG_DATABASE_URL_FILE"))},
+		ContextSource:  activities.ContextSourceRegistrationActivities{Store: contextSourceStore},
 		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.
 		// Byline: Codex, 2026-10-04.
 		ToolkitInventory:        activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),
 		ToolkitPreservation:     activities.NewToolkitPackagePreservationActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
 		ToolkitContentPlacement: activities.NewToolkitContentPlacementActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT")), objectStores),
-		AIWorkproductPlacement:  activities.NewAIWorkproductPlacementActivities(cfg.DeriveScratchDir, objectStores),
+		AIWorkproductPlacement:  aiWorkproductPlacement,
 		Contacts:                contactsActivities,
 		ContextSearch:           contextSearch,
 		FirstPartyContext:       activities.NewFirstPartyContextActivities(firstPartyStore),
@@ -717,7 +859,10 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		MessageDedupe:           activities.NewMessageDedupeActivities(messageDedupeStore),
 		RepairPlan:              repairPlan,
 		Extraction:              extraction,
+		AICandidates:            activities.AICandidateStagingActivities{DerivedRoot: filepath.Join(cfg.DeriveScratchDir, "ai-content"), Store: aiReviewStore},
 		Conversation:            conversation,
+		AtomicTool:              atomictool.Activities{Client: toolsClient},
+		ContextGraph:            contextGraph,
 		Lifecycle:               activities.NewSourceLifecycleActivities(lifecycleRepo),
 		FilesystemObservation:   activities.NewSourceObservationActivities(filesystemExtractor, nil, observationRepo),
 		InventoryObservation:    activities.NewSourceObservationActivities(nil, memberEnumerator, observationRepo),
@@ -725,6 +870,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		N8N:                     platformtemporal.N8NActivities{Client: n8nClient},
 		N8NFlows:                platformtemporal.FlowActivities{Client: n8nClient, Registry: flowRegistry},
 		Hash:                    activities.NewHashActivities(hashRepo),
+		Integrity:               activities.NewSourceIntegrityActivities(integrityStore),
 		StructuredELT:           activities.NewStructuredELTActivities(structuredELTRepo, parserStore, handlerSelectionStore),
 		DeriveSMSThreads: activities.NewDeriveSMSThreadsActivities(
 			deriveStore, objectStores, deriveStore,

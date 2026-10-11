@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package runtimeapi
 
 import (
@@ -34,7 +35,7 @@ func (h *InvestigationHTTPHandler) fail(w http.ResponseWriter, e error) {
 	code := 503
 	public := errors.New("Probata investigation requests are unavailable")
 	switch {
-	case errors.Is(e, investigation.ErrConflict), errors.Is(e, investigation.ErrScope):
+	case errors.Is(e, investigation.ErrConflict), errors.Is(e, investigation.ErrScope), errors.Is(e, caseidentity.ErrDevWrite), errors.Is(e, caseidentity.ErrOperatingModeUnknown):
 		code = 409
 		public = e
 	case errors.Is(e, investigation.ErrSource):
@@ -60,6 +61,16 @@ func (h *InvestigationHTTPHandler) create(w http.ResponseWriter, r *http.Request
 	var request investigation.Request
 	if e = decodeOverlayJSON(w, r, &request); e != nil {
 		previewError(w, 422, errors.New("invalid investigation request JSON"))
+		return
+	}
+	mode, e := caseidentity.ParseMode(string(request.Mode))
+	if e != nil {
+		previewError(w, 422, e)
+		return
+	}
+	request.Mode = mode
+	if e = caseidentity.RequireCanonicalWrite(mode); e != nil {
+		previewError(w, 409, e)
 		return
 	}
 	if e = investigation.Validate(request); e != nil {

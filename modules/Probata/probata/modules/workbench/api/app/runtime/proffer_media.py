@@ -7,12 +7,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Path, Query
+from fastapi import APIRouter, Header, HTTPException, Path
 from fastapi.responses import StreamingResponse
 
+from app.runtime.operating_mode import OperatingMode
 from app.service.proffer import ProfferError
 from app.service.proffer_media import stream_preview_media
-from app.types.matter_mode import MatterMode
 
 router = APIRouter(tags=["proffer"])
 
@@ -28,7 +28,7 @@ def _translate(error: ProfferError) -> HTTPException:
 async def preview_media_endpoint(
     preview_handle: PreviewHandle,
     sha256: Sha256Hex,
-    mode: Annotated[MatterMode, Query()],
+    mode: OperatingMode,
     range_header: Annotated[str | None, Header(alias="Range")] = None,
 ):
     try:

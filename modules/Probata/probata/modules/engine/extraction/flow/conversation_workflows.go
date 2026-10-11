@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Sonnet 5.5 · 2026-10-02
 
 package flow
@@ -12,6 +13,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/extraction/entities"
 )
 
@@ -50,6 +52,14 @@ type requestItem struct {
 // other extractor is an ExternalExtractionWorkflow). A failing extractor is reported
 // on its own line and never stops the others. A query ("status") reports progress.
 func ExtractionRequestWorkflow(ctx workflow.Context, in RequestInput) (Progress, error) {
+	if workflow.GetVersion(ctx, "conversation-single-case-operating-mode-v1", workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(in.OperatingMode)); err != nil {
+			return Progress{}, err
+		}
+		if in.MatterID != "" && !caseidentity.AdmittedIdentity(in.MatterID, in.CourtCaseID) {
+			return Progress{}, fmt.Errorf("conversation workflow requires the approved case identity")
+		}
+	}
 	progress := Progress{Outcome: OutcomeRunning, Steps: []StepResult{{Step: "resolve", Status: StepPending}}}
 	if err := workflow.SetQueryHandler(ctx, StatusQuery, func() (Progress, error) { return progress, nil }); err != nil {
 		return progress, err
@@ -238,6 +248,11 @@ func externalActivityOptions(ctx workflow.Context, spec ExtractorSpec) workflow.
 // that validates the reply against the default extractor's schema, grounds it in the window's own
 // messages and stages it under a compare-only working.extraction_run tagged with the extractor.
 func ExternalExtractionWorkflow(ctx workflow.Context, in ExternalRunInput) (Progress, error) {
+	if workflow.GetVersion(ctx, "external-extraction-operating-mode-v1", workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(in.Run.MatterMode)); err != nil {
+			return Progress{}, err
+		}
+	}
 	progress := Progress{Outcome: OutcomeRunning, Steps: []StepResult{{Step: "extract", Status: StepPending}}}
 	if err := workflow.SetQueryHandler(ctx, StatusQuery, func() (Progress, error) { return progress, nil }); err != nil {
 		return progress, err
@@ -259,7 +274,7 @@ func ExternalExtractionWorkflow(ctx workflow.Context, in ExternalRunInput) (Prog
 	progress.set("extract", StepRunning, "", nil)
 	finish := func(status, errText string, stats map[string]any) {
 		_ = workflow.ExecuteActivity(shortOptions(ctx), FinishExternalRunActivity,
-			FinishExternalRun{RunID: runID, Status: status, Error: errText, Stats: stats}).Get(ctx, nil)
+			FinishExternalRun{Run: in.Run, RunID: runID, Status: status, Error: errText, Stats: stats}).Get(ctx, nil)
 	}
 
 	totals := map[string]int{"messages": 0, "entities": 0, "events": 0, "ungrounded": 0, "invalid_windows": 0, "windows": 0}
@@ -333,6 +348,14 @@ func statsOf(totals map[string]int) map[string]any {
 // exist, and reads the Surreal side back to compare counts. The result carries one receipt
 // per conversation; a conversation that fails is reported and the others still go.
 func SendToSurrealWorkflow(ctx workflow.Context, in SendInput) (Progress, error) {
+	if workflow.GetVersion(ctx, "conversation-single-case-operating-mode-v1", workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(in.OperatingMode)); err != nil {
+			return Progress{}, err
+		}
+		if in.MatterID != "" && !caseidentity.AdmittedIdentity(in.MatterID, in.CourtCaseID) {
+			return Progress{}, fmt.Errorf("conversation workflow requires the approved case identity")
+		}
+	}
 	progress := Progress{Outcome: OutcomeRunning}
 	if err := workflow.SetQueryHandler(ctx, StatusQuery, func() (Progress, error) { return progress, nil }); err != nil {
 		return progress, err
@@ -356,7 +379,7 @@ func SendToSurrealWorkflow(ctx workflow.Context, in SendInput) (Progress, error)
 	failed := 0
 	for _, ref := range in.Conversations {
 		label := ref.Label()
-		target := SendTarget{MatterID: in.MatterID, Ref: ref, Request: in.RequestID, Actor: in.Actor}
+		target := SendTarget{OperatingMode: in.OperatingMode, CourtCaseID: in.CourtCaseID, MatterID: in.MatterID, Ref: ref, Request: in.RequestID, Actor: in.Actor}
 		fail := func(step string, err error) {
 			failed++
 			progress.line(label, "surreal", StepFailed, step+": "+err.Error(), nil)

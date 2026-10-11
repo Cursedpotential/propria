@@ -31,7 +31,7 @@ test("the Actions panel renders for every selected run, not only at a paused gat
 
 test("context is read back per run and saved as an append-only supersession", () => {
   assert.match(client, /\/source-context\?/);
-  assert.match(client, /run source context crossed its preview or TEST\/REAL boundary/);
+  assert.match(client, /run source context crossed its preview or DEV\/LIVE boundary/);
   assert.match(contextSection, /supersedes_ref: current\?\.source_context_ref \?\? null/);
   assert.match(contextSection, /observed_source: observation/);
   assert.match(contextSection, /Saved as revision \{saved\.revision\}/);

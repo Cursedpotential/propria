@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Codex · GPT-5.6 · 2026-08-29 (opaque Proffer preview HTTP contract tests)
 package runtimeapi
 
@@ -190,7 +191,7 @@ func servePreview(handler http.Handler, method, target string, body []byte) *htt
 
 func startPreview(t *testing.T, handler *PreviewHTTPHandler) string {
 	t.Helper()
-	body := []byte(`{"request_id":"request-1","matter_id":"11111111-1111-1111-1111-111111111111","court_case_id":"22222222-2222-2222-2222-222222222222","source_ref":"upload://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","declared_format":"sms_xml","parser_options_ref":"options-1"}`)
+	body := []byte(`{"request_id":"request-1","matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c","source_ref":"upload://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","declared_format":"sms_xml","parser_options_ref":"options-1"}`)
 	recorder := servePreview(handler.Routes(), http.MethodPost, "/reference-import/start", body)
 	require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
 	var response struct {
@@ -321,7 +322,7 @@ func TestPreviewContentTargetDoesNotExposeStoreError(t *testing.T) {
 
 func TestMemoryPreviewDecisionsAppendImmutableCompleteSuccessors(t *testing.T) {
 	store := NewMemoryPreviewStore(&countingEntropy{next: 1})
-	binding, err := store.Create(t.Context(), PreviewBinding{
+	binding, err := store.Create(t.Context(), PreviewBinding{OperatingMode: "LIVE",
 		RequestID: "request-1", WorkflowID: "workflow-1", RunID: "run-1", ParserOptionsRef: "options-1",
 	})
 	require.NoError(t, err)
@@ -405,7 +406,7 @@ func TestPreviewSurfaceCorrelatesPagesDecisionsAndReplay(t *testing.T) {
 	require.Equal(t, "m-1", page.Messages[0].MessageID)
 	require.NotEmpty(t, page.NextCursor)
 
-	otherBinding, err := store.Create(t.Context(), PreviewBinding{RequestID: "request-2", WorkflowID: "workflow-2", RunID: "run-2", ParserOptionsRef: "options-1"})
+	otherBinding, err := store.Create(t.Context(), PreviewBinding{OperatingMode: "LIVE",RequestID: "request-2", WorkflowID: "workflow-2", RunID: "run-2", ParserOptionsRef: "options-1"})
 	require.NoError(t, err)
 	other := otherBinding.Handle
 	crossHandle := servePreview(handler.Routes(), http.MethodGet, "/reference-import/previews/"+other+"/messages?cursor="+page.NextCursor, nil)
@@ -434,7 +435,7 @@ func TestOperationSurfaceListsFiltersPagesAndOpensByOpaqueHandle(t *testing.T) {
 	handler, store, workflow := previewTestHandler(t)
 	base := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
 	create := func(requestID, workflowID string, createdAt time.Time) PreviewBinding {
-		binding, err := store.Create(t.Context(), PreviewBinding{
+		binding, err := store.Create(t.Context(), PreviewBinding{OperatingMode: "LIVE",
 			RequestID: requestID, SourceRef: proffer.Ref("upload://" + strings.Repeat(requestID[len(requestID)-1:], 64)),
 			WorkflowID: workflowID, RunID: "internal-" + workflowID, ParserOptionsRef: "options-1", CreatedAt: createdAt,
 		})
@@ -636,7 +637,7 @@ func TestStartRetryReconcilesSameWorkflowAfterBindingFailure(t *testing.T) {
 	workflow := &previewWorkflowStub{}
 	handler, err := NewPreviewHTTPHandler(workflow, store, store, store, bytes.Repeat([]byte("k"), 32), serviceTokenPath(t))
 	require.NoError(t, err)
-	body := []byte(`{"request_id":"request-1","matter_id":"11111111-1111-1111-1111-111111111111","court_case_id":"22222222-2222-2222-2222-222222222222","source_ref":"upload://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","declared_format":"sms_xml","parser_options_ref":"options-1"}`)
+	body := []byte(`{"request_id":"request-1","matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c","source_ref":"upload://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","declared_format":"sms_xml","parser_options_ref":"options-1"}`)
 	require.Equal(t, http.StatusServiceUnavailable, servePreview(handler.Routes(), http.MethodPost, "/reference-import/start", body).Code)
 	retry := servePreview(handler.Routes(), http.MethodPost, "/reference-import/start", body)
 	require.Equal(t, http.StatusCreated, retry.Code, retry.Body.String())
@@ -650,7 +651,7 @@ func TestStartRetryReconcilesSameWorkflowAfterBindingFailure(t *testing.T) {
 
 func TestStartPassesOnlyTheDurableSourceContextReferenceIntoTemporal(t *testing.T) {
 	handler, _, workflow := previewTestHandler(t)
-	body := []byte(`{"request_id":"request-with-context","matter_id":"11111111-1111-1111-1111-111111111111","court_case_id":"22222222-2222-2222-2222-222222222222","source_ref":"upload://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","declared_format":"sms_xml","parser_options_ref":"options-1","source_context_ref":"33333333-3333-3333-3333-333333333333"}`)
+	body := []byte(`{"request_id":"request-with-context","matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c","source_ref":"upload://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","declared_format":"sms_xml","parser_options_ref":"options-1","source_context_ref":"33333333-3333-3333-3333-333333333333"}`)
 	recorder := servePreview(handler.Routes(), http.MethodPost, "/reference-import/start", body)
 	require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
 	require.Equal(t, proffer.Ref("33333333-3333-3333-3333-333333333333"), workflow.started.SourceContextRef)
@@ -661,7 +662,7 @@ func TestStartRejectsSourceContextThatDoesNotOwnTheExactIntakeScope(t *testing.T
 	workflow := &previewWorkflowStub{}
 	handler, err := NewPreviewHTTPHandler(workflow, store, store, store, bytes.Repeat([]byte("k"), 32), serviceTokenPath(t), sourceContextValidatorStub{err: errors.New("scope mismatch")})
 	require.NoError(t, err)
-	body := []byte(`{"request_id":"request-with-context","matter_id":"11111111-1111-1111-1111-111111111111","court_case_id":"22222222-2222-2222-2222-222222222222","source_ref":"upload://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","declared_format":"sms_xml","parser_options_ref":"options-1","source_context_ref":"33333333-3333-3333-3333-333333333333"}`)
+	body := []byte(`{"request_id":"request-with-context","matter_id":"01a0f751-e07b-75cc-9ad5-63ad9449a8ba","court_case_id":"01a0f751-e07b-76a1-a738-eb3e3aa3e68c","source_ref":"upload://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","declared_format":"sms_xml","parser_options_ref":"options-1","source_context_ref":"33333333-3333-3333-3333-333333333333"}`)
 	recorder := servePreview(handler.Routes(), http.MethodPost, "/reference-import/start", body)
 	require.Equal(t, http.StatusUnprocessableEntity, recorder.Code, recorder.Body.String())
 	require.Empty(t, workflow.started.RequestID)

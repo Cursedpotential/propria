@@ -1,6 +1,7 @@
 # Byline: Claude Code · Sonnet (agent) · 2026-07-19
 # Byline: Codex · GPT-5.6-Sol · 2026-08-30 (fixed source/staging buckets and runtime credentials)
 # Byline: Claude Code · Fable 5.1 · 2026-09-20 (object stores and source roots are configuration, not code)
+# Byline: Codex · GPT-6.1-Sol · 2026-10-06 (active-prefix readiness only; integrated by Codex orchestrator)
 """S3-compatible object store repo layer for allowlisted Platform-owned R2 roots.
 
 Adapted from the donor kit's b2_client.py. All boto3 usage is confined to this
@@ -221,14 +222,29 @@ def get_client():
 
 
 def check_connectivity() -> bool:
-    """Prove that both fixed buckets are reachable with the runtime credential."""
+    """Check read-only listing access to every configured active source prefix.
+
+    Inputs: the source-root registry and explicit store credentials. Output: a
+    fail-closed readiness boolean. Effects: at most one listed key per root,
+    never object bodies or writes. Use for health, not acquisition verification;
+    retired R2 and unscoped whole-bucket roots cannot establish readiness.
+    """
     try:
-        client = get_r2_client()
-        client.head_bucket(Bucket=CASEBIBLE_SORTED_BUCKET)
-        client.head_bucket(Bucket=STAGING_BUCKET)
+        stores = configured_object_stores()
+        if not SOURCE_ROOTS or any(
+            root.scheme == "r2" or root.scheme not in stores or not root.key_prefix for root in SOURCE_ROOTS.values()
+        ):
+            raise ValueError("active source-root configuration is unavailable")
+        for root in SOURCE_ROOTS.values():
+            response = get_store_client(root.scheme).list_objects_v2(
+                Bucket=root.bucket, Prefix=root.key_prefix, MaxKeys=1
+            )
+            if response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 200:
+                raise RuntimeError("source-prefix readiness was not confirmed")
         return True
-    except Exception:
-        logger.warning("Object store connectivity check failed", exc_info=True)
+    except Exception as error:  # noqa: BLE001 -- Health must fail closed without logging sensitive provider details.
+        # Provider errors can contain credential paths or object names; never log them.
+        logger.warning("Object store connectivity check failed (%s)", type(error).__name__)
         return False
 
 

@@ -72,10 +72,10 @@ def test_mode_is_proven_before_the_newest_revision_is_read(monkeypatch) -> None:
     calls: list = []
     _wire(monkeypatch, _engine_payload(), calls)
 
-    result = asyncio.run(source_context.run_source_context(HANDLE, mode="TEST"))
+    result = asyncio.run(source_context.run_source_context(HANDLE, mode="LIVE"))
 
-    assert calls == [("mode", HANDLE, "TEST"), ("GET", f"/reference-import/previews/{HANDLE}/source-context")]
-    assert result.matter_mode == "TEST"
+    assert calls == [("mode", HANDLE, "LIVE"), ("GET", f"/reference-import/previews/{HANDLE}/source-context")]
+    assert result.matter_mode == "LIVE"
     assert result.current is not None and result.current.revision == 2
     assert result.current.assertions.context == "Phone backup"
     assert result.current.observed_source.preview_sha256 == SHA
@@ -85,20 +85,20 @@ def test_mode_is_proven_before_the_newest_revision_is_read(monkeypatch) -> None:
 def test_a_run_without_operator_context_is_an_ordinary_answer(monkeypatch) -> None:
     _wire(monkeypatch, _engine_payload(current=None, registration=None), [])
 
-    result = asyncio.run(source_context.run_source_context(HANDLE, mode="REAL"))
+    result = asyncio.run(source_context.run_source_context(HANDLE, mode="DEV"))
 
     assert result.current is None
     assert result.registration is None
-    assert result.matter_mode == "REAL"
+    assert result.matter_mode == "DEV"
 
 
 def test_a_crossed_handle_or_mode_fails_closed(monkeypatch) -> None:
     _wire(monkeypatch, _engine_payload(preview_handle="another_handle_abcdefghijklmnopqrstuv"), [])
     with pytest.raises(ProfferError) as crossed:
-        asyncio.run(source_context.run_source_context(HANDLE, mode="TEST"))
+        asyncio.run(source_context.run_source_context(HANDLE, mode="LIVE"))
     assert crossed.value.status_code == 502
 
-    _wire(monkeypatch, _engine_payload(matter_mode="REAL"), [])
+    _wire(monkeypatch, _engine_payload(matter_mode="DEV"), [])
     with pytest.raises(ProfferError) as other_mode:
-        asyncio.run(source_context.run_source_context(HANDLE, mode="TEST"))
+        asyncio.run(source_context.run_source_context(HANDLE, mode="LIVE"))
     assert other_mode.value.status_code == 502

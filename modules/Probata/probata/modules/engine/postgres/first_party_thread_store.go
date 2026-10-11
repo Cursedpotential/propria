@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Claude Code · Opus 5 · 2026-09-26
 //
 // The first-party context thread store: the only writer of
@@ -30,13 +31,7 @@
 // the write contract in
 // sql/validation/2026-09-26-d04-first-party-thread-projection-test.sql.
 //
-// IDENTITY IS NEVER INVENTED. MatterModeForIdentity decides whether the supplied
-// matter/court-case pair is an admitted identity (D-125/D-126: the pre-launch DEV
-// sentinel is TEST, the go-live identity is REAL, anything else is neither). An
-// unadmitted identity is refused here rather than written, and appending to an
-// existing thread verifies that thread's own owner, matter and court case match
-// what the caller claims. Fabricated provenance on evidence is worse than a
-// refused import.
+// IDENTITY IS NEVER INVENTED. Only the approved pair is admitted.
 package postgres
 
 import (
@@ -46,6 +41,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/contextthread"
 )
 
@@ -147,8 +143,7 @@ func (s *FirstPartyThreadStore) CommitVersion(
 	if err := commit.Validate(); err != nil {
 		return contextthread.CommitResult{}, err
 	}
-	mode, admitted := MatterModeForIdentity(commit.Identity.MatterID, commit.Identity.CourtCaseID)
-	if !admitted {
+	if !AdmittedCaseIdentity(commit.Identity.MatterID, commit.Identity.CourtCaseID) {
 		// Neither the DEV sentinel nor the go-live identity. Refuse rather than
 		// write a thread scoped to a case the platform does not admit.
 		return contextthread.CommitResult{}, fmt.Errorf(
@@ -161,7 +156,7 @@ func (s *FirstPartyThreadStore) CommitVersion(
 		return contextthread.CommitResult{}, fmt.Errorf("begin first-party thread transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	result, err := s.commitVersionTx(ctx, tx, commit, mode)
+	result, err := s.commitVersionTx(ctx, tx, commit, string(caseidentity.ModeLive))
 	if err != nil {
 		return contextthread.CommitResult{}, err
 	}

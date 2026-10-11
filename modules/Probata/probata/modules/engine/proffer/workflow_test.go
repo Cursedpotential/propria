@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 package proffer
 
 import (
@@ -60,10 +61,10 @@ func rejectHold(env *testsuite.TestWorkflowEnvironment, reason string) {
 }
 
 func testInput() WorkflowInput {
-	return WorkflowInput{
+	return WorkflowInput{OperatingMode: "LIVE",
 		RequestID:        "req-1",
-		MatterID:         "11111111-1111-1111-1111-111111111111",
-		CourtCaseID:      "22222222-2222-2222-2222-222222222222",
+		MatterID:         "01a0f751-e07b-75cc-9ad5-63ad9449a8ba",
+		CourtCaseID:      "01a0f751-e07b-76a1-a738-eb3e3aa3e68c",
 		SourceRef:        "acquisition-ref",
 		DeclaredFormat:   "whatsapp_export_json",
 		ParserOptionsRef: "parser-opts-ref",
@@ -1056,6 +1057,8 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 	//    hold a slice of. Anything else — including a new local struct — is a
 	//    failure until it is added here deliberately.
 	countBearing := map[reflect.Type]bool{
+		// AI summary holds bounded counts and retained references; no conversation/candidate payloads.
+		reflect.TypeOf(AIContentSummary{}): true,
 		reflect.TypeOf(DeriveResult{}):    true,
 		reflect.TypeOf(DerivedChunkRef{}): true,
 	}
@@ -1063,6 +1066,7 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 		reflect.Bool: true, reflect.Int: true, reflect.Int64: true, reflect.Uint64: true,
 	}
 	nestable := map[reflect.Type]bool{
+		reflect.TypeOf(AIContentSummary{}): true,
 		reflect.TypeOf(AutoApprovalCheck{}): true,
 		reflect.TypeOf(StageResult{}):       true,
 		reflect.TypeOf(DeriveResult{}):      true,
@@ -1071,6 +1075,11 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 
 	var checkStruct func(t *testing.T, rt reflect.Type)
 	checkField := func(t *testing.T, owner reflect.Type, name string, ft reflect.Type) {
+		// This single flag is verified control metadata from a receipt-bearing Activity, never source text or identities.
+		// Retain the general compact-reference contract; unrelated bools and other payload fields remain disallowed.
+		if owner == reflect.TypeOf(StageResult{}) && name == "AIChatSource" && ft.Kind() == reflect.Bool {
+			return
+		}
 		switch ft.Kind() {
 		case reflect.Map:
 			if ft.Key().Kind() != reflect.String || !allowedScalar[ft.Elem()] {
@@ -1112,7 +1121,7 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 	}
 
 	for _, wireType := range []reflect.Type{
-		reflect.TypeOf(WorkflowInput{}),
+		reflect.TypeOf(WorkflowInput{OperatingMode: "LIVE"}),
 		reflect.TypeOf(StageRequest{}),
 		reflect.TypeOf(StageResult{}),
 		reflect.TypeOf(WorkflowResult{}),
