@@ -123,6 +123,16 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	rawPreviewHandler, err := runtimeapi.NewSourceReadPreviewHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	rawPreviewMux := http.NewServeMux()
+	rawPreviewMux.Handle("POST /reference-import/source-preview", rawPreviewHandler.Routes())
+	rawPreviewMux.Handle("GET /reference-import/source-preview/", rawPreviewHandler.Routes())
+	rawPreviewMux.Handle("POST /reference-import/source-preview/", rawPreviewHandler.Routes())
+	rawPreviewMux.Handle("/", routes)
+	routes = rawPreviewMux
 	sourceContextStore, err := platformpostgres.NewSourceContextStore(pool)
 	if err != nil {
 		return err
