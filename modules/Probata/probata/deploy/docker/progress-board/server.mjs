@@ -5,7 +5,7 @@
 // route, for the Homepage portal native-widget rework. Read-only additions;
 // no change to existing routes' behaviour.
 import http from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, open } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve, extname, sep } from "node:path";
 import { createHash } from "node:crypto";
@@ -14,6 +14,8 @@ import {createProviderLimits} from './provider-limits.mjs';
 import { createRepairQueue } from "./repair-queue.mjs";
 import { createOpenListBridge, StorageError } from "./openlist-bridge.mjs";
 import { createCatalog } from "./pg-catalog.mjs";
+import { createLiveWork } from "./live-work.mjs";
+import { createStorageHealth } from "./storage-health.mjs";
 
 // Hosted Intake engine (Coolify app intake-engine on ovh-files, tailnet only).
 const INTAKE_ENGINE_URL = process.env.INTAKE_ENGINE_URL || "http://100.91.190.107:8790";
@@ -97,13 +99,25 @@ export function classifySurfaceState(state) {
     return "degraded";
   return "down";
 }
+/** Read a bounded manual backlog with its actual file modification time.
+ * Inputs: server-side TODO file path. Outputs: compatible items, manual scope and source mtime.
+ * Effects: local stat/read only. Choose for /api/manual-backlog, never live execution status.
+ */
 export async function readTodoFeed(path) {
-  let text;
+  let text, sourceUpdatedAt, sourceFile;
   try {
-    text = await readFile(path, "utf8");
+    sourceFile = await open(path, "r");
+    const source = await sourceFile.stat();
+    if (!source.isFile() || source.size > 1024 * 1024) return { status: "unavailable", scope: "manual backlog", generated_at: null, source_updated_at: null, message: "Manual backlog exceeds the read limit.", items: [] };
+    sourceUpdatedAt = source.mtime.toISOString();
+    const buffer = Buffer.alloc(1024 * 1024 + 1);
+    let bytes = 0;
+    while (bytes < buffer.length) { const result = await sourceFile.read(buffer, bytes, buffer.length - bytes, null); if (!result.bytesRead) break; bytes += result.bytesRead; }
+    text = buffer.subarray(0, bytes).toString("utf8");
+    if (bytes > 1024 * 1024) return { status: "unavailable", scope: "manual backlog", generated_at: null, source_updated_at: sourceUpdatedAt, message: "Manual backlog exceeds the read limit.", items: [] };
   } catch {
-    return { status: "not-synced", message: "No synced copy of URGENT-TODO.md yet.", items: [] };
-  }
+    return { status: "not-synced", scope: "manual backlog", generated_at: null, source_updated_at: null, message: "Manual backlog is not available.", items: [] };
+  } finally { await sourceFile?.close().catch(() => {}); }
   const lines = text.split(/\r?\n/);
   let sectionDate = null;
   const items = [];
@@ -134,7 +148,35 @@ export async function readTodoFeed(path) {
     });
   }
   items.reverse(); // file is oldest-section-first; newest section last
-  return { status: "ok", message: null, items: items.slice(0, 60) };
+  return { status: "ok", scope: "manual backlog", generated_at: sourceUpdatedAt, source_updated_at: sourceUpdatedAt, message: null, items: items.slice(0, 60) };
+}
+
+/** Read server-only provider configuration without exposing credential paths to clients.
+ * Inputs: environment values. Outputs: bounded adapter configuration. Effects: none.
+ * Choose at composition; URLs, token files and app allowlists never come from HTTP requests.
+ */
+export function liveWorkProvidersFromEnv(env = process.env) {
+  let apps = [];
+  const configuredApps = env.LIVE_WORK_COOLIFY_APPS_JSON;
+  if (typeof configuredApps === 'string' && configuredApps.length <= 16384) {
+    try { const value = JSON.parse(configuredApps); if (Array.isArray(value) && value.length <= 8) apps = value; } catch {}
+  }
+  return {
+    proffer: { baseUrl: env.LIVE_WORK_PROFFER_URL || 'http://100.91.190.107:8091', tokenFile: env.LIVE_WORK_PROFFER_TOKEN_FILE || env.PROFFER_SERVICE_TOKEN_FILE, activityUrl: env.LIVE_WORK_ACTIVITY_URL || 'https://workbench.tilapia-skilift.ts.net/activity' },
+    coolify: { baseUrl: env.LIVE_WORK_COOLIFY_API_URL, tokenFile: env.LIVE_WORK_COOLIFY_TOKEN_FILE, apps, pageSize: 1 },
+  };
+}
+
+/** Project sanitized live provider items into the existing ToDo widget shape.
+ * Inputs: a createLiveWork snapshot. Outputs: items/area/summary plus native counts and provider health.
+ * Effects: none. Choose for /api/todo-feed; documented tasks remain at /api/manual-backlog.
+ */
+export function liveTodoFeed(value) {
+  const items = value.items.map(item => ({ ...item, area: item.provider === 'proffer' ? 'Proffer' : 'Coolify', age_days: null,
+    summary: [item.title, item.state.replaceAll('_', ' '), item.wait?.replaceAll('_', ' '), item.stage?.replaceAll('_', ' ')].filter(Boolean).join(' · ') }));
+  return { ...value, generated_at: value.observed_at, status: value.state === 'ready' ? 'ok' : value.state,
+    message: value.state === 'ready' ? null : 'Some live providers are unavailable or unconfigured; see provider health.',
+    items, item_count: items.length };
 }
 
 const root = fileURLToPath(new URL(".", import.meta.url));
@@ -337,7 +379,7 @@ export async function readSurfaces(path = resolve(root, "surfaces.json")) {
   }
 }
 /** Create the existing board server with independently cached read-only health projections.
- * Inputs: existing data/fetch configuration and optional health reader for isolated tests.
+ * Inputs: existing data/fetch configuration and optional health/live/storage readers for isolated tests.
  * Outputs: an unstarted HTTP server. Effects: initializes existing adapters; no new listeners.
  * Choose this for the board service; health routes neither authenticate users nor change access.
  */
@@ -348,7 +390,12 @@ export function createServer({
   todoPath = resolve(root, "data", "URGENT-TODO.md"),
   cacheMs = 10000,
   healthReader = cachedHealth,
+  liveWorkReader,
+  storageHealthReader,
+  liveWorkProviders = liveWorkProvidersFromEnv(),
 } = {}) {
+  const liveWork = liveWorkReader || createLiveWork({providers: liveWorkProviders, fetcher}).read;
+  const storageHealth = storageHealthReader || createStorageHealth({baseUrl: process.env.STORAGE_HEALTH_OPENLIST_URL, token: process.env.OPENLIST_TOKEN, fetcher}).read;
   const usageLimits=createProviderLimits();
   const repairQueue = createRepairQueue({readLimits:usageLimits.read,readTasks:async()=>{const value=await board();return [...value.tasks,...value.observations.filter(row=>row.kind==='task')];},readSurfaces: () => readSurfaces(surfacesPath), readHealth: healthReader});
   const storage = createOpenListBridge({
@@ -392,6 +439,19 @@ export function createServer({
       ? incomingPath.slice("/progress".length)
       : incomingPath;
     try {
+      // Serve sanitized provider metadata through the existing portal/tailnet access boundary.
+      // Inputs: GET only, no client provider coordinates. Outputs: cached metadata snapshots.
+      // Effects: upstream authenticated reads only. Choose these routes for live status, not actions.
+      if (['/api/live-work', '/api/storage-health', '/api/todo-feed', '/api/manual-backlog'].includes(path)) {
+        if (req.method !== 'GET') { res.writeHead(405, {Allow:'GET', 'Content-Type':'application/json'}); res.end(JSON.stringify({error:'method_not_allowed'})); return; }
+        let value;
+        if (path === '/api/storage-health') value = await storageHealth();
+        else if (path === '/api/manual-backlog') { const backlog = await readTodoFeed(todoPath); value = {...backlog, item_count:backlog.items.length}; }
+        else { const snapshot = await liveWork(); value = path === '/api/todo-feed' ? liveTodoFeed(snapshot) : snapshot; }
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify(value));
+        return;
+      }
       if (path === "/api/repair-jobs") { await repairQueue(req, res); return; }
       // Byline: Claude Code · Opus 5 · 2026-09-17 — hosted Intake engine cutover (owner decision 9):
       // /intake/storage/api/* is a streaming reverse proxy to the intake-engine Coolify app on
@@ -752,18 +812,6 @@ export function createServer({
         });
         res.end(
           JSON.stringify({ generated_at: value.fetched_at, status: value.status, series }),
-        );
-        return;
-      }
-      if (path === "/api/todo-feed") {
-        const value = await readTodoFeed(todoPath);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            generated_at: new Date().toISOString(),
-            ...value,
-            item_count: value.items.length,
-          }),
         );
         return;
       }

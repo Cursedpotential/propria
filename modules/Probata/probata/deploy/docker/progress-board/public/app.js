@@ -2,18 +2,18 @@
 // Extended by: Claude Code · Sonnet · 2026-09-14 — KPI strip, status/lane-swimlane filters, and a
 // second surfaces/observations tracker view. Same read-only /api/board + /api/health-report
 // contract; no write paths added.
-import { escapeHtml as e, timeTag, taskCard, observationCard, bucket, safeLink, age, boardTasks, filterRows, taskDistribution, healthChart, publicReachabilityList, storageCard, kpiCounts, laneTotalsWidget, healthSummary, renderBoardMarkup, trackerRows, filterTrackerRows, trackerTableRows } from './view.mjs';
+import { escapeHtml as e, timeTag, taskCard, observationCard, bucket, safeLink, age, boardTasks, filterRows, taskDistribution, healthChart, publicReachabilityList, storageCard, kpiCounts, laneTotalsWidget, healthSummary, renderBoardMarkup, trackerRows, filterTrackerRows, trackerTableRows, liveWorkCard, storageHealthCard } from './view.mjs';
 import {installTaskActions} from './task-actions.mjs';
 import './provider-settings.js';
 let initialLane=new URLSearchParams(location.search).get('lane');
 const updateActions=installTaskActions({getTasks:()=>current?boardTasks(current):[]});
 const $=id=>document.getElementById(id);
-let current=null,lastSuccess=null,fetching=false,health=null,healthFetching=false;
+let current=null,lastSuccess=null,fetching=false,health=null,healthFetching=false,liveWork=null,storageHealth=null,liveFetching=false;
 const filters=()=>({lane:$('lane').value,owner:$('owner').value,search:$('search').value,status:$('status').value});
 const trackerFilters=()=>({lane:$('tracker-lane').value,kind:$('tracker-kind').value,search:$('tracker-search').value});
 
 /** Render task KPIs and separately scoped endpoint observations.
- * Inputs: current filtered tasks and cached health. Outputs: DOM cards.
+ * Inputs: documented tasks, cached health and live work. Outputs: separately scoped DOM cards.
  * Effects: updates the board DOM. Choose for summary rendering, not protected journey proof.
  */
 function renderKpis(tasks) {
@@ -29,9 +29,24 @@ function renderKpis(tasks) {
   ];
   $('kpis').innerHTML=cards.map(c=>`<div class="kpi-card kpi-${c.cls}"><strong>${c.value}</strong><span>${e(c.label)}</span></div>`).join('')
     +`<div class="kpi-card kpi-health"><strong>${hs?`${hs.healthy}/${hs.total}`:'—'}</strong><span>Endpoints responding${hs?'':' (probe pending)'}</span></div>`;
-  $('kpi-freshness').textContent=current?`Read ${age(current.fetched_at)}`:'Read pending';
+  $('kpi-freshness').textContent=current?`Documented backlog · read ${age(current.fetched_at)} · status labels are source reports, not live execution`:'Documented backlog read pending';
+  renderLiveWork();
 }
 
+/** Render observed execution status even when the manual board is unavailable.
+ * Inputs: cached live-work snapshot. Outputs: dedicated live widget. Effects: DOM updates only.
+ * Choose independently of documented backlog rendering.
+ */
+function renderLiveWork(){
+ let liveNode=$('live-work-summary');
+ if(!liveNode){liveNode=document.createElement('section');liveNode.id='live-work-summary';$('kpis').after(liveNode);}
+ liveNode.innerHTML=liveWorkCard(liveWork);
+}
+
+/** Render documented planning tasks and source reports with their reported statuses.
+ * Inputs: current manual board snapshot and filters. Outputs: backlog cards and trackers.
+ * Effects: DOM updates only. Choose for planning; live execution uses its independent widget.
+ */
 function render() {
  if(!current)return;
  const allTasks=boardTasks(current);
@@ -39,7 +54,7 @@ function render() {
  const groupByLane=$('group-by-lane').checked;
  const rows=filterRows(allTasks,filters());
  const observations=filterRows(current.observations,filters());
- $('counts').textContent=`${rows.length} of ${allTasks.length} tasks in view${current.truncated?' · bounded snapshot':''}`;
+ $('counts').textContent=`${rows.length} of ${allTasks.length} documented backlog entries in view${current.truncated?' · bounded snapshot':''}`;
  $('board').innerHTML=renderBoardMarkup(rows,groupByLane);
  const other=rows.filter(task=>bucket(task.status)==='other');
  $('other-states').innerHTML=other.length&&!groupByLane?`<details class="other"><summary>Other source states (${other.length})</summary>${other.map(taskCard).join('')}</details>`:'';
@@ -98,7 +113,7 @@ async function refreshBoard() {
  }finally{fetching=false;}
 }
 /** Render endpoint access and public reachability as separate observations.
- * Inputs: cached health report. Outputs: health/storage widget DOM.
+ * Inputs: cached health report and authenticated storage snapshot. Outputs: separate health/storage DOM.
  * Effects: updates board widgets. Choose after a health refresh without changing browser status.
  */
 function renderHealth(){
@@ -106,9 +121,13 @@ function renderHealth(){
  $('health').innerHTML=healthChart(health.endpoints)+publicReachabilityList(health.endpoints);
  const exceptions=health.endpoints.filter(row=>!['responding','TCP open'].includes(row.state)).slice(0,4);
  if(exceptions.length)$('health').innerHTML+='<ul class="attention-list">'+exceptions.map(row=>`<li><span>${e(row.service)}<br><small>${e(row.kind)}</small></span><span>${e(row.state)}</span></li>`).join('')+'</ul>';
- $('storage').innerHTML=storageCard(health.storage);
+ $('storage').innerHTML=storageHealthCard(storageHealth)+storageCard(health.storage);
  if(current)renderKpis(boardTasks(current));
 }
+/** Refresh endpoint and host-disk observations independently of provider connection checks.
+ * Inputs: none. Outputs: cached health widget. Effects: same-origin GET and DOM updates.
+ * Choose for health observations; storageHealthCard keeps its independent authenticated result.
+ */
 async function refreshHealth(){
  if(healthFetching)return;healthFetching=true;
  try{
@@ -123,10 +142,28 @@ async function refreshHealth(){
   $('health-connection').className='widget-note stale';
   $('health-connection').textContent=health?`Stale · ${age(health.generated_at)}`:'Unavailable';
   if(health)renderHealth();
-  else $('storage').innerHTML='<p class="empty">Storage telemetry unavailable.</p>';
+  else $('storage').innerHTML=storageHealthCard(storageHealth)+'<p class="empty">Host disk telemetry unavailable.</p>';
  }finally{healthFetching=false;}
 }
-async function refreshAll(){ $('refresh').disabled=true;try{await Promise.all([refreshBoard(),refreshHealth()]);}finally{$('refresh').disabled=false;} }
+/** Refresh independent live execution and authenticated storage snapshots without overlapping reads.
+ * Inputs: none. Outputs: current metadata widgets. Effects: same-origin read-only GETs and DOM updates.
+ * Choose alongside board refresh; manual planning status never substitutes for provider state.
+ */
+async function refreshLive(){
+ if(liveFetching)return;liveFetching=true;
+ try{
+  const read=async path=>{try{const response=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(45000)});if(!response.ok)return null;return await response.json();}catch{return null;}};
+  [liveWork,storageHealth]=await Promise.all([read('./api/live-work'),read('./api/storage-health')]);
+  renderLiveWork();
+  if(current)renderKpis(boardTasks(current));
+  if(health)renderHealth();else $('storage').innerHTML=storageHealthCard(storageHealth);
+ }finally{liveFetching=false;}
+}
+/** Refresh the independent board, health and live-provider widgets together.
+ * Inputs: refresh action. Outputs: current available snapshots. Effects: bounded GETs and DOM updates.
+ * Choose for manual refresh without conflating their freshness or availability.
+ */
+async function refreshAll(){ $('refresh').disabled=true;try{await Promise.all([refreshBoard(),refreshHealth(),refreshLive()]);}finally{$('refresh').disabled=false;} }
 $('refresh').addEventListener('click',refreshAll);
 for(const id of ['lane','owner','status'])$(id).addEventListener('change',render);
 $('search').addEventListener('input',render);
@@ -161,4 +198,4 @@ for(const [tab] of tabs){
 }
 
 if(window.matchMedia('(max-width:760px)').matches)document.querySelector('.surface-directory').open=false;
-refreshAll();setInterval(refreshBoard,15000);setInterval(refreshHealth,30000);
+refreshAll();setInterval(refreshBoard,15000);setInterval(refreshHealth,30000);setInterval(refreshLive,30000);
