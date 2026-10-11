@@ -60,6 +60,7 @@ from server.temporal.entity_event_activities import (
 )
 from server.temporal.html_tool_activities import HTML_TOOL_ACTIVITIES
 from server.temporal.n8n_activities import n8n_webhook_activity
+from server.temporal.native_human_chunks import chunk_context_human_source_activity
 from server.temporal.timeline_activities import build_timeline_generation_activity
 from server.temporal.workflows import ChatTranscriptIngest, P0DurabilityProbe
 
@@ -118,6 +119,7 @@ async def main() -> None:
                 # One Activity per HTML text-extraction library (Claude Code · Sonnet · 2026-10-02).
                 *HTML_TOOL_ACTIVITIES,
                 chunk_context_threads_activity,
+                chunk_context_human_source_activity,
                 publish_context_chunks_activity,
                 publish_call_log_files_activity,
                 list_context_threads_activity,

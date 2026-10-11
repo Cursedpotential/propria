@@ -94,6 +94,8 @@ services:
       # Native context uses the existing retained writable bind, separate namespace.
       # Byline: Codex / GPT-6.1-Sol / 2026-10-08.
       AI_CONTEXT_ROOT: /data/proffer/derive-scratch/ai-content/context
+      # Native-human chunk plans share the Go worker bundle root; no retained-original gate.
+      HUMAN_CONTEXT_BUNDLE_ROOT: /data/proffer/derive-scratch/human-context
       AI_CONTEXT_SOURCE_ROOT: /data/proffer/source-objects
       AI_CONTEXT_B2_CREDENTIALS_FILE: /run/secrets/casebible-b2.json
       AI_CONTEXT_MODEL_API_KEY_FILE: /run/secrets/nvidia-api-key
@@ -123,6 +125,7 @@ services:
       - -c
       - 'PLATFORM_DB_URL="$$(tr -d "\r\n" < /run/secrets/platform-database-url | sed "s#^postgresql://#postgresql+psycopg://#")" exec python -m server.temporal.worker'
     volumes:
+      - /data/probata/volumes/proffer/derive-scratch/human-context:/data/proffer/derive-scratch/human-context:rw
       - type: bind
         source: /data/probata/volumes/proffer/source-objects
         target: /data/proffer/source-objects
