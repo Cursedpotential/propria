@@ -5,6 +5,7 @@ import { useRouter } from "@tanstack/react-router";
 import { ErrorBox, Loading } from "@/components/mobile/mobile-ui";
 import { Button } from "@/components/ui/button";
 import { readHref } from "@/components/read/read-location";
+import { ReadAnalysisWalk } from "@/components/read/read-analysis-walk";
 import { analysisQuery, getAnalysisContent, getAnalysisProjections, getAnalysisStatus, startAnalysisQuery, type AnalysisContent, type AnalysisProjection, type AnalysisQuery } from "@/lib/analysis-client";
 
 /** Show query-time analysis beside Read using actual completed graph snapshots.
@@ -121,5 +122,6 @@ export function ReadAnalysis({ params }: { params: URLSearchParams }) {
           <div><dt>Result version and SHA-256</dt><dd>{result.artifact.version_id} · {result.artifact.sha256}</dd></div></> : null}
       </dl>
     </details> : null}
+    <ReadAnalysisWalk key={params.get("walk") ?? "new-walk"} projection={projection} params={params} />
   </section>;
 }

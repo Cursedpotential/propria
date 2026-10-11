@@ -13,8 +13,95 @@ from app.service import proffer
 from app.service.matter_mode import MatterModeError, configured_court_case_id, configured_matter_id
 from app.service.proffer_errors import ProfferError
 from app.types.analysis import AnalysisContent, AnalysisQuery, AnalysisResult, ProjectionSnapshot
+from app.types.analysis_walk import AnalysisWalk, WalkResult
+from app.repo.analysis_walks import read_walk_content
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
+
+
+@router.post("/walks", status_code=202)
+async def start_analysis_walk(body: AnalysisWalk, request: Request, idempotency_key: str = Header(alias="Idempotency-Key")):
+    """Start the real chronological walk with existing case pins and tailnet identity.
+
+    Inputs: selected scope, explicit dates and stable click key. Output: Temporal
+    execution IDs. Effects: existing Go start only; no new identity or approval gate.
+    """
+    try:
+        value = body.model_dump(mode="json", exclude_none=True)
+        value["scope"].update(_case())
+        response = await proffer._request("POST", "/reference-import/analysis/walks",
+            json={"operating_mode": "LIVE", **value}, headers=_actor_headers(request, idempotency_key))
+        payload = proffer._json_payload(response, "analysis walk start")
+        if not isinstance(payload, dict) or not all(isinstance(payload.get(k), str) and payload[k] for k in ("workflow_id", "run_id")) or not payload["workflow_id"].startswith("approved-context-walk:"):
+            raise ProfferError("Analysis walk starter returned no valid execution", 502)
+        return {k: payload[k] for k in ("workflow_id", "run_id")}
+    except (ProfferError, MatterModeError) as error:
+        _fail(error)
+
+
+async def _walk_status(workflow_id: str, request: Request) -> dict:
+    """Read actor-bound real walk status, accepting only the actual workflow family.
+
+    Input: returned ID and current identity. Output: Go status/ref. Effects: one
+    existing authenticated service read; never exposes object-store credentials.
+    """
+    if len(workflow_id) > 160 or not workflow_id.startswith("approved-context-walk:") or any(c in workflow_id for c in "/?#\r\n"):
+        raise HTTPException(404, "Unknown analysis walk")
+    response = await proffer._request("GET", f"/reference-import/analysis/walk-workflows/{workflow_id}", headers=_actor_headers(request))
+    payload = proffer._json_payload(response, "analysis walk status")
+    if not isinstance(payload, dict) or payload.get("workflow_id") != workflow_id or not isinstance(payload.get("outcome"), str) or type(payload.get("step")) is not int or not 0 <= payload["step"] <= 20:
+        raise ProfferError("Analysis returned mismatched walk status", 502)
+    if payload.get("result") is not None:
+        payload["result"] = proffer._validated(WalkResult, payload["result"], "analysis walk result").model_dump(mode="json")
+    return payload
+
+
+@router.get("/walk-workflows/{workflow_id}")
+async def analysis_walk_status(workflow_id: str, request: Request):
+    """Expose real walk progress; input execution ID, output Go metadata, read-only effects."""
+    try:
+        return await _walk_status(workflow_id, request)
+    except (ProfferError, MatterModeError) as error:
+        _fail(error)
+
+
+@router.get("/walk-workflows/{workflow_id}/content")
+async def analysis_walk_content(workflow_id: str, request: Request):
+    """Resolve completed walk reasoning through the existing protected B2 client.
+
+    Inputs: workflow ID and existing tailnet actor. Output: verified summary/refs
+    and comparison. Effects: exact-version reads only; never opens public URLs.
+    """
+    try:
+        status = await _walk_status(workflow_id, request)
+        if status["outcome"] != "completed" or not status.get("result"):
+            raise HTTPException(409, "Analysis walk has not completed")
+        return await run_in_threadpool(read_walk_content, workflow_id,
+            WalkResult.model_validate(status["result"]), _decision_actor(request).subject_uid, _case())
+    except (ProfferError, MatterModeError) as error:
+        _fail(error)
+
+
+@router.get("/walk-workflows/{workflow_id}/steps/{index}/content")
+async def analysis_walk_step(workflow_id: str, index: int, request: Request):
+    """Read one chosen historical or hindsight step without preloading the full walk.
+
+    Inputs: workflow ID and recorded zero-based step. Output: verified cited
+    checkpoint. Effects: bounded exact-version reads; at most one predecessor.
+    """
+    try:
+        if not 0 <= index <= 20:
+            raise HTTPException(404, "Unknown walk step")
+        status = await _walk_status(workflow_id, request)
+        if status["outcome"] != "completed" or not status.get("result"):
+            raise HTTPException(409, "Analysis walk has not completed")
+        result = WalkResult.model_validate(status["result"])
+        if index >= len(result.checkpoints):
+            raise HTTPException(404, "Unknown walk step")
+        return await run_in_threadpool(read_walk_content, workflow_id, result,
+            _decision_actor(request).subject_uid, _case(), index)
+    except (ProfferError, MatterModeError) as error:
+        _fail(error)
 
 
 def _actor_headers(request: Request, key: str | None = None) -> dict[str, str]:

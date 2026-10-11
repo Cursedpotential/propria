@@ -20,9 +20,18 @@ def read_query_artifact(ref: AnalysisArtifact) -> dict:
     Input: trusted workflow reference. Output: JSON dict. Effects: read/close one
     stream; choose over a presigned/latest URL which would discard version pins.
     """
+    return read_verified_artifact(ref, QUERY_PREFIX)
+
+
+def read_verified_artifact(ref: AnalysisArtifact, prefix: str) -> dict:
+    """Read an exact derivative under a server-selected prefix using the existing client.
+
+    Inputs: validated reference and fixed caller-owned prefix. Output: verified JSON.
+    Effects: one bounded B2 GET; never accept a browser-selected prefix or URL.
+    """
     uri = urlsplit(ref.uri)
     key = uri.path.lstrip("/")
-    if uri.scheme != "b2" or uri.netloc != "salem-data" or uri.query or uri.fragment or not key.startswith(QUERY_PREFIX):
+    if uri.scheme != "b2" or uri.netloc != "salem-data" or uri.query or uri.fragment or not key.startswith(prefix):
         raise ProfferError("Analysis returned a result outside its query-artifact location", 502)
     try:
         validate_source_key(key)
