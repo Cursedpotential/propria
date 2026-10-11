@@ -32,7 +32,7 @@ COPY modules/Probata/probata/sql/bootstrap/toolkit_working_catalog_20261005.sql 
 # One focused test invocation shares the existing CGO/fts5/vendor build runtime.
 RUN CGO_ENABLED=1 go test -mod=vendor -tags fts5 \
     ./surrealsink ./runtimeapi ./temporal/cmd/starter \
-    ./approvedgraphprojectionflow ./approvedgraphqueryflow ./extraction/service ./sourceformat ./approvedgraphai ./approvedaigraphprojectionflow ./profferworker \
+    ./approvedgraphprojectionflow ./approvedgraphqueryflow ./approvedwalkflow ./extraction/service ./sourceformat ./approvedgraphai ./approvedaigraphprojectionflow ./profferworker \
     ./postgres ./proffer ./aicontextsource ./cmd/context-graph
 # Check only the existing AI context packaging Activities without broad activity tests.
 RUN CGO_ENABLED=1 go test -mod=vendor -tags fts5 ./activities -run '^TestAIContextPackage' -count=1

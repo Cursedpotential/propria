@@ -75,4 +75,11 @@ COPY server/ ./server/
 COPY scripts/ ./scripts/
 COPY sql/ ./sql/
 
+# Validate the bounded walk in this image's real dependency environment, with no live data/provider calls.
+# Inputs: exact focused unittest fixture and installed LangGraph/OpenAI/B2 libraries. Outputs: test receipt.
+# Effects: build-only in-memory tests; missing dependencies, skipped tests or assertion failures reject the image.
+# Byline: Codex · GPT-6 · 2026-10-11.
+COPY tests/unit/test_approved_walk.py ./tests/unit/test_approved_walk.py
+RUN python -c "import boto3, langgraph, openai, unittest; suite = unittest.defaultTestLoader.discover('tests/unit', pattern='test_approved_walk.py'); assert suite.countTestCases() >= 2, 'walk tests not discovered'; result = unittest.TextTestRunner(verbosity=2).run(suite); raise SystemExit(0 if result.wasSuccessful() and not result.skipped else 1)"
+
 CMD ["python", "-m", "server.temporal.worker"]

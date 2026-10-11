@@ -41,6 +41,7 @@ from server.temporal.activities import (
 )
 from server.temporal.ai_content_activities import AI_CONTENT_ACTIVITIES, AI_CONTEXT_ACTIVITIES
 from server.temporal.ai_context_graph_activities import AI_CONTEXT_GRAPH_ACTIVITIES
+from server.temporal.approved_walk_activities import APPROVED_WALK_ACTIVITIES
 from server.temporal.chunk_activities import (
     chunk_context_threads_activity,
     publish_call_log_files_activity,
@@ -106,6 +107,8 @@ async def main() -> None:
                 # for Temporal replay while new requests use ai-context-v1.
                 *AI_CONTEXT_ACTIVITIES,
                 *AI_CONTEXT_GRAPH_ACTIVITIES,
+                # One reference-only reasoning step; Go owns walk sequencing and final validation.
+                *APPROVED_WALK_ACTIVITIES,
                 custody_activity,
                 parse_activity,
                 store_activity,

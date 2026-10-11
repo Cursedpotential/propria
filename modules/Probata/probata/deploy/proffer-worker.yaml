@@ -85,6 +85,8 @@ services:
       AI_CONTEXT_ROOT: /data/proffer/derive-scratch/ai-content/context
       AI_CONTEXT_CATALOG_DATABASE_URL_FILE: /run/secrets/ai-context-catalog-database-url
       # Byline: Codex / GPT-6 / 2026-10-07. Dedicated analytical target; the operational sink keeps its own configuration.
+      # Enable the existing reviewed-analysis lane through managed configuration.
+      APPROVED_CONTEXT_GRAPH_ENABLED: ${APPROVED_CONTEXT_GRAPH_ENABLED:-}
       ANALYSIS_GRAPH_ROOT: /data/proffer/derive-scratch/ai-content/analysis-graphs
       ANALYSIS_GRAPH_MATTER_ID: ${ANALYSIS_GRAPH_MATTER_ID:?set}
       ANALYSIS_GRAPH_CASE_ID: ${ANALYSIS_GRAPH_CASE_ID:?set}
