@@ -20,7 +20,7 @@ from .context import assemble_context, attribution, timestamp
 from .storage import DiscoveryInvalid, fingerprint
 
 MODEL_VERSION = "discovery-cpu-v1"
-SCORE_REVISION = "prototype-exemplar-v1"
+SCORE_REVISION = "prototype-exemplar-v2"
 DEFAULT_HYPOTHESES = [
     {"hypothesis_id": "threat", "category": "threat", "text": "A person threatens physical harm or intimidation."},
     {
@@ -175,6 +175,34 @@ def _feedback(batch: dict[str, Any]) -> list[dict[str, Any]]:
             raise DiscoveryInvalid("feedback example text exceeds bound")
         out.append(item)
     return sorted(out, key=lambda item: (item.get("revision", 0), item["feedback_id"]))
+
+
+def _feedback_direction(item: dict[str, Any], label: str) -> int:
+    """Interpret one human correction as a label-specific positive, negative or neutral.
+
+    Inputs: immutable desired/prior label IDs and feedback kind. Outputs: signed
+    exemplar direction. Effects: none; choose explicit correction differences
+    over treating desired labels as rejection or partial review as a full negative.
+    """
+    desired = set(item.get("labels") or [])
+    previous = set(item.get("previous_labels") or [])
+    kind = item.get("kind")
+    if kind in {"correct_labels", "wrong_behavior", "partial_match"}:
+        if kind == "partial_match" and not desired:
+            return 0
+        if label in desired:
+            return 1
+        return -1 if label in previous - desired else 0
+    declared = desired or previous
+    if item.get("hypothesis_id"):
+        declared = declared | {item["hypothesis_id"]}
+    if label not in declared:
+        return 0
+    if kind in {"confirm", "relevant"}:
+        return 1
+    if kind in {"reject", "irrelevant"}:
+        return -1
+    return 0
 
 
 def _citations(records: list[dict[str, Any]], segments: list[tuple[int, int]]) -> list[dict[str, Any]]:
@@ -347,15 +375,7 @@ def score_batch(batch: dict[str, Any], *, encoder: Any = None) -> dict[str, Any]
             )
             adjustments = []
             for item in feedback:
-                if label not in (item.get("labels") or []) and item.get("hypothesis_id") != label:
-                    continue
-                sign = (
-                    1
-                    if item.get("kind") in {"confirm", "relevant", "correct_labels"}
-                    else -1
-                    if item.get("kind") in {"reject", "irrelevant", "wrong_behavior"}
-                    else 0
-                )
+                sign = _feedback_direction(item, label)
                 index = feedback_vectors.get(item["feedback_id"])
                 if sign and index is not None:
                     similarity = max(_similarity(window, vectors[index]) for window in vectors[start:stop])

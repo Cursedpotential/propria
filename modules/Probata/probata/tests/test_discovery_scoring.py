@@ -146,7 +146,7 @@ def test_wrong_person_and_reported_speech_change_attribution_not_behavior_score(
     assert "reported" in adjusted["speech_forms"]
 
 
-@pytest.mark.parametrize("kind", ["skip", "partial_match", "missing_context", "free_text"])
+@pytest.mark.parametrize("kind", ["skip", "missing_context", "free_text"])
 def test_unreviewed_or_non_label_feedback_does_not_become_negative(kind):
     snapshot = batch()
     before = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
@@ -235,3 +235,50 @@ def test_competing_negation_description_abstains_even_above_label_threshold():
     result = score_batch(snapshot, encoder=FixtureEncoder({"near denial": [0.7, 0, 0.75]}))
     assert result["candidates"] == []
     assert result["counts"]["abstained"] == 1
+
+
+@pytest.mark.parametrize("kind", ["correct_labels", "wrong_behavior", "partial_match"])
+def test_desired_coercion_correction_increases_coercion_decreases_prior_threat_and_preserves_other_labels(kind):
+    snapshot = batch("ambiguous")
+    snapshot["hypotheses"][1]["hypothesis_id"] = "coercion"
+    snapshot["hypotheses"].append({"hypothesis_id": "other", "text": "other description", "category": "other"})
+    encoder = FixtureEncoder({"other description": [0, 0, 1]})
+    before = score_batch(snapshot, encoder=encoder)["candidates"][0]
+    snapshot["feedback"] = [feedback(kind, labels=["coercion"], previous_labels=["threat"], example_text="ambiguous")]
+    after = score_batch(snapshot, encoder=encoder)["candidates"][0]
+    assert after["label_scores"]["coercion"] > before["label_scores"]["coercion"]
+    assert after["label_scores"]["threat"] < before["label_scores"]["threat"]
+    assert after["label_scores"]["other"] == before["label_scores"]["other"]
+    assert after["labels"] == ["coercion"]
+    snapshot["feedback"] = []
+    assert score_batch(snapshot, encoder=encoder)["candidates"][0] == before
+
+
+@pytest.mark.parametrize("labels", [None, []])
+def test_partial_match_without_explicit_selected_labels_is_neutral(labels):
+    snapshot = batch("ambiguous")
+    before = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    snapshot["feedback"] = [
+        feedback("partial_match", labels=labels, previous_labels=["threat", "control"], example_text="ambiguous")
+    ]
+    after = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    assert after["label_scores"] == before["label_scores"]
+
+
+@pytest.mark.parametrize("kind,direction", [("confirm", 1), ("relevant", 1), ("reject", -1), ("irrelevant", -1)])
+def test_confirm_or_reject_uses_declared_original_labels_when_no_new_labels_are_supplied(kind, direction):
+    snapshot = batch("ambiguous")
+    before = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    snapshot["feedback"] = [feedback(kind, previous_labels=["threat"], example_text="ambiguous")]
+    after = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    assert (after["label_scores"]["threat"] - before["label_scores"]["threat"]) * direction > 0
+    assert after["label_scores"]["control"] == before["label_scores"]["control"]
+
+
+@pytest.mark.parametrize("kind", ["wrong_person", "skip"])
+def test_identity_correction_and_skip_with_prior_and_desired_labels_never_change_label_scores(kind):
+    snapshot = batch("ambiguous")
+    before = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    snapshot["feedback"] = [feedback(kind, previous_labels=["threat"], labels=["control"], example_text="ambiguous")]
+    after = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    assert after["label_scores"] == before["label_scores"]
