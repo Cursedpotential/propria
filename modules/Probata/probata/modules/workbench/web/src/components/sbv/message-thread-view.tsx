@@ -36,6 +36,7 @@ import { MessageBubble } from "@/components/sbv/message-bubble";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { PreviewMessageRow } from "@/hooks/use-preview-messages";
+import { isHumanPreviewHandle } from "@/lib/human-context";
 import type { MatterMode, ProfferPreviewParticipant } from "@/lib/shared/types";
 
 interface MessageThreadViewProps {
@@ -61,6 +62,7 @@ export function MessageThreadView({
   onLoadMore,
 }: MessageThreadViewProps) {
   const [showMediaOnly, setShowMediaOnly] = useState(false);
+  const nativeHuman = isHumanPreviewHandle(previewHandle);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -104,7 +106,7 @@ export function MessageThreadView({
     <section className="flex h-[38rem] min-h-0 flex-col overflow-hidden" aria-label="Conversation view" data-testid="message-thread-view">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
         <div>
-          <p className="platform-kicker">Normalized message projection · optional conversation view</p>
+          <p className="platform-kicker">{rows.some((row) => row.message.native_record) ? "Source messages" : "Normalized message projection"} · optional conversation view</p>
           <h2 className="mt-1 flex items-center gap-2 text-base font-semibold">
             <MessageSquareText className="size-4" aria-hidden="true" /> Conversation
           </h2>
@@ -115,7 +117,7 @@ export function MessageThreadView({
               <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" /> Loading…
             </span>
           )}
-          <Button
+          {!nativeHuman && <Button
             type="button"
             variant={showMediaOnly ? "default" : "outline"}
             size="sm"
@@ -124,7 +126,7 @@ export function MessageThreadView({
             data-testid="message-thread-photos-toggle"
           >
             <ImageIcon className="size-3.5" /> {showMediaOnly ? "Show all" : "Photos"}
-          </Button>
+          </Button>}
           <Badge variant="outline">{rows.length.toLocaleString()} messages</Badge>
         </div>
       </header>
@@ -182,7 +184,7 @@ export function MessageThreadView({
       </div>
 
       <footer className="border-t px-4 py-2 text-[11px] text-muted-foreground">
-        Attempt {previewHandle} · read-only platform projection · PostgreSQL remains canonical
+        {nativeHuman ? `Source ${previewHandle} · native source bundle` : `Attempt ${previewHandle} · read-only platform projection · PostgreSQL remains canonical`}
       </footer>
     </section>
   );

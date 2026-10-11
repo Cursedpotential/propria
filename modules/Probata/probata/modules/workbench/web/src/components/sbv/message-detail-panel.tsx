@@ -41,7 +41,7 @@ export function MessageDetailPanel({ row, participants, previewHandle, mode }: M
       <header className="border-b px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">{row.senderName}</h3>
-          <Badge variant={row.direction === "out" ? "default" : "outline"}>{row.direction === "out" ? "Outbound" : "Inbound"}</Badge>
+          <Badge variant={row.direction === "out" ? "default" : "outline"}>{row.direction === "out" ? "Outbound" : row.direction === "in" ? "Inbound" : "Direction unavailable"}</Badge>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           <time dateTime={message.sent_at ?? undefined}>{row.timeLabel}</time>
@@ -64,17 +64,18 @@ export function MessageDetailPanel({ row, participants, previewHandle, mode }: M
           </div>
         )}
         {/* Byline: Claude Code · Opus 5.5 · 2026-09-26 — context review for the selected message (owner 2026-09-25). */}
-        <div className="-mx-4 mt-3">
+        {!message.native_record && <div className="-mx-4 mt-3">
           <ContextReviewPanel key={message.message_id} previewHandle={previewHandle} mode={mode} messageId={message.message_id} />
-        </div>
+        </div>}
+        {message.native_record && <p className="mt-3 text-xs text-muted-foreground">Source record status: {message.native_record.status}</p>}
       </div>
 
       <footer className="space-y-1 border-t px-4 py-3 font-mono text-[10px] text-muted-foreground">
-        <div className="break-all">message {message.message_id}</div>
+        <div className="break-all">{message.native_record ? `source record #${message.ordinal}` : `message ${message.message_id}`}</div>
         <div className="break-all">
           other participants {otherParticipants.length ? otherParticipants.join(", ") : "none recorded"}
         </div>
-        <MarkEventButton key={message.message_id} previewHandle={previewHandle} mode={mode} recordId={message.message_id} compact />
+        {!message.native_record && <MarkEventButton key={message.message_id} previewHandle={previewHandle} mode={mode} recordId={message.message_id} compact />}
       </footer>
     </div>
   );

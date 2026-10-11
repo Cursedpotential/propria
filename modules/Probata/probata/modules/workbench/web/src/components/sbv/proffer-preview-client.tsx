@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { useRouter } from "@tanstack/react-router";
 
 import { ProfferOperatorPreview } from "@/components/sbv/proffer-operator-preview";
+import { HumanContextPreview } from "@/components/sbv/human-context-preview";
+import { isHumanPreviewHandle } from "@/lib/human-context";
 import { ReviewResourceList } from "@/components/sbv/review-resource-list";
 import { ContextFlowRail } from "@/components/intake/context-flow-rail";
 import { Button } from "@/components/ui/button";
@@ -56,8 +58,15 @@ function initialHandle(mode: "DEV" | "LIVE") {
   return (query.get("resource") ?? query.get("preview_handle") ?? query.get("attempt"))?.trim() ?? "";
 }
 
+/** Select the existing preview controller using the URL's actual source handle.
+ * Inputs: route selection and display mode. Output: native human or legacy SBV controller.
+ * Effects: child read requests; choose at the shared reader entry so human bundles bypass legacy handler gates.
+ */
 export function ProfferPreviewClient() {
   const { mode } = useFixedCase();
+  const params = useBrowserSearchParams();
+  const handle = (params.get("resource") ?? params.get("preview_handle") ?? params.get("attempt"))?.trim() ?? "";
+  if (isHumanPreviewHandle(handle)) return <HumanContextPreview key={`${mode}:${handle}`} handle={handle} mode={mode} />;
   return <ModeScopedPreviewClient key={mode} mode={mode} />;
 }
 

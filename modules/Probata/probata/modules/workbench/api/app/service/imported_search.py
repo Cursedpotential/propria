@@ -48,14 +48,21 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
     text = " ".join(query.split())[:200]
     if not text:
         raise imported.ImportedError("Type something to search for", 422)
-    matter = imported.live_matter()
+    # Native source discovery is source-version scoped; an absent fixed case must not fabricate a matter ID.
+    # Keep ordinary case results restricted to their existing actual matter when one is configured.
+    try:
+        matter = imported.live_matter()
+    except imported.ImportedError:
+        matter = None
+    native_filter = '{path: ["origin_system"], operator: Equal, valueText: "probata-native-context"}'
+    scope = '{operator: Or, operands: [{path: ["matter_id"], operator: Equal, valueText: ' + json.dumps(matter) + '}, ' + native_filter + ']}' if matter else native_filter
     graph = (
         "{ Get { %s(limit: %d, offset: %d, "
         "hybrid: {query: %s, alpha: 0, properties: [\"text\"]}, "
-        "where: {path: [\"matter_id\"], operator: Equal, valueText: %s}) "
-        "{ text participant_names start_at first_message_id source_version_ids source_version_id record_kind "
+        "where: %s) "
+        "{ text origin_system participant_names start_at first_message_id source_version_ids source_version_id record_kind "
         "message_count _additional { id score } } } }"
-    ) % (imported.settings.imported_weaviate_class, limit + 1, offset, json.dumps(text), json.dumps(matter))
+    ) % (imported.settings.imported_weaviate_class, limit + 1, offset, json.dumps(text), scope)
     try:
         async with imported.httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(f"{imported.settings.imported_weaviate_url.rstrip('/')}/v1/graphql", json={"query": graph})
@@ -79,19 +86,25 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
         return list(dict.fromkeys(v for v in [*versions, hit.get("source_version_id")]
                                   if isinstance(v, str) and v))
 
-    people = await asyncio.to_thread(imported._people)
-    where = await asyncio.to_thread(imported.pg.versions_to_threads, matter, sorted({v for hit in hits for v in versions_of(hit)}))
+    legacy_versions = sorted({v for hit in hits if hit.get("origin_system") != "probata-native-context"
+                              for v in versions_of(hit)})
+    where = await asyncio.to_thread(imported.pg.versions_to_threads, matter, legacy_versions) if legacy_versions else []
+    people = await asyncio.to_thread(imported._people) if legacy_versions else {}
     place = {row["id"]: row for row in where}
     items = []
     for hit in hits:
+        is_native = hit.get("origin_system") == "probata-native-context"
         is_calls = hit.get("record_kind") == "call_log_file"
         versions = versions_of(hit)
         first_version = versions[0] if versions else None
-        row = place.get(first_version)
+        row = None if is_native else place.get(first_version)
         desc = imported.describe_export(row["export_key"], people) if row else None
         items.append({
             "id": hit.get("first_message_id") or first_version or "",
             "collection": imported.settings.imported_weaviate_class,
+            "origin_system": hit.get("origin_system"),
+            "source_version_id": first_version,
+            "preview_handle": "human-" + first_version if is_native and first_version else None,
             "object_id": (hit.get("_additional") or {}).get("id"),
             "source_version_ids": versions,
             "source_versions": [{"id": version,
@@ -101,7 +114,7 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
             "sender": ("Call log: " if is_calls else "") + imported._names_label(hit.get("participant_names") or []),
             "at": hit.get("start_at"),
             "score": float((hit.get("_additional") or {}).get("score") or 0),
-            "thread_id": None if is_calls or not row else imported.encode_id(row["export_key"], row["conv"]),
+            "thread_id": None if is_native or is_calls or not row else imported.encode_id(row["export_key"], row["conv"]),
             "source": desc["file_name"] if desc else None, "format": "Calls" if is_calls else desc["format"] if desc else None,
             "device": desc["device"] if desc else None,
             "kind": "call_log" if is_calls else "conversation",

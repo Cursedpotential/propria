@@ -20,7 +20,7 @@ export const MESSAGE_PAGE_SIZE = 200;
 /** Self-authored messages carry the reserved `self` display name from the parser. */
 const SELF_DISPLAY_NAME = "self";
 
-export type MessageDirection = "in" | "out";
+export type MessageDirection = "in" | "out" | "unknown";
 
 /** One flattened grid row. The underlying record stays attached, never copied apart. */
 export interface PreviewMessageRow {
@@ -123,15 +123,16 @@ export function usePreviewMessageRows(
         const participant = message.sender_participant_id
           ? participants.get(message.sender_participant_id)
           : undefined;
-        const senderName = participant?.display_name ?? "Unattributed sender";
+        const native = message.native_record?.native;
+        const senderName = participant?.display_name ?? (native?.sender_role === "source_owner" ? "Phone/export owner" : "Unattributed sender");
         return {
           message,
           senderName,
           senderAddress: participant?.canonical_address ?? null,
-          direction: senderName === SELF_DISPLAY_NAME ? "out" : "in",
-          timeLabel: timeLabel(message.sent_at),
+          direction: native ? native.direction === "sent" ? "out" : native.direction === "received" ? "in" : "unknown" : senderName === SELF_DISPLAY_NAME ? "out" : "in",
+          timeLabel: message.sent_at ? timeLabel(message.sent_at) : native && typeof native.native_date === "string" ? `Native date: ${native.native_date}` : "Timestamp unavailable",
           bodyLine: singleLine(message.body) || "(no message body)",
-          attachmentCount: message.attachments.length,
+          attachmentCount: native && Array.isArray(native.native_parts) ? native.native_parts.length : message.attachments.length,
           missingPayloadCount: message.attachments.filter((attachment) => attachment.payload_missing).length,
         };
       });

@@ -8,6 +8,9 @@ import { AppLink } from "@/lib/router-compat";
 import { SearchRelationships } from "@/components/read/search-relationships";
 import { readHref } from "@/components/read/read-location";
 import type { RetrievalHit, RetrievalLeg, RetrievalMode } from "@/lib/retrieval-types";
+import { nativeSearchTargets } from "@/lib/search-read-target";
+import { attemptReadHref } from "@/lib/workflow-links";
+import { useFixedCase } from "@/lib/fixed-case-context";
 
 const families: { id: RetrievalLeg; label: string }[] = [
   { id: "intake", label: "Case Bible / Intake" }, { id: "proffer", label: "Ingested material" },
@@ -78,8 +81,24 @@ export function ContextSearch({ initialQuery = "", onSubmit }: { initialQuery?: 
  * Effects: navigation only. Pick for all combined-search result rows.
  */
 function SearchHit({ hit, query }: { hit: RetrievalHit; query: string }) {
+  const { mode } = useFixedCase();
   const sources = hit.navigation?.sources ?? [];
   const locator = hit.citation.locator;
+  const target = nativeSearchTargets({
+    origin_system: hit.origin_system ?? hit.citation.origin_system ?? locator.origin_system,
+    preview_handle: hit.preview_handle ?? hit.citation.preview_handle ?? locator.preview_handle,
+    source_version_ref: locator.source_version_ref,
+    source_version_id: locator.source_version_id,
+    source_version_ids: hit.citation.source_version_ids,
+  });
+  const links = target.native
+    ? target.handles.map((handle) => ({ id: handle, name: "source messages", href: attemptReadHref(handle, mode) }))
+    : sources.filter((source) => source.href.startsWith("/read?")).flatMap((source) => {
+      const params = new URLSearchParams(source.href.slice("/read?".length));
+      const native = nativeSearchTargets({ preview_handle: params.get("resource") ?? params.get("preview_handle") ?? params.get("attempt"), source_version_id: source.source_version_id });
+      if (native.native) return native.handles.map((handle) => ({ id: handle, name: source.name, href: attemptReadHref(handle, mode) }));
+      return [{ id: source.source_version_id, name: source.name, href: readHref(params, { q: query }) }];
+    });
   const title = sources[0]?.name || hit.location?.name || (locator.source_path || locator.vault_key || "").split(/[\\/]/).pop() || "Indexed passage";
   return <li className="space-y-2 rounded border p-3">
     <p className="text-sm font-semibold">{title}</p>
@@ -88,13 +107,14 @@ function SearchHit({ hit, query }: { hit: RetrievalHit; query: string }) {
       <summary className="cursor-pointer underline underline-offset-4">Read indexed passage</summary>
       <p className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words leading-relaxed">{hit.text}</p>
     </details>
-    <div className="flex flex-wrap gap-3">{sources.filter((source) => source.href.startsWith("/read?")).map((source) =>
-      <AppLink className="text-sm underline underline-offset-4" key={source.source_version_id}
-        href={readHref(new URLSearchParams(source.href.slice("/read?".length)), { q: query })}>Read {source.name}</AppLink>)}</div>
+    <div className="flex flex-wrap gap-3">{links.map((source) =>
+      <AppLink className="text-sm underline underline-offset-4" key={source.id}
+        href={source.href}>Read {source.name}</AppLink>)}</div>
+    {target.native && !links.length ? <p className="text-xs text-muted-foreground">This indexed passage has no usable native source-version reference.</p> : null}
     {hit.location?.href.startsWith("/sources?") ? <AppLink className="inline-block text-sm underline underline-offset-4"
       href={hit.location.href}>Locate original file</AppLink> : null}
     {hit.navigation?.status === "unavailable" ? <p className="text-xs text-muted-foreground">The source lookup could not complete.</p> : null}
-    {hit.citation.source_id && hit.citation.document_id ? <SearchRelationships sourceId={hit.citation.source_id} documentId={hit.citation.document_id} /> : null}
+    {!target.native && hit.citation.source_id && hit.citation.document_id ? <SearchRelationships sourceId={hit.citation.source_id} documentId={hit.citation.document_id} /> : null}
     <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Source details</summary>
       <dl className="mt-2 space-y-1 break-all">
         {Object.entries(locator).map(([key, value]) => <div key={key}><dt className="font-semibold">{key.replaceAll("_", " ")}</dt><dd>{value}</dd></div>)}

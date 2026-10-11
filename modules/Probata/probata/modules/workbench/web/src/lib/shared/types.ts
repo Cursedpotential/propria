@@ -1415,6 +1415,8 @@ export interface ProfferPreviewAttachment {
 }
 
 export interface ProfferPreviewMessage {
+  /** Preserve the native envelope for presentation and exact source inspection; never a normalized row identity. */
+  native_record?: { ordinal: number; status: string; native: Record<string, unknown> };
   message_id: string;
   ordinal: number;
   sent_at?: string | null;

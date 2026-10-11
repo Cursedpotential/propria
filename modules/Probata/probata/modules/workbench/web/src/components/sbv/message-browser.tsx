@@ -43,12 +43,15 @@ import {
 } from "@/hooks/use-preview-messages";
 import type { MatterMode, ProfferPackageProjection } from "@/lib/shared/types";
 import { cn } from "@/lib/utils";
-import { getProfferPreviewMessages } from "@/lib/api-client";
+import { getHumanContextContent, getProfferPreviewMessages } from "@/lib/api-client";
+import { humanMessagePage, isHumanPreviewHandle } from "@/lib/human-context";
 
 interface MessageBrowserProps {
   previewHandle: string;
   mode: MatterMode;
   packageProjection: ProfferPackageProjection | null;
+  /** Input: current native manifest pin; output: page cache identity. No I/O; choose only for human source handles. */
+  nativeManifestRef?: string;
 }
 
 type ViewMode = "thread" | "table" | "media";
@@ -57,11 +60,13 @@ const HANDLE_CLASS =
   "w-px bg-border transition-colors data-[resize-handle-state=drag]:bg-primary data-[resize-handle-state=hover]:bg-primary";
 
 /** Read one processed message page while retaining server-side search semantics.
- * Inputs: exact attempt, mode and package projection. Output: one bounded page
- * in table, donor conversation or media view. Effects: abortable read API calls;
+ * Inputs: exact legacy attempt or native human handle, mode and optional package/manifest projection. Output: one bounded page
+ * in table or donor conversation, with media for retained legacy attachments. Effects: abortable read API calls;
  * no load-all, scroll-prefetch, extraction, indexing or source mutation.
+ * Choose for both native human bundle readback and existing normalized message previews.
  */
-export function MessageBrowser({ previewHandle, mode, packageProjection }: MessageBrowserProps) {
+export function MessageBrowser({ previewHandle, mode, packageProjection, nativeManifestRef }: MessageBrowserProps) {
+  const nativeHuman = isHumanPreviewHandle(previewHandle);
   // Default is "table" (dense Glide rows) per the owner's same-day correction; the
   // SBV bubble view is opt-in via the mode switch below.
   const [viewMode, setViewMode] = useState<ViewMode>("table");
@@ -85,8 +90,10 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
   const activePaging = paging.filterKey === filterKey ? paging : { filterKey, cursors: [undefined], index: 0, first: 1 };
   const cursor = activePaging.cursors[activePaging.index];
   const query = useQuery({
-    queryKey: ["proffer", "single-message-page", filterKey, cursor],
-    queryFn: ({ signal }) => getProfferPreviewMessages(previewHandle, mode, cursor, MESSAGE_PAGE_SIZE, signal, filters),
+    queryKey: ["proffer", "single-message-page", filterKey, cursor, nativeManifestRef],
+    queryFn: async ({ signal }) => nativeHuman
+      ? humanMessagePage(await getHumanContextContent(previewHandle, cursor === undefined ? 0 : Number(cursor), 25, signal), previewHandle, mode)
+      : getProfferPreviewMessages(previewHandle, mode, cursor, MESSAGE_PAGE_SIZE, signal, filters),
     enabled: Boolean(previewHandle), gcTime: 0, retry: false, staleTime: Infinity,
   });
   const pages = useMemo(() => query.data ? [query.data] : undefined, [query.data]);
@@ -151,7 +158,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
     >
       <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
         <div>
-          <p className="platform-kicker">Normalized message projection</p>
+          <p className="platform-kicker">{nativeHuman ? "Source messages" : "Normalized message projection"}</p>
           <h2 className="mt-1 flex items-center gap-2 text-base font-semibold">
             <MessageSquareText className="size-4" aria-hidden="true" /> Messages
           </h2>
@@ -191,7 +198,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
             >
               Table
             </Button>
-            <Button
+            {!nativeHuman && <Button
               type="button"
               size="sm"
               variant="ghost"
@@ -202,7 +209,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
               title="Photos and videos in the loaded messages; a missing one keeps its slot"
             >
               Media
-            </Button>
+            </Button>}
           </div>
           {missingPayloads > 0 && (
             <span
@@ -216,7 +223,10 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
         </div>
       </header>
 
-      <MessageBrowserToolbar
+      {nativeHuman ? <div className="flex items-center justify-between gap-2 border-b px-3 py-2 text-xs">
+        <span>{rows.length} records on this page{totalMessages === null ? "" : ` · ${totalMessages.toLocaleString()} total`}</span>
+        <Button size="sm" variant="ghost" disabled={query.isFetching} onClick={() => void query.refetch()}>Refresh messages</Button>
+      </div> : <MessageBrowserToolbar
         query={filter}
         onQueryChange={(value) => { setFilter(value); resetPages(); }}
         attachmentsOnly={attachmentsOnly}
@@ -233,7 +243,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
         fetching={query.isFetching}
         onLoadAll={() => {}}
         paged
-      />
+      />}
 
       <nav className="flex items-center justify-between gap-2 border-b px-3 py-2" aria-label="Processed message pages">
         <Button size="sm" variant="outline" disabled={activePaging.index === 0 || query.isFetching} onClick={() => setPaging({ ...activePaging, index: activePaging.index - 1 })}>Previous messages</Button>
@@ -266,7 +276,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
                 <p className="p-4 text-sm text-muted-foreground" role="status">Loading message rows…</p>
               ) : rows.length === 0 ? (
                 <p className="p-4 text-sm text-muted-foreground">
-                  No message rows are projected for this attempt with the current filters.
+                  {nativeHuman ? "No native message records are available on this page." : "No message rows are projected for this attempt with the current filters."}
                 </p>
               ) : (
                 <MessageBrowserGrid
