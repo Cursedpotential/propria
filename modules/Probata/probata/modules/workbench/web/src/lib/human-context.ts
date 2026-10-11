@@ -1,4 +1,5 @@
 import type { MatterMode, ProfferPreviewMessagesResponse, ProfferPreviewParticipant } from "@/lib/shared/types";
+import type { CasePerson } from "@/lib/case-identity-client";
 
 /** Describe one context start using source coordinates and explicit phone/export attribution.
  * Inputs: catalog or acquisition reference and registry identities. Outputs: POST fields.
@@ -11,13 +12,29 @@ export interface HumanContextSourceRequest {
   package_ref?: string;
   source_kind: "sms";
   declared_format: string;
-  matter_id: string;
-  court_case_id: string;
+  matter_id?: string;
+  court_case_id?: string;
   owner_person_ref?: string;
   perspective_person_ref?: string;
   perspective?: string;
   byte_length: number;
   etag?: string;
+}
+
+/** Resolve native export attribution from an explicit current choice without requiring a case.
+ * Inputs: confirmed registry people, current source scope and selected person. Outputs: actual attribution references.
+ * Effects: throws if no confirmed current choice exists. Choose for native SMS; optional owner is included only
+ * when the registry identifies exactly one confirmed owner, with no synthetic or global default.
+ */
+export function humanContextAttribution(people: CasePerson[], scope: string, choice: { scope: string; personId: string } | null) {
+  const person = choice?.scope === scope ? people.find((entry) => entry.id === choice.personId && entry.verification_state === "confirmed") : undefined;
+  if (!person) throw new Error("Choose whose phone/export these selected messages came from.");
+  const owners = people.filter((entry) => entry.role_in_case === "user" && entry.verification_state === "confirmed");
+  return {
+    ...(owners.length === 1 ? { owner_person_ref: owners[0].id } : {}),
+    perspective_person_ref: person.id,
+    perspective: "source-device",
+  };
 }
 
 /** Carry real execution and registration references without source bodies.
