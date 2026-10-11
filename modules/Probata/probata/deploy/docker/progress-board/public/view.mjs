@@ -85,10 +85,14 @@ function dueBadge(task) {
   const label = state === 'overdue' ? 'Overdue' : state === 'due-soon' ? 'Due soon' : 'Due';
   return timeTag(task.due, label).replace('class="timestamp"', `class="timestamp chip ${cls}"`);
 }
+/** Render a documented backlog entry without claiming live execution status.
+ * Inputs: manual board task. Outputs: escaped card markup. Effects: none.
+ * Choose for source-documented planning; live provider work uses liveWorkCard.
+ */
 export function taskCard(task) {
   const source = safeLink(task.source_url);
   const b = bucket(task.status);
-  return `<article class="task ${b}" data-task-id="${escapeHtml(task.id)}"><div class="task-top"><span class="lane-label">${escapeHtml(task.lane || 'Unassigned lane')}</span><span class="chip chip-${b === 'done' ? 'positive' : b === 'blocked' ? 'caution' : b === 'flight' ? 'information' : 'neutral'}">${escapeHtml(String(task.status || 'unknown').replaceAll('_', ' '))}</span></div><h4>${escapeHtml(task.title || 'Untitled task')}</h4>${task.detail ? `<p class="task-detail">${escapeHtml(task.detail)}</p>` : ''}<div class="task-meta-row">${priorityBadge(task.priority)}${dueBadge(task)}</div><div class="owner">${escapeHtml(task.owner || 'Unassigned')}</div>${timeTag(task.updated_at, 'Task updated')}${timeTag(task.checked_at, 'Checked')}<details><summary>Source &amp; report details</summary>${task.detail ? `<p>${escapeHtml(task.detail)}</p>` : ''}<span class="receipt">${escapeHtml(task.id || 'Unknown record')}</span><span class="receipt">${escapeHtml(task.provenance || 'Task register')}</span>${timeTag(task.observed_at, 'Observed')}${task.source_doc ? `<div class="receipt">Source ${escapeHtml(task.source_doc)}</div>` : '<span class="receipt">Source document not reported</span>'}${source ? `<a class="receipt" href="${escapeHtml(source)}" target="_blank" rel="noopener noreferrer">Open source receipt</a>` : ''}</details></article>`;
+  return `<article class="task ${b}" data-task-id="${escapeHtml(task.id)}"><div class="task-top"><span class="lane-label">${escapeHtml(task.lane || 'Unassigned lane')}</span><span class="chip chip-${b === 'done' ? 'positive' : b === 'blocked' ? 'caution' : b === 'flight' ? 'information' : 'neutral'}">${escapeHtml(String(task.status || 'unknown').replaceAll('_', ' '))}</span></div><h4>${escapeHtml(task.title || 'Untitled task')}</h4>${task.detail ? `<p class="task-detail">${escapeHtml(task.detail)}</p>` : ''}<div class="task-meta-row">${priorityBadge(task.priority)}${dueBadge(task)}</div><div class="owner">${escapeHtml(task.owner || 'Unassigned')}</div>${timeTag(task.updated_at, 'Task updated')}${timeTag(task.checked_at, 'Checked')}<details><summary>Documented backlog · source &amp; report details</summary>${task.detail ? `<p>${escapeHtml(task.detail)}</p>` : ''}<span class="receipt">${escapeHtml(task.id || 'Unknown record')}</span><span class="receipt">${escapeHtml(task.provenance || 'Task register')}</span>${timeTag(task.observed_at, 'Observed')}${task.source_doc ? `<div class="receipt">Source ${escapeHtml(task.source_doc)}</div>` : '<span class="receipt">Source document not reported</span>'}${source ? `<a class="receipt" href="${escapeHtml(source)}" target="_blank" rel="noopener noreferrer">Open source receipt</a>` : ''}</details></article>`;
 }
 export function observationCard(row) { const link = safeLink(row.source_url); return `<article class="observation"><div class="task-top"><span>${escapeHtml(row.lane)}</span><span class="chip ${statusChipClass(row.status)}">${escapeHtml(row.status || 'Unknown')}</span></div><h3>${escapeHtml(row.title)}</h3>${row.owner ? `<div class="owner">${escapeHtml(row.owner)}</div>` : ''}<p>${escapeHtml(row.detail)}</p>${timeTag(row.observed_at, 'Report observed')}${timeTag(row.updated_at, 'Work updated')}${row.kind === 'worker' ? timeTag(row.heartbeat_at, 'Heartbeat') : ''}${row.checked_at ? timeTag(row.checked_at, 'Checked') : ''}${row.upcoming?.length ? `<details><summary>Upcoming (${row.upcoming.length})</summary><ul>${row.upcoming.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul></details>` : ''}${link ? `<a class="receipt" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">Open source receipt</a>` : '<span class="receipt">No linked receipt</span>'}</article>`; }
 
@@ -196,4 +200,25 @@ export function trackerTableRows(rows) {
     const freshest = row.checked_at || row.updated_at || row.observed_at;
     return `<tr><td>${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.name)}<span aria-hidden="true"> ↗</span></a>` : escapeHtml(row.name || 'Untitled')}</td><td>${escapeHtml(row.lane || 'Unassigned')}</td><td><span class="chip chip-neutral">${escapeHtml(row.kind || 'unknown')}</span></td><td><span class="chip ${statusChipClass(row.status)}">${escapeHtml(row.status || 'Unknown')}</span></td><td>${escapeHtml(row.owner || 'Unassigned')}</td><td>${freshest ? timeTag(freshest, 'Last checked') : '<span class="empty">Unknown</span>'}</td></tr>`;
   }).join('');
+}
+
+/** Render bounded live operations and explicit provider availability independently of backlog states.
+ * Inputs: sanitized live-work snapshot. Outputs: escaped status/item markup. Effects: none.
+ * Choose for observed execution status; HTTP success never implies job completion.
+ */
+export function liveWorkCard(value) {
+  if (!value) return '<p class="widget-note">Live execution status unavailable.</p>';
+  const counts = value.counts || {};
+  const providers = (value.providers || []).map(row => `<li>${escapeHtml(row.provider)}: ${escapeHtml(row.state.replaceAll('_', ' '))} · ${escapeHtml(row.count)} returned items${row.truncated ? ' · bounded page' : ''}</li>`).join('');
+  const items = (value.items || []).slice(0, 12).map(row => { const url=safeLink(row.url); return `<li>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.title)}</a>` : escapeHtml(row.title)} · ${escapeHtml(row.state.replaceAll('_', ' '))}${row.wait ? ' · '+escapeHtml(row.wait.replaceAll('_',' ')) : ''}</li>`; }).join('');
+  return `<div class="live-work"><h3>Live execution status</h3>${timeTag(value.observed_at, 'Provider observation')}<p>${escapeHtml(counts.running || 0)} running · ${escapeHtml(counts.waiting || 0)} waiting · ${escapeHtml(counts.failed || 0)} failed · ${escapeHtml(counts.total || 0)} returned items</p><ul>${providers}</ul>${items ? '<ul>'+items+'</ul>' : '<p>No items returned by the available bounded provider pages.</p>'}<p class="widget-note">${escapeHtml(value.scope)}</p></div>`;
+}
+
+/** Render authenticated storage listing results separately from host disk capacity.
+ * Inputs: sanitized fixed-profile health snapshot. Outputs: escaped provider status markup.
+ * Effects: none. Choose for B2/R2 connectivity; a connected legacy mount does not enable processing.
+ */
+export function storageHealthCard(value) {
+  if (!value) return '<p class="widget-note">Storage connection checks unavailable.</p>';
+  return '<h3>Storage connections</h3>' + (value.profiles || []).map(row => `<article class="storage-item"><h4>${escapeHtml(row.profile)}</h4><p>${row.authenticated_list_success ? 'Authenticated listing succeeded' : escapeHtml(row.state.replaceAll('_',' '))}</p>${timeTag(row.checked_at, 'Connection checked')}<small>${escapeHtml(row.backend)} · HTTP ${escapeHtml(row.http_status ?? 'unknown')} · API ${escapeHtml(row.api_status ?? 'unknown')}</small></article>`).join('');
 }
