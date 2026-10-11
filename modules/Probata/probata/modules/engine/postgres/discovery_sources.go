@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/Cursedpotential/probata/engine/discovery"
+	"strings"
 	"time"
 )
 
@@ -35,7 +37,9 @@ const DiscoverySourceSQL = `SELECT jsonb_build_object(
  'ordinal',n.record_ordinal,'record_type',n.record_type,'occurred_at',n.occurred_at,'record_revision',n.created_at,
  'explicit_episode_id',merged.thread_version_id,'group_revision',merged.group_revision,
  'source_available_from',COALESCE(NULLIF(n.normalized_payload->>'source_available_from','')::timestamptz,merged.source_available_from),
- 'group_knowledge_available_from',merged.knowledge_available_from,'working_message_id',merged.message_id,'imported_message_id',merged.external_id,
+ 'group_knowledge_available_from',merged.knowledge_available_from,'working_message_id',merged.message_id,
+ 'imported_export_key',regexp_replace(s.source_key, '\.derived/.*$', ''),
+ 'imported_conversation_key',COALESCE(substring(s.source_key from '\.derived/threads/(.+?)(?:\.[0-9]{4})?\.ndjson$'),regexp_replace(s.source_key, '^.*/', '')),
  'payload',n.normalized_payload,'source_kind',s.provenance_class,'declared_format',v.declared_format,
  'source_ref',o.object_uri,'source_sha256',encode(o.content_sha256,'hex'),'source_object_id',o.id::text,
  'locators',COALESCE((SELECT jsonb_agg(jsonb_build_object('locator_id',l.id::text,'source_version_id',l.source_version_id::text,
@@ -50,7 +54,7 @@ const DiscoverySourceSQL = `SELECT jsonb_build_object(
  LEFT JOIN context.retained_object o ON o.id=v.original_object_id
  LEFT JOIN LATERAL (
  SELECT version.id::text AS thread_version_id,encode(version.assertion_digest,'hex') AS group_revision,
- membership.source_available_from,version.knowledge_available_from,message.id::text AS message_id,message.external_id
+ membership.source_available_from,version.knowledge_available_from,message.id::text AS message_id
  FROM working.message message
  LEFT JOIN working.message_occurrence occurrence ON occurrence.normalized_record_id=n.id AND occurrence.source_version_id=n.source_version_id
  JOIN working.first_party_context_thread_message membership ON membership.message_id=message.id
@@ -58,7 +62,7 @@ const DiscoverySourceSQL = `SELECT jsonb_build_object(
  JOIN working.first_party_context_thread thread ON thread.context_thread_id=version.context_thread_id
  WHERE (message.id=COALESCE(occurrence.primary_record_id,n.id) OR message.derived_from_record_id=COALESCE(occurrence.primary_record_id,n.id))
  AND thread.matter_id=$1::uuid AND thread.court_case_id=$2::uuid
- AND NOT EXISTS(SELECT 1 FROM working.first_party_context_thread_version later WHERE later.supersedes_id=version.id)
+ AND NOT EXISTS(SELECT 1 FROM working.first_party_context_thread_version later WHERE later.supersedes_id=version.id AND ($6::timestamptz IS NULL OR later.knowledge_available_from <= $6))
  AND ($6::timestamptz IS NULL OR (version.knowledge_available_from <= $6 AND membership.source_available_from <= $6))
  ORDER BY version.version_ordinal DESC,version.id,membership.thread_ordinal LIMIT 1
  ) merged ON true
@@ -72,8 +76,10 @@ const DiscoverySourceSQL = `SELECT jsonb_build_object(
 
 type discoverySourceRow struct {
 	discovery.SourceRecord
-	Payload        json.RawMessage `json:"payload"`
-	DeclaredFormat string          `json:"declared_format"`
+	Payload                 json.RawMessage `json:"payload"`
+	DeclaredFormat          string          `json:"declared_format"`
+	ImportedExportKey       string          `json:"imported_export_key"`
+	ImportedConversationKey string          `json:"imported_conversation_key"`
 }
 
 func decodeDiscoverySource(raw []byte) (discovery.SourceRecord, error) {
@@ -127,12 +133,19 @@ func decodeDiscoverySource(raw []byte) (discovery.SourceRecord, error) {
 	if r.ExplicitEpisodeID == "" {
 		r.ExplicitEpisodeID = get("episode_group_id")
 	}
-	if r.ImportedMessageID == "" {
-		r.ImportedMessageID = get("message_id")
-		if r.ImportedMessageID == "" {
-			r.ImportedMessageID = get("external_id")
+	// Imported navigation uses the repository's source-key/export grouping and canonical normalized message ID.
+	// Native external IDs and working message IDs are different identity domains.
+	r.ImportedMessageID = ""
+	r.ImportedSourceID = ""
+	r.ImportedThreadID = ""
+	if row.ImportedExportKey != "" && row.ImportedConversationKey != "" && len(row.ImportedExportKey)+len(row.ImportedConversationKey)+1 <= 2048 && !strings.ContainsAny(row.ImportedExportKey+row.ImportedConversationKey, "\n\r") {
+		r.ImportedSourceID = base64.RawURLEncoding.EncodeToString([]byte(row.ImportedExportKey))
+		r.ImportedThreadID = base64.RawURLEncoding.EncodeToString([]byte(row.ImportedExportKey + "\n" + row.ImportedConversationKey))
+		if r.RecordType == "message" && discovery.ID(r.RecordID) {
+			r.ImportedMessageID = r.RecordID
 		}
 	}
+
 	r.SpeechForm = get("speech_form")
 	r.AttributionBasis = get("attribution_basis")
 	for _, m := range []map[string]json.RawMessage{p.Content.NativeMetadata, p.Content.NativeFields} {
@@ -226,6 +239,7 @@ func (s *DiscoverySourceReader) ReadSources(ctx context.Context, in discovery.Ru
 		if !discovery.ID(r.RecordID) || !discovery.ID(r.SourceVersionID) {
 			return nil, false, discovery.ErrInvalid
 		}
+		applyDiscoverySourceHorizon(&r, in.Filters)
 		out = append(out, r)
 		byID[r.RecordID] = r
 	}
@@ -266,4 +280,14 @@ func (s *DiscoverySourceReader) ReadSources(ctx context.Context, in discovery.Ru
 		out = out[:in.MaxRecords]
 	}
 	return out, truncated, nil
+}
+
+// applyDiscoverySourceHorizon prevents unclocked/future explicit group assertions from changing historical episodes.
+// Native conversation provenance remains available; ignored group knowledge is surfaced as uncertainty.
+func applyDiscoverySourceHorizon(r *discovery.SourceRecord, filters discovery.Filters) {
+	if filters.Perspective == "as_lived" && r.ExplicitEpisodeID != "" && (r.GroupKnowledgeAvailableFrom == nil || filters.Cutoff == nil || r.GroupKnowledgeAvailableFrom.After(*filters.Cutoff)) {
+		r.ExplicitEpisodeID = ""
+		r.GroupRevision = ""
+		r.ContextUncertainty = append(r.ContextUncertainty, "explicit group membership lacks eligible recorded knowledge at the cutoff")
+	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"strings"
 	"testing"
+	"time"
 )
 
 const discoveryTestID = "11111111-1111-4111-8111-111111111111"
@@ -257,5 +258,41 @@ func TestDiscoveryDispatchPreservesCompletedAndFailedState(t *testing.T) {
 		if e := store.RecordDispatch(ctx, request.RunID, request.Scope, 0, "real-workflow", "real-run"); e != nil || state.run.Status != status || state.run.DispatchPending || state.run.WorkflowID != "real-workflow" {
 			t.Fatal("late dispatch replaced terminal state", status, e)
 		}
+	}
+}
+
+func TestDiscoveryImportedNavigationMatchesAttestedReaderIdentity(t *testing.T) {
+	raw := []byte(`{"record_id":"11111111-1111-4111-8111-111111111111","record_type":"message","working_message_id":"different-working-id","imported_export_key":"/exports/phone.xml","imported_conversation_key":"+18005551234","payload":{"content":{"body":"hello","native_metadata":{"message_id":"native-external"}}}}`)
+	record, e := decodeDiscoverySource(raw)
+	if e != nil || record.ImportedMessageID != record.RecordID || record.ImportedSourceID != "L2V4cG9ydHMvcGhvbmUueG1s" || record.ImportedThreadID != "L2V4cG9ydHMvcGhvbmUueG1sCisxODAwNTU1MTIzNA" {
+		t.Fatal("Imported reader navigation differs", record, e)
+	}
+	unlinked, e := decodeDiscoverySource([]byte(`{"record_id":"11111111-1111-4111-8111-111111111111","record_type":"message","imported_message_id":"external-spoof","payload":{"content":{"native_metadata":{"message_id":"native-id"}}}}`))
+	if e != nil || unlinked.ImportedMessageID != "" || unlinked.ImportedThreadID != "" {
+		t.Fatal("unattested navigation admitted", unlinked, e)
+	}
+	if !strings.Contains(DiscoverySourceSQL, "regexp_replace(s.source_key, '\\.derived/.*$', '')") || !strings.Contains(DiscoverySourceSQL, "regexp_replace(s.source_key, '^.*/', '')") {
+		t.Fatal("source-key repository derivation missing")
+	}
+}
+func TestDiscoveryHistoricalGroupingIgnoresUnknownAndFutureLinks(t *testing.T) {
+	cutoff := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	future := cutoff.Add(time.Hour)
+	prior := cutoff.Add(-time.Hour)
+	filters := discovery.Filters{Perspective: "as_lived", Cutoff: &cutoff}
+	for _, clock := range []*time.Time{nil, &future} {
+		record := discovery.SourceRecord{ExplicitEpisodeID: "later-link", GroupRevision: "later-revision", ConversationID: "native-conversation", GroupKnowledgeAvailableFrom: clock}
+		applyDiscoverySourceHorizon(&record, filters)
+		if record.ExplicitEpisodeID != "" || record.GroupRevision != "" || record.ConversationID != "native-conversation" || len(record.ContextUncertainty) == 0 {
+			t.Fatal("future assertion changed early episode", record)
+		}
+	}
+	record := discovery.SourceRecord{ExplicitEpisodeID: "prior-version", GroupKnowledgeAvailableFrom: &prior}
+	applyDiscoverySourceHorizon(&record, filters)
+	if record.ExplicitEpisodeID != "prior-version" {
+		t.Fatal("eligible explicit link lost")
+	}
+	if !strings.Contains(DiscoverySourceSQL, "later.supersedes_id=version.id AND ($6::timestamptz IS NULL OR later.knowledge_available_from <= $6)") {
+		t.Fatal("future supersession hid eligible prior version")
 	}
 }

@@ -140,8 +140,11 @@ type SourceRecord struct {
 	Platform                    string        `json:"platform"`
 	SourceKind                  string        `json:"source_kind"`
 	ConversationID              string        `json:"conversation_id"`
+	ContextUncertainty          []string      `json:"context_uncertainty,omitempty"`
 	GroupRevision               string        `json:"group_revision,omitempty"`
 	WorkingMessageID            string        `json:"working_message_id,omitempty"`
+	ImportedSourceID            string        `json:"imported_source_id,omitempty"`
+	ImportedThreadID            string        `json:"imported_thread_id,omitempty"`
 	ImportedMessageID           string        `json:"imported_message_id,omitempty"`
 	NativeSourceAvailableFrom   *time.Time    `json:"native_source_available_from,omitempty"`
 	GroupKnowledgeAvailableFrom *time.Time    `json:"group_knowledge_available_from,omitempty"`
