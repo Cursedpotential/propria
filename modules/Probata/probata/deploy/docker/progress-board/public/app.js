@@ -2,7 +2,7 @@
 // Extended by: Claude Code · Sonnet · 2026-09-14 — KPI strip, status/lane-swimlane filters, and a
 // second surfaces/observations tracker view. Same read-only /api/board + /api/health-report
 // contract; no write paths added.
-import { escapeHtml as e, timeTag, taskCard, observationCard, bucket, safeLink, age, boardTasks, filterRows, taskDistribution, healthChart, storageCard, kpiCounts, laneTotalsWidget, healthSummary, renderBoardMarkup, trackerRows, filterTrackerRows, trackerTableRows } from './view.mjs';
+import { escapeHtml as e, timeTag, taskCard, observationCard, bucket, safeLink, age, boardTasks, filterRows, taskDistribution, healthChart, publicReachabilityList, storageCard, kpiCounts, laneTotalsWidget, healthSummary, renderBoardMarkup, trackerRows, filterTrackerRows, trackerTableRows } from './view.mjs';
 import {installTaskActions} from './task-actions.mjs';
 import './provider-settings.js';
 let initialLane=new URLSearchParams(location.search).get('lane');
@@ -12,6 +12,10 @@ let current=null,lastSuccess=null,fetching=false,health=null,healthFetching=fals
 const filters=()=>({lane:$('lane').value,owner:$('owner').value,search:$('search').value,status:$('status').value});
 const trackerFilters=()=>({lane:$('tracker-lane').value,kind:$('tracker-kind').value,search:$('tracker-search').value});
 
+/** Render task KPIs and separately scoped endpoint observations.
+ * Inputs: current filtered tasks and cached health. Outputs: DOM cards.
+ * Effects: updates the board DOM. Choose for summary rendering, not protected journey proof.
+ */
 function renderKpis(tasks) {
   const counts=kpiCounts(tasks);
   const hs=health?healthSummary(health.endpoints):null;
@@ -24,7 +28,7 @@ function renderKpis(tasks) {
     {label:'Due within 7 days',value:counts.dueSoon,cls:counts.dueSoon?'caution':'neutral'},
   ];
   $('kpis').innerHTML=cards.map(c=>`<div class="kpi-card kpi-${c.cls}"><strong>${c.value}</strong><span>${e(c.label)}</span></div>`).join('')
-    +`<div class="kpi-card kpi-health"><strong>${hs?`${hs.healthy}/${hs.total}`:'—'}</strong><span>Services responding${hs?'':' (probe pending)'}</span></div>`;
+    +`<div class="kpi-card kpi-health"><strong>${hs?`${hs.healthy}/${hs.total}`:'—'}</strong><span>Endpoints responding${hs?'':' (probe pending)'}</span></div>`;
   $('kpi-freshness').textContent=current?`Read ${age(current.fetched_at)}`:'Read pending';
 }
 
@@ -93,9 +97,13 @@ async function refreshBoard() {
   $('connection').textContent=`Connection failed${lastSuccess?' · last read '+age(lastSuccess):''}`;
  }finally{fetching=false;}
 }
+/** Render endpoint access and public reachability as separate observations.
+ * Inputs: cached health report. Outputs: health/storage widget DOM.
+ * Effects: updates board widgets. Choose after a health refresh without changing browser status.
+ */
 function renderHealth(){
  if(!health)return;
- $('health').innerHTML=healthChart(health.endpoints);
+ $('health').innerHTML=healthChart(health.endpoints)+publicReachabilityList(health.endpoints);
  const exceptions=health.endpoints.filter(row=>!['responding','TCP open'].includes(row.state)).slice(0,4);
  if(exceptions.length)$('health').innerHTML+='<ul class="attention-list">'+exceptions.map(row=>`<li><span>${e(row.service)}<br><small>${e(row.kind)}</small></span><span>${e(row.state)}</span></li>`).join('')+'</ul>';
  $('storage').innerHTML=storageCard(health.storage);
