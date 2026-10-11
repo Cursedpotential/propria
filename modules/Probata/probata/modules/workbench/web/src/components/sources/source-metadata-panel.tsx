@@ -11,6 +11,7 @@ import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
+import { SourceMessagePreview } from "@/components/sbv/source-message-preview";
 import {
   HANDLER_CHOICES,
   SOURCE_STATE_CLASS,
@@ -300,7 +301,7 @@ function FileDetail({
   const textPreview = useQuery({
     queryKey: ["sources", "text-preview", inspection?.source_ref, inspection?.etag],
     queryFn: ({ signal }) => getProfferSourceText(inspection!, signal),
-    enabled: Boolean(!manifest && inspection?.preview_kind === "text" && inspection.preview_url),
+    enabled: Boolean(!manifest && detected !== "sms_export_xml" && inspection?.preview_kind === "text" && inspection.preview_url),
     retry: false,
   });
 
@@ -372,7 +373,11 @@ function FileDetail({
             <AppLink href={`/read?${new URLSearchParams({ decoded_source_ref: object.source_ref, root: inspection?.root_id ?? "", mode })}`}>Open message viewer</AppLink>
           </Button></>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">Not decoded yet.</p>
+          <><p className="mt-1 text-xs text-muted-foreground">Not decoded yet.</p>
+          {detected === "sms_export_xml" && inspection && <Button asChild variant="outline" size="sm" className="mt-2">
+            <AppLink href={`/read?${new URLSearchParams({ raw_message_source: object.source_ref, root: inspection.root_id,
+              key: inspection.key, bytes: String(inspection.byte_length), etag: inspection.etag, mode })}`}>Open message viewer</AppLink>
+          </Button>}</>
         )}
       </section>
 
@@ -419,6 +424,8 @@ function FileDetail({
         <div className="mt-2">
           {manifest ? (
             <DecodedSourceViewer sourceRef={object.source_ref} />
+          ) : detected === "sms_export_xml" && inspection ? (
+            <SourceMessagePreview key={`${inspection.source_ref}:${inspection.etag}`} selection={inspection} />
           ) : inspectionLoading ? (
             <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading file details</p>
           ) : inspection?.preview_kind === "image" && inspection.preview_url ? (

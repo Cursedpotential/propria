@@ -35,6 +35,7 @@ test("Sources can open the existing donor reader by exact original source withou
     "@/components/read/read-location": { isProcessingPreview: () => { throw new Error("must not start a preview workflow"); } },
     "@/components/sbv/proffer-preview-client": { ProfferPreviewClient: () => { throw new Error("must not process"); } },
     "@/components/sbv/decoded-source-viewer": { DecodedSourceViewer: ({ sourceRef }) => { supplied = sourceRef; return React.createElement("p", null, "Readable messages"); } },
+    "@/components/sbv/source-message-preview": { SourceMessagePreview: () => null },
     "@/lib/router-compat": { AppLink: Link, useBrowserSearchParams: () => new URLSearchParams({ decoded_source_ref: source, root: "b2-salem-data", mode: "LIVE" }) },
   });
   const html = renderToStaticMarkup(React.createElement(ReadPage));
@@ -64,4 +65,38 @@ test("decoded reader keeps one message page and exposes explicit next navigation
   const signal = new AbortController().signal;
   page.queryFn({ signal });
   assert.deepEqual(calls[0], ["b2://bucket/source.xml", "thread.ndjson", 0, signal]);
+});
+
+test("raw reader replaces pages, bounds cursor history and passes cancellation without media downloads", () => {
+  const states = [];
+  let stateIndex = 0;
+  let buttons = [];
+  let options;
+  const calls = [];
+  const selection = { source_ref: "b2://bucket/huge.xml", root_id: "root", key: "huge.xml", etag: '"e"', byte_length: 941300000 };
+  const { SourceMessagePreview } = load("../src/components/sbv/source-message-preview.tsx", {
+    react: { ...React, useState: (initial) => { const index = stateIndex++; if (states[index] === undefined) states[index] = initial; return [states[index], (value) => { states[index] = value; }]; } },
+    "@tanstack/react-query": { useQuery: (value) => { options = value; return { data: { messages: [{ id: "m", direction: "incoming", participants: ["participant"], date_ms: null, body: "Bounded text", body_truncated: true, attachments: [{ name: "huge-photo.jpg", encoded_bytes: 900000000 }] }], next_cursor: `cursor-${states[2] + states[1]}`, truncation_reason: "byte_limit" } }; } },
+    "@/components/ui/button": { Button: ({ children, ...props }) => { buttons.push({ children, ...props }); return React.createElement("button", props, children); } },
+    "@/lib/source-message-preview-client": { getSourceMessagePreview: (...args) => calls.push(args) },
+  });
+  const render = () => { stateIndex = 0; buttons = []; return renderToStaticMarkup(React.createElement(SourceMessagePreview, { selection })); };
+  let html = render();
+  assert.match(html, /Bounded text/);
+  assert.match(html, /Message shortened/);
+  assert.match(html, /huge-photo.jpg/);
+  assert.doesNotMatch(html, /<img|<video|<audio|base64|900000000/);
+  const signal = new AbortController().signal;
+  options.queryFn({ signal });
+  assert.deepEqual(calls[0], [selection, null, signal]);
+  assert.equal(options.gcTime, 0);
+  for (let page = 0; page < 70; page++) {
+    buttons.find((button) => button.children === "Next messages").onClick();
+    html = render();
+  }
+  assert.equal(states[0].length, 64);
+  assert.match(html, /Page 71/);
+  assert.equal((html.match(/Bounded text/g) ?? []).length, 1);
+  buttons.find((button) => button.children === "Previous messages").onClick();
+  assert.match(render(), /Page 70/);
 });
