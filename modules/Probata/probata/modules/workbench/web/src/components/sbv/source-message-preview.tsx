@@ -37,7 +37,11 @@ export function SourceMessagePreview({ selection }: { selection: PreviewSelectio
       }}>Next messages</Button>
     </nav>
     {query.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading a small page of messages…</p> : query.isError ?
-      <div><p role="alert" className="text-sm text-destructive">{query.error.message}</p><Button size="sm" variant="outline" onClick={() => void query.refetch()}>Retry preview</Button></div> :
+      <div><p role="alert" className="text-sm text-destructive">{query.error.message}</p><Button size="sm" variant="outline" onClick={() => void query.refetch()}>Retry preview</Button>
+        <Button size="sm" variant="outline" onClick={() => {
+          setCursors([null]); setPageIndex(0); setFirstPage(1);
+          if (cursor === null) void query.refetch();
+        }}>First messages</Button></div> :
       <div className="max-h-[65dvh] space-y-3 overflow-auto" aria-label="Message preview page">
         {query.data.messages.map((message) => {
           const outgoing = ["outgoing", "sent", "out"].includes(message.direction);

@@ -8,6 +8,7 @@ from app.config import settings
 from app.service.proffer import _service_authorization_headers
 from app.service.proffer_errors import ProfferError
 from app.service.source_inspection import _metadata
+from app.types.proffer import ProfferDecisionActor
 from app.types.source_message_preview import (
     SourceMessagePreviewPending, SourceMessagePreviewReady, SourceMessagePreviewRequest,
 )
@@ -16,10 +17,10 @@ MAX_RESPONSE_BYTES = 512 * 1024
 BASE_PATH = "/reference-import/source-preview"
 
 
-async def _relay(method: str, path: str, body: dict | None = None):
+async def _relay(method: str, path: str, actor: ProfferDecisionActor, body: dict | None = None):
     """Read a capped Go response using the existing mounted service credential.
 
-    Inputs: fixed local route and optional JSON request. Outputs: typed page and
+    Inputs: fixed route, middleware-validated actor and optional JSON request. Outputs: typed page and
     HTTP status. Effects: one fifteen-second upstream call, cancelled with its task.
     Pick for raw viewing only; never follows upstream URLs or starts processing.
     """
@@ -28,7 +29,9 @@ async def _relay(method: str, path: str, body: dict | None = None):
     try:
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
             async with client.stream(method, settings.proffer_starter_url.rstrip("/") + path,
-                                     headers=_service_authorization_headers(), json=body) as response:
+                                     headers={**_service_authorization_headers(),
+                                              "X-authentik-uid": actor.subject_uid,
+                                              "X-authentik-username": actor.username}, json=body) as response:
                 data = bytearray()
                 async for chunk in response.aiter_bytes(chunk_size=16384):
                     if len(data) + len(chunk) > MAX_RESPONSE_BYTES:
@@ -56,10 +59,10 @@ async def _relay(method: str, path: str, body: dict | None = None):
     return result, status
 
 
-async def start_page(request: SourceMessagePreviewRequest):
+async def start_page(request: SourceMessagePreviewRequest, actor: ProfferDecisionActor):
     """HEAD-pin one allowlisted source and request one read-only Go message page.
 
-    Input: original listing metadata, optional cursor and limit. Output: ready
+    Input: original listing metadata, middleware actor, optional cursor and limit. Output: ready
     page or pending handle. Effects: HEAD and atomic preview only, no case gate,
     acquisition, extraction, indexing or promotion. Pick before full processing.
     """
@@ -72,7 +75,7 @@ async def start_page(request: SourceMessagePreviewRequest):
         body["version_id"] = version
     if request.cursor:
         body["cursor"] = request.cursor
-    result, status = await _relay("POST", BASE_PATH, body)
+    result, status = await _relay("POST", BASE_PATH, actor, body)
     if status == 200 and (result.source.source_ref != request.source_ref
                          or result.source.etag.strip('"') != str(head["ETag"]).strip('"')
                          or result.source.byte_length != int(head["ContentLength"])
@@ -81,13 +84,13 @@ async def start_page(request: SourceMessagePreviewRequest):
     return result, status
 
 
-async def poll_page(page_id: str):
+async def poll_page(page_id: str, actor: ProfferDecisionActor):
     """Poll a validated opaque handle at the fixed Go preview route.
 
-    Input: route-validated page ID. Output: capped ready/pending response.
+    Input: route-validated page ID and middleware actor. Output: capped ready/pending response.
     Effects: read only; use for a pending page, never a supplied remote URL.
     """
-    result, status = await _relay("GET", f"{BASE_PATH}/{page_id}")
+    result, status = await _relay("GET", f"{BASE_PATH}/{page_id}", actor)
     if result.page_id != page_id:
         raise ProfferError("Message preview page correlation failed", 502)
     return result, status

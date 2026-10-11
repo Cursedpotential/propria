@@ -4,12 +4,29 @@ import asyncio
 from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from app.service import source_message_preview as service
 from app.service.proffer_errors import ProfferError
 from app.service.source_inspection import SourceInspectionError
 from app.types.source_message_preview import SourceMessagePreviewRequest, SourceMessagePreviewResponse
+from app.types.proffer import ProfferDecisionActor
 
 router = APIRouter(prefix="/source-preview", tags=["proffer"])
+
+
+def _actor(request: Request) -> ProfferDecisionActor:
+    """Forward the existing middleware identity for preview ownership correlation.
+
+    Input: validated request state, never browser identity headers. Output: bounded
+    actor. Effects: none; use for both preview routes without case or role checks.
+    """
+    try:
+        return ProfferDecisionActor(
+            subject_uid=getattr(request.state, "subject_uid", ""),
+            username=getattr(request.state, "principal", ""),
+        )
+    except ValidationError:
+        raise HTTPException(401, "authenticated subject identity is unavailable") from None
 
 
 async def _connected(request: Request, operation):
@@ -43,7 +60,7 @@ async def start_message_preview(body: SourceMessagePreviewRequest, request: Requ
     pending handle. Effects: HEAD and Go read-preview operation only; pick when
     selecting an original SMS file before extraction, indexing or promotion.
     """
-    return await _connected(request, service.start_page(body))
+    return await _connected(request, service.start_page(body, _actor(request)))
 
 
 @router.get("/{page_id}", response_model=SourceMessagePreviewResponse)
@@ -53,4 +70,4 @@ async def poll_message_preview(request: Request, page_id: Annotated[str, Path(pa
     Input: page ID, never a URL. Output: ready/pending page or expiry. Effects:
     one fixed-route Go read, cancelled on disconnect; pick after a 202 response.
     """
-    return await _connected(request, service.poll_page(page_id))
+    return await _connected(request, service.poll_page(page_id, _actor(request)))

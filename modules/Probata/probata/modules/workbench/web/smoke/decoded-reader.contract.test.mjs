@@ -73,10 +73,11 @@ test("raw reader replaces pages, bounds cursor history and passes cancellation w
   let buttons = [];
   let options;
   const calls = [];
+  let expired = false;
   const selection = { source_ref: "b2://bucket/huge.xml", root_id: "root", key: "huge.xml", etag: '"e"', byte_length: 941300000 };
   const { SourceMessagePreview } = load("../src/components/sbv/source-message-preview.tsx", {
     react: { ...React, useState: (initial) => { const index = stateIndex++; if (states[index] === undefined) states[index] = initial; return [states[index], (value) => { states[index] = value; }]; } },
-    "@tanstack/react-query": { useQuery: (value) => { options = value; return { data: { messages: [{ id: "m", direction: "incoming", participants: ["participant"], date_ms: null, body: "Bounded text", body_truncated: true, attachments: [{ name: "huge-photo.jpg", encoded_bytes: 900000000 }] }], next_cursor: `cursor-${states[2] + states[1]}`, truncation_reason: "byte_limit" } }; } },
+    "@tanstack/react-query": { useQuery: (value) => { options = value; return { isError: expired, error: new Error("Preview expired"), refetch() {}, data: { messages: [{ id: "m", direction: "incoming", participants: ["participant"], date_ms: null, body: "Bounded text", body_truncated: true, attachments: [{ name: "huge-photo.jpg", encoded_bytes: 900000000 }] }], next_cursor: `cursor-${states[2] + states[1]}`, truncation_reason: "byte_limit" } }; } },
     "@/components/ui/button": { Button: ({ children, ...props }) => { buttons.push({ children, ...props }); return React.createElement("button", props, children); } },
     "@/lib/source-message-preview-client": { getSourceMessagePreview: (...args) => calls.push(args) },
   });
@@ -99,6 +100,13 @@ test("raw reader replaces pages, bounds cursor history and passes cancellation w
   assert.equal((html.match(/Bounded text/g) ?? []).length, 1);
   buttons.find((button) => button.children === "Previous messages").onClick();
   assert.match(render(), /Page 70/);
+  expired = true;
+  assert.match(render(), /Preview expired/);
+  buttons.find((button) => button.children === "First messages").onClick();
+  expired = false;
+  assert.match(render(), /Page 1/);
+  assert.equal(states[0].length, 1);
+  assert.equal(options.queryKey[3], null);
 });
 
 test("processed message navigation replaces pages, preserves server filters and stops scroll/load-all fetching", () => {
