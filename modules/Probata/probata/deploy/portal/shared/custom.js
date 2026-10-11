@@ -171,6 +171,9 @@
   }
 
   function tick() {
+    // Recovery may retain the layout without the unavailable progress-board cards.
+    if (!document.querySelector('li.service[data-name="Latency trend"] a[href]') &&
+        !document.querySelector('li.service[data-name="Lane timeline"] a[href]')) return;
     loadApex()
       .then(function () {
         renderLatencyChart();
@@ -369,6 +372,8 @@
     node.parentElement.classList.add('portal-has-actions');
   }
   async function refresh() {
+    if (!document.querySelector('li.service[data-name="Pipeline lanes"] a[href]') &&
+        !document.querySelector('li.service[data-name="Live surfaces"] a[href]')) return;
     await Promise.allSettled([
       read('/api/lane-rollups').then(renderLanes),
       read('/api/surfaces-summary').then(renderSurfaces)

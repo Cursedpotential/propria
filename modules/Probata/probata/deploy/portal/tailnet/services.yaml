@@ -135,8 +135,8 @@
         icon: mdi-folder-search-outline
         siteMonitor: http://100.72.169.40:3020/intake/
     - Probata Workbench:
-        href: https://workbench.tilapia-skilift.ts.net
-        description: Evidence review workspace
+        href: https://workbench.tilapia-skilift.ts.net/
+        description: Sources, reading, case and activity workspace
         icon: mdi-briefcase-search-outline
         siteMonitor: https://workbench.tilapia-skilift.ts.net
     - Family Law Toolkit:
@@ -251,10 +251,8 @@
         icon: mdi-key-chain-variant
         siteMonitor: http://100.91.190.107:8880/api/status
     - Edit portal:
-        href: https://portal-edit.tilapia-skilift.ts.net
-        description: Edits the retired host copy; the portal now builds from git (owner decision pending)
+        description: Edits a retired host copy; current portal configuration is built from Git
         icon: mdi-file-document-edit-outline
-        siteMonitor: https://portal-edit.tilapia-skilift.ts.net
 
 - Development:
     # Devbox: since 2026-10-02 the tile opens Kasm Workspaces (svc:kasm), where the Devbox, its RDP view and the
