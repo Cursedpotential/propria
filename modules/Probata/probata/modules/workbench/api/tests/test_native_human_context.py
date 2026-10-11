@@ -1,5 +1,7 @@
 """Check native SMS BFF registration, read relays and search without touching genuine sources."""
 import asyncio
+import httpx
+import pytest
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -25,6 +27,9 @@ def test_sms_routes_relay_exact_source_and_native_pages(monkeypatch):
         calls.append((method, path, kwargs))
         return object()
     monkeypatch.setattr(context_sources.proffer, "_request", upstream)
+    async def native_upstream(path, headers):
+        return await upstream("GET", path, headers=headers)
+    monkeypatch.setattr(context_sources, "_native_bounded_get", native_upstream)
     monkeypatch.setattr(context_sources.proffer, "_json_payload", lambda *_: {"workflow_id": "synthetic-workflow", "run_id": "synthetic-run"})
     source = context_sources.HumanContextSource(source_ref="b2://synthetic/sms.xml", source_kind="sms", declared_format="smsbackuprestore_xml", byte_length=987, etag='"synthetic-pin"', owner_person_ref="synthetic-owner")
     result = asyncio.run(context_sources.submit_ai_context_source(source, actor(), "synthetic-click"))
@@ -74,3 +79,29 @@ def test_native_search_does_not_need_legacy_case_or_thread_rows(monkeypatch):
     assert item["source_version_id"] == version
     assert '"matter_id"' not in sent[0]
     assert 'origin_system' in sent[0]
+
+
+def test_native_relay_stops_stream_before_collecting_oversize_body(monkeypatch):
+    """Oversize native streams stop at the budget and close without reading the rest.
+
+    Inputs: synthetic streaming transport. Outputs: budget error and bounded consumption.
+    Effects: in-memory transport only; no genuine source reads or writes.
+    """
+    observed = {"chunks": 0, "closed": False}
+    class Stream(httpx.AsyncByteStream):
+        """Supply many bounded pieces to expose accidental whole-body buffering."""
+        async def __aiter__(self):
+            for _ in range(1000):
+                observed["chunks"] += 1
+                yield b"x" * 65536
+        async def aclose(self):
+            observed["closed"] = True
+    original_client = httpx.AsyncClient
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, stream=Stream()))
+    monkeypatch.setattr(context_sources.httpx, "AsyncClient", lambda **kwargs: original_client(transport=transport, **kwargs))
+    monkeypatch.setattr(context_sources.proffer.settings, "proffer_starter_url", "http://synthetic")
+    monkeypatch.setattr(context_sources.proffer, "_service_authorization_headers", lambda: {"Authorization": "Bearer synthetic"})
+    with pytest.raises(context_sources.ProfferError, match="byte budget"):
+        asyncio.run(context_sources._native_bounded_get("/native", {}))
+    assert observed["chunks"] == 65
+    assert observed["closed"]

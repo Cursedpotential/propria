@@ -16,11 +16,12 @@ from urllib.parse import unquote, urlsplit
 
 CONTRACT = "human-source-v1"
 INDEX_KIND = "native-human-conversation-chunks-v1"
-BOUNDARY_VERSION = "native-ordinal-window256-bytes131072-overlap2-utf8parts6000-v1"
+BOUNDARY_VERSION = "native-ordinal-window256-bytes131072-overlap2-utf8parts6000-nimprepared8000-v2"
 MAX_ROW = 2 * 1024 * 1024
 WINDOW_ROWS = 256
 WINDOW_BYTES = 131072
 MAX_TEXT_BYTES = 7500
+MAX_PREPARED_BYTES = 8000
 SEGMENT_BYTES = 6000
 OVERLAP = 2
 
@@ -115,27 +116,68 @@ def _spool(connection, records_path, source, beat):
     return total, complete, pending
 
 
+def _prepared_size(text: str) -> int:
+    """Measure NIM's exact lowercase image-marker expansion without altering source text.
+
+    Input: rendered nonblank chunk text. Output: UTF-8 byte count after PrepareInput's
+    data:image/ -> data: image/ replacement. Effects: none. Choose for embedding budgets;
+    original spans and emitted text remain unchanged, and no truncation is simulated.
+    """
+    return len(text.encode("utf-8")) + text.count("data:image/")
+
+
 def _bounded_ranges(items, spans):
-    """Bound final chunk text after Neural overlap so embedding never silently truncates it."""
+    """Split Neural spans against both original-text and actual NIM-prepared byte budgets.
+
+    Inputs: source-pinned rendered pieces and Neural ranges. Outputs: bounded piece ranges.
+    Effects: none. Choose after overlap so separators, sender prefixes and lowercase marker
+    expansion count toward embedding limits without modifying exact original body spans.
+    """
     seen = set()
     for first, last in spans:
-        start, size = first, 0
+        start, size, prepared_size = first, 0, 0
         for index in range(first, last + 1):
-            width = len(items[index]["text"].encode("utf-8")) + (1 if index > start else 0)
-            if size + width > MAX_TEXT_BYTES and index > start:
+            separator = 1 if index > start else 0
+            width = len(items[index]["text"].encode("utf-8")) + separator
+            prepared_width = _prepared_size(items[index]["text"]) + separator
+            if (size + width > MAX_TEXT_BYTES or prepared_size + prepared_width > MAX_PREPARED_BYTES) and index > start:
                 pair = (start, index - 1)
                 if pair not in seen:
                     seen.add(pair)
                     yield pair
-                start, size = index, 0
+                start, size, prepared_size = index, 0, 0
                 width = len(items[index]["text"].encode("utf-8"))
-            if width > MAX_TEXT_BYTES:
+                prepared_width = _prepared_size(items[index]["text"])
+            if width > MAX_TEXT_BYTES or prepared_width > MAX_PREPARED_BYTES:
                 raise ValueError("native text segment exceeds embedding bound")
             size += width
+            prepared_size += prepared_width
         pair = (start, last)
         if pair not in seen:
             seen.add(pair)
             yield pair
+
+
+def validate_source_pins(expected: dict, observed: dict) -> None:
+    """Validate manifest identity, attribution and known provider pins against the registered request.
+
+    Inputs: expected registration pins and observed manifest source. Output: None or ValueError.
+    Effects: none. Choose before any derivative spool or planning; only unknown provider version,
+    byte length and ETag may become observed. Mirrors humancontext.ValidateSourcePins and SameETag.
+    """
+    if any(not expected.get(field) for field in ("source_ref", "source_version_ref", "registration_receipt_ref")):
+        raise ValueError("human source requires registered identity references")
+    for field in ("source_ref", "source_version_ref", "registration_receipt_ref", "format",
+                  "owner_person_ref", "perspective_person_ref", "perspective"):
+        if expected.get(field, "") != observed.get(field, ""):
+            raise ValueError(f"human source {field} pin differs")
+    if expected.get("provider_version_id") and expected["provider_version_id"] != observed.get("provider_version_id", ""):
+        raise ValueError("human source provider version pin differs")
+    expected_bytes, observed_bytes = expected.get("byte_length", 0), observed.get("byte_length", 0)
+    if expected_bytes < 0 or observed_bytes < 0 or (expected_bytes > 0 and expected_bytes != observed_bytes):
+        raise ValueError("human source byte length pin differs")
+    if expected.get("etag") and expected["etag"].strip().strip('"') != observed.get("etag", "").strip().strip('"'):
+        raise ValueError("human source ETag pin differs")
 
 
 def plan_native_chunks(root: Path, request: dict, *, span_planner=None, version=None, beat=lambda _: None) -> dict:
@@ -157,8 +199,9 @@ def plan_native_chunks(root: Path, request: dict, *, span_planner=None, version=
     if manifest_path.stat().st_size > MAX_ROW:
         raise ValueError("native extraction manifest exceeds bound")
     manifest = json.loads(manifest_path.read_bytes())
-    if manifest["contract_version"] != CONTRACT or manifest["stage"] != "extracted" or manifest["workflow_id"] != request["workflow_id"] or manifest["source"]["source_version_ref"] != request["source"]["source_version_ref"]:
+    if manifest["contract_version"] != CONTRACT or manifest["stage"] != "extracted" or not request["workflow_id"] or manifest["workflow_id"] != request["workflow_id"]:
         raise ValueError("native chunk extraction coordinates differ")
+    validate_source_pins(request["source"], manifest["source"])
     directory = Path(tempfile.mkdtemp(prefix="chunked-", dir=root))
     chunks_path = directory / "chunks.jsonl"
     chunks, windows = 0, 0

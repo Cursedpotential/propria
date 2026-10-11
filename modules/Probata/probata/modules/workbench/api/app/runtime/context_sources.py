@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+import httpx
+
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
@@ -172,12 +174,37 @@ async def _human_context_read(handle: str, request: Request, *, offset: int | No
     if offset is not None:
         path += f"/content?offset={offset}&limit={limit}"
     try:
-        response = await proffer._request("GET", path, headers=_actor_headers(request))
-        if len(getattr(response, "content", b"")) > 4 * 1024 * 1024:
-            raise HTTPException(status_code=502, detail="native page exceeds relay byte budget")
+        response = await _native_bounded_get(path, _actor_headers(request))
         payload = proffer._json_payload(response, "native human context read")
     except ProfferError as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from None
     if not isinstance(payload, dict):
         raise HTTPException(status_code=502, detail="Go native reader returned invalid data")
     return payload
+
+
+async def _native_bounded_get(path: str, headers: dict[str, str]) -> httpx.Response:
+    """Stream a native reader response under a four MiB limit using existing service credentials.
+
+    Inputs: validated reader path and current actor headers. Outputs: bounded HTTP response.
+    Effects: one read-only request; choose for native pages without changing legacy request behavior.
+    """
+    if not proffer.settings.proffer_starter_url.strip():
+        raise ProfferError("Proffer starter is not configured", 503)
+    headers = {key: value for key, value in headers.items() if key.lower() != "authorization"}
+    headers.update(proffer._service_authorization_headers())
+    limit = 4 * 1024 * 1024
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            async with client.stream("GET", f"{proffer.settings.proffer_starter_url.rstrip('/')}{path}", headers=headers) as upstream:
+                payload = bytearray()
+                async for chunk in upstream.aiter_bytes(chunk_size=65536):
+                    if len(payload) + len(chunk) > limit:
+                        raise ProfferError("native page exceeds relay byte budget", 502)
+                    payload.extend(chunk)
+                response = httpx.Response(upstream.status_code, headers=upstream.headers, content=bytes(payload))
+    except httpx.HTTPError as error:
+        raise ProfferError("Native reader unreachable", 502) from error
+    if response.status_code >= 400:
+        raise ProfferError(proffer._detail(response) or "Native reader rejected request", response.status_code)
+    return response
