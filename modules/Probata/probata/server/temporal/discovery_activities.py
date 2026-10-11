@@ -7,8 +7,10 @@ choose downstream optional discovery without intake gates or canonical writes.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from collections.abc import Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from contextvars import copy_context
 from threading import BoundedSemaphore, Event, Thread
@@ -21,6 +23,8 @@ from server.analysis.discovery import storage
 from server.analysis.discovery.scoring import MODEL_VERSION, SCORE_REVISION, model_config, score_batch
 
 _CPU_SLOT = BoundedSemaphore(1)
+_ASYNC_CPU_SLOT = asyncio.Semaphore(1)
+_CPU_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="discovery-cpu")
 
 
 @contextmanager
@@ -113,19 +117,53 @@ def score_retained_batch(params: dict[str, Any], *, encoder: Any = None) -> dict
     }
 
 
-@activity.defn(name="score_discovery_batch_activity")
-def score_discovery_batch_activity(params: dict[str, Any]) -> dict[str, Any]:
-    """Score a pinned retained record batch with bounded local CPU description retrieval.
+def _score_activity_sync(params: dict[str, Any]) -> dict[str, Any]:
+    """Run CPU/file scoring with heartbeat context inside the dedicated executor.
 
-    Inputs: reference-only Go request. Outputs: result reference and counts/model
-    revision. Effects: derived scratch JSON and local CPU; choose optional discovery
-    on evidence-pipeline, never source bodies in history or canonical persistence.
+    Inputs: reference-only request. Outputs: bounded score receipt. Effects:
+    local CPU/files/heartbeats; choose this dedicated thread boundary so discovery
+    never waits on the shared custody/parser/store Activity executor.
     """
     try:
         with _heartbeats():
             return score_retained_batch(params)
     except storage.DiscoveryInvalid as error:
         raise ApplicationError(str(error), type="DiscoveryInvalid", non_retryable=True) from None
+
+
+@activity.defn(name="score_discovery_batch_activity")
+async def score_discovery_batch_activity(params: dict[str, Any]) -> dict[str, Any]:
+    """Score a pinned retained batch without occupying shared evidence executor threads.
+
+    Inputs: reference-only Go request. Outputs: result reference and counts/model
+    revision. Effects: async admission plus one dedicated CPU thread/file output;
+    choose optional discovery on evidence-pipeline so waiting jobs and cancelled
+    waiters leave custody, parsing and storage execution capacity available.
+    """
+    gate = _ASYNC_CPU_SLOT
+    await gate.acquire()
+    loop = asyncio.get_running_loop()
+    context = copy_context()
+    try:
+        future = _CPU_EXECUTOR.submit(context.run, _score_activity_sync, params)
+    except BaseException:
+        gate.release()
+        raise
+
+    def release_slot(completed: Future[Any]) -> None:
+        """Release CPU admission only when its actual thread operation finishes.
+
+        Inputs: completed/cancelled executor future. Outputs: none. Effects:
+        event-loop semaphore release; choose actual completion over freeing a
+        running CPU slot merely because its awaiting Activity was cancelled.
+        """
+        try:
+            loop.call_soon_threadsafe(gate.release)
+        except RuntimeError:
+            pass  # A closed worker loop has no surviving admission waiters.
+
+    future.add_done_callback(release_slot)
+    return await asyncio.wrap_future(future, loop=loop)
 
 
 DISCOVERY_ACTIVITIES = [score_discovery_batch_activity]

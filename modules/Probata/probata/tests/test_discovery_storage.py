@@ -1,5 +1,6 @@
 """Verify immutable external scoring, process restart, corruption and path bounds."""
 
+import asyncio
 import hashlib
 import json
 import os
@@ -118,7 +119,7 @@ def test_atomic_writer_refuses_different_bytes_for_same_identity(params):
 def test_activity_classifies_bad_input_nonretryable_before_cpu_load(params):
     invalid = dict(params, feedback_revision="wrong")
     with pytest.raises(ApplicationError) as caught:
-        score_discovery_batch_activity(invalid)
+        asyncio.run(score_discovery_batch_activity(invalid))
     assert caught.value.non_retryable
     assert caught.value.type == "DiscoveryInvalid"
 
@@ -183,6 +184,95 @@ def test_active_activity_heartbeats_safe_labels_and_stops_thread(monkeypatch):
     monkeypatch.setattr(discovery_activities.activity, "is_cancelled", lambda: False)
     monkeypatch.setattr(discovery_activities.activity, "heartbeat", lambda *details: heartbeats.append(details))
     monkeypatch.setattr(discovery_activities, "score_retained_batch", lambda _: {"candidate_count": 0})
-    assert discovery_activities.score_discovery_batch_activity({}) == {"candidate_count": 0}
+    assert asyncio.run(discovery_activities.score_discovery_batch_activity({})) == {"candidate_count": 0}
     assert heartbeats == [("bounded discovery scoring",), ("bounded discovery scoring",)]
     assert not any(thread.name == "discovery-heartbeat" for thread in threading.enumerate())
+
+
+def test_async_discovery_waiters_leave_shared_evidence_executor_available(monkeypatch):
+    from server.temporal import discovery_activities
+
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def blocked_score(request):
+        """Hold synthetic model execution until unrelated evidence work completes.
+
+        Inputs: reference fixture. Outputs: fixture receipt. Effects: bounded test
+        event wait; choose to observe executor isolation without real inference.
+        """
+        calls.append(threading.current_thread().name)
+        entered.set()
+        assert release.wait(5)
+        return {"candidate_count": 0}
+
+    monkeypatch.setattr(discovery_activities, "score_retained_batch", blocked_score)
+
+    async def exercise():
+        """Schedule concurrent discovery waits beside shared synchronous evidence work.
+
+        Inputs: test executor/events. Outputs: none. Effects: temporary concurrent
+        tasks; choose to prove discovery cannot occupy shared evidence threads.
+        """
+        monkeypatch.setattr(discovery_activities, "_ASYNC_CPU_SLOT", asyncio.Semaphore(1))
+        jobs = [asyncio.create_task(score_discovery_batch_activity({})) for _ in range(8)]
+        try:
+            assert await asyncio.to_thread(entered.wait, 1)
+            with ThreadPoolExecutor(max_workers=1, thread_name_prefix="shared-evidence") as shared:
+                result = await asyncio.wait_for(
+                    asyncio.get_running_loop().run_in_executor(shared, lambda: "custody-parser-store-completed"),
+                    timeout=1,
+                )
+                assert result == "custody-parser-store-completed"
+            assert len(calls) == 1
+        finally:
+            release.set()
+        await asyncio.gather(*jobs)
+
+    asyncio.run(exercise())
+    assert len(calls) == 8
+    assert all(name.startswith("discovery-cpu") for name in calls)
+
+
+def test_cancelled_async_waiter_does_not_admit_another_cpu_job(monkeypatch):
+    from server.temporal import discovery_activities
+
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def blocked_score(request):
+        """Keep one synthetic CPU operation running while a queued waiter cancels.
+
+        Inputs: fixture request. Outputs: receipt. Effects: bounded event wait;
+        choose to verify cancelled admission consumes no executor thread.
+        """
+        calls.append(request)
+        entered.set()
+        assert release.wait(5)
+        return {"candidate_count": 0}
+
+    monkeypatch.setattr(discovery_activities, "score_retained_batch", blocked_score)
+
+    async def exercise():
+        """Cancel a waiting Activity while retaining one actual CPU operation.
+
+        Inputs: events and monkeypatched scorer. Outputs: none. Effects: test
+        cancellation; choose to verify asynchronous waiting releases cleanly.
+        """
+        monkeypatch.setattr(discovery_activities, "_ASYNC_CPU_SLOT", asyncio.Semaphore(1))
+        first = asyncio.create_task(score_discovery_batch_activity({"request": "first"}))
+        try:
+            assert await asyncio.to_thread(entered.wait, 1)
+            waiter = asyncio.create_task(score_discovery_batch_activity({"request": "cancelled-waiter"}))
+            await asyncio.sleep(0)
+            waiter.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await waiter
+            assert calls == [{"request": "first"}]
+        finally:
+            release.set()
+        await first
+
+    asyncio.run(exercise())
