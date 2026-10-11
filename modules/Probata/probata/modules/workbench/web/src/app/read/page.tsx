@@ -4,6 +4,7 @@ import { ReadWorkspace } from "@/components/read/read-workspace";
 import { importedReadingHref, isProcessingPreview } from "@/components/read/read-location";
 import { ProfferPreviewClient } from "@/components/sbv/proffer-preview-client";
 import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
+import { SourceMessagePreview } from "@/components/sbv/source-message-preview";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 
 /** Render imported reading or the existing processing preview selected by the URL.
@@ -13,6 +14,21 @@ import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
  */
 export default function ReadPage() {
   const params = useBrowserSearchParams();
+  const rawSource = params.get("raw_message_source");
+  if (rawSource) {
+    const bytes = Number(params.get("bytes"));
+    const root = params.get("root") ?? "";
+    const key = params.get("key") ?? "";
+    const etag = params.get("etag") ?? "";
+    return <div className="space-y-4 p-4">
+      <header className="flex items-center justify-between gap-3"><div><h1 className="text-xl font-semibold">Messages</h1>
+        <p className="text-sm text-muted-foreground">{key.split("/").at(-1)}</p></div>
+        <AppLink href={`/sources?${new URLSearchParams({ root, file: key.split("/").at(-1) ?? "", mode: params.get("mode") ?? "LIVE" })}`} className="text-sm underline">Back to Sources</AppLink></header>
+      {root && key && etag && params.has("bytes") && Number.isSafeInteger(bytes) && bytes >= 0 ?
+        <SourceMessagePreview key={`${rawSource}:${etag}`} selection={{ source_ref: rawSource, root_id: root, key, etag, byte_length: bytes }} /> :
+        <p role="alert">Reopen this file from Sources to load its current details.</p>}
+    </div>;
+  }
   const decodedSource = params.get("decoded_source_ref");
   if (decodedSource) return <div className="space-y-4 p-4">
     <header className="flex flex-wrap items-center justify-between gap-3">

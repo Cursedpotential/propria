@@ -1,11 +1,10 @@
 // Byline: Claude Code · Fable 5.1 · 2026-09-21
-// Reading surface for a backup that SBV has decoded but that has not been
-// ingested yet. Layout and behavior follow SBV's own viewer (ConversationList +
+// Reading surface for existing processed backup messages. Layout and behavior
+// follow SBV's viewer (ConversationList +
 // MessageThread + LazyMedia; MIT, Copyright (c) 2025 lowcarbdev): conversations
 // on the left, the thread on the right as chat bubbles, pictures inline. SBV's
-// importer decodes the backup's inline base64 parts to bytes while it imports;
-// here that importer is the derive step, so the pictures are real files by the
-// time this opens. Oldest first, pages forward (owner, 2026-09-20).
+// viewer consumes processed message/media outputs; it never imports, extracts
+// or indexes the source. Oldest first, pages forward (owner, 2026-09-20).
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
@@ -135,7 +134,7 @@ function Thread({ sourceRef, thread }: { sourceRef: string; thread: DecodedThrea
     <nav className="flex items-center justify-between gap-2 border-b px-4 py-2" aria-label="Message pages">
       <Button size="sm" variant="outline" disabled={offset === 0 || query.isFetching} onClick={() => setOffset(Math.max(0, offset - 200))}>Previous messages</Button>
       <span className="text-xs text-muted-foreground" role="status">{messages.length ? `${offset + 1}–${offset + messages.length} of ${query.data!.total_records.toLocaleString()}` : "No messages on this page"}</span>
-      <Button size="sm" variant="outline" disabled={query.data?.next_offset == null || query.isFetching} onClick={() => { if (query.data?.next_offset != null) setOffset(query.data.next_offset); }}>Next messages</Button>
+      <Button size="sm" variant="outline" disabled={typeof query.data?.next_offset !== "number" || query.isFetching} onClick={() => { if (typeof query.data?.next_offset === "number") setOffset(query.data.next_offset); }}>Next messages</Button>
     </nav>
     <div key={offset} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3" role="log" aria-label={`Conversation with ${others(thread.participants).map(party).join(", ")}`}>
       {messages.map((message, index) => {
@@ -151,7 +150,7 @@ function Thread({ sourceRef, thread }: { sourceRef: string; thread: DecodedThrea
           </div>
         );
       })}
-      {query.data?.next_offset == null && <p className="py-2 text-center text-[11px] text-muted-foreground">End of this conversation file</p>}
+      {typeof query.data?.next_offset !== "number" && <p className="py-2 text-center text-[11px] text-muted-foreground">End of this conversation file</p>}
     </div>
     </div>
   );
