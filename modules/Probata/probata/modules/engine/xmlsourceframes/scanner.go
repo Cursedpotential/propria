@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 )
 
 const bufferBytes = 64 * 1024
@@ -47,6 +48,7 @@ type scanner struct {
 	closing, rootSeen, rootClosed      bool
 	recordName                         string
 	receipt                            Receipt
+	lex                                *lexicalState
 }
 
 // Scan frames direct children of the document element with fixed-size input buffers.
@@ -55,21 +57,27 @@ type scanner struct {
 // Effects: reads and closes reader, invokes sink; cancellation closes blocked reads.
 // Choose for extraction preparation; do not substitute display-truncated preview rows.
 func Scan(ctx context.Context, reader io.ReadCloser, maxFrameBytes int64, emit func(Span) error) (Receipt, error) {
+	return scan(ctx, reader, maxFrameBytes, emit, nil)
+}
+
+func scan(ctx context.Context, reader io.ReadCloser, maxFrameBytes int64, emit func(Span) error, lex *lexicalState) (Receipt, error) {
 	if reader == nil || emit == nil || maxFrameBytes <= 0 {
 		return Receipt{}, errors.New("invalid framing input")
 	}
 	done := make(chan struct{})
 	joined := make(chan struct{})
+	var closeOnce sync.Once
+	closeReader := func() { closeOnce.Do(func() { _ = reader.Close() }) }
 	go func() {
 		defer close(joined)
 		select {
 		case <-ctx.Done():
-			_ = reader.Close()
+			closeReader()
 		case <-done:
 		}
 	}()
-	defer func() { close(done); _ = reader.Close(); <-joined }()
-	s := scanner{emit: emit, limit: maxFrameBytes, mode: "text"}
+	defer func() { close(done); closeReader(); <-joined }()
+	s := scanner{emit: emit, limit: maxFrameBytes, mode: "text", lex: lex}
 	buffer := make([]byte, bufferBytes)
 	for {
 		if err := ctx.Err(); err != nil {
@@ -101,6 +109,7 @@ func Scan(ctx context.Context, reader io.ReadCloser, maxFrameBytes int64, emit f
 		}
 	}
 	s.receipt.Bytes = s.offset
+	if err:=s.finishLexicalText(s.offset);err!=nil{return s.receipt,err}
 	if s.receipt.Reason == "" && (!s.rootClosed || s.mode != "text") {
 		s.fail("incomplete_structure")
 	}
@@ -151,6 +160,7 @@ func (s *scanner) finishTag() error {
 			s.fail("mismatched_close")
 			return nil
 		}
+		if err := s.finishLexicalTag(); err != nil { return err }
 		s.stack = s.stack[:len(s.stack)-1]
 		if len(s.stack) == 1 {
 			if err := s.element(); err != nil {
@@ -165,6 +175,7 @@ func (s *scanner) finishTag() error {
 			s.fail("multiple_roots")
 			return nil
 		}
+		if err := s.finishLexicalTag(); err != nil { return err }
 		if len(s.stack) == 0 {
 			s.rootSeen = true
 		}
@@ -211,12 +222,14 @@ func (s *scanner) consume(b byte) error {
 		return nil
 	case "text":
 		if b == '<' {
+			if err:=s.finishLexicalText(s.offset-1);err!=nil{return err}
 			s.tagStart = s.offset - 1
 			s.mode = "open"
 			s.name = nil
 			s.closing = false
 			s.last = 0
 			s.quote = 0
+		}else if s.lex!=nil&&!whitespace(b)&&!s.lex.textNonspace{s.lex.textStart=s.offset-1;s.lex.textNonspace=true
 		}
 	case "open":
 		switch b {
@@ -235,16 +248,20 @@ func (s *scanner) consume(b byte) error {
 		}
 	case "name":
 		if whitespace(b) {
+			s.beginLexicalTag()
 			s.mode = "attrs"
 		} else if b == '>' {
+			s.beginLexicalTag()
 			return s.finishTag()
 		} else if b == '/' {
+			s.beginLexicalTag()
 			s.last = b
 			s.mode = "attrs"
 		} else {
 			s.addName(b)
 		}
 	case "attrs":
+		if s.lex != nil { return s.consumeLexicalAttribute(b) }
 		if s.quote != 0 {
 			if b == s.quote {
 				s.quote = 0
@@ -256,6 +273,8 @@ func (s *scanner) consume(b byte) error {
 		} else if !whitespace(b) {
 			s.last = b
 		}
+	case "lex_attr_name", "lex_attr_equals", "lex_attr_quote", "lex_attr_value", "lex_after_value":
+		return s.consumeLexicalAttribute(b)
 	case "bang":
 		s.tail += string(b)
 		if s.tail == "--" {
@@ -275,6 +294,7 @@ func (s *scanner) consume(b byte) error {
 			s.tail = s.tail[len(s.tail)-3:]
 		}
 		if s.mode == "comment" && s.tail == "-->" || s.mode == "cdata" && s.tail == "]]>" || s.mode == "pi" && len(s.tail) >= 2 && s.tail[len(s.tail)-2:] == "?>" {
+			if s.mode=="cdata"{if err:=s.opaqueLexicalContent();err!=nil{return err}}
 			s.mode = "text"
 		}
 	case "decl":
