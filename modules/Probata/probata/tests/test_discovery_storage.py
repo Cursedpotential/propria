@@ -5,6 +5,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -130,3 +132,57 @@ def test_explicit_existing_root_is_required(monkeypatch):
     monkeypatch.delenv("ADAPTIVE_DISCOVERY_ROOT", raising=False)
     with pytest.raises(storage.DiscoveryInvalid, match="existing absolute"):
         storage.root()
+
+
+def test_shared_worker_limits_cpu_model_calls_to_one_at_a_time(params, tmp_path):
+    class TrackingEncoder(FixtureEncoder):
+        """Track concurrent synthetic CPU calls without using a real model.
+
+        Inputs: fixture text. Outputs: fixture vectors. Effects: bounded simulated
+        CPU delay and counters; choose to verify the shared worker resource gate.
+        """
+
+        def __init__(self):
+            super().__init__()
+            self.active = self.maximum = 0
+            self.lock = threading.Lock()
+
+        def encode(self, sentences, **kwargs):
+            """Observe concurrent entry during independently scheduled scoring calls.
+
+            Inputs: sentences/options. Outputs: vectors. Effects: counter update;
+            choose to verify the process semaphore rather than timing an inference.
+            """
+            with self.lock:
+                self.active += 1
+                self.maximum = max(self.maximum, self.active)
+            try:
+                time.sleep(0.01)
+                return super().encode(sentences, **kwargs)
+            finally:
+                with self.lock:
+                    self.active -= 1
+
+    requests = []
+    for index in range(3):
+        snapshot = batch()
+        snapshot["run_id"] = "concurrent-" + str(index)
+        requests.append(dict(params, run_id=snapshot["run_id"], batch_ref=retain_input(tmp_path, snapshot)))
+    encoder = TrackingEncoder()
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        receipts = list(pool.map(lambda request: score_retained_batch(request, encoder=encoder), requests))
+    assert len(receipts) == 3
+    assert encoder.maximum == 1
+
+
+def test_active_activity_heartbeats_safe_labels_and_stops_thread(monkeypatch):
+    from server.temporal import discovery_activities
+
+    heartbeats = []
+    monkeypatch.setattr(discovery_activities.activity, "in_activity", lambda: True)
+    monkeypatch.setattr(discovery_activities.activity, "is_cancelled", lambda: False)
+    monkeypatch.setattr(discovery_activities.activity, "heartbeat", lambda *details: heartbeats.append(details))
+    monkeypatch.setattr(discovery_activities, "score_retained_batch", lambda _: {"candidate_count": 0})
+    assert discovery_activities.score_discovery_batch_activity({}) == {"candidate_count": 0}
+    assert heartbeats == [("bounded discovery scoring",), ("bounded discovery scoring",)]
+    assert not any(thread.name == "discovery-heartbeat" for thread in threading.enumerate())

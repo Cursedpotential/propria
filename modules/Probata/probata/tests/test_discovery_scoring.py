@@ -227,3 +227,10 @@ def test_go_nullable_optional_arrays_and_initial_zero_feedback_revision():
     snapshot["records"][0]["attributed_actor_ids"] = None
     candidate = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
     assert candidate["speaker_ids"] == candidate["attributed_actor_ids"] == []
+
+
+def test_competing_negation_description_abstains_even_above_label_threshold():
+    snapshot = batch("near denial")
+    result = score_batch(snapshot, encoder=FixtureEncoder({"near denial": [0.7, 0, 0.75]}))
+    assert result["candidates"] == []
+    assert result["counts"]["abstained"] == 1
