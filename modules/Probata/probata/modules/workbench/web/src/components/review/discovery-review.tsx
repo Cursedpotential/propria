@@ -179,7 +179,7 @@ export function DiscoveryReview({ scope }: { scope: DiscoveryScope }) {
   const dataset = choices.find((item) => item.dataset_id === selected);
   const selectedGenerations = generations ?? dataset?.generation_ids ?? [];
   const run = useQuery({ queryKey: ["discovery-run", scopeKey, validRunId], queryFn: ({ signal }) => discoveryRun(validRunId!, scope, signal), enabled: Boolean(validRunId), retry: false,
-    refetchInterval: (query) => query.state.data?.dispatch_pending || query.state.data?.status === "running" ? 3000 : false });
+    refetchInterval: (query) => ["pending", "scoring", "rescore_pending", "running"].includes(query.state.data?.status ?? "") ? 3000 : false });
   const queue = useInfiniteQuery({ queryKey: ["discovery-candidates", scopeKey, validRunId, run.data?.revision], initialPageParam: "",
     queryFn: ({ pageParam, signal }) => discoveryCandidates(validRunId!, scope, pageParam, signal), enabled: Boolean(validRunId && run.data && run.data.score_revision > 0),
     getNextPageParam: (page) => page.next_cursor || undefined, retry: false });

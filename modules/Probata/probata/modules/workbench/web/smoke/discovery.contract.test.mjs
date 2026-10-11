@@ -16,13 +16,13 @@ class ApiError extends Error { get isConflict() { return true; } }
 
 function harness({ states = ["postgresql", "recorded", "described behavior"], start = async () => ({}), save = async () => ({}), run = undefined, items = [] } = {}) {
   if (run && !run.request) run = { ...run, request: { hypotheses: [] } };
-  const effects = [], updates = [], navigation = [], calls = [];
+  const effects = [], updates = [], navigation = [], calls = [], queries = [];
   let index = 0;
   const module = { exports: {} };
   runInNewContext(compiled, { module, exports: module.exports, URLSearchParams, AbortController, crypto: { randomUUID: () => "stable-uuid" }, console,
     require: (name) => {
       if (name === "react") return { ...React, useState: (initial) => { const slot = index++; return [slot < states.length ? states[slot] : initial, (value) => updates.push([slot, value])]; }, useRef: (current) => ({ current }), useEffect: (effect) => effects.push(effect()), useMemo: (effect) => effect() };
-      if (name === "@tanstack/react-query") return { useQuery: (options) => options.queryKey[0] === "discovery-datasets" ? { data: { items: [dataset] }, isSuccess: true } : { data: run, refetch: async () => ({}) }, useInfiniteQuery: () => ({ data: { pages: [{ items }] }, refetch: async () => ({}) }), useQueryClient: () => ({ setQueryData: (...args) => calls.push(["cache", ...args]) }) };
+      if (name === "@tanstack/react-query") return { useQuery: (options) => { queries.push(options); return options.queryKey[0] === "discovery-datasets" ? { data: { items: [dataset] }, isSuccess: true } : { data: run, refetch: async () => ({}) }; }, useInfiniteQuery: () => ({ data: { pages: [{ items }] }, refetch: async () => ({}) }), useQueryClient: () => ({ setQueryData: (...args) => calls.push(["cache", ...args]) }) };
       if (name === "@tanstack/react-router") return { useRouter: () => ({ navigate: async (value) => navigation.push(value) }) };
       if (name === "@/lib/router-compat") return { AppLink: "a", useBrowserSearchParams: () => new URLSearchParams(run ? "run=33333333-3333-4333-8333-333333333333" : "") };
       if (name === "@/lib/api-client") return { ApiError };
@@ -33,7 +33,7 @@ function harness({ states = ["postgresql", "recorded", "described behavior"], st
       return require(name);
     },
   });
-  return { component: module.exports, effects, updates, navigation, calls, resetStates: (next) => { index = 0; states = next; } };
+  return { component: module.exports, effects, updates, navigation, calls, queries, resetStates: (next) => { index = 0; states = next; } };
 }
 function elements(node) {
   if (!node || typeof node !== "object") return [];
@@ -136,4 +136,18 @@ test("bounded coverage and failure stages remain visible without error stack con
   assert.match(text(tree), /Record limit reached; later records were not searched/);
   assert.match(text(tree), /Discovery scoring failed\s+at scoring/);
   assert.doesNotMatch(text(tree), /private stack trace/);
+});
+
+
+test("polling follows actual engine states through scoring and rescore, then stops on terminal states", () => {
+  for (const status of ["pending", "scoring", "rescore_pending", "running", "ready", "ready_partial", "failed"]) {
+    const h = harness({ run: { status, revision: 1, score_revision: 0, dispatch_pending: false } });
+    h.component.DiscoveryReview({ scope });
+    const query = h.queries.find((options) => options.queryKey[0] === "discovery-run");
+    const interval = query.refetchInterval({ state: { data: { status, dispatch_pending: false } } });
+    assert.equal(interval, ["pending", "scoring", "rescore_pending", "running"].includes(status) ? 3000 : false, status);
+    if (["ready", "ready_partial", "failed"].includes(status)) {
+      assert.equal(query.refetchInterval({ state: { data: { status, dispatch_pending: true } } }), false);
+    }
+  }
 });
