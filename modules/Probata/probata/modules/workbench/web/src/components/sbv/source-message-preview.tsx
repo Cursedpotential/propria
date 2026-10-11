@@ -48,6 +48,7 @@ export function SourceMessagePreview({ selection }: { selection: PreviewSelectio
               <div className={`space-y-2 rounded-2xl px-3 py-2 text-sm ${outgoing ? "bg-primary text-primary-foreground" : "border bg-card"}`}>
                 <p className="whitespace-pre-wrap break-words">{message.body}</p>
                 {message.body_truncated && <p className="text-xs">Message shortened for this preview.</p>}
+                {message.metadata_truncated && <p className="text-xs">Some details shortened for this preview.</p>}
                 {message.attachments.map((attachment, index) => <p key={index} className="break-words text-xs">Attachment: {attachment.name || attachment.content_type || "unnamed"} · available after processing</p>)}
               </div>
               <p className="text-[10px] text-muted-foreground">{date && !Number.isNaN(date.getTime()) ? date.toLocaleString() : "Time unknown"}</p>

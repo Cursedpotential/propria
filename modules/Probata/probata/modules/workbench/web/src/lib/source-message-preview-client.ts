@@ -7,7 +7,7 @@ import type { ProfferSourcePreview } from "@/lib/shared/types";
 export type PreviewSelection = Pick<ProfferSourcePreview, "root_id" | "source_ref" | "key" | "byte_length" | "etag">;
 export interface RawPreviewMessage {
   id: string; kind: string; date_ms: number | null; direction: string;
-  participants: string[]; body: string; body_truncated: boolean;
+  participants: string[]; body: string; body_truncated: boolean; metadata_truncated?: boolean;
   attachments: { content_type: string; name: string; encoded_bytes: number }[];
 }
 export interface RawPreviewPage {
