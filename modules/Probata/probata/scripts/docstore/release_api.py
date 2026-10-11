@@ -66,6 +66,14 @@ def register(app,auth):
 
     @app.post('/sources/{action}')
     async def source_route(action:str,request:Request,authorization: str|None=Header(default=None)):
+        """Serve authenticated source operations with bounded bodies and lock conflicts.
+
+        Inputs: action, streamed JSON request and authorization header. Output:
+        operation receipt, or HTTP 409 with the existing safe validation/lock
+        reason. Effects: authenticates before reading the body, then dispatches
+        the operation in a thread; source_sync retains its own OS lock and write
+        guards. Pick read/plan for inspection and apply for an exact approved plan.
+        """
         auth(authorization)
         # Bound streaming request before JSON parsing, including chunked uploads.
         data=bytearray()
@@ -76,6 +84,8 @@ def register(app,auth):
         import json
         try:
             return await asyncio.to_thread(source_sync.operation,action,json.loads(data))
+        except WorkerBusy as exc:
+            raise HTTPException(409,str(exc)) from None
         except ValueError as exc:
             raise HTTPException(409,str(exc)) from None
 
