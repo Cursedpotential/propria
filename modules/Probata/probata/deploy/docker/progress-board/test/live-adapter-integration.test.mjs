@@ -96,3 +96,23 @@ test('live widget renders independently when no manual board snapshot is availab
  assert.equal(node.id,'live-work-summary');assert.match(node.innerHTML,/Live execution status unavailable/);
  assert.match(app,/renderLiveWork\(\);\s+if\(current\)renderKpis/);
 });
+
+test('ToDo projection puts active work above newer history and sorts real clocks with stable ties',()=>{
+ const item=(id,state,clocks={})=>({id,provider:'proffer',title:'Proffer operation',state,lifecycle:state,stage:null,wait:null,...clocks});
+ const snapshot={observed_at:'2026-10-11T21:00:00.000Z',state:'ready',scope:'bounded provider pages',counts:{running:4,queued:1,waiting:1,rerun_required:1,failed:1,unknown:1,completed:1,cancelled:1,total:11},providers:[{provider:'proffer',state:'ready',count:11}],items:[
+  item('completed','completed',{updated_at:'2026-10-11T20:00:00Z'}),
+  item('cancelled','cancelled',{updated_at:'2026-10-11T20:00:00Z'}),
+  item('failed','failed',{updated_at:'2026-10-11T20:00:00Z'}),
+  item('waiting','waiting',{created_at:'2026-01-01T00:00:00Z'}),
+  item('running-old','running',{updated_at:'2026-01-01T00:00:00Z'}),
+  item('running-new-a','running',{started_at:'2026-01-03T00:00:00Z'}),
+  item('running-new-b','running',{updated_at:'2026-01-02T00:00:00Z',started_at:'2026-01-03T00:00:00Z'}),
+  item('running-unknown-clock','running',{updated_at:'invalid'}),
+  item('unknown','unknown'),item('rerun','rerun_required'),item('queued','queued'),
+ ]};
+ const original=structuredClone(snapshot),projected=liveTodoFeed(snapshot);
+ assert.deepEqual(projected.items.map(row=>row.id),['running-new-a','running-new-b','running-old','running-unknown-clock','queued','waiting','rerun','failed','unknown','completed','cancelled']);
+ assert.deepEqual(projected.items.slice(0,8).map(row=>row.state),['running','running','running','running','queued','waiting','rerun_required','failed']);
+ assert.deepEqual(snapshot,original);assert.deepEqual(projected.counts,original.counts);assert.deepEqual(projected.providers,original.providers);assert.equal(projected.observed_at,original.observed_at);assert.equal(projected.generated_at,original.observed_at);
+ for(const row of projected.items){const native=original.items.find(item=>item.id===row.id);assert.equal(row.updated_at,native.updated_at);assert.equal(row.started_at,native.started_at);assert.equal(row.created_at,native.created_at);}
+});
