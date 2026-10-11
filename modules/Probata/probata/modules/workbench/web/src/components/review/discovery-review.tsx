@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api-client";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 import { discoveryCandidates, discoveryContext, discoveryDatasets, discoveryRun, discoveryScopeKey, saveDiscoveryFeedback, startDiscovery,
-  type DiscoveryBackend, type DiscoveryCandidate, type DiscoveryFeedback, type DiscoveryFeedbackKind, type DiscoveryReceipt, type DiscoveryRecord, type DiscoveryScope } from "@/lib/discovery-client";
+  type DiscoveryBackend, type DiscoveryCandidate, type DiscoveryFeedback, type DiscoveryFeedbackKind, type DiscoveryReceipt, type DiscoveryRecord, type DiscoveryRequest, type DiscoveryScope } from "@/lib/discovery-client";
 
 const choices: { value: DiscoveryFeedbackKind; label: string }[] = [
   { value: "relevant", label: "Relevant" }, { value: "irrelevant", label: "Irrelevant" },
@@ -25,8 +25,8 @@ const field = "mt-1 block w-full rounded border bg-background p-2 text-sm";
  * Effects: none; preserve B2/file locators as displayed citations instead of browser URLs.
  */
 export function discoveryRecordHref(record: DiscoveryRecord, scope: DiscoveryScope): string | null {
-  if (!record.imported_thread_id || !/^[A-Za-z0-9_-]+$/.test(record.imported_thread_id) || !uuid.test(record.record_id)) return null;
-  return readHref(new URLSearchParams({ mode: scope.mode }), { source: record.imported_source_id ?? null, thread: record.imported_thread_id, around: record.record_id });
+  if (!record.imported_thread_id || !/^[A-Za-z0-9_-]+$/.test(record.imported_thread_id) || !record.imported_message_id || !uuid.test(record.imported_message_id)) return null;
+  return readHref(new URLSearchParams({ mode: scope.mode }), { source: record.imported_source_id ?? null, thread: record.imported_thread_id, around: record.imported_message_id });
 }
 
 /** Display chronologically ordered source records and their recorded locator proof.
@@ -49,7 +49,10 @@ function SourceContext({ records, scope }: { records: DiscoveryRecord[]; scope: 
         <dt>Record / generation</dt><dd>{record.record_id} / {record.generation_id}</dd>
         {record.record_revision ? <><dt>Record revision</dt><dd>{record.record_revision}</dd></> : null}
         {record.input_revision ? <><dt>Input revision</dt><dd>{record.input_revision}</dd></> : null}
-        <dt>Source available</dt><dd>{record.source_available_from ?? "Not recorded"}</dd></dl>
+        <dt>Source available</dt><dd>{record.source_available_from ?? "Not recorded"}</dd>
+        {record.native_source_available_from ? <><dt>Native source available</dt><dd>{record.native_source_available_from}</dd></> : null}
+        {record.group_knowledge_available_from ? <><dt>Group context available</dt><dd>{record.group_knowledge_available_from}</dd></> : null}
+        {record.group_revision ? <><dt>Group revision</dt><dd>{record.group_revision}</dd></> : null}</dl>
       {record.locators?.map((locator) => <div key={locator.locator_id} className="mt-2 rounded border p-2">
         <p>Locator {locator.locator_id} · [{locator.range_start}, {locator.range_end}) {locator.coordinate_system}</p>
         {locator.exact_slice_sha256 ? <p>Exact slice SHA-256: {locator.exact_slice_sha256}</p> : null}
@@ -63,14 +66,15 @@ function SourceContext({ records, scope }: { records: DiscoveryRecord[]; scope: 
  * Inputs: candidate/current run revision and admitted scope. Output: citations and saved receipt.
  * Effects: abortable context GET and explicit revision-checked feedback POST; no publication.
  */
-function CandidateReview({ row, runId, revision, scope, scopeKey, refresh }: {
+function CandidateReview({ row, runId, revision, scope, scopeKey, refresh, definitions }: {
   row: DiscoveryCandidate; runId: string; revision: number; scope: DiscoveryScope; scopeKey: string; refresh: () => Promise<unknown>;
+  definitions: DiscoveryRequest["hypotheses"];
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<DiscoveryFeedbackKind>("relevant");
   const [note, setNote] = useState("");
-  const [labels, setLabels] = useState("");
+  const [labels, setLabels] = useState<string[]>(row.labels ?? []);
   const [people, setPeople] = useState("");
   const [saved, setSaved] = useState<DiscoveryReceipt["feedback"] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,8 +94,8 @@ function CandidateReview({ row, runId, revision, scope, scopeKey, refresh }: {
   async function submit() {
     if (pending.current || scope.mode !== "LIVE" || (kind === "free_text" && !note.trim())) return;
     const correction = { candidate_id: row.candidate_id, expected_revision: revision, kind,
-      labels: labels.split(",").map((value) => value.trim()).filter(Boolean),
-      attributed_actor_ids: people.split(",").map((value) => value.trim()).filter(Boolean), note: note.trim() };
+      labels: kind === "wrong_behavior" || kind === "partial_match" ? definitions.filter((definition) => labels.includes(definition.hypothesis_id)).map((definition) => definition.hypothesis_id) : [],
+      attributed_actor_ids: kind === "wrong_person" ? people.split(",").map((value) => value.trim()).filter(Boolean) : [], note: note.trim() };
     const identity = JSON.stringify({ ...correction, expected_revision: undefined });
     if (retry.current?.identity !== identity) {
       const id = crypto.randomUUID();
@@ -116,10 +120,14 @@ function CandidateReview({ row, runId, revision, scope, scopeKey, refresh }: {
       if (active.current) setBusy(false);
     }
   }
+  const definitionText = (id: string) => definitions.find((definition) => definition.hypothesis_id === id)?.text ?? "Behavior definition unavailable";
+  const ids = definitions.map((definition) => definition.hypothesis_id)
+    .sort((left, right) => right.length - left.length).map((id) => id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const rationale = ids.length ? (row.rationale ?? "").replace(new RegExp(`\\b(${ids.join("|")})\\b`, "g"), (id) => definitionText(id)) : row.rationale;
   return <article className="space-y-3 rounded-lg border bg-card p-4">
     <header><h3 className="font-semibold">{row.title}</h3><p className="mt-1 text-sm">{row.summary}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{row.labels?.join(", ")} · Rank score {row.score.toFixed(2)}{row.review_state ? ` · ${row.review_state}` : ""}</p></header>
-    <p className="text-sm">{row.rationale}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{row.labels?.map(definitionText).join(", ")} · Rank score {row.score.toFixed(2)}{row.review_state ? ` · ${row.review_state}` : ""}</p></header>
+    <p className="text-sm">{rationale}</p>
     <p className="text-xs">Speakers: {row.speaker_ids?.join(", ") || "Not recorded"}. Attributed conduct: {row.attributed_actor_ids?.join(", ") || "Not established"}. {row.attribution_basis}</p>
     {row.uncertainty?.length ? <ul className="list-disc pl-5 text-xs text-muted-foreground">{row.uncertainty.map((text, index) => <li key={index}>{text}</li>)}</ul> : null}
     {row.citations?.map((cite, index) => <blockquote key={index} className="border-l-2 pl-3 text-sm"><p>{cite.quote}</p><p className="break-all text-xs text-muted-foreground">Record {cite.record_id} · locator {cite.locator_id}</p></blockquote>)}
@@ -129,7 +137,11 @@ function CandidateReview({ row, runId, revision, scope, scopeKey, refresh }: {
     {open && context.data ? <SourceContext records={context.data.records ?? []} scope={scope} /> : null}
     <form className="space-y-2 border-t pt-3" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <label className="block text-xs">Feedback<select className={field} disabled={busy || scope.mode !== "LIVE"} value={kind} onChange={(event) => setKind(event.target.value as DiscoveryFeedbackKind)}>{choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label>
-      {kind === "wrong_behavior" ? <label className="block text-xs">Correct behavior labels (comma separated)<input className={field} value={labels} onChange={(event) => setLabels(event.target.value)} disabled={busy} maxLength={1000} /></label> : null}
+      {kind === "wrong_behavior" || kind === "partial_match" ? <fieldset className="space-y-2 text-xs" disabled={busy || scope.mode !== "LIVE"}>
+        <legend className="mb-1">Which behaviors apply?</legend>
+        {definitions.map((definition) => <label key={definition.hypothesis_id} className="flex items-start gap-2"><input type="checkbox" checked={labels.includes(definition.hypothesis_id)} onChange={(event) => setLabels(event.target.checked ? [...labels, definition.hypothesis_id] : labels.filter((id) => id !== definition.hypothesis_id))} />{definition.text}</label>)}
+        <p className="text-muted-foreground">Clear all behaviors if none apply.</p>
+      </fieldset> : null}
       {kind === "wrong_person" ? <label className="block text-xs">Attributed person identifiers (comma separated)<input className={field} value={people} onChange={(event) => setPeople(event.target.value)} disabled={busy} maxLength={1000} /></label> : null}
       <label className="block text-xs">Correction or missing context<textarea className={field} value={note} onChange={(event) => setNote(event.target.value)} disabled={busy || scope.mode !== "LIVE"} maxLength={4000} rows={2} /></label>
       <Button type="submit" size="sm" disabled={busy || scope.mode !== "LIVE" || (kind === "free_text" && !note.trim())}>{busy ? "Saving…" : "Save feedback"}</Button>
@@ -219,10 +231,13 @@ export function DiscoveryReview({ scope }: { scope: DiscoveryScope }) {
     {validRunId && run.isPending ? <Loading label="Loading discovery run" /> : null}
     {run.isError ? <ErrorBox error={run.error} onRetry={() => void run.refetch()} /> : null}
     {run.data ? <section className="space-y-3"><header className="flex flex-wrap justify-between gap-2"><div><h2 className="font-semibold">Review episodes</h2><p role="status" className="text-xs">{run.data.status} · revision {run.data.revision}{run.data.dispatch_pending ? " · Saved; discovery scoring is pending" : ""}</p></div><Button variant="outline" size="sm" onClick={() => void refresh()}>Refresh</Button></header>
+      {run.data.input_record_count !== undefined ? <p className="text-xs">Searched {run.data.input_record_count} source records.</p> : null}
+      {run.data.input_truncated ? <p role="status" className="text-sm">Record limit reached; later records were not searched.</p> : null}
+      {run.data.status === "failed" ? <p role="status" className="text-sm">Discovery scoring failed{run.data.failure_stage ? ` at ${run.data.failure_stage}` : ""}. Saved feedback remains recorded.</p> : null}
       {queue.isPending && run.data.score_revision > 0 ? <Loading /> : null}
       {queue.isError ? <ErrorBox error={queue.error} onRetry={() => void queue.refetch()} /> : null}
       {queue.isSuccess && !groups.length ? <p className="text-sm">No candidate episodes in this bounded run.</p> : null}
-      {groups.map(([episode, rows]) => <section key={episode} className="space-y-3" aria-label="Candidate episode"><h3 className="text-xs text-muted-foreground">Episode · {rows.length} proposals</h3>{rows.map((row) => <CandidateReview key={`${validRunId}:${row.candidate_id}`} row={row} runId={validRunId!} revision={run.data!.revision} scope={scope} scopeKey={scopeKey} refresh={refresh} />)}</section>)}
+      {groups.map(([episode, rows]) => <section key={episode} className="space-y-3" aria-label="Candidate episode"><h3 className="text-xs text-muted-foreground">Episode · {rows.length} proposals</h3>{rows.map((row) => <CandidateReview key={`${validRunId}:${row.candidate_id}`} row={row} runId={validRunId!} revision={run.data!.revision} scope={scope} scopeKey={scopeKey} refresh={refresh} definitions={run.data!.request.hypotheses} />)}</section>)}
       {queue.hasNextPage ? <LoadMore onClick={() => void queue.fetchNextPage()} loading={queue.isFetchingNextPage} label="More episode proposals" /> : null}
     </section> : null}
   </main>;

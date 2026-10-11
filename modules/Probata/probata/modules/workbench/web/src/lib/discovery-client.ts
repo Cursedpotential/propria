@@ -19,7 +19,7 @@ export interface DiscoveryRequest {
 }
 export interface DiscoveryRun {
   request: DiscoveryRequest; revision: number; status: string; score_revision: number; feedback_revision: number;
-  dispatch_pending: boolean; workflow_id?: string; created_at: string; updated_at: string;
+  dispatch_pending: boolean; input_record_count?: number; input_truncated?: boolean; failure_stage?: string; workflow_id?: string; created_at: string; updated_at: string;
 }
 export interface DiscoveryCandidate {
   candidate_id: string; episode_id: string; title: string; summary: string; labels: string[]; score: number;
@@ -33,7 +33,8 @@ export interface DiscoveryRecord {
   occurred_at?: string; source_available_from?: string; text: string;
   participants: { role: string; identifier: string; display_name: string }[];
   source_ref?: string; source_sha256?: string; source_object_id?: string; source_provider_version?: string; record_revision?: string; input_revision?: string;
-  imported_thread_id?: string; imported_source_id?: string;
+  imported_thread_id?: string; imported_source_id?: string; imported_message_id?: string; working_message_id?: string;
+  group_revision?: string; native_source_available_from?: string; group_knowledge_available_from?: string;
   locators: { locator_id: string; source_version_id: string; coordinate_system: string; range_start: number; range_end: number;
     projection: Record<string, unknown>; exact_slice_sha256?: string; verification_activity_receipt_id?: string }[];
 }
