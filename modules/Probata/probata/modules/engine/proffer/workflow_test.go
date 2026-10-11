@@ -1048,29 +1048,41 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 	// numeric field on any wire type and any struct-element slice; restored
 	// 2026-09-21 · Claude Code · Opus 5).
 	//
-	// 1. countBearing: ONLY a derivation summary may hold a number or a
-	//    boolean — record counts, byte counts, a chunk index, a reuse flag. A
-	//    count cannot hold a file, a record or a metadata payload, and no
-	//    other wire type in this package is allowed one at all, so a numeric
-	//    field appearing on StageRequest or WorkflowInput still fails here.
+	// 1. countBearing: ONLY named derivation/context summaries and the explicit
+	//    context resource budget may hold counts or flags. A numeric field added
+	//    directly to StageRequest or WorkflowInput remains disallowed.
 	// 2. nestable: the ONLY struct types a wire type may embed, point at, or
 	//    hold a slice of. Anything else — including a new local struct — is a
 	//    failure until it is added here deliberately.
 	countBearing := map[reflect.Type]bool{
+		// These context types contain resource ceilings, counts and status flags only.
+		reflect.TypeOf(ContextResourceBounds{}): true,
+		reflect.TypeOf(ContextSummary{}):        true,
+		reflect.TypeOf(ContextCandidateStage{}): true,
+		reflect.TypeOf(ContextReviewResult{}):   true,
+		reflect.TypeOf(ContextPackageResult{}):  true,
 		// AI summary holds bounded counts and retained references; no conversation/candidate payloads.
 		reflect.TypeOf(AIContentSummary{}): true,
-		reflect.TypeOf(DeriveResult{}):    true,
-		reflect.TypeOf(DerivedChunkRef{}): true,
+		reflect.TypeOf(DeriveResult{}):     true,
+		reflect.TypeOf(DerivedChunkRef{}):  true,
 	}
 	compactKind := map[reflect.Kind]bool{
 		reflect.Bool: true, reflect.Int: true, reflect.Int64: true, reflect.Uint64: true,
 	}
 	nestable := map[reflect.Type]bool{
-		reflect.TypeOf(AIContentSummary{}): true,
-		reflect.TypeOf(AutoApprovalCheck{}): true,
-		reflect.TypeOf(StageResult{}):       true,
-		reflect.TypeOf(DeriveResult{}):      true,
-		reflect.TypeOf(DerivedChunkRef{}):   true,
+		// Recurse through the exact native-context reference/status contracts.
+		reflect.TypeOf(ContextResourceBounds{}):       true,
+		reflect.TypeOf(ContextSummary{}):              true,
+		reflect.TypeOf(ContextCandidateStage{}):       true,
+		reflect.TypeOf(ContextReviewResult{}):         true,
+		reflect.TypeOf(ContextPackageResult{}):        true,
+		reflect.TypeOf(ContextVerifiedReviewSource{}): true,
+		reflect.TypeOf(ContextReviewSource{}):         true,
+		reflect.TypeOf(AIContentSummary{}):            true,
+		reflect.TypeOf(AutoApprovalCheck{}):           true,
+		reflect.TypeOf(StageResult{}):                 true,
+		reflect.TypeOf(DeriveResult{}):                true,
+		reflect.TypeOf(DerivedChunkRef{}):             true,
 	}
 
 	var checkStruct func(t *testing.T, rt reflect.Type)
@@ -1078,6 +1090,17 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 		// This single flag is verified control metadata from a receipt-bearing Activity, never source text or identities.
 		// Retain the general compact-reference contract; unrelated bools and other payload fields remain disallowed.
 		if owner == reflect.TypeOf(StageResult{}) && name == "AIChatSource" && ft.Kind() == reflect.Bool {
+			return
+		}
+		// Optional provider versions preserve unknown versus empty; only these
+		// exact VersionID fields may point to a scalar, never arbitrary pointers.
+		if name == "VersionID" && ft == reflect.TypeOf((*string)(nil)) &&
+			(owner == reflect.TypeOf(AIContentSummary{}) || owner == reflect.TypeOf(ContextReviewSource{})) {
+			return
+		}
+		// These are staged identity references, not candidate bodies. Other
+		// string slices still fail the general collection rule below.
+		if owner == reflect.TypeOf(ContextReviewResult{}) && name == "CandidateIDs" && ft == reflect.TypeOf([]string{}) {
 			return
 		}
 		switch ft.Kind() {
@@ -1110,7 +1133,7 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 			if countBearing[owner] && compactKind[ft.Kind()] {
 				return
 			}
-			t.Errorf("%s.%s has disallowed type %s; wire types may only carry Ref/Status/ActivityName/string fields, and only a derivation summary may carry counts", owner.Name(), name, ft)
+			t.Errorf("%s.%s has disallowed type %s; wire types may only carry Ref/Status/ActivityName/string fields, and only named derivation/context metadata may carry counts", owner.Name(), name, ft)
 		}
 	}
 	checkStruct = func(t *testing.T, rt reflect.Type) {

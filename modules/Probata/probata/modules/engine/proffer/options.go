@@ -35,6 +35,13 @@ func retryPolicy(initialInterval time.Duration, maxAttempts int32) *temporal.Ret
 // exactly one entry per registered stage — no stage silently falls back to
 // a shared default.
 var stageOptions = map[stagegraph.StageID]workflow.ActivityOptions{
+	// Native candidate staging runs on the inherited Go queue, with the same
+	// finite budget as the existing context-v1 staging call; it does no model work.
+	stagegraph.StageAICandidateBundle: {
+		StartToCloseTimeout:    2 * time.Minute,
+		ScheduleToCloseTimeout: 10 * time.Minute,
+		RetryPolicy:            &temporal.RetryPolicy{MaximumAttempts: 3},
+	},
 	// Independent explicit check: heartbeat liveness, one attempt, no automatic source reread.
 	// Byline: Codex, 2026-10-06.
 	stagegraph.AssessSourceIntegrity: {
