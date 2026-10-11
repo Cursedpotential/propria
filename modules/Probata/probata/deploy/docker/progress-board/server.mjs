@@ -168,11 +168,17 @@ export function liveWorkProvidersFromEnv(env = process.env) {
 }
 
 /** Project sanitized live provider items into the existing ToDo widget shape.
- * Inputs: a createLiveWork snapshot. Outputs: items/area/summary plus native counts and provider health.
+ * Inputs: a createLiveWork snapshot. Outputs: active-first items/area/summary plus unchanged native counts and provider health.
+ * Ordering uses lifecycle priority, newest real update/start/create clock, then original order for ties; no clocks are invented.
  * Effects: none. Choose for /api/todo-feed; documented tasks remain at /api/manual-backlog.
  */
 export function liveTodoFeed(value) {
-  const items = value.items.map(item => ({ ...item, area: item.provider === 'proffer' ? 'Proffer' : 'Coolify', age_days: null,
+  const priority = new Map(['running', 'queued', 'waiting', 'rerun_required', 'failed', 'unknown', 'completed', 'cancelled'].map((state, index) => [state, index]));
+  const ordered = value.items.map((item, index) => {
+    const clocks = [item.updated_at, item.started_at, item.created_at].map(clock => Date.parse(clock)).filter(Number.isFinite);
+    return {item, index, priority: priority.get(item.state) ?? priority.get('unknown'), time: clocks.length ? Math.max(...clocks) : -Infinity};
+  }).sort((a, b) => a.priority - b.priority || (a.time === b.time ? a.index - b.index : a.time > b.time ? -1 : 1));
+  const items = ordered.map(({item}) => ({ ...item, area: item.provider === 'proffer' ? 'Proffer' : 'Coolify', age_days: null,
     summary: [item.title, item.state.replaceAll('_', ' '), item.wait?.replaceAll('_', ' '), item.stage?.replaceAll('_', ' ')].filter(Boolean).join(' · ') }));
   return { ...value, generated_at: value.observed_at, status: value.state === 'ready' ? 'ok' : value.state,
     message: value.state === 'ready' ? null : 'Some live providers are unavailable or unconfigured; see provider health.',
