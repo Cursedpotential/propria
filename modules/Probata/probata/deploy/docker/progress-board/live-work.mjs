@@ -11,6 +11,10 @@ const MAX_OPERATIONS = 100;
 const MAX_APPS = 8;
 const MAX_DEPLOYMENTS_PER_APP = 10;
 const MAX_CONCURRENT = 4;
+const MAX_TEMPORAL_CLUSTERS = 2;
+const TEMPORAL_NAMES = new Set(['original', 'trial']);
+const WORKFLOW_LABELS = new Map([['ResumeHashLedgerCopy','Storage preservation copy'],['ZeroCandidateExhaustive20261007','Storage recovery scan'],['AprilGooglePayloads','Google export processing'],['PDFTakeoutBackups','Google export processing'],['ProfferWorkflow','Proffer workflow']]);
+const WORKFLOW_STATES = new Map([['RUNNING','running'],['COMPLETED','completed'],['FAILED','failed'],['CANCELED','cancelled'],['TERMINATED','cancelled'],['TIMED_OUT','failed']]);
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const OPERATION_ID_PATTERN = /^[A-Za-z0-9_-]{32,128}$/;
 const OPERATION_STATES = new Set(['running', 'awaiting_repair_decision', 'awaiting_preview_decision', 'rerun_required', 'completed', 'failed', 'cancelled', 'unavailable']);
@@ -95,14 +99,14 @@ async function credential(path, minimum) {
 }
 
 /** Fetch at most one MiB of JSON with a ten-second deadline and no redirect credential forwarding.
- * Inputs: configured URL, Bearer token and fetch implementation. Outputs: parsed bounded JSON.
- * Effects: authenticated GET only, cancels response streams; no logs or writes.
+ * Inputs: configured URL, optional Bearer token and fetch implementation. Outputs: parsed bounded JSON.
+ * Effects: GET only, optional provider authentication, cancels response streams; no logs or writes.
  * Choose for metadata endpoints, never source content or deployment logs.
  */
 async function boundedJson(url, token, fetcher) {
  let response;
  try {
-  response = await fetcher(url, {method:'GET', redirect:'manual', signal:AbortSignal.timeout(REQUEST_TIMEOUT_MS), headers:{Accept:'application/json', Authorization:'Bearer ' + token}});
+  response = await fetcher(url, {method:'GET', redirect:'manual', signal:AbortSignal.timeout(REQUEST_TIMEOUT_MS), headers:{Accept:'application/json', ...(token ? {Authorization:'Bearer ' + token} : {})}});
   if (response.status === 401 || response.status === 403) throw new ProviderFailure('auth_required', response.status === 403 ? 'access_denied' : 'authentication_required');
   if (!response.ok) throw new ProviderFailure('unavailable', 'http_error');
   const length = Number(response.headers.get('content-length') || 0);
@@ -178,17 +182,17 @@ function deploymentItem(row, app, base, observedAt) {
 }
 
 /** Read one bounded operations page from the existing starter API.
- * Inputs: server-side provider configuration, fetch implementation and observation time.
+ * Inputs: server-side provider configuration, shared bounded requester and observation time.
  * Outputs: safe provider status/items. Effects: credential-file read and authenticated GET only.
  * Choose for durable Proffer state; never starts, approves or cancels operations.
  */
-async function readProffer(config, fetcher, observedAt) {
+async function readProffer(config, request, observedAt) {
  const base = configuredUrl(config?.baseUrl);
  if (!base || !config?.tokenFile) return {provider:'proffer', state:'unconfigured', code:'not_configured', observed_at:observedAt, truncated:false, items:[]};
  try {
   const token = await credential(config.tokenFile, 32);
   const url = new URL(base); url.pathname = url.pathname.replace(/\/$/,'') + '/reference-import/operations'; url.search = '?limit=' + MAX_OPERATIONS;
-  const body = await boundedJson(url, token, fetcher);
+  const body = await request(url, token);
   if (!body || !Array.isArray(body.items)) throw new ProviderFailure('unavailable', 'invalid_response');
   const items = body.items.slice(0, MAX_OPERATIONS).map(row => operationItem(row, activityLink(config.activityUrl), observedAt));
   return {provider:'proffer', state:'ready', code:null, observed_at:observedAt, truncated:body.items.length > MAX_OPERATIONS || Boolean(body.next_cursor), items};
@@ -196,11 +200,11 @@ async function readProffer(config, fetcher, observedAt) {
 }
 
 /** Read bounded deployment pages only for explicitly allowlisted applications.
- * Inputs: server-side provider configuration, fetch implementation and observation time.
+ * Inputs: server-side provider configuration, shared bounded requester and observation time.
  * Outputs: safe items with per-app hashed availability checks. Effects: credential read and GETs.
  * Choose instead of walking the team-wide app or deployment inventory.
  */
-async function readCoolify(config, fetcher, observedAt) {
+async function readCoolify(config, request, observedAt) {
  const base = configuredUrl(config?.baseUrl);
  const apps = Array.isArray(config?.apps) ? config.apps : [];
  const pageSize = config?.pageSize ?? 1;
@@ -214,7 +218,7 @@ async function readCoolify(config, fetcher, observedAt) {
    const i = index++; const app = apps[i];
    try {
     const url = new URL(base); url.pathname = url.pathname.replace(/\/$/,'') + '/deployments/applications/' + app.uuid; url.search = '?skip=0&take=' + pageSize;
-    const body = await boundedJson(url, token, fetcher);
+    const body = await request(url, token);
     const rows = Array.isArray(body) ? body : body?.deployments;
     if (!Array.isArray(rows)) throw new ProviderFailure('unavailable', 'invalid_response');
     results[i] = {id:opaqueId('coolify-app',app.uuid), state:'ready', code:null, truncated:rows.length > pageSize || (Number.isInteger(body?.count) ? body.count > rows.length : rows.length >= pageSize), items:rows.slice(0,pageSize).map(row=>deploymentItem(row,app,base,observedAt))};
@@ -226,18 +230,81 @@ async function readCoolify(config, fetcher, observedAt) {
  return {provider:'coolify', state, code:state==='ready'?null:'provider_checks_incomplete', observed_at:observedAt, truncated:results.some(result=>result.truncated), items:results.flatMap(result=>result.items), checks:results.map(({items,...result})=>({...result,count:items.length}))};
 }
 
+/** Share four request slots across all providers for the entire bounded response read.
+ * Inputs: fetch implementation. Outputs: queued bounded JSON request function.
+ * Effects: RAM queue only; choose instead of independent per-provider concurrency limits.
+ */
+function boundedRequests(fetcher) {
+ let active = 0; const queue = [];
+ /** Run one GET after a global slot is available and release it after stream cancellation.
+  * Inputs: fixed provider URL and optional token. Outputs: bounded parsed JSON.
+  * Effects: read-only network request; choose for every live-work provider request.
+  */
+ return async function request(url, token) {
+  await new Promise(resolve => { queue.push(resolve); if (active < MAX_CONCURRENT) { active++; queue.shift()(); } });
+  try { return await boundedJson(url, token, fetcher); }
+  finally { if (queue.length) queue.shift()(); else active--; }
+ };
+}
+
+/** Project Temporal visibility metadata without exposing handles, memo, search attributes or raw types.
+ * Inputs: one execution row, validated static cluster configuration and observation time.
+ * Outputs: hashed identity, allowlisted label and native lifecycle clocks only. Effects: none.
+ * Choose for running-list observations, never workflow history, input or failure endpoints.
+ */
+function temporalItem(row, cluster, observedAt) {
+ const workflowId = row?.execution?.workflowId, runId = row?.execution?.runId;
+ if (typeof workflowId !== 'string' || !workflowId.length || workflowId.length > 2048 || typeof runId !== 'string' || !runId.length || runId.length > 128 || typeof row.status !== 'string') throw new ProviderFailure('unavailable','invalid_response');
+ const native = row.status.startsWith('WORKFLOW_EXECUTION_STATUS_') ? row.status.slice(26) : '';
+ const state = WORKFLOW_STATES.get(native) || 'unknown';
+ return {id:opaqueId('temporal:' + cluster.name,workflowId + '\0' + runId),provider:'temporal:' + cluster.name,
+  title:WORKFLOW_LABELS.get(row.type?.name) || 'Background workflow', lifecycle:state,state,stage:null,wait:null,
+  terminal:state === 'unknown' ? null : state !== 'running',observed_at:observedAt,created_at:null,
+  started_at:timestamp(row.startTime),updated_at:null,finished_at:timestamp(row.closeTime),url:configuredUrl(cluster.uiUrl).href};
+}
+
+/** Read one bounded default-namespace running page on an explicitly named Temporal cluster.
+ * Inputs: validated static configuration, shared requester and observation clock. Outputs: safe provider status/items.
+ * Effects: one unauthenticated tailnet GET, no token forwarding or follow-up pagination.
+ * Choose for live active-work visibility; page cursors indicate truncation rather than triggering more requests.
+ */
+async function readTemporal(cluster, request, observedAt) {
+ const provider = 'temporal:' + cluster.name;
+ try {
+  const url = new URL('/api/v1/namespaces/default/workflows',cluster.baseUrl);
+  url.searchParams.set('query','ExecutionStatus="Running"'); url.searchParams.set('pageSize',String(MAX_OPERATIONS));
+  const body = await request(url);
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['executions','nextPageToken'].includes(key)) || (body.executions !== undefined && !Array.isArray(body.executions)) || (body.nextPageToken !== undefined && (typeof body.nextPageToken !== 'string' || body.nextPageToken.length > 8192))) throw new ProviderFailure('unavailable','invalid_response');
+  const rows = body.executions || [];
+  return {provider,state:'ready',code:null,observed_at:observedAt,truncated:rows.length > MAX_OPERATIONS || Boolean(body.nextPageToken),items:rows.slice(0,MAX_OPERATIONS).map(row=>temporalItem(row,cluster,observedAt))};
+ } catch (error) { return {provider,state:error.state || 'unavailable',code:error.code || 'request_failed',observed_at:observedAt,truncated:false,items:[]}; }
+}
+
+/** Validate the optional two-cluster Temporal allowlist before making any visibility request.
+ * Inputs: administrator configuration, shared requester and observation clock. Outputs: provider read promises.
+ * Effects: configured read-only GETs only; invalid configuration remains explicitly unconfigured.
+ * Choose at refresh composition; absent Temporal configuration preserves the existing two-provider contract.
+ */
+function temporalProviders(config, request, observedAt) {
+ const clusters = config?.clusters;
+ if (!Array.isArray(clusters) || !clusters.length || clusters.length > MAX_TEMPORAL_CLUSTERS || new Set(clusters.map(c=>c?.name)).size !== clusters.length || clusters.some(c=>!TEMPORAL_NAMES.has(c?.name) || (c.namespace !== undefined && c.namespace !== 'default') || !configuredUrl(c.baseUrl) || configuredUrl(c.baseUrl).pathname !== '/' || !configuredUrl(c.uiUrl))) return [Promise.resolve({provider:'temporal',state:'unconfigured',code:'not_configured',observed_at:observedAt,truncated:false,items:[]})];
+ return clusters.map(cluster=>readTemporal(cluster,request,observedAt));
+}
+
 /** Create a cached, single-flight, read-only projection of bounded live work provider pages.
  * Inputs: providers {proffer:{baseUrl,tokenFile,activityUrl},coolify:{baseUrl,tokenFile,
- * apps:[{uuid,deploymentUrlPrefix?}],pageSize?:1..10}}, optional fetcher and millisecond clock.
+ * apps:[{uuid,deploymentUrlPrefix?}],pageSize?:1..10},temporal?:{clusters:[{name:'original'|'trial',
+ * baseUrl,namespace?:'default',uiUrl}]}}, optional fetcher and millisecond clock.
  * Starter base is its root URL; Coolify base includes /api/v1. Coolify defaults to one record
  * per app because its history endpoint includes logs even though this projection drops them.
  * Outputs: {read()} returning safe items, actual lifecycle counts, provider states and scope.
- * Effects: only configured credential-file reads and bounded authenticated GETs; 20-second RAM
- * cache, no overlapping refresh, persistence, timers, workflow starts or service mutations.
+ * Effects: configured credential-file reads and bounded GETs, authenticated for Proffer/Coolify; 20-second RAM
+ * cache, global four-request limit, no overlapping refresh, persistence, workflow starts or mutations.
  * Choose for live-work widgets instead of presenting a manually synced TODO document as live.
  */
 export function createLiveWork({providers={}, fetcher=fetch, now=Date.now}={}) {
  let cache = null, cachedAt = 0, pending = null;
+ const request = boundedRequests(fetcher);
  /** Read or refresh one sanitized live-work snapshot without overlapping provider collections.
   * Inputs: none. Outputs: cloned safe snapshot. Effects: bounded provider reads when stale.
   * Choose for portal routes; missing/error providers remain explicit rather than empty success.
@@ -247,13 +314,13 @@ export function createLiveWork({providers={}, fetcher=fetch, now=Date.now}={}) {
   if (cache && now() - cachedAt < CACHE_MS) return structuredClone(cache);
   pending = (async()=>{
    const observedAt = new Date(now()).toISOString();
-   const results = await Promise.all([readProffer(providers.proffer,fetcher,observedAt),readCoolify(providers.coolify,fetcher,observedAt)]);
+   const results = await Promise.all([readProffer(providers.proffer,request,observedAt),readCoolify(providers.coolify,request,observedAt),...(providers.temporal === undefined ? [] : temporalProviders(providers.temporal,request,observedAt))]);
    const items = results.flatMap(result=>result.items);
    const counts = {queued:0,running:0,waiting:0,rerun_required:0,completed:0,failed:0,cancelled:0,unknown:0,total:items.length};
    const lifecycle_counts = {};
    for (const item of items) { counts[item.state]++; const key=item.provider + ':' + item.lifecycle; lifecycle_counts[key]=(lifecycle_counts[key]||0)+1; }
    const states = results.map(result=>result.state);
-   const snapshot = {observed_at:observedAt, state:states.every(state=>state==='ready')?'ready':states.every(state=>state==='unconfigured')?'unconfigured':states.some(state=>state==='ready'||state==='partial')?'partial':'unavailable', scope:'Latest bounded provider pages only; counts describe returned items, not all historical or active work.', cache_seconds:20, items, counts, lifecycle_counts, providers:results.map(({items,...result})=>({...result,count:items.length}))};
+   const snapshot = {observed_at:observedAt, state:states.every(state=>state==='ready')?'ready':states.every(state=>state==='unconfigured')?'unconfigured':states.some(state=>state==='ready'||state==='partial')?'partial':'unavailable', scope:providers.temporal === undefined ? 'Latest bounded provider pages only; counts describe returned items, not all historical or active work.' : 'Latest bounded provider observations only; Temporal covers default namespaces only. A workflow may also appear as a Proffer operation; counts are returned observations, not unique jobs or all work.', cache_seconds:20, items, counts, lifecycle_counts, providers:results.map(({items,...result})=>({...result,count:items.length}))};
    cache = snapshot; cachedAt = now(); return snapshot;
   })().finally(()=>{pending=null;});
   return structuredClone(await pending);

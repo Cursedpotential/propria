@@ -152,7 +152,8 @@ export async function readTodoFeed(path) {
 }
 
 /** Read server-only provider configuration without exposing credential paths to clients.
- * Inputs: environment values. Outputs: bounded adapter configuration. Effects: none.
+ * Inputs: environment values, including optional LIVE_WORK_TEMPORAL_CLUSTERS_JSON original/trial allowlist.
+ * Outputs: bounded adapter configuration; invalid supplied Temporal JSON remains unconfigured. Effects: none.
  * Choose at composition; URLs, token files and app allowlists never come from HTTP requests.
  */
 export function liveWorkProvidersFromEnv(env = process.env) {
@@ -161,7 +162,16 @@ export function liveWorkProvidersFromEnv(env = process.env) {
   if (typeof configuredApps === 'string' && configuredApps.length <= 16384) {
     try { const value = JSON.parse(configuredApps); if (Array.isArray(value) && value.length <= 8) apps = value; } catch {}
   }
+  let temporal;
+  const configuredClusters = env.LIVE_WORK_TEMPORAL_CLUSTERS_JSON;
+  if (configuredClusters !== undefined) {
+    temporal = {clusters: []};
+    if (typeof configuredClusters === 'string' && configuredClusters.length <= 16384) {
+      try { const value = JSON.parse(configuredClusters); if (Array.isArray(value) && value.length <= 2) temporal = {clusters: value}; } catch {}
+    }
+  }
   return {
+    ...(temporal === undefined ? {} : {temporal}),
     proffer: { baseUrl: env.LIVE_WORK_PROFFER_URL || 'http://100.91.190.107:8091', tokenFile: env.LIVE_WORK_PROFFER_TOKEN_FILE || env.PROFFER_SERVICE_TOKEN_FILE, activityUrl: env.LIVE_WORK_ACTIVITY_URL || 'https://workbench.tilapia-skilift.ts.net/activity' },
     coolify: { baseUrl: env.LIVE_WORK_COOLIFY_API_URL, tokenFile: env.LIVE_WORK_COOLIFY_TOKEN_FILE, apps, pageSize: 1 },
   };
@@ -178,7 +188,7 @@ export function liveTodoFeed(value) {
     const clocks = [item.updated_at, item.started_at, item.created_at].map(clock => Date.parse(clock)).filter(Number.isFinite);
     return {item, index, priority: priority.get(item.state) ?? priority.get('unknown'), time: clocks.length ? Math.max(...clocks) : -Infinity};
   }).sort((a, b) => a.priority - b.priority || (a.time === b.time ? a.index - b.index : a.time > b.time ? -1 : 1));
-  const items = ordered.map(({item}) => ({ ...item, area: item.provider === 'proffer' ? 'Proffer' : 'Coolify', age_days: null,
+  const items = ordered.map(({item}) => ({ ...item, area: ({proffer:'Proffer',coolify:'Coolify','temporal:original':'Temporal original','temporal:trial':'Temporal trial'})[item.provider] || 'Background work', age_days: null,
     summary: [item.title, item.state.replaceAll('_', ' '), item.wait?.replaceAll('_', ' '), item.stage?.replaceAll('_', ' ')].filter(Boolean).join(' · ') }));
   return { ...value, generated_at: value.observed_at, status: value.state === 'ready' ? 'ok' : value.state,
     message: value.state === 'ready' ? null : 'Some live providers are unavailable or unconfigured; see provider health.',
