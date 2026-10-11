@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Cursedpotential/probata/engine/extraction/libraryvalidation"
+	"github.com/Cursedpotential/probata/engine/surrealsink"
 	commonpb "go.temporal.io/api/common/v1"
 	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
@@ -22,11 +23,12 @@ import (
 
 // Progress exposes actor-bound reference-only walk status.
 type Progress struct {
-	ActorSubjectUID string  `json:"actor_subject_uid"`
-	Outcome         string  `json:"outcome"`
-	Step            int     `json:"step"`
-	Result          *Result `json:"result,omitempty"`
-	Error           string  `json:"error,omitempty"`
+	ActorSubjectUID string                          `json:"actor_subject_uid"`
+	SelectedScope   *surrealsink.ApprovedQueryScope `json:"selected_scope,omitempty"`
+	Outcome         string                          `json:"outcome"`
+	Step            int                             `json:"step"`
+	Result          *Result                         `json:"result,omitempty"`
+	Error           string                          `json:"error,omitempty"`
 }
 
 // Workflow schedules each as-lived retrieval and reasoning step before independent hindsight and final validation.
@@ -34,7 +36,7 @@ type Progress struct {
 // Effects: existing graph retrieval, bounded Python reasoning and versioned derivatives via Activities.
 // Pick for query-time analytical comparison; no extraction or evidence-promotion workflow is called.
 func Workflow(ctx workflow.Context, in Request) (Progress, error) {
-	progress := Progress{ActorSubjectUID: in.Query.Actor.SubjectUID, Outcome: "running"}
+	progress := Progress{ActorSubjectUID: in.Query.Actor.SubjectUID, SelectedScope: &in.Query.Scope, Outcome: "running"}
 	if err := workflow.SetQueryHandler(ctx, StatusQuery, func() (Progress, error) { return progress, nil }); err != nil {
 		return progress, err
 	}
@@ -191,8 +193,51 @@ func (s *Starter) Status(ctx context.Context, workflowID string) (Progress, erro
 		if progress.ActorSubjectUID != actor {
 			return Progress{}, errors.New("approved walk workflow actor mismatch")
 		}
+		if progress.SelectedScope == nil {
+			scope, err := s.originalSelectedScope(ctx, workflowID, actor)
+			if err != nil {
+				return Progress{}, err
+			}
+			progress.SelectedScope = &scope
+		}
 		return progress, nil
 	default:
 		return Progress{ActorSubjectUID: actor, Outcome: "failed", Error: "workflow " + strings.ToLower(strings.TrimPrefix(described.GetWorkflowExecutionInfo().GetStatus().String(), "WORKFLOW_EXECUTION_STATUS_"))}, nil
 	}
+}
+
+// originalSelectedScope recovers the bounded original request for results completed before freshness metadata existed.
+// Inputs: existing workflow ID and admitted actor. Outputs: validated selected scope. Effects: reads only first history event.
+// Choose for legacy completion payloads; never infer a source clock or trust a caller-supplied result scope.
+func (s *Starter) originalSelectedScope(ctx context.Context, id, actor string) (surrealsink.ApprovedQueryScope, error) {
+	iterator := s.Client.GetWorkflowHistory(ctx, id, "", false, enumspb.HISTORY_EVENT_FILTER_TYPE_ALL_EVENT)
+	if iterator == nil || !iterator.HasNext() {
+		return surrealsink.ApprovedQueryScope{}, errors.New("original approved workflow request unavailable")
+	}
+	event, err := iterator.Next()
+	if err != nil {
+		return surrealsink.ApprovedQueryScope{}, err
+	}
+	started := event.GetWorkflowExecutionStartedEventAttributes()
+	if started == nil {
+		return surrealsink.ApprovedQueryScope{}, errors.New("original approved workflow start missing")
+	}
+	total := 0
+	for _, payload := range started.GetInput().GetPayloads() {
+		total += len(payload.GetData())
+		for key, value := range payload.GetMetadata() {
+			total += len(key) + len(value)
+		}
+	}
+	if total > 16<<10 {
+		return surrealsink.ApprovedQueryScope{}, errors.New("original approved request exceeds metadata bound")
+	}
+	var in Request
+	if err := converter.GetDefaultDataConverter().FromPayloads(started.GetInput(), &in); err != nil {
+		return surrealsink.ApprovedQueryScope{}, err
+	}
+	if in.Validate() != nil || in.Query.Actor.SubjectUID != actor {
+		return surrealsink.ApprovedQueryScope{}, errors.New("original approved workflow binding differs")
+	}
+	return in.Query.Scope, nil
 }

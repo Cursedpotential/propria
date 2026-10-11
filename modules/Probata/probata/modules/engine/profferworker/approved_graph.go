@@ -89,7 +89,11 @@ func BuildApprovedGraph(db platformpostgres.DB, versionStore libraryvalidation.V
 	if err := walkArtifacts.Validate(); err != nil {
 		return nil, fmt.Errorf("proffer worker: approved walk artifact store: %w", err)
 	}
-	query := approvedgraphqueryflow.Activities{Reader: sink, Artifacts: artifacts}
+	currentReader, err := platformpostgres.NewApprovedCurrentReader(db, sink)
+	if err != nil {
+		return nil, err
+	}
+	query := approvedgraphqueryflow.Activities{Reader: currentReader, Artifacts: artifacts}
 	return &ApprovedGraphGroup{Projection: activities.ApprovedContextGraphActivities{Resolver: approvedGraphResolver{reader}, Sink: sink},
 		Query: query, Walk: approvedwalkflow.Activities{Query: query, Artifacts: walkArtifacts}}, nil
 }

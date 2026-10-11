@@ -24,19 +24,24 @@ type ApprovedWalkWorkflows interface {
 type ApprovedWalkHTTPHandler struct {
 	workflows        ApprovedWalkWorkflows
 	serviceTokenPath string
+	freshness        ApprovedProjectionFreshness
 }
 
 // NewApprovedWalkHTTPHandler checks the shared workflow seam and service credential.
 // Inputs: existing Temporal workflow starter and mounted token path. Output: guarded handler.
 // Effects: reads the token for validation; choose this for approved graph reads, not a new query store.
-func NewApprovedWalkHTTPHandler(workflows ApprovedWalkWorkflows, serviceTokenPath string) (*ApprovedWalkHTTPHandler, error) {
+func NewApprovedWalkHTTPHandler(workflows ApprovedWalkWorkflows, serviceTokenPath string, freshness ...ApprovedProjectionFreshness) (*ApprovedWalkHTTPHandler, error) {
 	if workflows == nil {
 		return nil, errors.New("approved walk handler requires a workflow client")
 	}
 	if _, err := loadServiceToken(serviceTokenPath); err != nil {
 		return nil, err
 	}
-	return &ApprovedWalkHTTPHandler{workflows, serviceTokenPath}, nil
+	handler := &ApprovedWalkHTTPHandler{workflows: workflows, serviceTokenPath: serviceTokenPath}
+	if len(freshness) > 0 {
+		handler.freshness = freshness[0]
+	}
+	return handler, nil
 }
 
 // Routes mounts the approved query start and actor-bound status paths.
@@ -114,5 +119,9 @@ func (h *ApprovedWalkHTTPHandler) status(w http.ResponseWriter, r *http.Request)
 		previewError(w, http.StatusNotFound, errors.New("unknown approved walk workflow"))
 		return
 	}
-	previewJSON(w, http.StatusOK, map[string]any{"workflow_id": id, "outcome": progress.Outcome, "step": progress.Step, "result": progress.Result, "error": progress.Error})
+	current := approvedResultFreshness(r.Context(), h.freshness, progress.SelectedScope)
+	if current != "current" {
+		progress.Result = nil
+	}
+	previewJSON(w, http.StatusOK, map[string]any{"workflow_id": id, "outcome": progress.Outcome, "freshness": current, "selected_scope": progress.SelectedScope, "step": progress.Step, "result": progress.Result, "error": progress.Error})
 }

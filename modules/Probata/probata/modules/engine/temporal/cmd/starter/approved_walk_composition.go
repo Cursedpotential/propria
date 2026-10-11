@@ -7,6 +7,7 @@ import (
 	"go.temporal.io/sdk/client"
 
 	"github.com/Cursedpotential/probata/engine/approvedwalkflow"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 )
 
@@ -27,12 +28,19 @@ func mountApprovedWalkRoutes(existing, walks http.Handler) (http.Handler, error)
 // approvedWalkHandler binds walk starts and status to the existing Temporal client, queue and service token.
 // Inputs: configured client, task queue and mounted token path. Outputs: guarded walk routes or error.
 // Effects: credential validation only until requests arrive; choose over a separate scheduler or login.
-func approvedWalkHandler(temporalClient client.Client, taskQueue, serviceTokenFile string) (http.Handler, error) {
+func approvedWalkHandler(temporalClient client.Client, taskQueue, serviceTokenFile string, databases ...platformpostgres.DB) (http.Handler, error) {
 	starter, err := approvedwalkflow.NewStarter(temporalClient, taskQueue)
 	if err != nil {
 		return nil, err
 	}
-	handler, err := runtimeapi.NewApprovedWalkHTTPHandler(starter, serviceTokenFile)
+	var checker runtimeapi.ApprovedProjectionFreshness
+	if len(databases) == 1 {
+		checker, err = platformpostgres.NewApprovedDecisionChecker(databases[0])
+		if err != nil {
+			return nil, err
+		}
+	}
+	handler, err := runtimeapi.NewApprovedWalkHTTPHandler(starter, serviceTokenFile, checker)
 	if err != nil {
 		return nil, err
 	}

@@ -400,8 +400,14 @@ func (a Activities) Finalize(ctx context.Context, in FinalizeRequest) (Result, e
 	if err != nil || len(raw) > approvedgraphqueryflow.MaxResultBytes {
 		return Result{}, errors.New("final walk artifact exceeds byte budget")
 	}
+	if err := a.Query.CheckCurrent(ctx, in.Request.Query.Scope); err != nil {
+		return Result{}, err
+	}
 	artifact, err := a.Artifacts.Put(ctx, in.Request.Query.RequestID+"/result.json", raw, "application/json")
 	if err != nil {
+		return Result{}, err
+	}
+	if err := a.Query.CheckCurrent(ctx, in.Request.Query.Scope); err != nil {
 		return Result{}, err
 	}
 	return Result{Artifact: artifact, Checkpoints: in.Steps, Partial: partial, ReviewStatus: "pending"}, nil

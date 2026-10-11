@@ -89,9 +89,10 @@ type aiStageRequest struct {
 type aiDecisionRequest struct {
 	runRequest
 	service.AISourcePin
-	CandidateID           string `json:"candidate_id"`
-	ExpectedContentSHA256 string `json:"expected_content_sha256"`
-	Decision              string `json:"decision"`
+	CandidateID           string                            `json:"candidate_id"`
+	ExpectedContentSHA256 string                            `json:"expected_content_sha256"`
+	Decision              string                            `json:"decision"`
+	MetadataCorrection    *service.AIAvailabilityCorrection `json:"metadata_correction,omitempty"`
 }
 
 // aiReviewStore exposes the retained-source branch only when the configured store supports it.
@@ -234,8 +235,22 @@ func (h *EntityExtractionHTTPHandler) decideAICandidate(w http.ResponseWriter, r
 		previewError(w, http.StatusConflict, errors.New("request mode disagrees with durable source receipt"))
 		return
 	}
+	if err := body.MetadataCorrection.Validate(); err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
 	digest := requestDigest(key, actor, body)
-	decisionID, err := store.DecideAICandidate(r.Context(), body.AISourcePin, body.CandidateID, body.ExpectedContentSHA256, body.Decision, actor, digest, h.clock().UTC())
+	var decisionID string
+	if body.MetadataCorrection != nil {
+		corrector, ok := store.(service.AIAvailabilityReviewStore)
+		if !ok {
+			h.fail(w, errors.New("AI availability review is unavailable"))
+			return
+		}
+		decisionID, err = corrector.DecideAICandidateWithCorrection(r.Context(), body.AISourcePin, body.CandidateID, body.ExpectedContentSHA256, body.Decision, actor, digest, h.clock().UTC(), body.MetadataCorrection)
+	} else {
+		decisionID, err = store.DecideAICandidate(r.Context(), body.AISourcePin, body.CandidateID, body.ExpectedContentSHA256, body.Decision, actor, digest, h.clock().UTC())
+	}
 	if err != nil {
 		h.fail(w, err)
 		return
@@ -243,7 +258,8 @@ func (h *EntityExtractionHTTPHandler) decideAICandidate(w http.ResponseWriter, r
 	previewJSON(w, http.StatusOK, map[string]any{
 		"candidate_id": body.CandidateID, "decision": body.Decision, "decision_id": decisionID,
 		"request_digest": digest, "matter_mode": verified, "decision_committed": true,
-		"projection": h.dispatchApprovedAIDecisionProjection(r.Context(), body.Decision, body.SourceVersionID, body.CandidateID, decisionID, digest),
+		"metadata_correction": body.MetadataCorrection,
+		"projection":          h.dispatchApprovedAIDecisionProjection(r.Context(), body.Decision, body.SourceVersionID, body.CandidateID, decisionID, digest),
 	})
 }
 

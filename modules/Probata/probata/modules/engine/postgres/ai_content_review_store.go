@@ -533,7 +533,7 @@ func (s *EntityExtractionStore) ListAICandidates(ctx context.Context, sourceVers
 	if limit < 1 || limit > 500 {
 		limit = 500
 	}
-	rows, err := s.db.Query(ctx, `SELECT id::text, kind, coalesce(attrs->>'reported_kind',kind), coalesce(attrs->>'review_domain',''), review_state, encode(content_sha256,'hex'), coalesce(attrs->'review_decision'->>'decision_id',''), attrs->'candidate' FROM (
+	rows, err := s.db.Query(ctx, `SELECT id::text, kind, coalesce(attrs->>'reported_kind',kind), coalesce(attrs->>'review_domain',''), review_state, encode(content_sha256,'hex'), coalesce(attrs->'review_decision'->>'decision_id',''), attrs->'candidate', coalesce(attrs->'review_decision','{}'::jsonb) FROM (
  SELECT id, 'entity' AS kind, review_state, content_sha256, attrs FROM working.candidate_entity WHERE source_raw_table='context.source_version' AND source_raw_id=$1
  UNION ALL SELECT id, 'event', review_state, content_sha256, attrs FROM working.candidate_event WHERE source_raw_table='context.source_version' AND source_raw_id=$1
  UNION ALL SELECT id, 'fact', review_state, content_sha256, attrs FROM working.candidate_fact WHERE source_raw_table='context.source_version' AND source_raw_id=$1
@@ -545,7 +545,7 @@ func (s *EntityExtractionStore) ListAICandidates(ctx context.Context, sourceVers
 	out := make([]service.AIReviewRow, 0)
 	for rows.Next() {
 		var row service.AIReviewRow
-		if err := rows.Scan(&row.ID, &row.Kind, &row.ReportedKind, &row.ReviewDomain, &row.ReviewState, &row.ContentSHA256, &row.DecisionID, &row.Candidate); err != nil {
+		if err := rows.Scan(&row.ID, &row.Kind, &row.ReportedKind, &row.ReviewDomain, &row.ReviewState, &row.ContentSHA256, &row.DecisionID, &row.Candidate, &row.ReviewDecision); err != nil {
 			return nil, err
 		}
 		out = append(out, row)
@@ -558,6 +558,21 @@ func (s *EntityExtractionStore) ListAICandidates(ctx context.Context, sourceVers
 // Outputs: conflict or success. Effects: review_state and bounded decision receipt in attrs only.
 // Choose after owner inspection; this method never promotes a candidate.
 func (s *EntityExtractionStore) DecideAICandidate(ctx context.Context, pin service.AISourcePin, candidateID, expectedContentSHA256, decision string, actor entities.Actor, digest string, at time.Time) (string, error) {
+	return s.DecideAICandidateWithCorrection(ctx, pin, candidateID, expectedContentSHA256, decision, actor, digest, at, nil)
+}
+
+// DecideAICandidateWithCorrection records an immutable candidate approval and optional attributed availability revision.
+// Inputs: original pins/hash, actor-bound request digest and explicit current-decision correction reference.
+// Outputs: stable append-only decision ID. Effects: review ledger insert and current receipt update; original candidate is unchanged.
+// Choose for human discovery corrections in the existing owner-review path.
+func (s *EntityExtractionStore) DecideAICandidateWithCorrection(ctx context.Context, pin service.AISourcePin, candidateID, expectedContentSHA256, decision string, actor entities.Actor, digest string, at time.Time, correction *service.AIAvailabilityCorrection) (string, error) {
+	if err := correction.Validate(); err != nil {
+		return "", service.ErrInvalid{Err: err}
+	}
+	if correction != nil && decision != "approved" {
+		return "", service.ErrInvalid{Err: errors.New("availability correction accompanies an approved owner decision")}
+	}
+
 	sourceVersionID := pin.SourceVersionID
 	if decision != "approved" && decision != "rejected" && decision != "needs_info" {
 		return "", service.ErrInvalid{Err: errors.New("decision must be approved, rejected or needs_info")}
@@ -571,13 +586,15 @@ func (s *EntityExtractionStore) DecideAICandidate(ctx context.Context, pin servi
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	decisionID := flow.DeterministicID("ai_review_decision", candidateID, digest)
-	receipt, _ := json.Marshal(map[string]any{"decision_id": decisionID, "actor": actor, "request_digest": digest, "approved_content_sha256": expectedContentSHA256, "at": at.UTC(), "decision": decision})
+
 	for _, table := range []string{"working.candidate_entity", "working.candidate_event", "working.candidate_fact"} {
-		var current, priorDigest, currentPromotion, currentScope string
+		var current, priorDigest, currentPromotion, currentScope, priorDecision string
+		var priorRevision int
+		var priorReceipt []byte
 		var storedDigest, candidateJSON []byte
 		var reportedKind, reviewDomain string
-		err := tx.QueryRow(ctx, `SELECT review_state, coalesce(attrs->'review_decision'->>'request_digest',''), content_sha256, attrs->'candidate', coalesce(attrs->>'reported_kind',''), coalesce(attrs->>'review_domain',''), coalesce(attrs->>'graph_promotion',''), coalesce(attrs->>'projection_scope','') FROM `+table+`
-WHERE id=$1::uuid AND source_raw_table='context.source_version' AND source_raw_id=$2 FOR UPDATE`, candidateID, sourceVersionID).Scan(&current, &priorDigest, &storedDigest, &candidateJSON, &reportedKind, &reviewDomain, &currentPromotion, &currentScope)
+		err := tx.QueryRow(ctx, `SELECT review_state, coalesce(attrs->'review_decision'->>'request_digest',''), content_sha256, attrs->'candidate', coalesce(attrs->>'reported_kind',''), coalesce(attrs->>'review_domain',''), coalesce(attrs->>'graph_promotion',''), coalesce(attrs->>'projection_scope',''), coalesce(attrs->'review_decision'->>'decision_id',''), coalesce((attrs->'review_decision'->>'revision')::int,1), coalesce(attrs->'review_decision','{}'::jsonb) FROM `+table+`
+WHERE id=$1::uuid AND source_raw_table='context.source_version' AND source_raw_id=$2 FOR UPDATE`, candidateID, sourceVersionID).Scan(&current, &priorDigest, &storedDigest, &candidateJSON, &reportedKind, &reviewDomain, &currentPromotion, &currentScope, &priorDecision, &priorRevision, &priorReceipt)
 		if errors.Is(err, pgx.ErrNoRows) {
 			continue
 		}
@@ -598,9 +615,29 @@ WHERE id=$1::uuid AND source_raw_table='context.source_version' AND source_raw_i
 		if hex.EncodeToString(storedDigest) != expectedContentSHA256 || hex.EncodeToString(recomputed[:]) != expectedContentSHA256 {
 			return "", entities.ErrConflict
 		}
+		if _, err := correction.Effective(candidate.SourceAvailableFrom, at); err != nil {
+			return "", service.ErrInvalid{Err: err}
+		}
+		revision := 1
+		if priorDecision != "" {
+			revision = priorRevision + 1
+		}
+		if priorDigest == digest {
+			revision = priorRevision
+		}
+		receiptFields := map[string]any{"decision_id": decisionID, "actor": actor, "request_digest": digest, "approved_content_sha256": expectedContentSHA256, "at": at.UTC(), "decision": decision, "revision": revision}
+		if correction != nil {
+			receiptFields["metadata_correction"] = correction
+		}
+		receipt, _ := json.Marshal(receiptFields)
 		promotion := aiGraphPromotion(decision, candidate)
 		scope := aiProjectionScope(promotion)
-		rationale, _ := json.Marshal(aiReviewRationale(sourceVersionID, expectedContentSHA256, actor.SubjectUID, digest, table, reportedKind, reviewDomain, promotion))
+		rationaleFields := aiReviewRationale(sourceVersionID, expectedContentSHA256, actor.SubjectUID, digest, table, reportedKind, reviewDomain, promotion)
+		if correction != nil {
+			rationaleFields["metadata_correction"] = correction
+			rationaleFields["revision"] = revision
+		}
+		rationale, _ := json.Marshal(rationaleFields)
 		if priorDigest == digest && current == decision {
 			if currentPromotion != promotion || currentScope != scope {
 				return "", entities.ErrConflict
@@ -612,8 +649,8 @@ WHERE id=$1::uuid AND source_raw_table='context.source_version' AND source_raw_i
 			}
 			return decisionID, tx.Commit(ctx)
 		}
-		if current != "pending" && current != "needs_info" {
-			return "", entities.ErrConflict
+		if err := validateAIAvailabilityRevision(current, priorDecision, priorReceipt, correction); err != nil {
+			return "", err
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO analysis.review_decision
  (decision_id,target_kind,target_id,reviewer,decision,court_readiness,rationale,decided_at)

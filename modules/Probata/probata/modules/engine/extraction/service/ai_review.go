@@ -62,14 +62,15 @@ type AICandidate struct {
 // Inputs: staged candidate identity and provenance. Outputs: review state and candidate metadata.
 // Effects: none. Choose for AI review reads; it never exposes full conversation text.
 type AIReviewRow struct {
-	ID            string          `json:"candidate_id"`
-	Kind          string          `json:"kind"`
-	ReportedKind  string          `json:"reported_kind"`
-	ReviewDomain  string          `json:"review_domain"`
-	ReviewState   string          `json:"review_state"`
-	ContentSHA256 string          `json:"content_sha256"`
-	DecisionID    string          `json:"decision_id,omitempty"`
-	Candidate     json.RawMessage `json:"candidate"`
+	ID             string          `json:"candidate_id"`
+	Kind           string          `json:"kind"`
+	ReportedKind   string          `json:"reported_kind"`
+	ReviewDomain   string          `json:"review_domain"`
+	ReviewState    string          `json:"review_state"`
+	ContentSHA256  string          `json:"content_sha256"`
+	DecisionID     string          `json:"decision_id,omitempty"`
+	Candidate      json.RawMessage `json:"candidate"`
+	ReviewDecision json.RawMessage `json:"review_decision,omitempty"`
 }
 
 // AIReviewStore is the retained-source review seam, separate from normalized-message extraction.

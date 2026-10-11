@@ -22,19 +22,24 @@ type ApprovedGraphQueryWorkflows interface {
 type ApprovedGraphQueryHTTPHandler struct {
 	workflows        ApprovedGraphQueryWorkflows
 	serviceTokenPath string
+	freshness        ApprovedProjectionFreshness
 }
 
 // NewApprovedGraphQueryHTTPHandler checks the shared workflow seam and service credential.
 // Inputs: existing Temporal workflow starter and mounted token path. Output: guarded handler.
 // Effects: reads the token for validation; choose this for approved graph reads, not a new query store.
-func NewApprovedGraphQueryHTTPHandler(workflows ApprovedGraphQueryWorkflows, serviceTokenPath string) (*ApprovedGraphQueryHTTPHandler, error) {
+func NewApprovedGraphQueryHTTPHandler(workflows ApprovedGraphQueryWorkflows, serviceTokenPath string, freshness ...ApprovedProjectionFreshness) (*ApprovedGraphQueryHTTPHandler, error) {
 	if workflows == nil {
 		return nil, errors.New("approved graph query handler requires a workflow client")
 	}
 	if _, err := loadServiceToken(serviceTokenPath); err != nil {
 		return nil, err
 	}
-	return &ApprovedGraphQueryHTTPHandler{workflows, serviceTokenPath}, nil
+	handler := &ApprovedGraphQueryHTTPHandler{workflows: workflows, serviceTokenPath: serviceTokenPath}
+	if len(freshness) > 0 {
+		handler.freshness = freshness[0]
+	}
+	return handler, nil
 }
 
 // Routes mounts the approved query start and actor-bound status paths.
@@ -111,5 +116,9 @@ func (h *ApprovedGraphQueryHTTPHandler) status(w http.ResponseWriter, r *http.Re
 		previewError(w, http.StatusNotFound, errors.New("unknown approved graph query workflow"))
 		return
 	}
-	previewJSON(w, http.StatusOK, map[string]any{"workflow_id": id, "outcome": progress.Outcome, "result": progress.Result, "error": progress.Error})
+	current := approvedResultFreshness(r.Context(), h.freshness, progress.SelectedScope)
+	if current != "current" {
+		progress.Result = nil
+	}
+	previewJSON(w, http.StatusOK, map[string]any{"workflow_id": id, "outcome": progress.Outcome, "freshness": current, "selected_scope": progress.SelectedScope, "result": progress.Result, "error": progress.Error})
 }

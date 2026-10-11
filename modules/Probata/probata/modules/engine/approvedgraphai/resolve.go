@@ -111,8 +111,10 @@ func Resolve(ctx context.Context, reader Reader, scope Scope) (approvedgraph.Cla
 		GraphPromotion  string              `json:"graph_promotion"`
 		ProjectionScope string              `json:"projection_scope"`
 		ReviewDecision  struct {
-			DecisionID string `json:"decision_id"`
-			Actor      struct {
+			DecisionID         string                            `json:"decision_id"`
+			MetadataCorrection *service.AIAvailabilityCorrection `json:"metadata_correction,omitempty"`
+			Revision           int                               `json:"revision,omitempty"`
+			Actor              struct {
 				SubjectUID string `json:"subject_uid"`
 				Username   string `json:"username"`
 			} `json:"actor"`
@@ -133,21 +135,32 @@ func Resolve(ctx context.Context, reader Reader, scope Scope) (approvedgraph.Cla
 		return approvedgraph.Claim{}, errors.New("approved AI graph: candidate hash or review receipt differs")
 	}
 	var rationale struct {
-		SourceVersionID string `json:"source_version_id"`
-		CandidateSHA256 string `json:"candidate_content_sha256"`
-		ActorUID        string `json:"actor_subject_uid"`
-		RequestDigest   string `json:"request_digest"`
-		CandidateKind   string `json:"candidate_kind"`
-		ReportedKind    string `json:"reported_kind"`
-		ReviewDomain    string `json:"review_domain"`
-		GraphPromotion  string `json:"graph_promotion"`
-		ProjectionScope string `json:"projection_scope"`
+		MetadataCorrection *service.AIAvailabilityCorrection `json:"metadata_correction,omitempty"`
+		Revision           int                               `json:"revision,omitempty"`
+		SourceVersionID    string                            `json:"source_version_id"`
+		CandidateSHA256    string                            `json:"candidate_content_sha256"`
+		ActorUID           string                            `json:"actor_subject_uid"`
+		RequestDigest      string                            `json:"request_digest"`
+		CandidateKind      string                            `json:"candidate_kind"`
+		ReportedKind       string                            `json:"reported_kind"`
+		ReviewDomain       string                            `json:"review_domain"`
+		GraphPromotion     string                            `json:"graph_promotion"`
+		ProjectionScope    string                            `json:"projection_scope"`
 	}
 	if err := json.Unmarshal(row.LedgerRationale, &rationale); err != nil {
 		return approvedgraph.Claim{}, fmt.Errorf("approved AI graph: ledger rationale: %w", err)
 	}
 	if rationale.SourceVersionID != scope.SourceVersionID || rationale.CandidateSHA256 != row.CandidateSHA256 || rationale.ActorUID != attrs.ReviewDecision.Actor.SubjectUID || rationale.RequestDigest != scope.RequestDigest || rationale.CandidateKind != strings.TrimPrefix(row.Table, "working.candidate_") || rationale.ReportedKind != c.ReportedKind || rationale.ReviewDomain != c.ReviewDomain || rationale.GraphPromotion != "approved_context" || rationale.ProjectionScope != "context" || scope.DecisionID != flow.DeterministicID("ai_review_decision", scope.CandidateID, scope.RequestDigest) {
 		return approvedgraph.Claim{}, errors.New("approved AI graph: ledger does not bind exact candidate and actor")
+	}
+	ledgerCorrection, _ := json.Marshal(rationale.MetadataCorrection)
+	receiptCorrection, _ := json.Marshal(attrs.ReviewDecision.MetadataCorrection)
+	if string(ledgerCorrection) != string(receiptCorrection) || (rationale.MetadataCorrection != nil && (rationale.Revision < 1 || rationale.Revision != attrs.ReviewDecision.Revision)) {
+		return approvedgraph.Claim{}, errors.New("approved AI graph: availability ledger and receipt differ")
+	}
+	available, err := rationale.MetadataCorrection.Effective(c.SourceAvailableFrom, row.DecidedAt)
+	if err != nil {
+		return approvedgraph.Claim{}, fmt.Errorf("approved AI graph: availability assertion: %w", err)
 	}
 	if c.NativeJSONPointer != "" && !strings.HasPrefix(c.NativeJSONPointer, "/") {
 		return approvedgraph.Claim{}, errors.New("approved AI graph: malformed native pointer")
@@ -191,7 +204,7 @@ func Resolve(ctx context.Context, reader Reader, scope Scope) (approvedgraph.Cla
 	locatorHash := sha256.Sum256(locator)
 	locatorID := flow.DeterministicID("approved_ai_native_locator", scope.SourceVersionID, c.NativeJSONPointer, fmt.Sprint(c.SourceSpan.Start), fmt.Sprint(c.SourceSpan.End), c.SourceSpan.SHA256)
 	start, end := c.SourceSpan.Start, c.SourceSpan.End
-	return approvedgraph.Claim{ID: flow.DeterministicID("approved_ai_graph_claim", scope.DecisionID, scope.CandidateID, locatorID), Kind: kind, Text: text, MatterID: scope.MatterID, CourtCaseID: scope.CourtCaseID, ReceiptID: scope.DecisionID, ApprovalDigest: scope.RequestDigest, ControlGenerationID: flow.DeterministicID("approved_graph_generation", scope.DecisionID, row.CandidateSHA256), CandidateID: scope.CandidateID, CandidateSHA256: row.CandidateSHA256, SourceID: row.SourceID, SourceVersionID: scope.SourceVersionID, SourceObjectID: row.SourceObjectID, SourceObjectURI: row.SourceObjectURI, SourceSHA256: row.SourceSHA256, RecordID: locatorID, RecordSHA256: hex.EncodeToString(locatorHash[:]), Predicate: predicate, NativeJSONPointer: c.NativeJSONPointer, NativeSpanStart: &start, NativeSpanEnd: &end, NativeSpanUnit: c.SpanUnit, NativeSpanSHA256: c.SourceSpan.SHA256, OccurredAt: utcClock(c.OccurredAt), SourceAvailableFrom: utcClock(c.SourceAvailableFrom), ApprovedAt: row.DecidedAt.UTC(), ApprovedBy: attrs.ReviewDecision.Actor.SubjectUID}, nil
+	return approvedgraph.Claim{ID: flow.DeterministicID("approved_ai_graph_claim", scope.DecisionID, scope.CandidateID, locatorID), Kind: kind, Text: text, MatterID: scope.MatterID, CourtCaseID: scope.CourtCaseID, ReceiptID: scope.DecisionID, ApprovalDigest: scope.RequestDigest, ControlGenerationID: flow.DeterministicID("approved_graph_generation", scope.DecisionID, row.CandidateSHA256), CandidateID: scope.CandidateID, CandidateSHA256: row.CandidateSHA256, SourceID: row.SourceID, SourceVersionID: scope.SourceVersionID, SourceObjectID: row.SourceObjectID, SourceObjectURI: row.SourceObjectURI, SourceSHA256: row.SourceSHA256, RecordID: locatorID, RecordSHA256: hex.EncodeToString(locatorHash[:]), Predicate: predicate, NativeJSONPointer: c.NativeJSONPointer, NativeSpanStart: &start, NativeSpanEnd: &end, NativeSpanUnit: c.SpanUnit, NativeSpanSHA256: c.SourceSpan.SHA256, OccurredAt: utcClock(c.OccurredAt), SourceAvailableFrom: utcClock(available), ApprovedAt: row.DecidedAt.UTC(), ApprovedBy: attrs.ReviewDecision.Actor.SubjectUID}, nil
 }
 
 // utcClock canonicalizes a verified claim clock without changing its instant or candidate digest.

@@ -169,6 +169,9 @@ func (a Activities) Run(ctx context.Context, in Request) (Result, error) {
 	if err != nil || len(body) == 0 || len(body) > MaxResultBytes {
 		return Result{}, errors.New("approved graph query JSON exceeds the eight-megabyte result bound")
 	}
+	if err := a.CheckCurrent(ctx, in.Scope); err != nil {
+		return Result{}, err
+	}
 	ref, err := a.Artifacts.Put(ctx, "approved-context/"+in.RequestID+".json", body, "application/json")
 	if err != nil {
 		return Result{}, fmt.Errorf("approved graph query content write/readback: %w", err)
@@ -176,9 +179,24 @@ func (a Activities) Run(ctx context.Context, in Request) (Result, error) {
 	if ref.SHA256 != libraryvalidation.Hash(body) || ref.Bytes != int64(len(body)) || ref.URI == "" || ref.VersionID == "" {
 		return Result{}, errors.New("approved graph query result reference differs from exact bytes")
 	}
+	if err := a.CheckCurrent(ctx, in.Scope); err != nil {
+		return Result{}, err
+	}
 	return Result{Artifact: ref, ClaimCount: len(got.Claims), MatterID: in.Scope.MatterID,
 		CourtCaseID: in.Scope.CourtCaseID, AccessPolicyID: in.Scope.AccessPolicyID, ApprovedRevisionID: in.Scope.ApprovedRevisionID,
 		ApprovalDigest: in.Scope.ApprovalDigest, ProjectionGenerationID: in.Scope.ProjectionGenerationID,
 		ProjectionHash: in.Scope.ProjectionHash, Perspective: in.Scope.Perspective,
 		HasMore: got.HasMore, NextCursor: got.NextCursor}, nil
+}
+
+// CheckCurrent repeats the configured live approval guard at the derivative publication boundary.
+// Inputs: selected exact graph scope. Outputs: current approval or error. Effects: read-only PostgreSQL checks.
+// Choose before and after final artifact writes; source-only test readers may omit the optional guard.
+func (a Activities) CheckCurrent(ctx context.Context, scope surrealsink.ApprovedQueryScope) error {
+	if checker, ok := a.Reader.(interface {
+		CheckCurrentApprovedProjection(context.Context, surrealsink.ApprovedQueryScope) error
+	}); ok {
+		return checker.CheckCurrentApprovedProjection(ctx, scope)
+	}
+	return nil
 }

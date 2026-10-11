@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 	"github.com/Cursedpotential/probata/engine/surrealsink"
 )
@@ -26,7 +27,7 @@ func (l unavailableApprovedProjectionLister) ListApprovedProjections(context.Con
 // Inputs: mounted token path and existing ANALYSIS_SURREAL_* plus graph policy/service settings.
 // Outputs: guarded listing handler. Effects: mounted credential reads only; no graph request until GET.
 // Pick beside the query handler so missing analytical configuration returns 503 on this route.
-func approvedGraphProjectionsHandler(serviceTokenFile string) (http.Handler, error) {
+func approvedGraphProjectionsHandler(serviceTokenFile string, databases ...platformpostgres.DB) (http.Handler, error) {
 	var lister runtimeapi.ApprovedProjectionLister
 	cfg, err := surrealsink.AnalysisConfigFromEnv()
 	if err == nil {
@@ -38,7 +39,12 @@ func approvedGraphProjectionsHandler(serviceTokenFile string) (http.Handler, err
 			if policy == "" || service == "" {
 				err = errors.New("analytical graph policy and service configuration are required")
 			} else {
-				lister = &surrealsink.ApprovedClaimsSink{Client: client, AccessPolicyID: policy, CreatedByService: service}
+				sink := &surrealsink.ApprovedClaimsSink{Client: client, AccessPolicyID: policy, CreatedByService: service}
+				if len(databases) != 1 || databases[0] == nil {
+					err = errors.New("existing platform DB required for current projection listing")
+				} else {
+					lister, err = platformpostgres.NewApprovedCurrentReader(databases[0], sink)
+				}
 			}
 		}
 	}

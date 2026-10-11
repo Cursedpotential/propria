@@ -1,10 +1,10 @@
 # Toolchain pinned to match modules/engine/go.mod (`go 1.26.6`).
 FROM golang:1.26-bookworm AS builder
 
-# Bound compiler/test concurrency within the existing trial host build slot.
+# Bound compiler/test work to one package and two threads on the original server.
 # Inputs: vendored Go source; outputs: tested binaries. Effects: image build only.
 # Byline: Codex · GPT-6.1-sol · 2026-10-08.
-ENV GOMAXPROCS=1 GOMEMLIMIT=1024MiB GOFLAGS=-p=1 AI_WORKPRODUCT_TEST_ROOT=/tmp/to_be_deleted
+ENV GOMAXPROCS=2 GOMEMLIMIT=2048MiB GOFLAGS=-p=1 AI_WORKPRODUCT_TEST_ROOT=/tmp/to_be_deleted
 
 # Hermetic vendored build (repair post-restructure, 2026-09-02): engine/ moved to
 # modules/engine/ and sbv moved to modules/forks/sbv/ (a private, gitignored-locally

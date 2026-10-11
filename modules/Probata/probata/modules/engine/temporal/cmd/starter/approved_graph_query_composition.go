@@ -7,6 +7,7 @@ import (
 	"go.temporal.io/sdk/client"
 
 	"github.com/Cursedpotential/probata/engine/approvedgraphqueryflow"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 )
 
@@ -26,12 +27,19 @@ func mountApprovedGraphQueryRoutes(existing, queries http.Handler) (http.Handler
 // approvedGraphQueryHandler binds approved reads to the shared Temporal client and token.
 // Inputs: existing client, task queue and service token path. Output: guarded routes.
 // Effects: validates the seams, then starts workflows only on requests; choose over a second scheduler.
-func approvedGraphQueryHandler(temporalClient client.Client, taskQueue, serviceTokenFile string) (http.Handler, error) {
+func approvedGraphQueryHandler(temporalClient client.Client, taskQueue, serviceTokenFile string, databases ...platformpostgres.DB) (http.Handler, error) {
 	starter, err := approvedgraphqueryflow.NewStarter(temporalClient, taskQueue)
 	if err != nil {
 		return nil, err
 	}
-	handler, err := runtimeapi.NewApprovedGraphQueryHTTPHandler(starter, serviceTokenFile)
+	var checker runtimeapi.ApprovedProjectionFreshness
+	if len(databases) == 1 {
+		checker, err = platformpostgres.NewApprovedDecisionChecker(databases[0])
+		if err != nil {
+			return nil, err
+		}
+	}
+	handler, err := runtimeapi.NewApprovedGraphQueryHTTPHandler(starter, serviceTokenFile, checker)
 	if err != nil {
 		return nil, err
 	}
