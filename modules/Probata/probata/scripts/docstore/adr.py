@@ -4,9 +4,11 @@ import hashlib
 import json
 import os
 import re
+import uuid
 from pathlib import Path
 import sq
 from upgrade import rows, digest
+from source_preservation import preserve, quarantine_path, validate_destination
 
 STATUSES = {'proposed','accepted','superseded','deprecated','rejected'}
 MAX_SELECTION = 50
@@ -134,6 +136,8 @@ async def refresh_projections(materialize=False, payload=None):
     metadata and may write registered Markdown files. With no selectors/limit,
     legacy behavior reads up to 5001 rows and rejects corpora above 5000.
     Pick this over list when rendered Markdown and index verification are needed.
+    Materialization preflights all source and quarantine paths before file writes,
+    preserving changed originals on the Probata source mount with hash receipts.
     """
     ids, limit = selection(payload or {})
     db = await sq.connect('docs','probata','docs')
@@ -156,10 +160,13 @@ async def refresh_projections(materialize=False, payload=None):
             if materialize and matches and str(record.get('projection_doc'))!=str(matches[0]['id']):
                 await db.query('UPDATE type::record($id) SET projection_doc=$doc;',{'id':str(record['id']),'doc':matches[0]['id']})
             projections.append({'adr_id':str(record['id']),'path':path,'sha256':sha,'content':text,'indexed':bool(matches)})
+        preserved=[]
         if materialize and os.environ.get('DOCSTORE_PROJECT_REGISTRY'):
             from source_sync import state
             from scope import ROOTS
             root,_=state()
+            generation=uuid.uuid4().hex
+            destinations=[]
             for projection in projections:
                 # Probata's docs root is docs/probata via the Propria/docs junction, not the
                 # pre-2026-09-20 module path this used to join. Strip the canonical prefix
@@ -168,18 +175,24 @@ async def refresh_projections(materialize=False, payload=None):
                 relative=projection['path'][len(prefix):] if projection['path'].startswith(prefix) else projection['path']
                 base=(root/source_root).resolve()
                 target=base/relative
-                if not target.resolve().is_relative_to(base):
-                    raise ValueError('ADR projection path escapes docs')
+                validate_destination(base,target)
                 data=projection['content'].encode()
-                target.parent.mkdir(parents=True,exist_ok=True)
+                backup=None
                 if target.exists() and target.read_bytes()!=data:
-                    import uuid
-                    backup=root/'to_be_deleted'/('adr-'+uuid.uuid4().hex)/target.name
-                    backup.parent.mkdir(parents=True,exist_ok=True); target.replace(backup)
-                if not target.exists():
-                    pending=target.with_suffix('.pending')
-                    pending.write_bytes(data); pending.replace(target)
+                    backup=quarantine_path(base,target,'adr-'+generation,'probata')
+                destinations.append((base,target,data,backup))
+            for base,target,data,backup in destinations:
+                if target.exists() and backup is None:
+                    continue
+                target.parent.mkdir(parents=True,exist_ok=True)
+                pending=target.with_name(target.name+'.'+generation+'.pending')
+                pending.write_bytes(data)
+                if backup is not None:
+                    preserved.append(preserve(base,target,backup))
+                pending.replace(target)
         result = {'projections':projections,'direction':'adr -> markdown -> CocoIndex document'}
+        if materialize:
+            result['preserved']=preserved
         if ids is not None:
             result['missing_ids'] = missing
         return result

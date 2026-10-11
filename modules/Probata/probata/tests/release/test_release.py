@@ -58,6 +58,12 @@ def test_scope_rejects_broadened_or_partial_roots(tmp_path):
 
 
 def test_source_sync_stale_plan_hash_and_quarantine(tmp_path,monkeypatch):
+    """Keep exact-plan and named-retraction guards while preserving source bytes.
+
+    Inputs: isolated seven-root mirror. Outputs: verified receipts and originals
+    below their source root's quarantine. Effects: fixture-only writes; choose
+    this release check for the complete plan/read/apply preservation contract.
+    """
     p=registry(tmp_path)
     monkeypatch.setenv('DOCSTORE_PROJECT_REGISTRY',str(p)); monkeypatch.setenv('DOCSTORE_SYNC_LOCK',str(tmp_path/'state/sync.lock'))
     files=[{'project':project,'path':'note.md','content':'# '+project,'sha256':hashlib.sha256(('# '+project).encode()).hexdigest()} for project in ROOTS]
@@ -72,7 +78,7 @@ def test_source_sync_stale_plan_hash_and_quarantine(tmp_path,monkeypatch):
     with pytest.raises(ValueError): sync('apply',{'files':files,'plan_id':plan['plan_id']})
     assert not list((tmp_path/'to_be_deleted').rglob('note.md'))
     sync('apply',{'files':files,'plan_id':plan['plan_id'],'retract':plan['retracted_sources']})
-    assert list((tmp_path/'to_be_deleted').rglob('note.md'))
+    assert list((tmp_path/'docs'/'to_be_deleted').rglob('note.md'))
     files[0]['path']='../escape.md'
     with pytest.raises(ValueError): validated(files)
 

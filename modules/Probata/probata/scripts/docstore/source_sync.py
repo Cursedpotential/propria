@@ -8,6 +8,7 @@ import uuid
 from scope import ROOTS, validate_registry
 from upgrade import digest
 from run_support import worker_lock
+from source_preservation import preserve, quarantine_path, validate_destination
 
 ALIASES={'probata','consignatio','consignatio-intake','advocatio','vestigia','family-court'}
 
@@ -108,6 +109,9 @@ def operation(action,payload):
     Input is a source operation payload; output is its bounded receipt. Plan
     and read are nonmutating; apply quarantines changes after the exact-plan
     and named-retraction guards. roots decouples coverage from file presence.
+    All backups are preflighted inside their registered source mount before any
+    source write; the receipt includes preserved originals' locators and hashes.
+    Pick plan/read for inspection and apply only for its exact approved plan.
     Byline: Codex / GPT-6.1 / 2026-10-07.
     """
     if action=='read':
@@ -144,35 +148,39 @@ def operation(action,payload):
                              +', '.join(unconfirmed[:10])+('' if len(unconfirmed)<=10 else ', ...'))
         # Validate all final paths before any write. Never follow an existing parent symlink.
         destinations=[]
+        generation=uuid.uuid4().hex
+        backups={}
         for item in files:
             directory=root/ROOTS[item['project']][0]
             target=directory/item['path']
-            if not target.resolve().is_relative_to(directory.resolve()) or any(p.is_symlink() for p in [target,*target.parents] if p.is_relative_to(root)):
-                raise ValueError('Source destination escapes docs root')
+            validate_destination(directory,target)
+            identity=item['project']+'/'+item['path']
+            if identity in plan['changed'] and target.exists():
+                backups[identity]=quarantine_path(directory,target,'sync-'+generation,item['project'])
             destinations.append((item,target))
-        generation=uuid.uuid4().hex
-        journal=lock.parent/'source-sync.json'
-        journal.write_text(json.dumps({'state':'applying','generation':generation,'plan':plan}),encoding='utf-8')
-        quarantine=root/'to_be_deleted'/('sync-'+generation)
         for identity in plan['retracted_sources']:
             project,path=identity.split('/',1)
-            source=root/ROOTS[project][0]/path
-            target=quarantine/project/path
-            target.parent.mkdir(parents=True,exist_ok=True)
-            source.replace(target)
+            directory=root/ROOTS[project][0]
+            backups[identity]=quarantine_path(directory,directory/path,'sync-'+generation,project)
+        journal=lock.parent/'source-sync.json'
+        journal.write_text(json.dumps({'state':'applying','generation':generation,'plan':plan}),encoding='utf-8')
+        preserved=[]
+        for identity in plan['retracted_sources']:
+            project,path=identity.split('/',1)
+            directory=root/ROOTS[project][0]
+            preserved.append(preserve(directory,directory/path,backups[identity],existing[identity]))
         for item,target in destinations:
             if item['project']+'/'+item['path'] not in plan['changed']:
                 continue
             target.parent.mkdir(parents=True,exist_ok=True)
-            if target.exists():
-                backup=quarantine/item['project']/item['path']
-                backup.parent.mkdir(parents=True,exist_ok=True)
-                target.replace(backup)
             temporary=target.with_name(target.name+'.'+generation+'.pending')
             temporary.write_bytes(item['content'].encode('utf-8'))
+            if target.exists():
+                identity=item['project']+'/'+item['path']
+                preserved.append(preserve(root/ROOTS[item['project']][0],target,backups[identity],existing[identity]))
             temporary.replace(target)
         _,actual=state()
         if actual!=incoming:
             raise RuntimeError('Projection verification failed; indexing must not start')
-        journal.write_text(json.dumps({'state':'verified','generation':generation,'digest':digest(actual)}),encoding='utf-8')
-        return {**plan,'applied':True,'generation':generation,'verified':True,'index_started':False}
+        journal.write_text(json.dumps({'state':'verified','generation':generation,'digest':digest(actual),'preserved':preserved}),encoding='utf-8')
+        return {**plan,'applied':True,'generation':generation,'verified':True,'index_started':False,'preserved':preserved}
