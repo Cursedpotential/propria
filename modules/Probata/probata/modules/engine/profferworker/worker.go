@@ -27,6 +27,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/extraction/librarysync"
 	"github.com/Cursedpotential/probata/engine/extraction/libraryvalidation"
+	"github.com/Cursedpotential/probata/engine/humancontext"
 	"github.com/Cursedpotential/probata/engine/normalize"
 	"github.com/Cursedpotential/probata/engine/objectstores"
 	"github.com/Cursedpotential/probata/engine/parser"
@@ -49,6 +50,10 @@ type Registrations struct {
 	// Inputs: configured provider/callback; outputs: opaque receipts. Effects: registration until invoked.
 	// Choose independently of ingestion, normalized preview and structured ELT.
 	SourcePreview *sourcepreview.Activity
+	// HumanContext exposes independent native framing, DuckDB extraction, chunk indexing and readback.
+	// Inputs: configured bundles/indexer. Outputs: four named Activities and compact receipts.
+	// Effects: registration only; choose for registered human sources without legacy import admission.
+	HumanContext *humancontext.Activities
 	// ContextPackage reuses exact native placement and compact metadata registration.
 	// Inputs: sealed refs. Outputs: package pins. Effects: none until its Activity runs.
 	ContextPackage activities.AIContextPackageActivities
@@ -197,6 +202,12 @@ func RegisterAll(registrar interface {
 	registrar.RegisterWorkflowWithOptions(sourcepreview.Workflow, workflow.RegisterOptions{Name: sourcepreview.WorkflowName})
 	if registrations.SourcePreview != nil {
 		registrar.RegisterActivityWithOptions(registrations.SourcePreview.Read, activity.RegisterOptions{Name: sourcepreview.ActivityName})
+	}
+	if registrations.HumanContext != nil {
+		registrar.RegisterActivityWithOptions(registrations.HumanContext.Frame, activity.RegisterOptions{Name: humancontext.FrameActivity})
+		registrar.RegisterActivityWithOptions(registrations.HumanContext.Extract, activity.RegisterOptions{Name: humancontext.ExtractActivity})
+		registrar.RegisterActivityWithOptions(registrations.HumanContext.Index, activity.RegisterOptions{Name: humancontext.IndexActivity})
+		registrar.RegisterActivityWithOptions(registrations.HumanContext.Verify, activity.RegisterOptions{Name: humancontext.VerifyActivity})
 	}
 	registrar = operatingRegistrar{registrar}
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
@@ -854,9 +865,14 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	humanContext, err := buildHumanContext(pool, cfg, stores)
+	if err != nil {
+		return Registrations{}, err
+	}
 	aiWorkproductPlacement := activities.NewAIWorkproductPlacementActivities(cfg.DeriveScratchDir, objectStores)
 	return Registrations{
 		SourcePreview:  sourcePreview,
+		HumanContext:   humanContext,
 		ContextPackage: activities.AIContextPackageActivities{Placement: aiWorkproductPlacement, Metadata: contextSourceStore, Catalog: nativeContextCatalog(os.Getenv("AI_CONTEXT_CATALOG_DATABASE_URL_FILE"))},
 		ContextSource:  activities.ContextSourceRegistrationActivities{Store: contextSourceStore},
 		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.

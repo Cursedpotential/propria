@@ -38,11 +38,16 @@ const (
 	DefaultDimensions = 2048
 	// maxInputChars mirrors the Case Bible writers' 8000-character cut.
 	maxInputChars = 8000
+	// strictResponseBytes bounds native-context embedding responses.
+	strictResponseBytes = 4 << 20
 	// blankPlaceholder replaces an empty input.
 	blankPlaceholder = "(empty)"
 )
 
 // NIM embeds text through an OpenAI-compatible /embeddings endpoint.
+// Inputs: configured credentials, model and optional strict native-input mode.
+// Outputs: ordered embedding vectors. Effects: authenticated HTTP requests only.
+// Choose strict mode for native context; the default preserves legacy input preparation.
 type NIM struct {
 	BaseURL    string
 	Model      string
@@ -53,6 +58,10 @@ type NIM struct {
 	HTTP   *http.Client
 	// Retries bounds retries on HTTP 429 and 5xx. Zero means 4.
 	Retries int
+	// StrictInput rejects oversized prepared text and provider-side truncation.
+	// Inputs: an opt-in native-context setting. Outputs: strict request and response bounds.
+	// Effects: none at configuration time; choose when every source segment must be embedded.
+	StrictInput bool
 	// Sleep is injectable for tests; nil uses a context-aware timer.
 	Sleep func(context.Context, time.Duration) error
 }
@@ -118,6 +127,20 @@ func PrepareInput(text string) string {
 	return text
 }
 
+// prepareStrictInput applies existing NIM guards without shortening source text.
+// Inputs: one native chunk. Outputs: prepared text or an explicit byte-limit error.
+// Effects: none; choose for strict native embedding instead of the legacy truncating guard.
+func prepareStrictInput(text string) (string, error) {
+	text = strings.ReplaceAll(text, "data:image/", "data: image/")
+	if len(text) > maxInputChars {
+		return "", errors.New("embedding: strict input exceeds prepared UTF-8 byte limit")
+	}
+	if strings.TrimSpace(text) == "" {
+		return blankPlaceholder, nil
+	}
+	return text, nil
+}
+
 func utf8Start(b byte) bool { return b&0xC0 != 0x80 }
 
 type embedRequest struct {
@@ -135,8 +158,10 @@ type embedResponse struct {
 	} `json:"data"`
 }
 
-// Embed returns one vector per text, in input order, or an error. It never
-// returns a partial batch.
+// Embed returns one vector per text in input order or an error without a partial batch.
+// Inputs: text batch and configured strict-input setting. Outputs: ordered vectors or error.
+// Effects: bounded authenticated HTTP attempts; strict validation fails before any request.
+// Choose strict native mode to reject text loss; default mode preserves legacy preparation.
 func (n NIM) Embed(ctx context.Context, texts []string) ([][]float32, error) {
 	if strings.TrimSpace(n.APIKey) == "" {
 		return nil, errors.New("embedding: NIM api key is not configured")
@@ -146,10 +171,22 @@ func (n NIM) Embed(ctx context.Context, texts []string) ([][]float32, error) {
 	}
 	inputs := make([]string, len(texts))
 	for i, text := range texts {
-		inputs[i] = PrepareInput(text)
+		if n.StrictInput {
+			prepared, err := prepareStrictInput(text)
+			if err != nil {
+				return nil, err
+			}
+			inputs[i] = prepared
+		} else {
+			inputs[i] = PrepareInput(text)
+		}
+	}
+	truncateMode := "END"
+	if n.StrictInput {
+		truncateMode = "NONE"
 	}
 	body, err := json.Marshal(embedRequest{
-		Model: n.model(), Input: inputs, InputType: "passage", EncodingFormat: "float", Truncate: "END",
+		Model: n.model(), Input: inputs, InputType: "passage", EncodingFormat: "float", Truncate: truncateMode,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("embedding: encode request: %w", err)
@@ -177,6 +214,10 @@ func (n NIM) Embed(ctx context.Context, texts []string) ([][]float32, error) {
 	return nil, lastErr
 }
 
+// post performs one embedding attempt with mode-specific response bounds.
+// Inputs: encoded request and expected vector count. Outputs: vectors, retryability and error.
+// Effects: one HTTP request; oversized strict responses fail without retrying.
+// Choose through Embed so strict input validation and legacy preparation stay consistent.
 func (n NIM) post(ctx context.Context, body []byte, want int) ([][]float32, bool, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, n.baseURL()+"/embeddings", bytes.NewReader(body))
 	if err != nil {
@@ -189,7 +230,14 @@ func (n NIM) post(ctx context.Context, body []byte, want int) ([][]float32, bool
 		return nil, true, fmt.Errorf("embedding: POST /embeddings: %w", err)
 	}
 	defer response.Body.Close()
-	payload, err := io.ReadAll(io.LimitReader(response.Body, 256<<20))
+	responseLimit := int64(256 << 20)
+	if n.StrictInput {
+		responseLimit = strictResponseBytes + 1
+	}
+	payload, err := io.ReadAll(io.LimitReader(response.Body, responseLimit))
+	if n.StrictInput && len(payload) > strictResponseBytes {
+		return nil, false, errors.New("embedding: strict response exceeds 4 MiB limit")
+	}
 	if err != nil {
 		return nil, true, fmt.Errorf("embedding: read response: %w", err)
 	}

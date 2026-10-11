@@ -28,6 +28,7 @@ const (
 // Inputs: registration and bounded Activity receipts. Outputs: reference-only status.
 // Effects: none; choose for context-first imports, not legacy custody results.
 type ContextSummary struct {
+	Human            *HumanContextSummary         `json:"human,omitempty"`
 	ReviewSource     *ContextVerifiedReviewSource `json:"review_source,omitempty"`
 	CandidateStage   *ContextCandidateStage       `json:"candidate_stage,omitempty"`
 	Review           *ContextReviewResult         `json:"candidate_review,omitempty"`
@@ -79,6 +80,10 @@ type ContextSourceRegistrationRequest struct {
 	DeclaredFormat    string `json:"declared_format"`
 	MatterID          string `json:"matter_id"`
 	CourtCaseID       string `json:"court_case_id"`
+	// ByteLength and ETag preserve original source pins before any streaming Activity.
+	// Omitted values assert no length or ETag; neither is a custody/hash admission gate.
+	ByteLength int64  `json:"byte_length,omitempty"`
+	ETag       string `json:"etag,omitempty"`
 }
 
 // ContextSourceRegistrationResult returns only the discoverable identity and its receipt.
@@ -185,7 +190,7 @@ func (r aiContextReceipt) validate(stage string, bounds ContextResourceBounds) e
 // contextFirstWorkflow registers a source before trying its parser or topic chunker.
 // Inputs: an explicit context-v1 Proffer input with source and optional native version/case metadata.
 // Outputs: durable registration plus compact partial or complete derivative references.
-// Effects: one registration write, then six sequential existing Python Activities on their queue;
+// Effects: one registration write, then versioned native-human Go Activities or existing AI Activities;
 // choose before legacy RetainOriginal, source fingerprints, approval and case admission.
 func contextFirstWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
 	if in.ContextContract != ContextContractVersion || !strings.HasPrefix(in.RequestID, ContextWorkflowIDPrefix) ||
@@ -253,6 +258,9 @@ func contextFirstWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResul
 		PackageRef: string(in.PackageRef), SourceKind: in.SourceKind,
 		DeclaredFormat: in.DeclaredFormat, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID,
 	}
+	if in.HumanSource != nil {
+		registration.ByteLength, registration.ETag = in.HumanSource.ByteLength, in.HumanSource.ETag
+	}
 	var registered ContextSourceRegistrationResult
 	registerOptions := workflow.ActivityOptions{StartToCloseTimeout: 2 * time.Minute, ScheduleToCloseTimeout: 15 * time.Minute}
 	if err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, registerOptions), contextRegisterActivityName, registration).Get(ctx, &registered); err != nil {
@@ -263,6 +271,10 @@ func contextFirstWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResul
 		return finish("partial", "registration_receipt_invalid")
 	}
 	summary.SourceVersionRef, summary.ReceiptRef = registered.SourceVersionRef, registered.ReceiptRef
+	// AI histories never evaluate the human marker; old SMS histories keep their parser outcome.
+	if in.DeclaredFormat == "smsbackuprestore_xml" && workflow.GetVersion(ctx, contextHumanChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		return contextHumanWorkflow(ctx, in, registered, &summary)
+	}
 	if in.DeclaredFormat != "chatgpt" && in.DeclaredFormat != "claude" && in.DeclaredFormat != "gemini_markdown" {
 		return finish("needs_parser", "parser_not_available")
 	}

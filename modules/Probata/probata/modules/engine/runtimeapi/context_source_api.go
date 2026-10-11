@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Cursedpotential/probata/engine/extraction/flow"
+	"github.com/Cursedpotential/probata/engine/humancontext"
 	"github.com/Cursedpotential/probata/engine/proffer"
 )
 
@@ -53,14 +54,19 @@ func (h *ContextSourceHTTPHandler) Routes() http.Handler {
 type contextSourceBody struct {
 	proffer.ContextResourceBounds
 
-	ContractVersion   string `json:"contract_version"`
-	SourceRef         string `json:"source_ref"`
-	ProviderVersionID string `json:"provider_version_id"`
-	PackageRef        string `json:"package_ref"`
-	SourceKind        string `json:"source_kind"`
-	DeclaredFormat    string `json:"declared_format"`
-	MatterID          string `json:"matter_id"`
-	CourtCaseID       string `json:"court_case_id"`
+	ContractVersion      string `json:"contract_version"`
+	SourceRef            string `json:"source_ref"`
+	ProviderVersionID    string `json:"provider_version_id"`
+	PackageRef           string `json:"package_ref"`
+	SourceKind           string `json:"source_kind"`
+	DeclaredFormat       string `json:"declared_format"`
+	MatterID             string `json:"matter_id"`
+	CourtCaseID          string `json:"court_case_id"`
+	OwnerPersonRef       string `json:"owner_person_ref,omitempty"`
+	PerspectivePersonRef string `json:"perspective_person_ref,omitempty"`
+	Perspective          string `json:"perspective,omitempty"`
+	ByteLength           int64  `json:"byte_length,omitempty"`
+	ETag                 string `json:"etag,omitempty"`
 }
 
 // validate checks source coordinates and existing operation limits without creating policy gates.
@@ -76,6 +82,11 @@ func (b contextSourceBody) validate() error {
 		len(b.MatterID) > 512 || len(b.CourtCaseID) > 512 ||
 		strings.ContainsAny(b.SourceRef+b.ProviderVersionID+b.PackageRef+b.SourceKind+b.DeclaredFormat+b.MatterID+b.CourtCaseID, "\x00\r\n") {
 		return errors.New("context source requires bounded contract and native source coordinates")
+	}
+	if b.ByteLength < 0 || len(b.ETag) > 1024 || len(b.OwnerPersonRef) > 2048 ||
+		len(b.PerspectivePersonRef) > 2048 || len(b.Perspective) > 128 ||
+		strings.ContainsAny(b.ETag+b.OwnerPersonRef+b.PerspectivePersonRef+b.Perspective, "\x00\r\n") {
+		return errors.New("context source attribution or native version metadata exceeds bounds")
 	}
 	return nil
 }
@@ -104,13 +115,25 @@ func (h *ContextSourceHTTPHandler) start(w http.ResponseWriter, r *http.Request)
 	if body.DeclaredFormat == "" {
 		body.DeclaredFormat = "unknown"
 	}
+	// Keep existing AI idempotency coordinates unchanged when additive metadata is absent.
+	coordinates := []string{key, actor.SubjectUID, body.SourceRef, body.ProviderVersionID, body.PackageRef,
+		body.SourceKind, body.DeclaredFormat, body.MatterID, body.CourtCaseID,
+		fmt.Sprintf("%d:%d:%d:%d:%d", body.MaxSourceBytes, body.MaxRecords, body.MaxTextBytes, body.MaxChunks, body.MaxModelCalls)}
+	var humanSource *humancontext.Source
+	if body.DeclaredFormat == "smsbackuprestore_xml" || body.OwnerPersonRef != "" || body.PerspectivePersonRef != "" ||
+		body.Perspective != "" || body.ByteLength != 0 || body.ETag != "" {
+		humanSource = &humancontext.Source{SourceRef: body.SourceRef, ProviderVersionID: body.ProviderVersionID,
+			OwnerPersonRef: body.OwnerPersonRef, PerspectivePersonRef: body.PerspectivePersonRef, Perspective: body.Perspective,
+			Format: body.DeclaredFormat, ByteLength: body.ByteLength, ETag: body.ETag}
+		coordinates = append(coordinates, humancontext.Contract, body.OwnerPersonRef, body.PerspectivePersonRef,
+			body.Perspective, fmt.Sprintf("%d", body.ByteLength), body.ETag)
+	}
 	in := proffer.WorkflowInput{
 		ContextContract: body.ContractVersion, ActorSubjectUID: actor.SubjectUID,
 		ContextResourceBounds: body.ContextResourceBounds,
-		RequestID: proffer.ContextWorkflowIDPrefix + flow.DeterministicID("context_source_ingest", key, actor.SubjectUID,
-			body.SourceRef, body.ProviderVersionID, body.PackageRef, body.SourceKind, body.DeclaredFormat, body.MatterID, body.CourtCaseID,
-			fmt.Sprintf("%d:%d:%d:%d:%d", body.MaxSourceBytes, body.MaxRecords, body.MaxTextBytes, body.MaxChunks, body.MaxModelCalls)),
-		SourceRef: proffer.Ref(body.SourceRef), ProviderVersionID: body.ProviderVersionID,
+		RequestID:             proffer.ContextWorkflowIDPrefix + flow.DeterministicID(append([]string{"context_source_ingest"}, coordinates...)...),
+		HumanSource:           humanSource,
+		SourceRef:             proffer.Ref(body.SourceRef), ProviderVersionID: body.ProviderVersionID,
 		PackageRef: proffer.Ref(body.PackageRef), SourceKind: body.SourceKind,
 		DeclaredFormat: body.DeclaredFormat, MatterID: body.MatterID, CourtCaseID: body.CourtCaseID,
 	}

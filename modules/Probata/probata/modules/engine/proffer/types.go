@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/humancontext"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
@@ -120,6 +121,10 @@ type WorkflowInput struct {
 
 	// ContextContract selects the versioned, context-first source path. Empty preserves legacy Proffer replay.
 	ContextContract string `json:"context_contract,omitempty"`
+	// HumanSource carries registered native source coordinates for the human context branch.
+	// Inputs: source/version references and native pins. Outputs: reference-only Activity inputs.
+	// Effects: none; choose for human bundles, not AI content or legacy retained imports.
+	HumanSource *humancontext.Source `json:"human_source,omitempty"`
 	// ActorSubjectUID binds a context workflow and its status to the authenticated caller.
 	ActorSubjectUID string `json:"actor_subject_uid,omitempty"`
 	// ProviderVersionID and SourceKind retain native source identity before parsing.

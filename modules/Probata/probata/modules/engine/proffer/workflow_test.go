@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/Cursedpotential/probata/engine/humancontext"
 	"reflect"
 	"strings"
 	"sync"
@@ -1055,6 +1056,10 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 	//    hold a slice of. Anything else — including a new local struct — is a
 	//    failure until it is added here deliberately.
 	countBearing := map[reflect.Type]bool{
+		// Native source coordinates and receipts contain only refs, bounded counts and status.
+		reflect.TypeOf(humancontext.Source{}): true,
+		reflect.TypeOf(humancontext.Result{}): true,
+		reflect.TypeOf(HumanContextSummary{}): true,
 		// These context types contain resource ceilings, counts and status flags only.
 		reflect.TypeOf(ContextResourceBounds{}): true,
 		reflect.TypeOf(ContextSummary{}):        true,
@@ -1070,6 +1075,10 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 		reflect.Bool: true, reflect.Int: true, reflect.Int64: true, reflect.Uint64: true,
 	}
 	nestable := map[reflect.Type]bool{
+		// Native source coordinates and receipts contain only refs, bounded counts and status.
+		reflect.TypeOf(humancontext.Source{}): true,
+		reflect.TypeOf(humancontext.Result{}): true,
+		reflect.TypeOf(HumanContextSummary{}): true,
 		// Recurse through the exact native-context reference/status contracts.
 		reflect.TypeOf(ContextResourceBounds{}):       true,
 		reflect.TypeOf(ContextSummary{}):              true,

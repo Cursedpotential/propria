@@ -188,6 +188,9 @@ services:
       # The embedder is the collection's own (NIM nemotron-3-embed-1b, 2048-d, text_nim).
       # Byline: Claude Code · Opus 5.5 · 2026-10-01
       CONTEXT_SEARCH_WEAVIATE_URL: ${CONTEXT_SEARCH_WEAVIATE_URL:-http://100.91.190.107:8082}
+      # Native human context publishes conversation chunks into the existing approved collection.
+      # This path never creates a collection or publishes per-message objects.
+      CONTEXT_CHUNKS_COLLECTION: ProfferChunks20261002
       # One owner-approved collection per record kind (owner 2026-10-02): messages and calls,
       # AI chats, documents. Only DocEvents20261001 may be created by the worker.
       # Messages and calls go to Proffer's own ProfferMsgEvents20261002, apart from the Case Bible's
