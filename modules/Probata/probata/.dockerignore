@@ -43,3 +43,10 @@ modules/apps/
 modules/workbench/web/node_modules/
 docs/
 tests/
+
+# Managed worker tests need only this inert walk contract fixture.
+!tests/
+tests/*
+!tests/unit/
+tests/unit/*
+!tests/unit/test_approved_walk.py
