@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/humancontext"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
@@ -115,6 +116,20 @@ const (
 // register_source_activity (stage 1) turns SourceRef into the durable
 // source/version reference every later stage keys off.
 type WorkflowInput struct {
+	// ContextResourceBounds forwards existing Python limits only on the tagged context path.
+	ContextResourceBounds
+
+	// ContextContract selects the versioned, context-first source path. Empty preserves legacy Proffer replay.
+	ContextContract string `json:"context_contract,omitempty"`
+	// HumanSource carries registered native source coordinates for the human context branch.
+	// Inputs: source/version references and native pins. Outputs: reference-only Activity inputs.
+	// Effects: none; choose for human bundles, not AI content or legacy retained imports.
+	HumanSource *humancontext.Source `json:"human_source,omitempty"`
+	// ActorSubjectUID binds a context workflow and its status to the authenticated caller.
+	ActorSubjectUID string `json:"actor_subject_uid,omitempty"`
+	// ProviderVersionID and SourceKind retain native source identity before parsing.
+	ProviderVersionID string `json:"provider_version_id,omitempty"`
+	SourceKind        string `json:"source_kind,omitempty"`
 	// OperatingMode records explicit operating context in durable workflow history.
 	OperatingMode string
 	// RequestID is the client-supplied idempotency key. Callers are expected
@@ -332,6 +347,8 @@ type StageResult struct {
 // WorkflowResult is the terminal, compact summary of one workflow
 // execution.
 type WorkflowResult struct {
+	// Context is the independent context-first result; legacy Proffer runs leave it empty.
+	Context          *ContextSummary `json:"context,omitempty"`
 	SourceVersionRef Ref
 	// PublicationRef is publish_generation_activity's receipt. Empty unless
 	// Status is StatusSuccess.

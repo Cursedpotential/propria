@@ -62,6 +62,8 @@ services:
       TSNET_STATE_DIR: /data/tsnet
       TSNET_AUTHKEY_FILE: /run/secrets/tsnet-authkey
       SOURCE_OBJECT_DIR: /data/proffer/source-objects
+      # Native viewer reads completed external bundles; extraction runs in the Go worker.
+      HUMAN_CONTEXT_ROOT: /data/proffer/derive-scratch/human-context
       PROFFER_UPLOAD_MAX_BYTES: ${PROFFER_UPLOAD_MAX_BYTES:?set}
       N8N_PROFFER_BASE_URL: ${N8N_PROFFER_BASE_URL:?set}
       N8N_PROFFER_AUTH_HEADER: ${N8N_PROFFER_AUTH_HEADER:?set}
@@ -93,6 +95,8 @@ services:
       # up to 16. Byline: Claude Code Â· Opus 5 Â· 2026-09-21
       PROFFER_BATCH_MAX_IN_FLIGHT: ${PROFFER_BATCH_MAX_IN_FLIGHT:-1}
     volumes:
+      # Short-form :ro is preserved by the managed compose renderer.
+      - /data/probata/volumes/proffer/derive-scratch/human-context:/data/proffer/derive-scratch/human-context:ro
       - /data/probata/secrets/family-court/library-sync-token:/run/secrets/toolkit-library-sync-token:ro
       - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects
       # tsnet node state. MUST be persistent or the service re-registers as a

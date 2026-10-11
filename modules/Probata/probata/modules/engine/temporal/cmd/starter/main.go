@@ -45,6 +45,10 @@ func main() {
 	}
 }
 
+// run composes the existing authenticated starter with raw and native-human source viewing.
+// Inputs: service environment, mounted credentials and shared platform/Temporal connections.
+// Outputs: a running HTTP service or startup error. Effects: connections and listener only; requests own workflow starts.
+// Choose for the established starter process; parsing and indexing stay in separate registered Activities.
 func run() error {
 	cfg, err := platformtemporal.LoadConfig()
 	if err != nil {
@@ -133,6 +137,10 @@ func run() error {
 	rawPreviewMux.Handle("POST /reference-import/source-preview/", rawPreviewHandler.Routes())
 	rawPreviewMux.Handle("/", routes)
 	routes = rawPreviewMux
+	routes, err = nativeHumanContextRoutes(routes, pool, c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
 	sourceContextStore, err := platformpostgres.NewSourceContextStore(pool)
 	if err != nil {
 		return err
