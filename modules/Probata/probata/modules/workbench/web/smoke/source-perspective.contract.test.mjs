@@ -14,6 +14,23 @@ const people = [
   { id: "registry-owner", role_in_case: "user", verification_state: "confirmed" },
 ];
 
+test("checked files expose the source perspective choice even while a folder remains selected", () => {
+  const source = readFileSync(new URL("../src/components/sources/sources-screen.tsx", import.meta.url), "utf8");
+  const ast = ts.createSourceFile("sources-screen.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let condition;
+  function visit(node) {
+    if (ts.isJsxExpression(node) && node.expression && ts.isBinaryExpression(node.expression)
+      && node.expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+      && node.expression.right.getText(ast).includes('aria-label="Whose phone/export?"')) condition = node.expression.left.getText(ast);
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  assert.ok(condition);
+  assert.equal(Boolean(runInNewContext(condition, { localSource: null, selectedFiles: [{}], selectedFolder: "folder/", selectedObject: null })), true);
+  assert.equal(Boolean(runInNewContext(condition, { localSource: null, selectedFiles: [], selectedFolder: "folder/", selectedObject: null })), false);
+  assert.equal(Boolean(runInNewContext(condition, { localSource: { file: {} }, selectedFiles: [], selectedFolder: "folder/", selectedObject: null })), true);
+});
+
 /** Execute the real Sources Process callback with bounded transport stubs.
  * Inputs: explicit source selection/registry state. Output: callback and captured requests.
  * Effects: in-memory TS compilation only; never accesses a corpus or starts a live workflow.
