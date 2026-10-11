@@ -35,6 +35,25 @@ def _digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
 
+def _scope_digest(actor, scope):
+    """Match Go's actor/scope binding, including struct field order and zero horizon.
+
+    Inputs: verified actor and original scope. Output: Go-compatible SHA-256.
+    Effects: none; binds revision/projection/access-policy pins independently of dates.
+    """
+    keys = ("matter_id", "court_case_id", "access_policy_id", "approved_revision_id", "approval_digest",
+        "projection_generation_id", "projection_hash", "perspective", "horizon", "limit")
+    value = {k: scope[k] for k in keys}
+    value.update(perspective="", horizon="0001-01-01T00:00:00Z")
+    if scope.get("cursor"):
+        value["cursor"] = scope["cursor"]
+    raw = json.dumps({"Actor": actor, "Scope": value}, separators=(",", ":"), ensure_ascii=False)
+    # encoding/json's default HTML and JavaScript-separator escaping.
+    for character, escaped in (("&", "\\u0026"), ("<", "\\u003c"), (">", "\\u003e"), ("\u2028", "\\u2028"), ("\u2029", "\\u2029")):
+        raw = raw.replace(character, escaped)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 def _findings(findings, claims):
     """Resolve every quotation to the exact supplied eligible claim and root citation.
 
@@ -97,7 +116,7 @@ def read_walk_content(workflow_id: str, result: WalkResult, actor: str, case: di
             and final.get("checkpoints") == refs and len(refs) == len(contract.cutoffs) + 1
             and isinstance(inputs, list) and len(inputs) == len(refs)
             and final.get("partial") is result.partial and final.get("review_status") == result.review_status
-            and isinstance(digest, str) and len(digest) == 64 and all(c in "0123456789abcdef" for c in digest),
+            and digest == _scope_digest(actor, scope),
             "Walk final document differs from its workflow result")
         comparison = final.get("comparison")
         _require(isinstance(comparison, dict), "Walk comparison is invalid")
@@ -128,7 +147,6 @@ def read_walk_content(workflow_id: str, result: WalkResult, actor: str, case: di
         _require(type(index) is int and 0 <= index < len(refs), "Unknown walk step")
         # One final document plus selected input/checkpoint and at most one predecessor.
         # Never preload all 21 potentially large checkpoint objects.
-        checkpoints = []
         for index, reference in [(index, refs[index])]:
             _require(isinstance(inputs[index], dict), "Walk input reference is invalid")
             input_ref = inputs[index].get("artifact")

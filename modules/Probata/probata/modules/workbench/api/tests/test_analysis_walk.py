@@ -52,16 +52,17 @@ def fixture(monkeypatch, count=1):
 
     cutoffs = [f"2020-01-{i + 1:02}T00:00:00Z" for i in range(count)]
     query_scope = {**scope(), **case, "horizon": cutoffs[-1]}
+    scope_digest = analysis_walks._scope_digest("tailscale:owner", query_scope)
     inputs, refs, checkpoints = [], [], []
     for i in range(count + 1):
         perspective = "as_lived" if i < count else "hindsight"
         step = dict(schema="approved-walk-step-v1", perspective=perspective,
-            horizon=cutoffs[i] if i < count else None, scope_digest="d" * 64, step_index=i, claims=[])
+            horizon=cutoffs[i] if i < count else None, scope_digest=scope_digest, step_index=i, claims=[])
         if 0 < i < count:
             step["previous"] = {k: v for k, v in checkpoints[-1].items() if k in analysis_walks.CHECKPOINT_FIELDS}
         input_ref = put(f"input-{i}.json", step)
         checkpoint = dict(input_artifact=input_ref, schema="approved-walk-checkpoint-v1", perspective=perspective,
-            horizon=step["horizon"], scope_digest="d" * 64, step_index=i,
+            horizon=step["horizon"], scope_digest=scope_digest, step_index=i,
             input_digest=analysis_walks._digest(step), model_input_digest="e" * 64, claim_ids=[], findings=[],
             model={"model_id": "test-model"}, prompt_version="approved-walk-balanced-v1", prompt_sha256="f" * 64,
             usage={}, review_status="pending", limitations=[])
@@ -69,7 +70,7 @@ def fixture(monkeypatch, count=1):
         inputs.append(dict(artifact=input_ref, has_more=False, claim_count=0))
         checkpoints.append(checkpoint)
     final = dict(schema="approved-walk-result-v1", query=dict(operating_mode="LIVE", actor=dict(subject_uid="tailscale:owner"), request_id="proof", scope=query_scope),
-        cutoffs=cutoffs, scope_digest="d" * 64, checkpoints=refs, inputs=inputs, partial=False, review_status="pending",
+        cutoffs=cutoffs, scope_digest=scope_digest, checkpoints=refs, inputs=inputs, partial=False, review_status="pending",
         comparison=dict(hindsight_only_claim_ids=[], available_after_last_cutoff_claim_ids=[], unknown_availability_claim_ids=[], hindsight_findings_not_identical_to_last_as_lived=[]),
         coverage="Selected cutoff pages only.", validation="Exact source citations.", family_independence="Unresolved.")
     result = WalkResult(artifact=put("result.json", final), checkpoints=refs, partial=False, review_status="pending")
