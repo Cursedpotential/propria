@@ -104,3 +104,23 @@ def test_as_lived_rejects_future_or_unknown_occurrence_even_when_source_was_avai
     snapshot["records"][0]["occurred_at"] = occurred
     with pytest.raises(DiscoveryInvalid, match="cutoff"):
         assemble_context(snapshot)
+
+
+def test_atomic_attribution_orders_cross_run_corrections_by_time_before_revision():
+    corrections = [
+        {
+            "feedback_id": "current",
+            "kind": "wrong_person",
+            "revision": 1,
+            "created_at": "2026-01-02T10:00:00Z",
+            "attributed_actor_ids": ["current-person"],
+        },
+        {
+            "feedback_id": "historical",
+            "kind": "wrong_person",
+            "revision": 10,
+            "created_at": "2026-01-01T10:00:00Z",
+            "attributed_actor_ids": ["old-person"],
+        },
+    ]
+    assert attribution([record("one")], corrections)["attributed_actor_ids"] == ["current-person"]

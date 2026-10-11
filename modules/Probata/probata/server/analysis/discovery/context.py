@@ -31,6 +31,26 @@ def timestamp(value: Any) -> datetime | None:
         return None
 
 
+def order_feedback(feedback: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Order human corrections by recorded time independently of per-run revisions.
+
+    Inputs: feedback with zoned created_at, identity and revision. Outputs:
+    deterministic chronological corrections. Effects: none; choose cross-run
+    timestamps over comparing revision counters from unrelated runs.
+    """
+    for item in feedback:
+        if timestamp(item.get("created_at")) is None:
+            raise DiscoveryInvalid("feedback requires a valid zoned created_at")
+        if not isinstance(item.get("feedback_id"), str) or not item["feedback_id"]:
+            raise DiscoveryInvalid("feedback identity is incomplete")
+        revision = item.get("revision", 0)
+        if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
+            raise DiscoveryInvalid("feedback revision is invalid")
+    return sorted(
+        feedback, key=lambda item: (timestamp(item["created_at"]), item["feedback_id"], item.get("revision", 0))
+    )
+
+
 def assemble_context(batch: dict[str, Any]) -> list[dict[str, Any]]:
     """Group explicit linked episodes and sort bounded native occurrences safely.
 
@@ -121,7 +141,7 @@ def attribution(records: list[dict[str, Any]], feedback: list[dict[str, Any]]) -
     )
     actors = sorted({actor for r in records for actor in r.get("attributed_actor_ids") or []})
     forms = {r.get("speech_form", "unknown") for r in records}
-    for item in feedback:
+    for item in order_feedback(feedback):
         if item.get("kind") == "wrong_person":
             actors = sorted(set(item.get("attributed_actor_ids") or []))
         if item.get("kind") == "reported_speech":

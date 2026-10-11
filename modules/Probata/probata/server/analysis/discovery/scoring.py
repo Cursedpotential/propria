@@ -16,11 +16,11 @@ from pathlib import Path
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
-from .context import assemble_context, attribution, timestamp
+from .context import assemble_context, attribution, order_feedback, timestamp
 from .storage import DiscoveryInvalid, fingerprint
 
 MODEL_VERSION = "discovery-cpu-v1"
-SCORE_REVISION = "prototype-exemplar-v2"
+SCORE_REVISION = "prototype-exemplar-v3"
 DEFAULT_HYPOTHESES = [
     {"hypothesis_id": "threat", "category": "threat", "text": "A person threatens physical harm or intimidation."},
     {
@@ -174,7 +174,7 @@ def _feedback(batch: dict[str, Any]) -> list[dict[str, Any]]:
         if len(item.get("example_text", "")) > 4000:
             raise DiscoveryInvalid("feedback example text exceeds bound")
         out.append(item)
-    return sorted(out, key=lambda item: (item.get("revision", 0), item["feedback_id"]))
+    return order_feedback(out)
 
 
 def _feedback_direction(item: dict[str, Any], label: str) -> int:

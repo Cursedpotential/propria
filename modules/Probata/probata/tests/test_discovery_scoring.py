@@ -282,3 +282,67 @@ def test_identity_correction_and_skip_with_prior_and_desired_labels_never_change
     snapshot["feedback"] = [feedback(kind, previous_labels=["threat"], labels=["control"], example_text="ambiguous")]
     after = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
     assert after["label_scores"] == before["label_scores"]
+
+
+def test_latest_cross_run_wrong_person_wins_even_when_historical_run_revision_is_higher():
+    snapshot = batch()
+    before = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    snapshot["feedback"] = [
+        feedback(
+            "wrong_person",
+            feedback_id="current",
+            revision=1,
+            created_at="2026-01-02T10:00:00Z",
+            record_ids=["one"],
+            attributed_actor_ids=["current-corrected-person"],
+        ),
+        feedback(
+            "wrong_person",
+            feedback_id="historical",
+            revision=10,
+            created_at="2026-01-01T10:00:00Z",
+            record_ids=["one"],
+            attributed_actor_ids=["superseded-person"],
+        ),
+    ]
+    after = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    assert after["attributed_actor_ids"] == ["current-corrected-person"]
+    assert after["label_scores"] == before["label_scores"]
+    snapshot["feedback"].reverse()
+    assert score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0] == after
+
+
+def test_cross_run_label_examples_remain_additive_after_chronological_ordering():
+    snapshot = batch("ambiguous")
+    before = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    snapshot["feedback"] = [
+        feedback(
+            "confirm",
+            feedback_id="current",
+            revision=1,
+            created_at="2026-01-02T10:00:00Z",
+            labels=["control"],
+            example_text="ambiguous",
+        ),
+        feedback(
+            "confirm",
+            feedback_id="historical",
+            revision=10,
+            created_at="2026-01-01T10:00:00Z",
+            labels=["threat"],
+            example_text="ambiguous",
+        ),
+    ]
+    after = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
+    assert after["label_scores"]["threat"] > before["label_scores"]["threat"]
+    assert after["label_scores"]["control"] > before["label_scores"]["control"]
+    snapshot["feedback"].reverse()
+    assert score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0] == after
+
+
+@pytest.mark.parametrize("created", [None, "uncertain clock", "2026-01-01T10:00:00"])
+def test_all_feedback_requires_zoned_recorded_time_even_in_hindsight(created):
+    snapshot = batch()
+    snapshot["feedback"] = [feedback("wrong_person", created_at=created, record_ids=["one"])]
+    with pytest.raises(DiscoveryInvalid, match="zoned created_at"):
+        score_batch(snapshot, encoder=FixtureEncoder())
