@@ -51,6 +51,13 @@ services:
     environment:
       HOMEPAGE_ALLOWED_HOSTS: "homepage.tilapia-skilift.ts.net,100.72.169.40:3010"
       HOMEPAGE_VAR_PORTAL_TITLE: "Propria Project Portal"
+      HOMEPAGE_FILE_STATS_ION_CONTROL_PASSWORD: /run/secrets/server-stats-ion-control
+      HOMEPAGE_FILE_STATS_OVH_APP_PASSWORD: /run/secrets/server-stats-ovh-app
+      HOMEPAGE_FILE_STATS_OVH_FILES_PASSWORD: /run/secrets/server-stats-ovh-files
+    volumes:
+      - "/data/probata/secrets/portal-stats/ion-control.password:/run/secrets/server-stats-ion-control:ro"
+      - "/data/probata/secrets/portal-stats/ovh-app.password:/run/secrets/server-stats-ovh-app:ro"
+      - "/data/probata/secrets/portal-stats/ovh-files.password:/run/secrets/server-stats-ovh-files:ro"
     healthcheck:
       # /api/revalidate re-renders the index page from the baked configuration. Homepage serves the
       # index as a cached static page, and a fresh container otherwise keeps serving the image's
@@ -79,6 +86,13 @@ services:
     environment:
       HOMEPAGE_ALLOWED_HOSTS: "homepage.int.mitechconsult.com,100.72.169.40:3012"
       HOMEPAGE_VAR_PORTAL_TITLE: "Propria Project Portal (Public)"
+      HOMEPAGE_FILE_STATS_ION_CONTROL_PASSWORD: /run/secrets/server-stats-ion-control
+      HOMEPAGE_FILE_STATS_OVH_APP_PASSWORD: /run/secrets/server-stats-ovh-app
+      HOMEPAGE_FILE_STATS_OVH_FILES_PASSWORD: /run/secrets/server-stats-ovh-files
+    volumes:
+      - "/data/probata/secrets/portal-stats/ion-control.password:/run/secrets/server-stats-ion-control:ro"
+      - "/data/probata/secrets/portal-stats/ovh-app.password:/run/secrets/server-stats-ovh-app:ro"
+      - "/data/probata/secrets/portal-stats/ovh-files.password:/run/secrets/server-stats-ovh-files:ro"
     healthcheck:
       # Same as above: re-render the cached index from the baked configuration.
       test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:3000/api/revalidate || exit 1"]

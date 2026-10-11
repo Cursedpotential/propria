@@ -1,0 +1,32 @@
+# Current Coolify service homv6zeg4ay2r2puxtzakf83 on ovh-app.
+# Source mounted read-only from the exact reviewed Git release; credentials are private file binds.
+# Byline: Codex · GPT-6 · 2026-10-11.
+services:
+  progress-board:
+    image: node:22.22.3-alpine
+    working_dir: /app
+    command: [node, server.mjs]
+    user: "1000:1000"
+    env_file:
+      - /data/dashboards/progress-board.env
+    environment:
+      LIVE_WORK_PROFFER_URL: http://100.91.190.107:8091
+      LIVE_WORK_PROFFER_TOKEN_FILE: /run/secrets/proffer-service.token
+      LIVE_WORK_ACTIVITY_URL: https://workbench.tilapia-skilift.ts.net/activity
+      LIVE_WORK_COOLIFY_API_URL: http://100.98.98.38:8000/api/v1
+      LIVE_WORK_COOLIFY_TOKEN_FILE: /run/secrets/coolify-readonly.token
+      LIVE_WORK_COOLIFY_APPS_JSON: '[{"uuid":"tvnv932wjspjd6xj8uvb2r0f","deploymentUrlPrefix":"https://coolify.tilapia-skilift.ts.net/project/nbg0ocqqrf91xag492yjqf5i/environment/pqol69twwx07ln6c6ucoplkb/application/tvnv932wjspjd6xj8uvb2r0f/deployment/"},{"uuid":"xjbuo6drbwjfby75lalk8bk7","deploymentUrlPrefix":"https://coolify.tilapia-skilift.ts.net/project/nbg0ocqqrf91xag492yjqf5i/environment/pqol69twwx07ln6c6ucoplkb/application/xjbuo6drbwjfby75lalk8bk7/deployment/"},{"uuid":"d24bb9eoo47qtw9eq1xc6u64","deploymentUrlPrefix":"https://coolify.tilapia-skilift.ts.net/project/nbg0ocqqrf91xag492yjqf5i/environment/pqol69twwx07ln6c6ucoplkb/application/d24bb9eoo47qtw9eq1xc6u64/deployment/"},{"uuid":"r1084s1lsm80fsv4ol9ocij0","deploymentUrlPrefix":"https://coolify.tilapia-skilift.ts.net/project/nbg0ocqqrf91xag492yjqf5i/environment/pqol69twwx07ln6c6ucoplkb/application/r1084s1lsm80fsv4ol9ocij0/deployment/"},{"uuid":"pn6t3nsdrhnxnueuwe7756g5","deploymentUrlPrefix":"https://coolify.tilapia-skilift.ts.net/project/nbg0ocqqrf91xag492yjqf5i/environment/pqol69twwx07ln6c6ucoplkb/application/pn6t3nsdrhnxnueuwe7756g5/deployment/"},{"uuid":"ywo2qvc5catoa79zgdur5o2j","deploymentUrlPrefix":"https://coolify.tilapia-skilift.ts.net/project/nbg0ocqqrf91xag492yjqf5i/environment/pqol69twwx07ln6c6ucoplkb/application/ywo2qvc5catoa79zgdur5o2j/deployment/"}]'
+    volumes:
+      - /data/dashboards/progress-board:/app:ro
+      - /data/probata/secrets/progress-board/metabase-ro:/run/secrets/metabase-ro:ro
+      - /data/probata/secrets/portal-repair:/run/secrets/portal-repair:ro
+      - /data/probata/secrets/portal-live-work/proffer-service.token:/run/secrets/proffer-service.token:ro
+      - /data/probata/secrets/portal-live-work/coolify-readonly.token:/run/secrets/coolify-readonly.token:ro
+    ports:
+      - "100.72.169.40:3020:3020"
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3020/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

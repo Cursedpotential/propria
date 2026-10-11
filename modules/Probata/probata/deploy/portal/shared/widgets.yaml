@@ -1,13 +1,46 @@
-# Byline: Claude Code · Opus 5.5 · 2026-09-26 — header widgets, shared by both portal instances.
-# custom.css places them at the top of the left (widgets) column, above the Live board.
+# Host readings from three authenticated, read-only Glances collectors.
+# Credentials are supplied only through Homepage's supported secret-file substitution.
+# Byline: Codex · GPT-6 · 2026-10-11.
 - greeting:
     text_size: 2xl
     text: Propria
-- resources:
+- glances:
+    url: http://100.98.98.38:61218
+    version: 4
+    username: portal
+    password: "{{HOMEPAGE_FILE_STATS_ION_CONTROL_PASSWORD}}"
     cpu: true
-    memory: true
-    disk: /
+    mem: true
+    disk:
+      - /host/root
+    uptime: true
+    expanded: true
+    label: ion-control
+- glances:
+    url: http://100.72.169.40:61218
+    version: 4
+    username: portal
+    password: "{{HOMEPAGE_FILE_STATS_OVH_APP_PASSWORD}}"
+    cpu: true
+    mem: true
+    disk:
+      - /host/root
+    uptime: true
+    expanded: true
     label: ovh-app
+- glances:
+    url: http://100.91.190.107:61218
+    version: 4
+    username: portal
+    password: "{{HOMEPAGE_FILE_STATS_OVH_FILES_PASSWORD}}"
+    cpu: true
+    mem: true
+    disk:
+      - /host/root
+      - /host/data
+    uptime: true
+    expanded: true
+    label: ovh-files
 - datetime:
     text_size: md
     format:

@@ -55,6 +55,15 @@
             - field: fail
               label: Fail
               format: number
+            - field: auth_required
+              label: Sign in
+              format: number
+            - field: monitor_denied
+              label: Restricted
+              format: number
+            - field: unconfigured
+              label: Unconfigured
+              format: number
             - field: p50_ms
               label: p50
               format: text
@@ -69,7 +78,7 @@
         icon: mdi-chart-line
     - Surfaces needing attention:
         href: https://homepage.tilapia-skilift.ts.net/progress/health/
-        description: Degraded or down surfaces from the live health probe
+        description: Failed, restricted or unconfigured service checks
         icon: mdi-alert-octagon-outline
         widget:
           type: customapi
@@ -95,8 +104,9 @@
             name: service
             label: summary
             limit: 5
-    - Open to-dos:
-        description: Open URGENT-TODO.md items, newest first (synced copy)
+    - Live work:
+        href: https://workbench.tilapia-skilift.ts.net/activity
+        description: Latest returned processing operations and deployments, updated automatically
         icon: mdi-checkbox-marked-outline
         widget:
           type: customapi
@@ -108,9 +118,47 @@
             name: area
             label: summary
             limit: 8
+    - Work feed status:
+        href: https://workbench.tilapia-skilift.ts.net/activity
+        description: Feed availability and counts from the recent bounded pages
+        icon: mdi-progress-check
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/live-work
+          refreshInterval: 30000
+          mappings:
+            - field: state
+              label: Feed
+              format: text
+            - field: counts.running
+              label: Running
+              format: number
+            - field: counts.queued
+              label: Queued
+              format: number
+            - field: counts.waiting
+              label: Waiting
+              format: number
+            - field: counts.failed
+              label: Failed
+              format: number
+    - B2 and R2 connections:
+        href: https://files.tilapia-skilift.ts.net/
+        description: Fresh authenticated lists of B2 and all configured R2 locations
+        icon: mdi-database-check-outline
+        widget:
+          type: customapi
+          url: http://100.72.169.40:3020/api/storage-health
+          refreshInterval: 30000
+          display: dynamic-list
+          mappings:
+            items: profiles
+            name: profile
+            label: state
+            limit: 4
     - Pipeline lanes:
         href: https://homepage.tilapia-skilift.ts.net/progress/
-        description: Observation counts per lane, live from Surreal
+        description: Recorded lane observations; use Live work for execution status
         icon: mdi-view-list-outline
         widget:
           type: customapi
@@ -124,7 +172,7 @@
             limit: 8
     - Lane timeline:
         href: https://homepage.tilapia-skilift.ts.net/progress/
-        description: Observations by lane, observed to updated
+        description: Recorded observation dates by lane
         icon: mdi-chart-gantt
 
 # ------------------------------------------------------------------ right column: the app buttons

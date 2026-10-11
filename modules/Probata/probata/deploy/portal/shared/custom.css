@@ -93,7 +93,7 @@
   color: var(--portal-ink);
 }
 #information-widgets .information-widget-datetime span { color: var(--portal-muted); }
-/* Resources (CPU, memory, disk of ovh-app): left-aligned under the title, label beside the bars. */
+/* Three host resource groups: left-aligned under the title, labels beside their readings. */
 #information-widgets #widgets-wrap > :not(.information-widget-greeting):not(#information-widgets-right) {
   align-items: flex-start;
   align-self: flex-start;
