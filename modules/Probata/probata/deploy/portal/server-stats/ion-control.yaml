@@ -1,0 +1,40 @@
+# Collect bounded host CPU, memory and filesystem statistics for the existing portal.
+# Inputs: pinned Glances4.5.8, read-only host views and a private password hash.
+# Outputs: authenticated read-only API on the host tailnet address only.
+# Effects: one Coolify-managed collector capped256MiB/0.25CPU; no source, index or workflow writes.
+# Choose for host statistics; the Homepage resources widget measures its own container.
+# Byline: Codex · GPT-6 · 2026-10-11.
+services:
+  server-stats:
+    image: nicolargo/glances:4.5.8@sha256:32ccbc559baa624bd41419c9a1daf2c32b391dfbee106434186a52bccd164ac7
+    hostname: ion-control
+    restart: unless-stopped
+    user: "65534:65534"
+    pid: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 0.25
+    pids_limit: 128
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    ports: ["100.98.98.38:61218:61208"]
+    environment:
+      GLANCES_OPT: "-w --bind 0.0.0.0 --port 61208 --time 10 --disable-webui --disable-process --disable-plugin all --enable-plugin cpu,mem,fs,system,uptime,load -u portal --password --disable-check-update -C /etc/glances/glances.conf"
+      XDG_CACHE_HOME: /tmp
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - /etc/os-release:/etc/os-release:ro
+      - /etc/hostname:/etc/hostname:ro
+      - /:/host/root:ro
+      - /data:/host/data:ro
+      - /data/probata/config/portal-stats/glances.conf:/etc/glances/glances.conf:ro
+      - /data/probata/secrets/portal-stats/ion-control.pwd:/run/glances-auth/portal.pwd:ro
+    healthcheck:
+      test: [CMD, python, -c, "import socket; socket.create_connection(('127.0.0.1',61208),2).close()"]
+      interval: 30s
+      timeout: 4s
+      retries: 3
+      start_period: 30s
+    labels:
+      - traefik.enable=false
