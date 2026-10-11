@@ -142,6 +142,246 @@ def test_roots_bound_into_exact_plan(mirror):
         source_sync.operation('apply',{'files':files,'plan_id':plan['plan_id']})
 
 
+def retained_entry(project='propria', path='held.md', content=b'# held\n'):
+    """Build a fixture-only exact retained reference without an uploaded body.
+
+    Inputs: source identity and bytes. Output: reference dict. Effects: none;
+    choose for retention tests instead of the full-body entry helper.
+    """
+    return {'project':project, 'path':path, 'retain_existing':True,
+            'sha256':hashlib.sha256(content).hexdigest()}
+
+
+@pytest.mark.parametrize('change', [
+    {'content':None}, {'content':''}, {'content':'# held\n'},
+    {'retain_existing':False}, {'retain_existing':1}, {'retain_existing':'true'},
+    {'retain_existing':None}, {'sha256':None}, {'sha256':[]},
+    {'sha256':'A'*64}, {'sha256':'f'*63}, {'sha256':'g'*64},
+])
+def test_retained_reference_rejects_ambiguous_mode_and_invalid_hash(change):
+    """Reject ambiguous retention or invalid hashes without any filesystem work."""
+    with pytest.raises(ValueError):
+        source_sync.validated([{**retained_entry(), **change}], list(source_sync.ROOTS))
+    missing=retained_entry()
+    missing.pop('sha256')
+    with pytest.raises(ValueError, match='canonical SHA-256'):
+        source_sync.validated([missing], list(source_sync.ROOTS))
+
+
+@pytest.mark.parametrize('path', ['private/held.md', 'to_be_deleted/held.md',
+    '_to_be_deleted/held.md', '.hidden/held.md', '../held.md', 'advocatio/held.md'])
+def test_retention_cannot_bypass_scope_exclusions(path):
+    """Keep the existing docs-only exclusions on body-less retained references."""
+    with pytest.raises(ValueError, match='scope'):
+        source_sync.validated([retained_entry(path=path)], list(source_sync.ROOTS))
+
+
+def test_retention_and_body_duplicate_identity_is_rejected():
+    """Reject duplicate identities regardless of the selected upload mode."""
+    with pytest.raises(ValueError, match='Duplicate'):
+        source_sync.validated([retained_entry(), entry(path='held.md',content='# held\n')],
+                              list(source_sync.ROOTS))
+
+
+@pytest.mark.parametrize('missing', [False, True])
+@pytest.mark.parametrize('action', ['plan', 'apply'])
+def test_invalid_retention_validates_whole_plan_before_mutation(mirror, missing, action):
+    """Refuse missing or changed retained sources before journal or source writes."""
+    held=mirror/'docs'/'held.md'
+    held.write_bytes(b'# actual\n')
+    ref=retained_entry(path='missing.md' if missing else 'held.md')
+    payload={'roots':list(source_sync.ROOTS), 'files':[entry(), ref], 'plan_id':'unused'}
+    with pytest.raises(ValueError, match='does not exist' if missing else 'hash mismatch'):
+        source_sync.operation(action,payload)
+    assert held.read_bytes()==b'# actual\n'
+    assert not (mirror/'docs'/'new.md').exists()
+    assert not list(mirror.rglob('to_be_deleted'))
+    assert not (Path(os.environ['DOCSTORE_SYNC_LOCK']).parent/'source-sync.json').exists()
+
+
+def test_retention_identity_is_checked_under_worker_lock(mirror, monkeypatch):
+    """Require current identity checks under the same lock during plan and apply."""
+    from contextlib import contextmanager
+    held=mirror/'docs'/'held.md'
+    held.write_bytes(b'# held\n')
+    locked=False
+    original_state=source_sync.state
+
+    @contextmanager
+    def lock(_):
+        """Mark fixture lock ownership until the source operation exits."""
+        nonlocal locked
+        locked=True
+        try:
+            yield
+        finally:
+            locked=False
+
+    def state():
+        """Assert fixture lock ownership whenever source identities are hashed."""
+        assert locked
+        return original_state()
+
+    monkeypatch.setattr(source_sync,'worker_lock',lock)
+    monkeypatch.setattr(source_sync,'state',state)
+    payload={'roots':list(source_sync.ROOTS), 'files':[retained_entry()]}
+    plan=source_sync.operation('plan',payload)
+    assert not locked
+    receipt=source_sync.operation('apply',{**payload,'plan_id':plan['plan_id']})
+    assert receipt['verified'] and not locked
+
+
+@pytest.mark.parametrize('retain_first', [False, True])
+def test_same_hash_retention_mode_switch_requires_new_plan(mirror, retain_first):
+    """Bind explicit retention mode into approval even when incoming bytes match."""
+    (mirror/'docs'/'held.md').write_bytes(b'# held\n')
+    full={'roots':list(source_sync.ROOTS), 'files':[entry(path='held.md',content='# held\n')]}
+    retained={**full, 'files':[retained_entry()]}
+    first,second=(retained,full) if retain_first else (full,retained)
+    plan=source_sync.operation('plan',first)
+    new_plan=source_sync.operation('plan',second)
+    assert plan['incoming_digest']==new_plan['incoming_digest']
+    assert plan['plan_id']!=new_plan['plan_id']
+    with pytest.raises(ValueError,match='plan changed'):
+        source_sync.operation('apply',{**second,'plan_id':plan['plan_id']})
+    assert not (Path(os.environ['DOCSTORE_SYNC_LOCK']).parent/'source-sync.json').exists()
+
+
+def test_retained_source_changed_after_plan_is_rejected(mirror):
+    """Reject a stale retained hash without overwriting the changed original."""
+    held=mirror/'docs'/'held.md'
+    held.write_bytes(b'# held\n')
+    payload={'roots':list(source_sync.ROOTS), 'files':[entry(),retained_entry()]}
+    plan=source_sync.operation('plan',payload)
+    held.write_bytes(b'# newer\n')
+    with pytest.raises(ValueError,match='hash mismatch'):
+        source_sync.operation('apply',{**payload,'plan_id':plan['plan_id']})
+    assert held.read_bytes()==b'# newer\n'
+    assert not (mirror/'docs'/'new.md').exists()
+
+
+def test_retained_source_disappeared_after_plan_is_rejected(mirror):
+    """Refuse to recreate a retained source removed after the approved plan."""
+    held=mirror/'docs'/'held.md'
+    held.write_bytes(b'# held\n')
+    payload={'roots':list(source_sync.ROOTS), 'files':[entry(),retained_entry()]}
+    plan=source_sync.operation('plan',payload)
+    quarantine=held.parent/'to_be_deleted'
+    quarantine.mkdir()
+    held.replace(quarantine/'held.md')
+    with pytest.raises(ValueError,match='does not exist'):
+        source_sync.operation('apply',{**payload,'plan_id':plan['plan_id']})
+    assert (quarantine/'held.md').read_bytes()==b'# held\n'
+    assert not held.exists() and not (mirror/'docs'/'new.md').exists()
+    assert not (Path(os.environ['DOCSTORE_SYNC_LOCK']).parent/'source-sync.json').exists()
+
+
+def test_retention_still_binds_complete_current_snapshot(mirror):
+    """Invalidate a retention plan when an unrelated current source arrives."""
+    (mirror/'docs'/'held.md').write_bytes(b'# held\n')
+    payload={'roots':list(source_sync.ROOTS), 'files':[entry(),retained_entry()]}
+    plan=source_sync.operation('plan',payload)
+    (mirror/'docs'/'arrived.md').write_bytes(b'# arrived\n')
+    with pytest.raises(ValueError,match='plan changed'):
+        source_sync.operation('apply',{**payload,'plan_id':plan['plan_id']})
+    assert not (mirror/'docs'/'new.md').exists()
+
+
+def test_mixed_retained_new_replaced_sources_across_seven_roots(mirror, mounted_renames):
+    """Apply a zero-retraction union and verify all identities and preserved bytes."""
+    files=[]
+    held_stats={}
+    for project,(relative,_) in source_sync.ROOTS.items():
+        directory=mirror/relative
+        held=directory/'held.md'
+        held.write_bytes(b'# held\n')
+        held_stats[project]=held.stat()
+        (directory/'replace.md').write_bytes(b'# old\n')
+        files.extend([retained_entry(project),entry(project),entry(project,'replace.md')])
+    payload={'roots':list(source_sync.ROOTS), 'files':files}
+    plan=source_sync.operation('plan',payload)
+    assert not plan['retracted_sources']
+    assert plan['roots']==sorted(source_sync.ROOTS)
+    expected={item['project']+'/'+item['path']:item['sha256'] for item in files}
+    assert plan['incoming_hashes']==expected
+    assert len(plan['retained_hashes'])==7
+    receipt=source_sync.operation('apply',{**payload,'plan_id':plan['plan_id']})
+    assert receipt['verified'] and not receipt['index_started']
+    assert receipt['actual_hashes']==expected==source_sync.state()[1]
+    assert len(receipt['preserved'])==7
+    for saved in receipt['preserved']:
+        assert not saved['source_path'].endswith('held.md')
+        assert Path(saved['backup_path']).read_bytes()==b'# old\n'
+        assert saved['sha256']==hashlib.sha256(b'# old\n').hexdigest()
+    for project,(relative,_) in source_sync.ROOTS.items():
+        held=mirror/relative/'held.md'
+        assert held.read_bytes()==b'# held\n'
+        assert held.stat().st_ino==held_stats[project].st_ino
+        assert held.stat().st_mtime_ns==held_stats[project].st_mtime_ns
+    journal=json.loads((Path(os.environ['DOCSTORE_SYNC_LOCK']).parent/'source-sync.json').read_text())
+    assert journal['state']=='verified'
+    assert journal['plan']==plan and journal['actual_hashes']==expected
+    assert not list(mirror.rglob('*.pending'))
+
+
+def test_large_existing_retained_sources_do_not_consume_body_upload_budget(mirror):
+    """Retain over 32 MiB in place while enforcing unchanged body upload limits."""
+    content=b'# held\r\n'*(256*1024)
+    refs=[]
+    for number in range(17):
+        path=f'large-{number}.md'
+        (mirror/'docs'/path).write_bytes(content)
+        refs.append(retained_entry(path=path,content=content))
+    payload={'roots':list(source_sync.ROOTS), 'files':[entry(),*refs]}
+    plan=source_sync.operation('plan',payload)
+    receipt=source_sync.operation('apply',{**payload,'plan_id':plan['plan_id']})
+    assert receipt['verified'] and receipt['preserved']==[]
+    assert len(receipt['retained_hashes'])==17
+    assert all('content' not in ref for ref in refs)
+    assert receipt['actual_hashes']==plan['incoming_hashes']
+    with pytest.raises(ValueError,match='oversized'):
+        source_sync.validated([entry(content=content.decode())],payload['roots'])
+    body='x'*(1024*1024)
+    with pytest.raises(ValueError,match='oversized'):
+        source_sync.validated([entry(path=f'{i}.md',content=body) for i in range(33)],
+                              payload['roots'])
+
+
+def test_retained_final_verification_failure_blocks_verified_receipt(mirror, monkeypatch):
+    """Refuse success when the final retained source differs from incoming hashes."""
+    held=mirror/'docs'/'held.md'
+    held.write_bytes(b'# held\n')
+    payload={'roots':list(source_sync.ROOTS), 'files':[retained_entry()]}
+    plan=source_sync.operation('plan',payload)
+    original_state=source_sync.state
+    calls=0
+
+    def changed_state():
+        """Simulate an external source change after locked apply validation."""
+        nonlocal calls
+        calls+=1
+        if calls==2:
+            held.write_bytes(b'# external change\n')
+        return original_state()
+
+    monkeypatch.setattr(source_sync,'state',changed_state)
+    with pytest.raises(RuntimeError,match='verification failed; indexing must not start'):
+        source_sync.operation('apply',{**payload,'plan_id':plan['plan_id']})
+    journal=json.loads((Path(os.environ['DOCSTORE_SYNC_LOCK']).parent/'source-sync.json').read_text())
+    assert journal['state']=='applying'
+
+
+def test_body_upload_and_read_files_inventory_remain_compatible(mirror):
+    """Preserve legacy full-body apply and the exact files-list read response."""
+    files=[entry(project) for project in source_sync.ROOTS]
+    plan=source_sync.operation('plan',{'files':files})
+    receipt=source_sync.operation('apply',{'files':files,'plan_id':plan['plan_id']})
+    assert receipt['verified'] and 'retained_hashes' not in receipt
+    result=source_sync.operation('read',{'paths':['propria/new.md','propria/missing.md']})
+    assert result=={'files':[{'key':'propria/new.md',**entry()}],
+                    'missing':['propria/missing.md'],'remaining':[]}
+
+
 def test_cross_mount_regression_new_file_before_changed_body(mirror, mounted_renames):
     """Apply the original partial-failure sequence while retaining exact old bytes.
 

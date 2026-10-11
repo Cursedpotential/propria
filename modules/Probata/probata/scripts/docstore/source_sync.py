@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import uuid
 from scope import ROOTS, validate_registry
 from upgrade import digest
@@ -19,9 +20,13 @@ def excluded(project,parts):
 def validated(files, declared_roots=None):
     """Validate bounded docs and independent root coverage without writing.
 
-    Inputs are hashed file entries and optional approved project IDs; output is
-    the validated file list. Like state(), root identity comes from ROOTS, not
-    file presence. Legacy files-only callers must still represent every root.
+    Inputs are hashed UTF-8 bodies or explicit retain_existing references and
+    optional approved project IDs; output is the validated file list. Retained
+    references omit content and name a canonical SHA-256; operation() checks
+    their existing identity under the worker lock. Body upload limits remain
+    unchanged. Like state(), root identity comes from ROOTS, not file presence.
+    Legacy files-only callers must still represent every root. Effects: none.
+    Choose this preflight before planning or applying a complete projection.
     Byline: Codex / GPT-6.1 / 2026-10-07.
     """
     if declared_roots is not None:
@@ -45,13 +50,22 @@ def validated(files, declared_roots=None):
             or '..' in relative.parts or path!=relative.as_posix() or relative.suffix.lower()!='.md'
             or excluded(project,relative.parts)):
             raise ValueError('Path outside docs-only upload scope')
-        if not isinstance(content,str):
-            raise ValueError('Content must be UTF-8 text')
-        data=content.encode('utf-8'); size+=len(data)
-        if len(data)>1024*1024 or size>32*1024*1024 or (project,path) in seen:
+        if (project,path) in seen:
             raise ValueError('Duplicate or oversized source')
-        if hashlib.sha256(data).hexdigest()!=item.get('sha256'):
-            raise ValueError('Source hash mismatch')
+        if 'retain_existing' in item:
+            if item['retain_existing'] is not True or 'content' in item:
+                raise ValueError('retain_existing must be true with content absent')
+            sha=item.get('sha256')
+            if not isinstance(sha,str) or not re.fullmatch(r'[0-9a-f]{64}',sha):
+                raise ValueError('Retained source needs a canonical SHA-256')
+        else:
+            if not isinstance(content,str):
+                raise ValueError('Content must be UTF-8 text')
+            data=content.encode('utf-8'); size+=len(data)
+            if len(data)>1024*1024 or size>32*1024*1024:
+                raise ValueError('Duplicate or oversized source')
+            if hashlib.sha256(data).hexdigest()!=item.get('sha256'):
+                raise ValueError('Source hash mismatch')
         file_roots.add(project); seen.add((project,path))
     if declared_roots is None and file_roots!=set(ROOTS):
         raise ValueError('Every docs root must be represented; empty-root removal needs a separate reviewed migration')
@@ -111,6 +125,11 @@ def operation(action,payload):
     and named-retraction guards. roots decouples coverage from file presence.
     All backups are preflighted inside their registered source mount before any
     source write; the receipt includes preserved originals' locators and hashes.
+    A retain_existing:true file entry has project/path/sha256 and no content;
+    it retains only an exact existing source checked under the worker lock.
+    Retention mode and the full incoming hashes are bound into the exact plan;
+    verified apply receipts include the final actual hashes. Retained entries
+    cannot create, replace or retract sources and consume no body-upload budget.
     Pick plan/read for inspection and apply only for its exact approved plan.
     Byline: Codex / GPT-6.1 / 2026-10-07.
     """
@@ -122,13 +141,24 @@ def operation(action,payload):
     with worker_lock(lock):
         root,existing=state()
         incoming={f[ 'project']+'/'+f['path']:f['sha256'] for f in files}
+        retained={f['project']+'/'+f['path']:f['sha256'] for f in files
+                  if f.get('retain_existing') is True}
+        for identity,sha in retained.items():
+            if identity not in existing:
+                raise ValueError('Retained source does not exist: '+identity)
+            if existing[identity]!=sha:
+                raise ValueError('Retained source hash mismatch; re-plan before apply: '+identity)
         retracted=sorted(set(existing)-set(incoming))
         plan={'changed':sorted(k for k,v in incoming.items() if existing.get(k)!=v),
               'retracted_sources':retracted, 'count':len(files),
               'current_digest':digest(existing),'incoming_digest':digest(incoming),
+              'incoming_hashes':incoming,
               # 0.8.1-r3: the mirror's hash of every document this plan would retract, so a client can
               # restore it byte-for-byte instead (retraction guard, owner order 2026-09-26).
               'retracted_hashes':{k:existing[k] for k in retracted}}
+        if retained:
+            # The same incoming bytes via a body are a different approved plan.
+            plan['retained_hashes']=retained
         if declared_roots is not None:
             # Bind independent root coverage into the exact plan receipt.
             plan['roots']=sorted(declared_roots)
@@ -182,5 +212,7 @@ def operation(action,payload):
         _,actual=state()
         if actual!=incoming:
             raise RuntimeError('Projection verification failed; indexing must not start')
-        journal.write_text(json.dumps({'state':'verified','generation':generation,'digest':digest(actual),'preserved':preserved}),encoding='utf-8')
-        return {**plan,'applied':True,'generation':generation,'verified':True,'index_started':False,'preserved':preserved}
+        journal.write_text(json.dumps({'state':'verified','generation':generation,'digest':digest(actual),
+                                       'plan':plan,'actual_hashes':actual,'preserved':preserved}),encoding='utf-8')
+        return {**plan,'applied':True,'generation':generation,'verified':True,'index_started':False,
+                'actual_hashes':actual,'preserved':preserved}

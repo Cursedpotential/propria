@@ -113,6 +113,12 @@ def register(mcp,request,read):
 
         Like source_apply, roots declares approved projects independently of
         empty/held files; legacy files-only callers retain full coverage checks.
+        Each files entry supplies project/path/sha256 and either a UTF-8 content
+        body or retain_existing:true with the content key absent. Retention
+        requires an exact existing mirror hash checked under the worker lock;
+        it cannot create or replace a source and uses no body-upload budget.
+        The receipt binds full incoming hashes, retention mode and declared
+        roots into plan_id. Choose this nonmutating preflight before apply.
         Byline: Codex / GPT-6.1 / 2026-10-07.
         """
         payload={'files':files}
@@ -126,6 +132,14 @@ def register(mcp,request,read):
 
         Like source_plan, independent roots permit empty/held projects. Replaced
         files are quarantined; every retraction must still be explicitly named.
+        Inputs include the exact plan_id and files entries with project/path/
+        sha256 plus either content or retain_existing:true with content absent.
+        Retention rechecks exact existing hashes under the worker lock, leaves
+        their bytes in place and cannot create, replace or retract a source.
+        Changing retention mode requires a new plan even for identical bytes.
+        Body limits remain 1 MiB each and 32 MiB total. The receipt includes full
+        incoming and verified actual hashes; apply never starts indexing.
+        Choose only after reviewing source_plan and naming all retractions.
         Byline: Codex / GPT-6.1 / 2026-10-07.
         """
         payload={'files':files,'plan_id':plan_id,'retract':retract or []}
