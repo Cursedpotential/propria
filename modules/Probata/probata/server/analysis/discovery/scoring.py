@@ -303,6 +303,7 @@ def score_batch(batch: dict[str, Any], *, encoder: Any = None) -> dict[str, Any]
     vectors = _vectors(encoder or local_encoder(config), texts, batch_size) if contexts else []
     candidates = []
     zero_labels = 0
+    unlocated = 0
     for context, (start, stop) in zip(contexts, episode_spans, strict=True):
         records = context["records"]
         candidate_id = str(
@@ -376,6 +377,9 @@ def score_batch(batch: dict[str, Any], *, encoder: Any = None) -> dict[str, Any]
             records,
             [(best_windows[label] * window_chars, (best_windows[label] + 1) * window_chars) for label in labels],
         )
+        if not citations:
+            unlocated += 1
+            continue
         if any(not record.get("locators") for record in records):
             details["uncertainty"].append("Some occurrences have no native cited locator.")
         if batch.get("truncated"):
@@ -448,14 +452,15 @@ def score_batch(batch: dict[str, Any], *, encoder: Any = None) -> dict[str, Any]
         "feedback_revision": batch["feedback_revision"],
         "model_version": MODEL_VERSION,
         "score_revision": SCORE_REVISION,
-        "abstained": zero_labels,
+        "abstained": zero_labels + unlocated,
         "pins": pins,
         "candidates": candidates,
         "counts": {
             "episodes": len(contexts),
             "candidates": len(candidates),
             "zero_labels": zero_labels,
-            "abstained": zero_labels,
+            "abstained": zero_labels + unlocated,
+            "unlocated": unlocated,
         },
         "model_metadata": {
             "model_path": config.get("model_path", "injected"),

@@ -96,3 +96,11 @@ def test_explicit_regrouping_cannot_reference_missing_or_conflicting_records():
     batch = {"records": [record("one")], "episodes": [{"episode_id": "episode", "record_ids": ["absent"]}]}
     with pytest.raises(DiscoveryInvalid, match="membership"):
         assemble_context(batch)
+
+
+@pytest.mark.parametrize("occurred", [None, "uncertain-clock", "2026-01-02T10:00:00Z"])
+def test_as_lived_rejects_future_or_unknown_occurrence_even_when_source_was_available(occurred):
+    snapshot = {"records": [record("one")], "filters": {"perspective": "as_lived", "cutoff": "2026-01-01T10:00:00Z"}}
+    snapshot["records"][0]["occurred_at"] = occurred
+    with pytest.raises(DiscoveryInvalid, match="cutoff"):
+        assemble_context(snapshot)

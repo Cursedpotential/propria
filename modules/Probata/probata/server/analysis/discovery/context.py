@@ -75,8 +75,9 @@ def assemble_context(batch: dict[str, Any]) -> list[dict[str, Any]]:
         seen.add(occurrence)
         if cutoff is not None and filters.get("perspective") == "as_lived":
             available = timestamp(record.get("source_available_from"))
-            if available is None or available > cutoff:
-                raise DiscoveryInvalid("record availability falls outside as_lived cutoff")
+            occurred = timestamp(record.get("occurred_at"))
+            if available is None or available > cutoff or occurred is None or occurred > cutoff:
+                raise DiscoveryInvalid("record occurrence or availability falls outside as_lived cutoff")
         episode_id = explicit.get(record["record_id"])
         if not episode_id:
             native = record.get("conversation_id")

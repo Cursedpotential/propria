@@ -183,9 +183,10 @@ def test_feedback_from_model_agreement_and_future_human_feedback_are_rejected():
 def test_missing_native_locator_remains_explicit_without_fabricated_citation():
     snapshot = deepcopy(batch())
     snapshot["records"][0]["locators"] = []
-    candidate = score_batch(snapshot, encoder=FixtureEncoder())["candidates"][0]
-    assert candidate["citations"] == []
-    assert any("no native" in item for item in candidate["uncertainty"])
+    result = score_batch(snapshot, encoder=FixtureEncoder())
+    assert result["candidates"] == []
+    assert result["counts"]["unlocated"] == result["counts"]["abstained"] == 1
+    assert snapshot["records"][0]["text"] == "reported threat"
 
 
 def test_neutral_neighbor_does_not_hide_threat_and_citations_follow_winning_window():
