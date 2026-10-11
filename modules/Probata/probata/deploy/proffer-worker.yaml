@@ -201,7 +201,7 @@ services:
       CONTEXT_SEARCH_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
     volumes:
       - type: bind
-        source: /data/probata/secrets/casebible-catalog/writer.dsn
+        source: /data/probata/secrets/family-court/casebible-recovery-database-url
         target: /run/secrets/ai-context-catalog-database-url
         read_only: true
         bind:

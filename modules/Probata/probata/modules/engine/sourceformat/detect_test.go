@@ -8,6 +8,25 @@ import (
 	"testing"
 )
 
+// TestDetectIMessageHTMLRoutesSpecificExports verifies message HTML reaches its parser.
+// Inputs: synthetic HTML layouts and an unrelated page. Output: detected formats.
+// Side effects: none. Pick when changing source-format routing for message exports.
+func TestDetectIMessageHTMLRoutesSpecificExports(t *testing.T) {
+	tests := []struct{ name, html, format string }{
+		{"owner export", "\n        " + `<!DOCTYPE html><html><body><div class='bubble from-me'>Hi</div><div class='meta'>Sender - time</div></body></html>`, "imessage_html"},
+		{"stock export", `<html><body><div class="message"><div class="sent"><span class="timestamp">time</span></div></div></body></html>`, "imessage_html"},
+		{"unrelated page", `<html><body><div class='bubble'>Hi</div><div class='meta'>Note</div></body></html>`, "generic_html_document"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			format, _, err := Detect([]byte(test.html))
+			if err != nil || format != test.format {
+				t.Fatalf("Detect = %q (%v), want %q", format, err, test.format)
+			}
+		})
+	}
+}
+
 // TestDetectAIExportSignatures validates native exports and rejects unrelated JSON and prose.
 // Input: synthetic fixtures. Output: test results. Side effects: none. Pick for signature regression.
 func TestDetectAIExportSignatures(t *testing.T) {
