@@ -12,7 +12,7 @@ from uuid import UUID
 import httpx
 import pytest
 from app.config import settings
-from app.runtime import case_identity, case_management
+from app.runtime import case_identity, case_management, proffer as proffer_runtime
 from app.service import case_scope, matter_mode, preview_mode_recovery, proffer, proffer_batch
 from app.types.matter_mode import MatterMode
 from app.types.proffer import ProfferStartRequest
@@ -439,14 +439,36 @@ def test_evidence_wrong_court_scope_and_matter_creation_deny_before_spine(monkey
     assert "Matter creation is disabled" in response.json()["detail"]
 
 
-def test_unconfigured_source_browser_has_zero_provider_io(monkeypatch):
+def test_source_browser_reads_allowlisted_root_without_case_configuration(monkeypatch):
+    """Keep B2 browsing independent of the fixed-case admission gate.
+
+    Inputs: no configured matter/court and an allowlisted B2 root. Output: one
+    delimiter-paged listing. Effects: mocked provider read only; choose this
+    for Sources navigation, never for processing or promotion authorization.
+    """
     from app.service import proffer_sources
     monkeypatch.setattr(settings, "proffer_matter_id", "")
     monkeypatch.setattr(settings, "proffer_real_matter_id", "")
-    monkeypatch.setattr(proffer_sources, "list_source_objects", lambda *_args, **_kwargs: pytest.fail("provider must not run"))
-    with pytest.raises(proffer.ProfferError) as error:
-        proffer.browse_sources(mode="LIVE")
-    assert error.value.status_code == 503
+    monkeypatch.setattr(settings, "proffer_court_case_id", "")
+    calls = []
+
+    def listed_page(**kwargs):
+        """Record the selected root and preserve the opaque provider cursor."""
+        calls.append(kwargs)
+        return {"IsTruncated": True, "NextContinuationToken": "next-page", "Contents": [], "CommonPrefixes": [{"Prefix": "exports/"}]}
+
+    monkeypatch.setattr(proffer_sources, "list_source_objects", listed_page)
+    app = FastAPI()
+    app.include_router(proffer_runtime.router)
+    client = TestClient(app)
+    response = client.get("/api/proffer/sources", params={"mode": "LIVE", "root_id": "b2-vault", "page_size": 25})
+    assert response.status_code == 200
+    assert response.json()["prefixes"][0]["prefix"] == "exports/"
+    assert response.json()["continuation_token"] == "next-page"
+    assert calls == [{"root_id": "b2-vault", "prefix": "", "continuation_token": None, "max_keys": 25}]
+    unknown = client.get("/api/proffer/sources", params={"mode": "LIVE", "root_id": "unlisted"})
+    assert unknown.status_code == 422
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize("foreign_primary", [False, True])

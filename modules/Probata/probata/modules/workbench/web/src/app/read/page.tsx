@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-6 · 2026-10-06
+import { AICandidateReview } from "@/components/review/ai-candidate-review";
 import { ReadWorkspace } from "@/components/read/read-workspace";
 import { importedReadingHref, isProcessingPreview } from "@/components/read/read-location";
 import { ProfferPreviewClient } from "@/components/sbv/proffer-preview-client";
@@ -11,6 +12,12 @@ import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
  */
 export default function ReadPage() {
   const params = useBrowserSearchParams();
+  const contextWorkflow = params.get("context_workflow");
+  if (contextWorkflow) return <div className="space-y-4 p-4">
+    <header className="flex items-center justify-between gap-3"><h1 className="text-xl font-semibold">Read</h1>
+      <AppLink href="/sources" className="text-sm underline underline-offset-4">Back to Sources</AppLink></header>
+    <AICandidateReview key={contextWorkflow} workflowId={contextWorkflow} />
+  </div>;
   if (!isProcessingPreview(params)) return <ReadWorkspace />;
   return (
     <div className="space-y-4 p-4">

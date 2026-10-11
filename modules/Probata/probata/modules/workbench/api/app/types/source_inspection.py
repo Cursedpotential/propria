@@ -28,6 +28,20 @@ class SourceInspectionRequest(BaseModel):
     expected_etag: OpaqueETag | None = None
 
 
+class SourceVersionResponse(BaseModel):
+    """Expose one selected object's exact provider version from a metadata HEAD.
+
+    Inputs: validated selected source. Output: original locator, B2 version,
+    size and ETag. Effects: none; use before context registration, not preview.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    source_ref: str
+    provider_version_id: Annotated[str, StringConstraints(min_length=1)]
+    byte_length: Annotated[int, Field(ge=0)]
+    etag: OpaqueETag
+
+
 class ParserPreflight(BaseModel):
     """Non-authoritative routing hint derived only from the source filename."""
 
