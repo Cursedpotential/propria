@@ -526,7 +526,7 @@ function SourcesScreenMode() {
             event.target.value = "";
           }} />
         <Button size="sm" variant="outline" disabled={processing} onClick={() => fileInput.current?.click()}><Upload className="h-3.5 w-3.5" /> Add file</Button>
-        {(localSource || (!selectedFolder && processFiles.length > 0)) && (
+        {(localSource || selectedFiles.length > 0 || (!selectedFolder && selectedObject)) && (
           <label className="flex items-center gap-2 text-[11px]">
             Whose phone/export?
             <select aria-label="Whose phone/export?" className="rounded border bg-background px-2 py-1"
