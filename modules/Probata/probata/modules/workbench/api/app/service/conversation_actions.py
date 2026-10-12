@@ -18,6 +18,7 @@ from typing import Any
 
 from app.repo import extractions_pg as pg
 from app.service import imported, proffer
+from app.service.matter_mode import configured_court_case_id
 from app.service.proffer_errors import ProfferError
 from app.types.conversation_actions import (
     ExtractConversationsRequest,
@@ -88,6 +89,8 @@ async def start_extraction(request: ExtractConversationsRequest, actor: ProfferD
     """Start extraction_request_workflow for the chosen conversations and extractors."""
     body = {
         "matter_id": imported.live_matter(),
+        "operating_mode": "LIVE",
+        "court_case_id": str(configured_court_case_id("LIVE")),
         "conversations": conversations(request.thread_ids),
         "extractors": list(dict.fromkeys(request.extractors)),
     }
@@ -101,6 +104,8 @@ async def start_send(request: SendConversationsRequest, actor: ProfferDecisionAc
     """Start send_to_surreal_workflow for the chosen conversations."""
     body = {
         "matter_id": imported.live_matter(),
+        "operating_mode": "LIVE",
+        "court_case_id": str(configured_court_case_id("LIVE")),
         "conversations": conversations(request.thread_ids),
         "include_extractions": request.include_extractions,
     }
@@ -234,3 +239,5 @@ def _reset_registry_cache() -> None:
     """Forget the cached registry (tests)."""
     global _registry
     _registry = None
+
+
