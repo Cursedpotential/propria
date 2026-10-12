@@ -198,3 +198,48 @@ persisted placement changes, correction save/reopen, stale revision, failure/dir
 handling, decisions and retry. Record exact source versions and receipts. Existing
 native/SMS readers must continue to work. No deployment, production mutation or
 combined live acceptance is claimed by this handoff.
+
+## Final backend receipt and clarified completion boundary
+
+The backend worker subsequently pushed implementation commit
+`a7dafa40fc17421663fc840df001377616ac8c88` on
+`codex/backend-package-review-20261012`. Its instruction is to cherry-pick that
+implementation commit only, excluding preparation commits `9c7796e55` and
+`8435cbe80`. This web lane independently read the backend HEAD and review writer
+code; it did not integrate or deploy them.
+
+The required migration is
+`modules/Probata/probata/modules/engine/postgres/source_package_review.sql`.
+It provides nullable legacy coordinates for native review rows, native revision
+uniqueness/supersedes linkage, and SELECT grants on five existing source tables for
+`workbench_reader`. Parent release owns applying it.
+
+The worker's final test report is 16 passing BFF tests, passing focused
+humancontext/runtimeapi/starter/PostgreSQL tests, isolated PostgreSQL review
+integration with four revisions, and passing read-only production SQL shapes.
+The worker reports its isolated database was purged and no production schema or
+deployment changes were applied. These are backend-worker receipts, separate from
+the web verification above.
+
+The implemented `commit` writer appends a committed assertion with the accepted
+fields and exact source references to `SourceMetadataStore` correction history.
+It does **not** bridge existing candidate edit/publication writers. The web button
+therefore says **Commit reviewed assertion**, or uses an explicit backend capability
+label, and describes its actual package-history effect. Do not claim existing
+candidate publication integration from this action.
+
+The graph UI exposes actual returned edges. Complete source-reader coverage beyond
+the returned bundles, including all typed graph inventories in the reference
+guides, is not established by this renderer or the backend tests. The worker
+explicitly identifies reader coverage outside those bundles as unfinished.
+
+The worker reports the queried persisted taxonomy currently contains exports (1),
+messaging (774), telephony (8) and unresolved (3). This does not establish that
+approved Case Vault roots are reconciled with that catalog. The UI faithfully
+displays persisted categories; parent still owns placement/catalog reconciliation
+and deployment. Model retry likewise remains a parent integration dependency.
+These are open delivery boundaries, not completed by dynamic sections or controls.
+
+The final backend immutable-field list also includes `raw_reply`, `reply` and
+`replies`; the editor already consumes the actual descriptor list dynamically.
+Chat/SDK work remains deferred and unchanged.

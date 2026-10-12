@@ -130,9 +130,10 @@ export function PackageItemEditor({ item, onSave, onDirtyChange, onSelect, exter
       <div className="flex flex-wrap gap-2">
         {supplement && patch.trim() && <Button size="sm" disabled={busy || !reason.trim()} onClick={() => void savePatch()}>Save supplemental fields</Button>}
         {reassociate && target && <Button size="sm" disabled={busy || !reason.trim() || Boolean(patch.trim())} onClick={() => void submit(reassociate.operation, reassociate.operation === "reassociate" ? undefined : { [associationField]: target }, reason.trim(), reassociate.operation === "reassociate" ? { target_ref: target, field: associationField } : {})}>Save association</Button>}
-        {actions.map((operation) => <Button key={operation} size="sm" variant={operation === "reject" ? "outline" : "default"} disabled={busy || !reason.trim() || Boolean(patch.trim()) || Boolean(target)} onClick={() => void submit(operation, undefined, reason.trim())}>{operation === "accept" ? "Accept" : operation === "reject" ? "Reject" : "Commit reviewed finding"}</Button>)}
+        {actions.map((operation) => <Button key={operation} size="sm" variant={operation === "reject" ? "outline" : "default"} disabled={busy || !reason.trim() || Boolean(patch.trim()) || Boolean(target)} onClick={() => void submit(operation, undefined, reason.trim())}>{packageCapability(item.capabilities, operation)?.label ?? (operation === "accept" ? "Accept" : operation === "reject" ? "Reject" : "Commit reviewed assertion")}</Button>)}
         {(reason || patch || target) && <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setReason(""); setPatch(""); setTarget(""); onDirtyChange(false); }}>Discard action draft</Button>}
       </div>
+      {actions.includes("commit") && <p className="text-xs text-muted-foreground">Commit records the accepted assertion and its source references in package review history.</p>}
       {pendingField !== null && <p role="status" className="text-xs">Saving {pendingField}…</p>}
       {error && <p role="alert" className="whitespace-pre-wrap text-sm text-destructive">{error}</p>}
       {receipt && <details className="text-xs"><summary className="cursor-pointer">Saved review receipt</summary><pre className="mt-1 whitespace-pre-wrap break-all">{JSON.stringify(receipt, null, 2)}</pre></details>}
