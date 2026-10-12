@@ -181,7 +181,7 @@ test("actual child retry metadata survives the adapter and renders while success
   for (const value of ["child-workflow", "child-run", "model-activity", "EntityModel", "provider refused verified request"]) assert.ok(html.includes(value));
   assert.match(html, /Attempt: <\/dt><dd class="inline">3<\/dd>/);
   assert.match(html, /aria-label="retrying"/);
-  const legacy = renderToStaticMarkup(React.createElement(WorkflowSteps, { progress: conversationActionProgress(status("completed", [resolution, stage(requested[0], "completed")]), [], [requested[0]]).progress, title: "Extraction" }));
+  const legacy = renderToStaticMarkup(React.createElement(WorkflowSteps, { progress: conversationActionProgress(status("completed", [resolution, { ...stage(requested[0], "completed"), attempt: null }]), [], [requested[0]]).progress, title: "Extraction" }));
   assert.doesNotMatch(legacy, /Attempt:|Last failure:|Activity type:/, "older DTOs must not invent execution metadata");
   const terminal = status("partial", [resolution, stage(requested[0], "completed"), { ...retrying, status: "failed" }]);
   assert.equal(failedConversationExtractors(terminal, ["saved-thread"], requested).join(","), requested[1], "targeted retry excludes the successful sibling");

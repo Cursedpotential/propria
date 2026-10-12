@@ -229,3 +229,49 @@ def test_the_default_extractor_is_listed_once_and_marked(starter):
     assert [e["id"] for e in listing["extractors"] if e["default"]] == ["go-kimi-k3"]
 
 
+
+
+def test_workflow_status_preserves_actual_child_retry_metadata_and_business_failure(monkeypatch):
+    """Relay real child attempts and failures without letting HTTP success change business outcome.
+
+    Inputs: engine-shaped retrying/failed DTOs with completed sibling and actual IDs.
+    Output: unchanged status JSON through the existing BFF route. Effects: mocked transport only.
+    Pick to verify additive Temporal metadata reaches the narrow conversation panel.
+    """
+    payload = {"workflow_id": "conversation-extraction:metadata", "run_id": "parent-run", "kind": "extraction",
+               "outcome": "running", "steps": [
+                   {"step": "successful-sibling", "status": "completed", "extractor": "go-kimi-k3"},
+                   {"step": "retrying-child", "status": "retrying", "extractor": "semantica",
+                    "workflow_id": "child-workflow", "run_id": "child-run", "activity_id": "activity-id",
+                    "activity_type": "ExternalExtraction", "attempt": 2, "last_failure": "provider unavailable"}], "receipts": []}
+
+    async def engine(method, path, **kwargs):
+        """Return the current actual-shaped attempt without execution or external I/O."""
+        assert method == "GET" and path.endswith(payload["workflow_id"])
+        return httpx.Response(200, json=payload)
+
+    monkeypatch.setattr(proffer, "_request", engine)
+    for outcome in ("running", "failed"):
+        payload["outcome"] = outcome
+        response = _client().get("/api/imported/workflows/" + payload["workflow_id"])
+        assert response.status_code == 200
+        assert response.json() == payload
+
+
+def test_standalone_progress_accepts_retry_metadata_and_keeps_older_attempt_unknown():
+    """Validate actual standalone retry details while leaving unavailable attempts unknown.
+
+    Inputs: additive engine progress and an older response. Output: retained identifiers,
+    failures and unknown optional fields. Effects: none; tests the actual BFF response DTO.
+    """
+    from app.types.entity_extraction import WorkflowProgress
+    metadata = {"workflow_id": "child-workflow", "run_id": "child-run", "activity_id": "actual-activity",
+                "activity_type": "EntityModel", "attempt": 3, "last_failure": "model unavailable"}
+    value = WorkflowProgress.model_validate({"workflow_id": "standalone", "run_id": "actual-run", "outcome": "running",
+                "matter_mode": "LIVE", "steps": [{"step": "model", "status": "retrying", **metadata}]})
+    assert value.run_id == "actual-run"
+    for field, expected in metadata.items():
+        assert getattr(value.steps[0], field) == expected
+    legacy = WorkflowProgress.model_validate({"workflow_id": "older", "outcome": "completed", "matter_mode": "LIVE",
+                                             "steps": [{"step": "rules", "status": "completed"}]})
+    assert legacy.run_id is None and legacy.steps[0].attempt is None and legacy.steps[0].last_failure is None
