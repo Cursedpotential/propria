@@ -76,6 +76,7 @@ func mountPreviewRoutes(existing, preview http.Handler) (http.Handler, error) {
 	mux.Handle("GET /reference-import/operations", preview)
 	mux.Handle("GET /reference-import/operations/", preview)
 	mux.Handle("GET /reference-import/previews/", preview)
+	mux.Handle("GET /reference-import/admission-repairs/", preview)
 	mux.Handle("POST /reference-import/previews/", preview)
 	// The batch routes were registered on the preview handler (2026-09-21)
 	// but never forwarded here, so both fell through to the legacy mux and

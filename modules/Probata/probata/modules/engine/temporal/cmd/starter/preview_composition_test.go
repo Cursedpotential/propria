@@ -46,6 +46,8 @@ func TestMountPreviewRoutesForwardsEveryPreviewRoute(t *testing.T) {
 		{http.MethodGet, "/reference-import/previews/handle/messages"},
 		{http.MethodGet, "/reference-import/previews/handle/content"},
 		{http.MethodGet, "/reference-import/previews/handle/events"},
+		{http.MethodPost, "/reference-import/previews/handle/admission-repair"},
+		{http.MethodGet, "/reference-import/admission-repairs/preview-admission-repair:handle:receipt"},
 		{http.MethodPost, "/reference-import/previews/handle/decision"},
 		{http.MethodPost, "/reference-import/previews/handle/repair-decision"},
 		{http.MethodPost, "/reference-import/previews/handle/handler-selection"},

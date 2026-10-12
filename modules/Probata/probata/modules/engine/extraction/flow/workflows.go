@@ -51,7 +51,8 @@ func modelOptions(ctx workflow.Context) workflow.Context {
 // EntityExtractionWorkflow proposes entities and events for one Review run.
 // It writes proposals only; nothing reaches the registry or the timeline
 // until the owner runs ExtractionCommitWorkflow.
-func EntityExtractionWorkflow(ctx workflow.Context, request ExtractionRequest) (Progress, error) {
+func EntityExtractionWorkflow(ctx workflow.Context, request ExtractionRequest) (result Progress, resultErr error) {
+	defer func() { result, resultErr = standaloneExtractionResult(ctx, result, resultErr) }()
 	if workflow.GetVersion(ctx, "extraction-single-case-operating-mode-v1", workflow.DefaultVersion, 1) != workflow.DefaultVersion {
 		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(request.Run.MatterMode)); err != nil {
 			return Progress{}, err

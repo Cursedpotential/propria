@@ -290,7 +290,8 @@ func externalActivityOptions(ctx workflow.Context, spec ExtractorSpec) workflow.
 // Each window is one external Activity call (Python, evidence-pipeline queue) followed by one Go Activity
 // that validates the reply against the default extractor's schema, grounds it in the window's own
 // messages and stages it under a compare-only working.extraction_run tagged with the extractor.
-func ExternalExtractionWorkflow(ctx workflow.Context, in ExternalRunInput) (Progress, error) {
+func ExternalExtractionWorkflow(ctx workflow.Context, in ExternalRunInput) (result Progress, resultErr error) {
+	defer func() { result, resultErr = standaloneExtractionResult(ctx, result, resultErr) }()
 	if workflow.GetVersion(ctx, "external-extraction-operating-mode-v1", workflow.DefaultVersion, 1) != workflow.DefaultVersion {
 		if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(in.Run.MatterMode)); err != nil {
 			return Progress{}, err
