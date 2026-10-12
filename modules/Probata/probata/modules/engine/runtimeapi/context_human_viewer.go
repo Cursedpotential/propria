@@ -108,6 +108,15 @@ func (h *HumanContextViewerHandler) content(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
+	if r.URL.Query().Get("section") == "chunks" {
+		page, err := h.Bundles.ReadChunkPage(r.Context(), view.ManifestRef, offset, limit)
+		if err != nil {
+			previewError(w, http.StatusUnprocessableEntity, err)
+			return
+		}
+		previewJSON(w, http.StatusOK, page)
+		return
+	}
 	page, err := h.Bundles.ReadPage(r.Context(), view.ManifestRef, offset, limit)
 	if err != nil {
 		previewError(w, http.StatusUnprocessableEntity, err)

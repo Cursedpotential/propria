@@ -48,6 +48,7 @@ func (h *ContextSourceHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /reference-import/context/sources", tailnetServiceAuth(h.serviceTokenPath, "context source tailnet authorization required", h.start))
 	mux.HandleFunc("GET /reference-import/context/workflows/{workflow_id}", tailnetServiceAuth(h.serviceTokenPath, "context source tailnet authorization required", h.status))
+	mux.HandleFunc("GET /reference-import/context/workflows/{workflow_id}/package", tailnetServiceAuth(h.serviceTokenPath, "context source tailnet authorization required", h.packageContent))
 	return mux
 }
 

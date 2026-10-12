@@ -44,6 +44,7 @@ func mountReviewOverlayRoutes(existing, metadata, contextReview http.Handler) (h
 	mux := http.NewServeMux()
 	mux.Handle("GET "+preview+"/metadata", metadata)
 	mux.Handle("POST "+preview+"/metadata/corrections", metadata)
+	mux.Handle("POST /reference-import/context/packages/{source_version_ref}/review", metadata)
 	mux.Handle("GET "+preview+"/messages/{message_id}/context-review", contextReview)
 	mux.Handle("POST "+preview+"/messages/{message_id}/context-review", contextReview)
 	mux.Handle("POST "+preview+"/messages/{message_id}/foreshadowing", contextReview)

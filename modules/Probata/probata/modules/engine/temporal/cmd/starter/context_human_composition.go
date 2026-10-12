@@ -23,6 +23,7 @@ func mountNativeHumanContextRoutes(existing, sources, viewer http.Handler) (http
 		return nil, errors.New("native human context routes require existing, source and viewer handlers")
 	}
 	mux := http.NewServeMux()
+	mux.Handle("POST /reference-import/context/packages/{source_version_ref}/review", existing)
 	mux.Handle("/reference-import/context/previews/", viewer)
 	mux.Handle("/reference-import/context/", sources)
 	mux.Handle("/", existing)

@@ -38,12 +38,15 @@ func NewSourceMetadataHTTPHandler(store sourcemeta.Store, serviceTokenPath strin
 	return &SourceMetadataHTTPHandler{store: store, serviceTokenPath: serviceTokenPath}, nil
 }
 
-// Routes returns the metadata mux.
+// Routes mounts legacy metadata corrections and native source-version package review together.
+// Inputs: authenticated HTTP reads/actions. Outputs: metadata pages and attributed correction receipts.
+// Effects: registration only; choose this existing writer for append-only native review without new custody prerequisites.
 func (h *SourceMetadataHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	const base = "/reference-import/previews/{preview_handle}/metadata"
 	mux.HandleFunc("GET "+base, overlayAuth(h.serviceTokenPath, "metadata", h.read))
 	mux.HandleFunc("POST "+base+"/corrections", overlayAuth(h.serviceTokenPath, "metadata", h.correct))
+	mux.HandleFunc("POST /reference-import/context/packages/{source_version_ref}/review", overlayAuth(h.serviceTokenPath, "metadata", h.correctPackage))
 	return mux
 }
 
