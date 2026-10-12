@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/Cursedpotential/probata/engine/extraction/entities"
+	"github.com/Cursedpotential/probata/engine/extraction/service"
 	"github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/sourcemeta"
 )
@@ -18,7 +20,7 @@ type NativePackageReviewStore interface {
 
 // correctPackage records one owner review action through SourceMetadataStore's native seam.
 // Inputs: source version path, actor/key and bounded review JSON. Output: durable receipt or conflict.
-// Effects: append-only native review; no model, source, custody, graph or evidence action.
+// Effects: atomic review revision plus existing canonical working-candidate writer; no source/body mutation or evidence promotion.
 func (h *SourceMetadataHTTPHandler) correctPackage(w http.ResponseWriter, r *http.Request) {
 	store, ok := h.store.(NativePackageReviewStore)
 	if !ok {
@@ -45,6 +47,15 @@ func (h *SourceMetadataHTTPHandler) correctPackage(w http.ResponseWriter, r *htt
 	}
 	receipt, err := store.PersistPackageReview(r.Context(), spec)
 	if err != nil {
+		if errors.Is(err, entities.ErrConflict) {
+			previewError(w, 409, err)
+			return
+		}
+		var invalid service.ErrInvalid
+		if errors.As(err, &invalid) {
+			previewError(w, 422, err)
+			return
+		}
 		h.fail(w, err)
 		return
 	}

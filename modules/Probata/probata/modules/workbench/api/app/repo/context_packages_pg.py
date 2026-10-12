@@ -169,7 +169,8 @@ def candidates(version: str, section: str, after: str, limit: int) -> tuple[list
         if section == "strategy":
             extra = " AND coalesce(c.attrs->>'reported_kind',c.attrs->'candidate'->>'kind','') IN ('strategy','history')"
         selects.append(f"""SELECT '{table}:'||c.id::text AS id,'{kind}'::text AS kind,
-          to_jsonb(c)-'content_sha256' AS fields,encode(c.content_sha256,'hex') AS content_sha256
+          to_jsonb(c)-'content_sha256' AS fields,encode(c.content_sha256,'hex') AS content_sha256,
+          coalesce(c.attrs->>'package_review_item_id','{table}:'||c.id::text) AS review_item_id,c.review_state
           FROM working.{table} c WHERE
           (c.source_raw_table='context.source_version' AND c.source_raw_id=%(version)s
            OR EXISTS(SELECT 1 FROM context.proffer_preview_snapshot p

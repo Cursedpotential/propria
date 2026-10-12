@@ -23,6 +23,7 @@ class PackageReview(BaseModel):
     fields: dict[str, Any] = Field(default_factory=dict)
     source_refs: list[dict[str, Any]] = Field(default_factory=list, max_length=64)
     reason: str = Field(min_length=1, max_length=4000)
+    candidate_content_sha256: str = Field(default="", max_length=64)
 
 
 class PackageSection(BaseModel):
@@ -36,3 +37,14 @@ class PackageSection(BaseModel):
     count: int | None
     available: bool
     reason: str | None = None
+
+
+class PackageExtractionRetry(BaseModel):
+    """Request a new attempt using the existing native worker's configured model.
+
+    Inputs: displayed registered version and configured selector. Output: bounded
+    engine request. Effects: none until submitted; arbitrary provider IDs are refused.
+    """
+    model_config = ConfigDict(extra="forbid")
+    source_version_ref: str = Field(min_length=36, max_length=36)
+    model_id: Literal["configured"] = "configured"

@@ -61,6 +61,24 @@ func (s *ContextStarter) Start(ctx context.Context, in proffer.WorkflowInput) (p
 	return proffer.ContextStarted{WorkflowID: run.GetID(), RunID: run.GetRunID()}, nil
 }
 
+// StartExtractionRetry starts an additive configured-model attempt through the existing Go worker queue.
+// Inputs: server-pinned parent/source/bundles and actor-bound idempotent workflow ID. Output: actual Temporal IDs.
+// Effects: one Temporal start; choose over resetting the parent or re-registering its source version.
+func (s *ContextStarter) StartExtractionRetry(ctx context.Context, id string, in proffer.ContextExtractionRetryInput) (proffer.ContextStarted, error) {
+	if !strings.HasPrefix(id, proffer.ContextWorkflowIDPrefix+"retry:") || in.ActorSubjectUID == "" {
+		return proffer.ContextStarted{}, errors.New("retry requires an actor-bound context workflow ID")
+	}
+	run, err := s.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{ID: id, TaskQueue: s.taskQueue,
+		Memo: map[string]interface{}{"actor_subject_uid": in.ActorSubjectUID, "context_contract": proffer.ContextContractVersion,
+			"parent_workflow_id": in.ParentWorkflowID, "source_version_ref": in.Source.SourceVersionID},
+		WorkflowIDReusePolicy:    enumspb.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+		WorkflowIDConflictPolicy: enumspb.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING}, proffer.ContextExtractionRetryWorkflowName, in)
+	if err != nil {
+		return proffer.ContextStarted{}, err
+	}
+	return proffer.ContextStarted{WorkflowID: run.GetID(), RunID: run.GetRunID()}, nil
+}
+
 // Status reads an actor-bound running query or completed result from Temporal.
 // Inputs: one context workflow ID. Outputs: reference-only progress or error.
 // Effects: Temporal describe/query/read; choose for context status polling, not content reads.
@@ -100,8 +118,9 @@ func (s *ContextStarter) Status(ctx context.Context, workflowID string) (proffer
 		}
 		return proffer.ContextProgress{ContextSummary: *result.Context}, nil
 	default:
+		version, _ := contextMemoField(described.GetWorkflowExecutionInfo().GetMemo().GetFields(), "source_version_ref")
 		return proffer.ContextProgress{ContextSummary: proffer.ContextSummary{
-			ActorSubjectUID: actor, Status: "failed", Reason: "workflow_" + strings.ToLower(strings.TrimPrefix(described.GetWorkflowExecutionInfo().GetStatus().String(), "WORKFLOW_EXECUTION_STATUS_")),
+			ActorSubjectUID: actor, SourceVersionRef: version, Status: "failed", Reason: "workflow_" + strings.ToLower(strings.TrimPrefix(described.GetWorkflowExecutionInfo().GetStatus().String(), "WORKFLOW_EXECUTION_STATUS_")),
 		}}, nil
 	}
 }

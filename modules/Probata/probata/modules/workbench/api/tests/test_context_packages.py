@@ -10,12 +10,83 @@ import pytest
 
 from app.service import context_packages as service
 from app.service.proffer_errors import ProfferError
+from app.types.context_packages import PackageExtractionRetry
 
 SOURCE = {"source_version_ref": "11111111-1111-4111-8111-111111111111",
     "source_ref": "b2://case/SourceCorpus/sms/export.xml", "source_type": "smsbackuprestore_xml",
     "workflow_id": "context-source:actual", "revision": 1, "package_ref": "b2://case/unit/export",
     "category": "sms", "domain": "sms", "path": "SourceCorpus/sms/export.xml",
     "classification_basis": {"kind": "persisted_source_metadata"}}
+
+
+def test_retry_pins_registered_source_and_retains_attempt_receipt(monkeypatch):
+    """Verify a configured retry returns actual IDs and persists their discoverable reference in the existing ledger.
+
+    Inputs: synthetic registered native source and engine replies. Outputs:
+    exact body, source pins and receipt assertions. Effects: mocked writes only.
+    """
+    monkeypatch.setattr(service, "_matter", lambda: "actual-matter")
+    source = {**SOURCE, "source_type": "chatgpt"}
+    monkeypatch.setattr(service.repo, "source", lambda *_: source)
+    calls = []
+
+    async def engine(method, path, **kwargs):
+        """Capture trusted retry/correction requests and supply real-shaped durable replies."""
+        calls.append((method, path, kwargs["json"]))
+        if path.endswith("/retry"):
+            return {"workflow_id": "context-source:retry:actual", "run_id": "actual-run", "source_version_ref": SOURCE["source_version_ref"]}
+        return {"correction_ref": "actual-correction", "receipt_ref": "metadata-correction://actual-correction"}
+
+    monkeypatch.setattr(service.proffer, "_request", engine)
+    monkeypatch.setattr(service.proffer, "_json_payload", lambda response, _: response)
+    monkeypatch.setattr(service, "_actor_headers", lambda *_: {"actor": "synthetic"})
+    result = asyncio.run(service.retry_extraction("context-source:actual", PackageExtractionRetry(source_version_ref=SOURCE["source_version_ref"]), None, "click"))
+    assert len(calls) == 2
+    assert calls[0][1].endswith("/context-source%3Aactual/retry")
+    assert calls[0][2] == {"source_version_ref": SOURCE["source_version_ref"], "model_id": "configured"}
+    correction = calls[1][2]
+    assert correction["fields"]["extraction_attempt"]["run_id"] == "actual-run"
+    assert correction["source_refs"][0]["source_version_ref"] == SOURCE["source_version_ref"]
+    assert result["attempt_receipt"]["correction_ref"] == "actual-correction"
+    assert "/attempts/" in result["status_path"]
+
+
+def test_retry_refuses_cross_version_before_engine_write(monkeypatch):
+    """Reject stale displayed source versions before scheduling any model work.
+
+    Inputs: stale version and current native registration. Outputs: conflict.
+    Effects: no engine calls. Pick for source-pinned retry admission regression.
+    """
+    monkeypatch.setattr(service, "_matter", lambda: "actual-matter")
+    monkeypatch.setattr(service.repo, "source", lambda *_: {**SOURCE, "source_type": "chatgpt"})
+    with pytest.raises(ProfferError) as error:
+        asyncio.run(service.retry_extraction("context-source:actual", PackageExtractionRetry(source_version_ref="22222222-2222-4222-8222-222222222222"), None, "click"))
+    assert error.value.status_code == 409
+
+
+def test_native_canonical_capability_binds_actual_candidate_and_flat_edit_contract():
+    """Expose the genuine working ID/hash and native locator in canonical edit/commit descriptors.
+
+    Inputs: typed native working candidate and accepted correction. Output:
+    flat editor fields and held-before-commit assertions. Effects: none.
+    """
+    row = {"id": "candidate_fact:replacement", "review_item_id": "candidate_fact:original", "content_sha256": "a" * 64,
+           "fields": {"id": "replacement", "source_raw_table": "context.source_version", "review_state": "pending",
+                      "attrs": {"candidate": {"kind": "fact", "statement": "Owner assertion", "source_ref": SOURCE["source_ref"],
+                          "source_sha256": "b" * 64, "native_json_pointer": "/turns/0", "source_span": {"start": 1, "end": 3},
+                          "span_unit": "unicode_codepoint", "prepared_ref": "file:///native/prepared.json"}}}}
+    correction = {"correction_ref": "accepted-revision", "corrected_value": {"review_state": "accepted"}}
+    item = service._item(row, SOURCE, "proposals", 0, correction, "context-source:actual")
+    commit = next(c for c in item["capabilities"] if c["operation"] == "commit")
+    assert commit["available"] and commit["scope"] == "canonical_working_candidate"
+    assert commit["body"]["item_id"] == "candidate_fact:original"
+    assert commit["body"]["candidate_content_sha256"] == "a" * 64
+    assert commit["body"]["revision"] == "accepted-revision"
+    assert "statement" in commit["editable_fields"]
+    assert any(ref.get("source_sha256") == "b" * 64 and ref["locator"]["native_json_pointer"] == "/turns/0" for ref in item["source_refs"])
+    row["fields"]["review_state"] = "superseded"
+    historical = service._item(row, SOURCE, "proposals", 0, correction, "context-source:actual")
+    assert all(not c["available"] for c in historical["capabilities"])
 
 
 def test_cursor_cannot_cross_category_domain_version_or_section():

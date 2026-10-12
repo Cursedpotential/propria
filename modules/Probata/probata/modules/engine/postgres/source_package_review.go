@@ -21,16 +21,17 @@ import (
 // Inputs: registered version, displayed revision, attribution and bounded fields/locators.
 // Outputs: correction receipt; effects occur only in PersistPackageReview, never original mutation.
 type PackageReviewSpec struct {
-	SourceVersionRef string           `json:"source_version_ref"`
-	Operation        string           `json:"operation"`
-	ItemID           string           `json:"item_id"`
-	Revision         string           `json:"revision"`
-	Fields           map[string]any   `json:"fields"`
-	SourceRefs       []map[string]any `json:"source_refs"`
-	Reason           string           `json:"reason"`
-	ActorSubjectUID  string           `json:"-"`
-	ActorUsername    string           `json:"-"`
-	IdempotencyKey   string           `json:"-"`
+	SourceVersionRef       string           `json:"source_version_ref"`
+	Operation              string           `json:"operation"`
+	ItemID                 string           `json:"item_id"`
+	Revision               string           `json:"revision"`
+	Fields                 map[string]any   `json:"fields"`
+	SourceRefs             []map[string]any `json:"source_refs"`
+	Reason                 string           `json:"reason"`
+	ActorSubjectUID        string           `json:"-"`
+	ActorUsername          string           `json:"-"`
+	IdempotencyKey         string           `json:"-"`
+	CandidateContentSHA256 string           `json:"candidate_content_sha256,omitempty"`
 }
 
 // packagePayloadAllowed excludes native conversation/message bodies from durable review metadata.
@@ -79,6 +80,34 @@ func ValidatePackageReview(spec PackageReviewSpec) error {
 			return errors.New("revision must name the current correction")
 		}
 	}
+	if strings.HasPrefix(spec.ItemID, "candidate_") {
+		parts := strings.SplitN(spec.ItemID, ":", 2)
+		if len(parts) != 2 {
+			return errors.New("canonical review requires an actual working candidate coordinate")
+		}
+		switch parts[0] {
+		case "candidate_entity", "candidate_event", "candidate_fact":
+		default:
+			return errors.New("unsupported working candidate table")
+		}
+		if _, err := uuid.Parse(parts[1]); err != nil {
+			return errors.New("canonical review requires the actual working candidate UUID")
+		}
+		if spec.Operation == "metadata" {
+			return errors.New("canonical candidate review requires edit, accept, reject or commit")
+		}
+		hash, err := hex.DecodeString(spec.CandidateContentSHA256)
+		if err != nil || len(hash) != 32 || strings.ToLower(spec.CandidateContentSHA256) != spec.CandidateContentSHA256 {
+			return errors.New("canonical candidate review requires the displayed content SHA256")
+		}
+		for key := range spec.Fields {
+			switch key {
+			case "name", "entity_type", "event_type", "predicate", "statement", "confidence", "occurred_at":
+			default:
+				return fmt.Errorf("unsupported canonical candidate field %q", key)
+			}
+		}
+	}
 	switch spec.Operation {
 	case "metadata", "edit", "accept", "reject", "commit":
 	default:
@@ -116,8 +145,8 @@ func ValidatePackageReview(spec PackageReviewSpec) error {
 
 // PersistPackageReview appends an attributed native review revision using the existing correction ledger.
 // Inputs: real source version, expected correction reference and one review action. Output: durable receipt.
-// Effects: one correction insert with idempotent replay/CAS; no source, body, search or graph write.
-// Choose for metadata corrections and derived assertions; commit requires the immediately accepted revision.
+// Effects: correction insert with replay/CAS and atomic native working-candidate edits or existing canonical decisions.
+// Choose for metadata/derived assertions; canonical commit requires the immediately accepted revision and exact candidate hash.
 func (s *SourceMetadataStore) PersistPackageReview(ctx context.Context, spec PackageReviewSpec) (sourcemeta.Receipt, error) {
 	if err := ValidatePackageReview(spec); err != nil {
 		return sourcemeta.Receipt{}, err
@@ -207,7 +236,15 @@ func (s *SourceMetadataStore) PersistPackageReview(ctx context.Context, spec Pac
 		return existing, fmt.Errorf("%w: edit fields before deciding their revision", sourcemeta.ErrStaleRevision)
 	}
 	spec.Fields = mergePackageFields(previousFields, spec.Fields)
-	value, _ := json.Marshal(map[string]any{"item_id": spec.ItemID, "operation": spec.Operation, "fields": spec.Fields, "source_refs": spec.SourceRefs, "review_state": state})
+	valueFields := map[string]any{"item_id": spec.ItemID, "operation": spec.Operation, "fields": spec.Fields, "source_refs": spec.SourceRefs, "review_state": state}
+	if strings.HasPrefix(spec.ItemID, "candidate_") {
+		canonical, canonicalErr := s.applyPackageCandidateTx(ctx, tx, spec, prior, hex.EncodeToString(sum[:]))
+		if canonicalErr != nil {
+			return existing, canonicalErr
+		}
+		valueFields["canonical"] = canonical
+	}
+	value, _ := json.Marshal(valueFields)
 	id, err := uuid.NewV7()
 	if err != nil {
 		return existing, err

@@ -16,7 +16,7 @@ from app.runtime.analysis import _actor_headers
 from app.service import proffer
 from app.service.matter_mode import configured_matter_id
 from app.service.proffer_errors import ProfferError
-from app.types.context_packages import PackageReview
+from app.types.context_packages import PackageReview, PackageExtractionRetry
 
 SECTIONS = ("allmetadata", "chunks", "events", "timeline", "entities", "locations", "strategy", "documents", "records", "proposals", "edges", "corrections", "embeddings")
 PAGE_SIZE = 50
@@ -157,32 +157,55 @@ def _item(row: dict, source: dict, section: str, index: int, correction: dict | 
     identity = str(row.get("id") or row.get("candidate_id") or row.get("record_id") or row.get("node_id") or row.get("chunk_ref") or row.get("edge_id") or row.get("work_product_ref") or (row.get("content_key") if section == "chunks" else None) or
                    (f"native-record:{source['source_version_ref']}:{row['ordinal']}" if "ordinal" in row else f"{section}:{index}"))
     native = fields.get("native", fields)
+    candidate = fields.get("attrs", {}).get("candidate", {}) if isinstance(fields.get("attrs"), dict) else {}
+    if not isinstance(candidate, dict):
+        candidate = {}
+    canonical = fields.get("source_raw_table") == "context.source_version" and bool(candidate.get("source_ref")) and bool(row.get("content_sha256"))
+    working_candidate = identity.startswith(("candidate_entity:", "candidate_event:", "candidate_fact:"))
     if not isinstance(native, dict):
         native = fields
     locator = native.get("source_locator") or fields.get("source_locator_ref") or fields.get("locator_ref") or fields.get("source_span") or {"artifact_id": identity, "section": section}
+    if canonical:
+        locator = {"native_json_pointer": candidate.get("native_json_pointer"), "source_span": candidate.get("source_span"),
+                   "span_unit": candidate.get("span_unit"), "prepared_ref": candidate.get("prepared_ref")}
     refs = row.get("source_refs") or fields.get("source_refs") or fields.get("source_pins") or [{"source_ref": source["source_ref"],
         "source_version_ref": source["source_version_ref"], "locator": locator}]
     root = {"source_ref": source["source_ref"], "source_version_ref": source["source_version_ref"], "locator": locator}
+    if canonical:
+        root.update(source_sha256=candidate.get("source_sha256"), provider_version_id=candidate.get("version_id"))
     if root not in refs:
         refs = [root, *refs]
     current = correction.get("corrected_value", {}) if correction else {}
     revision = correction["correction_ref"] if correction else ""
     state = current.get("review_state", row.get("review_state", "unreviewed"))
+    if fields.get("review_state") == "superseded":
+        state = "superseded"
     metadata_item = section == "allmetadata"
     operations = ["metadata"] if metadata_item else ["edit", "accept", "reject", "commit"]
     capabilities = []
     for operation in operations:
         allowed = operation != "commit" or state == "accepted"
+        reason = "Accept the inspected proposal revision before interpretation commit"
+        if working_candidate and not canonical:
+            allowed = False
+            reason = "This normalized or retained-source candidate uses its existing extraction review/commit route"
+        if state in {"superseded", "committed"} or (canonical and state in {"approved", "rejected"}):
+            allowed = False
+            reason = "Historical candidate revision is preserved for inspection"
         # Native message/chunk text is immutable source data; corrections are
         # bounded assertions, never copies of those full source fields.
         capabilities.append({"operation": operation, "available": allowed,
           "immutable_fields": IMMUTABLE_FIELDS,
           "path": f"/api/context/packages/{quote(handle, safe='')}/review", "method": "POST",
-          "body": {"operation": operation, "item_id": identity, "revision": revision, "source_refs": refs},
-          **({"reason": "Accept the inspected proposal revision before interpretation commit"} if not allowed else {})})
+          "body": {"operation": operation, "item_id": row.get("review_item_id", identity), "revision": revision, "source_refs": refs,
+                   **({"candidate_content_sha256": row["content_sha256"]} if canonical else {})},
+          "scope": "canonical_working_candidate" if canonical else "review_assertion",
+          "editable_fields": ["name", "entity_type", "event_type", "predicate", "statement", "confidence", "occurred_at"] if canonical else None,
+          **({"reason": reason} if not allowed else {})})
     return {"id": identity, "kind": row.get("kind") or section, "label": str(fields.get("label") or fields.get("name") or fields.get("title") or identity),
       "fields": fields, "source_refs": refs, "edges": [fields] if section == "edges" else _edges(fields), "review_state": state,
       "revision": revision, "capabilities": capabilities, "placement": _placement(source),
+      "content_sha256": row.get("content_sha256"),
       "domain": source.get("domain"), "category": source.get("category"), "path": source.get("path"),
       "classification_basis": source.get("classification_basis"), "correction": current or None}
 
@@ -199,6 +222,8 @@ async def snapshot(handle: str, section: str, cursor: str | None, request) -> di
     source = await run_in_threadpool(repo.source, _matter(), handle)
     counts, history = await run_in_threadpool(repo.counts, source["source_version_ref"]), await run_in_threadpool(repo.corrections, source["source_version_ref"])
     binding = {"handle": handle, "version": source["source_version_ref"], "section": section, "revision": source["revision"]}
+    if section in {"entities", "events", "locations", "strategy", "proposals"}:
+        binding["working_revision"] = counts.get("review_revision")
     native = handle.startswith("human-")
     ai = (source.get("workflow_id") or "").startswith("context-source:") and not native
     last = "" if (ai or native) and section != "corrections" else _after(cursor, binding)
@@ -217,7 +242,7 @@ async def snapshot(handle: str, section: str, cursor: str | None, request) -> di
             params={"section": section, "offset": 0})
         binding["reader_revision"] = upstream.get("revision")
         last = _after(cursor, binding)
-        if section != "allmetadata" and last:
+        if section not in {"allmetadata", "proposals"} and last:
             page = await _engine(f"/reference-import/context/workflows/{quote(source['workflow_id'], safe='')}/package", request,
                 params={"section": section, "offset": int(last)})
             if page.get("revision") != binding["reader_revision"]:
@@ -263,6 +288,11 @@ async def snapshot(handle: str, section: str, cursor: str | None, request) -> di
         rows = await run_in_threadpool(repo.members, source["source_version_ref"], str(last), PAGE_SIZE)
         raw_rows = rows[:PAGE_SIZE]
         next_key = raw_rows[-1]["id"] if len(rows) > PAGE_SIZE else None
+    elif ai and section == "proposals":
+        rows, total = await run_in_threadpool(repo.candidates, source["source_version_ref"], section, str(last), PAGE_SIZE)
+        raw_rows = rows[:PAGE_SIZE]
+        counts[section], available[section] = total, True
+        next_key = raw_rows[-1]["id"] if len(rows) > PAGE_SIZE else None
     elif ai:
         raw_rows = upstream.get("items", [])
         next_key = upstream.get("next_offset")
@@ -291,13 +321,14 @@ async def snapshot(handle: str, section: str, cursor: str | None, request) -> di
     else:
         available[section] = False
         reasons[section] = "No retained reader/extraction artifact for this section on the current native source"
-    page_ids = [_item(row, source, section, int(last or 0)+index if str(last or 0).isdigit() else index, None, handle)["id"] for index, row in enumerate(raw_rows)]
+    page_ids = [row.get("review_item_id") or _item(row, source, section, int(last or 0)+index if str(last or 0).isdigit() else index, None, handle)["id"] for index, row in enumerate(raw_rows)]
     heads = await run_in_threadpool(repo.correction_heads, source["source_version_ref"], ["placement", *page_ids])
     items = []
     for index, row in enumerate(raw_rows):
         item = _item(row, source, section, int(last or 0)+index if str(last or 0).isdigit() else index, None, handle)
-        if item["id"] in heads:
-            item = _item(row, source, section, int(last or 0)+index if str(last or 0).isdigit() else index, heads[item["id"]], handle)
+        review_key = row.get("review_item_id") or item["id"]
+        if review_key in heads:
+            item = _item(row, source, section, int(last or 0)+index if str(last or 0).isdigit() else index, heads[review_key], handle)
         items.append(item)
     # Placement is a source-wide metadata correction whose inherited value is
     # read by both category and package-list SQL, without relocating any object.
@@ -315,18 +346,64 @@ async def snapshot(handle: str, section: str, cursor: str | None, request) -> di
       "classification_basis": source.get("classification_basis"), "placement": _placement(source),
       "metadata": {"source": source, "reader": {k:v for k,v in upstream.items() if k not in {"items","records","chunks"}}, "corrections": history[:PAGE_SIZE],
         "correction_history_next_cursor": _cursor({k:v for k,v in {**binding, "section": "corrections"}.items() if k != "reader_revision"}, history[PAGE_SIZE-1]["correction_ref"]) if len(history)>PAGE_SIZE else None}, "sections": sections,
-      "items": items, "next_cursor": _cursor(binding, next_key) if next_key is not None and next_key != "" else None}
+      "items": items, "next_cursor": _cursor(binding, next_key) if next_key is not None and next_key != "" else None,
+      "capabilities": [{"operation": "retry_extraction", "available": bool(ai and upstream.get("retry_extraction", {}).get("available")),
+        "path": f"/api/context/packages/{quote(handle, safe='')}/retry", "method": "POST",
+        "body": {"source_version_ref": source["source_version_ref"], "model_id": "configured"},
+        "models": [{"id": "configured", "label": "Configured native extraction model"}],
+        "reason": upstream.get("retry_extraction", {}).get("reason", "No configured native retry seam for this source")}]}
     if len(json.dumps(result, default=str).encode()) > 4 * 1024 * 1024:
         raise ProfferError("Package page exceeds explicit four MiB bound; no fields were silently omitted", 413)
     return result
+
+
+async def retry_extraction(handle: str, body: PackageExtractionRetry, request, key: str) -> dict:
+    """Start an additive configured-model retry pinned by the server to its original native workflow.
+
+    Inputs: package handle, displayed version and actor click key. Output: real
+    Temporal attempt/parent IDs. Effects: candidate extraction/staging only; no
+    source reingestion, correction replacement or evidence promotion.
+    """
+    source = await run_in_threadpool(repo.source, _matter(), handle)
+    workflow = source.get("workflow_id") or ""
+    if not workflow.startswith("context-source:") or source["source_version_ref"] != body.source_version_ref:
+        raise ProfferError("Retry requires this exact native source workflow and registered version", 409)
+    response = await proffer._request("POST", f"/reference-import/context/workflows/{quote(workflow, safe='')}/retry",
+        json=body.model_dump(mode="json"), headers=_actor_headers(request, key))
+    value = proffer._json_payload(response, "extraction retry")
+    if not isinstance(value, dict) or not value.get("workflow_id") or not value.get("run_id") or value.get("source_version_ref") != source["source_version_ref"]:
+        raise ProfferError("Retry returned no source-pinned Temporal attempt", 502)
+    ledger = PackageReview(operation="metadata", item_id="attempt:" + value["workflow_id"],
+        fields={"extraction_attempt": value}, reason="Owner requested a configured-model extraction retry",
+        source_refs=[{"source_ref": source["source_ref"], "source_version_ref": source["source_version_ref"],
+                      "locator": {"workflow_id": value["workflow_id"], "run_id": value["run_id"]}}])
+    value["attempt_receipt"] = await review(handle, ledger, request, "extraction-attempt:" + key)
+    value["status_path"] = f"/api/context/packages/{quote(handle, safe='')}/attempts/{quote(value['workflow_id'], safe='')}"
+    return value
+
+
+async def extraction_attempt(handle: str, workflow_id: str, request) -> dict:
+    """Read an actual retry's business progress after checking its original registered version.
+
+    Inputs: package and returned attempt ID. Output: compact source-pinned status.
+    Effects: existing actor-bound Temporal read only; terminal orchestration never implies extraction success.
+    """
+    if not workflow_id.startswith("context-source:retry:") or len(workflow_id) > 160:
+        raise ProfferError("Unknown extraction attempt", 404)
+    source = await run_in_threadpool(repo.source, _matter(), handle)
+    value = await _engine(f"/reference-import/context/workflows/{quote(workflow_id, safe='')}", request)
+    if value.get("source_version_ref") != source["source_version_ref"]:
+        raise ProfferError("Extraction attempt belongs to another source version", 409)
+    return value
 
 
 async def review(handle: str, body: PackageReview, request, key: str) -> dict:
     """Persist one explicit revision-bound action through the existing Go metadata writer.
 
     Inputs: actual package, edited assertions/source refs and actor click key.
-    Output: append-only receipt. Effects: Go correction transaction only; commit
-    is an interpretation revision, separate from evidence promotion or graph publication.
+    Output: append-only receipt. Effects: atomic Go correction/canonical candidate
+    transaction; native candidate commit uses the existing analysis decision writer,
+    while source bodies and evidence promotion remain outside this operation.
     """
     source = await run_in_threadpool(repo.source, _matter(), handle)
     response = await proffer._request("POST", f"/reference-import/context/packages/{source['source_version_ref']}/review",

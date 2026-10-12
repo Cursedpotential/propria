@@ -10,9 +10,37 @@ from app.repo.imported_pg import ImportedError
 from app.service import context_packages as service
 from app.service.matter_mode import MatterModeError
 from app.service.proffer_errors import ProfferError
-from app.types.context_packages import PackageReview
+from app.types.context_packages import PackageReview, PackageExtractionRetry
 
 router = APIRouter(prefix="/api/context", tags=["context-package-review"])
+
+
+@router.get("/packages/{handle}/attempts/{workflow_id}")
+async def extraction_attempt(handle: str, workflow_id: str, request: Request):
+    """Read source-bound retry progress without treating orchestration completion as extraction success.
+
+    Inputs: package handle and actual retry workflow ID. Output: business status
+    and retained result refs. Effects: authenticated Temporal read only.
+    """
+    try:
+        return await service.extraction_attempt(handle, workflow_id, request)
+    except (ImportedError, ProfferError, MatterModeError) as error:
+        _fail(error)
+
+
+@router.post("/packages/{handle}/retry", status_code=202)
+async def retry_extraction(handle: str, body: PackageExtractionRetry, request: Request,
+                           idempotency_key: str = Header(alias="Idempotency-Key")):
+    """Start a source-pinned extraction attempt using the existing configured native model.
+
+    Inputs: displayed version, configured model and actor click key. Output:
+    actual Temporal attempt/parent references. Effects: bounded extraction/staging,
+    with old attempts and durable owner corrections retained independently.
+    """
+    try:
+        return await service.retry_extraction(handle, body, request, idempotency_key)
+    except (ImportedError, ProfferError, MatterModeError) as error:
+        _fail(error)
 
 
 def _fail(error):
@@ -70,8 +98,9 @@ async def review(handle: str, body: PackageReview, request: Request, idempotency
     """Append an explicit metadata/edit/accept/reject/interpretation-commit revision.
 
     Inputs: displayed revision, source locators, reason and existing actor/key.
-    Output: durable correction receipt. Effects: existing Go metadata store only;
-    accepted interpretations never imply graph publication or evidence promotion.
+    Output: durable correction receipt. Effects: existing Go metadata/candidate
+    writers atomically; native candidate Commit records canonical analysis approval,
+    and Accept remains held. This route performs no evidence promotion.
     """
     try:
         return await service.review(handle, body, request, idempotency_key)

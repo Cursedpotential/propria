@@ -105,4 +105,5 @@ func TestPackageReviewDurableTransitions(t *testing.T) {
 	if _, err = pool.Exec(ctx, "UPDATE context.source_metadata_correction SET change_reason='overwrite'"); err == nil {
 		t.Fatal("append-only correction mutated")
 	}
+	t.Run("native_canonical_candidate", func(t *testing.T) { testNativePackageCandidate(t, pool) })
 }

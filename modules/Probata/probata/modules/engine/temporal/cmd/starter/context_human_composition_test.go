@@ -26,6 +26,7 @@ func TestNativeHumanRoutesPreservePrefixOwnership(t *testing.T) {
 		{"POST", "/reference-import/context/sources", "sources"},
 		{"GET", "/reference-import/context/workflows/context-source:actual", "sources"},
 		{"GET", "/reference-import/context/workflows/context-source:actual/package", "sources"},
+		{"POST", "/reference-import/context/workflows/context-source:actual/retry", "sources"},
 		{"POST", "/reference-import/context/packages/actual-version/review", "existing"},
 		{"POST", "/reference-import/source-preview", "existing"},
 		{"GET", "/reference-import/previews/actual", "existing"},

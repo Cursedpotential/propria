@@ -246,5 +246,9 @@ func (h *ContextSourceHTTPHandler) packageContent(w http.ResponseWriter, r *http
 	}
 	revisionBytes, _ := json.Marshal(refs)
 	revision := fmt.Sprintf("%x", sha256.Sum256(revisionBytes))
-	previewJSON(w, 200, map[string]any{"workflow_id": id, "revision": revision, "source_version_ref": status.SourceVersionRef, "source": source, "counts": counts, "available": available, "items": page, "next_offset": next, "section": section})
+	retryAvailable := status.PreparedRef != "" && status.WorkProductsRef != "" && status.ReviewSource != nil
+	_, retrySupported := h.workflows.(contextExtractionRetries)
+	previewJSON(w, 200, map[string]any{"workflow_id": id, "revision": revision, "source_version_ref": status.SourceVersionRef, "source": source, "counts": counts, "available": available, "items": page, "next_offset": next, "section": section,
+		"retry_extraction": map[string]any{"available": retryAvailable && retrySupported, "model_id": "configured",
+			"reason": "Requires settled predecessor bundles, independently verified source and a retry-capable starter"}})
 }

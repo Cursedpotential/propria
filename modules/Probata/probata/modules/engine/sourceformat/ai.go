@@ -17,6 +17,11 @@ const ChatGPTMarkdown = "chatgpt_markdown"
 // ClaudeMarkdown is a Markdown transcript with ordered Human and Assistant headings and nonempty bodies.
 const ClaudeMarkdown = "claude_markdown"
 
+// GeminiMarkdown names the already persisted native format used by the deployed 174afa review store.
+// Inputs: registered format metadata. Output: exact format label. Effects: none.
+// Pick for native source proof; no detector or inferred classification is added here.
+const GeminiMarkdown = "gemini_markdown"
+
 // claudeConversationSignature checks a complete native conversation without inferring message fields.
 // Inputs: a decoded first conversation. Output: whether uuid/name and typed
 // messages exist, or its explicitly empty message array is a native envelope.
