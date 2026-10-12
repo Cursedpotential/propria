@@ -192,6 +192,9 @@ func (h *EntityExtractionHTTPHandler) extract(w http.ResponseWriter, r *http.Req
 	})
 }
 
+// status forwards scoped Temporal progress and the actual execution identifiers.
+// Inputs: preview handle and workflow path. Outputs: workflow/run IDs, outcome and steps.
+// Effects: existing run/status reads only; choose for standalone extraction and commit polling.
 func (h *EntityExtractionHTTPHandler) status(w http.ResponseWriter, r *http.Request, prefix string) {
 	handle := r.URL.Query().Get("preview_handle")
 	workflowID := r.PathValue("workflow_id")
@@ -209,7 +212,7 @@ func (h *EntityExtractionHTTPHandler) status(w http.ResponseWriter, r *http.Requ
 		// A workflow that is not queryable yet has no steps; the contract is a list, never null.
 		steps = []flow.StepResult{}
 	}
-	previewJSON(w, http.StatusOK, map[string]any{"workflow_id": workflowID, "outcome": progress.Outcome, "steps": steps})
+	previewJSON(w, http.StatusOK, map[string]any{"workflow_id": workflowID, "run_id": progress.RunID, "outcome": progress.Outcome, "steps": steps})
 }
 
 func (h *EntityExtractionHTTPHandler) extractionStatus(w http.ResponseWriter, r *http.Request) {
