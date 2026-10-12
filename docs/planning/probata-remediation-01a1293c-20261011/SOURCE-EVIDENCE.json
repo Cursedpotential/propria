@@ -1,0 +1,929 @@
+[
+  {
+    "id": "E01",
+    "ref": "6a9b1626e2fd14878fcaee7473cb0f5c8c43a2ba",
+    "path": "modules/Probata/probata/modules/workbench/web/src/components/sources/sources-screen.tsx",
+    "start": 328,
+    "end": 401,
+    "claim": "Local Process uploads then starts Proffer; folder processing uses current locator; no final placement receipt.",
+    "url": "https://github.com/Cursedpotential/propria/blob/6a9b1626e2fd14878fcaee7473cb0f5c8c43a2ba/modules/Probata/probata/modules/workbench/web/src/components/sources/sources-screen.tsx#L328-L401"
+  },
+  {
+    "id": "E02",
+    "ref": "6a9b1626e2fd14878fcaee7473cb0f5c8c43a2ba",
+    "path": "modules/Probata/probata/modules/workbench/web/src/components/sources/sources-screen.tsx",
+    "start": 447,
+    "end": 462,
+    "claim": "Process gate checks busy/target/matter/court, not verified permanent placement.",
+    "url": "https://github.com/Cursedpotential/propria/blob/6a9b1626e2fd14878fcaee7473cb0f5c8c43a2ba/modules/Probata/probata/modules/workbench/web/src/components/sources/sources-screen.tsx#L447-L462"
+  },
+  {
+    "id": "E03",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/workbench/web/src/components/sources/source-metadata-panel.tsx",
+    "start": 210,
+    "end": 245,
+    "claim": "Unit-kind marks and canonical-home explanatory text are not classification or placement.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/workbench/web/src/components/sources/source-metadata-panel.tsx#L210-L245"
+  },
+  {
+    "id": "E04",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/workbench/api/app/service/source_unit_marks.py",
+    "start": 43,
+    "end": 60,
+    "claim": "Read-modify-write local JSON unit marks.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/workbench/api/app/service/source_unit_marks.py#L43-L60"
+  },
+  {
+    "id": "E05",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/workbench/api/app/repo/source_unit_marks.py",
+    "start": 34,
+    "end": 54,
+    "claim": "Atomic file replacement without shared catalog membership transaction.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/workbench/api/app/repo/source_unit_marks.py#L34-L54"
+  },
+  {
+    "id": "E06",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/engine/acquisition/upload.go",
+    "start": 79,
+    "end": 123,
+    "claim": "Upload seal is upload://sha256 digest+size, not final B2 placement.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/engine/acquisition/upload.go#L79-L123"
+  },
+  {
+    "id": "E07",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/engine/acquisition/seal.go",
+    "start": 118,
+    "end": 164,
+    "claim": "Local immutable content seal.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/engine/acquisition/seal.go#L118-L164"
+  },
+  {
+    "id": "E08",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Consignatio/casebible/tools/casevault_placement.sh",
+    "start": 3,
+    "end": 65,
+    "claim": "Existing add-only B2 copy and size/SHA1 readback machinery; not shared application placement.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Consignatio/casebible/tools/casevault_placement.sh#L3-L65"
+  },
+  {
+    "id": "E09",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Consignatio/casebible/tools/casevault_placement_load.sql",
+    "start": 6,
+    "end": 48,
+    "claim": "Existing raw_duck placement mapping upserts latest verification status; no immutable attempt history.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Consignatio/casebible/tools/casevault_placement_load.sql#L6-L48"
+  },
+  {
+    "id": "E10",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/engine/postgres/source_lifecycle_repository.go",
+    "start": 99,
+    "end": 145,
+    "claim": "Registration keyed by AcquisitionRef and request replay rejects changed reference.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/engine/postgres/source_lifecycle_repository.go#L99-L145"
+  },
+  {
+    "id": "E11",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/workbench/web/src/components/sources/source-state.ts",
+    "start": 4,
+    "end": 68,
+    "claim": "State inferred from source_ref and completed run/manifest; independent states collapsed.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/workbench/web/src/components/sources/source-state.ts#L4-L68"
+  },
+  {
+    "id": "E12",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot/apps/src-tauri/src/file_organizer.rs",
+    "start": 884,
+    "end": 921,
+    "claim": "Local filesystem rename; skips missing source/existing target; not shared B2 service.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot/apps/src-tauri/src/file_organizer.rs#L884-L921"
+  },
+  {
+    "id": "E13",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/workbench/api/app/repo/intake_discovery.py",
+    "start": 113,
+    "end": 210,
+    "claim": "Dated catalog membership joins; requires current generation/lineage reconciliation.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/workbench/api/app/repo/intake_discovery.py#L113-L210"
+  },
+  {
+    "id": "E14",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/workbench/api/app/service/proffer_sources.py",
+    "start": 179,
+    "end": 234,
+    "claim": "Provider filename listing/search is a different search surface, bounded at 25000 keys.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/workbench/api/app/service/proffer_sources.py#L179-L234"
+  },
+  {
+    "id": "E15",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/postgres/catalog_versions.go",
+    "start": 61,
+    "end": 101,
+    "claim": "Current raw_duck.bucket_objects reader plus historical relocation mapping; old b2_objects complaint stale.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/postgres/catalog_versions.go#L61-L101"
+  },
+  {
+    "id": "E16",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/proffer/context_first.go",
+    "start": 207,
+    "end": 356,
+    "claim": "Native AI finish retains/catalogs package after preparation/extraction/publication; partial candidate outcomes.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/proffer/context_first.go#L207-L356"
+  },
+  {
+    "id": "E17",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/activities/ai_context_package.go",
+    "start": 247,
+    "end": 307,
+    "claim": "Fixed manifest-derived _Incoming destination; exact completed replay; uncertain attempt cannot auto-resume.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/activities/ai_context_package.go#L247-L307"
+  },
+  {
+    "id": "E18",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Consignatio/casebible/tools/ai_context_package_catalog_api.sql",
+    "start": 16,
+    "end": 80,
+    "claim": "Exact ai-context-catalog/v1 UTF8 payload, root and member admission contract.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Consignatio/casebible/tools/ai_context_package_catalog_api.sql#L16-L80"
+  },
+  {
+    "id": "E19",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Consignatio/casebible/tools/ai_context_package_catalog_api.sql",
+    "start": 89,
+    "end": 208,
+    "claim": "Exact catalog reconstruction and serializable atomic registration in existing raw_duck relations.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Consignatio/casebible/tools/ai_context_package_catalog_api.sql#L89-L208"
+  },
+  {
+    "id": "E20",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/activities/ai_context_package_catalog.go",
+    "start": 77,
+    "end": 160,
+    "claim": "Independent registration/readback transactions and complete receipt comparison.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/activities/ai_context_package_catalog.go#L77-L160"
+  },
+  {
+    "id": "E21",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/workbench/api/app/runtime/context_sources.py",
+    "start": 25,
+    "end": 37,
+    "claim": "Baseline BFF omits matter/court IDs and exposes ChatGPT/Claude only.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/workbench/api/app/runtime/context_sources.py#L25-L37"
+  },
+  {
+    "id": "E22",
+    "ref": "f9b4bd6478b017162aba3d561c0bc311d0b07ff0",
+    "path": "modules/Probata/probata/modules/workbench/api/app/runtime/context_sources.py",
+    "start": 26,
+    "end": 38,
+    "claim": "Divergent restored BFF adds Gemini but still omits scope.",
+    "url": "https://github.com/Cursedpotential/propria/blob/f9b4bd6478b017162aba3d561c0bc311d0b07ff0/modules/Probata/probata/modules/workbench/api/app/runtime/context_sources.py#L26-L38"
+  },
+  {
+    "id": "E23",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/activities/ai_context_candidate_staging.go",
+    "start": 49,
+    "end": 66,
+    "claim": "Native staging requires LIVE scope and returns existing local PreparedRef.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/activities/ai_context_candidate_staging.go#L49-L66"
+  },
+  {
+    "id": "E24",
+    "ref": "f9b4bd6478b017162aba3d561c0bc311d0b07ff0",
+    "path": "modules/Probata/probata/modules/workbench/api/app/runtime/ai_candidate_review.py",
+    "start": 19,
+    "end": 55,
+    "claim": "Restored candidate BFF requires b2 prepared_ref; native file ref fails validation as502.",
+    "url": "https://github.com/Cursedpotential/propria/blob/f9b4bd6478b017162aba3d561c0bc311d0b07ff0/modules/Probata/probata/modules/workbench/api/app/runtime/ai_candidate_review.py#L19-L55"
+  },
+  {
+    "id": "E25",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/server/analysis/ai_context.py",
+    "start": 85,
+    "end": 156,
+    "claim": "Native bundle refs are worker-local file URIs with exact run/stage path checks.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/server/analysis/ai_context.py#L85-L156"
+  },
+  {
+    "id": "E26",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/server/analysis/ai_context.py",
+    "start": 353,
+    "end": 376,
+    "claim": "Gemini decoder accepts label-only full lines, rejecting inline role-label form.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/server/analysis/ai_context.py#L353-L376"
+  },
+  {
+    "id": "E27",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/sourceformat/ai_gemini_test.go",
+    "start": 5,
+    "end": 13,
+    "claim": "Detector test admits inline Gemini role labels.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/sourceformat/ai_gemini_test.go#L5-L13"
+  },
+  {
+    "id": "E28",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/sourceformat/ai.go",
+    "start": 14,
+    "end": 151,
+    "claim": "Detector format IDs include ChatGPT/Claude Markdown beyond context workflow support.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/sourceformat/ai.go#L14-L151"
+  },
+  {
+    "id": "E29",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/server/analysis/ai_context.py",
+    "start": 475,
+    "end": 503,
+    "claim": "Created works retain native role/time/pointer/span provenance and source-local bundle references.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/server/analysis/ai_context.py#L475-L503"
+  },
+  {
+    "id": "E30",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/activities/ai_workproduct_placement.go",
+    "start": 26,
+    "end": 31,
+    "claim": "Separate legacy AI work-product fixed _derived/misc destination.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/activities/ai_workproduct_placement.go#L26-L31"
+  },
+  {
+    "id": "E31",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/activities/toolkit_content_placement.go",
+    "start": 28,
+    "end": 60,
+    "claim": "Fixed KnowledgeBase/legal content root.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/activities/toolkit_content_placement.go#L28-L60"
+  },
+  {
+    "id": "E32",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/extraction/librarysync/contract.go",
+    "start": 42,
+    "end": 72,
+    "claim": "Exact legal root and admissible subprefix contract.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/extraction/librarysync/contract.go#L42-L72"
+  },
+  {
+    "id": "E33",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Consignatio/casebible/tools/publish_wiki.py",
+    "start": 43,
+    "end": 46,
+    "claim": "Wiki default and exact equality guard at Code/wiki.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Consignatio/casebible/tools/publish_wiki.py#L43-L46"
+  },
+  {
+    "id": "E34",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/deploy/proffer-worker.yaml",
+    "start": 125,
+    "end": 135,
+    "claim": "Configurable library-validation DerivedKnowledge default and derivative-root configuration.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/deploy/proffer-worker.yaml#L125-L135"
+  },
+  {
+    "id": "E35",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/extraction/libraryvalidation/artifacts.go",
+    "start": 22,
+    "end": 84,
+    "claim": "Existing versioned B2 derivative artifact writer and independent exact-version readback.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/extraction/libraryvalidation/artifacts.go#L22-L84"
+  },
+  {
+    "id": "E36",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/activities/toolkit_package_preservation.go",
+    "start": 26,
+    "end": 36,
+    "claim": "Wrong lowercase recovery/library-sources destination persists.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/activities/toolkit_package_preservation.go#L26-L36"
+  },
+  {
+    "id": "E37",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Consignatio/docs/receipts/recovered-placement-correction-20261004.md",
+    "start": 5,
+    "end": 15,
+    "claim": "Recovered correction was a plan; historical counts not current live proof.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Consignatio/docs/receipts/recovered-placement-correction-20261004.md#L5-L15"
+  },
+  {
+    "id": "E38",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Legal-desktop/api/legal_workspace/services/consignatio_catalog.py",
+    "start": 30,
+    "end": 76,
+    "claim": "Legacy catalog_reconcile/vault defaults; evidence promotion intentionally unbound.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Legal-desktop/api/legal_workspace/services/consignatio_catalog.py#L30-L76"
+  },
+  {
+    "id": "E39",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Legal-desktop/api/legal_workspace/services/consignatio_catalog.py",
+    "start": 122,
+    "end": 132,
+    "claim": "JSON bindings override merges sections if configured.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Legal-desktop/api/legal_workspace/services/consignatio_catalog.py#L122-L132"
+  },
+  {
+    "id": "E40",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Legal-desktop/api/legal_workspace/config.py",
+    "start": 57,
+    "end": 58,
+    "claim": "Catalog URL and bindings env settings.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Legal-desktop/api/legal_workspace/config.py#L57-L58"
+  },
+  {
+    "id": "E41",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/sql/bootstrap/schema_snapshot_20260907.sql",
+    "start": 2894,
+    "end": 2912,
+    "claim": "Acquired-third-party availability joins evidence.acquisition.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/sql/bootstrap/schema_snapshot_20260907.sql#L2894-L2912"
+  },
+  {
+    "id": "E42",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/docs/adr/0062-claim-candidates-temporal-edges-and-the-assertion-layer.md",
+    "start": 57,
+    "end": 88,
+    "claim": "ADR extraction lifecycle/no per-row approval and candidate families left unreconciled.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/docs/adr/0062-claim-candidates-temporal-edges-and-the-assertion-layer.md#L57-L88"
+  },
+  {
+    "id": "E43",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/sql/bootstrap/schema_snapshot_20260907.sql",
+    "start": 11787,
+    "end": 11837,
+    "claim": "Claim candidate review_state pending differs from ADR lifecycle.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/sql/bootstrap/schema_snapshot_20260907.sql#L11787-L11837"
+  },
+  {
+    "id": "E44",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/postgres/ai_content_review_store.go",
+    "start": 199,
+    "end": 239,
+    "claim": "AI pending candidate_fact, undated event and strategy/history fact-account mapping.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/postgres/ai_content_review_store.go#L199-L239"
+  },
+  {
+    "id": "E45",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/server/analysis/ai_content.py",
+    "start": 102,
+    "end": 146,
+    "claim": "Deterministic stage-local JSON durability does not establish portable DerivedKnowledge envelope.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/server/analysis/ai_content.py#L102-L146"
+  },
+  {
+    "id": "E46",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/server/analysis/ai_content.py",
+    "start": 1799,
+    "end": 1862,
+    "claim": "Direct AI Weaviate publish and independent vector/property readback already exist.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/server/analysis/ai_content.py#L1799-L1862"
+  },
+  {
+    "id": "E47",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/approvedgraph/project.go",
+    "start": 17,
+    "end": 101,
+    "claim": "Approved entity/event graph claims retain exact provenance; scope is limited.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/approvedgraph/project.go#L17-L101"
+  },
+  {
+    "id": "E48",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/surrealsink/context_graph_contract.go",
+    "start": 32,
+    "end": 84,
+    "claim": "Existing typed source-pinned graph bundle.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/surrealsink/context_graph_contract.go#L32-L84"
+  },
+  {
+    "id": "E49",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/derive/smsthreads/derivedroot.go",
+    "start": 5,
+    "end": 28,
+    "claim": "Mapped derivatives plus source-local fallback/legacy lookup; rule requires reconciliation.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/derive/smsthreads/derivedroot.go#L5-L28"
+  },
+  {
+    "id": "E50",
+    "ref": "e1cb96cbd09ddd07df8cad4dc44c843631e44e59",
+    "path": "modules/Probata/probata/modules/engine/derive/smsthreads/derivedroot.go",
+    "start": 81,
+    "end": 115,
+    "claim": "Env mapping rejects configured destination inside source root.",
+    "url": "https://github.com/Cursedpotential/propria/blob/e1cb96cbd09ddd07df8cad4dc44c843631e44e59/modules/Probata/probata/modules/engine/derive/smsthreads/derivedroot.go#L81-L115"
+  },
+  {
+    "id": "E51",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/server/case_management/repository.py",
+    "start": 112,
+    "end": 115,
+    "claim": "Advanced evidence promotion disabled.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/server/case_management/repository.py#L112-L115"
+  },
+  {
+    "id": "E52",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/server/contracts/legal_source_package.py",
+    "start": 1,
+    "end": 5,
+    "claim": "Production LegalSourcePackage issuer/route not wired.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/server/contracts/legal_source_package.py#L1-L5"
+  },
+  {
+    "id": "E53",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/docs/pending-review/2026-10-06-evidence-promotion-implementation-contract.md",
+    "start": 50,
+    "end": 61,
+    "claim": "Evidence implementation contract adds no executor/request code.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/docs/pending-review/2026-10-06-evidence-promotion-implementation-contract.md#L50-L61"
+  },
+  {
+    "id": "E54",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Consignatio/casebible/tools/superindex_source_current_20261003.sql",
+    "start": 1,
+    "end": 40,
+    "claim": "Current all-bucket listing view with dated occurrence join; historical counts only.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Consignatio/casebible/tools/superindex_source_current_20261003.sql#L1-L40"
+  },
+  {
+    "id": "E55",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Consignatio/Intake/backend/src/casebible_index/filesystem_search.py",
+    "start": 50,
+    "end": 75,
+    "claim": "Search locator resolution and explicit unknown coverage; optional image lane.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Consignatio/Intake/backend/src/casebible_index/filesystem_search.py#L50-L75"
+  },
+  {
+    "id": "E56",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Consignatio/Intake/backend/src/casebible_index/image_search_api.py",
+    "start": 1,
+    "end": 20,
+    "claim": "Independent OCR literal and visual lanes exist with screenshot/photo/scan filtering.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Consignatio/Intake/backend/src/casebible_index/image_search_api.py#L1-L20"
+  },
+  {
+    "id": "E57",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Consignatio/Intake/backend/src/casebible_index/run_status.py",
+    "start": 13,
+    "end": 41,
+    "claim": "Run counts explicitly do not prove corpus coverage.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Consignatio/Intake/backend/src/casebible_index/run_status.py#L13-L41"
+  },
+  {
+    "id": "E58",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/superindex/workflow.go",
+    "start": 9,
+    "end": 32,
+    "claim": "Go Temporal text/image stages; image stage disabled unless configured.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/superindex/workflow.go#L9-L32"
+  },
+  {
+    "id": "E59",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Consignatio/casebible/tools/vault_move_rest.py",
+    "start": 6,
+    "end": 89,
+    "claim": "Old helper generates deletion candidates from name+size; unsuitable for placement service.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Consignatio/casebible/tools/vault_move_rest.py#L6-L89"
+  },
+  {
+    "id": "E60",
+    "ref": "f9b4bd6478b017162aba3d561c0bc311d0b07ff0",
+    "path": "modules/Probata/probata/modules/workbench/api/app/service/source_inspection.py",
+    "start": 218,
+    "end": 248,
+    "claim": "Metadata-only large file preview on restored branch; preserve current trial preview behavior.",
+    "url": "https://github.com/Cursedpotential/propria/blob/f9b4bd6478b017162aba3d561c0bc311d0b07ff0/modules/Probata/probata/modules/workbench/api/app/service/source_inspection.py#L218-L248"
+  },
+  {
+    "id": "E61",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/activities/ai_source_unit_placement.go",
+    "start": 26,
+    "end": 34,
+    "claim": "Source-unit placement also targets AI _Incoming.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/activities/ai_source_unit_placement.go#L26-L34"
+  },
+  {
+    "id": "E62",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/postgres/context_package.go",
+    "start": 40,
+    "end": 43,
+    "claim": "Go metadata validator independently enforces exact AI package root.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/postgres/context_package.go#L40-L43"
+  },
+  {
+    "id": "E63",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/activities/ai_context_package.go",
+    "start": 196,
+    "end": 228,
+    "claim": "Physical exact pinned B2 version hash/size verification precedes catalog proof.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/activities/ai_context_package.go#L196-L228"
+  },
+  {
+    "id": "E64",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/engine/superindex/workflow.go",
+    "start": 478,
+    "end": 506,
+    "claim": "Current main unconditionally schedules OCR before image embeddings; any OCR Activity error aborts the image slice before embedding/publication.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/engine/superindex/workflow.go#L478-L506"
+  },
+  {
+    "id": "E65",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Consignatio/Intake/backend/src/casebible_index/image_stage.py",
+    "start": 379,
+    "end": 416,
+    "claim": "Image OCR raises non-retryable OcrUnavailable for an unavailable engine; configuration errors propagate rather than becoming an optional OCR coverage result.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Consignatio/Intake/backend/src/casebible_index/image_stage.py#L379-L416"
+  },
+  {
+    "id": "E66",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Consignatio/Intake/backend/src/casebible_index/image_stage.py",
+    "start": 267,
+    "end": 318,
+    "claim": "Image facts hash retained image/rendered-page bytes, inspect dimensions/format and metadata with OCR off, and classify kind with basis; device/software/GPS/time-conflict fields exist. This is not implemented model-based platform or capture-device attribution.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Consignatio/Intake/backend/src/casebible_index/image_stage.py#L267-L318"
+  },
+  {
+    "id": "E67",
+    "ref": "9fe9f8b31af94242dd04aff8d745e04a5b169039",
+    "path": "modules/Probata/probata/server/analysis/ai_context.py",
+    "start": 538,
+    "end": 680,
+    "claim": "Existing AI integration branch already performs optional model candidate extraction and exact quote/record matching to native Unicode-codepoint spans, pointers, roles and clocks, with per-chunk partial enrichment/cooldown. LangExtract must be benchmarked against this existing capability; code is not live delivery proof.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9fe9f8b31af94242dd04aff8d745e04a5b169039/modules/Probata/probata/server/analysis/ai_context.py#L538-L680"
+  },
+  {
+    "id": "E68",
+    "ref": "9fe9f8b31af94242dd04aff8d745e04a5b169039",
+    "path": "modules/Probata/probata/modules/engine/proffer/context_first.go",
+    "start": 180,
+    "end": 293,
+    "claim": "Newer inspected native worker branch registers then prepares/extracts/enriches/publishes/verifies; its finish function only records status and omits the baseline assembled-package retention/catalog Activities. This branch difference is not proof of an integrated permanent-home lifecycle.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9fe9f8b31af94242dd04aff8d745e04a5b169039/modules/Probata/probata/modules/engine/proffer/context_first.go#L180-L293"
+  },
+  {
+    "id": "E69",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/activities/ai_context_package.go",
+    "start": 64,
+    "end": 110,
+    "claim": "The native package manifest embeds the complete ContextPackageRequest and requires its RunID; manifest-hash-derived destination therefore incorporates processing-request/run data, alongside the baseline root construction in E17.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/activities/ai_context_package.go#L64-L110"
+  },
+  {
+    "id": "E70",
+    "ref": "9fe9f8b31af94242dd04aff8d745e04a5b169039",
+    "path": "modules/Probata/probata/server/context_chunks/config.py",
+    "start": 24,
+    "end": 34,
+    "claim": "Native chunk configuration explicitly defaults to neural_distilbert, bounded 450-model-token windows, 7500-character maximum and two-message overlap for the message-thread route. This is configuration, not proof every route or live deployment uses it.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9fe9f8b31af94242dd04aff8d745e04a5b169039/modules/Probata/probata/server/context_chunks/config.py#L24-L34"
+  },
+  {
+    "id": "E71",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/server/context_chunks/chunker.py",
+    "start": 35,
+    "end": 160,
+    "claim": "Inspected main explicitly names mirth/chonky_distilbert_base_uncased_1, constructs WindowedNeural around Chonkie NeuralChunker, and includes library/model/window/size/overlap/text-format in chunker version. Exact resolved model/tokenizer artifact revisions and integrated live operation still require proof.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/server/context_chunks/chunker.py#L35-L160"
+  },
+  {
+    "id": "E72",
+    "ref": "9fe9f8b31af94242dd04aff8d745e04a5b169039",
+    "path": "modules/Probata/probata/server/analysis/ai_context.py",
+    "start": 393,
+    "end": 472,
+    "claim": "AI integration prepares complete-conversation neural topic chunks with Unicode-codepoint offsets, native-record segment slices and a persisted prepared bundle containing records/chunks. Existing local persistence is confirmed; durable source-local readback and exact-generation owner review/approval are not proved by this code.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9fe9f8b31af94242dd04aff8d745e04a5b169039/modules/Probata/probata/server/analysis/ai_context.py#L393-L472"
+  },
+  {
+    "id": "E73",
+    "ref": "9fe9f8b31af94242dd04aff8d745e04a5b169039",
+    "path": "modules/Probata/probata/pyproject.toml",
+    "start": 65,
+    "end": 67,
+    "claim": "Inspected worker branch declares chonkie[semantic,code,table]==1.7.0 and explicitly documents omission of neural/torch extras from this dependency declaration. Actual image/runtime dependencies may differ and must be verified; this alone does not prove NeuralChunker is unavailable.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9fe9f8b31af94242dd04aff8d745e04a5b169039/modules/Probata/probata/pyproject.toml#L65-L67"
+  },
+  {
+    "id": "E74",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/activities/ai_context_package_catalog.go",
+    "start": 25,
+    "end": 46,
+    "claim": "Native v1 catalog payload has exactly 13 fields and each member has six fields. Contract changes need a distinct version rather than adding fields to historical v1 payloads.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/activities/ai_context_package_catalog.go#L25-L46"
+  },
+  {
+    "id": "E75",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/postgres/ai_context_package_catalog.go",
+    "start": 18,
+    "end": 59,
+    "claim": "Native catalog adapter requires ai-context-catalog/v1 and 4–65 members, registers in a serializable transaction, then performs an independent read-only reconstruction. Unknown commit outcomes require identical pinned-payload retry rather than a new package identity.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/postgres/ai_context_package_catalog.go#L18-L59"
+  },
+  {
+    "id": "E76",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Consignatio/Intake/backend/src/casebible_index/sql/catalog_source_current.sql",
+    "start": 1,
+    "end": 24,
+    "claim": "Current main Intake query derives resolution from occurrences[0].disposition; an underlying resolution column is not required. Compatibility still requires the query input columns and effective runtime bindings, not assumed view shape.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Consignatio/Intake/backend/src/casebible_index/sql/catalog_source_current.sql#L1-L24"
+  },
+  {
+    "id": "E77",
+    "ref": "9fe9f8b31af94242dd04aff8d745e04a5b169039",
+    "path": "modules/Probata/probata/server/analysis/ai_context.py",
+    "start": 475,
+    "end": 504,
+    "claim": "Newer native worker retains assistant-created work text with role/native time/source reference/native JSON pointer and codepoint spans; extraction is not legal adoption.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9fe9f8b31af94242dd04aff8d745e04a5b169039/modules/Probata/probata/server/analysis/ai_context.py#L475-L504"
+  },
+  {
+    "id": "E78",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Legal-desktop/api/legal_workspace/services/work_documents.py",
+    "start": 46,
+    "end": 66,
+    "claim": "Current private legal document/revision DTOs expose document/matter/revision/digest/actor/origin; no explicit AI source-generation/native-span adoption mapping in these fields.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Legal-desktop/api/legal_workspace/services/work_documents.py#L46-L66"
+  },
+  {
+    "id": "E79",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Legal-desktop/api/legal_workspace/services/work_documents.py",
+    "start": 156,
+    "end": 227,
+    "claim": "Current legal import allocates a private document and stores immutable revision bytes plus audit-outbox event in one transaction; import is not a human approval.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Legal-desktop/api/legal_workspace/services/work_documents.py#L156-L227"
+  },
+  {
+    "id": "E80",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Legal-desktop/api/legal_workspace/api/auth.py",
+    "start": 60,
+    "end": 92,
+    "claim": "Existing substantive review requires eligible authenticated human; agent, transport and tailnet identities do not establish legal adoption.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Legal-desktop/api/legal_workspace/api/auth.py#L60-L92"
+  },
+  {
+    "id": "E81",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Legal-desktop/api/legal_workspace/domain/work_product.py",
+    "start": 14,
+    "end": 58,
+    "claim": "Existing legal work product has distinct private/review/approved/release/supersession states and edit-version semantics; source_package_id does not itself provide exact AI generation/span mapping.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Legal-desktop/api/legal_workspace/domain/work_product.py#L14-L58"
+  },
+  {
+    "id": "E82",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Legal-desktop/api/legal_workspace/services/workspace.py",
+    "start": 1030,
+    "end": 1088,
+    "claim": "Existing section approval binds human reviewer and current content hash/package context; changed hash invalidates latest approval. Its citation/package requirements belong to this review route.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Legal-desktop/api/legal_workspace/services/workspace.py#L1030-L1088"
+  },
+  {
+    "id": "E83",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Legal-desktop/api/legal_workspace/api/work_document_routes.py",
+    "start": 25,
+    "end": 39,
+    "claim": "Whole-document import/edit actor authentication and selected workspace matter are distinct from substantive human approval; explicit adoption must not reuse ordinary import as implicit approval.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Legal-desktop/api/legal_workspace/api/work_document_routes.py#L25-L39"
+  },
+  {
+    "id": "E84",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Legal-desktop/api/legal_workspace/domain/strategy.py",
+    "start": 16,
+    "end": 36,
+    "claim": "Existing StrategyKind and StrategyNote cover theory, strategy, direction, scratch draft, idea and chat extract; source_chat alone does not supply exact native generation/span lineage.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Legal-desktop/api/legal_workspace/domain/strategy.py#L16-L36"
+  },
+  {
+    "id": "E85",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Legal-desktop/api/legal_workspace/services/workspace.py",
+    "start": 529,
+    "end": 542,
+    "claim": "Existing add/list strategy sibling persists private notes through Workspace._write; this does not prove the shared mobile/workdesk adapter or exact provenance fields.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Legal-desktop/api/legal_workspace/services/workspace.py#L529-L542"
+  },
+  {
+    "id": "E86",
+    "ref": "9fe9f8b31af94242dd04aff8d745e04a5b169039",
+    "path": "modules/Probata/probata/modules/workbench/api/app/runtime/context_sources.py",
+    "start": 25,
+    "end": 37,
+    "claim": "Newer native worker BFF retains source/version/format fields without matter/court-case scope.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9fe9f8b31af94242dd04aff8d745e04a5b169039/modules/Probata/probata/modules/workbench/api/app/runtime/context_sources.py#L25-L37"
+  },
+  {
+    "id": "E87",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/runtimeapi/context_source_api.go",
+    "start": 54,
+    "end": 116,
+    "claim": "Go request includes optional case IDs in workflow identity, but API validation bounds strings without fresh registry approval.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/runtimeapi/context_source_api.go#L54-L116"
+  },
+  {
+    "id": "E88",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/postgres/context_source_registration.go",
+    "start": 181,
+    "end": 230,
+    "claim": "Native registration accepts optional scope; incomplete or invalid UUID pairs become unscoped SQL coordinates, so registration does not prevent later missing-scope staging failure.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/postgres/context_source_registration.go#L181-L230"
+  },
+  {
+    "id": "E89",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/proffer/context_first.go",
+    "start": 301,
+    "end": 356,
+    "claim": "Baseline attempts scoped review staging before embeddings, then may publish/read back semantic content despite staging failure; finishes partial with candidate_review_failed.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/proffer/context_first.go#L301-L356"
+  },
+  {
+    "id": "E90",
+    "ref": "9399c24824e3e0d8d83643f8ae69a41a9f019d56",
+    "path": "modules/Probata/probata/modules/engine/postgres/case_identity_scope_store.go",
+    "start": 44,
+    "end": 78,
+    "claim": "Existing fresh bounded registry ReadScope verifies the approved matter, court-case and actual relationship; reuse this sibling for case-specific admission.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9399c24824e3e0d8d83643f8ae69a41a9f019d56/modules/Probata/probata/modules/engine/postgres/case_identity_scope_store.go#L44-L78"
+  },
+  {
+    "id": "E91",
+    "ref": "9fe9f8b31af94242dd04aff8d745e04a5b169039",
+    "path": "modules/Probata/probata/modules/engine/proffer/context_first.go",
+    "start": 261,
+    "end": 293,
+    "claim": "Newer native workflow extracts candidates, embeds and publishes without the baseline candidate-review staging Activity; branch reconciliation is required.",
+    "url": "https://github.com/Cursedpotential/propria/blob/9fe9f8b31af94242dd04aff8d745e04a5b169039/modules/Probata/probata/modules/engine/proffer/context_first.go#L261-L293"
+  },
+  {
+    "id": "E92",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/aicontextsource/files.go",
+    "start": 43,
+    "end": 129,
+    "claim": "Go native prepared/original opener accepts only bounded file URIs under its configured root, verifies original bytes, and cannot read a B2 URI by changing a BFF regex. Its default root differs from the Python default; live overrides unverified.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/aicontextsource/files.go#L43-L129"
+  },
+  {
+    "id": "E93",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/modules/engine/postgres/ai_context_source.go",
+    "start": 15,
+    "end": 65,
+    "claim": "Native review verifier resolves prepared original and checks registered source/version/provider/package/format against the case-bound context registration; durable locator changes must preserve this verification.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/modules/engine/postgres/ai_context_source.go#L15-L65"
+  },
+  {
+    "id": "E94",
+    "ref": "f9b4bd6478b017162aba3d561c0bc311d0b07ff0",
+    "path": "modules/Probata/probata/modules/workbench/api/tests/test_ai_candidate_review.py",
+    "start": 15,
+    "end": 54,
+    "claim": "Restored review tests supply a synthetic B2 prepared_ref and mock Go responses; these assertions do not exercise the native producer file reference or actual Go opener.",
+    "url": "https://github.com/Cursedpotential/propria/blob/f9b4bd6478b017162aba3d561c0bc311d0b07ff0/modules/Probata/probata/modules/workbench/api/tests/test_ai_candidate_review.py#L15-L54"
+  },
+  {
+    "id": "E95",
+    "ref": "f9b4bd6478b017162aba3d561c0bc311d0b07ff0",
+    "path": "modules/Probata/probata/modules/workbench/web/src/components/review/ai-candidate-review.tsx",
+    "start": 74,
+    "end": 113,
+    "claim": "Restored review UI exposes quote/native provenance and separate decision/publication status, with refresh/read retry; reuse this review surface while adding artifact-resolution actions.",
+    "url": "https://github.com/Cursedpotential/propria/blob/f9b4bd6478b017162aba3d561c0bc311d0b07ff0/modules/Probata/probata/modules/workbench/web/src/components/review/ai-candidate-review.tsx#L74-L113"
+  },
+  {
+    "id": "E96",
+    "ref": "833ace8f99563ce7a628c40b0584c2ba765b4ef3",
+    "path": "modules/Probata/probata/modules/engine/sourceformat/admission.go",
+    "start": 26,
+    "end": 79,
+    "claim": "Current main separates detection/admission from parsing; ChatGPT/Claude heading Markdown is index-only because the parser route is unvalidated. Native JSON signatures have separate IDs.",
+    "url": "https://github.com/Cursedpotential/propria/blob/833ace8f99563ce7a628c40b0584c2ba765b4ef3/modules/Probata/probata/modules/engine/sourceformat/admission.go#L26-L79"
+  },
+  {
+    "id": "E97",
+    "ref": "833ace8f99563ce7a628c40b0584c2ba765b4ef3",
+    "path": "modules/Probata/probata/modules/engine/activities/elt_structured.go",
+    "start": 187,
+    "end": 230,
+    "claim": "Current main already maps exact native ChatGPT/Claude JSON formats to DuckDB and pins chatgpt_json_array_v2 and claude_ai_export_json_v1; reuse this sibling rather than assume native extraction is absent.",
+    "url": "https://github.com/Cursedpotential/propria/blob/833ace8f99563ce7a628c40b0584c2ba765b4ef3/modules/Probata/probata/modules/engine/activities/elt_structured.go#L187-L230"
+  },
+  {
+    "id": "E98",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/server/analysis/ai_context.py",
+    "start": 282,
+    "end": 353,
+    "claim": "Baseline native decoder extracts supported ChatGPT mapping/Claude text fields and rejects no-text exports; its separate Markdown decoder is specifically Gemini. Attachment recognition does not prove text extraction.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/server/analysis/ai_context.py#L282-L353"
+  },
+  {
+    "id": "E99",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/server/analysis/ai_context.py",
+    "start": 439,
+    "end": 461,
+    "claim": "Native prepare selects Markdown only for gemini_markdown; other accepted native aliases read JSON. This does not implement ChatGPT/Claude heading Markdown decoding.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/server/analysis/ai_context.py#L439-L461"
+  },
+  {
+    "id": "E100",
+    "ref": "f9b4bd6478b017162aba3d561c0bc311d0b07ff0",
+    "path": "modules/Probata/probata/modules/workbench/web/src/components/sources/sources-screen.tsx",
+    "start": 527,
+    "end": 535,
+    "claim": "Restored Sources AI chooser adds exact Gemini Markdown beside generic ChatGPT/Claude labels; this UI choice alone proves neither all Gemini exports nor integrated worker availability.",
+    "url": "https://github.com/Cursedpotential/propria/blob/f9b4bd6478b017162aba3d561c0bc311d0b07ff0/modules/Probata/probata/modules/workbench/web/src/components/sources/sources-screen.tsx#L527-L535"
+  },
+  {
+    "id": "E101",
+    "ref": "833ace8f99563ce7a628c40b0584c2ba765b4ef3",
+    "path": "modules/Probata/probata/modules/engine/sourceformat/detect_test.go",
+    "start": 30,
+    "end": 76,
+    "claim": "Current detector tests cover Claude native array/single/attachment-only and ChatGPT/Claude heading Markdown, with negative prose/fence/mixed-role fixtures; recognition assertions are not end-to-end processing tests.",
+    "url": "https://github.com/Cursedpotential/propria/blob/833ace8f99563ce7a628c40b0584c2ba765b4ef3/modules/Probata/probata/modules/engine/sourceformat/detect_test.go#L30-L76"
+  },
+  {
+    "id": "E102",
+    "ref": "059c8aa5f943f6c186658a12aad1bde5aeb6169f",
+    "path": "modules/Probata/probata/tests/test_ai_context.py",
+    "start": 18,
+    "end": 95,
+    "claim": "Existing native Gemini tests assert full-line roles, Unicode/CRLF exact spans, absent native clocks/pointers, byte retention and retry integrity using bounded mocked preparation; no live integrated route proven.",
+    "url": "https://github.com/Cursedpotential/propria/blob/059c8aa5f943f6c186658a12aad1bde5aeb6169f/modules/Probata/probata/tests/test_ai_context.py#L18-L95"
+  },
+  {
+    "id": "E103",
+    "ref": "833ace8f99563ce7a628c40b0584c2ba765b4ef3",
+    "path": "modules/Probata/probata/modules/engine/postgres/duckdb_context_coverage_test.go",
+    "start": 43,
+    "end": 76,
+    "claim": "Current main has synthetic persisted-pin coverage assertions for ChatGPT v2, historical v1/unpinned receipts, Claude v1 and wrong-pin/envelope rejection. These inspected tests were not run in this planning task.",
+    "url": "https://github.com/Cursedpotential/propria/blob/833ace8f99563ce7a628c40b0584c2ba765b4ef3/modules/Probata/probata/modules/engine/postgres/duckdb_context_coverage_test.go#L43-L76"
+  }
+]
