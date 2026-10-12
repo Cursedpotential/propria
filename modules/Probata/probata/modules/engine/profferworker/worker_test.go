@@ -69,8 +69,8 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 		t.Fatalf("workflow registration count = %d, want 19", recorder.workflowCount)
 	}
 	wantNamed := []string{
-		proffer.PreviewAdmissionRepairWorkflowName,
 		sourcepreview.WorkflowName,
+		proffer.PreviewAdmissionRepairWorkflowName,
 		proffer.AIContentResumeWorkflowName,
 		proffer.BatchWorkflowName, atomictool.WorkflowName, proffer.CallLogBackfillWorkflowName, proffer.SourceIntegrityWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
 		proffer.ConversationChunksRemovalWorkflowName, dedupe.WorkflowName, superindex.WorkflowName, repairplan.WorkflowName, contacts.WorkflowName, activities.ToolkitPackageInventoryWorkflowName, activities.ToolkitSelectedTextWorkflowName, activities.ToolkitLedgerComparisonWorkflowName,
