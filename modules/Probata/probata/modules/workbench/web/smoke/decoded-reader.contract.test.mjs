@@ -137,6 +137,7 @@ test("processed message navigation replaces pages, preserves server filters and 
     "@/hooks/use-preview-messages": { MESSAGE_PAGE_SIZE: 200, usePreviewMessageRows: (pages) => ({ rows: pages?.[0].messages.map((message) => ({ message, missingPayloadCount: 0 })) ?? [], participants: new Map() }), usePreviewMessageTotals: (pages) => ({ totalMatches: pages?.[0].total_matches, totalMessages: pages?.[0].total_messages }) },
     "@/lib/utils": { cn: (...values) => values.filter(Boolean).join(" ") },
     "@/lib/api-client": { getProfferPreviewMessages: (...args) => calls.push(args) },
+    "@/lib/human-context": { isHumanPreviewHandle: () => false, humanMessagePage: (page) => page },
   });
   const render = () => { stateIndex = 0; buttons = []; return renderToStaticMarkup(React.createElement(MessageBrowser, { previewHandle: "exact-attempt", mode: "LIVE", packageProjection: null })); };
   render();

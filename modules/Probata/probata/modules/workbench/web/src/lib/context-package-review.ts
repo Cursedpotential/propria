@@ -1,6 +1,16 @@
 // Byline: Codex · GPT-6 · 2026-10-12.
 import type { ContextPackageItem, PackageEdge } from "@/lib/context-package-client";
 
+/** Allow only existing app/API links; inert source text never becomes an executable URL.
+ * Input: recorded URL. Output: local source link or null. Effects: none.
+ * Pick before rendering source links or embedded media from extracted fields.
+ */
+export function packageSourceHref(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\/(?:read(?:\?|$)|sources(?:\?|$)|api\/(?:context|proffer|imported)\/)/.test(value)) return null;
+  const url = new URL(value, "https://context.invalid");
+  return url.origin === "https://context.invalid" ? `${url.pathname}${url.search}${url.hash}` : null;
+}
+
 /** Read complete text blocks from native nested objects without truncating document content.
  * Input: bounded item fields. Output: exact text and original field paths. Effects: none.
  * Pick for source-native records/documents instead of requiring a normalized body column.

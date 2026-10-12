@@ -2,18 +2,8 @@
 import { formatValue } from "@/components/metadata/metadata-format";
 import { EntityAliasLabel } from "@/components/entities/entity-alias-label";
 import type { ContextPackageItem, PackageSourceRef } from "@/lib/context-package-client";
-import { packageTextBlocks } from "@/lib/context-package-review";
+import { packageSourceHref, packageTextBlocks } from "@/lib/context-package-review";
 import { AppLink } from "@/lib/router-compat";
-
-/** Allow only existing app/API links; inert source text never becomes an executable URL.
- * Input: recorded URL. Output: local source link or null. Effects: none.
- * Pick before rendering source links or embedded media from extracted fields.
- */
-export function packageSourceHref(value: unknown): string | null {
-  if (typeof value !== "string" || !/^\/(?:read(?:\?|$)|sources(?:\?|$)|api\/(?:context|proffer|imported)\/)/.test(value)) return null;
-  const url = new URL(value, "https://context.invalid");
-  return url.origin === "https://context.invalid" ? `${url.pathname}${url.search}${url.hash}` : null;
-}
 
 /** Show every supplied source coordinate without dropping native locator fields.
  * Inputs: native source refs. Output: exact version/locator JSON and supported app links.

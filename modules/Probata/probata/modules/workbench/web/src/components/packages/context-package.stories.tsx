@@ -51,7 +51,8 @@ function installApi({ args }: { args: { failSave?: boolean; reopened?: boolean }
         const request = JSON.parse(String(init?.body)) as { fields?: Record<string, unknown>; operation: string; reason: string; revision: string };
         if (request.revision !== serverItem.revision) { status = 409; body = { detail: "Synthetic stale revision" }; }
         else {
-          serverItem = { ...serverItem, revision: `r${Number(String(serverItem.revision).slice(1)) + 1}`, fields: { ...serverItem.fields, ...request.fields }, review_history: [...(serverItem.review_history as unknown[] ?? []), request], review_state: request.operation === "accept" ? "accepted" : request.operation === "reject" ? "rejected" : serverItem.review_state };
+          const head = serverItem.correction as { fields?: Record<string, unknown>; review_state?: string } | undefined;
+          serverItem = { ...serverItem, revision: `r${Number(String(serverItem.revision).slice(1)) + 1}`, correction: { fields: { ...head?.fields, ...request.fields }, source_refs: serverItem.source_refs, review_state: request.operation === "accept" ? "accepted" : request.operation === "reject" ? "rejected" : head?.review_state ?? serverItem.review_state }, review_history: [...(serverItem.review_history as unknown[] ?? []), request] };
           body = { saved: true, revision: serverItem.revision, operation: request.operation, source_version_ref: SOURCE.source_version_ref };
         }
       }
@@ -95,6 +96,22 @@ type Story = StoryObj<typeof meta>;
 export const CategoryHeaders: Story = { args: { entry: "/read" } };
 export const CompletePackage: Story = {};
 export const ReopenedCorrection: Story = { args: { reopened: true } };
+export const SaveAndReopen: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Synthetic extracted statement" });
+    await userEvent.click(canvas.getByText("Supplement or edit fields"));
+    await userEvent.click(canvas.getByLabelText("Supplemental fields JSON"));
+    await userEvent.paste('{"provenance_party":"first_party"}');
+    await userEvent.type(canvas.getByLabelText("Review reason"), "Synthetic saved correction");
+    await userEvent.click(canvas.getByRole("button", { name: "Save supplemental fields" }));
+    await canvas.findByText(/Showing the current owner-reviewed revision/);
+    await userEvent.click(canvas.getByRole("link", { name: "Context review categories" }));
+    await userEvent.click(await canvas.findByRole("link", { name: /Complete fixture document/ }));
+    await canvas.findByText(/Showing the current owner-reviewed revision/);
+    await expect(canvas.getAllByText("first_party").length).toBeGreaterThan(0);
+  },
+};
 export const SaveFailureRetainsDraft: Story = {
   args: { failSave: true },
   play: async ({ canvasElement }) => {
