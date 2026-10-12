@@ -187,6 +187,12 @@ files changed by this lane:
 - `smoke/decoded-reader.contract.test.mjs`
 - `smoke/proffer-operator-surface.contract.test.mjs`
 - `smoke/review-overlays.contract.test.mjs`
+- `smoke/source-perspective.contract.test.mjs`
+- `smoke/sources-screen.contract.test.mjs`
+- `smoke/conversation-action-outcome.contract.test.mjs`
+- `src/components/conversations/conversation-actions.tsx`
+- `src/components/entities/workflow-steps.tsx`
+- `src/lib/conversation-action-progress.ts`
 
 ## Parent integration acceptance still required
 
@@ -243,3 +249,94 @@ These are open delivery boundaries, not completed by dynamic sections or control
 The final backend immutable-field list also includes `raw_reply`, `reply` and
 `replies`; the editor already consumes the actual descriptor list dynamically.
 Chat/SDK work remains deferred and unchanged.
+
+## Follow-up: Sources harness and truthful extraction outcome
+
+The owner subsequently authorized fixing the six baseline SMS/source test failures
+where they were harness/stale-assertion defects, then prioritized the misleading
+aggregate extraction display. These are separate commits:
+
+- `89ac7e9ea`: repair the native/legacy Sources Process harness.
+- `23ee4b68f`: distinguish extraction business results from workflow completion.
+
+The original harness evaluated only `process()`, omitted its actual native imports
+and `submitHumanSource()` callback, and substituted a simplified `processSelection`.
+It also expected native SMS to call the legacy starter with legacy identity fields.
+The corrected harness loads the real attribution/routing/selection helpers and
+executes both real callbacks, with only transport/state boundaries stubbed.
+
+Native SMS assertions now verify the actual source/version, native format,
+`owner_person_ref` when uniquely confirmed, explicit confirmed
+`perspective_person_ref`, no guessed owner/case, accepted-request deduplication,
+changed-perspective request identity and acquisition reuse. The existing native
+helper explicitly permits an optional owner/case; this is not a new product change.
+Legacy call/message tests retain required unique owner, current perspective and
+fixed-case guards, and verify partial-retry preservation of accepted receipts and
+the failed request's original identity. Product Process/viewer code is unchanged.
+
+The Sources button test now inspects the actual JSX predicate and invocation with
+the TypeScript AST. It verifies exactly one button/invocation, invocation only in
+its click handler, busy/empty-selection guards, required legacy case, optional
+native case, existing batch and per-file starters, and no sorting/marking dependency.
+
+For the extraction issue, the inspected BFF
+`api/app/service/conversation_actions.py:workflow_status`, its response DTO, client
+`conversation-actions-client.ts:conversationApi.status`, and runtime status handler
+all pass through the worker's business `outcome`; no Temporal-status overwrite was
+found there. The previous UI trusted that aggregate verbatim and visually emphasized
+the successful resolution line without identifying it as preparation.
+
+The new pure display adapter considers only actual per-extractor steps and the
+exact extractor selection retained when the action started. Explicit business
+failure remains failed. Running work stays running. A terminal run with zero
+successful requested extractor stages is failed; some successful and some failed,
+skipped or missing requested stages is partial; completed requires successful
+reported requested stages with none missing or unsuccessful. A legitimate successful
+stage may find zero entities. All-success flags remain visible. Resolution is labeled
+**Resolve source conversations (preparation)** and cannot establish extraction
+success. Failed/partial outcomes are visibly distinct in the shared step list.
+
+Exact stage errors remain visible. Background status-read failures retain the last
+known stage results and offer an actual status-read retry. Explicit extraction retry
+uses the existing mutation with the original conversations and selected extractors,
+even after list selection clears. A rejected retry start does not replace the tracked
+failed workflow. Send-to-Surreal outcome/receipt semantics and all DTOs are unchanged.
+
+Regression checks cover HTTP 200 plus Temporal COMPLETED with business failure,
+all three missing-`operating_mode` errors, resolution-only, all-failed/all-skipped,
+missing selected stages, mixed results, successful zero-findings extraction, business
+failure precedence, pending work, send compatibility, actual rendered failed
+headline/errors/retry, background read failure and saved-selection retry behavior.
+
+Remote verification of `23ee4b68f` on the same existing devbox:
+
+| Check | Result |
+| --- | --- |
+| Focused Sources and extraction action tests | 32 passed before the final read-error retention assertions |
+| Changed extraction UI/helper ESLint | Pass, no output/errors/warnings |
+| Production TypeScript/Vite build | Pass; existing large-bundle warning |
+| Final full smoke suite, including final retention assertions | **184 total: 179 passed, 0 failed, 5 intentionally skipped browser tests** |
+
+This final source-smoke result supersedes the earlier six-failure receipt above.
+Logs are `sms-source-harness.log`, `action-outcomes-focused.log`,
+`action-outcomes-lint.log`, `action-outcomes-build.log` and
+`action-outcomes-full-smoke.log` under the existing remote validation directory.
+No local tests/browser/build, deployment or production mutation was performed.
+
+The backend worker separately reports priority fix `13ae63765` for replay-versioned
+child mode propagation, refusal of mismatches and all-children-failed regression
+coverage. It also reports an affected historical source's initial durable receipt
+has no verified operating mode. Propagation alone cannot repair that source;
+parent must resolve the binding through the existing authority seam. The original
+receipt remains preserved. This web follow-up does not repair that backend source
+or claim a successful live extraction.
+
+Later viewer donor: the owner identified
+`docs/reference/maybe-useful-apps-2026-09-22.md:23` and
+`serogee/FB-Messages-Archive-Explorer` for Messenger's Read view. The owner record was
+read back at the shared router root; it says to borrow Messenger conversation shape
+as SBV supplies SMS shape. It is absent from this exact-release worktree. Parent
+should retain the owner's queue reference (2026-09-22 13:35:59.393Z, log prefix
+`158b0721`) and evaluate bubbles/date headers/reactions/media later. No parallel
+generic viewer, export merge or deletion behavior was introduced. Chat remains
+deferred.
