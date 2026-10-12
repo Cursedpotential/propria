@@ -185,3 +185,16 @@ export function reviewContextPackage(handle: string, input: PackageReviewInput, 
     method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify(input),
   });
 }
+
+/** Invoke an explicitly advertised extraction retry at its existing same-origin API path.
+ * Inputs: server capability, operator-selected fields and stable action key. Output: actual receipt.
+ * Effects: clicked POST only. Pick for model retry when backend provides a working path/body;
+ * unavailable or cross-origin capabilities never become executable controls.
+ */
+export function retryContextPackage(capability: PackageCapability, fields: Record<string, unknown>, key: string): Promise<Record<string, unknown>> {
+  if (capability.available === false || capability.method?.toUpperCase() !== "POST" || !capability.path?.startsWith("/api/") || capability.path.includes("\\")) throw new Error("No usable extraction retry capability was returned.");
+  const target = new URL(capability.path, "https://context.invalid");
+  if (target.origin !== "https://context.invalid" || !target.pathname.startsWith("/api/")) throw new Error("Invalid extraction retry API path.");
+  const defaults = capability.body && typeof capability.body === "object" && !Array.isArray(capability.body) ? capability.body : {};
+  return request(`${target.pathname}${target.search}`, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key }, body: JSON.stringify({ ...defaults, ...fields }) });
+}

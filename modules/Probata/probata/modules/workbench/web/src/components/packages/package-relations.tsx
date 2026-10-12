@@ -55,10 +55,13 @@ export function PackageRelations({ items, selected, onSelect }: { items: Context
  */
 export function PackageTimeline({ items, onSelect }: { items: ContextPackageItem[]; onSelect: (id: string) => void }) {
   const clocks = ["occurred_at", "event_time", "message_sent_at", "sent_at", "when_stated", "known_from", "source_available_from", "recorded_at", "start_time", "end_time", "temporal_precision", "timezone", "uncertainty"];
-  return <ol className="space-y-3 p-4" aria-label="Package timeline">{items.map((item) => <li key={item.id} className="border-l-2 border-primary pl-3">
+  return <div className="p-4"><p className="mb-3 text-xs text-muted-foreground">Source order as returned. Native event, message, knowledge and recording clocks remain separate.</p><ol className="space-y-3" aria-label="Package timeline">{items.map((item) => {
+    const native = item.fields.native && typeof item.fields.native === "object" && !Array.isArray(item.fields.native) ? item.fields.native as Record<string, unknown> : {};
+    const fields = [...Object.entries(item.fields), ...Object.entries(native).map(([key, value]) => [`native.${key}`, value] as const)].filter(([key]) => clocks.includes(key.replace(/^native\./, "")));
+    return <li key={item.id} className="border-l-2 border-primary pl-3">
     <Button variant="link" className="h-auto whitespace-normal px-0 text-left" onClick={() => onSelect(item.id)}>{item.label}</Button>
-    <dl className="my-2 space-y-1 text-xs">{clocks.filter((key) => key in item.fields).map((key) => <div key={key}><dt className="inline font-medium">{key.replaceAll("_", " ")}: </dt><dd className="inline whitespace-pre-wrap break-all">{typeof item.fields[key] === "string" ? item.fields[key] as string : JSON.stringify(item.fields[key])}</dd></div>)}
-      {!clocks.some((key) => key in item.fields) && <div className="text-muted-foreground">No native clock returned for this item.</div>}</dl>
+    <dl className="my-2 space-y-1 text-xs">{fields.map(([key, value]) => <div key={key}><dt className="inline font-medium">{key.replaceAll("_", " ")}: </dt><dd className="inline whitespace-pre-wrap break-all">{typeof value === "string" ? value : JSON.stringify(value)}</dd></div>)}
+      {!fields.length && <div className="text-muted-foreground">No native clock returned for this item.</div>}</dl>
     <PackageSources sources={item.source_refs} />
-  </li>)}</ol>;
+  </li>; })}</ol></div>;
 }

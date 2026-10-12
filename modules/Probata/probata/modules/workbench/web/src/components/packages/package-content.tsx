@@ -2,6 +2,7 @@
 import { formatValue } from "@/components/metadata/metadata-format";
 import { EntityAliasLabel } from "@/components/entities/entity-alias-label";
 import type { ContextPackageItem, PackageSourceRef } from "@/lib/context-package-client";
+import { packageTextBlocks } from "@/lib/context-package-review";
 import { AppLink } from "@/lib/router-compat";
 
 /** Allow only existing app/API links; inert source text never becomes an executable URL.
@@ -38,7 +39,7 @@ export function PackageSources({ sources }: { sources: PackageSourceRef[] }) {
  * screenshots and entity records; source account/device remain separately labeled fields.
  */
 export function PackageItemContent({ item }: { item: ContextPackageItem }) {
-  const textFields = Object.entries(item.fields).filter(([key, value]) => typeof value === "string" && /^(text|body|content|markdown|document_text|snippet|description|statement|summary|extracted_text|ocr_text)$/i.test(key));
+  const textFields = packageTextBlocks(item.fields);
   const media = packageSourceHref(item.fields.preview_url ?? item.fields.content_url);
   const mediaType = String(item.fields.media_type ?? item.fields.mime_type ?? "");
   const identityKeys = ["person_ref", "source_account", "account_ref", "source_device", "device_ref", "provenance_party", "party", "basis", "classification_basis"];
@@ -48,7 +49,7 @@ export function PackageItemContent({ item }: { item: ContextPackageItem }) {
     {identityKeys.some((key) => key in item.fields) && <dl className="grid gap-2 rounded border p-3 text-xs">{identityKeys.filter((key) => key in item.fields).map((key) => <div key={key}><dt className="font-medium">{key.replaceAll("_", " ")}</dt><dd className="whitespace-pre-wrap break-all text-muted-foreground">{formatValue(item.fields[key])}</dd></div>)}</dl>}
     {media && mediaType.startsWith("image/") && <img className="max-h-[34rem] max-w-full rounded border object-contain" src={media} alt={item.label} />}
     {media && mediaType === "application/pdf" && <iframe src={media} className="h-[34rem] w-full border" title={item.label} sandbox="" />}
-    {textFields.map(([key, text]) => <section key={key}><h3 className="platform-kicker mb-2">{key.replaceAll("_", " ")}</h3><p className="whitespace-pre-wrap break-words text-sm leading-6">{text as string}</p></section>)}
+    {textFields.map(({ path, text }) => <section key={path}><h3 className="platform-kicker mb-2">{path.replaceAll("_", " ")}</h3><p className="whitespace-pre-wrap break-words text-sm leading-6">{text}</p></section>)}
     {Array.isArray(item.fields.aliases) && <section><h3 className="platform-kicker mb-2">Aliases</h3><ul className="flex flex-wrap gap-1">{item.fields.aliases.map((alias, index) => <li key={index} className="inline-flex gap-1 rounded border px-2 py-1 text-xs">{alias && typeof alias === "object" && typeof alias.text === "string" && typeof alias.kind === "string" ? <EntityAliasLabel alias={alias} /> : typeof alias === "string" ? alias : JSON.stringify(alias)}</li>)}</ul></section>}
     <PackageSources sources={item.source_refs} />
   </article>;

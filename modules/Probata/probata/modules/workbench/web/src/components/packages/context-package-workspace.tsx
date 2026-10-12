@@ -8,6 +8,7 @@ import { ErrorBox, Loading } from "@/components/mobile/mobile-ui";
 import { PackageItemEditor } from "@/components/packages/package-item-editor";
 import { PackageItemsGrid } from "@/components/packages/package-items-grid";
 import { PackageRelations, PackageTimeline } from "@/components/packages/package-relations";
+import { PackageRetry } from "@/components/packages/package-retry";
 import { readHref } from "@/components/read/read-location";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,9 +32,11 @@ export function ContextPackageWorkspace({ handle, original }: { handle: string; 
   const query = useContextPackage(handle, sectionId);
   const review = useContextPackageReview(handle);
   const [dirty, setDirty] = useState(false);
+  const [retryDirty, setRetryDirty] = useState(false);
+  const [retryPending, setRetryPending] = useState(false);
   const [view, setView] = useState<"table" | "timeline" | "relations">("table");
   const [lastReceipt, setLastReceipt] = useState<Record<string, unknown> | null>(null);
-  const blocker = useBlocker({ shouldBlockFn: () => dirty || review.isPending, enableBeforeUnload: dirty || review.isPending, withResolver: true });
+  const blocker = useBlocker({ shouldBlockFn: () => dirty || retryDirty || retryPending || review.isPending, enableBeforeUnload: dirty || retryDirty || retryPending || review.isPending, withResolver: true });
   const snapshot = query.data?.pages.at(-1);
   const items = useMemo(() => {
     const byId = new Map<string, ContextPackageItem>();
@@ -59,7 +62,7 @@ export function ContextPackageWorkspace({ handle, original }: { handle: string; 
         <h1 className="mt-1 break-all text-lg font-semibold">{snapshot?.source_ref.split("/").at(-1) ?? "Extracted package"}</h1>
         <p className="mt-1 text-xs text-muted-foreground">{snapshot?.source_type} · {items.length} loaded items{activeSection ? ` in ${activeSection.label}` : ""}{dirty ? " · Unsaved change" : ""}</p>
       </div>
-      <div className="flex gap-2"><Button size="sm" variant="outline" disabled={query.isFetching || dirty || review.isPending} onClick={() => void query.refetch()}>Refresh package</Button>
+      <div className="flex gap-2"><Button size="sm" variant="outline" disabled={query.isFetching || dirty || retryDirty || retryPending || review.isPending} onClick={() => void query.refetch()}>Refresh package</Button>
         {original && <Button size="sm" variant="outline" aria-pressed={originalSelected} onClick={() => navigate({ display: originalSelected ? null : "original" })}>{originalSelected ? "Extracted package" : "Original viewer"}</Button>}
       </div>
     </header>
@@ -71,6 +74,7 @@ export function ContextPackageWorkspace({ handle, original }: { handle: string; 
         <MetadataFieldTable rows={Object.entries(snapshot.metadata).map(([fieldKey, value]) => ({ fieldKey, label: fieldKey, value }))} corrections={new Map()} correctable={false} pendingField={null} onSubmit={async () => false} />
         <pre className="mt-3 whitespace-pre-wrap break-all">{JSON.stringify({ placement: snapshot.placement, domain: snapshot.domain, category: snapshot.category, path: snapshot.path, classification_basis: snapshot.classification_basis }, null, 2)}</pre>
       </details>
+      <PackageRetry handle={handle} capabilities={snapshot.capabilities} disabled={dirty || review.isPending} onDirtyChange={setRetryDirty} onPendingChange={setRetryPending} />
       <div className="flex min-h-[33rem] flex-1 flex-col overflow-hidden rounded border bg-card lg:h-[calc(100dvh-16rem)] lg:flex-row">
         <nav className="flex shrink-0 gap-1 overflow-auto border-b p-2 lg:w-48 lg:flex-col lg:border-b-0 lg:border-r" aria-label="Package sections">
           {snapshot.sections.map((section) => <Button key={section.id} variant="ghost" className={cn("h-auto min-h-9 justify-between gap-2 whitespace-normal text-left text-xs", section.id === activeSection?.id && "bg-accent text-accent-foreground")}
@@ -93,7 +97,7 @@ export function ContextPackageWorkspace({ handle, original }: { handle: string; 
             </div></Panel>
             <PanelResizeHandle className="w-px bg-border data-[resize-handle-state=drag]:bg-primary" />
             <Panel defaultSize={48} minSize={25}><div className="h-full overflow-auto">
-              {selected ? <PackageItemEditor key={`${selected.id}:${selected.revision}`} item={selected} onDirtyChange={setDirty} onSelect={select} onSave={async (input, key) => { const receipt = await review.mutateAsync({ input, key }); setLastReceipt(receipt); return receipt; }} /> : <p className="p-4 text-sm text-muted-foreground">{params.has("item") ? "The linked item is not in the loaded section page. Load the next page or select its section." : "Select an item to inspect its complete fields, source locators and review actions."}</p>}
+              {selected ? <PackageItemEditor key={`${selected.id}:${selected.revision}`} item={selected} externalBusy={retryDirty || retryPending} onDirtyChange={setDirty} onSelect={select} onSave={async (input, key) => { const receipt = await review.mutateAsync({ input, key }); setLastReceipt(receipt); return receipt; }} /> : <p className="p-4 text-sm text-muted-foreground">{params.has("item") ? "The linked item is not in the loaded section page. Load the next page or select its section." : "Select an item to inspect its complete fields, source locators and review actions."}</p>}
             </div></Panel>
           </PanelGroup>
         </div>
@@ -102,8 +106,8 @@ export function ContextPackageWorkspace({ handle, original }: { handle: string; 
     </>}
     {!originalSelected && query.isError && original && <Button variant="outline" onClick={() => navigate({ display: "original" })}>Open existing original viewer</Button>}
     <Dialog open={blocker.status === "blocked"} onOpenChange={(open) => { if (!open) blocker.reset?.(); }}>
-      <DialogContent><DialogHeader><DialogTitle>{review.isPending ? "Review save is in progress" : "Keep your unsaved review?"}</DialogTitle><DialogDescription>{review.isPending ? "Wait for the save response before leaving this package." : "Stay to finish the change, or discard the draft and continue. Recorded sources have not changed."}</DialogDescription></DialogHeader>
-        <DialogFooter><Button variant="outline" onClick={() => blocker.reset?.()}>Stay here</Button><Button disabled={review.isPending} onClick={() => { setDirty(false); blocker.proceed?.(); }}>Discard draft and continue</Button></DialogFooter>
+      <DialogContent><DialogHeader><DialogTitle>{review.isPending || retryPending ? "Review action is in progress" : "Keep your unsaved review?"}</DialogTitle><DialogDescription>{review.isPending || retryPending ? "Wait for the action response before leaving this package." : "Stay to finish the change, or discard the draft and continue. Recorded sources have not changed."}</DialogDescription></DialogHeader>
+        <DialogFooter><Button variant="outline" onClick={() => blocker.reset?.()}>Stay here</Button><Button disabled={review.isPending || retryPending} onClick={() => { setDirty(false); setRetryDirty(false); blocker.proceed?.(); }}>Discard draft and continue</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </main>;

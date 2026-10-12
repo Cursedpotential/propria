@@ -36,6 +36,7 @@ export function MetadataFieldTable({
   pendingField,
   onSubmit,
   onDirtyChange,
+  canCorrect,
 }: {
   rows: FieldRow[];
   corrections: Map<string, MetadataCorrection[]>;
@@ -45,6 +46,8 @@ export function MetadataFieldTable({
   onSubmit: (input: CorrectionSubmit) => Promise<boolean>;
   /** Notify a containing workspace to guard navigation while this correction is open. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Limit package field controls to fields allowed by the advertised backend writer. */
+  canCorrect?: (row: FieldRow) => boolean;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draftValue, setDraftValue] = useState("");
@@ -133,7 +136,7 @@ export function MetadataFieldTable({
                   <History className="size-3.5" />
                 </Button>
               )}
-              {correctable && !isEditing && (
+              {correctable && !isEditing && (!canCorrect || canCorrect(row)) && (
                 <Button size="icon" variant="ghost" className="size-6" title="Correct this value (the recorded value is kept)" onClick={() => startEdit(row, newest)}>
                   <Pencil className="size-3.5" />
                 </Button>
