@@ -1,19 +1,31 @@
 // Byline: Codex · GPT-6 · 2026-10-06
 import { AICandidateReview } from "@/components/review/ai-candidate-review";
+import { CategoryLanding } from "@/components/packages/category-landing";
+import { ContextPackageWorkspace } from "@/components/packages/context-package-workspace";
+import { HumanContextPreview } from "@/components/sbv/human-context-preview";
 import { ReadWorkspace } from "@/components/read/read-workspace";
 import { importedReadingHref, isProcessingPreview } from "@/components/read/read-location";
 import { ProfferPreviewClient } from "@/components/sbv/proffer-preview-client";
 import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
 import { SourceMessagePreview } from "@/components/sbv/source-message-preview";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
+import { isHumanPreviewHandle } from "@/lib/human-context";
+import { useFixedCase } from "@/lib/fixed-case-context";
 
-/** Render imported reading or the existing processing preview selected by the URL.
- * Input: source/thread/around/q or preview identifiers from the browser route.
- * Output: the Read workspace; effects: existing child queries and explicit preview actions.
- * Pick as /read and the destination of legacy review/preview redirects.
+/** Open category-organized context review while preserving existing source and preview links.
+ * Inputs: native package/resource, source/thread/search or preview URL identifiers.
+ * Output: category landing or a complete package, with existing human/SMS viewers retained.
+ * Effects: bounded child reads and explicit review writes. Pick as /read and legacy redirects.
  */
 export default function ReadPage() {
   const params = useBrowserSearchParams();
+  const { mode } = useFixedCase();
+  const selectedPackage = params.get("package");
+  const nativeResource = params.get("resource") ?? params.get("preview_handle") ?? "";
+  if (selectedPackage) return <ContextPackageWorkspace key={selectedPackage} handle={selectedPackage}
+    original={isHumanPreviewHandle(selectedPackage) ? <HumanContextPreview key={selectedPackage} handle={selectedPackage} mode={mode} /> : undefined} />;
+  if (isHumanPreviewHandle(nativeResource)) return <ContextPackageWorkspace key={nativeResource} handle={nativeResource}
+    original={<HumanContextPreview key={nativeResource} handle={nativeResource} mode={mode} />} />;
   const rawSource = params.get("raw_message_source");
   if (rawSource) {
     const bytes = Number(params.get("bytes"));
@@ -39,18 +51,15 @@ export default function ReadPage() {
     <DecodedSourceViewer key={decodedSource} sourceRef={decodedSource} />
   </div>;
   const contextWorkflow = params.get("context_workflow");
-  if (contextWorkflow) return <div className="space-y-4 p-4">
-    <header className="flex items-center justify-between gap-3"><h1 className="text-xl font-semibold">Read</h1>
-      <AppLink href="/sources" className="text-sm underline underline-offset-4">Back to Sources</AppLink></header>
-    <AICandidateReview key={contextWorkflow} workflowId={contextWorkflow} />
-  </div>;
-  if (!isProcessingPreview(params)) return <ReadWorkspace />;
+  if (contextWorkflow) return <ContextPackageWorkspace key={contextWorkflow} handle={contextWorkflow} original={<AICandidateReview key={contextWorkflow} workflowId={contextWorkflow} />} />;
+  if (!isProcessingPreview(params)) return params.has("source") || params.has("thread") || params.has("q") ? <ReadWorkspace /> : <CategoryLanding />;
   return (
     <div className="space-y-4 p-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="text-xl font-semibold">Read</h1><p className="text-sm text-muted-foreground">Processing previews</p></div>
+        <div><h1 className="text-xl font-semibold">Context review</h1><p className="text-sm text-muted-foreground">Processing previews</p></div>
         <AppLink href={importedReadingHref(params)} className="text-sm underline underline-offset-4">Back to imported reading</AppLink>
       </header>
+      {nativeResource && <AppLink className="inline-block text-sm underline" href={`/read?${new URLSearchParams({ package: nativeResource, mode })}`}>Open full extracted package</AppLink>}
       <ProfferPreviewClient />
     </div>
   );

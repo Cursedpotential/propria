@@ -35,6 +35,7 @@ export function MetadataFieldTable({
   correctable,
   pendingField,
   onSubmit,
+  onDirtyChange,
 }: {
   rows: FieldRow[];
   corrections: Map<string, MetadataCorrection[]>;
@@ -42,6 +43,8 @@ export function MetadataFieldTable({
   correctable: boolean;
   pendingField: string | null;
   onSubmit: (input: CorrectionSubmit) => Promise<boolean>;
+  /** Notify a containing workspace to guard navigation while this correction is open. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draftValue, setDraftValue] = useState("");
@@ -51,6 +54,7 @@ export function MetadataFieldTable({
   if (!rows.length) return <p className="px-3 py-2 text-xs text-muted-foreground">No fields recorded.</p>;
 
   const startEdit = (row: FieldRow, current: MetadataCorrection | undefined) => {
+    onDirtyChange?.(true);
     setEditing(row.fieldKey);
     setDraftValue(formatValue(current?.action === "correct" ? current.corrected_value : row.value).replace(/^—$/, ""));
     setDraftReason("");
@@ -65,7 +69,7 @@ export function MetadataFieldTable({
       correctedValue: action === "correct" ? parseCorrectedValue(draftValue, row.value) : null,
       reason: draftReason.trim(),
     });
-    if (saved) setEditing(null);
+    if (saved) { setEditing(null); onDirtyChange?.(false); }
   };
 
   return (
@@ -104,7 +108,7 @@ export function MetadataFieldTable({
                         <Undo2 className="size-3.5" /> Withdraw
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(null)}>Cancel</Button>
+                    <Button size="sm" variant="ghost" className="h-7" disabled={pendingField === row.fieldKey} onClick={() => { setEditing(null); onDirtyChange?.(false); }}>Cancel</Button>
                   </span>
                 </div>
               )}

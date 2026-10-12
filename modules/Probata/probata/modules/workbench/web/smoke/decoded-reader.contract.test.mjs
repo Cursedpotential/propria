@@ -31,6 +31,11 @@ test("Sources can open the existing donor reader by exact original source withou
   let supplied;
   const { default: ReadPage } = load("../src/app/read/page.tsx", {
     "@/components/review/ai-candidate-review": { AICandidateReview: () => null },
+    "@/components/packages/category-landing": { CategoryLanding: () => { throw new Error("wrong landing"); } },
+    "@/components/packages/context-package-workspace": { ContextPackageWorkspace: () => { throw new Error("wrong package"); } },
+    "@/components/sbv/human-context-preview": { HumanContextPreview: () => null },
+    "@/lib/human-context": { isHumanPreviewHandle: () => false },
+    "@/lib/fixed-case-context": { useFixedCase: () => ({ mode: "LIVE" }) },
     "@/components/read/read-workspace": { ReadWorkspace: () => { throw new Error("wrong reader"); } },
     "@/components/read/read-location": { isProcessingPreview: () => { throw new Error("must not start a preview workflow"); } },
     "@/components/sbv/proffer-preview-client": { ProfferPreviewClient: () => { throw new Error("must not process"); } },
