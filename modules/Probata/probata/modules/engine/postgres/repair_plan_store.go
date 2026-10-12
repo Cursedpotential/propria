@@ -55,7 +55,7 @@ const anchorColumns = `
 	SELECT binding.preview_handle, binding.request_id, binding.source_ref, binding.workflow_id,
 	       binding.parser_options_ref, version.id, COALESCE(version.declared_format, ''),
 	       version.matter_id, version.court_case_id,
- COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND event_id=0), '')
+ COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND (event_id=0 OR (event_type='receipt_recorded' AND phase='operating_mode_repair')) ORDER BY event_id DESC LIMIT 1), '')
 	FROM context.proffer_preview_binding binding
 	LEFT JOIN LATERAL (
 	    SELECT id, declared_format, matter_id, court_case_id
@@ -90,6 +90,9 @@ func (s *RepairPlanStore) ResolveAnchor(ctx context.Context, sourceRef, previewH
 		return repairplan.Anchor{}, fmt.Errorf("read the repair plan's Review run: %w", err)
 	}
 	admission := previewmodel.Binding{OperatingMode: recordedOperatingMode(modeDetail), MatterID: matterID, CourtCaseID: courtCaseID}
+	if versionID != nil {
+		admission.SourceVersionID = *versionID
+	}
 	applyBindingAdmission(&admission, modeDetail)
 	anchor.OperatingMode = admission.OperatingMode
 	if matterID != nil {

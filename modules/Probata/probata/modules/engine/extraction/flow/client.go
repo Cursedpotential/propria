@@ -92,17 +92,28 @@ func (s *Starter) Status(ctx context.Context, workflowID string) (Progress, erro
 		if err := value.Get(&progress); err != nil {
 			return Progress{}, err
 		}
-		return progress, nil
+		progress.WorkflowID, progress.RunID = workflowID, info.GetExecution().GetRunId()
+		return s.decorateExtractionStatus(ctx, progress, described), nil
 	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED:
 		var progress Progress
 		if err := s.Client.GetWorkflow(ctx, workflowID, "").Get(ctx, &progress); err != nil {
 			return Progress{}, err
 		}
-		return progress, nil
+		progress.WorkflowID, progress.RunID = workflowID, info.GetExecution().GetRunId()
+		return s.decorateExtractionStatus(ctx, progress, described), nil
 	default:
-		return Progress{Outcome: OutcomeFailed, Steps: []StepResult{{
+		failure := s.Client.GetWorkflow(ctx, workflowID, info.GetExecution().GetRunId()).Get(ctx, nil)
+		if recovered, ok := extractionFailureProgress(failure); ok {
+			recovered.WorkflowID, recovered.RunID = workflowID, info.GetExecution().GetRunId()
+			return recovered, nil
+		}
+		detail := "workflow " + strings.ToLower(strings.TrimPrefix(info.GetStatus().String(), "WORKFLOW_EXECUTION_STATUS_"))
+		if failure != nil {
+			detail = boundedExtractionFailure(failure.Error())
+		}
+		return Progress{WorkflowID: workflowID, RunID: info.GetExecution().GetRunId(), Outcome: OutcomeFailed, Steps: []StepResult{{
 			Step: "workflow", Status: StepFailed,
-			Detail: "workflow " + strings.ToLower(strings.TrimPrefix(info.GetStatus().String(), "WORKFLOW_EXECUTION_STATUS_")),
+			Detail: detail,
 		}}}, nil
 	}
 }

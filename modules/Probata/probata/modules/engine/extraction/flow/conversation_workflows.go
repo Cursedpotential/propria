@@ -134,6 +134,14 @@ func ExtractionRequestWorkflow(ctx workflow.Context, in RequestInput) (Progress,
 			futures[i] = startExtractorChild(ctx, in, item.run, spec)
 		}
 		for i, spec := range specs {
+			var execution workflow.Execution
+			if err := futures[i].(workflow.ChildWorkflowFuture).GetChildWorkflowExecution().Get(ctx, &execution); err == nil {
+				for j := range progress.Steps {
+					if progress.Steps[j].Step == stepKey(item.label, spec.ID) {
+						progress.Steps[j].WorkflowID, progress.Steps[j].RunID = execution.ID, execution.RunID
+					}
+				}
+			}
 			var child Progress
 			if err := futures[i].Get(ctx, &child); err != nil {
 				failed++
@@ -162,6 +170,9 @@ func ExtractionRequestWorkflow(ctx workflow.Context, in RequestInput) (Progress,
 		progress.Outcome = OutcomeCompletedFlagged
 	default:
 		progress.Outcome = OutcomeCompleted
+	}
+	if progress.Outcome == OutcomeFailed && workflow.GetVersion(ctx, "conversation-all-children-failed-v1", workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		return progress, temporal.NewNonRetryableApplicationError("all selected extraction children failed", "AllExtractionChildrenFailed", nil, progress)
 	}
 	return progress, nil
 }
