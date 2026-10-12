@@ -26,6 +26,32 @@ function load(path, dependencies) {
 
 const Link = ({ href, children }) => React.createElement("a", { href }, children);
 
+test("category entry and explicit package links preserve the native human resource viewer", () => {
+  let params = new URLSearchParams();
+  const { default: ReadPage } = load("../src/app/read/page.tsx", {
+    "@/components/review/ai-candidate-review": { AICandidateReview: () => null },
+    "@/components/packages/category-landing": { CategoryLanding: () => React.createElement("p", null, "Category headers") },
+    "@/components/packages/context-package-workspace": { ContextPackageWorkspace: ({ handle }) => React.createElement("p", null, `Whole package ${handle}`) },
+    "@/components/sbv/human-context-preview": { HumanContextPreview: ({ handle }) => React.createElement("p", null, `Native viewer ${handle}`) },
+    "@/lib/human-context": { isHumanPreviewHandle: (handle) => handle.startsWith("human-") },
+    "@/lib/fixed-case-context": { useFixedCase: () => ({ mode: "LIVE" }) },
+    "@/components/read/read-workspace": { ReadWorkspace: () => null },
+    "@/components/read/read-location": { isProcessingPreview: () => false },
+    "@/components/sbv/proffer-preview-client": { ProfferPreviewClient: () => null },
+    "@/components/sbv/decoded-source-viewer": { DecodedSourceViewer: () => null },
+    "@/components/sbv/source-message-preview": { SourceMessagePreview: () => null },
+    "@/lib/router-compat": { AppLink: Link, useBrowserSearchParams: () => params },
+  });
+  const render = () => renderToStaticMarkup(React.createElement(ReadPage));
+  assert.match(render(), /Category headers/);
+  params = new URLSearchParams({ resource: "human-exact-version" });
+  assert.match(render(), /Native viewer human-exact-version/);
+  assert.doesNotMatch(render(), /Whole package/);
+  assert.match(render(), /package=human-exact-version/);
+  params = new URLSearchParams({ package: "human-exact-version" });
+  assert.match(render(), /Whole package human-exact-version/);
+});
+
 test("Sources can open the existing donor reader by exact original source without processing", () => {
   const source = "b2://salem-data/path with spaces/sms+original.xml";
   let supplied;

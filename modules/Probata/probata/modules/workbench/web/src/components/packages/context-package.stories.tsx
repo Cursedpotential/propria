@@ -5,6 +5,7 @@ import { createMemoryHistory, createRootRoute, createRoute, createRouter, Router
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { CategoryLanding } from "@/components/packages/category-landing";
+import { ThemeProvider } from "@/components/layout/theme-provider";
 import { ContextPackageWorkspace } from "@/components/packages/context-package-workspace";
 import type { ContextPackageItem, ContextPackageSnapshot } from "@/lib/context-package-client";
 import { useBrowserSearchParams } from "@/lib/router-compat";
@@ -73,7 +74,7 @@ function Scenario({ entry }: { entry: string; failSave?: boolean; reopened?: boo
     const route = createRoute({ getParentRoute: () => root, path: "/read", component: StoryRoute });
     return createRouter({ routeTree: root.addChildren([route]), history: createMemoryHistory({ initialEntries: [entry] }) });
   });
-  return <QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>;
+  return <ThemeProvider><QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider></ThemeProvider>;
 }
 
 /** Select only real package components from the story route.

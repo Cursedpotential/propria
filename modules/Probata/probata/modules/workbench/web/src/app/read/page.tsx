@@ -25,8 +25,10 @@ export default function ReadPage(): ReactElement {
   const nativeResource = params.get("resource") ?? params.get("preview_handle") ?? "";
   if (selectedPackage) return <ContextPackageWorkspace key={selectedPackage} handle={selectedPackage}
     original={isHumanPreviewHandle(selectedPackage) ? <HumanContextPreview key={selectedPackage} handle={selectedPackage} mode={mode} /> : undefined} />;
-  if (isHumanPreviewHandle(nativeResource)) return <ContextPackageWorkspace key={nativeResource} handle={nativeResource}
-    original={<HumanContextPreview key={nativeResource} handle={nativeResource} mode={mode} />} />;
+  if (isHumanPreviewHandle(nativeResource)) return <div className="space-y-3 p-4">
+    <AppLink className="inline-block text-sm underline" href={`/read?${new URLSearchParams({ package: nativeResource, mode })}`}>Open full extracted package</AppLink>
+    <HumanContextPreview key={nativeResource} handle={nativeResource} mode={mode} />
+  </div>;
   const rawSource = params.get("raw_message_source");
   if (rawSource) {
     const bytes = Number(params.get("bytes"));
@@ -52,7 +54,10 @@ export default function ReadPage(): ReactElement {
     <DecodedSourceViewer key={decodedSource} sourceRef={decodedSource} />
   </div>;
   const contextWorkflow = params.get("context_workflow");
-  if (contextWorkflow) return <ContextPackageWorkspace key={contextWorkflow} handle={contextWorkflow} original={<AICandidateReview key={contextWorkflow} workflowId={contextWorkflow} />} />;
+  if (contextWorkflow) return <div className="space-y-3 p-4">
+    <AppLink className="inline-block text-sm underline" href={`/read?${new URLSearchParams({ package: contextWorkflow, mode })}`}>Open full extracted package</AppLink>
+    <AICandidateReview key={contextWorkflow} workflowId={contextWorkflow} />
+  </div>;
   if (!isProcessingPreview(params)) return params.has("source") || params.has("thread") || params.has("q") ? <ReadWorkspace /> : <CategoryLanding />;
   return (
     <div className="space-y-4 p-4">

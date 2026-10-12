@@ -61,7 +61,8 @@ test("actual package stories render category headers and complete save/failure/d
       const file = resolve(root, `.${relative === "/" ? "/index.html" : relative}`);
       if (!file.startsWith(`${root}${sep}`)) throw new Error("Outside static build");
       const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
-      response.writeHead(200, { "Content-Type": types[extname(file)] ?? "application/octet-stream" }); response.end(await readFile(file));
+      const data = await readFile(file);
+      response.writeHead(200, { "Content-Type": types[extname(file)] ?? "application/octet-stream" }); response.end(data);
     } catch { response.writeHead(404); response.end("Not found"); }
   });
   await new Promise((accept) => server.listen(0, "127.0.0.1", accept));
@@ -80,15 +81,21 @@ test("actual package stories render category headers and complete save/failure/d
       const deadline = Date.now() + 12000;
       let state;
       while (Date.now() < deadline) {
-        state = await cdp.evaluate(sessionId, `({events: globalThis.__packageStoryEvents ?? [], phase: globalThis.__STORYBOOK_PREVIEW__?.currentRender?.phase, text: document.body?.innerText ?? ''})`);
+        state = await cdp.evaluate(sessionId, `({events: (globalThis.__packageStoryEvents ?? []).map(event => ({name: event.name, data: {status:event.data?.status, message:event.data?.message, stack:event.data?.stack}})), phase: globalThis.__STORYBOOK_PREVIEW__?.currentRender?.phase, text: document.body?.innerText ?? ''})`);
+        if (state.text.includes("Something went wrong!")) {
+          await cdp.evaluate(sessionId, `[...document.querySelectorAll('button')].find(button => button.textContent === 'Show Error')?.click()`);
+          await new Promise((accept) => setTimeout(accept, 100));
+          throw new Error(`${story.id}: ${await cdp.evaluate(sessionId, 'document.body.innerText')}`);
+        }
         if (state.events.some((event) => event.name !== "storyFinished")) throw new Error(`${story.id}: ${JSON.stringify(state)}`);
-        if (state.events.some((event) => event.name === "storyFinished") || state.phase === "completed") break;
+        const rendered = state.text.includes(story.name === "Category Headers" ? "Complete fixture document" : "Synthetic extracted statement");
+        if (rendered && (state.events.some((event) => event.name === "storyFinished") || state.phase === "completed")) break;
         await new Promise((accept) => setTimeout(accept, 100));
       }
       assert.ok(state.events.some((event) => event.name === "storyFinished") || state.phase === "completed", `${story.id} did not finish: ${JSON.stringify(state)}`);
       const failed = state.events.find((event) => event.name === "storyFinished" && event.data?.status === "error");
       assert.equal(failed, undefined, JSON.stringify(failed));
-      assert.ok(state.text.includes(story.name === "Category Headers" ? "Fixture category" : "Synthetic extracted statement"), `${story.id} did not render its actual component`);
+      assert.ok(state.text.includes(story.name === "Category Headers" ? "Complete fixture document" : "Synthetic extracted statement"), `${story.id} did not render its actual component: ${JSON.stringify(state)}`);
       console.log(`Verified ${story.id}`);
       await cdp.command("Target.closeTarget", { targetId: target.targetId });
     }
