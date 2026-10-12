@@ -1027,6 +1027,8 @@ export async function caseGraph(store: StoreOk, input: { id: RecordRef; depth?: 
 export interface FactorMapEntry {
   letter: string;
   title: string;
+  record_version: string;
+  record: Record<string, unknown>;
   support_count: number;
   contradict_count: number;
   top_supporting: Array<{ id: string; summary: string; weight: number | null }>;
@@ -1046,11 +1048,18 @@ async function topFor(store: StoreOk, edge: "supports_factor" | "contradicts_fac
   });
 }
 
+/** Read each current shared factor alongside its evidence relationships and exact record version.
+ * Inputs: connected shared case store. Outputs: ordered factor map including full private/custom fields and stored citation metadata.
+ * Effects: bounded record and relationship reads; choose over compiled labels, which are only missing-record initialization values.
+ * Byline: Codex · GPT-6 · 2026-10-05.
+ */
 export async function caseFactorMap(store: StoreOk): Promise<FactorMapEntry[]> {
   const RecordId = recordIdCtor();
   const entries: FactorMapEntry[] = [];
   for (const factor of FACTORS) {
     const rid = new RecordId("factor", factor.letter);
+    const current = await caseRecord(store, { table: "factor", id: factor.letter });
+    if (!current) throw new Error("Shared factor record missing: factor:" + factor.letter);
     const supportCountRows = await store.db.query<Array<{ count: number }>>(
       `SELECT count() AS count FROM ${ident("supports_factor")} WHERE out = $rid GROUP ALL;`,
       { rid },
@@ -1061,7 +1070,9 @@ export async function caseFactorMap(store: StoreOk): Promise<FactorMapEntry[]> {
     );
     entries.push({
       letter: factor.letter,
-      title: factor.title,
+      title: typeof current.record.title === "string" ? current.record.title : "Factor " + factor.letter,
+      record_version: current.version,
+      record: current.record,
       support_count: supportCountRows.at(-1)?.[0]?.count ?? 0,
       contradict_count: contradictCountRows.at(-1)?.[0]?.count ?? 0,
       top_supporting: normalize(await topFor(store, "supports_factor", rid)) as FactorMapEntry["top_supporting"],

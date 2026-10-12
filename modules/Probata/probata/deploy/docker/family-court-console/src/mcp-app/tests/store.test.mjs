@@ -271,6 +271,12 @@ test("case_factor_map: seeds all 12 MCL 722.23 factors and counts a RELATEd even
   const j = factors.find((f) => f.letter === "j");
   assert.equal(j.support_count, 1);
   assert.equal(j.top_supporting[0].id, "event:e1");
+  await store.casePut(s, { table: "factor", id: "j", data: { title: "Synthetic personalized factor title", private_context: { complete_name: "Synthetic Full Name", notes: "Unabridged context" }, citations: [{ source_id: "source:synthetic-root", pinpoint: "Synthetic pinpoint" }] } });
+  const fresh = (await store.caseFactorMap(s)).find(f => f.letter === "j");
+  assert.equal(fresh.title, "Synthetic personalized factor title");
+  assert.equal(fresh.record.private_context.complete_name, "Synthetic Full Name");
+  assert.deepEqual(fresh.record.citations, [{ source_id: "source:synthetic-root", pinpoint: "Synthetic pinpoint" }]);
+  assert.notEqual(fresh.record_version, j.record_version);
 });
 
 test("case_timeline: known_by filter excludes later-known events", async () => {
