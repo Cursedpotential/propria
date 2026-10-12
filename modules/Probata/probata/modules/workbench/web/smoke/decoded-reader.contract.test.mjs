@@ -119,6 +119,7 @@ test("processed message navigation replaces pages, preserves server filters and 
   const calls = [];
   const Empty = ({ children }) => React.createElement("div", null, children);
   const { MessageBrowser } = load("../src/components/sbv/message-browser.tsx", {
+    "@/lib/human-context": load("../src/lib/human-context.ts", {}),
     react: { ...React, useState: (initial) => { const index = stateIndex++; if (states[index] === undefined) states[index] = initial; return [states[index], (value) => { states[index] = value; }]; } },
     "@tanstack/react-query": { useQuery: (value) => { options = value; return { data: { messages: [{ message_id: value.queryKey[3] ?? "first", body: "Current page" }], participants: [], next_cursor: `next-${states[5].first + states[5].index}`, total_matches: 50000, total_messages: 100000 } }; } },
     "react-resizable-panels": { Panel: Empty, PanelGroup: Empty, PanelResizeHandle: () => null },
