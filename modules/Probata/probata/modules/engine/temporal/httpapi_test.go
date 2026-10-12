@@ -140,6 +140,8 @@ func TestStartHandlerSuccess(t *testing.T) {
 }
 
 func TestStartHandlerRejectsMissingAuth(t *testing.T) {
+	// Isolate this no-bypass assertion from managed builds carrying the runtime tailnet bypass.
+	t.Setenv("PLATFORM_DEV_AUTH_BYPASS", "")
 	starter := &fakeStarter{}
 	server := httptest.NewServer(newTestHandler(t, starter))
 	defer server.Close()
