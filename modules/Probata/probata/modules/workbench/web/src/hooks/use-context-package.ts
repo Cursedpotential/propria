@@ -19,11 +19,15 @@ export function useContextPackages(category: string, domain: string) {
 }
 
 /** Page one dynamic package section with its own source-bound cursor history.
- * Inputs: native handle and section. Output: exact package query. Effects: abortable GETs.
+ * Inputs: native handle and section. Output: exact package query and first-page reset.
+ * Effects: abortable GETs; retains at most four explicitly requested section pages.
  * Pick for grid/timeline/relations views over the same items; no load-all loop.
  */
 export function useContextPackage(handle: string, section: string) {
-  return useInfiniteQuery({ queryKey: ["context-package", handle, section], initialPageParam: "", queryFn: ({ pageParam, signal }) => getContextPackage(handle, section, pageParam, signal), getNextPageParam: (page) => page.next_cursor || undefined, enabled: Boolean(handle), retry: false, refetchOnWindowFocus: false });
+  const client = useQueryClient();
+  const queryKey = ["context-package", handle, section];
+  const query = useInfiniteQuery({ queryKey, initialPageParam: "", queryFn: ({ pageParam, signal }) => getContextPackage(handle, section, pageParam, signal), getNextPageParam: (page) => page.next_cursor || undefined, maxPages: 4, gcTime: 60000, enabled: Boolean(handle), retry: false, refetchOnWindowFocus: false });
+  return { ...query, restart: () => client.resetQueries({ queryKey, exact: true }) };
 }
 
 /** Save one explicit review and invalidate only this package plus placement listings.

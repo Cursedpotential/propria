@@ -88,6 +88,7 @@ export function ContextPackageWorkspace({ handle, original }: { handle: string; 
             <span className="text-xs text-muted-foreground">{activeSection?.count ?? items.length} recorded · {items.length} loaded</span>
           </div>
           {!activeSection?.available && activeSection && <p className="border-b px-4 py-3 text-sm">{activeSection.reason ?? "This section is not currently available."}</p>}
+          {Boolean(query.data?.pageParams[0]) && <div className="flex items-center justify-between gap-2 border-b px-3 py-2 text-xs"><span>Earlier pages were unloaded to keep this review bounded.</span><Button size="sm" variant="outline" disabled={query.isFetching || dirty || retryDirty || retryPending || review.isPending} onClick={() => void query.restart()}>First section page</Button></div>}
           <PanelGroup direction="horizontal" autoSaveId="context-package-review" className="min-h-[28rem] flex-1">
             <Panel defaultSize={52} minSize={30}><div className="flex h-full min-h-0 flex-col">
               <div className="min-h-0 flex-1 overflow-auto">

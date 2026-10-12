@@ -20,7 +20,7 @@ export function packageTextBlocks(fields: Record<string, unknown>): Array<{ path
   const stack: Array<{ path: string; value: unknown }> = [{ path: "", value: fields }];
   while (stack.length) {
     const { path, value } = stack.pop()!;
-    if (typeof value === "string" && /(?:^|\.)(text|body|content|markdown|document_text|snippet|description|statement|summary|extracted_text|ocr_text)$/.test(path)) blocks.push({ path, text: value });
+    if (typeof value === "string" && /(?:^|\.)(text|body|raw_body|message_body|full_text|content|markdown|document_text|snippet|description|statement|summary|extracted_text|ocr_text|transcript|transcription)$/.test(path)) blocks.push({ path, text: value });
     else if (Array.isArray(value)) for (let index = value.length - 1; index >= 0; index -= 1) stack.push({ path: `${path}[${index}]`, value: value[index] });
     else if (value && typeof value === "object") for (const [key, child] of Object.entries(value).reverse()) stack.push({ path: path ? `${path}.${key}` : key, value: child });
   }

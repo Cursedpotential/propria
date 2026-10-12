@@ -30,7 +30,8 @@ test("the Review file name and every attachment open the full metadata screen", 
 
 test("corrections are overlays: the recorded value stays, a correction is a new revision", () => {
   assert.match(client, /\/metadata\/corrections/);
-  assert.match(table, /title="Recorded value \(never changed\)"/);
+  assert.match(table, /valueTitle = "Recorded value \(never changed\)"/);
+  assert.match(table, /title=\{valueTitle\}/);
   assert.match(table, /supersedesRef: newest\?\.correction_ref \?\? ""/);
   assert.match(table, /Withdraw/);
   assert.match(screen, /source_value: input\.observed/);
