@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request
+from fastapi import APIRouter, HTTPException, Path, Query, Request, Header
 
 from app.repo.object_store_client import DEFAULT_SOURCE_ROOT_ID
 from app.runtime.operating_mode import OperatingMode
@@ -34,6 +34,8 @@ from app.service.proffer_flags import create_potential_promotion_flag, list_pote
 from app.service.proffer_operations import list_operations, operation
 from app.service.proffer_operator import operator_snapshot
 from app.types.matter_mode import MatterMode
+from app.types.proffer_admission_repair import AdmissionRepairRequest
+from app.service.proffer_admission_repair import start_repair, repair_status
 from app.types.proffer import (
     ProfferContentResponse,
     ProfferDecisionActor,
@@ -286,5 +288,34 @@ async def create_potential_promotion_flag_endpoint(
         if body.scope not in ("record", "chunk"):
             raise HTTPException(status_code=422, detail="Preview content target is invalid or unsupported")
         return create_potential_promotion_flag(preview_handle, mode, body, actor)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.post("/previews/{preview_handle}/admission-repair", status_code=202)
+async def admission_repair_endpoint(preview_handle: str, body: AdmissionRepairRequest, request: Request,
+    key: Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=200)]):
+    """Start an independently tracked Temporal repair using the actual Workbench owner identity.
+
+    Inputs: explicit current LIVE request and existing source/case. Output: durable
+    workflow/run/status references. Effects: forwarding only; historical mode is never inferred.
+    """
+    actor = _decision_actor(request)
+    try:
+        return await start_repair(preview_handle, body, actor, key)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.get("/admission-repairs/{workflow_id}")
+async def admission_repair_status_endpoint(workflow_id: str, request: Request):
+    """Read actual Temporal repair failure or receipt through the existing owner status boundary.
+
+    Inputs: returned attempt ID and actual actor. Output: real business status/reason.
+    Effects: read only; use for existing in-app job notifications and recovery progress.
+    """
+    actor = _decision_actor(request)
+    try:
+        return await repair_status(workflow_id, actor)
     except ProfferError as error:
         raise _translate(error) from None

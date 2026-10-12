@@ -61,6 +61,7 @@ def starter(monkeypatch):
     fake = Starter()
     monkeypatch.setattr(proffer, "_request", fake.request)
     monkeypatch.setattr(imported.settings, "proffer_matter_id", MATTER)
+    monkeypatch.setattr(imported.settings, "proffer_court_case_id", "01a0f751-e07b-76a1-a738-eb3e3aa3e68c")
     service._reset_registry_cache()
     return fake
 
@@ -90,6 +91,8 @@ def test_extract_forwards_decoded_conversations_actor_key_and_the_live_matter(st
     call = starter.calls[0]
     assert call["path"] == "/reference-import/conversations/extract"
     assert call["json"]["matter_id"] == MATTER
+    assert call["json"]["operating_mode"] == "LIVE"
+    assert call["json"]["court_case_id"] == "01a0f751-e07b-76a1-a738-eb3e3aa3e68c"
     assert call["json"]["conversations"] == [{"export_key": KEY, "conv": "8103099590"}, {"export_key": KEY, "conv": "8105550101"}]
     assert call["json"]["extractors"] == ["go-kimi-k3", "semantica"]
     assert call["headers"]["Idempotency-Key"] == "click-0001"
@@ -121,7 +124,9 @@ def test_send_to_surreal_forwards_the_include_flag(starter):
     assert response.status_code == 202, response.text
     call = starter.calls[0]
     assert call["path"] == "/reference-import/conversations/send-to-surreal"
-    assert call["json"]["include_extractions"] is False and call["json"]["matter_id"] == MATTER
+    assert call["json"]["include_extractions"] is False
+    assert call["json"]["operating_mode"] == "LIVE"
+    assert call["json"]["court_case_id"] == "01a0f751-e07b-76a1-a738-eb3e3aa3e68c" and call["json"]["matter_id"] == MATTER
 
 
 def test_extractors_lists_the_engine_registry(starter):
@@ -185,6 +190,7 @@ def test_extractions_group_under_their_own_names_when_the_engine_is_unreachable(
 
     monkeypatch.setattr(proffer, "_request", down)
     monkeypatch.setattr(imported.settings, "proffer_matter_id", MATTER)
+    monkeypatch.setattr(imported.settings, "proffer_court_case_id", "01a0f751-e07b-76a1-a738-eb3e3aa3e68c")
     service._reset_registry_cache()
     monkeypatch.setattr(pg, "runs", lambda *a: [_run("run-sem", "semantica")])
     monkeypatch.setattr(pg, "entities", lambda *a: [_entity("e2", "run-sem", "Flint")])
@@ -221,3 +227,5 @@ def test_the_extraction_reads_never_write():
 def test_the_default_extractor_is_listed_once_and_marked(starter):
     listing = json.loads(_client().get("/api/extractors").text)
     assert [e["id"] for e in listing["extractors"] if e["default"]] == ["go-kimi-k3"]
+
+
