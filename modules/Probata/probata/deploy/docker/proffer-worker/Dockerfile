@@ -33,7 +33,7 @@ COPY modules/Probata/probata/sql/bootstrap/toolkit_working_catalog_20261005.sql 
 RUN CGO_ENABLED=1 go test -mod=vendor -tags fts5 \
     ./surrealsink ./runtimeapi ./temporal/cmd/starter \
     ./approvedgraphprojectionflow ./approvedgraphqueryflow ./approvedwalkflow ./extraction/service ./sourceformat ./approvedgraphai ./approvedaigraphprojectionflow ./profferworker \
-    ./postgres ./proffer ./aicontextsource ./cmd/context-graph
+    ./postgres ./proffer ./aicontextsource ./cmd/context-graph ./extraction/flow ./temporal
 # Check only the existing AI context packaging Activities without broad activity tests.
 RUN CGO_ENABLED=1 go test -mod=vendor -tags fts5 ./activities -run '^TestAIContextPackage' -count=1
 RUN CGO_ENABLED=1 go build \
