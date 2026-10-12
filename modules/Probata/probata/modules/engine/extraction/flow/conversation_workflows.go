@@ -102,6 +102,18 @@ func ExtractionRequestWorkflow(ctx workflow.Context, in RequestInput) (Progress,
 	for _, run := range in.Runs {
 		items = append(items, requestItem{label: "run " + shortHandle(run.PreviewHandle), run: run})
 	}
+	// Historical executions keep their recorded child inputs on replay.
+	if workflow.GetVersion(ctx, "conversation-child-operating-mode-v1", workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		for i := range items {
+			run, err := bindConversationRunMode(in, items[i].run)
+			if err != nil {
+				progress.set("resolve", StepFailed, err.Error(), nil)
+				progress.Outcome = OutcomeFailed
+				return progress, nil
+			}
+			items[i].run = run
+		}
+	}
 	// Several runs of one conversation share a label: number them so each line is unique.
 	seen := map[string]int{}
 	for i := range items {
@@ -154,6 +166,26 @@ func ExtractionRequestWorkflow(ctx workflow.Context, in RequestInput) (Progress,
 	return progress, nil
 }
 
+// bindConversationRunMode carries verified request policy into child inputs without replacing durable authority.
+// Inputs: admitted request and resolved source coordinates. Output: mode-bound run or mismatch error.
+// Effects: none; activities still verify the original durable receipt. Pick at conversation fanout only.
+func bindConversationRunMode(in RequestInput, run RunRef) (RunRef, error) {
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(in.OperatingMode)); err != nil {
+		return RunRef{}, err
+	}
+	if !caseidentity.AdmittedIdentity(in.MatterID, in.CourtCaseID) {
+		return RunRef{}, fmt.Errorf("conversation child requires the approved request case identity")
+	}
+	if run.MatterMode != "" && run.MatterMode != in.OperatingMode {
+		return RunRef{}, fmt.Errorf("conversation child mode disagrees with the resolved durable operating_mode")
+	}
+	run.MatterMode = in.OperatingMode
+	return run, nil
+}
+
+// startExtractorChild starts the selected extractor with the exact source-pinned run.
+// Inputs: admitted request, bound run, registered extractor. Output: child future.
+// Effects: schedules one Temporal child. Pick for conversation fanout, never to bypass activity admission.
 func startExtractorChild(ctx workflow.Context, in RequestInput, run RunRef, spec ExtractorSpec) workflow.Future {
 	if spec.Kind == KindInternal {
 		request := ExtractionRequest{
