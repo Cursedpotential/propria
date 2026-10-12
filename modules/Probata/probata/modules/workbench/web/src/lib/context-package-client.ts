@@ -198,3 +198,13 @@ export function retryContextPackage(capability: PackageCapability, fields: Recor
   const defaults = capability.body && typeof capability.body === "object" && !Array.isArray(capability.body) ? capability.body : {};
   return request(`${target.pathname}${target.search}`, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key }, body: JSON.stringify({ ...defaults, ...fields }) });
 }
+
+/** Read the actual retry attempt's business status from its server-issued package endpoint.
+ * Inputs: status path and abort signal. Output: source-pinned business progress, including errors.
+ * Effects: bounded GET. Pick after a retry receipt; HTTP acceptance never implies extraction success.
+ */
+export function getPackageRetryStatus(path: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  const target = new URL(path, "https://context.invalid");
+  if (!path.startsWith("/api/context/packages/") || path.includes("\\") || target.origin !== "https://context.invalid" || !/^\/api\/context\/packages\/[^/]+\/attempts\/[^/]+$/.test(target.pathname)) throw new Error("Invalid package attempt status path.");
+  return request(`${target.pathname}${target.search}`, { signal });
+}

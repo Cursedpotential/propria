@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { packageCapability, type ContextPackageItem, type PackageReviewInput } from "@/lib/context-package-client";
 import { searchCommittedEntities, type RegistryEntity } from "@/lib/entity-extraction-client";
+import { packageEditorFields, packageReviewInput } from "@/lib/context-package-review";
 
 export interface PackageItemEditorProps {
   item: ContextPackageItem;
@@ -38,6 +39,8 @@ export function PackageItemEditor({ item, onSave, onDirtyChange, onSelect, exter
   const [fieldDirty, setFieldDirty] = useState(false);
   const keys = useRef(new Map<string, string>());
   const edit = packageCapability(item.capabilities, "edit") ?? packageCapability(item.capabilities, "metadata");
+  const editorFields = packageEditorFields(item, edit);
+  const canonical = edit?.scope === "canonical_working_candidate" || item.capabilities.some((entry) => typeof entry !== "string" && entry.scope === "canonical_working_candidate");
   const supplement = packageCapability(item.capabilities, "supplement") ?? edit;
   const immutableFields = new Set(Array.isArray(edit?.immutable_fields) ? edit.immutable_fields.filter((field): field is string => typeof field === "string") : []);
   const reassociate = packageCapability(item.capabilities, "reassociate") ?? (associationFields.length ? edit : undefined);
@@ -51,8 +54,9 @@ export function PackageItemEditor({ item, onSave, onDirtyChange, onSelect, exter
   const submit = async (operation: string, fields: Record<string, unknown> | undefined, note: string, extras: Record<string, unknown> = {}, pending = operation) => {
     const descriptor = packageCapability(item.capabilities, operation);
     if (!descriptor) return false;
-    const defaults = descriptor.body && typeof descriptor.body === "object" && !Array.isArray(descriptor.body) ? descriptor.body : {};
-    const input: PackageReviewInput = { ...defaults, operation, item_id: item.id, revision: item.revision, source_refs: item.source_refs, reason: note, ...(fields ? { fields } : {}), ...extras };
+    let input: PackageReviewInput;
+    try { input = packageReviewInput(item, descriptor, fields, note, extras); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); return false; }
     const signature = JSON.stringify(input);
     let key = keys.current.get(signature);
     if (!key) { key = crypto.randomUUID(); keys.current.set(signature, key); }
@@ -74,7 +78,8 @@ export function PackageItemEditor({ item, onSave, onDirtyChange, onSelect, exter
   const correct = async (input: CorrectionSubmit) => {
     if (!edit) return false;
     try {
-      const value = input.observed !== null && typeof input.observed === "object" && typeof input.correctedValue === "string" ? JSON.parse(input.correctedValue) as unknown : input.correctedValue;
+      const parseJSON = typeof input.observed === "number" || typeof input.observed === "boolean" || (input.observed !== null && typeof input.observed === "object") || (canonical && input.fieldKey === "confidence");
+      const value = parseJSON && typeof input.correctedValue === "string" ? JSON.parse(input.correctedValue) as unknown : input.correctedValue;
       return await submit(edit.operation, { [input.fieldKey]: value }, input.reason, {}, input.fieldKey);
     } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); return false; }
   };
@@ -108,8 +113,8 @@ export function PackageItemEditor({ item, onSave, onDirtyChange, onSelect, exter
   return <aside className="space-y-5 p-4" aria-label="Selected item editor" data-testid="package-item-editor">
     {Boolean(item.correction) && <p className="rounded border bg-accent px-3 py-2 text-xs">Showing the current owner-reviewed revision. Source originals and correction history remain in the complete item and package metadata.</p>}
     <PackageItemContent item={item} />
-    <section aria-label="All item fields"><h3 className="platform-kicker mb-2">All fields · {Object.keys(item.fields).length}</h3>
-      <MetadataFieldTable rows={Object.entries(item.fields).map(([fieldKey, value]) => ({ fieldKey, label: fieldKey, value }))} corrections={new Map()} correctable={Boolean(edit) && !busy && !reason && !patch && !target && !fieldDirty}
+    <section aria-label="All item fields"><h3 className="platform-kicker mb-2">{canonical ? "Candidate assertion fields" : "All fields"} · {Object.keys(editorFields).length}</h3>
+      <MetadataFieldTable rows={Object.entries(editorFields).map(([fieldKey, value]) => ({ fieldKey, label: fieldKey, value }))} corrections={new Map()} correctable={Boolean(edit) && !busy && !reason && !patch && !target && !fieldDirty}
         pendingField={pendingField} onSubmit={correct} valueTitle={item.correction ? "Current owner-reviewed value; source originals remain in the complete item record" : undefined} canCorrect={(row) => !immutableFields.has(row.fieldKey)} onDirtyChange={(value) => { setFieldDirty(value); onDirtyChange(value || Boolean(reason || patch || target)); }} />
     </section>
     {item.placement && <section><h3 className="platform-kicker mb-2">Recorded placement</h3><pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(item.placement, null, 2)}</pre></section>}
@@ -133,7 +138,7 @@ export function PackageItemEditor({ item, onSave, onDirtyChange, onSelect, exter
         {actions.map((operation) => <Button key={operation} size="sm" variant={operation === "reject" ? "outline" : "default"} disabled={busy || !reason.trim() || Boolean(patch.trim()) || Boolean(target)} onClick={() => void submit(operation, undefined, reason.trim())}>{packageCapability(item.capabilities, operation)?.label ?? (operation === "accept" ? "Accept" : operation === "reject" ? "Reject" : "Commit reviewed assertion")}</Button>)}
         {(reason || patch || target) && <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setReason(""); setPatch(""); setTarget(""); onDirtyChange(false); }}>Discard action draft</Button>}
       </div>
-      {actions.includes("commit") && <p className="text-xs text-muted-foreground">Commit records the accepted assertion and its source references in package review history.</p>}
+      {actions.includes("commit") && <p className="text-xs text-muted-foreground">{canonical ? "Commit publishes the accepted working candidate through the review decision writer and records its correction receipt." : "Commit records the accepted assertion and its source references in package review history."}</p>}
       {pendingField !== null && <p role="status" className="text-xs">Saving {pendingField}…</p>}
       {error && <p role="alert" className="whitespace-pre-wrap text-sm text-destructive">{error}</p>}
       {receipt && <details className="text-xs"><summary className="cursor-pointer">Saved review receipt</summary><pre className="mt-1 whitespace-pre-wrap break-all">{JSON.stringify(receipt, null, 2)}</pre></details>}

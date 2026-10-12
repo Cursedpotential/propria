@@ -183,6 +183,7 @@ files changed by this lane:
 - `src/components/entities/entity-alias-label.tsx`
 - `src/components/entities/entity-card.tsx`
 - `smoke/context-package.contract.test.mjs`
+- `smoke/context-package-retry.contract.test.mjs`
 - `smoke/context-package.stories.test.mjs`
 - `smoke/decoded-reader.contract.test.mjs`
 - `smoke/proffer-operator-surface.contract.test.mjs`
@@ -340,3 +341,49 @@ should retain the owner's queue reference (2026-09-22 13:35:59.393Z, log prefix
 `158b0721`) and evaluate bubbles/date headers/reactions/media later. No parallel
 generic viewer, export merge or deletion behavior was introduced. Chat remains
 deferred.
+
+## Follow-up: native canonical candidate and configured retry DTO compatibility
+
+The backend lane subsequently confirmed an additive `canonical_working_candidate`
+capability scope. Its `body` is authoritative for item ID, revision, source refs,
+candidate content hash and stable correction-chain review item ID. Web now preserves
+those coordinates instead of replacing them with display item coordinates. The
+existing metadata editor projects the typed `fields.attrs.candidate` assertion using
+the actual descriptor's `editable_fields`; writes remain flat partial field patches.
+Envelope/identity fields cannot pass through supplemental JSON as candidate edits.
+Complete original item fields remain inspectable, and superseded rows remain read-only
+according to their actual capability inventory. Ordinary metadata retains its existing
+field panel. Numeric/boolean corrections retain JSON value types, including confidence.
+
+For this scope the Commit explanation identifies the canonical review decision writer
+and its correction receipt. Existing correction-only scopes retain their history-only
+wording. Backend still owns implementation, transaction validation and source readback;
+web compatibility alone does not establish successful canonical publication.
+
+Configured native retry now sends `model_id: "configured"` with the descriptor's exact
+`source_version_ref`, rather than the former generic `model` field. Only advertised model
+choices are offered. Its actual returned `status_path` is read through a bounded,
+same-origin package-attempt endpoint. The strict DTO forbids extra fields, so the old
+unsupported retry Reason input has been removed; the request contains only the pinned
+source version and configured model selector. The panel displays business `status` and `reason`,
+including `failed` and `partial_enrichment`, independently of Temporal execution state.
+Polling stops on terminal business states or read errors; explicit refresh remains
+available. Terminal package invalidation waits while the editor has unsaved changes.
+Previously returned progress remains visible if the retry capability is withdrawn.
+Uncertain failed submissions retain their idempotency key; a new explicit submission
+after a successful start receives a new key. Receipts and source pins remain visible.
+
+Regression additions cover authoritative revision/hash/source guards, canonical field
+whitelisting, original preservation, exact retry body, actual rendered failed status,
+terminal polling, dirty-editor refresh protection, capability withdrawal, idempotency
+behavior and rejection of external/non-attempt status paths. Source changes are limited
+to the existing four package UI/helper files and two package contract test files.
+
+This follow-up introduces no chat, alternate viewer, backend/deployment change or
+physical source movement. Final remote verification on the existing OVH devbox passed
+changed-file ESLint, the production TypeScript/Vite build, and the full smoke suite:
+**186 total, 181 passed, zero failed, five intentionally skipped browser checks**.
+This includes the strict two-field retry payload and all final guard/retention assertions.
+Logs are `canonical-retry-strict-lint.log` and `canonical-retry-strict-smoke.log` under
+`/home/kasm-user/context-review-web-014128bd8/`. The existing large-bundle warning remains.
+No local build/test/browser or deployment was performed.

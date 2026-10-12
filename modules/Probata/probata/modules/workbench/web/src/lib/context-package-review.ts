@@ -1,5 +1,32 @@
 // Byline: Codex · GPT-6 · 2026-10-12.
-import type { ContextPackageItem, PackageEdge } from "@/lib/context-package-client";
+import type { ContextPackageItem, PackageCapability, PackageEdge, PackageReviewInput } from "@/lib/context-package-client";
+
+/** Select candidate assertion fields without allowing edits to its persisted envelope.
+ * Inputs: item and actual edit descriptor. Output: editable assertion projection or all metadata.
+ * Effects: none. Pick for canonical working candidates; full original fields remain inspectable.
+ */
+export function packageEditorFields(item: ContextPackageItem, capability?: PackageCapability): Record<string, unknown> {
+  if (capability?.scope !== "canonical_working_candidate") return item.fields;
+  const attrs = item.fields.attrs as Record<string, unknown> | undefined;
+  const candidate = attrs?.candidate;
+  const values = candidate && typeof candidate === "object" && !Array.isArray(candidate) ? candidate as Record<string, unknown> : {};
+  const allowed = Array.isArray(capability.editable_fields) ? capability.editable_fields.filter((key): key is string => typeof key === "string") : [];
+  return Object.fromEntries(allowed.map((key) => [key, values[key] ?? null]));
+}
+
+/** Build a review write preserving server-issued revision, candidate hash and stable review identity.
+ * Inputs: exact item, advertised descriptor, patch, reason and operation extras. Output: guarded request.
+ * Effects: none. Pick for all package review writes; canonical envelopes cannot be patched as metadata.
+ */
+export function packageReviewInput(item: ContextPackageItem, descriptor: PackageCapability, fields: Record<string, unknown> | undefined, reason: string, extras: Record<string, unknown> = {}): PackageReviewInput {
+  if (descriptor.scope === "canonical_working_candidate" && fields) {
+    const allowed = Array.isArray(descriptor.editable_fields) ? descriptor.editable_fields : [];
+    const invalid = Object.keys(fields).find((key) => !allowed.includes(key));
+    if (invalid) throw new Error(`${invalid} is not an editable candidate assertion field.`);
+  }
+  const defaults = descriptor.body && typeof descriptor.body === "object" && !Array.isArray(descriptor.body) ? descriptor.body : {};
+  return { item_id: item.id, revision: item.revision, source_refs: item.source_refs, ...extras, ...defaults, operation: descriptor.operation, reason, ...(fields ? { fields } : {}) };
+}
 
 /** Allow only existing app/API links; inert source text never becomes an executable URL.
  * Input: recorded URL. Output: local source link or null. Effects: none.

@@ -49,3 +49,19 @@ test("complete nested document and native message text are not clipped to grid-p
   assert.equal(blocks[0].text, complete);
   assert.equal(blocks[1].path, "metadata.description");
 });
+
+test("canonical candidate edits preserve operation guards and cannot patch source envelopes", () => {
+  const { packageEditorFields, packageReviewInput } = reviewAdapter();
+  const candidate = { name: "Observed", confidence: 0.7, statement: "Original assertion" };
+  const item = { id: "display-item", revision: "display-revision", source_refs: ["display-pin"], fields: { id: "actual-working-uuid", attrs: { candidate }, source_text: "Retained original" } };
+  const capability = { operation: "edit", scope: "canonical_working_candidate", editable_fields: ["name", "confidence", "statement", "occurred_at"], body: { item_id: "actual-working-uuid", revision: "authoritative-revision", candidate_content_sha256: "actual-hash", review_item_id: "stable-review-chain", source_refs: ["authoritative-pin"] } };
+  assert.deepEqual(JSON.parse(JSON.stringify(packageEditorFields(item, capability))), { name: "Observed", confidence: 0.7, statement: "Original assertion", occurred_at: null });
+  const request = packageReviewInput(item, capability, { name: "Reviewed", confidence: 0.8 }, "Owner correction", { revision: "stale", candidate_content_sha256: "wrong" });
+  for (const [key, value] of Object.entries(capability.body)) assert.equal(request[key], value);
+  assert.equal(request.fields.name, "Reviewed");
+  assert.equal(request.fields.confidence, 0.8);
+  assert.equal(candidate.name, "Observed");
+  assert.throws(() => packageReviewInput(item, capability, { attrs: { candidate: { name: "Bypass" } } }, "Invalid"), /not an editable/);
+  assert.throws(() => packageReviewInput(item, capability, { id: "replacement" }, "Invalid"), /not an editable/);
+  assert.equal(packageEditorFields(item, { operation: "metadata" }), item.fields, "ordinary metadata keeps its full field panel");
+});
