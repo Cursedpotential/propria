@@ -10,7 +10,7 @@ import { AppLink } from "@/lib/router-compat";
  * Effects: clicked navigation only. Pick beside every item, event or edge.
  */
 export function PackageSources({ sources }: { sources: PackageSourceRef[] }) {
-  return <section aria-label="Source locators" className="space-y-2">
+  return <div role="group" aria-label="Source locators" className="space-y-2">
     <h3 className="platform-kicker">Source locators · {sources.length}</h3>
     {!sources.length && <p className="text-xs text-muted-foreground">No source locators returned for this item.</p>}
     <ol className="space-y-2">{sources.map((source, index) => {
@@ -20,7 +20,7 @@ export function PackageSources({ sources }: { sources: PackageSourceRef[] }) {
         <pre className="whitespace-pre-wrap break-all font-mono text-[11px]">{typeof source === "string" ? source : JSON.stringify(source, null, 2)}</pre>
       </li>;
     })}</ol>
-  </section>;
+  </div>;
 }
 
 /** Render full recorded content and identity cues using the selected package item's fields.

@@ -81,7 +81,7 @@ test("actual package stories render category headers and complete save/failure/d
       const deadline = Date.now() + 12000;
       let state;
       while (Date.now() < deadline) {
-        state = await cdp.evaluate(sessionId, `({events: (globalThis.__packageStoryEvents ?? []).map(event => ({name: event.name, data: {status:event.data?.status, message:event.data?.message, stack:event.data?.stack}})), phase: globalThis.__STORYBOOK_PREVIEW__?.currentRender?.phase, text: document.body?.innerText ?? ''})`);
+        state = await cdp.evaluate(sessionId, `({events: (globalThis.__packageStoryEvents ?? []).map(event => ({name: event.name, data: {status:event.data?.status, message:event.data?.message, stack:event.data?.stack, reporters:event.data?.reporters?.map(reporter => ({type:reporter.type,status:reporter.status,violations:reporter.result?.violations?.map(violation => ({id:violation.id,nodes:violation.nodes.map(node => ({target:node.target,summary:node.failureSummary}))}))}))}})), phase: globalThis.__STORYBOOK_PREVIEW__?.currentRender?.phase, text: document.body?.innerText ?? ''})`);
         if (state.text.includes("Something went wrong!")) {
           await cdp.evaluate(sessionId, `[...document.querySelectorAll('button')].find(button => button.textContent === 'Show Error')?.click()`);
           await new Promise((accept) => setTimeout(accept, 100));

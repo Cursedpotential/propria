@@ -37,6 +37,7 @@ export function MetadataFieldTable({
   onSubmit,
   onDirtyChange,
   canCorrect,
+  valueTitle = "Recorded value (never changed)",
 }: {
   rows: FieldRow[];
   corrections: Map<string, MetadataCorrection[]>;
@@ -48,6 +49,8 @@ export function MetadataFieldTable({
   onDirtyChange?: (dirty: boolean) => void;
   /** Limit package field controls to fields allowed by the advertised backend writer. */
   canCorrect?: (row: FieldRow) => boolean;
+  /** Describe the displayed value when a package supplies its current reviewed overlay. */
+  valueTitle?: string;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draftValue, setDraftValue] = useState("");
@@ -89,7 +92,7 @@ export function MetadataFieldTable({
             <dt className="break-all font-mono text-[10px] text-muted-foreground">{row.label}</dt>
             <dd className="min-w-0 space-y-1">
               <p className="flex flex-wrap items-start gap-1.5">
-                <span className={active ? "break-all text-muted-foreground" : "break-all"} title="Recorded value (never changed)">{formatValue(row.value)}</span>
+                <span className={active ? "break-all text-muted-foreground" : "break-all"} title={valueTitle}>{formatValue(row.value)}</span>
                 {conflict && <SmallFlag title={conflict}>sidecar disagrees</SmallFlag>}
               </p>
               {active && (
@@ -125,7 +128,7 @@ export function MetadataFieldTable({
                 </ol>
               )}
             </dd>
-            <span className="flex items-start gap-0.5">
+            <dd className="flex items-start gap-0.5">
               {history.length > 0 && (
                 <Button size="icon" variant="ghost" className="size-6" title="Correction history" aria-pressed={showHistory} onClick={() => setOpenHistory((previous) => {
                   const next = new Set(previous);
@@ -141,7 +144,7 @@ export function MetadataFieldTable({
                   <Pencil className="size-3.5" />
                 </Button>
               )}
-            </span>
+            </dd>
           </div>
         );
       })}

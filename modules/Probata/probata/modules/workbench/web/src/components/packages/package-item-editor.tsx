@@ -110,7 +110,7 @@ export function PackageItemEditor({ item, onSave, onDirtyChange, onSelect, exter
     <PackageItemContent item={item} />
     <section aria-label="All item fields"><h3 className="platform-kicker mb-2">All fields · {Object.keys(item.fields).length}</h3>
       <MetadataFieldTable rows={Object.entries(item.fields).map(([fieldKey, value]) => ({ fieldKey, label: fieldKey, value }))} corrections={new Map()} correctable={Boolean(edit) && !busy && !reason && !patch && !target && !fieldDirty}
-        pendingField={pendingField} onSubmit={correct} canCorrect={(row) => !immutableFields.has(row.fieldKey)} onDirtyChange={(value) => { setFieldDirty(value); onDirtyChange(value || Boolean(reason || patch || target)); }} />
+        pendingField={pendingField} onSubmit={correct} valueTitle={item.correction ? "Current owner-reviewed value; source originals remain in the complete item record" : undefined} canCorrect={(row) => !immutableFields.has(row.fieldKey)} onDirtyChange={(value) => { setFieldDirty(value); onDirtyChange(value || Boolean(reason || patch || target)); }} />
     </section>
     {item.placement && <section><h3 className="platform-kicker mb-2">Recorded placement</h3><pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(item.placement, null, 2)}</pre></section>}
     {supplement && <details className="rounded border p-3"><summary className="cursor-pointer text-sm font-medium">Supplement or edit fields</summary>

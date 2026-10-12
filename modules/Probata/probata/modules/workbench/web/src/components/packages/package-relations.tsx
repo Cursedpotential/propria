@@ -23,7 +23,7 @@ export function PackageRelations({ items, selected, onSelect }: { items: Context
   return <section className="space-y-3 p-4" aria-label="Recorded relationships">
     <header><h2 className="text-base font-semibold">Relationships · {edges.length}</h2><p className="mt-1 text-xs text-muted-foreground">Actual edges in {selected ? "the selected item" : "this loaded section"}. Each edge retains its own fields and source basis.</p></header>
     {!edges.length && <p className="text-sm text-muted-foreground">No edges returned for {selected ? "this item" : "these loaded items"}.</p>}
-    {edges.length > 0 && <div className="max-h-[25rem] overflow-auto rounded border" aria-label="Relationship graph">
+    {edges.length > 0 && <div className="max-h-[25rem] overflow-auto rounded border" role="group" tabIndex={0} aria-label="Relationship graph">
       <svg role="img" aria-label={`${edges.length} recorded directed relationships`} viewBox={`0 0 900 ${Math.max(90, edges.length * 84)}`} className="min-w-[700px] w-full text-foreground">
         <defs><marker id="package-edge-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor" /></marker></defs>
         {edges.map((entry, index) => {
