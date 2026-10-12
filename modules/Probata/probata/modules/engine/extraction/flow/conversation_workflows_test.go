@@ -107,6 +107,84 @@ func request(extractors ...string) RequestInput {
 	}
 }
 
+// TestConversationRunModeBinding checks missing payload mode, disagreement, and absent request authority.
+// Inputs: synthetic admitted requests and source pins. Outputs: assertions. Effects: none.
+// Pick to verify propagation without implying that a missing durable receipt is repaired.
+func TestConversationRunModeBinding(t *testing.T) {
+	base := RunRef{PreviewHandle: "h", GenerationID: "g", SourceVersionID: "s"}
+	got, err := bindConversationRunMode(request(DefaultExtractorID), base)
+	if err != nil || got.MatterMode != "LIVE" || got.Scope() != base.Scope() {
+		t.Fatalf("bound run=%+v err=%v", got, err)
+	}
+	for _, mode := range []string{"DEV", "REAL", "unknown"} {
+		mismatch := base
+		mismatch.MatterMode = mode
+		if _, err := bindConversationRunMode(request(DefaultExtractorID), mismatch); err == nil {
+			t.Fatalf("accepted conflicting durable mode %q", mode)
+		}
+	}
+	missing := request(DefaultExtractorID)
+	missing.OperatingMode = ""
+	if _, err := bindConversationRunMode(missing, base); err == nil {
+		t.Fatal("missing request authority became LIVE")
+	}
+}
+
+// TestConversationFanoutCarriesVerifiedModeToEveryChild verifies both internal and external child payloads.
+// Inputs: resolver output with an omitted mode. Output: completed business progress and checked payloads.
+// Effects: in-memory Temporal execution only. Pick for the observed fanout regression.
+func TestConversationFanoutCarriesVerifiedModeToEveryChild(t *testing.T) {
+	env, _ := requestEnv()
+	resolved := twoRuns()
+	resolved.Targets[0].Runs = resolved.Targets[0].Runs[:1]
+	resolved.Targets[0].Runs[0].MatterMode = ""
+	env.OnActivity(ResolveConversationsActivity, mock.Anything, mock.Anything).Return(resolved, nil)
+	env.OnActivity(ProposeRulesActivity, mock.Anything, mock.MatchedBy(func(r ExtractionRequest) bool {
+		return r.Run.MatterMode == "LIVE" && r.Run.SourceVersionID == "s1" && r.Run.GenerationID == "g1"
+	})).Return(ProposeResult{}, nil)
+	env.OnActivity(ExtractModelActivity, mock.Anything, mock.Anything).Return(ProposeResult{}, nil)
+	env.OnActivity(ReconcileActivity, mock.Anything, mock.Anything).Return(ReconcileResult{}, nil)
+	env.OnActivity(BeginExternalRunActivity, mock.Anything, mock.MatchedBy(func(r ExternalRunStart) bool {
+		return r.Input.Run.MatterMode == "LIVE" && r.Input.Run.SourceVersionID == "s1" && r.Input.Run.GenerationID == "g1"
+	})).Return(func(_ context.Context, r ExternalRunStart) (ExternalRunStart, error) { return r, nil })
+	env.OnActivity(SemanticaExtractActivity, mock.Anything, mock.Anything).Return(json.RawMessage(`{"done":true}`), nil)
+	env.OnActivity(StageExternalPageActivity, mock.Anything, mock.Anything).Return(StagePageResult{Done: true}, nil)
+	env.OnActivity(FinishExternalRunActivity, mock.Anything, mock.Anything).Return(nil)
+	env.ExecuteWorkflow(RequestWorkflowName, request(DefaultExtractorID, "semantica"))
+	var progress Progress
+	if err := env.GetWorkflowResult(&progress); err != nil || progress.Outcome != OutcomeCompleted {
+		t.Fatalf("progress=%+v err=%v", progress, err)
+	}
+	env.AssertExpectations(t)
+}
+
+// TestConversationAllChildrenFailedReturnsFailedBusinessOutcome prevents resolve success masking extraction failure.
+// Inputs: one resolved run and three permanently failing extractors. Output: failed aggregate with three errors.
+// Effects: in-memory Temporal execution only. Pick for the owner's reported all-child failure.
+func TestConversationAllChildrenFailedReturnsFailedBusinessOutcome(t *testing.T) {
+	env, _ := requestEnv()
+	resolved := twoRuns()
+	resolved.Targets[0].Runs = resolved.Targets[0].Runs[:1]
+	env.OnActivity(ResolveConversationsActivity, mock.Anything, mock.Anything).Return(resolved, nil)
+	failure := temporal.NewNonRetryableApplicationError("the operation has no verified operating_mode; canonical writes are unavailable", "OperatingModeUnknown", nil)
+	env.OnActivity(ProposeRulesActivity, mock.Anything, mock.Anything).Return(ProposeResult{}, failure)
+	env.OnActivity(BeginExternalRunActivity, mock.Anything, mock.Anything).Return(ExternalRunStart{}, failure)
+	env.ExecuteWorkflow(RequestWorkflowName, request(DefaultExtractorID, "semantica", "langextract"))
+	var progress Progress
+	if err := env.GetWorkflowResult(&progress); err != nil || progress.Outcome != OutcomeFailed {
+		t.Fatalf("progress=%+v err=%v", progress, err)
+	}
+	failed := 0
+	for _, step := range progress.Steps {
+		if step.Extractor != "" && step.Status == StepFailed && strings.Contains(step.Detail, "verified operating_mode") {
+			failed++
+		}
+	}
+	if failed != 3 {
+		t.Fatalf("failed children=%d progress=%+v", failed, progress)
+	}
+}
+
 // TestRequestWorkflowRunsEveryChosenExtractorOnEveryRun proves one click fans out over the conversation's runs,
 // the default extractor reuses the existing three-step workflow, and an external extractor's Activity is scheduled
 // on the Python queue and staged by the Go Activity.
