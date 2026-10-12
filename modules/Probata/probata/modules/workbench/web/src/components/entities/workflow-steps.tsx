@@ -36,12 +36,16 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
+/** Render distinct business outcome and per-step execution states without deriving success from a green step.
+ * Inputs: actual/validated workflow progress and display title. Output: outcome and detailed step list.
+ * Effects: none. Pick for extraction/commit action progress; callers must preserve business failure semantics.
+ */
 export function WorkflowSteps({ progress, title }: { progress: WorkflowProgress | undefined; title: string }) {
   if (!progress) return null;
   return (
     <section aria-label={title} className="border bg-card p-2 text-xs" data-testid={`workflow-steps-${title.toLowerCase().replaceAll(" ", "-")}`}>
       <p className="mb-1 font-semibold">
-        {title} <span className="font-normal text-muted-foreground">· {progress.outcome.replaceAll("_", " ")}</span>
+        {title} <span aria-label={`${title} outcome`} data-outcome={progress.outcome} className={cn("font-normal", progress.outcome === "failed" ? "font-semibold text-destructive" : progress.outcome === "partial" ? "font-semibold text-[#8a5a00] dark:text-[#ffd48a]" : "text-muted-foreground")}>· {progress.outcome.replaceAll("_", " ")}</span>
       </p>
       <ol className="space-y-1">
         {progress.steps.map((step) => (
