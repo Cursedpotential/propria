@@ -76,6 +76,7 @@ func mountPreviewRoutes(existing, preview http.Handler) (http.Handler, error) {
 	mux.Handle("GET /reference-import/operations", preview)
 	mux.Handle("GET /reference-import/operations/", preview)
 	mux.Handle("GET /reference-import/previews/", preview)
+	mux.Handle("GET /reference-import/admission-repairs/", preview)
 	mux.Handle("POST /reference-import/previews/", preview)
 	// Forward standalone admission-repair polling to the same registered preview handler.
 	// Input: returned Temporal ID. Output: actual status. Effects: read-only handler routing.
