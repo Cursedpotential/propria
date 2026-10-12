@@ -170,9 +170,10 @@ func TestConversationAllChildrenFailedReturnsFailedBusinessOutcome(t *testing.T)
 	env.OnActivity(ProposeRulesActivity, mock.Anything, mock.Anything).Return(ProposeResult{}, failure)
 	env.OnActivity(BeginExternalRunActivity, mock.Anything, mock.Anything).Return(ExternalRunStart{}, failure)
 	env.ExecuteWorkflow(RequestWorkflowName, request(DefaultExtractorID, "semantica", "langextract"))
-	var progress Progress
-	if err := env.GetWorkflowResult(&progress); err != nil || progress.Outcome != OutcomeFailed {
-		t.Fatalf("progress=%+v err=%v", progress, err)
+
+	progress, ok := extractionFailureProgress(env.GetWorkflowError())
+	if !ok || progress.Outcome != OutcomeFailed {
+		t.Fatalf("progress=%+v err=%v", progress, env.GetWorkflowError())
 	}
 	failed := 0
 	for _, step := range progress.Steps {

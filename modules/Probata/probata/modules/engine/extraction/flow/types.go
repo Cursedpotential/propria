@@ -141,12 +141,18 @@ type ReconcileResult struct {
 
 // StepResult is one line of the status list.
 type StepResult struct {
-	Step   string          `json:"step"`
-	Status string          `json:"status"`
-	Detail string          `json:"detail,omitempty"`
-	Counts map[string]int  `json:"counts,omitempty"`
-	Ref    string          `json:"ref,omitempty"`
-	Flags  []entities.Flag `json:"flags,omitempty"`
+	WorkflowID   string          `json:"workflow_id,omitempty"`
+	RunID        string          `json:"run_id,omitempty"`
+	ActivityID   string          `json:"activity_id,omitempty"`
+	ActivityType string          `json:"activity_type,omitempty"`
+	Attempt      int32           `json:"attempt,omitempty"`
+	LastFailure  string          `json:"last_failure,omitempty"`
+	Step         string          `json:"step"`
+	Status       string          `json:"status"`
+	Detail       string          `json:"detail,omitempty"`
+	Counts       map[string]int  `json:"counts,omitempty"`
+	Ref          string          `json:"ref,omitempty"`
+	Flags        []entities.Flag `json:"flags,omitempty"`
 	// Conversation and Extractor name what a conversation-level step ran for
 	// (extraction_request_workflow, send_to_surreal_workflow).
 	Conversation string `json:"conversation,omitempty"`
@@ -155,8 +161,10 @@ type StepResult struct {
 
 // Progress is the workflow's queryable status.
 type Progress struct {
-	Outcome string       `json:"outcome"`
-	Steps   []StepResult `json:"steps"`
+	WorkflowID string       `json:"workflow_id,omitempty"`
+	RunID      string       `json:"run_id,omitempty"`
+	Outcome    string       `json:"outcome"`
+	Steps      []StepResult `json:"steps"`
 	// Receipts is set by send_to_surreal_workflow: one per conversation sent.
 	Receipts []SendReceipt `json:"receipts,omitempty"`
 }
