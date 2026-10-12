@@ -29,6 +29,12 @@ function StatusIcon({ status }: { status: string }) {
       return <X className="size-3.5 text-destructive" aria-label="failed" />;
     case "running":
       return <LoaderCircle className="size-3.5 animate-spin text-primary" aria-label="running" />;
+    case "retrying":
+      return <LoaderCircle className="size-3.5 animate-spin text-primary" aria-label="retrying" />;
+    case "partial":
+      return <Flag className="size-3.5 text-[#8a5a00]" aria-label="partial" />;
+    case "pending":
+      return <CircleDashed className="size-3.5 text-muted-foreground" aria-label="pending" />;
     case "skipped":
       return <MinusCircle className="size-3.5 text-muted-foreground" aria-label="skipped" />;
     default:
@@ -54,6 +60,7 @@ export function WorkflowSteps({ progress, title }: { progress: WorkflowProgress 
             <span className="min-w-0">
               <span className={cn(step.status === "failed" && "text-destructive")}>{STEP_LABEL[step.step] ?? step.step}</span>
               {step.detail && <span className="text-muted-foreground"> — {step.detail}</span>}
+              {Object.keys(step.counts ?? {}).length > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">{Object.entries(step.counts ?? {}).map(([key, value]) => `${key.replaceAll("_", " ")}: ${value}`).join(" · ")}</span>}
               {step.flags.map((flag, index) => (
                 <span key={`${flag.code}-${index}`} className="mt-0.5 flex items-start gap-1 text-[11px] text-[#8a5a00] dark:text-[#ffd48a]">
                   <Flag className="mt-0.5 size-3 shrink-0" aria-hidden="true" />

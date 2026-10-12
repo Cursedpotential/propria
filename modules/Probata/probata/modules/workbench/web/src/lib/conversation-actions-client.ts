@@ -56,6 +56,7 @@ export interface SendReceipt {
 
 export interface ActionStatus {
   workflow_id: string;
+  run_id?: string;
   kind: "extraction" | "send_to_surreal";
   outcome: string;
   steps: ActionStep[];

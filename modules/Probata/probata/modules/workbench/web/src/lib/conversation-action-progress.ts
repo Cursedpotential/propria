@@ -2,6 +2,19 @@
 import type { ActionStatus, ExtractorInfo } from "@/lib/conversation-actions-client";
 import type { WorkflowProgress } from "@/lib/entity-extraction-client";
 
+/** Identify failed extractor retries whose exact conversation is known from the accepted selection.
+ * Inputs: actual progress, saved thread IDs and requested extractor IDs. Output: safe single-extractor choices.
+ * Effects: none. Pick for the existing conversation start route; ambiguous multi-thread/run mixtures
+ * require server retry coordinates and never derive identity from display labels.
+ */
+export function failedConversationExtractors(status: ActionStatus, threadIds: readonly string[], requested: readonly string[]): string[] {
+  if (status.kind !== "extraction" || threadIds.length !== 1 || ["pending", "queued", "running", "retrying"].includes(status.outcome)) return [];
+  return requested.filter((id) => {
+    const stages = status.steps.filter((step) => step.extractor === id);
+    return stages.length > 0 && stages.every((step) => step.status === "failed");
+  });
+}
+
 /** Derive extraction presentation from business outcome and actual requested extractor steps.
  * Inputs: worker progress, registry labels and the exact extractor selection saved at start.
  * Output: progress and an explicit success/failure summary. Effects: none.
@@ -25,14 +38,14 @@ export function conversationActionProgress(status: ActionStatus, extractors: rea
   const resolution = status.steps.find((step) => step.step === "resolve");
   const unresolved = resolution?.status === "failed" || (resolution?.counts?.skipped ?? 0) > 0;
   const business = status.outcome.toLowerCase();
-  const running = ["running", "pending", "queued"].includes(business);
+  const running = ["running", "pending", "queued", "retrying"].includes(business);
   const failed = ["failed", "canceled", "cancelled", "terminated", "timed_out"].includes(business);
   let summary: string;
   if (failed || resolution?.status === "failed") {
     progress.outcome = "failed";
     summary = `${succeeded} requested extractor stage${succeeded === 1 ? "" : "s"} succeeded. The extraction failed; inspect the errors below.`;
   } else if (running) {
-    progress.outcome = "running";
+    progress.outcome = business === "retrying" ? "retrying" : business === "pending" || business === "queued" ? "pending" : "running";
     summary = `${succeeded} requested extractor stage${succeeded === 1 ? "" : "s"} succeeded so far. Source resolution alone does not complete extraction.`;
   } else if (!succeeded) {
     progress.outcome = "failed";
