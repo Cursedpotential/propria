@@ -77,6 +77,9 @@ func mountPreviewRoutes(existing, preview http.Handler) (http.Handler, error) {
 	mux.Handle("GET /reference-import/operations/", preview)
 	mux.Handle("GET /reference-import/previews/", preview)
 	mux.Handle("POST /reference-import/previews/", preview)
+	// Forward standalone admission-repair polling to the same registered preview handler.
+	// Input: returned Temporal ID. Output: actual status. Effects: read-only handler routing.
+	mux.Handle("GET /reference-import/admission-repairs/", preview)
 	// The batch routes were registered on the preview handler (2026-09-21)
 	// but never forwarded here, so both fell through to the legacy mux and
 	// 404'd; repair re-entry reports a batch id that must be readable.
