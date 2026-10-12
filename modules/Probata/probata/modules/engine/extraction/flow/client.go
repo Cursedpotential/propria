@@ -112,11 +112,21 @@ func (s *Starter) statusForExecution(ctx context.Context, workflowID, runID stri
 		failure := s.Client.GetWorkflow(ctx, workflowID, info.GetExecution().GetRunId()).Get(ctx, nil)
 		if recovered, ok := extractionFailureProgress(failure); ok {
 			recovered.WorkflowID, recovered.RunID = workflowID, info.GetExecution().GetRunId()
+			if reason := terminalExtractionFailureReason(failure); reason != "" {
+				for i := range recovered.Steps {
+					if recovered.Steps[i].Status == StepFailed && (recovered.Steps[i].LastFailure == "" || recovered.Steps[i].LastFailure == extractionFailureSizeWrapper) {
+						recovered.Steps[i].LastFailure = reason
+					}
+				}
+			}
 			return recovered, nil
 		}
 		detail := "workflow " + strings.ToLower(strings.TrimPrefix(info.GetStatus().String(), "WORKFLOW_EXECUTION_STATUS_"))
 		if failure != nil {
-			detail = boundedExtractionFailure(failure.Error())
+			detail = terminalExtractionFailureReason(failure)
+			if detail == "" {
+				detail = boundedExtractionFailure(failure.Error())
+			}
 		}
 		return Progress{WorkflowID: workflowID, RunID: info.GetExecution().GetRunId(), Outcome: OutcomeFailed, Steps: []StepResult{{
 			Step: "workflow", Status: StepFailed,

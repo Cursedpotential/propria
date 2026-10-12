@@ -64,7 +64,7 @@ func decoratePendingExtractionActivities(progress Progress, pending []*workflowp
 		}
 		line := &progress.Steps[index]
 		line.ActivityID, line.ActivityType, line.Attempt = activity.GetActivityId(), name, activity.GetAttempt()
-		line.LastFailure = boundedExtractionFailure(activity.GetLastFailure().GetMessage())
+		line.LastFailure = pendingExtractionFailure(activity.GetLastFailure())
 		if line.Attempt > 1 {
 			line.Status = "retrying"
 			if line.LastFailure != "" {
