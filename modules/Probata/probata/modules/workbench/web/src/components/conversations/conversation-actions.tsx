@@ -17,37 +17,30 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActionStatus, useExtractors, useStartExtraction, useStartSend } from "@/hooks/use-conversation-actions";
-import type { ActionStatus, ExtractorInfo } from "@/lib/conversation-actions-client";
-import type { WorkflowProgress } from "@/lib/entity-extraction-client";
+import type { ExtractorInfo } from "@/lib/conversation-actions-client";
+import { conversationActionProgress } from "@/lib/conversation-action-progress";
 import { cn } from "@/lib/utils";
 
 export type ActionKind = "extract" | "send";
 
-/** The engine's lines, as the existing step list takes them: one line per conversation and extractor. */
-function toProgress(status: ActionStatus, extractors: readonly ExtractorInfo[]): WorkflowProgress {
-  const label = (id?: string) => extractors.find((extractor) => extractor.id === id)?.label ?? (id === "surreal" ? "surreal-case" : id);
-  return {
-    workflow_id: status.workflow_id,
-    outcome: status.outcome,
-    steps: status.steps.map((step) => ({
-      step: step.conversation ? `${step.conversation} · ${label(step.extractor) ?? ""}` : step.step,
-      status: step.status,
-      detail: step.detail ?? "",
-      counts: step.counts ?? {},
-      flags: step.flags ?? [],
-    })),
-  };
-}
-
-function ActionProgress({ workflowId, threadIds, title }: { workflowId: string; threadIds: readonly string[]; title: string }) {
+/** Show business extraction results and preserve failed-stage details beside a real retry action.
+ * Inputs: accepted workflow, exact selected conversations/extractors and retry callback.
+ * Output: stage-based outcome, errors and receipts. Effects: polling, explicit refresh/retry.
+ * Pick after start acceptance; workflow completion is not extraction success.
+ */
+function ActionProgress({ workflowId, threadIds, title, requested, retrying, onRetry }: { workflowId: string; threadIds: readonly string[]; title: string; requested: readonly string[]; retrying: boolean; onRetry: () => Promise<void> }) {
   const status = useActionStatus(workflowId, threadIds);
   const extractors = useExtractors();
-  const progress = useMemo(() => (status.data ? toProgress(status.data, extractors.data?.extractors ?? []) : undefined), [status.data, extractors.data]);
-  if (status.isError) return <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm" role="alert">{errorText(status.error)}</p>;
-  if (!progress) return <Skeleton className="h-24 w-full" />;
+  const result = useMemo(() => (status.data ? conversationActionProgress(status.data, extractors.data?.extractors ?? [], requested) : undefined), [status.data, extractors.data, requested]);
+  const progress = result?.progress;
+  const readError = status.isError ? <div className="space-y-2"><p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm" role="alert">{errorText(status.error)}</p><Button variant="outline" disabled={status.isFetching} onClick={() => void status.refetch()}>Retry status read</Button></div> : null;
+  if (!progress) return readError ?? <Skeleton className="h-24 w-full" />;
   return (
     <div className="space-y-2">
+      {readError}
+      {result?.summary && <p role={progress.outcome === "failed" ? "alert" : "status"} className={cn("rounded border p-3 text-sm", progress.outcome === "failed" && "border-destructive/40 text-destructive")}>{result.summary}</p>}
       <WorkflowSteps progress={progress} title={title} />
+      {status.data?.kind === "extraction" && ["failed", "partial"].includes(progress.outcome) && <Button variant="outline" disabled={retrying} onClick={() => void onRetry().catch(() => undefined)}>{retrying ? "Starting retry…" : "Retry extraction"}</Button>}
       {status.data?.receipts.length ? (
         <ul className="space-y-1 text-xs text-muted-foreground" aria-label="Receipts">
           {status.data.receipts.map((receipt) => (
@@ -93,7 +86,7 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
   const extractors = useExtractors();
   const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null);
   const [includeExtractions, setIncludeExtractions] = useState(true);
-  const [started, setStarted] = useState<{ workflowId: string; threadIds: string[] } | null>(null);
+  const [started, setStarted] = useState<{ workflowId: string; threadIds: string[]; extractors: string[] } | null>(null);
   const startExtraction = useStartExtraction();
   const startSend = useStartSend();
 
@@ -109,12 +102,17 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
     setChosen(copy);
   }
 
-  async function run() {
-    const ids = [...threadIds];
+  /** Start or explicitly retry the saved selection through the existing mutations.
+   * Input: optional prior selection. Output: accepted workflow tracking state.
+   * Effects: clicked start POST only; preserves failed progress until retry is accepted.
+   */
+  async function run(previous?: NonNullable<typeof started>) {
+    const ids = previous?.threadIds ?? [...threadIds];
+    const selectedExtractors = previous?.extractors ?? [...checked];
     const result = kind === "extract"
-      ? await startExtraction.mutateAsync({ threadIds: ids, extractors: [...checked] })
+      ? await startExtraction.mutateAsync({ threadIds: ids, extractors: selectedExtractors })
       : await startSend.mutateAsync({ threadIds: ids, includeExtractions });
-    setStarted({ workflowId: result.workflow_id, threadIds: ids });
+    setStarted({ workflowId: result.workflow_id, threadIds: ids, extractors: selectedExtractors });
     onStarted?.();
   }
 
@@ -133,7 +131,7 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
         </SheetHeader>
         <div className="space-y-3 px-4 pb-2">
           {started ? (
-            <ActionProgress workflowId={started.workflowId} threadIds={started.threadIds} title={kind === "extract" ? "Extraction" : "Send to Surreal"} />
+            <ActionProgress workflowId={started.workflowId} threadIds={started.threadIds} requested={started.extractors} retrying={pending} onRetry={() => run(started)} title={kind === "extract" ? "Extraction" : "Send to Surreal"} />
           ) : kind === "extract" ? (
             extractors.isPending ? <Skeleton className="h-32 w-full" /> : extractors.isError ? (
               <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm" role="alert">{errorText(extractors.error)}</p>
