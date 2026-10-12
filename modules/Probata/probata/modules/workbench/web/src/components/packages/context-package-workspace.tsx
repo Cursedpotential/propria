@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useContextPackage, useContextPackageReview } from "@/hooks/use-context-package";
 import type { ContextPackageItem } from "@/lib/context-package-client";
+import { reviewedPackageItem } from "@/lib/context-package-review";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +38,7 @@ export function ContextPackageWorkspace({ handle, original }: { handle: string; 
   const items = useMemo(() => {
     const byId = new Map<string, ContextPackageItem>();
     for (const page of query.data?.pages ?? []) for (const item of page.items) byId.set(item.id, item);
-    return [...byId.values()];
+    return [...byId.values()].map(reviewedPackageItem);
   }, [query.data]);
   const selectedId = params.get("item") ?? items[0]?.id ?? null;
   const selected = items.find((item) => item.id === selectedId) ?? null;
@@ -73,8 +74,8 @@ export function ContextPackageWorkspace({ handle, original }: { handle: string; 
       <div className="flex min-h-[33rem] flex-1 flex-col overflow-hidden rounded border bg-card lg:h-[calc(100dvh-16rem)] lg:flex-row">
         <nav className="flex shrink-0 gap-1 overflow-auto border-b p-2 lg:w-48 lg:flex-col lg:border-b-0 lg:border-r" aria-label="Package sections">
           {snapshot.sections.map((section) => <Button key={section.id} variant="ghost" className={cn("h-auto min-h-9 justify-between gap-2 whitespace-normal text-left text-xs", section.id === activeSection?.id && "bg-accent text-accent-foreground")}
-            aria-current={section.id === activeSection?.id ? "page" : undefined} title={section.reason} onClick={() => navigate({ section: section.id, item: null, display: null })}>
-            <span>{section.label}{!section.available && <span className="mt-1 block font-normal text-muted-foreground">{section.reason || "Not available"}</span>}</span><span>{section.count}</span>
+            aria-current={section.id === activeSection?.id ? "page" : undefined} title={section.reason ?? undefined} onClick={() => navigate({ section: section.id, item: null, display: null })}>
+            <span>{section.label}{!section.available && <span className="mt-1 block font-normal text-muted-foreground">{section.reason || "Not available"}</span>}</span><span>{section.count ?? "?"}</span>
           </Button>)}
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">

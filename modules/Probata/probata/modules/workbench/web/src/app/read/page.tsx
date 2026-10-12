@@ -1,4 +1,5 @@
 // Byline: Codex · GPT-6 · 2026-10-06
+import type { ReactElement } from "react";
 import { AICandidateReview } from "@/components/review/ai-candidate-review";
 import { CategoryLanding } from "@/components/packages/category-landing";
 import { ContextPackageWorkspace } from "@/components/packages/context-package-workspace";
@@ -17,7 +18,7 @@ import { useFixedCase } from "@/lib/fixed-case-context";
  * Output: category landing or a complete package, with existing human/SMS viewers retained.
  * Effects: bounded child reads and explicit review writes. Pick as /read and legacy redirects.
  */
-export default function ReadPage() {
+export default function ReadPage(): ReactElement {
   const params = useBrowserSearchParams();
   const { mode } = useFixedCase();
   const selectedPackage = params.get("package");

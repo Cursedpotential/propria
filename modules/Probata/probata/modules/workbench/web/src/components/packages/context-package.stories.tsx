@@ -29,7 +29,7 @@ function installApi({ args }: { args: { failSave?: boolean; reopened?: boolean }
   serverItem = structuredClone(item); saveFailure = Boolean(args.failSave);
   if (args.reopened) {
     serverItem.revision = "r2";
-    serverItem.fields.provenance_party = "first_party";
+    serverItem.correction = { fields: { provenance_party: "first_party" }, source_refs: serverItem.source_refs };
     serverItem.review_history = [{ revision: "r2", operation: "edit", fields: { provenance_party: "first_party" }, reason: "Synthetic saved correction", original_fields: item.fields }];
   }
   const previous = globalThis.fetch;
@@ -65,7 +65,7 @@ function installApi({ args }: { args: { failSave?: boolean; reopened?: boolean }
  * Input: scenario entry URL. Output: actual components. Effects: fixture reads/mutations.
  * Pick for dirty navigation, save-failure and reopen stories; no substitute product controls.
  */
-function Scenario({ entry }: { entry: string }) {
+function Scenario({ entry }: { entry: string; failSave?: boolean; reopened?: boolean }) {
   const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }));
   const [router] = useState(() => {
     const root = createRootRoute();
@@ -88,7 +88,7 @@ const meta = {
   title: "Context review/Extracted package", component: Scenario, beforeEach: installApi,
   args: { entry: `/read?package=${HANDLE}`, failSave: false, reopened: false },
   parameters: { docs: { description: { component: "Actual package components with synthetic bounded API responses. Saves, failures, dirty navigation and reopened corrections exercise the production editor and query hooks." } } },
-} satisfies Meta<React.ComponentProps<typeof Scenario> & { failSave?: boolean; reopened?: boolean }>;
+} satisfies Meta<typeof Scenario>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

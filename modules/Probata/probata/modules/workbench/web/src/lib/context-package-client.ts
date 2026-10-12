@@ -26,7 +26,7 @@ export interface ContextCategory {
 
 /** Package identity stays intact inside its persisted domain/category. */
 export interface ContextPackageSummary {
-  handle: string;
+  handle: string | null;
   package_ref: string;
   source_ref: string;
   source_version_ref: string;
@@ -38,6 +38,8 @@ export interface ContextPackageSummary {
   path?: string | string[] | null;
   classification_basis?: unknown;
   placement?: PackagePlacement;
+  available?: boolean;
+  reason?: string;
 }
 
 /** Opaque cursor page; every fetch loads one bounded server page. */
@@ -86,7 +88,7 @@ export interface ContextPackageItem {
 }
 
 /** Dynamic section inventory includes unavailable sections and their actual reasons. */
-export interface ContextPackageSection { id: string; label: string; count: number; available: boolean; reason?: string }
+export interface ContextPackageSection { id: string; label: string; count: number | null; available: boolean; reason?: string | null }
 
 /** A bounded package snapshot, independent of legacy normalized-message identifiers. */
 export interface ContextPackageSnapshot {

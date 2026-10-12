@@ -100,6 +100,7 @@ export function PackageItemEditor({ item, onSave, onDirtyChange, onSelect }: Pac
   };
 
   return <aside className="space-y-5 p-4" aria-label="Selected item editor" data-testid="package-item-editor">
+    {Boolean(item.correction) && <p className="rounded border bg-accent px-3 py-2 text-xs">Showing the current owner-reviewed revision. Source originals and correction history remain in the complete item and package metadata.</p>}
     <PackageItemContent item={item} />
     <section aria-label="All item fields"><h3 className="platform-kicker mb-2">All fields · {Object.keys(item.fields).length}</h3>
       <MetadataFieldTable rows={Object.entries(item.fields).map(([fieldKey, value]) => ({ fieldKey, label: fieldKey, value }))} corrections={new Map()} correctable={Boolean(edit) && !busy && !reason && !patch && !target && !fieldDirty}

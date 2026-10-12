@@ -1,5 +1,6 @@
 // Byline: Codex · GPT-6 · 2026-10-12.
 import { formatValue } from "@/components/metadata/metadata-format";
+import { EntityAliasLabel } from "@/components/entities/entity-alias-label";
 import type { ContextPackageItem, PackageSourceRef } from "@/lib/context-package-client";
 import { AppLink } from "@/lib/router-compat";
 
@@ -48,7 +49,7 @@ export function PackageItemContent({ item }: { item: ContextPackageItem }) {
     {media && mediaType.startsWith("image/") && <img className="max-h-[34rem] max-w-full rounded border object-contain" src={media} alt={item.label} />}
     {media && mediaType === "application/pdf" && <iframe src={media} className="h-[34rem] w-full border" title={item.label} sandbox="" />}
     {textFields.map(([key, text]) => <section key={key}><h3 className="platform-kicker mb-2">{key.replaceAll("_", " ")}</h3><p className="whitespace-pre-wrap break-words text-sm leading-6">{text as string}</p></section>)}
-    {Array.isArray(item.fields.aliases) && <section><h3 className="platform-kicker mb-2">Aliases</h3><ul className="flex flex-wrap gap-1">{item.fields.aliases.map((alias, index) => <li key={index} className="rounded border px-2 py-1 text-xs">{typeof alias === "string" ? alias : JSON.stringify(alias)}</li>)}</ul></section>}
+    {Array.isArray(item.fields.aliases) && <section><h3 className="platform-kicker mb-2">Aliases</h3><ul className="flex flex-wrap gap-1">{item.fields.aliases.map((alias, index) => <li key={index} className="inline-flex gap-1 rounded border px-2 py-1 text-xs">{alias && typeof alias === "object" && typeof alias.text === "string" && typeof alias.kind === "string" ? <EntityAliasLabel alias={alias} /> : typeof alias === "string" ? alias : JSON.stringify(alias)}</li>)}</ul></section>}
     <PackageSources sources={item.source_refs} />
   </article>;
 }

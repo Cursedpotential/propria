@@ -25,14 +25,14 @@ function CategoryPackages({ category, mode }: { category: ContextCategory; mode:
     {query.isPending && <Loading />}
     {query.isError && <ErrorBox error={query.error} onRetry={() => void query.refetch()} />}
     <ul className="divide-y">
-      {packages.map((entry) => <li key={entry.handle}>
-        <AppLink className="flex flex-wrap items-start justify-between gap-2 px-4 py-3 hover:bg-accent focus-visible:outline focus-visible:outline-ring" href={`/read?${new URLSearchParams({ package: entry.handle, mode })}`}>
+      {packages.map((entry) => <li key={entry.source_version_ref}>
+        {entry.handle && entry.available !== false ? <AppLink className="flex flex-wrap items-start justify-between gap-2 px-4 py-3 hover:bg-accent focus-visible:outline focus-visible:outline-ring" href={`/read?${new URLSearchParams({ package: entry.handle, mode })}`}>
           <div className="min-w-0"><strong className="block break-words text-sm">{entry.label || entry.source_ref}</strong>
             <span className="mt-1 block break-all text-xs text-muted-foreground">{entry.source_ref}</span>
             {entry.placement?.unresolved && <span className="mt-1 block text-xs text-destructive">Unresolved placement</span>}
           </div>
           <span className="rounded border px-2 py-0.5 text-xs">{entry.source_type}</span>
-        </AppLink>
+        </AppLink> : <div className="px-4 py-3 text-sm"><strong className="block break-all">{entry.label || entry.source_ref}</strong><p className="mt-1 text-xs text-muted-foreground">{entry.reason || "No package reader binding returned for this registered source."}</p><p className="mt-1 break-all font-mono text-[10px]">{entry.source_ref}</p></div>}
       </li>)}
     </ul>
     {!query.isPending && !query.isError && !packages.length && <p className="px-4 py-4 text-sm text-muted-foreground">No ingested packages are recorded under this category.</p>}

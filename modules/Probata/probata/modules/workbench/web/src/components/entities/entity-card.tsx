@@ -5,6 +5,7 @@ import { Flag, GitMerge, Pencil, Plus, RotateCcw, Scissors, Search, X } from "lu
 import { useMemo, useState } from "react";
 
 import { formatWhen } from "@/components/entities/format";
+import { EntityAliasLabel } from "@/components/entities/entity-alias-label";
 import { RecordPeek } from "@/components/entities/record-peek";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -107,8 +108,7 @@ export function EntityCard({
         {proposal.aliases.map((alias) => (
           <li key={`${alias.kind}:${alias.text}`} className="inline-flex items-center gap-1 border px-1.5 py-0.5" title={alias.scope ? "Only within this source; never a registry alias" : `${alias.kind} · from ${alias.source}`}>
             {splitting && <input type="checkbox" aria-label={`Move ${alias.text}`} checked={splitAliases.includes(alias.text)} onChange={(event) => setSplitAliases((current) => event.target.checked ? [...current, alias.text] : current.filter((value) => value !== alias.text))} />}
-            <span className={cn(alias.address_kind && "font-mono")}>{alias.address_kind === "self" ? "self (this source)" : alias.text}</span>
-            <span className="text-[10px] text-muted-foreground">{alias.kind}</span>
+            <EntityAliasLabel alias={alias} />
             {editable && !splitting && <button type="button" aria-label={`Remove alias ${alias.text}`} className="text-muted-foreground hover:text-destructive" onClick={() => void run(() => actions.correctEntity({ op: "remove_alias", candidate_ids: [id], alias_text: alias.text }))}><X className="size-3" /></button>}
           </li>
         ))}
