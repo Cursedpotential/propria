@@ -46,6 +46,9 @@ import (
 // implement all 26 Proffer stages. Filesystem and embedded observation bodies are
 // separate values so extractor provenance cannot cross activity boundaries.
 type Registrations struct {
+	// PreviewAdmissionRepair appends an explicit source-bound receipt only inside Temporal.
+	// Inputs: current owner intent and source pins. Outputs: receipt. Effects: registered Activity writes one event.
+	PreviewAdmissionRepair func(context.Context, proffer.PreviewAdmissionRepairInput) (proffer.PreviewAdmissionRepairResult, error)
 	// SourcePreview reads one raw page and privately callbacks the ephemeral starter cache.
 	// Inputs: configured provider/callback; outputs: opaque receipts. Effects: registration until invoked.
 	// Choose independently of ingestion, normalized preview and structured ELT.
@@ -210,6 +213,10 @@ func RegisterAll(registrar interface {
 		registrar.RegisterActivityWithOptions(registrations.HumanContext.Verify, activity.RegisterOptions{Name: humancontext.VerifyActivity})
 	}
 	registrar = operatingRegistrar{registrar}
+	registrar.RegisterWorkflowWithOptions(proffer.PreviewAdmissionRepairWorkflow, workflow.RegisterOptions{Name: proffer.PreviewAdmissionRepairWorkflowName})
+	if registrations.PreviewAdmissionRepair != nil {
+		registrar.RegisterActivityWithOptions(registrations.PreviewAdmissionRepair, activity.RegisterOptions{Name: proffer.PreviewAdmissionRepairActivityName})
+	}
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	// The new context branch uses a separate registration body outside legacy case admission.
 	// Inputs: context-v1 source coordinates. Outputs: durable version and receipt refs.
@@ -871,6 +878,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	}
 	aiWorkproductPlacement := activities.NewAIWorkproductPlacementActivities(cfg.DeriveScratchDir, objectStores)
 	return Registrations{
+		PreviewAdmissionRepair: previewStore.RepairBindingAdmission,
 		SourcePreview:  sourcePreview,
 		HumanContext:   humanContext,
 		ContextPackage: activities.AIContextPackageActivities{Placement: aiWorkproductPlacement, Metadata: contextSourceStore, Catalog: nativeContextCatalog(os.Getenv("AI_CONTEXT_CATALOG_DATABASE_URL_FILE"))},

@@ -65,10 +65,11 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: reuse an existing verified AI generation after a content-stage failure.
 	// +1: operator-started source-pinned atomic tool action.
 	// +1: bounded raw-source read preview, independent of the ingestion graph.
-	if recorder.workflowCount != 18 {
-		t.Fatalf("workflow registration count = %d, want 18", recorder.workflowCount)
+	if recorder.workflowCount != 19 {
+		t.Fatalf("workflow registration count = %d, want 19", recorder.workflowCount)
 	}
 	wantNamed := []string{
+		proffer.PreviewAdmissionRepairWorkflowName,
 		sourcepreview.WorkflowName,
 		proffer.AIContentResumeWorkflowName,
 		proffer.BatchWorkflowName, atomictool.WorkflowName, proffer.CallLogBackfillWorkflowName, proffer.SourceIntegrityWorkflowName, proffer.ConversationChunksBackfillWorkflowName,
