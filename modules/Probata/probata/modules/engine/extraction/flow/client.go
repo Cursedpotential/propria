@@ -77,14 +77,21 @@ func (s *Starter) StartCommit(ctx context.Context, request CommitRequest) (Start
 // Status reads a workflow's progress: the live query while it runs, its
 // result once it completed, and the failure when it did not.
 func (s *Starter) Status(ctx context.Context, workflowID string) (Progress, error) {
-	described, err := s.Client.DescribeWorkflowExecution(ctx, workflowID, "")
+	return s.statusForExecution(ctx, workflowID, "")
+}
+
+// statusForExecution pins child status reads to the execution recorded in parent history.
+// Inputs: actual workflow/run IDs, or empty run for the public latest-execution reader.
+// Outputs: query/result/failure Progress; effects: bounded Temporal reads only, never starts or resets work.
+func (s *Starter) statusForExecution(ctx context.Context, workflowID, runID string) (Progress, error) {
+	described, err := s.Client.DescribeWorkflowExecution(ctx, workflowID, runID)
 	if err != nil {
 		return Progress{}, fmt.Errorf("describe %s: %w", workflowID, err)
 	}
 	info := described.GetWorkflowExecutionInfo()
 	switch info.GetStatus() {
 	case enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING:
-		value, err := s.Client.QueryWorkflow(ctx, workflowID, "", StatusQuery)
+		value, err := s.Client.QueryWorkflow(ctx, workflowID, info.GetExecution().GetRunId(), StatusQuery)
 		if err != nil {
 			return Progress{Outcome: OutcomeRunning}, nil
 		}
@@ -96,7 +103,7 @@ func (s *Starter) Status(ctx context.Context, workflowID string) (Progress, erro
 		return s.decorateExtractionStatus(ctx, progress, described), nil
 	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED:
 		var progress Progress
-		if err := s.Client.GetWorkflow(ctx, workflowID, "").Get(ctx, &progress); err != nil {
+		if err := s.Client.GetWorkflow(ctx, workflowID, info.GetExecution().GetRunId()).Get(ctx, &progress); err != nil {
 			return Progress{}, err
 		}
 		progress.WorkflowID, progress.RunID = workflowID, info.GetExecution().GetRunId()

@@ -6,7 +6,6 @@ import (
 	workflowpb "go.temporal.io/api/workflow/v1"
 	workflowservice "go.temporal.io/api/workflowservice/v1"
 	"go.temporal.io/sdk/temporal"
-	"strings"
 )
 
 // boundedExtractionFailure keeps real failure text within the existing compact status surface.
@@ -76,44 +75,13 @@ func decoratePendingExtractionActivities(progress Progress, pending []*workflowp
 	return progress
 }
 
-// decorateExtractionStatus merges real parent and up to sixteen immediate child pending attempts into status.
-// Inputs: actual Describe snapshot and queried result. Output: workflow/run IDs with attempt/failure fields.
-// Effects: bounded child Describe reads; choose for composed monitoring without inferring coordinates from display labels.
+// decorateExtractionStatus overlays bounded recorded child results and actual pending attempts.
+// Inputs: actual parent Describe/query result. Output: source-correlated progress without synthetic duplicate rows.
+// Effects: bounded Temporal reads only; choose for composed monitoring while sequential parent futures remain blocked.
 func (s *Starter) decorateExtractionStatus(ctx context.Context, progress Progress, described *workflowservice.DescribeWorkflowExecutionResponse) Progress {
 	progress = decoratePendingExtractionActivities(progress, described.GetPendingActivities())
-	for n, child := range described.GetPendingChildren() {
-		if n >= 16 {
-			break
-		}
-		if !strings.HasPrefix(child.GetWorkflowId(), "entity-extraction:") && !strings.HasPrefix(child.GetWorkflowId(), "external-extraction:") {
-			continue
-		}
-		snapshot, err := s.Client.DescribeWorkflowExecution(ctx, child.GetWorkflowId(), child.GetRunId())
-		if err != nil {
-			continue
-		}
-		active := decoratePendingExtractionActivities(Progress{}, snapshot.GetPendingActivities())
-		for _, attempt := range active.Steps {
-			if attempt.Attempt == 0 {
-				continue
-			}
-			found := false
-			for i := range progress.Steps {
-				line := &progress.Steps[i]
-				if line.WorkflowID == child.GetWorkflowId() {
-					line.Attempt, line.ActivityID, line.ActivityType, line.LastFailure = attempt.Attempt, attempt.ActivityID, attempt.ActivityType, attempt.LastFailure
-					if attempt.Status == "retrying" {
-						line.Status, line.Detail = "retrying", attempt.LastFailure
-					}
-					found = true
-					break
-				}
-			}
-			if !found {
-				attempt.WorkflowID, attempt.RunID = child.GetWorkflowId(), child.GetRunId()
-				progress.Steps = append(progress.Steps, attempt)
-			}
-		}
+	if described.GetWorkflowExecutionInfo().GetType().GetName() == RequestWorkflowName {
+		return s.overlayRecordedExtractionChildren(ctx, progress, described)
 	}
 	return progress
 }
