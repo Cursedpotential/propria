@@ -60,6 +60,16 @@ export function WorkflowSteps({ progress, title }: { progress: WorkflowProgress 
             <span className="min-w-0">
               <span className={cn(step.status === "failed" && "text-destructive")}>{STEP_LABEL[step.step] ?? step.step}</span>
               {step.detail && <span className="text-muted-foreground"> — {step.detail}</span>}
+              {(step.workflow_id || step.run_id || step.activity_id || step.activity_type || step.attempt !== undefined) && (
+                <dl className="mt-0.5 break-all text-[11px] text-muted-foreground">
+                  {step.workflow_id && <div><dt className="inline">Workflow: </dt><dd className="inline">{step.workflow_id}</dd></div>}
+                  {step.run_id && <div><dt className="inline">Run: </dt><dd className="inline">{step.run_id}</dd></div>}
+                  {step.activity_id && <div><dt className="inline">Activity: </dt><dd className="inline">{step.activity_id}</dd></div>}
+                  {step.activity_type && <div><dt className="inline">Activity type: </dt><dd className="inline">{step.activity_type}</dd></div>}
+                  {step.attempt !== undefined && <div><dt className="inline">Attempt: </dt><dd className="inline">{step.attempt}</dd></div>}
+                </dl>
+              )}
+              {step.last_failure && <span className="mt-0.5 block text-[11px] text-destructive">Last failure: {step.last_failure}</span>}
               {Object.keys(step.counts ?? {}).length > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">{Object.entries(step.counts ?? {}).map(([key, value]) => `${key.replaceAll("_", " ")}: ${value}`).join(" · ")}</span>}
               {step.flags.map((flag, index) => (
                 <span key={`${flag.code}-${index}`} className="mt-0.5 flex items-start gap-1 text-[11px] text-[#8a5a00] dark:text-[#ffd48a]">

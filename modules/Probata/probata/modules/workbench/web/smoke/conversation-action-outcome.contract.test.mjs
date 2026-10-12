@@ -164,3 +164,26 @@ test("standalone and composed requests retain click identity on transport retrie
   for (const outcome of ["pending", "running", "retrying"]) assert.equal(query.refetchInterval({ state: { data: { outcome } } }), 2500);
   for (const outcome of ["failed", "partial", "completed"]) assert.equal(query.refetchInterval({ state: { data: { outcome } } }), false);
 });
+
+
+test("actual child retry metadata survives the adapter and renders while successful siblings stay complete", () => {
+  const { WorkflowSteps } = load("../src/components/entities/workflow-steps.tsx", { "@/lib/utils": { cn } });
+  const metadata = { workflow_id: "child-workflow", run_id: "child-run", activity_id: "model-activity", activity_type: "EntityModel", attempt: 3, last_failure: "provider refused verified request" };
+  const retrying = { ...stage(requested[1], "retrying"), ...metadata };
+  const payload = { ...status("running", [resolution, stage(requested[0], "completed"), retrying]), run_id: "parent-run" };
+  const { progress } = conversationActionProgress(payload, [], requested.slice(0, 2));
+  assert.equal(progress.run_id, "parent-run");
+  assert.equal(progress.outcome, "retrying");
+  for (const [field, value] of Object.entries(metadata)) assert.equal(progress.steps[2][field], value);
+  assert.equal(progress.steps[1].status, "completed");
+  assert.equal(failedConversationExtractors(payload, ["saved-thread"], requested).length, 0, "in-flight retries must not offer another execution");
+  const html = renderToStaticMarkup(React.createElement(WorkflowSteps, { progress, title: "Extraction" }));
+  for (const value of ["child-workflow", "child-run", "model-activity", "EntityModel", "provider refused verified request"]) assert.ok(html.includes(value));
+  assert.match(html, /Attempt: <\/dt><dd class="inline">3<\/dd>/);
+  assert.match(html, /aria-label="retrying"/);
+  const legacy = renderToStaticMarkup(React.createElement(WorkflowSteps, { progress: conversationActionProgress(status("completed", [resolution, stage(requested[0], "completed")]), [], [requested[0]]).progress, title: "Extraction" }));
+  assert.doesNotMatch(legacy, /Attempt:|Last failure:|Activity type:/, "older DTOs must not invent execution metadata");
+  const terminal = status("partial", [resolution, stage(requested[0], "completed"), { ...retrying, status: "failed" }]);
+  assert.equal(failedConversationExtractors(terminal, ["saved-thread"], requested).join(","), requested[1], "targeted retry excludes the successful sibling");
+  assert.equal(conversationActionProgress({ ...payload, outcome: "failed" }, [], requested).progress.outcome, "failed", "business failure still outranks retry decoration");
+});

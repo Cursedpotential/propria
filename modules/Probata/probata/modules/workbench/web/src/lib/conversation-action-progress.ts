@@ -24,9 +24,11 @@ export function failedConversationExtractors(status: ActionStatus, threadIds: re
 export function conversationActionProgress(status: ActionStatus, extractors: readonly ExtractorInfo[], requested: readonly string[] = []) {
   const label = (id?: string) => extractors.find((extractor) => extractor.id === id)?.label ?? (id === "surreal" ? "surreal-case" : id);
   const progress: WorkflowProgress = {
-    workflow_id: status.workflow_id, outcome: status.outcome,
+    workflow_id: status.workflow_id, run_id: status.run_id, outcome: status.outcome,
     steps: status.steps.map((step) => ({
       step: step.step === "resolve" && status.kind === "extraction" ? "Resolve source conversations (preparation)" : step.conversation ? `${step.conversation} · ${label(step.extractor) ?? ""}` : step.step,
+      workflow_id: step.workflow_id, run_id: step.run_id, activity_id: step.activity_id, activity_type: step.activity_type,
+      attempt: step.attempt, last_failure: step.last_failure,
       status: step.status, detail: step.detail ?? "", counts: step.counts ?? {}, flags: step.flags ?? [],
     })),
   };
@@ -45,7 +47,7 @@ export function conversationActionProgress(status: ActionStatus, extractors: rea
     progress.outcome = "failed";
     summary = `${succeeded} requested extractor stage${succeeded === 1 ? "" : "s"} succeeded. The extraction failed; inspect the errors below.`;
   } else if (running) {
-    progress.outcome = business === "retrying" ? "retrying" : business === "pending" || business === "queued" ? "pending" : "running";
+    progress.outcome = (business === "retrying" || stages.some((step) => step.status === "retrying")) ? "retrying" : business === "pending" || business === "queued" ? "pending" : "running";
     summary = `${succeeded} requested extractor stage${succeeded === 1 ? "" : "s"} succeeded so far. Source resolution alone does not complete extraction.`;
   } else if (!succeeded) {
     progress.outcome = "failed";
