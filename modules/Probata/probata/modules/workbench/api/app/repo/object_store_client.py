@@ -222,17 +222,18 @@ def get_client():
 
 
 def check_connectivity() -> bool:
-    """Check read-only listing access to every configured active source prefix.
+    """Check read-only listing access to every explicitly configured B2 source root.
 
     Inputs: the source-root registry and explicit store credentials. Output: a
     fail-closed readiness boolean. Effects: at most one listed key per root,
-    never object bodies or writes. Use for health, not acquisition verification;
-    retired R2 and unscoped whole-bucket roots cannot establish readiness.
+    never object bodies or writes. Use for health, not acquisition verification.
+    An explicit whole-bucket browser root is valid; it does not admit processing
+    or imply that other buckets are accessible. Retired R2 is not readiness.
     """
     try:
         stores = configured_object_stores()
         if not SOURCE_ROOTS or any(
-            root.scheme == "r2" or root.scheme not in stores or not root.key_prefix for root in SOURCE_ROOTS.values()
+            root.scheme == "r2" or root.scheme not in stores for root in SOURCE_ROOTS.values()
         ):
             raise ValueError("active source-root configuration is unavailable")
         for root in SOURCE_ROOTS.values():

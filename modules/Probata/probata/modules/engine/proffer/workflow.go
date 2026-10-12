@@ -104,19 +104,22 @@ func fingerprintVocabularyFor(ctx workflow.Context) fingerprintVocabulary {
 	}
 }
 
-// ProfferWorkflow is the single Temporal workflow every source runs
-// through (boundary document acceptance gate 1). It executes the exact
-// engine/stagegraph.Stages graph — all 26 atomic Activities, the documented
-// safe parallel fan-outs, and deterministic ordering everywhere else — and
-// fails closed: any Activity error or explicit StatusFailed result halts
-// every descendant and both seal_generation_activity and
-// publish_generation_activity. StatusSuccess and StatusNotApplicable are
-// both valid outcomes that let the workflow continue.
-//
-// This function contains no Activity bodies. Every stage is invoked by its
-// canon name (ActivityName, identical to stagegraph.StageID) so a worker in
-// a later lane can register real Activities without this file changing.
+// ProfferWorkflow selects the tagged context-first path or preserves the established legacy stage graph.
+// Inputs: source coordinates, caller identity and optional context contract. Outputs: reference-only workflow result.
+// Effects: named Temporal Activities in the worker; choose context-v1 for source processing without legacy case admission.
 func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
+	if in.ContextContract != "" && in.ContextContract != ContextContractVersion {
+		return WorkflowResult{}, errors.New("unknown context import contract")
+	}
+	// Only explicitly tagged new requests see this marker. Old histories retain their
+	// original first command and never cross the context-first branch on replay.
+	if in.ContextContract == ContextContractVersion {
+		if workflow.GetVersion(ctx, contextFirstChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+			return contextFirstWorkflow(ctx, in)
+		}
+		return WorkflowResult{}, errors.New("context-first import requires the versioned workflow path")
+	}
+
 	// A missing version marker identifies old history, not LIVE authorization.
 	// Replay preserves its historical commands; Activity admission rejects unknown pending writes.
 	if workflow.GetVersion(ctx, operatingContextChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
@@ -1173,7 +1176,7 @@ type run struct {
 	ctx workflow.Context
 	// autoExtraction records whether the automatic extraction child started.
 	autoExtraction string
-	aiContent *AIContentSummary
+	aiContent      *AIContentSummary
 }
 
 // pending is an in-flight Activity future paired with the stage id that

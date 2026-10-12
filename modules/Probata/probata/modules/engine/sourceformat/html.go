@@ -12,17 +12,15 @@ import (
 // detected as bare xml; the DOCTYPE is the cue.
 var htmlRoot = regexp.MustCompile(`(?is)\A(?:<\?xml[^>]*\?>\s*|<!--.*?-->\s*)*(?:<!doctype\s+html\b|<html\b)`)
 
-// classToken reports whether a quoted HTML class attribute contains an exact token.
+// classToken reports whether the markup carries class="... token ..." (token-exact).
 // Inputs: bounded markup and class token. Output: match. Side effects: none.
-// Pick inside the shared HTML signature check for either quote style.
+// Pick inside the shared HTML signature check.
 func classToken(head []byte, token string) bool {
-	quoted := regexp.QuoteMeta(token)
-	return regexp.MustCompile(`(?i)class\s*=\s*(?:"[^"]*\b` + quoted + `\b[^"]*"|'[^']*\b` + quoted + `\b[^']*')`).Match(head)
+	return regexp.MustCompile(`class="[^"]*\b` + regexp.QuoteMeta(token) + `\b[^"]*"`).Match(head)
 }
 
-// detectHTMLContent recognizes iMessage and Facebook Messenger HTML exports.
-// iMessage requires message direction and metadata classes. Facebook
-// Messenger threads use the "Download your information" card classes
+// detectHTMLContent recognizes an HTML document and, inside it, a Facebook
+// Messenger thread file: the "Download your information" card classes
 // (_a6-g card, _a6-h sender, _a6-p body, _a6-o timestamp) WITHOUT the section
 // description paragraph (_a70f) that every other Facebook export page
 // (logins, search history, friends...) carries under its title. Section pages
@@ -37,15 +35,6 @@ func detectHTMLContent(head []byte) (format, signatureKind string, ok bool) {
 	}
 	if !htmlRoot.Match(probe) {
 		return "", "", false
-	}
-	ownerIMessage := classToken(head, "bubble") &&
-		(classToken(head, "from-me") || classToken(head, "from-them")) &&
-		classToken(head, "meta")
-	stockIMessage := classToken(head, "message") &&
-		(classToken(head, "sent") || classToken(head, "received")) &&
-		(classToken(head, "timestamp") || classToken(head, "sender"))
-	if ownerIMessage || stockIMessage {
-		return "imessage_html", "imessage_message_html_v1", true
 	}
 	if classToken(head, "_a6-g") && classToken(head, "_a6-h") && classToken(head, "_a6-p") &&
 		classToken(head, "_a6-o") && !bytes.Contains(head, []byte(`"_a70f"`)) {

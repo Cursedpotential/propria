@@ -17,6 +17,7 @@ from app.runtime.proffer_events import router as _events_router
 from app.runtime.proffer_media import router as _media_router
 from app.runtime.proffer_search_params import MessageSearchFilter
 from app.runtime.proffer_upload import router as _upload_router
+from app.runtime.source_message_preview import router as _source_preview_router
 from app.service.proffer import (
     ProfferError,
     browse_sources,
@@ -32,6 +33,7 @@ from app.service.proffer import (
 from app.service.proffer_flags import create_potential_promotion_flag, list_potential_promotion_flags
 from app.service.proffer_operations import list_operations, operation
 from app.service.proffer_operator import operator_snapshot
+from app.types.matter_mode import MatterMode
 from app.types.proffer import (
     ProfferContentResponse,
     ProfferDecisionActor,
@@ -60,6 +62,7 @@ from app.types.proffer_operations import (
 from app.types.proffer_operator import ProfferOperatorSnapshot
 
 router = APIRouter(prefix="/api/proffer", tags=["proffer"])
+router.include_router(_source_preview_router)
 router.include_router(_media_router)  # GET .../media/{sha256}: see app/runtime/proffer_media.py
 router.include_router(_decoded_router)  # GET /decoded/*: SBV output before an ingest run exists
 router.include_router(_events_router)  # GET .../events: see app/runtime/proffer_events.py
@@ -84,7 +87,7 @@ def _decision_actor(request: Request) -> ProfferDecisionActor:
 
 @router.get("/sources", response_model=ProfferSourceBrowserResponse)
 def sources_endpoint(
-    mode: OperatingMode,
+    mode: Annotated[MatterMode, Query()] = "LIVE",
     root_id: Annotated[str, Query(min_length=1, max_length=64)] = DEFAULT_SOURCE_ROOT_ID,
     prefix: Annotated[str, Query(max_length=1024)] = "",
     continuation_token: Annotated[str | None, Query(max_length=4096)] = None,
@@ -93,6 +96,12 @@ def sources_endpoint(
     file_type: Annotated[list[str] | None, Query()] = None,
     page_size: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
+    """Browse one configured object-store root without admitting a case.
+
+    Inputs: root ID, relative prefix, optional filename filter and page cursor.
+    Output: bounded files/folders and available configured roots. Effects: one
+    provider listing; use for navigation, not processing authorization.
+    """
     try:
         return browse_sources(
             mode=mode,
