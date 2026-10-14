@@ -392,6 +392,10 @@ func CycleWorkflow(ctx workflow.Context, req CycleRequest) (CycleResult, error) 
 		}
 		if pass == maxPasses {
 			// Not an error: the next scheduled cycle resumes from the same watermark (nothing was committed).
+			// Let the independently bounded image backlog progress even while text extraction remains behind.
+			if err := runImageStage(ctx, &req, id, &status, &result, stage); err != nil {
+				return result, err
+			}
 			result.Outcome = "max_passes_reached"
 			return result, nil
 		}
