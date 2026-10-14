@@ -58,11 +58,19 @@ def vector_schema() -> pa.Schema:
 
 
 def chunk_source_sql(output_dir: Path) -> str:
-    """A FROM relation: the chunks of the active snapshot's documents (every chunk when there is no
-    snapshot)."""
+    """Select active chunks while retaining older shards without inventing chunk identities.
+
+    Inputs: the owning output directory. Output: a DuckDB FROM relation.
+    Side effects: reads the snapshot locator only; the caller reads Parquet.
+    Pick this for embedding and publication across mixed schema generations. Legacy rows
+    lack content-addressed identity and remain pending re-extraction rather than being
+    assigned a guessed chunker version or causing a SQL binder failure.
+    """
     chunks = (
+        "(SELECT * FROM "
         f"read_parquet('{_posix(output_dir / 'datasets' / 'chunks' / '*.parquet')}', "
-        "union_by_name = true)"
+        "union_by_name = true) UNION ALL BY NAME "
+        "SELECT NULL::VARCHAR AS content_hash, NULL::VARCHAR AS chunker_version WHERE false)"
     )
     snapshot = newest_snapshot(output_dir)
     if snapshot is None:
