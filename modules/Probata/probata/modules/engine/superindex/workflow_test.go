@@ -4,6 +4,7 @@ package superindex
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 
@@ -15,8 +16,9 @@ type recorder struct {
 	mu    sync.Mutex
 	calls []string
 	// perStage counts calls to a stage, so a stage can answer "more" a fixed number of times.
-	perStage    map[string]int
-	imageParams []map[string]any
+	perStage        map[string]int
+	imageParams     []map[string]any
+	imageFetchFails bool
 }
 
 func (r *recorder) note(name string) int {
@@ -35,6 +37,9 @@ func registerImages(env *testsuite.TestWorkflowEnvironment, r *recorder, imageSl
 	env.RegisterActivityWithOptions(func(ctx context.Context, req StageRequest) (ImageFetchResult, error) {
 		n := r.note(ImageFetchActivityName)
 		r.imageParams = append(r.imageParams, req.Params)
+		if r.imageFetchFails {
+			return ImageFetchResult{}, errors.New("image fetch failed")
+		}
 		if n > imageSlices {
 			return ImageFetchResult{}, nil
 		}
@@ -276,6 +281,67 @@ func TestImageLoopIsBoundedPerCycle(t *testing.T) {
 	result := runWithImages(t, CycleRequest{ImageMaxSlices: 3}, r, false, 0, 50, []string{"image_single"})
 	if result.ImageSlices != 3 {
 		t.Fatalf("the loop must stop at ImageMaxSlices, ran %d", result.ImageSlices)
+	}
+}
+
+func TestMaxTextPassesStillRunBoundedImageStageWithoutCommitting(t *testing.T) {
+	r := &recorder{}
+	result := runWithImages(t, CycleRequest{MaxPasses: 1, ImageMaxSlices: 1, SkipSummary: true}, r, true, 1, 3, []string{"image_single"})
+	if result.Outcome != "max_passes_reached" || result.Passes != 1 {
+		t.Fatalf("text loop should remain bounded at one pass, got %+v", result)
+	}
+	if result.ImageSlices != 1 || r.perStage[ImageFetchActivityName] != 1 {
+		t.Fatalf("image work should run once within its slice bound, result=%+v calls=%v", result, r.calls)
+	}
+	for _, activityName := range []string{
+		ImageFactsActivityName,
+		ImageOcrActivityName,
+		ImageEmbedActivityName + ":image_single",
+		ImagePublishActivityName,
+	} {
+		if r.perStage[activityName] != 1 {
+			t.Fatalf("image activity %s should run once, calls=%v", activityName, r.calls)
+		}
+	}
+	if r.perStage[ExtractActivityName] != 1 {
+		t.Fatalf("text extraction should remain bounded at one pass, got %d calls", r.perStage[ExtractActivityName])
+	}
+	for _, call := range r.calls {
+		if call == CommitActivityName || call == GraphActivityName {
+			t.Fatalf("max-pass result must not graph or commit the text watermark: %v", r.calls)
+		}
+	}
+}
+
+func TestMaxTextPassesHonorSkipImages(t *testing.T) {
+	r := &recorder{}
+	result := runWithImages(t, CycleRequest{MaxPasses: 1, SkipImages: true, SkipSummary: true}, r, true, 1, 3, []string{"image_single"})
+	if result.Outcome != "max_passes_reached" {
+		t.Fatalf("outcome = %q, want max_passes_reached", result.Outcome)
+	}
+	if r.perStage[ImageFetchActivityName] != 0 {
+		t.Fatalf("SkipImages must suppress image work at the max-pass boundary: %v", r.calls)
+	}
+}
+
+func TestMaxTextPassesPropagateImageStageErrors(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(CycleWorkflow)
+	r := &recorder{imageFetchFails: true}
+	register(env, r, true, 1)
+	registerImages(env, r, 1, []string{"image_single"})
+	env.ExecuteWorkflow(CycleWorkflow, CycleRequest{MaxPasses: 1, SkipSummary: true})
+	if err := env.GetWorkflowError(); err == nil {
+		t.Fatal("image fetch failure at the max-pass boundary must fail the workflow")
+	}
+	if r.perStage[ImageFetchActivityName] == 0 {
+		t.Fatalf("image fetch should be attempted, calls=%v", r.calls)
+	}
+	for _, call := range r.calls {
+		if call == CommitActivityName {
+			t.Fatalf("failed image work must not advance the text watermark: %v", r.calls)
+		}
 	}
 }
 
