@@ -35,16 +35,19 @@ def test_legacy_shards_do_not_fail_or_gain_guessed_identity(tmp_path: Path) -> N
 
     pq.write_table(
         pa.Table.from_pylist(
-            [{
-                "document_id": "new",
-                "text": "new identified chunk",
-                "content_hash": "new-hash",
-                "chunker_version": "known-version",
-            }]
+            [
+                {
+                    "document_id": "new",
+                    "text": "new identified chunk",
+                    "content_hash": "new-hash",
+                    "chunker_version": "known-version",
+                }
+            ]
         ),
         chunks / "current.parquet",
     )
     assert select_pending(tmp_path, "text_nim", 10) == (
-        [("new-hash", "new identified chunk")], False
+        [("new-hash", "new identified chunk")],
+        False,
     )
     assert hashlib.sha256(legacy.read_bytes()).digest() == original

@@ -13,9 +13,11 @@ import pytest
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pillow_heif import register_heif_opener
 
+from casebible_index import image_ocr
 from casebible_index.image_decode import jpeg_derivative, open_image
 from casebible_index.image_embedders import mime_for
 from casebible_index.image_facts import read_image_facts
+from casebible_index.image_ocr import read_text
 from casebible_index.image_slice import (
     ImageItem,
     Slice,
@@ -24,13 +26,9 @@ from casebible_index.image_slice import (
     parse_image_allowlist,
     select_images,
 )
-from casebible_index.image_stage import prepare_for_embedding, thumbnail_b64
+from casebible_index.image_stage import ImageStageSettings, prepare_for_embedding, thumbnail_b64
 from casebible_index.parquet_store import write_json_immutable
-from casebible_index.stage_runner import _scoped_image_slice
-from casebible_index.image_stage import ImageStageSettings
-from casebible_index.image_ocr import read_text
-from casebible_index import image_ocr
-from casebible_index.stage_runner import stage_image_fetch
+from casebible_index.stage_runner import _scoped_image_slice, stage_image_fetch
 
 
 def _heif(path: Path) -> None:
@@ -67,11 +65,17 @@ def test_heif_embedded_facts_are_read_from_original_not_jpeg(tmp_path):
     original = tmp_path / "camera.heic"
     _heif(original)
     command = [
-        binary, "-overwrite_original", "-EXIF:DateTimeOriginal=2024:05:06 12:13:14",
-        "-EXIF:Make=ProofCamera", "-EXIF:Model=Model1",
-        "-EXIF:Orientation=Rotate 90 CW", "-EXIF:GPSLatitude=42.5",
-        "-EXIF:GPSLatitudeRef=N", "-EXIF:GPSLongitude=83.25",
-        "-EXIF:GPSLongitudeRef=W", str(original),
+        binary,
+        "-overwrite_original",
+        "-EXIF:DateTimeOriginal=2024:05:06 12:13:14",
+        "-EXIF:Make=ProofCamera",
+        "-EXIF:Model=Model1",
+        "-EXIF:Orientation=Rotate 90 CW",
+        "-EXIF:GPSLatitude=42.5",
+        "-EXIF:GPSLatitudeRef=N",
+        "-EXIF:GPSLongitude=83.25",
+        "-EXIF:GPSLongitudeRef=W",
+        str(original),
     ]
     done = subprocess.run(command, capture_output=True, check=False, timeout=30)
     assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
@@ -123,26 +127,60 @@ def _inventory(root: Path) -> None:
     path = root / "inventory" / "represented" / "proof.parquet"
     path.parent.mkdir(parents=True)
     rows = [
-        {"provider": "b2", "bucket": "salem-data", "key": "selected/a.heic", "size": 100, "sha1": "a", "kind": "media"},
-        {"provider": "b2", "bucket": "salem-data", "key": "selected/b.heif", "size": 100, "sha1": "b", "kind": "media"},
-        {"provider": "b2", "bucket": "salem-data", "key": "selected-neighbor/c.heic", "size": 100, "sha1": "c", "kind": "media"},
-        {"provider": "b2", "bucket": "other", "key": "selected/d.heic", "size": 100, "sha1": "d", "kind": "media"},
+        {
+            "provider": "b2",
+            "bucket": "salem-data",
+            "key": "selected/a.heic",
+            "size": 100,
+            "sha1": "a",
+            "kind": "media",
+        },
+        {
+            "provider": "b2",
+            "bucket": "salem-data",
+            "key": "selected/b.heif",
+            "size": 100,
+            "sha1": "b",
+            "kind": "media",
+        },
+        {
+            "provider": "b2",
+            "bucket": "salem-data",
+            "key": "selected-neighbor/c.heic",
+            "size": 100,
+            "sha1": "c",
+            "kind": "media",
+        },
+        {
+            "provider": "b2",
+            "bucket": "other",
+            "key": "selected/d.heic",
+            "size": 100,
+            "sha1": "d",
+            "kind": "media",
+        },
     ]
     pq.write_table(pa.Table.from_pylist(rows), path)
 
 
 def test_persistent_allowlist_intersects_manual_selector_before_query(tmp_path):
     _inventory(tmp_path)
-    scope = parse_image_allowlist(json.dumps([
-        {"provider": "b2", "bucket": "salem-data", "path_prefix": "selected/"}
-    ]))
+    scope = parse_image_allowlist(
+        json.dumps([{"provider": "b2", "bucket": "salem-data", "path_prefix": "selected/"}])
+    )
     rows, more, skipped = select_images(tmp_path, 10, 1000, allowlist=scope)
     assert {row["key"] for row in rows} == {"selected/a.heic", "selected/b.heif"}
     assert not more and skipped["unsupported_format"] == 0
-    rows, _, _ = select_images(tmp_path, 10, 1000, allowlist=scope, locators=[
-        {"provider": "b2", "bucket": "salem-data", "key": "selected/b.heif"},
-        {"provider": "b2", "bucket": "salem-data", "key": "selected-neighbor/c.heic"},
-    ])
+    rows, _, _ = select_images(
+        tmp_path,
+        10,
+        1000,
+        allowlist=scope,
+        locators=[
+            {"provider": "b2", "bucket": "salem-data", "key": "selected/b.heif"},
+            {"provider": "b2", "bucket": "salem-data", "key": "selected-neighbor/c.heic"},
+        ],
+    )
     assert [row["key"] for row in rows] == ["selected/b.heif"]
     for bad in ("[]", "{", '[{"provider":"b2","bucket":"salem-data","path_prefix":""}]'):
         with pytest.raises(ValueError):
@@ -151,15 +189,21 @@ def test_persistent_allowlist_intersects_manual_selector_before_query(tmp_path):
 
 @pytest.mark.asyncio
 async def test_old_pending_slice_outside_current_scope_rejected_before_bucket_read(tmp_path):
-    sl = Slice("old", "image", [ImageItem("a", "a", "b2", "salem-data", "outside/a.heic", 10, 1, "000.heic")])
+    sl = Slice(
+        "old",
+        "image",
+        [ImageItem("a", "a", "b2", "salem-data", "outside/a.heic", 10, 1, "000.heic")],
+    )
     write_json_immutable(manifest_path(tmp_path, "old"), sl.to_json())
-    scope = parse_image_allowlist(json.dumps([
-        {"provider": "b2", "bucket": "salem-data", "path_prefix": "selected/"}
-    ]))
+    scope = parse_image_allowlist(
+        json.dumps([{"provider": "b2", "bucket": "salem-data", "path_prefix": "selected/"}])
+    )
     reads = []
+
     def store_for(*args):
         reads.append(args)
         raise AssertionError("bucket must not be read")
+
     with pytest.raises(ValueError, match="outside"):
         await fetch_slice(tmp_path, None, store_for, allowlist=scope)
     assert reads == []

@@ -449,7 +449,9 @@ def _scoped_image_slice(output_dir: Path, slice_id: str, image: ImageStageSettin
     else:
         exact = sl.scope.get("manual_locators")
         if not isinstance(exact, list) or not exact:
-            raise ValueError("image slice requires a persistent allowlist or retained manual locators")
+            raise ValueError(
+                "image slice requires a persistent allowlist or retained manual locators"
+            )
         validate_slice_scope(sl, None, locators=exact)
     return sl
 

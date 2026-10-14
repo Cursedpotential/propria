@@ -34,6 +34,9 @@ x-superindex-env: &superindex-env
   INTAKE_LOCK_DIR: /var/lib/superindex/state/.source-locks
   INTAKE_SPOOL_DIR: /var/lib/superindex/spool
   TMPDIR: /var/lib/superindex/spool
+  # Mutable user caches and DuckDB extensions persist on the attached data disk.
+  HOME: /home/superindex
+  XDG_CACHE_HOME: /var/lib/superindex/state/cache
 
   # Source: the catalog, never a re-walk (owner 2026-09-16). The query reads raw_duck.superindex_source_current,
   # a view over bucket_objects_current (casebible/tools/superindex_source_current_20261003.sql).
@@ -93,6 +96,8 @@ x-superindex-env: &superindex-env
   #   INTAKE_IMAGES_CLIP=1 adds Weaviate's in-database CLIP vector (needs the multi2vec-clip container, see
   #          Probata deploy/data-weaviate-native-v1.yaml); INTAKE_IMAGES_PHOTO_TIER=clip_first gives photos CLIP only.
   INTAKE_IMAGE_STAGE: ${INTAKE_IMAGE_STAGE:-off}
+  # Fail closed unless automatic image work has an explicit provider/bucket/folder scope.
+  INTAKE_IMAGES_ALLOWED_PREFIXES_JSON: ${INTAKE_IMAGES_ALLOWED_PREFIXES_JSON:-[]}
   INTAKE_IMAGES_WEAVIATE_URL: ${INTAKE_IMAGES_WEAVIATE_URL:-}
   INTAKE_IMAGES_COLLECTION: ${INTAKE_IMAGES_COLLECTION:-IntakeImageV1}
   INTAKE_IMAGES_SLOTS: ${INTAKE_IMAGES_SLOTS:-image_maxsim,image_single}
@@ -120,6 +125,7 @@ x-superindex-volumes: &superindex-volumes
   - /data/consignatio/volumes/superindex/output:/var/lib/superindex/output
   - /data/consignatio/volumes/superindex/state:/var/lib/superindex/state
   - /data/consignatio/volumes/superindex/spool:/var/lib/superindex/spool
+  - /data/consignatio/volumes/superindex/home:/home/superindex
   # Read-only credential documents, Probata's convention.
   - /data/probata/secrets/casebible-b2.json:/run/secrets/casebible-b2.json:ro
 

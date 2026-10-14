@@ -24,14 +24,25 @@ import httpx
 from cocoindex.connectors import localfs
 from cocoindex.resources.file import FileLike, PatternFilePathMatcher
 
-from .image_embedders import JINA_MODEL, SINGLE_DIMENSIONS, ImageEmbedders
 from .image_decode import HEIF_EXTENSIONS, jpeg_derivative
+from .image_embedders import JINA_MODEL, SINGLE_DIMENSIONS, ImageEmbedders
 from .image_facts import read_image_facts
 from .image_target import IMAGE_WRITER, ImageObjectSpec, ImageObjectWriter, declare_image
 from .secrets import get_secret
 from .source_runtime import source_lock
 
-IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif")
+IMAGE_EXTENSIONS = (
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".heic",
+    ".heif",
+)
 _EXCLUDED_SEGMENTS = frozenset({".git", ".review_hold", "to_be_deleted", "__pycache__"})
 _SIDECAR_SUFFIXES = (".json", ".supplemental-metadata.json")
 EMBEDDERS = coco.ContextKey[ImageEmbedders]("intake_images_embedders")

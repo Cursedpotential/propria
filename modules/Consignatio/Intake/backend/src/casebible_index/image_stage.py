@@ -44,6 +44,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+
 from .image_decode import NATIVE_PROVIDER_EXTENSIONS, jpeg_derivative, open_image
 from .image_embedders import SINGLE_DIMENSIONS
 from .image_facts import read_image_facts
@@ -447,6 +448,7 @@ async def run_ocr(
 
 # -------------------------------------------------- embed
 
+
 def prepare_for_embedding(path: Path) -> tuple[bytes, str]:
     """Provide original native bytes or a bounded JPEG for a hosted embedder.
 
@@ -457,7 +459,11 @@ def prepare_for_embedding(path: Path) -> tuple[bytes, str]:
     size = path.stat().st_size
     ext = path.suffix.casefold()
     with open_image(path) as image:
-        if ext in NATIVE_PROVIDER_EXTENSIONS and size <= MAX_EMBED_BYTES and max(image.size) <= MAX_EMBED_EDGE:
+        if (
+            ext in NATIVE_PROVIDER_EXTENSIONS
+            and size <= MAX_EMBED_BYTES
+            and max(image.size) <= MAX_EMBED_EDGE
+        ):
             return path.read_bytes(), ext
     return jpeg_derivative(path, edge=MAX_EMBED_EDGE), ".jpg"
 

@@ -42,7 +42,9 @@ class ImageFacts:
     notes: list[str] = field(default_factory=list)
 
 
-def _run(argv: list[str], timeout: int, data: bytes | None = None) -> subprocess.CompletedProcess[bytes] | None:
+def _run(
+    argv: list[str], timeout: int, data: bytes | None = None
+) -> subprocess.CompletedProcess[bytes] | None:
     """Run a metadata or OCR tool with fixed arguments and a bounded timeout.
 
     Inputs: argv, timeout and optional stdin bytes. Output: process result or None on launch or
@@ -82,7 +84,11 @@ def _ocr(path: Path | bytes, max_chars: int) -> tuple[str, float] | None:
     if binary is None:
         return None
     stdin = isinstance(path, bytes)
-    done = _run([binary, "-" if stdin else str(path), "stdout", "-l", "eng", "--psm", "3", "tsv"], 180, path if stdin else None)
+    done = _run(
+        [binary, "-" if stdin else str(path), "stdout", "-l", "eng", "--psm", "3", "tsv"],
+        180,
+        path if stdin else None,
+    )
     if done is None or done.returncode != 0:
         return None
     words: list[str] = []
@@ -132,7 +138,9 @@ def read_image_facts(
     lowered = original_name.casefold()
     facts.is_screenshot = facts.is_screenshot or any(hint in lowered for hint in _SCREENSHOT_HINTS)
     if ocr:
-        source = jpeg_derivative(path, edge=2048) if path.suffix.casefold() in HEIF_EXTENSIONS else path
+        source = (
+            jpeg_derivative(path, edge=2048) if path.suffix.casefold() in HEIF_EXTENSIONS else path
+        )
         read = _ocr(source, max_ocr_chars)
         if read is None:
             facts.notes.append("tesseract unavailable or failed: no fallback text")

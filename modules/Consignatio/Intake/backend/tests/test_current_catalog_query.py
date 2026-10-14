@@ -16,9 +16,9 @@ def test_current_catalog_rows_retain_bucket_identity_and_occurrences() -> None:
     Side effects: temporary DuckDB tables only. Pick this regression before changing
     the default catalog SQL or its provider/bucket projection.
     """
-    query = (
-        Path(__file__).parents[1] / "src/casebible_index/sql/catalog_source.sql"
-    ).read_text(encoding="utf-8")
+    query = (Path(__file__).parents[1] / "src/casebible_index/sql/catalog_source.sql").read_text(
+        encoding="utf-8"
+    )
     with duckdb.connect() as con:
         con.execute("ATTACH ':memory:' AS catalog")
         con.execute("CREATE SCHEMA catalog.raw_duck")
