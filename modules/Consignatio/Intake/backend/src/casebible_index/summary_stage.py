@@ -22,8 +22,8 @@ fits
 
 The result is an immutable Parquet under ``datasets/summaries`` that
 ``summaries.documents_relation`` lays over the
-document row. A failed summary leaves a ``failed`` marker so the same document is not retried every
-cycle; the model
+document row. Failed attempts leave immutable ``failed`` markers and remain eligible for a
+bounded retry on later passes (three attempts total per document version); the model
 is a setting (``NIM_SUMMARY_MODEL``), so switching providers is configuration.
 """
 
@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import re
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -41,6 +42,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
+from pydantic import ValidationError
 
 from .models import DocumentEnrichment
 from .snapshots import newest_snapshot
@@ -60,6 +62,7 @@ DEFAULT_EXTENSIONS = (
 DEFAULT_MIN_CHARS = 800
 DEFAULT_MAX_DOCS = 200
 CONCURRENCY = 4
+MAX_SUMMARY_ATTEMPTS = 3
 
 SUMMARY_SCHEMA = pa.schema(
     [
@@ -107,15 +110,23 @@ def policy_from_env() -> dict[str, Any]:
 
 
 def select_candidates(output_dir: Path, policy: dict[str, Any]) -> list[dict[str, Any]]:
+    """Select active indexed versions without success and below the failed-attempt cap.
+
+    Inputs are the lake and summary policy; output is a bounded candidate list.
+    Reads immutable Parquet only. Use for the separate summary pass after indexing.
+    """
     documents = output_dir / "datasets" / "documents"
     snapshot = newest_snapshot(output_dir)
     if snapshot is None or not any(documents.glob("*.parquet")):
         return []
     summaries = output_dir / "datasets" / "summaries"
     done = (
-        "SELECT DISTINCT document_id, version_id "
+        "SELECT document_id, version_id "
         f"FROM read_parquet('{_posix(summaries / '*.parquet')}', "
-        "union_by_name = true)"
+        "union_by_name = true) "
+        "GROUP BY document_id, version_id "
+        f"HAVING count(*) FILTER (WHERE summary_coverage = 'failed') >= {MAX_SUMMARY_ATTEMPTS} "
+        "OR count(*) FILTER (WHERE summary_coverage IS DISTINCT FROM 'failed') > 0"
         if summaries.is_dir() and any(summaries.glob("*.parquet"))
         else "SELECT NULL::VARCHAR AS document_id, NULL::VARCHAR AS version_id WHERE false"
     )
@@ -210,6 +221,11 @@ def write_summary(
     ratio: float,
     enrichment: DocumentEnrichment | None,
 ) -> Path:
+    """Append one immutable summary or failure marker for a document version.
+
+    Inputs are source identity, model, coverage, ratio and optional enrichment.
+    Returns the Parquet path and writes no source data. Use after one model attempt.
+    """
     e = enrichment or DocumentEnrichment()
     row = {
         "document_id": doc["document_id"],
@@ -255,6 +271,37 @@ def write_summary(
 Summarize = Callable[..., Awaitable[DocumentEnrichment]]
 
 
+def _safe_failure_notes(exc: Exception) -> list[str]:
+    """Describe a provider failure with allowlisted metadata, without exception text.
+
+    Input is the raised exception; output is safe review notes. Has no side effects.
+    Use for immutable failure markers, never for raw provider-response logs.
+    """
+    notes = [f"summary_error:{type(exc).__name__}"]
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    for _ in range(8):
+        if current is None or id(current) in seen:
+            break
+        seen.add(id(current))
+        response = getattr(current, "response", None)
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int) and 100 <= status <= 599:
+            notes.append(f"http_status:{status}")
+        if isinstance(current, ValidationError):
+            for error in current.errors(include_input=False):
+                location = error.get("loc", ())
+                if location and location[0] in DocumentEnrichment.model_fields:
+                    notes.append(f"validation_field:{location[0]}")
+        current = current.__cause__
+    match = re.fullmatch(r"Summary did not finish cleanly: ([a-z_]+)", str(exc))
+    if match and match.group(1) in {"length", "content_filter", "tool_calls", "stop"}:
+        notes.append(f"finish_reason:{match.group(1)}")
+    if str(exc) == "NIM summary was not valid schema-conformant JSON":
+        notes.append("validation:schema_json")
+    return list(dict.fromkeys(notes))
+
+
 async def run_summary(
     output_dir: Path,
     summarize: Summarize,
@@ -264,6 +311,11 @@ async def run_summary(
     policy: dict[str, Any] | None = None,
     beat: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
+    """Summarize a bounded pass and persist each success or failed attempt.
+
+    Inputs are lake, provider callable, model, text limit, and optional policy/heartbeat.
+    Returns pass counts; writes immutable Parquet. Use after indexing, never inline.
+    """
     policy = policy or policy_from_env()
     candidates = await asyncio.to_thread(select_candidates, output_dir, policy)
     done = failed = 0
@@ -284,8 +336,11 @@ async def run_summary(
                     coverage=coverage,
                 )
             # noqa: BLE001 - a provider failure is recorded, never fatal to the pass
-            except Exception:
-                await asyncio.to_thread(write_summary, output_dir, doc, model, "failed", 0.0, None)
+            except Exception as exc:
+                failure = DocumentEnrichment(review_notes=_safe_failure_notes(exc))
+                await asyncio.to_thread(
+                    write_summary, output_dir, doc, model, "failed", 0.0, failure
+                )
                 return False
             await asyncio.to_thread(
                 write_summary, output_dir, doc, model, coverage, ratio, enrichment

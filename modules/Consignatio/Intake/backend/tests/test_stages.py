@@ -298,7 +298,7 @@ async def test_summary_is_a_separate_pass_chosen_from_the_index_and_overlays_the
 
 
 @pytest.mark.asyncio
-async def test_a_failed_summary_leaves_a_marker_and_is_not_retried(tmp_path: Path, monkeypatch):
+async def test_a_failed_summary_stops_after_three_recorded_attempts(tmp_path: Path, monkeypatch):
     out = tmp_path / "lake"
     await build_lake(out, monkeypatch)
 
@@ -308,6 +308,12 @@ async def test_a_failed_summary_leaves_a_marker_and_is_not_retried(tmp_path: Pat
     policy = {"extensions": (".txt",), "min_chars": 100, "max_docs": 10}
     first = await run_summary(out, broken, "fake-summary", max_chars=2000, policy=policy)
     assert first["failed"] == 2 and first["summarized"] == 0
+    assert (await run_summary(out, broken, "fake-summary", max_chars=2000, policy=policy))[
+        "selected"
+    ] == 2
+    assert (await run_summary(out, broken, "fake-summary", max_chars=2000, policy=policy))[
+        "selected"
+    ] == 2
     assert (await run_summary(out, broken, "fake-summary", max_chars=2000, policy=policy))[
         "selected"
     ] == 0
