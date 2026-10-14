@@ -8,7 +8,13 @@ import pyarrow.parquet as pq
 import pytest
 
 from casebible_index.models import DocumentEnrichment
-from casebible_index.summary_stage import run_summary, select_candidates, write_summary
+from casebible_index.nim import NimError
+from casebible_index.summary_stage import (
+    _safe_failure_notes,
+    run_summary,
+    select_candidates,
+    write_summary,
+)
 
 POLICY = {"extensions": (".txt",), "min_chars": 100, "max_docs": 10}
 
@@ -48,6 +54,24 @@ def _lake(root: Path) -> Path:
 def _doc() -> dict[str, str]:
     """Return the synthetic document identity used by immutable marker writes."""
     return {"document_id": "doc", "version_id": "v1", "artifact_id": "artifact"}
+
+
+def test_wrapped_validation_exposes_field_only() -> None:
+    """Extract a validation field through a NIM wrapper without storing input values."""
+    secret = "private-input-value-and-api-key"
+    try:
+        DocumentEnrichment.model_validate({"confidence": secret})
+    except ValueError as validation:
+        try:
+            raise NimError("NIM summary was not valid schema-conformant JSON") from validation
+        except NimError as wrapped:
+            notes = _safe_failure_notes(wrapped)
+    assert notes == [
+        "summary_error:NimError",
+        "validation_field:confidence",
+        "validation:schema_json",
+    ]
+    assert secret not in " ".join(notes)
 
 
 def test_legacy_failure_marker_is_retryable_and_success_is_final(tmp_path: Path) -> None:

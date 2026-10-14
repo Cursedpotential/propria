@@ -42,6 +42,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
+from pydantic import ValidationError
 
 from .models import DocumentEnrichment
 from .snapshots import newest_snapshot
@@ -278,24 +279,26 @@ def _safe_failure_notes(exc: Exception) -> list[str]:
     """
     notes = [f"summary_error:{type(exc).__name__}"]
     current: BaseException | None = exc
-    while current is not None:
+    seen: set[int] = set()
+    for _ in range(8):
+        if current is None or id(current) in seen:
+            break
+        seen.add(id(current))
         response = getattr(current, "response", None)
         status = getattr(response, "status_code", None)
         if isinstance(status, int) and 100 <= status <= 599:
             notes.append(f"http_status:{status}")
-            break
+        if isinstance(current, ValidationError):
+            for error in current.errors(include_input=False):
+                location = error.get("loc", ())
+                if location and location[0] in DocumentEnrichment.model_fields:
+                    notes.append(f"validation_field:{location[0]}")
         current = current.__cause__
     match = re.fullmatch(r"Summary did not finish cleanly: ([a-z_]+)", str(exc))
     if match and match.group(1) in {"length", "content_filter", "tool_calls", "stop"}:
         notes.append(f"finish_reason:{match.group(1)}")
     if str(exc) == "NIM summary was not valid schema-conformant JSON":
         notes.append("validation:schema_json")
-    errors = getattr(exc, "errors", None)
-    if callable(errors):
-        for error in errors():
-            location = error.get("loc", ())
-            if location and location[0] in DocumentEnrichment.model_fields:
-                notes.append(f"validation_field:{location[0]}")
     return list(dict.fromkeys(notes))
 
 
