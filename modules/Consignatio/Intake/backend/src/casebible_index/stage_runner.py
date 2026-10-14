@@ -53,6 +53,7 @@ import sys
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -62,7 +63,7 @@ from .cas_store import COLLECTION, ChunkCollection
 from .config import Settings
 from .embed_stage import DEFAULT_MAX_TEXTS, run_embed
 from .embedders import SlotEmbedder, load_slots
-from .image_slice import fetch_slice, load_slice
+from .image_slice import fetch_slice, load_slice, validate_slice_scope
 from .image_stage import ImageStageSettings
 from .image_stage import run_embed as run_image_embed
 from .image_stage import run_facts as run_image_facts
@@ -435,6 +436,24 @@ def _no_slice(stage: str) -> dict[str, Any]:
     }
 
 
+def _scoped_image_slice(output_dir: Path, slice_id: str, image: ImageStageSettings):
+    """Read a retained slice only after its original locators pass current persistent scope.
+
+    Inputs: lake root, slice identifier and current image settings. Output: validated slice.
+    Side effects: reads its manifest. Pick this before facts, OCR, embed or publish, including
+    slices created before an allowlist was configured.
+    """
+    sl = load_slice(output_dir, slice_id)
+    if image.allowed_prefixes:
+        validate_slice_scope(sl, image.allowed_prefixes)
+    else:
+        exact = sl.scope.get("manual_locators")
+        if not isinstance(exact, list) or not exact:
+            raise ValueError("image slice requires a persistent allowlist or retained manual locators")
+        validate_slice_scope(sl, None, locators=exact)
+    return sl
+
+
 async def stage_image_fetch(
     cycle_id: str, params: dict[str, Any], beat: Beat = _noop
 ) -> dict[str, Any]:
@@ -445,6 +464,11 @@ async def stage_image_fetch(
     image = _image_settings()
     if not image.enabled:
         return _image_off()
+    if not image.allowed_prefixes and not params.get("locators"):
+        raise ValueError(
+            "automatic image fetch requires INTAKE_IMAGES_ALLOWED_PREFIXES_JSON "
+            "or explicit image locators"
+        )
     settings = load_settings()
     stores: dict[tuple[str, str], ObjectStore] = {}
     async with httpx.AsyncClient(timeout=120.0, follow_redirects=False) as client:
@@ -468,6 +492,7 @@ async def stage_image_fetch(
             retry_failed=bool(params.get("retry_failed")),
             path_prefix=str(params.get("path_prefix") or ""),
             locators=params.get("locators"),
+            allowlist=image.allowed_prefixes or None,
             max_items=int(params.get("max_items") or 0),
             beat=beat,
         )
@@ -480,13 +505,15 @@ async def stage_image_facts(
     cycle_id: str, params: dict[str, Any], beat: Beat = _noop
 ) -> dict[str, Any]:
     """Original time, device, GPS, size and screenshot/photo/scan for the slice's images."""
-    if not _image_settings().enabled or not params.get("slice_id"):
+    image = _image_settings()
+    if not image.enabled or not params.get("slice_id"):
         return _no_slice("image_facts")
     settings = load_settings()
+    sl = _scoped_image_slice(settings.output_dir, params["slice_id"], image)
     result = await run_image_facts(
         settings.output_dir,
         settings.spool_dir,
-        load_slice(settings.output_dir, params["slice_id"]),
+        sl,
         beat=beat,
     )
     ledger.write_stage_receipt(settings.output_dir, cycle_id, "image-facts", result)
@@ -501,10 +528,11 @@ async def stage_image_ocr(
     if not image.enabled or not params.get("slice_id"):
         return _no_slice("image_ocr")
     settings = load_settings()
+    sl = _scoped_image_slice(settings.output_dir, params["slice_id"], image)
     result = await run_image_ocr(
         settings.output_dir,
         settings.spool_dir,
-        load_slice(settings.output_dir, params["slice_id"]),
+        sl,
         engine=str(params.get("engine") or image.ocr_engine),
         max_chars=image.max_ocr_chars,
         beat=beat,
@@ -535,6 +563,7 @@ async def stage_image_embed(
             f"image slot {slot!r} is not enabled (INTAKE_IMAGES_SLOTS={','.join(image.slots)})"
         )
     settings = load_settings()
+    sl = _scoped_image_slice(settings.output_dir, params["slice_id"], image)
     async with httpx.AsyncClient(timeout=180.0, follow_redirects=False) as client:
         if slot == "image_colqwen":
             colqwen = ColQwenEmbedder(
@@ -564,7 +593,7 @@ async def stage_image_embed(
         result = await run_image_embed(
             settings.output_dir,
             settings.spool_dir,
-            load_slice(settings.output_dir, params["slice_id"]),
+            sl,
             slot,
             embed,
             model,
@@ -591,6 +620,7 @@ async def stage_image_publish(
             "INTAKE_IMAGES_WEAVIATE_URL (or INTAKE_WEAVIATE_URL) must be an absolute http(s) URL"
         )
     settings = load_settings()
+    sl = _scoped_image_slice(settings.output_dir, params["slice_id"], image)
     headers = {}
     weaviate_key = get_secret("INTAKE_WEAVIATE_API_KEY")
     if weaviate_key:
@@ -604,7 +634,7 @@ async def stage_image_publish(
         result = await run_image_publish(
             settings.output_dir,
             settings.spool_dir,
-            load_slice(settings.output_dir, params["slice_id"]),
+            sl,
             writer,
             image,
             source_id=settings.source_id,

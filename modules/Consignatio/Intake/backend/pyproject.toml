@@ -16,6 +16,7 @@ dependencies = [
     "httpx>=0.28.0",
     "numpy>=2.0.0",
     "pillow>=11.0.0",  # image stage: decode, thumbnail, synthetic bench (Claude Code · Sonnet 5.5 · 2026-10-03)
+    "pillow-heif==1.8.1",  # HEIC/HEIF Pillow decoder for the image lane
     "pyarrow>=20.0.0",
     "pypdfium2>=4.30.0",  # image stage: render scanned-PDF pages to images
     "pydantic>=2.11.0",

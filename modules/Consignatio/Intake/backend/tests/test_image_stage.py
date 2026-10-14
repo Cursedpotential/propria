@@ -145,7 +145,7 @@ async def test_fetch_groups_copies_streams_once_skips_ledgered_and_resumes_an_op
             ("w/copy-of-one.png", len(a), "aa", "media"),  # one image, two occurrences
             ("v/two.jpg", len(b), "bb", "media"),
             ("v/huge.jpg", 99_000_000, "cc", "media"),
-            ("v/phone.heic", 50, "dd", "media"),
+            ("v/unsupported.avif", 50, "dd", "media"),
             ("v/song.mp3", 50, "ee", "media"),
             ("v/note.txt", 5, "ff", "document"),
         ],
@@ -153,7 +153,7 @@ async def test_fetch_groups_copies_streams_once_skips_ledgered_and_resumes_an_op
     store = FakeStore({"v/one.png": a, "w/copy-of-one.png": a, "v/two.jpg": b})
     first = await fetch_slice(out, tmp_path / "spool", lambda p, bk: store, max_files=10)
     assert first["count"] == 2 and first["more"] is False and first["slice_id"]
-    assert first["skipped"] == {"unsupported_format": 1, "over_max_file_bytes": 1}
+    assert first["skipped"] == {"unsupported_format": 2, "over_max_file_bytes": 1}
     sl = load_slice(out, first["slice_id"])
     assert {i.identity: i.occurrences for i in sl.items} == {"aa": 2, "bb": 1}
     assert len(store.reads) == 2, "an exact copy must not be read twice"

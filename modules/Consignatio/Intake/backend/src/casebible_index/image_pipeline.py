@@ -25,12 +25,13 @@ from cocoindex.connectors import localfs
 from cocoindex.resources.file import FileLike, PatternFilePathMatcher
 
 from .image_embedders import JINA_MODEL, SINGLE_DIMENSIONS, ImageEmbedders
+from .image_decode import HEIF_EXTENSIONS, jpeg_derivative
 from .image_facts import read_image_facts
 from .image_target import IMAGE_WRITER, ImageObjectSpec, ImageObjectWriter, declare_image
 from .secrets import get_secret
 from .source_runtime import source_lock
 
-IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff")
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif")
 _EXCLUDED_SEGMENTS = frozenset({".git", ".review_hold", "to_be_deleted", "__pycache__"})
 _SIDECAR_SUFFIXES = (".json", ".supplemental-metadata.json")
 EMBEDDERS = coco.ContextKey[ImageEmbedders]("intake_images_embedders")
@@ -108,6 +109,13 @@ async def process_image(
     max_file_bytes: int,
     max_ocr_chars: int,
 ) -> None:
+    """Index one retained image while preserving its original byte identity.
+
+    Inputs: CocoIndex file and image source/provider settings. Output: none. Side effects: reads
+    original bytes and metadata, calls hosted embedders, and declares one Weaviate image object.
+    Pick this for the direct local-filesystem image app; HEIC/HEIF provider input is an oriented
+    JPEG derivative while content_sha256 remains the original file's hash.
+    """
     source_path = file.file_path.resolve()
     if source_path.stat().st_size > max_file_bytes:
         raise ValueError("Image exceeds INTAKE_IMAGES_MAX_FILE_BYTES")
@@ -122,9 +130,14 @@ async def process_image(
     )
     embedders = coco.use_context(EMBEDDERS)
     extension = source_path.suffix
-    single = await embedders.embed_single(content, extension)
+    provider_content, provider_extension = (
+        (jpeg_derivative(content, edge=2048), ".jpg")
+        if extension.casefold() in HEIF_EXTENSIONS
+        else (content, extension)
+    )
+    single = await embedders.embed_single(provider_content, provider_extension)
     wants_multi = maxsim == "all" or (maxsim == "screenshots" and facts.is_screenshot)
-    multi = await embedders.embed_multi(content) if wants_multi else None
+    multi = await embedders.embed_multi(provider_content) if wants_multi else None
     time = facts.original_time
     declare_image(
         origin,

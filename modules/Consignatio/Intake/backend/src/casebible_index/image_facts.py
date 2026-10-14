@@ -15,6 +15,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .image_decode import HEIF_EXTENSIONS, jpeg_derivative
 from .original_time import OriginalTime, resolve_original_time
 
 _SCREENSHOT_HINTS = (
@@ -41,10 +42,16 @@ class ImageFacts:
     notes: list[str] = field(default_factory=list)
 
 
-def _run(argv: list[str], timeout: int) -> subprocess.CompletedProcess[bytes] | None:
+def _run(argv: list[str], timeout: int, data: bytes | None = None) -> subprocess.CompletedProcess[bytes] | None:
+    """Run a metadata or OCR tool with fixed arguments and a bounded timeout.
+
+    Inputs: argv, timeout and optional stdin bytes. Output: process result or None on launch or
+    timeout failure. Side effects: launches one local subprocess. Pick this for exiftool/Tesseract
+    so paths are never interpolated into a shell command.
+    """
     try:
         return subprocess.run(
-            argv, capture_output=True, timeout=timeout, check=False
+            argv, input=data, capture_output=True, timeout=timeout, check=False
         )  # fixed argv, no shell
     except (subprocess.TimeoutExpired, OSError):
         return None
@@ -65,11 +72,17 @@ def _exif(path: Path) -> dict[str, object] | None:
     return fields
 
 
-def _ocr(path: Path, max_chars: int) -> tuple[str, float] | None:
+def _ocr(path: Path | bytes, max_chars: int) -> tuple[str, float] | None:
+    """Read Tesseract words from a path or JPEG bytes sent on stdin.
+
+    Inputs: image source and character cap. Output: text/confidence or None on unavailable OCR.
+    Side effects: runs Tesseract. Pick bytes for HEIC/HEIF derivatives that Tesseract cannot open.
+    """
     binary = shutil.which("tesseract")
     if binary is None:
         return None
-    done = _run([binary, str(path), "stdout", "-l", "eng", "--psm", "3", "tsv"], 180)
+    stdin = isinstance(path, bytes)
+    done = _run([binary, "-" if stdin else str(path), "stdout", "-l", "eng", "--psm", "3", "tsv"], 180, path if stdin else None)
     if done is None or done.returncode != 0:
         return None
     words: list[str] = []
@@ -119,7 +132,8 @@ def read_image_facts(
     lowered = original_name.casefold()
     facts.is_screenshot = facts.is_screenshot or any(hint in lowered for hint in _SCREENSHOT_HINTS)
     if ocr:
-        read = _ocr(path, max_ocr_chars)
+        source = jpeg_derivative(path, edge=2048) if path.suffix.casefold() in HEIF_EXTENSIONS else path
+        read = _ocr(source, max_ocr_chars)
         if read is None:
             facts.notes.append("tesseract unavailable or failed: no fallback text")
         else:
