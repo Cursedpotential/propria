@@ -49,10 +49,8 @@ import duckdb
 from .parquet_store import write_json_immutable
 from .pdf_pages import DEFAULT_DPI, DEFAULT_MAX_PAGES, render_pdf_pages
 
-# Formats the embedders accept (image_embedders._MIME). HEIC/HEIF are inventoried by discovery but
-# counted, not
-# processed: Pillow has no HEIC codec here and nothing in the chain would read them.
-PROCESSABLE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff")
+# HEIC/HEIF are decoded by image_decode and sent to providers as bounded JPEG derivatives.
+PROCESSABLE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif")
 DEFAULT_MAX_FILES = 40
 DEFAULT_MAX_BYTES = 256 * 1024 * 1024
 DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
@@ -117,6 +115,7 @@ class Slice:
     items: list[ImageItem] = field(default_factory=list)
     failed: list[dict[str, str]] = field(default_factory=list)
     skipped: dict[str, int] = field(default_factory=dict)
+    scope: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -125,6 +124,7 @@ class Slice:
             "items": [asdict(i) for i in self.items],
             "failed": self.failed,
             "skipped": self.skipped,
+            "scope": self.scope,
         }
 
     @classmethod
@@ -135,6 +135,7 @@ class Slice:
             [ImageItem(**i) for i in data["items"]],
             list(data.get("failed", [])),
             dict(data.get("skipped", {})),
+            dict(data.get("scope", {})),
         )
 
 
@@ -218,6 +219,92 @@ def _locator_sql(locators: list[dict[str, str]] | None) -> str:
     return " AND (" + " OR ".join(clauses) + ")" if clauses else " AND false"
 
 
+def parse_image_allowlist(value: str) -> tuple[dict[str, str], ...]:
+    """Parse an exact provider/bucket/folder-prefix allowlist from JSON.
+
+    Inputs: JSON array of provider, bucket, path_prefix objects. Output: validated entries.
+    Side effects: none. Pick this for persistent automatic image scope; an unset value is empty,
+    while malformed or broad entries fail closed before any bucket read.
+    """
+    if not value.strip():
+        return ()
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("INTAKE_IMAGES_ALLOWED_PREFIXES_JSON must be a JSON array") from exc
+    if not isinstance(parsed, list) or not parsed:
+        raise ValueError("INTAKE_IMAGES_ALLOWED_PREFIXES_JSON must be a nonempty JSON array")
+    entries = []
+    for item in parsed:
+        if not isinstance(item, dict) or set(item) != {"provider", "bucket", "path_prefix"}:
+            raise ValueError("image allowlist entries require provider, bucket and path_prefix")
+        if any(not isinstance(v, str) or not v.strip() or v != v.strip() for v in item.values()):
+            raise ValueError("image allowlist fields must be nonempty strings without padding")
+        prefix = item["path_prefix"]
+        if (not prefix.endswith("/") or prefix.startswith("/") or "\\" in prefix
+                or any(part in {"", ".", ".."} for part in prefix[:-1].split("/"))):
+            raise ValueError("image allowlist path_prefix must name a relative folder ending in /")
+        entries.append(item)
+    return tuple(entries)
+
+
+def _allowlist_sql(allowlist: tuple[dict[str, str], ...] | None) -> str:
+    """Build an escaped SQL restriction for exact provider, bucket and folder prefixes.
+
+    Inputs: validated allowlist, or None for legacy direct callers. Output: SQL predicate.
+    Side effects: none. Pick this before grouping inventory rows so every chosen occurrence is
+    already in persistent scope.
+    """
+    if allowlist is None:
+        return ""
+    if not allowlist:
+        return " AND false"
+    def quoted(value: str) -> str:
+        """Escape one validated scope field as a DuckDB string literal."""
+        return "'" + value.replace("'", "''") + "'"
+    return " AND (" + " OR ".join(
+        f"(provider = {quoted(item['provider'])} AND bucket = {quoted(item['bucket'])} "
+        f"AND starts_with(key, {quoted(item['path_prefix'])}))"
+        for item in allowlist
+    ) + ")"
+
+
+def validate_slice_scope(
+    sl: Slice,
+    allowlist: tuple[dict[str, str], ...] | None,
+    *,
+    path_prefix: str = "",
+    locators: list[dict[str, str]] | None = None,
+    max_items: int = 0,
+) -> None:
+    """Reject a retained slice if any item or failure falls outside current image scope.
+
+    Inputs: slice, persistent allowlist and optional manual selectors/budget. Output: none.
+    Side effects: none. Pick this before resuming fetch or reading an older slice for later stages.
+    Missing locators on old failed records are rejected when a scope is active.
+    """
+    _allowlist_sql(allowlist)
+    _locator_sql(locators)
+    exact = None if locators is None else {
+        (item["provider"], item["bucket"], item["key"]) for item in locators
+    }
+    rows = [*sl.items, *sl.failed]
+    if max_items and len(rows) > max_items:
+        raise ValueError("pending image slice exceeds remaining budget")
+    for row in rows:
+        provider = row.provider if isinstance(row, ImageItem) else row.get("provider", "")
+        bucket = row.bucket if isinstance(row, ImageItem) else row.get("bucket", "")
+        key = row.key if isinstance(row, ImageItem) else row.get("key", "")
+        locator = (provider, bucket, key)
+        if (not key or not key.startswith(path_prefix)
+                or (exact is not None and locator not in exact)
+                or (allowlist is not None and not any(
+                    provider == item["provider"] and bucket == item["bucket"]
+                    and key.startswith(item["path_prefix"]) for item in allowlist
+                ))):
+            raise ValueError("pending image slice is outside this proof's scope")
+
+
 def quarantine_spool(output_dir: Path, spool_dir: Path | None, source: Path) -> dict[str, int]:
     """Move derived spool material into the owning output mount's quarantine.
 
@@ -247,6 +334,7 @@ def select_images(
     retry_failed: bool = False,
     path_prefix: str = "",
     locators: list[dict[str, str]] | None = None,
+    allowlist: tuple[dict[str, str], ...] | None = None,
 ) -> tuple[list[dict[str, Any]], bool, dict[str, int]]:
     """Up to ``limit`` distinct images not yet in the ledger, whether more remain, and counts of
     what was passed over.
@@ -266,11 +354,11 @@ def select_images(
         base = (
             f"SELECT *, {IDENTITY_SQL} AS identity, {suffix} AS ext "
             f"FROM read_parquet('{_posix(inventory)}') WHERE kind = 'media'"
-            f"{_prefix_sql(path_prefix)}{_locator_sql(locators)}"
+            f"{_prefix_sql(path_prefix)}{_locator_sql(locators)}{_allowlist_sql(allowlist)}"
         )
         skipped_rows = con.execute(
             f"WITH b AS ({base}) SELECT "
-            "sum(CASE WHEN ext IN ('.heic', '.heif') THEN 1 ELSE 0 END), "
+            f"sum(CASE WHEN ext NOT IN ({allowed}) THEN 1 ELSE 0 END), "
             f"sum(CASE WHEN ext IN ({allowed}) AND size > {int(max_file_bytes)} "
             "THEN 1 ELSE 0 END) FROM b"
         ).fetchone()
@@ -279,11 +367,13 @@ def select_images(
             WITH b AS ({base}), ok AS (
                 SELECT * FROM b WHERE ext IN ({allowed}) AND size <= {int(max_file_bytes)}
             ), todo AS (SELECT o.* FROM ok o ANTI JOIN """
-            f"""({_ledger_sql(output_dir, retry_failed)}) d USING (identity))
-            SELECT identity, any_value(sha1) AS sha1, any_value(provider) AS provider, """
-            f"""any_value(bucket) AS bucket,
-                   min(key) AS key, max(size) AS size, count(*) AS occurrences
-            FROM todo GROUP BY identity ORDER BY identity LIMIT {int(limit) + 1}
+            f"""({_ledger_sql(output_dir, retry_failed)}) d USING (identity)), ranked AS (
+                SELECT *, count(*) OVER (PARTITION BY identity) AS occurrences,
+                       row_number() OVER (PARTITION BY identity ORDER BY provider, bucket, key) AS rn
+                FROM todo
+            )
+            SELECT identity, sha1, provider, bucket, key, size, occurrences
+            FROM ranked WHERE rn = 1 ORDER BY identity LIMIT {int(limit) + 1}
             """
         ).fetchall()
     finally:
@@ -304,6 +394,7 @@ def select_scanned_pdfs(
     retry_failed: bool = False,
     path_prefix: str = "",
     locators: list[dict[str, str]] | None = None,
+    allowlist: tuple[dict[str, str], ...] | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     """Up to ``limit`` top-level PDFs the extract stage found no text in and the ledger has not
     covered."""
@@ -324,14 +415,17 @@ def select_scanned_pdfs(
             ), pdf AS (
                 SELECT *, {IDENTITY_SQL} AS identity """
             f"""FROM read_parquet('{_posix(inventory)}') WHERE coalesce(sha1, '') <> ''"""
-            f"""{_prefix_sql(path_prefix)}{_locator_sql(locators)}
+            f"""{_prefix_sql(path_prefix)}{_locator_sql(locators)}{_allowlist_sql(allowlist)}
             ), todo AS (
                 SELECT p.* FROM pdf p SEMI JOIN scanned s USING (sha1)
                 ANTI JOIN ({_ledger_sql(output_dir, retry_failed)}) d USING (identity)
+            ), ranked AS (
+                SELECT *, count(*) OVER (PARTITION BY identity) AS occurrences,
+                       row_number() OVER (PARTITION BY identity ORDER BY provider, bucket, key) AS rn
+                FROM todo
             )
-            SELECT identity, any_value(sha1), any_value(provider), any_value(bucket), """
-            f"""min(key), max(size), count(*)
-            FROM todo GROUP BY identity ORDER BY identity LIMIT {int(limit) + 1}
+            SELECT identity, sha1, provider, bucket, key, size, occurrences
+            FROM ranked WHERE rn = 1 ORDER BY identity LIMIT {int(limit) + 1}
             """
         ).fetchall()
     finally:
@@ -390,6 +484,7 @@ async def fetch_slice(
     retry_failed: bool = False,
     path_prefix: str = "",
     locators: list[dict[str, str]] | None = None,
+    allowlist: tuple[dict[str, str], ...] | None = None,
     max_items: int = 0,
     beat: Beat | None = None,
 ) -> dict[str, Any]:
@@ -405,6 +500,7 @@ async def fetch_slice(
     taken when no image is left. A failed object is recorded in the manifest and ledgered as
     ``failed`` by publish."""
     _locator_sql(locators)  # Validate even when a pending slice exists.
+    _allowlist_sql(allowlist)
     if max_items < 0 or min(max_files, max_bytes, max_file_bytes) < 1:
         raise ValueError("image slice bounds must be positive; max_items cannot be negative")
     max_items = min(max_items or max_files, max_files)
@@ -412,23 +508,8 @@ async def fetch_slice(
     resumed = open_slice_id(output_dir)
     if resumed:
         sl = load_slice(output_dir, resumed)
-        allowed = (
-            None
-            if locators is None
-            else {(item["provider"], item["bucket"], item["key"]) for item in locators}
-        )
-        if (
-            (max_items and len(sl.items) + len(sl.failed) > max_items)
-            or any(
-                not item.key.startswith(path_prefix)
-                or (allowed is not None and (item.provider, item.bucket, item.key) not in allowed)
-                for item in sl.items
-            )
-            or ((path_prefix or locators is not None) and sl.failed)
-        ):
-            raise ValueError(
-                "pending image slice is outside this proof's scope or remaining budget"
-            )
+        validate_slice_scope(sl, allowlist, path_prefix=path_prefix, locators=locators,
+                             max_items=max_items)
         return _summary(sl, more=True, resumed=True)
 
     picked, more, skipped = select_images(
@@ -438,6 +519,7 @@ async def fetch_slice(
         retry_failed=retry_failed,
         path_prefix=path_prefix,
         locators=locators,
+        allowlist=allowlist,
     )
     kind = "image"
     if picked and not more:
@@ -448,6 +530,7 @@ async def fetch_slice(
             retry_failed=retry_failed,
             path_prefix=path_prefix,
             locators=locators,
+            allowlist=allowlist,
         )
         more = bool(pending_pdfs)
     if not picked:
@@ -457,9 +540,12 @@ async def fetch_slice(
             retry_failed=retry_failed,
             path_prefix=path_prefix,
             locators=locators,
+            allowlist=allowlist,
         )
         kind = "pdf"
     sl = Slice(new_slice_id(), kind, skipped=skipped)
+    if allowlist is None and locators is not None:
+        sl.scope = {"manual_locators": locators}
     if not picked:
         return _summary(sl, more=False, resumed=False)
 
@@ -485,10 +571,10 @@ async def fetch_slice(
             break
         size = int(row["size"])
         if size > max_file_bytes:
-            sl.failed.append({"identity": row["identity"], "reason": "over_max_file_bytes"})
+            sl.failed.append({**{k: row[k] for k in ("identity", "provider", "bucket", "key")}, "reason": "over_max_file_bytes"})
             continue
         if size > max_bytes:
-            sl.failed.append({"identity": row["identity"], "reason": "over_slice_byte_budget"})
+            sl.failed.append({**{k: row[k] for k in ("identity", "provider", "bucket", "key")}, "reason": "over_slice_byte_budget"})
             continue
         if total + size > max_bytes:
             more = True  # The remaining original waits for the next slice.
@@ -507,7 +593,7 @@ async def fetch_slice(
         except Exception as exc:
             retained = retain(local)
             total += retained["bytes"]
-            sl.failed.append({"identity": row["identity"], "reason": type(exc).__name__})
+            sl.failed.append({**{k: row[k] for k in ("identity", "provider", "bucket", "key")}, "reason": type(exc).__name__})
             continue
         total += written
         if kind == "image":
@@ -544,7 +630,7 @@ async def fetch_slice(
                     max_output_bytes=max_bytes - total,
                 )
             except ValueError as exc:
-                sl.failed.append({"identity": row["identity"], "reason": str(exc)[:120]})
+                sl.failed.append({**{k: row[k] for k in ("identity", "provider", "bucket", "key")}, "reason": str(exc)[:120]})
                 retain(local)
                 continue
             retain(local)
@@ -553,7 +639,7 @@ async def fetch_slice(
             total += sum(page.path.stat().st_size for page in rendered.pages)
             if not rendered.pages:
                 sl.failed.append(
-                    {"identity": row["identity"], "reason": "pdf_page_exceeds_slice_byte_budget"}
+                    {**{k: row[k] for k in ("identity", "provider", "bucket", "key")}, "reason": "pdf_page_exceeds_slice_byte_budget"}
                 )
             if rendered.deferred:
                 more = True

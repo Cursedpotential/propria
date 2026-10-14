@@ -28,6 +28,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from .image_decode import HEIF_EXTENSIONS, jpeg_derivative
 from .image_facts import _ocr
 
 DEFAULT_ENGINE = "tesseract"
@@ -38,7 +39,12 @@ class OcrUnavailable(ValueError):
     non-retryable."""
 
 
-def _tesseract(path: Path, max_chars: int) -> tuple[str, float]:
+def _tesseract(path: Path | bytes, max_chars: int) -> tuple[str, float]:
+    """OCR a native image path or an in-memory JPEG derivative with Tesseract.
+
+    Inputs: source path or JPEG bytes and character cap. Output: text/confidence. Side effects:
+    runs Tesseract. Pick this default engine for CPU-only OCR.
+    """
     result = _ocr(path, max_chars)
     if result is None:
         raise OcrUnavailable("tesseract is not installed or failed to start in this environment")
@@ -48,7 +54,12 @@ def _tesseract(path: Path, max_chars: int) -> tuple[str, float]:
 _DOCTR_MODEL: object | None = None
 
 
-def _doctr(path: Path, max_chars: int) -> tuple[str, float]:
+def _doctr(path: Path | bytes, max_chars: int) -> tuple[str, float]:
+    """OCR a native image path or JPEG derivative with the optional docTR model.
+
+    Inputs: path or bytes and character cap. Output: text/confidence. Side effects: may load
+    configured model weights and perform inference. Pick this only when docTR is selected.
+    """
     global _DOCTR_MODEL
     try:
         from doctr.io import DocumentFile
@@ -59,7 +70,7 @@ def _doctr(path: Path, max_chars: int) -> tuple[str, float]:
         ) from exc
     if _DOCTR_MODEL is None:
         _DOCTR_MODEL = ocr_predictor(pretrained=True)
-    result = _DOCTR_MODEL(DocumentFile.from_images(str(path)))  # type: ignore[operator]
+    result = _DOCTR_MODEL(DocumentFile.from_images(path if isinstance(path, bytes) else str(path)))  # type: ignore[operator]
     confidences: list[float] = []
     for page in result.pages:
         for block in page.blocks:
@@ -80,7 +91,8 @@ def read_text(engine: str, path: Path, max_chars: int) -> tuple[str, float]:
 
     Inputs: an engine name from ``OCR_ENGINES``, an image file, a character cap. Output: ``(text,
     confidence)``; an
-    image with no text returns ``("", 0.0)``. Raises ``OcrUnavailable`` when the engine cannot run
+    image with no text returns ``("", 0.0)``. HEIC/HEIF is decoded to bounded JPEG bytes in memory.
+    Raises ``OcrUnavailable`` when the engine cannot run
     and ``ValueError``
     for an unknown engine. Side effects: runs a subprocess (tesseract) or a model (docTR). Pick this
     over a gateway
@@ -92,4 +104,5 @@ def read_text(engine: str, path: Path, max_chars: int) -> tuple[str, float]:
         raise OcrUnavailable(
             f"unknown OCR engine {engine!r}; known: {sorted(OCR_ENGINES)}"
         ) from None
-    return run(path, max_chars)
+    source = jpeg_derivative(path, edge=2048) if path.suffix.casefold() in HEIF_EXTENSIONS else path
+    return run(source, max_chars)

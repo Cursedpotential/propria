@@ -34,7 +34,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
-import io
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -45,8 +44,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from PIL import Image
-
+from .image_decode import NATIVE_PROVIDER_EXTENSIONS, jpeg_derivative, open_image
 from .image_embedders import SINGLE_DIMENSIONS
 from .image_facts import read_image_facts
 from .image_kind import KIND_PHOTO, KIND_SCAN, KIND_SCREENSHOT, classify_image
@@ -60,6 +58,7 @@ from .image_slice import (
     item_path,
     lake,
     load_slice,
+    parse_image_allowlist,
     published_pdf_pages,
     quarantine_spool,
     spool_root,
@@ -126,7 +125,9 @@ class ImageStageSettings:
     (CLIP, when on, is a second opinion); ``clip_first`` gives photos CLIP only, as the free first
     pass, and keeps the
     hosted slots for screenshots and scans (a shortlisted photo is promoted later with
-    ``image_promote``)."""
+    ``image_promote``). ``INTAKE_IMAGES_ALLOWED_PREFIXES_JSON`` is a persistent JSON array of
+    exact provider, bucket and relative folder path_prefix entries; automatic fetch requires it.
+    An explicit exact locator proof can run without that persistent setting."""
 
     enabled: bool
     weaviate_url: str
@@ -146,6 +147,7 @@ class ImageStageSettings:
     pdf_dpi: int
     clip: bool
     inflight: int
+    allowed_prefixes: tuple[dict[str, str], ...] = ()
 
     @classmethod
     def from_env(cls) -> ImageStageSettings:
@@ -178,6 +180,9 @@ class ImageStageSettings:
             pdf_dpi=int(env.get("INTAKE_IMAGES_PDF_DPI", "150")),
             clip=env.get("INTAKE_IMAGES_CLIP", "0").strip() == "1",
             inflight=int(env.get("INTAKE_IMAGES_MAX_INFLIGHT", "4")),
+            allowed_prefixes=parse_image_allowlist(
+                env.get("INTAKE_IMAGES_ALLOWED_PREFIXES_JSON", "")
+            ),
         )
 
     def validate(self) -> None:
@@ -274,7 +279,7 @@ def _facts_for(path: Path, item: ImageItem) -> dict[str, Any]:
     with path.open("rb") as source:
         for block in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(block)
-    with Image.open(path) as image:
+    with open_image(path) as image:
         width, height, fmt = image.width, image.height, image.format or ""
     facts = read_image_facts(path, item.name, takeout_sidecar_json=None, ocr=False, max_ocr_chars=0)
     kind = classify_image(
@@ -442,36 +447,28 @@ async def run_ocr(
 
 # -------------------------------------------------- embed
 
-_NATIVE_EXT = {".png", ".jpg", ".jpeg", ".webp"}
-
-
 def prepare_for_embedding(path: Path) -> tuple[bytes, str]:
-    """The bytes and extension to send to a hosted embedder: the original when it is small and a
-    common format,
-    otherwise a downscaled (long edge 2048) JPEG. Decoding is lazy and bounded; one image is in
-    memory at a time."""
+    """Provide original native bytes or a bounded JPEG for a hosted embedder.
+
+    Inputs: retained image path. Output: provider bytes and matching extension. Side effects:
+    reads and sometimes decodes the image. Pick this for hosted image slots; source hashes and
+    facts are always computed separately from the unchanged original.
+    """
     size = path.stat().st_size
     ext = path.suffix.casefold()
-    with Image.open(path) as image:
-        if ext in _NATIVE_EXT and size <= MAX_EMBED_BYTES and max(image.size) <= MAX_EMBED_EDGE:
+    with open_image(path) as image:
+        if ext in NATIVE_PROVIDER_EXTENSIONS and size <= MAX_EMBED_BYTES and max(image.size) <= MAX_EMBED_EDGE:
             return path.read_bytes(), ext
-        image.seek(0)
-        converted = image.convert("RGB")
-        converted.thumbnail((MAX_EMBED_EDGE, MAX_EMBED_EDGE))
-        buffer = io.BytesIO()
-        converted.save(buffer, format="JPEG", quality=90)
-        return buffer.getvalue(), ".jpg"
+    return jpeg_derivative(path, edge=MAX_EMBED_EDGE), ".jpg"
 
 
 def thumbnail_b64(path: Path, edge: int = THUMB_EDGE) -> str:
-    """A base64 JPEG of at most ``edge`` pixels on the long side: the blob Weaviate's CLIP module
-    vectorizes."""
-    with Image.open(path) as image:
-        small = image.convert("RGB")
-        small.thumbnail((edge, edge))
-        buffer = io.BytesIO()
-        small.save(buffer, format="JPEG", quality=85)
-    return base64.b64encode(buffer.getvalue()).decode()
+    """Encode a bounded, oriented JPEG thumbnail for Weaviate's CLIP blob.
+
+    Inputs: retained image path and long-edge cap. Output: base64 JPEG. Side effects: image
+    decode only. Pick this when CLIP needs the thumbnail, including for HEIC/HEIF originals.
+    """
+    return base64.b64encode(jpeg_derivative(path, edge=edge, quality=85)).decode()
 
 
 def _vector_schema(slot: str) -> pa.Schema:
