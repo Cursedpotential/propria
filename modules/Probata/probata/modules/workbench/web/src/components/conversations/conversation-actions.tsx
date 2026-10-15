@@ -140,7 +140,9 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
     const result = kind === "extract"
       ? await startExtraction.mutateAsync({ threadIds: ids, extractors: selectedExtractors, preflightToken: preflight.data!.token })
       : await startSend.mutateAsync({ threadIds: ids, includeExtractions });
-    setStarted({ workflowId: result.workflow_id, runId: result.run_id, threadIds: ids, extractors: selectedExtractors, previous: previous ? [...(previous.previous ?? []), { ...previous, previous: undefined }].slice(-8) : [] });
+    const priorAttempt = previous ?? retryTarget;
+    setStarted({ workflowId: result.workflow_id, runId: result.run_id, threadIds: ids, extractors: selectedExtractors, previous: priorAttempt ? [...(priorAttempt.previous ?? []), { ...priorAttempt, previous: undefined }].slice(-8) : [] });
+    setRetryTarget(null);
     onStarted?.();
   }
 
@@ -159,6 +161,10 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
         </SheetHeader>
         <div className="space-y-3 px-4 pb-2">
           {admissionError ? <p role="alert" className="text-sm text-destructive">{admissionError}</p> : null}
+          {retryTarget && !started ? <details open className="rounded border p-3" aria-label="Previous extraction attempt retained during retry">
+            <summary className="cursor-pointer text-sm font-semibold">Previous attempt remains available while checking this retry</summary>
+            <ActionProgress workflowId={retryTarget.workflowId} runId={retryTarget.runId} threadIds={retryTarget.threadIds} requested={retryTarget.extractors} retrying={pending} notify={false} title="Previous extraction attempt" />
+          </details> : null}
           {kind === "extract" && !started ? <section className="space-y-2 rounded border p-3 text-xs" aria-label="Extraction preflight">
             <h3 className="font-semibold">Exact selection and workload</h3>
             {preflight.isPending ? <p role="status">Checking durable source admission and full-text sizes…</p> : preflight.isError ? <p role="alert">Preflight unavailable: {errorText(preflight.error)}</p> : preflight.data ? <>

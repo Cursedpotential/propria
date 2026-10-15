@@ -88,7 +88,7 @@ function SourcesScreenMode() {
   const prefix = searchParams.get("prefix") ?? "";
   const linkedFile = searchParams.get("file") ?? "";
   const navigationKey = JSON.stringify([mode, rootId, prefix, linkedFile]);
-  const [restored] = useState(() => restoreSourceNavigation(navigationKey));
+  const [restored, setRestored] = useState(() => restoreSourceNavigation(navigationKey));
   const [appliedFilter, setAppliedFilter] = useState(restored?.appliedFilter ?? linkedFile);
   const [selectedRef, setSelectedRef] = useState<string | null>(restored ? restored.selectedRef : linkedFile || null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(restored ? restored.selectedFolder : searchParams.get("select_folder") === "1" ? prefix : null);
@@ -751,13 +751,14 @@ function SourcesScreenMode() {
                     selectedIndex={selectedIndex}
                     checkedRefs={checkedRefs}
                     onSelectIndex={(index) => {
+                      setRestored(null);
                       setPerspectiveChoice(null);
                       setLocalSource(null);
                       setSelectedRef(rows[index]?.sourceRef ?? null);
                       setSelectedFolder(null);
                       setHandlerOverride("");
                     }}
-                    onToggleChecked={(refs) => { setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set(refs)); }}
+                    onToggleChecked={(refs) => { setRestored(null); setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set(refs)); }}
                     onReachEnd={() => { if (!appliedFilter && !nextPageError) loadNextPage(); }}
                     initialScrollRow={restored?.scrollRow ?? 0}
                     onScrollRowChange={setScrollRow}
