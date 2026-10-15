@@ -15,6 +15,8 @@ const (
 	ContextStatusQueryName          = "context_status"
 	ContextWorkflowIDPrefix         = "context-source:"
 	contextFirstChangeID            = "proffer-context-first-source-v1"
+	contextAtomicAIChangeID         = "proffer-context-ai-atomic-search-first-v1"
+	contextDecodeActivityName       = "ai_context_decode_activity"
 	contextRegisterActivityName     = "context_register_source_activity"
 	contextPrepareActivityName      = "ai_context_prepare_activity"
 	contextWorkProductsActivityName = "ai_context_extract_work_products_activity"
@@ -28,30 +30,41 @@ const (
 // Inputs: registration and bounded Activity receipts. Outputs: reference-only status.
 // Effects: none; choose for context-first imports, not legacy custody results.
 type ContextSummary struct {
-	Human            *HumanContextSummary         `json:"human,omitempty"`
-	ReviewSource     *ContextVerifiedReviewSource `json:"review_source,omitempty"`
-	CandidateStage   *ContextCandidateStage       `json:"candidate_stage,omitempty"`
-	Review           *ContextReviewResult         `json:"candidate_review,omitempty"`
-	Package          *ContextPackageResult        `json:"package,omitempty"`
-	ActorSubjectUID  string                       `json:"actor_subject_uid"`
-	Status           string                       `json:"status"`
-	Reason           string                       `json:"reason,omitempty"`
-	SourceVersionRef string                       `json:"source_version_ref,omitempty"`
-	ReceiptRef       string                       `json:"receipt_ref,omitempty"`
-	DecodedRef       string                       `json:"decoded_ref,omitempty"`
-	PreparedRef      string                       `json:"prepared_ref,omitempty"`
-	WorkProductsRef  string                       `json:"work_products_ref,omitempty"`
-	CandidatesRef    string                       `json:"candidates_ref,omitempty"`
-	EmbeddingsRef    string                       `json:"embeddings_ref,omitempty"`
-	PublicationRef   string                       `json:"publication_ref,omitempty"`
-	VerificationRef  string                       `json:"verification_ref,omitempty"`
-	Conversations    int                          `json:"conversations,omitempty"`
-	Records          int                          `json:"records,omitempty"`
-	Chunks           int                          `json:"chunks,omitempty"`
-	WorkProducts     int                          `json:"work_products,omitempty"`
-	Candidates       int                          `json:"candidates,omitempty"`
-	ObjectsWritten   int                          `json:"objects_written,omitempty"`
-	ObjectsVerified  int                          `json:"objects_verified,omitempty"`
+	Human                     *HumanContextSummary         `json:"human,omitempty"`
+	ReviewSource              *ContextVerifiedReviewSource `json:"review_source,omitempty"`
+	CandidateStage            *ContextCandidateStage       `json:"candidate_stage,omitempty"`
+	Review                    *ContextReviewResult         `json:"candidate_review,omitempty"`
+	Package                   *ContextPackageResult        `json:"package,omitempty"`
+	ActorSubjectUID           string                       `json:"actor_subject_uid"`
+	Status                    string                       `json:"status"`
+	Reason                    string                       `json:"reason,omitempty"`
+	SourceVersionRef          string                       `json:"source_version_ref,omitempty"`
+	HistoricalSourceVersionID string                       `json:"historical_source_version_id,omitempty"`
+	SourceSHA256              string                       `json:"source_sha256,omitempty"`
+	ModelID                   string                       `json:"model_id,omitempty"`
+	ModelCalls                int                          `json:"model_calls,omitempty"`
+	EmbeddingModelID          string                       `json:"embedding_model_id,omitempty"`
+	EmbeddingCalls            int                          `json:"embedding_calls,omitempty"`
+	EnrichmentStatus          string                       `json:"enrichment_status,omitempty"`
+	GroundedCandidates        int                          `json:"grounded_candidates,omitempty"`
+	TypedCandidates           int                          `json:"typed_candidates,omitempty"`
+	HeldCandidates            int                          `json:"held_candidates,omitempty"`
+	RejectedCandidates        int                          `json:"rejected_candidates,omitempty"`
+	ReceiptRef                string                       `json:"receipt_ref,omitempty"`
+	DecodedRef                string                       `json:"decoded_ref,omitempty"`
+	PreparedRef               string                       `json:"prepared_ref,omitempty"`
+	WorkProductsRef           string                       `json:"work_products_ref,omitempty"`
+	CandidatesRef             string                       `json:"candidates_ref,omitempty"`
+	EmbeddingsRef             string                       `json:"embeddings_ref,omitempty"`
+	PublicationRef            string                       `json:"publication_ref,omitempty"`
+	VerificationRef           string                       `json:"verification_ref,omitempty"`
+	Conversations             int                          `json:"conversations,omitempty"`
+	Records                   int                          `json:"records,omitempty"`
+	Chunks                    int                          `json:"chunks,omitempty"`
+	WorkProducts              int                          `json:"work_products,omitempty"`
+	Candidates                int                          `json:"candidates,omitempty"`
+	ObjectsWritten            int                          `json:"objects_written,omitempty"`
+	ObjectsVerified           int                          `json:"objects_verified,omitempty"`
 }
 
 // ContextProgress exposes the actor-bound source state while its Proffer run is open.
@@ -71,15 +84,17 @@ type ContextStarted struct {
 // Inputs: actual request and workflow IDs, source pointer, native version/package/kind, format and optional case scope.
 // Outputs: a compact request for durable registration. Effects: none. Choose for context imports, not retained originals.
 type ContextSourceRegistrationRequest struct {
-	RequestID         string `json:"request_id"`
-	WorkflowID        string `json:"workflow_id"`
-	SourceRef         string `json:"source_ref"`
-	ProviderVersionID string `json:"provider_version_id"`
-	PackageRef        string `json:"package_ref"`
-	SourceKind        string `json:"source_kind"`
-	DeclaredFormat    string `json:"declared_format"`
-	MatterID          string `json:"matter_id"`
-	CourtCaseID       string `json:"court_case_id"`
+	RequestID                 string `json:"request_id"`
+	WorkflowID                string `json:"workflow_id"`
+	SourceRef                 string `json:"source_ref"`
+	ProviderVersionID         string `json:"provider_version_id"`
+	PackageRef                string `json:"package_ref"`
+	SourceKind                string `json:"source_kind"`
+	DeclaredFormat            string `json:"declared_format"`
+	HistoricalSourceVersionID string `json:"historical_source_version_id,omitempty"`
+	SourceSHA256              string `json:"source_sha256,omitempty"`
+	MatterID                  string `json:"matter_id"`
+	CourtCaseID               string `json:"court_case_id"`
 	// ByteLength and ETag preserve original source pins before any streaming Activity.
 	// Omitted values assert no length or ETag; neither is a custody/hash admission gate.
 	ByteLength int64  `json:"byte_length,omitempty"`
@@ -90,9 +105,11 @@ type ContextSourceRegistrationRequest struct {
 // Inputs: the persisted registration. Outputs: source-version and receipt references with registration status.
 // Effects: none. Choose as the Activity result; source content and native turns stay out of Temporal history.
 type ContextSourceRegistrationResult struct {
-	SourceVersionRef string `json:"source_version_ref"`
-	ReceiptRef       string `json:"receipt_ref"`
-	Status           string `json:"status"`
+	SourceVersionRef          string `json:"source_version_ref"`
+	ReceiptRef                string `json:"receipt_ref"`
+	Status                    string `json:"status"`
+	HistoricalSourceVersionID string `json:"historical_source_version_id,omitempty"`
+	SourceSHA256              string `json:"source_sha256,omitempty"`
 }
 
 // ContextResourceBounds carries the existing Python operation resource limits.
@@ -144,35 +161,45 @@ func (b ContextResourceBounds) defaults() ContextResourceBounds {
 }
 
 type aiContextRequest struct {
-	ContractVersion    string `json:"contract_version"`
-	SourceRef          string `json:"source_ref"`
-	ProviderVersionID  string `json:"provider_version_id,omitempty"`
-	PackageRef         string `json:"package_ref,omitempty"`
-	SourceFormat       string `json:"source_format,omitempty"`
-	RequestID          string `json:"request_id"`
-	TemporalRunID      string `json:"temporal_run_id"`
-	TemporalActivityID string `json:"temporal_activity_id"`
-	DecodedRef         string `json:"decoded_ref,omitempty"`
-	PreparedRef        string `json:"prepared_ref,omitempty"`
-	WorkProductsRef    string `json:"work_products_ref,omitempty"`
-	CandidatesRef      string `json:"candidates_ref,omitempty"`
-	EmbeddingsRef      string `json:"embeddings_ref,omitempty"`
-	PublicationRef     string `json:"publication_ref,omitempty"`
+	ContractVersion           string `json:"contract_version"`
+	SourceRef                 string `json:"source_ref"`
+	ProviderVersionID         string `json:"provider_version_id,omitempty"`
+	PackageRef                string `json:"package_ref,omitempty"`
+	SourceFormat              string `json:"source_format,omitempty"`
+	SourceVersionID           string `json:"source_version_id,omitempty"`
+	HistoricalSourceVersionID string `json:"historical_source_version_id,omitempty"`
+	SourceSHA256              string `json:"source_sha256,omitempty"`
+	RequestID                 string `json:"request_id"`
+	WorkflowID                string `json:"workflow_id,omitempty"`
+	TemporalRunID             string `json:"temporal_run_id"`
+	TemporalActivityID        string `json:"temporal_activity_id"`
+	DecodedRef                string `json:"decoded_ref,omitempty"`
+	PreparedRef               string `json:"prepared_ref,omitempty"`
+	WorkProductsRef           string `json:"work_products_ref,omitempty"`
+	CandidatesRef             string `json:"candidates_ref,omitempty"`
+	EmbeddingsRef             string `json:"embeddings_ref,omitempty"`
+	PublicationRef            string `json:"publication_ref,omitempty"`
 	ContextResourceBounds
 }
 
 type aiContextReceipt struct {
-	ContractVersion string `json:"contract_version"`
-	Stage           string `json:"stage"`
-	BundleRef       string `json:"bundle_ref"`
-	Status          string `json:"status"`
-	Conversations   int    `json:"conversations"`
-	Records         int    `json:"records"`
-	Chunks          int    `json:"chunks"`
-	WorkProducts    int    `json:"work_products"`
-	Candidates      int    `json:"candidates"`
-	ObjectsWritten  int    `json:"objects_written"`
-	ObjectsVerified int    `json:"objects_verified"`
+	ContractVersion    string `json:"contract_version"`
+	Stage              string `json:"stage"`
+	BundleRef          string `json:"bundle_ref"`
+	Status             string `json:"status"`
+	Conversations      int    `json:"conversations"`
+	Records            int    `json:"records"`
+	Chunks             int    `json:"chunks"`
+	WorkProducts       int    `json:"work_products"`
+	Candidates         int    `json:"candidates"`
+	ObjectsWritten     int    `json:"objects_written"`
+	ObjectsVerified    int    `json:"objects_verified"`
+	ModelID            string `json:"model_id,omitempty"`
+	ModelCalls         int    `json:"model_calls,omitempty"`
+	GroundedCandidates int    `json:"grounded_candidates,omitempty"`
+	TypedCandidates    int    `json:"typed_candidates,omitempty"`
+	HeldCandidates     int    `json:"held_candidates,omitempty"`
+	RejectedCandidates int    `json:"rejected_candidates,omitempty"`
 }
 
 // validate checks the actual stage receipt against this run's resource ceilings.
@@ -181,7 +208,7 @@ type aiContextReceipt struct {
 func (r aiContextReceipt) validate(stage string, bounds ContextResourceBounds) error {
 	if r.ContractVersion != "ai-context-v1" || r.Stage != stage || r.BundleRef == "" || len(r.BundleRef) > 4096 ||
 		r.Records < 0 || r.Records > bounds.MaxRecords || r.Chunks < 0 || r.Chunks > bounds.MaxChunks ||
-		r.WorkProducts < 0 || r.Candidates < 0 || r.ObjectsWritten < 0 || r.ObjectsVerified < 0 {
+		r.WorkProducts < 0 || r.Candidates < 0 || r.ObjectsWritten < 0 || r.ObjectsVerified < 0 || r.ModelCalls < 0 || (stage == "candidates" && r.ModelCalls > bounds.MaxModelCalls) || r.GroundedCandidates < 0 || r.TypedCandidates < 0 || r.HeldCandidates < 0 || r.RejectedCandidates < 0 || len(r.ModelID) > 512 {
 		return fmt.Errorf("context %s returned an invalid bounded receipt", stage)
 	}
 	return nil
@@ -213,7 +240,7 @@ func contextFirstWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResul
 		// A partial enrichment/publication still retains all complete native outputs available.
 		if summary.PreparedRef != "" && summary.WorkProductsRef != "" {
 			info := workflow.GetInfo(ctx)
-			request := ContextPackageRequest{RequestID: in.RequestID, WorkflowID: info.WorkflowExecution.ID, RunID: info.WorkflowExecution.RunID, SourceRef: string(in.SourceRef), ProviderVersionID: in.ProviderVersionID, PackageRef: string(in.PackageRef), SourceFormat: in.DeclaredFormat, SourceVersionRef: summary.SourceVersionRef, RegistrationReceiptRef: summary.ReceiptRef, PreparedRef: summary.PreparedRef, WorkProductsRef: summary.WorkProductsRef, CandidatesRef: summary.CandidatesRef, EmbeddingsRef: summary.EmbeddingsRef, PublicationRef: summary.PublicationRef, VerificationRef: summary.VerificationRef}
+			request := ContextPackageRequest{RequestID: in.RequestID, WorkflowID: info.WorkflowExecution.ID, RunID: info.WorkflowExecution.RunID, SourceRef: string(in.SourceRef), ProviderVersionID: in.ProviderVersionID, PackageRef: string(in.PackageRef), SourceFormat: in.DeclaredFormat, SourceVersionRef: summary.SourceVersionRef, RegistrationReceiptRef: summary.ReceiptRef, PreparedRef: summary.PreparedRef, WorkProductsRef: summary.WorkProductsRef, CandidatesRef: summary.CandidatesRef, EmbeddingsRef: summary.EmbeddingsRef, PublicationRef: summary.PublicationRef, VerificationRef: summary.VerificationRef, DecodedRef: summary.DecodedRef, HistoricalSourceVersionID: summary.HistoricalSourceVersionID, SourceSHA256: summary.SourceSHA256}
 			options := workflow.ActivityOptions{StartToCloseTimeout: 20 * time.Minute, ScheduleToCloseTimeout: 30 * time.Minute, HeartbeatTimeout: time.Minute, WaitForCancellation: true, RetryPolicy: &temporal.RetryPolicy{MaximumAttempts: 1}}
 			var packageResult ContextPackageResult
 			err := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, options), "retain_ai_context_package_activity", request).Get(ctx, &packageResult)
@@ -257,6 +284,7 @@ func contextFirstWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResul
 		SourceRef: string(in.SourceRef), ProviderVersionID: in.ProviderVersionID,
 		PackageRef: string(in.PackageRef), SourceKind: in.SourceKind,
 		DeclaredFormat: in.DeclaredFormat, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID,
+		HistoricalSourceVersionID: in.HistoricalSourceVersionID, SourceSHA256: in.SourceSHA256,
 	}
 	if in.HumanSource != nil {
 		registration.ByteLength, registration.ETag = in.HumanSource.ByteLength, in.HumanSource.ETag
@@ -277,6 +305,13 @@ func contextFirstWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResul
 	}
 	if in.DeclaredFormat != "chatgpt" && in.DeclaredFormat != "claude" && in.DeclaredFormat != "gemini_markdown" {
 		return finish("needs_parser", "parser_not_available")
+	}
+	if workflow.GetVersion(ctx, contextAtomicAIChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		if registered.HistoricalSourceVersionID != in.HistoricalSourceVersionID || registered.SourceSHA256 != in.SourceSHA256 {
+			return finish("partial", "registration_lineage_mismatch")
+		}
+		summary.HistoricalSourceVersionID, summary.SourceSHA256 = registered.HistoricalSourceVersionID, registered.SourceSHA256
+		return contextAtomicAIWorkflow(ctx, in, registered, &summary, limits, finish)
 	}
 	request := aiContextRequest{
 		ContractVersion: "ai-context-v1", SourceRef: string(in.SourceRef),

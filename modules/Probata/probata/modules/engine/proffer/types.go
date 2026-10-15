@@ -130,6 +130,10 @@ type WorkflowInput struct {
 	// ProviderVersionID and SourceKind retain native source identity before parsing.
 	ProviderVersionID string `json:"provider_version_id,omitempty"`
 	SourceKind        string `json:"source_kind,omitempty"`
+	// HistoricalSourceVersionID binds an explicit recovery to a verified immutable predecessor.
+	// Inputs: existing version UUID and optional original digest. Outputs: registration lineage only; no chat content.
+	HistoricalSourceVersionID string `json:"historical_source_version_id,omitempty"`
+	SourceSHA256              string `json:"source_sha256,omitempty"`
 	// OperatingMode records explicit operating context in durable workflow history.
 	OperatingMode string
 	// RequestID is the client-supplied idempotency key. Callers are expected

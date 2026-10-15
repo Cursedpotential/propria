@@ -1,7 +1,8 @@
 // Byline: Codex | GPT-6.1-sol | 2026-10-07
 //
 // Command context-graph projects and reads retained real extraction bundles in fct/analysis.
-// Inputs are an explicit private bundle file and mounted ANALYSIS_SURREAL credentials.
+// Inputs are an explicit private bundle and mounted ANALYSIS_SURREAL credentials,
+// except approved-schema, which emits canonical SQL without either input or network.
 // Outputs are schema text or reference-only checkpoints; effects are limited to the
 // selected schema/project/read/deactivate operation. Pick downstream of extraction;
 // the command never ingests, calls a model, applies schema or prints source bodies.
@@ -25,14 +26,22 @@ import (
 
 // run executes exactly one bounded operator-selected projection operation.
 // Inputs are CLI arguments and stdout; output is an error or checkpoint/schema text.
-// Effects read a private bundle, optionally project/deactivate its scoped generation,
+// Effects for approved-schema are stdout only, with no bundle, credentials or network.
+// Other operations read a private bundle, optionally project/deactivate its scoped generation,
 // or exclusively save verified traversal JSON to an explicit private output path.
 // Pick as the CLI adapter for the independently callable repository units.
 func run(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("operation required: admit, preflight, schema, project, read, deactivate or metadata")
+		return errors.New("operation required: admit, preflight, schema, approved-schema, project, read, deactivate or metadata")
 	}
 	operation := args[0]
+	if operation == "approved-schema" {
+		if len(args) != 1 {
+			return errors.New("approved-schema takes no arguments")
+		}
+		_, err := io.WriteString(out, surrealsink.ApprovedGraphSchema())
+		return err
+	}
 	if operation != "admit" && operation != "preflight" && operation != "schema" && operation != "project" && operation != "read" && operation != "deactivate" && operation != "metadata" {
 		return errors.New("unsupported context graph operation")
 	}

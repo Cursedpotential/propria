@@ -1,3 +1,4 @@
+// Byline: Codex · GPT-6.1-sol · 2026-10-08 (D-153 fresh snapshot admission)
 // Byline: Codex · GPT-5 · 2026-10-05 (single-case operating contract)
 // Byline: Codex · GPT-5.6-Sol · 2026-08-30 (shared Proffer schema admission)
 // Retarget · Claude Code · Sonnet 5 · 2026-09-02 (BUILD LANE S2): ledger check
@@ -29,10 +30,6 @@ import (
 // SchemaProbeDB is the read-only database surface needed for startup admission.
 type SchemaProbeDB interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
-}
-
-var requiredProfferMigrations = []string{
-	"0036", "0037", "0038", "0039", "0042", "0050", "0051", "0053", "0054",
 }
 
 var requiredProfferTables = []string{
@@ -153,8 +150,11 @@ func devAuthBypassEnabled() bool {
 	}
 }
 
-// ProbeProfferSchema rejects an incomplete, legacy, over-privileged, or wrongly
-// scoped database before any Proffer Temporal queue is polled.
+// ProbeProfferSchema admits the canonical snapshot schema and exact real-case receipt.
+// Inputs: context and read-only catalog client. Output: admission error or nil.
+// Effects: one catalog query; choose before polling any Proffer Temporal queue.
+// D-153 and sql/bootstrap/README.md make the snapshot the fresh-bootstrap authority:
+// retained migration history is protected state, not required proof of retired DDL.
 func ProbeProfferSchema(ctx context.Context, db SchemaProbeDB) error {
 	if db == nil {
 		return errors.New("Proffer schema admission: database is required")
@@ -168,25 +168,15 @@ func ProbeProfferSchema(ctx context.Context, db SchemaProbeDB) error {
 	// The identity check no longer follows the dev flag (owner 2026-10-02: the flag only governs login).
 	// The real go-live receipt is required in every mode.
 	var database, currentUser, databaseOwner string
-	var ledgerCount, tableCount, columnCount int
+	var tableCount, columnCount int
 	var constraintsExact, substrateExact, roleSafe, grantsExact, receiptExact bool
 	err := db.QueryRow(ctx, `
 		SELECT current_database(), current_user,
 		       pg_get_userbyid((SELECT datdba FROM pg_database WHERE datname=current_database())),
-		       -- D-109 (docs/DECISION_LOG.md, 2026-08-30): public.schema_version is
-		       -- NOT a migration ledger -- its status vocabulary (active/superseded/
-		       -- deprecated) and columns (applies_to/ddl_uri/supersedes) describe
-		       -- data-contract versions, not applied migrations; that resemblance
-		       -- destroyed migration state once already (2026-08-29 CREATE DATABASE
-		       -- ... TEMPLATE ai inherited its rows). ops.migration_ledger (sql/0055
-		       -- PART 5) is THE ledger: one row per applied migration_id, no status
-		       -- column, so presence alone means "applied" -- no status predicate.
-		       (SELECT count(*) FROM ops.migration_ledger
-		         WHERE migration_id=ANY($1::text[])),
 		       (SELECT count(*) FROM information_schema.tables
-		         WHERE format('%s.%s',table_schema,table_name)=ANY($2::text[])),
+		         WHERE format('%s.%s',table_schema,table_name)=ANY($1::text[])),
 		       (SELECT count(*) FROM information_schema.columns
-		         WHERE format('%s.%s.%s',table_schema,table_name,column_name)=ANY($3::text[])),
+		         WHERE format('%s.%s.%s',table_schema,table_name,column_name)=ANY($2::text[])),
 		       (NOT EXISTS (
 		         SELECT 1 FROM (VALUES
 		           ('context.source_version','source_version_matter_fk','registry.matter',ARRAY['matter_id'],ARRAY['id']),
@@ -231,13 +221,8 @@ func ProbeProfferSchema(ctx context.Context, db SchemaProbeDB) error {
 		         AND NOT has_table_privilege('platform_runtime','registry.matter','INSERT')
 		         AND NOT has_table_privilege('platform_runtime','registry.matter','UPDATE')
 		         AND NOT has_table_privilege('platform_runtime','registry.matter','DELETE')
-		         -- The guard's intent is "platform_runtime must never be able to
-		         -- forge ledger history" -- it must track whichever table is
-		         -- ACTUALLY the ledger. Retargeted alongside the ledgerCount
-		         -- subquery above (D-109): checking INSERT-denial on the old
-		         -- data-contract-version table no longer protects anything, since
-		         -- platform_runtime writing rows there can no longer masquerade
-		         -- as applied-migration state.
+		         -- D-153 retains historical state but does not require fabricated
+		         -- migration rows on fresh bootstrap; runtime still cannot forge it.
 		         AND NOT has_table_privilege('platform_runtime','ops.migration_ledger','INSERT')
 		         AND (NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='agno_app') OR NOT (
 		           has_table_privilege('agno_app','registry.matter','INSERT')
@@ -249,24 +234,18 @@ func ProbeProfferSchema(ctx context.Context, db SchemaProbeDB) error {
 		           OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','INSERT')
 		           OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','UPDATE')
 		           OR has_table_privilege('agno_app','analysis.matter_knowledge_partition','DELETE'))),
-		       -- payload_byte_length ($12), approved_by ($13) and approved_on
-		       -- ($14) used to be hardcoded literals (1075 / 'owner' /
-		       -- DATE '2026-08-23'). D-126 needs a second, DEV-mode
-		       -- expectation for the same predicates, so all three are now
-		       -- bind parameters -- the query text itself never changes
-		       -- between STRICT and DEV mode, only which Go constants are
-		       -- bound to $4/$5/$6..$14.
-		       (SELECT count(*)=1 AND count(*) FILTER (WHERE matter_id=$4::uuid AND court_case_id=$5::uuid
-		          AND source_migration_uri=$6 AND encode(source_migration_sha256,'hex')=$7
-		          AND source_git_commit=$8 AND payload_schema_version=$9 AND payload_byte_length=$12
-		          AND encode(canonical_payload_sha256,'hex')=$10 AND encode(api_payload_sha256,'hex')=$11
-		          AND approved_by=$13 AND approved_on=$14::date)=1
+		       -- The exact owner-approved real receipt is required in every mode.
+		       (SELECT count(*)=1 AND count(*) FILTER (WHERE matter_id=$3::uuid AND court_case_id=$4::uuid
+		          AND source_migration_uri=$5 AND encode(source_migration_sha256,'hex')=$6
+		          AND source_git_commit=$7 AND payload_schema_version=$8 AND payload_byte_length=$11
+		          AND encode(canonical_payload_sha256,'hex')=$9 AND encode(api_payload_sha256,'hex')=$10
+		          AND approved_by=$12 AND approved_on=$13::date)=1
 		          FROM analysis.case_registry_import_receipt)`,
-		requiredProfferMigrations, requiredProfferTables, requiredProfferColumns, matterID, courtCaseID,
+		requiredProfferTables, requiredProfferColumns, matterID, courtCaseID,
 		receiptURI, receiptSHA256Hex, gitCommit,
 		schemaVersion, canonicalSHA256Hex, apiSHA256Hex,
 		payloadByteLength, approvedBy, approvedOn,
-	).Scan(&database, &currentUser, &databaseOwner, &ledgerCount, &tableCount, &columnCount,
+	).Scan(&database, &currentUser, &databaseOwner, &tableCount, &columnCount,
 		&constraintsExact, &substrateExact, &roleSafe, &grantsExact, &receiptExact)
 	if err != nil {
 		return errors.New("Proffer schema admission: catalog verification unavailable")
@@ -274,9 +253,9 @@ func ProbeProfferSchema(ctx context.Context, db SchemaProbeDB) error {
 	if database != "platform" || currentUser != "platform_runtime" || databaseOwner != "platform_admin" {
 		return fmt.Errorf("Proffer schema admission: identity rejected: database=%q role=%q owner=%q", database, currentUser, databaseOwner)
 	}
-	if ledgerCount != len(requiredProfferMigrations) || tableCount != len(requiredProfferTables) || columnCount != len(requiredProfferColumns) || !constraintsExact || !substrateExact || !roleSafe || !grantsExact || !receiptExact {
-		return fmt.Errorf("Proffer schema admission failed (dev_bypass=%t): ledger=%d/%d tables=%d/%d columns=%d/%d constraints=%t substrate=%t role=%t grants=%t receipt=%t",
-			devBypass, ledgerCount, len(requiredProfferMigrations), tableCount, len(requiredProfferTables), columnCount,
+	if tableCount != len(requiredProfferTables) || columnCount != len(requiredProfferColumns) || !constraintsExact || !substrateExact || !roleSafe || !grantsExact || !receiptExact {
+		return fmt.Errorf("Proffer schema admission failed (dev_bypass=%t): tables=%d/%d columns=%d/%d constraints=%t substrate=%t role=%t grants=%t receipt=%t",
+			devBypass, tableCount, len(requiredProfferTables), columnCount,
 			len(requiredProfferColumns), constraintsExact, substrateExact, roleSafe, grantsExact, receiptExact)
 	}
 	return nil

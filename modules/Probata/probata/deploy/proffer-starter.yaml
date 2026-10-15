@@ -36,6 +36,13 @@ services:
       OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json"}'
       DERIVED_ROOTS_JSON: ''
       PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
+      AI_CONTEXT_ROOT: /data/proffer/derive-scratch/ai-content/context
+      ANALYSIS_SURREAL_URL: http://100.91.190.107:8471
+      ANALYSIS_SURREAL_NAMESPACE: fct
+      ANALYSIS_SURREAL_DATABASE: analysis
+      ANALYSIS_SURREAL_AUTH_LEVEL: database
+      ANALYSIS_SURREAL_USER_FILE: /run/secrets/analysis-surreal-user
+      ANALYSIS_SURREAL_PASSWORD_FILE: /run/secrets/analysis-surreal-password
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-proffer-v1}
@@ -95,6 +102,11 @@ services:
       # up to 16. Byline: Claude Code Â· Opus 5 Â· 2026-09-21
       PROFFER_BATCH_MAX_IN_FLIGHT: ${PROFFER_BATCH_MAX_IN_FLIGHT:-1}
     volumes:
+      # Native AI review verifies external bundles through the existing shared volume.
+      # Keep short-form read-only mounts: the managed renderer preserves their access mode.
+      - /data/probata/volumes/proffer/derive-scratch/ai-content:/data/proffer/derive-scratch/ai-content:ro
+      - /data/probata/secrets/analysis-graph/analysis-surreal-user:/run/secrets/analysis-surreal-user:ro
+      - /data/probata/secrets/analysis-graph/analysis-surreal-password:/run/secrets/analysis-surreal-password:ro
       # Short-form :ro is preserved by the managed compose renderer.
       - /data/probata/volumes/proffer/derive-scratch/human-context:/data/proffer/derive-scratch/human-context:ro
       - /data/probata/secrets/family-court/library-sync-token:/run/secrets/toolkit-library-sync-token:ro

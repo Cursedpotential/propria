@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Cursedpotential/probata/engine/aicontextsource"
 	"github.com/Cursedpotential/probata/engine/extraction/flow"
 	"github.com/Cursedpotential/probata/engine/humancontext"
 	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/google/uuid"
 )
 
 // ContextSourceWorkflows is the shared Go Proffer start/status seam for context-first imports.
@@ -54,19 +56,21 @@ func (h *ContextSourceHTTPHandler) Routes() http.Handler {
 type contextSourceBody struct {
 	proffer.ContextResourceBounds
 
-	ContractVersion      string `json:"contract_version"`
-	SourceRef            string `json:"source_ref"`
-	ProviderVersionID    string `json:"provider_version_id"`
-	PackageRef           string `json:"package_ref"`
-	SourceKind           string `json:"source_kind"`
-	DeclaredFormat       string `json:"declared_format"`
-	MatterID             string `json:"matter_id"`
-	CourtCaseID          string `json:"court_case_id"`
-	OwnerPersonRef       string `json:"owner_person_ref,omitempty"`
-	PerspectivePersonRef string `json:"perspective_person_ref,omitempty"`
-	Perspective          string `json:"perspective,omitempty"`
-	ByteLength           int64  `json:"byte_length,omitempty"`
-	ETag                 string `json:"etag,omitempty"`
+	ContractVersion           string `json:"contract_version"`
+	SourceRef                 string `json:"source_ref"`
+	ProviderVersionID         string `json:"provider_version_id"`
+	PackageRef                string `json:"package_ref"`
+	SourceKind                string `json:"source_kind"`
+	DeclaredFormat            string `json:"declared_format"`
+	MatterID                  string `json:"matter_id"`
+	CourtCaseID               string `json:"court_case_id"`
+	OwnerPersonRef            string `json:"owner_person_ref,omitempty"`
+	PerspectivePersonRef      string `json:"perspective_person_ref,omitempty"`
+	Perspective               string `json:"perspective,omitempty"`
+	ByteLength                int64  `json:"byte_length,omitempty"`
+	ETag                      string `json:"etag,omitempty"`
+	HistoricalSourceVersionID string `json:"historical_source_version_id,omitempty"`
+	SourceSHA256              string `json:"source_sha256,omitempty"`
 }
 
 // validate checks source coordinates and existing operation limits without creating policy gates.
@@ -75,6 +79,14 @@ type contextSourceBody struct {
 func (b contextSourceBody) validate() error {
 	if err := b.ContextResourceBounds.Validate(); err != nil {
 		return err
+	}
+	if b.HistoricalSourceVersionID != "" {
+		if _, err := uuid.Parse(b.HistoricalSourceVersionID); err != nil || !aicontextsource.ValidDigest(b.SourceSHA256) {
+			return errors.New("historical source lineage requires an existing version UUID and original SHA256")
+		}
+	}
+	if b.SourceSHA256 != "" && !aicontextsource.ValidDigest(b.SourceSHA256) {
+		return errors.New("source_sha256 must be a lowercase original SHA256")
 	}
 	if b.ContractVersion != proffer.ContextContractVersion || strings.TrimSpace(b.SourceRef) == "" ||
 		len(b.SourceRef) > 2048 || len(b.ProviderVersionID) > 512 || len(b.PackageRef) > 2048 ||
@@ -119,6 +131,9 @@ func (h *ContextSourceHTTPHandler) start(w http.ResponseWriter, r *http.Request)
 	coordinates := []string{key, actor.SubjectUID, body.SourceRef, body.ProviderVersionID, body.PackageRef,
 		body.SourceKind, body.DeclaredFormat, body.MatterID, body.CourtCaseID,
 		fmt.Sprintf("%d:%d:%d:%d:%d", body.MaxSourceBytes, body.MaxRecords, body.MaxTextBytes, body.MaxChunks, body.MaxModelCalls)}
+	if body.HistoricalSourceVersionID != "" || body.SourceSHA256 != "" {
+		coordinates = append(coordinates, body.HistoricalSourceVersionID, body.SourceSHA256)
+	}
 	var humanSource *humancontext.Source
 	if body.DeclaredFormat == "smsbackuprestore_xml" || body.OwnerPersonRef != "" || body.PerspectivePersonRef != "" ||
 		body.Perspective != "" || body.ByteLength != 0 || body.ETag != "" {
@@ -135,6 +150,7 @@ func (h *ContextSourceHTTPHandler) start(w http.ResponseWriter, r *http.Request)
 		HumanSource:           humanSource,
 		SourceRef:             proffer.Ref(body.SourceRef), ProviderVersionID: body.ProviderVersionID,
 		PackageRef: proffer.Ref(body.PackageRef), SourceKind: body.SourceKind,
+		HistoricalSourceVersionID: body.HistoricalSourceVersionID, SourceSHA256: body.SourceSHA256,
 		DeclaredFormat: body.DeclaredFormat, MatterID: body.MatterID, CourtCaseID: body.CourtCaseID,
 	}
 	started, err := h.workflows.Start(r.Context(), in)

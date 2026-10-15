@@ -96,6 +96,8 @@ func importActivityAdmission(payload interface{}) error {
 		mode, matter, court = req.OperatingMode, req.MatterID, req.CourtCaseID
 	case activities.BindImportOperationRequest:
 		mode, matter, court = req.OperatingMode, req.MatterID, req.CourtCaseID
+	case activities.AICandidateStageInput:
+		mode, matter, court = req.OperatingMode, req.MatterID, req.CourtCaseID
 	default:
 		return fmt.Errorf("unreviewed import Activity payload %T", payload)
 	}

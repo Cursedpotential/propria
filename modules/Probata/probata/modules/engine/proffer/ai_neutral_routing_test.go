@@ -29,6 +29,11 @@ func TestAINeutralRoutingUsesRecordedApplicabilityAndKeepsLegacyCommands(t *test
 			env.RegisterWorkflow(ProfferWorkflow)
 			registerAIContentMocks(env, "")
 			mockAllStagesSucceed(env)
+			if tc.declared == "chatgpt_official_json" {
+				// Exercise the normalized-generation routing marker under test;
+				// the later native-source branch has its own pin/receipt tests.
+				env.OnGetVersion(aiContentNativeSourceChangeID, workflow.DefaultVersion, 1).Return(workflow.DefaultVersion).Once()
+			}
 			env.OnActivity(string(stagegraph.ResolveContextParticipants), mock.Anything, mock.Anything).Return(
 				StageResult{Stage: stagegraph.ResolveContextParticipants, Status: StatusNotApplicable, ReceiptRef: "AI-resolution-receipt", Reason: "AI roles remain source labels", AIChatSource: tc.verifiedAI}, nil).Once()
 			if tc.legacy {

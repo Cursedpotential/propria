@@ -161,6 +161,7 @@ func TestHumanContextGuardPreservesAICommands(t *testing.T) {
 			})
 			input := humanContextFixture()
 			input.DeclaredFormat, input.HumanSource = "gemini_markdown", nil
+			env.OnGetVersion(contextAtomicAIChangeID, workflow.DefaultVersion, workflow.Version(1)).Return(workflow.DefaultVersion)
 			var order []string
 			env.RegisterActivityWithOptions(func(context.Context, ContextSourceRegistrationRequest) (ContextSourceRegistrationResult, error) {
 				order = append(order, contextRegisterActivityName)

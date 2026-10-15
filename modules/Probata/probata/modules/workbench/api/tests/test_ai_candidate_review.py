@@ -16,9 +16,26 @@ SOURCE = {
     "source_version_id": "11111111-1111-4111-8111-111111111111",
     "source_ref": "b2://salem-data/consignatio/casevault/export.json",
     "version_id": "original-provider-version", "source_object_id": "", "source_sha256": "a" * 64,
-    "prepared_ref": "b2://salem-data/consignatio/casevault/context/prepared.json",
+    "prepared_ref": "file:///data/proffer/derive-scratch/ai-content/context/native-run/prepared.json",
 }
 ITEM = "22222222-2222-4222-8222-222222222222"
+
+
+@pytest.mark.parametrize("reference", [
+    "b2://salem-data/context/prepared.json",
+    "file://other-host/data/prepared.json",
+    "file:///data/context/../prepared.json",
+    "file:///data/context/%2e%2e/prepared.json",
+    "file:///data/context/prepared.json?version=other",
+    "file:///data/context/prepared.json#other",
+    "file:///data/context/candidates.json",
+])
+def test_review_refuses_ambiguous_prepared_locator(reference):
+    """Reject unusable bundle coordinates before querying the exact-source review API."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        review.ReviewSource.model_validate({**SOURCE, "prepared_ref": reference})
 
 
 def actor():

@@ -104,9 +104,11 @@ func fingerprintVocabularyFor(ctx workflow.Context) fingerprintVocabulary {
 	}
 }
 
-// ProfferWorkflow selects the tagged context-first path or preserves the established legacy stage graph.
-// Inputs: source coordinates, caller identity and optional context contract. Outputs: reference-only workflow result.
-// Effects: named Temporal Activities in the worker; choose context-v1 for source processing without legacy case admission.
+// ProfferWorkflow selects the versioned context-first path or the historical stage graph.
+// Inputs: source pointer, request identity and an optional explicit context-v1 contract.
+// Outputs: compact registered-context or legacy Proffer result. Effects: named Temporal Activities.
+// Choose the tagged branch for source discovery and parsing before case/custody gates;
+// untagged histories keep their recorded 26-stage commands and approval behavior.
 func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
 	if in.ContextContract != "" && in.ContextContract != ContextContractVersion {
 		return WorkflowResult{}, errors.New("unknown context import contract")
@@ -119,7 +121,6 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		}
 		return WorkflowResult{}, errors.New("context-first import requires the versioned workflow path")
 	}
-
 	// A missing version marker identifies old history, not LIVE authorization.
 	// Replay preserves its historical commands; Activity admission rejects unknown pending writes.
 	if workflow.GetVersion(ctx, operatingContextChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
@@ -253,6 +254,18 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	contextSourceFingerprintRef := fanOut[fingerprint.source]
 	containerManifestRef := fanOut[stagegraph.InventoryContainer]
 	metadataManifestRef := fanOut[stagegraph.ExtractEmbeddedMetadata]
+	// Native AI exports are read from the retained original. They do not create
+	// normalized message IDs or a synthetic raw generation. The Python reader
+	// checks the actual source shape and custody pin before producing a bundle.
+	// GetVersion preserves the parser commands of histories recorded earlier.
+	if in.DeclaredFormat == "chatgpt_official_json" && workflow.GetVersion(ctx, aiContentNativeSourceChangeID, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+		r.aiContent, err = r.execAIContentWithSource(ctx, "", "", activeOriginalRef)
+		if err != nil {
+			r.operation.Reason = err.Error()
+			return r.result(""), err
+		}
+		return r.nativeAIContentResult(), nil
+	}
 	structuredELTRoute := workflow.GetVersion(ctx, structuredELTRouteChangeID, workflow.DefaultVersion, structuredELTRouteVersion)
 	activeFormat := in.DeclaredFormat
 	useStructuredELT := structuredELTRoute != workflow.DefaultVersion && structuredELTEligible(in.DeclaredFormat)
@@ -1566,6 +1579,18 @@ func (r *run) deriveResult(derived DeriveResult) WorkflowResult {
 		Stages:           r.results,
 		Derived:          &derived,
 	}
+}
+
+// nativeAIContentResult completes a retained-source AI branch without claiming a canonical generation publication.
+// Inputs: the six verified AI bundle references on run. Outputs: source and derived-content receipts.
+// Effects: marks the operation complete. Choose only after native content readback succeeded.
+func (r *run) nativeAIContentResult() WorkflowResult {
+	r.operation.ActiveStages = []ActivityName{}
+	r.operation.CurrentStage, r.operation.Wait = "", ""
+	r.operation.Terminal = true
+	r.operation.Lifecycle = OperationCompleted
+	r.operation.Reason = ""
+	return WorkflowResult{SourceVersionRef: r.sourceVersionRef, Status: StatusSuccess, Stages: r.results, AIContent: r.aiContent}
 }
 
 func (r *run) awaiting(lifecycle OperationLifecycle, wait OperationWait) {

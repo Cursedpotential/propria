@@ -6,10 +6,11 @@ requests only; no chat normalization, extra approval or graph-success inference.
 Choose for native context-v1 exports, not SMS preview overlays.
 """
 from typing import Literal
+from urllib.parse import unquote, urlsplit
 from uuid import UUID
 
 from fastapi import HTTPException, Request
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.runtime.analysis import _actor_headers
 from app.service import proffer
@@ -27,7 +28,24 @@ class ReviewSource(BaseModel):
     version_id: str | None = Field(default=None, min_length=1, max_length=512)
     source_object_id: Literal[""] = ""
     source_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    prepared_ref: str = Field(pattern=r"^b2://", min_length=8, max_length=4096)
+    prepared_ref: str = Field(pattern=r"^file:///", min_length=8, max_length=4096)
+
+    @field_validator("prepared_ref")
+    @classmethod
+    def exact_prepared_file(cls, value: str) -> str:
+        """Preserve the workflow's local bundle locator before Go independently verifies it.
+
+        Input: Stage's prepared reference. Output: exact original reference.
+        Effects: none; reject ambiguous URLs without reading the shared volume.
+        """
+        parsed = urlsplit(value)
+        path = unquote(parsed.path)
+        if (parsed.scheme != "file" or parsed.netloc or parsed.query or parsed.fragment
+                or any(part in (".", "..") for part in path.split("/"))
+                or any(char in path for char in ("\\", "\x00", "\r", "\n"))
+                or not path.endswith("/prepared.json")):
+            raise ValueError("prepared_ref must identify the exact native prepared bundle")
+        return value
 
 
 class CandidateDecision(BaseModel):

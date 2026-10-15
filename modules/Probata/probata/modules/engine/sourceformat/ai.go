@@ -17,6 +17,9 @@ const ChatGPTMarkdown = "chatgpt_markdown"
 // ClaudeMarkdown is a Markdown transcript with ordered Human and Assistant headings and nonempty bodies.
 const ClaudeMarkdown = "claude_markdown"
 
+// GeminiMarkdown is a native Markdown transcript with paired bold You and Gemini labels.
+const GeminiMarkdown = "gemini_markdown"
+
 // claudeConversationSignature checks a complete native conversation without inferring message fields.
 // Inputs: a decoded first conversation. Output: whether uuid/name and typed
 // messages exist, or its explicitly empty message array is a native envelope.
@@ -66,10 +69,10 @@ func claudeConversationSignature(first map[string]json.RawMessage) bool {
 }
 
 var aiHeading = regexp.MustCompile(`^(?:#{1,6}\s+)(Prompt|Response|Human|Assistant):?\s*$`)
+var geminiRoleLabel = regexp.MustCompile(`^\*\*(You|Gemini):\*\*\s*(.*)$`)
 
 // detectAIMarkdown recognizes paired role headings outside fenced code, with content for both turns.
-// Inputs: UTF-8 bytes. Outputs: chatgpt_markdown/chatgpt_prompt_response_markdown_v1 or
-// claude_markdown/claude_human_assistant_markdown_v1, otherwise empty IDs.
+// Inputs: UTF-8 bytes. Outputs: ChatGPT, Claude or Gemini Markdown format/signature, otherwise empty IDs.
 // Side effects: none. Pick this for exported Markdown; ordinary role prose is not a signature.
 func detectAIMarkdown(content []byte) (string, string) {
 	var role string
@@ -95,42 +98,55 @@ func detectAIMarkdown(content []byte) (string, string) {
 			continue
 		}
 		match := aiHeading.FindStringSubmatch(text)
-		if match != nil {
-			if role == "Prompt" || role == "Human" {
+		gemini := geminiRoleLabel.FindStringSubmatch(text)
+		if match != nil || gemini != nil {
+			if role == "Prompt" || role == "Human" || role == "You" {
 				completeUser = body
 			}
-			if (role == "Response" || role == "Assistant") && completeUser && body {
+			if (role == "Response" || role == "Assistant" || role == "Gemini") && completeUser && body {
 				return markdownIDs(family)
 			}
-			newRole := match[1]
+			newRole := ""
+			inlineBody := ""
+			if gemini != nil {
+				newRole, inlineBody = gemini[1], gemini[2]
+			} else {
+				newRole = match[1]
+			}
 			newFamily := "claude"
 			if newRole == "Prompt" || newRole == "Response" {
 				newFamily = "chatgpt"
+			} else if newRole == "You" || newRole == "Gemini" {
+				newFamily = "gemini"
 			}
 			if family != "" && newFamily != family {
 				return "", ""
 			}
 			family = newFamily
-			if (newRole == "Response" || newRole == "Assistant") && !completeUser {
+			if (newRole == "Response" || newRole == "Assistant" || newRole == "Gemini") && !completeUser {
 				return "", ""
 			}
 			role = newRole
-			body = false
+			body = strings.TrimSpace(inlineBody) != ""
 		} else if text != "" && role != "" {
 			body = true
 		}
 	}
-	if (role == "Response" || role == "Assistant") && completeUser && body {
+	if (role == "Response" || role == "Assistant" || role == "Gemini") && completeUser && body {
 		return markdownIDs(family)
 	}
 	return "", ""
 }
 
 // markdownIDs returns the exact public format/signature pair for a recognized export family.
-// Input: chatgpt or claude. Output: IDs. Side effects: none. Pick after validating paired headings.
+// Input: chatgpt, claude or gemini. Output: registered format/signature IDs. Side effects: none.
+// Pick after validating paired headings outside code fences.
 func markdownIDs(family string) (string, string) {
 	if family == "chatgpt" {
 		return ChatGPTMarkdown, "chatgpt_prompt_response_markdown_v1"
+	}
+	if family == "gemini" {
+		return GeminiMarkdown, "gemini_you_gemini_markdown_v1"
 	}
 	return ClaudeMarkdown, "claude_human_assistant_markdown_v1"
 }

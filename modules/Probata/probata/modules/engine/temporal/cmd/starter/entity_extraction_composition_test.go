@@ -18,6 +18,7 @@ func TestEntityExtractionRoutesMountBesideExistingOnes(t *testing.T) {
 	for target, want := range map[string]int{
 		"/reference-import/entities/proposals":       http.StatusAccepted,
 		"/reference-import/entities/commits/x":       http.StatusAccepted,
+		"/reference-import/ai-candidates":            http.StatusAccepted,
 		"/reference-import/previews/handle/operator": http.StatusTeapot,
 		"/reference-import/start":                    http.StatusTeapot,
 		"/reference-import/repair/tools":             http.StatusTeapot,
@@ -32,6 +33,13 @@ func TestEntityExtractionRoutesMountBesideExistingOnes(t *testing.T) {
 	routes.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/reference-import/events/from-record", nil))
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("from-record -> %d", recorder.Code)
+	}
+	for _, target := range []string{"/reference-import/ai-candidates/stage", "/reference-import/ai-candidates/decision"} {
+		recorder := httptest.NewRecorder()
+		routes.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, target, nil))
+		if recorder.Code != http.StatusAccepted {
+			t.Errorf("%s -> %d, want %d", target, recorder.Code, http.StatusAccepted)
+		}
 	}
 	if _, err := mountEntityExtractionRoutes(nil, extraction); err == nil {
 		t.Fatal("a nil existing handler must fail")

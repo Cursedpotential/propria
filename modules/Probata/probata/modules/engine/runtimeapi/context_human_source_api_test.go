@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Cursedpotential/probata/engine/extraction/flow"
@@ -22,6 +23,27 @@ type nativeContextStartRecorder struct{ inputs []proffer.WorkflowInput }
 func (s *nativeContextStartRecorder) Start(_ context.Context, in proffer.WorkflowInput) (proffer.ContextStarted, error) {
 	s.inputs = append(s.inputs, in)
 	return proffer.ContextStarted{WorkflowID: in.RequestID, RunID: "synthetic-run"}, nil
+}
+
+// TestNativeContextHistoricalPinsAreValidatedAndBoundToWorkflowIdentity preserves explicit recovery provenance.
+// Inputs: known historical UUID/hash and malformed alternatives. Outputs: forwarded pins or pre-dispatch refusal.
+// Effects: in-memory HTTP/workflow capture only; choose to prevent caller identity substitution or malformed recovery starts.
+func TestNativeContextHistoricalPinsAreValidatedAndBoundToWorkflowIdentity(t *testing.T) {
+	recorder := &nativeContextStartRecorder{}
+	handler := &ContextSourceHTTPHandler{workflows: recorder}
+	body := contextSourceBody{ContractVersion: proffer.ContextContractVersion, SourceRef: "b2://fixture/source.json", ProviderVersionID: "exact-version", SourceKind: "ai_chat", DeclaredFormat: "chatgpt", HistoricalSourceVersionID: "11111111-1111-4111-8111-111111111111", SourceSHA256: strings.Repeat("a", 64)}
+	response := submitNativeContextBody(t, handler, body)
+	if response.Code != http.StatusAccepted || len(recorder.inputs) != 1 {
+		t.Fatalf("historical start: %d %s", response.Code, response.Body.String())
+	}
+	if recorder.inputs[0].HistoricalSourceVersionID != body.HistoricalSourceVersionID || recorder.inputs[0].SourceSHA256 != body.SourceSHA256 {
+		t.Fatal("historical pins not forwarded")
+	}
+	body.SourceSHA256 = ""
+	response = submitNativeContextBody(t, handler, body)
+	if response.Code != http.StatusUnprocessableEntity || len(recorder.inputs) != 1 {
+		t.Fatal("historical start without digest dispatched")
+	}
 }
 
 // Status satisfies the unchanged context workflow interface without performing reads.

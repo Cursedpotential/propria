@@ -207,6 +207,56 @@ func run() error {
 	if routes, err = mountConversationExtractionRoutes(routes, conversationRoutes); err != nil {
 		return err
 	}
+	// Source-pinned atomic tool actions share this Temporal client and queue.
+	// Inputs: existing service token and actor-bound action routes. Output: mounted API.
+	// Effects: route registration only; choose for operator-started tool actions.
+	atomicToolRoutes, err := atomicToolHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountAtomicToolRoutes(routes, atomicToolRoutes); err != nil {
+		return err
+	}
+	// Approved context reads share the starter client, queue and service token.
+	// Inputs: actor-bound query and status routes. Output: mounted API.
+	// Effects: route registration only; choose for revision-pinned graph queries.
+	approvedQueryRoutes, err := approvedGraphQueryHandler(c, cfg.TemporalTaskQueue, serviceTokenFile, pool)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountApprovedGraphQueryRoutes(routes, approvedQueryRoutes); err != nil {
+		return err
+	}
+	// Walks reuse this client, queue and service token; Go owns chronological sequencing.
+	// Inputs: approved scope/cutoffs and actor-bound status. Outputs: mounted exact walk routes.
+	// Effects: route registration only; choose beside existing graph reads.
+	walkRoutes, err := approvedWalkHandler(c, cfg.TemporalTaskQueue, serviceTokenFile, pool)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountApprovedWalkRoutes(routes, walkRoutes); err != nil {
+		return err
+	}
+	// Projection choices share the existing analytical identity and service token.
+	// Inputs: guarded listing handler; output: mounted exact GET route.
+	// Effects: configuration reads/route registration; choose before query selection.
+	projectionRoutes, err := approvedGraphProjectionsHandler(serviceTokenFile, pool)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountApprovedGraphProjectionsRoutes(routes, projectionRoutes); err != nil {
+		return err
+	}
+	// Context-first intake reuses this Go starter's Temporal client, queue and service token.
+	// Inputs: native source pointer and actor-bound polling. Output: mounted API.
+	// Effects: route registration only; choose for context-v1 before legacy preview gates.
+	contextRoutes, err := contextSourceHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	if routes, err = mountContextSourceRoutes(routes, contextRoutes); err != nil {
+		return err
+	}
 	// Case identity: the Workbench Case page reads and edits registry, the one
 	// identity store. Byline: Claude Code · Opus 5.5 · 2026-10-01
 	caseIdentityRoutes, err := caseIdentityHandler(pool, serviceTokenFile)

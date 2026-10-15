@@ -40,8 +40,8 @@
 services:
   proffer-worker:
     build:
-      context: .
-      dockerfile: deploy/docker/proffer-worker/Dockerfile
+      context: ../../..
+      dockerfile: modules/Probata/probata/deploy/docker/proffer-worker/Dockerfile
     image: ${PROFFER_WORKER_IMAGE:-platform-proffer-worker:latest}
     restart: unless-stopped
     # CORRECTED 2026-09-20 (owner: "not sure why they were different to begin
@@ -65,6 +65,9 @@ services:
       - coolify
     environment:
       PLATFORM_DATABASE_URL_FILE: /run/secrets/platform-database-url
+      # One bounded raw-view callback; no extraction or indexing side effects.
+      SOURCE_PREVIEW_CALLBACK_URL: ${SOURCE_PREVIEW_CALLBACK_URL:-}
+      PROFFER_SERVICE_TOKEN_FILE: /run/secrets/proffer-service-token
       TEMPORAL_HOST_PORT: ${TEMPORAL_HOST_PORT:?set}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-proffer-v1}
@@ -81,7 +84,12 @@ services:
       NORMALIZED_BUNDLE_DIR: /data/proffer/normalized-bundles
       INVENTORY_MANIFEST_DIR: /data/proffer/inventory-manifests
       DERIVE_SCRATCH_DIR: /data/proffer/derive-scratch
+      # Existing native context and catalog adapters; originals stay in object storage.
+      AI_CONTEXT_ROOT: /data/proffer/derive-scratch/ai-content/context
+      AI_CONTEXT_CATALOG_DATABASE_URL_FILE: /run/secrets/ai-context-catalog-database-url
       # Byline: Codex / GPT-6 / 2026-10-07. Dedicated analytical target; the operational sink keeps its own configuration.
+      # Enable the existing reviewed-analysis lane through managed configuration.
+      APPROVED_CONTEXT_GRAPH_ENABLED: ${APPROVED_CONTEXT_GRAPH_ENABLED:-}
       ANALYSIS_GRAPH_ROOT: /data/proffer/derive-scratch/ai-content/analysis-graphs
       ANALYSIS_GRAPH_MATTER_ID: ${ANALYSIS_GRAPH_MATTER_ID:?set}
       ANALYSIS_GRAPH_CASE_ID: ${ANALYSIS_GRAPH_CASE_ID:?set}
@@ -180,6 +188,9 @@ services:
       # The embedder is the collection's own (NIM nemotron-3-embed-1b, 2048-d, text_nim).
       # Byline: Claude Code · Opus 5.5 · 2026-10-01
       CONTEXT_SEARCH_WEAVIATE_URL: ${CONTEXT_SEARCH_WEAVIATE_URL:-http://100.91.190.107:8082}
+      # Native human context publishes conversation chunks into the existing approved collection.
+      # This path never creates a collection or publishes per-message objects.
+      CONTEXT_CHUNKS_COLLECTION: ProfferChunks20261002
       # One owner-approved collection per record kind (owner 2026-10-02): messages and calls,
       # AI chats, documents. Only DocEvents20261001 may be created by the worker.
       # Messages and calls go to Proffer's own ProfferMsgEvents20261002, apart from the Case Bible's
@@ -195,6 +206,15 @@ services:
       CONTEXT_SEARCH_VECTOR_NAME: text_nim
       CONTEXT_SEARCH_EMBED_API_KEY_FILE: /run/secrets/nvidia-api-key
     volumes:
+      # Match the existing starter mount: Coolify preserves :ro but drops long-form read_only.
+      # The existing host token is verified before deployment; callbacks never create or rotate it.
+      - /data/probata/secrets/proffer/service-token:/run/secrets/proffer-service-token:ro
+      - type: bind
+        source: /data/probata/secrets/family-court/casebible-recovery-database-url
+        target: /run/secrets/ai-context-catalog-database-url
+        read_only: true
+        bind:
+          create_host_path: false
       - type: bind
         source: /data/probata/secrets/analysis-graph/analysis-surreal-user
         target: /run/secrets/analysis-surreal-user

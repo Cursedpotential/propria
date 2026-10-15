@@ -4,21 +4,24 @@ package proffer
 // Inputs: actual workflow/source identities and mounted bundle references. Outputs: atomic adapter request.
 // Effects: none; choose after preparation and complete work-product extraction, including partial later stages.
 type ContextPackageRequest struct {
-	RequestID              string `json:"request_id"`
-	WorkflowID             string `json:"workflow_id"`
-	RunID                  string `json:"run_id"`
-	SourceRef              string `json:"source_ref"`
-	ProviderVersionID      string `json:"provider_version_id,omitempty"`
-	PackageRef             string `json:"package_ref,omitempty"`
-	SourceFormat           string `json:"source_format"`
-	SourceVersionRef       string `json:"source_version_ref"`
-	RegistrationReceiptRef string `json:"registration_receipt_ref"`
-	PreparedRef            string `json:"prepared_ref"`
-	WorkProductsRef        string `json:"work_products_ref"`
-	CandidatesRef          string `json:"candidates_ref,omitempty"`
-	EmbeddingsRef          string `json:"embeddings_ref,omitempty"`
-	PublicationRef         string `json:"publication_ref,omitempty"`
-	VerificationRef        string `json:"verification_ref,omitempty"`
+	RequestID                 string `json:"request_id"`
+	WorkflowID                string `json:"workflow_id"`
+	RunID                     string `json:"run_id"`
+	SourceRef                 string `json:"source_ref"`
+	ProviderVersionID         string `json:"provider_version_id,omitempty"`
+	PackageRef                string `json:"package_ref,omitempty"`
+	SourceFormat              string `json:"source_format"`
+	HistoricalSourceVersionID string `json:"historical_source_version_id,omitempty"`
+	SourceSHA256              string `json:"source_sha256,omitempty"`
+	DecodedRef                string `json:"decoded_ref,omitempty"`
+	SourceVersionRef          string `json:"source_version_ref"`
+	RegistrationReceiptRef    string `json:"registration_receipt_ref"`
+	PreparedRef               string `json:"prepared_ref"`
+	WorkProductsRef           string `json:"work_products_ref"`
+	CandidatesRef             string `json:"candidates_ref,omitempty"`
+	EmbeddingsRef             string `json:"embeddings_ref,omitempty"`
+	PublicationRef            string `json:"publication_ref,omitempty"`
+	VerificationRef           string `json:"verification_ref,omitempty"`
 }
 
 // ContextPackageResult reports exact physical placement separately from catalog admission.
@@ -64,12 +67,16 @@ type ContextReviewRequest struct {
 // Inputs: the existing candidate staging Activity result. Outputs: run/digest/candidate identity only.
 // Effects: none; choose rather than copying native AI turns into workflow or PostgreSQL records.
 type ContextReviewResult struct {
-	RunID         string                       `json:"run_id"`
-	RequestDigest string                       `json:"request_digest"`
-	CandidateIDs  []string                     `json:"candidate_ids"`
-	Source        *ContextVerifiedReviewSource `json:"source,omitempty"`
-	Candidates    int                          `json:"candidates"`
-	Staged        int                          `json:"staged_occurrences"`
+	RunID            string                       `json:"run_id"`
+	RequestDigest    string                       `json:"request_digest"`
+	CandidateIDs     []string                     `json:"candidate_ids"`
+	Source           *ContextVerifiedReviewSource `json:"source,omitempty"`
+	Candidates       int                          `json:"candidates"`
+	Staged           int                          `json:"staged_occurrences"`
+	HeldUnclassified int                          `json:"held_unclassified,omitempty"`
+	HeldManifest     int                          `json:"held_manifest,omitempty"`
+	HeldDuplicate    int                          `json:"held_duplicate,omitempty"`
+	HeldExternal     int                          `json:"held_external,omitempty"`
 }
 
 // ContextVerifiedReviewSource preserves exact pins returned by the independent native staging check.
@@ -89,6 +96,7 @@ type ContextCandidateStage struct {
 	Status     string `json:"status"`
 	Candidates int    `json:"candidates"`
 	Staged     int    `json:"staged_occurrences"`
+	Held       int    `json:"held_occurrences,omitempty"`
 }
 
 // ContextCatalogRequest pins a verified physical package for the existing catalog functions.

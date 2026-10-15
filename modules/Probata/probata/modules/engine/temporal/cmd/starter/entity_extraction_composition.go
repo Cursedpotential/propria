@@ -13,8 +13,9 @@ import (
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 )
 
-// mountEntityExtractionRoutes adds the entity/event extraction surface
-// without changing any existing route's ownership.
+// mountEntityExtractionRoutes mounts entity, event and native AI review on the existing starter.
+// Inputs: existing and extraction handlers. Outputs: the combined HTTP handler.
+// Effects: route registration only; choose to preserve exact and nested candidate endpoints.
 func mountEntityExtractionRoutes(existing, extraction http.Handler) (http.Handler, error) {
 	if existing == nil || extraction == nil {
 		return nil, errors.New("entity extraction routes require existing and extraction handlers")
@@ -22,14 +23,22 @@ func mountEntityExtractionRoutes(existing, extraction http.Handler) (http.Handle
 	mux := http.NewServeMux()
 	mux.Handle("/reference-import/entities/", extraction)
 	mux.Handle("POST /reference-import/events/from-record", extraction)
+	mux.Handle("/reference-import/ai-candidates", extraction)
+	mux.Handle("/reference-import/ai-candidates/", extraction)
 	mux.Handle("/", existing)
 	return mux, nil
 }
 
-// entityExtractionHandler builds the extraction routes over the starter's
-// database pool and Temporal client (same task queue as the worker).
+// entityExtractionHandler builds source-aware review routes on the existing Temporal starter.
+// Inputs: database, Temporal client, task queue and existing service token file. Outputs: HTTP routes.
+// Effects: constructs adapters only; request handlers verify retained originals before pending AI writes.
+// Choose for both normalized-message extraction and native AI review using the same owner decision surface.
 func entityExtractionHandler(db platformpostgres.DB, temporalClient client.Client, taskQueue, serviceTokenFile string) (http.Handler, error) {
-	store, err := platformpostgres.NewEntityExtractionStore(db)
+	openOriginal, err := runtimeapi.NewRetainedObjectOpener(db)
+	if err != nil {
+		return nil, err
+	}
+	store, err := platformpostgres.NewEntityExtractionStoreWithAIOriginal(db, openOriginal)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +46,11 @@ func entityExtractionHandler(db platformpostgres.DB, temporalClient client.Clien
 	if err != nil {
 		return nil, err
 	}
-	handler, err := runtimeapi.NewEntityExtractionHTTPHandler(store, starter, serviceTokenFile)
+	workflows, err := withApprovedAIProjectionDispatch(starter, temporalClient, taskQueue)
+	if err != nil {
+		return nil, err
+	}
+	handler, err := runtimeapi.NewEntityExtractionHTTPHandler(store, workflows, serviceTokenFile)
 	if err != nil {
 		return nil, err
 	}
