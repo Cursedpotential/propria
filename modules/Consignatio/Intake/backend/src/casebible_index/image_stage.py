@@ -50,6 +50,8 @@ from .image_embedders import SINGLE_DIMENSIONS
 from .image_facts import read_image_facts
 from .image_kind import KIND_PHOTO, KIND_SCAN, KIND_SCREENSHOT, classify_image
 from .image_ocr import DEFAULT_ENGINE, read_text
+from .image_screenshot_classifier import CHAIN_MODEL as SCREENSHOT_CHAIN_MODEL
+from .image_screenshot_classifier import CHAIN_PROVIDER as SCREENSHOT_CHAIN_PROVIDER
 from .image_screenshot_classifier import DECISIONS_MODEL as SCREENSHOT_DECISIONS_MODEL
 from .image_screenshot_classifier import MODEL as SCREENSHOT_NIM_MODEL
 from .image_screenshot_classifier import (
@@ -244,7 +246,11 @@ class ImageStageSettings:
         if not 1 <= self.screenshot_classifier_max_calls <= 5:
             raise ValueError("INTAKE_IMAGES_SCREENSHOT_CLASSIFIER_MAX_CALLS must be 1..5")
         model = self.screenshot_classifier_model or (
-            SCREENSHOT_DECISIONS_MODEL if self.screenshot_classifier_provider == "openrouter-decisions" else SCREENSHOT_NIM_MODEL
+            SCREENSHOT_CHAIN_MODEL
+            if self.screenshot_classifier_provider == SCREENSHOT_CHAIN_PROVIDER
+            else SCREENSHOT_DECISIONS_MODEL
+            if self.screenshot_classifier_provider == "openrouter-decisions"
+            else SCREENSHOT_NIM_MODEL
         )
         classifier_version(self.screenshot_classifier_provider, model)
 
@@ -370,7 +376,11 @@ def _merge_screenshot(row: dict[str, Any], result: dict[str, Any]) -> None:
     Pick this after a model or metadata decision, before embedding policy reads image kind.
     """
     row.update({key: value for key, value in result.items() if not key.startswith("_")})
-    if result["screenshot_classifier_provider"] in {"nvidia-nim", "openrouter-decisions"} and result["screenshot_classifier_status"] == "model_ok":
+    if (
+        result["screenshot_classifier_provider"]
+        in {"nvidia-nim", "openrouter-decisions", SCREENSHOT_CHAIN_PROVIDER}
+        and result["screenshot_classifier_status"] == "model_ok"
+    ):
         if result["screenshot_decision"] == "yes":
             row["kind"] = KIND_SCREENSHOT
             row["kind_basis"] = "vision_model"
@@ -435,7 +445,11 @@ async def run_facts(
     enabled = bool(settings and settings.screenshot_classifier_enabled)
     provider = getattr(settings, "screenshot_classifier_provider", "nvidia-nim")
     configured_model = getattr(settings, "screenshot_classifier_model", "")
-    model = configured_model or (SCREENSHOT_DECISIONS_MODEL if provider == "openrouter-decisions" else SCREENSHOT_NIM_MODEL)
+    model = configured_model or (
+        SCREENSHOT_CHAIN_MODEL if provider == SCREENSHOT_CHAIN_PROVIDER
+        else SCREENSHOT_DECISIONS_MODEL if provider == "openrouter-decisions"
+        else SCREENSHOT_NIM_MODEL
+    )
     version = classifier_version(provider, model)
     bundle = None
     if enabled and getattr(settings, "screenshot_reference_manifest", ""):
@@ -457,7 +471,7 @@ async def run_facts(
     formats: dict[str, int] = {}
     finish_reasons: dict[str, int] = {}
     changed = not existing
-    for item in sl.items:
+    for item_index, item in enumerate(sl.items):
         row = by_identity.get(item.identity)
         if row is None:
             continue
@@ -480,28 +494,22 @@ async def run_facts(
             )
             if result is None:
                 path = item_path(output_dir, spool_dir, sl.slice_id, item)
-                if (
-                    path.is_file()
-                    and classifier_client is not None
-                    and calls < (settings.screenshot_classifier_max_calls if settings else 5)
-                ):
+                if path.is_file() and classifier_client is not None:
                     result = await classify_screenshot(
                         path, row["content_sha256"], output_dir, classifier_key,
                         classifier_client, bundle,
+                        request_budget=max(
+                            0, (settings.screenshot_classifier_max_calls if settings else 5) - calls
+                        ),
                     )
-                    calls += int(bool(result.get("_request_made")))
+                    calls += result.get("_request_count", int(bool(result.get("_request_made"))))
                 elif not path.is_file() or classifier_client is None:
                     unavailable = unknown_screenshot(
                         "source_unavailable", version=version, provider=provider
                     )
                     _merge_screenshot(row, unavailable)
-                else:
-                    exhausted = unknown_screenshot(
-                        "budget_exhausted", version=version, provider=provider
-                    )
-                    _merge_screenshot(row, exhausted)
             if result is not None:
-                requests += int(bool(result.get("_request_made")))
+                requests += result.get("_request_count", int(bool(result.get("_request_made"))))
                 cache_hits += int(bool(result.get("_cache_hit")))
                 for field in usage:
                     usage[field] += result.get("_usage", {}).get(field, 0)
@@ -515,6 +523,8 @@ async def run_facts(
                     finish_reasons[finish] = finish_reasons.get(finish, 0) + 1
                 _merge_screenshot(row, result)
         changed = True
+        if beat is not None:
+            beat(f"classified {item_index + 1}/{len(sl.items)}")
     if changed:
         _write_table(out, pa.Table.from_pylist(rows, schema=FACTS_SCHEMA))
     kinds: dict[str, int] = {}

@@ -518,7 +518,11 @@ async def stage_image_facts(
     settings = load_settings()
     sl = _scoped_image_slice(settings.output_dir, params["slice_id"], image)
     classifier_key_name = (
-        "OPENROUTER_API_KEY" if image.screenshot_classifier_provider == "openrouter-decisions" else "NVIDIA_API_KEY"
+        "OPENROUTER_API_KEY"
+        if image.screenshot_classifier_provider in {
+            "openrouter-decisions", "openrouter-decisions-chain"
+        }
+        else "NVIDIA_API_KEY"
     )
     async with httpx.AsyncClient(timeout=45.0, follow_redirects=False) as client:
         result = await run_image_facts(

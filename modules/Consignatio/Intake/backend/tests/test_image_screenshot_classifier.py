@@ -19,6 +19,10 @@ from PIL import Image
 from casebible_index import image_stage
 from casebible_index.image_screenshot_classifier import (
     APPS,
+    CHAIN_APP_MODEL,
+    CHAIN_MODEL,
+    CHAIN_PROVIDER,
+    CHAIN_SCREENSHOT_MODEL,
     DECISIONS_MODEL,
     DECISIONS_TOTAL_BYTES,
     VERSION,
@@ -135,6 +139,34 @@ def _many_image_slice(root: Path, count: int, slice_id: str) -> Slice:
             ImageItem(f"image-{n}", f"sha1-{n}", "b2", "bucket", name, path.stat().st_size, 1, name)
         )
     return Slice(slice_id, "image", items)
+
+
+def _chain_bundle(root: Path):
+    """Load the fixed chain from synthetic reviewed references; effects are fixture reads."""
+    manifest, _ = _bundle(root)
+    return manifest, load_reference_bundle(
+        manifest, root, provider=CHAIN_PROVIDER, model=CHAIN_MODEL
+    )
+
+
+def _chain_reply(request: httpx.Request, decision: str, app: str, cost: float) -> httpx.Response:
+    """Return one typed component reply with the requested model and synthetic cost."""
+    model = json.loads(request.content)["model"]
+    payload = _decisions_reply(decision, app)
+    payload["model"] = model
+    payload["usage"]["cost"] = cost
+    return httpx.Response(200, json=payload)
+
+
+def _write_component_cache(root: Path, digest: str, version: str, app: str) -> None:
+    """Retain one synthetic component result; inputs identify the cache, output none."""
+    target = cache_path(root, digest, version=version)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    result = unknown("model_ok", version=version, provider="openrouter-decisions")
+    result.update(
+        screenshot_decision="yes", screenshot_app=app, screenshot_app_confidence=80,
+    )
+    target.write_text(json.dumps({"result": result, "retry_after": 0}))
 
 
 def test_classifier_rejects_structurally_invalid_result():
@@ -256,6 +288,262 @@ async def test_decisions_request_routes_three_bounded_images_and_uses_separate_c
     assert json.loads(cache_path(tmp_path, digest, version=bundle.version).read_text())["billed_cost_usd"] == 0.00004182
 
 
+@pytest.mark.asyncio
+async def test_chain_mercury_photo_never_requests_luna(tmp_path: Path):
+    """A Mercury no returns photo without spending a Luna request or using Mercury's app."""
+    source = tmp_path / "target.png"
+    source.write_bytes(_image())
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _chain_bundle(tmp_path)
+    seen = []
+
+    def respond(request):
+        """Record the requested model and return a synthetic no decision."""
+        seen.append(json.loads(request.content)["model"])
+        return _chain_reply(request, "no", "unknown", 0.0)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        result = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+    assert seen == [CHAIN_SCREENSHOT_MODEL]
+    assert result["_request_count"] == 1 and result["_billed_cost_usd"] == 0.0
+    assert (result["screenshot_decision"], result["screenshot_app"]) == ("no", "unknown")
+    assert result["screenshot_classifier_status"] == "model_ok"
+
+
+@pytest.mark.asyncio
+async def test_chain_mercury_yes_uses_independent_luna_app_and_component_caches(tmp_path: Path):
+    """Mercury's wrong app cannot override Luna, and a final cache hit costs no requests."""
+    source = tmp_path / "target.png"
+    source.write_bytes(_image())
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _chain_bundle(tmp_path)
+    seen = []
+
+    def respond(request):
+        """Return independent Mercury and Luna choices with synthetic usage."""
+        model = json.loads(request.content)["model"]
+        seen.append(model)
+        if model == CHAIN_SCREENSHOT_MODEL:
+            return _chain_reply(request, "yes", "snapchat", 0.0)
+        assert model == CHAIN_APP_MODEL
+        return _chain_reply(request, "yes", "browser", 0.002)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        first = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+        repeat = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+    assert seen == [CHAIN_SCREENSHOT_MODEL, CHAIN_APP_MODEL]
+    assert (first["screenshot_decision"], first["screenshot_app"]) == ("yes", "browser")
+    assert first["_request_count"] == 2 and first["_billed_cost_usd"] == 0.002
+    assert first["_usage"] == {"prompt_tokens": 200, "completion_tokens": 0, "total_tokens": 200}
+    assert repeat["_cache_hit"] and repeat["_request_count"] == 0
+    assert bundle.components is not None
+    assert all(cache_path(tmp_path, digest, version=child.version).is_file()
+               for child in bundle.components)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mercury_reply,status", [
+    ("unknown", "model_unknown"),
+    ("http_429", "mercury_model_http_429"),
+])
+async def test_chain_mercury_uncertain_or_failed_never_calls_luna(
+    tmp_path: Path, mercury_reply: str, status: str
+):
+    """Unknown and provider failure stay unknown with no Luna request or fabricated app."""
+    source = tmp_path / "target.png"
+    source.write_bytes(_image())
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _chain_bundle(tmp_path)
+    seen = []
+
+    def respond(request):
+        """Return uncertainty or HTTP 429 from Mercury and reject any Luna call."""
+        model = json.loads(request.content)["model"]
+        seen.append(model)
+        assert model == CHAIN_SCREENSHOT_MODEL
+        if mercury_reply == "http_429":
+            return httpx.Response(429, text="PRIVATE_BODY")
+        return _chain_reply(request, "unknown", "unknown", 0.0)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        first = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+        repeat = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+    assert seen == [CHAIN_SCREENSHOT_MODEL]
+    assert (first["screenshot_decision"], first["screenshot_app"]) == ("unknown", "unknown")
+    assert first["screenshot_classifier_status"] == status
+    assert repeat["_cache_hit"] and repeat["_request_count"] == 0
+    assert "PRIVATE_BODY" not in cache_path(tmp_path, digest, version=bundle.version).read_text()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("luna_decision", ["no", "unknown"])
+async def test_chain_keeps_mercury_yes_when_luna_has_no_app(tmp_path: Path, luna_decision: str):
+    """Luna no or unknown cannot overturn Mercury's screenshot decision."""
+    source = tmp_path / "target.png"
+    source.write_bytes(_image())
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _chain_bundle(tmp_path)
+
+    def respond(request):
+        """Return Mercury yes and a Luna non-app answer."""
+        model = json.loads(request.content)["model"]
+        if model == CHAIN_SCREENSHOT_MODEL:
+            return _chain_reply(request, "yes", "messages", 0.0)
+        return _chain_reply(request, luna_decision, "unknown", 0.001)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        result = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+    assert (result["screenshot_decision"], result["screenshot_app"]) == ("yes", "unknown")
+    assert result["screenshot_classifier_status"] == "model_ok"
+
+
+@pytest.mark.asyncio
+async def test_chain_budget_partial_reuses_mercury_on_next_pass(tmp_path: Path):
+    """One remaining call caches Mercury, then a later pass completes Luna without repetition."""
+    source = tmp_path / "target.png"
+    source.write_bytes(_image())
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _chain_bundle(tmp_path)
+    seen = []
+
+    def respond(request):
+        """Return Mercury yes or Luna's app and record the model."""
+        model = json.loads(request.content)["model"]
+        seen.append(model)
+        return _chain_reply(
+            request, "yes", "browser", 0.0 if model == CHAIN_SCREENSHOT_MODEL else 0.001
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        first = await classify(source, digest, tmp_path, "placeholder-key", client, bundle,
+                               request_budget=1)
+        assert not cache_path(tmp_path, digest, version=bundle.version).exists()
+        second = await classify(source, digest, tmp_path, "placeholder-key", client, bundle,
+                                request_budget=1)
+    assert seen == [CHAIN_SCREENSHOT_MODEL, CHAIN_APP_MODEL]
+    assert first["screenshot_classifier_status"] == "budget_exhausted"
+    assert first["screenshot_decision"] == "yes" and first["_request_count"] == 1
+    assert second["screenshot_app"] == "browser" and second["_request_count"] == 1
+    assert second["_component_cache_hits"] == 1
+
+
+@pytest.mark.asyncio
+async def test_chain_luna_http_cooldown_retains_mercury_yes_without_final_success(tmp_path: Path):
+    """A Luna 429 stays retryable with Mercury's yes and no paid fallback."""
+    source = tmp_path / "target.png"
+    source.write_bytes(_image())
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _chain_bundle(tmp_path)
+    seen = []
+
+    def respond(request):
+        """Return Mercury yes then a synthetic Luna 429."""
+        model = json.loads(request.content)["model"]
+        seen.append(model)
+        if model == CHAIN_SCREENSHOT_MODEL:
+            return _chain_reply(request, "yes", "snapchat", 0.0)
+        return httpx.Response(429, text="PRIVATE_LUNA_BODY")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        first = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+        second = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+    assert seen == [CHAIN_SCREENSHOT_MODEL, CHAIN_APP_MODEL]
+    assert first["screenshot_classifier_status"] == "luna_model_http_429"
+    assert (first["screenshot_decision"], first["screenshot_app"]) == ("yes", "unknown")
+    assert second["_cache_hit"] and second["_request_count"] == 0
+    assert "PRIVATE_LUNA_BODY" not in cache_path(
+        tmp_path, digest, version=bundle.version
+    ).read_text()
+
+
+@pytest.mark.asyncio
+async def test_chain_applies_36_component_caches_without_requests(tmp_path: Path, monkeypatch):
+    """Merge every cached chain decision across a slice with no provider requests.
+
+    Inputs are 36 test images and their two component caches. Output is 36 Luna app rows.
+    Side effects are synthetic cache and facts files. Pick this for evaluated cache reuse.
+    """
+    sl = _many_image_slice(tmp_path, 36, "chain-cached36")
+    manifest, bundle = _chain_bundle(tmp_path)
+    assert bundle.components is not None
+    for item in sl.items:
+        path = tmp_path / "spool" / "images" / sl.slice_id / item.file
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        _write_component_cache(tmp_path, digest, bundle.components[0].version, "snapchat")
+        _write_component_cache(tmp_path, digest, bundle.components[1].version, "browser")
+    monkeypatch.setattr(image_stage, "read_image_facts", lambda *a, **k: SimpleNamespace(
+        original_time=SimpleNamespace(value="", source="", confidence="", conflict=False),
+        device="", software="", gps="", is_screenshot=False, notes=[],
+    ))
+    settings = SimpleNamespace(
+        screenshot_classifier_enabled=True, screenshot_classifier_max_calls=5,
+        screenshot_reference_manifest=str(manifest),
+        screenshot_classifier_provider=CHAIN_PROVIDER,
+        screenshot_classifier_model=CHAIN_MODEL,
+    )
+
+    def forbidden(_request):
+        """Reject a network request; input request, no output or side effects."""
+        raise AssertionError("component caches must satisfy the full chain")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(forbidden)) as client:
+        receipt = await image_stage.run_facts(
+            tmp_path, tmp_path / "spool", sl, settings=settings,
+            classifier_key="placeholder-key", classifier_client=client,
+        )
+    rows = pq.read_table(table_path(tmp_path, "facts", sl.slice_id)).to_pylist()
+    assert len(rows) == 36
+    assert receipt["screenshot_classifier_requests"] == 0
+    assert receipt["screenshot_classifier_budget_units"] == 0
+    assert all(row["screenshot_classifier_status"] == "model_ok" for row in rows)
+    assert all(row["screenshot_decision"] == "yes" for row in rows)
+    assert all(row["screenshot_app"] == "browser" for row in rows)
+
+
+@pytest.mark.asyncio
+async def test_chain_mixed_slice_limits_actual_requests_to_five(tmp_path: Path, monkeypatch):
+    """Spend at most five requests even when one image needs two chain components.
+
+    Inputs are four uncached images and a five-request limit. Output is two complete rows
+    plus partial budget rows. Side effects are synthetic cache and facts files.
+    """
+    sl = _many_image_slice(tmp_path, 4, "chain-budget5")
+    manifest, _ = _chain_bundle(tmp_path)
+    monkeypatch.setattr(image_stage, "read_image_facts", lambda *a, **k: SimpleNamespace(
+        original_time=SimpleNamespace(value="", source="", confidence="", conflict=False),
+        device="", software="", gps="", is_screenshot=False, notes=[],
+    ))
+    settings = SimpleNamespace(
+        screenshot_classifier_enabled=True, screenshot_classifier_max_calls=5,
+        screenshot_reference_manifest=str(manifest),
+        screenshot_classifier_provider=CHAIN_PROVIDER,
+        screenshot_classifier_model=CHAIN_MODEL,
+    )
+    requests = []
+
+    def respond(request):
+        """Return a typed component answer and record its model; no network effects."""
+        requests.append(json.loads(request.content)["model"])
+        return _chain_reply(request, "yes", "browser", 0.0)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        receipt = await image_stage.run_facts(
+            tmp_path, tmp_path / "spool", sl, settings=settings,
+            classifier_key="placeholder-key", classifier_client=client,
+        )
+    rows = pq.read_table(table_path(tmp_path, "facts", sl.slice_id)).to_pylist()
+    assert requests == [
+        CHAIN_SCREENSHOT_MODEL, CHAIN_APP_MODEL,
+        CHAIN_SCREENSHOT_MODEL, CHAIN_APP_MODEL,
+        CHAIN_SCREENSHOT_MODEL,
+    ]
+    assert receipt["screenshot_classifier_requests"] == 5
+    assert receipt["screenshot_classifier_budget_units"] == 5
+    assert [row["screenshot_classifier_status"] for row in rows] == [
+        "model_ok", "model_ok", "budget_exhausted", "budget_exhausted",
+    ]
+
+
 def test_decisions_reply_rejects_malformed_weak_and_contradictory_answers():
     """Reject malformed distributions and abstain on weak or contradictory choices.
 
@@ -305,6 +593,7 @@ async def test_malformed_decisions_response_stays_unknown_without_raw_text(tmp_p
 @pytest.mark.parametrize("provider,key_name", [
     ("nvidia-nim", "NVIDIA_API_KEY"),
     ("openrouter-decisions", "OPENROUTER_API_KEY"),
+    (CHAIN_PROVIDER, "OPENROUTER_API_KEY"),
 ])
 async def test_facts_stage_reads_only_selected_provider_key(tmp_path: Path, monkeypatch, provider: str, key_name: str):
     """Route classifier credentials through the chosen provider without touching the other key.

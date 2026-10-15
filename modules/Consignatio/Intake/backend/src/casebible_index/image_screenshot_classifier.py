@@ -6,6 +6,7 @@ probability, and neither a filename nor OCR topics establish an app identity.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import io
@@ -27,6 +28,10 @@ MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
 DECISIONS_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 DECISIONS_MODEL = "cloudflare/clef-flash"
+CHAIN_PROVIDER = "openrouter-decisions-chain"
+CHAIN_MODEL = "mercury-free-then-luna-20261006"
+CHAIN_SCREENSHOT_MODEL = "inception/mercury-decide:free"
+CHAIN_APP_MODEL = "openai/gpt-6-luna-decisions-20261006"
 DECISIONS_MODELS = frozenset({
     DECISIONS_MODEL,
     "perplexity/pplx-decider-v1.1-27b",
@@ -68,6 +73,8 @@ REFERENCE_B_PROMPT = "Classify REFERENCE B only. Return the four-field JSON answ
 TARGET_PROMPT = "Classify TARGET only. Ignore the reference images when judging TARGET. Return TARGET JSON only."
 
 FENCE = re.compile(r"\A```(?:json)?\s*\n(?P<body>[\s\S]*?)\n```\s*\Z", re.IGNORECASE)
+_mercury_start_lock = asyncio.Lock()
+_next_mercury_start = 0.0
 
 
 @dataclass(frozen=True)
@@ -83,6 +90,7 @@ class ReferenceBundle:
     expected: tuple[dict[str, Any], dict[str, Any]]
     provider: str = "nvidia-nim"
     model: str = MODEL
+    components: tuple[ReferenceBundle, ReferenceBundle] | None = None
 
 
 def classifier_version(provider: str = "nvidia-nim", model: str = MODEL) -> str:
@@ -95,6 +103,8 @@ def classifier_version(provider: str = "nvidia-nim", model: str = MODEL) -> str:
         return VERSION
     if provider == "openrouter-decisions" and model in DECISIONS_MODELS:
         return f"{provider}:{model}:{DECISIONS_PROMPT_VERSION}:{DECISIONS_PREPROCESS_VERSION}"
+    if provider == CHAIN_PROVIDER and model == CHAIN_MODEL:
+        return f"{provider}:{model}:v1"
     raise ValueError("unsupported screenshot classifier provider or model")
 
 
@@ -108,6 +118,26 @@ def load_reference_bundle(
     effects: bounded reads only. Pick this once per facts activity before any provider request.
     Invalid or unavailable inputs raise ValueError/OSError for a safe unknown result upstream.
     """
+    if provider == CHAIN_PROVIDER:
+        classifier_version(provider, model)
+        screenshot = load_reference_bundle(
+            manifest_path, output_dir, provider="openrouter-decisions", model=CHAIN_SCREENSHOT_MODEL
+        )
+        app = load_reference_bundle(
+            manifest_path, output_dir, provider="openrouter-decisions", model=CHAIN_APP_MODEL
+        )
+        components = (screenshot.version, app.version)
+        fingerprint = hashlib.sha256(
+            json.dumps(components, separators=(",", ":")).encode()
+        ).hexdigest()
+        return ReferenceBundle(
+            f"{classifier_version(provider, model)}:{fingerprint}",
+            screenshot.images,
+            screenshot.expected,
+            provider,
+            model,
+            (screenshot, app),
+        )
     if not manifest_path.is_absolute():
         raise ValueError("reference manifest must be absolute")
     base = output_dir.resolve()
@@ -446,6 +476,143 @@ def cached_classification(output_dir: Path, digest: str, *, version: str) -> dic
     return None
 
 
+async def _pace_mercury_start() -> None:
+    """Space real Mercury-free request starts by at least 3.2 seconds in this worker.
+
+    Inputs and output are none. Side effect is a short cooperative wait on a cache miss.
+    Pick this immediately before a Mercury-free provider call, never for a cache hit.
+    """
+    global _next_mercury_start
+    async with _mercury_start_lock:
+        delay = max(0.0, _next_mercury_start - time.monotonic())
+        if delay:
+            await asyncio.sleep(delay)
+        _next_mercury_start = time.monotonic() + 3.2
+
+
+async def _classify_chain(
+    path: Path | io.BytesIO | bytes,
+    digest: str,
+    output_dir: Path,
+    key: str,
+    client: httpx.AsyncClient,
+    bundle: ReferenceBundle,
+    request_budget: int | None,
+) -> dict[str, Any]:
+    """Gate screenshot detection through Mercury, then ask Luna only for an app on yes.
+
+    Inputs are one retained source, its hash, lake, OpenRouter client/key, fixed chain bundle
+    and remaining external-call budget. Output is a flat proposal with actual request count.
+    Side effects are at most two component requests and versioned component/final cache writes.
+    Pick this only for the owner's explicit Mercury-then-Luna provider.
+    """
+    if bundle.components is None:
+        raise ValueError("chain reference components unavailable")
+    screenshot_bundle, app_bundle = bundle.components
+    remaining = 2 if request_budget is None else max(0, request_budget)
+    request_count = 0
+    cache_hits = 0
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    billed_cost = 0.0
+    cost_missing = 0
+    diagnostic: dict[str, str] = {}
+
+    async def component(child: ReferenceBundle, label: str) -> dict[str, Any] | None:
+        """Reuse a child cache or make one bounded call; output proposal or budget miss."""
+        nonlocal remaining, request_count, cache_hits, billed_cost, cost_missing
+        result = cached_classification(output_dir, digest, version=child.version)
+        if result is None:
+            if remaining <= 0:
+                return None
+            if label == "mercury" and key:
+                await _pace_mercury_start()
+            result = await classify(
+                path, digest, output_dir, key, client, child, request_budget=1
+            )
+        actual = result.get("_request_count", 0)
+        request_count += actual
+        remaining -= actual
+        cache_hits += int(bool(result.get("_cache_hit")))
+        for field in usage:
+            usage[field] += result.get("_usage", {}).get(field, 0)
+        if actual:
+            cost = result.get("_billed_cost_usd")
+            if type(cost) in (int, float) and math.isfinite(cost) and cost >= 0:
+                billed_cost += cost
+            else:
+                cost_missing += actual
+        diagnostic[f"{label}_status"] = result["screenshot_classifier_status"]
+        served = result.get("_diagnostic", {}).get("served_model")
+        if isinstance(served, str) and re.fullmatch(r"[A-Za-z0-9._/:-]{1,120}", served):
+            diagnostic[f"{label}_served_model"] = served
+        return result
+
+    def finish(
+        result: dict[str, Any], *, cache: bool = False, cooldown: bool = False
+    ) -> dict[str, Any]:
+        """Attach safe request provenance and optionally retain a complete chain result."""
+        result["_request_count"] = request_count
+        result["_request_made"] = request_count > 0
+        result["_component_cache_hits"] = cache_hits
+        if cache_hits:
+            result["_cache_hit"] = True
+        if any(usage.values()):
+            result["_usage"] = usage
+        if request_count and not cost_missing:
+            result["_billed_cost_usd"] = billed_cost
+        if cost_missing:
+            diagnostic["missing_cost_requests"] = str(cost_missing)
+        diagnostic["component_cache_hits"] = str(cache_hits)
+        result["_diagnostic"] = diagnostic
+        if cache:
+            _cache_result(
+                cache_path(output_dir, digest, version=bundle.version), result,
+                retry_after=time.time() + 300 if cooldown else 0,
+            )
+        return result
+
+    mercury = await component(screenshot_bundle, "mercury")
+    if mercury is None:
+        return finish(unknown("budget_exhausted", version=bundle.version, provider=bundle.provider))
+    mercury_status = mercury["screenshot_classifier_status"]
+    if mercury_status == "model_ok" and mercury["screenshot_decision"] == "no":
+        result = unknown(
+            "model_ok", "visible_ui:none", version=bundle.version, provider=bundle.provider
+        )
+        result["screenshot_decision"] = "no"
+        return finish(result, cache=True)
+    if mercury_status == "model_unknown":
+        return finish(
+            unknown("model_unknown", version=bundle.version, provider=bundle.provider), cache=True
+        )
+    if mercury_status != "model_ok" or mercury["screenshot_decision"] != "yes":
+        failure = unknown(
+            f"mercury_{mercury_status}", version=bundle.version, provider=bundle.provider
+        )
+        return finish(failure, cache=True, cooldown=True)
+
+    luna = await component(app_bundle, "luna")
+    if luna is None:
+        partial = unknown("budget_exhausted", version=bundle.version, provider=bundle.provider)
+        partial["screenshot_decision"] = "yes"
+        return finish(partial)
+    luna_status = luna["screenshot_classifier_status"]
+    status = "model_ok" if luna_status in {"model_ok", "model_unknown"} else f"luna_{luna_status}"
+    result = unknown(
+        status, "screen_ui_uncertain", version=bundle.version, provider=bundle.provider
+    )
+    result["screenshot_decision"] = "yes"
+    if (
+        luna_status == "model_ok"
+        and luna["screenshot_decision"] == "yes"
+        and luna["screenshot_app"] != "unknown"
+    ):
+        result["screenshot_app"] = luna["screenshot_app"]
+        result["screenshot_app_confidence"] = luna["screenshot_app_confidence"]
+        result["screenshot_app_basis"] = f"visible_ui:{luna['screenshot_app']}"
+    return finish(result, cache=True, cooldown=status != "model_ok")
+
+
 async def classify(
     path: Path | io.BytesIO | bytes,
     digest: str,
@@ -453,20 +620,33 @@ async def classify(
     key: str,
     client: httpx.AsyncClient,
     bundle: ReferenceBundle,
+    *,
+    request_budget: int | None = None,
 ) -> dict[str, Any]:
     """Classify a retained image through the hosted vision model, reusing a versioned result.
 
     Inputs: fetched path, its SHA-256, output lake, selected provider key and HTTP client. Output: flat
     proposal with explicit model status. Side effects: bounded decode, one HTTPS request on cache
-    miss, atomic JSON cache write for validated replies. Pick this within image_facts; OCR and
-    embedding have separate jobs. Provider errors return unknown without response body or secrets.
+    miss, atomic JSON cache write for validated replies. ``request_budget`` caps external calls,
+    including both chain components. Pick this within image_facts; OCR and embedding have separate
+    jobs. Provider errors return unknown without response body or secrets.
     """
     cached = cached_classification(output_dir, digest, version=bundle.version)
     if cached is not None:
-        return cached
+        return {**cached, "_request_count": 0}
+    if bundle.provider == CHAIN_PROVIDER:
+        return await _classify_chain(path, digest, output_dir, key, client, bundle, request_budget)
+    if request_budget is not None and request_budget <= 0:
+        return {
+            **unknown("budget_exhausted", version=bundle.version, provider=bundle.provider),
+            "_request_count": 0,
+        }
     target = cache_path(output_dir, digest, version=bundle.version)
     if not key:
-        return unknown("missing_key", version=bundle.version, provider=bundle.provider)
+        return {
+            **unknown("missing_key", version=bundle.version, provider=bundle.provider),
+            "_request_count": 0,
+        }
     request_made = False
     usage: dict[str, int] = {}
     billed_cost_usd: float | None = None
@@ -499,7 +679,7 @@ async def classify(
         if response.status_code != 200:
             failure = unknown(f"model_http_{response.status_code}", version=bundle.version, provider=bundle.provider)
             _cache_result(target, failure, retry_after=time.time() + 300)
-            return {**failure, "_request_made": True}
+            return {**failure, "_request_made": True, "_request_count": 1}
         payload = response.json()
         raw_usage = payload.get("usage", {})
         if isinstance(raw_usage, dict):
@@ -550,6 +730,6 @@ async def classify(
         if diagnostic:
             failure["_diagnostic"] = diagnostic
         _cache_result(target, failure, retry_after=time.time() + 300)
-        return {**failure, "_request_made": request_made}
+        return {**failure, "_request_made": request_made, "_request_count": int(request_made)}
     _cache_result(target, result)
-    return {**result, "_request_made": True}
+    return {**result, "_request_made": True, "_request_count": 1}
