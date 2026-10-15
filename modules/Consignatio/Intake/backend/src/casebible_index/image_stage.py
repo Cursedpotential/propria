@@ -50,6 +50,9 @@ from .image_embedders import SINGLE_DIMENSIONS
 from .image_facts import read_image_facts
 from .image_kind import KIND_PHOTO, KIND_SCAN, KIND_SCREENSHOT, classify_image
 from .image_ocr import DEFAULT_ENGINE, read_text
+from .image_screenshot_classifier import VERSION as SCREENSHOT_CLASSIFIER_VERSION
+from .image_screenshot_classifier import classify as classify_screenshot
+from .image_screenshot_classifier import unknown as unknown_screenshot
 from .image_slice import (
     DEFAULT_MAX_BYTES,
     DEFAULT_MAX_FILE_BYTES,
@@ -149,6 +152,8 @@ class ImageStageSettings:
     clip: bool
     inflight: int
     allowed_prefixes: tuple[dict[str, str], ...] = ()
+    screenshot_classifier_enabled: bool = False
+    screenshot_classifier_max_calls: int = 5
 
     @classmethod
     def from_env(cls) -> ImageStageSettings:
@@ -184,6 +189,8 @@ class ImageStageSettings:
             allowed_prefixes=parse_image_allowlist(
                 env.get("INTAKE_IMAGES_ALLOWED_PREFIXES_JSON", "")
             ),
+            screenshot_classifier_enabled=env.get("INTAKE_IMAGES_SCREENSHOT_CLASSIFIER", "off").strip().casefold() == "on",
+            screenshot_classifier_max_calls=int(env.get("INTAKE_IMAGES_SCREENSHOT_CLASSIFIER_MAX_CALLS", "5")),
         )
 
     def validate(self) -> None:
@@ -219,6 +226,8 @@ class ImageStageSettings:
             < 1
         ):
             raise ValueError("INTAKE_IMAGES_* limits must be positive")
+        if not 1 <= self.screenshot_classifier_max_calls <= 5:
+            raise ValueError("INTAKE_IMAGES_SCREENSHOT_CLASSIFIER_MAX_CALLS must be 1..5")
 
     def slot_applies(self, slot: str, kind: str) -> bool:
         """Does ``slot`` embed an image of this kind? The one place the policy and the photo tier
@@ -266,6 +275,13 @@ FACTS_SCHEMA = pa.schema(
         ("kind", pa.string()),
         ("kind_basis", pa.string()),
         ("notes", pa.string()),
+        ("screenshot_decision", pa.string()),
+        ("screenshot_app", pa.string()),
+        ("screenshot_app_confidence", pa.int32()),
+        ("screenshot_app_basis", pa.string()),
+        ("screenshot_classifier_version", pa.string()),
+        ("screenshot_classifier_provider", pa.string()),
+        ("screenshot_classifier_status", pa.string()),
     ]
 )
 
@@ -312,8 +328,44 @@ def _facts_for(path: Path, item: ImageItem) -> dict[str, Any]:
     }
 
 
+def _heuristic_screenshot(row: dict[str, Any]) -> dict[str, Any]:
+    """Record what strong metadata rules establish while leaving visual app identity unknown.
+
+    Inputs: legacy facts row. Output: flat classifier fields. Side effects: none. Pick this when
+    hosted recognition is disabled; PNG format and screen geometry alone stay unknown.
+    """
+    basis = row.get("kind_basis", "")
+    result = unknown_screenshot("heuristic", basis)
+    result["screenshot_classifier_provider"] = "metadata"
+    if basis == "name_hint":
+        result["screenshot_decision"] = "yes"
+    elif basis in {"camera_exif", "pdf_page"}:
+        result["screenshot_decision"] = "no"
+    return result
+
+
+def _merge_screenshot(row: dict[str, Any], result: dict[str, Any]) -> None:
+    """Merge a validated classifier proposal into one facts row without changing provenance.
+
+    Inputs: mutable facts row and flat proposal. Output: none. Side effects: row mutation only.
+    Pick this after a model or metadata decision, before embedding policy reads image kind.
+    """
+    row.update({key: value for key, value in result.items() if not key.startswith("_")})
+    if result["screenshot_classifier_provider"] == "nvidia-nim" and result["screenshot_classifier_status"] == "model_ok":
+        if result["screenshot_decision"] == "yes":
+            row["kind"] = KIND_SCREENSHOT
+            row["kind_basis"] = "vision_model"
+        elif result["screenshot_decision"] == "no" and row["kind"] != KIND_SCAN:
+            row["kind"] = KIND_PHOTO
+            row["kind_basis"] = "vision_model"
+
+
 async def run_facts(
-    output_dir: Path, spool_dir: Path | None, sl: Slice, *, beat: Beat | None = None
+    output_dir: Path, spool_dir: Path | None, sl: Slice, *,
+    settings: ImageStageSettings | None = None,
+    classifier_key: str = "",
+    classifier_client: Any = None,
+    beat: Beat | None = None,
 ) -> dict[str, Any]:
     """Read the facts of every image in the slice and classify it as screenshot, photo or scan.
 
@@ -327,7 +379,8 @@ async def run_facts(
     can skip it. Pick this before OCR and embedding to establish image facts and byte provenance.
     """
     out = table_path(output_dir, "facts", sl.slice_id)
-    if out.is_file() and "content_sha256" in pq.read_schema(out).names:
+    existing = out.is_file() and "content_sha256" in pq.read_schema(out).names
+    if existing:
         rows = list(_read_rows(out).values())
     else:
         rows = []
@@ -357,6 +410,44 @@ async def run_facts(
                 )
             if beat is not None and n % 10 == 0:
                 beat(f"facts {n + 1}/{len(sl.items)}")
+    by_identity = {row["identity"]: row for row in rows}
+    enabled = bool(settings and settings.screenshot_classifier_enabled)
+    calls = 0
+    requests = 0
+    cache_hits = 0
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    changed = not existing
+    for item in sl.items:
+        row = by_identity.get(item.identity)
+        if row is None:
+            continue
+        if not enabled:
+            if "screenshot_decision" not in row:
+                _merge_screenshot(row, _heuristic_screenshot(row))
+                changed = True
+            continue
+        if row.get("screenshot_classifier_version") == SCREENSHOT_CLASSIFIER_VERSION and row.get("screenshot_classifier_status") in {"model_ok", "model_unknown"}:
+            continue
+        if item.page:
+            _merge_screenshot(row, _heuristic_screenshot(row))
+        elif not row.get("content_sha256"):
+            _merge_screenshot(row, unknown_screenshot("unreadable"))
+        elif calls >= (settings.screenshot_classifier_max_calls if settings else 5):
+            _merge_screenshot(row, unknown_screenshot("budget_exhausted"))
+        else:
+            path = item_path(output_dir, spool_dir, sl.slice_id, item)
+            if path.is_file() and classifier_client is not None:
+                calls += 1
+                result = await classify_screenshot(path, row["content_sha256"], output_dir, classifier_key, classifier_client)
+                requests += int(bool(result.get("_request_made")))
+                cache_hits += int(bool(result.get("_cache_hit")))
+                for field in usage:
+                    usage[field] += result.get("_usage", {}).get(field, 0)
+                _merge_screenshot(row, result)
+            else:
+                _merge_screenshot(row, unknown_screenshot("source_unavailable"))
+        changed = True
+    if changed:
         _write_table(out, pa.Table.from_pylist(rows, schema=FACTS_SCHEMA))
     kinds: dict[str, int] = {}
     for row in rows:
@@ -367,6 +458,11 @@ async def run_facts(
         "kinds": kinds,
         "with_original_time": sum(1 for r in rows if r["original_time"]),
         "unreadable": sum(1 for r in rows if r["kind_basis"] == "unreadable"),
+        "screenshot_classifier_budget_units": calls,
+        "screenshot_classifier_requests": requests,
+        "screenshot_classifier_cache_hits": cache_hits,
+        "screenshot_classifier_usage": usage,
+        "screenshot_classifier_statuses": {status: sum(1 for r in rows if r.get("screenshot_classifier_status") == status) for status in sorted({r.get("screenshot_classifier_status", "") for r in rows})},
     }
 
 
@@ -591,6 +687,8 @@ LEDGER_SCHEMA = pa.schema(
         ("slice_id", pa.string()),
         ("run_id", pa.string()),
         ("published_at", pa.timestamp("us", tz="UTC")),
+        ("screenshot_classifier_version", pa.string()),
+        ("screenshot_classifier_status", pa.string()),
     ]
 )
 
@@ -632,6 +730,13 @@ def build_properties(
         "software": facts["software"],
         "gps": facts["gps"],
         "is_screenshot": kind == KIND_SCREENSHOT,
+        "screenshot_decision": facts.get("screenshot_decision", "unknown"),
+        "screenshot_app": facts.get("screenshot_app", "unknown"),
+        "screenshot_app_confidence": facts.get("screenshot_app_confidence", 0),
+        "screenshot_app_basis": facts.get("screenshot_app_basis", ""),
+        "screenshot_classifier_version": facts.get("screenshot_classifier_version", ""),
+        "screenshot_classifier_provider": facts.get("screenshot_classifier_provider", ""),
+        "screenshot_classifier_status": facts.get("screenshot_classifier_status", ""),
         "ocr_text": (ocr or {}).get("ocr_text", ""),
         "embed_single_model": models.get(SLOT_SINGLE, ""),
         "embed_multi_model": models.get(SLOT_MAXSIM, ""),
@@ -684,8 +789,37 @@ async def run_publish(
     Weaviate's CLIP module to vectorize, and a photo in the ``clip_first`` tier needs nothing
     else."""
     ledger_path = table_path(output_dir, "published", sl.slice_id)
+    patched = 0
     if ledger_path.is_file():
         rows = list(_read_rows(ledger_path).values())
+        facts = _read_rows(table_path(output_dir, "facts", sl.slice_id))
+        for row in rows:
+            f = facts.get(row["identity"])
+            if not row.get("object_id") or f is None:
+                continue
+            version = f.get("screenshot_classifier_version", "")
+            if not version or (row.get("screenshot_classifier_version") == version and row.get("screenshot_classifier_status") == f.get("screenshot_classifier_status")):
+                continue
+            if not hasattr(writer, "patch_classification"):
+                continue
+            kind = f["kind"]
+            await writer.patch_classification(row["object_id"], {
+                "is_screenshot": kind == KIND_SCREENSHOT,
+                "image_kind": kind,
+                "image_kind_basis": f["kind_basis"],
+                "screenshot_decision": f.get("screenshot_decision", "unknown"),
+                "screenshot_app": f.get("screenshot_app", "unknown"),
+                "screenshot_app_confidence": f.get("screenshot_app_confidence", 0),
+                "screenshot_app_basis": f.get("screenshot_app_basis", ""),
+                "screenshot_classifier_version": version,
+                "screenshot_classifier_provider": f.get("screenshot_classifier_provider", ""),
+                "screenshot_classifier_status": f.get("screenshot_classifier_status", ""),
+            })
+            row["screenshot_classifier_version"] = version
+            row["screenshot_classifier_status"] = f.get("screenshot_classifier_status", "")
+            patched += 1
+        if patched:
+            _write_table(ledger_path, pa.Table.from_pylist(rows, schema=LEDGER_SCHEMA))
     else:
         facts = _read_rows(table_path(output_dir, "facts", sl.slice_id))
         ocr = _read_rows(table_path(output_dir, "ocr", sl.slice_id))
@@ -770,6 +904,8 @@ async def run_publish(
                     now,
                 )
             )
+            rows[-1]["screenshot_classifier_version"] = f.get("screenshot_classifier_version", "")
+            rows[-1]["screenshot_classifier_status"] = f.get("screenshot_classifier_status", "")
             if item.page:
                 pdf_sources[item.identity.split("#", 1)[0]] = object_id
             if beat is not None and n % 10 == 0:
@@ -821,6 +957,7 @@ async def run_publish(
         "quarantined_files": retained["files"],
         "quarantined_bytes": retained["bytes"],
         "collection": getattr(writer, "collection", ""),
+        "classification_patched": patched,
     }
 
 
@@ -835,6 +972,8 @@ def _ledger(
         "slice_id": sl.slice_id,
         "run_id": run_id,
         "published_at": now,
+        "screenshot_classifier_version": "",
+        "screenshot_classifier_status": "",
     }
 
 

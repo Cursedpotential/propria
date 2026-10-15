@@ -506,18 +506,27 @@ async def stage_image_fetch(
 async def stage_image_facts(
     cycle_id: str, params: dict[str, Any], beat: Beat = _noop
 ) -> dict[str, Any]:
-    """Original time, device, GPS, size and screenshot/photo/scan for the slice's images."""
+    """Read metadata and optional bounded hosted screenshot/app proposals for one image slice.
+
+    Inputs: cycle and scoped slice parameters. Output: facts receipt. Side effects: retained-byte
+    reads, a facts shard and at most five hosted vision calls when enabled. Pick this before OCR
+    and embedding; it preserves the existing Temporal activity boundary.
+    """
     image = _image_settings()
     if not image.enabled or not params.get("slice_id"):
         return _no_slice("image_facts")
     settings = load_settings()
     sl = _scoped_image_slice(settings.output_dir, params["slice_id"], image)
-    result = await run_image_facts(
-        settings.output_dir,
-        settings.spool_dir,
-        sl,
-        beat=beat,
-    )
+    async with httpx.AsyncClient(timeout=45.0, follow_redirects=False) as client:
+        result = await run_image_facts(
+            settings.output_dir,
+            settings.spool_dir,
+            sl,
+            settings=image,
+            classifier_key=get_secret("NVIDIA_API_KEY") or "" if image.screenshot_classifier_enabled else "",
+            classifier_client=client,
+            beat=beat,
+        )
     ledger.write_stage_receipt(settings.output_dir, cycle_id, "image-facts", result)
     return result
 

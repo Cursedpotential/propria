@@ -50,9 +50,15 @@ TEXT_PROPERTIES = (
     "ocr_engine",
     "identity",
     "embed_slots",
+    "screenshot_decision",
+    "screenshot_app",
+    "screenshot_app_basis",
+    "screenshot_classifier_version",
+    "screenshot_classifier_provider",
+    "screenshot_classifier_status",
 )
 BOOL_PROPERTIES = ("active", "is_screenshot", "original_time_conflict")
-INT_PROPERTIES = ("width", "height", "page", "page_count", "occurrences")
+INT_PROPERTIES = ("width", "height", "page", "page_count", "occurrences", "screenshot_app_confidence")
 CLIP_VECTOR = "image_clip"
 COLQWEN_VECTOR = "image_colqwen"
 CLIP_BLOB = "thumb"
@@ -274,6 +280,31 @@ class ImageObjectWriter:
             result.raise_for_status()
         except httpx.HTTPError as exc:
             raise RuntimeError("Weaviate image write failed; state remains retryable") from exc
+
+    async def patch_classification(self, object_id: str, properties: dict[str, str | bool | int]) -> None:
+        """Update classification fields on a published object without re-uploading vectors.
+
+        Inputs: existing object UUID and bounded flat properties. Output: none. Side effects:
+        Weaviate PATCH only. Pick this when a facts shard gains a new classifier version after
+        the original spool was released; ordinary publication uses apply instead.
+        """
+        UUID(object_id)
+        allowed = {
+            "is_screenshot", "image_kind", "image_kind_basis", "screenshot_decision",
+            "screenshot_app", "screenshot_app_confidence", "screenshot_app_basis",
+            "screenshot_classifier_version", "screenshot_classifier_provider",
+            "screenshot_classifier_status",
+        }
+        if set(properties) != allowed:
+            raise ValueError("classification patch properties are incomplete")
+        try:
+            response = await self.client.patch(
+                f"{self.url}/v1/objects/{self.collection}/{object_id}",
+                json={"class": self.collection, "id": object_id, "properties": properties},
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise RuntimeError("Weaviate image classification patch failed") from exc
 
 
 IMAGE_WRITER = coco.ContextKey[ImageObjectWriter]("intake_images_weaviate_writer")
