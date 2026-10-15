@@ -25,6 +25,7 @@ from casebible_index.image_screenshot_classifier import (
     CHAIN_SCREENSHOT_MODEL,
     DECISIONS_MODEL,
     DECISIONS_TOTAL_BYTES,
+    DETECTOR_PROVIDER,
     VERSION,
     cache_path,
     classifier_version,
@@ -33,6 +34,7 @@ from casebible_index.image_screenshot_classifier import (
     target_jpeg,
     unknown,
     validate_decisions_reply,
+    validate_detector_reply,
     validate_reply,
 )
 from casebible_index.image_slice import ImageItem, Slice, table_path
@@ -151,8 +153,11 @@ def _chain_bundle(root: Path):
 
 def _chain_reply(request: httpx.Request, decision: str, app: str, cost: float) -> httpx.Response:
     """Return one typed component reply with the requested model and synthetic cost."""
-    model = json.loads(request.content)["model"]
+    body = json.loads(request.content)
+    model = body["model"]
     payload = _decisions_reply(decision, app)
+    if set(body["questions"]) == {"screenshot"}:
+        payload["answers"].pop("app")
     payload["model"] = model
     payload["usage"]["cost"] = cost
     return httpx.Response(200, json=payload)
@@ -162,9 +167,15 @@ def _write_component_cache(root: Path, digest: str, version: str, app: str) -> N
     """Retain one synthetic component result; inputs identify the cache, output none."""
     target = cache_path(root, digest, version=version)
     target.parent.mkdir(parents=True, exist_ok=True)
-    result = unknown("model_ok", version=version, provider="openrouter-decisions")
+    provider = (
+        DETECTOR_PROVIDER if version.startswith(f"{DETECTOR_PROVIDER}:")
+        else "openrouter-decisions"
+    )
+    result = unknown("model_ok", version=version, provider=provider)
     result.update(
-        screenshot_decision="yes", screenshot_app=app, screenshot_app_confidence=80,
+        screenshot_decision="yes",
+        screenshot_app="unknown" if provider == DETECTOR_PROVIDER else app,
+        screenshot_app_confidence=0 if provider == DETECTOR_PROVIDER else 80,
     )
     target.write_text(json.dumps({"result": result, "retry_after": 0}))
 
@@ -308,6 +319,53 @@ async def test_chain_mercury_photo_never_requests_luna(tmp_path: Path):
     assert result["_request_count"] == 1 and result["_billed_cost_usd"] == 0.0
     assert (result["screenshot_decision"], result["screenshot_app"]) == ("no", "unknown")
     assert result["screenshot_classifier_status"] == "model_ok"
+
+
+@pytest.mark.asyncio
+async def test_chain_mercury_screenshot_gate_ignores_weak_app_guess(tmp_path: Path):
+    """Ask Mercury only for screenshot status so a weak app guess cannot block Luna.
+
+    Inputs are a confident screenshot distribution and a weak app distribution from the old
+    joint contract. Output is Mercury yes followed by Luna app. Side effects are test caches.
+    Pick this for the fixed detector/app role boundary.
+    """
+    source = tmp_path / "target.png"
+    source.write_bytes(_image())
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _chain_bundle(tmp_path)
+    assert bundle.components is not None
+    detector_version = bundle.components[0].version
+    assert detector_version.startswith(f"{DETECTOR_PROVIDER}:")
+    legacy = _decisions_reply("yes", "snapchat", probability=0.9)
+    legacy_app = legacy["answers"]["app"]
+    legacy_app["probabilities"] = {
+        name: 0.4 if name == "snapchat" else 0.6 / (len(APPS) - 1)
+        for name in APPS
+    }
+    assert validate_decisions_reply(
+        legacy, version="old-joint"
+    )["screenshot_classifier_status"] == "model_unknown"
+    detector = {**legacy, "answers": {"screenshot": legacy["answers"]["screenshot"]}}
+    assert validate_detector_reply(
+        detector, version=detector_version
+    )["screenshot_decision"] == "yes"
+    seen = []
+
+    def respond(request):
+        """Assert Mercury receives only screenshot labels and return typed child replies."""
+        body = json.loads(request.content)
+        seen.append(body["model"])
+        if body["model"] == CHAIN_SCREENSHOT_MODEL:
+            assert set(body["questions"]) == {"screenshot"}
+            assert all('"app"' not in body["state"][n] for n in (0, 2))
+            return httpx.Response(200, json=detector)
+        assert set(body["questions"]) == {"screenshot", "app"}
+        return _chain_reply(request, "yes", "browser", 0.001)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        result = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+    assert seen == [CHAIN_SCREENSHOT_MODEL, CHAIN_APP_MODEL]
+    assert (result["screenshot_decision"], result["screenshot_app"]) == ("yes", "browser")
 
 
 @pytest.mark.asyncio

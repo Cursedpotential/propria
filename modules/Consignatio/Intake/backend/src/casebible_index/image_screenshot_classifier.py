@@ -32,6 +32,7 @@ CHAIN_PROVIDER = "openrouter-decisions-chain"
 CHAIN_MODEL = "mercury-free-then-luna-20261006"
 CHAIN_SCREENSHOT_MODEL = "inception/mercury-decide:free"
 CHAIN_APP_MODEL = "openai/gpt-6-luna-decisions-20261006"
+DETECTOR_PROVIDER = "openrouter-decisions-screenshot"
 DECISIONS_MODELS = frozenset({
     DECISIONS_MODEL,
     "perplexity/pplx-decider-v1.1-27b",
@@ -43,6 +44,7 @@ DECISIONS_MODELS = frozenset({
     "inception/mercury-decide:free",
 })
 DECISIONS_PROMPT_VERSION = "screenshot-app-ui-v1-decisions-two-reference"
+DETECTOR_PROMPT_VERSION = "screenshot-only-v1-decisions-two-reference"
 DECISIONS_PREPROCESS_VERSION = "jpeg-768q70-640q60-512q50-384q40-max60k-v1"
 DECISIONS_IMAGE_BYTES = 60_000
 DECISIONS_TOTAL_BYTES = 180_000
@@ -103,6 +105,8 @@ def classifier_version(provider: str = "nvidia-nim", model: str = MODEL) -> str:
         return VERSION
     if provider == "openrouter-decisions" and model in DECISIONS_MODELS:
         return f"{provider}:{model}:{DECISIONS_PROMPT_VERSION}:{DECISIONS_PREPROCESS_VERSION}"
+    if provider == DETECTOR_PROVIDER and model == CHAIN_SCREENSHOT_MODEL:
+        return f"{provider}:{model}:{DETECTOR_PROMPT_VERSION}:{DECISIONS_PREPROCESS_VERSION}"
     if provider == CHAIN_PROVIDER and model == CHAIN_MODEL:
         return f"{provider}:{model}:v1"
     raise ValueError("unsupported screenshot classifier provider or model")
@@ -121,7 +125,7 @@ def load_reference_bundle(
     if provider == CHAIN_PROVIDER:
         classifier_version(provider, model)
         screenshot = load_reference_bundle(
-            manifest_path, output_dir, provider="openrouter-decisions", model=CHAIN_SCREENSHOT_MODEL
+            manifest_path, output_dir, provider=DETECTOR_PROVIDER, model=CHAIN_SCREENSHOT_MODEL
         )
         app = load_reference_bundle(
             manifest_path, output_dir, provider="openrouter-decisions", model=CHAIN_APP_MODEL
@@ -326,34 +330,125 @@ def decisions_body(bundle: ReferenceBundle, target: Path | io.BytesIO | bytes) -
 
     Inputs: hash-checked references and fetched target. Output: OpenRouter Decisions request.
     Side effects: image decode only. Pick this for the selected Decisions provider; NIM uses
-    its existing multi-turn chat request and neither path writes source bytes.
+    its existing multi-turn chat request and neither path writes source bytes. The fixed
+    Mercury detector asks only the screenshot question and excludes example app labels.
     """
     images = [decisions_jpeg(bundle.images[0]), decisions_jpeg(bundle.images[1]), decisions_jpeg(target)]
     if sum(map(len, images)) > DECISIONS_TOTAL_BYTES:
         raise ValueError("decision images exceed combined byte cap")
+    detector = bundle.provider == DETECTOR_PROVIDER
+    examples = (
+        tuple({"screenshot_decision": ref["screenshot_decision"]} for ref in bundle.expected)
+        if detector else bundle.expected
+    )
     state = [
-        "REFERENCE A only; its reviewed answer is " + json.dumps(bundle.expected[0], sort_keys=True, separators=(",", ":")) + ". Use this answer only for the following image.",
+        "REFERENCE A only; its reviewed answer is "
+        + json.dumps(examples[0], sort_keys=True, separators=(",", ":"))
+        + ". Use this answer only for the following image.",
         image_part(images[0]),
-        "REFERENCE B only; its reviewed answer is " + json.dumps(bundle.expected[1], sort_keys=True, separators=(",", ":")) + ". Use this answer only for the following image.",
+        "REFERENCE B only; its reviewed answer is "
+        + json.dumps(examples[1], sort_keys=True, separators=(",", ":"))
+        + ". Use this answer only for the following image.",
         image_part(images[1]),
-        "TARGET only. Classify this final image from visible UI controls, chrome, and logos. The two preceding labels are examples, not evidence about TARGET. Never infer app from message topics or names; never transcribe messages, names, credentials, or secrets. A cropped screenshot counts; PNG alone proves nothing.",
+        (
+            "TARGET only. Decide if this final image is a screenshot of a visible user interface. "
+            "The preceding labels are examples, not evidence about TARGET. A cropped screenshot "
+            "counts; PNG alone proves nothing. Never transcribe messages, names, or secrets."
+            if detector else
+            "TARGET only. Classify this final image from visible UI controls, chrome, and logos. "
+            "The two preceding labels are examples, not evidence about TARGET. Never infer app "
+            "from message topics or names; never transcribe messages, names, credentials, or "
+            "secrets. A cropped screenshot counts; PNG alone proves nothing."
+        ),
         image_part(images[2]),
     ]
+    questions = {
+        "screenshot": {
+            "type": "choice",
+            "instructions": "For TARGET only, is this a screenshot of a visible user interface? "
+            "Choose unknown if uncertain; do not infer from file type or references.",
+            "criteria": {value: None for value in ("yes", "no", "unknown")},
+        },
+    }
+    if not detector:
+        questions["app"] = {
+            "type": "choice",
+            "instructions": "For TARGET only, which app has visible UI controls or logo? "
+            "Choose unknown if not a screenshot or uncertain. Mixed requires multiple app UIs "
+            "within TARGET.",
+            "criteria": {value: None for value in sorted(APPS)},
+        }
     return {
         "model": bundle.model,
         "state": state,
-        "questions": {
-            "screenshot": {
-                "type": "choice",
-                "instructions": "For TARGET only, is this a screenshot of a visible user interface? Choose unknown if uncertain; do not infer from file type or references.",
-                "criteria": {value: None for value in ("yes", "no", "unknown")},
-            },
-            "app": {
-                "type": "choice",
-                "instructions": "For TARGET only, which app has visible UI controls or logo? Choose unknown if not a screenshot or uncertain. Mixed requires multiple app UIs within TARGET.",
-                "criteria": {value: None for value in sorted(APPS)},
-            },
-        },
+        "questions": questions,
+    }
+
+
+def _checked_decisions_choice(
+    answers: dict[str, Any], name: str, allowed: frozenset[str]
+) -> tuple[str, float]:
+    """Validate one complete typed distribution and return its winning probability.
+
+    Inputs are answer map, question name and allowed choices. Output is selected choice and
+    probability. Side effects are none. Pick this for either detector or app validation.
+    """
+    answer = answers[name]
+    if not isinstance(answer, dict) or set(answer) != {
+        "type", "choice", "probabilities", "confidence"
+    } or answer["type"] != "choice":
+        raise ValueError("decision choice shape invalid")
+    choice, probabilities = answer["choice"], answer["probabilities"]
+    if (
+        choice not in allowed
+        or not isinstance(probabilities, dict)
+        or set(probabilities) != allowed
+    ):
+        raise ValueError("decision choice labels invalid")
+    values = probabilities.values()
+    if any(
+        type(value) not in (int, float) or not 0 <= value <= 1 or not math.isfinite(value)
+        for value in values
+    ):
+        raise ValueError("decision probabilities invalid")
+    if not 0.98 <= sum(probabilities.values()) <= 1.02:
+        raise ValueError("decision probability sum invalid")
+    confidence = answer["confidence"]
+    if (
+        type(confidence) not in (int, float)
+        or not 0 <= confidence <= 1
+        or not math.isfinite(confidence)
+    ):
+        raise ValueError("decision distribution confidence invalid")
+    selected = probabilities[choice]
+    if selected + 0.001 < max(probabilities.values()):
+        raise ValueError("decision selected choice is not highest")
+    return choice, selected
+
+
+def validate_detector_reply(payload: dict[str, Any], *, version: str) -> dict[str, Any]:
+    """Accept a confident screenshot decision without consulting any app distribution.
+
+    Inputs are one screenshot-only Decisions reply and cache version. Output is a flat
+    yes/no/unknown proposal with app unknown. Side effects are none. Pick this for the fixed
+    Mercury gate; Luna separately owns app recognition.
+    """
+    if not isinstance(payload, dict) or not isinstance(payload.get("answers"), dict):
+        raise TypeError("decision answer shape invalid")
+    answers = payload["answers"]
+    if set(answers) != {"screenshot"}:
+        raise ValueError("detector answer names invalid")
+    decision, probability = _checked_decisions_choice(answers, "screenshot", DECISIONS)
+    if decision == "unknown" or probability < 0.8:
+        return unknown(
+            "model_unknown", "screen_ui_uncertain", version=version, provider=DETECTOR_PROVIDER
+        )
+    return {
+        **unknown(
+            "model_ok", "visible_ui:detected" if decision == "yes" else "visible_ui:none",
+            version=version, provider=DETECTOR_PROVIDER,
+        ),
+        "screenshot_decision": decision,
     }
 
 
@@ -371,33 +466,8 @@ def validate_decisions_reply(payload: dict[str, Any], *, version: str) -> dict[s
     if set(answers) != {"screenshot", "app"}:
         raise ValueError("decision answer names invalid")
 
-    def checked_choice(name: str, allowed: frozenset[str]) -> tuple[str, float]:
-        """Validate one complete probability distribution and return its selected probability.
-
-        Inputs: answer name and allowed choices. Output: selected label and probability. Side
-        effects: none. Pick this inside Decisions reply validation for either typed question.
-        """
-        answer = answers[name]
-        if not isinstance(answer, dict) or set(answer) != {"type", "choice", "probabilities", "confidence"} or answer["type"] != "choice":
-            raise ValueError("decision choice shape invalid")
-        choice, probabilities = answer["choice"], answer["probabilities"]
-        if choice not in allowed or not isinstance(probabilities, dict) or set(probabilities) != allowed:
-            raise ValueError("decision choice labels invalid")
-        values = probabilities.values()
-        if any(type(value) not in (int, float) or not 0 <= value <= 1 or not math.isfinite(value) for value in values):
-            raise ValueError("decision probabilities invalid")
-        if not 0.98 <= sum(probabilities.values()) <= 1.02:
-            raise ValueError("decision probability sum invalid")
-        confidence = answer["confidence"]
-        if type(confidence) not in (int, float) or not 0 <= confidence <= 1 or not math.isfinite(confidence):
-            raise ValueError("decision distribution confidence invalid")
-        selected = probabilities[choice]
-        if selected + 0.001 < max(probabilities.values()):
-            raise ValueError("decision selected choice is not highest")
-        return choice, selected
-
-    decision, decision_probability = checked_choice("screenshot", DECISIONS)
-    app, app_probability = checked_choice("app", APPS)
+    decision, decision_probability = _checked_decisions_choice(answers, "screenshot", DECISIONS)
+    app, app_probability = _checked_decisions_choice(answers, "app", APPS)
     if decision == "unknown" or (decision != "unknown" and decision_probability < 0.8):
         return unknown("model_unknown", "screen_ui_uncertain", version=version, provider="openrouter-decisions")
     if decision == "no":
@@ -652,7 +722,7 @@ async def classify(
     billed_cost_usd: float | None = None
     diagnostic: dict[str, str] = {}
     try:
-        if bundle.provider == "openrouter-decisions":
+        if bundle.provider in {"openrouter-decisions", DETECTOR_PROVIDER}:
             endpoint = DECISIONS_ENDPOINT
             body = decisions_body(bundle, path)
         else:
@@ -683,7 +753,7 @@ async def classify(
         payload = response.json()
         raw_usage = payload.get("usage", {})
         if isinstance(raw_usage, dict):
-            if bundle.provider == "openrouter-decisions":
+            if bundle.provider in {"openrouter-decisions", DETECTOR_PROVIDER}:
                 raw_cost = raw_usage.get("cost")
                 if type(raw_cost) in (int, float) and 0 <= raw_cost <= 100 and math.isfinite(raw_cost):
                     billed_cost_usd = float(raw_cost)
@@ -697,14 +767,22 @@ async def classify(
                 for field in ("prompt_tokens", "completion_tokens", "total_tokens")
                 if type(value := raw_usage.get(field)) is int and 0 <= value <= 1_000_000
             }
-            if bundle.provider == "openrouter-decisions" and "total_tokens" not in usage and {
+            if (
+                bundle.provider in {"openrouter-decisions", DETECTOR_PROVIDER}
+                and "total_tokens" not in usage
+                and {
                 "prompt_tokens", "completion_tokens"
-            } <= usage.keys():
+                } <= usage.keys()
+            ):
                 total = usage["prompt_tokens"] + usage["completion_tokens"]
                 if total <= 1_000_000:
                     usage["total_tokens"] = total
-        if bundle.provider == "openrouter-decisions":
-            result = validate_decisions_reply(payload, version=bundle.version)
+        if bundle.provider in {"openrouter-decisions", DETECTOR_PROVIDER}:
+            result = (
+                validate_detector_reply(payload, version=bundle.version)
+                if bundle.provider == DETECTOR_PROVIDER
+                else validate_decisions_reply(payload, version=bundle.version)
+            )
             diagnostic["content_format"] = "typed_decisions"
             served_model = payload.get("model")
             if isinstance(served_model, str) and re.fullmatch(r"[A-Za-z0-9._/:-]{1,120}", served_model):
