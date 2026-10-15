@@ -6,15 +6,15 @@ only.
 """
 
 import json
+from types import SimpleNamespace
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
-
 from casebible_index import image_search_api
 from casebible_index.image_embedders import ImageEmbedders
 from casebible_index.image_search import ImageSearchError, WeaviateImageSearcher
 from casebible_index.image_search_api import ImageSearchRequest
+from fastapi.testclient import TestClient
 
 ROW = {
     "source_id": "consignatio-vault-v1",
@@ -111,7 +111,9 @@ async def test_each_enabled_lane_is_queried_and_the_kind_filter_reaches_every_qu
         "screenshot",
     )
     assert (top.screenshot_decision, top.screenshot_app, top.screenshot_classifier_status) == (
-        "unknown", "unknown", "unknown",
+        "unknown",
+        "unknown",
+        "unknown",
     )
     assert top.screenshot_app_confidence == 0
 
@@ -138,20 +140,37 @@ async def test_app_filter_reaches_every_lane_and_classifier_fields_read_back():
 
     searcher = WeaviateImageSearcher("http://w.test", "IntakeImageV1")
     hits = await searcher.search(
-        "rent receipt", limit=5, mode="hybrid", embedders=embedders(),
-        transport=httpx.MockTransport(handler), kind="screenshot", app="facebook-messenger",
+        "rent receipt",
+        limit=5,
+        mode="hybrid",
+        embedders=embedders(),
+        transport=httpx.MockTransport(handler),
+        kind="screenshot",
+        app="facebook-messenger",
         lanes=("image_single",),
     )
     assert len(queries) == 2
-    assert all('path: ["screenshot_app"], operator: Equal, valueText: "facebook-messenger"' in q for q in queries)
+    assert all(
+        'path: ["screenshot_app"], operator: Equal, valueText: "facebook-messenger"' in q
+        for q in queries
+    )
     assert len(hits) == 1
     hit = hits[0]
     assert (hit.screenshot_decision, hit.screenshot_app, hit.screenshot_app_confidence) == (
-        "yes", "facebook-messenger", 92,
+        "yes",
+        "facebook-messenger",
+        92,
     )
-    assert (hit.screenshot_app_basis, hit.screenshot_classifier_version,
-            hit.screenshot_classifier_provider, hit.screenshot_classifier_status) == (
-        "visible Messenger header", "v1", "local", "complete",
+    assert (
+        hit.screenshot_app_basis,
+        hit.screenshot_classifier_version,
+        hit.screenshot_classifier_provider,
+        hit.screenshot_classifier_status,
+    ) == (
+        "visible Messenger header",
+        "v1",
+        "local",
+        "complete",
     )
 
 
@@ -160,11 +179,46 @@ async def test_unknown_app_matches_old_rows_without_app_metadata():
     queries: list[str] = []
     searcher = WeaviateImageSearcher("http://w.test", "IntakeImageV1")
     hits = await searcher.search(
-        "rent receipt", limit=5, mode="keyword", embedders=None,
-        transport=weaviate(queries), app="unknown",
+        "rent receipt",
+        limit=5,
+        mode="keyword",
+        embedders=None,
+        transport=weaviate(queries),
+        app="unknown",
     )
     assert len(hits) == 1 and hits[0].screenshot_app == "unknown"
     assert 'path: ["screenshot_app"]' not in queries[0]
+
+
+@pytest.mark.asyncio
+async def test_response_discloses_unknown_candidate_cap(monkeypatch):
+    monkeypatch.setattr(
+        image_search_api.ImageStageSettings,
+        "from_env",
+        lambda: SimpleNamespace(
+            weaviate_url="http://w.test",
+            collection="IntakeImageV1",
+            slots=(),
+            clip=False,
+        ),
+    )
+
+    async def fake_search(self, query, **kwargs):
+        assert query == "rent" and kwargs["app"] in {"unknown", "facebook-messenger"}
+        return []
+
+    monkeypatch.setattr(image_search_api.WeaviateImageSearcher, "search", fake_search)
+    response = await image_search_api.search_images(
+        ImageSearchRequest(query="rent", limit=20, mode="keyword", app="unknown")
+    )
+    assert response.app_filter_scope == "bounded_candidates_including_legacy_unknown"
+    assert response.app_candidate_cap == 80
+
+    named = await image_search_api.search_images(
+        ImageSearchRequest(query="rent", limit=20, mode="keyword", app="facebook-messenger")
+    )
+    assert named.app_filter_scope == "indexed_named_app"
+    assert named.app_candidate_cap is None
 
 
 @pytest.mark.asyncio
@@ -214,12 +268,20 @@ def test_images_search_route_reports_lanes_and_503s_without_configuration(monkey
         )
 
     monkeypatch.setattr("casebible_index.api.search_images", fake)
-    answer = client.post("/images/search", json={
-        "query": "rent", "kind": "screenshot", "app": "facebook-messenger",
-    })
+    answer = client.post(
+        "/images/search",
+        json={
+            "query": "rent",
+            "kind": "screenshot",
+            "app": "facebook-messenger",
+        },
+    )
     assert answer.status_code == 200
     assert (answer.json()["kind"], answer.json()["app"]) == (
-        "screenshot", "facebook-messenger",
+        "screenshot",
+        "facebook-messenger",
     )
     assert client.post("/images/search", json={"query": "rent", "kind": "video"}).status_code == 422
-    assert client.post("/images/search", json={"query": "rent", "app": "unlisted"}).status_code == 422
+    assert (
+        client.post("/images/search", json={"query": "rent", "app": "unlisted"}).status_code == 422
+    )

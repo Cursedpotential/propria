@@ -29,7 +29,7 @@ import httpx
 from pydantic import BaseModel, Field, field_validator
 
 from .image_embedders import ColQwenEmbedder, ImageEmbedders
-from .image_search import ImageHit, WeaviateImageSearcher
+from .image_search import ImageHit, WeaviateImageSearcher, app_filter_plan
 from .image_stage import ImageStageSettings
 from .image_target import CLIP_VECTOR
 from .secrets import get_secret
@@ -40,10 +40,20 @@ class ImageSearchRequest(BaseModel):
     limit: int = Field(default=20, ge=1, le=100)
     mode: Literal["hybrid", "keyword"] = "hybrid"
     kind: Literal["screenshot", "photo", "scan"] | None = None
-    app: Literal[
-        "facebook-messenger", "messages", "snapchat", "whatsapp", "instagram",
-        "browser", "other", "mixed", "unknown",
-    ] | None = None
+    app: (
+        Literal[
+            "facebook-messenger",
+            "messages",
+            "snapchat",
+            "whatsapp",
+            "instagram",
+            "browser",
+            "other",
+            "mixed",
+            "unknown",
+        ]
+        | None
+    ) = None
 
     @field_validator("query")
     @classmethod
@@ -63,6 +73,10 @@ class ImageSearchResponse(BaseModel):
     collection: str
     kind: str | None
     app: str | None = None
+    app_filter_scope: Literal[
+        "none", "indexed_named_app", "bounded_candidates_including_legacy_unknown"
+    ] = "none"
+    app_candidate_cap: int | None = None
     lanes: list[str]
     hits: list[ImageHit]
 
@@ -83,16 +97,23 @@ async def search_images(request: ImageSearchRequest) -> ImageSearchResponse:
     searcher = WeaviateImageSearcher(
         settings.weaviate_url, settings.collection, get_secret("INTAKE_WEAVIATE_API_KEY") or ""
     )
+    app_filter_scope, app_candidate_cap = app_filter_plan(request.app, request.limit)
     if request.mode == "keyword":
         hits = await searcher.search(
-            request.query, limit=request.limit, mode="keyword", embedders=None,
-            kind=request.kind, app=request.app,
+            request.query,
+            limit=request.limit,
+            mode="keyword",
+            embedders=None,
+            kind=request.kind,
+            app=request.app,
         )
         return ImageSearchResponse(
             query=request.query,
             collection=settings.collection,
             kind=request.kind,
             app=request.app,
+            app_filter_scope=app_filter_scope,
+            app_candidate_cap=app_candidate_cap,
             lanes=[],
             hits=hits,
         )
@@ -125,6 +146,8 @@ async def search_images(request: ImageSearchRequest) -> ImageSearchResponse:
         collection=settings.collection,
         kind=request.kind,
         app=request.app,
+        app_filter_scope=app_filter_scope,
+        app_candidate_cap=app_candidate_cap,
         lanes=list(lanes),
         hits=hits,
     )

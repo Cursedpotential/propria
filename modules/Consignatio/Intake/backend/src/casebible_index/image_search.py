@@ -6,6 +6,8 @@ text lane in /filesystem/search when INTAKE_IMAGES_* is configured. Hybrid mode:
 question is embedded with the same hosted embedders the index used; MaxSim scores the
 screenshots' Jina bag, the single vector scores everything, and the OCR fallback text is
 matched by keyword. Keyword mode uses only the OCR text. Nothing is written.
+The collection schema must include the additive classifier fields before this searcher is
+deployed; older objects may still contain null values for those fields.
 """
 
 # Updated by: Codex (D03 Case Bible search) | Date: 2026-09-23 | Rev: 2 |
@@ -37,9 +39,29 @@ _FIELDS = (
 )
 KINDS = ("screenshot", "photo", "scan")
 APPS = (
-    "facebook-messenger", "messages", "snapchat", "whatsapp", "instagram",
-    "browser", "other", "mixed", "unknown",
+    "facebook-messenger",
+    "messages",
+    "snapchat",
+    "whatsapp",
+    "instagram",
+    "browser",
+    "other",
+    "mixed",
+    "unknown",
 )
+
+
+def app_filter_plan(app: str | None, limit: int) -> tuple[str, int | None]:
+    """Describe how an app filter is applied and its candidate bound.
+
+    Inputs: requested app and result limit. Output: filter scope and candidate cap.
+    Side effects: none. Use this for both the image search and its API response.
+    """
+    if app == "unknown":
+        return "bounded_candidates_including_legacy_unknown", min(limit * 4, 400)
+    if app:
+        return "indexed_named_app", None
+    return "none", None
 
 
 class ImageHit(BaseModel):
@@ -167,19 +189,25 @@ class WeaviateImageSearcher:
         operands = [active]
         if kind:
             operands.append(
-                '{path: ["image_kind"], operator: Equal, valueText: '
-                + json.dumps(kind) + "}"
+                '{path: ["image_kind"], operator: Equal, valueText: ' + json.dumps(kind) + "}"
             )
         if app and app != "unknown":
             operands.append(
-                '{path: ["screenshot_app"], operator: Equal, valueText: '
-                + json.dumps(app) + "}"
+                '{path: ["screenshot_app"], operator: Equal, valueText: ' + json.dumps(app) + "}"
             )
-        return active if len(operands) == 1 else "{operator: And, operands: [" + ", ".join(operands) + "]}"
+        return (
+            active
+            if len(operands) == 1
+            else "{operator: And, operands: [" + ", ".join(operands) + "]}"
+        )
 
     async def _get(
-        self, client: httpx.AsyncClient, operator: str, limit: int,
-        kind: str | None = None, app: str | None = None,
+        self,
+        client: httpx.AsyncClient,
+        operator: str,
+        limit: int,
+        kind: str | None = None,
+        app: str | None = None,
     ) -> list[dict]:
         """Fetch one ranked candidate lane from the active Intake image collection.
 
@@ -242,7 +270,8 @@ its named vector in the
         merged: dict[str, tuple[str, float, dict, tuple[int, int] | None]] = {}
 
         rank = {"ocr_literal": 0, "maxsim": 1, "colqwen": 2, "single": 3, "clip": 4}
-        candidate_limit = min(limit * 4, 400) if app == "unknown" else limit
+        _, candidate_cap = app_filter_plan(app, limit)
+        candidate_limit = candidate_cap or limit
 
         def keep(
             row: dict,
@@ -264,7 +293,11 @@ its named vector in the
                 timeout=self.timeout, headers=headers, transport=transport, follow_redirects=False
             ) as client:
                 for row in await self._get(
-                    client, f'bm25: {{query: {text}, properties: ["ocr_text"]}}', candidate_limit, kind, app
+                    client,
+                    f'bm25: {{query: {text}, properties: ["ocr_text"]}}',
+                    candidate_limit,
+                    kind,
+                    app,
                 ):
                     span = _literal_span(row.get("ocr_text") or "", query)
                     if span is not None:
@@ -366,7 +399,8 @@ its named vector in the
                     screenshot_app_basis=row.get("screenshot_app_basis") or "",
                     screenshot_classifier_version=row.get("screenshot_classifier_version") or "",
                     screenshot_classifier_provider=row.get("screenshot_classifier_provider") or "",
-                    screenshot_classifier_status=row.get("screenshot_classifier_status") or "unknown",
+                    screenshot_classifier_status=row.get("screenshot_classifier_status")
+                    or "unknown",
                 )
             )
         # Rank channels first: cross-channel scores are not directly comparable.
