@@ -1,5 +1,6 @@
 """Synthetic contract tests for the optional screenshot/app proposal in the image stage."""
 
+import base64
 import hashlib
 import io
 import json
@@ -19,6 +20,9 @@ from casebible_index.image_screenshot_classifier import (
     VERSION,
     cache_path,
     classify,
+    comparison_canvas,
+    load_reference_bundle,
+    prompt_for,
     validate_reply,
 )
 from casebible_index.image_slice import ImageItem, Slice, table_path
@@ -51,6 +55,32 @@ def _reply(decision: str, app: str, confidence: int) -> dict:
     }
 
 
+def _bundle(root: Path, *, version: str = "refs-v1"):
+    """Create two synthetic, labeled JPEG references and their verified manifest.
+
+    Inputs: test output root and set version. Output: manifest path and loaded bundle. Side
+    effects: fixture files under the test root. Pick this for single-image provider tests.
+    """
+    folder = root / "datasets" / "images" / "classifier-references" / version
+    folder.mkdir(parents=True, exist_ok=True)
+    refs = []
+    for index, app in enumerate(("messages", "snapchat")):
+        image = io.BytesIO()
+        Image.new("RGB", (300, 600), (index * 100, 80, 170)).save(image, format="JPEG")
+        content = image.getvalue()
+        filename = f"{app}.jpg"
+        (folder / filename).write_bytes(content)
+        refs.append({
+            "image": filename,
+            "source_sha256": hashlib.sha256(f"source-{app}".encode()).hexdigest(),
+            "derived_sha256": hashlib.sha256(content).hexdigest(),
+            "expected": {"screenshot_decision": "yes", "app": app, "confidence": 90, "basis": "visible UI controls"},
+        })
+    manifest = folder / "manifest.json"
+    manifest.write_text(json.dumps({"schema_version": 1, "reference_set_version": version, "references": refs}))
+    return manifest, load_reference_bundle(manifest, root)
+
+
 def test_classifier_rejects_structurally_invalid_result():
     """Reject unexpected model shapes and avoid treating its score as a boolean.
 
@@ -79,6 +109,7 @@ async def test_classifier_sends_image_first_and_reuses_versioned_sha_cache(tmp_p
     source = tmp_path / "renamed.jpg"
     source.write_bytes(_image())
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _bundle(tmp_path)
     calls = []
 
     def respond(request: httpx.Request) -> httpx.Response:
@@ -89,15 +120,76 @@ async def test_classifier_sends_image_first_and_reuses_versioned_sha_cache(tmp_p
         content = body["messages"][0]["content"]
         assert content[0]["type"] == "image_url" and content[1]["type"] == "text"
         assert content[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+        canvas = Image.open(io.BytesIO(base64.b64decode(content[0]["image_url"]["url"].split(",", 1)[1])))
+        assert canvas.size == (1110, 850)
+        prompt = content[1]["text"]
+        assert "TARGET only" in prompt
+        assert "REFERENCE A OUTPUT is exactly" in prompt
+        assert "REFERENCE B OUTPUT is exactly" in prompt
+        for expected in bundle.expected:
+            assert json.dumps(expected, sort_keys=True, separators=(",", ":")) in prompt
         return httpx.Response(200, json=_reply("yes", "facebook-messenger", 76))
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
-        first = await classify(source, digest, tmp_path, "placeholder-key", client)
-        second = await classify(source, digest, tmp_path, "placeholder-key", client)
+        first = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+        second = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
     assert {k: v for k, v in first.items() if not k.startswith("_")} == {k: v for k, v in second.items() if not k.startswith("_")}
     assert first["_request_made"] and second["_cache_hit"] and len(calls) == 1
     assert (first["screenshot_app"], first["screenshot_classifier_status"]) == ("facebook-messenger", "model_ok")
-    assert first["screenshot_classifier_version"] == VERSION
+    assert first["screenshot_classifier_version"] == bundle.version
+
+
+def test_reference_manifest_hashes_labels_and_target_panel_are_bound(tmp_path: Path):
+    """Bind example labels and derived hashes to cache identity while keeping target separate.
+
+    Inputs: synthetic references and two target images. Output: version and panel assertions.
+    Side effects: test bundle only. Pick this to prevent stale examples or target confusion.
+    """
+    manifest, bundle = _bundle(tmp_path)
+    assert bundle.version.startswith(VERSION + ":")
+    first_target = _image()
+    changed_target = io.BytesIO()
+    Image.new("RGB", (400, 800), "red").save(changed_target, format="PNG")
+    first_canvas = Image.open(io.BytesIO(comparison_canvas(bundle, first_target)))
+    changed_canvas = Image.open(io.BytesIO(comparison_canvas(bundle, changed_target.getvalue())))
+    assert first_canvas.crop((0, 0, 730, 850)).tobytes() == changed_canvas.crop((0, 0, 730, 850)).tobytes()
+    assert first_canvas.crop((740, 0, 1110, 850)).tobytes() != changed_canvas.crop((740, 0, 1110, 850)).tobytes()
+    assert prompt_for(bundle).endswith("Now return JSON for TARGET only.")
+    manifest_data = json.loads(manifest.read_text())
+    manifest_data["references"][0]["expected"]["basis"] = "changed visual controls"
+    manifest.write_text(json.dumps(manifest_data))
+    updated = load_reference_bundle(manifest, tmp_path)
+    assert updated.version != bundle.version
+    assert prompt_for(updated) != prompt_for(bundle)
+    manifest_data["references"][0]["derived_sha256"] = "0" * 64
+    manifest.write_text(json.dumps(manifest_data))
+    with pytest.raises(ValueError, match="hash mismatch"):
+        load_reference_bundle(manifest, tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_missing_reference_manifest_fails_closed_before_provider(tmp_path: Path, monkeypatch):
+    """Record unknown without a hosted call when two checked examples are unavailable.
+
+    Inputs: one synthetic fetched image and missing manifest path. Output: reference_unavailable
+    facts row and zero requests. Side effects: test facts shard only. Pick this for fail-closed mode.
+    """
+    source = tmp_path / "spool" / "images" / "missing" / "00000.png"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(_image())
+    item = ImageItem("missing-ref-image", "catalog-sha1", "b2", "bucket", "renamed.png", source.stat().st_size, 1, "00000.png")
+    monkeypatch.setattr(image_stage, "read_image_facts", lambda *a, **k: SimpleNamespace(
+        original_time=SimpleNamespace(value="", source="", confidence="", conflict=False),
+        device="", software="", gps="", is_screenshot=False, notes=[],
+    ))
+    settings = SimpleNamespace(screenshot_classifier_enabled=True, screenshot_classifier_max_calls=5, screenshot_reference_manifest=str(tmp_path / "missing.json"))
+    def forbidden(_request):
+        raise AssertionError("provider must not be called without references")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(forbidden)) as client:
+        receipt = await image_stage.run_facts(tmp_path, tmp_path / "spool", Slice("missing", "image", [item]), settings=settings, classifier_key="placeholder-key", classifier_client=client)
+    assert receipt["screenshot_classifier_requests"] == 0
+    row = pq.read_table(table_path(tmp_path, "facts", "missing")).to_pylist()[0]
+    assert (row["screenshot_decision"], row["screenshot_classifier_status"]) == ("unknown", "reference_unavailable")
 
 
 @pytest.mark.asyncio
@@ -120,7 +212,8 @@ async def test_existing_facts_gain_model_fields_and_published_row_is_patched(tmp
     assert original["images"] == 1
     legacy = pq.read_table(table_path(tmp_path, "facts", "s1")).to_pylist()[0]
     assert legacy["kind_basis"] == "png_no_camera" and legacy["screenshot_decision"] == "unknown"
-    enabled = SimpleNamespace(screenshot_classifier_enabled=True, screenshot_classifier_max_calls=5)
+    manifest, bundle = _bundle(tmp_path)
+    enabled = SimpleNamespace(screenshot_classifier_enabled=True, screenshot_classifier_max_calls=5, screenshot_reference_manifest=str(manifest))
     async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=_reply("no", "unknown", 0)))) as client:
         receipt = await image_stage.run_facts(tmp_path, tmp_path / "spool", sl, settings=enabled, classifier_key="placeholder-key", classifier_client=client)
     upgraded = pq.read_table(table_path(tmp_path, "facts", "s1")).to_pylist()[0]
@@ -144,7 +237,7 @@ async def test_existing_facts_gain_model_fields_and_published_row_is_patched(tmp
     result = await image_stage.run_publish(tmp_path, tmp_path / "spool", sl, Writer(), enabled, source_id="case", run_id="run", release=False)
     assert result["classification_patched"] == 1
     assert patches[0][1]["image_kind"] == "photo"
-    assert patches[0][1]["screenshot_classifier_version"] == VERSION
+    assert patches[0][1]["screenshot_classifier_version"] == bundle.version
 
 
 @pytest.mark.asyncio
@@ -173,7 +266,8 @@ async def test_facts_caps_hosted_requests_at_five_for_six_images(tmp_path: Path,
         requests.append(request)
         return httpx.Response(200, json=_reply("yes", "browser", 70))
 
-    settings = SimpleNamespace(screenshot_classifier_enabled=True, screenshot_classifier_max_calls=5)
+    manifest, _ = _bundle(tmp_path)
+    settings = SimpleNamespace(screenshot_classifier_enabled=True, screenshot_classifier_max_calls=5, screenshot_reference_manifest=str(manifest))
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
         receipt = await image_stage.run_facts(tmp_path, tmp_path / "spool", Slice("s2", "image", items), settings=settings, classifier_key="placeholder-key", classifier_client=client)
     assert receipt["screenshot_classifier_requests"] == len(requests) == 5
@@ -191,6 +285,7 @@ async def test_http_failure_is_unknown_cached_briefly_without_response_body(tmp_
     source = tmp_path / "source.png"
     source.write_bytes(_image())
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _bundle(tmp_path)
     calls = []
 
     def respond(request):
@@ -198,12 +293,12 @@ async def test_http_failure_is_unknown_cached_briefly_without_response_body(tmp_
         return httpx.Response(429, text="PRIVATE_PROVIDER_BODY_DO_NOT_PERSIST")
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
-        first = await classify(source, digest, tmp_path, "placeholder-key", client)
-        second = await classify(source, digest, tmp_path, "placeholder-key", client)
+        first = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
+        second = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
     assert first["screenshot_classifier_status"] == "model_http_429"
     assert first["screenshot_decision"] == second["screenshot_decision"] == "unknown"
     assert len(calls) == 1 and second["_cache_hit"]
-    assert "PRIVATE_PROVIDER_BODY_DO_NOT_PERSIST" not in cache_path(tmp_path, digest).read_text()
+    assert "PRIVATE_PROVIDER_BODY_DO_NOT_PERSIST" not in cache_path(tmp_path, digest, version=bundle.version).read_text()
 
 
 @pytest.mark.asyncio
@@ -216,16 +311,17 @@ async def test_invalid_json_keeps_usage_and_shape_only(tmp_path: Path):
     source = tmp_path / "source.png"
     source.write_bytes(_image())
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    _, bundle = _bundle(tmp_path)
     secret_prose = "PRIVATE_MODEL_PROSE_DO_NOT_PERSIST"
     payload = {
         "choices": [{"finish_reason": "stop", "message": {"content": secret_prose}}],
         "usage": {"prompt_tokens": 95, "completion_tokens": 38, "total_tokens": 133},
     }
     async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=payload))) as client:
-        result = await classify(source, digest, tmp_path, "placeholder-key", client)
+        result = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
     assert result["screenshot_decision"] == "unknown"
     assert result["screenshot_classifier_status"] == "model_failed_JSONDecodeError"
     assert result["_usage"]["total_tokens"] == 133
     assert result["_diagnostic"] == {"finish_reason": "stop", "content_format": "prose"}
-    stored = cache_path(tmp_path, digest).read_text()
+    stored = cache_path(tmp_path, digest, version=bundle.version).read_text()
     assert secret_prose not in stored and '"total_tokens": 133' in stored

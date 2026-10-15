@@ -52,6 +52,7 @@ from .image_kind import KIND_PHOTO, KIND_SCAN, KIND_SCREENSHOT, classify_image
 from .image_ocr import DEFAULT_ENGINE, read_text
 from .image_screenshot_classifier import VERSION as SCREENSHOT_CLASSIFIER_VERSION
 from .image_screenshot_classifier import classify as classify_screenshot
+from .image_screenshot_classifier import load_reference_bundle
 from .image_screenshot_classifier import unknown as unknown_screenshot
 from .image_slice import (
     DEFAULT_MAX_BYTES,
@@ -131,7 +132,10 @@ class ImageStageSettings:
     hosted slots for screenshots and scans (a shortlisted photo is promoted later with
     ``image_promote``). ``INTAKE_IMAGES_ALLOWED_PREFIXES_JSON`` is a persistent JSON array of
     exact provider, bucket and relative folder path_prefix entries; automatic fetch requires it.
-    An explicit exact locator proof can run without that persistent setting."""
+    An explicit exact locator proof can run without that persistent setting. The optional hosted
+    screenshot classifier requires ``INTAKE_IMAGES_SCREENSHOT_REFERENCE_MANIFEST`` to point to
+    two hash-checked derived examples inside this image output lake; missing references fail
+    closed before any provider request."""
 
     enabled: bool
     weaviate_url: str
@@ -154,6 +158,7 @@ class ImageStageSettings:
     allowed_prefixes: tuple[dict[str, str], ...] = ()
     screenshot_classifier_enabled: bool = False
     screenshot_classifier_max_calls: int = 5
+    screenshot_reference_manifest: str = ""
 
     @classmethod
     def from_env(cls) -> ImageStageSettings:
@@ -191,6 +196,7 @@ class ImageStageSettings:
             ),
             screenshot_classifier_enabled=env.get("INTAKE_IMAGES_SCREENSHOT_CLASSIFIER", "off").strip().casefold() == "on",
             screenshot_classifier_max_calls=int(env.get("INTAKE_IMAGES_SCREENSHOT_CLASSIFIER_MAX_CALLS", "5")),
+            screenshot_reference_manifest=env.get("INTAKE_IMAGES_SCREENSHOT_REFERENCE_MANIFEST", "").strip(),
         )
 
     def validate(self) -> None:
@@ -376,7 +382,9 @@ async def run_facts(
     PDF page hashes identify rendered PNG bytes; the catalog SHA1 continues to identify the PDF
     original. Legacy facts without this digest are regenerated from the retained files. An
     unreadable image gets a row with kind ``photo``, basis ``unreadable`` and a note, so later units
-    can skip it. Pick this before OCR and embedding to establish image facts and byte provenance.
+    can skip it. Optional screenshot recognition reads two checked references for a model-only
+    canvas; OCR and embeddings still receive the original fetched image. Pick this before OCR and
+    embedding to establish image facts and byte provenance.
     """
     out = table_path(output_dir, "facts", sl.slice_id)
     existing = out.is_file() and "content_sha256" in pq.read_schema(out).names
@@ -412,6 +420,16 @@ async def run_facts(
                 beat(f"facts {n + 1}/{len(sl.items)}")
     by_identity = {row["identity"]: row for row in rows}
     enabled = bool(settings and settings.screenshot_classifier_enabled)
+    bundle = None
+    if enabled and getattr(settings, "screenshot_reference_manifest", ""):
+        try:
+            bundle = await asyncio.to_thread(
+                load_reference_bundle,
+                Path(settings.screenshot_reference_manifest),
+                output_dir,
+            )
+        except (OSError, ValueError, TypeError):
+            bundle = None
     calls = 0
     requests = 0
     cache_hits = 0
@@ -428,19 +446,21 @@ async def run_facts(
                 _merge_screenshot(row, _heuristic_screenshot(row))
                 changed = True
             continue
-        if row.get("screenshot_classifier_version") == SCREENSHOT_CLASSIFIER_VERSION and row.get("screenshot_classifier_status") in {"model_ok", "model_unknown"}:
+        if bundle is not None and row.get("screenshot_classifier_version") == bundle.version and row.get("screenshot_classifier_status") in {"model_ok", "model_unknown"}:
             continue
         if item.page:
             _merge_screenshot(row, _heuristic_screenshot(row))
         elif not row.get("content_sha256"):
             _merge_screenshot(row, unknown_screenshot("unreadable"))
+        elif bundle is None:
+            _merge_screenshot(row, unknown_screenshot("reference_unavailable", version=SCREENSHOT_CLASSIFIER_VERSION))
         elif calls >= (settings.screenshot_classifier_max_calls if settings else 5):
             _merge_screenshot(row, unknown_screenshot("budget_exhausted"))
         else:
             path = item_path(output_dir, spool_dir, sl.slice_id, item)
             if path.is_file() and classifier_client is not None:
                 calls += 1
-                result = await classify_screenshot(path, row["content_sha256"], output_dir, classifier_key, classifier_client)
+                result = await classify_screenshot(path, row["content_sha256"], output_dir, classifier_key, classifier_client, bundle)
                 requests += int(bool(result.get("_request_made")))
                 cache_hits += int(bool(result.get("_cache_hit")))
                 for field in usage:
@@ -471,6 +491,7 @@ async def run_facts(
         "screenshot_classifier_requests": requests,
         "screenshot_classifier_cache_hits": cache_hits,
         "screenshot_classifier_usage": usage,
+        "screenshot_reference_version": bundle.version if bundle is not None else "",
         "screenshot_classifier_content_formats": formats,
         "screenshot_classifier_finish_reasons": finish_reasons,
         "screenshot_classifier_statuses": {status: sum(1 for r in rows if r.get("screenshot_classifier_status") == status) for status in sorted({r.get("screenshot_classifier_status", "") for r in rows})},
