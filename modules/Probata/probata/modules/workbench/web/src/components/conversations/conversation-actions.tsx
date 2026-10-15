@@ -18,11 +18,23 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActionStatus, useExtractors, useExtractionPreflight, useStartExtraction, useStartSend } from "@/hooks/use-conversation-actions";
 import { useOperationNotifications } from "@/hooks/use-operation-notifications";
-import type { ExtractorInfo } from "@/lib/conversation-actions-client";
+import type { ExtractorInfo, ExtractionPreflight } from "@/lib/conversation-actions-client";
 import { conversationActionProgress, failedConversationExtractors } from "@/lib/conversation-action-progress";
 import { cn } from "@/lib/utils";
 
 export type ActionKind = "extract" | "send";
+
+/** Describe only workload counts that were actually queried for the selected target.
+ * Inputs: exact preflight target and coverage. Output: truthful available/partial/unknown text.
+ * Effects: none; use before confirming extraction so absent reads never imply zero work.
+ */
+function preflightWorkloadText(target: ExtractionPreflight["targets"][number]): string {
+  if (target.workload_status !== "available" && target.workload_status !== "partial") return "Workload unknown: message and text sizes were not queried.";
+  const counts = `${target.messages} messages · ${target.characters.toLocaleString()} characters · ${target.utf8_bytes.toLocaleString()} UTF-8 bytes. Largest observed message: ${target.max_message_characters.toLocaleString()} characters / ${target.max_message_utf8_bytes.toLocaleString()} bytes.`;
+  return target.workload_status === "partial"
+    ? `Partial workload: observed ${counts} Queried ${target.queried_generations} of ${target.resolved_generations} resolved generations; remaining workload is unknown.`
+    : counts;
+}
 
 /** Show business extraction results and preserve failed-stage details beside a real retry action.
  * Inputs: accepted workflow, exact selected conversations/extractors and retry callback.
@@ -169,7 +181,7 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
             <h3 className="font-semibold">Exact selection and workload</h3>
             {preflight.isPending ? <p role="status">Checking durable source admission and full-text sizes…</p> : preflight.isError ? <p role="alert">Preflight unavailable: {errorText(preflight.error)}</p> : preflight.data ? <>
               {preflight.data.targets.map((target) => <details key={`${target.ref.export_key}:${target.ref.conv}`} open><summary className="break-all">{target.ref.export_key} · {target.ref.conv}</summary>
-                <p>{target.messages} messages · {target.characters.toLocaleString()} characters · {target.utf8_bytes.toLocaleString()} UTF-8 bytes. Largest message: {target.max_message_characters.toLocaleString()} characters / {target.max_message_utf8_bytes.toLocaleString()} bytes.</p>
+                <p>{preflightWorkloadText(target)}</p>
                 <p>Acquisition relationships: {target.acquisition_relationships.join(", ") || "Unknown"}</p>
                 <ul className="break-all">{target.runs.map((run) => <li key={run.normalized_generation_id}>Operation {run.preview_handle} · source version {run.source_version_id} · generation {run.normalized_generation_id} · durable mode {run.matter_mode || "unknown"}</li>)}</ul>
               </details>)}

@@ -97,7 +97,7 @@ func TestOperatorResultsRealSemanticaStoreAndCorrections(t *testing.T) {
 	_, err = outer.Exec(ctx, `INSERT INTO context.source VALUES($1::uuid,$2);
  INSERT INTO context.source_version(id,source_id,workflow_id,matter_id,court_case_id,declared_format,version_ordinal) VALUES($3::uuid,$1::uuid,'synthetic-human-request',$4::uuid,$5::uuid,'sms_backup_restore_xml',1);
  INSERT INTO context.raw_generation VALUES($6::uuid,$3::uuid);
- INSERT INTO context.normalized_generation VALUES($7::uuid,$3::uuid,$6::uuid);
+ INSERT INTO context.normalized_generation(id,source_version_id,raw_generation_id) VALUES($7::uuid,$3::uuid,$6::uuid);
  INSERT INTO context.proffer_preview_binding(preview_handle,request_id,source_ref,workflow_id,run_id,parser_options_ref) VALUES($8,'synthetic-human-request',$2,'synthetic-human-request','fixture-run','fixture-parser');
  INSERT INTO context.proffer_preview_snapshot VALUES($8,1,$3::uuid,$6::uuid,$7::uuid)`, pgx.QueryExecModeSimpleProtocol, sourceID, sourceRef, sourceVersion, caseidentity.AuthoritativeMatterID, caseidentity.AuthoritativeCourtCaseID, rawGeneration, generation, handle)
 	require.NoError(t, err)
@@ -170,6 +170,7 @@ func TestOperatorResultsRealSemanticaStoreAndCorrections(t *testing.T) {
 	require.Greater(t, eventCitations, 0)
 	t.Logf("actual citations entity_mentions=%d event_records=%d all resolve to fixture generation", entityCitations, eventCitations)
 	t.Logf("actual Activity/store/readback entities=%d events=%d messages=%d replay_no_duplicates=true compare_only=true", len(exported.Entities), len(exported.Events), result.Messages)
+	verifyOperatorPreflightCoverage(t, ctx, db, extraction, sourceRef)
 	verifyOperatorAliasCorrection(t, ctx, db)
 	verifyOperatorSourceRevision(t, ctx, db, sourceRef, raw)
 	var originalsAfter string
@@ -179,6 +180,55 @@ func TestOperatorResultsRealSemanticaStoreAndCorrections(t *testing.T) {
 	require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM pg_namespace WHERE nspname IN ('context','working','registry')").Scan(&schemas))
 	require.Zero(t, schemas)
 	t.Log("outer rollback readback: fixture schemas=0; retained database remains empty")
+}
+
+// verifyOperatorPreflightCoverage distinguishes real counted, unqueried and partial workloads.
+// Inputs: real four-message fixture and canonical store. Output: actual SQL coverage assertions.
+// Effects: synthetic fixture savepoints only; never fabricates counts or queries AI chat generations.
+func verifyOperatorPreflightCoverage(t *testing.T, ctx context.Context, db rollbackOperatorDB, store *storepg.EntityExtractionStore, sourceRef string) {
+	ref := flow.ConversationRef{ExportKey: sourceRef, Conv: "human-thread.ndjson?versionId=fixture-v1"}
+	check, err := store.PreflightConversations(ctx, caseidentity.AuthoritativeMatterID, []flow.ConversationRef{ref}, []string{"semantica"})
+	require.NoError(t, err)
+	require.Len(t, check.Targets, 1)
+	available := check.Targets[0]
+	require.Equal(t, "available", available.WorkloadStatus)
+	require.EqualValues(t, 4, available.Messages)
+	require.Equal(t, 1, available.QueriedGenerations)
+	require.Equal(t, 1, available.ResolvedGenerations)
+	_, err = db.Exec(ctx, `INSERT INTO context.source VALUES('30000000-0000-4000-8000-000000000001','b2://synthetic-operator-fixtures/ai.json'),('30000000-0000-4000-8000-000000000002','b2://synthetic-operator-fixtures/empty-human.xml');
+ INSERT INTO context.source_version(id,source_id,workflow_id,matter_id,court_case_id,declared_format,version_ordinal) VALUES
+ ('30000000-0000-4000-8000-000000000003','30000000-0000-4000-8000-000000000001','synthetic-ai-only',$1::uuid,$2::uuid,'chatgpt',1),
+ ('30000000-0000-4000-8000-000000000004','30000000-0000-4000-8000-000000000002','synthetic-no-generation',$1::uuid,$2::uuid,'sms_backup_restore_xml',1)`, pgx.QueryExecModeSimpleProtocol, caseidentity.AuthoritativeMatterID, caseidentity.AuthoritativeCourtCaseID)
+	require.NoError(t, err)
+	for _, unqueried := range []flow.ConversationRef{{ExportKey: "b2://synthetic-operator-fixtures/ai.json", Conv: "ai.json"}, {ExportKey: "b2://synthetic-operator-fixtures/empty-human.xml", Conv: "empty-human.xml"}} {
+		check, err = store.PreflightConversations(ctx, caseidentity.AuthoritativeMatterID, []flow.ConversationRef{unqueried}, []string{"semantica"})
+		require.NoError(t, err)
+		require.False(t, check.Eligible)
+		require.Equal(t, "not_queried", check.Targets[0].WorkloadStatus)
+		require.Zero(t, check.Targets[0].QueriedGenerations)
+		for _, blocker := range check.Blockers {
+			require.NotContains(t, blocker, "no message records available", "unqueried is not a queried zero")
+		}
+	}
+	derivedKey := sourceRef + ".derived/threads/" + ref.Conv + ".ndjson"
+	_, err = db.Exec(ctx, `INSERT INTO context.source VALUES('30000000-0000-4000-8000-000000000005',$1);
+ INSERT INTO context.source_version(id,source_id,workflow_id,matter_id,court_case_id,declared_format,version_ordinal) VALUES('30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000005','synthetic-unresolved-operation',$2::uuid,$3::uuid,'sms_backup_restore_xml',2);
+ INSERT INTO context.normalized_generation(id,source_version_id,raw_generation_id) VALUES('30000000-0000-4000-8000-000000000007','30000000-0000-4000-8000-000000000006','30000000-0000-4000-8000-000000000008')`, pgx.QueryExecModeSimpleProtocol, derivedKey, caseidentity.AuthoritativeMatterID, caseidentity.AuthoritativeCourtCaseID)
+	require.NoError(t, err)
+	check, err = store.PreflightConversations(ctx, caseidentity.AuthoritativeMatterID, []flow.ConversationRef{ref}, []string{"semantica"})
+	require.NoError(t, err)
+	require.False(t, check.Eligible)
+	partial := check.Targets[0]
+	require.Equal(t, "partial", partial.WorkloadStatus)
+	require.Equal(t, 1, partial.QueriedGenerations)
+	require.Equal(t, 2, partial.ResolvedGenerations)
+	require.EqualValues(t, 4, partial.Messages)
+	require.Equal(t, available.Characters, partial.Characters)
+	require.Equal(t, available.UTF8Bytes, partial.UTF8Bytes)
+	tokenBefore := flow.PreflightToken(flow.ExtractionPreflight{Targets: []flow.ExtractionPreflightTarget{available}})
+	tokenAfter := flow.PreflightToken(flow.ExtractionPreflight{Targets: []flow.ExtractionPreflightTarget{partial}})
+	require.NotEqual(t, tokenBefore, tokenAfter, "coverage is part of the confirmed workload")
+	t.Log("actual preflight coverage: complete4messages; AI/no-generation not_queried; unresolved sibling partial observed4of2generations")
 }
 
 // verifyOperatorAliasCorrection exercises the real global alias edit and read lookup.

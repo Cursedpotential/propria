@@ -133,6 +133,7 @@ export interface ExtractionPreflight {
   token: string;
   eligible: boolean; blockers: string[]; cost_estimate: string; runtime_estimate: string; bounds: string[];
   targets: { ref: { export_key: string; conv: string }; runs: { preview_handle: string; normalized_generation_id: string; source_version_id: string; matter_mode: string }[];
+    workload_status: "not_queried" | "partial" | "available"; queried_generations: number; resolved_generations: number;
     messages: number; characters: number; utf8_bytes: number; max_message_characters: number; max_message_utf8_bytes: number; acquisition_relationships: string[] }[];
 }
 

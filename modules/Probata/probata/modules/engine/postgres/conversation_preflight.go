@@ -28,7 +28,7 @@ func (s *EntityExtractionStore) PreflightConversations(ctx context.Context, matt
 		return out, fmt.Errorf("select 1 to %d conversations", flow.MaxConversationsPerRequest)
 	}
 	for _, ref := range refs {
-		target := flow.ExtractionPreflightTarget{Ref: ref, Runs: []flow.RunRef{}, AcquisitionRelationships: []string{}}
+		target := flow.ExtractionPreflightTarget{Ref: ref, WorkloadStatus: "not_queried", Runs: []flow.RunRef{}, AcquisitionRelationships: []string{}}
 		formats, err := s.db.Query(ctx, `SELECT DISTINCT v.declared_format FROM context.source s
    JOIN context.source_version v ON v.source_id=s.id
    WHERE v.matter_id=$1::uuid AND regexp_replace(s.source_key,'\.derived/.*$','')=$2
@@ -61,6 +61,7 @@ func (s *EntityExtractionStore) PreflightConversations(ctx context.Context, matt
 		if len(files) == 0 {
 			out.Blockers = append(out.Blockers, ref.Label()+": no current normalized generation")
 		}
+		target.ResolvedGenerations = len(files)
 		for _, file := range files {
 			if file.PreviewHandle == "" {
 				out.Blockers = append(out.Blockers, ref.Label()+": generation has no durable source operation")
@@ -89,6 +90,7 @@ func (s *EntityExtractionStore) PreflightConversations(ctx context.Context, matt
 				return out, err
 			}
 			target.Messages += messages
+			target.QueriedGenerations++
 			target.Characters += chars
 			target.UTF8Bytes += bytes
 			if maxChars > target.MaxMessageCharacters {
@@ -119,7 +121,13 @@ func (s *EntityExtractionStore) PreflightConversations(ctx context.Context, matt
 				return out, err
 			}
 		}
-		if target.Messages == 0 {
+		if target.QueriedGenerations > 0 {
+			target.WorkloadStatus = "partial"
+			if target.QueriedGenerations == target.ResolvedGenerations {
+				target.WorkloadStatus = "available"
+			}
+		}
+		if target.WorkloadStatus == "available" && target.Messages == 0 {
 			out.Blockers = append(out.Blockers, ref.Label()+": no message records available")
 		}
 		out.Targets = append(out.Targets, target)

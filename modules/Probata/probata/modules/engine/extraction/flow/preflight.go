@@ -37,6 +37,9 @@ func PreflightToken(check ExtractionPreflight) string {
 // Inputs: one conversation resolution. Output: counts and durable RunRefs; no bodies.
 // Effects: none; pick for an explicit selection, never infer mode from a browser flag.
 type ExtractionPreflightTarget struct {
+	WorkloadStatus           string          `json:"workload_status"`
+	QueriedGenerations       int             `json:"queried_generations"`
+	ResolvedGenerations      int             `json:"resolved_generations"`
 	Ref                      ConversationRef `json:"ref"`
 	Runs                     []RunRef        `json:"runs"`
 	Messages                 int64           `json:"messages"`

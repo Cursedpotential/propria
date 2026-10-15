@@ -7,7 +7,7 @@ CREATE SCHEMA registry;
 CREATE TABLE context.source(id uuid PRIMARY KEY,source_key text);
 CREATE TABLE context.source_version(id uuid PRIMARY KEY,source_id uuid,workflow_id text,matter_id uuid,court_case_id uuid,declared_format text,version_ordinal int,created_at timestamptz DEFAULT now());
 CREATE TABLE context.raw_generation(id uuid PRIMARY KEY,source_version_id uuid);
-CREATE TABLE context.normalized_generation(id uuid PRIMARY KEY,source_version_id uuid,raw_generation_id uuid);
+CREATE TABLE context.normalized_generation(id uuid PRIMARY KEY,source_version_id uuid,raw_generation_id uuid,generation_ordinal int DEFAULT 1);
 CREATE TABLE context.normalized_record_identity(id uuid PRIMARY KEY,source_version_id uuid,normalized_generation_id uuid,record_ordinal bigint,record_type text,occurred_at timestamptz,normalized_payload jsonb);
 CREATE TABLE context.proffer_preview_binding(preview_handle text PRIMARY KEY,request_id text,source_ref text,workflow_id text,run_id text,parser_options_ref text,created_at timestamptz DEFAULT now());
 CREATE TABLE context.proffer_preview_snapshot(preview_handle text,snapshot_seq int,source_version_id uuid,raw_generation_id uuid,normalized_generation_id uuid);
@@ -17,6 +17,7 @@ CREATE TABLE context.activity_execution(id uuid PRIMARY KEY,source_version_id uu
 CREATE TABLE context.activity_receipt(id uuid PRIMARY KEY,activity_execution_id uuid,status text,result_ref jsonb,not_applicable_reason text,error_detail jsonb,attempt int,started_at timestamptz,completed_at timestamptz);
 CREATE TABLE context.proffer_source_context_revision(source_context_ref uuid PRIMARY KEY,request_id text,revision int,supersedes_ref uuid,matter_id uuid,court_case_id uuid,source_ref text,observed_source jsonb,previous_assertions jsonb,assertions jsonb,change_reason text,actor_subject_uid text,actor_username text,idempotency_key text UNIQUE,content_digest bytea,receipt_ref text,recorded_at timestamptz);
 CREATE TABLE working.extraction_run(id uuid PRIMARY KEY,extractor text,extractor_version text,model_id text,source_summary text,status text,stats jsonb,prompt_version text,started_at timestamptz DEFAULT now(),finished_at timestamptz,error text);
+CREATE TABLE working.message_projection_route(normalized_record_id uuid,projection_kind text);
 CREATE TABLE working.candidate_entity(id uuid PRIMARY KEY,extraction_run_id uuid REFERENCES working.extraction_run(id),source_raw_table text,source_raw_id text,entity_type text,name text,normalized_name text,confidence float8,attrs jsonb,content_sha256 bytea,review_state text,domain text,ontology_version text,knowledge_time timestamptz,created_at timestamptz DEFAULT now(),promoted_to_id text);
 CREATE TABLE working.candidate_event(id uuid PRIMARY KEY,extraction_run_id uuid REFERENCES working.extraction_run(id),source_raw_table text,source_raw_id text,event_type text,summary text,occurred_at timestamptz,temporal_confidence float8,confidence float8,attrs jsonb,content_sha256 bytea,review_state text,domain text,ontology_version text,knowledge_time timestamptz,created_at timestamptz DEFAULT now(),promoted_to_id text);
 CREATE TABLE registry.entity(id uuid PRIMARY KEY,display_name text,merged_into_id uuid);
