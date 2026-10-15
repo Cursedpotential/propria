@@ -3,6 +3,8 @@
 Byline: Claude Code · Opus 5 · 2026-09-22.
 """
 
+import json
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -15,6 +17,10 @@ from app.service import source_unit_marks as service
 @pytest.fixture
 def client(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "source_unit_marks_path", str(tmp_path / "unit-marks.json"))
+    monkeypatch.setenv("SOURCE_ROOTS_JSON", json.dumps([
+        {"id": "vault", "label": "Vault", "url": "b2://fixture/vault/"},
+        {"id": "other", "label": "Other", "url": "b2://fixture/other/"},
+    ]))
     app = FastAPI()
 
     @app.middleware("http")
@@ -27,7 +33,7 @@ def client(monkeypatch, tmp_path):
 
 
 def test_takeout_needs_an_explicit_confirm(client):
-    body = {"unit_root": "vault/v1/takeouts", "unit_type": "takeout"}
+    body = {"root_id": "vault", "unit_root": "vault/v1/takeouts", "unit_type": "takeout"}
     assert client.post("/api/sources/unit-marks", json=body).status_code == 409
     assert client.post("/api/sources/unit-marks", json={**body, "confirm": True}).status_code == 201
 
@@ -35,11 +41,14 @@ def test_takeout_needs_an_explicit_confirm(client):
 def test_a_plain_unit_is_recorded_and_read_back(client):
     created = client.post(
         "/api/sources/unit-marks",
-        json={"unit_root": "vault/v1/notes/", "unit_type": "obsidian_vault", "label": "Notes"},
+        json={"root_id": "vault", "unit_root": "vault/v1/notes/", "unit_type": "obsidian_vault", "label": "Notes"},
     )
     assert created.status_code == 201
     assert created.json()["unit_root"] == "vault/v1/notes"
     assert created.json()["origin"] == "hand_marked"
+    assert created.json()["root_id"] == "vault"
+    assert created.json()["source_root_ref"] == "b2://fixture/vault/"
+    assert created.json()["identity_scope"] == "root_scoped"
     listed = client.get("/api/sources/unit-marks").json()
     assert [item["unit_root"] for item in listed["items"]] == ["vault/v1/notes"]
     assert listed["catalog_units_are_read_only"] is True
@@ -48,9 +57,49 @@ def test_a_plain_unit_is_recorded_and_read_back(client):
 
 def test_remarking_one_root_replaces_rather_than_duplicates(client):
     for kind in ("other", "git_repo"):
-        client.post("/api/sources/unit-marks", json={"unit_root": "vault/v1/code", "unit_type": kind})
+        client.post("/api/sources/unit-marks", json={"root_id": "vault", "unit_root": "vault/v1/code", "unit_type": kind})
     items = client.get("/api/sources/unit-marks").json()["items"]
     assert len(items) == 1 and items[0]["unit_type"] == "git_repo"
+
+
+def test_same_path_in_two_storage_roots_preserves_two_independent_marks(client):
+    for root_id, kind in (("vault", "other"), ("other", "git_repo"), ("vault", "facebook")):
+        response = client.post("/api/sources/unit-marks", json={
+            "root_id": root_id, "unit_root": "Incoming/Phone/", "unit_type": kind,
+        })
+        assert response.status_code == 201
+    items = client.get("/api/sources/unit-marks").json()["items"]
+    assert {(item["root_id"], item["unit_type"]) for item in items} == {("vault", "facebook"), ("other", "git_repo")}
+    assert {item["source_root_ref"] for item in items} == {"b2://fixture/vault/", "b2://fixture/other/"}
+
+
+def test_legacy_mark_is_explicitly_unscoped_and_survives_new_scoped_mark(client):
+    legacy = {"unit_root": "Incoming/Phone", "unit_type": "other", "label": "Original",
+              "marked_at": "2026-09-22T00:00:00+00:00", "marked_by": "original-actor", "origin": "hand_marked"}
+    service.write_all([legacy])
+    listed = client.get("/api/sources/unit-marks").json()["items"][0]
+    assert listed["identity_scope"] == "legacy_unscoped" and listed["root_id"] is None
+    assert listed["source_root_ref"] is None
+    assert client.post("/api/sources/unit-marks", json={
+        "root_id": "vault", "unit_root": "Incoming/Phone", "unit_type": "git_repo",
+    }).status_code == 201
+    assert legacy in service.read_all()
+    assert len(client.get("/api/sources/unit-marks").json()["items"]) == 2
+
+
+def test_reconfigured_root_id_does_not_replace_an_old_location_mark(client, monkeypatch):
+    body = {"root_id": "vault", "unit_root": "Incoming/Phone", "unit_type": "other"}
+    assert client.post("/api/sources/unit-marks", json=body).status_code == 201
+    monkeypatch.setenv("SOURCE_ROOTS_JSON", '[{"id":"vault","label":"Vault","url":"b2://fixture/reconfigured/"}]')
+    assert client.post("/api/sources/unit-marks", json=body).status_code == 201
+    assert len(client.get("/api/sources/unit-marks").json()["items"]) == 2
+
+
+@pytest.mark.parametrize("extra", [{}, {"root_id": "missing"}, {"root_id": "vault", "unit_root": "../elsewhere"}])
+def test_unscoped_or_outside_root_writes_are_rejected_without_changing_legacy(client, extra):
+    body = {"unit_root": "Incoming/Phone", "unit_type": "other", **extra}
+    assert client.post("/api/sources/unit-marks", json=body).status_code == 422
+    assert service.read_all() == []
 
 
 def test_takeout_parts_are_proposed_with_the_gaps_named(client):

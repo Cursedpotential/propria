@@ -1580,7 +1580,12 @@ export function listSourceUnitMarks(signal?: AbortSignal) {
   return apiFetch<SourceUnitMarkList>("/api/sources/unit-marks", { signal });
 }
 
+/** Mark a folder inside one configured source location.
+ * Inputs: root ID, relative folder and explicit mark choice. Output: scoped mark.
+ * Effects: saves a Workbench mark; choose for folder marking without changing originals.
+ */
 export function recordSourceUnitMark(payload: {
+  root_id: string;
   unit_root: string;
   unit_type: SourceUnitKind;
   label?: string;

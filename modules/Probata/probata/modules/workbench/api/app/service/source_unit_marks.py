@@ -12,9 +12,16 @@ explicit confirm (bulk-intake owner requirement 7).
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.repo.source_unit_marks import UnitMarkStoreError, read_all, storage_description, write_all
+from app.repo.object_store_client import validate_source_key
+from app.repo.source_unit_marks import (
+    UnitMarkStoreError,
+    read_all,
+    storage_description,
+    write_all,
+)
+from app.types.source_roots import configured_source_roots
 from app.types.source_unit_marks import (
     SourceUnitMark,
     SourceUnitMarkList,
@@ -30,10 +37,15 @@ SUPERVISED_KINDS = {"takeout", "takeout_zip"}
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def list_marks() -> SourceUnitMarkList:
+    """Read marks with explicit recorded root scope while preserving legacy records.
+
+    Inputs: none. Outputs: saved marks, including unscoped legacy entries.
+    Effects: reads the existing store; choose for display without assigning old marks to a root.
+    """
     return SourceUnitMarkList(
         items=[SourceUnitMark.model_validate(item) for item in read_all()],
         storage=storage_description(),
@@ -41,20 +53,42 @@ def list_marks() -> SourceUnitMarkList:
 
 
 def record_mark(request: SourceUnitMarkRequest, marked_by: str) -> SourceUnitMark:
-    """Record one hand-marked unit. A Takeout needs `confirm`."""
+    """Record one unit under its configured storage root without replacing legacy marks.
+
+    Inputs: root ID, relative folder, kind, confirmation and authenticated actor.
+    Outputs: scoped mark. Effects: replaces only the same root locator and folder;
+    choose for explicit folder marking; Takeout also requires confirmation.
+    """
+    try:
+        source_root = configured_source_roots().get(request.root_id)
+    except ValueError:
+        raise UnitMarkStoreError("Source locations are not configured correctly", 503) from None
+    if source_root is None:
+        raise UnitMarkStoreError("Choose a configured source location", 422)
+    try:
+        root = validate_source_key(request.unit_root.rstrip("/"))
+    except ValueError:
+        raise UnitMarkStoreError("Choose a folder within the selected source location", 422) from None
     if request.unit_type in SUPERVISED_KINDS and not request.confirm:
         raise UnitMarkStoreError(
             "A Takeout unit is a proposal: review its parts and confirm before it is recorded", 409
         )
-    root = request.unit_root.rstrip("/")
     mark = SourceUnitMark(
+        root_id=source_root.root_id,
+        source_root_ref=source_root.root_ref,
+        identity_scope="root_scoped",
         unit_root=root,
         unit_type=request.unit_type,
         label=request.label.strip(),
         marked_at=_now(),
         marked_by=marked_by,
     )
-    items = [item for item in read_all() if str(item.get("unit_root", "")).rstrip("/") != root]
+    items = [item for item in read_all() if not (
+        item.get("identity_scope") == "root_scoped"
+        and item.get("root_id") == source_root.root_id
+        and item.get("source_root_ref") == source_root.root_ref
+        and str(item.get("unit_root", "")).rstrip("/") == root
+    )]
     items.append(mark.model_dump(mode="json"))
     write_all(items)
     return mark

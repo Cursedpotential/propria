@@ -48,6 +48,7 @@ export interface FolderSelection {
   prefix: string;
   unit: CatalogUnit | null;
   mark: SourceUnitMark | null;
+  legacyMarks?: readonly SourceUnitMark[];
   /** How many recorded units the files under this folder belong to. */
   unitsUnder: number;
 }
@@ -207,6 +208,7 @@ function FolderDetail({
           {selection.unitsUnder > 1 && <Flag>files from {selection.unitsUnder} units</Flag>}
           {!unit && !selection.mark && selection.unitsUnder === 0 && <Flag>not a unit</Flag>}
         </div>
+        {selection.legacyMarks?.length ? <p className="mt-2 text-xs text-muted-foreground">A legacy hand mark exists for this folder path without a recorded storage location. It does not establish a unit in this location.</p> : null}
       </header>
 
       {unit && (
@@ -225,6 +227,7 @@ function FolderDetail({
       <section className="border-b px-3 py-3">
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Mark as unit</p>
         {selectedFolderCount > 1 && <p className="mt-1 text-xs">Each of the {selectedFolderCount} selected folders will be marked as a separate unit.</p>}
+        {selectedFolderCount === 0 && <p className="mt-1 text-xs">Include a folder using its checkbox or select its name before marking.</p>}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <select
             className="h-8 min-w-0 max-w-full border bg-background px-2 text-xs"
@@ -236,7 +239,7 @@ function FolderDetail({
               <option key={kind} value={kind}>{kind === "other" ? "Folder package" : kind.replaceAll("_", " ")}</option>
             ))}
           </select>
-          <Button size="sm" variant="outline" className="h-auto min-h-8 max-w-full whitespace-normal py-1" disabled={markPending} onClick={() => onMarkUnit(needsConfirm)}>
+          <Button size="sm" variant="outline" className="h-auto min-h-8 max-w-full whitespace-normal py-1" disabled={markPending || selectedFolderCount === 0} onClick={() => onMarkUnit(needsConfirm)}>
             {markPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             {needsConfirm ? "Confirm and mark" : selectedFolderCount > 1 ? `Mark ${selectedFolderCount} separate units` : "Mark as unit"}
           </Button>
@@ -283,7 +286,7 @@ function BatchProgress({ batch }: { batch: ProfferBatchStatus }) {
       {batch.listing_truncated && <p className="mt-1 text-[11px] text-muted-foreground">This folder holds more members than one batch imports.</p>}
       <ul className="mt-2 space-y-2 text-xs">{batch.items.filter((item) => item.unit_root).map((item) => <li key={item.key}>
         <p className="break-all font-medium">{item.unit_root!.replace(/\/$/, "").split("/").at(-1)} · {item.status.replaceAll("_", " ")}</p>
-        <p>{item.member_count == null ? "Member inventory not available yet." : `${item.member_count} members in this unit's recorded inventory.`}</p>
+        <p>{item.member_count === null || item.member_count === undefined ? "Member inventory not available yet." : `${item.member_count} members in this unit's recorded inventory.`}</p>
         {item.reason && <p>{item.reason}</p>}
         <details><summary className="cursor-pointer">Unit source details</summary><p className="break-all">{item.unit_root}</p>
           {item.source_ref && <p className="break-all">Primary: {item.source_ref}</p>}

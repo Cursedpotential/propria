@@ -26,7 +26,15 @@ UnitKind = Literal[
 
 
 class SourceUnitMark(BaseModel):
+    """Describe a saved folder mark without guessing a legacy record's storage root.
+
+    Inputs: stored fields. Outputs: scoped or explicitly unscoped metadata.
+    Effects: none; choose for mark-store reads and existing marking responses.
+    """
     model_config = ConfigDict(extra="forbid")
+    root_id: str | None = None
+    source_root_ref: str | None = None
+    identity_scope: Literal["root_scoped", "legacy_unscoped"] = "legacy_unscoped"
     unit_root: str = Field(min_length=1, max_length=2048)
     unit_type: UnitKind
     label: str = ""
@@ -36,7 +44,13 @@ class SourceUnitMark(BaseModel):
 
 
 class SourceUnitMarkRequest(BaseModel):
+    """Request a mark for a relative folder under an explicitly configured root.
+
+    Inputs: root ID, relative folder and mark choice. Outputs: validated request.
+    Effects: none; choose for new writes, never to infer a legacy mark's root.
+    """
     model_config = ConfigDict(extra="forbid")
+    root_id: str = Field(min_length=1, max_length=200)
     unit_root: str = Field(min_length=1, max_length=2048)
     unit_type: UnitKind
     label: str = Field(default="", max_length=200)

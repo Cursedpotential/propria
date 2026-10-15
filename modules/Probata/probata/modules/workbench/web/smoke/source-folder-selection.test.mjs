@@ -19,7 +19,7 @@ function load(name) {
   return module.exports;
 }
 const { SourceTree } = load("source-tree.tsx");
-const { folderSelectionPlan, markFolderUnits } = load("folder-selection.ts");
+const { folderSelectionPlan, markFolderUnits, sourceRootMarks, toggleFolderSelection, unitMarkIdentity } = load("folder-selection.ts");
 
 /** Walk actual React elements to inspect and invoke their production control callbacks.
  * Input: rendered element. Output: flat element list. Effects: none; choose for
@@ -74,7 +74,7 @@ test("three phone folders keep separate rooted identities, and overlapping roots
 test("bulk marking invokes the existing mark API once per folder and retains successes on a partial failure", async () => {
   const calls = [];
   const folders = ["Incoming/Adam/", "Incoming/Beth/", "Incoming/Chris/"];
-  const result = await markFolderUnits(folders, "other", false, async (request) => {
+  const result = await markFolderUnits("vault", folders, "other", false, async (request) => {
     calls.push(request);
     if (request.label === "Beth") throw Error("fixture rejection");
     return { unit_root: request.unit_root.replace(/\/$/, ""), unit_type: request.unit_type, label: request.label };
@@ -83,7 +83,7 @@ test("bulk marking invokes the existing mark API once per folder and retains suc
   assert.equal(result.marks.length, 2);
   assert.equal(result.failures.length, 1);
   assert.match(result.failures[0], /Beth/);
-  assert.ok(calls.every((call) => call.unit_type === "other" && call.confirm === false));
+  assert.ok(calls.every((call) => call.root_id === "vault" && call.unit_type === "other" && call.confirm === false));
 });
 
 test("screen folder selection and file selection never leave each other's Process targets armed", () => {
@@ -103,18 +103,22 @@ test("screen folder selection and file selection never leave each other's Proces
     ts.forEachChild(node, visit);
   }
   visit(ast);
-  const state = { selectedFolders: new Set(), checkedRefs: new Set(["old-file"]), selectedRef: "old-file" };
+  const state = { selectedFolders: new Set(), checkedRefs: new Set(["old-file"]), selectedRef: "old-file", handlerOverride: "smsbackuprestore_xml" };
   const context = { rows: [{ sourceRef: "new-file" }],
+    get selectedFolders() { return state.selectedFolders; }, toggleFolderSelection,
     setSelectedFolders: (value) => { state.selectedFolders = typeof value === "function" ? value(state.selectedFolders) : value; },
     setCheckedRefs: (value) => { state.checkedRefs = value; }, setSelectedRef: (value) => { state.selectedRef = value; },
-    setSelectedFolder() {}, setPerspectiveChoice() {}, setLocalSource() {}, setUnitMarkKind() {}, setShowContentSearch() {}, setRestored() {}, setHandlerOverride() {},
+    setSelectedFolder(value) { state.inspected = value; }, setPerspectiveChoice() {}, setLocalSource() {}, setUnitMarkKind() {}, setShowContentSearch() {}, setRestored() {}, setHandlerOverride(value) { state.handlerOverride = value; },
   };
   runInNewContext(ts.transpileModule(Object.entries(handlers).map(([name, node]) => `globalThis.${name}=${node.getText(ast)};`).join("\n"), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
   for (const folder of ["Incoming/Adam/", "Incoming/Beth/", "Incoming/Chris/"]) context.onToggleFolder(folder, true);
   assert.equal(state.selectedFolders.size, 3);
   assert.equal(state.checkedRefs.size, 0);
   assert.equal(state.selectedRef, null);
+  assert.equal(state.handlerOverride, "", "folder checkbox clears the previous file handler");
+  state.handlerOverride = "smsbackuprestore_xml";
   context.onSelectFolder("Incoming/Beth/");
+  assert.equal(state.handlerOverride, "", "folder name clears the previous file handler");
   assert.equal(state.selectedFolders.size, 3, "inspecting an included folder keeps the existing bulk selection");
   context.onSelectIndex(0);
   assert.equal(state.selectedFolders.size, 0);
@@ -123,6 +127,103 @@ test("screen folder selection and file selection never leave each other's Proces
   context.onToggleChecked(["new-file"]);
   assert.equal(state.selectedFolders.size, 0);
   assert.deepEqual(Array.from(state.checkedRefs), ["new-file"]);
+  context.onToggleFolder("Incoming/Adam/", true);
+  context.onToggleFolder("Incoming/Beth/", true);
+  context.onToggleFolder("Incoming/Beth/", false);
+  assert.equal(state.inspected, "Incoming/Adam/", "inspection follows a remaining checked folder");
+  context.onToggleFolder("Incoming/Adam/", false);
+  assert.equal(state.selectedFolders.size, 0, "unchecking the final folder keeps zero included units");
+});
+
+test("mark display and merge identity separate storage roots, reconfigured roots and unscoped history", () => {
+  const base = { unit_root: "Incoming/Phone", unit_type: "other", identity_scope: "root_scoped", root_id: "vault", source_root_ref: "b2://fixture/vault/" };
+  const other = { ...base, root_id: "other", source_root_ref: "b2://fixture/other/" };
+  const reconfigured = { ...base, source_root_ref: "b2://fixture/new-vault/" };
+  const legacy = { ...base, identity_scope: "legacy_unscoped", root_id: null, source_root_ref: null };
+  const result = sourceRootMarks([base, other, reconfigured, legacy], "vault", "b2://fixture/vault/");
+  assert.deepEqual(Array.from(result.scoped), [base]);
+  assert.deepEqual(Array.from(result.legacy), [legacy]);
+  assert.equal(new Set([base, other, reconfigured, legacy].map(unitMarkIdentity)).size, 4);
+});
+
+test("actual mark callback cannot write an inspected but unchecked folder", async () => {
+  const source = readFileSync(new URL("../src/components/sources/sources-screen.tsx", import.meta.url), "utf8");
+  const ast = ts.createSourceFile("sources-screen.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let callback;
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "markUnit") callback = node;
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  const calls = [];
+  const context = { selectedFolders: new Set(), selectedFolder: "Incoming/Unchecked/", activeRootId: "vault", activeRootRef: "b2://fixture/vault/",
+    markKind: "other", markFolderUnits, unitMarkIdentity, errorText: (error) => error.message,
+    setMarkPending() {}, setMarkError() {}, setLocalMarks(update) { update([]); },
+    recordSourceUnitMark: async (request) => { calls.push(request); return { ...request, root_id: "vault", source_root_ref: "b2://fixture/vault/", identity_scope: "root_scoped" }; },
+  };
+  runInNewContext(ts.transpileModule(`${callback.getText(ast)}; globalThis.mark=markUnit;`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  await context.mark(false);
+  assert.equal(calls.length, 0);
+  context.selectedFolders.add("Incoming/Checked/");
+  await context.mark(false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].unit_root, "Incoming/Checked/");
+  assert.equal(calls[0].root_id, "vault");
+});
+
+test("actual mark control stays disabled with zero included folders or an unresolved source root", () => {
+  const source = readFileSync(new URL("../src/components/sources/source-metadata-panel.tsx", import.meta.url), "utf8");
+  const ast = ts.createSourceFile("source-metadata-panel.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let disabled;
+  function visit(node) {
+    if (ts.isJsxOpeningElement(node) && node.tagName.getText(ast) === "Button") {
+      const attributes = node.attributes.properties;
+      if (attributes.some((attribute) => attribute.name?.getText(ast) === "onClick" && attribute.getText(ast).includes("onMarkUnit(needsConfirm)"))) {
+        disabled = attributes.find((attribute) => attribute.name?.getText(ast) === "disabled").initializer.expression;
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  assert.ok(disabled);
+  const screen = readFileSync(new URL("../src/components/sources/sources-screen.tsx", import.meta.url), "utf8");
+  const screenAst = ts.createSourceFile("sources-screen.tsx", screen, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let count;
+  function screenVisit(node) {
+    if (ts.isJsxAttribute(node) && node.name.getText(screenAst) === "selectedFolderCount") count = node.initializer.expression;
+    ts.forEachChild(node, screenVisit);
+  }
+  screenVisit(screenAst);
+  const context = { activeRootRef: "b2://fixture/vault/", selectedFolders: new Set(), selectedFolder: "Incoming/Unchecked/", markPending: false };
+  const code = `globalThis.count = () => ${count.getText(screenAst)}; globalThis.disabled = () => ${disabled.getText(ast)};`;
+  runInNewContext(code, context);
+  context.selectedFolderCount = context.count();
+  assert.equal(context.disabled(), true);
+  context.selectedFolders.add("Incoming/Checked/");
+  context.selectedFolderCount = context.count();
+  assert.equal(context.disabled(), false);
+  context.activeRootRef = "";
+  context.selectedFolderCount = context.count();
+  assert.equal(context.disabled(), true);
+});
+
+test("actual browse callback leaves departing route selection intact for Back restoration", () => {
+  const source = readFileSync(new URL("../src/components/sources/sources-screen.tsx", import.meta.url), "utf8");
+  const ast = ts.createSourceFile("sources-screen.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let callback;
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "browse") callback = node;
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  const calls = [];
+  const context = { mode: "LIVE", URLSearchParams, router: { navigate: (request) => calls.push(request.href) },
+    clearSearch() { throw Error("must not clear departing route before Back"); } };
+  runInNewContext(ts.transpileModule(`${callback.getText(ast)}; globalThis.open=browse;`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  context.open("vault", "Incoming/Phone/");
+  context.open("other", "");
+  assert.equal(calls[0], "/sources?root=vault&prefix=Incoming%2FPhone%2F&mode=LIVE");
+  assert.equal(calls[1], "/sources?root=other&prefix=&mode=LIVE");
 });
 
 test("Process sends three selected units through one durable package batch and keeps retry identity", async () => {

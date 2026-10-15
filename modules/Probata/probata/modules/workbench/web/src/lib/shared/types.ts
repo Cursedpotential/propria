@@ -2101,6 +2101,9 @@ export type SourceUnitKind =
   | "other";
 
 export interface SourceUnitMark {
+  root_id: string | null;
+  source_root_ref: string | null;
+  identity_scope: "root_scoped" | "legacy_unscoped";
   unit_root: string;
   unit_type: SourceUnitKind;
   label: string;

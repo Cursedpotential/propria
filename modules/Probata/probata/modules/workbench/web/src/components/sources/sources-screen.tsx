@@ -30,7 +30,7 @@ import { SourceRowsGrid, type SourceGridRow } from "@/components/sources/source-
 import { SourceSearch } from "@/components/sources/source-search";
 import { ContextSearch } from "@/components/read/context-search";
 import { SourceTree } from "@/components/sources/source-tree";
-import { folderSelectionPlan, markFolderUnits } from "@/components/sources/folder-selection";
+import { folderSelectionPlan, markFolderUnits, sourceRootMarks, toggleFolderSelection, unitMarkIdentity } from "@/components/sources/folder-selection";
 import { detectedFormat, runsBySource, sourceRunHistory, sourceState } from "@/components/sources/source-state";
 import { Button } from "@/components/ui/button";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
@@ -173,7 +173,7 @@ function SourcesScreenMode() {
     () => [
       ...localMarks,
       ...(marksQuery.data?.items ?? []).filter(
-        (item) => !localMarks.some((local) => local.unit_root === item.unit_root),
+        (item) => !localMarks.some((local) => unitMarkIdentity(local) === unitMarkIdentity(item)),
       ),
     ],
     [localMarks, marksQuery.data],
@@ -210,6 +210,8 @@ function SourcesScreenMode() {
     [objects, restored, selectedRef, linkedFile, prefix, linkedScope],
   );
   const activeRootId = rootId || listing?.active_root_id || "";
+  const activeRootRef = listing?.available_roots.find((root) => root.root_id === activeRootId)?.root_ref ?? "";
+  const rootMarks = useMemo(() => sourceRootMarks(marks, activeRootId, activeRootRef), [marks, activeRootId, activeRootRef]);
 
 
 
@@ -298,9 +300,9 @@ function SourcesScreenMode() {
       map.set(unit.unit_root.replace(/\/$/, ""), unit.unit_type);
       if (unit.export_root) map.set(unit.export_root.replace(/\/$/, ""), unit.unit_type);
     }
-    for (const mark of marks) map.set(mark.unit_root.replace(/\/$/, ""), mark.unit_type);
+    for (const mark of rootMarks.scoped) map.set(mark.unit_root.replace(/\/$/, ""), mark.unit_type);
     return map;
-  }, [marks, unitsQuery.data]);
+  }, [rootMarks, unitsQuery.data]);
 
   const memberUnits = useMemo(() => {
     const map = new Map<string, string>();
@@ -334,7 +336,8 @@ function SourcesScreenMode() {
           folderUnitsQuery.data?.single_unit ??
           null,
         unitsUnder: folderUnitsQuery.data?.units.length ?? 0,
-        mark: marks.find((mark) => mark.unit_root === selectedFolder.replace(/\/$/, "")) ?? null,
+        mark: rootMarks.scoped.find((mark) => mark.unit_root === selectedFolder.replace(/\/$/, "")) ?? null,
+        legacyMarks: rootMarks.legacy.filter((mark) => mark.unit_root.replace(/\/$/, "") === selectedFolder.replace(/\/$/, "")),
       }
     : selectedObject
       ? {
@@ -349,7 +352,7 @@ function SourcesScreenMode() {
     () => objects.filter((object) => checkedRefs.has(object.source_ref)),
     [checkedRefs, objects],
   );
-  const folderPlan = folderSelectionPlan(listing?.available_roots.find((root) => root.root_id === activeRootId)?.root_ref ?? "", selectedFolders);
+  const folderPlan = folderSelectionPlan(activeRootRef, selectedFolders);
   const processTarget = showContentSearch ? null : localSource ? localSource.file.name : selectedFiles.length
     ? `${selectedFiles.length} file(s)`
       : selectedFolders.size
@@ -396,14 +399,11 @@ function SourcesScreenMode() {
     setSelectedRef(null); setSelectedFolder(null); setSelectedFolders(new Set()); setCheckedRefs(new Set()); setScrollRow(0);
   }, []);
 
-  /** Browse an exact source location with a bookmarkable URL and fresh selection.
+  /** Browse an exact source location while retaining the departing route's Back state.
    * Inputs: allowlisted root ID and relative prefix. Output: navigation; no evidence writes.
    * Use for folder/root clicks so Back and shared links return to the same location.
    */
   function browse(nextRoot: string, nextPrefix: string) {
-    clearSearch();
-    setPerspectiveChoice(null);
-    setLocalSource(null); setSelectedFolder(null); setSelectedRef(null); setCheckedRefs(new Set());
     void router.navigate({ href: `/sources?${new URLSearchParams({ root: nextRoot, prefix: nextPrefix, mode })}` });
   }
 
@@ -600,12 +600,12 @@ function SourcesScreenMode() {
   }
 
   async function markUnit(confirm: boolean) {
-    if (!selectedFolder) return;
+    if (!selectedFolders.size || !activeRootId || !activeRootRef) return;
     setMarkPending(true);
     setMarkError(null);
     try {
-      const result = await markFolderUnits(selectedFolders.size ? [...selectedFolders] : [selectedFolder], markKind, confirm, recordSourceUnitMark);
-      setLocalMarks((current) => [...result.marks, ...current.filter((item) => !result.marks.some((mark) => mark.unit_root === item.unit_root))]);
+      const result = await markFolderUnits(activeRootId, [...selectedFolders], markKind, confirm, recordSourceUnitMark);
+      setLocalMarks((current) => [...result.marks, ...current.filter((item) => !result.marks.some((mark) => unitMarkIdentity(mark) === unitMarkIdentity(item)))]);
       if (result.failures.length) setMarkError(result.failures.join(" · "));
     } catch (error) {
       setMarkError(errorText(error));
@@ -747,11 +747,12 @@ function SourcesScreenMode() {
               browse(activeRootId, nextPrefix);
             }}
             onSelectFolder={(nextFolder) => {
-              setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set()); setSelectedFolder(nextFolder); setSelectedFolders((current) => current.has(nextFolder) ? current : new Set([nextFolder])); setSelectedRef(null); setUnitMarkKind(""); setShowContentSearch(false);
+              setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set()); setSelectedFolder(nextFolder); setSelectedFolders((current) => current.has(nextFolder) ? current : new Set([nextFolder])); setSelectedRef(null); setUnitMarkKind(""); setHandlerOverride(""); setShowContentSearch(false);
             }}
             onToggleFolder={(nextFolder, checked) => {
-              setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set()); setSelectedRef(null); setSelectedFolder(nextFolder); setUnitMarkKind(""); setShowContentSearch(false);
-              setSelectedFolders((current) => { const next = new Set(current); if (checked) next.add(nextFolder); else next.delete(nextFolder); return next; });
+              const next = toggleFolderSelection(selectedFolders, nextFolder, checked);
+              setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set()); setSelectedRef(null); setSelectedFolder(next.inspected); setUnitMarkKind(""); setHandlerOverride(""); setShowContentSearch(false);
+              setSelectedFolders(next.folders);
             }}
           />
         </Panel>
@@ -839,7 +840,7 @@ function SourcesScreenMode() {
             unitMarkKind={markKind}
             onUnitMarkKindChange={setUnitMarkKind}
             onMarkUnit={(confirm) => void markUnit(confirm)}
-            selectedFolderCount={selectedFolders.size || (selectedFolder ? 1 : 0)}
+            selectedFolderCount={activeRootRef ? selectedFolders.size : 0}
             markPending={markPending}
             markError={markError}
             batch={batchQuery.data ?? null}
