@@ -357,6 +357,38 @@ def test_classifier_settings_reject_unsupported_provider_model(monkeypatch):
         image_stage.ImageStageSettings.from_env().validate()
 
 
+@pytest.mark.parametrize("model", [
+    "openai/gpt-6-luna-decisions",
+    "openai/gpt-6-luna-decisions-20261006",
+    "inception/mercury-decide:free",
+])
+def test_evaluated_decisions_aliases_are_explicit_and_cache_isolated(
+    tmp_path: Path, monkeypatch, model: str
+):
+    """Allow evaluated aliases while retaining separate reference-bound cache identities.
+
+    Inputs are one synthetic reference set and an explicit model alias. Outputs are accepted
+    settings and a distinct cache key. Side effects are test reference files and environment.
+    Pick this to guard deliberate Luna selection and Mercury-free alternative configuration.
+    """
+    manifest, _ = _bundle(tmp_path)
+    monkeypatch.setenv("INTAKE_IMAGES_SCREENSHOT_PROVIDER", "openrouter-decisions")
+    monkeypatch.setenv("INTAKE_IMAGES_SCREENSHOT_MODEL", model)
+    image_stage.ImageStageSettings.from_env().validate()
+    selected = load_reference_bundle(
+        manifest, tmp_path, provider="openrouter-decisions", model=model
+    )
+    default = load_reference_bundle(
+        manifest, tmp_path, provider="openrouter-decisions", model=DECISIONS_MODEL
+    )
+    assert selected.version.startswith(classifier_version("openrouter-decisions", model) + ":")
+    assert selected.model == model and selected.version != default.version
+    digest = hashlib.sha256(b"synthetic retained source").hexdigest()
+    assert cache_path(tmp_path, digest, version=selected.version) != cache_path(
+        tmp_path, digest, version=default.version
+    )
+
+
 def test_reference_manifest_hashes_labels_and_native_target_are_bound(tmp_path: Path):
     """Bind example labels and derived hashes to cache identity while keeping target separate.
 

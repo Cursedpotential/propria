@@ -33,6 +33,9 @@ DECISIONS_MODELS = frozenset({
     "perplexity/pplx-decider-v1.1-27b-20261006",
     "typesafe/jev-1.14",
     "typesafe/jev-1.14-20261014",
+    "openai/gpt-6-luna-decisions",
+    "openai/gpt-6-luna-decisions-20261006",
+    "inception/mercury-decide:free",
 })
 DECISIONS_PROMPT_VERSION = "screenshot-app-ui-v1-decisions-two-reference"
 DECISIONS_PREPROCESS_VERSION = "jpeg-768q70-640q60-512q50-384q40-max60k-v1"
