@@ -15,7 +15,16 @@ func TestDetectIMessageHTMLRoutesSpecificExports(t *testing.T) {
 	tests := []struct{ name, html, format string }{
 		{"owner export", "\n        " + `<!DOCTYPE html><html><body><div class='bubble from-me'>Hi</div><div class='meta'>Sender - time</div></body></html>`, "imessage_html"},
 		{"stock export", `<html><body><div class="message"><div class="sent"><span class="timestamp">time</span></div></div></body></html>`, "imessage_html"},
+		{"received export", `<html><div class='message'><div class='received'><span class='sender'>Alice</span></div></div></html>`, "imessage_html"},
+		{"same-node direction supported by SBV", `<html><div class="message sent"><span class="timestamp">time</span><span class="bubble">hello</span></div></html>`, "imessage_html"},
+		{"unrelated stock classes", `<html><div class='message'>Notice</div><div class='sent'>Status</div><span class='timestamp'>time</span></html>`, "generic_html_document"},
+		{"metadata outside direction", `<html><div class='message'><div class='sent'>Hi</div><span class='timestamp'>time</span></div></html>`, "generic_html_document"},
+		{"metadata in another message", `<html><div class='message'><div class='sent'>Hi</div></div><div class='message'><span class='timestamp'>time</span></div></html>`, "generic_html_document"},
+		{"non-div message", `<html><section class='message'><div class='sent'><span class='timestamp'>time</span></div></section></html>`, "generic_html_document"},
 		{"unrelated page", `<html><body><div class='bubble'>Hi</div><div class='meta'>Note</div></body></html>`, "generic_html_document"},
+		{"bubble class suffix", `<html><div class='bubble-preview from-me'>Hi</div><div class='meta'>Note</div></html>`, "generic_html_document"},
+		{"direction class suffix", `<html><div class="bubble from-me-extra">Hi</div><div class="meta">Note</div></html>`, "generic_html_document"},
+		{"metadata class suffix", `<html><div class='bubble from-them'>Hi</div><div class='meta-info'>Note</div></html>`, "generic_html_document"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -24,6 +33,33 @@ func TestDetectIMessageHTMLRoutesSpecificExports(t *testing.T) {
 				t.Fatalf("Detect = %q (%v), want %q", format, err, test.format)
 			}
 		})
+	}
+}
+
+// TestClassTokenBoundaries verifies exact tokens within quoted class lists.
+// Inputs: synthetic attributes. Output: match assertions. Side effects: none.
+// Use when changing class matching shared by the HTML detectors.
+func TestClassTokenBoundaries(t *testing.T) {
+	for _, quote := range []string{`"`, `'`} {
+		for _, test := range []struct {
+			classes string
+			want    bool
+		}{
+			{"bubble", true},
+			{"bubble other", true},
+			{"other bubble", true},
+			{"other\tbubble\nlast", true},
+			{"\r\fbubble\t", true},
+			{"bubble-preview", false},
+			{"preview-bubble", false},
+			{"other bubble-preview last", false},
+			{"bubble\u00a0other", false},
+		} {
+			markup := `<div class = ` + quote + test.classes + quote + `>`
+			if got := classToken([]byte(markup), "bubble"); got != test.want {
+				t.Errorf("classToken(%q) = %v, want %v", markup, got, test.want)
+			}
+		}
 	}
 }
 

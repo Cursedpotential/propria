@@ -95,6 +95,40 @@ func TestAdapterExecutesWorkbenchSMSAliasWithoutChangingDeclaredFormat(t *testin
 	}
 }
 
+// TestAdapterAcceptsIMessageDirectionOnMessage verifies the parser's inclusive class lookup.
+// Input: synthetic message.sent HTML. Output: parsed body and sender assertions.
+// Side effects: none. Use to keep detection aligned with supported SBV layouts.
+func TestAdapterAcceptsIMessageDirectionOnMessage(t *testing.T) {
+	source := `<html><body><div class="message sent"><span class="timestamp">May 17, 2022 5:29:42 PM</span><span class="bubble">hello</span></div></body></html>`
+	adapter, err := New(parseonly.FormatIMessageHTML, func(context.Context, string) (io.ReadCloser, error) {
+		return io.NopCloser(strings.NewReader(source)), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := parser.ParserInput{
+		ContractVersion: parser.ContractVersion, SourceVersionRef: "source-1",
+		DeclaredFormat: parseonly.FormatIMessageHTML,
+		FileOrMember: parser.Locator{Type: parser.LocatorWholeObject,
+			ObjectRef: parser.ObjectRef{StorageClass: "immutable_object_store", URI: "object://imessage"}},
+	}
+	var records []parser.RawRecordEnvelope
+	accounting, err := adapter.Parse(context.Background(), input, recordSink{records: &records})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accounting.Emitted != 1 || accounting.Rejected != 0 || len(records) == 0 || records[0].RecordStatus != parser.StatusParsed {
+		t.Fatalf("accounting=%+v records=%+v", accounting, records)
+	}
+	var fields parser.CommonNativeFields
+	if err := json.Unmarshal(records[0].NativeFields, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if fields.Body != "hello" || fields.Sender != "self" {
+		t.Fatalf("native fields = %+v", fields)
+	}
+}
+
 func TestAdapterPreservesActualSMSXMLCallSemantics(t *testing.T) {
 	source := []byte(`<smses count="1"><call number="+15551234567" duration="17" date="1700000000000" type="3" /></smses>`)
 	adapter, err := New(parseonly.FormatSMSBackupXML, func(context.Context, string) (io.ReadCloser, error) {
