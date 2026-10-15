@@ -39,8 +39,10 @@ import (
 // A rare status (failed, awaiting_*) can require reading hundreds of Temporal
 // states; past this budget the handler returns the matches found so far with a
 // cursor at the last scanned binding, so the caller pages instead of timing out
-// (Workbench gives the starter 15s; owner UX test 2026-10-15 saw 502s).
-var operationScanBudget = 10 * time.Second
+// (Workbench gives the starter 15s; owner UX test 2026-10-15 saw 502s). 6s leaves
+// room for the final page's reads plus Workbench and network overhead: a 10s
+// budget measured 11-16s end to end.
+var operationScanBudget = 6 * time.Second
 
 const (
 	maxPreviewRequestBytes int64 = 16 << 10
@@ -49,7 +51,7 @@ const (
 	maxOperationScan             = 1000
 	// operationReadConcurrency bounds parallel Temporal state queries while a
 	// page of operation bindings is resolved.
-	operationReadConcurrency = 16
+	operationReadConcurrency = 32
 	maxReasonBytes           = 4000
 )
 
