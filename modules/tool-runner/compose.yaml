@@ -3,10 +3,11 @@ services:
     build: .
     init: true
     restart: unless-stopped
-    env_file: /data/probata/secrets/tool-runner.env
     environment:
       PUBLIC_URL: https://mcp.mitechconsult.com/runner
       OAUTH_ISSUER: https://auth.int.mitechconsult.com/application/o/propria-gateway/
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:?}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET:?}
       MCP_URL: https://mcp.mitechconsult.com/servers/320572d2bdd440f3ac61c8b64418d7b3/mcp
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8790/health', timeout=3)"]
