@@ -138,13 +138,24 @@ func (a RepairActivities) AssessSourceRepair(ctx context.Context, req proffer.St
 	// ("sms_xml"). Live rehearsal 2026-09-05 (rehearsal-20260905-r2d-1788611759):
 	// passing DeclaredFormat made tool-runtime answer 422 "no engine for
 	// format 'sms_xml'". Omitting it lets the engine auto-detect.
-	previewArgs := map[string]any{"sample_limit": 25}
-	if structural := repairDetectionFormat(detection); structural != "" {
-		previewArgs["format"] = structural
-	}
-	preview, err := a.Client.Run(ctx, RepairPreviewTool, locator, previewArgs)
-	if err != nil {
-		return proffer.StageResult{}, fmt.Errorf("run repair preview: %w", err)
+	var preview json.RawMessage
+	if applicable, structural := repairEngineApplicable(detection); !applicable {
+		// No structural repair engine exists for this format (plain text,
+		// Markdown, .keep and every other "unknown" format). tool-runtime's
+		// repair.preview raises "no engine for format" -> 422 for these, which
+		// failed every such import at this stage (owner UX test 2026-10-15).
+		// Nothing is repaired and nothing is skipped silently: the assessment is
+		// persisted with an explicit not-applicable report naming the format.
+		preview = repairNotApplicablePreview(structural)
+	} else {
+		previewArgs := map[string]any{"sample_limit": 25}
+		if structural != "" {
+			previewArgs["format"] = structural
+		}
+		preview, err = a.Client.Run(ctx, RepairPreviewTool, locator, previewArgs)
+		if err != nil {
+			return proffer.StageResult{}, fmt.Errorf("run repair preview: %w", err)
+		}
 	}
 	reviewRequired := RepairReviewRequired(detection, preview)
 	result, err := a.Store.PersistRepairAssessment(ctx, RepairAssessmentSpec{
@@ -272,19 +283,53 @@ func repairResult(stage stagegraph.StageID, result RepairPersistenceResult, stat
 	return proffer.StageResult{Stage: stage, Status: status, Ref: result.ResultRef, ReceiptRef: result.ReceiptRef}, nil
 }
 
-// repairDetectionFormat extracts the structural format the detector reported
-// ({"detection":{"fmt":"xml",...}}). Empty when absent, so the caller omits
-// the argument and the engine auto-detects.
-func repairDetectionFormat(detection json.RawMessage) string {
+// repairEngineApplicable reports whether repair.preview can run for the
+// detector's result, plus the structural format it found. A detection that
+// explicitly reports format "unknown" or a null engine has no repair engine;
+// a detection payload without those fields keeps the previous behaviour
+// (preview runs and the engine auto-detects).
+func repairEngineApplicable(detection json.RawMessage) (bool, string) {
 	var payload struct {
-		Detection struct {
-			Fmt string `json:"fmt"`
+		Detection *struct {
+			Fmt    string          `json:"fmt"`
+			Engine json.RawMessage `json:"engine"`
 		} `json:"detection"`
 	}
-	if err := json.Unmarshal(detection, &payload); err != nil {
-		return ""
+	if err := json.Unmarshal(detection, &payload); err != nil || payload.Detection == nil {
+		return true, ""
 	}
-	return strings.TrimSpace(payload.Detection.Fmt)
+	format := strings.TrimSpace(payload.Detection.Fmt)
+	if format == "unknown" {
+		return false, format
+	}
+	if engine := strings.TrimSpace(string(payload.Detection.Engine)); engine == "null" || engine == `""` {
+		return false, format
+	}
+	return true, format
+}
+
+// repairNotApplicablePreview is the persisted preview for a source whose format
+// has no structural repair engine. clean=true keeps it out of the review gate;
+// applicable=false and reason say why no preview ran.
+func repairNotApplicablePreview(format string) json.RawMessage {
+	if format == "" {
+		format = "unknown"
+	}
+	body, _ := json.Marshal(map[string]any{
+		"report": map[string]any{
+			"clean":         true,
+			"applicable":    false,
+			"fmt":           format,
+			"chunks_failed": 0,
+			"repairs":       0,
+			"lossy":         0,
+			"truncated":     false,
+			"reason":        fmt.Sprintf("no structural repair engine for detected format %q; repair preview not applicable", format),
+		},
+		"events":  []any{},
+		"samples": []any{},
+	})
+	return body
 }
 
 // RepairReviewRequired derives the human-review requirement from the repair

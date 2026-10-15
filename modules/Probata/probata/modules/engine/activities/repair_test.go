@@ -207,3 +207,48 @@ func TestRepairReviewUsesActualPreviewReport(t *testing.T) {
 		t.Fatal("preview without a damage report was falsely labeled as needing repair")
 	}
 }
+
+func TestAssessSourceRepairSkipsPreviewWhenNoEngineForFormat(t *testing.T) {
+	for _, detection := range []string{
+		`{"detection":{"fmt":"unknown","encoding":"utf-8","engine":null},"cloud_only":false}`,
+		`{"detection":{"fmt":"docx","encoding":"binary","engine":null},"cloud_only":false}`,
+	} {
+		client := &repairClientStub{result: json.RawMessage(detection)}
+		store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt"}}
+		if _, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(
+			t.Context(), repairRequest(map[string]proffer.Ref{"original": "orig", "acquisition": "upload://abc"})); err != nil {
+			t.Fatal(err)
+		}
+		if len(client.calls) != 1 || client.calls[0] != RepairDetectTool {
+			t.Fatalf("preview must not run without an engine: calls=%v", client.calls)
+		}
+	}
+}
+
+func TestRepairNotApplicablePreviewIsCleanAndExplained(t *testing.T) {
+	preview := repairNotApplicablePreview("unknown")
+	if RepairReviewRequired(preview) {
+		t.Fatal("not-applicable preview created a repair gate")
+	}
+	var payload struct {
+		Report struct {
+			Applicable bool   `json:"applicable"`
+			Reason     string `json:"reason"`
+		} `json:"report"`
+	}
+	if err := json.Unmarshal(preview, &payload); err != nil || payload.Report.Applicable || payload.Report.Reason == "" {
+		t.Fatalf("preview=%s err=%v", preview, err)
+	}
+}
+
+func TestAssessSourceRepairStillPreviewsWhenEngineExists(t *testing.T) {
+	client := &repairClientStub{result: json.RawMessage(`{"detection":{"fmt":"html","encoding":"utf-8","engine":"lxml-html"},"cloud_only":false}`)}
+	store := &repairStoreStub{assessment: RepairPersistenceResult{ResultRef: "assessment", ReceiptRef: "receipt"}}
+	if _, err := (RepairActivities{Client: client, Store: store}).AssessSourceRepair(
+		t.Context(), repairRequest(map[string]proffer.Ref{"original": "orig", "acquisition": "upload://abc"})); err != nil {
+		t.Fatal(err)
+	}
+	if len(client.calls) != 2 || client.calls[1] != RepairPreviewTool || client.payloads[1]["format"] != "html" {
+		t.Fatalf("calls=%v payloads=%v", client.calls, client.payloads)
+	}
+}
