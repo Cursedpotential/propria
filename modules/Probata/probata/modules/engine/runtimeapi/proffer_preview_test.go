@@ -5,15 +5,18 @@ package runtimeapi
 import (
 	"bytes"
 	"context"
+	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,6 +38,7 @@ type previewWorkflowStub struct {
 	operations     map[string]proffer.OperationState
 	operationErr   error
 	operationCalls int
+	operationMu    sync.Mutex
 	order          *[]string
 	cancelled      []proffer.CancelRequest
 }
@@ -70,6 +74,8 @@ func (s *previewWorkflowStub) Preview(context.Context, string) (proffer.PreviewS
 	return s.state, nil
 }
 func (s *previewWorkflowStub) Operation(_ context.Context, workflowID string) (proffer.OperationState, error) {
+	s.operationMu.Lock()
+	defer s.operationMu.Unlock()
 	s.operationCalls++
 	if s.operationErr != nil {
 		return proffer.OperationState{}, s.operationErr
@@ -782,4 +788,46 @@ func TestCancelRefusesAFinishedRun(t *testing.T) {
 	recorder := servePreview(handler.Routes(), http.MethodPost, "/reference-import/previews/"+handle+"/cancel", []byte(`{"reason":"too late"}`))
 	require.Equal(t, http.StatusConflict, recorder.Code, recorder.Body.String())
 	require.Empty(t, workflow.cancelled)
+}
+
+func TestOperationFilterReturnsPartialPageWithinScanBudget(t *testing.T) {
+	// More than one 100-binding page is needed; the shared counting entropy
+	// repeats handles after ~32 bindings, so this store uses crypto/rand.
+	store := NewMemoryPreviewStore(cryptorand.Reader)
+	workflow := &previewWorkflowStub{}
+	handler, err := NewPreviewHTTPHandler(workflow, store, store, store, bytes.Repeat([]byte("k"), 32), serviceTokenPath(t), sourceContextValidatorStub{})
+	require.NoError(t, err)
+	base := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
+	workflow.operations = map[string]proffer.OperationState{}
+	for i := 0; i < 120; i++ {
+		id := fmt.Sprintf("workflow-%03d", i)
+		_, err = store.Create(t.Context(), PreviewBinding{
+			RequestID: fmt.Sprintf("request-%03d", i), SourceRef: proffer.Ref(fmt.Sprintf("upload://%064x", i)),
+			WorkflowID: id, RunID: "internal-" + id, ParserOptionsRef: "options-1", CreatedAt: base.Add(time.Duration(i) * time.Minute),
+		})
+		require.NoError(t, err)
+		lifecycle := proffer.OperationCompleted
+		if i == 0 { // the oldest binding: only reachable on the second page
+			lifecycle = proffer.OperationFailed
+		}
+		workflow.operations[id] = proffer.OperationState{Lifecycle: lifecycle, Terminal: true, ActiveStages: []proffer.ActivityName{}}
+	}
+	previous := operationScanBudget
+	operationScanBudget = 0 // budget is exhausted after the first page
+	t.Cleanup(func() { operationScanBudget = previous })
+
+	first := servePreview(handler.Routes(), http.MethodGet, "/reference-import/operations?status=failed&limit=5", nil)
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	var page OperationListResponse
+	require.NoError(t, json.NewDecoder(first.Body).Decode(&page))
+	require.Empty(t, page.Items, "first page scanned 100 completed bindings")
+	require.NotNil(t, page.NextCursor, "a budget-limited scan must hand back a cursor")
+
+	second := servePreview(handler.Routes(), http.MethodGet, "/reference-import/operations?status=failed&limit=5&cursor="+*page.NextCursor, nil)
+	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
+	page = OperationListResponse{}
+	require.NoError(t, json.NewDecoder(second.Body).Decode(&page))
+	require.Len(t, page.Items, 1)
+	require.Equal(t, proffer.OperationFailed, page.Items[0].Lifecycle)
+	require.Nil(t, page.NextCursor)
 }

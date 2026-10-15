@@ -35,12 +35,22 @@ import (
 	"github.com/Cursedpotential/probata/engine/sourceformat"
 )
 
+// operationScanBudget bounds how long one filtered operation listing scans.
+// A rare status (failed, awaiting_*) can require reading hundreds of Temporal
+// states; past this budget the handler returns the matches found so far with a
+// cursor at the last scanned binding, so the caller pages instead of timing out
+// (Workbench gives the starter 15s; owner UX test 2026-10-15 saw 502s).
+var operationScanBudget = 10 * time.Second
+
 const (
 	maxPreviewRequestBytes int64 = 16 << 10
 	maxPreviewPage               = 250
 	maxOperationPage             = 100
 	maxOperationScan             = 1000
-	maxReasonBytes               = 4000
+	// operationReadConcurrency bounds parallel Temporal state queries while a
+	// page of operation bindings is resolved.
+	operationReadConcurrency = 16
+	maxReasonBytes           = 4000
 )
 
 var (
@@ -932,8 +942,13 @@ func (h *PreviewHTTPHandler) operations(w http.ResponseWriter, r *http.Request) 
 	response := OperationListResponse{Items: []OperationSummary{}}
 	var lastScanned *previewmodel.BindingCursor
 	hasMore := false
+	started := time.Now()
 	for scanned := 0; len(response.Items) < limit && scanned < maxOperationScan; {
 		batchLimit := maxOperationPage
+		if status == "" && limit < batchLimit {
+			// Unfiltered pages never need more states than they return.
+			batchLimit = limit - len(response.Items)
+		}
 		page, err := h.store.ListBindings(r.Context(), cursor, batchLimit)
 		if err != nil {
 			previewError(w, http.StatusServiceUnavailable, err)
@@ -943,11 +958,12 @@ func (h *PreviewHTTPHandler) operations(w http.ResponseWriter, r *http.Request) 
 			hasMore = false
 			break
 		}
+		operations := h.readOperations(r.Context(), page.Bindings)
 		for index, binding := range page.Bindings {
 			scanned++
 			coordinate := previewmodel.BindingCursor{CreatedAt: binding.CreatedAt, Handle: binding.Handle}
 			lastScanned = &coordinate
-			operation := h.readOperation(r.Context(), binding)
+			operation := operations[index]
 			if status == "" || operation.Lifecycle == status {
 				response.Items = append(response.Items, operation)
 			}
@@ -966,6 +982,10 @@ func (h *PreviewHTTPHandler) operations(w http.ResponseWriter, r *http.Request) 
 		last := page.Bindings[len(page.Bindings)-1]
 		cursor = &previewmodel.BindingCursor{CreatedAt: last.CreatedAt, Handle: last.Handle}
 		hasMore = true
+		if time.Since(started) >= operationScanBudget {
+			// Partial page: the cursor resumes after the last scanned binding.
+			break
+		}
 	}
 	if hasMore && lastScanned != nil {
 		encoded := h.encodeOperationCursor(*lastScanned)
@@ -989,6 +1009,25 @@ func (h *PreviewHTTPHandler) operation(w http.ResponseWriter, r *http.Request) {
 	}
 	stages = mergeOperationStages(stages, queriedStages)
 	previewJSON(w, http.StatusOK, OperationDetail{OperationSummary: summary, Stages: stages})
+}
+
+// readOperations resolves a page of bindings concurrently and returns the
+// summaries in binding order.
+func (h *PreviewHTTPHandler) readOperations(ctx context.Context, bindings []PreviewBinding) []OperationSummary {
+	out := make([]OperationSummary, len(bindings))
+	slots := make(chan struct{}, operationReadConcurrency)
+	var wg sync.WaitGroup
+	for index, binding := range bindings {
+		wg.Add(1)
+		slots <- struct{}{}
+		go func(index int, binding PreviewBinding) {
+			defer wg.Done()
+			defer func() { <-slots }()
+			out[index] = h.readOperation(ctx, binding)
+		}(index, binding)
+	}
+	wg.Wait()
+	return out
 }
 
 func (h *PreviewHTTPHandler) readOperation(ctx context.Context, binding PreviewBinding) OperationSummary {

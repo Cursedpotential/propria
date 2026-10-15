@@ -228,3 +228,35 @@ def test_placeholders_and_merge_pass_through_with_actor_and_key(engine) -> None:
     assert [call["json"] for call in engine.calls] == [batch, merge]
     assert client.post("/api/case-identity/people/not-a-uuid/merge", json=merge, headers={"Idempotency-Key": "m2"}).status_code == 422
     assert TestClient(_app(actor=False)).post("/api/case-identity/placeholders", json=batch, headers={"Idempotency-Key": "p2"}).status_code == 401
+
+
+def test_catalog_events_page_uses_the_ordered_index_and_keeps_nulls_last(monkeypatch) -> None:
+    """Regression (owner UX test 2026-10-15): NULLS LAST ordering defeated the
+    (norm_phone, event_ts_utc DESC) index and timed out for large identifiers."""
+    from datetime import UTC, datetime
+
+    calls: list[tuple[str, tuple]] = []
+    dated = [{"dedup_key": f"d{i}", "event_ts_utc": datetime(2025, 1, 10 - i, tzinfo=UTC)} for i in range(2)]
+    undated = [{"dedup_key": "n0", "event_ts_utc": None}]
+
+    def fake_query(sql: str, params: tuple):
+        calls.append((sql, params))
+        return list(dated) if "IS NOT NULL" in sql else list(undated)
+
+    monkeypatch.setattr(catalog.intake_discovery, "_query", fake_query)
+    page = catalog.events("kevin tinnin", "sender", limit=5)
+    assert all("NULLS LAST" not in sql for sql, _ in calls)
+    assert "ORDER BY event_ts_utc DESC LIMIT" in calls[0][0]
+    assert [row["dedup_key"] for row in page["items"]] == ["d0", "d1", "n0"]
+    assert page["has_more"] is False
+
+    calls.clear()
+    full = [{"dedup_key": f"d{i}", "event_ts_utc": datetime(2025, 1, 20 - i, tzinfo=UTC)} for i in range(6)]
+    monkeypatch.setattr(catalog.intake_discovery, "_query", lambda sql, params: calls.append((sql, params)) or list(full))
+    page = catalog.events("kevin tinnin", "sender", limit=5)
+    assert len(calls) == 1, "a full first page never reads untimestamped rows"
+    assert page["has_more"] is True and page["next_before"] == full[4]["event_ts_utc"].isoformat()
+
+    calls.clear()
+    catalog.events("kevin tinnin", "sender", before=page["next_before"], limit=5)
+    assert "event_ts_utc < %s::timestamptz" in calls[0][0] and "IS NULL" not in calls[0][0]
