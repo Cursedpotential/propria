@@ -47,7 +47,7 @@ class ContextQuery(ReadModel):
     query: str = Field(min_length=1, max_length=2000, pattern=r"\S")
     mode: Literal["keyword", "hybrid", "vector"] = "keyword"
     scope: PublicScope = Field(default_factory=PublicScope)
-    legs: tuple[LegName, ...] = Field(default=("intake", "proffer"), min_length=1, max_length=2)
+    legs: tuple[LegName, ...] = Field(default=("intake", "proffer"), min_length=1, max_length=3)
     limit: int = Field(default=20, ge=1, le=50, strict=True)
     per_leg_limit: int = Field(default=50, ge=1, le=100, strict=True)
     leg_timeout_seconds: float = Field(default=10, gt=0, le=30, strict=True)
@@ -55,7 +55,7 @@ class ContextQuery(ReadModel):
     def internal(self) -> RetrievalRequest:
         """Return a validated internal request without selecting authority; Proffer's reader injects configured matter only."""
         request = RetrievalRequest.model_validate(self.model_dump())
-        if set(request.legs) - {"intake", "proffer"}:
+        if set(request.legs) - {"intake", "proffer", "ai"}:
             raise ValueError("reader is not allowlisted")
         return request
 

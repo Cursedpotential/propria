@@ -23,6 +23,7 @@ from uuid import UUID
 import httpx
 
 from server.core.retrieval_adapters import intake_hits, proffer_hits
+from server.core.retrieval_ai import AI_EMBED_DIMENSIONS, AI_EMBED_MODEL, AI_FIELDS, AI_SCOPES, AI_VECTOR, ai_hits, ai_where
 from server.core.retrieval_composition import RetrievalLeg
 from server.core.retrieval_contracts import ReadHit, RetrievalRequest
 
@@ -72,6 +73,8 @@ class ReaderConfig:
     weaviate_url: str = ""
     proffer_collection: str = ""
     proffer_vector: str = ""
+    ai_collection: str = ""
+    ai_vector: str = ""
     proffer_matter_id: str = ""
     embed_url: str = ""
     embed_model: str = ""
@@ -158,14 +161,16 @@ class ContextReaders:
 
     async def graphql(
         self, request: RetrievalRequest, collection: str, vector_name: str, where: str, fields: str,
+        *, lexical_properties: tuple[str, ...] = ("text",),
     ) -> list[dict[str, Any]]:
         """Query one configured collection with pre-ranking scope; return original rows using explicit named-vector targets."""
         origin = configured_origin(self.config.weaviate_url)
         collection = configured_name(collection, collection=True)
         query = json.dumps(request.query)
+        properties = json.dumps(lexical_properties)
         additional = "id score"
         if request.mode == "keyword":
-            operator = f"bm25: {{query: {query}, properties: [\"text\"]}}"
+            operator = f"bm25: {{query: {query}, properties: {properties}}}"
         else:
             target = json.dumps(configured_name(vector_name))
             vector = json.dumps(await self.embedding(request), allow_nan=False)
@@ -174,7 +179,7 @@ class ContextReaders:
                 additional = "id distance"
             else:
                 # Match the existing filesystem searcher's explicit alpha and text query contract.
-                operator = (f"hybrid: {{query: {query}, alpha: {HYBRID_ALPHA}, properties: [\"text\"], "
+                operator = (f"hybrid: {{query: {query}, alpha: {HYBRID_ALPHA}, properties: {properties}, "
                             f"vector: {vector}, targetVectors: [{target}]}}")
         result = await self.post(origin + "/v1/graphql", {"query": (
             f"{{ Get {{ {collection}(limit: {request.per_leg_limit}, {operator}, where: {where}) "
@@ -225,15 +230,36 @@ class ContextReaders:
         return proffer_hits(self.config.proffer_collection, rows, mode=request.mode,
                             vector_name=self.config.proffer_vector if request.mode != "keyword" else None)
 
+    async def ai(self, request: RetrievalRequest) -> list[ReadHit]:
+        """Read native AI chat content directly from its configured Weaviate collection.
+
+        Inputs: bounded query and native version scope. Output: original excerpts
+        and citation coordinates. Effects: Weaviate/query embedding reads only;
+        choose for AI chats without any PostgreSQL normalization or thread lookup.
+        """
+        if request.scope.requested_fields() - AI_SCOPES:
+            raise ValueError("AI source scope is unsupported")
+        if request.mode != "keyword":
+            _, model, dimensions = self.config.embedding_settings()
+            if model != AI_EMBED_MODEL or dimensions != AI_EMBED_DIMENSIONS or self.config.ai_vector != AI_VECTOR:
+                raise RuntimeError("AI query embedding does not match its published vector")
+        rows = await self.graphql(request, self.config.ai_collection, self.config.ai_vector,
+                                  ai_where(request.scope), AI_FIELDS, lexical_properties=("search_text",))
+        if request.scope.source_version_ids and any(row.get("source_version_id") not in request.scope.source_version_ids for row in rows):
+            raise ValueError("AI search returned a different source version")
+        return ai_hits(self.config.ai_collection, rows, mode=request.mode,
+                       vector_name=self.config.ai_vector if request.mode != "keyword" else None)
+
     def legs(self) -> Mapping[str, RetrievalLeg]:
         """Return the Intake/Proffer port allowlist without I/O; evidence and unbound graph readers remain excluded."""
         return {"intake": RetrievalLeg(self.intake, MODES),
-                "proffer": RetrievalLeg(self.proffer, MODES, frozenset({"source_version_ids"}))}
+                "proffer": RetrievalLeg(self.proffer, MODES, frozenset({"source_version_ids"})),
+                "ai": RetrievalLeg(self.ai, MODES, AI_SCOPES)}
 
     def capabilities(self) -> dict[str, Any]:
         """Describe configured support without network health claims or credential/endpoint disclosure; never infer coverage."""
         result = {}
-        for name in ("intake", "proffer"):
+        for name in ("intake", "proffer", "ai"):
             modes = []
             for mode in sorted(MODES):
                 try:
@@ -245,6 +271,10 @@ class ContextReaders:
                         configured_name(getattr(self.config, name + "_vector"))
                         if name == "proffer" or mode == "vector":
                             self.config.embedding_settings()
+                        if name == "ai":
+                            _, model, dimensions = self.config.embedding_settings()
+                            if model != AI_EMBED_MODEL or dimensions != AI_EMBED_DIMENSIONS or self.config.ai_vector != AI_VECTOR:
+                                raise RuntimeError("AI query embedding does not match its published vector")
                     modes.append(mode)
                 except (ValueError, RuntimeError):
                     continue
