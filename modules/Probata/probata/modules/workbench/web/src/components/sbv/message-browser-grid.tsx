@@ -52,7 +52,7 @@ export function MessageBrowserGrid({
         if (!entry) return "";
         if (column === 0) return entry.timeLabel;
         if (column === 1) return entry.senderName;
-        if (column === 2) return entry.direction === "out" ? "out" : "in";
+        if (column === 2) return entry.direction;
         if (column === 3) return entry.bodyLine;
         if (!entry.attachmentCount) return "";
         return entry.missingPayloadCount

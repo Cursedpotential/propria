@@ -68,6 +68,7 @@ export function MessageBubble({ row, previewHandle, mode, showSenderLabel, highl
               ))}
             </div>
           )}
+          {message.native_record && row.attachmentCount > 0 && <p className="mt-2 text-xs">{row.attachmentCount} native parts · decoded media not materialized. See original attributes and ranges in Table view.</p>}
           {!isSent && (
             <div className="mt-1" data-testid="message-bubble-identity">
               <NumberIdentity value={row.senderAddress ?? row.senderName} context="a text message" />
@@ -81,6 +82,7 @@ export function MessageBubble({ row, previewHandle, mode, showSenderLabel, highl
           >
             <time dateTime={message.sent_at ?? undefined}>{row.timeLabel}</time>
             <span className="font-mono opacity-70">#{message.ordinal}</span>
+            {direction === "unknown" && <span>Direction unavailable</span>}
           </div>
         </div>
       </div>

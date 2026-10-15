@@ -18,10 +18,12 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { AlertTriangle, Loader2, Play, Upload, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SourceMetadataPanel, type SourceSelection } from "@/components/sources/source-metadata-panel";
+import { HumanProcessStatus } from "@/components/sources/human-process-status";
+import { humanContextAttribution, isSMSContextSource, type HumanContextProgress, type HumanContextSourceRequest } from "@/lib/human-context";
 import { mergeSourcePages, sourceContinuation } from "@/components/sources/source-pages";
 import { SourceRowsGrid, type SourceGridRow } from "@/components/sources/source-rows-grid";
 import { SourceSearch } from "@/components/sources/source-search";
@@ -31,13 +33,17 @@ import { detectedFormat, runsBySource, sourceState } from "@/components/sources/
 import { Button } from "@/components/ui/button";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 import { processSelection, type SourceSubmission } from "@/components/sources/process-selection";
+import { confirmedCaseOwner, processingIdentity, requiresMessagePerspective, sourcePerspectiveScope, type SourcePerspectiveChoice } from "@/components/sources/source-perspective";
+import { getCaseIdentity } from "@/lib/case-identity-client";
 import {
   ApiError,
   getCatalogProvenance,
   getDecodedExists,
   getProfferBatch,
+  getProfferSourceVersion,
+  getAIContextSourceStatus,
   getUnitsUnderPrefix,
-  inspectProfferSource,
+  previewProfferSource,
   listProfferProposalResources,
   listProfferSources,
   listSourceUnitMarks,
@@ -45,6 +51,8 @@ import {
   proposeSourceUnit,
   recordSourceUnitMark,
   startProffer,
+  startHumanContextSource,
+  startAIContextSource,
   startProfferBatch,
   uploadProfferSource,
 } from "@/lib/api-client";
@@ -64,7 +72,10 @@ function newBatchId() {
 
 export function SourcesScreen() {
   const { mode } = useFixedCase();
-  return <SourcesScreenMode key={mode} />;
+  const searchParams = useBrowserSearchParams();
+  const rootId = searchParams.get("root") ?? "";
+  const linkedFile = searchParams.get("file") ?? "";
+  return <SourcesScreenMode key={`${mode}:${rootId}:${linkedFile}`} />;
 }
 
 function SourcesScreenMode() {
@@ -80,14 +91,16 @@ function SourcesScreenMode() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set());
   const [handlerOverride, setHandlerOverride] = useState("");
+  const [perspectiveChoice, setPerspectiveChoice] = useState<SourcePerspectiveChoice | null>(null);
+  const [aiProvider, setAIProvider] = useState<"" | "chatgpt" | "claude" | "gemini_markdown">("");
+  const [aiPending, setAIPending] = useState(false);
+  const [aiError, setAIError] = useState<string | null>(null);
+  const [aiWorkflow, setAIWorkflow] = useState<{ workflow_id: string; run_id: string; source_ref: string } | null>(null);
+  const aiRequests = useRef(new Map<string, string>());
 
   const [query, setQuery] = useState(linkedFile);
   const [showContentSearch, setShowContentSearch] = useState(false);
-  const [searchSummary, setSearchSummary] = useState<string | null>(null);
-  useEffect(() => {
-    setAppliedFilter(linkedFile); setQuery(linkedFile); setShowContentSearch(false);
-    setSearchSummary(linkedFile ? `Recorded file location: ${linkedFile}` : null);
-  }, [linkedFile, rootId]);
+  const [searchSummary, setSearchSummary] = useState<string | null>(linkedFile ? `Recorded file location: ${linkedFile}` : null);
 
   const [unitMarkKind, setUnitMarkKind] = useState<SourceUnitKind | "">("");
   const [markPending, setMarkPending] = useState(false);
@@ -100,6 +113,8 @@ function SourcesScreenMode() {
   const [processError, setProcessError] = useState<string | null>(null);
   // Keep transport retries bound to the same requests, including partial selections.
   const submissions = useRef(new Map<string, SourceSubmission>());
+  const humanSubmissions = useRef(new Map<string, { key: string; response?: HumanContextProgress }>());
+  const [humanWorkflows, setHumanWorkflows] = useState<Array<{ workflowID: string; name: string }>>([]);
   const batchRequests = useRef(new Map<string, string>());
   const processBusy = useRef(false);
   const [activityHref, setActivityHref] = useState<string | null>(null);
@@ -109,6 +124,11 @@ function SourcesScreenMode() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // --- reads ---------------------------------------------------------------
+  const identityQuery = useQuery({
+    queryKey: ["sources", "case-identity", mode],
+    queryFn: () => getCaseIdentity(mode),
+    retry: false,
+  });
   const listingQuery = useInfiniteQuery({
     queryKey: ["sources", "listing", mode, rootId, prefix, appliedFilter],
     initialPageParam: undefined as string | undefined,
@@ -181,9 +201,24 @@ function SourcesScreenMode() {
   );
   const activeRootId = rootId || listing?.active_root_id || "";
 
+  const sourceVersionQuery = useQuery({
+    queryKey: ["sources", "provider-version", activeRootId, selectedObject?.source_ref, selectedObject?.etag],
+    queryFn: ({ signal }) => getProfferSourceVersion(selectedObject!, activeRootId, signal),
+    enabled: Boolean(aiProvider && selectedObject && activeRootId),
+    retry: false,
+  });
+
+  const aiStatusQuery = useQuery({
+    queryKey: ["sources", "ai-context", aiWorkflow?.workflow_id],
+    queryFn: () => getAIContextSourceStatus(aiWorkflow!.workflow_id),
+    enabled: Boolean(aiWorkflow),
+    retry: false,
+    refetchInterval: (query) => query.state.data && !["complete", "partial", "needs_parser", "failed"].includes(String(query.state.data.status)) ? 3000 : false,
+  });
+
   const inspectionQuery = useQuery({
     queryKey: ["sources", "inspection", mode, activeRootId, selectedObject?.source_ref],
-    queryFn: ({ signal }) => inspectProfferSource(selectedObject!, mode, activeRootId, signal),
+    queryFn: ({ signal }) => previewProfferSource(selectedObject!, mode, activeRootId, signal),
     enabled: Boolean(selectedObject && activeRootId),
     retry: false,
   });
@@ -293,12 +328,22 @@ function SourcesScreenMode() {
       : selectedObject
         ? selectedObject.name
         : null;
+  const processFiles = selectedFiles.length ? selectedFiles : selectedObject ? [selectedObject] : [];
+  const hasNativeProcessTarget = localSource
+    ? isSMSContextSource(localSource.file.name, handlerOverride || detectedFormat(localSource.file.name))
+    : processFiles.some((object) => isSMSContextSource(object.name, handlerOverride || detectedFormat(object.name)));
+  const perspectiveScope = sourcePerspectiveScope(mode, localSource
+    ? [[localSource.requestId, null, localSource.file.size]]
+    : processFiles.map((object) => [object.source_ref, object.etag, object.byte_length]));
+  const registryPeople = identityQuery.data?.people ?? [];
+  const registryOwner = confirmedCaseOwner(registryPeople);
 
   // --- actions -------------------------------------------------------------
   const runSearch = useCallback(() => {
     const text = query.trim();
     if (!text) return;
     setAppliedFilter(text);
+    setPerspectiveChoice(null);
     setSelectedRef(null);
     setSelectedFolder(null);
     setSearchSummary(`Names and paths across this location: “${text}”.`);
@@ -316,31 +361,72 @@ function SourcesScreenMode() {
    */
   function browse(nextRoot: string, nextPrefix: string) {
     clearSearch();
+    setPerspectiveChoice(null);
     setLocalSource(null); setSelectedFolder(null); setSelectedRef(null); setCheckedRefs(new Set());
     void router.navigate({ href: `/sources?${new URLSearchParams({ root: nextRoot, prefix: nextPrefix, mode })}` });
   }
 
-  /** Submit selected sources and expose the returned durable Activity link.
-   * Input: selected files/folder and admitted case. Output: receipts/status in UI.
+  /** Submit a human source once while preserving accepted execution IDs across transport retries.
+   * Inputs: native source/version fields, selection key and display filename. Output: tracked real workflow.
+   * Effects: context POST and tracking state. Choose for SMS Process before legacy handler selection.
+   */
+  async function submitHumanSource(request: HumanContextSourceRequest, selectionKey: string, name: string) {
+    let entry = humanSubmissions.current.get(selectionKey);
+    if (!entry) {
+      entry = { key: crypto.randomUUID() };
+      humanSubmissions.current.set(selectionKey, entry);
+    }
+    if (!entry.response) {
+      const response = await startHumanContextSource(request, entry.key);
+      if (!response.workflow_id || !response.run_id) throw new Error("The context starter returned no processing execution IDs.");
+      entry.response = response;
+    }
+    const workflowID = entry.response.workflow_id;
+    setHumanWorkflows((current) => current.some((item) => item.workflowID === workflowID) ? current : [...current, { workflowID, name }]);
+  }
+
+  /** Submit selected sources and expose returned durable processing links.
+   * Input: selected files/folder, explicit export attribution and optional actual case for native SMS.
+   * Output: per-file receipts/status; legacy sources still require the admitted case.
    * Effects: starts processing through the existing API; never copies or moves originals.
    * Byline: Codex · GPT-6 · 2026-10-06.
    */
   async function process() {
-    if (!matter || !primaryCourtCase || processBusy.current) return;
+    if (processBusy.current) return;
     processBusy.current = true;
     setProcessing(true);
     setProcessError(null);
     setProcessMessage(null);
     try {
+      const humanCase = {
+        ...(matter?.id ? { matter_id: matter.id } : {}),
+        ...(primaryCourtCase?.id ? { court_case_id: primaryCourtCase.id } : {}),
+      };
       if (localSource) {
+        const native = isSMSContextSource(localSource.file.name, handlerOverride || detectedFormat(localSource.file.name));
+        if (!native && (!matter || !primaryCourtCase)) throw new Error(`${localSource.file.name}: legacy processing needs a fixed case.`);
+        const humanAttribution = native ? humanContextAttribution(registryPeople, perspectiveScope, perspectiveChoice) : undefined;
+        const identity = native ? {} : processingIdentity(registryPeople, perspectiveScope, perspectiveChoice, requiresMessagePerspective(localSource.file.name, detectedFormat(localSource.file.name)));
         // Acquisition returns a verified canonical receipt; re-trying start must not upload twice.
         const sealed = localUploads.current.get(localSource.requestId) ?? await uploadProfferSource(localSource.file, mode, setUploadProgress);
         localUploads.current.set(localSource.requestId, sealed);
-        const key = localSource.requestId;
+        if (native) {
+          const key = JSON.stringify([localSource.requestId, humanCase, mode, humanAttribution]);
+          await submitHumanSource({
+            contract_version: "context-v1", source_kind: "sms", source_ref: sealed.acquisition_ref,
+            declared_format: "smsbackuprestore_xml", ...humanCase,
+            byte_length: sealed.byte_length, ...humanAttribution,
+          }, key, localSource.file.name);
+          setProcessMessage(`${localSource.file.name} submitted for context processing.`);
+          return;
+        }
+        if (!matter || !primaryCourtCase) throw new Error(`${localSource.file.name}: legacy processing needs a fixed case.`);
+        const key = JSON.stringify([localSource.requestId, matter.id, primaryCourtCase.id, mode, identity]);
         let entry = submissions.current.get(key);
         if (!entry) {
           entry = { request: {
-            request_id: key, source_ref: sealed.acquisition_ref,
+            request_id: `proffer-${matter.id}-${crypto.randomUUID()}`, source_ref: sealed.acquisition_ref,
+            ...identity,
             declared_format: detectedFormat(localSource.file.name),
             parser_options_ref: "pending-handler-selection/v1",
             matter_id: matter.id, court_case_id: primaryCourtCase.id, matter_mode: mode,
@@ -356,30 +442,57 @@ function SourcesScreenMode() {
       }
       const files = selectedFiles.length ? selectedFiles : selectedObject ? [selectedObject] : [];
       if (files.length) {
-        const entries = files.map((object) => {
-          const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, object.source_ref, handlerOverride]);
-          let entry = submissions.current.get(key);
-          if (entry) return entry;
-          entry = { request: {
-            request_id: `proffer-${matter.id}-${crypto.randomUUID()}`,
-            source_ref: object.source_ref,
-            declared_format: handlerOverride || detectedFormat(object.name),
-            parser_options_ref: "pending-handler-selection/v1",
-            matter_id: matter.id,
-            court_case_id: primaryCourtCase.id,
-            matter_mode: mode,
-          } };
-          submissions.current.set(key, entry);
-          return entry;
-        });
-        const result = await processSelection(entries, startProffer, (entry) => {
-          const handle = entry.response!.preview_handle;
-          setActivityHref(`/activity?${new URLSearchParams({ preview_handle: handle, mode })}`);
-        });
-        setProcessMessage(`${result.accepted} of ${files.length} files submitted.`);
-        if (result.error) setProcessError(`${result.error} Retry keeps the accepted files and resends only the unfinished requests.`);
+        let accepted = 0;
+        const submissionErrors: string[] = [];
+        const outcomes: string[] = [];
+        for (const object of files) {
+          const format = handlerOverride || detectedFormat(object.name);
+          try {
+            if (isSMSContextSource(object.name, format)) {
+              const humanAttribution = humanContextAttribution(registryPeople, perspectiveScope, perspectiveChoice);
+              const key = JSON.stringify([humanCase, mode, object.source_ref, object.etag, object.byte_length, handlerOverride, humanAttribution]);
+              if (humanSubmissions.current.get(key)?.response) { accepted += 1; outcomes.push(`${object.name}: already submitted`); continue; }
+              const version = await getProfferSourceVersion(object, activeRootId);
+              await submitHumanSource({
+                contract_version: "context-v1", source_kind: "sms", source_ref: version.source_ref,
+                provider_version_id: version.provider_version_id, declared_format: "smsbackuprestore_xml",
+                ...humanCase,
+                byte_length: version.byte_length, etag: version.etag, ...humanAttribution,
+              }, key, object.name);
+              accepted += 1;
+              outcomes.push(`${object.name}: submitted for context processing`);
+              continue;
+            }
+            if (!matter || !primaryCourtCase) throw new Error("Legacy processing needs a fixed case.");
+            const identity = processingIdentity(registryPeople, perspectiveScope, perspectiveChoice, requiresMessagePerspective(object.name, format));
+            const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, object.source_ref, object.etag, object.byte_length, handlerOverride, identity]);
+            let entry = submissions.current.get(key);
+            if (!entry) {
+              entry = { request: {
+                request_id: `proffer-${matter.id}-${crypto.randomUUID()}`,
+                source_ref: object.source_ref,
+                ...identity,
+                declared_format: format,
+                parser_options_ref: "pending-handler-selection/v1",
+                matter_id: matter.id,
+                court_case_id: primaryCourtCase.id,
+                matter_mode: mode,
+              } };
+              submissions.current.set(key, entry);
+            }
+            const result = await processSelection([entry], startProffer, (completed) => {
+              setActivityHref(`/activity?${new URLSearchParams({ preview_handle: completed.response!.preview_handle, mode })}`);
+            });
+            accepted += result.accepted;
+            if (result.error) submissionErrors.push(`${object.name}: ${result.error}`);
+            else outcomes.push(`${object.name}: submitted`);
+          } catch (error) { submissionErrors.push(`${object.name}: ${errorText(error)}`); }
+        }
+        setProcessMessage(`${accepted} of ${files.length} files submitted. ${outcomes.join(" · ")}`);
+        if (submissionErrors.length) setProcessError(`${submissionErrors.join(" · ")} Retry keeps the accepted files and resends only the unfinished requests.`);
         void runsQuery.refetch();
       } else if (selectedFolder && listing) {
+        if (!matter || !primaryCourtCase) throw new Error("Legacy folder processing needs a fixed case.");
         const root = listing.available_roots.find((entry) => entry.root_id === activeRootId);
         if (!root) throw new Error("This folder has no confirmed source location.");
         const folderRef = `${root.root_ref.replace(/\/$/, "")}/${selectedFolder.replace(/^\//, "")}`;
@@ -405,6 +518,34 @@ function SourcesScreenMode() {
       processBusy.current = false;
       setProcessing(false);
       setUploadProgress(null);
+    }
+  }
+
+  /** Register a version-pinned AI export in Context through the Go engine.
+   * Inputs: explicit provider, selected B2 object and metadata HEAD version.
+   * Output: Temporal execution IDs and status. Effect: one idempotent Go start;
+   * choose this instead of the case-bound Process path for AI-chat exports.
+   */
+  async function addAIChatToContext() {
+    const version = sourceVersionQuery.data;
+    if (!selectedObject || !version || !aiProvider || aiPending || version.source_ref !== selectedObject.source_ref) return;
+    const identity = JSON.stringify([version.source_ref, version.provider_version_id, aiProvider]);
+    const requestID = aiRequests.current.get(identity) ?? crypto.randomUUID();
+    aiRequests.current.set(identity, requestID);
+    setAIPending(true);
+    setAIError(null);
+    try {
+      const started = await startAIContextSource({
+        source_ref: version.source_ref,
+        provider_version_id: version.provider_version_id,
+        source_kind: "ai_chat",
+        declared_format: aiProvider,
+      }, requestID);
+      setAIWorkflow({ ...started, source_ref: version.source_ref });
+    } catch (error) {
+      setAIError(errorText(error));
+    } finally {
+      setAIPending(false);
     }
   }
 
@@ -448,15 +589,32 @@ function SourcesScreenMode() {
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) {
+              setPerspectiveChoice(null);
               setLocalSource({ file, requestId: `proffer-${matter?.id ?? "upload"}-${crypto.randomUUID()}` });
               setProcessMessage(null); setProcessError(null); setActivityHref(null);
             }
             event.target.value = "";
           }} />
         <Button size="sm" variant="outline" disabled={processing} onClick={() => fileInput.current?.click()}><Upload className="h-3.5 w-3.5" /> Add file</Button>
+        {(localSource || selectedFiles.length > 0 || (!selectedFolder && selectedObject)) && (
+          <label className="flex items-center gap-2 text-[11px]">
+            Whose phone/export?
+            <select aria-label="Whose phone/export?" className="rounded border bg-background px-2 py-1"
+              disabled={processing || identityQuery.isPending}
+              value={perspectiveChoice?.scope === perspectiveScope ? perspectiveChoice.personId : ""}
+              onChange={(event) => setPerspectiveChoice(event.target.value ? { scope: perspectiveScope, personId: event.target.value } : null)}>
+              <option value="">Choose for selected file(s)</option>
+              {registryOwner && <option value={registryOwner.id}>My phone/export</option>}
+              {registryPeople.filter((person) => person.id !== registryOwner?.id && person.verification_state === "confirmed").map((person) => (
+                <option key={person.id} value={person.id}>{person.display_name}’s phone/export</option>
+              ))}
+            </select>
+            {identityQuery.error && <span role="alert">{errorText(identityQuery.error)}</span>}
+          </label>
+        )}
         <Button
           size="sm"
-          disabled={processing || !processTarget || !matter || !primaryCourtCase}
+          disabled={processing || !processTarget || (!hasNativeProcessTarget && (!matter || !primaryCourtCase))}
           onClick={() => void process()}
         >
           {processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Process
@@ -464,13 +622,42 @@ function SourcesScreenMode() {
         <span className="text-[11px] text-muted-foreground">
           {uploadProgress !== null ? `Uploading ${uploadProgress}%` : processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
         </span>
-        {localSource && <Button size="icon" variant="ghost" aria-label="Clear local file selection" disabled={processing} onClick={() => setLocalSource(null)}><X className="h-3.5 w-3.5" /></Button>}
+        {localSource && <Button size="icon" variant="ghost" aria-label="Clear local file selection" disabled={processing} onClick={() => { setLocalSource(null); setPerspectiveChoice(null); }}><X className="h-3.5 w-3.5" /></Button>}
         {processMessage && <span className="text-[11px] text-[#17794b] dark:text-[#72d9a1]">{processMessage}</span>}
+        {humanWorkflows.map((workflow) => <HumanProcessStatus key={workflow.workflowID} workflowID={workflow.workflowID} name={workflow.name} mode={mode} />)}
         {activityHref && <Button asChild variant="outline" size="sm"><AppLink href={activityHref}>View activity</AppLink></Button>}
         {processError && (
           <span className="flex items-center gap-1 text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">
             <AlertTriangle className="h-3 w-3" /> {processError}
           </span>
+        )}
+        {selectedObject && !selectedFolder && !localSource && selectedFiles.length === 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-l pl-2 text-[11px]">
+            <label htmlFor="ai-chat-provider">AI chat export</label>
+            <select id="ai-chat-provider" aria-label="AI chat provider" className="rounded border bg-background px-2 py-1"
+              value={aiProvider} onChange={(event) => { setAIProvider(event.target.value as "" | "chatgpt" | "claude" | "gemini_markdown"); setAIError(null); setAIWorkflow(null); }}>
+              <option value="">Choose provider</option>
+              <option value="chatgpt">ChatGPT</option>
+              <option value="claude">Claude</option>
+              <option value="gemini_markdown">Gemini Markdown</option>
+            </select>
+            {aiProvider && (
+              <Button size="sm" variant="outline" disabled={aiPending || !sourceVersionQuery.data || sourceVersionQuery.isFetching}
+                onClick={() => void addAIChatToContext()}>
+                {aiPending ? "Starting…" : "Add AI chat to context"}
+              </Button>
+            )}
+            {aiProvider && sourceVersionQuery.isFetching && <span>Checking B2 version…</span>}
+            {aiProvider && sourceVersionQuery.error && <span role="alert">{errorText(sourceVersionQuery.error)}</span>}
+            {aiError && <span role="alert">{aiError}</span>}
+            {aiWorkflow?.source_ref === selectedObject.source_ref && (
+              <span role="status">Workflow {aiWorkflow.workflow_id}: {String(aiStatusQuery.data?.status ?? "submitted")}
+                {aiStatusQuery.data?.reason ? ` · ${String(aiStatusQuery.data.reason)}` : ""}
+                {aiStatusQuery.error ? ` (${errorText(aiStatusQuery.error)})` : ""}
+                <AppLink className="ml-3 underline underline-offset-4" href={`/read?context_workflow=${encodeURIComponent(aiWorkflow.workflow_id)}`}>Review extracted context</AppLink>
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -491,6 +678,7 @@ function SourcesScreenMode() {
               browse(activeRootId, nextPrefix);
             }}
             onSelectFolder={(nextFolder) => {
+              setPerspectiveChoice(null);
               setLocalSource(null);
               setCheckedRefs(new Set());
               setSelectedFolder(nextFolder);
@@ -517,12 +705,13 @@ function SourcesScreenMode() {
                     selectedIndex={selectedIndex}
                     checkedRefs={checkedRefs}
                     onSelectIndex={(index) => {
+                      setPerspectiveChoice(null);
                       setLocalSource(null);
                       setSelectedRef(rows[index]?.sourceRef ?? null);
                       setSelectedFolder(null);
                       setHandlerOverride("");
                     }}
-                    onToggleChecked={(refs) => { setLocalSource(null); setCheckedRefs(new Set(refs)); }}
+                    onToggleChecked={(refs) => { setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set(refs)); }}
                     onReachEnd={() => { if (!nextPageError) loadNextPage(); }}
                   />
                 </div>

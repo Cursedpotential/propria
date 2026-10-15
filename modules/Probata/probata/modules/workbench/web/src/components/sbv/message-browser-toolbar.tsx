@@ -37,6 +37,8 @@ interface MessageBrowserToolbarProps {
   loadingAll: boolean;
   fetching: boolean;
   onLoadAll: () => void;
+  /** Explicit page navigation replaces bulk loading for bounded readers. */
+  paged?: boolean;
 }
 
 export function MessageBrowserToolbar({
@@ -55,6 +57,7 @@ export function MessageBrowserToolbar({
   loadingAll,
   fetching,
   onLoadAll,
+  paged = false,
 }: MessageBrowserToolbarProps) {
   const [draftQuery, setDraftQuery] = useState(query);
   // Adjusting state during render (React's own pattern for "reset state when a prop
@@ -112,7 +115,7 @@ export function MessageBrowserToolbar({
         {hasMore ? " · more pages available" : " · thread complete"}
       </Badge>
 
-      {hasMore && (
+      {hasMore && !paged && (
         <Button
           type="button"
           variant="outline"

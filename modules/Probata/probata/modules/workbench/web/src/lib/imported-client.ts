@@ -173,15 +173,23 @@ export interface CallsPage {
 
 export interface SearchHit {
   id: string;
+  collection?: string;
+  object_id?: string | null;
   body: string;
   sender: string;
   at: string | null;
   score: number;
   thread_id: string | null;
+  /** Inputs: chunk citation coordinates. Output: native source-reader resolution; no message identity is inferred. */
+  origin_system?: string | null;
+  preview_handle?: string | null;
+  source_version_ref?: string | null;
+  source_version_id?: string | null;
+  source_version_ids?: string[];
   source: string | null;
   format: string | null;
   device: string | null;
-  /** A chunk of a conversation (opens its thread at the first message) or a call-log file (opens nothing). */
+  /** Inputs: indexed chunk kind. Output: legacy conversation/call presentation; native navigation uses source coordinates above. */
   kind?: "conversation" | "call_log";
   message_count?: number | null;
 }

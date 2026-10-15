@@ -26,6 +26,7 @@
 
 import { Loader2, MessageSquareText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { MessageBrowserGrid } from "@/components/sbv/message-browser-grid";
@@ -36,17 +37,21 @@ import { MediaOnlyGrid } from "@/components/sbv/media-only-grid";
 import { MessageThreadView } from "@/components/sbv/message-thread-view";
 import { Button } from "@/components/ui/button";
 import {
-  useProfferPreviewMessages,
+  MESSAGE_PAGE_SIZE,
   usePreviewMessageRows,
   usePreviewMessageTotals,
 } from "@/hooks/use-preview-messages";
 import type { MatterMode, ProfferPackageProjection } from "@/lib/shared/types";
 import { cn } from "@/lib/utils";
+import { getHumanContextContent, getProfferPreviewMessages } from "@/lib/api-client";
+import { humanMessagePage, isHumanPreviewHandle } from "@/lib/human-context";
 
 interface MessageBrowserProps {
   previewHandle: string;
   mode: MatterMode;
   packageProjection: ProfferPackageProjection | null;
+  /** Input: current native manifest pin; output: page cache identity. No I/O; choose only for human source handles. */
+  nativeManifestRef?: string;
 }
 
 type ViewMode = "thread" | "table" | "media";
@@ -54,7 +59,14 @@ type ViewMode = "thread" | "table" | "media";
 const HANDLE_CLASS =
   "w-px bg-border transition-colors data-[resize-handle-state=drag]:bg-primary data-[resize-handle-state=hover]:bg-primary";
 
-export function MessageBrowser({ previewHandle, mode, packageProjection }: MessageBrowserProps) {
+/** Read one processed message page while retaining server-side search semantics.
+ * Inputs: exact legacy attempt or native human handle, mode and optional package/manifest projection. Output: one bounded page
+ * in table or donor conversation, with media for retained legacy attachments. Effects: abortable read API calls;
+ * no load-all, scroll-prefetch, extraction, indexing or source mutation.
+ * Choose for both native human bundle readback and existing normalized message previews.
+ */
+export function MessageBrowser({ previewHandle, mode, packageProjection, nativeManifestRef }: MessageBrowserProps) {
+  const nativeHuman = isHumanPreviewHandle(previewHandle);
   // Default is "table" (dense Glide rows) per the owner's same-day correction; the
   // SBV bubble view is opt-in via the mode switch below.
   const [viewMode, setViewMode] = useState<ViewMode>("table");
@@ -73,12 +85,22 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
     [attachmentsOnly, dateFrom, dateTo, filter],
   );
 
-  const query = useProfferPreviewMessages(previewHandle, mode, filters);
-  const { rows, participants } = usePreviewMessageRows(query.data?.pages);
+  const filterKey = JSON.stringify([previewHandle, mode, filters]);
+  const [paging, setPaging] = useState<{ filterKey: string; cursors: (string | undefined)[]; index: number; first: number }>({ filterKey: "", cursors: [undefined], index: 0, first: 1 });
+  const activePaging = paging.filterKey === filterKey ? paging : { filterKey, cursors: [undefined], index: 0, first: 1 };
+  const cursor = activePaging.cursors[activePaging.index];
+  const query = useQuery({
+    queryKey: ["proffer", "single-message-page", filterKey, cursor, nativeManifestRef],
+    queryFn: async ({ signal }) => nativeHuman
+      ? humanMessagePage(await getHumanContextContent(previewHandle, cursor === undefined ? 0 : Number(cursor), 25, signal), previewHandle, mode)
+      : getProfferPreviewMessages(previewHandle, mode, cursor, MESSAGE_PAGE_SIZE, signal, filters),
+    enabled: Boolean(previewHandle), gcTime: 0, retry: false, staleTime: Infinity,
+  });
+  const pages = useMemo(() => query.data ? [query.data] : undefined, [query.data]);
+  const { rows, participants } = usePreviewMessageRows(pages);
   const missingPayloads = useMemo(() => rows.reduce((total, row) => total + row.missingPayloadCount, 0), [rows]);
-  const { totalMatches, totalMessages } = usePreviewMessageTotals(query.data?.pages);
+  const { totalMatches, totalMessages } = usePreviewMessageTotals(pages);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const [loadingAll, setLoadingAll] = useState(false);
 
   const selectedIndex = useMemo(() => {
     if (!selectedMessageId) return rows.length ? 0 : -1;
@@ -96,21 +118,19 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
     [rows],
   );
 
-  const { fetchNextPage, hasNextPage, isFetchingNextPage } = query;
+  const hasNextPage = Boolean(query.data?.next_cursor);
+  const requestNextPage = () => {
+    if (!query.data?.next_cursor || query.isFetching) return;
+    const cursors = [...activePaging.cursors.slice(0, activePaging.index + 1), query.data.next_cursor];
+    const dropped = Math.max(0, cursors.length - 64);
+    setPaging({ filterKey, cursors: cursors.slice(dropped), index: cursors.length - dropped - 1, first: activePaging.first + dropped });
+  };
 
-  const requestNextPage = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
-
-  const loadAll = useCallback(async () => {
-    setLoadingAll(true);
-    try {
-      let result = await fetchNextPage();
-      while (result.hasNextPage) result = await fetchNextPage();
-    } finally {
-      setLoadingAll(false);
-    }
-  }, [fetchNextPage]);
+  /** Release page coordinates when server-side filters change; retain no old result rows. */
+  function resetPages() {
+    setPaging({ filterKey: "", cursors: [undefined], index: 0, first: 1 });
+    setSelectedMessageId(null);
+  }
 
   // Per-attempt reset is handled by the caller's `key`, which remounts this
   // component when the preview handle or DEV/LIVE mode changes.
@@ -118,6 +138,10 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
     return (
       <div className="border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive" role="alert">
         Message rows are unavailable: {query.error instanceof Error ? query.error.message : "unknown error"}
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}>Retry messages</Button>
+          <Button size="sm" variant="outline" onClick={resetPages}>First page</Button>
+        </div>
       </div>
     );
   }
@@ -134,13 +158,13 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
     >
       <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
         <div>
-          <p className="platform-kicker">Normalized message projection</p>
+          <p className="platform-kicker">{nativeHuman ? "Source messages" : "Normalized message projection"}</p>
           <h2 className="mt-1 flex items-center gap-2 text-base font-semibold">
             <MessageSquareText className="size-4" aria-hidden="true" /> Messages
           </h2>
         </div>
         <div className="flex items-center gap-3">
-          {query.isFetching && !loadingAll && (
+          {query.isFetching && (
             <span className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
               <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" /> Loading rows…
             </span>
@@ -174,7 +198,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
             >
               Table
             </Button>
-            <Button
+            {!nativeHuman && <Button
               type="button"
               size="sm"
               variant="ghost"
@@ -185,7 +209,7 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
               title="Photos and videos in the loaded messages; a missing one keeps its slot"
             >
               Media
-            </Button>
+            </Button>}
           </div>
           {missingPayloads > 0 && (
             <span
@@ -199,23 +223,33 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
         </div>
       </header>
 
-      <MessageBrowserToolbar
+      {nativeHuman ? <div className="flex items-center justify-between gap-2 border-b px-3 py-2 text-xs">
+        <span>{rows.length} records on this page{totalMessages === null ? "" : ` · ${totalMessages.toLocaleString()} total`}</span>
+        <Button size="sm" variant="ghost" disabled={query.isFetching} onClick={() => void query.refetch()}>Refresh messages</Button>
+      </div> : <MessageBrowserToolbar
         query={filter}
-        onQueryChange={setFilter}
+        onQueryChange={(value) => { setFilter(value); resetPages(); }}
         attachmentsOnly={attachmentsOnly}
-        onAttachmentsOnlyChange={setAttachmentsOnly}
+        onAttachmentsOnlyChange={(value) => { setAttachmentsOnly(value); resetPages(); }}
         dateFrom={dateFrom}
         dateTo={dateTo}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
+        onDateFromChange={(value) => { setDateFrom(value); resetPages(); }}
+        onDateToChange={(value) => { setDateTo(value); resetPages(); }}
         loadedCount={rows.length}
         totalMatches={totalMatches}
         totalMessages={totalMessages}
         hasMore={Boolean(hasNextPage)}
-        loadingAll={loadingAll}
-        fetching={isFetchingNextPage}
-        onLoadAll={() => void loadAll()}
-      />
+        loadingAll={false}
+        fetching={query.isFetching}
+        onLoadAll={() => {}}
+        paged
+      />}
+
+      <nav className="flex items-center justify-between gap-2 border-b px-3 py-2" aria-label="Processed message pages">
+        <Button size="sm" variant="outline" disabled={activePaging.index === 0 || query.isFetching} onClick={() => setPaging({ ...activePaging, index: activePaging.index - 1 })}>Previous messages</Button>
+        <span className="text-xs" role="status">Page {activePaging.first + activePaging.index} · {rows.length} messages on this page</span>
+        <Button size="sm" variant="outline" disabled={!hasNextPage || query.isFetching} onClick={requestNextPage}>Next messages</Button>
+      </nav>
 
       {viewMode === "media" ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -223,15 +257,16 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
         </div>
       ) : viewMode === "thread" ? (
         <MessageThreadView
+          key={cursor ?? "first"}
           rows={rows}
           participants={participants}
           loading={query.isPending}
           error={queryError}
           previewHandle={previewHandle}
           mode={mode}
-          hasMore={Boolean(hasNextPage)}
-          fetching={isFetchingNextPage}
-          onLoadMore={requestNextPage}
+          hasMore={false}
+          fetching={query.isFetching}
+          onLoadMore={() => {}}
         />
       ) : (
         <PanelGroup direction="horizontal" className="min-h-0 flex-1" autoSaveId="proffer-message-browser">
@@ -241,14 +276,14 @@ export function MessageBrowser({ previewHandle, mode, packageProjection }: Messa
                 <p className="p-4 text-sm text-muted-foreground" role="status">Loading message rows…</p>
               ) : rows.length === 0 ? (
                 <p className="p-4 text-sm text-muted-foreground">
-                  No message rows are projected for this attempt with the current filters.
+                  {nativeHuman ? "No native message records are available on this page." : "No message rows are projected for this attempt with the current filters."}
                 </p>
               ) : (
                 <MessageBrowserGrid
                   rows={rows}
                   selectedIndex={selectedIndex}
                   onSelectIndex={selectIndex}
-                  onReachEnd={requestNextPage}
+                  onReachEnd={() => {}}
                 />
               )}
             </div>

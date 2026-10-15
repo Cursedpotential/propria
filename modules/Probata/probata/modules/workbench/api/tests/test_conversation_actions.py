@@ -61,6 +61,7 @@ def starter(monkeypatch):
     fake = Starter()
     monkeypatch.setattr(proffer, "_request", fake.request)
     monkeypatch.setattr(imported.settings, "proffer_matter_id", MATTER)
+    monkeypatch.setattr(imported.settings, "proffer_court_case_id", "01a0f751-e07b-76a1-a738-eb3e3aa3e68c")
     service._reset_registry_cache()
     return fake
 
@@ -90,6 +91,8 @@ def test_extract_forwards_decoded_conversations_actor_key_and_the_live_matter(st
     call = starter.calls[0]
     assert call["path"] == "/reference-import/conversations/extract"
     assert call["json"]["matter_id"] == MATTER
+    assert call["json"]["operating_mode"] == "LIVE"
+    assert call["json"]["court_case_id"] == "01a0f751-e07b-76a1-a738-eb3e3aa3e68c"
     assert call["json"]["conversations"] == [{"export_key": KEY, "conv": "8103099590"}, {"export_key": KEY, "conv": "8105550101"}]
     assert call["json"]["extractors"] == ["go-kimi-k3", "semantica"]
     assert call["headers"]["Idempotency-Key"] == "click-0001"
@@ -121,7 +124,9 @@ def test_send_to_surreal_forwards_the_include_flag(starter):
     assert response.status_code == 202, response.text
     call = starter.calls[0]
     assert call["path"] == "/reference-import/conversations/send-to-surreal"
-    assert call["json"]["include_extractions"] is False and call["json"]["matter_id"] == MATTER
+    assert call["json"]["include_extractions"] is False
+    assert call["json"]["operating_mode"] == "LIVE"
+    assert call["json"]["court_case_id"] == "01a0f751-e07b-76a1-a738-eb3e3aa3e68c" and call["json"]["matter_id"] == MATTER
 
 
 def test_extractors_lists_the_engine_registry(starter):
@@ -185,6 +190,7 @@ def test_extractions_group_under_their_own_names_when_the_engine_is_unreachable(
 
     monkeypatch.setattr(proffer, "_request", down)
     monkeypatch.setattr(imported.settings, "proffer_matter_id", MATTER)
+    monkeypatch.setattr(imported.settings, "proffer_court_case_id", "01a0f751-e07b-76a1-a738-eb3e3aa3e68c")
     service._reset_registry_cache()
     monkeypatch.setattr(pg, "runs", lambda *a: [_run("run-sem", "semantica")])
     monkeypatch.setattr(pg, "entities", lambda *a: [_entity("e2", "run-sem", "Flint")])
@@ -221,3 +227,51 @@ def test_the_extraction_reads_never_write():
 def test_the_default_extractor_is_listed_once_and_marked(starter):
     listing = json.loads(_client().get("/api/extractors").text)
     assert [e["id"] for e in listing["extractors"] if e["default"]] == ["go-kimi-k3"]
+
+
+
+
+def test_workflow_status_preserves_actual_child_retry_metadata_and_business_failure(monkeypatch):
+    """Relay real child attempts and failures without letting HTTP success change business outcome.
+
+    Inputs: engine-shaped retrying/failed DTOs with completed sibling and actual IDs.
+    Output: unchanged status JSON through the existing BFF route. Effects: mocked transport only.
+    Pick to verify additive Temporal metadata reaches the narrow conversation panel.
+    """
+    payload = {"workflow_id": "conversation-extraction:metadata", "run_id": "parent-run", "kind": "extraction",
+               "outcome": "running", "steps": [
+                   {"step": "successful-sibling", "status": "completed", "extractor": "go-kimi-k3"},
+                   {"step": "retrying-child", "status": "retrying", "extractor": "semantica",
+                    "workflow_id": "child-workflow", "run_id": "child-run", "activity_id": "activity-id",
+                    "activity_type": "ExternalExtraction", "attempt": 2, "last_failure": "provider unavailable"}], "receipts": []}
+
+    async def engine(method, path, **kwargs):
+        """Return the current actual-shaped attempt without execution or external I/O."""
+        assert method == "GET" and path.endswith(payload["workflow_id"])
+        return httpx.Response(200, json=payload)
+
+    monkeypatch.setattr(proffer, "_request", engine)
+    for outcome in ("running", "failed"):
+        payload["outcome"] = outcome
+        response = _client().get("/api/imported/workflows/" + payload["workflow_id"])
+        assert response.status_code == 200
+        assert response.json() == payload
+
+
+def test_standalone_progress_accepts_retry_metadata_and_keeps_older_attempt_unknown():
+    """Validate actual standalone retry details while leaving unavailable attempts unknown.
+
+    Inputs: additive engine progress and an older response. Output: retained identifiers,
+    failures and unknown optional fields. Effects: none; tests the actual BFF response DTO.
+    """
+    from app.types.entity_extraction import WorkflowProgress
+    metadata = {"workflow_id": "child-workflow", "run_id": "child-run", "activity_id": "actual-activity",
+                "activity_type": "EntityModel", "attempt": 3, "last_failure": "model unavailable"}
+    value = WorkflowProgress.model_validate({"workflow_id": "standalone", "run_id": "actual-run", "outcome": "running",
+                "matter_mode": "LIVE", "steps": [{"step": "model", "status": "retrying", **metadata}]})
+    assert value.run_id == "actual-run"
+    for field, expected in metadata.items():
+        assert getattr(value.steps[0], field) == expected
+    legacy = WorkflowProgress.model_validate({"workflow_id": "older", "outcome": "completed", "matter_mode": "LIVE",
+                                             "steps": [{"step": "rules", "status": "completed"}]})
+    assert legacy.run_id is None and legacy.steps[0].attempt is None and legacy.steps[0].last_failure is None

@@ -188,7 +188,9 @@ services:
       # Literal on purpose: Compose ends a ${VAR:-default} at the first '}', which JSON contains.
       # Byline: Codex · GPT-6-Luna · 2026-10-04 (B2 Casevault only; no R2 source roots).
       OBJECT_STORES_JSON: '{"b2":"/run/secrets/casebible-b2.json"}'
-      SOURCE_ROOTS_JSON: '[{"id":"b2-vault","label":"B2 / Casevault","url":"b2://salem-data/consignatio/casevault/"}]'
+      # Browser locations are runtime configuration; preserve the B2 Casevault default in app code.
+      # A separate env value admits the owner's existing salem-data browser root without JSON defaults.
+      SOURCE_ROOTS_JSON: ${SOURCE_ROOTS_JSON:-}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
     volumes:
       # Bind mounts only — owner backs up host dirs (no named volumes).

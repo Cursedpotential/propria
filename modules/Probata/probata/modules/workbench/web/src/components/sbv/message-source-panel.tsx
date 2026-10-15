@@ -37,6 +37,30 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Display native part metadata while preserving every original attribute and payload range.
+ * Input: DuckDB native_parts value. Output: metadata and explicit materialization state.
+ * Effects: none; no attachment request. Choose for source ranges before decoded media is available.
+ */
+function NativeParts({ value }: { value: unknown }) {
+  const parts = Array.isArray(value) ? value : [];
+  return <section>
+    <h4 className="platform-rule-title text-xs">Native parts ({parts.length})</h4>
+    {parts.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">No native parts are recorded.</p> :
+      <ul className="mt-2 space-y-2">{parts.map((part: unknown, index) => {
+        const metadata = part && typeof part === "object" ? part as Record<string, unknown> : {};
+        const ranges = Array.isArray(metadata.payload_ranges) ? metadata.payload_ranges : [];
+        return <li key={index} className="rounded border p-2 text-xs">
+          <p className="break-all font-medium">{typeof metadata.filename === "string" && metadata.filename ? metadata.filename : `Part ${index + 1}`}</p>
+          <p>{typeof metadata.content_type === "string" ? metadata.content_type : "Content type unavailable"}</p>
+          <p className="mt-1 text-muted-foreground">{ranges.length ? "Original payload ranges recorded; decoded media is not materialized." : "No payload range is recorded for this part."}</p>
+          <details className="mt-2"><summary className="cursor-pointer">Original attributes and byte ranges</summary>
+            <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-[11px]">{JSON.stringify(part, null, 2)}</pre>
+          </details>
+        </li>;
+      })}</ul>}
+  </section>;
+}
+
 export function MessageSourcePanel({ row, packageProjection, previewHandle, mode }: MessageSourcePanelProps) {
   const [metadataFor, setMetadataFor] = useState<{ sha256: string; label: string } | null>(null);
   return (
@@ -44,7 +68,7 @@ export function MessageSourcePanel({ row, packageProjection, previewHandle, mode
       <header className="border-b px-4 py-3">
         <p className="platform-kicker">Provenance</p>
         <h3 className="mt-1 flex items-center gap-2 text-sm font-semibold">
-          <ShieldCheck className="size-4" aria-hidden="true" /> Source and custody
+          <ShieldCheck className="size-4" aria-hidden="true" /> {row?.message.native_record ? "Original source record" : "Source and custody"}
         </h3>
       </header>
 
@@ -60,7 +84,7 @@ export function MessageSourcePanel({ row, packageProjection, previewHandle, mode
           </dl>
         </section>
 
-        {row && (
+        {row && !row.message.native_record && (
           <section>
             <h4 className="platform-rule-title text-xs">
               Attachments ({row.attachmentCount})
@@ -103,7 +127,14 @@ export function MessageSourcePanel({ row, packageProjection, previewHandle, mode
           </section>
         )}
 
-        <section>
+        {row?.message.native_record && <NativeParts value={row.message.native_record.native.native_parts} />}
+        {row?.message.native_record ? <section>
+          <h4 className="platform-rule-title text-xs">Native fields and byte locators</h4>
+          <p className="mt-2 text-xs">Record status: {row.message.native_record.status}</p>
+          <details className="mt-2 text-xs"><summary className="cursor-pointer">All native fields, child elements and locators</summary>
+            <pre className="mt-2 whitespace-pre-wrap break-all font-mono text-[11px]">{JSON.stringify(row.message.native_record.native, null, 2)}</pre>
+          </details>
+        </section> : <section>
           <h4 className="platform-rule-title text-xs">Retained package</h4>
           {packageProjection ? (
             <dl className="mt-2 space-y-2">
@@ -122,11 +153,11 @@ export function MessageSourcePanel({ row, packageProjection, previewHandle, mode
               The package projection has not been returned for this attempt.
             </p>
           )}
-        </section>
+        </section>}
       </div>
 
       <footer className="border-t px-4 py-2 text-[10px] text-muted-foreground">
-        Read-only projection · PostgreSQL remains canonical
+        {row?.message.native_record ? "Native source bundle · exact source locators" : "Read-only projection · PostgreSQL remains canonical"}
       </footer>
       <FileMetadataScreen
         open={metadataFor !== null}

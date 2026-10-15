@@ -1024,7 +1024,7 @@ export interface ProfferParserCandidate {
 }
 
 export interface ProfferSourceInspection {
-  source: "casebible-raw" | "casebible-sorted" | "casebible-quarantine";
+  source: string;
   root_id: string;
   key: string;
   source_ref: string;
@@ -1049,6 +1049,13 @@ export interface ProfferSourceInspection {
   };
   matter_mode: MatterMode;
 }
+
+/** Metadata-only selection descriptor; checksum inspection keeps its strict digest type. */
+export type ProfferSourcePreview = Omit<ProfferSourceInspection, "sha256" | "digest_status" | "preview_kind"> & {
+  sha256: null;
+  digest_status: "not_computed";
+  preview_kind: "pdf" | "text" | "image" | "audio" | "video" | "unsupported";
+};
 
 export interface ProfferHumanSourceAssertions {
   source_class: "first_party" | "acquired_third_party" | "unknown";
@@ -1119,6 +1126,9 @@ export interface ProfferRunSourceContext {
 }
 
 export interface ProfferStartRequest {
+  /** Existing registry owner and explicitly source-bound device/export perspective; never inferred from login. */
+  owner_person_id?: string | null;
+  perspective_person_id?: string | null;
   request_id: string;
   source_ref: string;
   declared_format: string;
@@ -1405,6 +1415,8 @@ export interface ProfferPreviewAttachment {
 }
 
 export interface ProfferPreviewMessage {
+  /** Preserve the native envelope for presentation and exact source inspection; never a normalized row identity. */
+  native_record?: { ordinal: number; status: string; native: Record<string, unknown> };
   message_id: string;
   ordinal: number;
   sent_at?: string | null;

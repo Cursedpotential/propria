@@ -8,8 +8,10 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
+import { SourceMessagePreview } from "@/components/sbv/source-message-preview";
 import {
   HANDLER_CHOICES,
   SOURCE_STATE_CLASS,
@@ -21,13 +23,14 @@ import { Button } from "@/components/ui/button";
 // Byline: Codex · GPT-6 · 2026-10-06 — source-to-result links retain exact attempt identity.
 import { AppLink } from "@/lib/router-compat";
 import { useFixedCase } from "@/lib/fixed-case-context";
+import { getProfferSourceText } from "@/lib/api-client";
 import type { DecodedManifest } from "@/lib/decoded-source-client";
 import type {
   CatalogProvenance,
   CatalogUnitLookup,
   ProfferBatchStatus,
   ProfferProposalResource,
-  ProfferSourceInspection,
+  ProfferSourcePreview,
   ProfferSourceObject,
   SourceUnitKind,
   SourceUnitMark,
@@ -94,7 +97,7 @@ export function SourceMetadataPanel({
   canonicalHomeOffered,
 }: {
   selection: SourceSelection;
-  inspection: ProfferSourceInspection | null;
+  inspection: ProfferSourcePreview | null;
   inspectionLoading: boolean;
   inspectionError: string | null;
   manifest: DecodedManifest | null;
@@ -279,7 +282,7 @@ function FileDetail({
   onHandlerOverrideChange,
 }: {
   selection: FileSelection;
-  inspection: ProfferSourceInspection | null;
+  inspection: ProfferSourcePreview | null;
   inspectionLoading: boolean;
   inspectionError: string | null;
   manifest: DecodedManifest | null;
@@ -293,6 +296,14 @@ function FileDetail({
   const { mode } = useFixedCase();
   const detected = inspection?.parser_preflight.declared_format ?? "";
   const catalogRow = provenance?.items[0] ?? null;
+  // Selection reads metadata first; only text needs a bounded Range request here.
+  // PDF/image/media use the existing stream URL and decoded sources keep the SBV reader.
+  const textPreview = useQuery({
+    queryKey: ["sources", "text-preview", inspection?.source_ref, inspection?.etag],
+    queryFn: ({ signal }) => getProfferSourceText(inspection!, signal),
+    enabled: Boolean(!manifest && detected !== "sms_export_xml" && inspection?.preview_kind === "text" && inspection.preview_url),
+    retry: false,
+  });
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
@@ -316,7 +327,7 @@ function FileDetail({
         <Field label="Modified" value={object.last_modified ? new Date(object.last_modified).toLocaleString() : "not reported"} />
         <Field
           label="Hash (sha256)"
-          value={inspectionLoading ? "reading and hashing" : inspection?.sha256 || "not hashed"}
+          value={inspection?.sha256 || "not hashed"}
           mono
         />
         <Field label="Detected format" value={inspectionLoading ? "inspecting" : detected || "not inspected"} />
@@ -353,13 +364,20 @@ function FileDetail({
       <section className="border-b px-3 py-3">
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Decode</p>
         {manifest ? (
-          <p className="mt-1 text-xs">
+          <><p className="mt-1 text-xs">
             {manifest.records.toLocaleString()} records · {manifest.threads.length.toLocaleString()} threads ·{" "}
             {manifest.media_objects.toLocaleString()} media · {manifest.rejected.toLocaleString()} rejected
             {manifest.decoder ? ` · ${manifest.decoder}` : ""}
           </p>
+          <Button asChild variant="outline" size="sm" className="mt-2">
+            <AppLink href={`/read?${new URLSearchParams({ decoded_source_ref: object.source_ref, root: inspection?.root_id ?? "", mode })}`}>Open message viewer</AppLink>
+          </Button></>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">Not decoded yet.</p>
+          <><p className="mt-1 text-xs text-muted-foreground">Not decoded yet.</p>
+          {detected === "sms_export_xml" && inspection && <Button asChild variant="outline" size="sm" className="mt-2">
+            <AppLink href={`/read?${new URLSearchParams({ raw_message_source: object.source_ref, root: inspection.root_id,
+              key: inspection.key, bytes: String(inspection.byte_length), etag: inspection.etag, mode })}`}>Open message viewer</AppLink>
+          </Button>}</>
         )}
       </section>
 
@@ -395,18 +413,40 @@ function FileDetail({
       </section>
 
       <section className="min-h-[220px] px-3 py-3" aria-label="Preview">
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Preview</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Preview</p>
+          {inspection?.preview_url && (
+            <a className="text-xs font-medium text-primary underline" href={inspection.preview_url} target="_blank" rel="noopener noreferrer">
+              Open original
+            </a>
+          )}
+        </div>
         <div className="mt-2">
           {manifest ? (
             <DecodedSourceViewer sourceRef={object.source_ref} />
+          ) : detected === "sms_export_xml" && inspection ? (
+            <SourceMessagePreview key={`${inspection.source_ref}:${inspection.etag}`} selection={inspection} />
           ) : inspectionLoading ? (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading</p>
+            <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading file details</p>
           ) : inspection?.preview_kind === "image" && inspection.preview_url ? (
             <img className="max-h-[320px] max-w-full border object-contain" src={inspection.preview_url} alt={`View of ${inspection.name}`} />
           ) : inspection?.preview_kind === "pdf" && inspection.preview_url ? (
             <iframe className="h-[320px] w-full border bg-white" src={inspection.preview_url} title={`View of ${inspection.name}`} />
-          ) : inspection?.preview_text ? (
-            <pre className="max-h-[320px] overflow-auto border bg-background p-2 font-mono text-[10px] leading-4">{inspection.preview_text.slice(0, 4000)}</pre>
+          ) : inspection?.preview_kind === "audio" && inspection.preview_url ? (
+            <audio className="w-full" src={inspection.preview_url} controls preload="metadata" aria-label={`Listen to ${inspection.name}`} />
+          ) : inspection?.preview_kind === "video" && inspection.preview_url ? (
+            <video className="max-h-[320px] w-full border" src={inspection.preview_url} controls preload="metadata" aria-label={`Watch ${inspection.name}`} />
+          ) : inspection?.preview_kind === "text" ? (
+            textPreview.isPending ? (
+              <p className="text-xs text-muted-foreground">Loading text</p>
+            ) : textPreview.error ? (
+              <p className="text-xs text-destructive" role="alert">{textPreview.error.message}</p>
+            ) : (
+              <>
+                <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-words border bg-background p-2 font-mono text-[11px] leading-5">{textPreview.data?.text || "Empty file."}</pre>
+                {textPreview.data?.truncated && <p className="mt-1 text-[11px] text-muted-foreground">Showing the first 250 KB. Open original to read the whole file.</p>}
+              </>
+            )
           ) : (
             <p className="text-xs text-muted-foreground">No inline preview for this format.</p>
           )}

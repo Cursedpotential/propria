@@ -1,18 +1,18 @@
 // Byline: Claude Code · Fable 5.1 · 2026-09-21
-// Reading surface for a backup that SBV has decoded but that has not been
-// ingested yet. Layout and behavior follow SBV's own viewer (ConversationList +
+// Reading surface for existing processed backup messages. Layout and behavior
+// follow SBV's viewer (ConversationList +
 // MessageThread + LazyMedia; MIT, Copyright (c) 2025 lowcarbdev): conversations
 // on the left, the thread on the right as chat bubbles, pictures inline. SBV's
-// importer decodes the backup's inline base64 parts to bytes while it imports;
-// here that importer is the derive step, so the pictures are real files by the
-// time this opens. Oldest first, pages forward (owner, 2026-09-20).
+// viewer consumes processed message/media outputs; it never imports, extracts
+// or indexes the source. Oldest first, pages forward (owner, 2026-09-20).
 "use client";
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, Paperclip, Search, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   type DecodedAttachment,
   type DecodedMessage,
@@ -108,27 +108,15 @@ function Bubble({ sourceRef, message, group }: { sourceRef: string; message: Dec
 }
 
 function Thread({ sourceRef, thread }: { sourceRef: string; thread: DecodedThread }) {
-  const scroller = useRef<HTMLDivElement>(null);
-  const query = useInfiniteQuery({
-    queryKey: ["decoded-thread", sourceRef, thread.file],
-    initialPageParam: 0,
-    queryFn: ({ pageParam, signal }) => getDecodedThreadPage(sourceRef, thread.file, pageParam, signal),
-    getNextPageParam: (page) => page.next_offset ?? undefined,
-    staleTime: Number.POSITIVE_INFINITY,
+  const [offset, setOffset] = useState(0);
+  const query = useQuery({
+    queryKey: ["decoded-thread-page", sourceRef, thread.file, offset],
+    queryFn: ({ signal }) => getDecodedThreadPage(sourceRef, thread.file, offset, signal),
+    gcTime: 0,
+    retry: false,
   });
-  const messages = useMemo(() => query.data?.pages.flatMap((page) => page.messages) ?? [], [query.data]);
+  const messages = query.data?.messages ?? [];
   const group = others(thread.participants).length > 1;
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
-
-  useEffect(() => {
-    scroller.current?.scrollTo({ top: 0 });
-  }, [thread.file]);
-
-  function onScroll() {
-    const node = scroller.current;
-    if (!node || !hasNextPage || isFetchingNextPage) return;
-    if (node.scrollHeight - node.scrollTop - node.clientHeight < 600) void fetchNextPage();
-  }
 
   if (query.isPending) {
     return (
@@ -138,10 +126,17 @@ function Thread({ sourceRef, thread }: { sourceRef: string; thread: DecodedThrea
     );
   }
   if (query.isError) {
-    return <p className="p-4 text-sm text-destructive" role="alert">{query.error.message}</p>;
+    return <div className="space-y-2 p-4"><p className="text-sm text-destructive" role="alert">{query.error.message}</p>
+      <Button variant="outline" size="sm" onClick={() => void query.refetch()}>Retry messages</Button></div>;
   }
   return (
-    <div ref={scroller} onScroll={onScroll} className="h-full space-y-2 overflow-y-auto px-4 py-3" role="log" aria-label={`Conversation with ${others(thread.participants).map(party).join(", ")}`}>
+    <div className="flex h-full min-h-0 flex-col">
+    <nav className="flex items-center justify-between gap-2 border-b px-4 py-2" aria-label="Message pages">
+      <Button size="sm" variant="outline" disabled={offset === 0 || query.isFetching} onClick={() => setOffset(Math.max(0, offset - 200))}>Previous messages</Button>
+      <span className="text-xs text-muted-foreground" role="status">{messages.length ? `${offset + 1}–${offset + messages.length} of ${query.data!.total_records.toLocaleString()}` : "No messages on this page"}</span>
+      <Button size="sm" variant="outline" disabled={typeof query.data?.next_offset !== "number" || query.isFetching} onClick={() => { if (typeof query.data?.next_offset === "number") setOffset(query.data.next_offset); }}>Next messages</Button>
+    </nav>
+    <div key={offset} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3" role="log" aria-label={`Conversation with ${others(thread.participants).map(party).join(", ")}`}>
       {messages.map((message, index) => {
         const newDay = dayKey(message.occurred_at) !== dayKey(messages[index - 1]?.occurred_at ?? null);
         return (
@@ -155,12 +150,17 @@ function Thread({ sourceRef, thread }: { sourceRef: string; thread: DecodedThrea
           </div>
         );
       })}
-      {isFetchingNextPage && <p className="py-2 text-center text-xs text-muted-foreground">Loading later messages…</p>}
-      {!hasNextPage && <p className="py-2 text-center text-[11px] text-muted-foreground">End of this conversation file · {messages.length.toLocaleString()} messages</p>}
+      {typeof query.data?.next_offset !== "number" && <p className="py-2 text-center text-[11px] text-muted-foreground">End of this conversation file</p>}
+    </div>
     </div>
   );
 }
 
+/** Read existing processed message pages with the SBV donor conversation layout.
+ * Input: exact original source reference. Output: conversations, messages and media.
+ * Effects: bounded read API calls only; never starts extraction, indexing or promotion.
+ * Pick for a readable backup at Sources or the full-size Read entry point.
+ */
 export function DecodedSourceViewer({ sourceRef }: { sourceRef: string }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [needle, setNeedle] = useState("");
@@ -188,7 +188,10 @@ export function DecodedSourceViewer({ sourceRef }: { sourceRef: string }) {
   }
   if (manifest.isError) {
     const notDecoded = manifest.error instanceof DecodedSourceError && manifest.error.status === 404;
-    return <p className="px-4 py-3 text-xs text-muted-foreground">{notDecoded ? "Not decoded yet — SBV has not converted this backup." : manifest.error.message}</p>;
+    return <div className="space-y-2 px-4 py-3">
+      <p className="text-xs text-muted-foreground" role={notDecoded ? "status" : "alert"}>{notDecoded ? "Processed messages are not available yet." : manifest.error.message}</p>
+      <Button size="sm" variant="outline" disabled={manifest.isFetching} onClick={() => void manifest.refetch()}>Check again</Button>
+    </div>;
   }
 
   const data = manifest.data;
@@ -202,7 +205,7 @@ export function DecodedSourceViewer({ sourceRef }: { sourceRef: string }) {
         {data.rejected > 0 && <span className="tabular-nums text-destructive">{data.rejected.toLocaleString()} unreadable records</span>}
         {data.decoded_at && <span className="ml-auto">decoded {when(data.decoded_at)}</span>}
       </header>
-      <div className="grid h-[70dvh] min-h-96 grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)]">
+      <div className="grid h-[70dvh] min-h-96 grid-cols-[minmax(9rem,20rem)_minmax(0,1fr)]">
         <aside className="flex min-h-0 flex-col border-r">
           <label className="relative m-2">
             <span className="sr-only">Find a conversation by number</span>

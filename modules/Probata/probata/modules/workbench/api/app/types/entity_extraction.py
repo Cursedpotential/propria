@@ -75,10 +75,21 @@ class ExtractionFlag(BaseModel):
 
 
 class WorkflowStep(BaseModel):
+    """Validate actual standalone Temporal step status and supplied execution metadata.
+
+    Inputs: engine step DTO. Output: preserved attempts/failures and identifiers.
+    Effects: none; use for existing extraction and commit status responses.
+    """
     model_config = ConfigDict(extra="ignore")
 
     step: str
-    status: Literal["pending", "running", "completed", "skipped", "failed"]
+    status: Literal["pending", "running", "retrying", "completed", "skipped", "failed"]
+    workflow_id: str | None = None
+    run_id: str | None = None
+    activity_id: str | None = None
+    activity_type: str | None = None
+    attempt: int | None = None
+    last_failure: str | None = None
     detail: str = ""
     counts: dict[str, int] = Field(default_factory=dict)
     ref: str = ""
@@ -86,9 +97,15 @@ class WorkflowStep(BaseModel):
 
 
 class WorkflowProgress(BaseModel):
+    """Preserve standalone business outcome and actual Temporal run identity.
+
+    Inputs: engine progress. Output: validated step metadata and mode.
+    Effects: none; use for existing standalone status polling.
+    """
     model_config = ConfigDict(extra="ignore")
 
     workflow_id: str
+    run_id: str | None = None
     outcome: str
     steps: list[WorkflowStep] = Field(default_factory=list)
     matter_mode: MatterMode
