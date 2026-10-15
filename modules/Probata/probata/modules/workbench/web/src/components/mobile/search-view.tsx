@@ -10,9 +10,10 @@ import { formatDateTime } from "@/components/mobile/mobile-format";
 import { Badge } from "@/components/ui/badge";
 import { importedApi } from "@/lib/imported-client";
 import { AppLink } from "@/lib/router-compat";
-import { useFixedCase } from "@/lib/fixed-case-context";
 import { nativeSearchTargets } from "@/lib/search-read-target";
 import { attemptReadHref } from "@/lib/workflow-links";
+
+const LIVE_MODE = "LIVE" as const;
 
 function Highlighted({ text, query }: { text: string; query: string }) {
   const raw = query.split(/\s+/).filter((word) => word.length > 1).map((word) => word.toLowerCase());
@@ -35,7 +36,9 @@ function Highlighted({ text, query }: { text: string; query: string }) {
  * Effects: paged search GETs and navigation. Choose for mobile imported search without per-message index assumptions.
  */
 export function SearchView() {
-  const { mode } = useFixedCase();
+  // The mobile shell is always the live case and has no FixedCaseProvider;
+  // reading the fixed-case context here crashed /m/search (owner UX test 2026-10-15).
+  const mode = LIVE_MODE;
   const [draft, setDraft] = useState("");
   const [submitted, setSubmitted] = useState("");
   const query = useInfiniteQuery({
