@@ -1,4 +1,4 @@
-"""Verify publish-stage DuckDB spill placement in a non-writable worker cwd."""
+"""Verify bounded publish requests, ledger identities, and DuckDB spill placement."""
 
 import json
 import os
@@ -6,10 +6,13 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+from casebible_index.cas_store import COLLECTION, PROPERTIES, ChunkCollection
+from casebible_index.chunk_identity import chunk_object_id
 from casebible_index.embed_stage import vector_schema, vectors_dir
 from casebible_index.embedders import VectorSlot
 from casebible_index.publish_stage import (
@@ -141,6 +144,94 @@ def test_pending_batch_selects_only_unpublished_ready_identities_and_newest_good
     assert a["document_id"] == "doc-a"
     assert a["vec_0"] == a["vec_1"] == [2.0, 2.0, 2.0]
     assert a["model_0"] == a["model_1"] == "new-good"
+
+
+@pytest.mark.asyncio
+async def test_publish_uses_64_object_batches_and_ledgers_all_130_identities(tmp_path: Path):
+    """Bound each upsert call while preserving one immutable ledger identity per chunk."""
+    out = tmp_path / "lake"
+    chunks = out / "datasets" / "chunks"
+    chunks.mkdir(parents=True)
+    identities = [("v1", f"{index:064x}") for index in range(130)]
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "chunker_version": version,
+                    "content_hash": content_hash,
+                    "document_id": f"synthetic-{index:03d}",
+                    "chunk_ordinal": 0,
+                    "text": f"synthetic fixture chunk {index}",
+                    "vault_key": f"fixture/{index:03d}.txt",
+                    "relative_path": f"fixture/{index:03d}.txt",
+                    "embedding": [0.1, 0.2, 0.3],
+                }
+                for index, (version, content_hash) in enumerate(identities)
+            ]
+        ),
+        chunks / "chunks.parquet",
+    )
+    slot = VectorSlot("text_nim", "fake-model", 3, "https://unused.test", "unused")
+    vectors = vectors_dir(out, slot.name)
+    vectors.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "content_hash": content_hash,
+                    "slot": slot.name,
+                    "model": slot.model,
+                    "dimensions": 3,
+                    "status": "ok",
+                    "embedding": [0.1, 0.2, 0.3],
+                    "embedded_at": datetime.now(UTC),
+                }
+                for _, content_hash in identities
+            ],
+            schema=vector_schema(),
+        ),
+        vectors / "vectors.parquet",
+    )
+
+    request_batches = []
+    sent_ids = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        """Return the existing schema and record each bounded bulk HTTP request."""
+        if request.method == "GET" and request.url.path == f"/v1/schema/{COLLECTION}":
+            return httpx.Response(
+                200, json={"properties": PROPERTIES, "vectorConfig": {slot.name: {}}}
+            )
+        if request.method == "POST" and request.url.path == "/v1/batch/objects":
+            objects = json.loads(request.content)["objects"]
+            request_batches.append(len(objects))
+            sent_ids.extend(obj["id"] for obj in objects)
+            return httpx.Response(
+                200, json=[{"id": obj["id"], "result": {}} for obj in objects]
+            )
+        raise AssertionError(f"unexpected {request.method} {request.url.path}")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        store = ChunkCollection("http://weaviate.test", COLLECTION, client)
+        result = await publish_pending(out, store, [slot], max_objects=130, run_id="batch-64")
+    assert result == {"published": 130, "more": False}
+    assert request_batches == [64, 64, 2]
+    expected = {
+        (version, content_hash, chunk_object_id(version, content_hash))
+        for version, content_hash in identities
+    }
+    published = out / "datasets" / "published"
+    shards = list(published.glob("*.parquet"))
+    assert len(shards) == 3
+    ledger_rows = [row for shard in shards for row in pq.read_table(shard).to_pylist()]
+    actual = {
+        (row["chunker_version"], row["content_hash"], row["object_id"])
+        for row in ledger_rows
+    }
+    assert len(ledger_rows) == len(actual) == 130
+    assert actual == expected
+    assert len(sent_ids) == len(set(sent_ids)) == 130
+    assert set(sent_ids) == {object_id for _, _, object_id in expected}
 
 
 @pytest.mark.asyncio

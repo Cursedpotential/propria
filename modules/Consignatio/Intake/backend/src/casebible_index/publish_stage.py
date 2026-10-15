@@ -44,7 +44,8 @@ from .embed_stage import chunk_source_sql, vectors_dir
 from .embedders import VectorSlot
 
 DEFAULT_MAX_OBJECTS = 20_000
-FETCH_ROWS = 256
+# Stay below ChunkCollection's 100-object HTTP batch when Weaviate is under load.
+FETCH_ROWS = 64
 
 LEDGER_SCHEMA = pa.schema(
     [
