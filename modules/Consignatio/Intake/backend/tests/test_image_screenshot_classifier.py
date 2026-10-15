@@ -4,6 +4,7 @@ import base64
 import hashlib
 import io
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -26,6 +27,7 @@ from casebible_index.image_screenshot_classifier import (
     classify,
     load_reference_bundle,
     target_jpeg,
+    unknown,
     validate_decisions_reply,
     validate_reply,
 )
@@ -112,6 +114,27 @@ def _bundle(root: Path, *, version: str = "refs-v1"):
     manifest = folder / "manifest.json"
     manifest.write_text(json.dumps({"schema_version": 1, "reference_set_version": version, "references": refs}))
     return manifest, load_reference_bundle(manifest, root)
+
+
+def _many_image_slice(root: Path, count: int, slice_id: str) -> Slice:
+    """Write distinct synthetic source images and return their test slice.
+
+    Inputs are a test root, count and slice ID; output is a slice. Side effects are fixture
+    files only. Pick this for cache budget regressions spanning more than five images.
+    """
+    items = []
+    for n in range(count):
+        name = f"{n:05d}.png"
+        path = root / "spool" / "images" / slice_id / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        image = io.BytesIO()
+        color = (n * 5 % 256, n * 7 % 256, n * 11 % 256)
+        Image.new("RGB", (40, 80), color).save(image, format="PNG")
+        path.write_bytes(image.getvalue())
+        items.append(
+            ImageItem(f"image-{n}", f"sha1-{n}", "b2", "bucket", name, path.stat().st_size, 1, name)
+        )
+    return Slice(slice_id, "image", items)
 
 
 def test_classifier_rejects_structurally_invalid_result():
@@ -477,6 +500,114 @@ async def test_facts_caps_hosted_requests_at_five_for_six_images(tmp_path: Path,
     assert receipt["screenshot_classifier_billed_cost_usd"] == (0.005 if provider == "openrouter-decisions" else 0.0)
     rows = pq.read_table(table_path(tmp_path, "facts", "s2")).to_pylist()
     assert sum(r["screenshot_classifier_status"] == "budget_exhausted" for r in rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_facts_applies_36_cached_results_with_zero_external_calls(
+    tmp_path: Path, monkeypatch
+):
+    """Apply a full evaluated slice from stable cache without spending five-call slots.
+
+    Inputs are 36 synthetic images, 35 valid cached proposals and one active error cooldown.
+    Output is 36 merged rows with zero requests. Side effects are test cache and facts shards.
+    Pick this for evaluation-to-stage reuse and safe cooldown behavior.
+    """
+    sl = _many_image_slice(tmp_path, 36, "cached36")
+    manifest, _ = _bundle(tmp_path)
+    bundle = load_reference_bundle(
+        manifest, tmp_path, provider="openrouter-decisions", model=DECISIONS_MODEL
+    )
+    for index, item in enumerate(sl.items):
+        path = tmp_path / "spool" / "images" / sl.slice_id / item.file
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        target = cache_path(tmp_path, digest, version=bundle.version)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        result = unknown("model_ok" if index else "model_http_429", version=bundle.version,
+                         provider="openrouter-decisions")
+        if index:
+            result.update(
+                screenshot_decision="yes", screenshot_app="browser", screenshot_app_confidence=80
+            )
+        target.write_text(
+            json.dumps({"result": result, "retry_after": time.time() + 300 if index == 0 else 0})
+        )
+    monkeypatch.setattr(image_stage, "read_image_facts", lambda *a, **k: SimpleNamespace(
+        original_time=SimpleNamespace(value="", source="", confidence="", conflict=False),
+        device="", software="", gps="", is_screenshot=False, notes=[],
+    ))
+    settings = SimpleNamespace(
+        screenshot_classifier_enabled=True, screenshot_classifier_max_calls=5,
+        screenshot_reference_manifest=str(manifest),
+        screenshot_classifier_provider="openrouter-decisions",
+        screenshot_classifier_model=DECISIONS_MODEL,
+    )
+    def forbidden(_request):
+        """Fail on any external request; input request, no output or side effects."""
+        raise AssertionError("cached rows must not call the provider")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(forbidden)) as client:
+        receipt = await image_stage.run_facts(
+            tmp_path, tmp_path / "spool", sl, settings=settings,
+            classifier_key="placeholder-key", classifier_client=client,
+        )
+    rows = pq.read_table(table_path(tmp_path, "facts", sl.slice_id)).to_pylist()
+    assert receipt["screenshot_classifier_requests"] == 0
+    assert receipt["screenshot_classifier_budget_units"] == 0
+    assert receipt["screenshot_classifier_cache_hits"] == 36
+    assert sum(row["screenshot_classifier_status"] == "model_ok" for row in rows) == 35
+    assert rows[0]["screenshot_classifier_status"] == "model_http_429"
+    assert rows[0]["screenshot_decision"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_cached_rows_leave_five_real_request_slots_for_uncached_rows(
+    tmp_path: Path, monkeypatch
+):
+    """Count only provider attempts when cached and uncached rows share a slice.
+
+    Inputs are two cached and six uncached synthetic images. Output is five requests, two
+    cache hits and one budget-exhausted row. Side effects are test cache and facts shards.
+    Pick this to keep the external-call cap while consuming reusable evaluations first.
+    """
+    sl = _many_image_slice(tmp_path, 8, "mixed-cache")
+    manifest, _ = _bundle(tmp_path)
+    bundle = load_reference_bundle(
+        manifest, tmp_path, provider="openrouter-decisions", model=DECISIONS_MODEL
+    )
+    for item in sl.items[:2]:
+        path = tmp_path / "spool" / "images" / sl.slice_id / item.file
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        target = cache_path(tmp_path, digest, version=bundle.version)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps({"result": {
+            **unknown("model_ok", version=bundle.version, provider="openrouter-decisions"),
+            "screenshot_decision": "yes", "screenshot_app": "browser",
+            "screenshot_app_confidence": 80,
+        }, "retry_after": 0}))
+    monkeypatch.setattr(image_stage, "read_image_facts", lambda *a, **k: SimpleNamespace(
+        original_time=SimpleNamespace(value="", source="", confidence="", conflict=False),
+        device="", software="", gps="", is_screenshot=False, notes=[],
+    ))
+    settings = SimpleNamespace(
+        screenshot_classifier_enabled=True, screenshot_classifier_max_calls=5,
+        screenshot_reference_manifest=str(manifest),
+        screenshot_classifier_provider="openrouter-decisions",
+        screenshot_classifier_model=DECISIONS_MODEL,
+    )
+    requests = []
+    def respond(request):
+        """Return one synthetic Decisions reply and count the request; no network effects."""
+        requests.append(request)
+        return httpx.Response(200, json=_decisions_reply("yes", "browser"))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        receipt = await image_stage.run_facts(
+            tmp_path, tmp_path / "spool", sl, settings=settings,
+            classifier_key="placeholder-key", classifier_client=client,
+        )
+    rows = pq.read_table(table_path(tmp_path, "facts", sl.slice_id)).to_pylist()
+    assert receipt["screenshot_classifier_requests"] == len(requests) == 5
+    assert receipt["screenshot_classifier_budget_units"] == 5
+    assert receipt["screenshot_classifier_cache_hits"] == 2
+    assert sum(row["screenshot_classifier_status"] == "budget_exhausted" for row in rows) == 1
 
 
 @pytest.mark.asyncio

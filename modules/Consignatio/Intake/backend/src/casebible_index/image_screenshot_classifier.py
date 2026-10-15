@@ -420,6 +420,29 @@ def _cache_result(target: Path, result: dict[str, Any], *, retry_after: float = 
         return
 
 
+def cached_classification(output_dir: Path, digest: str, *, version: str) -> dict[str, Any] | None:
+    """Read a reusable validated result or active failure cooldown without a provider call.
+
+    Inputs are the output lake, retained source SHA-256 and exact classifier version.
+    Output is a safe cached proposal with cache-hit metadata, or None. Side effects are
+    bounded cache reads only. Pick this before enforcing an external-call budget; use
+    ``classify`` for a cache miss that may require a provider request.
+    """
+    target = cache_path(output_dir, digest, version=version)
+    if target.is_file():
+        try:
+            stored = json.loads(target.read_text(encoding="utf-8"))
+            cached = stored.get("result", {})
+            if cached.get("screenshot_classifier_version") == version and (
+                cached.get("screenshot_classifier_status") in {"model_ok", "model_unknown"}
+                or stored.get("retry_after", 0) > time.time()
+            ):
+                return {**cached, "_cache_hit": True, "_diagnostic": stored.get("diagnostic", {})}
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+    return None
+
+
 async def classify(
     path: Path | io.BytesIO | bytes,
     digest: str,
@@ -435,15 +458,10 @@ async def classify(
     miss, atomic JSON cache write for validated replies. Pick this within image_facts; OCR and
     embedding have separate jobs. Provider errors return unknown without response body or secrets.
     """
+    cached = cached_classification(output_dir, digest, version=bundle.version)
+    if cached is not None:
+        return cached
     target = cache_path(output_dir, digest, version=bundle.version)
-    if target.is_file():
-        try:
-            stored = json.loads(target.read_text(encoding="utf-8"))
-            cached = stored.get("result", {})
-            if cached.get("screenshot_classifier_version") == bundle.version and (cached.get("screenshot_classifier_status") in {"model_ok", "model_unknown"} or stored.get("retry_after", 0) > time.time()):
-                return {**cached, "_cache_hit": True, "_diagnostic": stored.get("diagnostic", {})}
-        except (OSError, ValueError, TypeError, AttributeError):
-            pass
     if not key:
         return unknown("missing_key", version=bundle.version, provider=bundle.provider)
     request_made = False

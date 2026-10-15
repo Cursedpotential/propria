@@ -52,7 +52,11 @@ from .image_kind import KIND_PHOTO, KIND_SCAN, KIND_SCREENSHOT, classify_image
 from .image_ocr import DEFAULT_ENGINE, read_text
 from .image_screenshot_classifier import DECISIONS_MODEL as SCREENSHOT_DECISIONS_MODEL
 from .image_screenshot_classifier import MODEL as SCREENSHOT_NIM_MODEL
-from .image_screenshot_classifier import classifier_version, load_reference_bundle
+from .image_screenshot_classifier import (
+    cached_classification,
+    classifier_version,
+    load_reference_bundle,
+)
 from .image_screenshot_classifier import classify as classify_screenshot
 from .image_screenshot_classifier import unknown as unknown_screenshot
 from .image_slice import (
@@ -470,13 +474,33 @@ async def run_facts(
             _merge_screenshot(row, unknown_screenshot("unreadable", version=version, provider=provider))
         elif bundle is None:
             _merge_screenshot(row, unknown_screenshot("reference_unavailable", version=version, provider=provider))
-        elif calls >= (settings.screenshot_classifier_max_calls if settings else 5):
-            _merge_screenshot(row, unknown_screenshot("budget_exhausted", version=version, provider=provider))
         else:
-            path = item_path(output_dir, spool_dir, sl.slice_id, item)
-            if path.is_file() and classifier_client is not None:
-                calls += 1
-                result = await classify_screenshot(path, row["content_sha256"], output_dir, classifier_key, classifier_client, bundle)
+            result = cached_classification(
+                output_dir, row["content_sha256"], version=bundle.version
+            )
+            if result is None:
+                path = item_path(output_dir, spool_dir, sl.slice_id, item)
+                if (
+                    path.is_file()
+                    and classifier_client is not None
+                    and calls < (settings.screenshot_classifier_max_calls if settings else 5)
+                ):
+                    result = await classify_screenshot(
+                        path, row["content_sha256"], output_dir, classifier_key,
+                        classifier_client, bundle,
+                    )
+                    calls += int(bool(result.get("_request_made")))
+                elif not path.is_file() or classifier_client is None:
+                    unavailable = unknown_screenshot(
+                        "source_unavailable", version=version, provider=provider
+                    )
+                    _merge_screenshot(row, unavailable)
+                else:
+                    exhausted = unknown_screenshot(
+                        "budget_exhausted", version=version, provider=provider
+                    )
+                    _merge_screenshot(row, exhausted)
+            if result is not None:
                 requests += int(bool(result.get("_request_made")))
                 cache_hits += int(bool(result.get("_cache_hit")))
                 for field in usage:
@@ -490,8 +514,6 @@ async def run_facts(
                     finish = diagnostic["finish_reason"]
                     finish_reasons[finish] = finish_reasons.get(finish, 0) + 1
                 _merge_screenshot(row, result)
-            else:
-                _merge_screenshot(row, unknown_screenshot("source_unavailable", version=version, provider=provider))
         changed = True
     if changed:
         _write_table(out, pa.Table.from_pylist(rows, schema=FACTS_SCHEMA))
