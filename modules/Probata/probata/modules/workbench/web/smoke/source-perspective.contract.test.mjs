@@ -65,7 +65,7 @@ function processHarness(overrides = {}) {
   const scope = sourcePerspectiveScope("LIVE", [[file.source_ref, file.etag, file.byte_length]]);
   const context = {
     matter: { id: "matter-registry" }, primaryCourtCase: { id: "court-registry" }, mode: "LIVE",
-    processBusy: { current: false }, showContentSearch: false, processTarget: "selected", unsupportedMedia: false, setProcessing() {}, setProcessError: (error) => errors.push(error), setProcessMessage() {}, setUploadProgress() {}, setActivityHref() {},
+    processBusy: { current: false }, showContentSearch: false, processTarget: "selected", unsupportedMedia: false, hasAIProcessTarget: false, aiProcessBlocked: false, addAIChatToContext: async () => { throw new Error("Unexpected AI start"); }, setProcessing() {}, setProcessError: (error) => errors.push(error), setProcessMessage() {}, setUploadProgress() {}, setActivityHref() {},
     registryPeople: people, perspectiveScope: scope, perspectiveChoice: { scope, personId: "registry-owner" },
     localSource: null, processFiles: [file], selectedFiles: [], selectedObject: file, selectedFolder: null,
     submissions: { current: new Map() }, handlerOverride: "", runsQuery: { refetch() {} },
@@ -101,6 +101,24 @@ test("content search and unsupported media disarm processing before any source/v
     assert.equal(harness.humanRequests.length, 0);
     assert.equal(harness.versions.length, 0);
   }
+});
+
+test("explicit AI Process uses only native context and never falls back to legacy normalization", async () => {
+  for (const rejected of [false, true]) {
+    let nativeCalls = 0;
+    const harness = processHarness({ hasAIProcessTarget: true, matter: null, primaryCourtCase: null,
+      addAIChatToContext: async () => { nativeCalls++; if (rejected) throw new Error("Native context rejected source version"); } });
+    if (rejected) await assert.rejects(harness.invoke(), /Native context rejected/);
+    else await harness.invoke();
+    assert.equal(nativeCalls, 1);
+    assert.equal(harness.requests.length, 0);
+    assert.equal(harness.humanRequests.length, 0);
+  }
+  let nativeCalls = 0;
+  const blocked = processHarness({ hasAIProcessTarget: true, aiProcessBlocked: true, addAIChatToContext: async () => { nativeCalls++; } });
+  await blocked.invoke();
+  assert.equal(nativeCalls, 0);
+  assert.equal(blocked.requests.length, 0);
 });
 
 test("native start resolves the inspected immutable version and legacy start retains it in the supported locator", async () => {

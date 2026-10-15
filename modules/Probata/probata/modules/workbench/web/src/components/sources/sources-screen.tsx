@@ -96,8 +96,8 @@ function SourcesScreenMode() {
   const [scrollRow, setScrollRow] = useState(restored?.scrollRow ?? 0);
   const [handlerOverride, setHandlerOverride] = useState("");
   const [perspectiveChoice, setPerspectiveChoice] = useState<SourcePerspectiveChoice | null>(null);
-  const [aiProvider, setAIProvider] = useState<"" | "chatgpt" | "claude" | "gemini_markdown">("");
-  const [aiExportSelection, setAIExportSelection] = useState<string | null>(null);
+  const [aiProvider, setAIProvider] = useState<"" | "chatgpt" | "claude" | "gemini_markdown">(restored?.aiProvider ?? "");
+  const [aiExportSelection, setAIExportSelection] = useState<string | null>(restored?.aiExportSelection ?? null);
   const [aiPending, setAIPending] = useState(false);
   const [aiError, setAIError] = useState<string | null>(null);
   const [aiWorkflow, setAIWorkflow] = useState<{ workflow_id: string; run_id: string; source_ref: string } | null>(null);
@@ -237,8 +237,9 @@ function SourcesScreenMode() {
       selectedRef: selectedObject?.source_ref ?? selectedRef, selectedFolder, checkedRefs: [...checkedRefs], selectedObject,
       providerVersion: inspectionQuery.data?.provider_version_id ?? (restored?.selectedRef === selectedRef ? restored.providerVersion : null),
       query, appliedFilter, scrollRow,
+      aiExportSelection, aiProvider,
     });
-  }, [navigationKey, selectedRef, selectedFolder, checkedRefs, selectedObject, inspectionQuery.data, restored, query, appliedFilter, scrollRow]);
+  }, [navigationKey, selectedRef, selectedFolder, checkedRefs, selectedObject, inspectionQuery.data, restored, query, appliedFilter, scrollRow, aiExportSelection, aiProvider]);
 
   const manifestQuery = useQuery({
     queryKey: ["sources", "manifest", selectedObject?.source_ref],
@@ -348,9 +349,12 @@ function SourcesScreenMode() {
   const processFiles = selectedFiles.length ? selectedFiles : selectedObject ? [selectedObject] : [];
   const unsupportedMedia = [localSource?.file.name, ...processFiles.map((object) => object.name)].filter((name): name is string => Boolean(name))
     .some((name) => /\.(mp4|m4a|mp3|wav|ogg|webm|mov|avi|flac|aac)$/i.test(name) && detectedFormat(name) === "unknown_binary");
-  const hasNativeProcessTarget = localSource
+  const hasAIProcessTarget = !localSource && processFiles.some((object) => object.source_ref === aiExportSelection);
+  const aiProcessBlocked = hasAIProcessTarget && (processFiles.length !== 1 || selectedObject?.source_ref !== aiExportSelection
+    || !aiProvider || !sourceVersionQuery.data || sourceVersionQuery.isFetching || aiPending);
+  const hasNativeProcessTarget = hasAIProcessTarget || (localSource
     ? isSMSContextSource(localSource.file.name, handlerOverride || detectedFormat(localSource.file.name))
-    : processFiles.some((object) => isSMSContextSource(object.name, handlerOverride || detectedFormat(object.name)));
+    : processFiles.some((object) => isSMSContextSource(object.name, handlerOverride || detectedFormat(object.name))));
   const needsPerspective = localSource
     ? requiresMessagePerspective(localSource.file.name, handlerOverride || detectedFormat(localSource.file.name))
     : processFiles.some((object) => requiresMessagePerspective(object.name, handlerOverride || detectedFormat(object.name)));
@@ -411,13 +415,17 @@ function SourcesScreenMode() {
   }
 
   /** Submit selected sources and expose returned durable processing links.
-   * Input: selected files/folder, explicit export attribution and optional actual case for native SMS.
+   * Input: selected files/folder, explicit source kind/provider or export attribution and optional case for native context.
    * Output: per-file receipts/status; legacy sources still require the admitted case.
-   * Effects: starts processing through the existing API; never copies or moves originals.
+   * Effects: explicitly selected AI exports use native context to Weaviate; other sources use their existing API. No original moves.
    * Byline: Codex · GPT-6 · 2026-10-06.
    */
   async function process() {
-    if (processBusy.current || showContentSearch || !processTarget || unsupportedMedia) return;
+    if (processBusy.current || showContentSearch || !processTarget || unsupportedMedia || aiProcessBlocked) return;
+    if (hasAIProcessTarget) {
+      await addAIChatToContext();
+      return;
+    }
     processBusy.current = true;
     setProcessing(true);
     setProcessError(null);
@@ -646,13 +654,13 @@ function SourcesScreenMode() {
         )}
         <Button
           size="sm"
-          disabled={processing || !processTarget || unsupportedMedia || (!hasNativeProcessTarget && (!matter || !primaryCourtCase))}
+          disabled={processing || !processTarget || unsupportedMedia || aiProcessBlocked || (!hasNativeProcessTarget && (!matter || !primaryCourtCase))}
           onClick={() => void process()}
         >
           {processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Process
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          {unsupportedMedia ? "Original media can be inspected; no registered audio/video extractor is available in this Process route." : uploadProgress !== null ? `Uploading ${uploadProgress}%` : processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
+          {hasAIProcessTarget ? aiProcessBlocked ? "AI chat target: select one export and choose its provider; exact source version must be available before native context processing." : `Ready: ${processTarget} · native AI context route to Weaviate` : unsupportedMedia ? "Original media can be inspected; no registered audio/video extractor is available in this Process route." : uploadProgress !== null ? `Uploading ${uploadProgress}%` : processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
         </span>
         {processFiles.length > 0 && !showContentSearch && <details className="max-w-full text-[11px]"><summary className="cursor-pointer">Exact processing target ({processFiles.length} file{processFiles.length === 1 ? "" : "s"}; no folder recursion)</summary><ul className="max-h-40 overflow-auto">{processFiles.map((object) => <li className="break-all" key={object.source_ref}>{object.name} · {object.source_ref} · {object.byte_length} bytes · ETag {object.etag ?? "not supplied"}</li>)}</ul></details>}
         {localSource && <Button size="icon" variant="ghost" aria-label="Clear local file selection" disabled={processing} onClick={() => { setLocalSource(null); setPerspectiveChoice(null); }}><X className="h-3.5 w-3.5" /></Button>}

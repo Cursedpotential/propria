@@ -14,7 +14,7 @@ runInNewContext(ts.transpileModule(text, { compilerOptions: { module: ts.ModuleK
 const { saveSourceNavigation, restoreSourceNavigation, pinnedSourceRef } = module.exports;
 
 test("Back restores exact object metadata, version, checked targets and scroll within one route scope", () => {
-  const value = { selectedRef: "b2://fixture/source.md", selectedFolder: null, checkedRefs: ["b2://fixture/source.md"], providerVersion: "immutable-v1", query: "source", appliedFilter: "source", scrollRow: 42,
+  const value = { selectedRef: "b2://fixture/source.md", selectedFolder: null, checkedRefs: ["b2://fixture/source.md"], providerVersion: "immutable-v1", query: "source", appliedFilter: "source", scrollRow: 42, aiExportSelection: "b2://fixture/source.md", aiProvider: "gemini_markdown",
     selectedObject: { source_ref: "b2://fixture/source.md", key: "source.md", name: "source.md", byte_length: 90, etag: '"opaque-etag"' } };
   saveSourceNavigation("LIVE:fixture:folder", value);
   assert.deepEqual(JSON.parse(JSON.stringify(restoreSourceNavigation("LIVE:fixture:folder"))), value);

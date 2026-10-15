@@ -9,6 +9,8 @@ export interface SourceNavigationState {
   query: string;
   appliedFilter: string;
   scrollRow: number;
+  aiExportSelection?: string | null;
+  aiProvider?: "" | "chatgpt" | "claude" | "gemini_markdown";
 }
 
 /** Restore Sources navigation metadata within this browser tab and exact route scope.
@@ -24,6 +26,8 @@ export function restoreSourceNavigation(key: string): SourceNavigationState | nu
         || (value.selectedRef !== null && typeof value.selectedRef !== "string")
         || (value.selectedFolder !== null && typeof value.selectedFolder !== "string")
         || (value.providerVersion !== null && typeof value.providerVersion !== "string")) return null;
+    if ((value.aiExportSelection !== undefined && value.aiExportSelection !== null && typeof value.aiExportSelection !== "string")
+        || (value.aiProvider !== undefined && !["", "chatgpt", "claude", "gemini_markdown"].includes(value.aiProvider))) return null;
     const object = value.selectedObject;
     if (object && (object.source_ref !== value.selectedRef || typeof object.key !== "string"
         || typeof object.name !== "string" || typeof object.byte_length !== "number" || object.byte_length < 0
