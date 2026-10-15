@@ -19,7 +19,7 @@ function load(relative, overrides) {
   const source = readFileSync(new URL(relative, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } }).outputText;
   const module = { exports: {} };
-  runInNewContext(compiled, { module, exports: module.exports, URLSearchParams, require: (name) => overrides[name] ?? require(name) });
+  runInNewContext(compiled, { module, exports: module.exports, URLSearchParams, crypto: globalThis.crypto, require: (name) => overrides[name] ?? require(name) });
   return module.exports;
 }
 
@@ -45,11 +45,19 @@ const common = {
 function search(result) {
   let options;
   const calls = [];
+  const { ContextSearch } = load("./context-search.tsx", {
+    ...common,
+    "@tanstack/react-query": { useQuery: (value) => { options = value; return result; } },
+    "@/lib/api-client": { searchContext: (...args) => { calls.push(args); return Promise.resolve({}); } },
+    "@/components/read/search-relationships": { SearchRelationships: () => null },
+    "@/lib/search-read-target": { nativeSearchTargets: () => ({ native: false, handles: [] }) },
+    "@/lib/workflow-links": { attemptReadHref: () => { throw new Error("Legacy fixture must use its supplied navigation"); } },
+    "@/lib/fixed-case-context": { useFixedCase: () => ({ mode: "LIVE" }) },
+  });
   const { ReadSearch } = load("./read-search.tsx", {
     ...common,
     "@tanstack/react-router": { useRouter: () => ({ navigate() {} }) },
-    "@tanstack/react-query": { useInfiniteQuery: (value) => { options = value; return result; } },
-    "@/lib/imported-client": { importedApi: { search: (...args) => { calls.push(args); return Promise.resolve({}); } } },
+    "@/components/read/context-search": { ContextSearch },
   });
   const html = renderToStaticMarkup(React.createElement(ReadSearch, { params: new URLSearchParams("q=hearing&source=other&mode=LIVE") }));
   return { html, options, calls };
@@ -89,45 +97,47 @@ function conversation(head, threadResult = {}, params = "source=wrong&thread=ori
   return { html, options, calls, threadOptions, threadCalls, bubbleRows };
 }
 
-test("content search uses existing API pagination/abort and links hits by original IDs", async () => {
-  const { html, options, calls } = search({ isSuccess: true, hasNextPage: true, data: { pages: [{ note: "Existing search coverage", items: [
-    { id: "record-id", thread_id: "thread/+==", body: "Message <script>unsafe</script>", sender: "Sender", source: "export.json" },
-    { id: "call-id", thread_id: null, body: "Call entry", kind: "call_log" },
-  ] }] } });
+test("shared content search preserves abort, selected indexes and supplied original record links", async () => {
+  const { html, options, calls } = search({ isSuccess: true, data: { status: "ok", legs: [], items: [{
+    text: "Message <script>unsafe</script>", legs: ["proffer"],
+    citation: { collection: "fixture", object_id: "chunk", source_version_ids: ["version"], locator: { record_type: "message" } },
+    navigation: { status: "available", sources: [{ source_version_id: "version", name: "export.json", href: "/read?source=original&thread=thread%2F%2B%3D%3D&around=record-id" }] },
+  }] } });
   const signal = new AbortController().signal;
-  await options.queryFn({ pageParam: 20, signal });
-  assert.deepEqual(calls[0], ["hearing", 20, signal]);
-  assert.equal(options.getNextPageParam({ next_offset: 40 }), 40);
-  assert.equal(options.getNextPageParam({ next_offset: null }), undefined);
+  await options.queryFn({ signal });
+  assert.equal(calls[0][0], "hearing");
+  assert.equal(calls[0][1], "hybrid");
+  assert.deepEqual(Array.from(calls[0][2]), ["intake", "proffer"]);
+  assert.match(calls[0][3], /^[0-9a-f-]{36}$/);
+  assert.equal(calls[0][4], signal);
   assert.match(html, /thread=thread%2F%2B%3D%3D&amp;around=record-id/);
-  assert.doesNotMatch(html, /source=other[^<]*>Read in conversation/);
+  assert.match(html, /source=original/);
+  assert.doesNotMatch(html, /source=other/);
   assert.match(html, /&lt;script&gt;unsafe&lt;\/script&gt;/);
-  assert.match(html, /Call-log result; no conversation link/);
-  assert.match(html, /Load more results/);
+  assert.match(html, /1 ranked results/);
+  assert.match(html, /Source version/);
 });
 
 test("search reports pending, unavailable and successful empty states distinctly", () => {
   assert.match(search({ isPending: true }).html, /Loading content/);
   const failed = search({ isError: true, error: new Error("Search unavailable") }).html;
   assert.match(failed, /role="alert"[^>]*>Search unavailable/);
-  assert.doesNotMatch(failed, /No indexed conversation chunks match/);
-  const empty = search({ isSuccess: true, data: { pages: [{ items: [], note: "" }] } }).html;
-  assert.match(empty, /No indexed conversation chunks match “hearing”/);
-  assert.match(empty, /Searches indexed conversation chunks and call-log entries\. Conversations without published chunks are not searched\./);
-  assert.doesNotMatch(empty, /No imported content matches|Across imported conversations/);
+  assert.doesNotMatch(failed, /No matches/);
+  const empty = search({ isSuccess: true, data: { status: "ok", items: [], legs: [] } }).html;
+  assert.match(empty, /No matches in the indexes that answered/);
+  const unavailable = search({ isSuccess: true, data: { status: "failed", items: [], legs: [{ name: "proffer", status: "failed", error: "timeout" }] } }).html;
+  assert.match(unavailable, /search timed out/);
+  assert.doesNotMatch(unavailable, /No matches/);
 });
 
-test("unmapped search results identify call logs only when the API declares their kind", () => {
+test("unmapped search results retain declared source kinds without inventing conversation links", () => {
   for (const kind of ["conversation", undefined, "call_log"]) {
-    const { html } = search({ isSuccess: true, data: { pages: [{ items: [{ id: "unmapped", thread_id: null, body: "Indexed content", kind }], note: "" }] } });
-    assert.doesNotMatch(html, />Read in conversation</);
-    if (kind === "call_log") {
-      assert.match(html, /Call-log result; no conversation link/);
-      assert.doesNotMatch(html, /Original conversation link unavailable/);
-    } else {
-      assert.match(html, /Original conversation link unavailable; no conversation mapping/);
-      assert.doesNotMatch(html, /Call-log result/);
-    }
+    const { html } = search({ isSuccess: true, data: { status: "ok", legs: [], items: [{ text: "Indexed content", legs: ["proffer"],
+      citation: { collection: "fixture", object_id: "unmapped", source_version_ids: [], locator: kind ? { record_type: kind } : {} },
+    }] } });
+    assert.doesNotMatch(html, /href="\/read/);
+    assert.match(html, new RegExp(kind ?? "type not supplied by index"));
+    if (kind !== "call_log") assert.doesNotMatch(html, /call_log/);
   }
 });
 
@@ -222,6 +232,9 @@ test("Read route switches preview aliases without remounting preview state on qu
       "@/lib/router-compat": { ...common["@/lib/router-compat"], useBrowserSearchParams: () => new URLSearchParams(`${query}&thread=kept`) },
       "@/components/read/read-workspace": { ReadWorkspace: () => React.createElement("div", null, "Imported reading") },
       "@/components/sbv/proffer-preview-client": { ProfferPreviewClient: () => React.createElement("div", null, "Existing previews") },
+      "@/components/review/ai-candidate-review": { AICandidateReview: () => React.createElement("div", null, "Native AI review") },
+      "@/components/sbv/decoded-source-viewer": { DecodedSourceViewer: () => null },
+      "@/components/sbv/source-message-preview": { SourceMessagePreview: () => null },
     });
     const tree = ReadPage();
     assert.equal(tree.props.children[1].key, null, "URL changes must preserve pending parser/repair gate answers");
