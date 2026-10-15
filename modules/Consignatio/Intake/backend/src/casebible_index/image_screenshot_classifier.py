@@ -18,38 +18,37 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import ImageOps
 
 from .image_decode import open_image
 
-MODEL = "meta/llama-3.2-11b-vision-instruct"
+MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
-PROMPT_VERSION = "screenshot-app-ui-v4-two-reference-schema"
-PREPROCESS_VERSION = "three-panel-1110x850-jpeg-v1"
+PROMPT_VERSION = "screenshot-app-ui-v5-native-two-shot"
+PREPROCESS_VERSION = "native-target-1024-jpeg-q85-v1"
 VERSION = f"{MODEL}:{PROMPT_VERSION}:{PREPROCESS_VERSION}"
 MAX_REFERENCE_BYTES = 2_000_000
-MAX_CANVAS_BYTES = 1_000_000
+MAX_TARGET_BYTES = 1_000_000
 APPS = frozenset(
     {"facebook-messenger", "messages", "snapchat", "whatsapp", "instagram", "browser", "other", "mixed", "unknown"}
 )
 DECISIONS = frozenset({"yes", "no", "unknown"})
-PROMPT_PREFIX = (
-    "This ONE image has three labeled panels. REFERENCE A INPUT is the left panel. "
-    "REFERENCE A OUTPUT is exactly: "
+SYSTEM_PROMPT = (
+    "Classify whether the current image is a screenshot and identify its visible app UI. "
+    "Use the two prior image-and-answer turns only as examples, not as evidence about the final image. "
+    "Judge app from visible controls, chrome, or logos, never conversation topics or filenames. "
+    "A cropped or renamed screenshot still counts; PNG format alone proves nothing. "
+    "Valid screenshot_decision: yes, no, unknown. Valid app: facebook-messenger, messages, "
+    "snapchat, whatsapp, instagram, browser, other, mixed, unknown. Mixed requires multiple "
+    "app UIs within the current image. Return only JSON with exactly screenshot_decision, app, "
+    "confidence, basis. Confidence is an uncalibrated integer 0..100; set zero if decision or "
+    "app is unknown. For no/unknown decision, app must be unknown and confidence zero. "
+    "Basis must briefly describe visible UI without transcribing messages, names, credentials, "
+    "or secrets."
 )
-PROMPT_MIDDLE = " REFERENCE B INPUT is the middle panel. REFERENCE B OUTPUT is exactly: "
-PROMPT_SUFFIX = (
-    " TARGET INPUT is the right panel. Return TARGET OUTPUT only. Classify its visible app "
-    "chrome, controls and logos; do not infer app from message topics or names. A cropped or "
-    "renamed screenshot still counts; PNG format alone proves nothing. Use screenshot_decision "
-    "yes/no/unknown; app must be facebook-messenger, messages, snapchat, whatsapp, instagram, "
-    "browser, other, mixed, or unknown. Mixed requires multiple app UIs within TARGET, not "
-    "across the three panels. Confidence is uncalibrated integer 0..100; use zero if decision "
-    "or app is unknown. Return ONLY a JSON object with exactly screenshot_decision, app, "
-    "confidence and basis. Basis describes visible UI; never transcribe messages, names, "
-    "credentials, or secrets. "
-    "Now return JSON for TARGET only."
-)
+REFERENCE_A_PROMPT = "Classify REFERENCE A only. Return the four-field JSON answer for this image."
+REFERENCE_B_PROMPT = "Classify REFERENCE B only. Return the four-field JSON answer for this image."
+TARGET_PROMPT = "Classify TARGET only. Ignore the reference images when judging TARGET. Return TARGET JSON only."
 
 FENCE = re.compile(r"\A```(?:json)?\s*\n(?P<body>[\s\S]*?)\n```\s*\Z", re.IGNORECASE)
 
@@ -59,7 +58,7 @@ class ReferenceBundle:
     """Two hash-checked derived UI references and their cache/provenance fingerprint.
 
     Inputs: validated manifest and JPEG bytes. Output: immutable runtime bundle. Side effects:
-    none. Pick this only for classifier canvas construction, never OCR or embedding.
+    none. Pick this only for classifier example turns, never OCR or embedding.
     """
 
     version: str
@@ -71,7 +70,7 @@ def load_reference_bundle(manifest_path: Path, output_dir: Path) -> ReferenceBun
     """Validate exactly two reviewed reference derivatives beneath the output lake.
 
     Inputs: absolute manifest path and attached output root. Output: hash-checked JPEG bundle
-    with a version derived from model, prompt, layout, labels and source/derived hashes. Side
+    with a version derived from model, prompt, preprocessing, labels and source/derived hashes. Side
     effects: bounded reads only. Pick this once per facts activity before any provider request.
     Invalid or unavailable inputs raise ValueError/OSError for a safe unknown result upstream.
     """
@@ -128,44 +127,33 @@ def load_reference_bundle(manifest_path: Path, output_dir: Path) -> ReferenceBun
     )
 
 
-def prompt_for(bundle: ReferenceBundle) -> str:
-    """Put both reviewed input-output examples before the unanswered target instruction.
+def target_jpeg(source: Path | io.BytesIO | bytes) -> bytes:
+    """Make a bounded native JPEG of one retained target without reference pixels.
 
-    Inputs: validated reference labels. Output: short two-example prompt. Side effects: none.
-    Pick this only with the matching comparison canvas so example labels and pixels agree.
+    Inputs: fetched source path or in-memory source bytes. Output: JPEG at quality 85 with
+    longest edge at most 1024 and at most one megabyte. Side effects: image decoding only;
+    original source is never written. Pick this only for classifier inference, while OCR and
+    embeddings continue to use the original fetched image.
     """
-    example_a = json.dumps(bundle.expected[0], sort_keys=True, separators=(",", ":"))
-    example_b = json.dumps(bundle.expected[1], sort_keys=True, separators=(",", ":"))
-    return PROMPT_PREFIX + example_a + PROMPT_MIDDLE + example_b + PROMPT_SUFFIX
-
-
-def comparison_canvas(bundle: ReferenceBundle, target: Path | io.BytesIO | bytes) -> bytes:
-    """Make one bounded JPEG showing two examples beside the target image.
-
-    Inputs: checked reference bundle and retained target path. Output: JPEG no larger than
-    1110x850 and one megabyte. Side effects: image decoding only; no source files are written.
-    Pick this only for the hosted screenshot classifier; OCR/embeddings use the original target.
-    """
-    canvas = Image.new("RGB", (1110, 850), "#e5e7eb")
-    draw = ImageDraw.Draw(canvas)
-    font = ImageFont.load_default(size=18)
-    target_source = io.BytesIO(target) if isinstance(target, bytes) else target
-    for index, source in enumerate((io.BytesIO(bundle.images[0]), io.BytesIO(bundle.images[1]), target_source)):
-        x = 10 + index * 370
-        draw.rectangle((x, 10, x + 349, 839), fill="white")
-        draw.rectangle((x, 10, x + 349, 40), fill="#1f2937")
-        draw.text((x + 8, 16), ("REFERENCE A", "REFERENCE B", "TARGET")[index], fill="white", font=font)
-        with open_image(source) as image:
-            image.seek(0)
-            oriented = ImageOps.exif_transpose(image).convert("RGB")
-            oriented.thumbnail((338, 788))
-            canvas.paste(oriented, (x + (350 - oriented.width) // 2, 44 + (790 - oriented.height) // 2))
-    for quality in (75, 60):
+    image_source = io.BytesIO(source) if isinstance(source, bytes) else source
+    with open_image(image_source) as image:
+        image.seek(0)
+        oriented = ImageOps.exif_transpose(image).convert("RGB")
+        oriented.thumbnail((1024, 1024))
         buffer = io.BytesIO()
-        canvas.save(buffer, format="JPEG", quality=quality)
-        if buffer.tell() <= MAX_CANVAS_BYTES:
-            return buffer.getvalue()
-    raise ValueError("comparison canvas exceeds provider byte cap")
+        oriented.save(buffer, format="JPEG", quality=85)
+    if buffer.tell() > MAX_TARGET_BYTES:
+        raise ValueError("target JPEG exceeds provider byte cap")
+    return buffer.getvalue()
+
+
+def image_part(jpeg: bytes) -> dict[str, Any]:
+    """Wrap one bounded JPEG as a provider image part for its own user turn.
+
+    Inputs: validated reference or derived target JPEG bytes. Output: image_url content part.
+    Side effects: none. Pick this for the classifier's native multimodal example/target turns.
+    """
+    return {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()}}
 
 
 def unknown(status: str, basis: str = "", *, version: str = VERSION) -> dict[str, Any]:
@@ -307,33 +295,22 @@ async def classify(
     usage: dict[str, int] = {}
     diagnostic: dict[str, str] = {}
     try:
-        image = comparison_canvas(bundle, path)
+        image = target_jpeg(path)
         body = {
             "model": MODEL,
             "temperature": 0,
-            "max_tokens": 256,
+            "max_tokens": 512,
+            "reasoning_budget": 128,
             "stream": False,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "ScreenshotClassification",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "screenshot_decision": {"type": "string", "enum": ["yes", "no", "unknown"]},
-                            "app": {"type": "string", "enum": sorted(APPS)},
-                            "confidence": {"type": "integer", "minimum": 0, "maximum": 100},
-                            "basis": {"type": "string", "minLength": 1, "maxLength": 120},
-                        },
-                        "required": ["screenshot_decision", "app", "confidence", "basis"],
-                        "additionalProperties": False,
-                    },
-                },
-            },
-            "messages": [{"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(image).decode()}},
-                {"type": "text", "text": prompt_for(bundle)},
-            ]}],
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": [image_part(bundle.images[0]), {"type": "text", "text": REFERENCE_A_PROMPT}]},
+                {"role": "assistant", "content": json.dumps(bundle.expected[0], sort_keys=True, separators=(",", ":"))},
+                {"role": "user", "content": [image_part(bundle.images[1]), {"type": "text", "text": REFERENCE_B_PROMPT}]},
+                {"role": "assistant", "content": json.dumps(bundle.expected[1], sort_keys=True, separators=(",", ":"))},
+                {"role": "user", "content": [image_part(image), {"type": "text", "text": TARGET_PROMPT}]},
+            ],
         }
         request_made = True
         response = await client.post(ENDPOINT, headers={"Authorization": f"Bearer {key}"}, json=body)

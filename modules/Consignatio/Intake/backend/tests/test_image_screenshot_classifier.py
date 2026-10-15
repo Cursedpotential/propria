@@ -17,13 +17,11 @@ from PIL import Image
 
 from casebible_index import image_stage
 from casebible_index.image_screenshot_classifier import (
-    APPS,
     VERSION,
     cache_path,
     classify,
-    comparison_canvas,
     load_reference_bundle,
-    prompt_for,
+    target_jpeg,
     validate_reply,
 )
 from casebible_index.image_slice import ImageItem, Slice, table_path
@@ -101,8 +99,8 @@ def test_classifier_rejects_structurally_invalid_result():
 
 
 @pytest.mark.asyncio
-async def test_classifier_sends_image_first_and_reuses_versioned_sha_cache(tmp_path: Path):
-    """Use the verified hosted request order and avoid a second call for identical bytes.
+async def test_classifier_sends_native_two_shot_turns_and_reuses_versioned_sha_cache(tmp_path: Path):
+    """Send distinct image-answer examples before target and cache identical target bytes.
 
     Inputs: synthetic image and mock HTTP client. Output: proposal and one call count. Side
     effects: local lake cache only. Pick this to verify provider shape and SHA/version reuse.
@@ -116,35 +114,26 @@ async def test_classifier_sends_image_first_and_reuses_versioned_sha_cache(tmp_p
     def respond(request: httpx.Request) -> httpx.Response:
         calls.append(request)
         body = json.loads(request.content)
-        assert body["model"] == "meta/llama-3.2-11b-vision-instruct"
-        assert body["response_format"] == {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "ScreenshotClassification",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "screenshot_decision": {"type": "string", "enum": ["yes", "no", "unknown"]},
-                        "app": {"type": "string", "enum": sorted(APPS)},
-                        "confidence": {"type": "integer", "minimum": 0, "maximum": 100},
-                        "basis": {"type": "string", "minLength": 1, "maxLength": 120},
-                    },
-                    "required": ["screenshot_decision", "app", "confidence", "basis"],
-                    "additionalProperties": False,
-                },
-            },
-        }
-        content = body["messages"][0]["content"]
-        assert content[0]["type"] == "image_url" and content[1]["type"] == "text"
-        assert content[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
-        canvas = Image.open(io.BytesIO(base64.b64decode(content[0]["image_url"]["url"].split(",", 1)[1])))
-        assert canvas.size == (1110, 850)
-        prompt = content[1]["text"]
-        assert "TARGET only" in prompt
-        assert "REFERENCE A OUTPUT is exactly" in prompt
-        assert "REFERENCE B OUTPUT is exactly" in prompt
-        for expected in bundle.expected:
-            assert json.dumps(expected, sort_keys=True, separators=(",", ":")) in prompt
+        assert body["model"] == "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+        assert body["response_format"] == {"type": "json_object"}
+        assert body["reasoning_budget"] == 128 and body["max_tokens"] == 512
+        messages = body["messages"]
+        assert [message["role"] for message in messages] == ["system", "user", "assistant", "user", "assistant", "user"]
+        assert "never conversation topics or filenames" in messages[0]["content"]
+        assert "without transcribing messages, names, credentials" in messages[0]["content"]
+        for user_index, assistant_index, reference_index in ((1, 2, 0), (3, 4, 1)):
+            content = messages[user_index]["content"]
+            assert [part["type"] for part in content] == ["image_url", "text"]
+            assert f"REFERENCE {'AB'[reference_index]} only" in content[1]["text"]
+            assert base64.b64decode(content[0]["image_url"]["url"].split(",", 1)[1]) == bundle.images[reference_index]
+            assert json.loads(messages[assistant_index]["content"]) == bundle.expected[reference_index]
+        target_content = messages[5]["content"]
+        assert [part["type"] for part in target_content] == ["image_url", "text"]
+        assert "TARGET only" in target_content[1]["text"]
+        target_bytes = base64.b64decode(target_content[0]["image_url"]["url"].split(",", 1)[1])
+        assert target_bytes not in bundle.images
+        target_image = Image.open(io.BytesIO(target_bytes))
+        assert target_image.format == "JPEG" and max(target_image.size) <= 1024
         return httpx.Response(200, json=_reply("yes", "facebook-messenger", 76))
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
@@ -156,7 +145,7 @@ async def test_classifier_sends_image_first_and_reuses_versioned_sha_cache(tmp_p
     assert first["screenshot_classifier_version"] == bundle.version
 
 
-def test_reference_manifest_hashes_labels_and_target_panel_are_bound(tmp_path: Path):
+def test_reference_manifest_hashes_labels_and_native_target_are_bound(tmp_path: Path):
     """Bind example labels and derived hashes to cache identity while keeping target separate.
 
     Inputs: synthetic references and two target images. Output: version and panel assertions.
@@ -167,17 +156,16 @@ def test_reference_manifest_hashes_labels_and_target_panel_are_bound(tmp_path: P
     first_target = _image()
     changed_target = io.BytesIO()
     Image.new("RGB", (400, 800), "red").save(changed_target, format="PNG")
-    first_canvas = Image.open(io.BytesIO(comparison_canvas(bundle, first_target)))
-    changed_canvas = Image.open(io.BytesIO(comparison_canvas(bundle, changed_target.getvalue())))
-    assert first_canvas.crop((0, 0, 730, 850)).tobytes() == changed_canvas.crop((0, 0, 730, 850)).tobytes()
-    assert first_canvas.crop((740, 0, 1110, 850)).tobytes() != changed_canvas.crop((740, 0, 1110, 850)).tobytes()
-    assert prompt_for(bundle).endswith("Now return JSON for TARGET only.")
+    first_jpeg = target_jpeg(first_target)
+    changed_jpeg = target_jpeg(changed_target.getvalue())
+    assert first_jpeg != changed_jpeg
+    assert Image.open(io.BytesIO(first_jpeg)).size == (400, 800)
     manifest_data = json.loads(manifest.read_text())
     manifest_data["references"][0]["expected"]["basis"] = "changed visual controls"
     manifest.write_text(json.dumps(manifest_data))
     updated = load_reference_bundle(manifest, tmp_path)
     assert updated.version != bundle.version
-    assert prompt_for(updated) != prompt_for(bundle)
+    assert updated.expected != bundle.expected
     manifest_data["references"][0]["derived_sha256"] = "0" * 64
     manifest.write_text(json.dumps(manifest_data))
     with pytest.raises(ValueError, match="hash mismatch"):
