@@ -22,7 +22,7 @@ function reader(kind) {
       useState(initial) { const index = cursor++; if (!(index in state)) state[index] = initial; return [state[index], (value) => { state[index] = typeof value === "function" ? value(state[index]) : value; }]; },
     } : name === "@/components/ui/button" ? { Button: "button" } : require(name),
   });
-  const inspection = { preview_kind: kind, name: `fixture.${kind}`, content_type: `${kind}/fixture`, provider_version_id: "version-a", preview_url: "/api/proffer/source-content?key=fixture&version_id=version-a&etag=opaque" };
+  const inspection = { preview_kind: kind, name: `fixture.${kind}`, content_type: `${kind}/fixture`, provider_version_id: "version-a", preview_url: "/api/proffer/source-content?root_id=fixture-root&key=fixture&version_id=version-a&etag=opaque&expected_byte_length=123" };
   const render = () => { cursor = 0; return module.exports.SourceMediaPreview({ inspection }); };
   return { render, inspection };
 }
@@ -42,7 +42,13 @@ for (const kind of ["image", "audio", "video"]) test(`${kind} exposes loading, d
   tree = fixture.render();
   media = tree.props.children.find((child) => ["img", "audio", "video"].includes(child?.type));
   assert.notEqual(media.key, initialKey);
-  assert.equal(media.props.src, fixture.inspection.preview_url);
+  assert.notEqual(media.props.src, fixture.inspection.preview_url, "retry must request a new resource URL rather than reuse a cached browser failure");
+  const original = new URL(fixture.inspection.preview_url, "http://fixture.local");
+  const retried = new URL(media.props.src, "http://fixture.local");
+  assert.equal(retried.pathname, original.pathname);
+  assert.equal(retried.searchParams.get("_preview_retry"), "1");
+  retried.searchParams.delete("_preview_retry");
+  assert.deepEqual([...retried.searchParams], [...original.searchParams], "all source identity pins must remain unchanged");
   (media.props.onLoad ?? media.props.onLoadedMetadata)();
   assert.doesNotMatch(renderToStaticMarkup(fixture.render()), /Loading original media|could not load or decode/);
 });

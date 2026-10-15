@@ -12,8 +12,12 @@ export function SourceMediaPreview({ inspection }: { inspection: ProfferSourcePr
   const [reason, setReason] = useState("");
   const ready = () => setStatus("ready");
   const failed = (detail: string) => { setReason(detail); setStatus("failed"); };
+  // Retry bypasses the browser's failed-resource cache without changing any source identity pin.
+  const mediaUrl = inspection.preview_url && attempt > 0
+    ? `${inspection.preview_url}${inspection.preview_url.includes("?") ? "&" : "?"}_preview_retry=${attempt}`
+    : inspection.preview_url;
   const mediaProps = {
-    src: inspection.preview_url ?? undefined,
+    src: mediaUrl ?? undefined,
     onError: () => failed("The browser could not load or decode this original. The stored bytes, delivery, or media format need inspection."),
   };
   return <div className="space-y-2" aria-busy={status === "loading"}>
