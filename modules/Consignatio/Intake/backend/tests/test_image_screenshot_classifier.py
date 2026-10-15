@@ -17,6 +17,7 @@ from PIL import Image
 
 from casebible_index import image_stage
 from casebible_index.image_screenshot_classifier import (
+    APPS,
     VERSION,
     cache_path,
     classify,
@@ -116,7 +117,23 @@ async def test_classifier_sends_image_first_and_reuses_versioned_sha_cache(tmp_p
         calls.append(request)
         body = json.loads(request.content)
         assert body["model"] == "meta/llama-3.2-11b-vision-instruct"
-        assert body["response_format"] == {"type": "json_object"}
+        assert body["response_format"] == {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "ScreenshotClassification",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "screenshot_decision": {"type": "string", "enum": ["yes", "no", "unknown"]},
+                        "app": {"type": "string", "enum": sorted(APPS)},
+                        "confidence": {"type": "integer", "minimum": 0, "maximum": 100},
+                        "basis": {"type": "string", "minLength": 1, "maxLength": 120},
+                    },
+                    "required": ["screenshot_decision", "app", "confidence", "basis"],
+                    "additionalProperties": False,
+                },
+            },
+        }
         content = body["messages"][0]["content"]
         assert content[0]["type"] == "image_url" and content[1]["type"] == "text"
         assert content[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")

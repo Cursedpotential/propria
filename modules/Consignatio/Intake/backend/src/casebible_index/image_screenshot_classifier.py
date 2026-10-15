@@ -24,7 +24,7 @@ from .image_decode import open_image
 
 MODEL = "meta/llama-3.2-11b-vision-instruct"
 ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
-PROMPT_VERSION = "screenshot-app-ui-v3-two-reference"
+PROMPT_VERSION = "screenshot-app-ui-v4-two-reference-schema"
 PREPROCESS_VERSION = "three-panel-1110x850-jpeg-v1"
 VERSION = f"{MODEL}:{PROMPT_VERSION}:{PREPROCESS_VERSION}"
 MAX_REFERENCE_BYTES = 2_000_000
@@ -46,7 +46,8 @@ PROMPT_SUFFIX = (
     "browser, other, mixed, or unknown. Mixed requires multiple app UIs within TARGET, not "
     "across the three panels. Confidence is uncalibrated integer 0..100; use zero if decision "
     "or app is unknown. Return ONLY a JSON object with exactly screenshot_decision, app, "
-    "confidence and basis. Basis describes visible UI without quoting conversation content. "
+    "confidence and basis. Basis describes visible UI; never transcribe messages, names, "
+    "credentials, or secrets. "
     "Now return JSON for TARGET only."
 )
 
@@ -312,7 +313,23 @@ async def classify(
             "temperature": 0,
             "max_tokens": 256,
             "stream": False,
-            "response_format": {"type": "json_object"},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "ScreenshotClassification",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "screenshot_decision": {"type": "string", "enum": ["yes", "no", "unknown"]},
+                            "app": {"type": "string", "enum": sorted(APPS)},
+                            "confidence": {"type": "integer", "minimum": 0, "maximum": 100},
+                            "basis": {"type": "string", "minLength": 1, "maxLength": 120},
+                        },
+                        "required": ["screenshot_decision", "app", "confidence", "basis"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
             "messages": [{"role": "user", "content": [
                 {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(image).decode()}},
                 {"type": "text", "text": prompt_for(bundle)},
