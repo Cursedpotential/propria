@@ -216,7 +216,9 @@ async def test_decisions_request_routes_three_bounded_images_and_uses_separate_c
         assert sum(map(len, decoded)) <= DECISIONS_TOTAL_BYTES
         assert decoded[2] not in decoded[:2]
         assert all(Image.open(io.BytesIO(data)).format == "JPEG" for data in decoded)
-        return httpx.Response(200, json=_decisions_reply())
+        reply = _decisions_reply()
+        reply["usage"] = {"input_tokens": 2091, "output_tokens": 2, "cost": 0.00004182}
+        return httpx.Response(200, json=reply)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
         first = await classify(source, digest, tmp_path, "placeholder-key", client, bundle)
@@ -224,10 +226,11 @@ async def test_decisions_request_routes_three_bounded_images_and_uses_separate_c
     assert len(calls) == 1 and second["_cache_hit"]
     assert first["screenshot_classifier_provider"] == "openrouter-decisions"
     assert (first["screenshot_decision"], first["screenshot_app"], first["screenshot_app_confidence"]) == ("yes", "messages", 80)
-    assert first["_usage"]["prompt_tokens"] == 100
-    assert first["_billed_cost_usd"] == 0.001
+    assert first["_usage"] == {"prompt_tokens": 2091, "completion_tokens": 2, "total_tokens": 2093}
+    assert first["_billed_cost_usd"] == 0.00004182
+    assert "_usage" not in second and "_billed_cost_usd" not in second
     assert first["_diagnostic"]["served_model"] == "perplexity/pplx-decider-v1.1-27b-20261006"
-    assert '"billed_cost_usd": 0.001' in cache_path(tmp_path, digest, version=bundle.version).read_text()
+    assert json.loads(cache_path(tmp_path, digest, version=bundle.version).read_text())["billed_cost_usd"] == 0.00004182
 
 
 def test_decisions_reply_rejects_malformed_weak_and_contradictory_answers():

@@ -496,6 +496,12 @@ async def classify(
                 for field in ("prompt_tokens", "completion_tokens", "total_tokens")
                 if type(value := raw_usage.get(field)) is int and 0 <= value <= 1_000_000
             }
+            if bundle.provider == "openrouter-decisions" and "total_tokens" not in usage and {
+                "prompt_tokens", "completion_tokens"
+            } <= usage.keys():
+                total = usage["prompt_tokens"] + usage["completion_tokens"]
+                if total <= 1_000_000:
+                    usage["total_tokens"] = total
         if bundle.provider == "openrouter-decisions":
             result = validate_decisions_reply(payload, version=bundle.version)
             diagnostic["content_format"] = "typed_decisions"
