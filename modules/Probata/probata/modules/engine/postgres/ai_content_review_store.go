@@ -557,6 +557,7 @@ func verifyAINativeClock(document any, format string, candidate service.AICandid
 // ListAICandidates reads retained-source proposal rows across the existing entity/event/fact review tables.
 // Inputs: source version UUID and result limit. Outputs: bounded pending and decided proposal views.
 // Effects: read-only. Choose for AI review, never normalized-message review.
+// Native quotes are hydrated only in this response from digest-verified external evidence; saved candidate digests remain unchanged.
 func (s *EntityExtractionStore) ListAICandidates(ctx context.Context, sourceVersionID, afterID string, limit int) ([]service.AIReviewRow, error) {
 	if limit < 1 || limit > 500 {
 		limit = 500
@@ -571,9 +572,14 @@ func (s *EntityExtractionStore) ListAICandidates(ctx context.Context, sourceVers
 	}
 	defer rows.Close()
 	out := make([]service.AIReviewRow, 0)
+	evidence := newNativeCandidateReadPage()
 	for rows.Next() {
 		var row service.AIReviewRow
 		if err := rows.Scan(&row.ID, &row.Kind, &row.ReportedKind, &row.ReviewDomain, &row.ReviewState, &row.ContentSHA256, &row.DecisionID, &row.Candidate, &row.ReviewDecision); err != nil {
+			return nil, err
+		}
+		row, err = evidence.hydrate(sourceVersionID, row)
+		if err != nil {
 			return nil, err
 		}
 		out = append(out, row)
