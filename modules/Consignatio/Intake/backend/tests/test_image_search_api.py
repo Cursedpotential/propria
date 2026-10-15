@@ -110,6 +110,61 @@ async def test_each_enabled_lane_is_queried_and_the_kind_filter_reaches_every_qu
         "v/Screenshot_a.png",
         "screenshot",
     )
+    assert (top.screenshot_decision, top.screenshot_app, top.screenshot_classifier_status) == (
+        "unknown", "unknown", "unknown",
+    )
+    assert top.screenshot_app_confidence == 0
+
+
+@pytest.mark.asyncio
+async def test_app_filter_reaches_every_lane_and_classifier_fields_read_back():
+    queries: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        query = json.loads(request.content)["query"]
+        queries.append(query)
+        row = {
+            **ROW,
+            "screenshot_decision": "yes",
+            "screenshot_app": "facebook-messenger",
+            "screenshot_app_confidence": 92,
+            "screenshot_app_basis": "visible Messenger header",
+            "screenshot_classifier_version": "v1",
+            "screenshot_classifier_provider": "local",
+            "screenshot_classifier_status": "complete",
+            "_additional": {"id": "messenger-row", "distance": 0.25, "score": "1.5"},
+        }
+        return httpx.Response(200, json={"data": {"Get": {"IntakeImageV1": [row]}}})
+
+    searcher = WeaviateImageSearcher("http://w.test", "IntakeImageV1")
+    hits = await searcher.search(
+        "rent receipt", limit=5, mode="hybrid", embedders=embedders(),
+        transport=httpx.MockTransport(handler), kind="screenshot", app="facebook-messenger",
+        lanes=("image_single",),
+    )
+    assert len(queries) == 2
+    assert all('path: ["screenshot_app"], operator: Equal, valueText: "facebook-messenger"' in q for q in queries)
+    assert len(hits) == 1
+    hit = hits[0]
+    assert (hit.screenshot_decision, hit.screenshot_app, hit.screenshot_app_confidence) == (
+        "yes", "facebook-messenger", 92,
+    )
+    assert (hit.screenshot_app_basis, hit.screenshot_classifier_version,
+            hit.screenshot_classifier_provider, hit.screenshot_classifier_status) == (
+        "visible Messenger header", "v1", "local", "complete",
+    )
+
+
+@pytest.mark.asyncio
+async def test_unknown_app_matches_old_rows_without_app_metadata():
+    queries: list[str] = []
+    searcher = WeaviateImageSearcher("http://w.test", "IntakeImageV1")
+    hits = await searcher.search(
+        "rent receipt", limit=5, mode="keyword", embedders=None,
+        transport=weaviate(queries), app="unknown",
+    )
+    assert len(hits) == 1 and hits[0].screenshot_app == "unknown"
+    assert 'path: ["screenshot_app"]' not in queries[0]
 
 
 @pytest.mark.asyncio
@@ -153,11 +208,18 @@ def test_images_search_route_reports_lanes_and_503s_without_configuration(monkey
             query=request.query,
             collection="IntakeImageV1",
             kind=request.kind,
+            app=request.app,
             lanes=["image_maxsim"],
             hits=[],
         )
 
     monkeypatch.setattr("casebible_index.api.search_images", fake)
-    answer = client.post("/images/search", json={"query": "rent", "kind": "screenshot"})
-    assert answer.status_code == 200 and answer.json()["kind"] == "screenshot"
+    answer = client.post("/images/search", json={
+        "query": "rent", "kind": "screenshot", "app": "facebook-messenger",
+    })
+    assert answer.status_code == 200
+    assert (answer.json()["kind"], answer.json()["app"]) == (
+        "screenshot", "facebook-messenger",
+    )
     assert client.post("/images/search", json={"query": "rent", "kind": "video"}).status_code == 422
+    assert client.post("/images/search", json={"query": "rent", "app": "unlisted"}).status_code == 422

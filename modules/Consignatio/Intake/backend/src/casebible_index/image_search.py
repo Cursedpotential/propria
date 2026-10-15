@@ -31,9 +31,15 @@ _FIELDS = (
     "original_time original_time_source "
     "original_time_confidence original_time_conflict device software gps is_screenshot "
     "ocr_text provider bucket vault_key image_kind source_kind page identity "
+    "screenshot_decision screenshot_app screenshot_app_confidence screenshot_app_basis "
+    "screenshot_classifier_version screenshot_classifier_provider screenshot_classifier_status "
     "_additional { id distance score }"
 )
 KINDS = ("screenshot", "photo", "scan")
+APPS = (
+    "facebook-messenger", "messages", "snapchat", "whatsapp", "instagram",
+    "browser", "other", "mixed", "unknown",
+)
 
 
 class ImageHit(BaseModel):
@@ -68,6 +74,13 @@ class ImageHit(BaseModel):
     source_kind: str = ""
     page: int = 0
     identity: str = ""
+    screenshot_decision: str = "unknown"
+    screenshot_app: str = "unknown"
+    screenshot_app_confidence: int = 0
+    screenshot_app_basis: str = ""
+    screenshot_classifier_version: str = ""
+    screenshot_classifier_provider: str = ""
+    screenshot_classifier_status: str = "unknown"
     ocr_span_start: int | None = None
     ocr_span_end: int | None = None
     region_status: Literal["not_recorded"] = "not_recorded"
@@ -139,30 +152,43 @@ class WeaviateImageSearcher:
         self.timeout = timeout
 
     @staticmethod
-    def _where(kind: str | None) -> str:
-        """The active-only filter, plus ``image_kind`` when a kind is asked for. Dict filters \
-only (a FilterExpr
-        applies zero filters in production)."""
+    def _where(kind: str | None, app: str | None = None) -> str:
+        """Build an active image filter with optional kind and named screenshot app.
+
+        Inputs: validated kind and app names. Output: a Weaviate GraphQL filter string.
+        Side effects: none. Use this for image queries rather than the filesystem text filter.
+        The unknown app is checked after retrieval so old rows with no app remain eligible.
+        """
         active = '{path: ["active"], operator: Equal, valueBoolean: true}'
-        if not kind:
-            return active
-        if kind not in KINDS:
+        if kind is not None and kind not in KINDS:
             raise ValueError(f"image kind must be one of {KINDS}")
-        return (
-            "{operator: And, operands: ["
-            + active
-            + ', {path: ["image_kind"], operator: Equal, \
-valueText: '
-            + json.dumps(kind)
-            + "}]}"
-        )
+        if app is not None and app not in APPS:
+            raise ValueError(f"screenshot app must be one of {APPS}")
+        operands = [active]
+        if kind:
+            operands.append(
+                '{path: ["image_kind"], operator: Equal, valueText: '
+                + json.dumps(kind) + "}"
+            )
+        if app and app != "unknown":
+            operands.append(
+                '{path: ["screenshot_app"], operator: Equal, valueText: '
+                + json.dumps(app) + "}"
+            )
+        return active if len(operands) == 1 else "{operator: And, operands: [" + ", ".join(operands) + "]}"
 
     async def _get(
-        self, client: httpx.AsyncClient, operator: str, limit: int, kind: str | None = None
+        self, client: httpx.AsyncClient, operator: str, limit: int,
+        kind: str | None = None, app: str | None = None,
     ) -> list[dict]:
+        """Fetch one ranked candidate lane from the active Intake image collection.
+
+        Inputs: GraphQL operator, candidate limit, kind and app filters. Output: result rows.
+        Side effect: one read-only Weaviate request. Use for each OCR or vector lane.
+        """
         query = (
             f"{{ Get {{ {self.collection}(limit: {limit}, {operator}, "
-            f"where: {self._where(kind)}) {{ "
+            f"where: {self._where(kind, app)}) {{ "
             f"{_FIELDS} }} }} }}"
         )
         response = await client.post(f"{self.url}/v1/graphql", json={"query": query})
@@ -184,26 +210,39 @@ valueText: '
         embedders: ImageEmbedders | None,
         transport: httpx.AsyncBaseTransport | None = None,
         kind: str | None = None,
+        app: str | None = None,
         lanes: tuple[str, ...] | None = None,
         colqwen: ColQwenEmbedder | None = None,
     ) -> list[ImageHit]:
         """Find images by a text question: literal OCR text, plus (hybrid) one vector lane per \
 enabled slot.
 
-        ``kind`` restricts to screenshot, photo or scan (the screenshot filter). ``lanes`` \
+        ``kind`` restricts to screenshot, photo or scan. ``app`` restricts to a
+        classifier app; unknown also includes old unclassified rows. ``lanes`` \
 names the vector lanes to
         query (``image_single``, ``image_maxsim``, ``image_colqwen``, ``image_clip``); None \
 means single plus the Jina
         bag when the embedders have a Jina key (the directory lane's behaviour). A lane needs \
 its named vector in the
-        collection, so the caller passes the slots that were provisioned."""
+        collection, so the caller passes the slots that were provisioned.
+        Inputs: text, candidate limit, mode, embedders, optional filters and lanes.
+        Output: ranked ImageHit records with source and classifier provenance.
+        Side effect: read-only Weaviate and embedder requests; no indexed data changes.
+        Use this for image results rather than the filesystem text searcher.
+        """
         if not query.strip():
             raise ValueError("Search query must contain text")
+        # Validate before making a request, including keyword searches with no matching rows.
+        try:
+            self._where(kind, app)
+        except ValueError as exc:
+            raise ImageSearchError("Invalid image search filter") from exc
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         text = json.dumps(query, ensure_ascii=True)
         merged: dict[str, tuple[str, float, dict, tuple[int, int] | None]] = {}
 
         rank = {"ocr_literal": 0, "maxsim": 1, "colqwen": 2, "single": 3, "clip": 4}
+        candidate_limit = min(limit * 4, 400) if app == "unknown" else limit
 
         def keep(
             row: dict,
@@ -213,6 +252,8 @@ its named vector in the
         ) -> None:
             if not math.isfinite(score):
                 raise ValueError("Nonfinite score")
+            if app == "unknown" and (row.get("screenshot_app") or "unknown") != "unknown":
+                return
             object_id = row["_additional"]["id"]
             prior = merged.get(object_id)
             if prior is None or (rank[matched_by], -score) < (rank[prior[0]], -prior[1]):
@@ -223,7 +264,7 @@ its named vector in the
                 timeout=self.timeout, headers=headers, transport=transport, follow_redirects=False
             ) as client:
                 for row in await self._get(
-                    client, f'bm25: {{query: {text}, properties: ["ocr_text"]}}', limit, kind
+                    client, f'bm25: {{query: {text}, properties: ["ocr_text"]}}', candidate_limit, kind, app
                 ):
                     span = _literal_span(row.get("ocr_text") or "", query)
                     if span is not None:
@@ -249,7 +290,7 @@ its named vector in the
                             f"nearVector: {{vector: {json.dumps(vector, allow_nan=False)}, "
                             f'targetVectors: ["{target}"]}}'
                         )
-                        for row in await self._get(client, near, limit, kind):
+                        for row in await self._get(client, near, candidate_limit, kind, app):
                             # MaxSim distances are negative sums; cosine distances are 0..2.
                             # Both are turned into "higher is better" on their own scale.
                             distance = float(row["_additional"]["distance"])
@@ -262,7 +303,7 @@ its named vector in the
                         # Weaviate's multi2vec-clip embeds the question itself
                         #  (nearText), no client call.
                         near = f'nearText: {{concepts: [{text}], targetVectors: ["{CLIP_VECTOR}"]}}'
-                        for row in await self._get(client, near, limit, kind):
+                        for row in await self._get(client, near, candidate_limit, kind, app):
                             keep(row, "clip", 1.0 - float(row["_additional"]["distance"]))
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             raise ImageSearchError("Image search service unavailable or incompatible") from exc
@@ -319,6 +360,13 @@ its named vector in the
                         )
                         if row.get(key) is not None
                     },
+                    screenshot_decision=row.get("screenshot_decision") or "unknown",
+                    screenshot_app=row.get("screenshot_app") or "unknown",
+                    screenshot_app_confidence=row.get("screenshot_app_confidence") or 0,
+                    screenshot_app_basis=row.get("screenshot_app_basis") or "",
+                    screenshot_classifier_version=row.get("screenshot_classifier_version") or "",
+                    screenshot_classifier_provider=row.get("screenshot_classifier_provider") or "",
+                    screenshot_classifier_status=row.get("screenshot_classifier_status") or "unknown",
                 )
             )
         # Rank channels first: cross-channel scores are not directly comparable.

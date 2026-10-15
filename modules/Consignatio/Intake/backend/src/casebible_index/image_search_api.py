@@ -14,6 +14,7 @@ lane is queried only when its named vector exists:
 (NIM or Google),
   ``image_colqwen`` (ColQwen endpoint) and ``image_clip`` (Weaviate's CLIP module, no client call);
 * ``kind`` restricts to ``screenshot``, ``photo`` or ``scan`` (the "only screenshots" filter).
+* ``app`` restricts to one classified screenshot application.
 
 Every hit carries its locator (``provider``, ``bucket``, ``vault_key``, ``content_sha256``), its
 ``image_kind`` and its
@@ -39,10 +40,19 @@ class ImageSearchRequest(BaseModel):
     limit: int = Field(default=20, ge=1, le=100)
     mode: Literal["hybrid", "keyword"] = "hybrid"
     kind: Literal["screenshot", "photo", "scan"] | None = None
+    app: Literal[
+        "facebook-messenger", "messages", "snapchat", "whatsapp", "instagram",
+        "browser", "other", "mixed", "unknown",
+    ] | None = None
 
     @field_validator("query")
     @classmethod
     def query_has_text(cls, value: str) -> str:
+        """Require nonblank query text before calling the image search service.
+
+        Input: request query. Output: the validated query. Side effects: none.
+        Use this validator for request parsing rather than a downstream service error.
+        """
         if not value.strip():
             raise ValueError("Search query must contain text")
         return value
@@ -52,6 +62,7 @@ class ImageSearchResponse(BaseModel):
     query: str
     collection: str
     kind: str | None
+    app: str | None = None
     lanes: list[str]
     hits: list[ImageHit]
 
@@ -62,7 +73,9 @@ async def search_images(request: ImageSearchRequest) -> ImageSearchResponse:
     Inputs: the request and the environment (``INTAKE_IMAGES_*``, keys by name). Output: hits
     grouped by channel
     (OCR literal first, then each vector lane). Raises ``ValueError`` for a missing URL or key and
-    ``ImageSearchError`` when Weaviate is unavailable or incompatible. Nothing is written."""
+    ``ImageSearchError`` when Weaviate is unavailable or incompatible. Nothing is written.
+    Use this route wrapper for the configured Super Index collection; use the lower-level
+    searcher for a caller-managed collection or transport."""
     settings = ImageStageSettings.from_env()
     if not settings.weaviate_url:
         raise ValueError("INTAKE_IMAGES_WEAVIATE_URL (or INTAKE_WEAVIATE_URL) is not configured")
@@ -72,12 +85,14 @@ async def search_images(request: ImageSearchRequest) -> ImageSearchResponse:
     )
     if request.mode == "keyword":
         hits = await searcher.search(
-            request.query, limit=request.limit, mode="keyword", embedders=None, kind=request.kind
+            request.query, limit=request.limit, mode="keyword", embedders=None,
+            kind=request.kind, app=request.app,
         )
         return ImageSearchResponse(
             query=request.query,
             collection=settings.collection,
             kind=request.kind,
+            app=request.app,
             lanes=[],
             hits=hits,
         )
@@ -101,6 +116,7 @@ async def search_images(request: ImageSearchRequest) -> ImageSearchResponse:
             mode="hybrid",
             embedders=embedders,
             kind=request.kind,
+            app=request.app,
             lanes=lanes,
             colqwen=colqwen,
         )
@@ -108,6 +124,7 @@ async def search_images(request: ImageSearchRequest) -> ImageSearchResponse:
         query=request.query,
         collection=settings.collection,
         kind=request.kind,
+        app=request.app,
         lanes=list(lanes),
         hits=hits,
     )
