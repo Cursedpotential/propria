@@ -64,6 +64,24 @@ def _posix(path: Path) -> str:
     return path.resolve().as_posix().replace("'", "''")
 
 
+def _publish_connection(output_dir: Path, purpose: str) -> duckdb.DuckDBPyConnection:
+    """Open DuckDB with a private writable spill directory inside the attached output lake.
+
+    Inputs are the output lake and publish or relocation purpose; returns a connection.
+    Creates a unique scratch directory, never source or index data. Use for large
+    publish queries rather than a default connection that spills under the read-only cwd.
+    """
+    spill_dir = output_dir.resolve() / "scratch" / "duckdb" / f"{purpose}-{uuid.uuid4().hex}"
+    spill_dir.mkdir(parents=True, exist_ok=False)
+    con = duckdb.connect()
+    try:
+        con.execute(f"SET temp_directory='{_posix(spill_dir)}'")
+    except Exception:
+        con.close()
+        raise
+    return con
+
+
 def ledger_dir(output_dir: Path) -> Path:
     return output_dir / "datasets" / "published"
 
@@ -139,11 +157,17 @@ async def publish_pending(
     run_id: str,
     beat: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
+    """Publish one bounded batch of vector-ready chunks and append immutable ledger rows.
+
+    Inputs are the lake, chunk store, slots, cap, run ID and heartbeat; returns counts.
+    Upserts Weaviate and writes the published ledger. Use for new chunks; relocation
+    of existing objects is handled by ``relocate_moved``.
+    """
     await store.ensure_collection({s.name: s.dimensions for s in slots})
     sql = pending_batch_sql(output_dir, slots, max_objects + 1)
     if sql is None:
         return {"published": 0, "more": False, "reason": "nothing embedded yet"}
-    con = duckdb.connect()
+    con = _publish_connection(output_dir, "publish")
     published = 0
     ledger_rows: list[dict[str, Any]] = []
     more = False
@@ -238,10 +262,15 @@ def moved_documents_sql(output_dir: Path, limit: int) -> str | None:
 async def relocate_moved(
     output_dir: Path, store: ChunkCollection, *, max_objects: int = DEFAULT_MAX_OBJECTS, run_id: str
 ) -> dict[str, Any]:
+    """Patch published chunk locators when a newer immutable locator exists.
+
+    Inputs are the lake, chunk store, cap and run ID; returns patched/missing counts.
+    Patches Weaviate and appends ledger rows. Use after publication when a source key moved.
+    """
     sql = moved_documents_sql(output_dir, max_objects)
     if sql is None:
         return {"patched": 0, "missing": 0}
-    con = duckdb.connect()
+    con = _publish_connection(output_dir, "relocate")
     try:
         rows = con.execute(sql).fetchall()
     finally:
