@@ -139,6 +139,8 @@ class ProfferOperatorSnapshot(BaseModel):
     retry_count: Annotated[int, Field(ge=0)]
     reason: BoundedReason = ""
     terminal: bool
+    mutation_eligible: bool = False
+    mutation_reason: BoundedReason = ""
     parser_handler: NonBlank | None = None
     parser_execution_path: Literal["decoder", "duckdb", "derive"] | None = None
     contracts: Annotated[list[OperatorContractIdentity], Field(min_length=3, max_length=8)]

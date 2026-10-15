@@ -679,8 +679,8 @@ func (s *ProfferPreviewStore) OperationStages(ctx context.Context, handle string
 		                CASE WHEN receipt.status = 'failed' THEN 'activity failed' ELSE '' END),
 		       receipt.attempt, receipt.started_at, receipt.completed_at
 		FROM context.proffer_preview_binding binding
-		JOIN context.source_version version ON version.workflow_id = binding.workflow_id
-		JOIN context.activity_execution execution ON execution.source_version_id = version.id
+		JOIN context.source_version version ON version.workflow_id IN (binding.request_id, binding.workflow_id)
+		JOIN context.activity_execution execution ON execution.source_version_id = version.id AND execution.workflow_id IN (binding.request_id, binding.workflow_id)
 		JOIN LATERAL (
 			SELECT candidate.* FROM context.activity_receipt candidate
 			WHERE candidate.activity_execution_id = execution.id
@@ -712,6 +712,9 @@ func (s *ProfferPreviewStore) OperationStages(ctx context.Context, handle string
 	return stages, nil
 }
 
+// Snapshot reads a published preview or an exact, read-only upstream artifact correlation.
+// Inputs: opaque handle. Outputs: validated pins and existing receipts, without inventing approval evidence.
+// Effects: SELECT only; choose for inspection even if downstream AI preparation failed.
 func (s *ProfferPreviewStore) Snapshot(ctx context.Context, handle string) (previewmodel.Snapshot, error) {
 	var snapshot previewmodel.Snapshot
 	var seq int64
@@ -732,10 +735,25 @@ func (s *ProfferPreviewStore) Snapshot(ctx context.Context, handle string) (prev
 		&snapshot.Correlation.NormalizedGenerationID, &parserID, &parserVersion,
 		&parserDigest, &snapshot.PreviewDigest, &snapshot.Reason)
 	if errors.Is(err, pgx.ErrNoRows) {
-		if _, bindingErr := s.Binding(ctx, handle); errors.Is(bindingErr, previewmodel.ErrNotFound) {
-			return previewmodel.Snapshot{}, bindingErr
+		results, resolveErr := s.ResolveOperationResults(ctx, handle)
+		if resolveErr != nil {
+			return previewmodel.Snapshot{}, resolveErr
 		}
-		return previewmodel.Snapshot{}, previewmodel.ErrNotReady
+		if results.Status != "available" {
+			return previewmodel.Snapshot{}, fmt.Errorf("%w: %s", previewmodel.ErrNotReady, results.Reason)
+		}
+		snapshot.PreviewHandle, snapshot.Phase = handle, "artifacts_available"
+		snapshot.Correlation.RequestID = ""
+		binding, bindErr := s.Binding(ctx, handle)
+		if bindErr != nil {
+			return previewmodel.Snapshot{}, bindErr
+		}
+		snapshot.Correlation.RequestID = binding.RequestID
+		snapshot.Correlation.SourceVersionID = results.SourceVersionID
+		snapshot.Correlation.RawGenerationID = results.RawGenerationID
+		snapshot.Correlation.NormalizedGenerationID = results.NormalizedGenerationID
+		snapshot.Results, snapshot.Receipts = &results, []previewmodel.Receipt{}
+		return snapshot, nil
 	}
 	if err != nil {
 		return previewmodel.Snapshot{}, fmt.Errorf("read preview snapshot: %w", err)
@@ -763,6 +781,15 @@ func (s *ProfferPreviewStore) Snapshot(ctx context.Context, handle string) (prev
 	if err := rows.Err(); err != nil {
 		return previewmodel.Snapshot{}, fmt.Errorf("iterate preview receipts: %w", err)
 	}
+	rows.Close()
+	results, resolveErr := s.ResolveOperationResults(ctx, handle)
+	if resolveErr != nil {
+		return previewmodel.Snapshot{}, resolveErr
+	}
+	if results.Status != "available" {
+		return previewmodel.Snapshot{}, fmt.Errorf("%w: %s", previewmodel.ErrNotReady, results.Reason)
+	}
+	snapshot.Results = &results
 	return snapshot, nil
 }
 

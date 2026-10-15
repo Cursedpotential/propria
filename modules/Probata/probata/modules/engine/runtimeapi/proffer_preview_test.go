@@ -406,7 +406,7 @@ func TestPreviewSurfaceCorrelatesPagesDecisionsAndReplay(t *testing.T) {
 	require.Equal(t, "m-1", page.Messages[0].MessageID)
 	require.NotEmpty(t, page.NextCursor)
 
-	otherBinding, err := store.Create(t.Context(), PreviewBinding{OperatingMode: "LIVE",RequestID: "request-2", WorkflowID: "workflow-2", RunID: "run-2", ParserOptionsRef: "options-1"})
+	otherBinding, err := store.Create(t.Context(), PreviewBinding{OperatingMode: "LIVE", RequestID: "request-2", WorkflowID: "workflow-2", RunID: "run-2", ParserOptionsRef: "options-1"})
 	require.NoError(t, err)
 	other := otherBinding.Handle
 	crossHandle := servePreview(handler.Routes(), http.MethodGet, "/reference-import/previews/"+other+"/messages?cursor="+page.NextCursor, nil)
@@ -505,7 +505,7 @@ func TestOperationCursorAndFilterFailClosed(t *testing.T) {
 	require.Equal(t, http.StatusUnprocessableEntity, badCursor.Code)
 }
 
-func TestPreviewSnapshotCarriesLiveOperationWithoutErasingDecisionPhase(t *testing.T) {
+func TestPreviewSnapshotTerminalLifecycleOverridesStaleDecisionPhase(t *testing.T) {
 	handler, store, workflow := previewTestHandler(t)
 	handle := startPreview(t, handler)
 	putValidProjection(t, store, handle)
@@ -516,7 +516,7 @@ func TestPreviewSnapshotCarriesLiveOperationWithoutErasingDecisionPhase(t *testi
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	var snapshot PreviewSnapshot
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&snapshot))
-	require.Equal(t, "awaiting_decision", snapshot.Phase, "phase remains the immutable preview decision projection")
+	require.Equal(t, "completed", snapshot.Phase, "terminal lifecycle suppresses stale decision gates without rewriting the stored projection")
 	require.Equal(t, proffer.OperationCompleted, snapshot.Lifecycle)
 	require.True(t, snapshot.Terminal)
 	require.Equal(t, 26, snapshot.CompletedStageCount)
@@ -533,7 +533,7 @@ func TestPreviewSnapshotNeverGuessesTerminalStateFromPostgresProjection(t *testi
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	var snapshot PreviewSnapshot
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&snapshot))
-	require.Equal(t, "approved", snapshot.Phase)
+	require.Equal(t, "unavailable", snapshot.Phase)
 	require.Equal(t, proffer.OperationUnavailable, snapshot.Lifecycle)
 	require.False(t, snapshot.Terminal, "an approved PG projection is not proof that the workflow terminated")
 }

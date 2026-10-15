@@ -36,7 +36,7 @@ test("the import source surface has one ordered six-checkpoint context rail", ()
 
 test("checkpoint copy is literal and Review remains gated", () => {
   assert.match(checkpoints, /Waiting for this checkpoint\./);
-  assert.match(checkpoints, /Stopped here\. The Review workspace remains locked\./);
+  assert.match(checkpoints, /Stopped at this checkpoint\. Saved upstream artifacts may still be inspected\./);
   assert.match(intake, /profferContextFlowComplete\(preview\?\.receipts, preview\?\.checkpoints\)/);
   assert.match(intake, /phase === "review" && run && contextFlowComplete/);
   assert.match(intake, /Review locked/);

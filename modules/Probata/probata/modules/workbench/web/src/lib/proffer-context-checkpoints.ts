@@ -13,21 +13,27 @@ export type ProfferContextCheckpointType = (typeof PROFFER_CONTEXT_CHECKPOINTS)[
 export type ProfferContextCheckpointStatus = "waiting" | "running" | "completed" | "failed";
 
 export const PROFFER_CHECKPOINT_WAITING_COPY = "Waiting for this checkpoint.";
-export const PROFFER_CHECKPOINT_FAILED_COPY = "Stopped here. The Review workspace remains locked.";
+export const PROFFER_CHECKPOINT_FAILED_COPY = "Stopped at this checkpoint. Saved upstream artifacts may still be inspected.";
 
 export function checkpointLabel(type: ProfferContextCheckpointType) {
   return PROFFER_CONTEXT_CHECKPOINTS.find((checkpoint) => checkpoint.type === type)?.label ?? type;
 }
 
+/** Map reported checkpoint evidence without guessing that unreported work is running.
+ * Inputs: receipts, live checkpoints and authoritative lifecycle. Outputs: checkpoint statuses.
+ * Effects: none; use for progress display independently of artifact availability.
+ */
 export function profferCheckpointStatuses({
-  started,
   phase,
+  lifecycle,
+  terminal = false,
   receipts = [],
   checkpoints = [],
-  events = [],
 }: {
   started: boolean;
   phase?: string;
+  lifecycle?: string | null;
+  terminal?: boolean;
   receipts?: ProfferPreviewReceipt[] | null;
   checkpoints?: ProfferPreviewCheckpoint[] | null;
   events?: ProfferPreviewEvent[];
@@ -41,20 +47,19 @@ export function profferCheckpointStatuses({
       ? "completed"
       : receipt.status === "failed"
         ? "failed"
-        : "running";
+        : receipt.status === "running" ? "running" : "waiting";
   }
 
   for (const checkpoint of checkpoints ?? []) {
     statuses[checkpoint.checkpoint] = checkpoint.status === "pending" ? "waiting" : checkpoint.status;
   }
 
-  const firstUnfinished = PROFFER_CONTEXT_CHECKPOINTS.find(({ type }) => statuses[type] === "waiting");
-  const workflowFailed = phase === "failed" || events.some((event) => event.event_type === "failed");
-  if (firstUnfinished) {
-    if (workflowFailed) statuses[firstUnfinished.type] = "failed";
-    else if (started) statuses[firstUnfinished.type] = "running";
+  const stopped = terminal || ["failed", "cancelled", "completed", "rerun_required", "unavailable"].includes(lifecycle ?? phase ?? "");
+  if (stopped) {
+    for (const { type } of PROFFER_CONTEXT_CHECKPOINTS) {
+      if (statuses[type] === "running") statuses[type] = "waiting";
+    }
   }
-
   return statuses;
 }
 

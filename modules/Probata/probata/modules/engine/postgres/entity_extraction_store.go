@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 	"strings"
 	"time"
 
@@ -411,27 +410,31 @@ WHERE NOT EXISTS (SELECT 1 FROM context.normalized_record_identity n WHERE n.id 
 	return missing, rows.Err()
 }
 
-// ResolveRun maps a preview handle to its current normalized generation.
+// ResolveRun maps an operation to its exact persisted normalized generation independently of preview publication.
+// Inputs: opaque operation handle. Outputs: receipt-validated generation, source and explicit operating mode.
+// Effects: SELECT only; choose for result inspection, while write admission remains a separate guard.
 func (s *EntityExtractionStore) ResolveRun(ctx context.Context, previewHandle string) (flow.RunRef, error) {
-	var run flow.RunRef
-	var modeDetail string
-	err := s.db.QueryRow(ctx, `SELECT b.preview_handle, s.normalized_generation_id::text, s.source_version_id::text,
- COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=b.preview_handle AND (event_id=0 OR (event_type='receipt_recorded' AND phase='operating_mode_repair')) ORDER BY event_id DESC LIMIT 1), '')
-FROM context.proffer_preview_binding b
-JOIN LATERAL (
-  SELECT normalized_generation_id, source_version_id FROM context.proffer_preview_snapshot sn
-  WHERE sn.preview_handle = b.preview_handle ORDER BY snapshot_seq DESC LIMIT 1
-) s ON true
-JOIN context.source_version version ON version.id=s.source_version_id
-WHERE b.preview_handle = $1 AND version.matter_id=$2::uuid AND version.court_case_id=$3::uuid`, previewHandle, authoritativeMatterID, authoritativeCourtCaseID).Scan(&run.PreviewHandle, &run.GenerationID, &run.SourceVersionID, &modeDetail)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return flow.RunRef{}, fmt.Errorf("run %s has no normalized generation yet: %w", previewHandle, service.ErrNotFound)
+	store := &ProfferPreviewStore{db: s.db}
+	results, err := store.ResolveOperationResults(ctx, previewHandle)
+	if err != nil {
+		return flow.RunRef{}, err
 	}
-	versionID, _ := uuid.Parse(run.SourceVersionID)
-	admission := previewmodel.Binding{OperatingMode: recordedOperatingMode(modeDetail), SourceVersionID: versionID}
-	applyBindingAdmission(&admission, modeDetail)
-	run.MatterMode = admission.OperatingMode
-	return run, err
+	if results.Status != "available" {
+		return flow.RunRef{}, fmt.Errorf("operation results %s: %s: %w", results.Status, results.Reason, service.ErrNotFound)
+	}
+	binding, err := store.Binding(ctx, previewHandle)
+	if err != nil {
+		return flow.RunRef{}, err
+	}
+	var scopeMatches bool
+	err = s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM context.source_version WHERE id=$1::uuid AND matter_id=$2::uuid AND court_case_id=$3::uuid)`, results.SourceVersionID, authoritativeMatterID, authoritativeCourtCaseID).Scan(&scopeMatches)
+	if err != nil {
+		return flow.RunRef{}, fmt.Errorf("read exact result scope: %w", err)
+	}
+	if !scopeMatches {
+		return flow.RunRef{}, fmt.Errorf("operation source scope is unavailable or inconsistent: %w", service.ErrNotFound)
+	}
+	return flow.RunRef{PreviewHandle: previewHandle, GenerationID: results.NormalizedGenerationID.String(), SourceVersionID: results.SourceVersionID.String(), MatterMode: binding.OperatingMode}, nil
 }
 
 // BeginRun inserts an extraction_run row once.

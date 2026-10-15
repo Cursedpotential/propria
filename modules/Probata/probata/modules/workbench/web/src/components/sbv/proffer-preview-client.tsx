@@ -387,16 +387,18 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
   }, [loadSnapshot, mode, previewHandle]);
 
   const contextFlowComplete = profferContextFlowComplete(preview?.receipts, preview?.checkpoints);
+  const artifactsAvailable = Boolean(preview?.correlation && (preview.results?.status === "available" || contextFlowComplete));
+  const messagesAvailable = artifactsAvailable && preview?.results?.preview_available !== false;
 
   useEffect(() => {
-    if (!previewHandle || !contextFlowComplete) return;
+    if (!previewHandle || !artifactsAvailable) return;
     const timer = window.setTimeout(() => {
-      void loadMessages();
+      if (messagesAvailable) void loadMessages();
       void loadContent();
       void loadPotentialFlags();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [contextFlowComplete, loadContent, loadMessages, loadPotentialFlags, previewHandle]);
+  }, [artifactsAvailable, messagesAvailable, loadContent, loadMessages, loadPotentialFlags, previewHandle]);
 
   async function flagPotentialPromotion(
     scope: ProfferPotentialPromotionScope,
@@ -496,7 +498,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
     }
   }
 
-  const awaitingDecision = preview?.phase === "awaiting_decision";
+  const awaitingDecision = preview?.phase === "awaiting_decision" && !preview.terminal && !operatorSnapshot?.terminal && preview.results?.preview_available !== false;
   const requiredReceiptTypes = useMemo(
     () => PROFFER_CONTEXT_CHECKPOINTS.map(({ type }) => type),
     [],
@@ -570,6 +572,8 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
       {previewHandle && <ContextFlowRail
         started
         phase={preview?.phase}
+        lifecycle={operatorSnapshot?.lifecycle ?? preview?.lifecycle}
+        terminal={Boolean(operatorSnapshot?.terminal ?? preview?.terminal)}
         receipts={preview?.receipts}
         checkpoints={preview?.checkpoints}
         events={events}

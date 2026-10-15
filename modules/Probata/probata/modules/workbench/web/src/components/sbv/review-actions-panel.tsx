@@ -126,8 +126,8 @@ export function ReviewActionsPanel({
   const shownKey = selectedKey || (preview.recommended_handler ? candidateKey(preview.recommended_handler) : "");
   const shownCandidate = candidates.find((candidate) => candidateKey(candidate) === shownKey) ?? null;
   const selectedCandidate = candidates.find((candidate) => candidateKey(candidate) === selectedKey) ?? null;
-  const atHandlerStop = preview.phase === "awaiting_handler_selection";
-  const atRepairStop = actionNames.has("retain_original");
+  const atHandlerStop = !snapshot.terminal && actionNames.has("select_handler");
+  const atRepairStop = !snapshot.terminal && actionNames.has("retain_original");
   const failure = failureSummary(snapshot);
   const sourceName = snapshot.source_ref.split("/").filter(Boolean).at(-1) ?? snapshot.source_ref;
   const format = runContext?.registration?.declared_format || content?.package.declared_format || declaredFormat({ name: sourceName });
@@ -157,6 +157,14 @@ export function ReviewActionsPanel({
     plannedParser ? `parser ${plannedParser.handler_id}` : "engine picks the parser",
     repairChoice === "original" ? "skip repair if asked" : "stop if repair is needed",
   ].join(" · ");
+
+  if (preview.results?.source_kind === "ai_chat") return (
+    <aside aria-label="Actions" className={cn("space-y-3 border bg-card p-3", className)} data-testid="review-actions-panel">
+      <h2 className="text-sm font-semibold">AI context</h2>
+      <p className="text-xs">AI chat content uses the existing native Weaviate context workflow. Human-message extraction and legacy parser, repair, or approval controls do not apply to this operation.</p>
+      <p className="text-xs text-muted-foreground">{preview.results.reason}</p>
+    </aside>
+  );
 
   return (
     <aside aria-label="Actions" className={cn("space-y-3 border bg-card p-3", className)} data-testid="review-actions-panel">
@@ -199,6 +207,7 @@ export function ReviewActionsPanel({
             onRerun: (candidate) => onRerun(request({ parser: candidate ?? "choose" })),
           }}
           compact
+          decisionAllowed={atHandlerStop}
         />
       </section>
 
@@ -254,7 +263,7 @@ export function ReviewActionsPanel({
         {blockedReason && <p className="text-[11px] text-muted-foreground">{blockedReason}</p>}
       </section>
 
-      <CancelRunSection snapshot={snapshot} />
+      {snapshot.mutation_eligible && <CancelRunSection snapshot={snapshot} />}
     </aside>
   );
 }

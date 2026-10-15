@@ -83,8 +83,11 @@ type Parser struct {
 	ConfigDigest  string `json:"config_digest"`
 }
 type Snapshot struct {
-	PreviewHandle string `json:"preview_handle"`
-	Phase         string `json:"phase"`
+	// Results describes inspectable upstream artifacts independently of preview approval.
+	Results       *OperationResults  `json:"results,omitempty"`
+	Fingerprint   *SourceFingerprint `json:"fingerprint,omitempty"`
+	PreviewHandle string             `json:"preview_handle"`
+	Phase         string             `json:"phase"`
 	Correlation   struct {
 		RequestID              string    `json:"request_id"`
 		SourceVersionID        uuid.UUID `json:"source_version_id"`
@@ -92,7 +95,7 @@ type Snapshot struct {
 		NormalizedGenerationID uuid.UUID `json:"normalized_generation_id"`
 	} `json:"correlation"`
 	Parser              *Parser                    `json:"parser,omitempty"`
-	PreviewDigest       string                     `json:"preview_digest"`
+	PreviewDigest       string                     `json:"preview_digest,omitempty"`
 	Receipts            []Receipt                  `json:"receipts"`
 	Reason              string                     `json:"reason,omitempty"`
 	Lifecycle           proffer.OperationLifecycle `json:"lifecycle"`
@@ -114,6 +117,77 @@ type Snapshot struct {
 	// zero records of ANY kind is still refused.
 	NormalizedRecordCount int `json:"-"`
 }
+
+// OperationResults pins existing artifacts to one operation without publishing a preview.
+// Inputs: exact binding and durable stage receipts. Outputs: validated references or a precise gap.
+// Effects: none; use for inspection, never as an approval or operating-mode receipt.
+type OperationResults struct {
+	ContentStore           string    `json:"content_store,omitempty"`
+	SourceKind             string    `json:"source_kind,omitempty"`
+	SourceRef              string    `json:"source_ref,omitempty"`
+	Status                 string    `json:"status"`
+	Reason                 string    `json:"reason,omitempty"`
+	SourceVersionID        uuid.UUID `json:"source_version_id"`
+	RawGenerationID        uuid.UUID `json:"raw_generation_id"`
+	NormalizedGenerationID uuid.UUID `json:"normalized_generation_id"`
+	RawReceiptRef          string    `json:"raw_receipt_ref,omitempty"`
+	NormalizedReceiptRef   string    `json:"normalized_receipt_ref,omitempty"`
+	PreviewAvailable       bool      `json:"preview_available"`
+}
+
+// SourceFingerprint exposes the exact source-byte fingerprint and its validation evidence.
+// Inputs: source version and hash receipt. Outputs: SHA-256 identity and provenance or an explicit gap.
+// Effects: none; choose instead of an object ETag, package hash, or generation digest.
+type SourceFingerprint struct {
+	Status             string     `json:"status"`
+	Reason             string     `json:"reason,omitempty"`
+	SourceVersionID    uuid.UUID  `json:"source_version_id"`
+	HashKind           string     `json:"hash_kind,omitempty"`
+	Algorithm          string     `json:"algorithm,omitempty"`
+	Digest             string     `json:"digest,omitempty"`
+	Construction       string     `json:"construction,omitempty"`
+	ComputedAt         *time.Time `json:"computed_at,omitempty"`
+	ComputedBy         string     `json:"computed_by,omitempty"`
+	ReceiptRef         string     `json:"receipt_ref,omitempty"`
+	ActivityReceiptRef string     `json:"activity_receipt_ref,omitempty"`
+}
+
+// MarshalJSON represents absent artifact coordinates as null, never an invented zero UUID.
+// Inputs: resolved pins. Outputs: browser-safe availability JSON. Effects: none; choose for API reads.
+func (r OperationResults) MarshalJSON() ([]byte, error) {
+	type wire OperationResults
+	var source, raw, normalized *uuid.UUID
+	if r.SourceVersionID != uuid.Nil {
+		source = &r.SourceVersionID
+	}
+	if r.RawGenerationID != uuid.Nil {
+		raw = &r.RawGenerationID
+	}
+	if r.NormalizedGenerationID != uuid.Nil {
+		normalized = &r.NormalizedGenerationID
+	}
+	return json.Marshal(struct {
+		wire
+		Source     *uuid.UUID `json:"source_version_id"`
+		Raw        *uuid.UUID `json:"raw_generation_id"`
+		Normalized *uuid.UUID `json:"normalized_generation_id"`
+	}{wire(r), source, raw, normalized})
+}
+
+// MarshalJSON keeps an unknown source fingerprint's version explicitly absent.
+// Inputs: fingerprint projection. Outputs: nullable exact version JSON. Effects: none; choose for API reads.
+func (r SourceFingerprint) MarshalJSON() ([]byte, error) {
+	type wire SourceFingerprint
+	var source *uuid.UUID
+	if r.SourceVersionID != uuid.Nil {
+		source = &r.SourceVersionID
+	}
+	return json.Marshal(struct {
+		wire
+		Source *uuid.UUID `json:"source_version_id"`
+	}{wire(r), source})
+}
+
 type Participant struct {
 	ParticipantID    string  `json:"participant_id"`
 	DisplayName      string  `json:"display_name"`

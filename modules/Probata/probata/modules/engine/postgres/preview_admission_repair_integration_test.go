@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/proffer"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"os"
 	"strings"
@@ -31,11 +32,15 @@ func TestPreviewAdmissionRepairDurableReadback(t *testing.T) {
 	}
 	ddl := `CREATE SCHEMA context;
  CREATE TABLE context.source(id uuid PRIMARY KEY,source_key text);
- CREATE TABLE context.source_version(id uuid PRIMARY KEY,source_id uuid,workflow_id text,matter_id uuid,court_case_id uuid,version_ordinal int,created_at timestamptz DEFAULT now());
+ CREATE TABLE context.source_version(id uuid PRIMARY KEY,source_id uuid,workflow_id text,matter_id uuid,court_case_id uuid,version_ordinal int,created_at timestamptz DEFAULT now(),declared_format text DEFAULT 'smsbackuprestore_xml');
  CREATE TABLE context.proffer_preview_binding(preview_handle text PRIMARY KEY,request_id text,source_ref text,workflow_id text,run_id text,parser_options_ref text,created_at timestamptz DEFAULT now());
  CREATE TABLE context.proffer_preview_snapshot(preview_handle text,snapshot_seq int,source_version_id uuid,raw_generation_id uuid,normalized_generation_id uuid);
  CREATE TABLE context.proffer_preview_decision(id uuid,preview_handle text,selection_ref text,parser_options_ref text,recorded_at timestamptz);
- CREATE TABLE context.proffer_preview_event(preview_handle text,event_id bigint,event_type text,occurred_at timestamptz,phase text,detail text CHECK(octet_length(detail)<=4000),PRIMARY KEY(preview_handle,event_id));`
+ CREATE TABLE context.proffer_preview_event(preview_handle text,event_id bigint,event_type text,occurred_at timestamptz,phase text,detail text CHECK(octet_length(detail)<=4000),PRIMARY KEY(preview_handle,event_id));
+ CREATE TABLE context.raw_generation(id uuid PRIMARY KEY,source_version_id uuid);
+ CREATE TABLE context.normalized_generation(id uuid PRIMARY KEY,source_version_id uuid,raw_generation_id uuid);
+ CREATE TABLE context.activity_execution(id uuid PRIMARY KEY,source_version_id uuid,workflow_id text,activity_name text,created_at timestamptz DEFAULT now());
+ CREATE TABLE context.activity_receipt(id uuid PRIMARY KEY,activity_execution_id uuid,attempt int,status text,result_ref jsonb,not_applicable_reason text,error_detail jsonb,started_at timestamptz DEFAULT now(),completed_at timestamptz DEFAULT now());`
 	if _, err = pool.Exec(ctx, ddl); err != nil {
 		t.Fatal(err)
 	}
@@ -49,6 +54,10 @@ func TestPreviewAdmissionRepairDurableReadback(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, `INSERT INTO context.proffer_preview_snapshot VALUES($1,1,$2::uuid,'33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444')`, in.PreviewHandle, in.SourceVersionRef); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO context.raw_generation VALUES('33333333-3333-4333-8333-333333333333',$1::uuid);
+ INSERT INTO context.normalized_generation VALUES('44444444-4444-4444-8444-444444444444',$1::uuid,'33333333-3333-4333-8333-333333333333')`, pgx.QueryExecModeSimpleProtocol, in.SourceVersionRef); err != nil {
 		t.Fatal(err)
 	}
 	store, _ := NewProfferPreviewStore(pool, nil)
@@ -94,5 +103,33 @@ func TestPreviewAdmissionRepairDurableReadback(t *testing.T) {
 	bad.Reason = "different action same key"
 	if _, err = store.RepairBindingAdmission(ctx, bad); err == nil {
 		t.Fatal("idempotency mismatch admitted")
+	}
+	// A second operation deliberately separates its request and Temporal IDs and never publishes a preview.
+	if _, err = pool.Exec(ctx, `
+ INSERT INTO context.source_version(id,source_id,workflow_id,matter_id,court_case_id,version_ordinal) VALUES('66666666-6666-4666-8666-666666666666','22222222-2222-4222-8222-222222222222','upstream-request',$1::uuid,$2::uuid,2);
+ INSERT INTO context.proffer_preview_binding(preview_handle,request_id,source_ref,workflow_id,run_id,parser_options_ref) VALUES('synthetic-upstream-only','upstream-request','b2://synthetic/message_1.json','upstream-workflow','upstream-run','options');
+ INSERT INTO context.raw_generation VALUES('77777777-7777-4777-8777-777777777777','66666666-6666-4666-8666-666666666666');
+ INSERT INTO context.normalized_generation VALUES('88888888-8888-4888-8888-888888888888','66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777');
+ INSERT INTO context.activity_execution(id,source_version_id,workflow_id,activity_name) VALUES
+ ('10000000-0000-4000-8000-000000000001','66666666-6666-4666-8666-666666666666','upstream-request','persist_raw_generation_activity'),
+ ('10000000-0000-4000-8000-000000000002','66666666-6666-4666-8666-666666666666','upstream-request','persist_normalized_generation_activity'),
+ ('10000000-0000-4000-8000-000000000003','66666666-6666-4666-8666-666666666666','upstream-request','publish_context_search_activity');
+ INSERT INTO context.activity_receipt(id,activity_execution_id,attempt,status,result_ref,error_detail) VALUES
+ ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001',1,'success','{"ref_kind":"raw_generation","ref_id":"77777777-7777-4777-8777-777777777777"}',NULL),
+ ('20000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000002',1,'success','{"ref_kind":"normalized_generation","ref_id":"88888888-8888-4888-8888-888888888888"}',NULL),
+ ('20000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000003',1,'failed',NULL,'{"message":"human projection unavailable bounded fixture"}');`, pgx.QueryExecModeSimpleProtocol, in.MatterID, in.CourtCaseID); err != nil {
+		t.Fatal(err)
+	}
+	results, err := store.ResolveOperationResults(ctx, "synthetic-upstream-only")
+	if err != nil || results.Status != "available" || results.PreviewAvailable || results.NormalizedReceiptRef != "20000000-0000-4000-8000-000000000002" {
+		t.Fatalf("upstream results %+v %v", results, err)
+	}
+	// A foreign-generation receipt is retained for diagnosis and refused; no latest result substitutes for it.
+	if _, err = pool.Exec(ctx, `UPDATE context.normalized_generation SET raw_generation_id='33333333-3333-4333-8333-333333333333' WHERE id='88888888-8888-4888-8888-888888888888'`); err != nil {
+		t.Fatal(err)
+	}
+	results, err = store.ResolveOperationResults(ctx, "synthetic-upstream-only")
+	if err != nil || results.Status != "inconsistent" || results.NormalizedReceiptRef != "20000000-0000-4000-8000-000000000002" {
+		t.Fatalf("cross-source result %+v %v", results, err)
 	}
 }

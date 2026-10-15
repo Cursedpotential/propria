@@ -1052,6 +1052,7 @@ export interface ProfferSourceInspection {
 
 /** Metadata-only selection descriptor; checksum inspection keeps its strict digest type. */
 export type ProfferSourcePreview = Omit<ProfferSourceInspection, "sha256" | "digest_status" | "preview_kind"> & {
+  provider_version_id: string | null;
   sha256: null;
   digest_status: "not_computed";
   preview_kind: "pdf" | "text" | "image" | "audio" | "video" | "unsupported";
@@ -1165,12 +1166,16 @@ export type ProfferOperationLifecycle =
   | "awaiting_preview_decision"
   | "completed"
   | "failed"
+  | "rerun_required"
   | "cancelled"
   | "unavailable";
 
 export type ProfferOperationWait = "repair_decision" | "preview_decision";
 
 export interface ProfferOperationSummary {
+  operating_mode?: MatterMode | null;
+  mutation_eligible?: boolean;
+  mutation_reason?: string;
   preview_handle: string;
   request_id: string;
   source_ref: string;
@@ -1252,6 +1257,8 @@ export interface ProfferOperatorAvailability {
 }
 
 export interface ProfferOperatorSnapshot {
+  mutation_eligible?: boolean;
+  mutation_reason?: string;
   preview_handle: string;
   matter_mode: MatterMode;
   matter_id: string;
@@ -1361,7 +1368,39 @@ export interface ProfferRepairDecisionResponse {
   status: string;
 }
 
+/** Exact receipt-linked artifacts; availability never implies approval or write eligibility. */
+export interface ProfferOperationResults {
+  status: "available" | "missing" | "inconsistent" | "not_queried";
+  content_store: "postgres" | "weaviate";
+  source_kind: "unknown" | "ai_chat";
+  source_ref?: string | null;
+  reason?: string;
+  source_version_id: string | null;
+  raw_generation_id: string | null;
+  normalized_generation_id: string | null;
+  raw_receipt_ref?: string | null;
+  normalized_receipt_ref?: string | null;
+  preview_available: boolean;
+}
+
+/** SHA-256 over the selected source bytes, separate from ETags and generation/package digests. */
+export interface ProfferSourceFingerprint {
+  status: "available" | "unavailable" | "inconsistent";
+  reason?: string;
+  source_version_id: string | null;
+  hash_kind?: string | null;
+  algorithm?: string | null;
+  digest?: string | null;
+  construction?: string | null;
+  computed_at?: string | null;
+  computed_by?: string | null;
+  receipt_ref?: string | null;
+  activity_receipt_ref?: string | null;
+}
+
 export interface ProfferPreviewResponse {
+  results?: ProfferOperationResults | null;
+  fingerprint?: ProfferSourceFingerprint | null;
   preview_handle: string;
   matter_mode: MatterMode;
   phase: "awaiting_decision" | "approved" | "rejected" | "timed_out" | string;

@@ -58,6 +58,7 @@ export function nextOperationAction(lifecycle: ProfferOperationSummary["lifecycl
     case "awaiting_repair_decision":
     case "awaiting_preview_decision": return "Review this import";
     case "failed": return "Start a new import";
+    case "rerun_required": return "Inspect attempt details";
     case "completed": return "View completed import";
     case "cancelled": return "View cancellation details";
     case "unavailable": return "Check this import";

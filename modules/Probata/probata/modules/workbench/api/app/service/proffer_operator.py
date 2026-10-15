@@ -28,8 +28,17 @@ def _availability(status: str, reason: str = "", *, ref: str | None = None, coun
     return OperatorAvailability(status=status, reason=reason, ref=ref, count=count)
 
 
-def _valid_actions(phase: str, lifecycle: str) -> list[OperatorAction]:
+def _valid_actions(phase: str, lifecycle: str, *, terminal: bool = False, mutation_eligible: bool = False) -> list[OperatorAction]:
+    """Offer existing operation mutations only after durable eligibility is established.
+
+    Inputs: phase, lifecycle, terminal state and mode admission. Outputs: valid actions.
+    Effects: none; choose for Review controls, never infer authorization from a stale phase.
+    """
     actions = [OperatorAction(action="refresh", label="Refresh status", detail="Read the latest durable workflow projection.")]
+    if terminal or lifecycle in {"completed", "failed", "cancelled", "rerun_required", "unavailable"} or not mutation_eligible:
+        if lifecycle in {"failed", "cancelled", "rerun_required"}:
+            actions.append(OperatorAction(action="restart_new_operation", label="Start a new import", detail="Create a new request identity; the saved attempt remains unchanged."))
+        return actions
     if phase == "awaiting_handler_selection":
         actions.append(OperatorAction(action="select_handler", label="Select handler and continue", detail="Record one content-compatible registered handler against this exact recommendation."))
     if phase == "awaiting_repair_decision":
@@ -59,13 +68,15 @@ def _unavailable_controls(phase: str, lifecycle: str) -> list[OperatorUnavailabl
             ]
         )
     gaps.append(OperatorUnavailableControl(control="skip_stage", reason="The executable stage graph has no operator skip-with-reason contract for the current state."))
-    if lifecycle in {"running", "awaiting_repair_decision", "awaiting_preview_decision"}:
-        gaps.append(OperatorUnavailableControl(control="cancel", reason="The Proffer starter has no authenticated cancel command or append-only cancellation receipt."))
     return gaps
 
 
 async def operator_snapshot(preview_handle: str, *, mode: MatterMode) -> ProfferOperatorSnapshot:
-    """Join the preview and operation by their opaque handle and fail closed on drift."""
+    """Join exact operation identity, result availability and mutation eligibility.
+
+    Inputs: opaque handle and configured mode. Outputs: browser-safe saved results, lifecycle and valid controls.
+    Effects: read-only upstream requests; choose for Review without treating downstream failure as artifact absence.
+    """
     preview, operation = await asyncio.gather(
         proffer.preview(preview_handle, mode=mode),
         proffer_operations.operation(preview_handle),
@@ -77,9 +88,10 @@ async def operator_snapshot(preview_handle: str, *, mode: MatterMode) -> Proffer
     court_case_id = str(matter_mode.configured_court_case_id(mode))
     stage_attempts = [stage.attempt or 0 for stage in operation.stages]
     selected = preview.recommended_handler
+    ai_source = bool(preview.results and preview.results.source_kind == "ai_chat")
     handler = preview.parser.parser_id if preview.parser else selected.handler_id if selected else None
     execution_path = selected.execution_path if selected else None
-    record_ready = bool(preview.correlation and preview.phase in {"awaiting_decision", "approved", "rejected"})
+    record_ready = bool(preview.correlation and (preview.results is None or preview.results.status == "available"))
     n8n_stages = {"select_parser_activity", "execute_parser_activity"}
     n8n_observed = operation.current_stage in n8n_stages or any(stage.stage in n8n_stages for stage in operation.stages)
     layer_status = "waiting" if operation.wait else "failed" if operation.lifecycle == "failed" else "completed" if operation.lifecycle == "completed" else "active" if operation.lifecycle == "running" else "unavailable"
@@ -87,13 +99,17 @@ async def operator_snapshot(preview_handle: str, *, mode: MatterMode) -> Proffer
     missing_package_field = "The current browser-safe Proffer API does not expose this extraction-package field."
     package = OperatorPackageState(
         original=_availability("available", "The source reference is available; preservation/sealing state is not exposed by this API.", ref=operation.source_ref),
-        original_fingerprint=_availability("unavailable", missing_package_field),
+        original_fingerprint=_availability(
+            "available" if preview.fingerprint and preview.fingerprint.status == "available" else "unavailable",
+            preview.fingerprint.reason if preview.fingerprint else "No exact source-byte fingerprint receipt is available.",
+            ref=preview.fingerprint.digest if preview.fingerprint and preview.fingerprint.status == "available" else None,
+        ),
         package_identity=_availability("unavailable", missing_package_field),
         package_hash=_availability("unavailable", missing_package_field),
         metadata=_availability("unavailable", missing_package_field),
         attachments=_availability("unavailable", missing_package_field),
-        parsed_or_extracted_products=_availability("available" if preview.correlation else "pending", "Raw generation is not available until extraction completes." if not preview.correlation else "", ref=str(preview.correlation.raw_generation_id) if preview.correlation else None),
-        normalized_products=_availability("available" if preview.correlation else "pending", "Normalized generation is not available until normalization completes." if not preview.correlation else "", ref=str(preview.correlation.normalized_generation_id) if preview.correlation else None),
+        parsed_or_extracted_products=_availability("available" if record_ready else "unavailable", preview.results.reason if preview.results else "No exact raw-generation reference is available." if not record_ready else "", ref=str(preview.correlation.raw_generation_id) if record_ready else None),
+        normalized_products=_availability("available" if record_ready else "unavailable", preview.results.reason if preview.results else "No exact normalized-generation reference is available." if not record_ready else "", ref=str(preview.correlation.normalized_generation_id) if record_ready else None),
     )
     authority_state = OperatorAuthorityState(
         intake_classification=_availability("unavailable", "The current Proffer API does not return permanent-context versus potentially-evidence classification."),
@@ -117,15 +133,15 @@ async def operator_snapshot(preview_handle: str, *, mode: MatterMode) -> Proffer
         reentry_rule="repair.detect then repair.preview runs before routing; only report.clean=false opens review. An approved derived repair preserves the original, writes and hashes a separate artifact, then re-enters validation, routing, and handler selection. A repair plan run from Review Actions takes that path: its derived result re-enters Proffer as a new run, and this run's repair gate stays open.",
     )
     storage_state = OperatorStorageState(
-        source_type=_availability("unavailable", "The current preview does not classify this package as messaging or non-messaging for D-158 storage routing."),
-        context_target=_availability("unavailable", "No package-level projection reports the selected source-type context target or publication state."),
+        source_type=_availability("available", "Registered AI source format.", ref="ai_chat") if ai_source else _availability("unavailable", "The current preview does not classify this package as messaging or non-messaging for D-158 storage routing."),
+        context_target=_availability("available", "AI chat content goes directly to native Weaviate context; this identifies the target, not publication availability.", ref="weaviate") if ai_source else _availability("unavailable", "No package-level projection reports the selected source-type context target or publication state."),
         postgres_control_state=_availability("pending", "PostgreSQL retains package/source identity, provenance, locators, fingerprints, template and attempt references, workflow state, decisions, projection coordinates, and receipts when those contracts are supplied."),
         searchable_projection=_availability("unavailable", "The preview does not return a governed Weaviate context-projection receipt or exact pre-publication chunks."),
-        rule="Messaging text remains canonical in PostgreSQL with ordered chunk membership. Non-messaging content may stay in the retained package or durable DuckDB-derived files; PostgreSQL must not duplicate it into a generic text table. Context publication is not evidence admission or custody.",
+        rule="AI chat content goes directly to native Weaviate context. PostgreSQL contains extracted events, timelines, entities and artifacts, with their source provenance; AI turns are not normalized into PostgreSQL. Index availability is separate from historical stage success." if ai_source else "Human messaging text remains canonical in PostgreSQL with ordered chunk membership. Non-messaging content may stay in the retained package or durable DuckDB-derived files; PostgreSQL must not duplicate it into a generic text table. Context publication is not evidence admission or custody.",
     )
     surfaces = {
         "source": _availability("available", ref=operation.source_ref),
-        "records": _availability("available" if record_ready else "pending", "Normalized records become readable only after the projected preview and completeness receipts exist." if not record_ready else "", ref=str(preview.correlation.normalized_generation_id) if preview.correlation else None),
+        "records": _availability("available" if record_ready else "unavailable", preview.results.reason if preview.results else "No exact operation-bound normalized generation is available." if not record_ready else "", ref=str(preview.correlation.normalized_generation_id) if record_ready else None),
         "chunks": _availability("unavailable", "The current Proffer preview API exposes no content-chunk projection or chunk-generation reference."),
         "entities": _availability("unavailable", "The current Proffer preview API exposes normalized messages only; it has no extracted-entity projection."),
         "graph": _availability("unavailable", "Graph candidates are a governed downstream proposal lane and are not returned by the Proffer preview API."),
@@ -148,6 +164,8 @@ async def operator_snapshot(preview_handle: str, *, mode: MatterMode) -> Proffer
         retry_count=max((max(stage_attempts, default=1) - 1), 0),
         reason=preview.reason or operation.reason,
         terminal=operation.terminal,
+        mutation_eligible=operation.mutation_eligible and not ai_source,
+        mutation_reason="AI chat processing uses the existing native context workflow; legacy human parser and approval controls do not apply." if ai_source else operation.mutation_reason,
         parser_handler=handler,
         parser_execution_path=execution_path,
         contracts=[
@@ -181,7 +199,7 @@ async def operator_snapshot(preview_handle: str, *, mode: MatterMode) -> Proffer
         ],
         surfaces=surfaces,
         stages=operation.stages,
-        valid_actions=_valid_actions(preview.phase, operation.lifecycle),
+        valid_actions=_valid_actions(preview.phase, operation.lifecycle, terminal=operation.terminal, mutation_eligible=operation.mutation_eligible and not ai_source),
         unavailable_controls=_unavailable_controls(preview.phase, operation.lifecycle),
         write_boundary="This surface reads projections and records authenticated workflow decisions. It does not promote context to evidence, accept graph candidates, or write canonical facts.",
     )

@@ -12,24 +12,28 @@ import { cn } from "@/lib/utils";
 export function ContextFlowRail({
   started,
   phase,
+  lifecycle,
+  terminal,
   receipts,
   checkpoints,
   events,
 }: {
   started: boolean;
   phase?: string;
+  lifecycle?: string | null;
+  terminal?: boolean;
   receipts?: ProfferPreviewReceipt[] | null;
   checkpoints?: ProfferPreviewCheckpoint[] | null;
   events?: ProfferPreviewEvent[];
 }) {
-  const statuses = profferCheckpointStatuses({ started, phase, receipts, checkpoints, events });
+  const statuses = profferCheckpointStatuses({ started, phase, lifecycle, terminal, receipts, checkpoints, events });
 
   return (
     // One line (owner ruling 2026-09-20 23:48: one-viewport Review). The status copy stays for
     // assistive tech and as a tooltip; it no longer takes a row of its own.
     <section className="flex items-center gap-x-4 overflow-x-auto whitespace-nowrap border-b bg-card px-3 py-1.5" aria-labelledby="context-flow-heading">
-      <h2 id="context-flow-heading" className="text-xs font-semibold" title="All Review views unlock after the six processing checkpoints complete.">Context processing</h2>
-      <p className="sr-only">All Review views unlock after the six processing checkpoints complete.</p>
+      <h2 id="context-flow-heading" className="text-xs font-semibold" title="Checkpoint completion is separate from saved artifact availability.">Context processing</h2>
+      <p className="sr-only">Checkpoint completion is separate from saved artifact availability.</p>
       <ol className="flex items-center gap-x-3" aria-label="Context processing checkpoints">
         {PROFFER_CONTEXT_CHECKPOINTS.map((checkpoint, index) => {
           const status = statuses[checkpoint.type];
