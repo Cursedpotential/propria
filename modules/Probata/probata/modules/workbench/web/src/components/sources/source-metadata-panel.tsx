@@ -322,13 +322,13 @@ function FileDetail({
 
   const preview = (
       <section className="min-h-[220px] px-3 py-3" aria-label="Preview">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Preview</p>
           {!expanded && <Button size="sm" variant="outline" onClick={() => setExpanded(true)}>Expand preview</Button>}
           {inspection?.preview_url && (
-            <div className="flex flex-wrap gap-2"><a className="text-xs font-medium text-primary underline" href={inspection.preview_url} target="_blank" rel="noopener noreferrer">
+            <div className="flex max-w-full flex-wrap gap-2"><a className="max-w-full break-words text-xs font-medium text-primary underline" href={inspection.preview_url} target="_blank" rel="noopener noreferrer">
               Open original version
-            </a><a className="text-xs font-medium text-primary underline" href={`${inspection.preview_url}&download=true`} download={inspection.name}>Download original bytes</a></div>
+            </a><a className="max-w-full break-words text-xs font-medium text-primary underline" href={`${inspection.preview_url}&download=true`} download={inspection.name}>Download original bytes</a></div>
           )}
         </div>
         <div className="mt-2">
@@ -415,7 +415,7 @@ function FileDetail({
         <label className="mt-2 grid gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
           Override before Process
           <select
-            className="h-8 border bg-background px-2 text-xs normal-case text-foreground"
+            className="h-8 min-w-0 max-w-full border bg-background px-2 text-xs normal-case text-foreground"
             value={handlerOverride}
             disabled={unsupportedMedia}
             onChange={(event) => onHandlerOverrideChange(event.target.value)}

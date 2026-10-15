@@ -25,7 +25,7 @@ import { SourceMetadataPanel, type SourceSelection } from "@/components/sources/
 import { HumanProcessStatus } from "@/components/sources/human-process-status";
 import { humanContextAttribution, isSMSContextSource, type HumanContextProgress, type HumanContextSourceRequest } from "@/lib/human-context";
 import { mergeSourcePages, sourceContinuation } from "@/components/sources/source-pages";
-import { pinnedSourceRef, restoreSourceNavigation, saveSourceNavigation } from "@/components/sources/source-navigation";
+import { linkedSourceKey, pinnedSourceRef, restoreSourceNavigation, saveSourceNavigation } from "@/components/sources/source-navigation";
 import { SourceRowsGrid, type SourceGridRow } from "@/components/sources/source-rows-grid";
 import { SourceSearch } from "@/components/sources/source-search";
 import { ContextSearch } from "@/components/read/context-search";
@@ -89,7 +89,7 @@ function SourcesScreenMode() {
   const linkedFile = searchParams.get("file") ?? "";
   const navigationKey = JSON.stringify([mode, rootId, prefix, linkedFile]);
   const [restored, setRestored] = useState(() => restoreSourceNavigation(navigationKey));
-  const [appliedFilter, setAppliedFilter] = useState(restored?.appliedFilter ?? linkedFile);
+  const [appliedFilter, setAppliedFilter] = useState(restored?.appliedFilter ?? "");
   const [selectedRef, setSelectedRef] = useState<string | null>(restored ? restored.selectedRef : linkedFile || null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(restored ? restored.selectedFolder : searchParams.get("select_folder") === "1" ? prefix : null);
   const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set(restored?.checkedRefs ?? []));
@@ -203,8 +203,8 @@ function SourcesScreenMode() {
   const selectedObject = useMemo(
     () => restored?.selectedRef === selectedRef && restored.selectedObject
       ? restored.selectedObject : objects.find((object) => object.source_ref === selectedRef
-        || (selectedRef === linkedFile && linkedFile && (object.key === linkedFile || object.name === linkedFile))) ?? null,
-    [objects, restored, selectedRef, linkedFile],
+        || (selectedRef === linkedFile && linkedFile && object.key === linkedSourceKey(prefix, linkedFile))) ?? null,
+    [objects, restored, selectedRef, linkedFile, prefix],
   );
   const activeRootId = rootId || listing?.active_root_id || "";
 

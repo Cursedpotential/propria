@@ -11,7 +11,67 @@ runInNewContext(ts.transpileModule(text, { compilerOptions: { module: ts.ModuleK
   module, exports: module.exports, sessionStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value) },
   URL,
 });
-const { saveSourceNavigation, restoreSourceNavigation, pinnedSourceRef } = module.exports;
+const { saveSourceNavigation, restoreSourceNavigation, pinnedSourceRef, linkedSourceKey } = module.exports;
+
+test("linked files resolve one recorded key rather than a duplicate basename in another folder", () => {
+  assert.equal(linkedSourceKey("recorded/photos/", "same.jpg"), "recorded/photos/same.jpg");
+  assert.equal(linkedSourceKey("recorded/photos", "same.jpg"), "recorded/photos/same.jpg");
+  assert.equal(linkedSourceKey("recorded/photos/", "recorded/photos/same.jpg"), "recorded/photos/same.jpg");
+  assert.equal(linkedSourceKey("recorded/photos/", "other/photos/same.jpg"), null);
+});
+
+test("fresh deep links browse the exact folder, while explicit Find file still searches the location", async () => {
+  const source = readFileSync(new URL("../src/components/sources/sources-screen.tsx", import.meta.url), "utf8");
+  const ast = ts.createSourceFile("sources-screen.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const callbacks = {};
+  /** Collect production route initialization and search callbacks for behavior verification.
+   * Input: syntax node. Output: captured callbacks. Effects: none; choose to exercise
+   * exact linked selection and explicit search together without replacing their predicates.
+   */
+  function visit(node) {
+    if (ts.isVariableDeclaration(node)) {
+      const name = node.name.getText(ast);
+      if (name === "[appliedFilter, setAppliedFilter]") callbacks.initialFilter = node.initializer.arguments[0];
+      if (name === "selectedObject" || name === "runSearch") callbacks[name] = node.initializer.arguments[0];
+      if (name === "listingQuery") callbacks.list = node.initializer.arguments[0].properties.find((p) => p.name?.getText(ast) === "queryFn").initializer;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  assert.equal(Object.keys(callbacks).length, 4);
+  const file = "same.jpg";
+  const exact = { source_ref: "b2://fixture/recorded/photos/same.jpg", key: "recorded/photos/same.jpg", name: file, etag: "v2-etag", byte_length: 20 };
+  const wrong = { ...exact, source_ref: "b2://fixture/other/photos/same.jpg", key: "other/photos/same.jpg", etag: "other-version-etag", byte_length: 90 };
+  const requests = [];
+  const context = {
+    restored: null, prefix: "recorded/photos/", linkedFile: file, selectedRef: file, objects: [wrong, exact], linkedSourceKey,
+    mode: "LIVE", rootId: "fixture", query: file,
+    listProfferSources: async (request) => { requests.push(request); },
+    setAppliedFilter: (value) => { context.appliedFilter = value; },
+    setSelectedRef: (value) => { context.selectedRef = value; },
+    setPerspectiveChoice() {}, setSelectedFolder() {}, setCheckedRefs() {}, setLocalSource() {}, setScrollRow() {}, setSearchSummary() {},
+  };
+  const code = Object.entries(callbacks).map(([name, node]) => `globalThis.${name} = ${node.getText(ast)};`).join("\n");
+  runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  context.appliedFilter = context.initialFilter;
+  assert.equal(context.appliedFilter, "");
+  await context.list({ pageParam: undefined, signal: undefined });
+  assert.equal(requests.at(-1).prefix, "recorded/photos/");
+  assert.equal(requests.at(-1).filter, undefined);
+  assert.equal(context.selectedObject(), exact);
+  context.objects = [wrong];
+  assert.equal(context.selectedObject(), null);
+  context.objects = [wrong, exact];
+  const retained = { ...exact, etag: "retained-v1-etag", byte_length: 10 };
+  context.restored = { selectedRef: exact.source_ref, selectedObject: retained, providerVersion: "retained-v1" };
+  context.selectedRef = exact.source_ref;
+  assert.equal(context.selectedObject(), retained);
+  context.runSearch();
+  assert.equal(context.selectedRef, null);
+  await context.list({ pageParam: undefined, signal: undefined });
+  assert.equal(requests.at(-1).prefix, "");
+  assert.equal(requests.at(-1).filter, file);
+});
 
 test("Back restores exact object metadata, version, checked targets and scroll within one route scope", () => {
   const value = { selectedRef: "b2://fixture/source.md", selectedFolder: null, checkedRefs: ["b2://fixture/source.md"], providerVersion: "immutable-v1", query: "source", appliedFilter: "source", scrollRow: 42, aiExportSelection: "b2://fixture/source.md", aiProvider: "gemini_markdown",

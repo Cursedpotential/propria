@@ -13,6 +13,16 @@ export interface SourceNavigationState {
   aiProvider?: "" | "chatgpt" | "claude" | "gemini_markdown";
 }
 
+/** Resolve a linked filename to one exact object key inside its recorded folder.
+ * Inputs: folder prefix and basename or full object key. Output: exact key or null.
+ * Effects: none; choose for source links, never for explicit location-wide name search.
+ */
+export function linkedSourceKey(prefix: string, file: string): string | null {
+  if (!file) return null;
+  const folder = prefix && !prefix.endsWith("/") ? `${prefix}/` : prefix;
+  return file.includes("/") ? (file.startsWith(folder) ? file : null) : `${folder}${file}`;
+}
+
 /** Restore Sources navigation metadata within this browser tab and exact route scope.
  * Input: mode/root/prefix route key. Output: validated metadata or null.
  * Effects: reads session storage; choose for Back navigation without storing source bodies.
