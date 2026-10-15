@@ -1028,8 +1028,10 @@ func TestNotApplicableByteCoverageRefReachesVerification(t *testing.T) {
 	}
 }
 
-// TestWireTypesCarryOnlyCompactReferences is a structural proof, not a
-// behavioral one: it walks every exported field of every wire type by
+// TestWireTypesCarryOnlyCompactReferences verifies that workflow wire types contain only explicitly admitted compact metadata.
+// Inputs: exported wire fields inspected by reflection. Outputs: structural assertions.
+// Effects: no I/O or workflow execution. Choose for payload-boundary enforcement rather than behavioral stage tests.
+// It walks every exported field of every wire type by
 // reflection and fails if any field's type is anything other than Ref,
 // Status, ActivityName, a plain string tag, or a small collection of those.
 // This is what "only compact refs cross stage boundaries" actually means at
@@ -1051,7 +1053,8 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 	//
 	// 1. countBearing: ONLY named derivation/context summaries and the explicit
 	//    context resource budget may hold counts or flags. A numeric field added
-	//    directly to StageRequest or WorkflowInput remains disallowed.
+	//    directly to StageRequest or WorkflowInput remains disallowed except
+	//    the exact package-membership count admitted by checkField below.
 	// 2. nestable: the ONLY struct types a wire type may embed, point at, or
 	//    hold a slice of. Anything else — including a new local struct — is a
 	//    failure until it is added here deliberately.
@@ -1096,6 +1099,11 @@ func TestWireTypesCarryOnlyCompactReferences(t *testing.T) {
 
 	var checkStruct func(t *testing.T, rt reflect.Type)
 	checkField := func(t *testing.T, owner reflect.Type, name string, ft reflect.Type) {
+		// Frozen package membership contributes one compact count, never member bodies.
+		// Admit only this exact field; other workflow integers remain disallowed.
+		if owner == reflect.TypeOf(WorkflowInput{}) && name == "UnitMemberCount" && ft.Kind() == reflect.Int {
+			return
+		}
 		// This single flag is verified control metadata from a receipt-bearing Activity, never source text or identities.
 		// Retain the general compact-reference contract; unrelated bools and other payload fields remain disallowed.
 		if owner == reflect.TypeOf(StageResult{}) && name == "AIChatSource" && ft.Kind() == reflect.Bool {
