@@ -30,13 +30,13 @@ APPS = frozenset(
 DECISIONS = frozenset({"yes", "no", "unknown"})
 PROMPT = (
     "Classify THIS image from visible pixels and app UI controls. A cropped or renamed image can "
-    "be a screenshot; a PNG alone proves nothing. Use decision yes, no, or unknown. For yes, "
+    "be a screenshot; a PNG alone proves nothing. Set screenshot_decision to yes, no, or unknown. For yes, "
     "identify app from visible chrome/logo/navigation, not message topics or names. App must be "
     "facebook-messenger, messages, snapchat, whatsapp, instagram, browser, other, mixed, or "
     "unknown. Use mixed only if multiple app UIs are visible. Confidence is an uncalibrated "
-    "integer 0..100; set it to 0 when app is unknown or decision is no/unknown. Basis must briefly "
+    "integer 0..100; set it to 0 when app is unknown or screenshot_decision is no/unknown. Basis must briefly "
     "describe visual UI, without quoting conversation content. Return ONLY JSON with exactly four "
-    "short keys. Example: {\"decision\":\"yes\",\"app\":\"messages\",\"confidence\":85,"
+    "keys. Example: {\"screenshot_decision\":\"yes\",\"app\":\"messages\",\"confidence\":85,"
     "\"basis\":\"visible chat header and compose controls\"}. "
     "Now return JSON for THIS image."
 )
@@ -92,10 +92,10 @@ def validate_reply(content: str) -> dict[str, Any]:
             raise ValueError("classifier fence is invalid")
         value = match.group("body").strip()
     data = json.loads(value)
-    expected = {"decision", "app", "confidence", "basis"}
+    expected = {"screenshot_decision", "app", "confidence", "basis"}
     if not isinstance(data, dict) or set(data) != expected:
         raise ValueError("classifier JSON fields are invalid")
-    decision, app, confidence, basis = (data[k] for k in ("decision", "app", "confidence", "basis"))
+    decision, app, confidence, basis = (data[k] for k in ("screenshot_decision", "app", "confidence", "basis"))
     if decision not in DECISIONS or app not in APPS:
         raise ValueError("classifier decision or app is invalid")
     if type(confidence) is not int or not 0 <= confidence <= 100:

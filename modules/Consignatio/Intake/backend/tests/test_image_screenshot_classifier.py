@@ -42,7 +42,7 @@ def _reply(decision: str, app: str, confidence: int) -> dict:
     """
     return {
         "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({
-            "decision": decision,
+            "screenshot_decision": decision,
             "app": app,
             "confidence": confidence,
             "basis": "Visible navigation chrome",
@@ -58,11 +58,11 @@ def test_classifier_rejects_structurally_invalid_result():
     boundary before a model proposal reaches Parquet or Weaviate.
     """
     with pytest.raises(ValueError):
-        validate_reply(json.dumps({"decision": "yes", "app": "messages", "confidence": True, "basis": "UI"}))
+        validate_reply(json.dumps({"screenshot_decision": "yes", "app": "messages", "confidence": True, "basis": "UI"}))
     with pytest.raises(ValueError):
-        validate_reply(json.dumps({"decision": "no", "app": "whatsapp", "confidence": 50, "basis": "UI"}))
+        validate_reply(json.dumps({"screenshot_decision": "no", "app": "whatsapp", "confidence": 50, "basis": "UI"}))
     with pytest.raises(ValueError):
-        validate_reply(json.dumps({"decision": "yes", "app": "messages", "confidence": 90, "basis": "UI", "extra": "text"}))
+        validate_reply(json.dumps({"screenshot_decision": "yes", "app": "messages", "confidence": 90, "basis": "UI", "extra": "text"}))
     valid = _reply("yes", "messages", 77)["choices"][0]["message"]["content"]
     assert validate_reply(f"```json\n{valid}\n```")["screenshot_app"] == "messages"
     with pytest.raises(ValueError):
