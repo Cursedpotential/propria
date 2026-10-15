@@ -119,7 +119,7 @@ func TestHandlerDetectedFormatConstraintCoversEveryDetectorOutput(t *testing.T) 
 		"pdf", "docx", "archive", "callsbackuprestore_xml", "xml", "ndjson", "json", "csv", "text", "binary",
 		"facebook_messenger_json",                          // d1cb113a's detector output; missing from the CHECK until 2026-10-02 (Claude Code · Opus 5.5)
 		"facebook_messenger_html", "generic_html_document", // HTML detectors (Claude Code · Sonnet · 2026-10-02)
-		"imessage_html",
+		"imessage_html", "claude_ai_export_json",
 	}
 	for _, format := range expected {
 		require.Contains(t, constraint, "'"+format+"'::text", format)
