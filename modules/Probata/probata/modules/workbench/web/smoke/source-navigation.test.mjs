@@ -32,19 +32,20 @@ test("fresh deep links browse the exact folder, while explicit Find file still s
     if (ts.isVariableDeclaration(node)) {
       const name = node.name.getText(ast);
       if (name === "[appliedFilter, setAppliedFilter]") callbacks.initialFilter = node.initializer.arguments[0];
+      if (name === "[selectedRef, setSelectedRef]") callbacks.initialSelection = node.initializer.arguments[0];
       if (name === "selectedObject" || name === "runSearch") callbacks[name] = node.initializer.arguments[0];
       if (name === "listingQuery") callbacks.list = node.initializer.arguments[0].properties.find((p) => p.name?.getText(ast) === "queryFn").initializer;
     }
     ts.forEachChild(node, visit);
   }
   visit(ast);
-  assert.equal(Object.keys(callbacks).length, 4);
+  assert.equal(Object.keys(callbacks).length, 5);
   const file = "same.jpg";
   const exact = { source_ref: "b2://fixture/recorded/photos/same.jpg", key: "recorded/photos/same.jpg", name: file, etag: "v2-etag", byte_length: 20 };
   const wrong = { ...exact, source_ref: "b2://fixture/other/photos/same.jpg", key: "other/photos/same.jpg", etag: "other-version-etag", byte_length: 90 };
   const requests = [];
   const context = {
-    restored: null, prefix: "recorded/photos/", linkedFile: file, selectedRef: file, objects: [wrong, exact], linkedSourceKey,
+    restored: null, prefix: "recorded/photos/", linkedScope: true, linkedFile: file, selectedRef: file, objects: [wrong, exact], linkedSourceKey,
     mode: "LIVE", rootId: "fixture", query: file,
     listProfferSources: async (request) => { requests.push(request); },
     setAppliedFilter: (value) => { context.appliedFilter = value; },
@@ -71,6 +72,24 @@ test("fresh deep links browse the exact folder, while explicit Find file still s
   await context.list({ pageParam: undefined, signal: undefined });
   assert.equal(requests.at(-1).prefix, "");
   assert.equal(requests.at(-1).filter, file);
+  context.restored = null;
+  context.prefix = "";
+  context.linkedScope = false;
+  runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  context.appliedFilter = context.initialFilter;
+  context.selectedRef = context.initialSelection;
+  assert.equal(context.appliedFilter, file, "a legacy basename-only link keeps location-wide search");
+  assert.equal(context.selectedRef, null, "an unscoped name cannot silently select a duplicate");
+  await context.list({ pageParam: undefined, signal: undefined });
+  assert.equal(requests.at(-1).filter, file);
+  assert.equal(context.selectedObject(), null);
+  context.linkedScope = true;
+  context.objects = [wrong, { ...exact, key: file, source_ref: `b2://fixture/${file}` }];
+  runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  context.appliedFilter = context.initialFilter;
+  context.selectedRef = context.initialSelection;
+  assert.equal(context.appliedFilter, "", "an explicit empty prefix scopes to root");
+  assert.equal(context.selectedObject().key, file);
 });
 
 test("Back restores exact object metadata, version, checked targets and scroll within one route scope", () => {

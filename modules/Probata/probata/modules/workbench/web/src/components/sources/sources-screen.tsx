@@ -76,7 +76,7 @@ export function SourcesScreen() {
   const searchParams = useBrowserSearchParams();
   const rootId = searchParams.get("root") ?? "";
   const linkedFile = searchParams.get("file") ?? "";
-  return <SourcesScreenMode key={`${mode}:${rootId}:${searchParams.get("prefix") ?? ""}:${linkedFile}`} />;
+  return <SourcesScreenMode key={`${mode}:${rootId}:${searchParams.has("prefix")}:${searchParams.get("prefix") ?? ""}:${linkedFile}`} />;
 }
 
 function SourcesScreenMode() {
@@ -87,10 +87,11 @@ function SourcesScreenMode() {
   const rootId = searchParams.get("root") ?? "";
   const prefix = searchParams.get("prefix") ?? "";
   const linkedFile = searchParams.get("file") ?? "";
-  const navigationKey = JSON.stringify([mode, rootId, prefix, linkedFile]);
+  const linkedScope = searchParams.has("prefix");
+  const navigationKey = JSON.stringify([mode, rootId, linkedScope ? prefix : null, linkedFile]);
   const [restored, setRestored] = useState(() => restoreSourceNavigation(navigationKey));
-  const [appliedFilter, setAppliedFilter] = useState(restored?.appliedFilter ?? "");
-  const [selectedRef, setSelectedRef] = useState<string | null>(restored ? restored.selectedRef : linkedFile || null);
+  const [appliedFilter, setAppliedFilter] = useState(restored?.appliedFilter ?? (linkedScope ? "" : linkedFile));
+  const [selectedRef, setSelectedRef] = useState<string | null>(restored ? restored.selectedRef : linkedScope ? linkedFile || null : null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(restored ? restored.selectedFolder : searchParams.get("select_folder") === "1" ? prefix : null);
   const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set(restored?.checkedRefs ?? []));
   const [scrollRow, setScrollRow] = useState(restored?.scrollRow ?? 0);
@@ -203,8 +204,8 @@ function SourcesScreenMode() {
   const selectedObject = useMemo(
     () => restored?.selectedRef === selectedRef && restored.selectedObject
       ? restored.selectedObject : objects.find((object) => object.source_ref === selectedRef
-        || (selectedRef === linkedFile && linkedFile && object.key === linkedSourceKey(prefix, linkedFile))) ?? null,
-    [objects, restored, selectedRef, linkedFile, prefix],
+        || (linkedScope && selectedRef === linkedFile && linkedFile && object.key === linkedSourceKey(prefix, linkedFile))) ?? null,
+    [objects, restored, selectedRef, linkedFile, prefix, linkedScope],
   );
   const activeRootId = rootId || listing?.active_root_id || "";
 
