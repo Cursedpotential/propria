@@ -322,7 +322,7 @@ export function ProfferOperatorPreview({
           </>}
           {preview.results.source_ref && <div><dt className="inline">Original source </dt><dd className="inline">{preview.results.source_ref}</dd></div>}
         </dl></details>
-        {preview.results.source_kind === "ai_chat" && <AppLink className="mt-2 inline-block underline" href={`/sources?mode=${snapshot.matter_mode}`}>Inspect the original in Sources</AppLink>}
+        {preview.results.source_kind === "ai_chat" && <AppLink className="mt-2 inline-block underline" href={`/sources?mode=${snapshot.matter_mode}`}>Open Sources</AppLink>}
       </section>}
 
       <div className="@container">
